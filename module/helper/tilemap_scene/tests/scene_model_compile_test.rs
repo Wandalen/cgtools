@@ -1866,3 +1866,67 @@ fn layer_behaviour_blend_reaches_sprite_command()
     "expected BlendMode::Add to propagate from LayerBehaviour, got {:?}", sprites[ 0 ].blend,
   );
 }
+
+#[ test ]
+fn layer_behaviour_alpha_multiplies_into_sprite_tint()
+{
+  // Regression for commit 28ced311: every Sprite emit site in compile/frame.rs
+  // must pipe `LayerBehaviour.alpha` through the `tinted()` helper that
+  // multiplies the alpha channel. Without global tint, alpha = 0.5 should
+  // produce tint = [ 1, 1, 1, 0.5 ].
+  let mut spec = minimal_spec();
+  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
+  stack[ 0 ].behaviour.alpha = 0.5;
+
+  let scene = Scene
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let commands = compile_frame( &spec, &scene, &compiled, &Camera::default(), 0.0 ).unwrap();
+  let sprites = sprite_commands( &commands );
+  assert_eq!( sprites.len(), 1 );
+  let tint = sprites[ 0 ].tint;
+  assert_eq!( tint[ 0 ], 1.0, "RGB untouched: {tint:?}" );
+  assert_eq!( tint[ 1 ], 1.0, "RGB untouched: {tint:?}" );
+  assert_eq!( tint[ 2 ], 1.0, "RGB untouched: {tint:?}" );
+  assert!( ( tint[ 3 ] - 0.5 ).abs() < 1e-5, "alpha should be 0.5: {tint:?}" );
+}
+
+#[ test ]
+fn layer_behaviour_alpha_composes_with_global_tint()
+{
+  // The per-layer alpha multiplier composes with the resolved global tint
+  // (default 1.0 alpha unless the tint colour itself carries one). With
+  // a `#ff0000` (rgb-only) tint that resolves to alpha=1.0 and a layer
+  // alpha of 0.5, the final sprite alpha is 0.5 * 1.0 = 0.5 — and the RGB
+  // channels still reflect the global tint.
+  let mut spec = minimal_spec();
+  spec.tints.push( Tint
+  {
+    id : "dusk".into(),
+    color : "#ff0000".into(),
+    strength : 1.0,
+    mode : BlendMode::Multiply,
+  });
+  spec.pipeline.global_tint = Some( TintRef( "dusk".into() ) );
+  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
+  stack[ 0 ].behaviour.alpha = 0.5;
+
+  let scene = Scene
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let commands = compile_frame( &spec, &scene, &compiled, &Camera::default(), 0.0 ).unwrap();
+  let sprites = sprite_commands( &commands );
+  let tint = sprites[ 0 ].tint;
+  assert!( ( tint[ 0 ] - 1.0 ).abs() < 1e-5, "red preserved: {tint:?}" );
+  assert!( tint[ 1 ].abs() < 1e-5, "green zeroed by global tint: {tint:?}" );
+  assert!( tint[ 2 ].abs() < 1e-5, "blue zeroed by global tint: {tint:?}" );
+  assert!( ( tint[ 3 ] - 0.5 ).abs() < 1e-5, "alpha = layer.alpha * global.alpha = 0.5: {tint:?}" );
+}
