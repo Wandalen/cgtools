@@ -1930,3 +1930,76 @@ fn layer_behaviour_alpha_composes_with_global_tint()
   assert!( tint[ 2 ].abs() < 1e-5, "blue zeroed by global tint: {tint:?}" );
   assert!( ( tint[ 3 ] - 0.5 ).abs() < 1e-5, "alpha = layer.alpha * global.alpha = 0.5: {tint:?}" );
 }
+
+#[ test ]
+fn viewport_layer_behaviour_propagates_to_screen_space_sprite()
+{
+  // The hex emit path is only one of seven sites in compile/frame.rs that
+  // construct a Sprite. Viewport-anchored layers route through a different
+  // code path that emits RenderCommand::ScreenSpaceSprite, not Sprite —
+  // a partial regression that re-hardcodes BlendMode::default() or drops
+  // the alpha multiplier here would slip past tests that only inspect
+  // RenderCommand::Sprite. Cover the ScreenSpaceSprite path explicitly.
+  let mut spec = minimal_spec();
+  let mut states = HashMap::default();
+  states.insert
+  (
+    "default".into(),
+    vec!
+    [
+      ObjectLayer
+      {
+        id : None,
+        sprite_source : SpriteSource::ViewportTiled
+        {
+          content : Box::new( SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ) ),
+          tiling : ViewportTiling::Center,
+          anchor_point : ViewportAnchorPoint::TopLeft,
+        },
+        behaviour : LayerBehaviour
+        {
+          blend : BlendMode::Add,
+          alpha : 0.25,
+          ..LayerBehaviour::default()
+        },
+        z_in_object : 0,
+        pipeline_layer : None,
+      },
+    ],
+  );
+  spec.objects.push( Object
+  {
+    id : "sky".into(),
+    anchor : Anchor::Viewport,
+    global_layer : "terrain".into(),
+    priority : None,
+    sort_y_source : Default::default(),
+    pivot : ( 0.5, 0.5 ),
+    default_state : "default".into(),
+    states,
+  });
+  let scene = Scene
+  {
+    tiles : Vec::new(),
+    viewport_instances : vec!
+    [
+      ViewportInstance { object : "sky".into(), animation : None },
+    ],
+    ..minimal_scene_3x3()
+  };
+
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let commands = compile_frame( &spec, &scene, &compiled, &Camera::default(), 0.0 ).unwrap();
+  let screen = screen_space_commands( &commands );
+  assert_eq!( screen.len(), 1 );
+  assert!
+  (
+    matches!( screen[ 0 ].blend, BlendMode::Add ),
+    "viewport ScreenSpaceSprite must carry LayerBehaviour.blend, got {:?}", screen[ 0 ].blend,
+  );
+  assert!
+  (
+    ( screen[ 0 ].tint[ 3 ] - 0.25 ).abs() < 1e-5,
+    "viewport ScreenSpaceSprite must carry LayerBehaviour.alpha as tint[3], got {:?}", screen[ 0 ].tint,
+  );
+}
