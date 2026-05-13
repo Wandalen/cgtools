@@ -149,6 +149,16 @@ mod private
         "https://app.example.com/foo.glb"
       );
     }
+
+    #[ test ]
+    fn empty_input_resolves_to_origin_root()
+    {
+      assert_eq!
+      (
+        resolve_url( "https://app.example.com", "" ),
+        "https://app.example.com/"
+      );
+    }
   }
 
 }
