@@ -155,7 +155,7 @@ path = "module/helper/behaviour_tree"
 # = min
 
 [workspace.dependencies.mingl]
-version = "~0.3.0"
+version = "~0.4.0"
 path = "module/min/mingl"
 
 [workspace.dependencies.minwebgl]
