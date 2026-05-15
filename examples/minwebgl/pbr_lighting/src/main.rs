@@ -66,7 +66,7 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf_path = "2017_porsche_911_turbo_s_exclusive_series_991.2.glb";
+  let gltf_path = "static/2017_porsche_911_turbo_s_exclusive_series_991.2.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scene = gltf.scenes[ 0 ].clone();
   scene.borrow_mut().update_world_matrix();
@@ -108,7 +108,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_use_emission( true );
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap", Some( 0..0 ) ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", Some( 0..0 ) ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -117,7 +117,7 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  let sphere_gltf = renderer::webgl::loaders::gltf::load( &document, "sphere.glb", &gl ).await?;
+  let sphere_gltf = renderer::webgl::loaders::gltf::load( &document, "static/sphere.glb", &gl ).await?;
   let sphere = sphere_gltf.scenes[ 0 ].borrow().children.last().cloned().unwrap();
 
   let mut lights = vec![];

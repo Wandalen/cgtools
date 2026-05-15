@@ -84,9 +84,9 @@ async fn run() -> Result< (), gl::WebglError >
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
   let mut swap_buffer = SwapFramebuffer::new( &gl, width as u32, height as u32 );
 
-  let mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
+  let mesh = gltf::load( &document, "static/skull_salazar_downloadable.glb", &gl ).await?;
 
-  let cube_mesh = gltf::load( &document, "plane.glb", &gl ).await?;
+  let cube_mesh = gltf::load( &document, "static/plane.glb", &gl ).await?;
   let cube_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] ) * mat3x3h::scale( [ 8.0, 1.0, 8.0 ] );
 
   let mut main_scene = renderer::webgl::Scene::new();

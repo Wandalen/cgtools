@@ -42,8 +42,8 @@ async fn run() -> Result< (), gl::WebglError >
   gl.enable( GL::DEPTH_TEST );
   gl.enable( GL::CULL_FACE );
 
-  let obj = gl::file::load( "cat/Cat.obj" ).await.unwrap();
-  let ( models, materials ) = gl::model::load_model_from_slice( &obj, "cat", &tobj::GPU_LOAD_OPTIONS )
+  let obj = gl::file::load( "static/cat/Cat.obj" ).await.unwrap();
+  let ( models, materials ) = gl::model::load_model_from_slice( &obj, "static/cat", &tobj::GPU_LOAD_OPTIONS )
   .await
   .expect( "Can't read model" );
   let materials = materials.expect( "Can't load materials" );

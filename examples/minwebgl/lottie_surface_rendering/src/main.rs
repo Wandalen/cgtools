@@ -194,7 +194,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 {
   let window = web_sys::window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
-  let mut gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/sphere.glb", &gl ).await?;
+  let mut gltf = renderer::webgl::loaders::gltf::load( &document, "static/gltf/sphere.glb", &gl ).await?;
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
@@ -255,7 +255,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut gltf = setup_scene( &gl ).await?;
 
-  let lottie_path = "lottie/google.json";
+  let lottie_path = "static/lottie/google.json";
   let animation = load_animation( &gl, lottie_path ).await;
   animation.set_world_matrix( identity() );
 
@@ -305,7 +305,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera.get_controls().borrow_mut().center = [ 0.0, 1.0, 0.0 ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal", None ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/gltf_viewer_ibl_unreal", None ).await );
   let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
   renderer.set_skybox( skybox.texture.borrow().source.clone() );
 

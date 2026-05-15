@@ -111,7 +111,7 @@ async fn run() -> Result< (), gl::WebglError >
   let ltc1 = load_table( &gl, LTC1 );
   let ltc2 = load_table( &gl, LTC2 );
 
-  let skull_mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
+  let skull_mesh = gltf::load( &document, "static/skull_salazar_downloadable.glb", &gl ).await?;
   let skull_model = mat3x3h::translation( [ 0.0, 1.0, 0.0 ] );
 
   let mut camera = renderer::webgl::Camera::new

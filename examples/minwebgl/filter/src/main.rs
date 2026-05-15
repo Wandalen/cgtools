@@ -19,7 +19,7 @@ fn main()
 
 fn run()
 {
-  let image_path = "unnamed.png";
+  let image_path = "static/unnamed.png";
   let gl = gl::context::retrieve_or_make().expect( "Can't retrieve GL context" );
 
   let load = move | img : &HtmlImageElement |
@@ -97,6 +97,6 @@ fn load_image( path : &str, on_load_callback : Box< dyn Fn( &HtmlImageElement ) 
   image.set_onload( Some( on_load_callback.as_ref().unchecked_ref() ) );
   on_load_callback.forget();
   let origin = window.location().origin().expect( "Should have an origin" );
-  let url = format!( "{origin}/static/{path}" );
+  let url = format!( "{origin}/{path}" );
   image.set_src( &url );
 }

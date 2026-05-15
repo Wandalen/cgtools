@@ -63,7 +63,7 @@ fn set_load_callback()
     update();
   };
 
-  let _ = load_image( "tileset.png", Box::new( load ) );
+  let _ = load_image( "static/tileset.png", Box::new( load ) );
 }
 
 fn load_image
@@ -110,7 +110,7 @@ fn load_image
   .location()
   .origin()
   .expect( "Should have an origin" );
-  let url = format!( "{origin}/static/{path}" );
+  let url = format!( "{origin}/{path}" );
   image.set_src( &url );
   Ok( image )
 }

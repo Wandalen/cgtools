@@ -193,7 +193,7 @@ async fn setup_scene( gl : &GL ) -> Result< GLTF, gl::WebglError >
   let window = web_sys::window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
 
-  let gltf_path = "2017_porsche_911_turbo_s_exclusive_series_991.2.glb";
+  let gltf_path = "static/2017_porsche_911_turbo_s_exclusive_series_991.2.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
 
   let car = gltf.scenes[ 0 ].borrow().children.get( 0 )
@@ -251,7 +251,7 @@ async fn run() -> Result< (), gl::WebglError >
     )
   );
 
-  renderer.borrow_mut().set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/pink_sunrise_4k/", None ).await );
+  renderer.borrow_mut().set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/pink_sunrise_4k/", None ).await );
   let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/pink_sunrise.jpg" ).unwrap();
   renderer.borrow_mut().set_skybox( skybox.texture.borrow().source.clone() );
   let renderer1 = renderer.clone();

@@ -409,9 +409,9 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
 
-  let sponza = gltf::load( &document, "sponza.glb", &gl ).await?;
+  let sponza = gltf::load( &document, "static/sponza.glb", &gl ).await?;
   gl.bind_vertex_array( None );
-  let sphere = gltf::load( &document, "sphere.glb", &gl ).await?;
+  let sphere = gltf::load( &document, "static/sphere.glb", &gl ).await?;
 
   sponza.scenes[ 0 ].borrow_mut().update_world_matrix();
   let scene_bounding_box = sponza.scenes[ 0 ].borrow().bounding_box();

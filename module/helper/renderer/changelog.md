@@ -24,9 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: Renamed `Renderer::get_exposure()` → `exposure()`, `get_bloom_radius()` → `bloom_radius()`, `get_bloom_strength()` → `bloom_strength()`, `get_main_texture()` → `main_texture()`
 - **BREAKING**: Renamed `GBuffer::get_texture()` → `texture()`
 - **BREAKING**: Removed `shader_hash()` from the `Material` trait (dead code, replaced by `(TypeId, defines_str)` cache key)
+- **BREAKING**: Asset loaders (`webgl::loaders::gltf::load`, `webgl::loaders::ibl::load`, `webgl::loaders::hdr_texture::load_to_mip_cube` / `load_to_mip_d2`) no longer rely on `mingl::file::load`'s implicit `/static/` prefix. Path arguments are now passed verbatim to the underlying fetch — callers that previously passed bare paths like `"envMap"` must now pass `"static/envMap"` (or any other valid URL / origin-absolute path). Migration mirrors the upstream `mingl` 0.4.0 change.
 
 ### Fixed
 
+- Removed leftover `format!( "static/{}/{}", ... )` in `webgl::loaders::gltf::load`'s texture-Uri branch which, after the `mingl::file::load` semantics change, produced `static/static/<path>` URLs for any glTF with external textures.
 - Fixed IBL texture corruption where `upload_textures()` could overwrite IBL texture units because `active_texture` was not reset after `ibl.bind()`.
 - Fixed `light_map` texture not being bound in `PbrMaterial::bind()` (was missing from the bind list).
 - Fixed texture unit state leak in custom materials (`GemMaterial`, `SurfaceMaterial`) — `upload()` is now called inside `bind()` with explicit `active_texture()` per unit.
