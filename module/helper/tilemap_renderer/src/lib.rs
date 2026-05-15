@@ -57,3 +57,8 @@ mod_interface::mod_interface!
   ) ) ]
   layer adapters;
 }
+
+// Scene-model has been extracted into its own crate: `tilemap_scene`. The
+// `scene-model` feature now only gates the serde derives on the sampler
+// types (`SamplerFilter`, `MipmapMode`, `WrapMode`) that `tilemap_scene`
+// needs to serialize / deserialize alongside its own declaration types.

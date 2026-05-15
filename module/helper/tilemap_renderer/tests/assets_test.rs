@@ -32,8 +32,8 @@ fn assets_validate_no_duplicates()
   let assets = Assets
   {
     images : vec![
-      ImageAsset { id : ResourceId::new( 0 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off },
-      ImageAsset { id : ResourceId::new( 1 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off },
+      ImageAsset { id : ResourceId::new( 0 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off, wrap : WrapMode::Clamp },
+      ImageAsset { id : ResourceId::new( 1 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off, wrap : WrapMode::Clamp },
     ],
     ..empty_assets()
   };
@@ -48,8 +48,8 @@ fn assets_validate_duplicate_image_ids()
   let assets = Assets
   {
     images : vec![
-      ImageAsset { id : ResourceId::new( 5 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off },
-      ImageAsset { id : ResourceId::new( 5 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off },
+      ImageAsset { id : ResourceId::new( 5 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off, wrap : WrapMode::Clamp },
+      ImageAsset { id : ResourceId::new( 5 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off, wrap : WrapMode::Clamp },
     ],
     ..empty_assets()
   };
@@ -85,7 +85,7 @@ fn assets_validate_cross_type_ids_ok()
   let assets = Assets
   {
     images : vec![
-      ImageAsset { id : ResourceId::new( 0 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off },
+      ImageAsset { id : ResourceId::new( 0 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off, wrap : WrapMode::Clamp },
     ],
     geometries : vec![
       GeometryAsset { id : ResourceId::new( 0 ), positions : Source::Bytes( vec![] ), uvs : None, indices : None, data_type : DataType::U16 },
@@ -103,8 +103,8 @@ fn assets_validate_multiple_duplicate_types()
   let assets = Assets
   {
     images : vec![
-      ImageAsset { id : ResourceId::new( 0 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off },
-      ImageAsset { id : ResourceId::new( 0 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off },
+      ImageAsset { id : ResourceId::new( 0 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off, wrap : WrapMode::Clamp },
+      ImageAsset { id : ResourceId::new( 0 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear, mipmap : MipmapMode::Off, wrap : WrapMode::Clamp },
     ],
     sprites : vec![
       SpriteAsset { id : ResourceId::new( 1 ), sheet : ResourceId::new( 0 ), region : [ 0.0; 4 ] },

@@ -17,7 +17,16 @@ void main()
   vec2 quad = vec2( float( gl_VertexID & 1 ), float( ( gl_VertexID >> 1 ) & 1 ) );
 
   // Compute UV from pixel region and sheet size (matches sprite_batch.vert).
-  v_uv = ( u_region.xy + quad * u_region.zw ) / u_tex_size;
+  // `u_region` is in image-pixel coords (y grows top-down). Textures are
+  // uploaded with UNPACK_FLIP_Y_WEBGL=1 so uv.y=1 samples image row 0.
+  // Two inversions needed: (a) `( 1 - quad.y )` maps sprite-top (quad.y=1)
+  // to region-top (region.y), and (b) the outer `1 - ...` flips V to
+  // account for the texture-upload flip.
+  v_uv = vec2
+  (
+    ( u_region.x + quad.x * u_region.z ) / u_tex_size.x,
+    1.0 - ( u_region.y + ( 1.0 - quad.y ) * u_region.w ) / u_tex_size.y
+  );
 
   // Scale unit quad to sprite's pixel size (region.zw), then apply transform.
   vec3 world = u_transform * vec3( quad * u_region.zw, 1.0 );
