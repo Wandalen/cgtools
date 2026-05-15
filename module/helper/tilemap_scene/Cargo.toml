@@ -1,0 +1,20 @@
+[package]
+name = "tilemap_scene"
+version = "0.1.0"
+edition = "2024"
+authors = ["cgtools contributors"]
+license = "MIT"
+description = "Compositional declarative scene format for 2D tile-based games — compile to tilemap_renderer commands"
+repository = "https://github.com/Wandalen/cgtools"
+
+[dependencies]
+error_tools = { workspace = true }
+mod_interface = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+ron = { workspace = true }
+tiles_tools = { workspace = true, features = ["serialization"] }
+rustc-hash = { workspace = true }
+tilemap_renderer = { workspace = true, features = ["scene-model"] }
+
+[lints]
+workspace = true

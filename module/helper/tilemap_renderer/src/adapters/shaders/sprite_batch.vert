@@ -24,11 +24,17 @@ void main()
   vec2 quad = vec2( float( gl_VertexID & 1 ), float( ( gl_VertexID >> 1 ) & 1 ) );
 
   // Compute UV from pixel region and sheet size.
-  // `i_region` carries the sprite rect in pixels; normalization happens here
-  // rather than in Rust so per-instance data stays independent of the
-  // (possibly async-loaded) sheet's dimensions. `sprite.vert` uses the same
-  // convention for a consistent single-draw / batch UV pipeline.
-  v_uv = ( i_region.xy + quad * i_region.zw ) / u_tex_size;
+  // `i_region` carries the sprite rect in pixels (y grows top-down, standard
+  // image convention). Textures are uploaded with UNPACK_FLIP_Y_WEBGL=1 so
+  // uv.y=1 samples image row 0. Two inversions needed: (a) `( 1 - quad.y )`
+  // maps sprite-top (quad.y=1) to region-top (region.y), and (b) the outer
+  // `1 - ...` flips V to account for the texture-upload flip. Shared with
+  // `sprite.vert` for a consistent single-draw / batch UV pipeline.
+  v_uv = vec2
+  (
+    ( i_region.x + quad.x * i_region.z ) / u_tex_size.x,
+    1.0 - ( i_region.y + ( 1.0 - quad.y ) * i_region.w ) / u_tex_size.y
+  );
   v_tint = i_tint;
 
   // Instance transform: each i_transform_N is a column of the column-major matrix from Transform::to_mat3().
