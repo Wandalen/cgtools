@@ -14,7 +14,7 @@ use tilemap_scene::
   BlendMode,
   MaskTint,
   RenderSpec,
-  Scene,
+  SceneSnapshot,
   SpriteRef,
   SpriteSource,
   TilingStrategy,
@@ -265,7 +265,7 @@ fn validate_rejects_unknown_asset_in_animation()
 // ────────────────────────────────────────────────────────────────────────────
 
 const MINIMAL_SCENE : &str = r##"
-Scene(
+SceneSnapshot(
     meta: ( name: Some("Demo"), render_spec: Some("render_spec.ron") ),
     bounds: ( min: ( 0, 0 ), max: ( 3, 3 ) ),
     tiles: [
@@ -288,7 +288,7 @@ Scene(
 #[ test ]
 fn parses_minimal_scene()
 {
-  let scene = Scene::from_ron_str( MINIMAL_SCENE ).expect( "scene must parse" );
+  let scene = SceneSnapshot::from_ron_str( MINIMAL_SCENE ).expect( "scene must parse" );
   assert_eq!( scene.meta.name.as_deref(), Some( "Demo" ) );
   assert_eq!( scene.tiles.len(), 3 );
   assert_eq!( scene.entities.len(), 1 );
@@ -300,7 +300,7 @@ fn parses_minimal_scene()
 #[ test ]
 fn validates_minimal_scene()
 {
-  let scene = Scene::from_ron_str( MINIMAL_SCENE ).expect( "scene must parse" );
+  let scene = SceneSnapshot::from_ron_str( MINIMAL_SCENE ).expect( "scene must parse" );
   scene.validate().expect( "skeleton validation returns Ok" );
 }
 

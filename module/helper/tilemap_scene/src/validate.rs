@@ -13,7 +13,7 @@ mod private
   use rustc_hash::FxHashSet as HashSet;
   use crate::error::ValidationError;
   use crate::resource::AnimationTiming;
-  use crate::scene::Scene;
+  use crate::snapshot::SceneSnapshot;
   use crate::source::{ NeighborBitmaskSource, SpriteSource };
   use crate::spec::RenderSpec;
 
@@ -155,7 +155,7 @@ mod private
     }
   }
 
-  impl Validate for Scene
+  impl Validate for SceneSnapshot
   {
     /// **Not yet enforcing.** Every Scene-internal SPEC §16 rule is still a
     /// `TODO`; the cross-file Scene → RenderSpec checks run in a separate

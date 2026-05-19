@@ -2,13 +2,20 @@
 
 - **Project:** Compositional declarative scene format for 2D tile-based games
 - **Version:** 0.1.0
-- **Status:** Active development — Slice 4 shipped, Slice 5 pending
+- **Status:** Active development — Path A (retained-mode `Scene` + `Renderer` with delta cache + sprite batching) shipped.
 
 ## Current state
 
-The compile-to-commands pipeline (`compile_assets` + `compile_frame`) is
-stateless and covers the core vocabulary end-to-end. Used successfully by
-the `examples/minwebgl/slay_map` WebGL demo.
+The crate is now a retained-mode pipeline: consumers mutate a `Scene` via
+typed `InstanceHandle`s; a separate `Renderer` walks the scene each frame
+and emits a `RenderCommand` stream. Idle frames are served from a
+per-renderer cache; mutating frames emit instanced `DrawBatch`es grouped
+by `(bucket, sheet, blend, clip)` for `SortMode::None` buckets and
+per-sprite `Sprite` commands for sorted buckets. The legacy stateless
+`compile_frame` is gone — `Renderer::render(scene, camera)` is the sole
+entry.
+
+Used by `examples/minwebgl/slay_map`.
 
 ### Shipped
 
@@ -49,7 +56,78 @@ the `examples/minwebgl/slay_map` WebGL demo.
 - RON + serde loader (`RenderSpec::load`, `Scene::load`) with validation hooks
 - `ScreenSpaceSprite` command (implemented end-to-end in the WebGL adapter; SVG stubs)
 
-**Test baseline:** 84 passing — 35 unit (hash, ids, camera, coords, animation, neighbors, conditions, vertex, edges, viewport), 35 integration compile (anchor × source coverage), 14 integration serde/validation round-trip.
+**Retained-mode runtime (Path A — Steps 1-4):**
+
+- `Scene` — `SlotMap<InstanceHandle, Instance>` + per-anchor `Vec`s +
+  `(q, r) → Vec<InstanceHandle>` spatial index. Mutators: `spawn` /
+  `despawn` / `move_to` / `set_state` / `set_visible` / `set_tint` /
+  `set_phase_offset` / `set_external_sprite` / `set_global_tint` /
+  `set_seed`. Queries: `instance` / `instances` / `instances_at_hex` /
+  per-anchor accessors / `spec` / `clock` / `revision`.
+- `Scene::tick(dt) -> Vec<SceneEvent>` — advances the master clock and
+  returns `SceneEvent::AnimationCompleted` for every leaf
+  `SpriteSource::Animation` layer whose OneShot duration was crossed in
+  this tick. Visibility-gated; deterministic across runs.
+- `Scene::from_snapshot` — bridge that materialises a serde-loaded
+  `SceneSnapshot` (`palette + map` ASCII form supported) by spawning
+  every declared instance.
+- `Scene::revision()` — monotonic mutation counter, bumped exactly once
+  per successful state-changing call (`tick` does NOT bump). Underlies
+  the renderer's idle-replay cache.
+- `Renderer` — owns `CompiledAssets`, allocates batches on demand,
+  carries a per-frame cache across calls.
+  - **Idle-replay:** when `(scene.revision, scene.clock, camera
+    fingerprint)` matches the snapshot from the previous call, returns
+    the previously emitted command slice verbatim — no scene walk,
+    no command rebuild. Exposed via `Renderer::cache_hits()` for
+    consumer telemetry.
+  - **Batch emission (SortMode::None buckets):** sprites grouped by
+    `(bucket, sheet, blend, clip)` into instanced batches. First
+    encounter emits `CreateSpriteBatch` + `BindBatch` + N×
+    `AddSpriteInstance` + `UnbindBatch`; subsequent emissions reuse
+    the same batch id with `Bind` + `Set` for the
+    `0..min(old, new)` prefix + `RemoveInstance` to trim the tail +
+    `AddSpriteInstance` to extend + `Unbind`. Unused keys flushed via
+    `DeleteBatch`. One `DrawBatch` per live batch in walk order.
+  - **Per-sprite emission (sorted buckets):** any bucket with a non-
+    `None` `SortMode` continues to emit per-sprite `Sprite` commands
+    to preserve visual ordering across multiple sheets.
+- `RenderCommand::ScreenSpaceSprite` — viewport-anchored emits stay
+  per-sprite (not batched in Step 4; deferred polish item).
+
+**Test baseline:** 138 passing.
+35 unit tests (hash, ids, camera, coords, animation, neighbors,
+conditions, vertex, edges, viewport, snapshot expansion) +
+17 `scene_state` (handle resolution, mutation API, revision bumps) +
+13 `scene_events` (`tick` + OneShot completion semantics) +
+6 `renderer_test` (per-instance overrides, snapshot bridge) +
+14 `renderer_cache_test` (idle replay, mutation / tick / camera
+invalidation, byte-equality on replay) +
+39 `scene_model_compile_test` (anchor × source × pipeline coverage —
+all migrated via `tests/common::flatten_to_sprites`) +
+14 `scene_model_test` (RON + serde round-trip).
+
+**Closed `TILEMAP_SCENE_FEEDBACK.md` items:**
+
+- §1 Runtime spec mutation — gone. Per-instance phase override
+  (`set_phase_offset`) replaces the duplicate-Object workaround.
+- §2 `compile_assets` all-or-nothing — `Renderer::new` is the only
+  compile path; scene mutations never trigger asset recompile.
+- §3 Anchor per-`Object` — `Placement` is now per-instance
+  (`Hex { q, r }` / `Edge { hex, dir }` / `FreePos { x, y }` /
+  `Viewport` / `Multihex`).
+- §4 String-keyed `Tile.objects` — `InstanceHandle` /
+  `ObjectHandle` are interned `u32` ids; spawn-then-cache pattern.
+- §5 `PhaseOffset` global — per-instance `set_phase_offset(Some(t))`.
+- §6 No OneShot completion — `Scene::tick` returns
+  `SceneEvent::AnimationCompleted` for every crossing.
+- §7 Per-instance tinting — `set_tint(handle, Option<[f32; 4]>)`.
+- §9 `compile_frame` rebuilds every frame — idle replay + batch
+  reuse; mutations emit only the Set/Add/Remove diff for the
+  affected batch.
+
+**Open feedback items** (see *Polish items* + *Deferred from Step 4*
+below): §8, §10, §11, §12, §13, §14.
 
 ## Polish items — pick-by-need, no fixed slice
 
@@ -69,10 +147,12 @@ game use-case demands one.
    source compatibility, default_state existence, reserved ids, tiling
    whitelist, duplicate-id checks). Each rule is a ~10-line method.
    Tedious but high-value for catching bad specs at load time.
-4. **`External` sprite source runtime plumbing.** Tied to the stateful
-   renderer (Slice 5) — `set_sprite(instance, slot, sprite_ref)` populates
-   an internal map that `compile_frame` looks up. Without Slice 5, the
-   External source just emits nothing.
+4. ~~**`External` sprite source runtime plumbing.**~~ *Shipped.*
+   `Scene::set_external_sprite( handle, slot, SpriteRef )` populates
+   the per-instance slot map; the renderer resolves
+   `SpriteSource::External { slot }` against it. Unset slots emit
+   nothing (no error, no placeholder — see §12.2 of the spec for the
+   pending magenta-checkerboard option).
 5. **`AssetKind::SpriteSheet` support.** Currently rejected at compile with
    `UnsupportedAssetKind`. Useful shorthand for horizontal / vertical /
    grid sprite sheets that an atlas already covers — optional.
@@ -117,74 +197,65 @@ game use-case demands one.
     returns `alpha: 1.0` (was `0.0` via `f32::default()`, inconsistent with the
     serde default).
 
-## Slice 5 — stateful `Renderer` + runtime mutation API
+## Deferred from Step 4 — `Renderer` follow-ups
 
-Goal: move from stateless `compile_frame` (rebuild-every-tick) to a
-`Renderer` struct that tracks instances across frames. Unlocks runtime
-API, sprite-batch optimisation, and animation completion callbacks.
+Pragmatic deferrals from the Path-A delivery. None block consumers; each
+is a self-contained optimisation or scope-extension to revisit when a real
+workload demands it.
 
-### `Renderer` shape
+1. **Fine-delta per-instance `SetSpriteInstance` for `SortMode::None`
+   batches.** Current behaviour: any change to a `None`-sorted bucket
+   forces a full repopulate of the affected batch (Bind →
+   Set 0..min(old, new) → Remove trim → Add extend → Unbind). The plan
+   originally called for **stable per-(instance, layer, emit) slot
+   identity** so a single `move_to` on one hex emits exactly one
+   `SetSpriteInstance` at the cached slot, independent of how many
+   other hexes the batch contains. Needs: stable `EmitKey →
+   (BatchKey, slot)` map in `Renderer`, walk-scene-vs-cache diff,
+   selective Set with bit-equal payload check. Worth picking up when
+   profiling shows the per-mutation Set storm on large maps.
 
-```rust
-pub struct Renderer {
-    spec: RenderSpec,
-    compiled: CompiledAssets,
-    batches: HashMap<String, SpriteBatchHandle>,         // per pipeline bucket
-    instances: IdGen<InstanceHandle>,                    // spawn-returned IDs
-    instance_to_batch_index: HashMap<InstanceHandle, (BatchId, u32)>,
-    clock: f32,
-    camera: Camera,
-    global_tint_override: Option<TintRef>,
-    external_sprites: HashMap<(InstanceHandle, String), SpriteRef>,   // for External source
-}
-```
+2. **Sorted-bucket batching (multi-sheet safe path).** Sorted buckets
+   (`YAsc` / `XAsc` / …) currently emit per-sprite `Sprite` commands so
+   visual order is preserved across sheets. Two viable upgrades:
+   (a) detect single-sheet sorted buckets at runtime and batch those
+   (cheap, immediate win for typical unit layers);
+   (b) encode the sort key into `Transform.depth` and rely on depth
+   testing in the backend (requires backend-side blend / depth-test
+   contract — bigger change). Pick (a) first.
 
-### Runtime API (per SPEC §14)
+3. **Viewport-pass batching.** `RenderCommand::ScreenSpaceSprite` is
+   per-sprite. Typical viewport instance counts are small (HUD
+   elements), so this is rarely a hotspot — revisit only if profiling
+   flags it.
 
-- `spawn(object_id, placement: Placement) -> InstanceHandle` — `Placement`
-  is anchor-specific: `Hex(q, r)`, `Edge(hex, dir)`, `FreePos(x, y)`,
-  `Viewport`, `Multihex(anchor)`.
-- `despawn(instance)` — swap-remove from batches; the last-slot instance's
-  index mapping also updates on swap.
-- `set_state(instance, name)` — switches the active state of an instance.
-- `set_sprite(instance, slot, SpriteRef)` — populates `External`.
-- `set_global_tint(Option<TintRef>)` — runtime day/night.
-- `set_camera(world_center, zoom)` — simple update.
+4. **Composite OneShot detection in `Scene::tick`.** Today's
+   completion detection only inspects leaf `SpriteSource::Animation`
+   layers. OneShot animations nested inside `Variant` /
+   `NeighborBitmask` / `ViewportTiled` are silent. Lifting this
+   requires resolving the active sub-source per-instance per-frame
+   (duplicates renderer logic). Deferred until a game needs it.
 
-### SpriteBatch migration
+5. **`Renderer::cleanup() -> Vec<RenderCommand>`.** The current
+   contract is "commands emitted only from `render()`" so `Drop` does
+   not emit `DeleteBatch`s. If a consumer cycles renderers within a
+   single backend context they'll leak GPU batches. Add an explicit
+   `cleanup()` that drains every live batch on demand.
 
-Replace per-tile `RenderCommand::Sprite` with one `CreateSpriteBatch` per
-pipeline bucket + `AddSpriteInstance` per instance. First frame creates the
-batches; subsequent frames only issue `SetSpriteInstance` for
-moved / re-stated entities. One `DrawBatch` per bucket at the end of the
-frame — usually 100× fewer commands than the stateless path.
+6. **Per-instance dirty tracking.** `Scene::revision()` is coarse
+   (any mutation = full diff scan). For very large scenes a per-handle
+   dirty set in `Scene` would let `Renderer` walk only changed
+   instances. Not needed below a few thousand instances.
 
-Tracking: `instance_to_batch_index` maps `InstanceHandle → (batch_id, slot)`.
-Swap-remove: when slot `k` in a batch is deleted, the last slot (`n-1`)
-moves to `k`; we find its `InstanceHandle` and update its entry too.
+7. **`Anchor::Multihex` rendering.** Still rejected at render time
+   with `UnsupportedAnchor`. Independent of Step 4 — moves with the
+   sprite-source coverage matrix, not the renderer architecture.
 
-### OneShot completion callbacks
-
-OneShot animations currently render the last frame forever. A stateful
-renderer can fire callbacks when OneShot finishes:
-
-```rust
-renderer.on_animation_complete(|instance, state_name| { /* ... */ });
-```
-
-Deferred within the slice — YAGNI until a game actually needs it for
-gameplay (attack-finish triggers, etc.).
-
-### Compile-layer refactor
-
-Move `compile_frame`'s per-pass logic into methods on `Renderer`:
-
-- First-frame path: `Renderer::new(spec, compiled) -> Renderer` builds the
-  initial state without emitting commands.
-- Each tick: `Renderer::render() -> Vec<RenderCommand>` emits only the
-  deltas needed (batches already live on the GPU).
-- Stateless `compile_frame` stays as a thin adapter for simple
-  call-sites that don't need the runtime API.
+8. **`Sprite::Hash` / `Sprite::Eq` upstream.** Diffing in
+   `apply_scene_diff` and the batch repopulate path falls back to
+   "always emit Set" because `Sprite` has no `PartialEq` derive in
+   `tilemap_renderer`. Adding it would let the renderer elide no-op
+   Sets when only some instances actually changed.
 
 ## Format gaps that might surface
 

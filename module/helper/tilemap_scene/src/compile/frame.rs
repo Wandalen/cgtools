@@ -1,10 +1,10 @@
-//! `compile_frame` — scene-model `Scene` → per-frame `RenderCommand` stream.
+//! Scene → `RenderCommand` stream — the per-frame compilation core driven
+//! by [`crate::renderer::Renderer`].
 //!
-//! Supported through Slice 3: hex-anchored objects with Static / Animation /
-//! Variant / `NeighborBitmask` / `NeighborCondition` sources, plus per-bucket
-//! dual-mesh `VertexCorners` triangle emission. Edge / Multihex / Viewport /
-//! `FreePos` anchors and `EdgeConnectedBitmask` / `ViewportTiled` / External
-//! sources remain rejected until later slices.
+//! Exposes a single `pub` entry [`render_into`] (used internally by
+//! `Renderer::render`) plus a collection of `pub(crate)` helpers shared
+//! across passes. The module is internal-facing: consumers go through
+//! [`crate::renderer::Renderer`] rather than calling helpers directly.
 
 mod private
 {
@@ -47,206 +47,18 @@ mod private
   use crate::pipeline::{ SortMode, TilingStrategy };
   use crate::resource::SpriteRef;
   use crate::compile::viewport::{ tiled_positions, viewport_transform };
-  use crate::scene::{ EdgeInstance, Scene, Tile };
+  use crate::instance::{ Instance, Placement };
+  use crate::scene::Scene;
+  use crate::snapshot::{ EdgeInstance, EdgePosition, Tile };
   use crate::source::{ NeighborBitmaskSource, SpriteSource, VariantSelection, ViewportTiling };
   use crate::spec::RenderSpec;
-  use tilemap_renderer::types::{ BlendMode, Transform };
+  use tilemap_renderer::types::Transform;
   use rustc_hash::FxHashMap as HashMap;
-
-  /// Compile one frame of the scene into a `RenderCommand` stream.
-  ///
-  /// # Errors
-  ///
-  /// Returns [`CompileError`] when the scene / spec uses a feature not yet
-  /// supported in Slice 1 (see module-level docs) or when an id reference
-  /// cannot be resolved.
-  pub fn compile_frame
-  (
-    spec : &RenderSpec,
-    scene : &Scene,
-    compiled : &CompiledAssets,
-    camera : &Camera,
-    time_seconds : f32,
-  ) -> Result< Vec< RenderCommand >, CompileError >
-  {
-    let mut commands : Vec< RenderCommand > = Vec::new();
-
-    // 1. Clear the framebuffer. Colour comes from `RenderPipeline.clear_color`
-    //    when set, otherwise transparent black so the backend's own background
-    //    shows through.
-    let clear_color = spec.pipeline.clear_color.unwrap_or( [ 0.0, 0.0, 0.0, 0.0 ] );
-    commands.push( RenderCommand::Clear( Clear { color : clear_color } ) );
-
-    // 2. Reject unsupported scene features early — clear error > confusing
-    //    empty output. Slice 4 unlocks Edge / FreePos / Viewport anchors;
-    //    Multihex still deferred to a later slice.
-    if !scene.multihex_instances.is_empty()
-    {
-      return Err( CompileError::UnsupportedAnchor
-      {
-        object : scene.multihex_instances[ 0 ].object.clone(),
-        anchor : "Multihex",
-      });
-    }
-    if !scene.entities.is_empty()
-    {
-      return Err( CompileError::UnsupportedSource
-      {
-        object : scene.entities[ 0 ].object.clone(),
-        source_kind : "Entity (entities go through animations / runtime mutation — post-Slice-1)",
-      });
-    }
-
-    // 3. Expand `(palette, map)` ASCII form into virtual `Tile`s if needed.
-    //    Slice 1 maps column → q, row → r directly (no offset-coordinate
-    //    correction); callers who want proper offset layouts provide
-    //    `scene.tiles` explicitly.
-    let tiles_owned;
-    let tiles : &[ Tile ] = if scene.tiles.is_empty()
-    {
-      tiles_owned = expand_palette( scene );
-      &tiles_owned
-    }
-    else
-    {
-      &scene.tiles
-    };
-
-    // 4. Build the per-frame context once. Everything downstream reads
-    //    from it instead of taking 8+ parameters each.
-    //
-    // Viewport size resolution: `RenderPipeline.viewport_size` wins when set
-    // (authoring-time explicit), otherwise fall back to the camera's value
-    // (runtime-supplied). Used by `ViewportTiled` transform math.
-    let viewport_size = spec.pipeline.viewport_size.unwrap_or( camera.viewport_size );
-    let edge_lookup = build_edge_lookup( &scene.edges, spec.pipeline.hex.tiling );
-    // Fold the 64-bit scene seed down to the 32-bit salt that `hash_coord`
-    // expects. XOR halves keeps both halves contributing.
-    let scene_seed = scene.seed.map_or( 0, | s | ( s as u32 ) ^ ( ( s >> 32 ) as u32 ) );
-    let global_tint = resolve_global_tint( spec )?;
-    let ctx = FrameContext
-    {
-      spec,
-      compiled,
-      camera,
-      time_seconds,
-      tile_lookup : build_tile_lookup( tiles ),
-      edge_lookup,
-      tiling : spec.pipeline.hex.tiling,
-      grid_stride : spec.pipeline.hex.grid_stride,
-      viewport_size,
-      scene_seed,
-      global_tint,
-    };
-
-    // 5. Per-bucket emission.
-    for bucket in &spec.pipeline.layers
-    {
-      let mut draws : Vec< ( f32, f32, Sprite ) > = Vec::new();
-
-      for tile in tiles
-      {
-        for object_id in &tile.objects
-        {
-          let object = find_object( spec, object_id )?;
-
-          // Non-Hex anchors are handled by their own passes later in this
-          // bucket loop. Multihex is still rejected (unsupported).
-          match object.anchor
-          {
-            Anchor::Hex => {},
-            Anchor::Multihex { .. } => return Err( CompileError::UnsupportedAnchor
-            {
-              object : object.id.clone(),
-              anchor : "Multihex",
-            }),
-            _ => continue,
-          }
-
-          let stack = object.states.get( &object.default_state )
-            .ok_or_else( || CompileError::MissingDefaultState { object : object.id.clone() } )?;
-
-          for layer in stack
-          {
-            // Effective pipeline bucket: layer-level override or object-level default.
-            let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
-            if effective != bucket.id
-            {
-              continue;
-            }
-
-            let layer_draws = compile_layer( object, layer, tile, &ctx )?;
-            draws.extend( layer_draws );
-          }
-        }
-      }
-
-      // Second pass — vertex-anchored sprites (dual-mesh triangles).
-      // `VertexCorners` lives on objects that declare `anchor: Vertex`, but
-      // the format also lets an object with any anchor carry a `VertexCorners`
-      // layer — the layer's `anchor` is implicit from the source kind, not
-      // from the owning object. For Slice 3 we emit all vertex sprites whose
-      // pattern matches, regardless of which object owns the source.
-      let vertex_draws = compile_vertex_pass( bucket.id.as_str(), tiles, &ctx )?;
-      draws.extend( vertex_draws );
-
-      // Third pass — edge-anchored sprites (Slice 4).
-      let edge_draws = compile_edge_pass( bucket.id.as_str(), scene, &ctx )?;
-      draws.extend( edge_draws );
-
-      // Fourth pass — FreePos-anchored sprites (Slice 4).
-      let free_draws = compile_free_pass( bucket.id.as_str(), scene, &ctx )?;
-      draws.extend( free_draws );
-
-      match bucket.sort
-      {
-        SortMode::None => {}
-        SortMode::XAsc => draws.sort_by( | a, b | a.0.partial_cmp( &b.0 ).unwrap_or( core::cmp::Ordering::Equal ) ),
-        SortMode::XDesc => draws.sort_by( | a, b | b.0.partial_cmp( &a.0 ).unwrap_or( core::cmp::Ordering::Equal ) ),
-        SortMode::YAsc => draws.sort_by( | a, b | a.1.partial_cmp( &b.1 ).unwrap_or( core::cmp::Ordering::Equal ) ),
-        SortMode::YDesc => draws.sort_by( | a, b | b.1.partial_cmp( &a.1 ).unwrap_or( core::cmp::Ordering::Equal ) ),
-        SortMode::XAscYDesc => draws.sort_by( | a, b |
-          a.0.partial_cmp( &b.0 ).unwrap_or( core::cmp::Ordering::Equal )
-            .then_with( || b.1.partial_cmp( &a.1 ).unwrap_or( core::cmp::Ordering::Equal ) )
-        ),
-        SortMode::XAscYAsc => draws.sort_by( | a, b |
-          a.0.partial_cmp( &b.0 ).unwrap_or( core::cmp::Ordering::Equal )
-            .then_with( || a.1.partial_cmp( &b.1 ).unwrap_or( core::cmp::Ordering::Equal ) )
-        ),
-        SortMode::YDescXAsc => draws.sort_by( | a, b |
-          b.1.partial_cmp( &a.1 ).unwrap_or( core::cmp::Ordering::Equal )
-            .then_with( || a.0.partial_cmp( &b.0 ).unwrap_or( core::cmp::Ordering::Equal ) )
-        ),
-        SortMode::YAscXAsc => draws.sort_by( | a, b |
-          a.1.partial_cmp( &b.1 ).unwrap_or( core::cmp::Ordering::Equal )
-            .then_with( || a.0.partial_cmp( &b.0 ).unwrap_or( core::cmp::Ordering::Equal ) )
-        ),
-      }
-
-      for ( _, _, sprite ) in draws
-      {
-        // Pivot compensation for each sprite already applied at emit sites
-        // (see `apply_pivot`), so `transform.position` is already the
-        // backend's bottom-left anchor needed to align the object's scene
-        // anchor with its configured pivot point.
-        commands.push( RenderCommand::Sprite( sprite ) );
-      }
-
-      // Fifth pass — viewport-anchored sprites (Slice 4). Emitted last in
-      // the bucket as `ScreenSpaceSprite` — backend skips the camera
-      // transform; coordinates are already in screen pixels.
-      compile_viewport_pass( bucket.id.as_str(), scene, &ctx, &mut commands )?;
-    }
-
-    Ok( commands )
-  }
 
   /// Bundled per-frame context threaded into helper functions.
   ///
-  /// Previously each helper took 6–10 individual parameters; consolidating
-  /// them here means a single `&ctx` parameter for 95% of what the compile
-  /// pipeline needs to know about. Fields are read-only — no mutation
-  /// happens once the context is built in [`compile_frame`].
+  /// Consolidates 10+ parameters into a single `&ctx`. Fields are read-only —
+  /// no mutation happens once the context is built in [`render_into`].
   struct FrameContext< 'a >
   {
     spec : &'a RenderSpec,
@@ -264,66 +76,6 @@ mod private
     /// Resolved global tint multiplier — `[1,1,1,1]` when `pipeline.global_tint`
     /// is `None`. Multiplied into every emitted `Sprite.tint`.
     global_tint : [ f32; 4 ],
-  }
-
-  /// Compile one layer into zero, one, or many `( world_x, world_y, Sprite )`
-  /// tuples. Most sources emit exactly one sprite; `NeighborCondition` can
-  /// emit up to `len(sides)` per tile (one per matching side).
-  ///
-  /// `VertexCorners` is intentionally handled NOT here but in the separate
-  /// `compile_vertex_pass` — vertex sprites aren't anchored to a tile.
-  fn compile_layer
-  (
-    object : &Object,
-    layer : &ObjectLayer,
-    tile : &Tile,
-    ctx : &FrameContext< '_ >,
-  ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
-  {
-    // `NeighborCondition` emits per matching side — handled separately because
-    // it produces N sprites, not one.
-    if let SpriteSource::NeighborCondition { condition, sides, sprite_pattern, asset } = &layer.sprite_source
-    {
-      return emit_neighbor_condition( object, tile, condition, sides, sprite_pattern, asset, &layer.behaviour, ctx );
-    }
-
-    // `VertexCorners` is not emitted per tile.
-    if matches!( &layer.sprite_source, SpriteSource::VertexCorners { .. } )
-    {
-      return Ok( Vec::new() );
-    }
-
-    let sprite_ref = resolve_sprite_source( &layer.sprite_source, object, tile.pos, ctx )?;
-
-    let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
-      .ok_or_else( || CompileError::UnresolvedRef
-      {
-        kind : "sprite",
-        id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
-        context : format!( "object {:?} layer", object.id ),
-      })?;
-
-    let ( q, r ) = tile.pos;
-    let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
-    let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-    let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-
-    let transform = make_transform( sx, sy, ctx.camera.zoom );
-
-    Ok( vec!
-    [
-      (
-        wx, wy,
-        Sprite
-        {
-          transform,
-          sprite : sprite_id,
-          tint : tinted( ctx.global_tint, layer.behaviour.alpha ),
-          blend : layer.behaviour.blend,
-          clip : None,
-        },
-      ),
-    ])
   }
 
   fn make_transform( sx : f32, sy : f32, zoom : f32 ) -> Transform
@@ -409,70 +161,6 @@ mod private
           anchor : "Square (tiling strategy not implemented)",
         }),
     }
-  }
-
-  /// Emit one sprite per matching side for a `NeighborCondition` layer.
-  #[ allow( clippy::too_many_arguments ) ]
-  #[ allow( clippy::similar_names ) ]   // raw_sx / raw_sy are a coordinate pair
-  fn emit_neighbor_condition
-  (
-    object : &Object,
-    tile : &Tile,
-    condition : &crate::source::Condition,
-    sides : &[ crate::anchor::EdgeDirection ],
-    sprite_pattern : &str,
-    asset : &str,
-    behaviour : &LayerBehaviour,
-    ctx : &FrameContext< '_ >,
-  ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
-  {
-    let current_priority = tile_max_priority( tile, ctx.spec );
-
-    let ( q, r ) = tile.pos;
-    let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
-    let ( raw_sx, raw_sy ) = ctx.camera.project( ( wx, wy ) );
-
-    let mut out = Vec::new();
-    for &side in sides
-    {
-      let Some( offset ) = neighbor_offset_by_dir( ctx.tiling, side )
-      else
-      {
-        continue;   // direction doesn't apply to this tiling — skip quietly.
-      };
-      let neighbour_pos = ( tile.pos.0 + offset.0, tile.pos.1 + offset.1 );
-      let neighbour = neighbor_state_at( neighbour_pos, &ctx.tile_lookup, ctx.spec );
-      if !evaluate_condition( condition, &neighbour, current_priority )
-      {
-        continue;
-      }
-
-      let frame_name = sprite_pattern.replace( "{dir}", dir_name( side ) );
-      let sprite_id = ctx.compiled.ids.sprite( asset, &frame_name )
-        .ok_or_else( || CompileError::UnresolvedRef
-        {
-          kind : "sprite",
-          id : format!( "{asset}:{frame_name}" ),
-          context : format!( "object {:?} NeighborCondition side {side:?}", object.id ),
-        })?;
-
-      let ( sx, sy ) = apply_pivot( raw_sx, raw_sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-      let transform = make_transform( sx, sy, ctx.camera.zoom );
-
-      out.push
-      ((
-        wx, wy,
-        Sprite
-        {
-          transform,
-          sprite : sprite_id,
-          tint : tinted( ctx.global_tint, behaviour.alpha ),
-          blend : behaviour.blend,
-          clip : None,
-        },
-      ));
-    }
-    Ok( out )
   }
 
   /// Emit dual-mesh triangle sprites for every `VertexCorners` layer that
@@ -569,90 +257,6 @@ mod private
   }
 
   /// Emit sprites for every `EdgeInstance` whose owning `Object` routes
-  /// into `bucket_id`. Canonicalisation dedupes duplicate declarations of
-  /// the same edge from each side.
-  fn compile_edge_pass
-  (
-    bucket_id : &str,
-    scene : &Scene,
-    ctx : &FrameContext< '_ >,
-  ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
-  {
-    let mut out = Vec::new();
-    // Deduplicate: only emit for the canonical form of each edge.
-    let mut seen : rustc_hash::FxHashSet< CanonicalEdge > = rustc_hash::FxHashSet::default();
-
-    for inst in &scene.edges
-    {
-      let Some( canon ) = canonical_edge( inst.at, ctx.tiling ) else { continue };
-      if !seen.insert( canon ) { continue; }
-
-      let object = find_object( ctx.spec, &inst.object )?;
-      if !matches!( object.anchor, Anchor::Edge )
-      {
-        return Err( CompileError::UnsupportedAnchor
-        {
-          object : object.id.clone(),
-          anchor : "Edge (object declares a different anchor)",
-        });
-      }
-
-      let stack = object.states.get( &object.default_state )
-        .ok_or_else( || CompileError::MissingDefaultState { object : object.id.clone() } )?;
-
-      for layer in stack
-      {
-        let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
-        if effective != bucket_id { continue; }
-
-        let sprite_ref = resolve_edge_sprite_source( &layer.sprite_source, object, canon, ctx )?;
-        let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
-          .ok_or_else( || CompileError::UnresolvedRef
-          {
-            kind : "sprite",
-            id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
-            context : format!( "object {:?} edge layer", object.id ),
-          })?;
-
-        let Some( ( wx, wy ) ) = edge_world_pixel( canon, ctx.tiling, ctx.grid_stride )
-        else
-        {
-          return Err( CompileError::UnsupportedAnchor
-          {
-            object : object.id.clone(),
-            anchor : "Edge (direction not valid for tiling)",
-          });
-        };
-        let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-        let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-
-        let transform = Transform
-        {
-          position : [ sx, sy ],
-          rotation : edge_rotation( canon.1, ctx.tiling ),
-          scale : [ ctx.camera.zoom, ctx.camera.zoom ],
-          skew : [ 0.0, 0.0 ],
-          depth : 0.0,
-        };
-
-        out.push
-        ((
-          wx, wy,
-          Sprite
-          {
-            transform,
-            sprite : sprite_id,
-            tint : tinted( ctx.global_tint, layer.behaviour.alpha ),
-            blend : layer.behaviour.blend,
-            clip : None,
-          },
-        ));
-      }
-    }
-
-    Ok( out )
-  }
-
   /// Resolve a sprite source for an `Edge`-anchored object. Accepts the
   /// same leaf sources as the hex path (`Static` / `Animation` / `Variant`)
   /// plus the edge-specific `EdgeConnectedBitmask`.
@@ -718,251 +322,6 @@ mod private
       }),
     }
   }
-
-  /// Emit sprites for every `FreeInstance` whose owning object routes into
-  /// `bucket_id`. Position comes straight from the instance; no grid math.
-  fn compile_free_pass
-  (
-    bucket_id : &str,
-    scene : &Scene,
-    ctx : &FrameContext< '_ >,
-  ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
-  {
-    let mut out = Vec::new();
-    for inst in &scene.free_instances
-    {
-      let object = find_object( ctx.spec, &inst.object )?;
-      if !matches!( object.anchor, Anchor::FreePos )
-      {
-        return Err( CompileError::UnsupportedAnchor
-        {
-          object : object.id.clone(),
-          anchor : "FreePos (object declares a different anchor)",
-        });
-      }
-
-      let stack = object.states.get( &object.default_state )
-        .ok_or_else( || CompileError::MissingDefaultState { object : object.id.clone() } )?;
-
-      for layer in stack
-      {
-        let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
-        if effective != bucket_id { continue; }
-
-        // Guard: neighbour-aware sources require grid context and make no
-        // sense on a free-world-pixel anchor.
-        match &layer.sprite_source
-        {
-          SpriteSource::NeighborBitmask { .. }
-          | SpriteSource::NeighborCondition { .. }
-          | SpriteSource::VertexCorners { .. }
-          | SpriteSource::EdgeConnectedBitmask { .. }
-          | SpriteSource::ViewportTiled { .. } =>
-          {
-            return Err( CompileError::UnsupportedSource
-            {
-              object : object.id.clone(),
-              source_kind : source_name( &layer.sprite_source ),
-            });
-          },
-          _ => {},
-        }
-
-        let sprite_ref = resolve_sprite_source( &layer.sprite_source, object, ( 0, 0 ), ctx )?;
-        let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
-          .ok_or_else( || CompileError::UnresolvedRef
-          {
-            kind : "sprite",
-            id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
-            context : format!( "object {:?} free layer", object.id ),
-          })?;
-
-        let ( wx, wy ) = inst.pos;
-        let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-        let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-        let transform = make_transform( sx, sy, ctx.camera.zoom );
-
-        out.push
-        ((
-          wx, wy,
-          Sprite
-          {
-            transform,
-            sprite : sprite_id,
-            tint : tinted( ctx.global_tint, layer.behaviour.alpha ),
-            blend : layer.behaviour.blend,
-            clip : None,
-          },
-        ));
-      }
-    }
-    Ok( out )
-  }
-
-  /// Emit `ScreenSpaceSprite` commands for every `ViewportInstance` whose
-  /// owning object routes into `bucket_id`. Sprites bypass the camera.
-  fn compile_viewport_pass
-  (
-    bucket_id : &str,
-    scene : &Scene,
-    ctx : &FrameContext< '_ >,
-    commands : &mut Vec< RenderCommand >,
-  ) -> Result< (), CompileError >
-  {
-    for inst in &scene.viewport_instances
-    {
-      let object = find_object( ctx.spec, &inst.object )?;
-      if !matches!( object.anchor, Anchor::Viewport )
-      {
-        return Err( CompileError::UnsupportedAnchor
-        {
-          object : object.id.clone(),
-          anchor : "Viewport (object declares a different anchor)",
-        });
-      }
-
-      let stack = object.states.get( &object.default_state )
-        .ok_or_else( || CompileError::MissingDefaultState { object : object.id.clone() } )?;
-
-      for layer in stack
-      {
-        let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
-        if effective != bucket_id { continue; }
-
-        let SpriteSource::ViewportTiled { content, tiling : vtiling, anchor_point } = &layer.sprite_source
-        else
-        {
-          return Err( CompileError::UnsupportedSource
-          {
-            object : object.id.clone(),
-            source_kind : "Viewport-anchored layer must use ViewportTiled",
-          });
-        };
-
-        // Resolve the inner content to a concrete sprite_ref. Free-pos hex
-        // (0,0) is a placeholder — animation phase_offset on viewport
-        // objects isn't meaningful.
-        let sprite_ref = resolve_sprite_source( content, object, ( 0, 0 ), ctx )?;
-        let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
-          .ok_or_else( || CompileError::UnresolvedRef
-          {
-            kind : "sprite",
-            id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
-            context : format!( "object {:?} viewport layer", object.id ),
-          })?;
-
-        let region = ctx.compiled.assets.sprites.iter()
-          .find( | s | s.id == sprite_id )
-          .map_or( ( 1.0, 1.0 ), | s | ( s.region[ 2 ], s.region[ 3 ] ) );
-
-        // Non-repeating modes: one sprite, transform from viewport_transform.
-        // Repeating modes: one sprite per tiled_positions() entry, each at
-        // native pixel size.
-        let is_repeat = matches!
-        (
-          vtiling,
-          ViewportTiling::Repeat2D | ViewportTiling::RepeatX | ViewportTiling::RepeatY
-        );
-
-        if is_repeat
-        {
-          // Repeat tiles are rendered at **camera-zoom scale** so one texture
-          // pixel matches one world-pixel-through-camera — keeps backgrounds
-          // visually coherent with zoomed foreground sprites. Tile step is
-          // the on-screen size (`native * zoom`), so the grid stays
-          // viewport-covering regardless of zoom.
-          let zoom = ctx.camera.zoom;
-          let scaled_region = ( region.0 * zoom, region.1 * zoom );
-          for ( x, y ) in tiled_positions( *vtiling, *anchor_point, scaled_region, ctx.viewport_size )
-          {
-            let transform = Transform
-            {
-              position : [ x, y ],
-              rotation : 0.0,
-              scale : [ zoom, zoom ],
-              skew : [ 0.0, 0.0 ],
-              depth : 0.0,
-            };
-            commands.push( RenderCommand::ScreenSpaceSprite( Sprite
-            {
-              transform,
-              sprite : sprite_id,
-              tint : tinted( ctx.global_tint, layer.behaviour.alpha ),
-              blend : layer.behaviour.blend,
-              clip : None,
-            }));
-          }
-        }
-        else
-        {
-          let Some( transform ) = viewport_transform( *vtiling, *anchor_point, region, ctx.viewport_size )
-          else
-          {
-            return Err( CompileError::UnsupportedSource
-            {
-              object : object.id.clone(),
-              source_kind : "ViewportTiled (unsupported tiling)",
-            });
-          };
-          commands.push( RenderCommand::ScreenSpaceSprite( Sprite
-          {
-            transform,
-            sprite : sprite_id,
-            tint : tinted( ctx.global_tint, layer.behaviour.alpha ),
-            blend : layer.behaviour.blend,
-            clip : None,
-          }));
-        }
-      }
-    }
-    Ok( () )
-  }
-
-  /// Expand an ASCII palette+map scene into concrete tiles.
-  ///
-  /// Simple mapping for Slice 1: `col → q`, `row → r`, whitespace ignored.
-  /// No offset-coordinate correction — callers needing exact hex offset
-  /// layouts provide `scene.tiles` directly.
-  fn expand_palette( scene : &Scene ) -> Vec< Tile >
-  {
-    let mut out = Vec::new();
-    for ( row_index, row ) in scene.map.iter().enumerate()
-    {
-      let mut col : i32 = 0;
-      for ch in row.chars()
-      {
-        if ch.is_whitespace()
-        {
-          continue;
-        }
-        if let Some( objects ) = scene.palette.get( &ch )
-        {
-          out.push( Tile
-          {
-            pos : ( col, row_index as i32 ),
-            objects : objects.clone(),
-          });
-        }
-        col = col.saturating_add( 1 );
-      }
-    }
-    out
-  }
-
-  fn find_object< 'spec >
-  (
-    spec : &'spec RenderSpec,
-    object_id : &str,
-  ) -> Result< &'spec Object, CompileError >
-  {
-    spec.objects.iter().find( | o | o.id == object_id ).ok_or_else( || CompileError::UnresolvedRef
-    {
-      kind : "object",
-      id : object_id.to_owned(),
-      context : "tile objects".into(),
-    })
-  }
-
 
   /// Resolve a sprite source down to a concrete `( asset, frame )` pair.
   ///
@@ -1101,47 +460,6 @@ mod private
     Ok( variants.len() - 1 )
   }
 
-  /// Resolve the pipeline's optional `global_tint` reference into an effective
-  /// RGBA multiplier. Returns `[1,1,1,1]` when no global tint is set — every
-  /// emit site can then do `sprite.tint * ctx.global_tint` unconditionally.
-  ///
-  /// Composition model: the tint's `strength` interpolates between identity
-  /// white and the parsed colour; the result is then multiplied into each
-  /// sprite. Non-`Multiply` blend modes are not yet implemented here — they
-  /// fall back to multiply and log-compatible note in the error if a tint
-  /// declares one (to keep callers explicit about future behaviour).
-  fn resolve_global_tint( spec : &RenderSpec ) -> Result< [ f32; 4 ], CompileError >
-  {
-    let Some( tint_ref ) = &spec.pipeline.global_tint else { return Ok( [ 1.0, 1.0, 1.0, 1.0 ] ); };
-    let id = &tint_ref.0;
-    let tint = spec.tints.iter().find( | t | &t.id == id )
-      .ok_or_else( || CompileError::UnresolvedRef
-      {
-        kind : "tint",
-        id : id.clone(),
-        context : "pipeline.global_tint".into(),
-      })?;
-
-    let [ r, g, b, a ] = parse_hex_rgba( &tint.color ).ok_or_else( || CompileError::UnresolvedRef
-    {
-      kind : "tint color",
-      id : tint.color.clone(),
-      context : format!( "tint {:?}", tint.id ),
-    })?;
-
-    let s = tint.strength.clamp( 0.0, 1.0 );
-    // Multiply blend: lerp(white, colour, strength). Alpha follows the same
-    // rule so a fully-opaque tint at strength 1.0 replaces; at strength 0.0
-    // the multiplier is identity.
-    Ok(
-    [
-      1.0 + s * ( r - 1.0 ),
-      1.0 + s * ( g - 1.0 ),
-      1.0 + s * ( b - 1.0 ),
-      1.0 + s * ( a - 1.0 ),
-    ])
-  }
-
   /// Parse a `"#rrggbb"` or `"#rrggbbaa"` colour string into linear-ish
   /// `[f32; 4]`. Returns `None` on malformed input — caller decides whether
   /// to error or fall back.
@@ -1184,9 +502,848 @@ mod private
       SpriteSource::ViewportTiled { .. }          => "ViewportTiled",
     }
   }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // Scene-driven rendering — entry points called by
+  // [`crate::renderer::Renderer::render`]. `gather_frame_emits` returns
+  // structured per-bucket emit data the renderer turns into batched
+  // commands; `render_into` is a thin wrapper that flattens emits into
+  // a per-sprite command stream for tests / fall-back code paths.
+  // ════════════════════════════════════════════════════════════════════════
+
+  /// Render a `Scene` into `out` as a flat command stream.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`CompileError`] when the scene uses a feature that this
+  /// implementation doesn't support, or when an id reference cannot be
+  /// resolved.
+  ///
+  /// # Panics
+  ///
+  /// Panics in debug builds when an instance handle stored in one of the
+  /// scene's spatial indexes has no live entry — this would only happen if
+  /// the indexes were corrupted by mutation outside the documented
+  /// `Scene` API.
+  /// Output of [`gather_frame_emits`] — per-bucket, structured emit
+  /// data the renderer needs to either flatten into per-sprite
+  /// `RenderCommand`s or group into batches.
+  pub struct FrameEmits
+  {
+    /// Background clear color, sourced from `pipeline.clear_color`.
+    pub clear_color : [ f32; 4 ],
+    /// One entry per [`crate::pipeline::PipelineLayer`], in declaration
+    /// order. Empty buckets still appear (renderer iterates them all so
+    /// idle no-op buckets don't break order).
+    pub buckets : Vec< BucketEmits >,
+  }
+
+  /// Per-bucket emit data. `sprites` is the sort-mode-applied world
+  /// layer; `screen_space` is the viewport pass output.
+  pub struct BucketEmits
+  {
+    /// World-space sprites in this bucket, already sorted per the
+    /// bucket's `SortMode`. Order is the on-screen draw order.
+    pub sprites : Vec< Sprite >,
+    /// Screen-space sprites (viewport-anchored) emitted by this
+    /// bucket's `Viewport` instances.
+    pub screen_space : Vec< Sprite >,
+    /// Bucket's sort mode — needed by the batching renderer to decide
+    /// whether instance order within a batch matters.
+    pub sort : SortMode,
+  }
+
+  /// Walk the scene and produce structured per-bucket emit data without
+  /// flattening to `RenderCommand`s. This is the shared core driving
+  /// both [`render_into`] (per-sprite emission, used by tests and
+  /// fall-back code paths) and the batching renderer.
+  ///
+  /// # Errors
+  ///
+  /// Same error surface as the legacy `compile_frame`: unresolved
+  /// sprite / animation / tint references, unsupported anchor kinds
+  /// (Multihex), unsupported asset kinds, etc.
+  ///
+  /// # Panics
+  ///
+  /// Panics in debug builds if `scene` exposes an instance handle for
+  /// which the underlying `Instance` is missing — only possible if the
+  /// scene's spatial indexes are inconsistent with its slotmap.
+  pub fn gather_frame_emits
+  (
+    compiled : &CompiledAssets,
+    scene : &Scene,
+    camera : &Camera,
+  ) -> Result< FrameEmits, CompileError >
+  {
+    let spec = scene.spec();
+    let clear_color = spec.pipeline.clear_color.unwrap_or( [ 0.0, 0.0, 0.0, 0.0 ] );
+
+    // Reject Multihex anchors (polish item #9 — not implemented).
+    if let Some( &h ) = scene.multihex_instances().first()
+    {
+      let inst = scene.instance( h ).expect( "multihex handle live" );
+      return Err( CompileError::UnsupportedAnchor
+      {
+        object : spec.objects[ inst.object.index() as usize ].id.clone(),
+        anchor : "Multihex",
+      });
+    }
+
+    let synthetic_tiles = build_scene_tiles( scene );
+    let synthetic_edges = build_scene_edges( scene, spec );
+
+    let viewport_size = spec.pipeline.viewport_size.unwrap_or( camera.viewport_size );
+    let edge_lookup = build_edge_lookup( &synthetic_edges, spec.pipeline.hex.tiling );
+    let seed = scene.seed();
+    let scene_seed = ( seed as u32 ) ^ ( ( seed >> 32 ) as u32 );
+    let global_tint = resolve_scene_global_tint( spec, scene )?;
+    let ctx = FrameContext
+    {
+      spec,
+      compiled,
+      camera,
+      time_seconds : scene.clock(),
+      tile_lookup : build_tile_lookup( &synthetic_tiles ),
+      edge_lookup,
+      tiling : spec.pipeline.hex.tiling,
+      grid_stride : spec.pipeline.hex.grid_stride,
+      viewport_size,
+      scene_seed,
+      global_tint,
+    };
+
+    let mut buckets = Vec::with_capacity( spec.pipeline.layers.len() );
+
+    for bucket in &spec.pipeline.layers
+    {
+      let mut draws : Vec< ( f32, f32, Sprite ) > = Vec::new();
+
+      for &handle in scene.hex_instances()
+      {
+        let inst = scene.instance( handle ).expect( "hex handle live" );
+        if !inst.visible { continue; }
+
+        let object = &spec.objects[ inst.object.index() as usize ];
+        match object.anchor
+        {
+          Anchor::Hex => {},
+          Anchor::Multihex { .. } => return Err( CompileError::UnsupportedAnchor
+          {
+            object : object.id.clone(),
+            anchor : "Multihex",
+          }),
+          _ => continue,
+        }
+
+        let state_name = scene.state_name( inst.state ).ok_or_else( || CompileError::MissingDefaultState
+        {
+          object : object.id.clone(),
+        })?;
+        let stack = object.states.get( state_name ).ok_or_else( || CompileError::MissingDefaultState
+        {
+          object : object.id.clone(),
+        })?;
+
+        let Placement::Hex { q, r } = inst.placement else { continue };
+
+        for layer in stack
+        {
+          let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
+          if effective != bucket.id { continue; }
+
+          let layer_draws = compile_instance_layer( object, layer, ( q, r ), inst, &ctx )?;
+          draws.extend( layer_draws );
+        }
+      }
+
+      draws.extend( compile_vertex_pass( bucket.id.as_str(), &synthetic_tiles, &ctx )? );
+      draws.extend( compile_edge_pass_scene( bucket.id.as_str(), scene, &ctx )? );
+      draws.extend( compile_free_pass_scene( bucket.id.as_str(), scene, &ctx )? );
+
+      apply_sort_mode( &mut draws, bucket.sort );
+
+      let sprites : Vec< Sprite > = draws.into_iter().map( | ( _, _, s ) | s ).collect();
+
+      // Viewport pass currently writes `ScreenSpaceSprite` commands to a
+      // `Vec<RenderCommand>`; unwrap them back into raw `Sprite`s so the
+      // renderer can decide whether to wrap in `ScreenSpaceSprite` or
+      // (eventually) batch viewport sprites too.
+      let mut tmp : Vec< RenderCommand > = Vec::new();
+      compile_viewport_pass_scene( bucket.id.as_str(), scene, &ctx, &mut tmp )?;
+      let screen_space : Vec< Sprite > = tmp.into_iter().filter_map( | c | match c
+      {
+        RenderCommand::ScreenSpaceSprite( s ) => Some( s ),
+        _ => None,
+      }).collect();
+
+      buckets.push( BucketEmits { sprites, screen_space, sort : bucket.sort } );
+    }
+
+    Ok( FrameEmits { clear_color, buckets } )
+  }
+
+  /// Flatten [`FrameEmits`] into a per-sprite `RenderCommand` stream —
+  /// the pre-Step-4b output shape. Kept as a thin wrapper for the
+  /// renderer's fall-back path and for `flatten_to_sprites` test
+  /// helpers that compare against the historical baseline.
+  ///
+  /// # Errors
+  ///
+  /// Propagates errors from [`gather_frame_emits`].
+  pub fn render_into
+  (
+    out : &mut Vec< RenderCommand >,
+    compiled : &CompiledAssets,
+    scene : &Scene,
+    camera : &Camera,
+  ) -> Result< (), CompileError >
+  {
+    let emits = gather_frame_emits( compiled, scene, camera )?;
+    out.push( RenderCommand::Clear( Clear { color : emits.clear_color } ) );
+    for bucket in emits.buckets
+    {
+      for s in bucket.sprites { out.push( RenderCommand::Sprite( s ) ); }
+      for s in bucket.screen_space { out.push( RenderCommand::ScreenSpaceSprite( s ) ); }
+    }
+    Ok( () )
+  }
+
+  /// Build a synthetic `Vec<Tile>` from the scene's hex spatial index.
+  ///
+  /// Only hex-placed instances contribute (edge / multihex / free / viewport
+  /// stay in their own passes). Object ids are looked up via the spec; the
+  /// returned tiles are owned and used as the source for `tile_lookup`
+  /// in [`render_into`].
+  fn build_scene_tiles( scene : &Scene ) -> Vec< Tile >
+  {
+    let spec = scene.spec();
+    let mut by_cell : HashMap< ( i32, i32 ), Vec< String > > = HashMap::default();
+    for &handle in scene.hex_instances()
+    {
+      let inst = scene.instance( handle ).expect( "hex handle live" );
+      if !inst.visible { continue; }
+      let Placement::Hex { q, r } = inst.placement else { continue };
+      let id = spec.objects[ inst.object.index() as usize ].id.clone();
+      by_cell.entry( ( q, r ) ).or_default().push( id );
+    }
+    by_cell
+      .into_iter()
+      .map( | ( pos, objects ) | Tile { pos, objects } )
+      .collect()
+  }
+
+  /// Build a synthetic `Vec<EdgeInstance>` from the scene's edge handles.
+  fn build_scene_edges( scene : &Scene, spec : &RenderSpec ) -> Vec< EdgeInstance >
+  {
+    scene.edge_instances().iter().map( | &h |
+    {
+      let inst = scene.instance( h ).expect( "edge handle live" );
+      let Placement::Edge { hex, dir } = inst.placement else { unreachable!() };
+      EdgeInstance
+      {
+        at : EdgePosition { hex, dir },
+        object : spec.objects[ inst.object.index() as usize ].id.clone(),
+        animation : None,
+      }
+    }).collect()
+  }
+
+  /// Resolve the effective global tint, honouring `Scene`'s runtime override.
+  fn resolve_scene_global_tint( spec : &RenderSpec, scene : &Scene ) -> Result< [ f32; 4 ], CompileError >
+  {
+    let tint_ref = scene.global_tint().cloned().or_else( || spec.pipeline.global_tint.clone() );
+    let Some( tint_ref ) = tint_ref else { return Ok( [ 1.0, 1.0, 1.0, 1.0 ] ); };
+    let id = &tint_ref.0;
+    let tint = spec.tints.iter().find( | t | &t.id == id )
+      .ok_or_else( || CompileError::UnresolvedRef
+      {
+        kind : "tint",
+        id : id.clone(),
+        context : "scene.global_tint / pipeline.global_tint".into(),
+      })?;
+    let [ r, g, b, a ] = parse_hex_rgba( &tint.color ).ok_or_else( || CompileError::UnresolvedRef
+    {
+      kind : "tint color",
+      id : tint.color.clone(),
+      context : format!( "tint {:?}", tint.id ),
+    })?;
+    let s = tint.strength.clamp( 0.0, 1.0 );
+    Ok(
+    [
+      1.0 + s * ( r - 1.0 ),
+      1.0 + s * ( g - 1.0 ),
+      1.0 + s * ( b - 1.0 ),
+      1.0 + s * ( a - 1.0 ),
+    ])
+  }
+
+  /// Apply a bucket's sort mode to the draw list.
+  fn apply_sort_mode( draws : &mut [ ( f32, f32, Sprite ) ], sort : SortMode )
+  {
+    use core::cmp::Ordering;
+    let cmp_f = | a : f32, b : f32 | a.partial_cmp( &b ).unwrap_or( Ordering::Equal );
+    match sort
+    {
+      SortMode::None => {}
+      SortMode::XAsc      => draws.sort_by( | a, b | cmp_f( a.0, b.0 ) ),
+      SortMode::XDesc     => draws.sort_by( | a, b | cmp_f( b.0, a.0 ) ),
+      SortMode::YAsc      => draws.sort_by( | a, b | cmp_f( a.1, b.1 ) ),
+      SortMode::YDesc     => draws.sort_by( | a, b | cmp_f( b.1, a.1 ) ),
+      SortMode::XAscYDesc => draws.sort_by( | a, b | cmp_f( a.0, b.0 ).then_with( || cmp_f( b.1, a.1 ) ) ),
+      SortMode::XAscYAsc  => draws.sort_by( | a, b | cmp_f( a.0, b.0 ).then_with( || cmp_f( a.1, b.1 ) ) ),
+      SortMode::YDescXAsc => draws.sort_by( | a, b | cmp_f( b.1, a.1 ).then_with( || cmp_f( a.0, b.0 ) ) ),
+      SortMode::YAscXAsc  => draws.sort_by( | a, b | cmp_f( a.1, b.1 ).then_with( || cmp_f( a.0, b.0 ) ) ),
+    }
+  }
+
+  /// Compile one layer of a hex-anchored instance, threading the
+  /// instance's per-instance overrides through the emit. Drop-in
+  /// replacement for `compile_layer` where the position comes from
+  /// the instance's `Placement` rather than a `Tile`.
+  fn compile_instance_layer
+  (
+    object : &Object,
+    layer : &ObjectLayer,
+    pos : ( i32, i32 ),
+    inst : &Instance,
+    ctx : &FrameContext< '_ >,
+  ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
+  {
+    // `NeighborCondition` emits multiple sprites per side.
+    if let SpriteSource::NeighborCondition { condition, sides, sprite_pattern, asset } = &layer.sprite_source
+    {
+      // Synthesize a temporary `Tile` carrying the owning object's id so
+      // the existing helper can compute current-cell priority correctly.
+      let tile = Tile { pos, objects : vec![ object.id.clone() ] };
+      return emit_neighbor_condition_with_overrides( object, &tile, condition, sides, sprite_pattern, asset, &layer.behaviour, inst, ctx );
+    }
+
+    // `VertexCorners` doesn't emit per-instance.
+    if matches!( &layer.sprite_source, SpriteSource::VertexCorners { .. } )
+    {
+      return Ok( Vec::new() );
+    }
+
+    // `External` source — look up the per-instance slot map.
+    if let SpriteSource::External { slot } = &layer.sprite_source
+    {
+      let Some( sprite_ref ) = inst.external_sprites.get( slot ) else { return Ok( Vec::new() ); };
+      let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
+        .ok_or_else( || CompileError::UnresolvedRef
+        {
+          kind : "sprite",
+          id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
+          context : format!( "object {:?} external slot {slot:?}", object.id ),
+        })?;
+      let ( q, r ) = pos;
+      let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
+      let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
+      let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
+      let transform = make_transform( sx, sy, ctx.camera.zoom );
+      return Ok( vec!
+      [
+        (
+          wx, wy,
+          Sprite
+          {
+            transform,
+            sprite : sprite_id,
+            tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+            blend : layer.behaviour.blend,
+            clip : None,
+          },
+        ),
+      ]);
+    }
+
+    let sprite_ref = resolve_sprite_source_with_phase( &layer.sprite_source, object, pos, inst.phase_offset, ctx )?;
+    let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
+      .ok_or_else( || CompileError::UnresolvedRef
+      {
+        kind : "sprite",
+        id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
+        context : format!( "object {:?} layer", object.id ),
+      })?;
+
+    let ( q, r ) = pos;
+    let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
+    let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
+    let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
+    let transform = make_transform( sx, sy, ctx.camera.zoom );
+
+    Ok( vec!
+    [
+      (
+        wx, wy,
+        Sprite
+        {
+          transform,
+          sprite : sprite_id,
+          tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+          blend : layer.behaviour.blend,
+          clip : None,
+        },
+      ),
+    ])
+  }
+
+  /// Variant of `resolve_sprite_source` that threads an optional
+  /// per-instance phase offset into animation resolution.
+  fn resolve_sprite_source_with_phase
+  (
+    source : &SpriteSource,
+    object : &Object,
+    pos : ( i32, i32 ),
+    phase_override : Option< f32 >,
+    ctx : &FrameContext< '_ >,
+  ) -> Result< SpriteRef, CompileError >
+  {
+    match source
+    {
+      SpriteSource::Animation( anim_ref ) =>
+      {
+        let anim = ctx.spec.animations.iter().find( | a | a.id == anim_ref.0 )
+          .ok_or_else( || CompileError::UnresolvedRef
+          {
+            kind : "animation",
+            id : anim_ref.0.clone(),
+            context : format!( "object {:?} layer sprite_source", object.id ),
+          })?;
+        match phase_override
+        {
+          Some( phase ) =>
+          {
+            // Apply override by shifting the master time; bypasses the
+            // animation's declared `PhaseOffset` entirely.
+            let mut anim_clone = anim.clone();
+            anim_clone.phase_offset = crate::resource::PhaseOffset::Fixed( phase );
+            resolve_animation_frame( &anim_clone, ctx.time_seconds, pos )
+          },
+          None => resolve_animation_frame( anim, ctx.time_seconds, pos ),
+        }
+      },
+      SpriteSource::Variant { variants, selection } =>
+      {
+        if variants.is_empty()
+        {
+          return Err( CompileError::OutOfRange { owner : object.id.clone(), index : 0, max : 0 } );
+        }
+        let chosen = pick_variant_index( variants, *selection, pos, object, ctx )?;
+        resolve_sprite_source_with_phase( &variants[ chosen ].sprite, object, pos, phase_override, ctx )
+      },
+      _ => resolve_sprite_source( source, object, pos, ctx ),
+    }
+  }
+
+  /// `emit_neighbor_condition` variant that composes the per-instance
+  /// tint into each emitted sprite.
+  #[ allow( clippy::too_many_arguments ) ]
+  #[ allow( clippy::similar_names ) ]   // raw_sx / raw_sy are a coordinate pair
+  fn emit_neighbor_condition_with_overrides
+  (
+    object : &Object,
+    tile : &Tile,
+    condition : &crate::source::Condition,
+    sides : &[ crate::anchor::EdgeDirection ],
+    sprite_pattern : &str,
+    asset : &str,
+    behaviour : &LayerBehaviour,
+    inst : &Instance,
+    ctx : &FrameContext< '_ >,
+  ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
+  {
+    let current_priority = tile_max_priority( tile, ctx.spec );
+    let ( q, r ) = tile.pos;
+    let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
+    let ( raw_sx, raw_sy ) = ctx.camera.project( ( wx, wy ) );
+
+    let mut out = Vec::new();
+    for &side in sides
+    {
+      let Some( offset ) = neighbor_offset_by_dir( ctx.tiling, side ) else { continue; };
+      let neighbour_pos = ( tile.pos.0 + offset.0, tile.pos.1 + offset.1 );
+      let neighbour = neighbor_state_at( neighbour_pos, &ctx.tile_lookup, ctx.spec );
+      if !evaluate_condition( condition, &neighbour, current_priority ) { continue; }
+
+      let frame_name = sprite_pattern.replace( "{dir}", dir_name( side ) );
+      let sprite_id = ctx.compiled.ids.sprite( asset, &frame_name )
+        .ok_or_else( || CompileError::UnresolvedRef
+        {
+          kind : "sprite",
+          id : format!( "{asset}:{frame_name}" ),
+          context : format!( "object {:?} NeighborCondition side {side:?}", object.id ),
+        })?;
+
+      let ( sx, sy ) = apply_pivot( raw_sx, raw_sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
+      let transform = make_transform( sx, sy, ctx.camera.zoom );
+
+      out.push
+      ((
+        wx, wy,
+        Sprite
+        {
+          transform,
+          sprite : sprite_id,
+          tint : final_tint( ctx.global_tint, behaviour.alpha, inst.tint ),
+          blend : behaviour.blend,
+          clip : None,
+        },
+      ));
+    }
+    Ok( out )
+  }
+
+  /// Compose the per-sprite tint as
+  /// `global * layer_alpha (alpha-channel only) * instance_tint`.
+  #[ inline ]
+  fn final_tint( global : [ f32; 4 ], layer_alpha : f32, inst : Option< [ f32; 4 ] > ) -> [ f32; 4 ]
+  {
+    let [ gr, gg, gb, ga ] = global;
+    let composed = [ gr, gg, gb, ga * layer_alpha ];
+    match inst
+    {
+      None => composed,
+      Some( [ ir, ig, ib, ia ] ) =>
+      [
+        composed[ 0 ] * ir,
+        composed[ 1 ] * ig,
+        composed[ 2 ] * ib,
+        composed[ 3 ] * ia,
+      ],
+    }
+  }
+
+  /// Emit sprites for every Scene edge handle whose owning Object routes
+  /// into `bucket_id`. Mirrors `compile_edge_pass` but iterates Scene's
+  /// handle list and applies per-instance overrides.
+  fn compile_edge_pass_scene
+  (
+    bucket_id : &str,
+    scene : &Scene,
+    ctx : &FrameContext< '_ >,
+  ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
+  {
+    let mut out = Vec::new();
+    let mut seen : rustc_hash::FxHashSet< CanonicalEdge > = rustc_hash::FxHashSet::default();
+
+    for &handle in scene.edge_instances()
+    {
+      let inst = scene.instance( handle ).expect( "edge handle live" );
+      if !inst.visible { continue; }
+      let Placement::Edge { hex, dir } = inst.placement else { unreachable!() };
+
+      let Some( canon ) = canonical_edge( EdgePosition { hex, dir }, ctx.tiling ) else { continue };
+      if !seen.insert( canon ) { continue; }
+
+      let object = &ctx.spec.objects[ inst.object.index() as usize ];
+      if !matches!( object.anchor, Anchor::Edge )
+      {
+        return Err( CompileError::UnsupportedAnchor
+        {
+          object : object.id.clone(),
+          anchor : "Edge (object declares a different anchor)",
+        });
+      }
+
+      let state_name = scene.state_name( inst.state ).ok_or_else( || CompileError::MissingDefaultState
+      {
+        object : object.id.clone(),
+      })?;
+      let stack = object.states.get( state_name ).ok_or_else( || CompileError::MissingDefaultState
+      {
+        object : object.id.clone(),
+      })?;
+
+      for layer in stack
+      {
+        let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
+        if effective != bucket_id { continue; }
+
+        let sprite_ref = resolve_edge_sprite_source( &layer.sprite_source, object, canon, ctx )?;
+        let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
+          .ok_or_else( || CompileError::UnresolvedRef
+          {
+            kind : "sprite",
+            id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
+            context : format!( "object {:?} edge layer", object.id ),
+          })?;
+
+        let Some( ( wx, wy ) ) = edge_world_pixel( canon, ctx.tiling, ctx.grid_stride )
+        else
+        {
+          return Err( CompileError::UnsupportedAnchor
+          {
+            object : object.id.clone(),
+            anchor : "Edge (direction not valid for tiling)",
+          });
+        };
+        let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
+        let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
+
+        let transform = Transform
+        {
+          position : [ sx, sy ],
+          rotation : edge_rotation( canon.1, ctx.tiling ),
+          scale : [ ctx.camera.zoom, ctx.camera.zoom ],
+          skew : [ 0.0, 0.0 ],
+          depth : 0.0,
+        };
+
+        out.push
+        ((
+          wx, wy,
+          Sprite
+          {
+            transform,
+            sprite : sprite_id,
+            tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+            blend : layer.behaviour.blend,
+            clip : None,
+          },
+        ));
+      }
+    }
+    Ok( out )
+  }
+
+  /// Emit sprites for every Scene free-pos handle. Mirrors `compile_free_pass`.
+  fn compile_free_pass_scene
+  (
+    bucket_id : &str,
+    scene : &Scene,
+    ctx : &FrameContext< '_ >,
+  ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
+  {
+    let mut out = Vec::new();
+    for &handle in scene.free_instances()
+    {
+      let inst = scene.instance( handle ).expect( "free handle live" );
+      if !inst.visible { continue; }
+      let Placement::FreePos { x, y } = inst.placement else { unreachable!() };
+
+      let object = &ctx.spec.objects[ inst.object.index() as usize ];
+      if !matches!( object.anchor, Anchor::FreePos )
+      {
+        return Err( CompileError::UnsupportedAnchor
+        {
+          object : object.id.clone(),
+          anchor : "FreePos (object declares a different anchor)",
+        });
+      }
+
+      let state_name = scene.state_name( inst.state ).ok_or_else( || CompileError::MissingDefaultState
+      {
+        object : object.id.clone(),
+      })?;
+      let stack = object.states.get( state_name ).ok_or_else( || CompileError::MissingDefaultState
+      {
+        object : object.id.clone(),
+      })?;
+
+      for layer in stack
+      {
+        let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
+        if effective != bucket_id { continue; }
+
+        match &layer.sprite_source
+        {
+          SpriteSource::NeighborBitmask { .. }
+          | SpriteSource::NeighborCondition { .. }
+          | SpriteSource::VertexCorners { .. }
+          | SpriteSource::EdgeConnectedBitmask { .. }
+          | SpriteSource::ViewportTiled { .. } =>
+          {
+            return Err( CompileError::UnsupportedSource
+            {
+              object : object.id.clone(),
+              source_kind : source_name( &layer.sprite_source ),
+            });
+          },
+          _ => {}
+        }
+
+        // External slot resolution for free-pos.
+        if let SpriteSource::External { slot } = &layer.sprite_source
+        {
+          let Some( sprite_ref ) = inst.external_sprites.get( slot ) else { continue };
+          let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
+            .ok_or_else( || CompileError::UnresolvedRef
+            {
+              kind : "sprite",
+              id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
+              context : format!( "object {:?} free-pos external slot {slot:?}", object.id ),
+            })?;
+          let ( wx, wy ) = ( x, y );
+          let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
+          let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
+          let transform = make_transform( sx, sy, ctx.camera.zoom );
+          out.push((
+            wx, wy,
+            Sprite
+            {
+              transform,
+              sprite : sprite_id,
+              tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+              blend : layer.behaviour.blend,
+              clip : None,
+            },
+          ));
+          continue;
+        }
+
+        let sprite_ref = resolve_sprite_source_with_phase( &layer.sprite_source, object, ( 0, 0 ), inst.phase_offset, ctx )?;
+        let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
+          .ok_or_else( || CompileError::UnresolvedRef
+          {
+            kind : "sprite",
+            id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
+            context : format!( "object {:?} free layer", object.id ),
+          })?;
+
+        let ( wx, wy ) = ( x, y );
+        let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
+        let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
+        let transform = make_transform( sx, sy, ctx.camera.zoom );
+
+        out.push
+        ((
+          wx, wy,
+          Sprite
+          {
+            transform,
+            sprite : sprite_id,
+            tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+            blend : layer.behaviour.blend,
+            clip : None,
+          },
+        ));
+      }
+    }
+    Ok( out )
+  }
+
+  /// Emit `ScreenSpaceSprite` commands for every Scene viewport handle.
+  fn compile_viewport_pass_scene
+  (
+    bucket_id : &str,
+    scene : &Scene,
+    ctx : &FrameContext< '_ >,
+    commands : &mut Vec< RenderCommand >,
+  ) -> Result< (), CompileError >
+  {
+    for &handle in scene.viewport_instances()
+    {
+      let inst = scene.instance( handle ).expect( "viewport handle live" );
+      if !inst.visible { continue; }
+
+      let object = &ctx.spec.objects[ inst.object.index() as usize ];
+      if !matches!( object.anchor, Anchor::Viewport )
+      {
+        return Err( CompileError::UnsupportedAnchor
+        {
+          object : object.id.clone(),
+          anchor : "Viewport (object declares a different anchor)",
+        });
+      }
+
+      let state_name = scene.state_name( inst.state ).ok_or_else( || CompileError::MissingDefaultState
+      {
+        object : object.id.clone(),
+      })?;
+      let stack = object.states.get( state_name ).ok_or_else( || CompileError::MissingDefaultState
+      {
+        object : object.id.clone(),
+      })?;
+
+      for layer in stack
+      {
+        let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
+        if effective != bucket_id { continue; }
+
+        let SpriteSource::ViewportTiled { content, tiling : vtiling, anchor_point } = &layer.sprite_source
+        else
+        {
+          return Err( CompileError::UnsupportedSource
+          {
+            object : object.id.clone(),
+            source_kind : "Viewport-anchored layer must use ViewportTiled",
+          });
+        };
+
+        let sprite_ref = resolve_sprite_source( content, object, ( 0, 0 ), ctx )?;
+        let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
+          .ok_or_else( || CompileError::UnresolvedRef
+          {
+            kind : "sprite",
+            id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
+            context : format!( "object {:?} viewport layer", object.id ),
+          })?;
+
+        let region = ctx.compiled.assets.sprites.iter()
+          .find( | s | s.id == sprite_id )
+          .map_or( ( 1.0, 1.0 ), | s | ( s.region[ 2 ], s.region[ 3 ] ) );
+
+        let is_repeat = matches!
+        (
+          vtiling,
+          ViewportTiling::Repeat2D | ViewportTiling::RepeatX | ViewportTiling::RepeatY
+        );
+
+        if is_repeat
+        {
+          let zoom = ctx.camera.zoom;
+          let scaled_region = ( region.0 * zoom, region.1 * zoom );
+          for ( x, y ) in tiled_positions( *vtiling, *anchor_point, scaled_region, ctx.viewport_size )
+          {
+            let transform = Transform
+            {
+              position : [ x, y ],
+              rotation : 0.0,
+              scale : [ zoom, zoom ],
+              skew : [ 0.0, 0.0 ],
+              depth : 0.0,
+            };
+            commands.push( RenderCommand::ScreenSpaceSprite( Sprite
+            {
+              transform,
+              sprite : sprite_id,
+              tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+              blend : layer.behaviour.blend,
+              clip : None,
+            }));
+          }
+        }
+        else
+        {
+          let Some( transform ) = viewport_transform( *vtiling, *anchor_point, region, ctx.viewport_size )
+          else
+          {
+            return Err( CompileError::UnsupportedSource
+            {
+              object : object.id.clone(),
+              source_kind : "ViewportTiled (unsupported tiling)",
+            });
+          };
+          commands.push( RenderCommand::ScreenSpaceSprite( Sprite
+          {
+            transform,
+            sprite : sprite_id,
+            tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+            blend : layer.behaviour.blend,
+            clip : None,
+          }));
+        }
+      }
+    }
+    Ok( () )
+  }
 }
 
 mod_interface::mod_interface!
 {
-  exposed use compile_frame;
+  own use render_into;
+  own use gather_frame_emits;
+  own use FrameEmits;
+  own use BucketEmits;
 }

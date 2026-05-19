@@ -12,7 +12,7 @@ mod private
   use crate::compile::coords::{ hex_to_world_pixel_flat, hex_to_world_pixel_pointy };
   use crate::compile::neighbors::{ dir_to_index, neighbor_offset_by_dir, VOID_ID };
   use crate::pipeline::TilingStrategy;
-  use crate::scene::{ EdgeInstance, EdgePosition };
+  use crate::snapshot::{ EdgeInstance, EdgePosition };
 
   /// Canonical key for an edge.
   ///
@@ -282,7 +282,7 @@ mod tests
   use super::private::*;
   use crate::anchor::EdgeDirection;
   use crate::pipeline::TilingStrategy;
-  use crate::scene::EdgePosition;
+  use crate::snapshot::EdgePosition;
 
   #[ test ]
   fn canonical_picks_smaller_hex()

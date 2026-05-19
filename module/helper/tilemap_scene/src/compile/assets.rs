@@ -7,7 +7,8 @@
 //! - One [`tilemap_renderer::assets::SpriteAsset`] per **unique** `SpriteRef(asset_id, frame_name)`
 //!   appearing anywhere in an object's layer stack.
 //! - An [`crate::compile::ids::IdMap`] mapping string ids to the
-//!   allocated numeric handles, so `compile_frame` can resolve draw calls.
+//!   allocated numeric handles, so [`crate::renderer::Renderer`] can
+//!   resolve draw calls at render time.
 
 mod private
 {

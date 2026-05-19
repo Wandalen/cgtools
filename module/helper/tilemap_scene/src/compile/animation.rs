@@ -130,8 +130,23 @@ mod private
     }
   }
 
-  /// Compute `phase_offset` in seconds for a given tile position.
+  /// Compute `phase_offset` in seconds for a given tile position. Thin
+  /// wrapper retained for [`resolve_animation_frame`]; new callers use
+  /// [`declared_phase_seconds`] directly.
+  #[ inline ]
   fn phase_offset_seconds( anim : &Animation, pos : ( i32, i32 ) ) -> f32
+  {
+    declared_phase_seconds( anim, pos )
+  }
+
+  /// Resolve the animation's declared per-instance phase offset (in
+  /// seconds) for an instance at grid coordinate `pos`.
+  ///
+  /// Mirrors the renderer's frame-resolution path so completion-event
+  /// detection in `Scene::tick` agrees byte-for-byte with what
+  /// [`resolve_animation_frame`] would show on screen.
+  #[ must_use ]
+  pub fn declared_phase_seconds( anim : &Animation, pos : ( i32, i32 ) ) -> f32
   {
     match anim.phase_offset
     {
@@ -144,7 +159,7 @@ mod private
         let unit = ( raw as f32 ) / ( u32::MAX as f32 );
         // Multiply by the animation's *natural* period so neighbouring tiles
         // spread across the whole cycle, not just a tiny fraction of it.
-        let period = animation_period_seconds( anim );
+        let period = animation_duration_seconds( anim );
         unit * period
       },
       PhaseOffset::Linear { per_q, per_r } =>
@@ -154,8 +169,15 @@ mod private
     }
   }
 
-  /// Natural period of the animation in seconds; used by `HashCoord` phase.
-  fn animation_period_seconds( anim : &Animation ) -> f32
+  /// Total duration of one full play-through of the animation, in seconds.
+  ///
+  /// For `Regular { frames, fps }` = `frames.len() / fps`; for
+  /// `FromSheet { count, fps }` = `count / fps`; for `Irregular`
+  /// = the summed per-frame durations. Used by [`declared_phase_seconds`]
+  /// to spread `HashCoord` phase across the natural cycle, and by
+  /// `Scene::tick` to detect `OneShot` completion.
+  #[ must_use ]
+  pub fn animation_duration_seconds( anim : &Animation ) -> f32
   {
     match &anim.timing
     {
@@ -339,4 +361,6 @@ mod tests
 mod_interface::mod_interface!
 {
   exposed use resolve_animation_frame;
+  own use animation_duration_seconds;
+  own use declared_phase_seconds;
 }
