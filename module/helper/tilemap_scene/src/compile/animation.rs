@@ -28,6 +28,14 @@ mod private
   /// Pick the frame of `anim` that's active at `time_seconds` for a tile at
   /// `pos`, using the animation's declared `phase_offset`.
   ///
+  /// `oneshot_origin` is the wall-clock time at which an `OneShot` animation
+  /// began for *this instance* (typically `Instance.spawn_time`). It is
+  /// ignored for `Loop` / `PingPong` animations — those are intentionally
+  /// synchronised across instances via the master clock, with `phase_offset`
+  /// providing per-instance jitter. Pass `0.0` from non-instance call sites
+  /// (where OneShot start time is not meaningful) for the historical
+  /// behaviour.
+  ///
   /// Returns the `( asset_id, frame_name )` pair resolved to a single
   /// [`SpriteRef`] the caller can look up in the sprite id map.
   ///
@@ -41,11 +49,21 @@ mod private
   (
     anim : &Animation,
     time_seconds : f32,
+    oneshot_origin : f32,
     pos : ( i32, i32 ),
   ) -> Result< SpriteRef, CompileError >
   {
     let phase = phase_offset_seconds( anim, pos );
-    let local_t = time_seconds + phase;
+    // `OneShot` is per-instance triggered — its local time is the elapsed
+    // wall-clock since this instance entered the state. Loop / PingPong
+    // ride the master clock so neighbouring instances stay in harmonic
+    // phase (jittered via `phase_offset`).
+    let base = match anim.mode
+    {
+      AnimationMode::OneShot => time_seconds - oneshot_origin,
+      _                      => time_seconds,
+    };
+    let local_t = base + phase;
 
     match &anim.timing
     {
@@ -258,7 +276,7 @@ mod tests
   fn regular_loop_wraps()
   {
     let a = regular( "w", &[ "0", "1", "2" ], 10.0, AnimationMode::Loop );
-    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().frame;
+    let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ) ).unwrap().frame;
     assert_eq!( pick( 0.0 ), "0" );
     assert_eq!( pick( 0.1 ), "1" );
     assert_eq!( pick( 0.25 ), "2" );
@@ -269,7 +287,7 @@ mod tests
   fn one_shot_clamps()
   {
     let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::OneShot );
-    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().frame;
+    let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ) ).unwrap().frame;
     assert_eq!( pick( 0.0 ), "a" );
     assert_eq!( pick( 100.0 ), "c", "past end → stuck on last frame" );
   }
@@ -278,7 +296,7 @@ mod tests
   fn pingpong_reflects()
   {
     let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::PingPong );
-    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().frame;
+    let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ) ).unwrap().frame;
     // Period = 2 * (3 - 1) = 4 ticks. Sequence: a b c b | a b c b | ...
     assert_eq!( pick( 0.00 ), "a" );
     assert_eq!( pick( 0.10 ), "b" );
@@ -294,12 +312,12 @@ mod tests
     a.phase_offset = PhaseOffset::HashCoord;
     // Two neighbouring tiles, same global time — their local times should
     // differ (practically always) and so can their frames.
-    let f_00 = resolve_animation_frame( &a, 0.0, ( 0, 0 ) ).unwrap().frame;
-    let f_10 = resolve_animation_frame( &a, 0.0, ( 1, 0 ) ).unwrap().frame;
+    let f_00 = resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ) ).unwrap().frame;
+    let f_10 = resolve_animation_frame( &a, 0.0, 0.0, ( 1, 0 ) ).unwrap().frame;
     // We can't assert inequality rigorously (hash could collide) but we can
     // sample many coords and check that at least SOME produce different frames.
     let samples : Vec< String > =
-      ( 0..16 ).map( | q | resolve_animation_frame( &a, 0.0, ( q, 0 ) ).unwrap().frame ).collect();
+      ( 0..16 ).map( | q | resolve_animation_frame( &a, 0.0, 0.0, ( q, 0 ) ).unwrap().frame ).collect();
     let unique_count = samples.iter().collect::< std::collections::HashSet< _ > >().len();
     assert!
     (
@@ -314,7 +332,7 @@ mod tests
     let mut a = regular( "w", &[ "0", "1", "2" ], 10.0, AnimationMode::Loop );
     a.phase_offset = PhaseOffset::Fixed( 0.1 );
     // At global t=0, with phase=0.1s, we're 1 frame in.
-    let frame = resolve_animation_frame( &a, 0.0, ( 0, 0 ) ).unwrap().frame;
+    let frame = resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ) ).unwrap().frame;
     assert_eq!( frame, "1" );
   }
 
@@ -348,7 +366,7 @@ mod tests
       mode : AnimationMode::OneShot,
       phase_offset : PhaseOffset::None,
     };
-    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().frame;
+    let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ) ).unwrap().frame;
     assert_eq!( pick( 0.0  ), "wind_up" );
     assert_eq!( pick( 0.05 ), "wind_up" );
     assert_eq!( pick( 0.15 ), "impact" );

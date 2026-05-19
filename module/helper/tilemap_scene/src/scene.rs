@@ -603,8 +603,14 @@ mod private
 
             let phase = inst.phase_offset
               .unwrap_or_else( || declared_phase_seconds( anim, pos ) );
-            let t_before = clock_before + phase;
-            let t_after = clock_after + phase;
+            // OneShot is per-instance — its local time is the elapsed since
+            // the instance entered the state (currently approximated by
+            // `inst.spawn_time`, which is set on `Scene::spawn` and not
+            // bumped on `set_state`). Subtract it so completion fires
+            // `duration` seconds after the instance appeared, not at the
+            // absolute clock time `duration`.
+            let t_before = ( clock_before - inst.spawn_time ) + phase;
+            let t_after  = ( clock_after  - inst.spawn_time ) + phase;
             if t_before < duration && t_after >= duration
             {
               events.push( SceneEvent::AnimationCompleted

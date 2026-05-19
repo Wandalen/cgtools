@@ -299,7 +299,10 @@ mod private
             id : anim_ref.0.clone(),
             context : format!( "object {:?} edge layer sprite_source", object.id ),
           })?;
-        resolve_animation_frame( anim, ctx.time_seconds, canon.0 )
+        // Edge sprites are not per-instance — pass `0.0` as the `OneShot`
+        // origin (OneShot at the edge level uses absolute master time;
+        // typically these are Loop animations anyway, so it doesn't matter).
+        resolve_animation_frame( anim, ctx.time_seconds, 0.0, canon.0 )
       },
       SpriteSource::Variant { variants, selection } =>
       {
@@ -349,7 +352,10 @@ mod private
             id : anim_ref.0.clone(),
             context : format!( "object {:?} layer sprite_source", object.id ),
           })?;
-        resolve_animation_frame( anim, ctx.time_seconds, pos )
+        // Non-instance path: `OneShot` uses absolute master time. The
+        // per-instance variant ([`resolve_sprite_source_with_phase`])
+        // threads `inst.spawn_time` through for the correct timing.
+        resolve_animation_frame( anim, ctx.time_seconds, 0.0, pos )
       },
       SpriteSource::Variant { variants, selection } =>
       {
@@ -857,7 +863,10 @@ mod private
       ]);
     }
 
-    let sprite_ref = resolve_sprite_source_with_phase( &layer.sprite_source, object, pos, inst.phase_offset, ctx )?;
+    let sprite_ref = resolve_sprite_source_with_phase
+    (
+      &layer.sprite_source, object, pos, inst.phase_offset, inst.spawn_time, ctx,
+    )?;
     let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
       .ok_or_else( || CompileError::UnresolvedRef
       {
@@ -888,15 +897,21 @@ mod private
     ])
   }
 
-  /// Variant of `resolve_sprite_source` that threads an optional
-  /// per-instance phase offset into animation resolution.
+  /// Variant of `resolve_sprite_source` that threads per-instance overrides
+  /// (`phase_override`, `oneshot_origin`) into animation resolution.
+  ///
+  /// `oneshot_origin` is forwarded into [`resolve_animation_frame`] — it
+  /// only affects `AnimationMode::OneShot` (whose local time is the elapsed
+  /// since the instance entered the state), while `Loop` / `PingPong` keep
+  /// riding the master clock for cross-instance harmonic phase.
   fn resolve_sprite_source_with_phase
   (
-    source : &SpriteSource,
-    object : &Object,
-    pos : ( i32, i32 ),
+    source         : &SpriteSource,
+    object         : &Object,
+    pos            : ( i32, i32 ),
     phase_override : Option< f32 >,
-    ctx : &FrameContext< '_ >,
+    oneshot_origin : f32,
+    ctx            : &FrameContext< '_ >,
   ) -> Result< SpriteRef, CompileError >
   {
     match source
@@ -918,9 +933,9 @@ mod private
             // animation's declared `PhaseOffset` entirely.
             let mut anim_clone = anim.clone();
             anim_clone.phase_offset = crate::resource::PhaseOffset::Fixed( phase );
-            resolve_animation_frame( &anim_clone, ctx.time_seconds, pos )
+            resolve_animation_frame( &anim_clone, ctx.time_seconds, oneshot_origin, pos )
           },
-          None => resolve_animation_frame( anim, ctx.time_seconds, pos ),
+          None => resolve_animation_frame( anim, ctx.time_seconds, oneshot_origin, pos ),
         }
       },
       SpriteSource::Variant { variants, selection } =>
@@ -930,7 +945,10 @@ mod private
           return Err( CompileError::OutOfRange { owner : object.id.clone(), index : 0, max : 0 } );
         }
         let chosen = pick_variant_index( variants, *selection, pos, object, ctx )?;
-        resolve_sprite_source_with_phase( &variants[ chosen ].sprite, object, pos, phase_override, ctx )
+        resolve_sprite_source_with_phase
+        (
+          &variants[ chosen ].sprite, object, pos, phase_override, oneshot_origin, ctx,
+        )
       },
       _ => resolve_sprite_source( source, object, pos, ctx ),
     }
@@ -1192,7 +1210,10 @@ mod private
           continue;
         }
 
-        let sprite_ref = resolve_sprite_source_with_phase( &layer.sprite_source, object, ( 0, 0 ), inst.phase_offset, ctx )?;
+        let sprite_ref = resolve_sprite_source_with_phase
+        (
+          &layer.sprite_source, object, ( 0, 0 ), inst.phase_offset, inst.spawn_time, ctx,
+        )?;
         let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
           .ok_or_else( || CompileError::UnresolvedRef
           {
