@@ -407,29 +407,128 @@ fn hash_coord_phase_can_separate_completions()
 // ────────────────────────────────────────────────────────────────────────────
 
 #[ test ]
-fn state_switch_does_not_arm_event()
+fn state_switch_re_arms_oneshot()
 {
+  // `set_state` resets `state_entered_time` on the instance, so
+  // re-entering a OneShot state restarts its animation from frame 0
+  // and re-arms its `AnimationCompleted` event. This is the load-bearing
+  // semantics for attack/death/pulse animations on long-lived instances.
   let ( mut scene, h ) = make_simple_scene( AnimationMode::OneShot );
 
   // Tick across completion — one event.
   let first = scene.tick( 0.6 );
   assert_eq!( first.len(), 1 );
 
-  // Switch to alt (static layer) and back to default.
+  // Switch to alt (static layer) and back to default — `set_state` on
+  // the second call resets the OneShot clock.
   let actor = scene.object( "actor" ).unwrap();
   let alt = scene.state( actor, "alt" ).unwrap();
   let default = scene.state( actor, "default" ).unwrap();
   scene.set_state( h, alt );
   scene.set_state( h, default );
 
-  // Tick again — no re-fire because the per-instance phase didn't reset.
-  let evs = scene.tick( 0.6 );
-  assert!( evs.is_empty(), "no re-arm without explicit phase reset: {evs:?}" );
+  // Tick under duration — no crossing yet.
+  let evs_mid = scene.tick( 0.3 );
+  assert!( evs_mid.is_empty(), "below new-state duration: {evs_mid:?}" );
 
-  // Now explicitly reset phase to "start now" and tick — should fire again.
-  scene.set_phase_offset( h, Some( -scene.clock() ) );
-  let evs2 = scene.tick( 0.6 );
-  assert_eq!( evs2.len(), 1, "explicit phase reset re-arms: {evs2:?}" );
+  // Cross the new state's 0.5 s duration — event re-fires.
+  let evs2 = scene.tick( 0.3 );
+  assert_eq!( evs2.len(), 1, "re-entering OneShot state re-arms: {evs2:?}" );
+}
+
+#[ test ]
+fn oneshot_restarts_on_set_state_after_delay()
+{
+  // Scenario from ONESHOT_RESTART_BUG.md: an instance lives in a
+  // non-OneShot state for much longer than the OneShot duration, then
+  // switches into the OneShot state. The OneShot must play from frame
+  // 0 (not the last frame) and emit `AnimationCompleted` exactly once
+  // after its duration.
+  let anim = regular_animation( "spawn_fx", 5, 10.0, AnimationMode::OneShot, PhaseOffset::None );
+  // Default state is static; the OneShot lives on `alt`. Swap the
+  // usual fixture so default-spawn doesn't pre-emit a completion.
+  let spec =
+  {
+    let mut states = HashMap::default();
+    states.insert( "default".into(), vec![ static_layer() ] );
+    states.insert( "alt".into(), vec![ animation_layer( "spawn_fx" ) ] );
+    let spec = RenderSpec
+    {
+      version : "0.2.0".into(),
+      assets : vec!
+      [
+        Asset
+        {
+          id : "atlas".into(),
+          path : "atlas.png".into(),
+          kind : AssetKind::Atlas
+          {
+            tile_size : ( 72, 64 ),
+            columns : 4,
+            origin : ( 0, 0 ),
+            gap : ( 0, 0 ),
+            frames : HashMap::default(),
+            frame_rects : HashMap::default(),
+          },
+          filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
+        },
+      ],
+      tints : Vec::new(),
+      animations : vec![ anim ],
+      effects : Vec::new(),
+      objects : vec!
+      [
+        Object
+        {
+          id : "actor".into(),
+          anchor : Anchor::Hex,
+          global_layer : "main".into(),
+          priority : None,
+          sort_y_source : Default::default(),
+          pivot : ( 0.5, 0.5 ),
+          default_state : "default".into(),
+          states,
+        },
+      ],
+      pipeline : RenderPipeline
+      {
+        hex : HexConfig { tiling : TilingStrategy::HexFlatTop, grid_stride : ( 72, 64 ) },
+        layers : vec!
+        [
+          PipelineLayer { id : "main".into(), sort : SortMode::None, tint_mask : None },
+        ],
+        global_tint : None,
+        viewport_size : None,
+        clear_color : None,
+      },
+    };
+    Arc::new( spec )
+  };
+  let mut scene = Scene::new( spec );
+  let actor = scene.object( "actor" ).unwrap();
+  let h = scene.spawn( actor, Placement::Hex { q : 0, r : 0 } );
+
+  // 10 s of gameplay in the static state — no events.
+  let evs_idle = scene.tick( 10.0 );
+  assert!( evs_idle.is_empty(), "static state must not emit: {evs_idle:?}" );
+
+  // Trigger the OneShot.
+  let alt = scene.state( actor, "alt" ).unwrap();
+  scene.set_state( h, alt );
+
+  // Half-way through the 0.5 s duration — not crossed yet.
+  let evs_mid = scene.tick( 0.3 );
+  assert!( evs_mid.is_empty(), "below new-state duration: {evs_mid:?}" );
+
+  // Cross duration — exactly one event.
+  let evs_done = scene.tick( 0.3 );
+  assert_eq!
+  (
+    evs_done.len(), 1,
+    "OneShot must complete `duration` seconds after set_state, not silently freeze: {evs_done:?}",
+  );
 }
 
 // ────────────────────────────────────────────────────────────────────────────

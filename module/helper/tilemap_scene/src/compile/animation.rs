@@ -28,12 +28,14 @@ mod private
   /// Pick the frame of `anim` that's active at `time_seconds` for a tile at
   /// `pos`, using the animation's declared `phase_offset`.
   ///
-  /// `oneshot_origin` is the wall-clock time at which an `OneShot` animation
-  /// began for *this instance* (typically `Instance.spawn_time`). It is
-  /// ignored for `Loop` / `PingPong` animations — those are intentionally
-  /// synchronised across instances via the master clock, with `phase_offset`
-  /// providing per-instance jitter. Pass `0.0` from non-instance call sites
-  /// (where OneShot start time is not meaningful) for the historical
+  /// `oneshot_origin` is the wall-clock time at which an `OneShot`
+  /// animation began for *this instance* (typically
+  /// `Instance.state_entered_time` so re-entering a `OneShot` state
+  /// restarts the animation). It is ignored for `Loop` / `PingPong`
+  /// animations — those are intentionally synchronised across
+  /// instances via the master clock, with `phase_offset` providing
+  /// per-instance jitter. Pass `0.0` from non-instance call sites
+  /// (where `OneShot` start time is not meaningful) for the historical
   /// behaviour.
   ///
   /// Returns the `( asset_id, frame_name )` pair resolved to a single
@@ -290,6 +292,22 @@ mod tests
     let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ) ).unwrap().frame;
     assert_eq!( pick( 0.0 ), "a" );
     assert_eq!( pick( 100.0 ), "c", "past end → stuck on last frame" );
+  }
+
+  #[ test ]
+  fn one_shot_origin_resets_local_time()
+  {
+    // OneShot rooted at a non-zero origin — the relative time is
+    // `time_seconds - oneshot_origin`, so a 0.05 s delta after the
+    // origin must pick the first frame, not the clamped last frame
+    // (the bug that ONESHOT_RESTART_BUG.md describes at the
+    // animation-resolve layer).
+    let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::OneShot );
+    let pick = | t, origin | resolve_animation_frame( &a, t, origin, ( 0, 0 ) ).unwrap().frame;
+    assert_eq!( pick( 5.05, 5.0 ), "a", "0.05 s after origin → first frame" );
+    assert_eq!( pick( 5.15, 5.0 ), "b" );
+    assert_eq!( pick( 5.25, 5.0 ), "c" );
+    assert_eq!( pick( 99.0, 5.0 ), "c", "past origin + duration → clamped" );
   }
 
   #[ test ]

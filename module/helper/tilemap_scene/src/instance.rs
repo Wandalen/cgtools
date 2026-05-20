@@ -155,10 +155,19 @@ mod private
     /// instance when set — lets `OneShot` animations start "now" without
     /// spec mutation.
     pub phase_offset : Option< f32 >,
-    /// Scene clock value captured at [`crate::scene::Scene::spawn`]. Useful
-    /// for `OneShot` timing math even before the renderer exposes
-    /// completion events.
+    /// Scene clock value captured at [`crate::scene::Scene::spawn`].
+    /// Stable for the instance's lifetime — represents literal birth
+    /// time, useful for age-based effects and debug logging. Not used
+    /// for `OneShot` timing; see [`Self::state_entered_time`].
     pub spawn_time : f32,
+    /// Scene clock value captured every time the instance enters a new
+    /// state — set by [`crate::scene::Scene::spawn`] (to the same value
+    /// as `spawn_time`) and updated by every successful
+    /// [`crate::scene::Scene::set_state`]. This is the origin used for
+    /// `OneShot` animation timing and completion events, so calling
+    /// `set_state` on an existing instance restarts its `OneShot`
+    /// animation from frame 0.
+    pub state_entered_time : f32,
     /// External-source sprite overrides keyed by slot name. Populated via
     /// `Scene::set_external_sprite`; consumed by `SpriteSource::External`
     /// layers during rendering.

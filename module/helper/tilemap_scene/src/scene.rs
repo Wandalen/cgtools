@@ -71,7 +71,10 @@ mod private
 
     /// Master clock — advances via [`Self::tick`] (which also emits any
     /// [`SceneEvent`]s triggered by the elapsed interval). Captured into
-    /// `Instance.spawn_time` on `spawn` for `OneShot` animation timing.
+    /// `Instance.spawn_time` on `spawn` and into
+    /// `Instance.state_entered_time` on every `spawn` and `set_state`.
+    /// `OneShot` animation timing is rooted in
+    /// `state_entered_time`, not `spawn_time`.
     clock : f32,
 
     /// Optional override for `RenderPipeline.global_tint`. `None` = use
@@ -365,6 +368,7 @@ mod private
         tint : None,
         phase_offset : None,
         spawn_time : self.clock,
+        state_entered_time : self.clock,
         external_sprites : HashMap::default(),
       };
       let handle = self.instances.insert( instance );
@@ -407,6 +411,12 @@ mod private
 
     /// Switch the active state of `h`. `state` must belong to the same
     /// object as the instance (otherwise debug-asserts and is ignored).
+    ///
+    /// Resets the instance's `state_entered_time` to the current clock
+    /// value, restarting any `OneShot` animation in the new state from
+    /// frame 0. `Loop` and `PingPong` animations continue to ride the
+    /// master clock with their declared `PhaseOffset` (see
+    /// `state_entered_time` doc for the rationale).
     pub fn set_state( &mut self, h : InstanceHandle, state : StateHandle )
     {
       let Some( inst ) = self.instances.get_mut( h )
@@ -424,6 +434,7 @@ mod private
       if inst_object == state.object
       {
         inst.state = state;
+        inst.state_entered_time = self.clock;
         self.revision += 1;
       }
     }
@@ -603,14 +614,15 @@ mod private
 
             let phase = inst.phase_offset
               .unwrap_or_else( || declared_phase_seconds( anim, pos ) );
-            // OneShot is per-instance — its local time is the elapsed since
-            // the instance entered the state (currently approximated by
-            // `inst.spawn_time`, which is set on `Scene::spawn` and not
-            // bumped on `set_state`). Subtract it so completion fires
-            // `duration` seconds after the instance appeared, not at the
-            // absolute clock time `duration`.
-            let t_before = ( clock_before - inst.spawn_time ) + phase;
-            let t_after  = ( clock_after  - inst.spawn_time ) + phase;
+            // OneShot is per-instance — its local time is the elapsed
+            // since the instance *entered the current state*, tracked
+            // on `inst.state_entered_time` (set by `Scene::spawn` and
+            // re-set by every `Scene::set_state`). Subtract it so
+            // completion fires `duration` seconds after the state
+            // entry, not at the absolute clock time `duration`, and
+            // so re-entering a OneShot state re-arms the event.
+            let t_before = ( clock_before - inst.state_entered_time ) + phase;
+            let t_after  = ( clock_after  - inst.state_entered_time ) + phase;
             if t_before < duration && t_after >= duration
             {
               events.push( SceneEvent::AnimationCompleted

@@ -865,7 +865,7 @@ mod private
 
     let sprite_ref = resolve_sprite_source_with_phase
     (
-      &layer.sprite_source, object, pos, inst.phase_offset, inst.spawn_time, ctx,
+      &layer.sprite_source, object, pos, inst.phase_offset, inst.state_entered_time, ctx,
     )?;
     let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
       .ok_or_else( || CompileError::UnresolvedRef
@@ -1212,7 +1212,7 @@ mod private
 
         let sprite_ref = resolve_sprite_source_with_phase
         (
-          &layer.sprite_source, object, ( 0, 0 ), inst.phase_offset, inst.spawn_time, ctx,
+          &layer.sprite_source, object, ( 0, 0 ), inst.phase_offset, inst.state_entered_time, ctx,
         )?;
         let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
           .ok_or_else( || CompileError::UnresolvedRef
