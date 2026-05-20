@@ -37,6 +37,7 @@ mod private {}
 mod_interface::mod_interface!
 {
   layer anchor;
+  layer catalog;
   layer compile;
   layer coords;
   layer error;

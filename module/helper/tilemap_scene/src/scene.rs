@@ -326,6 +326,22 @@ mod private
       StateHandle { object, state_index : meta.default_state_index }
     }
 
+    /// Start building a typed [`crate::catalog::Catalog`] of object and
+    /// state handles against this scene's spec. Required ids are
+    /// declared via the returned [`crate::catalog::CatalogBuilder`];
+    /// `build()` resolves them all at once and fails fast — reporting
+    /// every missing id together — if any are not declared.
+    ///
+    /// Recommended pattern: build the catalog once during adapter init
+    /// and cache the resulting handles, so the hot reconcile path
+    /// resolves ids without `Option` unwrapping.
+    #[ inline ]
+    #[ must_use ]
+    pub fn catalog( &self ) -> crate::catalog::CatalogBuilder< '_ >
+    {
+      crate::catalog::CatalogBuilder::new( self )
+    }
+
     /// Return the alphabetically-sorted state name corresponding to a
     /// [`StateHandle`]. Useful for debug logging and for renderers that
     /// need to look the layer stack up in `RenderSpec.objects[i].states`.
