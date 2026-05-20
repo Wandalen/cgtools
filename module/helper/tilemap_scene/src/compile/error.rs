@@ -102,7 +102,7 @@ mod private
     /// `frames`/named-cell entries) and the actual image. Surfaces
     /// the bug where `columns` is treated as the image's column count
     /// instead of the addressable column count of the auto-numbering
-    /// scheme — see SPEC and `DOWNSTREAM_FEEDBACK` §2.
+    /// scheme.
     FrameOutOfBounds
     {
       /// The asset id whose frame was out of bounds.

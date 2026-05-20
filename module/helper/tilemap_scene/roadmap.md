@@ -257,16 +257,16 @@ workload demands it.
    `tilemap_renderer`. Adding it would let the renderer elide no-op
    Sets when only some instances actually changed.
 
-## Backlog from downstream feedback
+## Backlog from downstream consumer feedback
 
-Surfaced by `DOWNSTREAM_FEEDBACK.md` (the `render_adapter` in
-`game_the_final_state`). The high-impact / low-cost items already
-landed as `fix(tilemap_scene)` / `feat(tilemap_scene)` commits on
-this branch (OneShot re-entry, `Catalog`, `tick_into`, atlas
-`image_size` bounds check, `PhaseOffset::Instance`, plus the docs
-clarifying `frames` vs `frame_rects` and the `HashCoord` non-hex
-fallback). The remaining items are each substantive enough to be
-their own slice:
+Items surfaced by a downstream `render_adapter` consumer. The
+high-impact / low-cost ones already landed as
+`fix(tilemap_scene)` / `feat(tilemap_scene)` commits on this branch
+(OneShot re-entry, `Catalog`, `tick_into`, atlas `image_size`
+bounds check, `PhaseOffset::Instance`, plus the docs clarifying
+`frames` vs `frame_rects` and the `HashCoord` non-hex fallback).
+The remaining items are each substantive enough to be their own
+slice:
 
 1. **Interpolated `move_to`.** Today `Scene::move_to` is a teleport —
    sprites snap to the new placement and any `HashCoord` phase
@@ -306,18 +306,20 @@ These observations informed the picks above but were left out of
 the commits — they'd be premature without a second consumer asking
 for the same shape.
 
-- The root cause behind feedback items §2 / §3 / §4 is the same:
-  *spec uses strings, runtime fails late on string lookups*. The
-  typed `Catalog` covers object / state ids; the atlas `image_size`
-  bounds check covers frame ids; a future expansion would extend
-  the catalog to animation / tint / asset / pipeline-layer ids so a
-  consumer can ask "give me handles to everything I touch" once
-  and have all string lookups validated up front.
+- The root cause behind several of the consumer-reported issues is
+  the same: *spec uses strings, runtime fails late on string
+  lookups*. The typed `Catalog` covers object / state ids; the
+  atlas `image_size` bounds check covers frame ids; a future
+  expansion would extend the catalog to animation / tint / asset /
+  pipeline-layer ids so a consumer can ask "give me handles to
+  everything I touch" once and have all string lookups validated up
+  front.
 
 - `Instance.spawn_time` is now strictly literal birth-time after
-  the OneShot fix. The render adapter never reads it (it keeps its
-  own `birth_time` in an `ObjectSlot` shadow struct). If no
-  consumer asks for it, it can be removed in a follow-up cleanup.
+  the OneShot fix — its old dual role (birth + OneShot origin) is
+  taken over by `state_entered_time`. If no consumer reads
+  `spawn_time` for age-based effects, it can be removed in a
+  follow-up cleanup.
 
 - The `Vec<SceneEvent>` allocation fix (`tick_into`) is the local
   case of a general pattern: *anywhere `Scene` or `Renderer`

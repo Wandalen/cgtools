@@ -440,11 +440,10 @@ fn state_switch_re_arms_oneshot()
 #[ test ]
 fn oneshot_restarts_on_set_state_after_delay()
 {
-  // Scenario from ONESHOT_RESTART_BUG.md: an instance lives in a
-  // non-OneShot state for much longer than the OneShot duration, then
-  // switches into the OneShot state. The OneShot must play from frame
-  // 0 (not the last frame) and emit `AnimationCompleted` exactly once
-  // after its duration.
+  // An instance lives in a non-OneShot state for much longer than
+  // the OneShot duration, then switches into the OneShot state. The
+  // OneShot must play from frame 0 (not the last frame) and emit
+  // `AnimationCompleted` exactly once after its duration.
   let anim = regular_animation( "spawn_fx", 5, 10.0, AnimationMode::OneShot, PhaseOffset::None );
   // Default state is static; the OneShot lives on `alt`. Swap the
   // usual fixture so default-spawn doesn't pre-emit a completion.

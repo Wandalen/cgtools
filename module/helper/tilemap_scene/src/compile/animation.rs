@@ -326,9 +326,7 @@ mod tests
   {
     // OneShot rooted at a non-zero origin — the relative time is
     // `time_seconds - oneshot_origin`, so a 0.05 s delta after the
-    // origin must pick the first frame, not the clamped last frame
-    // (the bug that ONESHOT_RESTART_BUG.md describes at the
-    // animation-resolve layer).
+    // origin must pick the first frame, not the clamped last frame.
     let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::OneShot );
     let pick = | t, origin | resolve_animation_frame( &a, t, origin, ( 0, 0 ), None ).unwrap().frame;
     assert_eq!( pick( 5.05, 5.0 ), "a", "0.05 s after origin → first frame" );
