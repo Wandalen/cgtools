@@ -124,7 +124,15 @@ mod private
     {
       /// Size of one tile in pixels, `( width, height )`.
       tile_size : ( u32, u32 ),
-      /// Number of columns in the atlas grid — used by numeric-index lookups.
+      /// Number of **addressable** columns in the row-major
+      /// auto-numbering scheme used by numeric-index lookups
+      /// (`col = idx % columns`, `row = idx / columns`). Frames whose
+      /// computed column would be `>= columns` cannot be reached by
+      /// numeric name and must be declared in `frame_rects` (or
+      /// `frames`) — even if the physical image is wider than
+      /// `columns * tile_size.0`. Set `image_size` to have the
+      /// compile layer reject frames whose resolved rect would extend
+      /// past the actual image.
       columns : u32,
       /// Pixel offset from the image's top-left where the grid begins,
       /// `( x, y )`. Defaults to `( 0, 0 )`. Use to skip a leading border /
@@ -136,13 +144,21 @@ mod private
       /// is `tile_size.1 + gap.1`.
       #[ serde( default ) ]
       gap : ( u32, u32 ),
-      /// Named-frame manifest: `"name" -> ( col, row )`. Empty by default.
+      /// Named-cell manifest mapping a frame name to its `(col, row)`
+      /// in the grid. Frames declared here share the same
+      /// `tile_size` / `origin` / `gap` pixel-rect computation as
+      /// numeric indices — they just carry a semantic name. Empty by
+      /// default. Use `frame_rects` instead when the frame's pixel
+      /// rect doesn't fit the grid layout.
       #[ serde( default ) ]
       frames : HashMap< String, ( u32, u32 ) >,
-      /// Explicit per-frame specifications: pixel rect plus optional anchor
-      /// point (in pixels relative to the rect's top-left). Takes precedence
-      /// over `frames` for the same name. Use this for irregular atlases
-      /// (non-uniform row heights / pixel-precise anchor points per sprite).
+      /// Explicit per-frame **pixel rectangles** (plus optional pixel
+      /// anchor relative to the rect's top-left). Wins over `frames`
+      /// when the same name appears in both. Use this for irregular
+      /// atlases (non-uniform row heights / pixel-precise anchor
+      /// points per sprite) and for frames that live outside the
+      /// addressable column range — e.g. a column at index
+      /// `columns + 1` in a wider image.
       #[ serde( default ) ]
       frame_rects : HashMap< String, FrameSpec >,
       /// Pixel dimensions of the source image, when authored. When set,
@@ -318,8 +334,17 @@ mod private
     /// No offset; all instances play at the master clock.
     #[ default ]
     None,
-    /// Offset derived deterministically from the instance's grid coordinate
-    /// (via [`crate::hash::hash_coord`]). Requires a grid-anchored anchor.
+    /// Offset derived deterministically from the instance's grid
+    /// coordinate (via [`crate::hash::hash_coord`]). Requires a
+    /// grid-anchored placement (`Hex`, `Multihex`, `Edge`).
+    ///
+    /// For placements without a hex coord (`FreePos`, `Viewport`),
+    /// `HashCoord` degenerates to the same phase for every instance
+    /// — the runtime substitutes `(0, 0)` for the missing coord, so
+    /// every non-hex instance hashes to the same value. When stagger
+    /// matters on those placements, set an explicit
+    /// [`PhaseOffset::Fixed`] per instance via
+    /// [`crate::scene::Scene::set_phase_offset`].
     HashCoord,
     /// Constant offset in seconds.
     Fixed( f32 ),

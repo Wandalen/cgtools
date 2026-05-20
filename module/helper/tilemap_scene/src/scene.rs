@@ -626,6 +626,10 @@ mod private
             continue;
           };
 
+          // For non-hex placements (`FreePos`, `Viewport`) the fallback
+          // is `(0, 0)` — this is the degenerate-stagger case noted on
+          // `PhaseOffset::HashCoord`. Override with `set_phase_offset`
+          // if per-instance stagger is needed there.
           let pos = inst.placement.hex_coord().unwrap_or( ( 0, 0 ) );
 
           for ( layer_index, layer ) in layers.iter().enumerate()
