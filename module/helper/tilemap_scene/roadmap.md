@@ -257,6 +257,75 @@ workload demands it.
    `tilemap_renderer`. Adding it would let the renderer elide no-op
    Sets when only some instances actually changed.
 
+## Backlog from downstream feedback
+
+Surfaced by `DOWNSTREAM_FEEDBACK.md` (the `render_adapter` in
+`game_the_final_state`). The high-impact / low-cost items already
+landed as `fix(tilemap_scene)` / `feat(tilemap_scene)` commits on
+this branch (OneShot re-entry, `Catalog`, `tick_into`, atlas
+`image_size` bounds check, `PhaseOffset::Instance`, plus the docs
+clarifying `frames` vs `frame_rects` and the `HashCoord` non-hex
+fallback). The remaining items are each substantive enough to be
+their own slice:
+
+1. **Interpolated `move_to`.** Today `Scene::move_to` is a teleport —
+   sprites snap to the new placement and any `HashCoord` phase
+   re-derives from scratch. API sketch:
+   `Scene::move_to_animated(h, dest, duration, easing)` plus a new
+   `SceneEvent::MoveCompleted { instance }`. Likely realisation:
+   `Placement::Interp { from, to, t0, duration, easing }` driven off
+   the master clock so the renderer reads the interpolated position
+   and `Scene::tick` emits the completion event the same way
+   OneShot detection works today. Composes with the existing
+   `move_to` (which would stay as the teleport variant).
+
+2. **Easing for OneShot frames.** `AnimationTiming::Irregular`
+   already covers per-frame durations but is awkward to author by
+   hand (caller computes the easing curve and writes out N explicit
+   `duration_ms` values). Add an `AnimationTiming::Easing
+   { duration, easing : EasingFn, frames }` variant where
+   `EasingFn = Linear | EaseIn | EaseOut | EaseInOut | Cubic([f32;4])`,
+   resolved by `frame_index = (easing(t) * frame_count).floor()`.
+   Useful for natural spawn / settle animations. Doesn't compose
+   with `fps` (the easing curve subsumes it).
+
+3. **Image-dimension-aware atlas validation.** The `image_size`
+   field on `AssetKind::Atlas` is optional today because the
+   resolver doesn't see image bytes. Two paths to make the check
+   default-on: (a) extend `AssetResolver` to return image
+   dimensions alongside the `ImageSource`, then carry them into
+   `compile_assets`'s bounds check, or (b) require `image_size`
+   on every atlas authored against the spec. Either way, move the
+   check into `validate.rs::Validate for RenderSpec` so violations
+   surface from `spec.validate()` rather than only from
+   `compile_assets`.
+
+## Generalisations worth tracking (not committed)
+
+These observations informed the picks above but were left out of
+the commits — they'd be premature without a second consumer asking
+for the same shape.
+
+- The root cause behind feedback items §2 / §3 / §4 is the same:
+  *spec uses strings, runtime fails late on string lookups*. The
+  typed `Catalog` covers object / state ids; the atlas `image_size`
+  bounds check covers frame ids; a future expansion would extend
+  the catalog to animation / tint / asset / pipeline-layer ids so a
+  consumer can ask "give me handles to everything I touch" once
+  and have all string lookups validated up front.
+
+- `Instance.spawn_time` is now strictly literal birth-time after
+  the OneShot fix. The render adapter never reads it (it keeps its
+  own `birth_time` in an `ObjectSlot` shadow struct). If no
+  consumer asks for it, it can be removed in a follow-up cleanup.
+
+- The `Vec<SceneEvent>` allocation fix (`tick_into`) is the local
+  case of a general pattern: *anywhere `Scene` or `Renderer`
+  returns an owned collection on a hot path, the caller should be
+  able to pass `&mut Vec<…>`*. The renderer's command stream
+  already follows this. A brief contributor-doc note could codify
+  the pattern.
+
 ## Format gaps that might surface
 
 - **Edge autotile rotation details.** `EdgeConnectedBitmask.EdgeHex`
