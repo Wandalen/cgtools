@@ -359,6 +359,18 @@ mod private
       /// Seconds of phase shift added per unit of `r`.
       per_r : f32,
     },
+    /// Offset derived from a per-instance seed stamped at
+    /// [`crate::scene::Scene::spawn`]. Works on every placement
+    /// variant — unlike [`Self::HashCoord`], it does not depend on a
+    /// hex coordinate, so `FreePos` and `Viewport` instances get a
+    /// real per-instance phase. The seed is mixed with the
+    /// animation's id so two animations on the same instance pick
+    /// independent phases.
+    ///
+    /// In non-instance compile paths (edge / vertex passes that don't
+    /// map to a specific [`crate::instance::Instance`]) this variant
+    /// falls back to `0.0`.
+    Instance,
   }
 
   // ============================================================================

@@ -534,6 +534,60 @@ fn oneshot_restarts_on_set_state_after_delay()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// `PhaseOffset::Instance` — placement-agnostic stagger
+// ────────────────────────────────────────────────────────────────────────────
+
+#[ test ]
+fn phase_offset_instance_staggers_freepos_completions()
+{
+  // Two `Placement::FreePos` instances of the same OneShot animation.
+  // `PhaseOffset::HashCoord` would degenerate (both hash `(0, 0)` →
+  // same phase) but `PhaseOffset::Instance` derives phase from
+  // per-instance seeds so the two instances complete in different
+  // ticks. The exact ordering depends on the hash, but at least one
+  // tick must distinguish them.
+  let anim = regular_animation( "spawn_fx", 5, 10.0, AnimationMode::OneShot, PhaseOffset::Instance );
+  let spec = build_spec( vec![ anim ], vec![ animation_layer( "spawn_fx" ) ] );
+  let mut scene = Scene::new( spec );
+  let actor = scene.object( "actor" ).unwrap();
+
+  // Spawn 8 instances. Their phases come from instance_phase_seed,
+  // not from grid coords, so two FreePos placements at the same
+  // pixel still get different phases.
+  let mut handles = Vec::new();
+  for _ in 0..8
+  {
+    handles.push( scene.spawn( actor, Placement::FreePos { x : 0.0, y : 0.0 } ) );
+  }
+
+  // Tick enough to cross duration (0.5 s) for instances whose phase
+  // puts them on the early side. Collect events from many small
+  // ticks so completions fall across at least two distinct ticks.
+  let mut tick_buckets : Vec< usize > = Vec::new();
+  let mut total_completed = 0;
+  for _ in 0..20
+  {
+    let evs = scene.tick( 0.1 );
+    tick_buckets.push( evs.len() );
+    total_completed += evs.len();
+  }
+
+  // All 8 must complete eventually.
+  assert_eq!( total_completed, 8, "every instance must complete: {tick_buckets:?}" );
+  // At least two ticks must have produced completions — i.e. the
+  // phase actually spread the events in time. If `Instance` were
+  // degenerate the way `HashCoord` is for FreePos, every completion
+  // would have landed on the same tick.
+  let ticks_with_events = tick_buckets.iter().filter( | &&n | n > 0 ).count();
+  assert!
+  (
+    ticks_with_events >= 2,
+    "PhaseOffset::Instance must spread per-instance phases across at least two ticks; \
+     got {tick_buckets:?}",
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // `tick_into` — caller-owned buffer
 // ────────────────────────────────────────────────────────────────────────────
 

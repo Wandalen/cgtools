@@ -92,6 +92,12 @@ mod private
     /// does NOT bump — clock advance is a separate signal exposed via
     /// [`Self::clock`].
     revision : u64,
+
+    /// Counter that produces a unique `instance_phase_seed` for each
+    /// spawned instance. Hashed once at spawn so the seed is varied
+    /// enough that mixing it with `hash_str(anim.id)` gives independent
+    /// per-instance / per-animation phases.
+    next_phase_seed : u32,
   }
 
   /// Per-object metadata cached at `Scene::new`.
@@ -286,6 +292,7 @@ mod private
         global_tint_override : None,
         seed : 0,
         revision : 0,
+        next_phase_seed : 0,
       }
     }
 
@@ -375,6 +382,17 @@ mod private
     ) -> InstanceHandle
     {
       let state = self.default_state( object );
+      // Hash the spawn-order counter so the seed is well-distributed
+      // (avoids the `hash_coord( 0, 0, _ ) == 0` fixed point biting
+      // the first-spawned instance). Mixed with the scene seed so
+      // re-seeded scenes get a different distribution.
+      let raw_seed = self.next_phase_seed;
+      self.next_phase_seed = self.next_phase_seed.wrapping_add( 1 );
+      let scene_salt = ( self.seed as u32 ) ^ ( ( self.seed >> 32 ) as u32 );
+      let instance_phase_seed = crate::hash::hash_coord
+      (
+        raw_seed as i32, 0, scene_salt ^ 0x9E37_79B9,
+      );
       let instance = Instance
       {
         object,
@@ -386,6 +404,7 @@ mod private
         spawn_time : self.clock,
         state_entered_time : self.clock,
         external_sprites : HashMap::default(),
+        instance_phase_seed,
       };
       let handle = self.instances.insert( instance );
       self.index_insert( handle, placement );
@@ -658,7 +677,7 @@ mod private
             }
 
             let phase = inst.phase_offset
-              .unwrap_or_else( || declared_phase_seconds( anim, pos ) );
+              .unwrap_or_else( || declared_phase_seconds( anim, pos, Some( inst.instance_phase_seed ) ) );
             // OneShot is per-instance — its local time is the elapsed
             // since the instance *entered the current state*, tracked
             // on `inst.state_entered_time` (set by `Scene::spawn` and

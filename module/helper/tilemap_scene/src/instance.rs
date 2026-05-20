@@ -175,6 +175,13 @@ mod private
     /// Stored on the instance (not in a separate scene-level map) so
     /// `despawn` cleans them up for free.
     pub external_sprites : rustc_hash::FxHashMap< String, SpriteRef >,
+    /// Per-instance phase seed stamped at
+    /// [`crate::scene::Scene::spawn`] and stable for the instance's
+    /// lifetime. Consumed by [`crate::resource::PhaseOffset::Instance`]
+    /// (mixed with the animation id) so the per-instance phase is
+    /// independent of the placement variant and varies across
+    /// animations on the same instance.
+    pub instance_phase_seed : u32,
   }
 }
 
