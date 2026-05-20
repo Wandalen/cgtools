@@ -532,6 +532,45 @@ fn oneshot_restarts_on_set_state_after_delay()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// `tick_into` — caller-owned buffer
+// ────────────────────────────────────────────────────────────────────────────
+
+#[ test ]
+fn tick_into_appends_to_caller_buffer()
+{
+  use tilemap_scene::AnimationRef;
+
+  let ( mut scene, h ) = make_simple_scene( AnimationMode::OneShot );
+
+  // Pre-populate the buffer with a sentinel that must survive the
+  // call — `tick_into` is a *push*, not a *replace*.
+  let mut events : Vec< SceneEvent > = vec!
+  [
+    SceneEvent::AnimationCompleted
+    {
+      instance : h,
+      state : scene.instance( h ).unwrap().state,
+      layer_index : 99,
+      animation : AnimationRef( "sentinel".into() ),
+    },
+  ];
+
+  // Tick under duration — buffer unchanged in length except the sentinel.
+  scene.tick_into( 0.3, &mut events );
+  assert_eq!( events.len(), 1, "no event yet, sentinel preserved" );
+
+  // Cross duration — one real event pushed *after* the sentinel.
+  scene.tick_into( 0.3, &mut events );
+  assert_eq!( events.len(), 2 );
+  let SceneEvent::AnimationCompleted { animation, .. } = &events[ 0 ]
+    else { panic!() };
+  assert_eq!( animation.0, "sentinel", "sentinel still at index 0" );
+  let SceneEvent::AnimationCompleted { animation, .. } = &events[ 1 ]
+    else { panic!() };
+  assert_eq!( animation.0, "spawn_fx", "real event appended" );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Determinism / payload shape
 // ────────────────────────────────────────────────────────────────────────────
 

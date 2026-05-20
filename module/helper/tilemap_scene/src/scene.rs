@@ -553,13 +553,38 @@ mod private
     /// **Determinism.** For a given `(scene state, dt)` the returned
     /// event list is byte-equal across runs; iteration follows the
     /// per-anchor `Vec`s in spawn order.
+    ///
+    /// Allocates a fresh `Vec<SceneEvent>` on every call. Hot-path
+    /// callers (60 / 144 fps render loops) should prefer
+    /// [`Self::tick_into`] with a reused buffer instead.
     pub fn tick( &mut self, dt : f32 ) -> Vec< SceneEvent >
+    {
+      let mut events : Vec< SceneEvent > = Vec::new();
+      self.tick_into( dt, &mut events );
+      events
+    }
+
+    /// Advance the master clock by `dt` seconds, appending any
+    /// [`SceneEvent`]s produced during the interval to `events`.
+    ///
+    /// Same semantics as [`Self::tick`] — visibility-gated, `OneShot`
+    /// completion detection only, deterministic — but does not
+    /// allocate. The recommended hot-path call form is:
+    ///
+    /// ```ignore
+    /// events.clear();
+    /// scene.tick_into( dt, &mut events );
+    /// for event in events.drain( .. ) { /* handle */ }
+    /// ```
+    ///
+    /// Existing entries in `events` are preserved; new events are
+    /// pushed at the back. Callers that need a clean buffer should
+    /// `clear()` before calling.
+    pub fn tick_into( &mut self, dt : f32, events : &mut Vec< SceneEvent > )
     {
       let clock_before = self.clock;
       self.clock += dt;
       let clock_after = self.clock;
-
-      let mut events : Vec< SceneEvent > = Vec::new();
 
       // Iterate every live placement bucket; spawn-order preserved.
       let buckets : [ &[ InstanceHandle ]; 5 ] =
@@ -652,8 +677,6 @@ mod private
           }
         }
       }
-
-      events
     }
 
     /// Internal `state_name` borrow that takes `&self` without
