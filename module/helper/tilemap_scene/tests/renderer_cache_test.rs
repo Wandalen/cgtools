@@ -90,6 +90,7 @@ fn build_spec() -> RenderSpec
           gap : ( 0, 0 ),
           frames : HashMap::default(),
           frame_rects : HashMap::default(),
+          image_size : None,
         },
         filter : SamplerFilter::Linear,
         mipmap : MipmapMode::Off,

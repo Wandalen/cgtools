@@ -363,6 +363,7 @@ fn asset_kind_atlas_round_trip()
     gap : ( 0, 0 ),
     frames : HashMap::default(),
     frame_rects : HashMap::default(),
+    image_size : None,
   };
   let s = ron::to_string( &kind ).unwrap();
   let back : AssetKind = ron::from_str( &s ).unwrap();

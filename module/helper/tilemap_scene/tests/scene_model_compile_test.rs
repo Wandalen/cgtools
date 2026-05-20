@@ -90,7 +90,7 @@ fn atlas_with_frames( columns : u32, pairs : &[ ( &str, ( u32, u32 ) ) ] ) -> As
   {
     frames.insert( ( *name ).to_string(), *pos );
   }
-  AssetKind::Atlas { tile_size : ( 72, 64 ), columns, origin : ( 0, 0 ), gap : ( 0, 0 ), frames, frame_rects : HashMap::default() }
+  AssetKind::Atlas { tile_size : ( 72, 64 ), columns, origin : ( 0, 0 ), gap : ( 0, 0 ), frames, frame_rects : HashMap::default(), image_size : None }
 }
 
 fn grass_object() -> Object
@@ -143,6 +143,7 @@ fn minimal_spec() -> RenderSpec
           gap : ( 0, 0 ),
           frames : HashMap::default(),
           frame_rects : HashMap::default(),
+          image_size : None,
         },
         filter : SamplerFilter::Linear,
         mipmap : MipmapMode::Off,
@@ -243,6 +244,88 @@ fn compile_assets_single_kind_region_matches_size()
   let compiled = compile_assets( &spec, &PathResolver ).expect( "Single should resolve" );
   assert_eq!( compiled.assets.sprites.len(), 1 );
   assert_eq!( compiled.assets.sprites[ 0 ].region, [ 0.0, 0.0, 256.0, 128.0 ] );
+}
+
+#[ test ]
+fn compile_assets_rejects_numeric_frame_past_image_size()
+{
+  // 8 columns × 8 rows of 48 px = 384 × 384 image. Frame index 64
+  // wraps to (col=0, row=8) — i.e. row 8 in a 0..=7 grid. With
+  // `image_size = Some((384, 384))` declared, this must surface as
+  // `FrameOutOfBounds` rather than silently sampling transparent
+  // pixels at runtime.
+  let mut spec = minimal_spec();
+  spec.assets[ 0 ].kind = AssetKind::Atlas
+  {
+    tile_size : ( 48, 48 ),
+    columns : 8,
+    origin : ( 0, 0 ),
+    gap : ( 0, 0 ),
+    frames : HashMap::default(),
+    frame_rects : HashMap::default(),
+    image_size : Some( ( 384, 384 ) ),
+  };
+  spec.objects[ 0 ].states.get_mut( "default" ).unwrap()[ 0 ].sprite_source
+    = SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "64".into() } );
+
+  let err = compile_assets( &spec, &PathResolver ).expect_err( "frame 64 is out of bounds" );
+  match err
+  {
+    CompileError::FrameOutOfBounds { asset, frame, cell, image_size, .. } =>
+    {
+      assert_eq!( asset, "terrain" );
+      assert_eq!( frame, "64" );
+      assert_eq!( cell, ( 0, 8 ) );
+      assert_eq!( image_size, ( 384, 384 ) );
+    },
+    other => panic!( "expected FrameOutOfBounds, got {other:?}" ),
+  }
+}
+
+#[ test ]
+fn compile_assets_accepts_last_in_bounds_frame()
+{
+  // Same 8 × 8 image — frame 63 = (col=7, row=7), the last cell.
+  // Must compile cleanly.
+  let mut spec = minimal_spec();
+  spec.assets[ 0 ].kind = AssetKind::Atlas
+  {
+    tile_size : ( 48, 48 ),
+    columns : 8,
+    origin : ( 0, 0 ),
+    gap : ( 0, 0 ),
+    frames : HashMap::default(),
+    frame_rects : HashMap::default(),
+    image_size : Some( ( 384, 384 ) ),
+  };
+  spec.objects[ 0 ].states.get_mut( "default" ).unwrap()[ 0 ].sprite_source
+    = SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "63".into() } );
+
+  let _ = compile_assets( &spec, &PathResolver ).expect( "frame 63 is in bounds" );
+}
+
+#[ test ]
+fn compile_assets_skips_bounds_check_when_image_size_missing()
+{
+  // Backwards compatibility: any atlas authored without `image_size`
+  // must compile the same way it did before the bounds check existed,
+  // even when the frame would have failed the check.
+  let mut spec = minimal_spec();
+  spec.assets[ 0 ].kind = AssetKind::Atlas
+  {
+    tile_size : ( 48, 48 ),
+    columns : 8,
+    origin : ( 0, 0 ),
+    gap : ( 0, 0 ),
+    frames : HashMap::default(),
+    frame_rects : HashMap::default(),
+    image_size : None,
+  };
+  spec.objects[ 0 ].states.get_mut( "default" ).unwrap()[ 0 ].sprite_source
+    = SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "64".into() } );
+
+  let _ = compile_assets( &spec, &PathResolver )
+    .expect( "no bounds check when image_size is unset" );
 }
 
 #[ test ]
@@ -789,6 +872,7 @@ fn wall_spec() -> RenderSpec
         gap : ( 0, 0 ),
         frames : HashMap::default(),
         frame_rects : HashMap::default(),
+        image_size : None,
       },
       filter : Default::default(),
       mipmap : Default::default(),

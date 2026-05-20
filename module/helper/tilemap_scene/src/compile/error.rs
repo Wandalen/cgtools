@@ -95,6 +95,27 @@ mod private
       /// The exclusive upper bound.
       max : u32,
     },
+    /// An `Atlas` frame's resolved pixel rect lies outside the
+    /// declared `image_size`.
+    ///
+    /// Indicates a mismatch between authored `columns` (or
+    /// `frames`/named-cell entries) and the actual image. Surfaces
+    /// the bug where `columns` is treated as the image's column count
+    /// instead of the addressable column count of the auto-numbering
+    /// scheme — see SPEC and `DOWNSTREAM_FEEDBACK` §2.
+    FrameOutOfBounds
+    {
+      /// The asset id whose frame was out of bounds.
+      asset : String,
+      /// The frame name (numeric index or named-cell id) that failed.
+      frame : String,
+      /// The frame's resolved `( col, row )` in the grid.
+      cell : ( u32, u32 ),
+      /// The frame's resolved pixel rect `[ x, y, w, h ]`.
+      rect : [ u32; 4 ],
+      /// Declared `image_size` the rect was checked against.
+      image_size : ( u32, u32 ),
+    },
   }
 
   impl fmt::Display for CompileError
@@ -120,6 +141,16 @@ mod private
           write!( f, "object {object:?} has no state matching its declared default" ),
         Self::OutOfRange { owner, index, max } =>
           write!( f, "index {index} out of range for {owner:?} (max {max})" ),
+        Self::FrameOutOfBounds { asset, frame, cell : ( col, row ), rect, image_size : ( iw, ih ) } =>
+          write!
+          (
+            f,
+            "atlas {asset:?}: frame {frame:?} resolves to col={col} row={row} \
+             (rect [x={}, y={}, w={}, h={}]) which extends past image_size ({iw} × {ih}). \
+             To use this region, either bump `columns`, set `image_size` to the actual \
+             image dimensions, or add an explicit `frame_rects` entry.",
+            rect[ 0 ], rect[ 1 ], rect[ 2 ], rect[ 3 ],
+          ),
       }
     }
   }

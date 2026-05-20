@@ -145,6 +145,15 @@ mod private
       /// (non-uniform row heights / pixel-precise anchor points per sprite).
       #[ serde( default ) ]
       frame_rects : HashMap< String, FrameSpec >,
+      /// Pixel dimensions of the source image, when authored. When set,
+      /// `compile_assets` validates that every named-cell and numeric
+      /// frame resolves to a rect fully inside `( width, height )` and
+      /// raises `CompileError::FrameOutOfBounds` otherwise. Leave
+      /// `None` (the default) to skip the check — for example when
+      /// loading assets whose dimensions are only known after the
+      /// resolver decodes them.
+      #[ serde( default ) ]
+      image_size : Option< ( u32, u32 ) >,
     },
     /// Horizontal / vertical / grid sprite sheet for sequential animation frames.
     SpriteSheet
