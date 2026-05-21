@@ -51,7 +51,7 @@ mod private
   use crate::compile::assets::{ CompiledAssets, compile_assets };
   use crate::compile::camera::Camera;
   use crate::compile::error::CompileError;
-  use crate::compile::frame::gather_frame_emits;
+  use crate::compile::frame::{ BucketEmits, gather_frame_emits };
   use crate::compile::resolver::AssetResolver;
   use crate::pipeline::SortMode;
   use crate::scene::Scene;
@@ -105,6 +105,25 @@ mod private
     clip : Option< ResourceId< asset::ClipMask > >,
   }
 
+  /// Emission strategy for one bucket, chosen per render.
+  ///
+  /// - `Batched` — `SortMode::None`: sprites can be reordered within
+  ///   the batch buffer, so we group by `(sheet, blend, clip)`.
+  /// - `BatchedPreserveOrder` — sorted bucket where every sprite shares
+  ///   one `(sheet, blend, clip)`: a single batch suffices and the
+  ///   GPU's instance-buffer order equals the sort order, so visual
+  ///   correctness is preserved without per-sprite emission.
+  /// - `PerSprite` — sorted bucket with multiple keys: cannot be
+  ///   batched without backend range support (`DrawBatch` draws the
+  ///   whole buffer), so fall back to one `Sprite` command per emit.
+  #[ derive( Debug, Clone, Copy ) ]
+  enum BucketDispatch
+  {
+    Batched,
+    BatchedPreserveOrder { key : BatchKey },
+    PerSprite,
+  }
+
   /// Cached state of one allocated GPU batch, kept alive across renders
   /// so a mutation only emits the diff against `instances`.
   struct BatchEntry
@@ -114,6 +133,44 @@ mod private
     /// compute the minimal Set / Add / Remove sequence on the next
     /// non-cached render.
     instances : Vec< Sprite >,
+  }
+
+  /// Bit-equal comparison of two `Sprite` instances that live in the
+  /// same batch.
+  ///
+  /// `blend` and `clip` are part of [`BatchKey`] and therefore
+  /// guaranteed equal across all instances of the same batch — we skip
+  /// them to keep the comparison cheap. Floating-point fields are
+  /// compared via `to_bits` so the result depends only on the bit
+  /// pattern (correctly: `+0.0 != -0.0`, any `NaN != NaN`).
+  #[ inline ]
+  fn sprite_instance_eq( a : &Sprite, b : &Sprite ) -> bool
+  {
+    a.sprite == b.sprite
+      && tint_bit_eq( &a.tint, &b.tint )
+      && transform_bit_eq( &a.transform, &b.transform )
+  }
+
+  #[ inline ]
+  fn tint_bit_eq( a : &[ f32; 4 ], b : &[ f32; 4 ] ) -> bool
+  {
+    a[ 0 ].to_bits() == b[ 0 ].to_bits()
+      && a[ 1 ].to_bits() == b[ 1 ].to_bits()
+      && a[ 2 ].to_bits() == b[ 2 ].to_bits()
+      && a[ 3 ].to_bits() == b[ 3 ].to_bits()
+  }
+
+  #[ inline ]
+  fn transform_bit_eq( a : &Transform, b : &Transform ) -> bool
+  {
+    a.position[ 0 ].to_bits() == b.position[ 0 ].to_bits()
+      && a.position[ 1 ].to_bits() == b.position[ 1 ].to_bits()
+      && a.rotation.to_bits() == b.rotation.to_bits()
+      && a.scale[ 0 ].to_bits() == b.scale[ 0 ].to_bits()
+      && a.scale[ 1 ].to_bits() == b.scale[ 1 ].to_bits()
+      && a.skew[ 0 ].to_bits() == b.skew[ 0 ].to_bits()
+      && a.skew[ 1 ].to_bits() == b.skew[ 1 ].to_bits()
+      && a.depth.to_bits() == b.depth.to_bits()
   }
 
   /// Retained-mode renderer.
@@ -162,9 +219,12 @@ mod private
     // batches grouped by `(sheet, blend, clip)`. Each batch survives
     // across frames so a per-instance mutation emits one
     // `SetSpriteInstance` rather than a full rebuild. Sorted buckets
-    // continue emitting per-sprite `Sprite` commands (the alternative
-    // — batched repopulate — preserves visual order only when the
-    // bucket fits in a single sheet, which we can't guarantee).
+    // (`YAsc`, `XDesc`, …) are also batched when every emitted sprite
+    // shares one `(sheet, blend, clip)`: the batch's instance buffer
+    // order matches the sort order, so a single `DrawBatch` preserves
+    // visual correctness. Sorted multi-key buckets fall back to per-
+    // sprite `Sprite` commands — `DrawBatch` draws the whole buffer,
+    // and run-splitting would defeat batch reuse (see roadmap §2).
     // ──────────────────────────────────────────────────────────────────
     /// Live batches keyed by `(bucket_idx, sheet, blend, clip)`. Entries
     /// are added on first encounter and removed via `DeleteBatch` when
@@ -233,6 +293,32 @@ mod private
     #[ must_use ]
     pub fn cache_hits( &self ) -> u64 { self.cache_hits }
 
+    /// Drain every live batch into a stream of `DeleteBatch` commands.
+    ///
+    /// Returns the commands to submit to the backend; the renderer
+    /// itself remains usable, but its batch table and idle-replay
+    /// cache are reset so the next [`Renderer::render`] is a
+    /// guaranteed miss that allocates fresh batches.
+    ///
+    /// Submit the returned slice before destroying the renderer (or
+    /// before swapping it out within the same backend context) to
+    /// avoid leaking GPU batches — the backend has no way to know
+    /// the renderer is gone otherwise.
+    #[ must_use = "ignoring the cleanup stream leaks GPU batches in the backend" ]
+    pub fn cleanup( &mut self ) -> Vec< RenderCommand >
+    {
+      let mut out : Vec< RenderCommand > = Vec::with_capacity( self.batches.len() );
+      for ( _, entry ) in self.batches.drain()
+      {
+        out.push( RenderCommand::DeleteBatch( DeleteBatch { batch : entry.id } ) );
+      }
+      // Reset the idle-replay cache — a stale `cmd_buf` would reference
+      // batch ids we just deleted.
+      self.has_rendered = false;
+      self.cmd_buf.clear();
+      out
+    }
+
     /// Backend-ready asset table. Submit once at startup via
     /// `backend.load_assets( renderer.assets() )`.
     #[ inline ]
@@ -295,50 +381,59 @@ mod private
       // Track which batches were touched this frame; anything in
       // `self.batches` not in this set at the end gets `DeleteBatch`'d.
       let mut used_keys : Vec< BatchKey > = Vec::new();
-      // Draw order: emit `DrawBatch`es in the order batches first appear
-      // in the walk so the per-bucket / per-sheet draw sequence matches
-      // the consumer's declared pipeline order.
-      let mut draw_order : Vec< ResourceId< Batch > > = Vec::new();
 
       for ( bucket_idx, bucket ) in emits.buckets.into_iter().enumerate()
       {
         let bucket_idx_u32 = bucket_idx as u32;
 
-        // Decide batched vs per-sprite for this bucket. `SortMode::None`
-        // gives no constraint on instance order within the GPU's
-        // instance buffer, so we can freely group by sheet. Sorted
-        // buckets are emitted per-sprite (see field doc on
-        // `Renderer.batches`).
-        let batch_this_bucket = matches!( bucket.sort, SortMode::None );
+        // Decide emission strategy. `DrawBatch` is emitted inline at
+        // the end of each bucket's prep so the cross-bucket draw order
+        // (batched vs per-sprite) follows the consumer's declared
+        // pipeline.
+        let dispatch = self.classify_bucket( bucket_idx_u32, &bucket );
 
-        if batch_this_bucket && !bucket.sprites.is_empty()
+        match dispatch
         {
-          // Group consecutive same-(sheet, blend, clip) sprites. Order
-          // within a group is the bucket's pre-sorted order, which for
-          // `SortMode::None` is the spawn / iteration order from
-          // `Scene` — stable across frames given identical state.
-          let groups = self.group_sprites( bucket_idx_u32, &bucket.sprites );
-          for ( key, sprites_in_group ) in groups
+          BucketDispatch::Batched =>
           {
-            self.emit_or_update_batch( key, sprites_in_group );
+            // Group consecutive same-(sheet, blend, clip) sprites. Order
+            // within a group is the bucket's pre-sorted order, which for
+            // `SortMode::None` is the spawn / iteration order from
+            // `Scene` — stable across frames given identical state.
+            let groups = self.group_sprites( bucket_idx_u32, &bucket.sprites );
+            for ( key, sprites_in_group ) in groups
+            {
+              self.emit_or_update_batch( key, sprites_in_group );
+              used_keys.push( key );
+              let id = self.batches.get( &key ).expect( "just inserted" ).id;
+              self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
+            }
+          },
+          BucketDispatch::BatchedPreserveOrder { key } =>
+          {
+            // Single-key sorted bucket: one batch, instance-buffer
+            // order matches sort order so a single `DrawBatch`
+            // preserves visual correctness without per-sprite
+            // emission.
+            self.emit_or_update_batch( key, bucket.sprites );
             used_keys.push( key );
-            // batch id was just inserted; safe to look up
             let id = self.batches.get( &key ).expect( "just inserted" ).id;
-            draw_order.push( id );
-          }
-        }
-        else
-        {
-          // Fall-back: emit per-sprite `Sprite` commands so existing
-          // sorted-bucket ordering semantics are preserved.
-          for sprite in bucket.sprites
+            self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
+          },
+          BucketDispatch::PerSprite =>
           {
-            self.cmd_buf.push( RenderCommand::Sprite( sprite ) );
-          }
+            // Sorted multi-key bucket: cannot be batched without
+            // backend `DrawBatch` range support, so emit per-sprite
+            // and preserve sort order via command stream position.
+            for sprite in bucket.sprites
+            {
+              self.cmd_buf.push( RenderCommand::Sprite( sprite ) );
+            }
+          },
         }
 
-        // Viewport sprites — always per-sprite for Step 4 (deferred
-        // batching item in the plan).
+        // Viewport sprites — always per-sprite for Step 4 (Polish #7
+        // viewport-pass batching is a separate deferred item).
         for sprite in bucket.screen_space
         {
           self.cmd_buf.push( RenderCommand::ScreenSpaceSprite( sprite ) );
@@ -346,6 +441,8 @@ mod private
       }
 
       // Garbage-collect batches that received no instances this frame.
+      // `DeleteBatch`es do not draw — emitting them at the end is fine
+      // and avoids interleaving GC with the inline draw stream above.
       let used_set : rustc_hash::FxHashSet< BatchKey > =
         used_keys.iter().copied().collect();
       let stale : Vec< ( BatchKey, ResourceId< Batch > ) > = self.batches.iter()
@@ -358,17 +455,63 @@ mod private
         self.batches.remove( &key );
       }
 
-      // Issue draw calls in walk order.
-      for id in draw_order
-      {
-        self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
-      }
-
       self.last_scene_revision = scene_revision;
       self.last_clock = clock;
       self.last_camera_signature = camera_signature;
       self.has_rendered = true;
       Ok( &self.cmd_buf )
+    }
+
+    /// Pick the emission strategy for one bucket.
+    ///
+    /// `SortMode::None` always maps to [`BucketDispatch::Batched`].
+    /// Sorted buckets are scanned once for a shared
+    /// `(sheet, blend, clip)` triple — single-key sorted buckets get
+    /// [`BucketDispatch::BatchedPreserveOrder`], everything else falls
+    /// back to [`BucketDispatch::PerSprite`]. An empty sorted bucket
+    /// returns `PerSprite`; the choice is moot (no commands emit)
+    /// but avoids inventing a key from an empty slice.
+    fn classify_bucket
+    (
+      &self,
+      bucket_idx : u32,
+      bucket : &BucketEmits,
+    ) -> BucketDispatch
+    {
+      if matches!( bucket.sort, SortMode::None )
+      {
+        return BucketDispatch::Batched;
+      }
+      let Some( first ) = bucket.sprites.first()
+      else
+      {
+        return BucketDispatch::PerSprite;
+      };
+      let Some( &sheet ) = self.sprite_to_sheet.get( &first.sprite )
+      else
+      {
+        return BucketDispatch::PerSprite;
+      };
+      let blend = core::mem::discriminant( &first.blend );
+      let clip = first.clip;
+      for s in &bucket.sprites[ 1.. ]
+      {
+        let Some( &s_sheet ) = self.sprite_to_sheet.get( &s.sprite )
+        else
+        {
+          return BucketDispatch::PerSprite;
+        };
+        if s_sheet != sheet
+          || core::mem::discriminant( &s.blend ) != blend
+          || s.clip != clip
+        {
+          return BucketDispatch::PerSprite;
+        }
+      }
+      BucketDispatch::BatchedPreserveOrder
+      {
+        key : BatchKey { bucket_idx, sheet, blend, clip },
+      }
     }
 
     /// Group a bucket's pre-sorted sprite stream by batch key while
@@ -428,17 +571,40 @@ mod private
       {
         let old_n = entry.instances.len();
         let new_n = sprites.len();
-        self.cmd_buf.push( RenderCommand::BindBatch( BindBatch { batch : entry.id } ) );
-        // Set slots 0..min(old, new) — for simplicity we always emit
-        // `SetSpriteInstance` (no "is unchanged" elision). The
-        // alternative (per-field bit-equal compare) saves commands on
-        // partial updates but adds complexity; defer that optimisation.
         let common = old_n.min( new_n );
-        for ( i, s ) in sprites.iter().enumerate().take( common )
+
+        // Pre-pass — collect indices where the new sprite payload
+        // differs bit-for-bit from the cached one. Skipping the
+        // `Set` for unchanged slots is the bulk of Deferred §1
+        // (fine-delta per-instance Set): on a cache-miss frame where
+        // nothing in the batch actually changed (typical idle game
+        // loop calling `tick(dt)` for clock advance only), the loop
+        // below produces an empty `changed` and we early-return
+        // without touching the GPU instance buffer at all.
+        let mut changed : Vec< u32 > = Vec::new();
+        for ( i, ( new_s, old_s ) ) in sprites.iter().zip( entry.instances.iter() ).take( common ).enumerate()
         {
+          if !sprite_instance_eq( new_s, old_s )
+          {
+            changed.push( i as u32 );
+          }
+        }
+
+        if old_n == new_n && changed.is_empty()
+        {
+          // No-op frame for this batch — skip Bind/Unbind entirely.
+          // `entry.instances` is bit-equal to `sprites`, leaving it
+          // unchanged saves the Vec move.
+          return;
+        }
+
+        self.cmd_buf.push( RenderCommand::BindBatch( BindBatch { batch : entry.id } ) );
+        for i in &changed
+        {
+          let s = &sprites[ *i as usize ];
           self.cmd_buf.push( RenderCommand::SetSpriteInstance( SetSpriteInstance
           {
-            index : i as u32,
+            index : *i,
             transform : s.transform,
             sprite : s.sprite,
             tint : s.tint,

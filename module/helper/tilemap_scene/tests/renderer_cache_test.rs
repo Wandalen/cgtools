@@ -495,3 +495,180 @@ fn miss_then_idle_hits_again()
     "cache must be re-warmed after a miss — next idle call should hit",
   );
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// 8. Bit-equal Set elision — partial Deferred §1 closure.
+//
+// When `tick( dt )` advances the clock but no scene mutation has happened,
+// `render()` takes the cache-miss path (clock changed). The renderer must
+// not re-upload the GPU instance buffer for batches whose contents are
+// bit-equal to last frame — `BindBatch` / `SetSpriteInstance` /
+// `UnbindBatch` for that batch are skipped entirely.
+// ────────────────────────────────────────────────────────────────────────────
+
+fn count_cmd< F : Fn( &RenderCommand ) -> bool >( cmds : &[ RenderCommand ], pred : F ) -> usize
+{
+  cmds.iter().filter( | c | pred( c ) ).count()
+}
+
+#[ test ]
+fn unchanged_batch_emits_no_set_on_cache_miss()
+{
+  let spec = build_spec();
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  let grass = scene.object( "grass" ).unwrap();
+  for ( q, r ) in [ ( 0, 0 ), ( 1, 0 ), ( 2, 0 ), ( 0, 1 ), ( 1, 1 ) ]
+  {
+    scene.spawn( grass, Placement::Hex { q, r } );
+  }
+  let camera = Camera::default();
+
+  // Prime — creates the batch and emits initial Add×5.
+  let _ = renderer.render( &scene, &camera ).expect( "prime" );
+
+  // Advance the clock without mutating the scene → cache miss, but the
+  // batch's instance buffer is bit-equal to last frame.
+  let _ = scene.tick( 0.016 );
+  let cmds = renderer.render( &scene, &camera ).expect( "after tick" ).to_vec();
+
+  assert_eq!
+  (
+    count_cmd( &cmds, | c | matches!( c, RenderCommand::SetSpriteInstance( _ ) ) ),
+    0,
+    "no instance content changed — Set must be elided entirely",
+  );
+  assert_eq!
+  (
+    count_cmd( &cmds, | c | matches!( c, RenderCommand::BindBatch( _ ) ) ),
+    0,
+    "no diff to apply — BindBatch must be skipped",
+  );
+  assert_eq!
+  (
+    count_cmd( &cmds, | c | matches!( c, RenderCommand::UnbindBatch( _ ) ) ),
+    0,
+    "no diff to apply — UnbindBatch must be skipped",
+  );
+}
+
+#[ test ]
+fn single_move_emits_fewer_sets_than_full_repopulate()
+{
+  // Bit-equal elision provides a strict lower bound: at most one Set per
+  // slot whose sprite payload actually differs between frames. Because
+  // some compile passes iterate scene state in non-deterministic
+  // HashMap order (e.g. `build_scene_tiles` for tile_lookup), more than
+  // one slot may differ after a `move_to` — but it must never be the
+  // pre-optimisation N (= full common-prefix repopulate).
+  let spec = build_spec();
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  let grass = scene.object( "grass" ).unwrap();
+  let mut handles = Vec::new();
+  for ( q, r ) in [ ( 0, 0 ), ( 1, 0 ), ( 2, 0 ), ( 0, 1 ), ( 1, 1 ) ]
+  {
+    handles.push( scene.spawn( grass, Placement::Hex { q, r } ) );
+  }
+  let camera = Camera::default();
+
+  let _ = renderer.render( &scene, &camera ).expect( "prime" );
+
+  scene.move_to( handles[ 2 ], Placement::Hex { q : 5, r : 5 } );
+  let cmds = renderer.render( &scene, &camera ).expect( "after move" ).to_vec();
+
+  let sets = count_cmd( &cmds, | c | matches!( c, RenderCommand::SetSpriteInstance( _ ) ) );
+  assert!
+  (
+    sets >= 1,
+    "moved tile's slot must emit one Set (got {sets})",
+  );
+  assert!
+  (
+    sets < 5,
+    "elision must skip at least one unchanged slot in a 5-tile batch (got {sets})",
+  );
+}
+
+#[ test ]
+fn single_tint_change_emits_exactly_one_set()
+{
+  let spec = build_spec();
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  let grass = scene.object( "grass" ).unwrap();
+  let mut handles = Vec::new();
+  for ( q, r ) in [ ( 0, 0 ), ( 1, 0 ), ( 2, 0 ), ( 0, 1 ), ( 1, 1 ) ]
+  {
+    handles.push( scene.spawn( grass, Placement::Hex { q, r } ) );
+  }
+  let camera = Camera::default();
+
+  let _ = renderer.render( &scene, &camera ).expect( "prime" );
+
+  scene.set_tint( handles[ 3 ], Some( [ 0.5, 1.0, 1.0, 1.0 ] ) );
+  let cmds = renderer.render( &scene, &camera ).expect( "after tint" ).to_vec();
+
+  assert_eq!
+  (
+    count_cmd( &cmds, | c | matches!( c, RenderCommand::SetSpriteInstance( _ ) ) ),
+    1,
+    "one tile's tint changed → exactly one SetSpriteInstance",
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 9. `Renderer::cleanup()` — Deferred §5.
+//
+// Cleanup must emit one `DeleteBatch` per live batch and reset the
+// idle-replay cache so a subsequent `render()` re-allocates fresh
+// batches (not replay a `cmd_buf` referencing the just-deleted ids).
+// ────────────────────────────────────────────────────────────────────────────
+
+#[ test ]
+fn cleanup_emits_delete_for_every_live_batch()
+{
+  let spec = build_spec();
+  let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+  let mut scene = Scene::new( Arc::new( spec ) );
+  let grass = scene.object( "grass" ).unwrap();
+  let knight = scene.object( "knight" ).unwrap();
+  scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
+  scene.spawn( knight, Placement::Hex { q : 1, r : 0 } );
+  let camera = Camera::default();
+
+  // Prime — produces some CreateSpriteBatch commands.
+  let primed = renderer.render( &scene, &camera ).expect( "prime" ).to_vec();
+  let creates = primed.iter()
+    .filter( | c | matches!( c, RenderCommand::CreateSpriteBatch( _ ) ) )
+    .count();
+  assert!( creates >= 1, "at least one batch created during prime" );
+
+  let drain = renderer.cleanup();
+  let deletes = drain.iter()
+    .filter( | c | matches!( c, RenderCommand::DeleteBatch( _ ) ) )
+    .count();
+  assert_eq!
+  (
+    deletes, creates,
+    "cleanup must emit one DeleteBatch per batch created during prime",
+  );
+
+  // Subsequent render() is a guaranteed miss (cache reset) and
+  // re-allocates the batches from scratch.
+  let hits_before = renderer.cache_hits();
+  let after = renderer.render( &scene, &camera ).expect( "after cleanup" ).to_vec();
+  assert_eq!
+  (
+    renderer.cache_hits(), hits_before,
+    "first render after cleanup must miss the cache",
+  );
+  let creates_after = after.iter()
+    .filter( | c | matches!( c, RenderCommand::CreateSpriteBatch( _ ) ) )
+    .count();
+  assert_eq!
+  (
+    creates_after, creates,
+    "post-cleanup render re-allocates the same number of batches",
+  );
+}
