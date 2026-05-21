@@ -95,15 +95,20 @@ Used by `examples/minwebgl/slay_map`.
 - `RenderCommand::ScreenSpaceSprite` — viewport-anchored emits stay
   per-sprite (not batched in Step 4; deferred polish item).
 
-**Test baseline:** 138 passing.
-35 unit tests (hash, ids, camera, coords, animation, neighbors,
+**Test baseline:** 167 passing.
+38 unit tests (hash, ids, camera, coords, animation, neighbors,
 conditions, vertex, edges, viewport, snapshot expansion) +
 17 `scene_state` (handle resolution, mutation API, revision bumps) +
-13 `scene_events` (`tick` + OneShot completion semantics) +
+16 `scene_events` (`tick` + OneShot completion semantics) +
 6 `renderer_test` (per-instance overrides, snapshot bridge) +
-14 `renderer_cache_test` (idle replay, mutation / tick / camera
-invalidation, byte-equality on replay) +
-39 `scene_model_compile_test` (anchor × source × pipeline coverage —
+18 `renderer_cache_test` (idle replay, mutation / tick / camera
+invalidation, byte-equality on replay, **Set elision on unchanged
+batches**, **`cleanup()` drain semantics**) +
+7 `sorted_batching_test` (single-key sorted batching, multi-sheet
+fallback, inline `DrawBatch` pipeline order) +
+3 `hex_config_test` (`from_hex_size` arithmetic for both tilings) +
+6 `catalog_test` +
+42 `scene_model_compile_test` (anchor × source × pipeline coverage —
 all migrated via `tests/common::flatten_to_sprites`) +
 14 `scene_model_test` (RON + serde round-trip).
 
@@ -156,10 +161,9 @@ game use-case demands one.
 5. **`AssetKind::SpriteSheet` support.** Currently rejected at compile with
    `UnsupportedAssetKind`. Useful shorthand for horizontal / vertical /
    grid sprite sheets that an atlas already covers — optional.
-6. **SVG adapter for `ScreenSpaceSprite`.** One-line dispatch (SVG already
-   works in screen-space coordinates; compile pre-projects). Blocked only
-   by style preference — kept as explicit stub during Slice 4 per user
-   direction.
+6. ~~**SVG adapter for `ScreenSpaceSprite`.**~~ *Shipped.* `ScreenSpaceSprite`
+   shares the `Sprite` payload and SVG's user-space is already screen-space,
+   so the adapter dispatches both through `cmd_sprite`.
 7. **`ViewportTiled::Repeat*` via `Mesh` command.** Current implementation
    emits N `ScreenSpaceSprite`s to cover the viewport. Efficient for small
    tile counts (≤ 16); for 256×256 textures on 4K viewports a single
@@ -179,14 +183,11 @@ game use-case demands one.
     at load. Implementing means square-grid neighbour offsets (4 or 8),
     square-grid dual-mesh (4 corners per vertex), square pixel conversion.
     Scope inflation — only do if a square-grid game is actually planned.
-11. **`HexConfig::from_hex_size` bounding-box helper.** `HexConfig::grid_stride`
-    is the pixel spacing between adjacent-cell centres. For equilateral hex
-    sprites this equals the sprite bounding box; for stylised sprites (e.g. the
-    Slay atlas) the two diverge and callers must tune `grid_stride` empirically.
-    A helper `HexConfig::from_hex_size(w, h)` that computes the equilateral-hex
-    stride (`(w * 0.75, h)` for flat-top, `(w, h * 0.75)` for pointy-top) would
-    remove the friction for authors who have a bounding box. Also consider an
-    explicit **stride override** field for pixel-art hexes tuned away from exact
+11. **`HexConfig::from_hex_size` bounding-box helper.** *Shipped (constructor).*
+    `HexConfig::from_hex_size(w, h, tiling)` computes the equilateral-hex
+    stride (`(w * 3 / 4, h)` for flat-top, symmetric for pointy-top) so authors
+    with a bounding box can skip the formula. Still open: explicit **stride
+    override** field for stylised pixel-art hexes tuned away from exact
     `sqrt(3)/2` ratios. Low urgency.
 12. ~~**🐛 BlendMode propagation in compile/frame.rs.**~~ *Fixed.* All 7 construction
     sites in `compile/frame.rs` now use `layer.behaviour.blend` instead of
@@ -204,25 +205,35 @@ is a self-contained optimisation or scope-extension to revisit when a real
 workload demands it.
 
 1. **Fine-delta per-instance `SetSpriteInstance` for `SortMode::None`
-   batches.** Current behaviour: any change to a `None`-sorted bucket
-   forces a full repopulate of the affected batch (Bind →
-   Set 0..min(old, new) → Remove trim → Add extend → Unbind). The plan
-   originally called for **stable per-(instance, layer, emit) slot
-   identity** so a single `move_to` on one hex emits exactly one
-   `SetSpriteInstance` at the cached slot, independent of how many
-   other hexes the batch contains. Needs: stable `EmitKey →
-   (BatchKey, slot)` map in `Renderer`, walk-scene-vs-cache diff,
-   selective Set with bit-equal payload check. Worth picking up when
-   profiling shows the per-mutation Set storm on large maps.
+   batches.** *Partially shipped — bit-equal payload elision.*
+   `emit_or_update_batch` now does a bit-equal pre-pass against the
+   cached `BatchEntry.instances` and emits `SetSpriteInstance` only
+   for slots whose new `Sprite` payload (transform / sprite id / tint;
+   blend & clip are batch-level) actually differs. If no slot
+   differs and the count matches, the entire `Bind` / `Unbind` block
+   is elided — an idle game-loop calling `tick(dt)` for clock advance
+   only no longer re-uploads the GPU instance buffer for unchanged
+   batches. Closes the practical hot path. Still open: **stable
+   per-(instance, layer, emit) slot identity** so a `move_to` whose
+   anchor cell changes does not shuffle later slots in the per-anchor
+   iteration. Needs the `EmitKey → (BatchKey, slot)` map originally
+   sketched in this item — pick up when profiling shows residual Set
+   storms on sorted buckets with frequent `move_to`.
 
 2. **Sorted-bucket batching (multi-sheet safe path).** Sorted buckets
-   (`YAsc` / `XAsc` / …) currently emit per-sprite `Sprite` commands so
-   visual order is preserved across sheets. Two viable upgrades:
-   (a) detect single-sheet sorted buckets at runtime and batch those
-   (cheap, immediate win for typical unit layers);
+   (`YAsc` / `XAsc` / …) previously emitted per-sprite `Sprite`
+   commands. *Shipped (a):* single-key sorted buckets — every sprite
+   shares one `(sheet, blend, clip)` — now collapse to a single
+   `DrawBatch` whose instance-buffer order equals the sort order.
+   Multi-key sorted buckets keep the per-sprite fallback (run-
+   splitting would defeat batch reuse). The renderer also emits
+   `DrawBatch` inline at each bucket's pipeline position, fixing a
+   latent ordering bug where all `DrawBatch`es were deferred to the
+   end of `cmd_buf` after per-sprite `Sprite`s. Still open:
    (b) encode the sort key into `Transform.depth` and rely on depth
    testing in the backend (requires backend-side blend / depth-test
-   contract — bigger change). Pick (a) first.
+   contract — bigger change), needed before run-batching multi-sheet
+   sorted buckets becomes viable.
 
 3. **Viewport-pass batching.** `RenderCommand::ScreenSpaceSprite` is
    per-sprite. Typical viewport instance counts are small (HUD
@@ -236,11 +247,11 @@ workload demands it.
    requires resolving the active sub-source per-instance per-frame
    (duplicates renderer logic). Deferred until a game needs it.
 
-5. **`Renderer::cleanup() -> Vec<RenderCommand>`.** The current
-   contract is "commands emitted only from `render()`" so `Drop` does
-   not emit `DeleteBatch`s. If a consumer cycles renderers within a
-   single backend context they'll leak GPU batches. Add an explicit
-   `cleanup()` that drains every live batch on demand.
+5. ~~**`Renderer::cleanup() -> Vec<RenderCommand>`.**~~ *Shipped.*
+   `Renderer::cleanup` drains every live batch into `DeleteBatch`
+   commands and resets the idle-replay cache, so a consumer cycling
+   renderers within a single backend context can release GPU batches
+   on demand. `#[ must_use ]` — ignoring the stream leaks batches.
 
 6. **Per-instance dirty tracking.** `Scene::revision()` is coarse
    (any mutation = full diff scan). For very large scenes a per-handle
@@ -251,11 +262,13 @@ workload demands it.
    with `UnsupportedAnchor`. Independent of Step 4 — moves with the
    sprite-source coverage matrix, not the renderer architecture.
 
-8. **`Sprite::Hash` / `Sprite::Eq` upstream.** Diffing in
-   `apply_scene_diff` and the batch repopulate path falls back to
-   "always emit Set" because `Sprite` has no `PartialEq` derive in
-   `tilemap_renderer`. Adding it would let the renderer elide no-op
-   Sets when only some instances actually changed.
+8. ~~**`Sprite::Hash` / `Sprite::Eq` upstream.**~~ *Worked around in
+   `tilemap_scene`.* `renderer.rs` carries a private `sprite_instance_eq`
+   bit-equal compare (transform / sprite id / tint via `f32::to_bits`)
+   that closes the diffing use-case without needing upstream derives —
+   `Transform` has float fields where derive `Eq` is awkward. Promote
+   to upstream if a second consumer needs the comparison; otherwise
+   the local helper is sufficient.
 
 ## Backlog from downstream consumer feedback
 
