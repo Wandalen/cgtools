@@ -49,7 +49,7 @@ crosstalk.
 |------|----------------|
 | `mod.rs` | Layer entry point; documents the two boundaries the compile layer owns (Y-down → Y-up flip, asset resolution). |
 | `assets.rs` | `compile_assets` + `CompiledAssets` — turns asset declarations into `tilemap_renderer::assets::Assets` and pre-allocates every sprite reachable from any source / animation. Called once by `Renderer::new`. |
-| `frame.rs` | `gather_frame_emits` — per-tick lowering that walks objects × layers × instances and returns structured per-bucket `Sprite` / screen-space lists; consumed by `Renderer::render` (which batches sprites for `SortMode::None` buckets and emits per-sprite for sorted buckets). `render_into` is a thin compatibility wrapper that flattens emits to the legacy per-sprite stream. |
+| `frame.rs` | `gather_frame_emits` — per-tick lowering that walks objects × layers × instances and returns structured per-bucket `Sprite` / screen-space lists; consumed by `Renderer::render`. Buckets batch into a single `DrawBatch` when every sprite shares one `(sheet, blend, clip)` key (including single-key sorted buckets, whose instance-buffer order equals the sort order); multi-key sorted buckets keep the per-sprite fallback. `render_into` is a thin compatibility wrapper that flattens emits to the legacy per-sprite stream. |
 | `camera.rs` | `Camera` — world-pixel → viewport-pixel projection used by the frame pass. |
 | `coords.rs` | Hex-axial → world-pixel (Y-up) helpers; the single Y-axis flip from `tiles_tools` lives here. |
 | `viewport.rs` | `viewport_transform` / `tiled_positions` — screen-space transforms for `ViewportTiled` sources, Y-up convention. |
