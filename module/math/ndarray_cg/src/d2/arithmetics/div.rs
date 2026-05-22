@@ -3,7 +3,7 @@ use crate::*;
 /// Devide matrix by a scalar.
 pub fn div_scalar< E, R >( r : &mut R, a : E )
 where
-  E : nd::NdFloat,
+  E : MatNum,
   R : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >
 {
   let rdim = r.dim();
@@ -27,7 +27,7 @@ impl< E, const ROWS : usize, const COLS : usize, Descriptor > Div< E >
 for Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Self : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >
 {
   type Output = Self;
@@ -44,7 +44,7 @@ impl< E, const ROWS : usize, const COLS : usize, Descriptor > DivAssign< E >
 for Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Self : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >
 {
   #[ inline ]

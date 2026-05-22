@@ -6,7 +6,7 @@ mod private
 
   impl< E, const LEN : usize > Add for Vector< E, LEN >
   where
-  E : MatEl + NdFloat
+  E : MatNum
   {
     type Output = Self;
 
@@ -18,7 +18,7 @@ mod private
 
   impl< E, const LEN : usize > Add< E > for Vector< E, LEN >
   where
-  E : MatEl + NdFloat
+  E : MatNum
   {
     type Output = Self;
 
@@ -30,7 +30,7 @@ mod private
 
   impl< E, const LEN : usize > Add for &Vector< E, LEN >
   where
-    E : MatEl + NdFloat
+    E : MatNum
   {
     type Output = Vector< E, LEN >;
 
@@ -41,7 +41,7 @@ mod private
 
   impl< E, const LEN : usize > AddAssign for Vector< E, LEN >
   where
-  E : MatEl + NdFloat
+  E : MatNum
   {
     fn add_assign( &mut self, rhs : Self )
     {

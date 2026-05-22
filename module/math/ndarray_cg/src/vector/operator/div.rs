@@ -6,7 +6,7 @@ mod private
 
   impl< E, const LEN : usize > Div< E > for Vector< E, LEN >
   where
-    E : MatEl + NdFloat
+    E : MatNum
   {
     type Output = Self;
 
@@ -18,7 +18,7 @@ mod private
 
   impl< E, const LEN : usize > DivAssign< E > for Vector< E, LEN >
   where
-    E : MatEl + NdFloat
+    E : MatNum
   {
     fn div_assign( &mut self, rhs : E )
     {
@@ -28,7 +28,7 @@ mod private
 
   impl< E, const LEN : usize > DivAssign for Vector< E, LEN >  
   where
-    E : MatEl + NdFloat
+    E : MatNum
   {
     fn div_assign( &mut self, rhs : Self ) 
     {

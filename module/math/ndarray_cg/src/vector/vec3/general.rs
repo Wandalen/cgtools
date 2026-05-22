@@ -5,7 +5,7 @@ mod private
 
   impl< E > Vector< E, 3 >
   where
-    E : MatEl + NdFloat,
+    E : MatEl,
   {
 
     /// Create a new vector
@@ -35,19 +35,31 @@ mod private
     {
       self.0[ 2 ]
     }
+  }
 
-    /// Calculates cross product with another vector
+  impl< E > Vector< E, 3 >
+  where
+    E : MatNum,
+  {
+
+    /// Calculates cross product with another vector.
     pub fn cross( self, rhs : Self ) -> Self
     {
       cross( &self, &rhs )
     }
 
-    /// Creates homogeneous vector from `self`
+    /// Creates homogeneous vector from `self`.
     #[ inline ]
     pub fn to_homogenous( self ) -> Vector< E, 4 >
     {
       Vector::< E, 4 >::new( self.x(), self.y(), self.z(), E::one() )
     }
+  }
+
+  impl< E > Vector< E, 3 >
+  where
+    E : MatEl + NdFloat,
+  {
 
     /// Converts spherical coords to decart
     pub fn from_spherical( radius : E, theta : E, phi : E ) -> Self

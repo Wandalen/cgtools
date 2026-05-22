@@ -7,7 +7,7 @@ mod private
   // Vector - Vector
   impl< E, const LEN : usize > Sub for Vector< E, LEN >
   where
-    E : MatEl + NdFloat
+    E : MatNum
   {
     type Output = Self;
 
@@ -20,7 +20,7 @@ mod private
   // &Vector - &Vector
   impl< E, const LEN : usize > Sub for &Vector< E, LEN >
   where
-    E : MatEl + NdFloat
+    E : MatNum
   {
     type Output = Vector< E, LEN >;
 
@@ -33,7 +33,7 @@ mod private
   // Vector -= Vector
   impl< E, const LEN : usize > SubAssign for Vector< E, LEN >
   where
-    E : MatEl + NdFloat
+    E : MatNum
   {
     fn sub_assign( &mut self, rhs : Self )
     {
@@ -44,7 +44,7 @@ mod private
   // Vector - scalar
   impl< E, const LEN : usize > Sub< E > for Vector< E, LEN >
   where
-    E : MatEl + NdFloat
+    E : MatNum
   {
     type Output = Self;
 

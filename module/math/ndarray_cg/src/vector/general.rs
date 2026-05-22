@@ -45,6 +45,23 @@ mod private
 
   }
 
+  impl< E, const N : usize > Eq for Vector< E, N >
+  where
+    E : MatEl + Eq,
+  {
+  }
+
+  impl< E, const N : usize > Ord for Vector< E, N >
+  where
+    E : MatEl + Ord,
+  {
+    #[ inline ]
+    fn cmp( &self, other : &Self ) -> std::cmp::Ordering
+    {
+      self.0.cmp( &other.0 )
+    }
+  }
+
   impl< E, const N : usize > Default for Vector< E, N >
   where
     E : MatEl + Default,

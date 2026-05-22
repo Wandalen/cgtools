@@ -4,7 +4,7 @@ use crate::*;
 
 fn minor
 <
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Descriptor : mat::Descriptor
 >
 (
@@ -59,7 +59,7 @@ Mat3< E, Descriptor > :
 
 impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
 where
-E : MatEl + nd::NdFloat,
+E : MatNum,
 Descriptor : mat::Descriptor,
 Self : ScalarMut< Scalar = E, Index = Ix2 > +
        RawSliceMut< Scalar = E > +
@@ -93,7 +93,17 @@ Self : ScalarMut< Scalar = E, Index = Ix2 > +
 
     _a11 * _det11 - _a12 * _det12 + _a13 * _det13 - _a14 * _det14
   }
+}
 
+impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
+where
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : ScalarMut< Scalar = E, Index = Ix2 > +
+       RawSliceMut< Scalar = E > +
+       ConstLayout< Index = Ix2 > +
+       IndexingMut< Scalar = E, Index = Ix2 >
+{
   /// Computes the inverse of the matrix.
   /// If the determinant is zero - return `None`
   pub fn inverse( &self ) -> Option< Self >
@@ -128,7 +138,7 @@ Self : ScalarMut< Scalar = E, Index = Ix2 > +
 
 impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
 where
-E : MatEl + nd::NdFloat,
+E : MatNum,
 Descriptor : mat::Descriptor,
 Self : RawSlice< Scalar = E >
 {
@@ -297,7 +307,7 @@ IndexingRef< Scalar = E, Index = Ix2 >
 
 impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
 where
-E : MatEl + nd::NdFloat,
+E : MatNum,
 Descriptor : mat::Descriptor,
 Self : RawSliceMut< Scalar = E >
 {
@@ -312,7 +322,7 @@ Self : RawSliceMut< Scalar = E >
 /// Creates a 4x4 identity matrix.
 pub fn identity< E >() -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
 {
   Mat4::from_column_major
