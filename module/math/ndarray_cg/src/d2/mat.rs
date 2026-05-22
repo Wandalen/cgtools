@@ -435,6 +435,8 @@ crate::mod_interface!
   layer general;
   /// Scalar conversions between element types (`cast`, `cast_as`, lossless `From`).
   layer cast;
+  /// Integer-only helpers (`saturating_*`, `wrapping_*`, `checked_*`).
+  layer integer;
 
   own use
   {

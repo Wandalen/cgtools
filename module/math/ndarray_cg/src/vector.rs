@@ -84,6 +84,8 @@ crate::mod_interface!
   layer vec4;
   /// Scalar conversions between element types (`cast`, `cast_as`, lossless `From`).
   layer cast;
+  /// Integer-only helpers (`saturating_*`, `wrapping_*`, `checked_*`).
+  layer integer;
 
   reuse ::mdmath_core::vector;
 
