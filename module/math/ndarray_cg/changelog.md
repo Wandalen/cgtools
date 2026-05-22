@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- `MatNum` trait — element bound for field-agnostic arithmetic (`Add`/`Sub`/`Mul`/`Div`/`Rem`, `Zero`/`One`, and the `*Assign` counterparts). Satisfied by every integer primitive and float, and used wherever an operation does not require `sqrt`, trig, or approximate equality.
+- Integer matrix type aliases following the existing `F32xNxN` convention: `I32x2x2`/`I32x3x3`/`I32x4x4`, `I64xNxN`, `U32xNxN`, `U64xNxN`.
+- `Eq` and `Ord` impls for `Vector<E, N>` and `Mat<R, C, E, D>` (gated on `E : Eq` / `E : Ord`), enabling integer vectors and matrices as `BTreeMap` / `BTreeSet` keys.
+- Component-wise scalar conversions on `Vector` and `Mat`:
+  - `cast::<T>()` via `T : From<E>` — reserved for lossless primitive conversions.
+  - `cast_as::<T>()` via `num_traits::AsPrimitive` — `as`-style lossy / truncating conversions.
+  - Concrete `From` impls for lossless primitive pairings (`i32 → i64 / f64`, `u32 → i64 / u64 / f64`, `f32 → f64`) so `.into()` resolves without ascription.
+- Integer-only arithmetic helpers, dispatched per-element via `num_traits`:
+  - `saturating_add` / `saturating_sub`
+  - `wrapping_add` / `wrapping_sub` / `wrapping_mul`
+  - `checked_add` / `checked_sub` / `checked_mul` (returning `Option<Self>`)
+  - `IntegerScalar` marker trait (`MatEl + PrimInt`) for gating downstream integer-only code on a single bound.
+
+### Changed
+- Relaxed `E : nd::NdFloat` to `E : MatNum` (or `E : MatEl`) across the arithmetic and operator surfaces — matrix `+ - * /`, vector `+ - * / %`, scalar mul/div, `dot`, `cross`, `mag2`, `distance_squared`, `transpose`, `determinant`, `identity`, `to_array` / `to_homogenous` / `truncate`, `from_cols`, `from_row_major` / `from_column_major`, and the `scale` / `shear` / `translation` constructors. Float-only operations (`mag` / `normalize` / `distance`, rotation, perspective / look_at / orthographic, `inverse`, `decompose`, approx-eq, spherical conversions, quaternions) keep the `NdFloat` bound.
+- Relaxed `IndexingRef` / `IndexingMut` / `ScalarRef` / `ScalarMut` impls for `Mat` from `nd::NdFloat` to `MatEl` — the access traits never relied on floating-point semantics.
+- Upgraded `ndarray` dependency from 0.16 to 0.17. The prelude re-export now lists items explicitly (omitting `ArrayRef`, `LayoutRef`, `RawRef`, and the `ArrayRefN` aliases) to avoid colliding with the local `ArrayRef` trait used as a generic bound.
+
 ## [0.3.0] - 2024-08-08
 
 ### Added
