@@ -253,7 +253,7 @@ version = "1.23"
 features = ["derive"]
 
 [workspace.dependencies.ndarray]
-version = "0.16.1"
+version = "0.17.2"
 
 [workspace.dependencies.approx]
 version = "0.5.1"
