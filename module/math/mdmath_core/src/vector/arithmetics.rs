@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::{ NdFloat, VectorIter, VectorIterMut, vector };
+  use crate::{ NdFloat, Scalar, VectorIter, VectorIterMut, vector };
   use crate::approx::ulps_eq;
 
   /// Computes the dot product of two vectors.
@@ -36,7 +36,7 @@ mod private
   where
     A : VectorIter< E, SIZE >,
     B : VectorIter< E, SIZE >,
-    E : NdFloat,
+    E : Scalar,
   {
     a.vector_iter()
     .zip( b.vector_iter() )
@@ -49,7 +49,7 @@ mod private
   pub fn mag2< E, A, const SIZE : usize >( a : &A ) -> E
   where
     A : VectorIter< E, SIZE >,
-    E : NdFloat,
+    E : Scalar,
   {
     dot( a, a )
   }
@@ -177,7 +177,7 @@ mod private
   where
     R : VectorIterMut< E, 3 >,
     B : VectorIter< E, 3 >,
-    E : NdFloat,
+    E : Scalar,
   {
     let u =
     {
@@ -213,7 +213,7 @@ mod private
   where
     A : VectorIterMut< E, 3 > + Clone,
     B : VectorIter< E, 3 >,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     cross_mut( &mut r, b );
@@ -227,7 +227,7 @@ mod private
   where
     R : VectorIterMut< E, N >,
     A : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut().zip( a.vector_iter() );
     for ( r, a ) in iter
@@ -242,7 +242,7 @@ mod private
   where
     A : VectorIterMut< E, N > + Clone,
     B : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     sum_mut( &mut r, b );
@@ -255,7 +255,7 @@ mod private
   pub fn sum_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut();
     for r in iter
@@ -269,7 +269,7 @@ mod private
   pub fn sum_scalar< E, A, const N : usize >( a : &A, b : E ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     sum_scalar_mut( &mut r, b );
@@ -283,7 +283,7 @@ mod private
   where
     R : VectorIterMut< E, N >,
     A : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut().zip( a.vector_iter() );
     for ( r, a ) in iter
@@ -298,7 +298,7 @@ mod private
   where
     A : VectorIterMut< E, N > + Clone,
     B : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     sub_mut( &mut r, b );
@@ -311,7 +311,7 @@ mod private
   pub fn sub_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut();
     for r in iter
@@ -325,7 +325,7 @@ mod private
   pub fn sub_scalar< E, A, const N : usize >( a : &A, b : E ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     sub_scalar_mut( &mut r, b );
@@ -339,7 +339,7 @@ mod private
   where
     R : VectorIterMut< E, N >,
     A : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut().zip( a.vector_iter() );
     for ( r, a ) in iter
@@ -354,7 +354,7 @@ mod private
   where
     A : VectorIterMut< E, N > + Clone,
     B : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     mul_mut( &mut r, b );
@@ -367,7 +367,7 @@ mod private
   pub fn mul_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut();
     for r in iter
@@ -381,7 +381,7 @@ mod private
   pub fn mul_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
   where
     R : VectorIterMut< E, N >  + Clone,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     mul_scalar_mut( &mut r, b );
@@ -395,7 +395,7 @@ mod private
   where
     R : VectorIterMut< E, N >,
     A : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut().zip( a.vector_iter() );
     for ( r, a ) in iter
@@ -410,7 +410,7 @@ mod private
   where
     A : VectorIterMut< E, N > + Clone,
     B : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     div_mut( &mut r, b );
@@ -423,7 +423,7 @@ mod private
   pub fn div_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut();
     for r in iter
@@ -437,7 +437,7 @@ mod private
   pub fn div_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
   where
     R : VectorIterMut< E, N >  + Clone,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     div_scalar_mut( &mut r, b );
