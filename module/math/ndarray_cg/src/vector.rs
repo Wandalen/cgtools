@@ -82,6 +82,8 @@ crate::mod_interface!
   layer vec3;
   /// Functionality related to 4D vectors
   layer vec4;
+  /// Scalar conversions between element types (`cast`, `cast_as`, lossless `From`).
+  layer cast;
 
   reuse ::mdmath_core::vector;
 

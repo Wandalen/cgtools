@@ -433,6 +433,8 @@ crate::mod_interface!
 
   layer fns;
   layer general;
+  /// Scalar conversions between element types (`cast`, `cast_as`, lossless `From`).
+  layer cast;
 
   own use
   {
