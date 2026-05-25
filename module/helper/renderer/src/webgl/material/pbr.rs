@@ -776,6 +776,12 @@ mod private
     {
       stringify!( PbrMaterial )
     }
+
+    fn has_emission( &self ) -> bool
+    {
+      self.emissive_texture.is_some()
+      || self.emissive_factor.as_slice() != [ 0.0, 0.0, 0.0 ]
+    }
   }
 
   impl Clone for PbrMaterial

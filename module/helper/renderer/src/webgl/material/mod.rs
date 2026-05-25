@@ -295,6 +295,13 @@ mod private
       matches!( self.alpha_mode(), AlphaMode::Blend )
     }
 
+    /// Returns `true` if this material produces emission output that should
+    /// be written to the emission render target.
+    fn has_emission( &self ) -> bool
+    {
+      false
+    }
+
     /// Returns `true` if the shader defines have changed and the shader
     /// program needs to be recompiled.
     fn needs_recompile( &self ) -> bool

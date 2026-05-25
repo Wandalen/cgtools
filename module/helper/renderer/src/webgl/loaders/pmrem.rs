@@ -1,0 +1,297 @@
+mod private
+{
+  use minwebgl as gl;
+  use gl::GL;
+  use web_sys::{ WebGlProgram, WebGlTexture, WebGlUniformLocation };
+  use crate::webgl::
+  {
+    post_processing::VS_TRIANGLE,
+    IBL
+  };
+
+  struct ShaderProg
+  {
+    program : WebGlProgram,
+  }
+
+  impl ShaderProg
+  {
+    fn compile( gl : &GL, fs_src : &str ) -> Result< Self, gl::WebglError >
+    {
+      let program = gl::ProgramFromSources::new( VS_TRIANGLE, fs_src ).compile_and_link( gl )?;
+      Ok( Self { program } )
+    }
+
+    fn bind( &self, gl : &GL )
+    {
+      gl.use_program( Some( &self.program ) );
+    }
+
+    fn loc( &self, gl : &GL, name : &str ) -> Option< WebGlUniformLocation >
+    {
+      gl.get_uniform_location( &self.program, name )
+    }
+  }
+
+  struct Programs
+  {
+    equirect_to_cube : ShaderProg,
+    prefilter : ShaderProg,
+    irradiance : ShaderProg,
+    brdf_lut : ShaderProg,
+  }
+
+  impl Programs
+  {
+    fn compile( gl : &GL ) -> Result< Self, gl::WebglError >
+    {
+      Ok( Self
+      {
+        equirect_to_cube : ShaderProg::compile( gl, include_str!( "../shaders/pmrem/equirect_to_cube.frag" ) )?,
+        prefilter : ShaderProg::compile( gl, include_str!( "../shaders/pmrem/prefilter_specular.frag" ) )?,
+        irradiance : ShaderProg::compile( gl, include_str!( "../shaders/pmrem/irradiance_convolution.frag" ) )?,
+        brdf_lut : ShaderProg::compile( gl, include_str!( "../shaders/pmrem/brdf_integration.frag" ) )?,
+      })
+    }
+
+    fn delete( &self, gl : &GL )
+    {
+      gl.delete_program( Some( &self.equirect_to_cube.program ) );
+      gl.delete_program( Some( &self.prefilter.program ) );
+      gl.delete_program( Some( &self.irradiance.program ) );
+      gl.delete_program( Some( &self.brdf_lut.program ) );
+    }
+  }
+
+  fn allocate_cubemap( gl : &GL, size : u32, num_mips : i32 ) -> Option< WebGlTexture >
+  {
+    let texture = gl.create_texture();
+    gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture.as_ref() );
+    gl.tex_storage_2d( gl::TEXTURE_CUBE_MAP, num_mips, gl::RGBA16F, size as i32, size as i32 );
+    gl::texture::cube::wrap_clamp( gl );
+    texture
+  }
+
+  fn render_to_cube_face
+  (
+    gl : &GL,
+    texture : &WebGlTexture,
+    face : u32,
+    mip_level : i32,
+    viewport_size : u32,
+    face_loc : &Option< WebGlUniformLocation >
+  )
+  {
+    gl.viewport( 0, 0, viewport_size as i32, viewport_size as i32 );
+    gl.framebuffer_texture_2d
+    (
+      gl::FRAMEBUFFER,
+      gl::COLOR_ATTACHMENT0,
+      gl::TEXTURE_CUBE_MAP_POSITIVE_X + face,
+      Some( texture ),
+      mip_level
+    );
+    gl.uniform1i( face_loc.as_ref(), face as i32 );
+    gl.clear( gl::COLOR_BUFFER_BIT );
+    gl.draw_arrays( gl::TRIANGLES, 0, 3 );
+  }
+
+  fn equirect_to_cubemap
+  (
+    gl : &GL,
+    programs : &Programs,
+    equirect : &WebGlTexture,
+    size : u32,
+    num_mips : i32,
+  ) -> Option< WebGlTexture >
+  {
+    let texture = allocate_cubemap( gl, size, num_mips );
+
+    programs.equirect_to_cube.bind( gl );
+    let face_loc = programs.equirect_to_cube.loc( gl, "face" );
+
+    gl.active_texture( gl::TEXTURE0 );
+    gl.bind_texture( gl::TEXTURE_2D, Some( equirect ) );
+    gl.uniform1i( programs.equirect_to_cube.loc( gl, "equirectMap" ).as_ref(), 0 );
+
+    for face in 0..6u32
+    {
+      render_to_cube_face( gl, texture.as_ref().unwrap(), face, 0, size, &face_loc );
+    }
+
+    gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture.as_ref() );
+    gl.generate_mipmap( gl::TEXTURE_CUBE_MAP );
+    gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+    gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+
+    texture
+  }
+
+  fn prefilter_specular
+  (
+    gl : &GL,
+    programs : &Programs,
+    source_cubemap : &WebGlTexture,
+    size : u32,
+    num_mips : u32,
+  ) -> Option< WebGlTexture >
+  {
+    let texture = allocate_cubemap( gl, size, num_mips as i32 );
+
+    programs.prefilter.bind( gl );
+
+    gl.active_texture( gl::TEXTURE0 );
+    gl.bind_texture( gl::TEXTURE_CUBE_MAP, Some( source_cubemap ) );
+    gl.uniform1i( programs.prefilter.loc( gl, "envMap" ).as_ref(), 0 );
+
+    let face_loc = programs.prefilter.loc( gl, "face" );
+    let roughness_loc = programs.prefilter.loc( gl, "roughness" );
+    let resolution_loc = programs.prefilter.loc( gl, "resolution" );
+
+    for mip in 0..num_mips
+    {
+      let mip_size = size >> mip;
+      let roughness = mip as f32 / ( num_mips - 1 ) as f32;
+
+      gl::uniform::upload( gl, roughness_loc.clone(), &roughness ).unwrap();
+      gl::uniform::upload( gl, resolution_loc.clone(), &( mip_size as f32 ) ).unwrap();
+
+      for face_idx in 0..6u32
+      {
+        render_to_cube_face( gl, texture.as_ref().unwrap(), face_idx, mip as i32, mip_size, &face_loc );
+      }
+    }
+
+    gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture.as_ref() );
+    gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+    gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+
+    texture
+  }
+
+  fn convolve_irradiance
+  (
+    gl : &GL,
+    programs : &Programs,
+    source_cubemap : &WebGlTexture,
+  ) -> Option< WebGlTexture >
+  {
+    let irradiance_size = 64u32;
+    let texture = allocate_cubemap( gl, irradiance_size, 1 );
+
+    programs.irradiance.bind( gl );
+
+    gl.active_texture( gl::TEXTURE0 );
+    gl.bind_texture( gl::TEXTURE_CUBE_MAP, Some( source_cubemap ) );
+    gl.uniform1i( programs.irradiance.loc( gl, "envMap" ).as_ref(), 0 );
+
+    let face_loc = programs.irradiance.loc( gl, "face" );
+    for face_idx in 0..6u32
+    {
+      render_to_cube_face( gl, texture.as_ref().unwrap(), face_idx, 0, irradiance_size, &face_loc );
+    }
+
+    gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture.as_ref() );
+    gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
+    gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+
+    texture
+  }
+
+  fn integrate_brdf( gl : &GL, programs : &Programs ) -> Option< WebGlTexture >
+  {
+    let lut_size = 512u32;
+    let texture = gl.create_texture();
+    gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
+    gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, lut_size as i32, lut_size as i32 );
+    gl::texture::d2::filter_linear( gl );
+    gl::texture::d2::wrap_clamp( gl );
+
+    programs.brdf_lut.bind( gl );
+
+    gl.viewport( 0, 0, lut_size as i32, lut_size as i32 );
+    gl.framebuffer_texture_2d
+    (
+      gl::FRAMEBUFFER,
+      gl::COLOR_ATTACHMENT0,
+      gl::TEXTURE_2D,
+      texture.as_ref(),
+      0
+    );
+    gl.clear( gl::COLOR_BUFFER_BIT );
+    gl.draw_arrays( gl::TRIANGLES, 0, 3 );
+
+    texture
+  }
+
+  /// Generates a complete IBL set from an equirectangular HDR texture on the GPU.
+  ///
+  /// Converts the equirect map to cubemaps with GGX importance-sampled specular prefiltering,
+  /// cosine-weighted diffuse irradiance convolution, and a split-sum BRDF integration LUT.
+  ///
+  /// # Arguments
+  ///
+  /// * `gl` - The WebGL2 rendering context.
+  /// * `equirect_texture` - A 2D texture containing an equirectangular HDR image.
+  /// * `cubemap_resolution` - Side length of the cubemap faces (512 recommended for 10 mip levels).
+  pub fn generate
+  (
+    gl : &gl::WebGl2RenderingContext,
+    equirect_texture : &WebGlTexture,
+    cubemap_resolution : u32
+  ) -> Result< IBL, gl::WebglError >
+  {
+    let num_mips = ( cubemap_resolution as f32 ).log2() as u32 + 1;
+
+    let programs = Programs::compile( gl )?;
+
+    let fbo = gl.create_framebuffer();
+    gl.bind_framebuffer( gl::FRAMEBUFFER, fbo.as_ref() );
+    gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+
+    gl.disable( gl::DEPTH_TEST );
+    gl.disable( gl::BLEND );
+    gl.disable( gl::CULL_FACE );
+    gl.color_mask( true, true, true, true );
+    gl.clear_color( 0.0, 0.0, 0.0, 0.0 );
+    gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
+
+    let source_cubemap = equirect_to_cubemap( gl, &programs, equirect_texture, cubemap_resolution, num_mips as i32 );
+
+    gl.bind_framebuffer( gl::FRAMEBUFFER, fbo.as_ref() );
+    let specular_texture = prefilter_specular( gl, &programs, source_cubemap.as_ref().unwrap(), cubemap_resolution, num_mips );
+
+    gl.bind_framebuffer( gl::FRAMEBUFFER, fbo.as_ref() );
+    let diffuse_texture = convolve_irradiance( gl, &programs, source_cubemap.as_ref().unwrap() );
+
+    gl.bind_framebuffer( gl::FRAMEBUFFER, fbo.as_ref() );
+    let brdf_lut = integrate_brdf( gl, &programs );
+
+    gl.delete_texture( source_cubemap.as_ref() );
+    gl.delete_framebuffer( fbo.as_ref() );
+    programs.delete( gl );
+
+    gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+    gl.bind_texture( gl::TEXTURE_CUBE_MAP, None );
+    gl.bind_texture( gl::TEXTURE_2D, None );
+    gl.use_program( None );
+
+    Ok
+    (
+      IBL
+      {
+        diffuse_texture,
+        specular_1_texture : specular_texture,
+        specular_2_texture : brdf_lut,
+      }
+    )
+  }
+}
+
+crate::mod_interface!
+{
+  own use
+  {
+    generate
+  };
+}

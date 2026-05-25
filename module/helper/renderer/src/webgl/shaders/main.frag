@@ -16,7 +16,6 @@ in vec2 vUv_4;
   in vec4 vTangent;
 #endif
 in vec3 vWorldPos;
-in vec3 vViewPos;
 in vec3 vNormal;
 
 layout( location = 0 ) out vec4 frag_color;
@@ -38,7 +37,6 @@ struct PhysicalMaterial
   float roughness;
   vec3 f0;
   vec3 f90;
-  float specularFactor;
 };
 
 struct ReflectedLight
@@ -85,8 +83,6 @@ uniform int directLightsCount;
 uniform SpotLight spotLights[ MAX_SPOT_LIGHTS ];
 uniform int spotLightsCount;
 
-uniform float luminosityThreshold;
-uniform float luminositySmoothWidth;
 uniform float metallicFactor; // Default: 1
 uniform float roughnessFactor; // Default: 1
 uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
@@ -101,7 +97,6 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
     uniform mediump samplerCube prefilterEnvMap;
     uniform mediump sampler2D integrateBRDF;
   #endif
-  uniform vec2 mipmapDistanceRange;
 #endif
 #ifdef USE_KHR_materials_specular
   uniform float specularFactor;
@@ -262,25 +257,6 @@ float D_GGX( const in float alpha, const in float dotNH )
   return 0.3183098861837907 * a2 / pow2( denom );
 }
 
-vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 normal, const in PhysicalMaterial material )
-{
-  float alpha = pow2( material.roughness );
-  vec3 halfDir = normalize( lightDir + viewDir );
-
-  float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
-  float dotNV = clamp( dot( normal, viewDir ), 0.0, 1.0 );
-  float dotNH = clamp( dot( normal, halfDir ), 0.0, 1.0 );
-  float dotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
-
-  // Fresnel
-  vec3 F = F_Schlick( material.f0, material.f90, dotVH );
-  // Geometry function
-  float G = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
-  // Normal distribution function
-  float D = D_GGX( alpha, dotNH );
-  return vec4( F, G * D ) ;
-}
-
 void applyLightContribution
 (
   const in vec3 lightDir,
@@ -314,7 +290,7 @@ void applyLightContribution
   vec3 diffuseColor = material.diffuseColor * irradiance;
   vec3 specularColor = D * V * irradiance;
 
-  reflectedLight.directDiffuse += Fd * diffuseColor;
+  reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
   reflectedLight.directSpecular += Fs * specularColor;
 }
 
@@ -402,7 +378,7 @@ void computeSpotLight
   vec3 diffuseColor = material.diffuseColor * irradiance;
   vec3 specularColor = D * V * irradiance;
 
-  reflectedLight.directDiffuse += Fd * diffuseColor;
+  reflectedLight.directDiffuse += ( 1.0 - Fs ) * Fd * diffuseColor;
   reflectedLight.directSpecular += Fs * specularColor;
 }
 
@@ -458,57 +434,32 @@ float ditherNoise( vec2 fragCoord )
 
 #ifdef USE_IBL
 
-  float remapClamped( float value, float inMin, float inMax, float outMin, float outMax )
+  void sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
   {
-    float t = clamp( ( value - inMin ) / ( inMax - inMin ), 0.0, 1.0 );
-    return mix( outMin, outMax, t );
-  }
-
-  void sampleEnvIrradiance( const in vec3 N, const in vec3 V, float viewDistance, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
-  {
-    float alpha = pow2( material.roughness );
     float dotNV = clamp( dot( N, V ), 0.01, 1.0 );
 
     const float MAX_LOD = 9.0;
 
-    vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
     vec3 R = reflect( -V, N );
 
-    // Base LOD from material roughness, with a floor of 1.0 to avoid sampling
-    // raw mip 0 where individual hot texels (studio lights) are unfiltered.
-    float lod = max( material.roughness * MAX_LOD, 1.0 );
+    float lod = material.roughness * MAX_LOD;
 
-    // Reflection-space LOD bias: measure how much R varies across the pixel.
-    // Where the reflection direction is unstable (sharp geometry edges, grazing
-    // angles), we select a blurrier mip to suppress specular aliasing.
     vec3 dRdx = dFdx( R );
     vec3 dRdy = dFdy( R );
     float reflVariance = dot( dRdx, dRdx ) + dot( dRdy, dRdy );
     lod = max( lod, 0.5 * log2( max( reflVariance, 1e-6 ) ) + 4.0 );
     lod = min( lod, MAX_LOD );
 
-    // Dither: ±0.5 LSB of 10-bit mantissa (half-float precision in [0.5..1] range)
     float dither = ( ditherNoise( gl_FragCoord.xy ) - 0.5 ) / 512.0;
 
-    vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, exposure ) + dither;
-    vec3 prefilter = textureLod( prefilterEnvMap, R, lod ).xyz * pow( 2.0, exposure );
+    vec3 diffuse = texture( irradianceTexture, N ).xyz + dither;
+    vec3 prefilter = textureLod( prefilterEnvMap, R, lod ).xyz + dither;
 
-    // Soft firefly suppression: values below the threshold pass unchanged,
-    // values above are smoothly compressed (Reinhard on excess).
-    float prefilterLum = dot( prefilter, vec3( 0.2126, 0.7152, 0.0722 ) );
-    float fireflyThreshold = 2.0;
-    if( prefilterLum > fireflyThreshold )
-    {
-      float excess = prefilterLum - fireflyThreshold;
-      float compressed = fireflyThreshold + excess / ( 1.0 + excess );
-      prefilter *= compressed / prefilterLum;
-    }
-
-    prefilter += dither;
     vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
 
-    vec3 diffuseBRDF = diffuse * material.diffuseColor;
-    vec3 specularBRDF = prefilter * ( material.f0 * envBrdf.x + envBrdf.y );
+    vec3 FssEss = material.f0 * envBrdf.x + envBrdf.y;
+    vec3 specularBRDF = prefilter * FssEss;
+    vec3 diffuseBRDF = diffuse * material.diffuseColor * ( 1.0 - FssEss );
 
     reflectedLight.indirectDiffuse += diffuseBRDF;
     reflectedLight.indirectSpecular += specularBRDF;
@@ -520,20 +471,6 @@ float alpha_weight( float a )
 {
   return clamp( pow( min( 1.0, a * 10.0 ) + 0.01, 3.0 ) * 1e8 * pow( 1.0 - gl_FragCoord.z * 0.9, 3.0 ), 1e-2, 3e3 );
 }
-
-// float alpha_weight( float a )
-// {
-//   float z = abs( vViewPos.z );
-//   float b = min( 3e3, 10.0 / ( 1e-5 + pow( z / 5.0 , 3.0 ) + pow( z / 2e2, 6.0 ) ) );
-//   float c = max( 1e-2, b );
-//   return a * c;
-// }
-
-// float alpha_weight( float a )
-// {
-//   float c = max( 1e-2, 3e3 * pow( 1.0 - gl_FragCoord.z, 3.0 ) );
-//   return a * c;
-// }
 
 #ifndef USE_TANGENTS
   // http://www.thetenthplanet.de/archives/1180
@@ -586,6 +523,7 @@ void main()
     material.diffuseColor *= baseColor.rgb;
     alpha *= baseColor.a;
   #endif
+
   #ifdef USE_MR_TEXTURE
     vec4 mr_sample = texture( metallicRoughnessTexture, vMRUv );
     material.metallness *= mr_sample.b;
@@ -593,11 +531,11 @@ void main()
   #endif
 
   #ifdef USE_ALPHA_CUTOFF
-    alpha = step( alpha, 1.0 - alphaCutoff );
-    if( alpha == 0.0 )
+    if( alpha < alphaCutoff )
     {
       discard;
     }
+    alpha = 1.0;
   #endif
 
   //Specular part
@@ -605,17 +543,16 @@ void main()
   // 0.04 - reflectance of the Glass
   material.f0 = vec3( 0.04 );
   material.f90 = vec3( 1.0 );
-  material.specularFactor = 1.0;
   #ifdef USE_KHR_materials_specular
-    material.specularFactor *= specularFactor;
+    float sf = specularFactor;
     material.f0 *= specularColorFactor;
     #ifdef USE_SPECULAR_COLOR_TEXTURE
       material.f0 *= SrgbToLinear( texture( specularColorTexture, vSpecularColorUv ).rgb );
     #endif
     #ifdef USE_SPECULAR_TEXTURE
-      material.specularFactor *= texture( specularTexture, vSpecularUv ).a;
+      sf *= texture( specularTexture, vSpecularUv ).a;
     #endif
-    material.f0 = min( material.f0 * material.specularFactor, vec3( 1.0 ) );
+    material.f0 = min( material.f0 * sf, vec3( 1.0 ) );
   #endif
   material.f0 = mix( material.f0, material.diffuseColor, material.metallness );
   material.diffuseColor *= 1.0 - material.metallness;
@@ -649,24 +586,26 @@ void main()
   vec3 dNdy = dFdy( normal );
   float geometricVariance = dot( dNdx, dNdx ) + dot( dNdy, dNdy );
   material.roughness = sqrt( clamp( material.roughness * material.roughness + 0.5 * geometricVariance, 0.0, 1.0 ) );
+  material.roughness = max( material.roughness, 0.0525 );
 
   vec3 color = vec3( 0.0 );
   vec3 viewDir = normalize( cameraPosition - vWorldPos );
-  float viewDistance = distance( cameraPosition, vWorldPos );
 
   computeLights( viewDir, normal, material, reflectedLight );
 
-  // Ambient color
   #if defined( USE_IBL )
-    sampleEnvIrradiance( normal, viewDir, viewDistance, material, reflectedLight );
+    sampleEnvIrradiance( normal, viewDir, material, reflectedLight );
   #else
     reflectedLight.indirectDiffuse += 0.1 * material.diffuseColor;
   #endif
 
-   // Works only with indirect light
   #ifdef USE_OCCLUSION_TEXTURE
     float occlusion = texture( occlusionTexture, vOcclusionUv ).r;
-    reflectedLight.indirectDiffuse *= 1.0 + occlusionStrength * ( occlusion - 1.0 );
+    float ao = 1.0 + occlusionStrength * ( occlusion - 1.0 );
+    reflectedLight.indirectDiffuse *= ao;
+    float dotNV = clamp( dot( normal, viewDir ), 0.0, 1.0 );
+    float specOcclusion = clamp( pow( dotNV + ao, exp2( -16.0 * material.roughness - 1.0 ) ) - 1.0 + ao, 0.0, 1.0 );
+    reflectedLight.indirectSpecular *= specOcclusion;
   #endif
 
   emissive_color = vec4( emissiveFactor, 1.0 );
@@ -680,15 +619,6 @@ void main()
   reflectedLight.directDiffuse +
   reflectedLight.directSpecular;
 
-  //color = vec3( material.occlusionFactor );
-  //color = vec3( material.f0 );
-  //color = vec3( alpha );
-  //color = material.diffuseColor;
-  //float a_weight = alpha * alpha_weight( alpha );
-  //alpha = 0.9;
-  //color = material.diffuseColor;
-  //color = normal;
-  // color = vec3( 1.0 - texture( lightMap, vUv_0 ).r );
   float a_weight = alpha * alpha_weight( alpha );
   trasnparentA = vec4( color * a_weight, alpha );
   transparentB = a_weight;

@@ -88,7 +88,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera.bind_controls( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_use_emission( true );
+  renderer.set_use_emission( &gl, true );
   renderer.set_bloom_strength( 0.5 );
   renderer.set_bloom_radius( 0.5 );
   renderer.set_exposure( 1.0 );

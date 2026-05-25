@@ -2,6 +2,7 @@
 precision highp float;
 
 uniform sampler2D sourceTexture;
+uniform float exposure;
 
 in vec2 vUv;
 out vec4 frag_color;
@@ -30,6 +31,6 @@ vec3 aces_tone_map( vec3 hdr )
 
 void main()
 {
-  vec3 color = aces_tone_map( texture( sourceTexture, vUv ).rgb );
-  frag_color = vec4( color, 1.0 );
+  vec3 color = texture( sourceTexture, vUv ).rgb * exp2( exposure );
+  frag_color = vec4( aces_tone_map( color ), 1.0 );
 }
