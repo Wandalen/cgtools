@@ -23,12 +23,11 @@ mod private
     /// A `OneShot` animation just crossed its total duration on an
     /// instance during the most recent `tick` call.
     ///
-    /// Fires exactly once per crossing. Re-entering the state — even
-    /// via an explicit [`crate::scene::Scene::set_state`] call — does
-    /// NOT re-arm the event; consumers that want a re-trigger reset
-    /// the per-instance phase via
-    /// `Scene::set_phase_offset( h, Some( -scene.clock() ) )` so the
-    /// animation's local time wraps back to zero.
+    /// Fires exactly once per crossing.
+    /// [`crate::scene::Scene::set_state`] resets `state_entered_time`
+    /// to the current clock, restarting the `OneShot` from frame 0 and
+    /// re-arming the event — calling `set_state` is the correct way to
+    /// replay attack / death / pulse animations on long-lived instances.
     AnimationCompleted
     {
       /// Instance whose animation completed.

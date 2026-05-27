@@ -6,7 +6,7 @@
 //! `PingPong`, per-instance phase overrides, multi-layer `OneShot`s,
 //! invisible-instance suppression, the `dt == 0` and "very large dt"
 //! degenerates, `HashCoord` phase-driven divergence between instances at
-//! different grid coordinates, and the no-re-arm-on-`set_state` rule.
+//! different grid coordinates, and the `set_state` re-arm rule.
 
 #![ allow( clippy::min_ident_chars ) ]
 #![ allow
