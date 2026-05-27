@@ -396,7 +396,7 @@ mod private
         {
           BucketDispatch::Batched =>
           {
-            // Group consecutive same-(sheet, blend, clip) sprites. Order
+            // Group all same-(sheet, blend, clip) sprites. Order
             // within a group is the bucket's pre-sorted order, which for
             // `SortMode::None` is the spawn / iteration order from
             // `Scene` — stable across frames given identical state.
