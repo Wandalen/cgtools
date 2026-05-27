@@ -187,7 +187,7 @@ mod private
     cmd_buf : Vec< RenderCommand >,
 
     // ──────────────────────────────────────────────────────────────────
-    // Per-renderer delta cache — Step 4.
+    // Per-renderer delta cache.
     //
     // The retained-mode `Scene` exposes a monotonic `revision()` counter
     // bumped on every mutation. Combined with the master clock and a
@@ -212,7 +212,7 @@ mod private
     cache_hits : u64,
 
     // ──────────────────────────────────────────────────────────────────
-    // Sprite-batch state — Step 4b.
+    // Sprite-batch state.
     //
     // `SortMode::None` buckets (terrain / vertex / edge — the bulk of
     // hex count in a typical Slay map) get collapsed into instanced
@@ -432,8 +432,8 @@ mod private
           },
         }
 
-        // Viewport sprites — always per-sprite for Step 4 (Polish #7
-        // viewport-pass batching is a separate deferred item).
+        // Viewport sprites — always per-sprite (viewport-pass batching
+        // is not yet implemented).
         for sprite in bucket.screen_space
         {
           self.cmd_buf.push( RenderCommand::ScreenSpaceSprite( sprite ) );
