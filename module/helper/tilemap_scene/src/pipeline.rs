@@ -109,6 +109,10 @@ mod private
     /// For stylised pixel-art hexes whose visible silhouette is not a
     /// perfect equilateral triangle ratio, construct `HexConfig`
     /// directly with the empirically-tuned `grid_stride` instead.
+    ///
+    /// `Square4` / `Square8` are accepted without panic (stride
+    /// defaults to `(w, h)`) but are not yet implemented —
+    /// [`crate::load::load`] will reject them at validation time.
     #[ inline ]
     #[ must_use ]
     pub fn from_hex_size( w : u32, h : u32, tiling : TilingStrategy ) -> Self
