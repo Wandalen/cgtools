@@ -260,6 +260,81 @@ fn validate_rejects_unknown_asset_in_animation()
   );
 }
 
+#[ test ]
+fn validate_rejects_missing_default_state()
+{
+  // Object.default_state names a key that is not present in the states map.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                default_state: "missing",
+                states: { "default": [ ( sprite_source: Static( ( "terrain", "0" ) ) ) ] },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "missing default_state must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::MissingDefaultState { object, state }
+        if object == "grass" && state == "missing"
+    )),
+    "expected MissingDefaultState for object 'grass' / state 'missing', got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_rejects_reserved_id()
+{
+  // Object.id is the reserved identifier "void" (SPEC §15.1).
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "void",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: { "default": [ ( sprite_source: Static( ( "terrain", "0" ) ) ) ] },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "reserved id 'void' must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::ReservedId { id }
+        if id == "void"
+    )),
+    "expected ReservedId for 'void', got {errs:?}",
+  );
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Scene parsing — tiles + entities + viewport instances.
 // ────────────────────────────────────────────────────────────────────────────
