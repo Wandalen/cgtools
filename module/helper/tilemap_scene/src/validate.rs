@@ -11,6 +11,7 @@
 mod private
 {
   use rustc_hash::FxHashSet as HashSet;
+  use crate::compile::neighbors::VOID_ID;
   use crate::error::ValidationError;
   use crate::resource::AnimationTiming;
   use crate::snapshot::SceneSnapshot;
@@ -155,7 +156,7 @@ mod private
             state : object.default_state.clone(),
           });
         }
-        if object.id == "void"
+        if object.id == VOID_ID
         {
           errors.push( ValidationError::ReservedId { id : object.id.clone() } );
         }
