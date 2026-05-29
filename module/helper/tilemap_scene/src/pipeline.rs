@@ -125,7 +125,7 @@ mod private
       {
         TilingStrategy::HexFlatTop   => ( w * 3 / 4, h ),
         TilingStrategy::HexPointyTop => ( w, h * 3 / 4 ),
-        // Square tilings are rejected by validation; we still produce a
+        // Square tilings are not yet implemented; we still produce a
         // sane default (1:1 with the bounding box) rather than panic so
         // callers exploring the API don't trip a destructive failure.
         TilingStrategy::Square4 | TilingStrategy::Square8 => ( w, h ),
