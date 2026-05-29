@@ -79,7 +79,7 @@ mod private
     face : u32,
     mip_level : i32,
     viewport_size : u32,
-    face_loc : &Option< WebGlUniformLocation >
+    face_loc : Option< &WebGlUniformLocation >
   )
   {
     gl.viewport( 0, 0, viewport_size as i32, viewport_size as i32 );
@@ -91,7 +91,7 @@ mod private
       Some( texture ),
       mip_level
     );
-    gl.uniform1i( face_loc.as_ref(), face as i32 );
+    gl.uniform1i( face_loc, face as i32 );
     gl.clear( gl::COLOR_BUFFER_BIT );
     gl.draw_arrays( gl::TRIANGLES, 0, 3 );
   }
@@ -116,7 +116,7 @@ mod private
 
     for face in 0..6u32
     {
-      render_to_cube_face( gl, texture.as_ref().unwrap(), face, 0, size, &face_loc );
+      render_to_cube_face( gl, texture.as_ref().unwrap(), face, 0, size, face_loc.as_ref() );
     }
 
     gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture.as_ref() );
@@ -158,7 +158,7 @@ mod private
 
       for face_idx in 0..6u32
       {
-        render_to_cube_face( gl, texture.as_ref().unwrap(), face_idx, mip as i32, mip_size, &face_loc );
+        render_to_cube_face( gl, texture.as_ref().unwrap(), face_idx, mip as i32, mip_size, face_loc.as_ref() );
       }
     }
 
@@ -188,7 +188,7 @@ mod private
     let face_loc = programs.irradiance.loc( gl, "face" );
     for face_idx in 0..6u32
     {
-      render_to_cube_face( gl, texture.as_ref().unwrap(), face_idx, 0, irradiance_size, &face_loc );
+      render_to_cube_face( gl, texture.as_ref().unwrap(), face_idx, 0, irradiance_size, face_loc.as_ref() );
     }
 
     gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture.as_ref() );

@@ -892,7 +892,9 @@ mod private
       }
 
       let [ r, g, b ] = self.clear_color.0;
-      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ r, g, b, 1.0 ] );
+      // Alpha = 0 marks background pixels; geometry overwrites it with 1. The tone
+      // mapping pass uses this to leave the clear color untouched by tone mapping.
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ r, g, b, 0.0 ] );
       if has_emissive
       {
         gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, &[ 0.0, 0.0, 0.0, 0.0 ] );

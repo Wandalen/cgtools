@@ -15,17 +15,7 @@ mod private
   {
     /// The WebGL program used for the tone mapping operation.
     material : EmptyShader,
-    exposure_loc : Option< gl::WebGlUniformLocation >,
-    exposure : f32,
     phantom : std::marker::PhantomData< T >
-  }
-
-  impl< T > ToneMappingPass< T >
-  {
-    pub fn set_exposure( &mut self, exposure : f32 )
-    {
-      self.exposure = exposure;
-    }
   }
 
   impl< T > Pass for ToneMappingPass< T >
@@ -48,7 +38,6 @@ mod private
       gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
 
       self.material.bind( gl );
-      gl.uniform1f( self.exposure_loc.as_ref(), self.exposure );
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, input_texture.as_ref() );
       gl.framebuffer_texture_2d
@@ -72,11 +61,11 @@ mod private
 
   impl ToneMappingPass< ToneMappingAces >
   {
+    /// Creates an ACES tone mapping pass.
     pub fn new( gl : &gl::WebGl2RenderingContext ) -> Result< Self, gl::WebglError >
     {
       let fs_shader = include_str!( "../shaders/tonemapping/aces.frag" );
       let program = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let exposure_loc = gl.get_uniform_location( &program, "exposure" );
       let material = EmptyShader::new( gl, &program );
 
       Ok
@@ -84,8 +73,6 @@ mod private
         Self
         {
           material,
-          exposure_loc,
-          exposure : 1.0,
           phantom : PhantomData
         }
       )

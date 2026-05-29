@@ -106,14 +106,14 @@ async fn run() -> Result< (), gl::WebglError >
 
   let ibl = renderer::webgl::loaders::pmrem::generate( &gl, equirect.as_ref().unwrap(), 512 )?;
   renderer.set_ibl( ibl );
-  renderer.set_clear_color( gl::math::F32x3::from( [ 0.07, 0.07, 0.07 ] ) );
+  renderer.set_clear_color( gl::math::F32x3::from( [ 0.01, 0.01, 0.01 ] ) );
+  renderer.set_exposure( 0.0 );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, pixel_w, pixel_h );
 
-  let mut tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
-  tonemapping.set_exposure( 1.0 );
+  let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
   gui_setup::setup( renderer.clone() );

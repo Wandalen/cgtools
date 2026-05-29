@@ -452,17 +452,30 @@ float ditherNoise( vec2 fragCoord )
 
     float dither = ( ditherNoise( gl_FragCoord.xy ) - 0.5 ) / 512.0;
 
-    vec3 diffuse = texture( irradianceTexture, N ).xyz + dither;
-    vec3 prefilter = textureLod( prefilterEnvMap, R, lod ).xyz + dither;
+    vec3 irradiance = texture( irradianceTexture, N ).xyz + dither;
+    vec3 radiance = textureLod( prefilterEnvMap, R, lod ).xyz + dither;
 
     vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
 
-    vec3 FssEss = material.f0 * envBrdf.x + envBrdf.y;
-    vec3 specularBRDF = prefilter * FssEss;
-    vec3 diffuseBRDF = diffuse * material.diffuseColor * ( 1.0 - FssEss );
+    // Split-sum with multiple-scattering energy compensation, matching three.js
+    // computeMultiscattering(). The single-scatter term is the usual prefiltered
+    // reflection; the multi-scatter term feeds the energy lost between microfacet
+    // bounces back as a soft, irradiance-weighted lobe — without it rough metals /
+    // plastics read as pure mirrors and the overall specular is too dim.
+    vec3 FssEss = material.f0 * envBrdf.x + material.f90 * envBrdf.y;
+    float Ess = envBrdf.x + envBrdf.y;
+    float Ems = 1.0 - Ess;
+    vec3 Favg = material.f0 + ( 1.0 - material.f0 ) * 0.047619; // 1.0 / 21.0
+    vec3 Fms = FssEss * Favg / ( 1.0 - Ems * Favg );
 
-    reflectedLight.indirectDiffuse += diffuseBRDF;
-    reflectedLight.indirectSpecular += specularBRDF;
+    vec3 singleScatter = FssEss;
+    vec3 multiScatter = Fms * Ems;
+    vec3 totalScatter = singleScatter + multiScatter;
+    vec3 diffuse = material.diffuseColor * ( 1.0 - max_value( totalScatter ) );
+
+    reflectedLight.indirectSpecular += radiance * singleScatter;
+    reflectedLight.indirectSpecular += multiScatter * irradiance;
+    reflectedLight.indirectDiffuse += diffuse * irradiance;
   }
 
 #endif
@@ -619,9 +632,17 @@ void main()
   reflectedLight.directDiffuse +
   reflectedLight.directSpecular;
 
+  // Exposure is applied uniformly to the whole lit result here ( the tone mapping
+  // pass operates in display-referred space ). The clear-color background is not
+  // drawn by this shader, so it stays exposure-independent.
+  color *= exp2( exposure );
+
   float a_weight = alpha * alpha_weight( alpha );
   trasnparentA = vec4( color * a_weight, alpha );
   transparentB = a_weight;
-  frag_color = vec4( color, alpha );
+  // Opaque pass writes alpha = 1 to mark covered pixels; background stays at the
+  // cleared alpha = 0 so the tone mapping pass can leave it untouched. The transparent
+  // pass renders to locations 2/3 only, so this alpha never reaches the WBOIT buffers.
+  frag_color = vec4( color, 1.0 );
 }
 
