@@ -6,7 +6,7 @@ mod private
   use crate::*;
 
   /// A vector structure.
-  #[ derive( Clone, Copy, PartialEq, PartialOrd, Hash, Debug ) ]
+  #[ derive( Clone, Copy, PartialEq, Hash, Debug ) ]
   pub struct Vector< E, const LEN : usize >( pub [ E; LEN ] )
   where E : MatEl;
 

@@ -1,6 +1,10 @@
 //! Integer vector and matrix arithmetic — add / sub / mul / div, scalar ops,
 //! dot, cross, mat×mat, mat×vec. Parameterized over element type via macros so
 //! every integer primitive (`i32`, `i64`, `u32`, `u64`) gets covered.
+//!
+//! `cross` and `distance_squared` require a signed element type because the
+//! underlying subtraction can produce negative intermediate values; they are
+//! tested separately for `i32` and `i64`.
 
 use super::*;
 
@@ -38,20 +42,32 @@ where
   let b = Vector::< E, 3 >::from_array( [ E::from( 4 ), E::from( 5 ), E::from( 6 ) ] );
   assert_eq!( a.dot( &b ), E::from( 32 ) );
   assert_eq!( a.mag2(), E::from( 14 ) );
-  // Use `b.distance_squared( &a )` so the intermediate subtraction is
-  // non-negative — this also works for unsigned scalar types.
+}
+
+fn vector_distance_squared_signed_generic< E >()
+where
+  E : the_module::MatNum + ::num_traits::Signed + From< u8 > + PartialEq + core::fmt::Debug,
+{
+  use the_module::Vector;
+  let a = Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 2 ), E::from( 3 ) ] );
+  let b = Vector::< E, 3 >::from_array( [ E::from( 4 ), E::from( 5 ), E::from( 6 ) ] );
+  assert_eq!( a.distance_squared( &b ), E::from( 27 ) );
   assert_eq!( b.distance_squared( &a ), E::from( 27 ) );
 }
 
-fn vec3_cross_generic< E >()
+fn vec3_cross_signed_generic< E >()
 where
-  E : the_module::MatNum + From< u8 > + PartialEq + core::fmt::Debug,
+  E : the_module::MatNum + ::num_traits::Signed + From< u8 > + PartialEq + core::fmt::Debug,
 {
   use the_module::Vector;
   let x = Vector::< E, 3 >::new( E::from( 1 ), E::from( 0 ), E::from( 0 ) );
   let y = Vector::< E, 3 >::new( E::from( 0 ), E::from( 1 ), E::from( 0 ) );
   let z = x.cross( y );
   assert_eq!( z, Vector::< E, 3 >::new( E::from( 0 ), E::from( 0 ), E::from( 1 ) ) );
+  // Anti-commutativity: y × x = -z (negative z component, requires signed type)
+  let neg_z = y.cross( x );
+  let minus_one = E::zero() - E::from( 1 );
+  assert_eq!( neg_z, Vector::< E, 3 >::new( E::from( 0 ), E::from( 0 ), minus_one ) );
 }
 
 fn mat_add_sub_generic< E, D >()
@@ -138,9 +154,6 @@ macro_rules! integer_arithmetic_tests
         fn vector_dot_and_mag2() { vector_dot_generic::< $ty >(); }
 
         #[ test ]
-        fn vec3_cross() { vec3_cross_generic::< $ty >(); }
-
-        #[ test ]
         fn mat_add_sub_row_major()
         {
           mat_add_sub_generic::< $ty, the_module::mat::DescriptorOrderRowMajor >();
@@ -175,3 +188,15 @@ macro_rules! integer_arithmetic_tests
 }
 
 integer_arithmetic_tests!( i32, i64, u32, u64 );
+
+// cross and distance_squared involve subtraction — only safe for signed types.
+
+#[ test ]
+fn vec3_cross_i32() { vec3_cross_signed_generic::< i32 >(); }
+#[ test ]
+fn vec3_cross_i64() { vec3_cross_signed_generic::< i64 >(); }
+
+#[ test ]
+fn vector_distance_squared_i32() { vector_distance_squared_signed_generic::< i32 >(); }
+#[ test ]
+fn vector_distance_squared_i64() { vector_distance_squared_signed_generic::< i64 >(); }

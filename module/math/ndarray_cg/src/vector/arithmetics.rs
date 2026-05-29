@@ -16,17 +16,23 @@ mod private
       mag2( self )
     }
 
-    /// Compute squared length of the vector between two points in space.
-    /// Available for any numeric scalar.
-    pub fn distance_squared( &self, rhs : &Self ) -> E
-    {
-      mag2( &( *self - *rhs ) )
-    }
-
     /// Compute the dot product of two vectors.
     pub fn dot( &self, rhs : &Self ) -> E
     {
       dot( self, rhs )
+    }
+  }
+
+  impl< E, const LEN : usize > Vector< E, LEN >
+  where
+    E : MatNum + ::num_traits::Signed,
+  {
+    /// Compute squared Euclidean distance between two points. Requires a
+    /// signed scalar because the intermediate subtraction can produce negative
+    /// values; use `saturating_sub` + `mag2` manually for unsigned types.
+    pub fn distance_squared( &self, rhs : &Self ) -> E
+    {
+      mag2( &( *self - *rhs ) )
     }
   }
 

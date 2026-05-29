@@ -62,6 +62,17 @@ mod private
     }
   }
 
+  impl< E, const N : usize > PartialOrd for Vector< E, N >
+  where
+    E : MatEl + PartialOrd,
+  {
+    #[ inline ]
+    fn partial_cmp( &self, other : &Self ) -> Option< std::cmp::Ordering >
+    {
+      self.0.partial_cmp( &other.0 )
+    }
+  }
+
   impl< E, const N : usize > Default for Vector< E, N >
   where
     E : MatEl + Default,

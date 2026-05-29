@@ -150,7 +150,7 @@ mod private
   // =
 
   /// A matrix structure.
-  #[ derive( Clone, Copy, PartialEq, PartialOrd, Hash ) ]
+  #[ derive( Clone, Copy, PartialEq, Hash ) ]
   // pub struct Mat< const ROWS : usize, const COLS : usize, E = f32, Descriptor : mat::Descriptor = DescriptorDefault >
   pub struct Mat< const ROWS : usize, const COLS : usize, E, Descriptor >
   (
@@ -240,6 +240,19 @@ mod private
     fn cmp( &self, other : &Self ) -> std::cmp::Ordering
     {
       self.0.cmp( &other.0 )
+    }
+  }
+
+  impl< E, const ROWS : usize, const COLS : usize, Descriptor > PartialOrd
+  for Mat< ROWS, COLS, E, Descriptor >
+  where
+    E : MatEl + PartialOrd,
+    Descriptor : mat::Descriptor + PartialEq,
+  {
+    #[ inline ]
+    fn partial_cmp( &self, other : &Self ) -> Option< std::cmp::Ordering >
+    {
+      self.0.partial_cmp( &other.0 )
     }
   }
 

@@ -26,7 +26,7 @@ A comprehensive matrix and linear algebra library specifically designed for comp
 - **Generic Types** - Works with `f32`, `f64`, and all integer primitives (`i32`, `i64`, `u32`, `u64`) via the `MatNum` element bound
 
 ### 🔢 **Integer Support**
-- **Integer Vectors & Matrices** - First-class support for integer scalar types in arithmetic, dot/cross, mat×mat, mat×vec, determinant, identity, transpose, and the access traits
+- **Integer Vectors & Matrices** - First-class support for integer scalar types in arithmetic, `dot`, mat×mat, mat×vec, determinant, identity, transpose, and the access traits; `cross` and `distance_squared` require a signed element type (`i32`, `i64`, or float)
 - **Scalar Conversions** - `.cast::<T>()` for lossless conversions, `.cast_as::<T>()` for `as`-style lossy conversions, and `From` / `Into` impls for the standard lossless primitive pairings
 - **Overflow-Aware Arithmetic** - Component-wise `saturating_*`, `wrapping_*`, and `checked_*` methods on integer `Vector` and `Mat`
 - **Eq + Ord** - Integer vectors and matrices implement `Eq` and `Ord`, so they work as `BTreeMap` / `BTreeSet` keys

@@ -35,7 +35,7 @@ Self : RawSliceMut< Scalar = E > +
 
 impl< E, Descriptor > Mat3< E, Descriptor >
 where
-E : MatEl + nd::NdFloat,
+E : MatEl + nd::NdFloat + ::num_traits::Signed,
 Descriptor : mat::Descriptor,
 Self : RawSliceMut< Scalar = E > +
        ScalarMut< Scalar = E, Index = Ix2 > +

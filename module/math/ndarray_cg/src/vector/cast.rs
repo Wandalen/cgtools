@@ -40,7 +40,7 @@ mod private
       T : MatEl + 'static + Copy,
       E : AsPrimitive< T >,
     {
-      Vector( self.0.map( | x | x.as_() ) )
+      Vector( self.0.map( AsPrimitive::as_ ) )
     }
   }
 

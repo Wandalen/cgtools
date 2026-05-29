@@ -41,18 +41,24 @@ mod private
   where
     E : MatNum,
   {
-
-    /// Calculates cross product with another vector.
-    pub fn cross( self, rhs : Self ) -> Self
-    {
-      cross( &self, &rhs )
-    }
-
     /// Creates homogeneous vector from `self`.
     #[ inline ]
     pub fn to_homogenous( self ) -> Vector< E, 4 >
     {
       Vector::< E, 4 >::new( self.x(), self.y(), self.z(), E::one() )
+    }
+  }
+
+  impl< E > Vector< E, 3 >
+  where
+    E : MatNum + ::num_traits::Signed,
+  {
+    /// Calculates cross product with another vector. Requires a signed scalar
+    /// because each component computes `a*b - c*d`, which can be negative;
+    /// the result is undefined (panic or wrap) for unsigned element types.
+    pub fn cross( self, rhs : Self ) -> Self
+    {
+      cross( &self, &rhs )
     }
   }
 
