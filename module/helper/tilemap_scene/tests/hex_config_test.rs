@@ -32,9 +32,9 @@ fn from_hex_size_pointy_top_swaps_axes()
 #[ test ]
 fn from_hex_size_square_returns_bounding_box_stride()
 {
-  // Square tilings are rejected by validation, but the constructor
-  // returns a sane (w, h) default so exploratory callers don't trip
-  // a panic.
+  // Square tilings are not yet rejected at load time (validation is a TODO);
+  // the constructor still returns a sane (w, h) default so exploratory callers
+  // don't trip a panic.
   let cfg = HexConfig::from_hex_size( 32, 32, TilingStrategy::Square4 );
   assert_eq!( cfg.grid_stride, ( 32, 32 ) );
 }
