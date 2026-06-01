@@ -234,6 +234,15 @@ mod private
   /// * `gl` - The WebGL2 rendering context.
   /// * `equirect_texture` - A 2D texture containing an equirectangular HDR image.
   /// * `cubemap_resolution` - Side length of the cubemap faces (512 recommended for 10 mip levels).
+  ///
+  /// # GL state
+  ///
+  /// This is a one-shot loader that drives its own off-screen FBO passes. Following the
+  /// renderer-wide convention (every pass sets the state it needs and does not restore it),
+  /// it leaves global render state — `DEPTH_TEST`, `BLEND`, `CULL_FACE`, color mask,
+  /// clear color, pixel store — modified on return. Framebuffer, texture and program
+  /// bindings are reset to `None`. The caller is expected to (re)establish the state it
+  /// needs before its next draw; the renderer's per-frame passes already do so.
   pub fn generate
   (
     gl : &gl::WebGl2RenderingContext,
