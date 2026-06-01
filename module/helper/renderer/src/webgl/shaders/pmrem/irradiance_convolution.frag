@@ -32,7 +32,11 @@ void main()
 
   vec3 irradiance = vec3( 0.0 );
   float nrSamples = 0.0;
-  float sampleDelta = 0.025;
+  // Hemisphere Riemann-sum step. The target irradiance map is only 64x64 and diffuse
+  // irradiance is a very low-frequency signal, so a coarser step than the 0.025 learnopengl
+  // reference is visually indistinguishable while cutting generation cost ~4x (≈15.8k → ≈3.9k
+  // samples per texel).
+  float sampleDelta = 0.05;
 
   for( float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta )
   {
