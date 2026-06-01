@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: Renamed `GBuffer::get_texture()` → `texture()`
 - **BREAKING**: Removed `shader_hash()` from the `Material` trait (dead code, replaced by `(TypeId, defines_str)` cache key)
 - **BREAKING**: Asset loaders (`webgl::loaders::gltf::load`, `webgl::loaders::ibl::load`, `webgl::loaders::hdr_texture::load_to_mip_cube` / `load_to_mip_d2`) no longer rely on `mingl::file::load`'s implicit `/static/` prefix. Path arguments are now passed verbatim to the underlying fetch — callers that previously passed bare paths like `"envMap"` must now pass `"static/envMap"` (or any other valid URL / origin-absolute path). Migration mirrors the upstream `mingl` 0.4.0 change.
+- **BREAKING**: `Renderer::set_use_emission` now takes a `&WebGl2RenderingContext` as its first parameter (`set_use_emission( &mut self, gl, use_emission )`). The context is needed to lazily allocate the bloom pass and swap framebuffer the first time emission is enabled.
 
 ### Fixed
 
