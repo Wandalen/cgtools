@@ -186,7 +186,7 @@ mod private
   //   }
   // }
 
-  // xxx : enable and test cover
+  // xxx : test cover
   /// A trait for types that can be converted into a `Vector`.
   ///
   /// This provides a common interface for various data structures

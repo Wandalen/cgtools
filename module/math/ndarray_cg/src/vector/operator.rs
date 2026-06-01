@@ -19,7 +19,6 @@ mod private
     }
   }
 
-  // xxx : qqq : enable
   impl< E, const LEN : usize > Neg for &Vector< E, LEN >
   where
     E : MatNum + Neg< Output = E >,
