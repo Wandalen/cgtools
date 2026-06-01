@@ -9,26 +9,10 @@ mod private
   use crate::*;
   use ::num_traits::
   {
-    PrimInt,
     Saturating,
     WrappingAdd, WrappingSub, WrappingMul,
     CheckedAdd, CheckedSub, CheckedMul,
   };
-
-  /// Marker trait for integer scalar element types. Blanket-implemented for
-  /// every type that satisfies [`MatEl`] and [`num_traits::PrimInt`] — i.e.
-  /// the standard signed and unsigned integer primitives.
-  pub trait IntegerScalar
-  where
-    Self : MatEl + PrimInt,
-  {
-  }
-
-  impl< T > IntegerScalar for T
-  where
-    Self : MatEl + PrimInt,
-  {
-  }
 
   impl< E, const N : usize > Vector< E, N >
   where
@@ -169,5 +153,4 @@ mod private
 
 crate::mod_interface!
 {
-  exposed use IntegerScalar;
 }

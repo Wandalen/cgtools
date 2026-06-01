@@ -19,7 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `saturating_add` / `saturating_sub`
   - `wrapping_add` / `wrapping_sub` / `wrapping_mul`
   - `checked_add` / `checked_sub` / `checked_mul` (returning `Option<Self>`)
-  - `IntegerScalar` marker trait (`MatEl + PrimInt`) for gating downstream integer-only code on a single bound.
 
 ### Changed
 - Relaxed `E : nd::NdFloat` to `E : MatNum` (or `E : MatEl`) across the arithmetic and operator surfaces — matrix `+ - * /`, vector `+ - * / %`, scalar mul/div, `dot`, `mag2`, `transpose`, `determinant`, `identity`, `to_array` / `to_homogenous` / `truncate`, `from_cols`, `from_row_major` / `from_column_major`, and the `scale` / `shear` / `translation` constructors. `cross` and `distance_squared` are gated on `E : MatNum + num_traits::Signed` (signed integers and floats) because their intermediate subtractions can be negative. Float-only operations (`mag` / `normalize` / `distance`, rotation, perspective / look_at / orthographic, `inverse`, `decompose`, approx-eq, spherical conversions, quaternions) keep the `NdFloat` bound.
