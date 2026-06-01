@@ -179,10 +179,13 @@ game use-case demands one.
    `BottomOfShape`), culling check against the shape cells, and the
    restriction that the sprite source is `Static` / `Variant` / `Animation`
    (no neighbour-aware sources on multihex).
-10. **Square tilings (`Square4` / `Square8`).** Enum values exist, rejected
-    at load. Implementing means square-grid neighbour offsets (4 or 8),
-    square-grid dual-mesh (4 corners per vertex), square pixel conversion.
-    Scope inflation — only do if a square-grid game is actually planned.
+10. **Square tilings (`Square4` / `Square8`).** Enum values exist; load-time
+    rejection is a tracked TODO (SPEC §16) — `load()` currently returns
+    `Ok(())`, and Square specs fail at render time with
+    `CompileError::UnsupportedAnchor`. Implementing means square-grid neighbour
+    offsets (4 or 8), square-grid dual-mesh (4 corners per vertex), square pixel
+    conversion. Scope inflation — only do if a square-grid game is actually
+    planned.
 11. **`HexConfig::from_hex_size` bounding-box helper.** *Shipped (constructor).*
     `HexConfig::from_hex_size(w, h, tiling)` computes the equilateral-hex
     stride (`(w * 3 / 4, h)` for flat-top, symmetric for pointy-top) so authors
