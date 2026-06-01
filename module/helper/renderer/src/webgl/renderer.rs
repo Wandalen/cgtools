@@ -274,51 +274,6 @@ mod private
       }
     }
 
-    /// Configures both the multisample and resolved framebuffers to allow
-    /// drawing to both `COLOR_ATTACHMENT0` (main) and `COLOR_ATTACHMENT1` (emission).
-    ///
-    /// This is useful when you want to render both normal scene data and
-    /// emissive properties in a single pass.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn enable_emission_texture( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      // Enable both attachments for the multisample framebuffer.
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
-
-      // Enable both attachments for the resolved framebuffer.
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
-
-      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-    }
-
-    /// Configures both the multisample and resolved framebuffers to allow
-    /// drawing only to `COLOR_ATTACHMENT0` (main), effectively disabling
-    /// rendering to the emission texture.
-    ///
-    /// This can be used when the emission channel is not needed or to optimize
-    /// rendering passes.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn disable_emission_texture( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      // Disable emission attachment for the multisample framebuffer.
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-
-      // Disable emission attachment for the resolved framebuffer.
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-
-      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-    }
-
     /// Resolves the multisampled framebuffer into the non-multisampled textures
     /// of the resolved framebuffer using `gl.blit_framebuffer`.
     ///
@@ -863,15 +818,10 @@ mod private
       let has_transparent = !self.transparent_nodes.is_empty();
       let has_emissive = self.use_emission;
 
-      if has_emissive
-      {
-        self.framebuffer_ctx.enable_emission_texture( gl );
-      }
-      else
-      {
-        self.framebuffer_ctx.disable_emission_texture( gl );
-      }
-
+      // Note: emission/transparency attachments are selected purely via the per-frame
+      // `drawbuffers` call below (multisample FBO) and re-selected per blit in `resolve`
+      // (resolved FBO). Calling `enable/disable_emission_texture` here would only set
+      // drawbuffers state that is immediately overwritten before any draw uses it.
       self.framebuffer_ctx.bind_multisample( gl );
 
       if has_transparent && has_emissive
