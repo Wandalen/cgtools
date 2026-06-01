@@ -442,8 +442,18 @@ float ditherNoise( vec2 fragCoord )
 
     vec3 R = reflect( -V, N );
 
+    // Base LOD from roughness. No fixed floor (e.g. `max( .., 1.0 )`) is applied: with the
+    // PMREM prefilter, mip 0 of prefilterEnvMap is the sharp environment, which is the correct,
+    // physically expected result for a mirror-smooth surface. Specular aliasing comes from the
+    // reflection vector being under-sampled across a pixel (curved geometry, silhouettes,
+    // grazing angles) — exactly the case where the screen-space variance term below is large
+    // and raises the LOD. On flat smooth surfaces reflVariance ~ 0, there is no sub-pixel
+    // variation to alias, so sampling mip 0 there is safe; a fixed floor would only blur
+    // legitimate mirror reflections.
     float lod = material.roughness * MAX_LOD;
 
+    // GSAA-style specular antialiasing: widen the filter where the reflected direction changes
+    // rapidly in screen space.
     vec3 dRdx = dFdx( R );
     vec3 dRdy = dFdy( R );
     float reflVariance = dot( dRdx, dRdx ) + dot( dRdy, dRdy );
