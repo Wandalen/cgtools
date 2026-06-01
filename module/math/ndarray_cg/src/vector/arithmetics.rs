@@ -10,7 +10,11 @@ mod private
   {
 
     /// Compute the squared length of the vector. Available for any numeric
-    /// scalar (integers included) since it does not require `sqrt`.
+    /// scalar (integers included) since it does not require `sqrt`. Note that
+    /// for integer scalars the per-component squaring and summation are not
+    /// overflow-checked: they panic in debug / wrap in release once the sum of
+    /// squares exceeds `E::MAX`. Widen the element type or use a float scalar
+    /// when that is possible.
     pub fn mag2( &self ) -> E
     {
       mag2( self )
@@ -30,6 +34,20 @@ mod private
     /// Compute squared Euclidean distance between two points. Requires a
     /// signed scalar because the intermediate subtraction can produce negative
     /// values; use `saturating_sub` + `mag2` manually for unsigned types.
+    ///
+    /// # Overflow
+    ///
+    /// For integer scalars this is **not** overflow-checked. Two independent
+    /// overflows are possible and will panic in debug / wrap in release:
+    /// - the component subtraction `self - rhs`, when a coordinate difference
+    ///   falls outside `E`'s range (e.g. `E::MAX - E::MIN`);
+    /// - the squaring and summation inside `mag2`, even when the differences
+    ///   themselves fit.
+    ///
+    /// `wrapping_sub` only addresses the first step — `mag2` still squares, so
+    /// there is no fully overflow-safe integer form at the same width. For
+    /// inputs whose squared distance can exceed `E::MAX`, widen first
+    /// (e.g. `cast::<i64>()`) or use a floating-point scalar.
     pub fn distance_squared( &self, rhs : &Self ) -> E
     {
       mag2( &( *self - *rhs ) )
