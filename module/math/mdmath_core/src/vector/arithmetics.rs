@@ -177,7 +177,7 @@ mod private
   where
     R : VectorIterMut< E, 3 >,
     B : VectorIter< E, 3 >,
-    E : Scalar,
+    E : Scalar + ::num_traits::Signed,
   {
     let u =
     {
@@ -213,7 +213,7 @@ mod private
   where
     A : VectorIterMut< E, 3 > + Clone,
     B : VectorIter< E, 3 >,
-    E : Scalar,
+    E : Scalar + ::num_traits::Signed,
   {
     let mut r = a.clone();
     cross_mut( &mut r, b );
