@@ -148,13 +148,18 @@ mod private
     let roughness_loc = programs.prefilter.loc( gl, "roughness" );
     let resolution_loc = programs.prefilter.loc( gl, "resolution" );
 
+    // `resolution` drives the LOD heuristic's `saTexel` (solid angle of a source texel), so it
+    // must be the *source* cubemap's base resolution — constant across output mips, equal to
+    // `size` — not the per-mip output size. Using the output size biases LOD selection toward
+    // sharper source mips and adds noise on rough mips.
+    gl::uniform::upload( gl, resolution_loc.clone(), &( size as f32 ) )?;
+
     for mip in 0..num_mips
     {
       let mip_size = size >> mip;
       let roughness = mip as f32 / ( num_mips - 1 ) as f32;
 
       gl::uniform::upload( gl, roughness_loc.clone(), &roughness )?;
-      gl::uniform::upload( gl, resolution_loc.clone(), &( mip_size as f32 ) )?;
 
       for face_idx in 0..6u32
       {
