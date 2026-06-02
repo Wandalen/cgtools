@@ -2,14 +2,16 @@ use crate::*;
 
 impl< E, Descriptor > Mat2< E, Descriptor >
 where
-E : MatNum,
+E : MatNum + ::num_traits::Signed,
 Descriptor : mat::Descriptor,
 Self : RawSliceMut< Scalar = E > +
        ScalarMut< Scalar = E, Index = Ix2 > +
        ConstLayout< Index = Ix2 > +
        IndexingMut< Scalar = E, Index = Ix2 >
 {
-  /// Computes the determinant of the matrix
+  /// Computes the determinant of the matrix. Requires a signed scalar because
+  /// the cofactor expansion subtracts (`a*d - b*c`), which can be negative; the
+  /// result is undefined (panic or wrap) for unsigned element types.
   pub fn determinant( &self ) -> E
   {
     let a = *self.scalar_ref( Ix2( 0, 0 ) );
@@ -23,7 +25,7 @@ Self : RawSliceMut< Scalar = E > +
 
 impl< E, Descriptor > Mat2< E, Descriptor >
 where
-E : MatEl + nd::NdFloat,
+E : MatEl + nd::NdFloat + ::num_traits::Signed,
 Descriptor : mat::Descriptor,
 Self : RawSliceMut< Scalar = E > +
        ScalarMut< Scalar = E, Index = Ix2 > +

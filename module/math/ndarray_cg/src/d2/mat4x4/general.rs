@@ -33,7 +33,7 @@ Mat3< E, Descriptor > : RawSliceMut< Scalar = E >
 
 fn cofactor
 <
-  E : MatEl + nd::NdFloat,
+  E : MatEl + nd::NdFloat + ::num_traits::Signed,
   Descriptor : mat::Descriptor
 >
 (
@@ -59,14 +59,16 @@ Mat3< E, Descriptor > :
 
 impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
 where
-E : MatNum,
+E : MatNum + ::num_traits::Signed,
 Descriptor : mat::Descriptor,
 Self : ScalarMut< Scalar = E, Index = Ix2 > +
        RawSliceMut< Scalar = E > +
        ConstLayout< Index = Ix2 > +
        IndexingMut< Scalar = E, Index = Ix2 >
 {
-  /// Computes the determinant of the matrix
+  /// Computes the determinant of the matrix. Requires a signed scalar because
+  /// the cofactor expansion subtracts terms, which can be negative; the result
+  /// is undefined (panic or wrap) for unsigned element types.
   pub fn determinant( &self ) -> E
   where
     Mat< 3, 3, E, Descriptor > :
@@ -97,7 +99,7 @@ Self : ScalarMut< Scalar = E, Index = Ix2 > +
 
 impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
 where
-E : MatEl + nd::NdFloat,
+E : MatEl + nd::NdFloat + ::num_traits::Signed,
 Descriptor : mat::Descriptor,
 Self : ScalarMut< Scalar = E, Index = Ix2 > +
        RawSliceMut< Scalar = E > +
@@ -237,7 +239,7 @@ Self : ScalarMut< Scalar = E > +
 
 impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
 where
-E : MatEl + nd::NdFloat,
+E : MatEl + nd::NdFloat + ::num_traits::Signed,
 Descriptor : mat::Descriptor,
 Self : RawSlice< Scalar = E > +
 ScalarRef< Scalar = E, Index = Ix2 > +
