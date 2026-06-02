@@ -23,6 +23,12 @@ mod private
   /// # Returns
   /// - The dot product of the two vectors as a scalar of type `E`.
   ///
+  /// # Overflow
+  /// For integer scalars the per-element products and their summation are not
+  /// overflow-checked: they panic in debug / wrap in release once any
+  /// intermediate value exceeds `E::MAX`. Widen the element type or use a float
+  /// scalar when that is possible.
+  ///
   /// # Example
   /// ```rust
   /// use mdmath_core::vector;

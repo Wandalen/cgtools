@@ -20,7 +20,11 @@ mod private
       mag2( self )
     }
 
-    /// Compute the dot product of two vectors.
+    /// Compute the dot product of two vectors. Note that for integer scalars
+    /// the per-element products and their summation are not overflow-checked:
+    /// they panic in debug / wrap in release once any intermediate value
+    /// exceeds `E::MAX`. Widen the element type or use a float scalar when that
+    /// is possible.
     pub fn dot( &self, rhs : &Self ) -> E
     {
       dot( self, rhs )
