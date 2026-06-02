@@ -101,10 +101,10 @@ async fn run() -> Result< (), gl::WebglError >
   let samples = 4;
   let mut renderer = Renderer::new( &gl, pixel_w, pixel_h, samples )?;
 
-  let equirect = gl.create_texture();
-  renderer::webgl::loaders::hdr_texture::load_to_mip_d2( &gl, equirect.as_ref(), 0, "static/venice_sunset_1k.hdr" ).await;
+  let equirect = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "HDR equirect texture" ) )?;
+  renderer::webgl::loaders::hdr_texture::load_to_mip_d2( &gl, Some( &equirect ), 0, "static/venice_sunset_1k.hdr" ).await;
 
-  let ibl = renderer::webgl::loaders::pmrem::generate( &gl, equirect.as_ref().unwrap(), 512 )?;
+  let ibl = renderer::webgl::loaders::pmrem::generate( &gl, &equirect, 512 )?;
   renderer.set_ibl( ibl );
   renderer.set_clear_color( gl::math::F32x3::from( [ 0.01, 0.01, 0.01 ] ) );
   renderer.set_exposure( 0.0 );
