@@ -93,6 +93,21 @@ where
   assert_eq!( neg_z, Vector::< E, 3 >::new( E::from( 0 ), E::from( 0 ), minus_one ) );
 }
 
+fn vector_neg_signed_generic< E >()
+where
+  E : the_module::MatNum + ::num_traits::Signed + From< u8 > + PartialEq + core::fmt::Debug,
+{
+  use the_module::Vector;
+  let ( one, two, three ) = ( E::from( 1 ), E::from( 2 ), E::from( 3 ) );
+  let v = Vector::< E, 3 >::from_array( [ one, -two, three ] );
+  let expected = Vector::< E, 3 >::from_array( [ -one, two, -three ] );
+
+  // owned Neg
+  assert_eq!( -v, expected );
+  // reference Neg
+  assert_eq!( -&v, expected );
+}
+
 fn mat_add_sub_generic< E, D >()
 where
   E : the_module::MatNum + From< u8 > + PartialEq + core::fmt::Debug,
@@ -226,3 +241,10 @@ fn vec3_cross_i64() { vec3_cross_signed_generic::< i64 >(); }
 fn vector_distance_squared_i32() { vector_distance_squared_signed_generic::< i32 >(); }
 #[ test ]
 fn vector_distance_squared_i64() { vector_distance_squared_signed_generic::< i64 >(); }
+
+// Neg negates each component — only meaningful for signed types.
+
+#[ test ]
+fn vector_neg_i32() { vector_neg_signed_generic::< i32 >(); }
+#[ test ]
+fn vector_neg_i64() { vector_neg_signed_generic::< i64 >(); }
