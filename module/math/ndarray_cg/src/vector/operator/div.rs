@@ -10,6 +10,9 @@ mod private
   {
     type Output = Self;
 
+    /// # Panics
+    /// For integer `E` this panics if `rhs` is zero, in both debug and release
+    /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
     fn div(self, rhs : E) -> Self::Output
     {
       div_scalar( &self, rhs )

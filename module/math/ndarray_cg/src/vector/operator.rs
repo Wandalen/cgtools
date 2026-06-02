@@ -65,6 +65,10 @@ mod private
   {
     type Output = Self;
 
+    /// # Panics
+    /// For integer `E` this panics if any component of `rhs` is zero, in both
+    /// debug and release mode. For float `E`, remainder by zero yields `NAN`
+    /// instead.
     #[ inline ]
     fn rem( self, rhs : Self ) -> Self::Output
     {
@@ -92,6 +96,9 @@ mod private
   {
     type Output = Self;
 
+    /// # Panics
+    /// For integer `E` this panics if `scalar` is zero, in both debug and
+    /// release mode. For float `E`, remainder by zero yields `NAN` instead.
     #[ inline ]
     fn rem( self, scalar : E ) -> Self::Output
     {
@@ -142,6 +149,10 @@ mod private
   {
     type Output = Self;
 
+    /// # Panics
+    /// For integer `E` this panics if any component of `rhs` is zero, in both
+    /// debug and release mode. For float `E`, division by zero yields
+    /// `INFINITY` or `NAN` instead.
     fn div( mut self, rhs : Self ) -> Self::Output
     {
       self.iter_mut().zip( rhs.iter() ).for_each
