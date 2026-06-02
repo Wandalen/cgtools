@@ -62,8 +62,8 @@ mod private
   /// reaching into the camera struct's fields each call.
   ///
   /// `f32` fields are compared via their `to_bits` representation so
-  /// `-0.0 == 0.0` and `NaN != NaN` (matches what bit-equal replay
-  /// expects — any NaN treated as "different camera").
+  /// `-0.0 != +0.0` (sign bit differs) and bit-identical `NaN`s
+  /// compare equal.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
   struct CameraSignature
   {
@@ -142,7 +142,7 @@ mod private
   /// guaranteed equal across all instances of the same batch — we skip
   /// them to keep the comparison cheap. Floating-point fields are
   /// compared via `to_bits` so the result depends only on the bit
-  /// pattern (correctly: `+0.0 != -0.0`, any `NaN != NaN`).
+  /// pattern (`+0.0 != -0.0`; bit-identical `NaN`s compare equal).
   #[ inline ]
   fn sprite_instance_eq( a : &Sprite, b : &Sprite ) -> bool
   {
@@ -187,7 +187,7 @@ mod private
     cmd_buf : Vec< RenderCommand >,
 
     // ──────────────────────────────────────────────────────────────────
-    // Per-renderer delta cache — Step 4.
+    // Per-renderer delta cache.
     //
     // The retained-mode `Scene` exposes a monotonic `revision()` counter
     // bumped on every mutation. Combined with the master clock and a
@@ -212,7 +212,7 @@ mod private
     cache_hits : u64,
 
     // ──────────────────────────────────────────────────────────────────
-    // Sprite-batch state — Step 4b.
+    // Sprite-batch state.
     //
     // `SortMode::None` buckets (terrain / vertex / edge — the bulk of
     // hex count in a typical Slay map) get collapsed into instanced
@@ -396,7 +396,7 @@ mod private
         {
           BucketDispatch::Batched =>
           {
-            // Group consecutive same-(sheet, blend, clip) sprites. Order
+            // Group all same-(sheet, blend, clip) sprites. Order
             // within a group is the bucket's pre-sorted order, which for
             // `SortMode::None` is the spawn / iteration order from
             // `Scene` — stable across frames given identical state.
@@ -432,8 +432,8 @@ mod private
           },
         }
 
-        // Viewport sprites — always per-sprite for Step 4 (Polish #7
-        // viewport-pass batching is a separate deferred item).
+        // Viewport sprites — always per-sprite (viewport-pass batching
+        // is not yet implemented).
         for sprite in bucket.screen_space
         {
           self.cmd_buf.push( RenderCommand::ScreenSpaceSprite( sprite ) );

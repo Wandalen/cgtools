@@ -109,6 +109,14 @@ mod private
     /// For stylised pixel-art hexes whose visible silhouette is not a
     /// perfect equilateral triangle ratio, construct `HexConfig`
     /// directly with the empirically-tuned `grid_stride` instead.
+    ///
+    /// `Square4` / `Square8` are accepted without panic (stride
+    /// defaults to `(w, h)`) but are not yet implemented. Load-time
+    /// rejection of unsupported tilings is a tracked TODO in
+    /// [`crate::validate`] (SPEC §16), so [`crate::load::load`]
+    /// currently returns `Ok( () )` for square specs; compilation
+    /// later fails at render time with
+    /// [`crate::compile::CompileError::UnsupportedAnchor`].
     #[ inline ]
     #[ must_use ]
     pub fn from_hex_size( w : u32, h : u32, tiling : TilingStrategy ) -> Self
@@ -117,7 +125,7 @@ mod private
       {
         TilingStrategy::HexFlatTop   => ( w * 3 / 4, h ),
         TilingStrategy::HexPointyTop => ( w, h * 3 / 4 ),
-        // Square tilings are rejected by validation; we still produce a
+        // Square tilings are not yet implemented; we still produce a
         // sane default (1:1 with the bounding box) rather than panic so
         // callers exploring the API don't trip a destructive failure.
         TilingStrategy::Square4 | TilingStrategy::Square8 => ( w, h ),
@@ -130,8 +138,11 @@ mod private
   /// pixel-conversion. See SPEC §2.1.
   ///
   /// Version 0.2.0 implements the two hex variants; the square variants are
-  /// reserved and rejected at load time with
-  /// [`crate::error::ValidationError::UnsupportedTiling`].
+  /// reserved. Load-time validation of [`TilingStrategy`] is a tracked TODO
+  /// in [`crate::validate`] (SPEC §16) — [`crate::error::ValidationError::UnsupportedTiling`]
+  /// is declared for that future check but is not yet constructed.
+  /// Square specs therefore pass [`crate::load::load`] today and fail at
+  /// render time with [`crate::compile::CompileError::UnsupportedAnchor`].
   #[ derive( Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize ) ]
   #[ non_exhaustive ]
   pub enum TilingStrategy

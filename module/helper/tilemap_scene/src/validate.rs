@@ -11,6 +11,7 @@
 mod private
 {
   use rustc_hash::FxHashSet as HashSet;
+  use crate::compile::neighbors::VOID_ID;
   use crate::error::ValidationError;
   use crate::resource::AnimationTiming;
   use crate::snapshot::SceneSnapshot;
@@ -53,6 +54,10 @@ mod private
     ///   variant resolves to a declared `assets[*].id`. `Animation` /
     ///   `External` sources stop the walk at their boundary; animation
     ///   bodies are validated separately when iterating `spec.animations`.
+    /// - **Default state exists.** Every object's `default_state` names a
+    ///   key present in its `states` map.
+    /// - **Reserved ids.** The reserved id `"void"` is not declared as a
+    ///   user object id.
     fn validate( &self ) -> Result< (), Vec< ValidationError > >
     {
       let mut errors : Vec< ValidationError > = Vec::new();
@@ -141,13 +146,27 @@ mod private
         }
       }
 
+      for object in &self.objects
+      {
+        if !object.states.contains_key( &object.default_state )
+        {
+          errors.push( ValidationError::MissingDefaultState
+          {
+            object : object.id.clone(),
+            state : object.default_state.clone(),
+          });
+        }
+        if object.id == VOID_ID
+        {
+          errors.push( ValidationError::ReservedId { id : object.id.clone() } );
+        }
+      }
+
       // TODO SPEC §16: every Asset.id / Tint.id / Animation.id / Effect.id / Object.id unique within its kind.
       // TODO SPEC §16: every TintRef / AnimationRef / EffectRef resolves.
       // TODO SPEC §16: every NeighborBitmask.connects_with entry is a declared object id or "void".
-      // TODO SPEC §16: for each object — default_state exists in states.
       // TODO SPEC §16: anchor ↔ sprite-source compatibility (SPEC §3, §5).
       // TODO SPEC §16: composite-in-composite illegal nesting detection.
-      // TODO SPEC §16: reserved id "void" not declared as user object.
       // TODO SPEC §16: pipeline.tiling is one of the supported values
       //                (HexFlatTop / HexPointyTop in 0.2.0; Square4 / Square8 rejected).
 

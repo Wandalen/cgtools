@@ -111,7 +111,10 @@ mod private
     /// The spec requests a tiling strategy not supported by this implementation.
     ///
     /// Version 0.2.0 implements `HexFlatTop` and `HexPointyTop` only; the
-    /// `Square4` / `Square8` values are reserved but rejected at load time.
+    /// `Square4` / `Square8` values are reserved. This variant is declared
+    /// for the future SPEC §16 tiling check but is not yet constructed —
+    /// square specs currently pass [`crate::load::load`] and fail at render
+    /// time with [`crate::compile::CompileError::UnsupportedAnchor`].
     UnsupportedTiling( String ),
     /// A sprite source is not valid for the declaring object's anchor type.
     ///
