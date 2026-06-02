@@ -1,5 +1,5 @@
-//! Integer vector and matrix arithmetic — add / sub / mul / div, scalar ops,
-//! dot, cross, mat×mat, mat×vec. Parameterized over element type via macros so
+//! Integer vector and matrix arithmetic — add / sub / mul / div / rem, scalar
+//! ops, dot, cross, mat×mat, mat×vec. Parameterized over element type via macros so
 //! every integer primitive (`i32`, `i64`, `u32`, `u64`) gets covered.
 //!
 //! `cross` and `distance_squared` require a signed element type because the
@@ -31,6 +31,29 @@ where
   assert_eq!( scaled, Vector::< E, 3 >::from_array( [ E::from( 6 ), E::from( 12 ), E::from( 18 ) ] ) );
   let halved = scaled / E::from( 3 );
   assert_eq!( halved, v );
+}
+
+fn vector_rem_generic< E >()
+where
+  E : the_module::MatNum + From< u8 > + PartialEq + core::fmt::Debug,
+{
+  use the_module::Vector;
+  let a = Vector::< E, 3 >::from_array( [ E::from( 7 ), E::from( 10 ), E::from( 15 ) ] );
+  let b = Vector::< E, 3 >::from_array( [ E::from( 3 ), E::from( 4 ), E::from( 6 ) ] );
+
+  // vector % vector
+  assert_eq!( a % b, Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 2 ), E::from( 3 ) ] ) );
+  // vector % scalar
+  assert_eq!( a % E::from( 3 ), Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 1 ), E::from( 0 ) ] ) );
+
+  // %= vector
+  let mut c = a;
+  c %= b;
+  assert_eq!( c, Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 2 ), E::from( 3 ) ] ) );
+  // %= scalar
+  let mut d = a;
+  d %= E::from( 3 );
+  assert_eq!( d, Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 1 ), E::from( 0 ) ] ) );
 }
 
 fn vector_dot_generic< E >()
@@ -149,6 +172,9 @@ macro_rules! integer_arithmetic_tests
 
         #[ test ]
         fn vector_scalar_mul_div() { vector_scalar_mul_div_generic::< $ty >(); }
+
+        #[ test ]
+        fn vector_rem() { vector_rem_generic::< $ty >(); }
 
         #[ test ]
         fn vector_dot_and_mag2() { vector_dot_generic::< $ty >(); }
