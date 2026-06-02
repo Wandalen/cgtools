@@ -112,14 +112,15 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 
 ## known issues / TODO
 
-### `ScreenSpaceSprite` — SVG / terminal adapter coverage
+### `ScreenSpaceSprite` — terminal adapter coverage
 
 [`crate::commands::RenderCommand::ScreenSpaceSprite`] renders a sprite in
-screen-space coordinates, bypassing world-to-screen projection. Only the
-WebGL adapter implements this command end-to-end; SVG silently skips the
-variant and terminal does nothing at all.
-Follow-up: wire SVG to emit an un-transformed sprite (its `cmd_sprite` is
-already screen-space pixels, so routing should be one line).
+screen-space coordinates, bypassing world-to-screen projection. WebGL and
+SVG implement this command end-to-end — both dispatch through their
+existing `cmd_sprite` path since the compile layer already emits
+screen-space coordinates. The terminal adapter is still a no-op for this
+variant; wire it up when a terminal use-case needs HUD / overlay
+rendering.
 
 ### WebGL texture upload Y-flip asymmetry
 

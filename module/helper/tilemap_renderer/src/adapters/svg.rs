@@ -1484,9 +1484,11 @@ mod private
           RenderCommand::EndText( _ ) => self.cmd_end_text(),
           RenderCommand::Mesh( m ) => self.cmd_mesh( m ),
           RenderCommand::Sprite( s ) => self.cmd_sprite( s )?,
-          // TODO: SVG adapter does not yet emit ScreenSpaceSprite (Viewport-
-          // anchored overlays). Skip for now; WebGL adapter renders it.
-          RenderCommand::ScreenSpaceSprite( _ ) => {},
+          // `ScreenSpaceSprite` shares the `Sprite` payload — the compile
+          // layer already emits screen-space coordinates, so SVG (whose
+          // user-space already is screen-space) draws it via the same
+          // path as a world-space sprite.
+          RenderCommand::ScreenSpaceSprite( s ) => self.cmd_sprite( s )?,
           RenderCommand::CreateSpriteBatch( cb ) => self.cmd_create_sprite_batch( cb ),
           RenderCommand::CreateMeshBatch( cb ) => self.cmd_create_mesh_batch( cb ),
           RenderCommand::BindBatch( bb ) => self.cmd_bind_batch( bb ),
@@ -2274,6 +2276,52 @@ mod private
 
       let b = body( &svg );
       assert!( !b.contains( "filter=" ), "white tint should not create filter, body: {b}" );
+    }
+
+    /// Closes Polish §6 in `tilemap_scene/roadmap.md`: `ScreenSpaceSprite`
+    /// shares the `Sprite` payload, and SVG's user-space is already
+    /// screen-space, so the adapter dispatches both through the same
+    /// `cmd_sprite` path.
+    #[ test ]
+    fn screen_space_sprite_renders_through_sprite_path()
+    {
+      let mut svg = svg800x600();
+      let assets = Assets
+      {
+        images : vec![ ImageAsset
+        {
+          id : ResourceId::new( 0 ),
+          source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+          filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
+        }],
+        sprites : vec![ SpriteAsset
+        {
+          id : ResourceId::new( 0 ),
+          sheet : ResourceId::new( 0 ),
+          region : [ 0.0, 0.0, 16.0, 16.0 ],
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+      svg.submit( &[
+        RenderCommand::ScreenSpaceSprite( Sprite
+        {
+          transform : Transform::default(),
+          sprite : ResourceId::new( 0 ),
+          tint : [ 1.0, 1.0, 1.0, 1.0 ],
+          blend : BlendMode::Normal,
+          clip : None,
+        }),
+      ]).unwrap();
+
+      let b = body( &svg );
+      assert!
+      (
+        b.contains( "<use href=\"#sprite_0\"" ),
+        "ScreenSpaceSprite must render via the same <use> path as Sprite; body: {b}",
+      );
     }
 
     #[ test ]

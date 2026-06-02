@@ -7,7 +7,8 @@
 //! - One [`tilemap_renderer::assets::SpriteAsset`] per **unique** `SpriteRef(asset_id, frame_name)`
 //!   appearing anywhere in an object's layer stack.
 //! - An [`crate::compile::ids::IdMap`] mapping string ids to the
-//!   allocated numeric handles, so `compile_frame` can resolve draw calls.
+//!   allocated numeric handles, so [`crate::renderer::Renderer`] can
+//!   resolve draw calls at render time.
 
 mod private
 {
@@ -318,6 +319,58 @@ mod private
     Ok( () )
   }
 
+  /// Compute the pixel rect `[ x, y, w, h ]` (all `u32`) for an atlas
+  /// cell at `( col, row )` given the tile-size / origin / gap layout.
+  /// Pure integer arithmetic so the bounds check operates on the same
+  /// numeric domain as the declared `image_size`.
+  fn cell_to_pixel_rect
+  (
+    cell : ( u32, u32 ),
+    tile_size : ( u32, u32 ),
+    origin : ( u32, u32 ),
+    gap : ( u32, u32 ),
+  ) -> [ u32; 4 ]
+  {
+    let ( col, row ) = cell;
+    let ( tw, th ) = tile_size;
+    let stride_x = tw + gap.0;
+    let stride_y = th + gap.1;
+    let x = origin.0 + col * stride_x;
+    let y = origin.1 + row * stride_y;
+    [ x, y, tw, th ]
+  }
+
+  /// Validate that a resolved frame rect lies fully inside the declared
+  /// `image_size`. No-op when `image_size` is `None` — the check is
+  /// only as strict as the spec is precise.
+  fn check_rect_bounds
+  (
+    asset_id : &str,
+    frame_name : &str,
+    cell : ( u32, u32 ),
+    rect : [ u32; 4 ],
+    image_size : Option< ( u32, u32 ) >,
+  ) -> Result< (), CompileError >
+  {
+    let Some( ( iw, ih ) ) = image_size
+    else { return Ok( () ); };
+    let [ x, y, w, h ] = rect;
+    let x_end = x.saturating_add( w );
+    let y_end = y.saturating_add( h );
+    if x_end > iw || y_end > ih
+    {
+      return Err( CompileError::FrameOutOfBounds
+      {
+        asset : asset_id.to_owned(),
+        frame : frame_name.to_owned(),
+        cell,
+        rect,
+        image_size : ( iw, ih ),
+      });
+    }
+    Ok( () )
+  }
+
   /// Compute the pixel region `[ x, y, w, h ]` for a `( asset, frame_name )`
   /// pair under the asset's declared layout.
   ///
@@ -338,7 +391,7 @@ mod private
   {
     match kind
     {
-      AssetKind::Atlas { tile_size, columns, origin, gap, frames, frame_rects } =>
+      AssetKind::Atlas { tile_size, columns, origin, gap, frames, frame_rects, image_size } =>
       {
         let tw = tile_size.0 as f32;
         let th = tile_size.1 as f32;
@@ -350,11 +403,14 @@ mod private
         if let Some( frame ) = frame_rects.get( frame_name )
         {
           let [ x, y, w, h ] = frame.rect;
+          check_rect_bounds( asset_id, frame_name, ( 0, 0 ), [ x, y, w, h ], *image_size )?;
           return Ok( [ x as f32, y as f32, w as f32, h as f32 ] );
         }
 
         if let Some( &( col, row ) ) = frames.get( frame_name )
         {
+          let rect = cell_to_pixel_rect( ( col, row ), *tile_size, *origin, *gap );
+          check_rect_bounds( asset_id, frame_name, ( col, row ), rect, *image_size )?;
           return Ok( [ ox + col as f32 * stride_x, oy + row as f32 * stride_y, tw, th ] );
         }
 
@@ -372,6 +428,8 @@ mod private
           }
           let col = idx % cols;
           let row = idx / cols;
+          let rect = cell_to_pixel_rect( ( col, row ), *tile_size, *origin, *gap );
+          check_rect_bounds( asset_id, frame_name, ( col, row ), rect, *image_size )?;
           return Ok( [ ox + col as f32 * stride_x, oy + row as f32 * stride_y, tw, th ] );
         }
 

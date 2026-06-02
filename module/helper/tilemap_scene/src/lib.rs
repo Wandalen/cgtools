@@ -30,21 +30,28 @@
 //!
 //! See `spec.md` for the normative specification.
 
+extern crate alloc;
+
 mod private {}
 
 mod_interface::mod_interface!
 {
   layer anchor;
+  layer catalog;
   layer compile;
   layer coords;
   layer error;
+  layer event;
   layer hash;
+  layer instance;
   layer layer;
   layer load;
   layer object;
   layer pipeline;
+  layer renderer;
   layer resource;
   layer scene;
+  layer snapshot;
   layer source;
   layer spec;
   layer validate;

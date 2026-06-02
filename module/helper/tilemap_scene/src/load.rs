@@ -8,7 +8,7 @@ mod private
 {
   use std::path::Path;
   use crate::error::LoadError;
-  use crate::scene::Scene;
+  use crate::snapshot::SceneSnapshot;
   use crate::spec::RenderSpec;
   use crate::validate::Validate;
 
@@ -54,9 +54,9 @@ mod private
     }
   }
 
-  impl Scene
+  impl SceneSnapshot
   {
-    /// Parses a scene from a RON-formatted string.
+    /// Parses a scene snapshot from a RON-formatted string.
     ///
     /// Does **not** run validation; see [`Self::load`] for the full pipeline.
     ///

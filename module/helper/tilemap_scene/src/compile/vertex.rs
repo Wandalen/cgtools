@@ -20,7 +20,7 @@ mod private
   use tiles_tools::coordinates::triangular::{ Coordinate as TriCoordinate, FlatSided, FlatTopped };
   use crate::compile::neighbors::{ VOID_ID, tile_terrain_id };
   use crate::pipeline::TilingStrategy;
-  use crate::scene::Tile;
+  use crate::snapshot::Tile;
   use crate::source::TriBlendPattern;
   use crate::spec::RenderSpec;
 

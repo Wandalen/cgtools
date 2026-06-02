@@ -14,6 +14,7 @@ serde = { workspace = true, features = ["derive"] }
 ron = { workspace = true }
 tiles_tools = { workspace = true, features = ["serialization"] }
 rustc-hash = { workspace = true }
+slotmap = { workspace = true }
 tilemap_renderer = { workspace = true, features = ["scene-model"] }
 
 [lints]
