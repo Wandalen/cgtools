@@ -259,8 +259,8 @@ mod private
 
     let programs = Programs::compile( gl )?;
 
-    let fbo = gl.create_framebuffer();
-    gl.bind_framebuffer( gl::FRAMEBUFFER, fbo.as_ref() );
+    let fbo = gl.create_framebuffer().ok_or( gl::WebglError::FailedToAllocateResource( "PMREM FBO" ) )?;
+    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &fbo ) );
     gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
     gl.disable( gl::DEPTH_TEST );
@@ -272,17 +272,17 @@ mod private
 
     let source_cubemap = equirect_to_cubemap( gl, &programs, equirect_texture, cubemap_resolution, num_mips as i32 )?;
 
-    gl.bind_framebuffer( gl::FRAMEBUFFER, fbo.as_ref() );
+    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &fbo ) );
     let specular_texture = prefilter_specular( gl, &programs, &source_cubemap, cubemap_resolution, num_mips )?;
 
-    gl.bind_framebuffer( gl::FRAMEBUFFER, fbo.as_ref() );
+    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &fbo ) );
     let diffuse_texture = convolve_irradiance( gl, &programs, &source_cubemap )?;
 
-    gl.bind_framebuffer( gl::FRAMEBUFFER, fbo.as_ref() );
+    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &fbo ) );
     let brdf_lut = integrate_brdf( gl, &programs )?;
 
     gl.delete_texture( Some( &source_cubemap ) );
-    gl.delete_framebuffer( fbo.as_ref() );
+    gl.delete_framebuffer( Some( &fbo ) );
     programs.delete( gl );
 
     gl.bind_framebuffer( gl::FRAMEBUFFER, None );
