@@ -50,7 +50,13 @@ mod private
     .fold( E::zero(), | sum, val | sum + val )
   }
 
-  /// Computes the squared magnitude of a vector.
+  /// Computes the squared magnitude of a vector (the dot product with itself).
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element products and their summation are not
+  /// overflow-checked: they panic in debug / wrap in release once any
+  /// intermediate value exceeds `E::MAX`. Widen the element type or use a float
+  /// scalar when that is possible.
   #[ inline ]
   pub fn mag2< E, A, const SIZE : usize >( a : &A ) -> E
   where
