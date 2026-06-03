@@ -2,24 +2,25 @@ mod private
 {
   use minwebgl as gl;
   use gl::GL;
-  use web_sys::{ WebGlProgram, WebGlTexture, WebGlUniformLocation };
+  use web_sys::{ WebGlFramebuffer, WebGlProgram, WebGlTexture, WebGlUniformLocation };
   use crate::webgl::
   {
     post_processing::VS_TRIANGLE,
     IBL
   };
 
-  struct ShaderProg
+  struct ShaderProg< 'a >
   {
+    gl : &'a GL,
     program : WebGlProgram,
   }
 
-  impl ShaderProg
+  impl< 'a > ShaderProg< 'a >
   {
-    fn compile( gl : &GL, fs_src : &str ) -> Result< Self, gl::WebglError >
+    fn compile( gl : &'a GL, fs_src : &str ) -> Result< Self, gl::WebglError >
     {
       let program = gl::ProgramFromSources::new( VS_TRIANGLE, fs_src ).compile_and_link( gl )?;
-      Ok( Self { program } )
+      Ok( Self { gl, program } )
     }
 
     fn bind( &self, gl : &GL )
@@ -33,17 +34,29 @@ mod private
     }
   }
 
-  struct Programs
+  // web_sys `WebGlProgram` has no `Drop` freeing the GPU program, so each compiled program
+  // must be deleted explicitly. Owning the deletion here keeps `Programs::compile` leak-safe
+  // even on partial construction: if a later shader fails to compile, the already-built
+  // `ShaderProg` fields are dropped and their programs freed.
+  impl Drop for ShaderProg< '_ >
   {
-    equirect_to_cube : ShaderProg,
-    prefilter : ShaderProg,
-    irradiance : ShaderProg,
-    brdf_lut : ShaderProg,
+    fn drop( &mut self )
+    {
+      self.gl.delete_program( Some( &self.program ) );
+    }
   }
 
-  impl Programs
+  struct Programs< 'a >
   {
-    fn compile( gl : &GL ) -> Result< Self, gl::WebglError >
+    equirect_to_cube : ShaderProg< 'a >,
+    prefilter : ShaderProg< 'a >,
+    irradiance : ShaderProg< 'a >,
+    brdf_lut : ShaderProg< 'a >,
+  }
+
+  impl< 'a > Programs< 'a >
+  {
+    fn compile( gl : &'a GL ) -> Result< Self, gl::WebglError >
     {
       Ok( Self
       {
@@ -53,13 +66,77 @@ mod private
         brdf_lut : ShaderProg::compile( gl, include_str!( "../shaders/pmrem/brdf_integration.frag" ) )?,
       })
     }
+  }
 
-    fn delete( &self, gl : &GL )
+  /// RAII guard that deletes its `WebGlTexture` on drop unless [`TextureGuard::release`]d.
+  ///
+  /// web_sys texture handles have no `Drop` that frees the underlying GPU object, so an
+  /// intermediate texture would leak whenever an `?` propagates an error before the texture
+  /// can be handed to the caller. The guard frees it on every early return and is disarmed
+  /// via `release` once ownership is transferred out on the success path.
+  struct TextureGuard< 'a >
+  {
+    gl : &'a GL,
+    texture : Option< WebGlTexture >,
+  }
+
+  impl< 'a > TextureGuard< 'a >
+  {
+    fn new( gl : &'a GL, texture : WebGlTexture ) -> Self
     {
-      gl.delete_program( Some( &self.equirect_to_cube.program ) );
-      gl.delete_program( Some( &self.prefilter.program ) );
-      gl.delete_program( Some( &self.irradiance.program ) );
-      gl.delete_program( Some( &self.brdf_lut.program ) );
+      Self { gl, texture : Some( texture ) }
+    }
+
+    fn as_ref( &self ) -> &WebGlTexture
+    {
+      // The texture is present for the whole armed lifetime; `release` consumes the guard.
+      self.texture.as_ref().unwrap()
+    }
+
+    /// Disarms the guard and returns ownership of the texture to the caller.
+    fn release( mut self ) -> WebGlTexture
+    {
+      self.texture.take().unwrap()
+    }
+  }
+
+  impl Drop for TextureGuard< '_ >
+  {
+    fn drop( &mut self )
+    {
+      if let Some( texture ) = self.texture.take()
+      {
+        self.gl.delete_texture( Some( &texture ) );
+      }
+    }
+  }
+
+  /// RAII guard that deletes its framebuffer on drop. Unlike textures the FBO never escapes
+  /// `generate`, so there is no disarm path — it is always freed when `generate` returns.
+  struct FramebufferGuard< 'a >
+  {
+    gl : &'a GL,
+    framebuffer : WebGlFramebuffer,
+  }
+
+  impl< 'a > FramebufferGuard< 'a >
+  {
+    fn new( gl : &'a GL, framebuffer : WebGlFramebuffer ) -> Self
+    {
+      Self { gl, framebuffer }
+    }
+
+    fn as_ref( &self ) -> &WebGlFramebuffer
+    {
+      &self.framebuffer
+    }
+  }
+
+  impl Drop for FramebufferGuard< '_ >
+  {
+    fn drop( &mut self )
+    {
+      self.gl.delete_framebuffer( Some( &self.framebuffer ) );
     }
   }
 
@@ -99,7 +176,7 @@ mod private
   fn equirect_to_cubemap
   (
     gl : &GL,
-    programs : &Programs,
+    programs : &Programs< '_ >,
     equirect : &WebGlTexture,
     size : u32,
     num_mips : i32,
@@ -130,13 +207,15 @@ mod private
   fn prefilter_specular
   (
     gl : &GL,
-    programs : &Programs,
+    programs : &Programs< '_ >,
     source_cubemap : &WebGlTexture,
     size : u32,
     num_mips : u32,
   ) -> Result< WebGlTexture, gl::WebglError >
   {
-    let texture = allocate_cubemap( gl, size, num_mips as i32 )?;
+    // Guarded because the `gl::uniform::upload` calls below can fail *after* allocation,
+    // which would otherwise leak this cubemap before it is returned to the caller.
+    let texture = TextureGuard::new( gl, allocate_cubemap( gl, size, num_mips as i32 )? );
 
     programs.prefilter.bind( gl );
 
@@ -163,21 +242,21 @@ mod private
 
       for face_idx in 0..6u32
       {
-        render_to_cube_face( gl, &texture, face_idx, mip as i32, mip_size, face_loc.as_ref() );
+        render_to_cube_face( gl, texture.as_ref(), face_idx, mip as i32, mip_size, face_loc.as_ref() );
       }
     }
 
-    gl.bind_texture( gl::TEXTURE_CUBE_MAP, Some( &texture ) );
+    gl.bind_texture( gl::TEXTURE_CUBE_MAP, Some( texture.as_ref() ) );
     gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
     gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
 
-    Ok( texture )
+    Ok( texture.release() )
   }
 
   fn convolve_irradiance
   (
     gl : &GL,
-    programs : &Programs,
+    programs : &Programs< '_ >,
     source_cubemap : &WebGlTexture,
   ) -> Result< WebGlTexture, gl::WebglError >
   {
@@ -203,7 +282,7 @@ mod private
     Ok( texture )
   }
 
-  fn integrate_brdf( gl : &GL, programs : &Programs ) -> Result< WebGlTexture, gl::WebglError >
+  fn integrate_brdf( gl : &GL, programs : &Programs< '_ > ) -> Result< WebGlTexture, gl::WebglError >
   {
     let lut_size = 512u32;
     let texture = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "PMREM BRDF LUT" ) )?;
@@ -248,6 +327,12 @@ mod private
   /// clear color, pixel store — modified on return. Framebuffer, texture and program
   /// bindings are reset to `None`. The caller is expected to (re)establish the state it
   /// needs before its next draw; the renderer's per-frame passes already do so.
+  ///
+  /// # Resource cleanup
+  ///
+  /// Intermediate GPU resources (the compiled programs, the off-screen FBO and the source
+  /// cubemap) are freed on every exit path — success or `?`-propagated error — via RAII
+  /// guards. Only the three output textures escape, wrapped in the returned [`IBL`].
   pub fn generate
   (
     gl : &gl::WebGl2RenderingContext,
@@ -259,8 +344,12 @@ mod private
 
     let programs = Programs::compile( gl )?;
 
-    let fbo = gl.create_framebuffer().ok_or( gl::WebglError::FailedToAllocateResource( "PMREM FBO" ) )?;
-    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &fbo ) );
+    let fbo = FramebufferGuard::new
+    (
+      gl,
+      gl.create_framebuffer().ok_or( gl::WebglError::FailedToAllocateResource( "PMREM FBO" ) )?
+    );
+    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( fbo.as_ref() ) );
     gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
     gl.disable( gl::DEPTH_TEST );
@@ -270,21 +359,32 @@ mod private
     gl.clear_color( 0.0, 0.0, 0.0, 0.0 );
     gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
 
-    let source_cubemap = equirect_to_cubemap( gl, &programs, equirect_texture, cubemap_resolution, num_mips as i32 )?;
+    let source_cubemap = TextureGuard::new
+    (
+      gl,
+      equirect_to_cubemap( gl, &programs, equirect_texture, cubemap_resolution, num_mips as i32 )?
+    );
 
-    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &fbo ) );
-    let specular_texture = prefilter_specular( gl, &programs, &source_cubemap, cubemap_resolution, num_mips )?;
+    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( fbo.as_ref() ) );
+    let specular_texture = TextureGuard::new
+    (
+      gl,
+      prefilter_specular( gl, &programs, source_cubemap.as_ref(), cubemap_resolution, num_mips )?
+    );
 
-    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &fbo ) );
-    let diffuse_texture = convolve_irradiance( gl, &programs, &source_cubemap )?;
+    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( fbo.as_ref() ) );
+    let diffuse_texture = TextureGuard::new
+    (
+      gl,
+      convolve_irradiance( gl, &programs, source_cubemap.as_ref() )?
+    );
 
-    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &fbo ) );
+    gl.bind_framebuffer( gl::FRAMEBUFFER, Some( fbo.as_ref() ) );
     let brdf_lut = integrate_brdf( gl, &programs )?;
 
-    gl.delete_texture( Some( &source_cubemap ) );
-    gl.delete_framebuffer( Some( &fbo ) );
-    programs.delete( gl );
-
+    // Every pass succeeded. Reset bindings, then hand the output textures to the caller by
+    // disarming their guards. `source_cubemap`, `fbo` and `programs` are freed by their
+    // guards / `Drop` impls when this scope ends.
     gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     gl.bind_texture( gl::TEXTURE_CUBE_MAP, None );
     gl.bind_texture( gl::TEXTURE_2D, None );
@@ -294,8 +394,8 @@ mod private
     (
       IBL
       {
-        diffuse_texture : Some( diffuse_texture ),
-        specular_1_texture : Some( specular_texture ),
+        diffuse_texture : Some( diffuse_texture.release() ),
+        specular_1_texture : Some( specular_texture.release() ),
         specular_2_texture : Some( brdf_lut ),
       }
     )
