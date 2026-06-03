@@ -56,6 +56,31 @@ where
   assert_eq!( d, Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 1 ), E::from( 0 ) ] ) );
 }
 
+fn vector_div_signed_generic< E >()
+where
+  E : the_module::MatNum + ::num_traits::Signed + From< u8 > + PartialEq + core::fmt::Debug,
+{
+  use the_module::Vector;
+  // Integer division truncates toward zero, so negative dividends round up:
+  // `-7 / 3 == -2`, not `-3`.
+  let a = Vector::< E, 3 >::from_array( [ -E::from( 7 ), -E::from( 10 ), -E::from( 15 ) ] );
+  let b = Vector::< E, 3 >::from_array( [ E::from( 3 ), E::from( 4 ), E::from( 6 ) ] );
+
+  // vector / vector
+  assert_eq!( a / b, Vector::< E, 3 >::from_array( [ -E::from( 2 ), -E::from( 2 ), -E::from( 2 ) ] ) );
+  // vector / scalar
+  assert_eq!( a / E::from( 3 ), Vector::< E, 3 >::from_array( [ -E::from( 2 ), -E::from( 3 ), -E::from( 5 ) ] ) );
+
+  // /= vector
+  let mut c = a;
+  c /= b;
+  assert_eq!( c, Vector::< E, 3 >::from_array( [ -E::from( 2 ), -E::from( 2 ), -E::from( 2 ) ] ) );
+  // /= scalar
+  let mut d = a;
+  d /= E::from( 3 );
+  assert_eq!( d, Vector::< E, 3 >::from_array( [ -E::from( 2 ), -E::from( 3 ), -E::from( 5 ) ] ) );
+}
+
 fn vector_dot_generic< E >()
 where
   E : the_module::MatNum + From< u8 > + PartialEq + core::fmt::Debug,
@@ -286,3 +311,10 @@ fn vector_neg_i64() { vector_neg_signed_generic::< i64 >(); }
 fn vector_rem_signed_i32() { vector_rem_signed_generic::< i32 >(); }
 #[ test ]
 fn vector_rem_signed_i64() { vector_rem_signed_generic::< i64 >(); }
+
+// `/` truncates toward zero — sign handling only meaningful for signed types.
+
+#[ test ]
+fn vector_div_signed_i32() { vector_div_signed_generic::< i32 >(); }
+#[ test ]
+fn vector_div_signed_i64() { vector_div_signed_generic::< i64 >(); }
