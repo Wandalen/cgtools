@@ -66,6 +66,7 @@ pub enum Action
 /// Mirrors the `pointerType` field of the DOM `PointerEvent` interface. Useful
 /// for branching UI behaviour on devices where touch and mouse coexist — e.g.
 /// hiding a cursor-follow preview when no finger is on the screen.
+#[ non_exhaustive ]
 #[ derive( Debug, Clone, Copy, PartialEq, Eq, Default ) ]
 pub enum PointerType
 {
