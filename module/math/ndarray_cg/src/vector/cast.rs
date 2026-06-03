@@ -33,7 +33,12 @@ mod private
     }
 
     /// Component-wise scalar conversion via [`num_traits::AsPrimitive`].
-    /// Mirrors the `as` keyword: lossy / truncating where applicable.
+    ///
+    /// Mirrors the `as` keyword. For float → integer conversions this is *not*
+    /// plain truncation at the edges: in-range floats truncate toward zero,
+    /// while out-of-range values follow Rust's saturating cast rules
+    /// (`NaN → 0`, `+∞`/above-max → `T::MAX`, `-∞`/below-min → `T::MIN`). See the
+    /// Rust Reference, "Type cast expressions", for the full specification.
     #[ inline ]
     pub fn cast_as< T >( self ) -> Vector< T, N >
     where

@@ -52,6 +52,22 @@ fn vector_lossy_cast_as()
 }
 
 #[ test ]
+fn vector_cast_as_saturating()
+{
+  use the_module::{ F32x3, I32x3, U32x3 };
+
+  // Float -> signed int: NaN -> 0, +inf -> MAX, -inf -> MIN (Rust 1.45+ saturating cast).
+  let f = F32x3::from_array( [ f32::NAN, f32::INFINITY, f32::NEG_INFINITY ] );
+  let i : I32x3 = f.cast_as();
+  assert_eq!( i, I32x3::from_array( [ 0, i32::MAX, i32::MIN ] ) );
+
+  // Float -> unsigned int: negative values saturate to 0 (the unsigned floor).
+  let g = F32x3::from_array( [ -1.5, 2.5, f32::NEG_INFINITY ] );
+  let u : U32x3 = g.cast_as();
+  assert_eq!( u, U32x3::from_array( [ 0, 2, 0 ] ) );
+}
+
+#[ test ]
 fn vector_explicit_cast_method()
 {
   use the_module::{ I32x3, I64x3 };
@@ -105,4 +121,15 @@ fn matrix_lossy_cast_as()
   let f = F64x2x2::default().set_raw( [ 1.9, -2.1, 3.5, 4.0 ] );
   let i : I32x2x2 = f.cast_as();
   assert_eq!( i.raw_slice(), &[ 1, -2, 3, 4 ] );
+}
+
+#[ test ]
+fn matrix_cast_as_saturating()
+{
+  use the_module::{ F32x2x2, I32x2x2 };
+
+  // NaN -> 0, +inf -> MAX, -inf -> MIN; in-range value still truncates toward zero.
+  let f = F32x2x2::default().set_raw( [ f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -3.9 ] );
+  let i : I32x2x2 = f.cast_as();
+  assert_eq!( i.raw_slice(), &[ 0, i32::MAX, i32::MIN, -3 ] );
 }
