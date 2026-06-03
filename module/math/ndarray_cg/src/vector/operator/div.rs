@@ -23,17 +23,24 @@ mod private
   where
     E : MatNum
   {
+    /// # Panics
+    /// For integer `E` this panics if `rhs` is zero, in both debug and release
+    /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
     fn div_assign( &mut self, rhs : E )
     {
         *self = *self / rhs;
     }
   }
 
-  impl< E, const LEN : usize > DivAssign for Vector< E, LEN >  
+  impl< E, const LEN : usize > DivAssign for Vector< E, LEN >
   where
     E : MatNum
   {
-    fn div_assign( &mut self, rhs : Self ) 
+    /// # Panics
+    /// For integer `E` this panics if any component of `rhs` is zero, in both
+    /// debug and release mode. For float `E`, division by zero yields
+    /// `INFINITY` or `NAN` instead.
+    fn div_assign( &mut self, rhs : Self )
     {
       div_mut( self, &rhs );
     }

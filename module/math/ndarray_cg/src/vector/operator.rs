@@ -124,6 +124,10 @@ mod private
   where
     E : MatNum,
   {
+    /// # Panics
+    /// For integer `E` this panics if any component of `rhs` is zero, in both
+    /// debug and release mode. For float `E`, remainder by zero yields `NAN`
+    /// instead.
     #[ inline ]
     fn rem_assign( &mut self, rhs : Self )
     {
@@ -136,6 +140,9 @@ mod private
   where
     E : MatNum,
   {
+    /// # Panics
+    /// For integer `E` this panics if `scalar` is zero, in both debug and
+    /// release mode. For float `E`, remainder by zero yields `NAN` instead.
     #[ inline ]
     fn rem_assign( &mut self, scalar : E )
     {

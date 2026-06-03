@@ -49,6 +49,9 @@ where
   E : MatNum,
   Self : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >
 {
+  /// # Panics
+  /// For integer `E` this panics if `rhs` is zero, in both debug and release
+  /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
   #[ inline ]
   fn div_assign( &mut self, rhs : E ) {
     div_scalar( self, rhs );
