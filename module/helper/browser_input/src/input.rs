@@ -583,3 +583,45 @@ impl Drop for Input
     );
   }
 }
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::PointerType;
+
+  #[ test ]
+  fn from_dom_str_mouse()
+  {
+    assert_eq!( PointerType::from_dom_str( "mouse" ), PointerType::Mouse );
+  }
+
+  #[ test ]
+  fn from_dom_str_touch()
+  {
+    assert_eq!( PointerType::from_dom_str( "touch" ), PointerType::Touch );
+  }
+
+  #[ test ]
+  fn from_dom_str_pen()
+  {
+    assert_eq!( PointerType::from_dom_str( "pen" ), PointerType::Pen );
+  }
+
+  #[ test ]
+  fn from_dom_str_empty_string_is_unknown()
+  {
+    assert_eq!( PointerType::from_dom_str( "" ), PointerType::Unknown );
+  }
+
+  #[ test ]
+  fn from_dom_str_unrecognised_is_unknown()
+  {
+    assert_eq!( PointerType::from_dom_str( "stylus" ), PointerType::Unknown );
+  }
+
+  #[ test ]
+  fn default_is_unknown()
+  {
+    assert_eq!( PointerType::default(), PointerType::Unknown );
+  }
+}
