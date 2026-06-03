@@ -77,7 +77,8 @@ pub enum PointerType
   /// A stylus or active pen.
   Pen,
   /// No pointer events have been seen yet, or the device reported an
-  /// unrecognised `pointerType`.
+  /// unrecognised `pointerType`. These two cases are intentionally
+  /// indistinguishable from the caller's perspective.
   #[ default ]
   Unknown,
 }
@@ -451,7 +452,8 @@ impl Input
 
   /// Returns the [`PointerType`] of the most recently observed pointer event.
   ///
-  /// Returns [`PointerType::Unknown`] until the first pointer event arrives.
+  /// Returns [`PointerType::Unknown`] before the first pointer event fires, or
+  /// when the browser reports an unrecognised `pointerType` string.
   /// Useful for adapting UI to the active input modality on hybrid devices —
   /// e.g. switching cursor-follow behaviour once the user switches from mouse
   /// to touch.
