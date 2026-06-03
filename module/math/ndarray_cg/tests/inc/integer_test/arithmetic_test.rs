@@ -46,6 +46,11 @@ where
   // vector % scalar
   assert_eq!( a % E::from( 3 ), Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 1 ), E::from( 0 ) ] ) );
 
+  // &vector % &vector  (reference form)
+  assert_eq!( &a % &b, Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 2 ), E::from( 3 ) ] ) );
+  // &vector % scalar  (reference form)
+  assert_eq!( &a % E::from( 3 ), Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 1 ), E::from( 0 ) ] ) );
+
   // %= vector
   let mut c = a;
   c %= b;

@@ -4,8 +4,6 @@ mod private
   use crate::*;
   use std::ops::{ Rem, Neg };
 
-  // qqq : xxx : cover by test each operator
-
   impl< E, const LEN : usize > Neg for Vector< E, LEN >
   where
     E : MatNum + Neg< Output = E >,
