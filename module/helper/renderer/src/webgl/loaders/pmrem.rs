@@ -173,6 +173,23 @@ mod private
     gl.draw_arrays( gl::TRIANGLES, 0, 3 );
   }
 
+  /// Returns an error if the currently bound draw framebuffer is not complete.
+  ///
+  /// Logs the GL status code (mirroring the `shadow.rs` check) and fails loudly instead of
+  /// letting an incomplete FBO silently render to undefined state — e.g. when
+  /// `EXT_color_buffer_float` is unavailable so the RGBA16F attachment is not color-renderable,
+  /// or after a context-loss recovery.
+  fn check_framebuffer_complete( gl : &GL ) -> Result< (), gl::WebglError >
+  {
+    let status = gl.check_framebuffer_status( gl::FRAMEBUFFER );
+    if status != gl::FRAMEBUFFER_COMPLETE
+    {
+      gl::browser::error!( "PMREM framebuffer incomplete: {:?}", status );
+      return Err( gl::WebglError::Other( "PMREM framebuffer incomplete" ) );
+    }
+    Ok( () )
+  }
+
   fn equirect_to_cubemap
   (
     gl : &GL,
@@ -194,6 +211,15 @@ mod private
     for face in 0..6u32
     {
       render_to_cube_face( gl, &texture, face, 0, size, face_loc.as_ref() );
+
+      // The whole PMREM pipeline renders into one FBO with a single RGBA16F color attachment, so
+      // completeness is governed by that format's renderability — identical for every face, mip
+      // and pass. One check right after the first attachment therefore guards the entire pipeline;
+      // bail out before the remaining faces and passes render into an unusable FBO.
+      if face == 0
+      {
+        check_framebuffer_complete( gl )?;
+      }
     }
 
     gl.bind_texture( gl::TEXTURE_CUBE_MAP, Some( &texture ) );
