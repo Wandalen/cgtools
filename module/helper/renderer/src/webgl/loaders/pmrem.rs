@@ -347,7 +347,11 @@ mod private
   ///
   /// * `gl` - The WebGL2 rendering context.
   /// * `equirect_texture` - A 2D texture containing an equirectangular HDR image.
-  /// * `cubemap_resolution` - Side length of the cubemap faces (512 recommended for 10 mip levels).
+  /// * `cubemap_resolution` - Side length of the cubemap faces. Any value >= 1 is accepted:
+  ///   WebGL2 fully supports non-power-of-two cubemaps, and the mip count adapts as
+  ///   `floor(log2(resolution)) + 1` — exactly GL's maximum, so the per-mip viewport sizes
+  ///   (`resolution >> mip`) always match the allocated storage. A power of two is *recommended*
+  ///   (512 gives a clean 10-level chain) but not required.
   ///
   /// # GL state
   ///
