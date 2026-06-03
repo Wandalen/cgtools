@@ -93,7 +93,7 @@ impl PointerType
       "mouse" => Self::Mouse,
       "touch" => Self::Touch,
       "pen"   => Self::Pen,
-      _       => Self::Unknown,
+      _       => Self::Unknown, // includes "" — spec-defined for when device type cannot be determined
     }
   }
 }
