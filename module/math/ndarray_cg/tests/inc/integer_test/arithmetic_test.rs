@@ -115,6 +115,30 @@ where
   assert_eq!( -near_min, near_min_neg );
 }
 
+fn vector_rem_signed_generic< E >()
+where
+  E : the_module::MatNum + ::num_traits::Signed + From< u8 > + PartialEq + core::fmt::Debug,
+{
+  use the_module::Vector;
+  // Rust's `%` keeps the sign of the dividend: `-7 % 3 == -1`, not `2`.
+  let a = Vector::< E, 3 >::from_array( [ -E::from( 7 ), -E::from( 10 ), -E::from( 15 ) ] );
+  let b = Vector::< E, 3 >::from_array( [ E::from( 3 ), E::from( 4 ), E::from( 6 ) ] );
+
+  // vector % vector
+  assert_eq!( a % b, Vector::< E, 3 >::from_array( [ -E::from( 1 ), -E::from( 2 ), -E::from( 3 ) ] ) );
+  // vector % scalar
+  assert_eq!( a % E::from( 3 ), Vector::< E, 3 >::from_array( [ -E::from( 1 ), -E::from( 1 ), E::from( 0 ) ] ) );
+
+  // %= vector
+  let mut c = a;
+  c %= b;
+  assert_eq!( c, Vector::< E, 3 >::from_array( [ -E::from( 1 ), -E::from( 2 ), -E::from( 3 ) ] ) );
+  // %= scalar
+  let mut d = a;
+  d %= E::from( 3 );
+  assert_eq!( d, Vector::< E, 3 >::from_array( [ -E::from( 1 ), -E::from( 1 ), E::from( 0 ) ] ) );
+}
+
 fn mat_add_sub_generic< E, D >()
 where
   E : the_module::MatNum + From< u8 > + PartialEq + core::fmt::Debug,
@@ -255,3 +279,10 @@ fn vector_distance_squared_i64() { vector_distance_squared_signed_generic::< i64
 fn vector_neg_i32() { vector_neg_signed_generic::< i32 >(); }
 #[ test ]
 fn vector_neg_i64() { vector_neg_signed_generic::< i64 >(); }
+
+// `%` preserves the sign of the dividend — only meaningful for signed types.
+
+#[ test ]
+fn vector_rem_signed_i32() { vector_rem_signed_generic::< i32 >(); }
+#[ test ]
+fn vector_rem_signed_i64() { vector_rem_signed_generic::< i64 >(); }
