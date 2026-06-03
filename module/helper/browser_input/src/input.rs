@@ -454,6 +454,11 @@ impl Input
   /// Returns [`PointerType::Unknown`] until the first pointer event arrives.
   /// Useful for branching UI on hybrid devices — e.g. hiding a cursor-follow
   /// preview when no finger is on the screen but keeping it for mouse hover.
+  ///
+  /// # Test coverage
+  /// The string-to-variant mapping is covered by `PointerType::from_dom_str` unit tests.
+  /// End-to-end wiring through DOM callbacks requires a `wasm-bindgen-test` environment
+  /// and is not covered on the native target.
   pub fn last_pointer_type( &self ) -> PointerType
   {
     self.last_pointer_type.get()
