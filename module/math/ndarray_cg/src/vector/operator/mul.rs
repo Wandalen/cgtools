@@ -26,6 +26,9 @@ mod private
   {
     type Output = Self;
 
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
     fn mul( self, rhs : Self ) -> Self::Output
     {
       mul( &self, &rhs )
@@ -39,6 +42,9 @@ mod private
   {
     type Output = Self;
 
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
     fn mul( self, rhs : E ) -> Self::Output
     {
       mul_scalar( &self, rhs )
@@ -50,6 +56,9 @@ mod private
   where
     E : MatNum
   {
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
     fn mul_assign( &mut self, rhs : E )
     {
       *self = *self * rhs;

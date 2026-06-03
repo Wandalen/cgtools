@@ -234,6 +234,10 @@ mod private
 
   /// Performs element-wise addition operation on vectors.
   /// Modifies first vector in place.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element addition is not overflow-checked: it
+  /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
   pub fn sum_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
@@ -249,6 +253,10 @@ mod private
   }
 
   /// Performs element-wise addition operation on vectors.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element addition is not overflow-checked: it
+  /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
   pub fn sum< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
@@ -263,6 +271,10 @@ mod private
 
   /// Performs element-wise addition operation on vector with a scalar.
   /// Modifies first vector in place.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element addition is not overflow-checked: it
+  /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
   pub fn sum_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
@@ -277,6 +289,10 @@ mod private
   }
 
   /// Performs element-wise addition operation on vector with a scalar.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element addition is not overflow-checked: it
+  /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
   pub fn sum_scalar< E, A, const N : usize >( a : &A, b : E ) -> A
   where
@@ -368,6 +384,10 @@ mod private
 
   /// Performs element-wise multiplication operation on vectors.
   /// Modifies first vector in place.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element multiplication is not overflow-checked:
+  /// it panics in debug / wraps in release once a product leaves `E`'s range.
   #[ inline ]
   pub fn mul_mut< E, R, A, const N : usize >( r : &mut R, a : A )
   where
@@ -383,6 +403,10 @@ mod private
   }
 
   /// Performs element-wise multiplication operation on vectors.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element multiplication is not overflow-checked:
+  /// it panics in debug / wraps in release once a product leaves `E`'s range.
   #[ inline ]
   pub fn mul< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
@@ -397,6 +421,10 @@ mod private
 
   /// Performs element-wise multiplication operation on vector with a scalar.
   /// Modifies first vector in place.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element multiplication is not overflow-checked:
+  /// it panics in debug / wraps in release once a product leaves `E`'s range.
   #[ inline ]
   pub fn mul_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
@@ -411,6 +439,10 @@ mod private
   }
 
   /// Performs element-wise multiplication operation on vector with a scalar.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element multiplication is not overflow-checked:
+  /// it panics in debug / wraps in release once a product leaves `E`'s range.
   #[ inline ]
   pub fn mul_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
   where
