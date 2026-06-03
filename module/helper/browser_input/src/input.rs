@@ -452,8 +452,13 @@ impl Input
   /// Returns the [`PointerType`] of the most recently observed pointer event.
   ///
   /// Returns [`PointerType::Unknown`] until the first pointer event arrives.
-  /// Useful for branching UI on hybrid devices — e.g. hiding a cursor-follow
-  /// preview when no finger is on the screen but keeping it for mouse hover.
+  /// Useful for adapting UI to the active input modality on hybrid devices —
+  /// e.g. switching cursor-follow behaviour once the user switches from mouse
+  /// to touch.
+  ///
+  /// Note: this value does not reset when pointers are released; after a finger
+  /// lifts, it persists as `Touch` until the next pointer event. To check
+  /// whether any pointer is currently active, use [`Input::active_pointers`].
   ///
   /// # Test coverage
   /// The string-to-variant mapping is covered by `PointerType::from_dom_str` unit tests.
