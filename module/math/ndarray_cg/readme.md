@@ -23,10 +23,16 @@ A comprehensive matrix and linear algebra library specifically designed for comp
 - **SIMD Support** - Vectorized operations via ndarray
 - **Zero-Copy Views** - Efficient memory access patterns
 - **Stack Allocation** - Small matrices on stack
-- **Generic Types** - Works with f32, f64, and other numeric types
+- **Generic Types** - Works with `f32`, `f64`, and all integer primitives (`i32`, `i64`, `u32`, `u64`) via the `MatNum` element bound
+
+### 🔢 **Integer Support**
+- **Integer Vectors & Matrices** - First-class support for integer scalar types in arithmetic, `dot`, mat×mat, mat×vec, determinant, identity, transpose, and the access traits; `cross` and `distance_squared` require a signed element type (`i32`, `i64`, or float)
+- **Scalar Conversions** - `.cast::<T>()` for lossless conversions, `.cast_as::<T>()` for `as`-style lossy conversions, and `From` / `Into` impls for the standard lossless primitive pairings
+- **Overflow-Aware Arithmetic** - Component-wise `saturating_*`, `wrapping_*`, and `checked_*` methods on integer `Vector` and `Mat`
+- **Eq + Ord** - Integer vectors and matrices implement `Eq` and `Ord`, so they work as `BTreeMap` / `BTreeSet` keys
 
 ### 🔧 **Developer Experience**
-- **Type Aliases** - Convenient F32x2x2, F32x3x3, F32x4x4 types
+- **Type Aliases** - Convenient `F32xNxN` / `F64xNxN` / `I32xNxN` / `I64xNxN` / `U32xNxN` / `U64xNxN` types
 - **Indexed Iteration** - Multiple iteration patterns
 - **Debug Support** - Rich debugging and display traits
 
@@ -117,6 +123,38 @@ fn arithmetic_examples() {
 }
 ```
 
+### Integer Vectors and Matrices
+
+```rust
+use ndarray_cg::*;
+
+fn integer_example() {
+  // Integer vectors — arithmetic, dot product, cross product all work.
+  let a = I32x3::from_array([ 1, 2, 3 ]);
+  let b = I32x3::from_array([ 4, 5, 6 ]);
+  let sum = a + b;                       // [ 5, 7, 9 ]
+  let d   = a.dot( &b );                 // 32
+  let c   = a.cross( b );                // [ -3, 6, -3 ]
+
+  // Integer matrices — identity, determinant, mat × vec.
+  let m = I32x3x3::identity();
+  let v = m * a;                         // [ 1, 2, 3 ]
+
+  // Overflow-aware arithmetic.
+  let near_max = I32x3::from_array([ i32::MAX, 0, 0 ]);
+  let one      = I32x3::from_array([ 1, 0, 0 ]);
+  let sat = near_max.saturating_add( one );        // [ i32::MAX, 0, 0 ]
+  let chk = near_max.checked_add( one );           // None
+
+  // Lossless conversion — `From` / `Into` lights up without ascription.
+  let f: F64x3 = a.into();
+  // Lossy conversion — use `cast_as` (mirrors `as` casting).
+  let back: I32x3 = f.cast_as();
+
+  let _ = ( sum, d, c, v, sat, chk, back );
+}
+```
+
 ### Matrix Multiplication
 
 ```rust
@@ -148,9 +186,11 @@ fn multiplication_example() {
 
 | Type | Description | Use Case |
 |------|-------------|----------|
-| `Mat2` / `F32x2x2` | 2x2 matrix | 2D transformations |
-| `Mat3` / `F32x3x3` | 3x3 matrix | 2D homogeneous coords |
-| `Mat4` / `F32x4x4` | 4x4 matrix | 3D transformations |
+| `Mat2` / `F32x2x2` / `F64x2x2` | 2x2 matrix | 2D transformations |
+| `Mat3` / `F32x3x3` / `F64x3x3` | 3x3 matrix | 2D homogeneous coords |
+| `Mat4` / `F32x4x4` / `F64x4x4` | 4x4 matrix | 3D transformations |
+| `I32x2x2` / `I32x3x3` / `I32x4x4` | 2x2/3x3/4x4 `i32` matrix | Integer grid / tile math, screen-space transforms |
+| `I64xNxN` / `U32xNxN` / `U64xNxN` | Same shapes over other integer types | Voxel / index / palette coords |
 
 ### Transformation Functions
 
@@ -209,7 +249,7 @@ use mat::{DescriptorOrderRowMajor, DescriptorOrderColumnMajor};
 let row_major = Mat::<2, 2, f32, DescriptorOrderRowMajor>::from_row_major([1.0, 2.0, 3.0, 4.0]);
 
 // Column-major (for compatibility with certain graphics APIs)
-let col_major = Mat::<2, 2, f32, DescriptorOrderColMajor>::default();
+let col_major = Mat::<2, 2, f32, DescriptorOrderColumnMajor>::default();
 ```
 
 ## ⚡ Performance Notes

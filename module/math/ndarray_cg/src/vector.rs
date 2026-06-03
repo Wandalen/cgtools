@@ -6,7 +6,7 @@ mod private
   use crate::*;
 
   /// A vector structure.
-  #[ derive( Clone, Copy, PartialEq, PartialOrd, Hash, Debug ) ]
+  #[ derive( Clone, Copy, PartialEq, Hash, Debug ) ]
   pub struct Vector< E, const LEN : usize >( pub [ E; LEN ] )
   where E : MatEl;
 
@@ -82,6 +82,10 @@ crate::mod_interface!
   layer vec3;
   /// Functionality related to 4D vectors
   layer vec4;
+  /// Scalar conversions between element types (`cast`, `cast_as`, lossless `From`).
+  layer cast;
+  /// Integer-only helpers (`saturating_*`, `wrapping_*`, `checked_*`).
+  layer integer;
 
   reuse ::mdmath_core::vector;
 

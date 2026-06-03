@@ -4,8 +4,7 @@ use crate::*;
 #[ inline ]
 pub fn add< E, A, B, R >( r : &mut R, a : &A, b : &B )
 where
-  E : MatEl,
-  E : nd::NdFloat,
+  E : MatNum,
   R : Indexable< Index = Ix2 > + IndexingMut< Scalar = E >,
   A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   B : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
@@ -46,8 +45,7 @@ where
 impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > Add
 for Mat< ROWS, COLS, E, Descriptor >
 where
-  E : MatEl,
-  E : nd::NdFloat,
+  E : MatNum,
   Descriptor : mat::Descriptor,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingMut< Scalar = E >,
 {
@@ -67,8 +65,7 @@ impl< E, const ROWS : usize, const COLS : usize, Descriptor > Add< &Mat< ROWS, C
 for &Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl,
-  E : nd::NdFloat,
+  E : MatNum,
   // Self : IndexingRef,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingMut< Scalar = E >,
 {
