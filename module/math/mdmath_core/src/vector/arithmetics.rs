@@ -402,6 +402,11 @@ mod private
 
   /// Performs element-wise division operation of vectors.
   /// Modifies first vector in place.
+  ///
+  /// # Panics
+  /// For integer `E` this panics if any component of `a` is zero, in both debug
+  /// and release mode. For float `E`, division by zero yields `INFINITY` or
+  /// `NAN` instead.
   #[ inline ]
   pub fn div_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
@@ -417,6 +422,11 @@ mod private
   }
 
   /// Performs element-wise division operation of vectors.
+  ///
+  /// # Panics
+  /// For integer `E` this panics if any component of `b` is zero, in both debug
+  /// and release mode. For float `E`, division by zero yields `INFINITY` or
+  /// `NAN` instead.
   #[ inline ]
   pub fn div< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
@@ -431,6 +441,10 @@ mod private
 
   /// Performs element-wise division operation of vector with a scalar.
   /// Modifies first vector in place.
+  ///
+  /// # Panics
+  /// For integer `E` this panics if `a` is zero, in both debug and release
+  /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
   #[ inline ]
   pub fn div_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
@@ -445,6 +459,10 @@ mod private
   }
 
   /// Performs element-wise division operation of vector with a scalar.
+  ///
+  /// # Panics
+  /// For integer `E` this panics if `b` is zero, in both debug and release
+  /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
   #[ inline ]
   pub fn div_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
   where
