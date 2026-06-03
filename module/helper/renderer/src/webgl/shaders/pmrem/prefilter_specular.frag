@@ -82,11 +82,12 @@ void main()
       float pdf = D * NdotH / ( 4.0 * HdotV ) + 0.0001;
       float saTexel = 4.0 * PI / ( 6.0 * resolution * resolution );
       float saSample = 1.0 / ( float( SAMPLE_COUNT ) * pdf + 0.0001 );
-      // mipLevel is left unclamped: high-pdf samples make saSample/saTexel < 1, so log2
-      // yields a negative LOD. textureLod clamps the level to the cubemap's valid mip range
-      // [0, maxLevel] per the GL ES 3.0 spec, so both negative and over-max LODs resolve to
-      // the base/last mip — an explicit clamp (as in Three.js) is redundant here.
-      float mipLevel = roughness == 0.0 ? 0.0 : 0.5 * log2( saSample / saTexel );
+      // High-pdf samples make saSample/saTexel < 1, so log2 yields a negative LOD. GL ES 3.0
+      // reliably clamps the *upper* LOD bound to the cubemap's last mip, but explicit-LOD
+      // behaviour for *negative* values is not guaranteed across WebGL2 drivers — some apply
+      // the magnification filter instead of clamping to the base mip, which would corrupt rough
+      // levels. Clamp the lower bound ourselves for cross-driver portability, as Three.js does.
+      float mipLevel = roughness == 0.0 ? 0.0 : max( 0.5 * log2( saSample / saTexel ), 0.0 );
 
       prefilteredColor += textureLod( envMap, L, mipLevel ).rgb * NdotL;
       totalWeight += NdotL;
