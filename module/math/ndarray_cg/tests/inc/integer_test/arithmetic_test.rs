@@ -210,6 +210,29 @@ where
   let i = Mat::< 2, 2, E, D >::identity();
   let r = i * a;
   assert_eq!( r.raw_slice(), a.raw_slice() );
+
+  // Non-identity * non-identity, hand-computed, to exercise the inner-product
+  // accumulation (an off-by-one or transposed index survives the identity case
+  // above but fails here). Built via `from_row_major` so the expectation holds
+  // for both row- and column-major descriptors.
+  // [ [ 2, 3 ], [ 5, 7 ] ] * [ [ 1, 2 ], [ 3, 4 ] ] = [ [ 11, 16 ], [ 26, 38 ] ]
+  //   (1,1) = 5*2 + 7*4 = 38
+  let lhs = Mat::< 2, 2, E, D >::from_row_major
+  ([
+    E::from( 2 ), E::from( 3 ),
+    E::from( 5 ), E::from( 7 ),
+  ]);
+  let rhs = Mat::< 2, 2, E, D >::from_row_major
+  ([
+    E::from( 1 ), E::from( 2 ),
+    E::from( 3 ), E::from( 4 ),
+  ]);
+  let exp = Mat::< 2, 2, E, D >::from_row_major
+  ([
+    E::from( 11 ), E::from( 16 ),
+    E::from( 26 ), E::from( 38 ),
+  ]);
+  assert_eq!( ( lhs * rhs ).raw_slice(), exp.raw_slice() );
 }
 
 fn mat_vec_mul_generic< E, D >()
@@ -224,9 +247,24 @@ where
     the_module::IndexingRef< Scalar = E >,
 {
   use the_module::{ Mat, Vector };
-  let m = Mat::< 3, 3, E, D >::identity();
   let v = Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 2 ), E::from( 3 ) ] );
+
+  let m = Mat::< 3, 3, E, D >::identity();
   assert_eq!( m * v, v );
+
+  // Non-identity, asymmetric matrix so a row/column transpose in the product is
+  // caught (identity * v = v cannot distinguish the two). `from_row_major` keeps
+  // the expectation layout-independent.
+  // [ [ 1, 2, 3 ], [ 4, 5, 6 ], [ 7, 8, 9 ] ] * [ 1, 2, 3 ]^T = [ 14, 32, 50 ]
+  //   row 1 = 4*1 + 5*2 + 6*3 = 32
+  let n = Mat::< 3, 3, E, D >::from_row_major
+  ([
+    E::from( 1 ), E::from( 2 ), E::from( 3 ),
+    E::from( 4 ), E::from( 5 ), E::from( 6 ),
+    E::from( 7 ), E::from( 8 ), E::from( 9 ),
+  ]);
+  let exp = Vector::< E, 3 >::from_array( [ E::from( 14 ), E::from( 32 ), E::from( 50 ) ] );
+  assert_eq!( n * v, exp );
 }
 
 macro_rules! integer_arithmetic_tests
