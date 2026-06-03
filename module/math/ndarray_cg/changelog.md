@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Eq` and `Ord` impls for `Vector<E, N>` and `Mat<R, C, E, D>` (gated on `E : Eq` / `E : Ord`), enabling integer vectors and matrices as `BTreeMap` / `BTreeSet` keys.
 - Component-wise scalar conversions on `Vector` and `Mat`:
   - `cast::<T>()` via `T : From<E>` — reserved for lossless primitive conversions.
-  - `cast_as::<T>()` via `num_traits::AsPrimitive` — `as`-style lossy / truncating conversions.
+  - `cast_as::<T>()` via `num_traits::AsPrimitive` — `as`-style lossy conversions (in-range floats truncate toward zero; out-of-range floats saturate per Rust's `as` rules).
   - Concrete `From` impls for lossless primitive pairings (`i32 → i64 / f64`, `u32 → i64 / u64 / f64`, `f32 → f64`) so `.into()` resolves without ascription.
 - Integer-only arithmetic helpers, dispatched per-element via `num_traits`:
   - `saturating_add` / `saturating_sub`
@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Relaxed `E : nd::NdFloat` to `E : MatNum` (or `E : MatEl`) across the arithmetic and operator surfaces — matrix `+ - * /`, vector `+ - * / %`, scalar mul/div, `dot`, `mag2`, `transpose`, `identity`, `to_array` / `to_homogenous` / `truncate`, `from_cols`, `from_row_major` / `from_column_major`, and the `scale` / `shear` / `translation` constructors. `cross`, `distance_squared`, and `determinant` are gated on `E : MatNum + num_traits::Signed` (signed integers and floats) because their intermediate subtractions can be negative. Float-only operations (`mag` / `normalize` / `distance`, rotation, perspective / look_at / orthographic, `inverse`, `decompose`, approx-eq, spherical conversions, quaternions) keep the `NdFloat` bound.
 - Relaxed `IndexingRef` / `IndexingMut` / `ScalarRef` / `ScalarMut` impls for `Mat` from `nd::NdFloat` to `MatEl` — the access traits never relied on floating-point semantics.
 - Upgraded `ndarray` dependency from 0.16 to 0.17. The prelude re-export now lists items explicitly (omitting `ArrayRef`, `LayoutRef`, `RawRef`, and the `ArrayRefN` aliases) to avoid colliding with the local `ArrayRef` trait used as a generic bound.
+
+### Removed
+- `IntegerScalar` marker trait (`MatEl + PrimInt`) — it could not serve as a bound for the wrapping / checked / saturating impls and added no value over spelling `MatEl + PrimInt` directly. Callers should use `MatEl + PrimInt` where an integer bound is needed.
 
 ## [0.3.0] - 2024-08-08
 
