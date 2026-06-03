@@ -12,6 +12,10 @@ mod private
   {
     type Output = Self;
 
+    /// # Panics
+    /// For signed integer `E`, negating a component equal to `E::MIN` overflows:
+    /// panics in debug mode, wraps to `E::MIN` in release. Ensure no component
+    /// equals `E::MIN`, or widen the element type before negating.
     #[ inline ]
     fn neg( self ) -> Self::Output
     {
@@ -25,6 +29,10 @@ mod private
   {
     type Output = Vector< E, LEN >;
 
+    /// # Panics
+    /// For signed integer `E`, negating a component equal to `E::MIN` overflows:
+    /// panics in debug mode, wraps to `E::MIN` in release. Ensure no component
+    /// equals `E::MIN`, or widen the element type before negating.
     #[inline]
     fn neg( self ) -> Self::Output
     {

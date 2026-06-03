@@ -95,7 +95,7 @@ where
 
 fn vector_neg_signed_generic< E >()
 where
-  E : the_module::MatNum + ::num_traits::Signed + From< u8 > + PartialEq + core::fmt::Debug,
+  E : the_module::MatNum + ::num_traits::Signed + ::num_traits::Bounded + From< u8 > + PartialEq + core::fmt::Debug,
 {
   use the_module::Vector;
   let ( one, two, three ) = ( E::from( 1 ), E::from( 2 ), E::from( 3 ) );
@@ -106,6 +106,13 @@ where
   assert_eq!( -v, expected );
   // reference Neg
   assert_eq!( -&v, expected );
+
+  // Boundary: `E::MIN` itself overflows on negation (documented panic), but
+  // `E::MIN + 1` is the safe edge and negates to `E::MAX`. The `E::MIN` case is
+  // intentionally not exercised here.
+  let near_min = Vector::< E, 3 >::from_array( [ E::min_value() + one, three, -three ] );
+  let near_min_neg = Vector::< E, 3 >::from_array( [ E::max_value(), -three, three ] );
+  assert_eq!( -near_min, near_min_neg );
 }
 
 fn mat_add_sub_generic< E, D >()
