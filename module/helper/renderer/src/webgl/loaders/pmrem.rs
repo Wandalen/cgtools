@@ -236,7 +236,11 @@ mod private
     for mip in 0..num_mips
     {
       let mip_size = size >> mip;
-      let roughness = mip as f32 / ( num_mips - 1 ) as f32;
+      // `num_mips` is always >= 1 (it is `log2(resolution) + 1`), so a single-mip cubemap
+      // would make the denominator `num_mips - 1` zero and yield `0.0 / 0.0 = NaN`, which the
+      // `roughness` uniform would propagate into the prefilter shader. A lone mip is the fully
+      // sharp level, so its roughness is 0.
+      let roughness = if num_mips > 1 { mip as f32 / ( num_mips - 1 ) as f32 } else { 0.0 };
 
       gl::uniform::upload( gl, roughness_loc.clone(), &roughness )?;
 
