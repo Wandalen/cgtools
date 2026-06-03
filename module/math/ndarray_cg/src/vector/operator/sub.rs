@@ -11,6 +11,10 @@ mod private
   {
     type Output = Self;
 
+    /// # Overflow
+    /// For integer `E` the element-wise subtraction is not overflow-checked: it
+    /// panics in debug / wraps in release on under/overflow — e.g. unsigned
+    /// underflow when a component of `rhs` exceeds the matching component.
     fn sub( self, rhs : Self ) -> Self::Output
     {
       sub( &self, &rhs )
@@ -24,6 +28,10 @@ mod private
   {
     type Output = Vector< E, LEN >;
 
+    /// # Overflow
+    /// For integer `E` the element-wise subtraction is not overflow-checked: it
+    /// panics in debug / wraps in release on under/overflow — e.g. unsigned
+    /// underflow when a component of `rhs` exceeds the matching component.
     fn sub( self, rhs : Self ) -> Self::Output
     {
       sub( self, rhs )
@@ -35,6 +43,10 @@ mod private
   where
     E : MatNum
   {
+    /// # Overflow
+    /// For integer `E` the element-wise subtraction is not overflow-checked: it
+    /// panics in debug / wraps in release on under/overflow — e.g. unsigned
+    /// underflow when a component of `rhs` exceeds the matching component.
     fn sub_assign( &mut self, rhs : Self )
     {
       *self = *self - rhs;
@@ -48,6 +60,10 @@ mod private
   {
     type Output = Self;
 
+    /// # Overflow
+    /// For integer `E` the element-wise subtraction is not overflow-checked: it
+    /// panics in debug / wraps in release on under/overflow — e.g. unsigned
+    /// underflow when `rhs` exceeds a component.
     fn sub( self, rhs : E ) -> Self::Output
     {
       sub_scalar( &self, rhs )

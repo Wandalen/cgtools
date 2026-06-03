@@ -290,6 +290,12 @@ mod private
 
   /// Performs element-wise subtraction operation of vectors.
   /// Modifies first vector in place.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element subtraction is not overflow-checked: it
+  /// panics in debug / wraps in release whenever a result leaves `E`'s range —
+  /// e.g. unsigned underflow when a component of `a` exceeds the matching
+  /// component of `r`.
   #[ inline ]
   pub fn sub_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
@@ -305,6 +311,12 @@ mod private
   }
 
   /// Performs element-wise subtraction operation of vectors.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element subtraction is not overflow-checked: it
+  /// panics in debug / wraps in release whenever a result leaves `E`'s range —
+  /// e.g. unsigned underflow when a component of `b` exceeds the matching
+  /// component of `a`.
   #[ inline ]
   pub fn sub< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
@@ -319,6 +331,11 @@ mod private
 
   /// Performs element-wise subtraction operation of vector with a scalar.
   /// Modifies first vector in place.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element subtraction is not overflow-checked: it
+  /// panics in debug / wraps in release whenever a result leaves `E`'s range —
+  /// e.g. unsigned underflow when `a` exceeds a component of `r`.
   #[ inline ]
   pub fn sub_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
@@ -333,6 +350,11 @@ mod private
   }
 
   /// Performs element-wise subtraction operation of vector with a scalar.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element subtraction is not overflow-checked: it
+  /// panics in debug / wraps in release whenever a result leaves `E`'s range —
+  /// e.g. unsigned underflow when `b` exceeds a component of `a`.
   #[ inline ]
   pub fn sub_scalar< E, A, const N : usize >( a : &A, b : E ) -> A
   where
