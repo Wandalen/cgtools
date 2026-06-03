@@ -280,7 +280,7 @@ impl Input
       move | event : PointerEvent |
       {
         // The Pointer Events spec does not guarantee valid coordinates or button data
-        // for pointercancel; only the pointer_id is reliable.
+        // for pointercancel.
         let pointer_id = event.pointer_id();
         last_pointer_type.set( PointerType::from_dom_str( &event.pointer_type() ) );
         let event_type = EventType::PointerCancel( pointer_id );
