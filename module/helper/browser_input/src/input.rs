@@ -86,7 +86,7 @@ impl PointerType
 {
   /// Convert from the DOM `PointerEvent.pointerType` string.
   #[ inline ]
-  fn from_dom_str( s : &str ) -> Self
+  pub fn from_dom_str( s : &str ) -> Self
   {
     match s
     {
