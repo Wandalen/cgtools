@@ -80,7 +80,7 @@ void main()
     if( NdotL > 0.0 )
     {
       float G = geometrySmith( N, V, L, roughness );
-      float G_Vis = ( G * VdotH ) / ( NdotH * max( NdotV, 0.001 ) );
+      float G_Vis = ( G * VdotH ) / ( max( NdotH, 0.001 ) * max( NdotV, 0.001 ) );
       float Fc = pow( 1.0 - VdotH, 5.0 );
 
       A += ( 1.0 - Fc ) * G_Vis;
