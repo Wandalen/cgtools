@@ -24,7 +24,9 @@ mod tests
 
     // PMREM renders into RGBA16F attachments, which are only color-renderable with this
     // extension; without it the off-screen FBO is incomplete and `generate` returns an error.
-    gl.get_extension( "EXT_color_buffer_float" ).expect( "EXT_color_buffer_float must be available" );
+    gl.get_extension( "EXT_color_buffer_float" )
+      .expect( "get_extension call should not throw" )
+      .expect( "EXT_color_buffer_float must be available in the test environment" );
 
     gl
   }
