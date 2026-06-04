@@ -431,6 +431,7 @@ mod private
         diffuse_texture : Some( diffuse_texture.release() ),
         specular_1_texture : Some( specular_texture.release() ),
         specular_2_texture : Some( brdf_lut ),
+        num_mips,
       }
     )
   }

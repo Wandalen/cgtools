@@ -788,6 +788,10 @@ mod private
                   gl.uniform1i( locations.get( "irradianceTexture" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'irradianceTexture' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 );
                   gl.uniform1i( locations.get( "prefilterEnvMap" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'prefilterEnvMap' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 + 1 );
                   gl.uniform1i( locations.get( "integrateBRDF" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'integrateBRDF' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 + 2 );
+                  if let Some( loc ) = locations.get( "u_max_lod" )
+                  {
+                    gl.uniform1f( loc.clone().as_ref(), ( ibl.num_mips.saturating_sub( 1 ) ) as f32 );
+                  }
                 }
               }
 

@@ -97,6 +97,7 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
     uniform mediump samplerCube prefilterEnvMap;
     uniform mediump sampler2D integrateBRDF;
   #endif
+  uniform float u_max_lod;
 #endif
 #ifdef USE_KHR_materials_specular
   uniform float specularFactor;
@@ -438,8 +439,6 @@ float ditherNoise( vec2 fragCoord )
   {
     float dotNV = clamp( dot( N, V ), 0.01, 1.0 );
 
-    const float MAX_LOD = 9.0;
-
     vec3 R = reflect( -V, N );
 
     // Base LOD from roughness. No fixed floor (e.g. `max( .., 1.0 )`) is applied: with the
@@ -450,7 +449,7 @@ float ditherNoise( vec2 fragCoord )
     // and raises the LOD. On flat smooth surfaces reflVariance ~ 0, there is no sub-pixel
     // variation to alias, so sampling mip 0 there is safe; a fixed floor would only blur
     // legitimate mirror reflections.
-    float lod = material.roughness * MAX_LOD;
+    float lod = material.roughness * u_max_lod;
 
     // GSAA-style specular antialiasing: widen the filter where the reflected direction changes
     // rapidly in screen space.
@@ -458,7 +457,7 @@ float ditherNoise( vec2 fragCoord )
     vec3 dRdy = dFdy( R );
     float reflVariance = dot( dRdx, dRdx ) + dot( dRdy, dRdy );
     lod = max( lod, 0.5 * log2( max( reflVariance, 1e-6 ) ) + 4.0 );
-    lod = min( lod, MAX_LOD );
+    lod = min( lod, u_max_lod );
 
     float dither = ( ditherNoise( gl_FragCoord.xy ) - 0.5 ) / 512.0;
 

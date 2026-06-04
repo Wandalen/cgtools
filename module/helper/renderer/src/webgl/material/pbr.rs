@@ -66,6 +66,7 @@ mod private
     "irradianceTexture",
     "prefilterEnvMap",
     "integrateBRDF",
+    "u_max_lod",
     "mipmapDistanceRange",
     //// Scalers uniform locations
     "baseColorFactor",
