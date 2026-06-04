@@ -222,6 +222,10 @@ mod private
       }
     }
 
+    // Detach the texture before generating mipmaps: the last render_to_cube_face call left it
+    // attached to COLOR_ATTACHMENT0, and calling generate_mipmap while the texture is
+    // simultaneously attached to the draw FBO is undefined behaviour per WebGL2 spec §4.4.5.
+    gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     gl.bind_texture( gl::TEXTURE_CUBE_MAP, Some( texture.as_ref() ) );
     gl.generate_mipmap( gl::TEXTURE_CUBE_MAP );
     gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
@@ -360,9 +364,12 @@ mod private
   /// This is a one-shot loader that drives its own off-screen FBO passes. Following the
   /// renderer-wide convention (every pass sets the state it needs and does not restore it),
   /// it leaves global render state — `DEPTH_TEST`, `BLEND`, `CULL_FACE`, color mask,
-  /// clear color, pixel store — modified on return. Framebuffer, texture and program
-  /// bindings are reset to `None`. The caller is expected to (re)establish the state it
-  /// needs before its next draw; the renderer's per-frame passes already do so.
+  /// clear color, pixel store — modified on **both success and error return**. The viewport
+  /// is also modified (set to the cubemap face size) and is not restored on either path.
+  /// Framebuffer, texture and program bindings are reset to `None` on success; on an error
+  /// return the FBO and program bindings may still be set. The caller is expected to
+  /// (re)establish the state it needs before its next draw; the renderer's per-frame passes
+  /// already do so.
   ///
   /// # Resource cleanup
   ///
@@ -416,6 +423,7 @@ mod private
     );
 
     gl.bind_framebuffer( gl::FRAMEBUFFER, Some( fbo.as_ref() ) );
+    // No TextureGuard needed — no fallible operations follow this allocation.
     let brdf_lut = integrate_brdf( gl, &programs )?;
 
     // Every pass succeeded. Reset bindings, then hand the output textures to the caller by
