@@ -199,7 +199,7 @@ mod private
     num_mips : i32,
   ) -> Result< WebGlTexture, gl::WebglError >
   {
-    let texture = allocate_cubemap( gl, size, num_mips )?;
+    let texture = TextureGuard::new( gl, allocate_cubemap( gl, size, num_mips )? );
 
     programs.equirect_to_cube.bind( gl );
     let face_loc = programs.equirect_to_cube.loc( gl, "face" );
@@ -210,7 +210,7 @@ mod private
 
     for face in 0..6u32
     {
-      render_to_cube_face( gl, &texture, face, 0, size, face_loc.as_ref() );
+      render_to_cube_face( gl, texture.as_ref(), face, 0, size, face_loc.as_ref() );
 
       // The whole PMREM pipeline renders into one FBO with a single RGBA16F color attachment, so
       // completeness is governed by that format's renderability — identical for every face, mip
@@ -222,12 +222,12 @@ mod private
       }
     }
 
-    gl.bind_texture( gl::TEXTURE_CUBE_MAP, Some( &texture ) );
+    gl.bind_texture( gl::TEXTURE_CUBE_MAP, Some( texture.as_ref() ) );
     gl.generate_mipmap( gl::TEXTURE_CUBE_MAP );
     gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
     gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
 
-    Ok( texture )
+    Ok( texture.release() )
   }
 
   fn prefilter_specular
