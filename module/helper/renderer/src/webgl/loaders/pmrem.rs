@@ -291,6 +291,7 @@ mod private
   ) -> Result< WebGlTexture, gl::WebglError >
   {
     let irradiance_size = 64u32;
+    // No TextureGuard needed — no fallible operations follow this allocation.
     let texture = allocate_cubemap( gl, irradiance_size, 1 )?;
 
     programs.irradiance.bind( gl );
@@ -315,6 +316,7 @@ mod private
   fn integrate_brdf( gl : &GL, programs : &Programs< '_ > ) -> Result< WebGlTexture, gl::WebglError >
   {
     let lut_size = 512u32;
+    // No TextureGuard needed — no fallible operations follow this allocation.
     let texture = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "PMREM BRDF LUT" ) )?;
     gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
     gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, lut_size as i32, lut_size as i32 );
