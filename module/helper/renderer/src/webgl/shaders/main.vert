@@ -37,7 +37,6 @@ uniform mat4x4 viewMatrix;
 uniform mat4x4 projectionMatrix;
 
 out vec3 vWorldPos;
-out vec3 vViewPos;
 out vec3 vNormal;
 out vec2 vUv_0;
 out vec2 vUv_1;
@@ -277,7 +276,6 @@ void main()
   vec4 worldPos = worldMatrix * position;
   vec4 viewPos = viewMatrix * worldPos;
 
-  vViewPos = viewPos.xyz;
   vWorldPos = worldPos.xyz;
 
   gl_Position = projectionMatrix * viewPos;

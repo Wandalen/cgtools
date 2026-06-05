@@ -274,51 +274,6 @@ mod private
       }
     }
 
-    /// Configures both the multisample and resolved framebuffers to allow
-    /// drawing to both `COLOR_ATTACHMENT0` (main) and `COLOR_ATTACHMENT1` (emission).
-    ///
-    /// This is useful when you want to render both normal scene data and
-    /// emissive properties in a single pass.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn enable_emission_texture( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      // Enable both attachments for the multisample framebuffer.
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
-
-      // Enable both attachments for the resolved framebuffer.
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
-
-      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-    }
-
-    /// Configures both the multisample and resolved framebuffers to allow
-    /// drawing only to `COLOR_ATTACHMENT0` (main), effectively disabling
-    /// rendering to the emission texture.
-    ///
-    /// This can be used when the emission channel is not needed or to optimize
-    /// rendering passes.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn disable_emission_texture( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      // Disable emission attachment for the multisample framebuffer.
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-
-      // Disable emission attachment for the resolved framebuffer.
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-
-      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-    }
-
     /// Resolves the multisampled framebuffer into the non-multisampled textures
     /// of the resolved framebuffer using `gl.blit_framebuffer`.
     ///
@@ -329,13 +284,11 @@ mod private
     /// # Arguments
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn resolve( &self, gl : &gl::WebGl2RenderingContext, use_emission : bool )
+    pub fn resolve( &self, gl : &gl::WebGl2RenderingContext, use_emission : bool, has_transparent : bool )
     {
       self.bind_multisample( gl );
       self.bind_resolved( gl );
 
-      // Ensure the multisample framebuffer is bound for reading and
-      // the resolved framebuffer for drawing.
       gl.bind_framebuffer( gl::READ_FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
       gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
 
@@ -350,12 +303,6 @@ mod private
 
       gl.read_buffer( gl::COLOR_ATTACHMENT0 );
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-      // Clear the color buffer of the resolved framebuffer before blitting.
-      // This is good practice to ensure clean results, especially if partial updates
-      // are not intended.
-      //gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
-      // Blit the multisampled color buffer (COLOR_ATTACHMENT0) from the read framebuffer
-      // to the draw framebuffer. The `gl::LINEAR` filter ensures a smooth resolution.
       gl.blit_framebuffer
       (
         0, 0, self.texture_width as i32, self.texture_height as i32,
@@ -368,7 +315,6 @@ mod private
       {
         gl.read_buffer( gl::COLOR_ATTACHMENT1 );
         gl::drawbuffers::drawbuffers( gl, &[ 1 ] );
-        //gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, &[ 0.0, 0.0, 0.0, 0.0 ] );
         gl.blit_framebuffer
         (
           0, 0, self.texture_width as i32, self.texture_height as i32,
@@ -378,27 +324,27 @@ mod private
         );
       }
 
-      gl.read_buffer( gl::COLOR_ATTACHMENT2 );
-      gl::drawbuffers::drawbuffers( gl, &[ 2 ] );
-      //gl.clear_bufferfv_with_f32_array( gl::COLOR, 2, &[ 0.0, 0.0, 0.0, 1.0 ] );
-      gl.blit_framebuffer
-      (
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        gl::COLOR_BUFFER_BIT, gl::LINEAR
-      );
+      if has_transparent
+      {
+        gl.read_buffer( gl::COLOR_ATTACHMENT2 );
+        gl::drawbuffers::drawbuffers( gl, &[ 2 ] );
+        gl.blit_framebuffer
+        (
+          0, 0, self.texture_width as i32, self.texture_height as i32,
+          0, 0, self.texture_width as i32, self.texture_height as i32,
+          gl::COLOR_BUFFER_BIT, gl::LINEAR
+        );
 
-      gl.read_buffer( gl::COLOR_ATTACHMENT3 );
-      gl::drawbuffers::drawbuffers( gl, &[ 3 ] );
-      //gl.clear_bufferfv_with_f32_array( gl::COLOR, 3, &[ 0.0, 0.0, 0.0, 1.0 ] );
-      gl.blit_framebuffer
-      (
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        0, 0, self.texture_width as i32, self.texture_height as i32,
-        gl::COLOR_BUFFER_BIT, gl::LINEAR
-      );
+        gl.read_buffer( gl::COLOR_ATTACHMENT3 );
+        gl::drawbuffers::drawbuffers( gl, &[ 3 ] );
+        gl.blit_framebuffer
+        (
+          0, 0, self.texture_width as i32, self.texture_height as i32,
+          0, 0, self.texture_width as i32, self.texture_height as i32,
+          gl::COLOR_BUFFER_BIT, gl::LINEAR
+        );
+      }
 
-      // Unbind framebuffers to reset global state.
       gl.bind_framebuffer( gl::READ_FRAMEBUFFER, None );
       gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
       self.unbind_multisample( gl );
@@ -418,10 +364,6 @@ mod private
     {
       gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, self.multisample_main_renderbuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, self.multisample_emission_renderbuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::RENDERBUFFER, self.multisample_transparent_accumulate_renderbuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::RENDERBUFFER, self.multisample_transparent_revealage_renderbuffer.as_ref() );
     }
 
     /// Binds the `resolved_framebuffer` and attaches its textures.
@@ -437,10 +379,6 @@ mod private
     {
       gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.main_texture.as_ref(), 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, self.emission_texture.as_ref(), 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, self.transparent_accumulate_texture.as_ref(), 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, self.transparent_revealage_texture.as_ref(), 0 );
     }
 
     /// Unbinds the color renderbuffers from the `multisample_framebuffer`
@@ -510,7 +448,8 @@ mod private
     material_program_map : FxHashMap< uuid::Uuid, uuid::Uuid >,
     /// (node, primitive, primitive_index, program_uuid)
     transparent_nodes : Vec< ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid ) >,
-    opaque_nodes : Vec< ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid ) >,
+    /// (node, primitive, primitive_index, program_uuid, has_emission)
+    opaque_nodes : Vec< ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid, bool ) >,
 
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
@@ -521,12 +460,12 @@ mod private
     /// renderbuffers and textures (main color and emission). It allows for anti-aliasing
     /// and the separation of main scene rendering from emissive components.
     framebuffer_ctx : FramebufferContext,
-    /// Bloom pass for the emissive texutre
-    bloom_effect : UnrealBloomPass,
+    /// Bloom pass for the emissive texture (allocated lazily when emission is enabled)
+    bloom_effect : Option< UnrealBloomPass >,
     /// Blend pass to combined the blurred emissive texture with the main image
     blend_effect : BlendPass,
-    /// Swap buffer to control rendering of the effects
-    swap_buffer : SwapFramebuffer,
+    /// Swap buffer to control rendering of the effects (allocated lazily with bloom)
+    swap_buffer : Option< SwapFramebuffer >,
     exposure : f32,
     composite_shader : CompositeShader,
     /// Clear color
@@ -543,12 +482,10 @@ mod private
       let framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
       let use_emission = false;
       let ibl = None;
-      let bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
       let mut blend_effect = BlendPass::new( gl )?;
       blend_effect.dst_factor = gl::ONE;
       blend_effect.src_factor = gl::ONE;
       blend_effect.blend_texture = framebuffer_ctx.main_texture.clone();
-      let swap_buffer = SwapFramebuffer::new( gl, width, height );
       let exposure = 0.0;
 
       let composite_program = gl::ProgramFromSources::new( VS_TRIANGLE, include_str!( "shaders/composite.frag" ) ).compile_and_link( gl )?;
@@ -579,8 +516,8 @@ mod private
           use_emission,
           framebuffer_ctx,
           blend_effect,
-          bloom_effect,
-          swap_buffer,
+          bloom_effect : None,
+          swap_buffer : None,
           exposure,
           composite_shader,
           clear_color : F32x3::splat( 0.0 ),
@@ -593,12 +530,26 @@ mod private
     pub fn resize( &mut self, gl : &gl::GL, width : u32, height : u32, samples : i32 ) -> Result< (), gl::WebglError >
     {
       self.framebuffer_ctx.free_gl_resources( gl );
-      self.bloom_effect.free_gl_resources( gl );
-      self.swap_buffer.free_gl_resources( gl );
+      if let Some( ref mut bloom ) = self.bloom_effect
+      {
+        bloom.free_gl_resources( gl );
+      }
+      if let Some( ref mut swap ) = self.swap_buffer
+      {
+        swap.free_gl_resources( gl );
+      }
 
       self.framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
-      self.bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
-      self.swap_buffer = SwapFramebuffer::new( gl, width, height );
+      if self.use_emission
+      {
+        self.bloom_effect = Some( UnrealBloomPass::new( gl, width, height, gl::RGBA16F )? );
+        self.swap_buffer = Some( SwapFramebuffer::new( gl, width, height ) );
+      }
+      else
+      {
+        self.bloom_effect = None;
+        self.swap_buffer = None;
+      }
       Ok( () )
     }
 
@@ -611,9 +562,16 @@ mod private
     }
 
     /// Sets whether the renderer should use the emission texture for post-processing effects.
-    pub fn set_use_emission( &mut self, use_emission : bool )
+    pub fn set_use_emission( &mut self, gl : &gl::WebGl2RenderingContext, use_emission : bool )
     {
       self.use_emission = use_emission;
+      if use_emission && self.bloom_effect.is_none()
+      {
+        let w = self.framebuffer_ctx.texture_width;
+        let h = self.framebuffer_ctx.texture_height;
+        self.bloom_effect = UnrealBloomPass::new( gl, w, h, gl::RGBA16F ).ok();
+        self.swap_buffer = Some( SwapFramebuffer::new( gl, w, h ) );
+      }
     }
 
     /// Sets clear color
@@ -646,13 +604,16 @@ mod private
     /// results in a more expansive and softer glow.
     pub fn set_bloom_radius( &mut self, radius : f32 )
     {
-      self.bloom_effect.set_bloom_radius( radius );
+      if let Some( ref mut bloom ) = self.bloom_effect
+      {
+        bloom.set_bloom_radius( radius );
+      }
     }
 
     /// Gets the radius of the bloom effect.
     pub fn bloom_radius( &self ) -> f32
     {
-      self.bloom_effect.bloom_radius()
+      self.bloom_effect.as_ref().map_or( 0.5, | b | b.bloom_radius() )
     }
 
     /// Sets the strength (intensity) of the bloom effect.
@@ -661,13 +622,16 @@ mod private
     /// makes the bloom more visible.
     pub fn set_bloom_strength( &mut self, strength : f32  )
     {
-      self.bloom_effect.set_bloom_strength( strength );
+      if let Some( ref mut bloom ) = self.bloom_effect
+      {
+        bloom.set_bloom_strength( strength );
+      }
     }
 
     /// Gets the strength (intensity) of the bloom effect.
     pub fn bloom_strength( &self ) -> f32
     {
-      self.bloom_effect.bloom_strength()
+      self.bloom_effect.as_ref().map_or( 1.5, | b | b.bloom_strength() )
     }
 
     /// Retrieves a clone of the main color texture from the internal framebuffer context.
@@ -724,30 +688,9 @@ mod private
     {
       scene.update_world_matrix();
 
-      gl.clear_depth( 1.0 );
-      gl.clear_stencil( 0 );
       gl.disable( gl::BLEND );
 
-      if self.use_emission
-      {
-        self.framebuffer_ctx.enable_emission_texture( gl );
-      }
-      else
-      {
-        self.framebuffer_ctx.disable_emission_texture( gl );
-      }
-
-      self.framebuffer_ctx.bind_multisample( gl );
-      gl::drawbuffers::drawbuffers( gl, &[ 0, 1, 2, 3 ] );
-      let [ r, g, b ] = self.clear_color.0;
-      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ r, g, b, 1.0 ] );
-      gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, &[ 0.0, 0.0, 0.0, 0.0 ] );
-      gl.clear_bufferfv_with_f32_array( gl::COLOR, 2, &[ 0.0, 0.0, 0.0, 1.0 ] );
-      gl.clear_bufferfv_with_f32_array( gl::COLOR, 3, &[ 0.0, 0.0, 0.0, 1.0 ] );
-      gl.clear( gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT );
-      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
-
-      // Clear the list of transparent nodes before each render.
+      // Collect nodes before clearing so we know which attachments are needed
       self.transparent_nodes.clear();
       self.opaque_nodes.clear();
       let mut lights = FxHashMap::< LightType, Vec< Light > >::default();
@@ -845,6 +788,10 @@ mod private
                   gl.uniform1i( locations.get( "irradianceTexture" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'irradianceTexture' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 );
                   gl.uniform1i( locations.get( "prefilterEnvMap" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'prefilterEnvMap' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 + 1 );
                   gl.uniform1i( locations.get( "integrateBRDF" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'integrateBRDF' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 + 2 );
+                  if let Some( loc ) = locations.get( "u_max_lod" )
+                  {
+                    gl.uniform1f( loc.clone().as_ref(), ( ibl.num_mips.saturating_sub( 1 ) ) as f32 );
+                  }
                 }
               }
 
@@ -863,7 +810,7 @@ mod private
           {
             AlphaMode::Blend
             => self.transparent_nodes.push( ( node.clone(), primitive_rc.clone(), i, program_uuid ) ),
-            _ => self.opaque_nodes.push( ( node.clone(), primitive_rc.clone(), i, program_uuid ) ),
+            _ => self.opaque_nodes.push( ( node.clone(), primitive_rc.clone(), i, program_uuid, material.has_emission() ) ),
           }
         }
 
@@ -872,9 +819,55 @@ mod private
 
       scene.traverse( &mut collect_nodes )?;
 
+      let has_transparent = !self.transparent_nodes.is_empty();
+      let has_emissive = self.use_emission;
+
+      // Note: emission/transparency attachments are selected purely via the per-frame
+      // `drawbuffers` call below (multisample FBO) and re-selected per blit in `resolve`
+      // (resolved FBO). Calling `enable/disable_emission_texture` here would only set
+      // drawbuffers state that is immediately overwritten before any draw uses it.
+      self.framebuffer_ctx.bind_multisample( gl );
+
+      if has_transparent && has_emissive
+      {
+        gl::drawbuffers::drawbuffers( gl, &[ 0, 1, 2, 3 ] );
+      }
+      else if has_transparent
+      {
+        gl::drawbuffers::drawbuffers( gl, &[ 0, 2, 3 ] );
+      }
+      else if has_emissive
+      {
+        gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
+      }
+      else
+      {
+        gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+      }
+
+      let [ r, g, b ] = self.clear_color.0;
+      // Alpha = 0 marks background pixels; geometry overwrites it with 1. The tone
+      // mapping pass uses this to leave the clear color untouched by tone mapping.
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ r, g, b, 0.0 ] );
+      if has_emissive
+      {
+        gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, &[ 0.0, 0.0, 0.0, 0.0 ] );
+      }
+      if has_transparent
+      {
+        gl.clear_bufferfv_with_f32_array( gl::COLOR, 2, &[ 0.0, 0.0, 0.0, 1.0 ] );
+        gl.clear_bufferfv_with_f32_array( gl::COLOR, 3, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      }
+      gl.clear_depth( 1.0 );
+      gl.clear_stencil( 0 );
+      gl.clear( gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT );
+
       self.upload_per_program_uniforms( gl, camera, &lights )?;
       self.draw_opaque( gl, camera )?;
-      self.draw_transparent( gl )?;
+      if !self.transparent_nodes.is_empty()
+      {
+        self.draw_transparent( gl )?;
+      }
       self.composite( gl )?;
 
       Ok( () )
@@ -883,27 +876,30 @@ mod private
     /// Phase 2: Uploads camera, lights, and exposure uniforms to each active program.
     fn upload_per_program_uniforms
     (
-      &self,
+      &mut self,
       gl : &GL,
       camera : &Camera,
       lights : &FxHashMap< LightType, Vec< Light > >
     ) -> Result< (), gl::WebglError >
     {
       let mut active_program_ids : FxHashSet< uuid::Uuid > = FxHashSet::default();
-      for ( _, _, _, pid ) in self.opaque_nodes.iter().chain( self.transparent_nodes.iter() )
+      for ( _, _, _, pid, _ ) in self.opaque_nodes.iter()
+      {
+        active_program_ids.insert( *pid );
+      }
+      for ( _, _, _, pid ) in self.transparent_nodes.iter()
       {
         active_program_ids.insert( *pid );
       }
 
       for prog_id in &active_program_ids
       {
-        if let Some( program ) = self.compiled_programs.get( prog_id )
+        if let Some( program ) = self.compiled_programs.get_mut( prog_id )
         {
-          let locations = program.locations();
           program.bind( gl );
-          camera.upload( gl, locations );
-          bind_lights( gl, &**program, lights );
-          if let Some( exposure_loc ) = locations.get( "exposure" )
+          camera.upload( gl, program.locations() );
+          bind_lights( gl, &mut **program, lights );
+          if let Some( exposure_loc ) = program.locations().get( "exposure" )
           {
             gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
           }
@@ -921,17 +917,29 @@ mod private
       camera : &Camera
     ) -> Result< (), gl::WebglError >
     {
-      // Fix: sort by program UUID to produce a deterministic draw order and minimize GPU state switches.
-      // Root cause: without sorting, iteration order over the node set was non-deterministic (HashMap),
-      //   causing visible flickering and unnecessary program rebinds between frames.
-      // Pitfall: sort key must be the compiled program UUID (pid), not the material TypeId — two materials
-      //   with different TypeIds may share the same compiled program and would otherwise be split apart.
-      self.opaque_nodes.sort_by_key( | ( _, _, _, pid ) | *pid );
+      self.opaque_nodes.sort_by_key( | ( _, _, _, pid, has_em ) | ( *has_em, *pid ) );
 
       let mut current_program_id : Option< uuid::Uuid > = None;
       let mut last_material_id : Option< uuid::Uuid > = None;
-      for ( node_rc, primitive_rc, prim_idx, program_id ) in self.opaque_nodes.iter()
+      let mut current_emission = false;
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+
+      for ( node_rc, primitive_rc, prim_idx, program_id, has_em ) in self.opaque_nodes.iter()
       {
+        let need_emission = self.use_emission && *has_em;
+        if need_emission != current_emission
+        {
+          if need_emission
+          {
+            gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
+          }
+          else
+          {
+            gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+          }
+          current_emission = need_emission;
+        }
+
         let node_ref = node_rc.borrow();
         let primitive = primitive_rc.borrow();
         let material = primitive.material.borrow();
@@ -959,7 +967,6 @@ mod private
           locations : shader_program.locations()
         };
 
-        // Upload material uniforms on state change or when switching materials within same program
         if material.needs_update() || last_material_id != Some( material.id() )
         {
           material.upload_on_state_change( gl, &material_upload_context )?;
@@ -968,7 +975,6 @@ mod private
         material.upload( gl, &material_upload_context )?;
         material.bind( gl );
 
-        // Rebind IBL textures after material.bind() to ensure IBL units are not overwritten
         if let Some( ref ibl ) = self.ibl
         {
           if let Some( ibl_base_texture_unit ) = material.ibl_base_texture_unit()
@@ -984,6 +990,8 @@ mod private
         primitive.bind( gl );
         primitive.draw( gl );
       }
+
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
       if self.framebuffer_ctx.skybox_texture.is_some()
       {
@@ -1092,36 +1100,49 @@ mod private
       gl : &GL
     ) -> Result< (), gl::WebglError >
     {
-      self.framebuffer_ctx.resolve( gl, self.use_emission );
+      let has_transparent = !self.transparent_nodes.is_empty();
+      self.framebuffer_ctx.resolve( gl, self.use_emission, has_transparent );
       self.framebuffer_ctx.unbind_multisample( gl );
 
       if self.use_emission
       {
-        self.swap_buffer.reset();
-        self.swap_buffer.bind( gl );
-        self.swap_buffer.set_input( self.framebuffer_ctx.emission_texture.clone() );
+        if let ( Some( ref mut swap ), Some( ref bloom ) ) = ( &mut self.swap_buffer, &self.bloom_effect )
+        {
+          swap.reset();
+          swap.bind( gl );
+          swap.set_input( self.framebuffer_ctx.emission_texture.clone() );
 
-        self.bloom_effect.render( gl, self.swap_buffer.get_input(), self.swap_buffer.get_output() )?;
-        self.blend_effect.blend_texture = self.swap_buffer.get_output();
-        self.blend_effect.render( gl, None, self.framebuffer_ctx.main_texture.clone() )?;
+          bloom.render( gl, swap.get_input(), swap.get_output() )?;
+          self.blend_effect.blend_texture = swap.get_output();
+          self.blend_effect.render( gl, None, self.framebuffer_ctx.main_texture.clone() )?;
+        }
       }
 
-      self.composite_shader.bind( gl );
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer_ctx.resolved_framebuffer.as_ref() );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, None, 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, None, 0 );
-      gl.active_texture( gl::TEXTURE0 );
-      gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transparent_accumulate_texture.as_ref() );
-      gl.active_texture( gl::TEXTURE1 );
-      gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transparent_revealage_texture.as_ref() );
+      if has_transparent
+      {
+        self.composite_shader.bind( gl );
+        gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer_ctx.resolved_framebuffer.as_ref() );
+        gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
+        gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
+        gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, None, 0 );
+        gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, None, 0 );
+        gl.active_texture( gl::TEXTURE0 );
+        gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transparent_accumulate_texture.as_ref() );
+        gl.active_texture( gl::TEXTURE1 );
+        gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transparent_revealage_texture.as_ref() );
 
-      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+        gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
-      gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.framebuffer_ctx.main_texture.as_ref(), 0 );
-      gl.draw_arrays( gl::TRIANGLES, 0, 3 );
+        gl.enable( gl::BLEND );
+        gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
+        gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.framebuffer_ctx.main_texture.as_ref(), 0 );
+        gl.draw_arrays( gl::TRIANGLES, 0, 3 );
+        gl.disable( gl::BLEND );
+
+        gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, self.framebuffer_ctx.emission_texture.as_ref(), 0 );
+        gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, self.framebuffer_ctx.transparent_accumulate_texture.as_ref(), 0 );
+        gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, self.framebuffer_ctx.transparent_revealage_texture.as_ref(), 0 );
+      }
 
       Ok( () )
     }
@@ -1175,15 +1196,31 @@ mod private
     gl.color_mask( red, green, blue, alpha );
   }
 
+  fn cached_loc
+  (
+    gl : &GL,
+    webgl_program : &gl::web_sys::WebGlProgram,
+    locations : &mut FxHashMap< String, Option< gl::WebGlUniformLocation > >,
+    key : &str
+  ) -> Option< gl::WebGlUniformLocation >
+  {
+    if let Some( loc ) = locations.get( key )
+    {
+      return loc.clone();
+    }
+    let loc = gl.get_uniform_location( webgl_program, key );
+    let result = loc.clone();
+    locations.insert( key.to_string(), loc );
+    result
+  }
+
   fn bind_lights
   (
     gl : &GL,
-    program : &dyn ShaderProgram,
+    program : &mut dyn ShaderProgram,
     lights : &FxHashMap< LightType, Vec< Light > >
   )
   {
-    let locations = program.locations();
-
     for ( type_, one_type_lights ) in lights
     {
       let max_count = match type_
@@ -1193,13 +1230,17 @@ mod private
         LightType::Spot => MAX_SPOT_LIGHTS
       };
 
-      let Some( count_loc ) = locations.get( format!( "{}LightsCount", type_.to_string().to_lowercase() ).as_str() )
+      let count_key = format!( "{}LightsCount", type_.to_string().to_lowercase() );
+      let Some( count_loc ) = program.locations().get( &count_key )
       else
       {
         continue;
       };
       let _ = gl::uniform::upload( gl, count_loc.clone(), &( one_type_lights.len().min( max_count ) as i32 ) );
     }
+
+    let webgl_program = program.program().clone();
+    let locations = program.locations_mut();
 
     'i : for ( type_, one_type_lights ) in lights
     {
@@ -1220,10 +1261,10 @@ mod private
               continue;
             };
 
-            let position_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].position" ).as_str() );
-            let color_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].color" ).as_str() );
-            let strength_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].strength" ).as_str() );
-            let range_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].range" ).as_str() );
+            let position_loc = cached_loc( gl, &webgl_program, locations, &format!( "pointLights[{i}].position" ) );
+            let color_loc = cached_loc( gl, &webgl_program, locations, &format!( "pointLights[{i}].color" ) );
+            let strength_loc = cached_loc( gl, &webgl_program, locations, &format!( "pointLights[{i}].strength" ) );
+            let range_loc = cached_loc( gl, &webgl_program, locations, &format!( "pointLights[{i}].range" ) );
 
             let _ = gl::uniform::upload( gl, position_loc, light.position.as_slice() );
             let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
@@ -1243,9 +1284,9 @@ mod private
               continue;
             };
 
-            let direction_loc = gl.get_uniform_location( program.program(), format!( "directLights[{i}].direction" ).as_str() );
-            let color_loc = gl.get_uniform_location( program.program(), format!( "directLights[{i}].color" ).as_str() );
-            let strength_loc = gl.get_uniform_location( program.program(), format!( "directLights[{i}].strength" ).as_str() );
+            let direction_loc = cached_loc( gl, &webgl_program, locations, &format!( "directLights[{i}].direction" ) );
+            let color_loc = cached_loc( gl, &webgl_program, locations, &format!( "directLights[{i}].color" ) );
+            let strength_loc = cached_loc( gl, &webgl_program, locations, &format!( "directLights[{i}].strength" ) );
 
             let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
             let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
@@ -1264,14 +1305,14 @@ mod private
               continue;
             };
 
-            let position_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].position" ).as_str() );
-            let direction_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].direction" ).as_str() );
-            let color_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].color" ).as_str() );
-            let strength_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].strength" ).as_str() );
-            let range_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].range" ).as_str() );
-            let inner_angle_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].innerConeAngle" ).as_str() );
-            let outer_angle_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].outerConeAngle" ).as_str() );
-            let use_lightmap_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].useLightMap" ).as_str() );
+            let position_loc = cached_loc( gl, &webgl_program, locations, &format!( "spotLights[{i}].position" ) );
+            let direction_loc = cached_loc( gl, &webgl_program, locations, &format!( "spotLights[{i}].direction" ) );
+            let color_loc = cached_loc( gl, &webgl_program, locations, &format!( "spotLights[{i}].color" ) );
+            let strength_loc = cached_loc( gl, &webgl_program, locations, &format!( "spotLights[{i}].strength" ) );
+            let range_loc = cached_loc( gl, &webgl_program, locations, &format!( "spotLights[{i}].range" ) );
+            let inner_angle_loc = cached_loc( gl, &webgl_program, locations, &format!( "spotLights[{i}].innerConeAngle" ) );
+            let outer_angle_loc = cached_loc( gl, &webgl_program, locations, &format!( "spotLights[{i}].outerConeAngle" ) );
+            let use_lightmap_loc = cached_loc( gl, &webgl_program, locations, &format!( "spotLights[{i}].useLightMap" ) );
 
             let _ = gl::uniform::upload( gl, position_loc, light.position.as_slice() );
             let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );

@@ -107,7 +107,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera.bind_controls( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_use_emission( true );
+  renderer.set_use_emission( &gl, true );
   renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", Some( 0..0 ) ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );

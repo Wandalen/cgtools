@@ -66,6 +66,7 @@ mod private
     "irradianceTexture",
     "prefilterEnvMap",
     "integrateBRDF",
+    "u_max_lod",
     "mipmapDistanceRange",
     //// Scalers uniform locations
     "baseColorFactor",
@@ -775,6 +776,12 @@ mod private
     fn type_name( &self ) -> &'static str
     {
       stringify!( PbrMaterial )
+    }
+
+    fn has_emission( &self ) -> bool
+    {
+      self.emissive_texture.is_some()
+      || self.emissive_factor.as_slice() != [ 0.0, 0.0, 0.0 ]
     }
   }
 

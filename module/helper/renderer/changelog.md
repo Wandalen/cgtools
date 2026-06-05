@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **IBL multiple-scattering energy compensation**: indirect specular now adds the multi-scatter term (`Fms * Ems` weighted by irradiance) on top of the single-scatter prefiltered reflection, matching three.js `computeMultiscattering()`. Without it, rough metals/plastics read as pure mirrors and the overall specular is too dim.
+- **Exposure applied uniformly**: `Renderer::set_exposure` now scales the entire lit result in the PBR shader (`color *= exp2( exposure )`) instead of only the IBL contribution. Previously exposure multiplied just the environment term, over-brightening reflections relative to direct lighting.
+- **ACES pre-exposure scaling**: the ACES tone mapping pass now divides by `0.6` before the RRT fit, matching three.js `ACESFilmicToneMapping` so identical exposure values produce identical brightness.
 - **Shader program caching**: Materials sharing identical shader source code now reuse a single compiled GPU program instead of compiling duplicates. Programs are keyed by `(TypeId, defines_string)` in a `shader_source_registry` — materials of the same concrete Rust type with identical defines always produce the same shader source, so one compiled program is shared across all instances.
 - **Draw call grouping**: Opaque and transparent primitives are sorted by program UUID before drawing, minimizing GPU state switches (program binds).
 - **Three-phase rendering pipeline**: The render loop is now split into (1) scene traversal & program compilation, (2) per-program uniform uploads (camera, lights, exposure), and (3) sorted draw calls.
@@ -25,9 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: Renamed `GBuffer::get_texture()` → `texture()`
 - **BREAKING**: Removed `shader_hash()` from the `Material` trait (dead code, replaced by `(TypeId, defines_str)` cache key)
 - **BREAKING**: Asset loaders (`webgl::loaders::gltf::load`, `webgl::loaders::ibl::load`, `webgl::loaders::hdr_texture::load_to_mip_cube` / `load_to_mip_d2`) no longer rely on `mingl::file::load`'s implicit `/static/` prefix. Path arguments are now passed verbatim to the underlying fetch — callers that previously passed bare paths like `"envMap"` must now pass `"static/envMap"` (or any other valid URL / origin-absolute path). Migration mirrors the upstream `mingl` 0.4.0 change.
+- **BREAKING**: `Renderer::set_use_emission` now takes a `&WebGl2RenderingContext` as its first parameter (`set_use_emission( &mut self, gl, use_emission )`). The context is needed to lazily allocate the bloom pass and swap framebuffer the first time emission is enabled.
 
 ### Fixed
 
+- Clear-color background is no longer affected by exposure or tone mapping. The main color target is cleared with alpha `0` to mark background pixels (geometry and skybox write alpha `1`), and the tone mapping pass leaves alpha-`0` pixels untouched — mirroring three.js, where the clear color bypasses tone mapping.
 - Removed leftover `format!( "static/{}/{}", ... )` in `webgl::loaders::gltf::load`'s texture-Uri branch which, after the `mingl::file::load` semantics change, produced `static/static/<path>` URLs for any glTF with external textures.
 - Fixed IBL texture corruption where `upload_textures()` could overwrite IBL texture units because `active_texture` was not reset after `ibl.bind()`.
 - Fixed `light_map` texture not being bound in `PbrMaterial::bind()` (was missing from the bind list).
@@ -45,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- GPU PMREM generation (`webgl::loaders::pmrem::generate`): converts an equirectangular HDR into a full IBL set — equirect→cubemap, GGX importance-sampled prefiltered specular mips, cosine-weighted irradiance convolution, and a split-sum BRDF integration LUT.
 - `cull_mode` field to `PbrMaterial` for fine-grained face culling control
 - `Drop` implementation for `SwapFramebuffer` to prevent GPU memory leaks
 - GSAA (Geometric Specular Anti-Aliasing) for improved specular highlights
