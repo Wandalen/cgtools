@@ -28,6 +28,16 @@ mod private
   /// Pick the frame of `anim` that's active at `time_seconds` for a tile at
   /// `pos`, using the animation's declared `phase_offset`.
   ///
+  /// `oneshot_origin` is the wall-clock time at which an `OneShot`
+  /// animation began for *this instance* (typically
+  /// `Instance.state_entered_time` so re-entering a `OneShot` state
+  /// restarts the animation). It is ignored for `Loop` / `PingPong`
+  /// animations — those are intentionally synchronised across
+  /// instances via the master clock, with `phase_offset` providing
+  /// per-instance jitter. Pass `0.0` from non-instance call sites
+  /// (where `OneShot` start time is not meaningful) for the historical
+  /// behaviour.
+  ///
   /// Returns the `( asset_id, frame_name )` pair resolved to a single
   /// [`SpriteRef`] the caller can look up in the sprite id map.
   ///
@@ -41,11 +51,22 @@ mod private
   (
     anim : &Animation,
     time_seconds : f32,
+    oneshot_origin : f32,
     pos : ( i32, i32 ),
+    instance_seed : Option< u32 >,
   ) -> Result< SpriteRef, CompileError >
   {
-    let phase = phase_offset_seconds( anim, pos );
-    let local_t = time_seconds + phase;
+    let phase = phase_offset_seconds( anim, pos, instance_seed );
+    // `OneShot` is per-instance triggered — its local time is the elapsed
+    // wall-clock since this instance entered the state. Loop / PingPong
+    // ride the master clock so neighbouring instances stay in harmonic
+    // phase (jittered via `phase_offset`).
+    let base = match anim.mode
+    {
+      AnimationMode::OneShot => time_seconds - oneshot_origin,
+      _                      => time_seconds,
+    };
+    let local_t = base + phase;
 
     match &anim.timing
     {
@@ -130,8 +151,34 @@ mod private
     }
   }
 
-  /// Compute `phase_offset` in seconds for a given tile position.
-  fn phase_offset_seconds( anim : &Animation, pos : ( i32, i32 ) ) -> f32
+  /// Compute `phase_offset` in seconds for a given tile position. Thin
+  /// wrapper retained for [`resolve_animation_frame`]; new callers use
+  /// [`declared_phase_seconds`] directly.
+  #[ inline ]
+  fn phase_offset_seconds
+  (
+    anim : &Animation,
+    pos : ( i32, i32 ),
+    instance_seed : Option< u32 >,
+  ) -> f32
+  {
+    declared_phase_seconds( anim, pos, instance_seed )
+  }
+
+  /// Resolve the animation's declared per-instance phase offset (in
+  /// seconds) for an instance at grid coordinate `pos` (and, when
+  /// known, with `instance_seed` from `Instance.instance_phase_seed`).
+  ///
+  /// Mirrors the renderer's frame-resolution path so completion-event
+  /// detection in `Scene::tick` agrees byte-for-byte with what
+  /// [`resolve_animation_frame`] would show on screen.
+  #[ must_use ]
+  pub fn declared_phase_seconds
+  (
+    anim : &Animation,
+    pos : ( i32, i32 ),
+    instance_seed : Option< u32 >,
+  ) -> f32
   {
     match anim.phase_offset
     {
@@ -144,18 +191,40 @@ mod private
         let unit = ( raw as f32 ) / ( u32::MAX as f32 );
         // Multiply by the animation's *natural* period so neighbouring tiles
         // spread across the whole cycle, not just a tiny fraction of it.
-        let period = animation_period_seconds( anim );
+        let period = animation_duration_seconds( anim );
         unit * period
       },
       PhaseOffset::Linear { per_q, per_r } =>
       {
         ( pos.0 as f32 ) * per_q + ( pos.1 as f32 ) * per_r
       },
+      PhaseOffset::Instance =>
+      {
+        // Non-instance compile paths (edge / vertex / global passes)
+        // don't have a per-instance seed; fall back to 0.0 so the
+        // animation rides the master clock there.
+        let Some( seed ) = instance_seed else { return 0.0 };
+        // Mix the seed and the animation id through `hash_coord`'s
+        // avalanche so neighbouring seeds (1, 2, 3 ...) land on
+        // well-separated phases — XOR alone leaves the upper bits
+        // unchanged and collapses unit-magnitude differences.
+        let mixed = hash_coord( seed as i32, 0, hash_str( &anim.id ) );
+        let unit = ( mixed as f32 ) / ( u32::MAX as f32 );
+        let period = animation_duration_seconds( anim );
+        unit * period
+      },
     }
   }
 
-  /// Natural period of the animation in seconds; used by `HashCoord` phase.
-  fn animation_period_seconds( anim : &Animation ) -> f32
+  /// Total duration of one full play-through of the animation, in seconds.
+  ///
+  /// For `Regular { frames, fps }` = `frames.len() / fps`; for
+  /// `FromSheet { count, fps }` = `count / fps`; for `Irregular`
+  /// = the summed per-frame durations. Used by [`declared_phase_seconds`]
+  /// to spread `HashCoord` phase across the natural cycle, and by
+  /// `Scene::tick` to detect `OneShot` completion.
+  #[ must_use ]
+  pub fn animation_duration_seconds( anim : &Animation ) -> f32
   {
     match &anim.timing
     {
@@ -236,7 +305,7 @@ mod tests
   fn regular_loop_wraps()
   {
     let a = regular( "w", &[ "0", "1", "2" ], 10.0, AnimationMode::Loop );
-    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().frame;
+    let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
     assert_eq!( pick( 0.0 ), "0" );
     assert_eq!( pick( 0.1 ), "1" );
     assert_eq!( pick( 0.25 ), "2" );
@@ -247,16 +316,30 @@ mod tests
   fn one_shot_clamps()
   {
     let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::OneShot );
-    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().frame;
+    let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
     assert_eq!( pick( 0.0 ), "a" );
     assert_eq!( pick( 100.0 ), "c", "past end → stuck on last frame" );
+  }
+
+  #[ test ]
+  fn one_shot_origin_resets_local_time()
+  {
+    // OneShot rooted at a non-zero origin — the relative time is
+    // `time_seconds - oneshot_origin`, so a 0.05 s delta after the
+    // origin must pick the first frame, not the clamped last frame.
+    let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::OneShot );
+    let pick = | t, origin | resolve_animation_frame( &a, t, origin, ( 0, 0 ), None ).unwrap().frame;
+    assert_eq!( pick( 5.05, 5.0 ), "a", "0.05 s after origin → first frame" );
+    assert_eq!( pick( 5.15, 5.0 ), "b" );
+    assert_eq!( pick( 5.25, 5.0 ), "c" );
+    assert_eq!( pick( 99.0, 5.0 ), "c", "past origin + duration → clamped" );
   }
 
   #[ test ]
   fn pingpong_reflects()
   {
     let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::PingPong );
-    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().frame;
+    let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
     // Period = 2 * (3 - 1) = 4 ticks. Sequence: a b c b | a b c b | ...
     assert_eq!( pick( 0.00 ), "a" );
     assert_eq!( pick( 0.10 ), "b" );
@@ -272,12 +355,12 @@ mod tests
     a.phase_offset = PhaseOffset::HashCoord;
     // Two neighbouring tiles, same global time — their local times should
     // differ (practically always) and so can their frames.
-    let f_00 = resolve_animation_frame( &a, 0.0, ( 0, 0 ) ).unwrap().frame;
-    let f_10 = resolve_animation_frame( &a, 0.0, ( 1, 0 ) ).unwrap().frame;
+    let f_00 = resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ), None ).unwrap().frame;
+    let f_10 = resolve_animation_frame( &a, 0.0, 0.0, ( 1, 0 ), None ).unwrap().frame;
     // We can't assert inequality rigorously (hash could collide) but we can
     // sample many coords and check that at least SOME produce different frames.
     let samples : Vec< String > =
-      ( 0..16 ).map( | q | resolve_animation_frame( &a, 0.0, ( q, 0 ) ).unwrap().frame ).collect();
+      ( 0..16 ).map( | q | resolve_animation_frame( &a, 0.0, 0.0, ( q, 0 ), None ).unwrap().frame ).collect();
     let unique_count = samples.iter().collect::< std::collections::HashSet< _ > >().len();
     assert!
     (
@@ -287,12 +370,46 @@ mod tests
   }
 
   #[ test ]
+  fn phase_offset_instance_spreads_seeds()
+  {
+    // `PhaseOffset::Instance` derives phase from the per-instance
+    // seed mixed with the animation id. Sampling 16 distinct seeds
+    // must produce at least two different frames — same shape as
+    // the HashCoord test, but the input dimension is the seed
+    // rather than the grid coord, so this works for placements
+    // with no hex coord.
+    let mut a = regular( "w", &[ "0", "1", "2", "3" ], 4.0, AnimationMode::Loop );
+    a.phase_offset = PhaseOffset::Instance;
+    let samples : Vec< String > = ( 0..16_u32 )
+      .map( | seed | resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ), Some( seed ) ).unwrap().frame )
+      .collect();
+    let unique_count = samples.iter().collect::< std::collections::HashSet< _ > >().len();
+    assert!
+    (
+      unique_count >= 2,
+      "PhaseOffset::Instance should spread seeds across frames; samples: {samples:?}",
+    );
+  }
+
+  #[ test ]
+  fn phase_offset_instance_falls_back_when_seed_missing()
+  {
+    // Without an instance seed (`None`), `PhaseOffset::Instance`
+    // contributes 0.0 — the edge / vertex compile paths sit on the
+    // master clock instead.
+    let mut a = regular( "w", &[ "0", "1", "2" ], 10.0, AnimationMode::Loop );
+    a.phase_offset = PhaseOffset::Instance;
+    let frame = resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ), None ).unwrap().frame;
+    assert_eq!( frame, "0", "no seed → no phase shift" );
+  }
+
+  #[ test ]
   fn phase_offset_fixed_shifts_timeline()
   {
     let mut a = regular( "w", &[ "0", "1", "2" ], 10.0, AnimationMode::Loop );
     a.phase_offset = PhaseOffset::Fixed( 0.1 );
     // At global t=0, with phase=0.1s, we're 1 frame in.
-    let frame = resolve_animation_frame( &a, 0.0, ( 0, 0 ) ).unwrap().frame;
+    let frame = resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ), None ).unwrap().frame;
     assert_eq!( frame, "1" );
   }
 
@@ -326,7 +443,7 @@ mod tests
       mode : AnimationMode::OneShot,
       phase_offset : PhaseOffset::None,
     };
-    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().frame;
+    let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
     assert_eq!( pick( 0.0  ), "wind_up" );
     assert_eq!( pick( 0.05 ), "wind_up" );
     assert_eq!( pick( 0.15 ), "impact" );
@@ -339,4 +456,6 @@ mod tests
 mod_interface::mod_interface!
 {
   exposed use resolve_animation_frame;
+  own use animation_duration_seconds;
+  own use declared_phase_seconds;
 }

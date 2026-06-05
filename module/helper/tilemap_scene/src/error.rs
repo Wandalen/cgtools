@@ -111,7 +111,10 @@ mod private
     /// The spec requests a tiling strategy not supported by this implementation.
     ///
     /// Version 0.2.0 implements `HexFlatTop` and `HexPointyTop` only; the
-    /// `Square4` / `Square8` values are reserved but rejected at load time.
+    /// `Square4` / `Square8` values are reserved. This variant is declared
+    /// for the future SPEC §16 tiling check but is not yet constructed —
+    /// square specs currently pass [`crate::load::load`] and fail at render
+    /// time with [`crate::compile::CompileError::UnsupportedAnchor`].
     UnsupportedTiling( String ),
     /// A sprite source is not valid for the declaring object's anchor type.
     ///
@@ -164,10 +167,56 @@ mod private
       }
     }
   }
+
+  /// Error returned by [`crate::scene::Scene::from_snapshot`] when a snapshot
+  /// references content the spec does not declare.
+  ///
+  /// Spec mismatches surface here rather than at validation time because the
+  /// snapshot and the spec are loaded independently — a scene file
+  /// authored against one spec version may name objects that another
+  /// version has dropped.
+  #[ derive( Debug, Clone, Error ) ]
+  #[ non_exhaustive ]
+  pub enum SnapshotLoadError
+  {
+    /// Snapshot names an object id that is not declared in the spec.
+    UnknownObject
+    {
+      /// The undeclared id.
+      id : String,
+      /// Where in the snapshot the reference appeared (`"tile (q, r)"`,
+      /// `"edge instance"`, `"entity"`, etc.).
+      context : String,
+    },
+    /// An ASCII `map` row uses a character missing from `palette`.
+    UnknownPaletteChar
+    {
+      /// The unknown character.
+      ch : char,
+      /// `(row, col)` of the cell in the ASCII grid.
+      pos : ( i32, i32 ),
+    },
+  }
+
+  impl fmt::Display for SnapshotLoadError
+  {
+    #[ inline ]
+    fn fmt( &self, f : &mut fmt::Formatter< '_ > ) -> fmt::Result
+    {
+      match self
+      {
+        Self::UnknownObject { id, context } =>
+          write!( f, "snapshot references object {id:?} in {context} but the spec does not declare it" ),
+        Self::UnknownPaletteChar { ch, pos : ( q, r ) } =>
+          write!( f, "ASCII map cell at (q={q}, r={r}) uses character {ch:?} which is not in the palette" ),
+      }
+    }
+  }
 }
 
 mod_interface::mod_interface!
 {
   exposed use LoadError;
   exposed use ValidationError;
+  exposed use SnapshotLoadError;
 }

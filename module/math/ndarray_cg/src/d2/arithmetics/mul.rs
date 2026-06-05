@@ -3,7 +3,7 @@ use crate::*;
 /// Multiplies two matrices.
 pub fn mul< E, A, B, R >( r : &mut R, a : &A, b : &B )
 where
-  E : nd::NdFloat,
+  E : MatNum,
   R : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >,
   A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   B : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
@@ -45,7 +45,7 @@ where
 /// Multiplies vector by a matrix.
 pub fn mul_mat_vec< E, A, B, R, const ROWS : usize >( r : &mut R, a : &A, b : &B )
 where
-  E : nd::NdFloat,
+  E : MatNum,
   R : VectorIterMut< E, ROWS >,
   A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   B : VectorIter< E, ROWS >,
@@ -78,8 +78,7 @@ impl< E, const ROWS : usize, const COLS : usize, const COLS2 : usize, Descriptor
 for Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl,
-  E : nd::NdFloat,
+  E : MatNum,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingMut< Scalar = E >,
   Mat< COLS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   Mat< ROWS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >,
@@ -99,8 +98,7 @@ impl< E, const ROWS : usize, const COLS : usize, const COLS2 : usize, Descriptor
 for &Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl,
-  E : nd::NdFloat,
+  E : MatNum,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingMut< Scalar = E >,
   Mat< COLS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   Mat< ROWS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >,
@@ -124,7 +122,7 @@ impl< E, const ROWS : usize, const COLS : usize, Descriptor > Mul< Vector< E, CO
 for Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
 {
   type Output = Vector< E, COLS >;
@@ -142,7 +140,7 @@ impl< E, const ROWS : usize, const COLS : usize, Descriptor > Mul< &Vector< E, C
 for &Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
 {
   type Output = Vector< E, COLS >;

@@ -5,7 +5,7 @@ mod private
 
   impl< E > Vector< E, 4 >
   where
-    E : MatEl + NdFloat,
+    E : MatEl,
   {
 
     /// Create a new vector

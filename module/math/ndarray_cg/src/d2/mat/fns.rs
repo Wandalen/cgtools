@@ -50,7 +50,6 @@ mod private
     #[ inline( always ) ]
     pub fn transpose( &self ) -> Mat< COLS, ROWS, E, Descriptor >
     where
-      E : nd::NdFloat + Default + Copy,
       Self : IndexingRef< Scalar = E >,
       Mat< COLS, ROWS, E, Descriptor > : IndexingMut< Scalar = E >,
     {

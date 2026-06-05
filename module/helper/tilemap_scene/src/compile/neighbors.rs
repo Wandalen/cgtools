@@ -10,7 +10,7 @@ mod private
   use crate::anchor::EdgeDirection;
   use crate::object::Object;
   use crate::pipeline::TilingStrategy;
-  use crate::scene::Tile;
+  use crate::snapshot::Tile;
   use crate::spec::RenderSpec;
 
   /// Reserved id meaning "off-map or unset". See SPEC §15.1.
