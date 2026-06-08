@@ -74,6 +74,9 @@ mod private
     ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError >
     {
       gl.disable( gl::DEPTH_TEST );
+      // Screen-space pass: the fullscreen triangle is back-facing, so it must not
+      // inherit the scene's CULL_FACE state or it gets culled and nothing draws.
+      gl.disable( gl::CULL_FACE );
       gl.enable( gl::BLEND );
       gl.blend_equation( self.equation );
       gl.blend_func( self.src_factor, self.dst_factor );
