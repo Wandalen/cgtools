@@ -34,5 +34,5 @@ void main()
   result =  color1 + color2 + color3 + color4 + color5;
   result *= bloomStrength;
 
-  frag_color = vec4( result, 1.0 );
+  frag_color = vec4( result, 0.0 );
 }
