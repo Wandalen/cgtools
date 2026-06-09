@@ -56,16 +56,15 @@ mod private
   /// or a `JsValue` containing a JavaScript error on failure.
   ///
   /// # Errors
-  /// Returns the `JsValue` that the underlying `fetch` or `Response::array_buffer`
-  /// promise rejected with — typically a `TypeError` for network / CORS failures or
-  /// a `DOMException` for aborted reads. HTTP error status codes (4xx, 5xx) do
-  /// **not** produce an `Err` here; `fetch` resolves successfully and the caller
-  /// receives the response body as `Ok`.
+  /// Returns the `JsValue` that the underlying request construction, `fetch`, or
+  /// `Response::array_buffer` rejected with — typically a `TypeError` for network /
+  /// CORS failures or a `DOMException` for aborted reads. HTTP error status codes
+  /// (4xx, 5xx) do **not** produce an `Err` here; `fetch` resolves successfully and
+  /// the caller receives the response body as `Ok`.
   ///
   /// # Panics
-  /// Panics if the browser `window` object is unavailable, if the constructed URL
-  /// is rejected by `Request::new_with_str_and_init`, or if the initial `fetch`
-  /// promise itself rejects (as opposed to resolving with an error response).
+  /// Panics only if the browser `window` object is unavailable (i.e. not running in
+  /// a browsing context).
   pub async fn load( file_name : &str ) -> Result< Vec< u8 >, JsValue >
   {
 
@@ -77,10 +76,13 @@ mod private
     let origin = window.location().origin().unwrap();
     let url = resolve_url( &origin, file_name );
 
-    let request = web_sys::Request::new_with_str_and_init( &url, &opts ).expect( "Invalid url" );
+    // Propagate request-construction and fetch failures as `Err` rather than
+    // panicking: a rejected fetch (network error, CORS block, rate limit) must
+    // not abort the whole wasm module — callers can recover from a returned error.
+    let request = web_sys::Request::new_with_str_and_init( &url, &opts )?;
 
-    let resp_value = JsFuture::from( window.fetch_with_request( &request ) ).await.expect( "Fetch request fail" );
-    let resp : web_sys::Response = resp_value.dyn_into().unwrap();
+    let resp_value = JsFuture::from( window.fetch_with_request( &request ) ).await?;
+    let resp : web_sys::Response = resp_value.dyn_into()?;
     let array_buffer_promise = resp.array_buffer()?;
     let array_buffer = JsFuture::from( array_buffer_promise ).await?;
 
