@@ -172,11 +172,16 @@ mod private
       gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 2, &points_buffer )?;
       gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 3, &points_buffer )?;
 
-      if self.render_state.use_vertex_color
-      {
-        gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 4, &color_buffer )?;
-        gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 5, &color_buffer )?;
-      }
+      // Bind the color attributes unconditionally rather than gating on `use_vertex_color`. The VAO is
+      // only set up here in `mesh_create`; `mesh_update` recompiles the shader when the flag is toggled
+      // but never rebinds attributes. Binding these only when vertex colors were enabled at creation
+      // time would leave locations 4/5 unwired if a caller enables them later (e.g. via `use_vertex_color`),
+      // causing the shader to read undefined data. `colors_changed` is sticky until an upload actually
+      // happens (which requires the flag to be on), so the colors are uploaded the first time it is
+      // enabled; and the shader only reads locations 4/5 when compiled with `USE_VERTEX_COLORS`, so these
+      // bindings are inert (and not range-checked) when vertex colors are off.
+      gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 4, &color_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 5, &color_buffer )?;
 
       // Bind the distance attributes unconditionally whenever the `distance` feature is active, rather
       // than gating on `dash_use`. The VAO is only set up here in `mesh_create`; `mesh_update` merely
