@@ -90,7 +90,7 @@ fn test_distance_clear_and_rebuild()
 /// ## Root Cause
 /// `point_remove()` did not remove a distance value from the array
 ///
-/// ## Why Not Caught
+/// ## Why Not Caught Initially
 /// Original tests didn't verify that the distance value was removed after removal operations.
 ///
 /// ## Fix Applied
@@ -99,7 +99,7 @@ fn test_distance_clear_and_rebuild()
 /// ## Prevention
 /// This test verifies distances are set properly.
 ///
-/// ## Pitfall
+/// ## Pitfall to Avoid
 /// `distance` should be a one to one mapping with `points`.
 // test_kind: bug_reproducer(issue-003)
 #[ test ]
@@ -366,7 +366,7 @@ fn test_distance_point_remove_back()
 /// ## Root Cause
 /// `point_remove_front()` did not update the total_distance
 ///
-/// ## Why Not Caught
+/// ## Why Not Caught Initially
 /// Original tests didn't verify total_distance after removal operations.
 ///
 /// ## Fix Applied
@@ -375,7 +375,7 @@ fn test_distance_point_remove_back()
 /// ## Prevention
 /// This test verifies total_distance equals the last cumulative distance after removal.
 ///
-/// ## Pitfall
+/// ## Pitfall to Avoid
 /// Total distance needs to be updated when the distance array is changed.
 // test_kind: bug_reproducer(issue-002)
 #[ test ]
@@ -739,7 +739,7 @@ fn test_distance_remove_front_and_back_then_rebuild()
 /// `point_remove_front()` subtracted the cumulative distance from itself,
 /// resulting in total_distance = 0 instead of the new total.
 ///
-/// ## Why Not Caught
+/// ## Why Not Caught Initially
 /// Original tests didn't verify total_distance after removal operations.
 ///
 /// ## Fix Applied
@@ -748,7 +748,7 @@ fn test_distance_remove_front_and_back_then_rebuild()
 /// ## Prevention
 /// This test verifies total_distance equals the last cumulative distance after removal.
 ///
-/// ## Pitfall
+/// ## Pitfall to Avoid
 /// Cumulative distance arrays store running totals [0, d1, d1+d2], not deltas.
 // test_kind: bug_reproducer(issue-001)
 #[ test ]
