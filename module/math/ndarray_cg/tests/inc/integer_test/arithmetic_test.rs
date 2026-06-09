@@ -195,6 +195,69 @@ where
   assert_eq!( sum.raw_slice(), exp.raw_slice() );
 }
 
+fn mat_div_scalar_generic< E, D >()
+where
+  E : the_module::MatNum + From< u8 > + PartialEq + core::fmt::Debug,
+  D : the_module::mat::Descriptor + Copy,
+  the_module::Mat< 2, 2, E, D > :
+    the_module::IndexingMut +
+    the_module::RawSliceMut< Scalar = E > +
+    the_module::Indexable< Index = the_module::Ix2 > +
+    the_module::ScalarMut< Scalar = E, Index = the_module::Ix2 >,
+{
+  use the_module::Mat;
+  let a = Mat::< 2, 2, E, D >::default().set_raw
+  ([
+    E::from( 4 ),  E::from( 8 ),
+    E::from( 12 ), E::from( 16 ),
+  ]);
+  let exp = Mat::< 2, 2, E, D >::default().set_raw
+  ([
+    E::from( 1 ), E::from( 2 ),
+    E::from( 3 ), E::from( 4 ),
+  ]);
+
+  // owned / scalar
+  assert_eq!( ( a / E::from( 4 ) ).raw_slice(), exp.raw_slice() );
+
+  // /= scalar
+  let mut b = a;
+  b /= E::from( 4 );
+  assert_eq!( b.raw_slice(), exp.raw_slice() );
+}
+
+fn mat_div_scalar_signed_generic< E, D >()
+where
+  E : the_module::MatNum + ::num_traits::Signed + From< u8 > + PartialEq + core::fmt::Debug,
+  D : the_module::mat::Descriptor + Copy,
+  the_module::Mat< 2, 2, E, D > :
+    the_module::IndexingMut +
+    the_module::RawSliceMut< Scalar = E > +
+    the_module::Indexable< Index = the_module::Ix2 > +
+    the_module::ScalarMut< Scalar = E, Index = the_module::Ix2 >,
+{
+  use the_module::Mat;
+  // Integer division truncates toward zero: -7 / 4 == -1, not -2.
+  let a = Mat::< 2, 2, E, D >::default().set_raw
+  ([
+    -E::from( 4 ), -E::from( 7 ),
+    -E::from( 12 ), -E::from( 9 ),
+  ]);
+  let exp = Mat::< 2, 2, E, D >::default().set_raw
+  ([
+    -E::from( 1 ), -E::from( 1 ),
+    -E::from( 3 ), -E::from( 2 ),
+  ]);
+
+  // owned / scalar
+  assert_eq!( ( a / E::from( 4 ) ).raw_slice(), exp.raw_slice() );
+
+  // /= scalar
+  let mut b = a;
+  b /= E::from( 4 );
+  assert_eq!( b.raw_slice(), exp.raw_slice() );
+}
+
 fn mat_mat_mul_generic< E, D >()
 where
   E : the_module::MatNum + From< u8 > + PartialEq + core::fmt::Debug,
@@ -306,6 +369,18 @@ macro_rules! integer_arithmetic_tests
         }
 
         #[ test ]
+        fn mat_div_scalar_row_major()
+        {
+          mat_div_scalar_generic::< $ty, the_module::mat::DescriptorOrderRowMajor >();
+        }
+
+        #[ test ]
+        fn mat_div_scalar_column_major()
+        {
+          mat_div_scalar_generic::< $ty, the_module::mat::DescriptorOrderColumnMajor >();
+        }
+
+        #[ test ]
         fn mat_mat_mul_row_major()
         {
           mat_mat_mul_generic::< $ty, the_module::mat::DescriptorOrderRowMajor >();
@@ -361,3 +436,49 @@ fn vector_rem_signed_i64() { vector_rem_signed_generic::< i64 >(); }
 fn vector_div_signed_i32() { vector_div_signed_generic::< i32 >(); }
 #[ test ]
 fn vector_div_signed_i64() { vector_div_signed_generic::< i64 >(); }
+
+// Mat / scalar with negative dividends — truncates toward zero, signed only.
+
+#[ test ]
+fn mat_div_scalar_signed_i32()
+{
+  mat_div_scalar_signed_generic::< i32, the_module::mat::DescriptorOrderRowMajor >();
+  mat_div_scalar_signed_generic::< i32, the_module::mat::DescriptorOrderColumnMajor >();
+}
+
+#[ test ]
+fn mat_div_scalar_signed_i64()
+{
+  mat_div_scalar_signed_generic::< i64, the_module::mat::DescriptorOrderRowMajor >();
+  mat_div_scalar_signed_generic::< i64, the_module::mat::DescriptorOrderColumnMajor >();
+}
+
+// Zero-divisor panic tests — verify that the documented panic fires at runtime.
+
+#[ test ]
+#[ should_panic ]
+fn vector_div_zero_vector_panics()
+{
+  use the_module::Vector;
+  let a = Vector::< i32, 3 >::from_array( [ 1, 2, 3 ] );
+  let zero = Vector::< i32, 3 >::from_array( [ 1, 0, 1 ] );
+  let _ = a / zero;
+}
+
+#[ test ]
+#[ should_panic ]
+fn vector_div_zero_scalar_panics()
+{
+  use the_module::Vector;
+  let a = Vector::< i32, 3 >::from_array( [ 1, 2, 3 ] );
+  let _ = a / 0_i32;
+}
+
+#[ test ]
+#[ should_panic ]
+fn vector_rem_zero_scalar_panics()
+{
+  use the_module::Vector;
+  let a = Vector::< i32, 3 >::from_array( [ 1, 2, 3 ] );
+  let _ = a % 0_i32;
+}
