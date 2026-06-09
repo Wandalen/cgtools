@@ -1,8 +1,8 @@
 # Line Tools Engine Specification
 
 **Name:** Line Tools  
-**Version:** 1.1 (Rulebook Compliant)  
-**Date:** 2025-08-18
+**Version:** 1.2 (Rulebook Compliant)  
+**Date:** 2026-06-09
 
 ## Table of Contents
 
@@ -34,6 +34,14 @@ Create a high-performance Rust crate (`line_tools`) that provides comprehensive 
 | **Line** | A list of points that make up a line |
 | **Join** | The geometry type to join to straight line segments together |
 | **Cap** | The geometry type to cover the end points of the line |
+| **Mesh** | The collection of WebGL buffers and shader programs used to render a line |
+| **Program** | A compiled and linked vertex/fragment shader pair with its VAO and uniforms |
+| **Distance** | The cumulative arc length from the line's start to a given point; enabled by the `distance` feature |
+| **Vertex Color** | An optional per-point color attribute used to shade the line |
+| **World Units** | Line-width mode where width is measured in world space (shrinks with distance) instead of screen space |
+| **Alpha to Coverage** | An anti-aliasing technique using MSAA coverage instead of alpha testing for line edges |
+| **Dash Pattern** | A repeating on/off segment pattern (`DashPattern::V1`–`V4`) applied along a 3D line's length |
+| **Dash Offset** | A scalar shift applied to the start of the dash pattern |
 
 
 ## 4. Use Cases & Applications
@@ -47,7 +55,7 @@ Create a high-performance Rust crate (`line_tools`) that provides comprehensive 
 | **Art and Illustration** | Smooth, customizable strokes with varying thickness, creative control over line ends and corners for artistic expression. |
 
 
-### 4.3 Performance Characteristics
+### 4.2 Performance Characteristics
 
 | Operation | O |
 |-----------|-----------|
@@ -67,6 +75,12 @@ Create a high-performance Rust crate (`line_tools`) that provides comprehensive 
 - **FR-1**: Different implementations of lines should be feature seperated
 - **FR-2**: 3D line should decrease in size with distance from the camera
 - **FR-3**: Line should support editing of any points from the list
+- **FR-4**: 3D line should support dashed rendering with selectable `DashPattern` variants (`V1`–`V4`) and an adjustable `dash_offset`, available under the `distance` feature
+- **FR-5**: Line should support optional per-vertex colors
+- **FR-6**: 3D line width should be expressible in either screen-space or world units
+- **FR-7**: Line edges should be anti-aliasable via either alpha testing or alpha-to-coverage
+- **FR-8**: 2D line should support configurable cap (Butt, Round, Square) and join (Miter, Round, Bevel) styles
+- **FR-9**: Line styling types (caps, joins) should be serializable via the `serialization` feature
 
 ## 7. Non-Functional Requirements
 - **NFR-1**: 100% documentation coverage via `cargo doc`
@@ -83,6 +97,7 @@ minwebgl = { workspace = true, optional = true }
 ndarray_cg = { workspace = true, optional = true }
 mod_interface = { workspace = true, optional = true }
 serde = { workspace = true, features = [ "derive" ], optional = true }
+rustc-hash = { workspace = true }
 
 web-sys = { workspace = true, optional = true, features = [
   'WebGlActiveInfo',
@@ -105,9 +120,11 @@ src/
 ├── program.rs
 ├── uniform.rs
 ├── d2/
-    └── line.rs
+│   ├── line.rs
+│   └── shaders/    # GLSL body, terminal, join and cap shaders
 └── d3/
-    └── line.rs     
+    ├── line.rs
+    └── shaders/    # GLSL main vertex/fragment shaders
 
 ```
 
@@ -150,12 +167,18 @@ mod private
 
 ## 10. Conformance Checklist
 
-- ⏳ **FR-1**: Different implementations of lines should be feature seperated
-- ⏳ **FR-2**: 3D line should decrease in size with distance from the camera
-- ⏳ **FR-3**: Line should support editing of any points from the list
+- ✅ **FR-1**: Different implementations of lines should be feature seperated
+- ✅ **FR-2**: 3D line should decrease in size with distance from the camera
+- ✅ **FR-3**: Line should support editing of any points from the list
+- ✅ **FR-4**: 3D line should support dashed rendering with selectable `DashPattern` variants and an adjustable `dash_offset`
+- ✅ **FR-5**: Line should support optional per-vertex colors
+- ✅ **FR-6**: 3D line width should be expressible in either screen-space or world units
+- ✅ **FR-7**: Line edges should be anti-aliasable via either alpha testing or alpha-to-coverage
+- ✅ **FR-8**: 2D line should support configurable cap and join styles
+- ✅ **FR-9**: Line styling types (caps, joins) should be serializable via the `serialization` feature
 
 - ✅ **NFR-1**: 100% documentation coverage via `cargo doc`
-- ⏳ **NFR-2**: All functions use noun-verb naming order
+- ⏳ **NFR-2**: All functions use noun-verb naming order ( 3D line follows it; 2D line still uses verb-noun, e.g. `create_mesh`, `add_point` )
 - ✅ **NFR-3**: 100% adherence to Codestyle Rulebook formatting
 
 ## 11. Corner cases
