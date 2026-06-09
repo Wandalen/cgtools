@@ -178,8 +178,14 @@ mod private
         gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 5, &color_buffer )?;
       }
 
+      // Bind the distance attributes unconditionally whenever the `distance` feature is active, rather
+      // than gating on `dash_use`. The VAO is only set up here in `mesh_create`; `mesh_update` merely
+      // recompiles the shader program when dashing is toggled and never rebinds attributes. Binding
+      // these only when dashing was enabled at creation time would leave locations 6/7 unwired if a
+      // caller enables dashing later (e.g. via `dash_use`), causing the shader to read undefined data.
+      // The distances buffer is always created and uploaded under this feature, and the shader only
+      // reads locations 6/7 when compiled with `USE_DASH`, so these bindings are inert when dashing is off.
       #[ cfg( feature = "distance" ) ]
-      if self.render_state.dash_use
       {
         gl::BufferDescriptor::new::< [ f32; 1 ] >().stride( 1 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 6, &distances_buffer )?;
         gl::BufferDescriptor::new::< [ f32; 1 ] >().stride( 1 ).offset( 1 ).divisor( 1 ).attribute_pointer( gl, 7, &distances_buffer )?;
