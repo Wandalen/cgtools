@@ -97,9 +97,9 @@ fn run() -> Result< (), gl::WebglError >
     base_colors.push( color );
 
     let mut line = line_tools::d3::Line::default();
-    line.use_vertex_color( true );
-    line.use_alpha_to_coverage( settings.borrow().alpha_to_coverage );
-    line.use_world_units( settings.borrow().world_units );
+    line.vertex_color_use( true );
+    line.alpha_to_coverage_use( settings.borrow().alpha_to_coverage );
+    line.world_units_use( settings.borrow().world_units );
     line.dash_use( settings.borrow().dashes );
     line.mesh_create( &gl, None )?;
 

@@ -19,13 +19,13 @@ Both build on `minwebgl` for the WebGL context and `ndarray_cg` for vector math.
   `Join::{ Miter, Round, Bevel }`, with adjustable triangulation precision.
 - **3D screen- or world-space width** — constant pixel width on screen, or a
   width measured in world units that shrinks with distance from the camera
-  (`use_world_units`).
+  (`world_units_use`).
 - **Per-vertex colors** — assign a color per point and interpolate along the
-  line (`use_vertex_color`).
+  line (`vertex_color_use`).
 - **Dashing** *(requires the `distance` feature)* — selectable `DashPattern`
   variants (`V1`–`V4`) with an adjustable `dash_offset`.
 - **Anti-aliasing** — alpha testing by default, or MSAA `alpha-to-coverage`
-  (`use_alpha_to_coverage`).
+  (`alpha_to_coverage_use`).
 - **Custom fragment shaders** — pass your own fragment shader to `mesh_create`.
 - **Incremental editing** — add, remove, and overwrite individual points;
   meshes only re-upload the buffers that changed.
@@ -64,9 +64,9 @@ fn setup( gl : &gl::WebGl2RenderingContext ) -> Result< d3::Line, gl::WebglError
   let mut line = d3::Line::default();
 
   // Configure render state *before* creating the mesh.
-  line.use_vertex_color( true );
-  line.use_world_units( false );        // constant screen-space width
-  line.use_alpha_to_coverage( true );
+  line.vertex_color_use( true );
+  line.world_units_use( false );        // constant screen-space width
+  line.alpha_to_coverage_use( true );
 
   // Add the points (and a color per point, since vertex colors are enabled).
   line.point_add_back( &[ 0.0, 0.0, 0.0 ] );
@@ -125,18 +125,18 @@ use line_tools::{ d2, Cap, Join };
 use minwebgl as gl;
 
 let mut line = d2::Line::default();
-line.set_cap( Cap::Round( 16 ) );
-line.set_join( Join::Miter( 7, 7 ) );
+line.cap_set( Cap::Round( 16 ) );
+line.join_set( Join::Miter( 7, 7 ) );
 
-line.add_point( [ 0.0,   0.0 ] );
-line.add_point( [ 100.0, 50.0 ] );
-line.add_point( [ 200.0, 0.0 ] );
+line.point_add( [ 0.0,   0.0 ] );
+line.point_add( [ 100.0, 50.0 ] );
+line.point_add( [ 200.0, 0.0 ] );
 
 // The 2D line requires an explicit fragment shader source.
-line.create_mesh( gl, fragment_shader_source )?;
+line.mesh_create( gl, fragment_shader_source )?;
 
 // Per-program uniforms (body, body_terminal, join, cap) plus shared matrices.
-let mesh = line.get_mesh_mut();
+let mesh = line.mesh_get_mut();
 mesh.upload( gl, "u_projection_matrix", &projection_matrix )?;
 mesh.upload( gl, "u_world_matrix", &world_matrix )?;
 mesh.upload( gl, "u_view_matrix", &view_matrix )?;
@@ -154,7 +154,7 @@ line.draw( gl )?;
 | Type | Description |
 |------|-------------|
 | `d3::Line` | 3D camera-facing line. Methods use noun-verb order (`mesh_create`, `point_add_back`). |
-| `d2::Line` | 2D line with caps and joins. Methods use verb-noun order (`create_mesh`, `add_point`). |
+| `d2::Line` | 2D line with caps and joins. Methods use noun-verb order (`mesh_create`, `point_add`). |
 | `Cap` | `Butt` (default), `Round( segments )`, `Square`. |
 | `Join` | `Miter( h, v )`, `Round( h, v )`, `Bevel( h, v )` — `h`/`v` are triangulation precision. |
 | `d3::DashPattern` | `V1`–`V4` repeating dash/gap patterns. Defaults to `V1( 0.5 )`. |
@@ -171,13 +171,13 @@ line.draw( gl )?;
 | `point_remove` / `point_remove_back` / `point_remove_front` | Remove points. |
 | `point_get` / `points_get` / `colors_get` | Read back geometry. |
 | `num_points` | Number of points in the line. |
-| `use_vertex_color` / `use_world_units` / `use_alpha_to_coverage` / `dash_use` | Toggle render-state flags (call before `mesh_create`). |
+| `vertex_color_use` / `world_units_use` / `alpha_to_coverage_use` / `dash_use` | Toggle render-state flags (call before `mesh_create`). |
 | `mesh_create` / `mesh_update` / `mesh_get` / `mesh_get_mut` | Manage the GPU mesh. |
 | `draw` | Sync changed buffers and issue the draw call. |
 | `clear` | Remove all points without freeing memory. |
 
 With the `distance` feature, `d3::Line` and `d2::Line` additionally expose
-`total_distance_get` / `get_total_distance`, `distances_get`,
+`total_distance_get` / `total_distance_get`, `distances_get`,
 `distances_update`, and the dash controls (`dash_pattern_set`,
 `dash_offset_set` / `dash_offset_get`).
 
@@ -185,7 +185,7 @@ With the `distance` feature, `d3::Line` and `d2::Line` additionally expose
 
 | Uniform | Used by | Meaning |
 |---------|---------|---------|
-| `u_width` | both | Line width (pixels in screen space, world units with `use_world_units`). |
+| `u_width` | both | Line width (pixels in screen space, world units with `world_units_use`). |
 | `u_color` | both | Base line color (when vertex colors are disabled). |
 | `u_resolution` | 3D | Viewport size in pixels, for screen-space width. |
 | `u_projection_matrix` / `u_view_matrix` / `u_world_matrix` | both | Standard transform matrices. |

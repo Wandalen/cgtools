@@ -25,14 +25,14 @@ mod private
   pub struct LineRenderState
   {
     // The optional `Mesh` object that holds the WebGL resources for rendering.
-    /// `None` until `create_mesh` is called.
+    /// `None` until `mesh_create` is called.
     pub mesh : Option< Mesh >,
     /// A flag to set whether to use the vertex color or not. Should be set before the mesh creation
-    pub use_vertex_color : bool,
+    pub vertex_color_use : bool,
     /// A flag to set where to use alpha to coverage blending technique instead of alpha testing 
-    pub use_alpha_to_coverage : bool,
+    pub alpha_to_coverage_use : bool,
     /// A flag to set where to use width in world units, or screen space units
-    pub use_world_units : bool,
+    pub world_units_use : bool,
     /// Fragment shader source
     pub fragment_shader : String,
     /// Specifies the pattern of the dash, if `dash_use`` is `true``
@@ -49,21 +49,21 @@ mod private
   impl LineRenderState
   {
     /// Return shader defines to use during shader compilation
-    fn get_defines( &self ) -> String
+    fn defines_get( &self ) -> String
     {
       let mut s = String::new();
       
-      if self.use_vertex_color
+      if self.vertex_color_use
       {
         s += "#define USE_VERTEX_COLORS\n";
       }
 
-      if self.use_alpha_to_coverage
+      if self.alpha_to_coverage_use
       {
         s += "#define USE_ALPHA_TO_COVERAGE\n";
       }
 
-      if self.use_world_units
+      if self.world_units_use
       {
         s += "#define USE_WORLD_UNITS\n";
       }
@@ -172,10 +172,10 @@ mod private
       gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 2, &points_buffer )?;
       gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 3, &points_buffer )?;
 
-      // Bind the color attributes unconditionally rather than gating on `use_vertex_color`. The VAO is
+      // Bind the color attributes unconditionally rather than gating on `vertex_color_use`. The VAO is
       // only set up here in `mesh_create`; `mesh_update` recompiles the shader when the flag is toggled
       // but never rebinds attributes. Binding these only when vertex colors were enabled at creation
-      // time would leave locations 4/5 unwired if a caller enables them later (e.g. via `use_vertex_color`),
+      // time would leave locations 4/5 unwired if a caller enables them later (e.g. via `vertex_color_use`),
       // causing the shader to read undefined data. `colors_changed` is sticky until an upload actually
       // happens (which requires the flag to be on), so the colors are uploaded the first time it is
       // enabled; and the shader only reads locations 4/5 when compiled with `USE_VERTEX_COLORS`, so these
@@ -236,7 +236,7 @@ mod private
     {
       if self.change_state.defines_changed
       {
-        let defines = self.get_defines();
+        let defines = self.defines_get();
         let vertex_shader = d3::MAIN_VERTEX_SHADER.replace( "// #include <defines>", &defines );
         let vertex_shader = gl::ShaderSource::former()
         .shader_type( gl::VERTEX_SHADER )
@@ -302,7 +302,7 @@ mod private
         self.change_state.points_changed = false;
       }
 
-      if self.change_state.colors_changed && self.render_state.use_vertex_color
+      if self.change_state.colors_changed && self.render_state.vertex_color_use
       {
         let mesh = self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
         let colors_buffer = mesh.buffer_get( "colors" );
@@ -336,16 +336,16 @@ mod private
     }
 
     /// Sets whether the alpha to coverage will be used or not
-    pub fn use_alpha_to_coverage( &mut self, value : bool )
+    pub fn alpha_to_coverage_use( &mut self, value : bool )
     {
-      self.render_state.use_alpha_to_coverage = value;
+      self.render_state.alpha_to_coverage_use = value;
       self.change_state.defines_changed = true;
     }
 
     /// Sets whether the world units for the line width will be used
-    pub fn use_world_units( &mut self, value : bool )
+    pub fn world_units_use( &mut self, value : bool )
     {
-      self.render_state.use_world_units = value;
+      self.render_state.world_units_use = value;
       self.change_state.defines_changed = true;
     }
 
@@ -377,9 +377,9 @@ mod private
     }
 
     /// Returns the shader defines string based on the current render state flags
-    pub fn get_defines( &self ) -> String
+    pub fn defines_get( &self ) -> String
     {
-      self.render_state.get_defines()
+      self.render_state.defines_get()
     }
 
     #[ cfg( feature = "distance" ) ]

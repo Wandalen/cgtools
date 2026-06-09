@@ -109,9 +109,9 @@ mod private
         }
 
         /// Sets whether the vertex color attribute will be used or not
-        pub fn use_vertex_color( &mut self, value : bool )
+        pub fn vertex_color_use( &mut self, value : bool )
         {
-          self.render_state.use_vertex_color = value;
+          self.render_state.vertex_color_use = value;
           self.change_state.defines_changed = true;
         }
 

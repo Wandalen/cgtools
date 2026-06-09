@@ -210,20 +210,20 @@ fn run() -> Result< (), gl::WebglError >
           {
             let mut line = line_tools::d2::Line::default();
 
-            line.set_cap( line_tools::Cap::Round( 16 ) );
-            line.create_mesh( &gl, line_frag ).expect( "Failed to create a line" );
+            line.cap_set( line_tools::Cap::Round( 16 ) );
+            line.mesh_create( &gl, line_frag ).expect( "Failed to create a line" );
 
-            line.get_mesh_mut().upload( &gl, "u_width", &0.01 ).unwrap();
-            line.get_mesh_mut().upload( &gl, "u_projection_matrix", &projection_matrix ).unwrap();
-            line.get_mesh_mut().upload( &gl, "u_world_matrix", &world_matrix ).unwrap();
-            line.get_mesh_mut().upload( &gl, "u_view_matrix", &view_matrix ).unwrap();
+            line.mesh_get_mut().upload( &gl, "u_width", &0.01 ).unwrap();
+            line.mesh_get_mut().upload( &gl, "u_projection_matrix", &projection_matrix ).unwrap();
+            line.mesh_get_mut().upload( &gl, "u_world_matrix", &world_matrix ).unwrap();
+            line.mesh_get_mut().upload( &gl, "u_view_matrix", &view_matrix ).unwrap();
 
             lines.push( line );
           }
 
           lines[ i ].clear();
-          lines[ i ].add_point( mouse_pos );
-          lines[ i ].add_point( neighbours[ i ].0 );
+          lines[ i ].point_add( mouse_pos );
+          lines[ i ].point_add( neighbours[ i ].0 );
         }
 
         colors[ neighbours[ i ].1 ] = gl::F32x3::new( 0.0, 1.0, 0.0 );

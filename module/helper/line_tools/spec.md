@@ -178,7 +178,7 @@ mod private
 - ✅ **FR-9**: Line styling types (caps, joins) should be serializable via the `serialization` feature
 
 - ✅ **NFR-1**: 100% documentation coverage via `cargo doc`
-- ⏳ **NFR-2**: All functions use noun-verb naming order ( 3D line follows it; 2D line still uses verb-noun, e.g. `create_mesh`, `add_point` )
+- ✅ **NFR-2**: All functions use noun-verb naming order ( the 2D and 3D line public APIs and the uniform-storage helpers were renamed to comply, e.g. `create_mesh`→`mesh_create`, `update_mesh`→`mesh_update`, `add_point`→`point_add`, `get_points`→`points_get`, `get_total_distance`→`total_distance_get`, `set_cap`→`cap_set`, `set_join`→`join_set`, `use_vertex_color`→`vertex_color_use`, `use_alpha_to_coverage`→`alpha_to_coverage_use`, `use_world_units`→`world_units_use`, `get_defines`→`defines_get`, `clear_uniforms`→`uniforms_clear`, `clear_locations`→`locations_clear`. Single-action methods without a noun — `draw`, `clear`, `bind`, `copy_to`, `all_upload`, `all_draw` — are accepted idiomatic exceptions )
 - ✅ **NFR-3**: 100% adherence to Codestyle Rulebook formatting
 
 ## 11. Corner cases

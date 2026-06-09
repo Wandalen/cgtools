@@ -177,13 +177,13 @@ mod private
     /// Clear saved uniforms locations
     pub fn uniform_locations_clear( &mut self )
     {
-      self.uniforms.clear_locations();
+      self.uniforms.locations_clear();
     }
 
     /// Clear saved uniforms
     pub fn uniforms_clear( &mut self )
     {
-      self.uniforms.clear_uniforms();
+      self.uniforms.uniforms_clear();
     }
 
     /// Upload the current set of uniform to the program

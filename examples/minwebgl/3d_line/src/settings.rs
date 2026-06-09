@@ -164,7 +164,7 @@ pub fn bind_to_ui
         let mut lines = lines.borrow_mut();
         for i in 0..lines.len()
         {
-          lines[ i ].use_alpha_to_coverage( value );
+          lines[ i ].alpha_to_coverage_use( value );
         }
 
         if value
@@ -195,7 +195,7 @@ pub fn bind_to_ui
         let mut lines = lines.borrow_mut();
         for i in 0..lines.len()
         {
-          lines[ i ].use_world_units( value );
+          lines[ i ].world_units_use( value );
         }
 
         if value
