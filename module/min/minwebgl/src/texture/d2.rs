@@ -279,7 +279,7 @@ pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement
     ctx.draw_image_with_html_image_element( image_element, 0.0, 0.0 ).unwrap();
 
     // Get pixel array of the image.
-    let data = ctx.get_image_data( 0.0, 0.0, img_width as f64, img_height as f64 ).unwrap().data().to_vec();
+    let data = ctx.get_image_data( 0, 0, img_width as i32, img_height as i32 ).unwrap().data().to_vec();
 
     tmp_canvas.remove();
 

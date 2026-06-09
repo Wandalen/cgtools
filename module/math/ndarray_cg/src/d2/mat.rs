@@ -124,10 +124,33 @@ mod private
   {
   }
 
+  /// Element type that supports field-agnostic arithmetic (`Add`, `Sub`, `Mul`,
+  /// `Div`, `Rem`, `Zero`, `One` and their `*Assign` counterparts).
+  ///
+  /// All integer primitives and floats satisfy this. Used as the element bound
+  /// for operations that don't need `sqrt`, `sin`/`cos`, approximate equality,
+  /// or other float-only semantics — i.e. matrix addition, multiplication,
+  /// scalar multiplication/division (truncating for integers), dot product,
+  /// cross product, transpose, determinant, identity, and similar.
+  ///
+  /// Equivalent to [`::mdmath_core::Scalar`] combined with [`MatEl`]; provided
+  /// here as a single bound for ergonomics inside `ndarray_cg`.
+  pub trait MatNum
+  where
+    Self : MatEl + ::mdmath_core::Scalar,
+  {
+  }
+
+  impl< T > MatNum for T
+  where
+    Self : MatEl + ::mdmath_core::Scalar,
+  {
+  }
+
   // =
 
   /// A matrix structure.
-  #[ derive( Clone, Copy, PartialEq, PartialOrd, Hash ) ]
+  #[ derive( Clone, Copy, PartialEq, Hash ) ]
   // pub struct Mat< const ROWS : usize, const COLS : usize, E = f32, Descriptor : mat::Descriptor = DescriptorDefault >
   pub struct Mat< const ROWS : usize, const COLS : usize, E, Descriptor >
   (
@@ -196,6 +219,40 @@ mod private
     fn default() -> Self
     {
       Mat( [ [ E::default() ; COLS ]; ROWS ], Default::default() )
+    }
+  }
+
+  impl< E, const ROWS : usize, const COLS : usize, Descriptor > Eq
+  for Mat< ROWS, COLS, E, Descriptor >
+  where
+    E : MatEl + Eq,
+    Descriptor : mat::Descriptor + Eq,
+  {
+  }
+
+  impl< E, const ROWS : usize, const COLS : usize, Descriptor > Ord
+  for Mat< ROWS, COLS, E, Descriptor >
+  where
+    E : MatEl + Ord,
+    Descriptor : mat::Descriptor + Ord,
+  {
+    #[ inline ]
+    fn cmp( &self, other : &Self ) -> std::cmp::Ordering
+    {
+      self.0.cmp( &other.0 )
+    }
+  }
+
+  impl< E, const ROWS : usize, const COLS : usize, Descriptor > PartialOrd
+  for Mat< ROWS, COLS, E, Descriptor >
+  where
+    E : MatEl + PartialOrd,
+    Descriptor : mat::Descriptor + PartialEq,
+  {
+    #[ inline ]
+    fn partial_cmp( &self, other : &Self ) -> Option< std::cmp::Ordering >
+    {
+      self.0.partial_cmp( &other.0 )
     }
   }
 
@@ -349,6 +406,34 @@ mod private
   pub type F64x3x3 = Mat< 3, 3, f64, DescriptorOrderColumnMajor >;
   /// Type aliases for 4x4 `f64` column major matrix.
   pub type F64x4x4 = Mat< 4, 4, f64, DescriptorOrderColumnMajor >;
+
+  /// Type alias for 2x2 `i32` column major matrix.
+  pub type I32x2x2 = Mat< 2, 2, i32, DescriptorOrderColumnMajor >;
+  /// Type alias for 3x3 `i32` column major matrix.
+  pub type I32x3x3 = Mat< 3, 3, i32, DescriptorOrderColumnMajor >;
+  /// Type alias for 4x4 `i32` column major matrix.
+  pub type I32x4x4 = Mat< 4, 4, i32, DescriptorOrderColumnMajor >;
+
+  /// Type alias for 2x2 `i64` column major matrix.
+  pub type I64x2x2 = Mat< 2, 2, i64, DescriptorOrderColumnMajor >;
+  /// Type alias for 3x3 `i64` column major matrix.
+  pub type I64x3x3 = Mat< 3, 3, i64, DescriptorOrderColumnMajor >;
+  /// Type alias for 4x4 `i64` column major matrix.
+  pub type I64x4x4 = Mat< 4, 4, i64, DescriptorOrderColumnMajor >;
+
+  /// Type alias for 2x2 `u32` column major matrix.
+  pub type U32x2x2 = Mat< 2, 2, u32, DescriptorOrderColumnMajor >;
+  /// Type alias for 3x3 `u32` column major matrix.
+  pub type U32x3x3 = Mat< 3, 3, u32, DescriptorOrderColumnMajor >;
+  /// Type alias for 4x4 `u32` column major matrix.
+  pub type U32x4x4 = Mat< 4, 4, u32, DescriptorOrderColumnMajor >;
+
+  /// Type alias for 2x2 `u64` column major matrix.
+  pub type U64x2x2 = Mat< 2, 2, u64, DescriptorOrderColumnMajor >;
+  /// Type alias for 3x3 `u64` column major matrix.
+  pub type U64x3x3 = Mat< 3, 3, u64, DescriptorOrderColumnMajor >;
+  /// Type alias for 4x4 `u64` column major matrix.
+  pub type U64x4x4 = Mat< 4, 4, u64, DescriptorOrderColumnMajor >;
 }
 
 mod access_common;
@@ -361,6 +446,10 @@ crate::mod_interface!
 
   layer fns;
   layer general;
+  /// Scalar conversions between element types (`cast`, `cast_as`, lossless `From`).
+  layer cast;
+  /// Integer-only helpers (`saturating_*`, `wrapping_*`, `checked_*`).
+  layer integer;
 
   own use
   {
@@ -379,6 +468,7 @@ crate::mod_interface!
   {
 
     MatEl,
+    MatNum,
     Mat,
     Mat2,
     Mat3,
@@ -388,7 +478,19 @@ crate::mod_interface!
     F32x4x4,
     F64x2x2,
     F64x3x3,
-    F64x4x4
+    F64x4x4,
+    I32x2x2,
+    I32x3x3,
+    I32x4x4,
+    I64x2x2,
+    I64x3x3,
+    I64x4x4,
+    U32x2x2,
+    U32x3x3,
+    U32x4x4,
+    U64x2x2,
+    U64x3x3,
+    U64x4x4,
   };
 
 }

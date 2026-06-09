@@ -85,7 +85,7 @@ async fn setup_scene( gl : &GL ) -> Result< GLTF, WebglError >
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 
-  let gltf_path = "gltf/multi_animation_extended.glb";
+  let gltf_path = "static/gltf/multi_animation_extended.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
 
@@ -407,7 +407,7 @@ async fn run() -> Result< (), gl::WebglError >
   let camera = setup_camera( width, height );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap", None ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -428,7 +428,7 @@ async fn run() -> Result< (), gl::WebglError >
   let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
   camera.get_controls().borrow_mut().eye = initial_center - forward * character_controls.borrow().zoom as f32;
 
-  let input = Rc::new( RefCell::new( browser_input::Input::new( Some( canvas.clone().dyn_into().unwrap() ), browser_input::CLIENT ) ) );
+  let input = Rc::new( RefCell::new( browser_input::Input::new( Some( canvas.clone().dyn_into().unwrap() ), browser_input::CLIENT ).expect( "Failed to initialize input" ) ) );
   let mut graph = setup_graph( gltf.animations.clone(), &input );
 
   // Define the update and draw logic
@@ -477,7 +477,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.borrow().get_main_texture() );
+      swap_buffer.set_input( renderer.borrow().main_texture() );
 
       let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render tonemapping pass" );

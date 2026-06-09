@@ -71,11 +71,15 @@ async fn run() -> Result< (), gl::WebglError >
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
+  // OES_texture_float_linear is required for linear filtering on RGBA32F LTC lookup tables.
+  // Without it, float textures with GL_LINEAR are incomplete and sample as (0, 0, 0, 1) — opaque black.
+  // EXT_color_buffer_float is not needed here — this example renders to the default framebuffer only.
+  gl.get_extension( "OES_texture_float_linear" )
+  .expect( "Failed to query OES_texture_float_linear" )
+  .expect( "OES_texture_float_linear is required for linear filtering on float textures" );
   gl.enable( gl::DEPTH_TEST );
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
   gl.viewport( 0, 0, width, height );
-  gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
-  gl.get_extension( "OES_texture_float_linear" ).unwrap().unwrap();
 
   let vertex_src = include_str!( "../shaders/light_body.vert" );
   let fragment_src = include_str!( "../shaders/light_body.frag" );
@@ -107,7 +111,7 @@ async fn run() -> Result< (), gl::WebglError >
   let ltc1 = load_table( &gl, LTC1 );
   let ltc2 = load_table( &gl, LTC2 );
 
-  let skull_mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
+  let skull_mesh = gltf::load( &document, "static/skull_salazar_downloadable.glb", &gl ).await?;
   let skull_model = mat3x3h::translation( [ 0.0, 1.0, 0.0 ] );
 
   let mut camera = renderer::webgl::Camera::new
@@ -122,6 +126,11 @@ async fn run() -> Result< (), gl::WebglError >
   );
   camera.set_window_size( [ width as f32, height as f32 ].into() );
   camera.bind_controls( &canvas );
+
+  gl.active_texture( gl::TEXTURE2 );
+  gl.bind_texture( gl::TEXTURE_2D, ltc1.as_ref() );
+  gl.active_texture( gl::TEXTURE3 );
+  gl.bind_texture( gl::TEXTURE_2D, ltc2.as_ref() );
 
   let update = move | _time |
   {
@@ -156,11 +165,6 @@ async fn run() -> Result< (), gl::WebglError >
 
     gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
 
-    gl.active_texture( gl::TEXTURE2 );
-    gl.bind_texture( gl::TEXTURE_2D, ltc1.as_ref() );
-    gl.active_texture( gl::TEXTURE3 );
-    gl.bind_texture( gl::TEXTURE_2D, ltc2.as_ref() );
-
     area_light_shader.activate();
     area_light_shader.uniform_upload( "u_points", light.vertices().as_slice() );
     area_light_shader.uniform_upload( "u_light_intensity", &light.intensity );
@@ -179,8 +183,8 @@ async fn run() -> Result< (), gl::WebglError >
         let material = primitive.material.borrow();
         let material = helpers::cast_unchecked_material_to_ref::< PbrMaterial >( material );
 
-        let base_color = material.base_color_texture.as_ref().unwrap();
-        let metallic_roughness = material.metallic_roughness_texture.as_ref().unwrap();
+        let base_color = material.base_color_texture().unwrap();
+        let metallic_roughness = material.metallic_roughness_texture().unwrap();
         gl.active_texture( gl::TEXTURE0 );
         base_color.bind( &gl );
         gl.active_texture( gl::TEXTURE1 );

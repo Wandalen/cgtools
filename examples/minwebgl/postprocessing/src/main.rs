@@ -46,7 +46,7 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf_path = "skull_salazar_downloadable.glb";
+  let gltf_path = "static/skull_salazar_downloadable.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
   scenes[ 0 ].borrow_mut().update_world_matrix();
@@ -88,11 +88,11 @@ async fn run() -> Result< (), gl::WebglError >
   camera.bind_controls( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_use_emission( true );
+  renderer.set_use_emission( &gl, true );
   renderer.set_bloom_strength( 0.5 );
   renderer.set_bloom_radius( 0.5 );
   renderer.set_exposure( 1.0 );
-  renderer.set_ibl( loaders::ibl::load( &gl, "envMap", None ).await );
+  renderer.set_ibl( loaders::ibl::load( &gl, "static/envMap", None ).await );
   let renderer = Rc::new( RefCell::new( renderer ) );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
@@ -111,7 +111,7 @@ async fn run() -> Result< (), gl::WebglError >
 
     swap_buffer.reset();
     swap_buffer.bind( &gl );
-    swap_buffer.set_input( renderer.borrow().get_main_texture() );
+    swap_buffer.set_input( renderer.borrow().main_texture() );
 
     // Post-processing pipeline - order matters for correct visual output:
 

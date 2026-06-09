@@ -51,7 +51,6 @@ impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > 
 for Mat< ROWS, COLS, E, Descriptor >
 where
   E : MatEl,
-  E : nd::NdFloat,
   Self : ConstLayout,
 {
   #[ inline( always ) ]
@@ -65,7 +64,6 @@ impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > 
 for Mat< ROWS, COLS, E, Descriptor >
 where
   E : MatEl,
-  E : nd::NdFloat,
   Self : ConstLayout + RawSliceMut,
 {
   #[ inline( always ) ]

@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::{ NdFloat, VectorIter, VectorIterMut, vector };
+  use crate::{ NdFloat, Scalar, VectorIter, VectorIterMut, vector };
   use crate::approx::ulps_eq;
 
   /// Computes the dot product of two vectors.
@@ -23,6 +23,12 @@ mod private
   /// # Returns
   /// - The dot product of the two vectors as a scalar of type `E`.
   ///
+  /// # Overflow
+  /// For integer scalars the per-element products and their summation are not
+  /// overflow-checked: they panic in debug / wrap in release once any
+  /// intermediate value exceeds `E::MAX`. Widen the element type or use a float
+  /// scalar when that is possible.
+  ///
   /// # Example
   /// ```rust
   /// use mdmath_core::vector;
@@ -36,7 +42,7 @@ mod private
   where
     A : VectorIter< E, SIZE >,
     B : VectorIter< E, SIZE >,
-    E : NdFloat,
+    E : Scalar,
   {
     a.vector_iter()
     .zip( b.vector_iter() )
@@ -44,12 +50,18 @@ mod private
     .fold( E::zero(), | sum, val | sum + val )
   }
 
-  /// Computes the squared magnitude of a vector.
+  /// Computes the squared magnitude of a vector (the dot product with itself).
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element products and their summation are not
+  /// overflow-checked: they panic in debug / wrap in release once any
+  /// intermediate value exceeds `E::MAX`. Widen the element type or use a float
+  /// scalar when that is possible.
   #[ inline ]
   pub fn mag2< E, A, const SIZE : usize >( a : &A ) -> E
   where
     A : VectorIter< E, SIZE >,
-    E : NdFloat,
+    E : Scalar,
   {
     dot( a, a )
   }
@@ -177,7 +189,7 @@ mod private
   where
     R : VectorIterMut< E, 3 >,
     B : VectorIter< E, 3 >,
-    E : NdFloat,
+    E : Scalar + ::num_traits::Signed,
   {
     let u =
     {
@@ -213,7 +225,7 @@ mod private
   where
     A : VectorIterMut< E, 3 > + Clone,
     B : VectorIter< E, 3 >,
-    E : NdFloat,
+    E : Scalar + ::num_traits::Signed,
   {
     let mut r = a.clone();
     cross_mut( &mut r, b );
@@ -222,12 +234,16 @@ mod private
 
   /// Performs element-wise addition operation on vectors.
   /// Modifies first vector in place.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element addition is not overflow-checked: it
+  /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
   pub fn sum_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
     R : VectorIterMut< E, N >,
     A : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut().zip( a.vector_iter() );
     for ( r, a ) in iter
@@ -237,12 +253,16 @@ mod private
   }
 
   /// Performs element-wise addition operation on vectors.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element addition is not overflow-checked: it
+  /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
   pub fn sum< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
     B : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     sum_mut( &mut r, b );
@@ -251,11 +271,15 @@ mod private
 
   /// Performs element-wise addition operation on vector with a scalar.
   /// Modifies first vector in place.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element addition is not overflow-checked: it
+  /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
   pub fn sum_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut();
     for r in iter
@@ -265,11 +289,15 @@ mod private
   }
 
   /// Performs element-wise addition operation on vector with a scalar.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element addition is not overflow-checked: it
+  /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
   pub fn sum_scalar< E, A, const N : usize >( a : &A, b : E ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     sum_scalar_mut( &mut r, b );
@@ -278,12 +306,18 @@ mod private
 
   /// Performs element-wise subtraction operation of vectors.
   /// Modifies first vector in place.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element subtraction is not overflow-checked: it
+  /// panics in debug / wraps in release whenever a result leaves `E`'s range —
+  /// e.g. unsigned underflow when a component of `a` exceeds the matching
+  /// component of `r`.
   #[ inline ]
   pub fn sub_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
     R : VectorIterMut< E, N >,
     A : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut().zip( a.vector_iter() );
     for ( r, a ) in iter
@@ -293,12 +327,18 @@ mod private
   }
 
   /// Performs element-wise subtraction operation of vectors.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element subtraction is not overflow-checked: it
+  /// panics in debug / wraps in release whenever a result leaves `E`'s range —
+  /// e.g. unsigned underflow when a component of `b` exceeds the matching
+  /// component of `a`.
   #[ inline ]
   pub fn sub< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
     B : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     sub_mut( &mut r, b );
@@ -307,11 +347,16 @@ mod private
 
   /// Performs element-wise subtraction operation of vector with a scalar.
   /// Modifies first vector in place.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element subtraction is not overflow-checked: it
+  /// panics in debug / wraps in release whenever a result leaves `E`'s range —
+  /// e.g. unsigned underflow when `a` exceeds a component of `r`.
   #[ inline ]
   pub fn sub_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut();
     for r in iter
@@ -321,11 +366,16 @@ mod private
   }
 
   /// Performs element-wise subtraction operation of vector with a scalar.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element subtraction is not overflow-checked: it
+  /// panics in debug / wraps in release whenever a result leaves `E`'s range —
+  /// e.g. unsigned underflow when `b` exceeds a component of `a`.
   #[ inline ]
   pub fn sub_scalar< E, A, const N : usize >( a : &A, b : E ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     sub_scalar_mut( &mut r, b );
@@ -334,12 +384,16 @@ mod private
 
   /// Performs element-wise multiplication operation on vectors.
   /// Modifies first vector in place.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element multiplication is not overflow-checked:
+  /// it panics in debug / wraps in release once a product leaves `E`'s range.
   #[ inline ]
   pub fn mul_mut< E, R, A, const N : usize >( r : &mut R, a : A )
   where
     R : VectorIterMut< E, N >,
     A : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut().zip( a.vector_iter() );
     for ( r, a ) in iter
@@ -349,12 +403,16 @@ mod private
   }
 
   /// Performs element-wise multiplication operation on vectors.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element multiplication is not overflow-checked:
+  /// it panics in debug / wraps in release once a product leaves `E`'s range.
   #[ inline ]
   pub fn mul< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
     B : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     mul_mut( &mut r, b );
@@ -363,11 +421,15 @@ mod private
 
   /// Performs element-wise multiplication operation on vector with a scalar.
   /// Modifies first vector in place.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element multiplication is not overflow-checked:
+  /// it panics in debug / wraps in release once a product leaves `E`'s range.
   #[ inline ]
   pub fn mul_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut();
     for r in iter
@@ -377,11 +439,15 @@ mod private
   }
 
   /// Performs element-wise multiplication operation on vector with a scalar.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-element multiplication is not overflow-checked:
+  /// it panics in debug / wraps in release once a product leaves `E`'s range.
   #[ inline ]
   pub fn mul_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
   where
     R : VectorIterMut< E, N >  + Clone,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     mul_scalar_mut( &mut r, b );
@@ -390,12 +456,17 @@ mod private
 
   /// Performs element-wise division operation of vectors.
   /// Modifies first vector in place.
+  ///
+  /// # Panics
+  /// For integer `E` this panics if any component of `a` is zero, in both debug
+  /// and release mode. For float `E`, division by zero yields `INFINITY` or
+  /// `NAN` instead.
   #[ inline ]
   pub fn div_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
     R : VectorIterMut< E, N >,
     A : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut().zip( a.vector_iter() );
     for ( r, a ) in iter
@@ -405,12 +476,17 @@ mod private
   }
 
   /// Performs element-wise division operation of vectors.
+  ///
+  /// # Panics
+  /// For integer `E` this panics if any component of `b` is zero, in both debug
+  /// and release mode. For float `E`, division by zero yields `INFINITY` or
+  /// `NAN` instead.
   #[ inline ]
   pub fn div< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
     B : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     div_mut( &mut r, b );
@@ -419,11 +495,15 @@ mod private
 
   /// Performs element-wise division operation of vector with a scalar.
   /// Modifies first vector in place.
+  ///
+  /// # Panics
+  /// For integer `E` this panics if `a` is zero, in both debug and release
+  /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
   #[ inline ]
   pub fn div_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
-    E : NdFloat,
+    E : Scalar,
   {
     let iter = r.vector_iter_mut();
     for r in iter
@@ -433,11 +513,15 @@ mod private
   }
 
   /// Performs element-wise division operation of vector with a scalar.
+  ///
+  /// # Panics
+  /// For integer `E` this panics if `b` is zero, in both debug and release
+  /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
   #[ inline ]
   pub fn div_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
   where
     R : VectorIterMut< E, N >  + Clone,
-    E : NdFloat,
+    E : Scalar,
   {
     let mut r = a.clone();
     div_scalar_mut( &mut r, b );

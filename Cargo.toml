@@ -32,6 +32,7 @@ members = [
   "module/helper/tilemap_renderer",
   "module/helper/tiles_tools",
   "module/helper/behaviour_tree",
+  "module/helper/tilemap_scene",
   # "module/helper/vectorizer", # TODO: Fix feature gate issues
 
   # Math modules
@@ -103,6 +104,8 @@ arbitrary_source_item_ordering = "allow"
 missing_docs_in_private_items = "allow"
 # Allows many single char names in mathematical contexts
 many_single_char_names = "allow"
+# Allows structs with many bool fields (e.g. Capabilities in tilemap_renderer)
+struct-excessive-bools = "allow"
 
 # = helpers
 
@@ -111,7 +114,7 @@ version = "0.1.0"
 path = "module/helper/animation"
 
 [workspace.dependencies.browser_input]
-version = "0.2.0"
+version = "0.4.0"
 path = "module/helper/browser_input"
 
 [workspace.dependencies.tiles_tools]
@@ -143,8 +146,12 @@ version = "0.2.0"
 path = "module/helper/line_tools"
 
 [workspace.dependencies.tilemap_renderer]
-version = "0.1.0"
+version = "0.2.0"
 path = "module/helper/tilemap_renderer"
+
+[workspace.dependencies.tilemap_scene]
+version = "0.1.0"
+path = "module/helper/tilemap_scene"
 
 [workspace.dependencies.behaviour_tree]
 version = "0.1.0"
@@ -153,7 +160,7 @@ path = "module/helper/behaviour_tree"
 # = min
 
 [workspace.dependencies.mingl]
-version = "~0.3.0"
+version = "~0.4.0"
 path = "module/min/mingl"
 
 [workspace.dependencies.minwebgl]
@@ -231,14 +238,14 @@ version = "0.2.0"
 version = "0.4.27"
 
 [workspace.dependencies.wasm-bindgen]
-version = "0.2.100"
+version = "0.2.117"
 
 [workspace.dependencies.js-sys]
-version = "0.3.77"
+version = "0.3.94"
 features = []
 
 [workspace.dependencies.web-sys]
-version = "0.3.77"
+version = "0.3.94"
 features = []
 
 [workspace.dependencies.bytemuck]
@@ -246,7 +253,7 @@ version = "1.23"
 features = ["derive"]
 
 [workspace.dependencies.ndarray]
-version = "0.16.1"
+version = "0.17.2"
 
 [workspace.dependencies.approx]
 version = "0.5.1"
@@ -255,7 +262,7 @@ version = "0.5.1"
 version = "0.2.19"
 
 [workspace.dependencies.wasm-bindgen-futures]
-version = "0.4.50"
+version = "0.4.67"
 
 [workspace.dependencies.wasm-bindgen-test]
 version = "0.3"
@@ -308,7 +315,7 @@ version = "0.25.6"
 version = "1.47.1"
 
 [workspace.dependencies.gltf]
-version = "1.4"
+version = "1.4.1"
 
 [workspace.dependencies.csgrs]
 version = "0.20.1"
@@ -349,6 +356,12 @@ version = "0.3.3"
 
 [workspace.dependencies.rustc-hash]
 version = "2.1.1"
+
+[workspace.dependencies.slotmap]
+version = "1.0.7"
+
+[workspace.dependencies.nohash-hasher]
+version = "0.2.0"
 
 [workspace.dependencies.rayon]
 version = "1.10"
@@ -407,3 +420,6 @@ version = "0.12"
 
 [workspace.dependencies.base64]
 version = "0.22.1"
+
+[workspace.dependencies.ron]
+version = "0.12.1"
