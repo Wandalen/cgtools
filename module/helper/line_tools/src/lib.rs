@@ -268,11 +268,9 @@ mod private
           let point = self.geometry.points.remove( index );
           #[ cfg( feature = "distance" ) ]
           {
-            // Fix(issue-003)
-            // Root Cause
-            // `point_remove()` did not remove a distance value from the array
-            // Pitfall
-            // `distance` should be a one to one mapping with `points`.
+            // Fix(issue-003): `point_remove()` now also removes the matching distance entry
+            // Root cause: `point_remove()` did not remove a distance value from the array
+            // Pitfall: `distances` must stay one-to-one with `points`
             self.geometry.distances.remove( index );
             if !self.geometry.distances.is_empty()
             {
@@ -312,11 +310,9 @@ mod private
                 *d -= delta_dist;
               }
             }
-            // Fix(issue-002)
-            // Root Cause
-            // `point_remove_front()` did not update the total_distance
-            // Pitfall
-            // Total distance needs to be updated when the distance array is changed.
+            // Fix(issue-002): `point_remove_front()` now updates `total_distance`
+            // Root cause: `point_remove_front()` did not update the `total_distance`
+            // Pitfall: total distance must be updated whenever the distance array changes
             geometry.total_distance = geometry.distances.back().copied().unwrap_or( 0.0 );
           }
           let point = geometry.points.pop_front();
@@ -356,13 +352,9 @@ mod private
             if geometry.distances.len() > 0
             {
               geometry.distances.pop_back();
-              // Fix(issue-001)
-              // Root Cause
-              // `point_remove_back()` subtracted the cumulative distance from itself,
-              // resulting in total_distance = 0 instead of the new total.
-              // 
-              // Pitfall
-              // Cumulative distance arrays store running totals [0, d1, d1+d2], not deltas.
+              // Fix(issue-001): `point_remove_back()` now reads the new total from the array's last element
+              // Root cause: `point_remove_back()` subtracted the cumulative distance from itself, resulting in total_distance = 0 instead of the new total
+              // Pitfall: cumulative distance arrays store running totals [0, d1, d1+d2], not deltas
               geometry.total_distance = geometry.distances.back().copied().unwrap_or( 0.0 );
             }
           }
