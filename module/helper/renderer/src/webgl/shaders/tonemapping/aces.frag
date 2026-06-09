@@ -21,7 +21,8 @@ vec3 aces_tone_map( vec3 hdr )
     -0.07367, -0.00605,  1.07602
   );
 
-  vec3 v = m1 * hdr;
+  // Pre-exposure RRT scaling, matching three.js ACESFilmicToneMapping.
+  vec3 v = m1 * ( hdr / 0.6 );
   vec3 a = v * ( v + 0.0245786 ) - 0.000090537;
   vec3 b = v * ( 0.983729 * v + 0.4329510 ) + 0.238081;
 
@@ -30,6 +31,9 @@ vec3 aces_tone_map( vec3 hdr )
 
 void main()
 {
-  vec3 color = aces_tone_map( texture( sourceTexture, vUv ).rgb );
-  frag_color = vec4( color, 1.0 );
+  vec4 src = texture( sourceTexture, vUv );
+  vec3 mapped = aces_tone_map( src.rgb );
+  // Background pixels are cleared with alpha = 0 and must bypass tone mapping
+  // ( as the clear color does in three.js ); geometry writes alpha = 1.
+  frag_color = vec4( mix( src.rgb, mapped, src.a ), 1.0 );
 }

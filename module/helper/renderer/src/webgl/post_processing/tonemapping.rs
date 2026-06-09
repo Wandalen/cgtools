@@ -33,12 +33,10 @@ mod private
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError >
     {
-      // Disable depth testing.
       gl.disable( gl::DEPTH_TEST );
       gl.disable( gl::BLEND );
       gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
 
-      // Bind the tone mapping shader program.
       self.material.bind( gl );
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, input_texture.as_ref() );
@@ -54,8 +52,6 @@ mod private
       gl.clear( gl::COLOR_BUFFER_BIT );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
-      // --- Cleanup ---
-      // Unbind the texture and framebuffer attachment to restore default state.
       gl::clean::texture_2d( gl );
       gl::clean::framebuffer_texture_2d( gl );
 
@@ -65,19 +61,12 @@ mod private
 
   impl ToneMappingPass< ToneMappingAces >
   {
-    // Creates a new `ToneMappingPass` specifically configured for **ACES tone mapping**.
-    ///
-    /// This constructor loads the ACES fragment shader, compiles it, and initializes
-    /// the output texture.
-    ///
-    /// # Arguments
-    ///
-    /// * `gl` - A reference to the WebGl2RenderingContext.
+    /// Creates an ACES tone mapping pass.
     pub fn new( gl : &gl::WebGl2RenderingContext ) -> Result< Self, gl::WebglError >
     {
       let fs_shader = include_str!( "../shaders/tonemapping/aces.frag" );
-      let material = gl::ProgramFromSources::new(  VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = EmptyShader::new( gl, &material );
+      let program = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
+      let material = EmptyShader::new( gl, &program );
 
       Ok
       (

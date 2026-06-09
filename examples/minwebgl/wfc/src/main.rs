@@ -92,7 +92,7 @@ struct ApplicationState
 ///
 /// # Arguments
 ///
-/// * `path`: The path relative to the `/static/` directory, used to construct
+/// * `path`: URL or origin-relative path of the image to load, used to construct
 ///   the image URL and set the element's ID.
 /// * `on_load_callback`: A closure that will be invoked with a reference to
 ///   the loaded `HtmlImageElement` when the browser's `load` event fires for the image.
@@ -146,7 +146,7 @@ fn load_image
   let origin = window.location()
   .origin()
   .expect( "Should have an origin" );
-  let url = format!( "{origin}/static/{path}" );
+  let url = format!( "{origin}/{path}" );
   image.set_src( &url );
   Ok( image )
 }
@@ -321,7 +321,7 @@ fn init()
 
   let load = move | _img : &web_sys::HtmlImageElement | {};
 
-  let _ = load_image( "tileset.png", Box::new( load ) );
+  let _ = load_image( "static/tileset.png", Box::new( load ) );
 }
 
 /// Prepares the vertex attributes for rendering a quad.

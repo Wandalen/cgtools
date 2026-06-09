@@ -313,7 +313,7 @@ mod private
       drawbuffers( gl, &self.color_attachments );
     }
 
-    pub fn get_texture( &self, attachment : GBufferAttachment ) -> Option< WebGlTexture >
+    pub fn texture( &self, attachment : GBufferAttachment ) -> Option< WebGlTexture >
     {
       self.textures.get( &attachment.define_const() ).clone().cloned()
     }
@@ -399,7 +399,7 @@ mod private
             if self.attachment_buffers.contains_key( &GBufferAttachment::Albedo )
             && self.attachment_buffers.contains_key( &GBufferAttachment::PbrInfo )
             {
-              let albedo_texture = material.base_color_texture.as_ref()
+              let albedo_texture = material.base_color_texture()
               .map( | t | t.texture.borrow().source.clone() ).flatten();
 
               if let Some( albedo_texture ) = albedo_texture
@@ -410,7 +410,7 @@ mod private
 
             if self.attachment_buffers.contains_key( &GBufferAttachment::PbrInfo )
             {
-              let material_id = &material.get_id().to_fields_le().0;
+              let material_id = &material.id().to_fields_le().0;
               gl::uniform::upload( &gl, material_id_loc.as_ref().cloned(), material_id ).unwrap();
             }
 

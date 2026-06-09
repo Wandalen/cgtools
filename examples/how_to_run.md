@@ -2,6 +2,8 @@
 
 This guide provides comprehensive instructions for setting up your environment and running the various demo applications in the CGTools project.
 
+> New to Rust and setting things up for the first time? See the step-by-step [beginner guide](non_developer_how_to_run.md).
+
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)

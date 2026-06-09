@@ -347,3 +347,21 @@ fn test_cross()
     assert_ulps_eq!( r, e );
   }
 }
+
+#[ test ]
+fn test_integer_arithmetics()
+{
+  use the_module::vector;
+
+  // `dot` / `mag2` work for any integer scalar (no subtraction).
+  assert_eq!( vector::dot( &[ 1i32, 2, 3 ], &[ 4i32, 5, 6 ] ), 32 );
+  assert_eq!( vector::mag2( &[ 1i32, 2, 3 ] ), 14 );
+
+  // `cross` / `cross_mut` need a signed scalar; exercise both forms with i32.
+  assert_eq!( vector::cross( &[ 1i32, 0, 0 ], &[ 0i32, 1, 0 ] ), [ 0, 0, 1 ] );
+  assert_eq!( vector::cross( &[ 1i32, 2, 3 ], &[ 1i32, 5, 7 ] ), [ -1, -4, 3 ] );
+
+  let mut v = [ 1i32, 2, 3 ];
+  vector::cross_mut( &mut v, &[ 1i32, 5, 7 ] );
+  assert_eq!( v, [ -1, -4, 3 ] );
+}

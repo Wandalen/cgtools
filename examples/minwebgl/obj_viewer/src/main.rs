@@ -64,9 +64,9 @@ async fn run() -> Result< (), gl::WebglError >
   // You need to provide the full path to the object, and paths to folder that contain textures and mtl
   // Path is relative to "assets", and you cannot move up, so all of your file should be located in "assets" folder
   // mtl and texture's paths are specified inside obj and mtl files respectively
-  let mtl_path = "lost-empire";
+  let mtl_path = "static/lost-empire";
   let texture_path = "lost-empire";
-  let obl_path = "lost-empire/lost_empire.obj";
+  let obl_path = "static/lost-empire/lost_empire.obj";
 
   gl::console::time_with_label( "Load" );
   let model_buffer = gl::file::load( obl_path ).await.expect( "Failed to fetch the model" );

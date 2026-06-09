@@ -7,3 +7,4 @@ mod mat3x3_test;
 mod mat3x3h_test;
 mod mat4x4_test;
 mod quat_test;
+mod integer_test;

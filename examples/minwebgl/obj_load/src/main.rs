@@ -20,7 +20,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl.use_program( Some( &program ) );
 
   // Load model
-  let obj_buffer = gl::file::load( "suzanne.obj" ).await.expect( "Failed to load the model" );
+  let obj_buffer = gl::file::load( "static/suzanne.obj" ).await.expect( "Failed to load the model" );
   let obj_cursor = Cursor::new( obj_buffer );
   let mut obj_reader = BufReader::new( obj_cursor );
 
