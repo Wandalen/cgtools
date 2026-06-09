@@ -106,7 +106,7 @@ arc length.
 use line_tools::d3::{ Line, DashPattern };
 
 let mut line = Line::default();
-line.use_dash( true );
+line.dash_use( true );
 line.dash_pattern_set( DashPattern::V2( [ 0.3, 0.1 ] ) ); // dash, gap
 line.dash_offset_set( 0.0 );
 line.mesh_create( gl, None )?;
@@ -171,7 +171,7 @@ line.draw( gl )?;
 | `point_remove` / `point_remove_back` / `point_remove_front` | Remove points. |
 | `point_get` / `points_get` / `colors_get` | Read back geometry. |
 | `num_points` | Number of points in the line. |
-| `use_vertex_color` / `use_world_units` / `use_alpha_to_coverage` / `use_dash` | Toggle render-state flags (call before `mesh_create`). |
+| `use_vertex_color` / `use_world_units` / `use_alpha_to_coverage` / `dash_use` | Toggle render-state flags (call before `mesh_create`). |
 | `mesh_create` / `mesh_update` / `mesh_get` / `mesh_get_mut` | Manage the GPU mesh. |
 | `draw` | Sync changed buffers and issue the draw call. |
 | `clear` | Remove all points without freeing memory. |

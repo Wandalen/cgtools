@@ -15,37 +15,37 @@ fn test_dash_pattern_default()
   }
 }
 
-// === use_dash ===
+// === dash_use ===
 
 #[ test ]
-fn test_use_dash_enables_dash_define()
+fn test_dash_use_enables_dash_define()
 {
   let mut line = d3::Line::default();
-  line.use_dash( true );
+  line.dash_use( true );
 
   let defines = line.get_defines();
   assert!( defines.contains( "#define USE_DASH\n" ) );
 }
 
 #[ test ]
-fn test_use_dash_false_no_dash_define()
+fn test_dash_use_false_no_dash_define()
 {
   let mut line = d3::Line::default();
-  line.use_dash( false );
+  line.dash_use( false );
 
   let defines = line.get_defines();
   assert!( !defines.contains( "#define USE_DASH" ) );
 }
 
 #[ test ]
-fn test_use_dash_toggle()
+fn test_dash_use_toggle()
 {
   let mut line = d3::Line::default();
 
-  line.use_dash( true );
+  line.dash_use( true );
   assert!( line.get_defines().contains( "#define USE_DASH\n" ) );
 
-  line.use_dash( false );
+  line.dash_use( false );
   assert!( !line.get_defines().contains( "#define USE_DASH" ) );
 }
 
@@ -55,7 +55,7 @@ fn test_use_dash_toggle()
 fn test_dash_pattern_set_v1()
 {
   let mut line = d3::Line::default();
-  line.use_dash( true );
+  line.dash_use( true );
   line.dash_pattern_set( d3::DashPattern::V1( 1.0 ) );
 
   let defines = line.get_defines();
@@ -69,7 +69,7 @@ fn test_dash_pattern_set_v1()
 fn test_dash_pattern_set_v2()
 {
   let mut line = d3::Line::default();
-  line.use_dash( true );
+  line.dash_use( true );
   line.dash_pattern_set( d3::DashPattern::V2( [ 0.5, 0.5 ] ) );
 
   let defines = line.get_defines();
@@ -81,7 +81,7 @@ fn test_dash_pattern_set_v2()
 fn test_dash_pattern_set_v3()
 {
   let mut line = d3::Line::default();
-  line.use_dash( true );
+  line.dash_use( true );
   line.dash_pattern_set( d3::DashPattern::V3( [ 0.5, 0.25, 0.25 ] ) );
 
   let defines = line.get_defines();
@@ -92,7 +92,7 @@ fn test_dash_pattern_set_v3()
 fn test_dash_pattern_set_v4()
 {
   let mut line = d3::Line::default();
-  line.use_dash( true );
+  line.dash_use( true );
   line.dash_pattern_set( d3::DashPattern::V4( [ 0.4, 0.1, 0.4, 0.1 ] ) );
 
   let defines = line.get_defines();
@@ -103,7 +103,7 @@ fn test_dash_pattern_set_v4()
 fn test_dash_pattern_set_same_variant_no_defines_change()
 {
   let mut line = d3::Line::default();
-  line.use_dash( true );
+  line.dash_use( true );
 
   // Default is V1, setting V1 again with different value
   // should not change the defines output since discriminant is the same
@@ -120,7 +120,7 @@ fn test_dash_pattern_set_same_variant_no_defines_change()
 fn test_dash_pattern_set_different_variant_changes_defines()
 {
   let mut line = d3::Line::default();
-  line.use_dash( true );
+  line.dash_use( true );
   line.dash_pattern_set( d3::DashPattern::V1( 0.5 ) );
 
   let defines1 = line.get_defines();
@@ -180,7 +180,7 @@ fn test_get_defines_all_flags()
   line.use_vertex_color( true );
   line.use_alpha_to_coverage( true );
   line.use_world_units( true );
-  line.use_dash( true );
+  line.dash_use( true );
   line.dash_pattern_set( d3::DashPattern::V3( [ 0.5, 0.25, 0.25 ] ) );
 
   let defines = line.get_defines();
@@ -192,7 +192,7 @@ fn test_get_defines_all_flags()
 }
 
 #[ test ]
-fn test_get_defines_dash_without_use_dash_no_dash_defines()
+fn test_get_defines_dash_without_dash_use_no_dash_defines()
 {
   let mut line = d3::Line::default();
   // Set a pattern but don't enable dashing
@@ -203,10 +203,10 @@ fn test_get_defines_dash_without_use_dash_no_dash_defines()
 }
 
 #[ test ]
-fn test_get_defines_use_dash_includes_default_pattern_v1()
+fn test_get_defines_dash_use_includes_default_pattern_v1()
 {
   let mut line = d3::Line::default();
-  line.use_dash( true );
+  line.dash_use( true );
 
   // Default DashPattern is V1, so enabling dash should include V1 define
   let defines = line.get_defines();

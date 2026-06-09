@@ -35,12 +35,12 @@ mod private
     pub use_world_units : bool,
     /// Fragment shader source
     pub fragment_shader : String,
-    /// Specifies the pattern of the dash, if `use_dash`` is `true``
+    /// Specifies the pattern of the dash, if `dash_use`` is `true``
     #[ cfg( feature = "distance" ) ]
     pub dash_pattern : DashPattern,
     #[ cfg( feature = "distance" ) ]
     /// A flag to set whether to use dashed line or not
-    pub use_dash : bool,
+    pub dash_use : bool,
     #[ cfg( feature = "distance" ) ]
     /// Offset to the beginning of the dash pattern
     pub dash_offset : f32,
@@ -69,7 +69,7 @@ mod private
       }
 
       #[ cfg( feature = "distance" ) ]
-      if self.use_dash
+      if self.dash_use
       {
         s += "#define USE_DASH\n";
         
@@ -179,7 +179,7 @@ mod private
       }
 
       #[ cfg( feature = "distance" ) ]
-      if self.render_state.use_dash
+      if self.render_state.dash_use
       {
         gl::BufferDescriptor::new::< [ f32; 1 ] >().stride( 1 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 6, &distances_buffer )?;
         gl::BufferDescriptor::new::< [ f32; 1 ] >().stride( 1 ).offset( 1 ).divisor( 1 ).attribute_pointer( gl, 7, &distances_buffer )?;
@@ -254,7 +254,7 @@ mod private
         b_program.uniform_locations_clear();
 
         #[ cfg( feature = "distance" ) ]
-        if self.render_state.use_dash
+        if self.render_state.dash_use
         {
           match self.render_state.dash_pattern
           {
@@ -318,9 +318,9 @@ mod private
 
     #[ cfg( feature = "distance" ) ]
     /// Sets whether dashed rendering is enabled for this line.
-    pub fn use_dash( &mut self, value : bool )
+    pub fn dash_use( &mut self, value : bool )
     {
-      self.render_state.use_dash = value;
+      self.render_state.dash_use = value;
       self.change_state.defines_changed = true;
     }
 
@@ -346,7 +346,7 @@ mod private
       let mesh = self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
 
       #[ cfg( feature = "distance" ) ]
-      if self.render_state.use_dash
+      if self.render_state.dash_use
       {
         let b_program = mesh.program_get_mut( "body" );
         match self.render_state.dash_pattern

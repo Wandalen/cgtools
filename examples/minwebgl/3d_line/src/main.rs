@@ -100,7 +100,7 @@ fn run() -> Result< (), gl::WebglError >
     line.use_vertex_color( true );
     line.use_alpha_to_coverage( settings.borrow().alpha_to_coverage );
     line.use_world_units( settings.borrow().world_units );
-    line.use_dash( settings.borrow().dashes );
+    line.dash_use( settings.borrow().dashes );
     line.mesh_create( &gl, None )?;
 
     // Upload initial uniforms shared by every line.

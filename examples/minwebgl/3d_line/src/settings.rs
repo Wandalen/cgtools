@@ -229,7 +229,7 @@ pub fn bind_to_ui
         let mut lines = lines.borrow_mut();
         for i in 0..lines.len()
         {
-          lines[ i ].use_dash( value );
+          lines[ i ].dash_use( value );
         }
       }
     }
