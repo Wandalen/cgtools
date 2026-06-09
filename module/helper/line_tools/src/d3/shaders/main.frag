@@ -331,7 +331,6 @@ void main()
       float norm3 = getDistanceToDash( rayEnd, 1.0 );
 
       float norm = min( min( norm1, norm2 ), norm3 );
-      //float norm = norm2;
       if( norm == MAX_FLOAT ) { discard; }
 
 
