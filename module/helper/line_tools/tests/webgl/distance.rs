@@ -101,10 +101,9 @@ fn test_distance_clear_and_rebuild()
 ///
 /// ## Pitfall
 /// `distance` should be a one to one mapping with `points`.
-/// 
-/// bug_reproducer(issue-003)
+// test_kind: bug_reproducer(issue-003)
 #[ test ]
-fn test_distance_point_remove_by_index()
+fn test_distance_point_remove_by_index_bug_003()
 {
   let mut line = d3::Line::default();
   line.point_add_back( &[ 0.0, 0.0, 0.0 ] );
@@ -378,10 +377,9 @@ fn test_distance_point_remove_back()
 ///
 /// ## Pitfall
 /// Total distance needs to be updated when the distance array is changed.
-/// 
-/// bug_reproducer(issue-002)
+// test_kind: bug_reproducer(issue-002)
 #[ test ]
-fn test_distance_point_remove_front()
+fn test_distance_point_remove_front_bug_002()
 {
   let mut line = d3::Line::default();
   line.point_add_front( &[ 0.0, 0.0, 0.0 ] );
@@ -752,10 +750,9 @@ fn test_distance_remove_front_and_back_then_rebuild()
 ///
 /// ## Pitfall
 /// Cumulative distance arrays store running totals [0, d1, d1+d2], not deltas.
-/// 
-/// bug_reproducer(issue-001)
+// test_kind: bug_reproducer(issue-001)
 #[ test ]
-fn test_distance_remove_back_total_distance_stays_consistent()
+fn test_distance_remove_back_total_distance_stays_consistent_bug_001()
 {
   let mut line = d3::Line::default();
   line.point_add_back( &[ 0.0, 0.0, 0.0 ] );
