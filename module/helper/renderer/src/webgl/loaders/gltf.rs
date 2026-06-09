@@ -421,8 +421,14 @@ mod private
 
     // let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
     // .await.expect( "Failed to load gltf file" );
-    let gltf_slice = gl::file::load( gltf_path ).await.expect( "Failed to load gltf file" );
-    let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice ).unwrap();
+    // Propagate fetch / parse failures as errors instead of panicking: an
+    // `.unwrap()` here aborts the whole wasm module (e.g. when a dev server
+    // returns an HTML 404 page, or the bytes are not a valid glTF/GLB), leaving
+    // it unusable for every subsequent call.
+    let gltf_slice = gl::file::load( gltf_path ).await
+    .map_err( | _ | gl::WebglError::Other( "Failed to load gltf file" ) )?;
+    let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice )
+    .map_err( | _ | gl::WebglError::Other( "Failed to parse gltf file" ) )?;
 
     let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
 
@@ -442,7 +448,7 @@ mod private
         {
           let path = format!( "{}/{}", folder_path, uri );
           let buffer = gl::file::load( &path ).await
-          .expect( "Failed to load a buffer" );
+          .map_err( | _ | gl::WebglError::Other( "Failed to load a buffer" ) )?;
 
           gl::debug!
           (

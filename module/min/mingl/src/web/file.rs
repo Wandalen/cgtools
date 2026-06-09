@@ -7,6 +7,9 @@ mod private
   /// Resolves `file_name` against `origin` according to `load`'s contract.
   ///
   /// * Absolute URLs (`http://`, `https://`, `//`) pass through unchanged.
+  /// * Self-contained URLs (`blob:`, `data:`) pass through unchanged — these carry
+  ///   their own payload and must reach `fetch` verbatim; prefixing the origin
+  ///   mangles them into an unresolvable same-origin path.
   /// * Origin-absolute paths (leading `/`) are appended to the origin as-is.
   /// * Anything else is treated as origin-relative and joined with a single `/`.
   fn resolve_url( origin : &str, file_name : &str ) -> String
@@ -14,6 +17,8 @@ mod private
     if file_name.starts_with( "http://" )
     || file_name.starts_with( "https://" )
     || file_name.starts_with( "//" )
+    || file_name.starts_with( "blob:" )
+    || file_name.starts_with( "data:" )
     {
       file_name.to_string()
     }
@@ -31,8 +36,9 @@ mod private
   /// Asynchronously fetches a file over HTTP using the browser's `fetch` API.
   ///
   /// The argument is used verbatim as a URL or path; no folder prefix is added.
-  /// Three forms are accepted:
+  /// These forms are accepted:
   /// * Absolute URL (`http://...`, `https://...`, or protocol-relative `//...`) — fetched as-is.
+  /// * Self-contained URL (`blob:...`, `data:...`) — fetched as-is.
   /// * Origin-absolute path (`/assets/foo.png`) — joined to the window origin.
   /// * Origin-relative path (`static/foo.png`, `foo.png`) — joined to the window origin with `/`.
   ///
@@ -117,6 +123,26 @@ mod private
       (
         resolve_url( "https://app.example.com", "//cdn.example.com/foo.glb" ),
         "//cdn.example.com/foo.glb"
+      );
+    }
+
+    #[ test ]
+    fn passes_blob_url_through()
+    {
+      assert_eq!
+      (
+        resolve_url( "https://app.example.com", "blob:https://app.example.com/uuid-1234" ),
+        "blob:https://app.example.com/uuid-1234"
+      );
+    }
+
+    #[ test ]
+    fn passes_data_url_through()
+    {
+      assert_eq!
+      (
+        resolve_url( "https://app.example.com", "data:application/octet-stream;base64,Z2xURg==" ),
+        "data:application/octet-stream;base64,Z2xURg=="
       );
     }
 
