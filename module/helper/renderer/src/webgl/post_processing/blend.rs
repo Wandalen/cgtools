@@ -64,7 +64,7 @@ mod private
       true
     }
 
-    /// Belnds the `self.blend_texture` with the `output_texture`, setting the `output_texture` as destination
+    /// Blends the `self.blend_texture` with the `output_texture`, setting the `output_texture` as destination
     fn render
     (
         &self,
