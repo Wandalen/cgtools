@@ -462,6 +462,10 @@ mod private
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError >
     {
+      // Screen-space pass: the fullscreen triangle is back-facing, so it must not
+      // inherit the scene's CULL_FACE state or it gets culled and nothing draws.
+      gl.disable( gl::CULL_FACE );
+
       // 2. JFA Initialization Pass: Initialize JFA texture from the silhouette
       self.jfa_init_pass( gl );
 
