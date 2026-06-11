@@ -74,14 +74,19 @@ async fn run() -> Result< (), gl::WebglError >
   camera.set_window_size( [ width as f32, height as f32 ].into() );
   camera.bind_controls( &canvas );
 
+  // EXT_color_buffer_float is required for rendering to float framebuffer attachments (RGBA16F/RGBA32F).
+  gl.get_extension( "EXT_color_buffer_float" )
+  .expect( "Failed to query EXT_color_buffer_float" )
+  .expect( "EXT_color_buffer_float is required for float framebuffer attachments" );
+
   let mut renderer = renderer::webgl::Renderer::new( &gl, width as u32, height as u32, 4 )?;
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
   let mut swap_buffer = SwapFramebuffer::new( &gl, width as u32, height as u32 );
 
-  let mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
+  let mesh = gltf::load( &document, "static/skull_salazar_downloadable.glb", &gl ).await?;
 
-  let cube_mesh = gltf::load( &document, "plane.glb", &gl ).await?;
+  let cube_mesh = gltf::load( &document, "static/plane.glb", &gl ).await?;
   let cube_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] ) * mat3x3h::scale( [ 8.0, 1.0, 8.0 ] );
 
   let mut main_scene = renderer::webgl::Scene::new();
@@ -184,7 +189,7 @@ async fn run() -> Result< (), gl::WebglError >
     let primitive_borrow = primitive.borrow_mut();
     let material_ref = primitive_borrow.material.borrow_mut();
     let mut pbr_material = cast_unchecked_material_to_ref_mut::< PbrMaterial >( material_ref );
-    pbr_material.base_color_texture = Some( texture_info );
+    pbr_material.set_base_color_texture( Some( texture_info ) );
   }
 
   let update = move | _ |
@@ -193,7 +198,7 @@ async fn run() -> Result< (), gl::WebglError >
 
     swap_buffer.reset();
     swap_buffer.bind( &gl );
-    swap_buffer.set_input( renderer.get_main_texture() );
+    swap_buffer.set_input( renderer.main_texture() );
 
     let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
     .expect( "Failed to render tonemapping pass" );

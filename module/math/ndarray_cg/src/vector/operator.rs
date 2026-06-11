@@ -4,14 +4,16 @@ mod private
   use crate::*;
   use std::ops::{ Rem, Neg };
 
-  // qqq : xxx : cover by test each operator
-
   impl< E, const LEN : usize > Neg for Vector< E, LEN >
   where
-    E : MatEl + nd::NdFloat,
+    E : MatNum + Neg< Output = E >,
   {
     type Output = Self;
 
+    /// # Panics
+    /// For signed integer `E`, negating a component equal to `E::MIN` overflows:
+    /// panics in debug mode, wraps to `E::MIN` in release. Ensure no component
+    /// equals `E::MIN`, or widen the element type before negating.
     #[ inline ]
     fn neg( self ) -> Self::Output
     {
@@ -19,13 +21,16 @@ mod private
     }
   }
 
-  // xxx : qqq : enable
   impl< E, const LEN : usize > Neg for &Vector< E, LEN >
   where
-    E: MatEl + nd::NdFloat,
+    E : MatNum + Neg< Output = E >,
   {
     type Output = Vector< E, LEN >;
 
+    /// # Panics
+    /// For signed integer `E`, negating a component equal to `E::MIN` overflows:
+    /// panics in debug mode, wraps to `E::MIN` in release. Ensure no component
+    /// equals `E::MIN`, or widen the element type before negating.
     #[inline]
     fn neg( self ) -> Self::Output
     {
@@ -36,7 +41,7 @@ mod private
   #[ inline ]
   fn rem_vector< E, const LEN : usize >( a : &Vector< E, LEN >, b : &Vector< E, LEN > ) -> Vector< E, LEN >
   where
-    E : MatEl + nd::NdFloat + Rem< Output = E >,
+    E : MatNum,
   {
     let mut result = *a;
     for ( r, ( x, y ) ) in result.0.iter_mut().zip( a.0.iter().zip( b.0.iter() ) )
@@ -49,7 +54,7 @@ mod private
   #[ inline ]
   fn rem_scalar< E, const LEN : usize >( a : &Vector< E, LEN >, scalar : E ) -> Vector< E, LEN >
   where
-    E : MatEl + nd::NdFloat + Rem< Output = E >,
+    E : MatNum,
   {
     let mut result = *a;
     for r in result.0.iter_mut()
@@ -62,10 +67,14 @@ mod private
   // Vector % Vector
   impl< E, const LEN : usize > Rem for Vector< E, LEN >
   where
-    E : MatEl + nd::NdFloat + Rem< Output = E >,
+    E : MatNum,
   {
     type Output = Self;
 
+    /// # Panics
+    /// For integer `E` this panics if any component of `rhs` is zero, in both
+    /// debug and release mode. For float `E`, remainder by zero yields `NAN`
+    /// instead.
     #[ inline ]
     fn rem( self, rhs : Self ) -> Self::Output
     {
@@ -75,7 +84,7 @@ mod private
 
   impl< E, const LEN : usize > Rem for &Vector< E, LEN >
   where
-    E : MatEl + nd::NdFloat + Rem< Output = E >,
+    E : MatNum,
   {
     type Output = Vector< E, LEN >;
 
@@ -89,10 +98,13 @@ mod private
   // Vector % scalar
   impl< E, const LEN : usize > Rem< E > for Vector< E, LEN >
   where
-    E : MatEl + nd::NdFloat + Rem< Output = E >,
+    E : MatNum,
   {
     type Output = Self;
 
+    /// # Panics
+    /// For integer `E` this panics if `scalar` is zero, in both debug and
+    /// release mode. For float `E`, remainder by zero yields `NAN` instead.
     #[ inline ]
     fn rem( self, scalar : E ) -> Self::Output
     {
@@ -102,7 +114,7 @@ mod private
 
   impl< E, const LEN : usize > Rem< E > for &Vector< E, LEN >
   where
-    E : MatEl + nd::NdFloat + Rem< Output = E >,
+    E : MatNum,
   {
     type Output = Vector< E, LEN >;
 
@@ -116,8 +128,12 @@ mod private
   // RemAssign for Vector % Vector
   impl< E, const LEN : usize > std::ops::RemAssign for Vector< E, LEN >
   where
-    E : MatEl + nd::NdFloat + Rem< Output = E >,
+    E : MatNum,
   {
+    /// # Panics
+    /// For integer `E` this panics if any component of `rhs` is zero, in both
+    /// debug and release mode. For float `E`, remainder by zero yields `NAN`
+    /// instead.
     #[ inline ]
     fn rem_assign( &mut self, rhs : Self )
     {
@@ -128,8 +144,11 @@ mod private
   // RemAssign for Vector % scalar
   impl< E, const LEN : usize > std::ops::RemAssign< E > for Vector< E, LEN >
   where
-    E : MatEl + nd::NdFloat + Rem< Output = E >,
+    E : MatNum,
   {
+    /// # Panics
+    /// For integer `E` this panics if `scalar` is zero, in both debug and
+    /// release mode. For float `E`, remainder by zero yields `NAN` instead.
     #[ inline ]
     fn rem_assign( &mut self, scalar : E )
     {
@@ -139,10 +158,14 @@ mod private
 
   impl< E, const LEN : usize > std::ops::Div for Vector< E, LEN >
   where
-    E : MatEl + nd::NdFloat + DivAssign,
+    E : MatNum,
   {
     type Output = Self;
 
+    /// # Panics
+    /// For integer `E` this panics if any component of `rhs` is zero, in both
+    /// debug and release mode. For float `E`, division by zero yields
+    /// `INFINITY` or `NAN` instead.
     fn div( mut self, rhs : Self ) -> Self::Output
     {
       self.iter_mut().zip( rhs.iter() ).for_each

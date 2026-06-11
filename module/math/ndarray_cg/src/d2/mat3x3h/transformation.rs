@@ -169,7 +169,7 @@ pub fn look_to_rh< E, Vec3 >
 )
 ->  Mat4< E, mat::DescriptorOrderColumnMajor >
 where
-  E : MatEl + nd::NdFloat,
+  E : MatEl + nd::NdFloat + ::num_traits::Signed,
   Vec3 : VectorIterMut< E, 3 > + ArrayRef< E, 3 > + Clone,
   Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
@@ -210,7 +210,7 @@ pub fn look_at_rh< E, Vec3 >
 )
 ->  Mat4< E, mat::DescriptorOrderColumnMajor >
 where
-  E : MatEl + nd::NdFloat,
+  E : MatEl + nd::NdFloat + ::num_traits::Signed,
   Vec3 : VectorIterMut< E, 3 > + ArrayRef< E, 3 > + Clone,
   Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
@@ -267,7 +267,7 @@ where
 #[ inline ]
 pub fn translation< E, Translation >( translation : Translation ) -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Translation : VectorIter< E, 3 >,
   Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
 {
@@ -297,7 +297,7 @@ where
 #[ inline ]
 pub fn scale< E, Scaling >( scaling : Scaling ) -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Scaling : VectorIter< E, 3 > + Collection< Scalar = E >,
   Mat4< E, mat::DescriptorOrderColumnMajor > :  RawSliceMut< Scalar = E >
 {

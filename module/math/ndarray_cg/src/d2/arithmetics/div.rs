@@ -1,18 +1,17 @@
 use crate::*;
 
-/// Devide matrix by a scalar.
+/// Divide matrix by a scalar.
+///
+/// # Panics
+/// For integer element types this panics if `a` is zero, in both debug and
+/// release mode, via Rust's built-in division-by-zero check. For float element
+/// types division by zero is not a panic — it yields `INFINITY` or `NAN`.
 pub fn div_scalar< E, R >( r : &mut R, a : E )
 where
-  E : nd::NdFloat,
+  E : MatNum,
   R : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >
 {
   let rdim = r.dim();
-
-  #[ cfg( debug_assertions ) ]
-  if a == E::zero()
-  {
-    panic!("Matrix division by zero");
-  }
 
   for row in 0..rdim[ 0 ]
   {
@@ -27,11 +26,14 @@ impl< E, const ROWS : usize, const COLS : usize, Descriptor > Div< E >
 for Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Self : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >
 {
   type Output = Self;
 
+  /// # Panics
+  /// For integer `E` this panics if `rhs` is zero, in both debug and release
+  /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
   #[ inline ]
   fn div( mut self, rhs : E ) -> Self::Output
   {
@@ -44,9 +46,12 @@ impl< E, const ROWS : usize, const COLS : usize, Descriptor > DivAssign< E >
 for Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Self : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >
 {
+  /// # Panics
+  /// For integer `E` this panics if `rhs` is zero, in both debug and release
+  /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
   #[ inline ]
   fn div_assign( &mut self, rhs : E ) {
     div_scalar( self, rhs );

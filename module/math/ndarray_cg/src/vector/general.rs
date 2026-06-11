@@ -45,6 +45,34 @@ mod private
 
   }
 
+  impl< E, const N : usize > Eq for Vector< E, N >
+  where
+    E : MatEl + Eq,
+  {
+  }
+
+  impl< E, const N : usize > Ord for Vector< E, N >
+  where
+    E : MatEl + Ord,
+  {
+    #[ inline ]
+    fn cmp( &self, other : &Self ) -> std::cmp::Ordering
+    {
+      self.0.cmp( &other.0 )
+    }
+  }
+
+  impl< E, const N : usize > PartialOrd for Vector< E, N >
+  where
+    E : MatEl + PartialOrd,
+  {
+    #[ inline ]
+    fn partial_cmp( &self, other : &Self ) -> Option< std::cmp::Ordering >
+    {
+      self.0.partial_cmp( &other.0 )
+    }
+  }
+
   impl< E, const N : usize > Default for Vector< E, N >
   where
     E : MatEl + Default,
@@ -158,7 +186,7 @@ mod private
   //   }
   // }
 
-  // xxx : enable and test cover
+  // xxx : test cover
   /// A trait for types that can be converted into a `Vector`.
   ///
   /// This provides a common interface for various data structures

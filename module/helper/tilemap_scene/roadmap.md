@@ -1,0 +1,367 @@
+# tilemap_scene — development roadmap
+
+- **Project:** Compositional declarative scene format for 2D tile-based games
+- **Version:** 0.1.0
+- **Status:** Active development — Path A (retained-mode `Scene` + `Renderer` with delta cache + sprite batching) shipped.
+
+## Current state
+
+The crate is now a retained-mode pipeline: consumers mutate a `Scene` via
+typed `InstanceHandle`s; a separate `Renderer` walks the scene each frame
+and emits a `RenderCommand` stream. Idle frames are served from a
+per-renderer cache; mutating frames emit instanced `DrawBatch`es grouped
+by `(bucket, sheet, blend, clip)` for `SortMode::None` buckets and
+per-sprite `Sprite` commands for sorted buckets. The legacy stateless
+`compile_frame` is gone — `Renderer::render(scene, camera)` is the sole
+entry.
+
+Used by `examples/minwebgl/slay_map`.
+
+### Shipped
+
+**Primitives**
+
+- `Object` with `Anchor::{ Hex, Edge, FreePos, Viewport }`
+- `ObjectLayer` with `LayerBehaviour` (tint / blend / z-in-object / per-layer pipeline-bucket override)
+- Named `states` map per object (replaces the earlier "animations" nomenclature — states can carry any `SpriteSource`, not just animations)
+
+**Sprite sources**
+
+- `Static(SpriteRef)` — one fixed frame
+- `Variant { variants, selection }` — weighted list; `VariantSelection::{ HashCoord, Fixed, Random }`, Random seeded via `Scene.seed`
+- `Animation(AnimationRef)` — `AnimationTiming::{ Regular, FromSheet, Irregular }`; `AnimationMode::{ Loop, PingPong, OneShot }`; `PhaseOffset::{ None, Fixed, HashCoord, Linear }`
+- `NeighborBitmask` — 6-bit hex neighbour autotile; `ByMapping` (mask → leaf source with fallback) and `ByAtlas { layout: Bitmask6 }` (numeric frame lookup, 64 entries pre-allocated)
+- `NeighborCondition` — per-side conditional emission; conditions: `NeighborIs`, `NoNeighbor`, `NeighborPriorityLower`, `AnyOf`, `AllOf`, `Not`; `{dir}` pattern substitution; handles skirts and Wesnoth-style edge blends
+- `VertexCorners` — dual-mesh triangle blending; wildcard (`"*"`) matching; specificity → priority → declaration-order tiebreak per SPEC §9
+- `EdgeConnectedBitmask` — 4-bit edge-endpoint autotile for rivers / edge roads; `ByMapping` + `ByAtlas { layout: EdgeHex }` (16 entries pre-allocated); edge canonicalisation so both-side declarations dedupe
+- `ViewportTiled` — `Center`, `Stretch`, `Fit` (single `ScreenSpaceSprite`); `Repeat2D`, `RepeatX`, `RepeatY` (N sprites covering the viewport at camera-zoom scale)
+
+**Asset kinds**
+
+- `AssetKind::Atlas` — grid atlas with `tile_size` / `columns` / `origin` / `gap`, plus named `frames` and explicit per-frame `frame_rects` (pixel rect + optional anchor)
+- `AssetKind::Single { size }` — whole-image-one-sprite
+
+**Pipeline**
+
+- Buckets with `SortMode::{ None, XAsc, XDesc, YAsc, YDesc, XAscYDesc, XAscYAsc, YDescXAsc, YAscXAsc }`
+- Per-layer pipeline-bucket override via `ObjectLayer.pipeline_layer`
+- `RenderPipeline.clear_color` (linear RGBA; `None` = transparent-black)
+- `RenderPipeline.global_tint` (composition — lerp(white, color, strength) multiplied into every emitted sprite)
+
+**Other infrastructure**
+
+- `Camera` with translate + uniform zoom; `viewport_size` source precedence `pipeline.viewport_size` → `camera.viewport_size`
+- `Scene.seed: Option<u64>` — folds to `u32` salt for `hash_coord`; deterministic across frames
+- `FrameSpec::anchor` — per-frame pixel anchor, overrides `Object.pivot` when set; threaded via `CompiledAssets.sprite_anchors`
+- RON + serde loader (`RenderSpec::load`, `Scene::load`) with validation hooks
+- `ScreenSpaceSprite` command (implemented end-to-end in the WebGL adapter; SVG stubs)
+
+**Retained-mode runtime (Path A — Steps 1-4):**
+
+- `Scene` — `SlotMap<InstanceHandle, Instance>` + per-anchor `Vec`s +
+  `(q, r) → Vec<InstanceHandle>` spatial index. Mutators: `spawn` /
+  `despawn` / `move_to` / `set_state` / `set_visible` / `set_tint` /
+  `set_phase_offset` / `set_external_sprite` / `set_global_tint` /
+  `set_seed`. Queries: `instance` / `instances` / `instances_at_hex` /
+  per-anchor accessors / `spec` / `clock` / `revision`.
+- `Scene::tick(dt) -> Vec<SceneEvent>` — advances the master clock and
+  returns `SceneEvent::AnimationCompleted` for every leaf
+  `SpriteSource::Animation` layer whose OneShot duration was crossed in
+  this tick. Visibility-gated; deterministic across runs.
+- `Scene::from_snapshot` — bridge that materialises a serde-loaded
+  `SceneSnapshot` (`palette + map` ASCII form supported) by spawning
+  every declared instance.
+- `Scene::revision()` — monotonic mutation counter, bumped exactly once
+  per successful state-changing call (`tick` does NOT bump). Underlies
+  the renderer's idle-replay cache.
+- `Renderer` — owns `CompiledAssets`, allocates batches on demand,
+  carries a per-frame cache across calls.
+  - **Idle-replay:** when `(scene.revision, scene.clock, camera
+    fingerprint)` matches the snapshot from the previous call, returns
+    the previously emitted command slice verbatim — no scene walk,
+    no command rebuild. Exposed via `Renderer::cache_hits()` for
+    consumer telemetry.
+  - **Batch emission (SortMode::None buckets):** sprites grouped by
+    `(bucket, sheet, blend, clip)` into instanced batches. First
+    encounter emits `CreateSpriteBatch` + `BindBatch` + N×
+    `AddSpriteInstance` + `UnbindBatch`; subsequent emissions reuse
+    the same batch id with `Bind` + `Set` for the
+    `0..min(old, new)` prefix + `RemoveInstance` to trim the tail +
+    `AddSpriteInstance` to extend + `Unbind`. Unused keys flushed via
+    `DeleteBatch`. One `DrawBatch` per live batch in walk order.
+  - **Per-sprite emission (sorted buckets):** any bucket with a non-
+    `None` `SortMode` continues to emit per-sprite `Sprite` commands
+    to preserve visual ordering across multiple sheets.
+- `RenderCommand::ScreenSpaceSprite` — viewport-anchored emits stay
+  per-sprite (not batched in Step 4; deferred polish item).
+
+**Test baseline:** 167 passing.
+38 unit tests (hash, ids, camera, coords, animation, neighbors,
+conditions, vertex, edges, viewport, snapshot expansion) +
+17 `scene_state` (handle resolution, mutation API, revision bumps) +
+16 `scene_events` (`tick` + OneShot completion semantics) +
+6 `renderer_test` (per-instance overrides, snapshot bridge) +
+18 `renderer_cache_test` (idle replay, mutation / tick / camera
+invalidation, byte-equality on replay, **Set elision on unchanged
+batches**, **`cleanup()` drain semantics**) +
+7 `sorted_batching_test` (single-key sorted batching, multi-sheet
+fallback, inline `DrawBatch` pipeline order) +
+3 `hex_config_test` (`from_hex_size` arithmetic for both tilings) +
+6 `catalog_test` +
+42 `scene_model_compile_test` (anchor × source × pipeline coverage —
+all migrated via `tests/common::flatten_to_sprites`) +
+14 `scene_model_test` (RON + serde round-trip).
+
+**Closed `TILEMAP_SCENE_FEEDBACK.md` items:**
+
+- §1 Runtime spec mutation — gone. Per-instance phase override
+  (`set_phase_offset`) replaces the duplicate-Object workaround.
+- §2 `compile_assets` all-or-nothing — `Renderer::new` is the only
+  compile path; scene mutations never trigger asset recompile.
+- §3 Anchor per-`Object` — `Placement` is now per-instance
+  (`Hex { q, r }` / `Edge { hex, dir }` / `FreePos { x, y }` /
+  `Viewport` / `Multihex`).
+- §4 String-keyed `Tile.objects` — `InstanceHandle` /
+  `ObjectHandle` are interned `u32` ids; spawn-then-cache pattern.
+- §5 `PhaseOffset` global — per-instance `set_phase_offset(Some(t))`.
+- §6 No OneShot completion — `Scene::tick` returns
+  `SceneEvent::AnimationCompleted` for every crossing.
+- §7 Per-instance tinting — `set_tint(handle, Option<[f32; 4]>)`.
+- §9 `compile_frame` rebuilds every frame — idle replay + batch
+  reuse; mutations emit only the Set/Add/Remove diff for the
+  affected batch.
+
+**Open feedback items** (see *Polish items* + *Deferred from Step 4*
+below): §8, §10, §11, §12, §13, §14.
+
+## Polish items — pick-by-need, no fixed slice
+
+These are small-to-medium-size and independent. Implement when a real
+game use-case demands one.
+
+1. **`TintBehaviour::Flat` / `Masked` + `TeamColor` resolution.** Per-layer
+   tint composition against `Scene.players[i].color` for team-coloured
+   units. Medium. Touches `frame.rs` (`Sprite.tint` composition pass) and
+   adds a small resolver helper.
+2. **`Effects` (`VertexDisplace` / `AlphaPulse` / `ColorShift`).** Compile
+   layer just passes effect references through; real work is adapter-side
+   shader support. Largely blocked on backend. Consider dropping the variants
+   entirely if no game asks — they're declared but not plumbed.
+3. **`Validate` rule implementation.** `validate.rs` has TODO-comments for
+   every SPEC §16 rule (unresolved refs, illegal source nesting, anchor ↔
+   source compatibility, default_state existence, reserved ids, tiling
+   whitelist, duplicate-id checks). Each rule is a ~10-line method.
+   Tedious but high-value for catching bad specs at load time.
+4. ~~**`External` sprite source runtime plumbing.**~~ *Shipped.*
+   `Scene::set_external_sprite( handle, slot, SpriteRef )` populates
+   the per-instance slot map; the renderer resolves
+   `SpriteSource::External { slot }` against it. Unset slots emit
+   nothing (no error, no placeholder — see §12.2 of the spec for the
+   pending magenta-checkerboard option).
+5. **`AssetKind::SpriteSheet` support.** Currently rejected at compile with
+   `UnsupportedAssetKind`. Useful shorthand for horizontal / vertical /
+   grid sprite sheets that an atlas already covers — optional.
+6. ~~**SVG adapter for `ScreenSpaceSprite`.**~~ *Shipped.* `ScreenSpaceSprite`
+   shares the `Sprite` payload and SVG's user-space is already screen-space,
+   so the adapter dispatches both through `cmd_sprite`.
+7. **`ViewportTiled::Repeat*` via `Mesh` command.** Current implementation
+   emits N `ScreenSpaceSprite`s to cover the viewport. Efficient for small
+   tile counts (≤ 16); for 256×256 textures on 4K viewports a single
+   `Mesh` with `wrap=Repeat` UVs and a viewport-sized quad is ~100× fewer
+   draws. Needs screen-space `Mesh` command (or flag on existing `Mesh`).
+8. **World-anchored tiled background.** Current `ViewportTiled::Repeat2D`
+   pins to the viewport (doesn't pan with camera). A game map that "floats
+   on sea" wants the opposite — infinite tiled world under the hex grid.
+   Needs a new anchor (e.g. `Anchor::WorldTiled { grid_step }`) or a
+   `world_space: bool` flag on `ViewportTiled`. Design choice pending.
+9. **`Anchor::Multihex`.** Declared but rejected. Needs: pixel position
+   from anchor hex + configurable Y-sort source (`SortYSource::Anchor` vs
+   `BottomOfShape`), culling check against the shape cells, and the
+   restriction that the sprite source is `Static` / `Variant` / `Animation`
+   (no neighbour-aware sources on multihex).
+10. **Square tilings (`Square4` / `Square8`).** Enum values exist; load-time
+    rejection is a tracked TODO (SPEC §16) — `load()` currently returns
+    `Ok(())`, and Square specs fail at render time with
+    `CompileError::UnsupportedAnchor`. Implementing means square-grid neighbour
+    offsets (4 or 8), square-grid dual-mesh (4 corners per vertex), square pixel
+    conversion. Scope inflation — only do if a square-grid game is actually
+    planned.
+11. **`HexConfig::from_hex_size` bounding-box helper.** *Shipped (constructor).*
+    `HexConfig::from_hex_size(w, h, tiling)` computes the equilateral-hex
+    stride (`(w * 3 / 4, h)` for flat-top, symmetric for pointy-top) so authors
+    with a bounding box can skip the formula. Still open: explicit **stride
+    override** field for stylised pixel-art hexes tuned away from exact
+    `sqrt(3)/2` ratios. Low urgency.
+12. ~~**🐛 BlendMode propagation in compile/frame.rs.**~~ *Fixed.* All 7 construction
+    sites in `compile/frame.rs` now use `layer.behaviour.blend` instead of
+    `BlendMode::default()`.
+13. ~~**🐛 LayerBehaviour.alpha not propagated in compile/frame.rs.**~~ *Fixed.*
+    All 7 emit sites now apply `layer.behaviour.alpha` to the sprite's tint alpha
+    channel via the `tinted()` helper. Also fixed: `LayerBehaviour::default()` now
+    returns `alpha: 1.0` (was `0.0` via `f32::default()`, inconsistent with the
+    serde default).
+
+## Deferred from Step 4 — `Renderer` follow-ups
+
+Pragmatic deferrals from the Path-A delivery. None block consumers; each
+is a self-contained optimisation or scope-extension to revisit when a real
+workload demands it.
+
+1. **Fine-delta per-instance `SetSpriteInstance` for `SortMode::None`
+   batches.** *Partially shipped — bit-equal payload elision.*
+   `emit_or_update_batch` now does a bit-equal pre-pass against the
+   cached `BatchEntry.instances` and emits `SetSpriteInstance` only
+   for slots whose new `Sprite` payload (transform / sprite id / tint;
+   blend & clip are batch-level) actually differs. If no slot
+   differs and the count matches, the entire `Bind` / `Unbind` block
+   is elided — an idle game-loop calling `tick(dt)` for clock advance
+   only no longer re-uploads the GPU instance buffer for unchanged
+   batches. Closes the practical hot path. Still open: **stable
+   per-(instance, layer, emit) slot identity** so a `move_to` whose
+   anchor cell changes does not shuffle later slots in the per-anchor
+   iteration. Needs the `EmitKey → (BatchKey, slot)` map originally
+   sketched in this item — pick up when profiling shows residual Set
+   storms on sorted buckets with frequent `move_to`.
+
+2. **Sorted-bucket batching (multi-sheet safe path).** Sorted buckets
+   (`YAsc` / `XAsc` / …) previously emitted per-sprite `Sprite`
+   commands. *Shipped (a):* single-key sorted buckets — every sprite
+   shares one `(sheet, blend, clip)` — now collapse to a single
+   `DrawBatch` whose instance-buffer order equals the sort order.
+   Multi-key sorted buckets keep the per-sprite fallback (run-
+   splitting would defeat batch reuse). The renderer also emits
+   `DrawBatch` inline at each bucket's pipeline position, fixing a
+   latent ordering bug where all `DrawBatch`es were deferred to the
+   end of `cmd_buf` after per-sprite `Sprite`s. Still open:
+   (b) encode the sort key into `Transform.depth` and rely on depth
+   testing in the backend (requires backend-side blend / depth-test
+   contract — bigger change), needed before run-batching multi-sheet
+   sorted buckets becomes viable.
+
+3. **Viewport-pass batching.** `RenderCommand::ScreenSpaceSprite` is
+   per-sprite. Typical viewport instance counts are small (HUD
+   elements), so this is rarely a hotspot — revisit only if profiling
+   flags it.
+
+4. **Composite OneShot detection in `Scene::tick`.** Today's
+   completion detection only inspects leaf `SpriteSource::Animation`
+   layers. OneShot animations nested inside `Variant` /
+   `NeighborBitmask` / `ViewportTiled` are silent. Lifting this
+   requires resolving the active sub-source per-instance per-frame
+   (duplicates renderer logic). Deferred until a game needs it.
+
+5. ~~**`Renderer::cleanup() -> Vec<RenderCommand>`.**~~ *Shipped.*
+   `Renderer::cleanup` drains every live batch into `DeleteBatch`
+   commands and resets the idle-replay cache, so a consumer cycling
+   renderers within a single backend context can release GPU batches
+   on demand. `#[ must_use ]` — ignoring the stream leaks batches.
+
+6. **Per-instance dirty tracking.** `Scene::revision()` is coarse
+   (any mutation = full diff scan). For very large scenes a per-handle
+   dirty set in `Scene` would let `Renderer` walk only changed
+   instances. Not needed below a few thousand instances.
+
+7. **`Anchor::Multihex` rendering.** Still rejected at render time
+   with `UnsupportedAnchor`. Independent of Step 4 — moves with the
+   sprite-source coverage matrix, not the renderer architecture.
+
+8. ~~**`Sprite::Hash` / `Sprite::Eq` upstream.**~~ *Worked around in
+   `tilemap_scene`.* `renderer.rs` carries a private `sprite_instance_eq`
+   bit-equal compare (transform / sprite id / tint via `f32::to_bits`)
+   that closes the diffing use-case without needing upstream derives —
+   `Transform` has float fields where derive `Eq` is awkward. Promote
+   to upstream if a second consumer needs the comparison; otherwise
+   the local helper is sufficient.
+
+## Backlog from downstream consumer feedback
+
+Items surfaced by a downstream `render_adapter` consumer. The
+high-impact / low-cost ones already landed as
+`fix(tilemap_scene)` / `feat(tilemap_scene)` commits on this branch
+(OneShot re-entry, `Catalog`, `tick_into`, atlas `image_size`
+bounds check, `PhaseOffset::Instance`, plus the docs clarifying
+`frames` vs `frame_rects` and the `HashCoord` non-hex fallback).
+The remaining items are each substantive enough to be their own
+slice:
+
+1. **Interpolated `move_to`.** Today `Scene::move_to` is a teleport —
+   sprites snap to the new placement and any `HashCoord` phase
+   re-derives from scratch. API sketch:
+   `Scene::move_to_animated(h, dest, duration, easing)` plus a new
+   `SceneEvent::MoveCompleted { instance }`. Likely realisation:
+   `Placement::Interp { from, to, t0, duration, easing }` driven off
+   the master clock so the renderer reads the interpolated position
+   and `Scene::tick` emits the completion event the same way
+   OneShot detection works today. Composes with the existing
+   `move_to` (which would stay as the teleport variant).
+
+2. **Easing for OneShot frames.** `AnimationTiming::Irregular`
+   already covers per-frame durations but is awkward to author by
+   hand (caller computes the easing curve and writes out N explicit
+   `duration_ms` values). Add an `AnimationTiming::Easing
+   { duration, easing : EasingFn, frames }` variant where
+   `EasingFn = Linear | EaseIn | EaseOut | EaseInOut | Cubic([f32;4])`,
+   resolved by `frame_index = (easing(t) * frame_count).floor()`.
+   Useful for natural spawn / settle animations. Doesn't compose
+   with `fps` (the easing curve subsumes it).
+
+3. **Image-dimension-aware atlas validation.** The `image_size`
+   field on `AssetKind::Atlas` is optional today because the
+   resolver doesn't see image bytes. Two paths to make the check
+   default-on: (a) extend `AssetResolver` to return image
+   dimensions alongside the `ImageSource`, then carry them into
+   `compile_assets`'s bounds check, or (b) require `image_size`
+   on every atlas authored against the spec. Either way, move the
+   check into `validate.rs::Validate for RenderSpec` so violations
+   surface from `spec.validate()` rather than only from
+   `compile_assets`.
+
+## Generalisations worth tracking (not committed)
+
+These observations informed the picks above but were left out of
+the commits — they'd be premature without a second consumer asking
+for the same shape.
+
+- The root cause behind several of the consumer-reported issues is
+  the same: *spec uses strings, runtime fails late on string
+  lookups*. The typed `Catalog` covers object / state ids; the
+  atlas `image_size` bounds check covers frame ids; a future
+  expansion would extend the catalog to animation / tint / asset /
+  pipeline-layer ids so a consumer can ask "give me handles to
+  everything I touch" once and have all string lookups validated up
+  front.
+
+- `Instance.spawn_time` is now strictly literal birth-time after
+  the OneShot fix — its old dual role (birth + OneShot origin) is
+  taken over by `state_entered_time`. If no consumer reads
+  `spawn_time` for age-based effects, it can be removed in a
+  follow-up cleanup.
+
+- The `Vec<SceneEvent>` allocation fix (`tick_into`) is the local
+  case of a general pattern: *anywhere `Scene` or `Renderer`
+  returns an owned collection on a hot path, the caller should be
+  able to pass `&mut Vec<…>`*. The renderer's command stream
+  already follows this. A brief contributor-doc note could codify
+  the pattern.
+
+## Format gaps that might surface
+
+- **Edge autotile rotation details.** `EdgeConnectedBitmask.EdgeHex`
+  layout's CCW/CW convention at vertex endpoints is currently interpreted
+  one way (see `compile/edges.rs`); SPEC §5.9 is slightly hand-wavy. Pin
+  during the first real river-autotile authoring pass.
+- **Anchor validation.** The compile layer rejects nonsensical combos
+  (`FreePos` with `NeighborBitmask` → `UnsupportedSource`), but errors
+  surface late. Moving the checks into `validate.rs` would flag them at
+  load time.
+
+## Useful context for picking up
+
+- The crate is `no-feature-flag` (all deps non-optional; simplest surface).
+- House style: `mod private { ... }` + `mod_interface::mod_interface!` per
+  file; `exposed use X;` for items that bubble up to the parent scope via
+  `layer X;` in the parent.
+- Workspace rulebook at repo-root `rulebook.md` applies — see *Test placement* and *Test file size* sections.
+- The `slay_map` demo (untracked) in `examples/minwebgl/` exercises most
+  shipped features — useful as a smoke test when iterating on the
+  compile layer.

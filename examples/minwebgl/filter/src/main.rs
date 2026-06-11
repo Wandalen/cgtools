@@ -19,7 +19,7 @@ fn main()
 
 fn run()
 {
-  let image_path = "unnamed.png";
+  let image_path = "static/unnamed.png";
   let gl = gl::context::retrieve_or_make().expect( "Can't retrieve GL context" );
 
   let load = move | img : &HtmlImageElement |
@@ -70,10 +70,8 @@ fn run()
       move | e : MouseEvent |
       {
         let rect = canvas.get_bounding_client_rect();
-        let canvas_x = rect.left() as i32;
-        let canvas_y = rect.top() as i32;
-        let x = ( e.client_x() - canvas_x ) as f32;
-        let y = ( e.client_y() - canvas_y ) as f32;
+        let x = ( e.client_x() - rect.left() ) as f32;
+        let y = ( e.client_y() - rect.top() ) as f32;
         let y = canvas.height() as f32 - y;
         gl::uniform::upload( &gl, cursor_pos_location.clone(), [ x, y ].as_slice() ).unwrap();
         gl.draw_arrays( GL::TRIANGLES, 0, 3 );
@@ -99,6 +97,6 @@ fn load_image( path : &str, on_load_callback : Box< dyn Fn( &HtmlImageElement ) 
   image.set_onload( Some( on_load_callback.as_ref().unchecked_ref() ) );
   on_load_callback.forget();
   let origin = window.location().origin().expect( "Should have an origin" );
-  let url = format!( "{origin}/static/{path}" );
+  let url = format!( "{origin}/{path}" );
   image.set_src( &url );
 }

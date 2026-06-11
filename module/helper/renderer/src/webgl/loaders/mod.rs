@@ -13,4 +13,7 @@ crate::mod_interface!
 
   /// HDR textures loader
   layer hdr_texture;
+
+  /// PMREM IBL generator from equirectangular HDR
+  layer pmrem;
 }
