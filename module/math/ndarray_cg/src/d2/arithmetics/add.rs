@@ -30,7 +30,6 @@ where
     }
   }
 
-  // println!( "a: {:?}, b: {:?}, r: {:?}", adim, bdim, rdim );
   for ( ( r_val, a_val ), b_val ) in r.iter_lsfirst_mut().zip( a.iter_lsfirst() ).zip( b.iter_lsfirst() )
   {
     *r_val = *a_val + *b_val;

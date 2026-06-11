@@ -31,9 +31,6 @@ where
     }
   }
 
-  // println!( "a : {:?}, b : {:?}, r : {:?}", adim, bdim, rdim );
-  // println!( "a.lane( 0, 0 ) : {:?}", a.lane_iter( 0, 0 ).collect::< Vec< _ > >() );
-  // println!( "b.lane( 1, 0 ) : {:?}", a.lane_iter( 1, 0 ).collect::< Vec< _ > >() );
   for row in 0..adim[ 0 ]
   {
     for col in 0..bdim[ 1 ]
