@@ -482,3 +482,13 @@ fn vector_rem_zero_scalar_panics()
   let a = Vector::< i32, 3 >::from_array( [ 1, 2, 3 ] );
   let _ = a % 0_i32;
 }
+
+#[ test ]
+#[ should_panic ]
+fn vector_rem_zero_component_panics()
+{
+  use the_module::Vector;
+  let a = Vector::< i32, 3 >::from_array( [ 1, 2, 3 ] );
+  let zero = Vector::< i32, 3 >::from_array( [ 3, 0, 1 ] );
+  let _ = a % zero;
+}
