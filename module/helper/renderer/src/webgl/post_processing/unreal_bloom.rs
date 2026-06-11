@@ -313,9 +313,6 @@ mod private
         gl.clear( gl::COLOR_BUFFER_BIT );
         gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
-        // gl.bind_texture( gl::TEXTURE_2D, None );
-        // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
-
         blur_input = self.vertical_targets[ i ].as_ref();
         // Update size for the next mip.
         size[ 0 ] /= 2;
