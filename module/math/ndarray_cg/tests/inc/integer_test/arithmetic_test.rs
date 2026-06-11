@@ -457,7 +457,7 @@ fn mat_div_scalar_signed_i64()
 
 #[ test ]
 #[ should_panic ]
-fn vector_div_zero_vector_panics()
+fn vector_div_zero_component_panics()
 {
   use the_module::Vector;
   let a = Vector::< i32, 3 >::from_array( [ 1, 2, 3 ] );
