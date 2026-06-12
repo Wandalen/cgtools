@@ -2,6 +2,9 @@
 mod private
 {
   use  crate::*;
+  // Shadow the glob-imported collection_tools `Vec` (printed under its `Dlist` alias)
+  // with std `Vec`, so sequence-conversion errors name `Vec`, not `Dlist`.
+  use std::vec::Vec;
 
   #[ derive( Clone ) ]
   /// Builder struct for the GpuTextureDescriptor.

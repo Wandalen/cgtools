@@ -3,6 +3,9 @@ mod private
 {
 
   use crate::*;
+  // Shadow the glob-imported collection_tools `Vec` (printed under its `Dlist` alias)
+  // with std `Vec`, so sequence-conversion errors name `Vec`, not `Dlist`.
+  use std::vec::Vec;
 
   /// Describes the layout for a WebGPU bind group.
   #[ derive( Clone ) ]
