@@ -86,7 +86,7 @@ mod private
         }
       }
 
-      let desc = web_sys::GpuBindGroupDescriptor::new( &value.entries.into() , value.layout );
+      let desc = web_sys::GpuBindGroupDescriptor::new( &value.entries , value.layout );
 
       if let Some( v ) = value.label { desc.set_label( v ); }
 

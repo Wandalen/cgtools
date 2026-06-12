@@ -73,17 +73,19 @@ mod private
   {
     fn from( value: ComputePipelineDescriptor< '_ > ) -> Self 
     {
-      let layout = 
+      let desc =
       if let Some( l ) = value.layout
       {
-        l.into()
+        web_sys::GpuComputePipelineDescriptor::new( l, &value.compute )
       }
       else
       {
-        "auto".into()
+        web_sys::GpuComputePipelineDescriptor::new_with_gpu_auto_layout_mode
+        (
+          web_sys::GpuAutoLayoutMode::Auto,
+          &value.compute
+        )
       };
-
-      let desc = web_sys::GpuComputePipelineDescriptor::new( &layout, &value.compute );
 
       if let Some( v ) = value.label { desc.set_label( v ); }
 

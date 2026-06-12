@@ -58,12 +58,35 @@ mod private
   impl_to_web!( ColorAttachment< '_ >, GpuRenderPassColorAttachment );
   impl_to_web!( DepthStencilAttachment< '_ >, GpuRenderPassDepthStencilAttachment );
 
+  /// Wraps each element of `items` in a `js_sys::JsOption`, producing the
+  /// nullable-sequence representation web-sys expects for `&[ JsOption< T > ]`
+  /// setters (e.g. render-pass color attachments, vertex buffers, fragment targets).
+  pub fn js_option_vec< T >( items : Vec< T > ) -> Vec< js_sys::JsOption< T > >
+  where
+    T : js_sys::JsGeneric,
+  {
+    items.into_iter().map( js_sys::JsOption::wrap ).collect()
+  }
+
+  /// Converts an iterator of numeric values into a `Vec< js_sys::Number >`, the
+  /// representation web-sys expects for `&[ js_sys::Number ]` setters (e.g. texture
+  /// size, clear values).
+  pub fn number_vec< I >( items : I ) -> Vec< js_sys::Number >
+  where
+    I : IntoIterator,
+    I::Item : Into< js_sys::Number >,
+  {
+    items.into_iter().map( Into::into ).collect()
+  }
+
 }
 
 crate::mod_interface!
 {
   exposed use
   {
-    AsWeb
+    AsWeb,
+    js_option_vec,
+    number_vec
   };
 }

@@ -28,7 +28,7 @@ mod private
 
     if unpadded_size == 0
     {
-      let desc = web_sys::GpuBufferDescriptor::new( 0.0, init_desc.usage );
+      let desc = web_sys::GpuBufferDescriptor::new( 0, init_desc.usage );
       if let Some( v ) = init_desc.label { desc.set_label( v ); }
 
       let buffer = device.create_buffer( &desc )
@@ -41,7 +41,7 @@ mod private
     let padded_size = ( ( unpadded_size + align_mask ) & !align_mask ).max( COPY_BUFFER_ALIGNMENT );
 
     // Create buffer descriptor
-    let desc = web_sys::GpuBufferDescriptor::new( padded_size as f64, init_desc.usage );
+    let desc = web_sys::GpuBufferDescriptor::new( padded_size as u32, init_desc.usage );
     desc.set_mapped_at_creation( true );
 
     if let Some( label ) = init_desc.label { desc.set_label( label ); }

@@ -63,7 +63,7 @@ mod private
       let state = web_sys::GpuVertexState::new( &value.module );
 
       if let Some( v ) = value.entry_point { state.set_entry_point( v ); }
-      if !value.buffers.is_empty() { state.set_buffers( &value.buffers.into() ); }
+      if !value.buffers.is_empty() { state.set_buffers( &js_option_vec( value.buffers ) ); }
 
       state
     }   

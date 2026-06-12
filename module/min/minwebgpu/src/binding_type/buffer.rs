@@ -20,7 +20,7 @@ mod private
     ///
     /// This is used by WebGPU for validation. A value of `0` indicates no minimum
     /// size requirement. Defaults to `0`.
-    min_binding_size : Option< f64 >
+    min_binding_size : Option< u32 >
   }
 
   impl BufferBindingLayout 
@@ -67,7 +67,7 @@ mod private
     }
 
     /// Sets the property `min_binding_size` of the buffer to specified value
-    pub fn min_binding_size( mut self, size : f64 ) -> Self
+    pub fn min_binding_size( mut self, size : u32 ) -> Self
     {
       self.min_binding_size = Some( size );
       self

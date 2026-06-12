@@ -127,17 +127,19 @@ mod private
   {
     fn from( value: RenderPipelineDescriptor< '_ > ) -> Self 
     {
-      let layout = 
+      let desc =
       if let Some( l ) = value.layout
       {
-        l.into()
+        web_sys::GpuRenderPipelineDescriptor::new( l, &value.vertex )
       }
       else
       {
-        "auto".into()
+        web_sys::GpuRenderPipelineDescriptor::new_with_gpu_auto_layout_mode
+        (
+          web_sys::GpuAutoLayoutMode::Auto,
+          &value.vertex
+        )
       };
-
-      let desc = web_sys::GpuRenderPipelineDescriptor::new( &layout, &value.vertex );
 
       if let Some( v ) = value.label { desc.set_label( v ); }
       if let Some( v ) = value.fragment { desc.set_fragment( &v ); }

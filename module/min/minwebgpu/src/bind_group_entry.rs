@@ -42,11 +42,16 @@ mod private
 
   impl From< BindGroupEntry > for web_sys::GpuBindGroupEntry 
   {
-    fn from( value: BindGroupEntry ) -> Self 
+    fn from( value: BindGroupEntry ) -> Self
     {
-      let entry = web_sys::GpuBindGroupEntry::new( value.binding, &value.resource );
+      // `resource` is a type-erased union (buffer binding / sampler / texture view), so the
+      // entry is assembled as a plain JS object: web-sys' typed `new`/`set_resource` only
+      // accept a single concrete member.
+      let entry : web_sys::GpuBindGroupEntry = wasm_bindgen::JsCast::unchecked_into( js_sys::Object::new() );
+      entry.set_binding( value.binding );
+      let _ = js_sys::Reflect::set( entry.as_ref(), &"resource".into(), &value.resource );
       entry
-    }   
+    }
   }
 }
 
