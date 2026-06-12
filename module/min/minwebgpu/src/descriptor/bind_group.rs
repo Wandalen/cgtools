@@ -60,7 +60,7 @@ mod private
     }
 
     /// Creates a `GpuBindGroupEntry` from a resource and adds it to the descriptor.
-    pub fn entry_from_resource< T : BindingResource >( self, resource : &T ) -> Self
+    pub fn entry_from_resource< T : AsBindingResource >( self, resource : &T ) -> Self
     {
       let entry = BindGroupEntry::new( resource );
       self.entry( entry )

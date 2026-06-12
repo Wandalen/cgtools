@@ -3,50 +3,79 @@ mod private
 {
   use crate::*;
 
-  /// A trait for types that can be used as a WebGPU binding resource.
-  pub trait BindingResource
+  /// A WebGPU bind-group resource: the typed union of everything that can be bound to a
+  /// single binding point.
+  ///
+  /// Modeling this as an enum (rather than a type-erased `JsValue`) lets the conversion to
+  /// `web_sys::GpuBindGroupEntry` dispatch to the matching typed `new_with_*` constructor,
+  /// preserving compile-time type checking and avoiding a `js_sys::Reflect::set` hop.
+  pub enum BindingResource
   {
-    /// Converts the resource into a `JsValue`.
-    fn as_resource( &self ) -> JsValue;
+    /// A whole buffer bound directly.
+    Buffer( web_sys::GpuBuffer ),
+    /// A buffer binding, i.e. a (sub)range of a buffer.
+    BufferBinding( web_sys::GpuBufferBinding ),
+    /// A sampler.
+    Sampler( web_sys::GpuSampler ),
+    /// A texture view.
+    TextureView( web_sys::GpuTextureView ),
+    /// An external texture (e.g. imported video frame).
+    ExternalTexture( web_sys::GpuExternalTexture ),
   }
 
-  impl BindingResource for web_sys::GpuBufferBinding 
+  /// A trait for types that can be bound as a WebGPU binding resource.
+  pub trait AsBindingResource
   {
-    fn as_resource( &self ) -> JsValue 
+    /// Converts the resource into the typed [ `BindingResource` ] enum.
+    fn as_binding_resource( &self ) -> BindingResource;
+  }
+
+  impl AsBindingResource for web_sys::GpuBuffer
+  {
+    fn as_binding_resource( &self ) -> BindingResource
     {
-      self.into()
+      BindingResource::Buffer( self.clone() )
     }
   }
 
-  impl BindingResource for web_sys::GpuTextureView 
+  impl AsBindingResource for web_sys::GpuBufferBinding
   {
-    fn as_resource( &self ) -> JsValue 
+    fn as_binding_resource( &self ) -> BindingResource
     {
-      self.into()
+      BindingResource::BufferBinding( self.clone() )
     }
   }
 
-  impl BindingResource for web_sys::GpuSampler 
+  impl AsBindingResource for web_sys::GpuTextureView
   {
-    fn as_resource( &self ) -> JsValue 
+    fn as_binding_resource( &self ) -> BindingResource
     {
-      self.into()
+      BindingResource::TextureView( self.clone() )
     }
   }
 
-  impl BindingResource for web_sys::GpuExternalTexture 
+  impl AsBindingResource for web_sys::GpuSampler
   {
-    fn as_resource( &self ) -> JsValue 
+    fn as_binding_resource( &self ) -> BindingResource
     {
-      self.into()
+      BindingResource::Sampler( self.clone() )
     }
   }
 
-  impl BindingResource for BufferBinding< '_ > 
+  impl AsBindingResource for web_sys::GpuExternalTexture
   {
-    fn as_resource( &self ) -> JsValue {
-      Into::< web_sys::GpuBufferBinding >::into( self ).into()
-    }    
+    fn as_binding_resource( &self ) -> BindingResource
+    {
+      BindingResource::ExternalTexture( self.clone() )
+    }
+  }
+
+  impl AsBindingResource for BufferBinding< '_ >
+  {
+    fn as_binding_resource( &self ) -> BindingResource
+    {
+      BindingResource::BufferBinding( self.into() )
+    }
   }
 
 }
@@ -55,6 +84,7 @@ crate::mod_interface!
 {
   exposed use
   {
-    BindingResource
+    BindingResource,
+    AsBindingResource
   };
 }
