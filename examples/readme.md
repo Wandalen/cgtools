@@ -57,7 +57,7 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 
 | | |
 |:-------------------------:|:-------------------------:|
-|<img width="500px" src="./minwebgpu/deffered_rendering/showcase.jpg"><br>[Deffered rendering](./minwebgpu/deffered_rendering/readme.md) |<img width="500px" src="./minwebgpu/hello_triangle/showcase.jpg"><br>[Hello triangle](./minwebgpu/hello_triangle/readme.md) |
+|<img width="500px" src="./minwebgpu/deferred_rendering/showcase.jpg"><br>[Deferred rendering](./minwebgpu/deferred_rendering/readme.md) |<img width="500px" src="./minwebgpu/hello_triangle/showcase.jpg"><br>[Hello triangle](./minwebgpu/hello_triangle/readme.md) |
 
 ## WGPU Examples
 

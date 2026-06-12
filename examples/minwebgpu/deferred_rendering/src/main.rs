@@ -79,7 +79,6 @@ async fn run() -> Result< (), gl::WebGPUError >
   let light_update_shader = gl::ShaderModule::new( include_str!( "../shaders/light_update.wgsl" ) ).create( &device );
   let big_plane_shader = gl::ShaderModule::new( include_str!( "../shaders/big_plane.wgsl" ) ).create( &device );
   let gbuffer_shader = gl::ShaderModule::new( include_str!( "../shaders/gbuffer.wgsl" ) ).create( &device );
-  let render_shader = gl::ShaderModule::new( include_str!( "../shaders/render.wgsl" ) ).create( &device );
   let color_transfer_shader = gl::ShaderModule::new( include_str!( "../shaders/color_transfer.wgsl" ) ).create( &device );
 
   let [ pos_vertex_layout, normal_vertex_layout, uv_vertex_layout ] = ModelState::vertex_layout();
@@ -208,22 +207,6 @@ async fn run() -> Result< (), gl::WebGPUError >
     )
     .to_web()
   )?;
-
-  // // Pipeline that will render to the gbuffer textures.
-  // let light_pass_render_pipeline = gl::render_pipeline::create
-  // (
-  //   &device,
-  //   &gl::render_pipeline::desc
-  //   (
-  //     gl::VertexState::new( &gbuffer_shader )
-  //     .buffer( &pos_vertex_layout )
-  //   )
-  //   .layout( &gbuffer_pipeline_layout )
-  //   .fragment( fragment_state.clone() )
-  //   .primitive( gl::PrimitiveState::new().cull_back() )
-  //   .depth_stencil( gl::DepthStencilState::new() )
-  //   .to_web()
-  // )?;
 
   // Pipeline that will render a plane.
   // We reuse the fragment state from gbuffer pipeline because they are the same.

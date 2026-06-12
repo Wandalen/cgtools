@@ -40,7 +40,6 @@ pub struct LightState
   pub buffer : gl::web_sys::GpuBuffer,
   pub mesh_position_buffer : gl::web_sys::GpuBuffer,
   pub mesh_index_buffer : gl::web_sys::GpuBuffer,
-  pub num_vertices : u32,
   pub num_instances : u32,
   pub num_indices : u32
 }
@@ -55,7 +54,6 @@ impl LightState
     let num_instances = NUM_LIGHTS as u32;
 
     let ( sphere_vertices, sphere_indices ) = build_sphere_mesh();
-    let num_vertices = ( sphere_vertices.len() / 3 ) as u32;
     let num_indices = sphere_indices.len() as u32;
 
     let buffer = gl::BufferInitDescriptor::new
@@ -84,7 +82,6 @@ impl LightState
         buffer,
         mesh_position_buffer,
         mesh_index_buffer,
-        num_vertices,
         num_instances,
         num_indices
       }
@@ -235,10 +232,9 @@ fn generate_lights() -> Vec< Light >
 }
 
 
-struct Vertex 
+struct Vertex
 {
   position : [ f32; 3 ],
-  normal : [ f32; 3 ],
 }
 
 fn build_sphere_mesh() -> ( Vec< f32 >, Vec< u32 > ) {
@@ -259,13 +255,11 @@ fn build_sphere_mesh() -> ( Vec< f32 >, Vec< u32 > ) {
       for v in verts 
       {
         let p = v.pos;
-        let n = v.normal;
         vertices.push
         (
-          Vertex 
+          Vertex
           {
             position: [ p.x as f32, p.y as f32, p.z as f32 ],
-            normal: [ n.x as f32, n.y as f32, n.z as f32 ],
           }
         );
       }

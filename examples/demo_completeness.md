@@ -40,7 +40,7 @@
 | uniforms_ubo | yes | yes | yes | yes | | | |
 | video_as_texture | yes | yes | yes | yes | | | |
 | wfc | yes | yes | yes | yes | | | |
-| deffered_rendering | yes | yes | yes | yes | | | |
+| deferred_rendering | yes | yes | yes | yes | | | |
 | hello_triangle (webgpu) | yes | yes | yes | yes | | | |
 | grid_render | yes | yes | yes | yes | | | |
 | hello_triangle (wgpu) | yes | yes | yes | yes | | | |

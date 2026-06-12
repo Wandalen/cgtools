@@ -84,7 +84,7 @@ All paths are relative to `~/pro/lib/wip_core/cgtools/dev`. `task` — Y = `task
 | 71 | `examples/minwebgl/uniforms_ubo` | minwebgl_uniforms_ubo | rust_crate | rs | — | N | 2026-02-21 |
 | 72 | `examples/minwebgl/video_as_texture` | minwebgl_video_as_texture | rust_crate | rs | — | N | 2026-02-21 |
 | 73 | `examples/minwebgl/wfc` | wfc | rust_crate | rs | — | N | 2026-02-21 |
-| 74 | `examples/minwebgpu/deffered_rendering` | minwebgpu_deffered_rendering | rust_crate | rs | — | N | 2026-02-21 |
+| 74 | `examples/minwebgpu/deferred_rendering` | minwebgpu_deferred_rendering | rust_crate | rs | — | N | 2026-02-21 |
 | 75 | `examples/minwebgpu/hello_triangle` | minwebgpu__ | rust_crate | rs | — | N | 2026-02-21 |
 | 76 | `examples/minwgpu/grid_render` | grid_render | rust_crate | rs | — | N | 2026-02-21 |
 | 77 | `examples/minwgpu/hello_triangle` | hello_triangle | rust_crate | rs | — | N | 2026-02-21 |
