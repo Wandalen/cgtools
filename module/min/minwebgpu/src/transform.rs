@@ -79,6 +79,20 @@ mod private
     items.into_iter().map( Into::into ).collect()
   }
 
+  /// Converts an iterator of JS-string-enum values (e.g. `GpuTextureFormat`) into the
+  /// `Vec< js_sys::JsString >` representation web-sys expects for string-enum sequence
+  /// setters (e.g. texture `view_formats`). Each item is a wasm-bindgen string enum, so
+  /// `Into< JsValue >` yields its string representation.
+  pub fn js_string_vec< I >( items : I ) -> Vec< js_sys::JsString >
+  where
+    I : IntoIterator,
+    I::Item : Into< wasm_bindgen::JsValue >,
+  {
+    items.into_iter()
+    .map( | v | wasm_bindgen::JsCast::unchecked_into( v.into() ) )
+    .collect()
+  }
+
 }
 
 crate::mod_interface!
@@ -87,6 +101,7 @@ crate::mod_interface!
   {
     AsWeb,
     js_option_vec,
-    number_vec
+    number_vec,
+    js_string_vec
   };
 }

@@ -166,13 +166,7 @@ mod private
 
       if value.view_formats.len() > 0
       {
-        // web-sys expects the view formats as JS strings; each `GpuTextureFormat` is a
-        // wasm-bindgen string enum, so `JsValue::from` yields its string representation.
-        let view_formats : Vec< js_sys::JsString > = value.view_formats
-        .into_iter()
-        .map( | f | wasm_bindgen::JsCast::unchecked_into( wasm_bindgen::JsValue::from( f ) ) )
-        .collect();
-        desc.set_view_formats( &view_formats );
+        desc.set_view_formats( &js_string_vec( value.view_formats ) );
       }
 
       desc
