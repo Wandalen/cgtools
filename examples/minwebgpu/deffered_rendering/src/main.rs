@@ -346,15 +346,15 @@ async fn run() -> Result< (), gl::WebGPUError >
     .cull_front()
   )
   .depth_stencil
-  ( 
+  (
     gl::DepthStencilState::new()
     .disable_depth_write()
     .format( gl::GpuTextureFormat::Depth24plusStencil8 )
     .depth_compare( gl::GpuCompareFunction::Always )
-    .stencil_front
+    .stencil_back
     (
       gl::StencilFaceState::new()
-      .compare( gl::GpuCompareFunction::Greater )
+      .compare( gl::GpuCompareFunction::Less )
       .fail_op( gl::GpuStencilOperation::Keep )
       .depth_fail_op( gl::GpuStencilOperation::Keep )
       .pass_op( gl::GpuStencilOperation::Keep )
@@ -493,13 +493,13 @@ async fn run() -> Result< (), gl::WebGPUError >
         ).unwrap();
 
         render_pass.set_pipeline( &light_shading_first_pass_render_pipeline );
+        render_pass.set_stencil_reference( 0 );
         render_pass.set_bind_group( 0, Some( &uniform_bind_group ) );
         render_pass.set_bind_group( 1, Some( &gbuffer_bind_group ) );
         render_pass.set_vertex_buffer( 0, Some( &light_state.mesh_position_buffer ) );
         render_pass.set_vertex_buffer( 1, Some( &light_state.buffer ) );
         render_pass.set_index_buffer( &light_state.mesh_index_buffer, gl::GpuIndexFormat::Uint32 );
         render_pass.draw_indexed_with_instance_count( light_state.num_indices, light_state.num_instances );
-        render_pass.set_stencil_reference( 0 );
         render_pass.end();
 
         let render_pass = encoder.begin_render_pass
@@ -523,13 +523,13 @@ async fn run() -> Result< (), gl::WebGPUError >
         ).unwrap();
 
         render_pass.set_pipeline( &light_shading_second_pass_render_pipeline );
+        render_pass.set_stencil_reference( 0 );
         render_pass.set_bind_group( 0, Some( &uniform_bind_group ) );
         render_pass.set_bind_group( 1, Some( &gbuffer_bind_group ) );
         render_pass.set_vertex_buffer( 0, Some( &light_state.mesh_position_buffer ) );
         render_pass.set_vertex_buffer( 1, Some( &light_state.buffer ) );
         render_pass.set_index_buffer( &light_state.mesh_index_buffer, gl::GpuIndexFormat::Uint32 );
         render_pass.draw_indexed_with_instance_count( light_state.num_indices, light_state.num_instances );
-        render_pass.set_stencil_reference( 0 );
         render_pass.end();
       }
 
