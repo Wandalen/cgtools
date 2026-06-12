@@ -277,7 +277,45 @@ async fn run() -> Result< (), gl::WebGPUError >
 
   let light_shading_shader_module = gl::shader::create( &device, include_str!( "../shaders/light_shading.wgsl" ) );
 
-  let light_shading_render_pipeline = gl::render_pipeline::desc
+   let light_shading_first_pass_render_pipeline = gl::render_pipeline::desc
+  (
+    LightState::light_shading_vertex_state( &light_shading_shader_module )
+  )
+  .layout( &render_pipeline_layout )
+  .primitive
+  ( 
+    gl::PrimitiveState::new()
+    .triangles()
+  )
+  .depth_stencil
+  ( 
+    gl::DepthStencilState::new()
+    .disable_depth_write()
+    .format( gl::GpuTextureFormat::Depth24plusStencil8 )
+    .depth_compare( gl::GpuCompareFunction::LessEqual )
+    .stencil_back
+    (
+      gl::StencilFaceState::new()
+      .compare( gl::GpuCompareFunction::Always )
+      .fail_op( gl::GpuStencilOperation::Keep )
+      .depth_fail_op( gl::GpuStencilOperation::IncrementClamp )
+      .pass_op( gl::GpuStencilOperation::Keep )
+    )
+    .stencil_front
+    (
+      gl::StencilFaceState::new()
+      .compare( gl::GpuCompareFunction::Always )
+      .fail_op( gl::GpuStencilOperation::Keep )
+      .depth_fail_op( gl::GpuStencilOperation::DecrementClamp )
+      .pass_op( gl::GpuStencilOperation::Keep )
+    )
+    .stencil_read_mask( 0xFF )
+    .stencil_write_mask( 0xFF )
+  )
+  .create( &device )?;
+
+
+  let light_shading_second_pass_render_pipeline = gl::render_pipeline::desc
   (
     LightState::light_shading_vertex_state( &light_shading_shader_module )
   )
@@ -312,7 +350,15 @@ async fn run() -> Result< (), gl::WebGPUError >
     gl::DepthStencilState::new()
     .disable_depth_write()
     .format( gl::GpuTextureFormat::Depth24plusStencil8 )
-    .depth_compare( gl::GpuCompareFunction::GreaterEqual )
+    .depth_compare( gl::GpuCompareFunction::Always )
+    .stencil_front
+    (
+      gl::StencilFaceState::new()
+      .compare( gl::GpuCompareFunction::Greater )
+      .fail_op( gl::GpuStencilOperation::Keep )
+      .depth_fail_op( gl::GpuStencilOperation::Keep )
+      .pass_op( gl::GpuStencilOperation::Keep )
+    )
   )
   .create( &device )?;
 
@@ -432,6 +478,33 @@ async fn run() -> Result< (), gl::WebGPUError >
         let render_pass = encoder.begin_render_pass
         (
           &gl::RenderPassDescriptor::new()
+          .depth_stencil_attachment
+          (
+            gl::DepthStencilAttachment::new( &depth_view_with_stencil )
+            .depth_load_op( gl::GpuLoadOp::Load )
+            .depth_store_op( gl::GpuStoreOp::Discard )
+            .stencil_load_op( gl::GpuLoadOp::Clear )
+            .stencil_store_op( gl::GpuStoreOp::Store )
+            .stencil_clear_value( 0 )
+            .stencil_read_only( false )
+            .depth_read_only( true ) 
+          )
+          .into()
+        ).unwrap();
+
+        render_pass.set_pipeline( &light_shading_first_pass_render_pipeline );
+        render_pass.set_bind_group( 0, Some( &uniform_bind_group ) );
+        render_pass.set_bind_group( 1, Some( &gbuffer_bind_group ) );
+        render_pass.set_vertex_buffer( 0, Some( &light_state.mesh_position_buffer ) );
+        render_pass.set_vertex_buffer( 1, Some( &light_state.buffer ) );
+        render_pass.set_index_buffer( &light_state.mesh_index_buffer, gl::GpuIndexFormat::Uint32 );
+        render_pass.draw_indexed_with_instance_count( light_state.num_indices, light_state.num_instances );
+        render_pass.set_stencil_reference( 0 );
+        render_pass.end();
+
+        let render_pass = encoder.begin_render_pass
+        (
+          &gl::RenderPassDescriptor::new()
           .color_attachment
           (
             gl::ColorAttachment::new( &color_accum_texture_view )
@@ -441,20 +514,22 @@ async fn run() -> Result< (), gl::WebGPUError >
             gl::DepthStencilAttachment::new( &depth_view_with_stencil )
             .depth_load_op( gl::GpuLoadOp::Load )
             .depth_store_op( gl::GpuStoreOp::Discard )
+            .stencil_load_op( gl::GpuLoadOp::Load )
+            .stencil_store_op( gl::GpuStoreOp::Discard )
             .stencil_read_only( true )
             .depth_read_only( true ) 
           )
           .into()
         ).unwrap();
 
-        render_pass.set_pipeline( &light_shading_render_pipeline );
+        render_pass.set_pipeline( &light_shading_second_pass_render_pipeline );
         render_pass.set_bind_group( 0, Some( &uniform_bind_group ) );
         render_pass.set_bind_group( 1, Some( &gbuffer_bind_group ) );
         render_pass.set_vertex_buffer( 0, Some( &light_state.mesh_position_buffer ) );
         render_pass.set_vertex_buffer( 1, Some( &light_state.buffer ) );
         render_pass.set_index_buffer( &light_state.mesh_index_buffer, gl::GpuIndexFormat::Uint32 );
-        //render_pass.draw_with_instance_count( light_state.num_vertices, light_state.num_instances );
         render_pass.draw_indexed_with_instance_count( light_state.num_indices, light_state.num_instances );
+        render_pass.set_stencil_reference( 0 );
         render_pass.end();
       }
 
