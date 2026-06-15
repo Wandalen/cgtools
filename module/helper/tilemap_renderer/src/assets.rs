@@ -189,6 +189,10 @@ mod private
     /// `TEXTURE_WRAP_S`/`TEXTURE_WRAP_T`; SVG backends currently ignore it and
     /// always behave as `Clamp` (see `adapters/svg.rs` comment in `load_images`).
     pub wrap : WrapMode,
+    /// Whether the image's pixels are premultiplied-alpha. GPU backends composite
+    /// it with the premultiplied "over" blend (source colour factor `ONE` instead
+    /// of `SRC_ALPHA`); SVG and terminal backends ignore it. Defaults to `false`.
+    pub premultiplied : bool,
   }
 
   /// A rectangular region within a loaded image (sprite sheet support).

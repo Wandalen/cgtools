@@ -2076,6 +2076,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         ..empty_assets()
       };
@@ -2182,6 +2183,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         patterns : vec![ PatternAsset
         {
@@ -2253,6 +2255,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2295,6 +2298,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2337,6 +2341,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2378,6 +2383,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2418,6 +2424,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -3102,6 +3109,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         ..empty_assets()
       };
@@ -3142,6 +3150,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -3174,6 +3183,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         ..empty_assets()
       };
@@ -3207,6 +3217,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -3291,6 +3302,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         ..empty_assets()
       };
@@ -3320,6 +3332,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         ..empty_assets()
       };
