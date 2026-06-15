@@ -177,7 +177,7 @@ mod private
   impl Validate for SceneSnapshot
   {
     /// **Not yet enforcing.** Every Scene-internal SPEC §16 rule is still a
-    /// `TODO`; the cross-file Scene → RenderSpec checks run in a separate
+    /// `TODO`; the cross-file Scene → `RenderSpec` checks run in a separate
     /// pass that has access to both loaded files. Always returns `Ok(())`
     /// today.
     fn validate( &self ) -> Result< (), Vec< ValidationError > >
