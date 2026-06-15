@@ -1,6 +1,11 @@
 use crate::*;
 
 /// Multiplies two matrices.
+///
+/// # Overflow
+/// For integer `E` the inner-product accumulation is not overflow-checked: it
+/// panics in debug / wraps in release once a product or partial sum leaves
+/// `E`'s range.
 pub fn mul< E, A, B, R >( r : &mut R, a : &A, b : &B )
 where
   E : MatNum,
@@ -26,14 +31,10 @@ where
     }
   }
 
-  // println!( "a : {:?}, b : {:?}, r : {:?}", adim, bdim, rdim );
-  // println!( "a.lane( 0, 0 ) : {:?}", a.lane_iter( 0, 0 ).collect::< Vec< _ > >() );
-  // println!( "b.lane( 1, 0 ) : {:?}", a.lane_iter( 1, 0 ).collect::< Vec< _ > >() );
   for row in 0..adim[ 0 ]
   {
     for col in 0..bdim[ 1 ]
     {
-      println!( "{:?}", ( row, col ) );
       *r.scalar_mut( nd::Ix2( row, col ) ) = a.lane_iter( 0, row )
       .zip( b.lane_iter( 1, col ) )
       .map( | ( a_val, b_val ) | *a_val * *b_val )
@@ -43,6 +44,11 @@ where
 }
 
 /// Multiplies vector by a matrix.
+///
+/// # Overflow
+/// For integer `E` the inner-product accumulation is not overflow-checked: it
+/// panics in debug / wraps in release once a product or partial sum leaves
+/// `E`'s range.
 pub fn mul_mat_vec< E, A, B, R, const ROWS : usize >( r : &mut R, a : &A, b : &B )
 where
   E : MatNum,
@@ -85,6 +91,10 @@ where
 {
   type Output = Mat< ROWS, COLS2, E, Descriptor >;
 
+  /// # Overflow
+  /// For integer `E` the inner-product accumulation is not overflow-checked: it
+  /// panics in debug / wraps in release once a product or partial sum leaves
+  /// `E`'s range.
   #[ inline ]
   fn mul( self, rhs : Mat< COLS, COLS2, E, Descriptor > ) -> Self::Output
   {
@@ -105,6 +115,10 @@ where
 {
   type Output = Mat< ROWS, COLS2, E, Descriptor >;
 
+  /// # Overflow
+  /// For integer `E` the inner-product accumulation is not overflow-checked: it
+  /// panics in debug / wraps in release once a product or partial sum leaves
+  /// `E`'s range.
   #[ inline ]
   fn mul( self, rhs : &Mat< COLS, COLS2, E, Descriptor > ) -> Self::Output
   {
@@ -127,6 +141,10 @@ where
 {
   type Output = Vector< E, COLS >;
 
+  /// # Overflow
+  /// For integer `E` the inner-product accumulation is not overflow-checked: it
+  /// panics in debug / wraps in release once a product or partial sum leaves
+  /// `E`'s range.
   #[ inline ]
   fn mul( self, rhs : Vector< E, COLS > ) -> Self::Output
   {
@@ -145,6 +163,10 @@ where
 {
   type Output = Vector< E, COLS >;
 
+  /// # Overflow
+  /// For integer `E` the inner-product accumulation is not overflow-checked: it
+  /// panics in debug / wraps in release once a product or partial sum leaves
+  /// `E`'s range.
   #[ inline ]
   fn mul( self, rhs : &Vector< E, COLS > ) -> Self::Output
   {

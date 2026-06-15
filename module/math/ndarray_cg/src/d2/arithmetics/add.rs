@@ -1,6 +1,10 @@
 use crate::*;
 
 /// Adds two matrices.
+///
+/// # Overflow
+/// For integer `E` the element-wise addition is not overflow-checked: it
+/// panics in debug / wraps in release once a sum leaves `E`'s range.
 #[ inline ]
 pub fn add< E, A, B, R >( r : &mut R, a : &A, b : &B )
 where
@@ -26,7 +30,6 @@ where
     }
   }
 
-  // println!( "a: {:?}, b: {:?}, r: {:?}", adim, bdim, rdim );
   for ( ( r_val, a_val ), b_val ) in r.iter_lsfirst_mut().zip( a.iter_lsfirst() ).zip( b.iter_lsfirst() )
   {
     *r_val = *a_val + *b_val;
@@ -51,6 +54,9 @@ where
 {
   type Output = Self;
 
+  /// # Overflow
+  /// For integer `E` the element-wise addition is not overflow-checked: it
+  /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
   fn add( self, rhs : Self ) -> Self::Output
   {
@@ -71,6 +77,9 @@ where
 {
   type Output = Mat< ROWS, COLS, E, Descriptor >;
 
+  /// # Overflow
+  /// For integer `E` the element-wise addition is not overflow-checked: it
+  /// panics in debug / wraps in release once a sum leaves `E`'s range.
   fn add( self, rhs : &Mat< ROWS, COLS, E, Descriptor > ) -> Self::Output
   {
     let mut result = Self::Output::default();

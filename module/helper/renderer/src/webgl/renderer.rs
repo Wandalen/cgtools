@@ -1121,6 +1121,9 @@ mod private
       if has_transparent
       {
         self.composite_shader.bind( gl );
+        // Screen-space pass: the fullscreen triangle is back-facing, so disable
+        // CULL_FACE or it gets culled and the transparency composite is dropped.
+        gl.disable( gl::CULL_FACE );
         gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer_ctx.resolved_framebuffer.as_ref() );
         gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
         gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
