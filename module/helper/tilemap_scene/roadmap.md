@@ -32,7 +32,7 @@ Used by `examples/minwebgl/slay_map`.
 - `Animation(AnimationRef)` — `AnimationTiming::{ Regular, FromSheet, Irregular }`; `AnimationMode::{ Loop, PingPong, OneShot }`; `PhaseOffset::{ None, Fixed, HashCoord, Linear }`
 - `NeighborBitmask` — 6-bit hex neighbour autotile; `ByMapping` (mask → leaf source with fallback) and `ByAtlas { layout: Bitmask6 }` (numeric frame lookup, 64 entries pre-allocated)
 - `NeighborCondition` — per-side conditional emission; conditions: `NeighborIs`, `NoNeighbor`, `NeighborPriorityLower`, `AnyOf`, `AllOf`, `Not`; `{dir}` pattern substitution; handles skirts and Wesnoth-style edge blends
-- `VertexCorners` — dual-mesh triangle blending; wildcard (`"*"`) matching; specificity → priority → declaration-order tiebreak per SPEC §9
+- `VertexCorners` — dual-mesh triangle blending; wildcard (`"*"`) matching; specificity → priority → declaration-order tiebreak per SPEC §9; `orient_to_grid` (pre-baked 60°-oriented frames, no runtime rotation); `corner_source` (per-layer corner channel — terrain id or named draw layer); `offset` (world-pixel sprite shift for 2.5D shadows); per-object `Flat` tint support
 - `EdgeConnectedBitmask` — 4-bit edge-endpoint autotile for rivers / edge roads; `ByMapping` + `ByAtlas { layout: EdgeHex }` (16 entries pre-allocated); edge canonicalisation so both-side declarations dedupe
 - `ViewportTiled` — `Center`, `Stretch`, `Fit` (single `ScreenSpaceSprite`); `Repeat2D`, `RepeatX`, `RepeatY` (N sprites covering the viewport at camera-zoom scale)
 
@@ -139,10 +139,11 @@ below): §8, §10, §11, §12, §13, §14.
 These are small-to-medium-size and independent. Implement when a real
 game use-case demands one.
 
-1. **`TintBehaviour::Flat` / `Masked` + `TeamColor` resolution.** Per-layer
-   tint composition against `Scene.players[i].color` for team-coloured
-   units. Medium. Touches `frame.rs` (`Sprite.tint` composition pass) and
-   adds a small resolver helper.
+1. ~~**`TintBehaviour::Flat` for `VertexCorners`.**~~ *Shipped.* `compile_vertex_pass`
+   now respects `LayerBehaviour.tint = Flat(TintRef)` per object layer — the flat
+   tint multiplies the global tint so per-player region overlays can be coloured
+   independently. Still open: `Masked` + `TeamColor` resolution against
+   `Scene.players[i].color` for team-coloured units.
 2. **`Effects` (`VertexDisplace` / `AlphaPulse` / `ColorShift`).** Compile
    layer just passes effect references through; real work is adapter-side
    shader support. Largely blocked on backend. Consider dropping the variants
