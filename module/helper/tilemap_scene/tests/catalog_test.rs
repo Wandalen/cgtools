@@ -80,6 +80,7 @@ fn build_spec() -> Arc< RenderSpec >
         filter : SamplerFilter::Linear,
         mipmap : MipmapMode::Off,
         wrap : WrapMode::Clamp,
+        premultiplied : false,
       },
     ],
     tints : Vec::new(),
