@@ -34,5 +34,8 @@ void main()
   result =  color1 + color2 + color3 + color4 + color5;
   result *= bloomStrength;
 
-  frag_color = vec4( result, 1.0 );
+  // Alpha 0.0: bloom is additively blended; writing 1.0 would overwrite the main
+  // framebuffer's alpha channel, which the pipeline uses to tell geometry (alpha=1)
+  // from background (alpha=0) in subsequent tone-mapping / sRGB passes.
+  frag_color = vec4( result, 0.0 );
 }

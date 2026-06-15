@@ -184,6 +184,11 @@ mod private
 
   /// Computes the cross product of two 3D vectors.
   /// This function modifies the first vector in place.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-component multiplications and subtractions are
+  /// not overflow-checked: they panic in debug / wrap in release once any
+  /// intermediate value leaves `E`'s range.
   #[ inline ]
   pub fn cross_mut< E, R, B >( r : &mut R, b : &B )
   where
@@ -220,6 +225,11 @@ mod private
   }
 
   /// Computes the cross product of two 3D vectors.
+  ///
+  /// # Overflow
+  /// For integer scalars the per-component multiplications and subtractions are
+  /// not overflow-checked: they panic in debug / wrap in release once any
+  /// intermediate value leaves `E`'s range.
   #[ inline ]
   pub fn cross< E, A, B >( a : &A, b : &B ) -> A
   where

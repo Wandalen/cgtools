@@ -78,6 +78,9 @@ mod private
       // Disable depth testing and blending
       gl.disable( gl::DEPTH_TEST );
       gl.disable( gl::BLEND );
+      // Screen-space pass: the fullscreen triangle is back-facing, so it must not
+      // inherit the scene's CULL_FACE state or it gets culled and nothing draws.
+      gl.disable( gl::CULL_FACE );
       gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
 
       // Bind the shader program
