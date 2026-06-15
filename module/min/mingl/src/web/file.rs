@@ -33,12 +33,16 @@ mod private
   }
 
   // qqq : implement typed errors
-  /// Asynchronously fetches a file over HTTP using the browser's `fetch` API.
+  /// Asynchronously fetches a file over HTTP using the browser's `fetch` API,
+  /// or decodes a `data:` URL inline without a network round-trip.
   ///
   /// The argument is used verbatim as a URL or path; no folder prefix is added.
   /// These forms are accepted:
   /// * Absolute URL (`http://...`, `https://...`, or protocol-relative `//...`) — fetched as-is.
-  /// * Self-contained URL (`blob:...`, `data:...`) — fetched as-is.
+  /// * `blob:` URL — fetched as-is using `fetch`.
+  /// * `data:` URL (e.g. `data:application/octet-stream;base64,...`) — decoded directly
+  ///   without a network request. Only base64-encoded payloads are supported; non-base64
+  ///   data URLs return `Err`.
   /// * Origin-absolute path (`/assets/foo.png`) — joined to the window origin.
   /// * Origin-relative path (`static/foo.png`, `foo.png`) — joined to the window origin with `/`.
   ///
@@ -49,7 +53,7 @@ mod private
   /// An empty `file_name` resolves to `{origin}/` and is almost certainly a caller bug.
   ///
   /// # Arguments
-  /// * `file_name` - URL or origin-relative path of the file to fetch.
+  /// * `file_name` - URL, data URI, or origin-relative path of the file to load.
   ///
   /// # Returns
   /// A `Result` which is either a `Vec<u8>` containing the file's byte data on success,
@@ -61,20 +65,35 @@ mod private
   /// CORS failures or a `DOMException` for aborted reads. HTTP error status codes
   /// (4xx, 5xx) do **not** produce an `Err` here; `fetch` resolves successfully and
   /// the caller receives the response body as `Ok`.
+  /// For `data:` URLs, returns `Err` if the URL is malformed or does not use base64 encoding.
   ///
   /// # Panics
   /// Panics only if the browser `window` object is unavailable (i.e. not running in
   /// a browsing context).
   pub async fn load( file_name : &str ) -> Result< Vec< u8 >, JsValue >
   {
+    let window = web_sys::window().unwrap();
+    let origin = window.location().origin()?;
+    let url = resolve_url( &origin, file_name );
+
+    // `fetch()` rejects `cors` mode for `data:` URLs — decode them directly instead.
+    if url.starts_with( "data:" )
+    {
+      let comma_pos = url.find( ',' )
+      .ok_or_else( || JsValue::from_str( "Malformed data URL: missing comma" ) )?;
+      let header = &url[ 5..comma_pos ]; // skip leading "data:"
+      let payload = &url[ comma_pos + 1.. ];
+      if !header.ends_with( ";base64" )
+      {
+        return Err( JsValue::from_str( "Only base64-encoded data URLs are supported" ) );
+      }
+      let decoded = window.atob( payload )?;
+      return Ok( decoded.chars().map( | c | c as u8 ).collect() );
+    }
 
     let opts = web_sys::RequestInit::new();
     opts.set_method( "GET" );
     opts.set_mode( web_sys::RequestMode::Cors );
-
-    let window = web_sys::window().unwrap();
-    let origin = window.location().origin().unwrap();
-    let url = resolve_url( &origin, file_name );
 
     // Propagate request-construction and fetch failures as `Err` rather than
     // panicking: a rejected fetch (network error, CORS block, rate limit) must
@@ -87,10 +106,7 @@ mod private
     let array_buffer = JsFuture::from( array_buffer_promise ).await?;
 
     let uint8_array = js_sys::Uint8Array::new( &array_buffer );
-    let mut data = vec![ 0; uint8_array.length() as usize ];
-    uint8_array.copy_to( &mut data[ .. ] );
-
-    Ok( data )
+    Ok( uint8_array.to_vec() )
   }
 
   #[ cfg( test ) ]

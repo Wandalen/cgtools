@@ -446,7 +446,21 @@ mod private
       {
         gltf::buffer::Source::Uri( uri ) =>
         {
-          let path = format!( "{}/{}", folder_path, uri );
+          // Absolute URLs, data: and blob: URIs, and origin-absolute paths carry their
+          // own location — prepending folder_path would destroy the scheme or leading slash.
+          let path = if uri.starts_with( "http://" )
+          || uri.starts_with( "https://" )
+          || uri.starts_with( "//" )
+          || uri.starts_with( "blob:" )
+          || uri.starts_with( "data:" )
+          || uri.starts_with( '/' )
+          {
+            uri.to_string()
+          }
+          else
+          {
+            format!( "{}/{}", folder_path, uri )
+          };
           let buffer = gl::file::load( &path ).await
           .map_err( | _ | gl::WebglError::Other( "Failed to load a buffer" ) )?;
 
