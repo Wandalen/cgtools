@@ -64,6 +64,7 @@ use tilemap_scene::
   Tile,
   TilingStrategy,
   Tint,
+  TintBehaviour,
   TintRef,
   TriBlendPattern,
   Variant,
@@ -148,6 +149,7 @@ fn minimal_spec() -> RenderSpec
         filter : SamplerFilter::Linear,
         mipmap : MipmapMode::Off,
         wrap : WrapMode::Clamp,
+        premultiplied : false,
       },
     ],
     tints : Vec::new(),
@@ -877,6 +879,7 @@ fn wall_spec() -> RenderSpec
       filter : Default::default(),
       mipmap : Default::default(),
       wrap : Default::default(),
+      premultiplied : false,
     }
   );
   let wall = Object
@@ -1017,6 +1020,7 @@ fn neighbor_condition_skirt_on_water_side()
       filter : Default::default(),
       mipmap : Default::default(),
       wrap : Default::default(),
+      premultiplied : false,
     }
   );
   // Add a water object.
@@ -1121,6 +1125,7 @@ fn neighbor_condition_priority_lower_blends_grass_over_sand()
       filter : Default::default(),
       mipmap : Default::default(),
       wrap : Default::default(),
+      premultiplied : false,
     }
   );
   // Grass prio 10 (already in grass_object).
@@ -1235,6 +1240,7 @@ fn vertex_corners_three_way_blend()
       filter : Default::default(),
       mipmap : Default::default(),
       wrap : Default::default(),
+      premultiplied : false,
     }
   );
 
@@ -1308,6 +1314,9 @@ fn vertex_corners_three_way_blend()
                 },
               ],
               asset : "blends".into(),
+              orient_to_grid : false,
+              corner_source : None,
+              offset : None,
             },
             behaviour : LayerBehaviour::default(),
             z_in_object : 0,
@@ -1372,6 +1381,7 @@ fn vertex_corners_wildcard_edge_fade()
       filter : Default::default(),
       mipmap : Default::default(),
       wrap : Default::default(),
+      premultiplied : false,
     }
   );
   spec.objects.push( Object
@@ -1407,6 +1417,9 @@ fn vertex_corners_wildcard_edge_fade()
                 },
               ],
               asset : "fades".into(),
+              orient_to_grid : false,
+              corner_source : None,
+              offset : None,
             },
             behaviour : LayerBehaviour::default(),
             z_in_object : 0,
@@ -1439,6 +1452,315 @@ fn vertex_corners_wildcard_edge_fade()
     id.is_some() && emitted.contains( &id.unwrap() )
   });
   assert!( any_fade, "expected wildcard fade to match at least one triangle; emitted = {emitted:?}" );
+}
+
+/// Build the single-terrain dual-grid spec used by the orient_to_grid tests:
+/// one `hexagon` object that both marks terrain (`priority`) and carries the
+/// `VertexCorners` layer (`orient_to_grid: true`) routing the canonical
+/// full/edge/corner frames. Mirrors `asset/dual_assets/render_spec.ron`.
+fn dual_orient_spec() -> RenderSpec
+{
+  let mut spec = minimal_spec();
+  spec.pipeline.hex.grid_stride = ( 96, 111 );
+  spec.objects.clear();
+  // Pre-baked oriented frames: full has 2 (▲/▽), edge and corner have 6 each
+  // (the void / lone-hex points in any of 6 directions). Positions are
+  // irrelevant to these tests — only that each frame exists in the atlas.
+  let frames : Vec< ( &str, ( u32, u32 ) ) > = vec!
+  [
+    ( "dual_full_0", ( 0, 0 ) ), ( "dual_full_1", ( 1, 0 ) ),
+    ( "dual_edge_0", ( 2, 0 ) ), ( "dual_edge_1", ( 3, 0 ) ),
+    ( "dual_edge_2", ( 0, 1 ) ), ( "dual_edge_3", ( 1, 1 ) ),
+    ( "dual_edge_4", ( 2, 1 ) ), ( "dual_edge_5", ( 3, 1 ) ),
+    ( "dual_corner_0", ( 0, 2 ) ), ( "dual_corner_1", ( 1, 2 ) ),
+    ( "dual_corner_2", ( 2, 2 ) ), ( "dual_corner_3", ( 3, 2 ) ),
+    ( "dual_corner_4", ( 0, 3 ) ), ( "dual_corner_5", ( 1, 3 ) ),
+  ];
+  spec.assets.push
+  (
+    Asset
+    {
+      id : "dual".into(),
+      path : "dual.png".into(),
+      kind : atlas_with_frames( 4, &frames ),
+      filter : Default::default(),
+      mipmap : Default::default(),
+      wrap : Default::default(),
+      premultiplied : false,
+    }
+  );
+  spec.objects.push( Object
+  {
+    id : "hexagon".into(),
+    anchor : Anchor::Hex,
+    global_layer : "terrain".into(),
+    priority : Some( 10 ),
+    sort_y_source : Default::default(),
+    pivot : ( 0.5, 0.5 ),
+    default_state : "default".into(),
+    states :
+    {
+      let mut m = HashMap::default();
+      m.insert
+      (
+        "default".into(),
+        vec!
+        [
+          ObjectLayer
+          {
+            id : None,
+            sprite_source : SpriteSource::VertexCorners
+            {
+              patterns : vec!
+              [
+                TriBlendPattern { corners : ( "hexagon".into(), "hexagon".into(), "hexagon".into() ), sprite_pattern : "dual_full_{rot}".into(),   priority : 30, animation : None },
+                TriBlendPattern { corners : ( "hexagon".into(), "hexagon".into(), "void".into() ),    sprite_pattern : "dual_edge_{rot}".into(),   priority : 20, animation : None },
+                TriBlendPattern { corners : ( "hexagon".into(), "void".into(), "void".into() ),       sprite_pattern : "dual_corner_{rot}".into(), priority : 10, animation : None },
+              ],
+              asset : "dual".into(),
+              orient_to_grid : true,
+              corner_source : None,
+              offset : None,
+            },
+            behaviour : LayerBehaviour::default(),
+            z_in_object : 0,
+            pipeline_layer : None,
+          },
+        ],
+      );
+      m
+    },
+  });
+  spec
+}
+
+/// orient_to_grid (Path B): a lone hex in void emits exactly the six
+/// surrounding `dual_corner` triangles, each picking a DISTINCT pre-baked
+/// orientation frame (`dual_corner_0..5` — all six present). No runtime sprite
+/// rotation: `transform.rotation` stays 0 and the frame index carries the
+/// orientation. This pins the discrete frame-selection geometry; the absolute
+/// base angle (texture v-flip) is calibrated visually in-browser.
+#[ test ]
+fn vertex_corners_orient_to_grid_single_hex_six_orientations()
+{
+  let spec = dual_orient_spec();
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+
+  // Map each of the six baked corner frame ids back to its orientation index.
+  let corner_ids : Vec< _ > = ( 0..6 )
+    .map( | o | compiled.ids.sprite( "dual", &format!( "dual_corner_{o}" ) ).expect( "corner frame allocated" ) )
+    .collect();
+
+  let mut seen = std::collections::HashSet::new();
+  for c in &cmds
+  {
+    if let RenderCommand::Sprite( s ) = c
+    {
+      if let Some( o ) = corner_ids.iter().position( | id | *id == s.sprite )
+      {
+        seen.insert( o );
+        assert_eq!( s.transform.rotation, 0.0, "orient mode must not rotate sprites at runtime" );
+      }
+    }
+  }
+  // Six triangles around the lone hex, each a distinct 60°-orientation frame.
+  assert_eq!( seen.len(), 6, "lone hex must emit all six distinct corner orientations; got {seen:?}" );
+}
+
+/// orient_to_grid (Path B): a solid patch yields full interior triangles, and
+/// the up-pointing (▲) and down-pointing (▽) duals select DIFFERENT pre-baked
+/// frames (`dual_full_0` vs `dual_full_1` — a solid triangle is 3-fold
+/// symmetric, so only the ▲/▽ parity distinguishes them). The legacy 120°-only
+/// path collapsed both to one frame.
+#[ test ]
+fn vertex_corners_orient_to_grid_up_down_distinct()
+{
+  // 7-hex flower: centre + 6 flat-top neighbours. The six triangles around the
+  // centre all have three `hexagon` corners → `dual_full`.
+  let neigh = [ ( 0, -1 ), ( 1, -1 ), ( 1, 0 ), ( 0, 1 ), ( -1, 1 ), ( -1, 0 ) ];
+  let mut tiles = vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ];
+  for ( q, r ) in neigh { tiles.push( Tile { pos : ( q, r ), objects : vec![ "hexagon".into() ] } ); }
+
+  let spec = dual_orient_spec();
+  let scene = SceneSnapshot { tiles, ..minimal_scene_3x3() };
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+
+  let full_0 = compiled.ids.sprite( "dual", "dual_full_0" ).expect( "dual_full_0 allocated" );
+  let full_1 = compiled.ids.sprite( "dual", "dual_full_1" ).expect( "dual_full_1 allocated" );
+
+  let ( mut n0, mut n1 ) = ( 0_u32, 0_u32 );
+  for c in &cmds
+  {
+    if let RenderCommand::Sprite( s ) = c
+    {
+      if s.sprite == full_0 { n0 += 1; assert_eq!( s.transform.rotation, 0.0 ); }
+      if s.sprite == full_1 { n1 += 1; assert_eq!( s.transform.rotation, 0.0 ); }
+    }
+  }
+
+  assert!( n0 + n1 >= 6, "flower interior must emit ≥6 full triangles; got {}", n0 + n1 );
+  // Both parities must appear — the ▲/▽ distinction the legacy path lost.
+  assert!( n0 > 0 && n1 > 0, "both ▲ and ▽ full frames must appear; got full_0={n0}, full_1={n1}" );
+}
+
+/// A per-object `behaviour.tint: Flat(..)` must colour every dual-grid
+/// (VertexCorners) sprite that object emits — the path used by per-player
+/// region overlays. Before this was wired, `compile_vertex_pass` hardcoded the
+/// global tint and silently ignored the layer's own tint. A lone hex with a
+/// pure-red flat tint should emit corner sprites tinted ≈ [1, 0, 0, 1].
+#[ test ]
+fn vertex_corners_layer_flat_tint_colours_sprites()
+{
+  let mut spec = dual_orient_spec();
+  spec.tints.push( Tint
+  {
+    id : "red".into(),
+    color : "#ff0000".into(),
+    strength : 1.0,
+    mode : BlendMode::Multiply,
+  });
+  // Set the hexagon object's VertexCorners layer to a flat red tint.
+  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
+  stack[ 0 ].behaviour.tint = TintBehaviour::Flat( TintRef( "red".into() ) );
+
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+
+  let sprites = sprite_commands( &cmds );
+  assert!( !sprites.is_empty(), "lone hex must emit dual corner sprites" );
+  for s in &sprites
+  {
+    let t = s.tint;
+    assert!( ( t[ 0 ] - 1.0 ).abs() < 1e-5, "red preserved: {t:?}" );
+    assert!( t[ 1 ].abs() < 1e-5, "green zeroed by flat tint: {t:?}" );
+    assert!( t[ 2 ].abs() < 1e-5, "blue zeroed by flat tint: {t:?}" );
+    assert!( ( t[ 3 ] - 1.0 ).abs() < 1e-5, "alpha unchanged: {t:?}" );
+  }
+}
+
+/// Regression: a VertexCorners layer with the default `TintBehaviour::None`
+/// still emits the global tint (here identity white), proving the per-object
+/// tint change didn't disturb the untinted path.
+#[ test ]
+fn vertex_corners_layer_no_tint_is_identity()
+{
+  let spec = dual_orient_spec();
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let sprites = sprite_commands( &cmds );
+  assert!( !sprites.is_empty() );
+  for s in &sprites
+  {
+    assert_eq!( s.tint, [ 1.0, 1.0, 1.0, 1.0 ], "untinted dual sprite stays white" );
+  }
+}
+
+/// `corner_source`: two independent dual grids in ONE scene. A cell carrying
+/// BOTH a terrain object (default channel = terrain id) and a region object
+/// (channel = its `global_layer`, "region") must emit tiles from BOTH assets —
+/// proving the per-layer corner resolution keeps the channels isolated (the
+/// region layer reads "region_0", not "hexagon", on the shared cell).
+#[ test ]
+fn vertex_corners_corner_source_isolates_channels()
+{
+  let mut spec = dual_orient_spec(); // hexagon (terrain) + "dual" asset.
+
+  // A second atlas + object whose dual grid reads the "region" channel.
+  let region_frames : Vec< ( &str, ( u32, u32 ) ) > = vec!
+  [
+    ( "r_full_0", ( 0, 0 ) ), ( "r_full_1", ( 1, 0 ) ),
+    ( "r_corner_0", ( 0, 2 ) ), ( "r_corner_1", ( 1, 2 ) ), ( "r_corner_2", ( 2, 2 ) ),
+    ( "r_corner_3", ( 3, 2 ) ), ( "r_corner_4", ( 0, 3 ) ), ( "r_corner_5", ( 1, 3 ) ),
+  ];
+  spec.assets.push( Asset
+  {
+    id : "region".into(),
+    path : "region.png".into(),
+    kind : atlas_with_frames( 4, &region_frames ),
+    filter : Default::default(),
+    mipmap : Default::default(),
+    wrap : Default::default(),
+    premultiplied : false,
+  });
+  spec.objects.push( Object
+  {
+    id : "region_0".into(),
+    anchor : Anchor::Hex,
+    global_layer : "region".into(),
+    priority : Some( 10 ),
+    sort_y_source : Default::default(),
+    pivot : ( 0.5, 0.5 ),
+    default_state : "default".into(),
+    states :
+    {
+      let mut m = HashMap::default();
+      m.insert
+      (
+        "default".into(),
+        vec!
+        [
+          ObjectLayer
+          {
+            id : None,
+            sprite_source : SpriteSource::VertexCorners
+            {
+              patterns : vec!
+              [
+                TriBlendPattern { corners : ( "region_0".into(), "region_0".into(), "region_0".into() ), sprite_pattern : "r_full_{rot}".into(),   priority : 30, animation : None },
+                TriBlendPattern { corners : ( "region_0".into(), "*".into(), "*".into() ),                sprite_pattern : "r_corner_{rot}".into(), priority : 10, animation : None },
+              ],
+              asset : "region".into(),
+              orient_to_grid : true,
+              corner_source : Some( "region".into() ),
+              offset : None,
+            },
+            behaviour : LayerBehaviour::default(),
+            z_in_object : 0,
+            pipeline_layer : None,
+          },
+        ],
+      );
+      m
+    },
+  });
+  spec.pipeline.layers.push( PipelineLayer { id : "region".into(), sort : SortMode::None, tint_mask : None } );
+
+  // One lone cell carrying BOTH objects → terrain channel sees [hexagon,void,
+  // void] and region channel sees [region_0,void,void] on the same triangles.
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into(), "region_0".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let emitted : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
+    if let RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
+  ).collect();
+
+  let any_dual = ( 0..6 ).any( | o |
+    compiled.ids.sprite( "dual", &format!( "dual_corner_{o}" ) ).is_some_and( | id | emitted.contains( &id ) ) );
+  let any_region = ( 0..6 ).any( | o |
+    compiled.ids.sprite( "region", &format!( "r_corner_{o}" ) ).is_some_and( | id | emitted.contains( &id ) ) );
+  assert!( any_dual, "terrain channel must emit dual corner tiles; emitted = {emitted:?}" );
+  assert!( any_region, "region channel must emit region corner tiles from the SAME cell; emitted = {emitted:?}" );
 }
 
 // ────────────────────────────────────────────────────────────────────────────
