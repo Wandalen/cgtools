@@ -203,6 +203,7 @@ Asset(
     filter: Linear,                   // Linear | Nearest           (default: Linear)
     mipmap: Off,                      // Off | Nearest | Linear     (default: Off)
     wrap:   Clamp,                    // Clamp | Repeat | Mirror    (default: Clamp)
+    premultiplied: false,             // bool                       (default: false)
 )
 ```
 
@@ -215,12 +216,13 @@ For `Atlas` assets, frame lookup tries two paths in order:
 
 If neither resolves, compilation fails with an explicit error pointing at the missing frame — there are no silent placeholder regions. Autotile atlases (SPEC §5.4 `ByAtlas`) typically use numeric indices `"0".."63"` and leave `frames` empty; atlases that mix terrain bases, skirts, and triangle blends populate `frames` with semantic names.
 
-**Sampler parameters** (`filter`, `mipmap`, `wrap`) share semantics with `tilemap_renderer::types::SamplerFilter` / `MipmapMode` / `WrapMode`:
+**Sampler parameters** (`filter`, `mipmap`, `wrap`, `premultiplied`) share semantics with `tilemap_renderer::types::SamplerFilter` / `MipmapMode` / `WrapMode`:
 
 - `filter = Nearest` is standard for pixel art; `Linear` for everything else.
 - `mipmap` matters only on GPU backends and only for assets drawn at widely varying scales (parallax mountains, zoomed-out overworld). Enabling costs a small upload at load time.
 - `wrap = Repeat` lets a single draw call cover an arbitrarily large area with a tileable texture — tileable sky backgrounds, long edge-anchored rivers, multi-hex seamless floors. `Mirror` is the same with per-period reflection, which hides seams in some textures cheaply.
 - The WebGL adapter wires `wrap` through to the GL sampler (`CLAMP_TO_EDGE` / `REPEAT` / `MIRRORED_REPEAT`). Non-GPU backends (SVG, terminal) ignore `mipmap` entirely and approximate `wrap` with multiple draw calls where feasible; unsupported modes fall back to `Clamp`-equivalent behaviour with a warning (see §12.2).
+- `premultiplied = true` tells GPU backends that the image's RGB channels are already scaled by alpha. The compositor uses the premultiplied "over" blend (`src + dst·(1-src_a)`) instead of the straight one (`src·src_a + dst·(1-src_a)`), avoiding the double-alpha-scale artefact that darkens antialiased edges. SVG and terminal backends ignore it. Defaults to `false`.
 
 ### 4.2 Tint
 
@@ -466,17 +468,29 @@ sprite_source: VertexCorners(
         (corners: ("*",     "*",     "void"),     sprite_pattern: "tri_edge_{rot}",   priority: 0),
     ],
     asset: "transitions_atlas",
+    // Optional fields — all default to false / None:
+    orient_to_grid: false,   // pick a pre-baked oriented frame instead of runtime rotation
+    corner_source: None,     // None = terrain id; Some("layer") = objects on that draw layer
+    offset: None,            // (dx, dy) world-pixel shift applied to every emitted sprite
 )
 ```
 
 Applicable to `Vertex` anchor. At render time:
 
-1. Read the object ids at the vertex's corners (from the scene).
+1. Read the object ids at the vertex's corners, using `corner_source` to select the channel (see below).
 2. Build the canonical sorted tuple and `rotation`.
 3. Match against `patterns` using specificity (fewer wildcards wins) and then `priority` (§9).
 4. Emit the chosen sprite with `{rot}` substituted. If no pattern matches, the vertex emits nothing.
 
 `"*"` matches any single corner value. Wildcards participate in sorting as if they were lexicographically greater than any concrete id (so they trail in the canonical tuple).
+
+**`orient_to_grid`** (default `false`). When `true`, `{rot}` selects a **pre-baked oriented frame** keyed to the triangle's discrete geometric orientation on the hex grid rather than the canonical-sort rotation. The regular hex dual grid has six 60°-orientations; each junction shape is baked once per orientation at export time so no runtime sprite rotation is needed. `{rot}` ranges over `0..2` for a fully-symmetric tile (all three corners equal — only ▲/▽ parity distinguishes them) and `0..6` otherwise. When `false` (legacy default), `{rot}` ranges over `0..3` and picks the canonical-sort rotation as before.
+
+**`corner_source`** (default `None`). Selects which per-cell "channel" the corner ids are read from:
+- `None`: the cell's **terrain id** — the first object on the cell that has a `priority` field set (historical behaviour; same as the rule in §11).
+- `Some("layer_name")`: the id of the **first object on the cell whose `global_layer` matches**. This allows multiple independent dual grids to share a single scene: a base terrain layer (`corner_source: None`) and a per-player region layer (`corner_source: Some("region")`) can coexist on the same cells with their corner lookups isolated.
+
+**`offset`** (default `None`). A static `(dx, dy)` world-pixel shift added to every emitted sprite's position. Useful for drawing the same dual grid shifted — e.g. a grey-tinted copy nudged downward as a 2.5D "wall" / drop-shadow under the main terrain layer. Corner resolution and orient-to-grid frame selection always use the true (un-shifted) triangle geometry.
 
 ### 5.7 `ViewportTiled`
 
@@ -900,7 +914,7 @@ The ASCII grid is interpreted in offset coordinates and converted to axial inter
 - Every object declared in `render_spec.objects[]` MUST have a unique `id`.
 - References from scenes (`tiles[].objects`, `entities[].object`, etc.) MUST resolve to a declared object id.
 - `NeighborBitmask.connects_with`, `NeighborIs(...)`, and `NeighborCondition` terrain checks compare against object ids present on neighbour cells.
-- `VertexCorners.patterns[].corners` matches against the **lowest-indexed object id on the cell that has a `priority` field set**, conventionally the terrain object. Implementations SHOULD document this resolution rule in validation errors when no corner is matchable.
+- `VertexCorners.patterns[].corners` matches against the **lowest-indexed object id on the cell that has a `priority` field set** (terrain channel, `corner_source: None`) OR the **id of the first object whose `global_layer` matches `corner_source`** when a layer name is supplied. Implementations SHOULD document this resolution rule in validation errors when no corner is matchable.
 
 ## 12. Rendering Algorithm
 
