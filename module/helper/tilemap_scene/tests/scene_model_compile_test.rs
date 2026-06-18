@@ -205,6 +205,20 @@ fn compile_assets_allocates_one_image_and_one_sprite()
 }
 
 #[ test ]
+fn compile_assets_propagates_premultiplied()
+{
+  // Default (serde / fixture) is false.
+  let default_compiled = compile_assets( &minimal_spec(), &PathResolver ).expect( "compile" );
+  assert!( !default_compiled.assets.images[ 0 ].premultiplied, "default premultiplied is false" );
+
+  // premultiplied: true on the source asset must reach the ImageAsset.
+  let mut spec = minimal_spec();
+  spec.assets[ 0 ].premultiplied = true;
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "compile" );
+  assert!( compiled.assets.images[ 0 ].premultiplied, "premultiplied: true must propagate into ImageAsset" );
+}
+
+#[ test ]
 fn compile_assets_atlas_region_indexing()
 {
   // Grass that references frame "3" — 2 columns, so (3 % 2, 3 / 2) = (1, 1).
