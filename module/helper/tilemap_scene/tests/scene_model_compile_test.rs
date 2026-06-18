@@ -1988,6 +1988,48 @@ fn vertex_corners_corner_source_isolates_channels()
     compiled.ids.sprite( "region", &format!( "r_corner_{o}" ) ).is_some_and( | id | emitted.contains( &id ) ) );
   assert!( any_dual, "terrain channel must emit dual corner tiles; emitted = {emitted:?}" );
   assert!( any_region, "region channel must emit region corner tiles from the SAME cell; emitted = {emitted:?}" );
+
+  // Channel isolation, not just presence. The lone cell carries hexagon
+  // (terrain channel) AND region_0 (region channel), each surrounded by void,
+  // so each dual grid must emit ONLY its own single-corner family:
+  //   - the terrain/dual layer resolves "hexagon" → `dual_corner_*` only
+  //     (never a `region`-asset frame),
+  //   - the region layer resolves "region_0" → `r_corner_*` only (never a
+  //     `dual`-asset frame, and in particular never a `dual_corner_*`).
+  // A bug that ignored `corner_source` and read the region layer off the
+  // terrain channel would emit no region frame at all (caught above), or — if
+  // it leaked the other way — would surface a cross-family frame here.
+  //
+  // Reverse-map every emitted vertex sprite id back to its frame name via the
+  // public id lookup over the known frame families.
+  let dual_names : Vec< String > = ( 0..6 ).map( | o | format!( "dual_corner_{o}" ) )
+    .chain( ( 0..6 ).map( | o | format!( "dual_edge_{o}" ) ) )
+    .chain( ( 0..2 ).map( | o | format!( "dual_full_{o}" ) ) )
+    .collect();
+  let region_names : Vec< String > = ( 0..6 ).map( | o | format!( "r_corner_{o}" ) )
+    .chain( ( 0..2 ).map( | o | format!( "r_full_{o}" ) ) )
+    .collect();
+  let dual_emitted : Vec< &str > = dual_names.iter()
+    .filter( | n | compiled.ids.sprite( "dual", n ).is_some_and( | id | emitted.contains( &id ) ) )
+    .map( String::as_str ).collect();
+  let region_emitted : Vec< &str > = region_names.iter()
+    .filter( | n | compiled.ids.sprite( "region", n ).is_some_and( | id | emitted.contains( &id ) ) )
+    .map( String::as_str ).collect();
+
+  assert!( !dual_emitted.is_empty(), "terrain channel must emit dual frames" );
+  assert!( !region_emitted.is_empty(), "region channel must emit region frames" );
+  // Each channel resolved its OWN single id surrounded by void → corner family
+  // only, never the other channel's frames.
+  assert!
+  (
+    dual_emitted.iter().all( | n | n.starts_with( "dual_corner_" ) ),
+    "terrain/dual layer leaked a non-corner or region frame: {dual_emitted:?}",
+  );
+  assert!
+  (
+    region_emitted.iter().all( | n | n.starts_with( "r_corner_" ) ),
+    "region layer leaked a non-corner or dual frame: {region_emitted:?}",
+  );
 }
 
 /// Build a two-region scene spec: `region_1` carries an `orient_to_grid` dual
