@@ -1782,6 +1782,65 @@ fn vertex_corners_layer_masked_tint_is_rejected()
   assert!( matches!( err, CompileError::UnsupportedBehaviour { .. } ), "expected UnsupportedBehaviour, got {err:?}" );
 }
 
+/// `TintBehaviour::Flat` must colour a regular hex instance layer, not only
+/// VertexCorners. Before this was wired, `compile_instance_layer` passed the
+/// global tint straight to `final_tint` and silently discarded the layer's
+/// `Flat` tint. A grass tile with a pure-red flat tint should emit ≈[1,0,0,1].
+#[ test ]
+fn instance_layer_flat_tint_colours_sprite()
+{
+  let mut spec = minimal_spec();
+  spec.tints.push( Tint
+  {
+    id : "red".into(),
+    color : "#ff0000".into(),
+    strength : 1.0,
+    mode : BlendMode::Multiply,
+  });
+  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
+  stack[ 0 ].behaviour.tint = TintBehaviour::Flat( TintRef( "red".into() ) );
+
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let cmds = compile( &spec, &scene, &Camera::default() );
+  let sprites = sprite_commands( &cmds );
+  assert!( !sprites.is_empty(), "grass tile must emit a sprite" );
+  for s in &sprites
+  {
+    let t = s.tint;
+    assert!( ( t[ 0 ] - 1.0 ).abs() < 1e-5, "red preserved on instance layer: {t:?}" );
+    assert!( t[ 1 ].abs() < 1e-5, "green zeroed by flat tint: {t:?}" );
+    assert!( t[ 2 ].abs() < 1e-5, "blue zeroed by flat tint: {t:?}" );
+    assert!( ( t[ 3 ] - 1.0 ).abs() < 1e-5, "alpha unchanged: {t:?}" );
+  }
+}
+
+/// `TintBehaviour::Masked` on a regular instance layer is rejected with
+/// `UnsupportedBehaviour` (same contract as the VertexCorners path) rather than
+/// silently falling back to the global tint.
+#[ test ]
+fn instance_layer_masked_tint_is_rejected()
+{
+  let mut spec = minimal_spec();
+  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
+  stack[ 0 ].behaviour.tint = TintBehaviour::Masked
+  {
+    mask : Box::new( SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ) ),
+    tint : tilemap_scene::MaskTint::TeamColor,
+  };
+
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let err = try_compile( &spec, &scene, &Camera::default() ).expect_err( "Masked must be rejected" );
+  assert!( matches!( err, CompileError::UnsupportedBehaviour { .. } ), "expected UnsupportedBehaviour, got {err:?}" );
+}
+
 /// `corner_source`: two independent dual grids in ONE scene. A cell carrying
 /// BOTH a terrain object (default channel = terrain id) and a region object
 /// (channel = its `global_layer`, "region") must emit tiles from BOTH assets —
