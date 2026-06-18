@@ -1782,6 +1782,50 @@ fn vertex_corners_layer_masked_tint_is_rejected()
   assert!( matches!( err, CompileError::UnsupportedBehaviour { .. } ), "expected UnsupportedBehaviour, got {err:?}" );
 }
 
+/// `offset: Some((dx,dy))` must shift every emitted VertexCorners sprite's
+/// position by exactly that world delta — and nothing else. Same scene with and
+/// without the offset must pick the SAME frames (offset does not touch corner
+/// resolution / orient frame selection), only their positions move. With the
+/// default camera (zoom 1, no rotation, no Y-flip in `project`) a world offset
+/// maps 1:1 to a screen-position delta.
+#[ test ]
+fn vertex_corners_offset_shifts_sprite_position()
+{
+  let base_spec = dual_orient_spec();
+  let mut off_spec = dual_orient_spec();
+  // Apply the offset to the (only) VertexCorners layer.
+  let layer = &mut off_spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" )[ 0 ];
+  if let SpriteSource::VertexCorners { offset, .. } = &mut layer.sprite_source
+  {
+    *offset = Some( ( 32.0, -16.0 ) );
+  }
+  else
+  {
+    panic!( "dual_orient_spec layer 0 must be VertexCorners" );
+  }
+
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let base = compile_at_time( &base_spec, &scene, &Camera::default(), 0.0 );
+  let off  = compile_at_time( &off_spec,  &scene, &Camera::default(), 0.0 );
+  let base = sprite_commands( &base );
+  let off  = sprite_commands( &off );
+
+  assert!( !base.is_empty(), "lone hex must emit corner sprites" );
+  assert_eq!( base.len(), off.len(), "offset must not change the number of sprites" );
+  for ( b, o ) in base.iter().zip( off.iter() )
+  {
+    assert_eq!( b.sprite, o.sprite, "offset must not change the chosen frame (un-shifted geometry invariant)" );
+    let dx = o.transform.position[ 0 ] - b.transform.position[ 0 ];
+    let dy = o.transform.position[ 1 ] - b.transform.position[ 1 ];
+    assert!( ( dx - 32.0 ).abs() < 1e-4, "x must shift by offset dx=32; got {dx}" );
+    assert!( ( dy + 16.0 ).abs() < 1e-4, "y must shift by offset dy=-16; got {dy}" );
+  }
+}
+
 /// `TintBehaviour::Flat` must colour a regular hex instance layer, not only
 /// VertexCorners. Before this was wired, `compile_instance_layer` passed the
 /// global tint straight to `final_tint` and silently discarded the layer's
