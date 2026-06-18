@@ -486,6 +486,15 @@ Applicable to `Vertex` anchor. At render time:
 
 **`orient_to_grid`** (default `false`). When `true`, `{rot}` selects a **pre-baked oriented frame** keyed to the triangle's discrete geometric orientation on the hex grid rather than the canonical-sort rotation. The regular hex dual grid has six 60°-orientations; each junction shape is baked once per orientation at export time so no runtime sprite rotation is needed. `{rot}` ranges over `0..2` for a fully-symmetric tile (all three corners equal — only ▲/▽ parity distinguishes them) and `0..6` otherwise. When `false` (legacy default), `{rot}` ranges over `0..3` and picks the canonical-sort rotation as before.
 
+**Baker contract (orient_to_grid).** An atlas baker MUST order the `{rot}` frames to match how the renderer selects them, or oriented frames will appear rotated wrong:
+
+- **Orientation 0 is defined by a base angle**, which depends on the triangle's shape relative to the layer's own object id (its "self" id):
+  - **corner tile** (one corner is the self id): base **60°** — orientation aligns the lone present corner. 6 frames.
+  - **edge tile** (two corners are the self id, one is not): base **300°** — orientation aligns the single absent corner. 6 frames.
+  - **full tile** (all three corners are the self id): base **60°**, 2 frames (▲/▽ parity only).
+- **`{rot}` increments clockwise in world space.** The atlas baker's counter-clockwise `u_rot` reads as clockwise in world because the PNG export flips vertically — bake accordingly.
+- The reference corner for frame `rot` points at **`base − 60°·rot`** in world space.
+
 **`corner_source`** (default `None`). Selects which per-cell "channel" the corner ids are read from:
 - `None`: the cell's **terrain id** — the first object on the cell that has a `priority` field set (historical behaviour; same as the rule in §11).
 - `Some("layer_name")`: the id of the **first object on the cell whose `global_layer` matches**. This allows multiple independent dual grids to share a single scene: a base terrain layer (`corner_source: None`) and a per-player region layer (`corner_source: Some("region")`) can coexist on the same cells with their corner lookups isolated.
