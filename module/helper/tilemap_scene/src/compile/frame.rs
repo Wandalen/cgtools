@@ -354,9 +354,11 @@ mod private
 
         // Per-object tint: a `Flat` named tint multiplies the global tint, so
         // each VertexCorners object (e.g. a per-player region) can be coloured
-        // independently. `None`/`Masked` fall back to the global tint.
+        // independently. `Masked` is rejected (not yet implemented) rather than
+        // silently discarding the mask and tint.
         let layer_tint = match &layer.behaviour.tint
         {
+          TintBehaviour::None => ctx.global_tint,
           TintBehaviour::Flat( tref ) =>
           {
             let c = resolve_tint_ref( ctx.spec, tref )?;
@@ -367,7 +369,11 @@ mod private
               ctx.global_tint[ 3 ] * c[ 3 ],
             ]
           }
-          _ => ctx.global_tint,
+          TintBehaviour::Masked { .. } => return Err( CompileError::UnsupportedBehaviour
+          {
+            object : object.id.clone(),
+            behaviour : "Masked tint (not implemented for VertexCorners — use Flat or remove the tint behaviour)",
+          }),
         };
 
         out.push

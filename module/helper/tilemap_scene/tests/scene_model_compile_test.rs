@@ -1759,6 +1759,29 @@ fn vertex_corners_layer_no_tint_is_identity()
   }
 }
 
+/// `TintBehaviour::Masked` is not implemented for VertexCorners. It must be
+/// rejected with `CompileError::UnsupportedBehaviour` rather than silently
+/// falling through to the global tint (which discards the mask + tint).
+#[ test ]
+fn vertex_corners_layer_masked_tint_is_rejected()
+{
+  let mut spec = dual_orient_spec();
+  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
+  stack[ 0 ].behaviour.tint = TintBehaviour::Masked
+  {
+    mask : Box::new( SpriteSource::Static( SpriteRef { asset : "dual".into(), frame : "dual_full_0".into() } ) ),
+    tint : tilemap_scene::MaskTint::TeamColor,
+  };
+
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let err = try_compile( &spec, &scene, &Camera::default() ).expect_err( "Masked must be rejected" );
+  assert!( matches!( err, CompileError::UnsupportedBehaviour { .. } ), "expected UnsupportedBehaviour, got {err:?}" );
+}
+
 /// `corner_source`: two independent dual grids in ONE scene. A cell carrying
 /// BOTH a terrain object (default channel = terrain id) and a region object
 /// (channel = its `global_layer`, "region") must emit tiles from BOTH assets —
