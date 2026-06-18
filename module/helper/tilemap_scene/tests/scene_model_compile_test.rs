@@ -1610,6 +1610,93 @@ fn vertex_corners_orient_to_grid_up_down_distinct()
   assert!( n0 > 0 && n1 > 0, "both ▲ and ▽ full frames must appear; got full_0={n0}, full_1={n1}" );
 }
 
+/// Regression: a bare `("*","*","*")` wildcard pattern with `orient_to_grid:
+/// true` must still compile. The wildcard is excluded from `self_id` detection,
+/// so the frame pass falls to the 6-orientation legacy path and can pick
+/// `{rot}` up to 5. Pre-allocation must therefore reserve six frames, not the
+/// two it would for a genuine fully-symmetric (all-equal) pattern — otherwise
+/// rendering hits `CompileError::UnresolvedRef`.
+#[ test ]
+fn vertex_corners_orient_to_grid_triple_wildcard_allocates_six()
+{
+  let mut spec = minimal_spec();
+  spec.pipeline.hex.grid_stride = ( 96, 111 );
+  spec.objects.clear();
+  let frames : Vec< ( &str, ( u32, u32 ) ) > = ( 0..6 )
+    .map( | o | ( [ "w_0", "w_1", "w_2", "w_3", "w_4", "w_5" ][ o ], ( o as u32, 0 ) ) )
+    .collect();
+  spec.assets.push( Asset
+  {
+    id : "wild".into(),
+    path : "wild.png".into(),
+    kind : atlas_with_frames( 6, &frames ),
+    filter : Default::default(),
+    mipmap : Default::default(),
+    wrap : Default::default(),
+    premultiplied : false,
+  });
+  spec.objects.push( Object
+  {
+    id : "hexagon".into(),
+    anchor : Anchor::Hex,
+    global_layer : "terrain".into(),
+    priority : Some( 10 ),
+    sort_y_source : Default::default(),
+    pivot : ( 0.5, 0.5 ),
+    default_state : "default".into(),
+    states :
+    {
+      let mut m = HashMap::default();
+      m.insert
+      (
+        "default".into(),
+        vec!
+        [
+          ObjectLayer
+          {
+            id : None,
+            sprite_source : SpriteSource::VertexCorners
+            {
+              patterns : vec!
+              [
+                TriBlendPattern { corners : ( "*".into(), "*".into(), "*".into() ), sprite_pattern : "w_{rot}".into(), priority : 0, animation : None },
+              ],
+              asset : "wild".into(),
+              orient_to_grid : true,
+              corner_source : None,
+              offset : None,
+            },
+            behaviour : LayerBehaviour::default(),
+            z_in_object : 0,
+            pipeline_layer : None,
+          },
+        ],
+      );
+      m
+    },
+  });
+
+  // All six `{rot}` frames must be pre-allocated.
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  for o in 0..6
+  {
+    assert!
+    (
+      compiled.ids.sprite( "wild", &format!( "w_{o}" ) ).is_some(),
+      "wildcard orient pattern must reserve frame w_{o}",
+    );
+  }
+
+  // A lone hex's surrounding corner triangles hit the legacy path and can pick
+  // `{rot}` up to 5 — rendering must resolve every frame, not error.
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  assert!( try_compile( &spec, &scene, &Camera::default() ).is_ok(), "triple-wildcard orient scene must compile without UnresolvedRef" );
+}
+
 /// A per-object `behaviour.tint: Flat(..)` must colour every dual-grid
 /// (VertexCorners) sprite that object emits — the path used by per-player
 /// region overlays. Before this was wired, `compile_vertex_pass` hardcoded the
