@@ -354,27 +354,8 @@ mod private
 
         // Per-object tint: a `Flat` named tint multiplies the global tint, so
         // each VertexCorners object (e.g. a per-player region) can be coloured
-        // independently. `Masked` is rejected (not yet implemented) rather than
-        // silently discarding the mask and tint.
-        let layer_tint = match &layer.behaviour.tint
-        {
-          TintBehaviour::None => ctx.global_tint,
-          TintBehaviour::Flat( tref ) =>
-          {
-            let c = resolve_tint_ref( ctx.spec, tref )?;
-            [
-              ctx.global_tint[ 0 ] * c[ 0 ],
-              ctx.global_tint[ 1 ] * c[ 1 ],
-              ctx.global_tint[ 2 ] * c[ 2 ],
-              ctx.global_tint[ 3 ] * c[ 3 ],
-            ]
-          }
-          TintBehaviour::Masked { .. } => return Err( CompileError::UnsupportedBehaviour
-          {
-            object : object.id.clone(),
-            behaviour : "Masked tint (not implemented for VertexCorners — use Flat or remove the tint behaviour)",
-          }),
-        };
+        // independently. `Masked` is rejected (not yet implemented).
+        let layer_tint = layer_base_tint( ctx, object, &layer.behaviour )?;
 
         out.push
         ((
@@ -1006,7 +987,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+            tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -1041,7 +1022,7 @@ mod private
         {
           transform,
           sprite : sprite_id,
-          tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+          tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
           blend : layer.behaviour.blend,
           clip : None,
         },
@@ -1158,7 +1139,7 @@ mod private
         {
           transform,
           sprite : sprite_id,
-          tint : final_tint( ctx.global_tint, behaviour.alpha, inst.tint ),
+          tint : final_tint( layer_base_tint( ctx, object, behaviour )?, behaviour.alpha, inst.tint ),
           blend : behaviour.blend,
           clip : None,
         },
@@ -1167,12 +1148,50 @@ mod private
     Ok( out )
   }
 
-  /// Compose the per-sprite tint as
-  /// `global * layer_alpha (alpha-channel only) * instance_tint`.
-  #[ inline ]
-  fn final_tint( global : [ f32; 4 ], layer_alpha : f32, inst : Option< [ f32; 4 ] > ) -> [ f32; 4 ]
+  /// Resolve a layer's [`TintBehaviour`] into the base RGBA multiplier fed to
+  /// [`final_tint`].
+  ///
+  /// - `None` → the global tint unchanged.
+  /// - `Flat(ref)` → global tint multiplied by the named tint, so each layer
+  ///   (e.g. a per-player region overlay) can be coloured independently.
+  /// - `Masked` → rejected with [`CompileError::UnsupportedBehaviour`]; it is
+  ///   not yet implemented and must not silently degrade to the global tint.
+  fn layer_base_tint
+  (
+    ctx : &FrameContext< '_ >,
+    object : &Object,
+    behaviour : &LayerBehaviour,
+  ) -> Result< [ f32; 4 ], CompileError >
   {
-    let [ gr, gg, gb, ga ] = global;
+    match &behaviour.tint
+    {
+      TintBehaviour::None => Ok( ctx.global_tint ),
+      TintBehaviour::Flat( tref ) =>
+      {
+        let c = resolve_tint_ref( ctx.spec, tref )?;
+        Ok(
+        [
+          ctx.global_tint[ 0 ] * c[ 0 ],
+          ctx.global_tint[ 1 ] * c[ 1 ],
+          ctx.global_tint[ 2 ] * c[ 2 ],
+          ctx.global_tint[ 3 ] * c[ 3 ],
+        ])
+      }
+      TintBehaviour::Masked { .. } => Err( CompileError::UnsupportedBehaviour
+      {
+        object : object.id.clone(),
+        behaviour : "Masked tint (not implemented — use Flat or remove the tint behaviour)",
+      }),
+    }
+  }
+
+  /// Compose the per-sprite tint as
+  /// `base * layer_alpha (alpha-channel only) * instance_tint`, where `base`
+  /// is the layer's resolved tint from [`layer_base_tint`].
+  #[ inline ]
+  fn final_tint( base : [ f32; 4 ], layer_alpha : f32, inst : Option< [ f32; 4 ] > ) -> [ f32; 4 ]
+  {
+    let [ gr, gg, gb, ga ] = base;
     let composed = [ gr, gg, gb, ga * layer_alpha ];
     match inst
     {
@@ -1270,7 +1289,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+            tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -1357,7 +1376,7 @@ mod private
             {
               transform,
               sprite : sprite_id,
-              tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+              tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
               blend : layer.behaviour.blend,
               clip : None,
             },
@@ -1390,7 +1409,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+            tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -1485,7 +1504,7 @@ mod private
             {
               transform,
               sprite : sprite_id,
-              tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+              tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
               blend : layer.behaviour.blend,
               clip : None,
             }));
@@ -1506,7 +1525,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : final_tint( ctx.global_tint, layer.behaviour.alpha, inst.tint ),
+            tint : final_tint( layer_base_tint( ctx, object, &layer.behaviour )?, layer.behaviour.alpha, inst.tint ),
             blend : layer.behaviour.blend,
             clip : None,
           }));
