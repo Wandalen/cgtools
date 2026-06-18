@@ -476,6 +476,9 @@ mod private
         {
           self.geometry.total_distance = 0.0;
           self.geometry.distances.clear();
+          // Preserve the `distances.len() == points.len()` invariant: an empty line
+          // must leave `distances` empty, not seeded with a stray leading 0.0.
+          if self.geometry.points.is_empty() { return; }
           self.geometry.distances.push_back( 0.0 );
           for ( i, p ) in self.geometry.points.iter().skip( 1 ).enumerate()
           {
