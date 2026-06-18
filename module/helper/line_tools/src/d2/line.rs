@@ -185,7 +185,7 @@ mod private
       self.points_changed = true;
     }
 
-    /// Return the total lenth of the line
+    /// Return the total length of the line
     pub fn total_distance_get( &self ) -> f32
     {
       self.total_distance
