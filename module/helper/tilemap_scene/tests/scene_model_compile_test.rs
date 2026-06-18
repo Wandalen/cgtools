@@ -1990,6 +1990,165 @@ fn vertex_corners_corner_source_isolates_channels()
   assert!( any_region, "region channel must emit region corner tiles from the SAME cell; emitted = {emitted:?}" );
 }
 
+/// Build a two-region scene spec: `region_1` carries an `orient_to_grid` dual
+/// grid keyed off the `"region"` channel, `region_0` is a foreign region that
+/// only marks that channel (no dual grid of its own). Used by the cross-region
+/// boundary regression below.
+fn region_boundary_spec() -> RenderSpec
+{
+  let mut spec = minimal_spec();
+  spec.pipeline.hex.grid_stride = ( 96, 111 );
+
+  let region_frames : Vec< ( &str, ( u32, u32 ) ) > = vec!
+  [
+    ( "r_full_0", ( 0, 0 ) ), ( "r_full_1", ( 1, 0 ) ),
+    ( "r_edge_0", ( 0, 1 ) ), ( "r_edge_1", ( 1, 1 ) ), ( "r_edge_2", ( 2, 1 ) ),
+    ( "r_edge_3", ( 3, 1 ) ), ( "r_edge_4", ( 0, 2 ) ), ( "r_edge_5", ( 1, 2 ) ),
+    ( "r_corner_0", ( 2, 2 ) ), ( "r_corner_1", ( 3, 2 ) ), ( "r_corner_2", ( 0, 3 ) ),
+    ( "r_corner_3", ( 1, 3 ) ), ( "r_corner_4", ( 2, 3 ) ), ( "r_corner_5", ( 3, 3 ) ),
+  ];
+  spec.assets.push( Asset
+  {
+    id : "region".into(), path : "region.png".into(), kind : atlas_with_frames( 4, &region_frames ),
+    filter : Default::default(), mipmap : Default::default(), wrap : Default::default(), premultiplied : false,
+  });
+  spec.assets.push( Asset
+  {
+    id : "marker".into(), path : "marker.png".into(), kind : atlas_with_frames( 1, &[ ( "0", ( 0, 0 ) ) ] ),
+    filter : Default::default(), mipmap : Default::default(), wrap : Default::default(), premultiplied : false,
+  });
+
+  spec.objects.push( Object
+  {
+    id : "region_1".into(), anchor : Anchor::Hex, global_layer : "region".into(), priority : Some( 10 ),
+    sort_y_source : Default::default(), pivot : ( 0.5, 0.5 ), default_state : "default".into(),
+    states :
+    {
+      let mut m = HashMap::default();
+      m.insert( "default".into(), vec!
+      [
+        ObjectLayer
+        {
+          id : None,
+          sprite_source : SpriteSource::VertexCorners
+          {
+            patterns : vec!
+            [
+              TriBlendPattern { corners : ( "region_1".into(), "region_1".into(), "region_1".into() ), sprite_pattern : "r_full_{rot}".into(),   priority : 30, animation : None },
+              TriBlendPattern { corners : ( "region_1".into(), "region_1".into(), "*".into() ),         sprite_pattern : "r_edge_{rot}".into(),   priority : 20, animation : None },
+              TriBlendPattern { corners : ( "region_1".into(), "*".into(), "*".into() ),                sprite_pattern : "r_corner_{rot}".into(), priority : 10, animation : None },
+            ],
+            asset : "region".into(), orient_to_grid : true, corner_source : Some( "region".into() ), offset : None,
+          },
+          behaviour : LayerBehaviour::default(), z_in_object : 0, pipeline_layer : None,
+        },
+      ]);
+      m
+    },
+  });
+  spec.objects.push( Object
+  {
+    id : "region_0".into(), anchor : Anchor::Hex, global_layer : "region".into(), priority : Some( 10 ),
+    sort_y_source : Default::default(), pivot : ( 0.5, 0.5 ), default_state : "default".into(),
+    states :
+    {
+      let mut m = HashMap::default();
+      m.insert( "default".into(), vec!
+      [
+        ObjectLayer
+        {
+          id : None,
+          sprite_source : SpriteSource::Static( SpriteRef { asset : "marker".into(), frame : "0".into() } ),
+          behaviour : LayerBehaviour::default(), z_in_object : 0, pipeline_layer : None,
+        },
+      ]);
+      m
+    },
+  });
+  spec.pipeline.layers.push( PipelineLayer { id : "region".into(), sort : SortMode::None, tint_mask : None } );
+  spec
+}
+
+/// Cross-region boundary regression — the scenario that motivated the self_id
+/// fix. At a boundary, `region_1`'s edge triangle has corners
+/// `(region_1, region_1, region_0)`; because `"region_0" < "region_1"` the old
+/// canonical-sort orientation sorted the foreign id first and misread the edge
+/// as a corner pointing at the neighbour. The fix counts corners equal to
+/// `region_1`'s own id, so a FOREIGN region is treated exactly like void.
+///
+/// Invariant pinned here: `region_1`'s dual grid orients identically whether its
+/// non-self neighbours are `region_0` or empty (void). We compare the full
+/// `position → frame` map of `region_1`'s emitted sprites between the two
+/// scenes; the geometry is unchanged, so any difference would be a
+/// misclassification. (Under the pre-fix canonical-sort path the boundary
+/// triangle's `{rot}` differs between the foreign-region and void cases.)
+#[ test ]
+fn vertex_corners_orient_foreign_region_matches_void()
+{
+  let spec = region_boundary_spec();
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+
+  // region_1's sprites all live in the "region" asset — build id → frame-name
+  // over its known frame families via the public id lookup.
+  let region_names : Vec< String > = ( 0..2 ).map( | o | format!( "r_full_{o}" ) )
+    .chain( ( 0..6 ).map( | o | format!( "r_edge_{o}" ) ) )
+    .chain( ( 0..6 ).map( | o | format!( "r_corner_{o}" ) ) )
+    .collect();
+  let region_ids : std::collections::HashMap< _, String > = region_names.iter()
+    .filter_map( | n | compiled.ids.sprite( "region", n ).map( | id | ( id, n.clone() ) ) )
+    .collect();
+
+  // Two adjacent region_1 hexes share a dual triangle with the cell at (1,0).
+  let region1_cells = [ ( 0, 0 ), ( 1, -1 ) ];
+  let make_scene = | with_foreign : bool |
+  {
+    let mut tiles : Vec< Tile > = region1_cells.iter()
+      .map( | &pos | Tile { pos, objects : vec![ "region_1".into() ] } ).collect();
+    if with_foreign
+    {
+      tiles.push( Tile { pos : ( 1, 0 ), objects : vec![ "region_0".into() ] } );
+    }
+    SceneSnapshot { tiles, ..minimal_scene_3x3() }
+  };
+
+  // Build `quantized-position → frame-name` for region_1's emitted sprites.
+  let region_map = | snap : &SceneSnapshot |
+  {
+    let cmds = compile_at_time( &spec, snap, &Camera::default(), 0.0 );
+    let mut map : std::collections::BTreeMap< String, String > = std::collections::BTreeMap::new();
+    for s in sprite_commands( &cmds )
+    {
+      if let Some( name ) = region_ids.get( &s.sprite )
+      {
+        // Quantise the position into a stable string key (avoids float ordering
+        // / hashing) so the two scenes' triangles line up by geometry.
+        let key = format!( "{:.2},{:.2}", s.transform.position[ 0 ], s.transform.position[ 1 ] );
+        map.insert( key, name.clone() );
+      }
+    }
+    map
+  };
+
+  let foreign_map = region_map( &make_scene( true ) );
+  let void_map    = region_map( &make_scene( false ) );
+
+  // The boundary edge triangle must actually be present (otherwise the test is
+  // vacuous): at least one `r_edge_*` frame is emitted.
+  assert!
+  (
+    foreign_map.values().any( | n | n.starts_with( "r_edge_" ) ),
+    "boundary must produce an edge triangle; got {foreign_map:?}",
+  );
+  assert!( !foreign_map.is_empty(), "region_1 must emit some dual sprites" );
+
+  // A foreign neighbour must orient region_1 identically to void.
+  assert_eq!
+  (
+    foreign_map, void_map,
+    "region_1 orientation must be identical whether the neighbour is region_0 or void",
+  );
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Slice 4 — Edge / FreePos / Viewport anchors.
 // ────────────────────────────────────────────────────────────────────────────
