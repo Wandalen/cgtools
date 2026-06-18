@@ -249,9 +249,9 @@ mod private
     /// single-slot wildcards.
     pub corners : ( String, String, String ),
     /// Sprite name template with `{rot}` placeholder. In legacy mode the index
-    /// ranges over `0..2` (canonical-sort rotation); in `orient_to_grid` mode it
-    /// selects the pre-baked discrete orientation (`0..2` for a fully-symmetric
-    /// tile, `0..6` otherwise).
+    /// ranges over `0..3` (canonical-sort rotation, values 0/1/2); in
+    /// `orient_to_grid` mode it selects the pre-baked discrete orientation
+    /// (`0..2` for a fully-symmetric tile, `0..6` otherwise).
     pub sprite_pattern : String,
     /// Match priority; higher wins ties of equal specificity.
     #[ serde( default ) ]
