@@ -72,7 +72,7 @@ Create a high-performance Rust crate (`line_tools`) that provides comprehensive 
 
 ## 6. Functional Requirements
 
-- **FR-1**: Different implementations of lines should be feature seperated
+- **FR-1**: Different implementations of lines should be feature separated
 - **FR-2**: 3D line should decrease in size with distance from the camera
 - **FR-3**: Line should support editing of any points from the list
 - **FR-4**: 3D line should support dashed rendering with selectable `DashPattern` variants (`V1`–`V4`) and an adjustable `dash_offset`, available under the `distance` feature
@@ -167,7 +167,7 @@ mod private
 
 ## 10. Conformance Checklist
 
-- ✅ **FR-1**: Different implementations of lines should be feature seperated
+- ✅ **FR-1**: Different implementations of lines should be feature separated
 - ✅ **FR-2**: 3D line should decrease in size with distance from the camera
 - ✅ **FR-3**: Line should support editing of any points from the list
 - ✅ **FR-4**: 3D line should support dashed rendering with selectable `DashPattern` variants and an adjustable `dash_offset`
@@ -184,8 +184,8 @@ mod private
 ## 11. Corner cases
 - ✅ **1**: Overlapping geometry when using blending - joins, caps, segment body are draw as seperate geometry, causing a visible overlap when using blending
 - ✅ **2**: With a small angle and big enough width, two neighbouring segments begin to overlap
-- ❌ **3**: When points are very close to eachother and line width is much bigger than the distance between the points - segments begin to overlap a lot
-- ✅ **4**: When neighbouring points are placed at the same position - the line brakes due to zero vector length
-- ❌ **5**: Side effect of the solution for the second corner case - unusual ovelapping between non neighbouring segments
+- ❌ **3**: When points are very close to each other and line width is much bigger than the distance between the points - segments begin to overlap a lot
+- ✅ **4**: When neighbouring points are placed at the same position - the line breaks due to zero vector length
+- ❌ **5**: Side effect of the solution for the second corner case - unusual overlapping between non neighbouring segments
 - ✅ **6**: When neighbouring segments are parallel to each other, the division by zero happens causing the line to break
 - ✅ **7**: As line gets wider, the UV coordinates shrink and the flips the sign
