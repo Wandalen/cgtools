@@ -490,6 +490,8 @@ Applicable to `Vertex` anchor. At render time:
 - `None`: the cell's **terrain id** — the first object on the cell that has a `priority` field set (historical behaviour; same as the rule in §11).
 - `Some("layer_name")`: the id of the **first object on the cell whose `global_layer` matches**. This allows multiple independent dual grids to share a single scene: a base terrain layer (`corner_source: None`) and a per-player region layer (`corner_source: Some("region")`) can coexist on the same cells with their corner lookups isolated.
 
+If no object on the cell matches the named channel, the corner resolves to `VOID_ID` — exactly as for an off-map corner. This is a **silent fallback**: a misspelled `corner_source` (e.g. `Some("Terrain")` vs `Some("terrain")`) names no object's `global_layer`, so every corner resolves to void and the layer renders entirely as its void/edge patterns (often nothing at all) with no error. Verify `corner_source` layer names against the scene's object `global_layer`s.
+
 **`offset`** (default `None`). A static `(dx, dy)` world-pixel shift added to every emitted sprite's position. Useful for drawing the same dual grid shifted — e.g. a grey-tinted copy nudged downward as a 2.5D "wall" / drop-shadow under the main terrain layer. Corner resolution and orient-to-grid frame selection always use the true (un-shifted) triangle geometry.
 
 ### 5.7 `ViewportTiled`
