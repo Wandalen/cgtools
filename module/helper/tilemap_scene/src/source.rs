@@ -112,6 +112,12 @@ mod private
       /// nudged downward as a 2.5D "wall" / drop-shadow under the main terrain.
       /// The offset moves only the emitted sprite; corner resolution and the
       /// orient-to-grid frame pick use the true (un-shifted) triangle geometry.
+      ///
+      /// The offset is applied **before** the sprite's position becomes the
+      /// depth-sort key, so an offset tile sorts at its shifted position, not the
+      /// triangle centroid. For a downward-nudged shadow this is usually what you
+      /// want (it sinks in `YAsc`/`YDesc` order); be aware that mixing offset and
+      /// non-offset layers in one sorted bucket can reorder their occlusion.
       #[ serde( default ) ]
       offset : Option< ( f32, f32 ) >,
     },
