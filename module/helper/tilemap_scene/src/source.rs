@@ -86,10 +86,13 @@ mod private
       /// grid only ever appears in six discrete 60°-orientations, so each
       /// junction shape is baked once per orientation and `{rot}` selects the
       /// matching one (`transform.rotation` always stays `0`). `{rot}` ranges
-      /// over `0..2` for a fully-symmetric tile (all three corners equal, e.g. a
-      /// solid interior triangle — only ▲/▽ differ) and `0..6` otherwise. This
-      /// keeps seams deterministic (no per-angle resampling) and needs no
-      /// rotation-pivot support in the backend.
+      /// over `0..2` for a fully-symmetric tile — all three corners are this
+      /// layer's own object id (a solid interior) or none are (degenerate void),
+      /// so only ▲/▽ parity differs — and `0..6` otherwise (a mix of present and
+      /// absent corners: an edge with 2 present or a corner with 1). Symmetry is
+      /// decided by counting corners equal to the self id, not by lexical
+      /// equality of the three ids. This keeps seams deterministic (no per-angle
+      /// resampling) and needs no rotation-pivot support in the backend.
       ///
       /// When `false` (the default), the legacy behaviour: `{rot}` selects one
       /// of three pre-baked 120°-rotations keyed to the canonical sort.
