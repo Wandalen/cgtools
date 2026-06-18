@@ -127,7 +127,7 @@ mod private
     }
 
     /// Uploads a uniform matrix to the current program.
-    pub fn upload_matrix< D >( &self, gl : &gl::WebGl2RenderingContext, name : &str, data : &D  ) -> Result< (), gl::WebglError >
+    pub fn matrix_upload< D >( &self, gl : &gl::WebGl2RenderingContext, name : &str, data : &D  ) -> Result< (), gl::WebglError >
     where
       D : gl::UniformMatrixUpload + ?Sized
     {
