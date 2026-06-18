@@ -1049,3 +1049,48 @@ fn test_distance_batch_remove_front_no_update_then_batch_update()
   assert_eq!( [ 0.0, 1.0, 2.0 ], line.distances_get() );
   assert_eq!( 2.0, line.total_distance_get() );
 }
+
+// === distances_update full recalculation ===
+
+// On a 0-point line `distances_update` must leave `distances` empty (not seeded
+// with a stray leading 0.0), preserving the `distances.len() == points.len()` invariant.
+#[ test ]
+fn test_distances_update_zero_points()
+{
+  let mut line = d3::Line::default();
+
+  line.distances_update();
+
+  assert!( line.distances_get().is_empty() );
+  assert_eq!( 0.0, line.total_distance_get() );
+}
+
+// On a 1-point line the only distance is the leading 0.0 and the total is 0.0.
+#[ test ]
+fn test_distances_update_single_point()
+{
+  let mut line = d3::Line::default();
+  line.point_add_back( &[ 5.0, 3.0, 1.0 ] );
+
+  line.distances_update();
+
+  assert_eq!( [ 0.0 ], line.distances_get() );
+  assert_eq!( 0.0, line.total_distance_get() );
+}
+
+// On a multi-point line `distances_update` recomputes the full cumulative
+// distance array from scratch, matching the incrementally maintained values.
+#[ test ]
+fn test_distances_update_multi_point()
+{
+  let mut line = d3::Line::default();
+  line.point_add_back( &[ 0.0, 0.0, 0.0 ] );
+  line.point_add_back( &[ 1.0, 0.0, 0.0 ] );
+  line.point_add_back( &[ 1.0, 1.0, 0.0 ] );
+  line.point_add_back( &[ 1.0, 1.0, 1.0 ] );
+
+  line.distances_update();
+
+  assert_eq!( [ 0.0, 1.0, 2.0, 3.0 ], line.distances_get() );
+  assert_eq!( 3.0, line.total_distance_get() );
+}
