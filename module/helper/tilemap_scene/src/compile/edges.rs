@@ -171,8 +171,8 @@ mod private
   /// the canonical hex toward the neighbour hex, "start" is the
   /// CCW-rotation (the vertex on the CCW side), "end" is the CW-rotation.
   #[ must_use ]
-  #[ allow( clippy::implicit_hasher ) ]
-  #[ allow( clippy::similar_names ) ]
+  #[ allow( clippy::implicit_hasher ) ]   // caller passes the frame's fixed-hasher edge_lookup; a generic hasher buys nothing
+  #[ allow( clippy::similar_names ) ]     // ccw_idx / cw_idx are a deliberate CCW/CW pair
   pub fn compute_edge_connected_bitmask
   (
     canon : CanonicalEdge,

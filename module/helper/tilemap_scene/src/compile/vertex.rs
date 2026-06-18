@@ -84,7 +84,7 @@ mod private
   /// (`None` = the cell's terrain id; `Some(layer)` = the cell's object in that
   /// draw layer). Corners outside the scene resolve to [`VOID_ID`].
   #[ must_use ]
-  #[ allow( clippy::implicit_hasher ) ]
+  #[ allow( clippy::implicit_hasher ) ]   // caller passes the frame's fixed-hasher tile_lookup; a generic hasher buys nothing
   pub fn resolve_corners
   (
     tri : &TriangleContext,
@@ -111,7 +111,7 @@ mod private
   /// The `orient_to_grid` path does not use `rotation`; it derives a discrete
   /// orientation from triangle geometry (see `compile_vertex_pass`).
   #[ must_use ]
-  #[ allow( clippy::needless_pass_by_value ) ]
+  #[ allow( clippy::needless_pass_by_value ) ]   // takes the triple by value: it consumes the owned corners to build the owned canonical triple
   pub fn canonicalize( raw : [ String; 3 ] ) -> ( [ String; 3 ], u8 )
   {
     // Pair each value with its original index, sort, then read out the slot.
