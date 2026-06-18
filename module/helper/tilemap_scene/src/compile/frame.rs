@@ -1092,7 +1092,7 @@ mod private
 
   /// `emit_neighbor_condition` variant that composes the per-instance
   /// tint into each emitted sprite.
-  #[ allow( clippy::too_many_arguments ) ]
+  #[ allow( clippy::too_many_arguments ) ]   // threads per-instance overrides through; a params struct for one call site adds noise
   #[ allow( clippy::similar_names ) ]   // raw_sx / raw_sy are a coordinate pair
   fn emit_neighbor_condition_with_overrides
   (

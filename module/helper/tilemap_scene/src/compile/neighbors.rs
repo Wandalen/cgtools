@@ -132,7 +132,7 @@ mod private
   /// object whose id is in `connects_with`. Off-map / empty neighbours
   /// contribute bit 1 only when `"void"` is in `connects_with` (SPEC §15.1).
   #[ must_use ]
-  #[ allow( clippy::implicit_hasher ) ]
+  #[ allow( clippy::implicit_hasher ) ]   // caller passes the frame's fixed-hasher tile_lookup; a generic hasher buys nothing
   pub fn compute_neighbor_bitmask
   (
     pos : ( i32, i32 ),
@@ -182,7 +182,7 @@ mod private
   ///
   /// Off-map neighbours produce `NeighborState { object_ids: &[], max_priority: None }`.
   #[ must_use ]
-  #[ allow( clippy::implicit_hasher ) ]
+  #[ allow( clippy::implicit_hasher ) ]   // caller passes the frame's fixed-hasher tile_lookup; a generic hasher buys nothing
   pub fn neighbor_state_at< 'a >
   (
     pos : ( i32, i32 ),

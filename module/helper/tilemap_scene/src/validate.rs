@@ -182,7 +182,7 @@ mod private
     /// today.
     fn validate( &self ) -> Result< (), Vec< ValidationError > >
     {
-      #[ allow( unused_mut ) ]
+      #[ allow( unused_mut ) ]   // mut becomes load-bearing once the TODO SceneSnapshot rules below push errors
       let mut errors : Vec< ValidationError > = Vec::new();
 
       // TODO SPEC §16: exactly one of (tiles) vs (palette + map) is provided.
