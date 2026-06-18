@@ -397,6 +397,7 @@ fn test_distance_point_remove_front_bug_002()
   ];
 
   assert_eq!( expected, line.distances_get() );
+  assert_eq!( 2.0, line.total_distance_get() );
 
   line.point_remove_front();
 
@@ -407,6 +408,7 @@ fn test_distance_point_remove_front_bug_002()
   ];
 
   assert_eq!( expected, line.distances_get() );
+  assert_eq!( 1.0, line.total_distance_get() );
 }
 
 // === Remove back edge cases ===
