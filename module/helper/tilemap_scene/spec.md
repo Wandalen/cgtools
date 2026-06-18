@@ -914,7 +914,7 @@ The ASCII grid is interpreted in offset coordinates and converted to axial inter
 - Every object declared in `render_spec.objects[]` MUST have a unique `id`.
 - References from scenes (`tiles[].objects`, `entities[].object`, etc.) MUST resolve to a declared object id.
 - `NeighborBitmask.connects_with`, `NeighborIs(...)`, and `NeighborCondition` terrain checks compare against object ids present on neighbour cells.
-- `VertexCorners.patterns[].corners` matches against the **lowest-indexed object id on the cell that has a `priority` field set** (terrain channel, `corner_source: None`) OR the **id of the first object whose `global_layer` matches `corner_source`** when a layer name is supplied. Implementations SHOULD document this resolution rule in validation errors when no corner is matchable.
+- `VertexCorners.patterns[].corners` matches against the **id of the first object in the cell's object list (in declaration order) that has a `priority` field set** (terrain channel, `corner_source: None`) OR the **id of the first object whose `global_layer` matches `corner_source`** when a layer name is supplied. Implementations SHOULD document this resolution rule in validation errors when no corner is matchable.
 
 ## 12. Rendering Algorithm
 
