@@ -124,6 +124,28 @@ fn test_distance_point_remove_by_index_bug_003()
   assert_eq!( expected, line.distances_get() );
 }
 
+// Removing index 0 exercises the `distances_update_from( 0 )` else-branch, which resets
+// distances[ 0 ] = 0.0 / total_distance = 0.0 before rebasing the rest — a distinct path
+// from the index > 0 case covered by bug-003 above.
+#[ test ]
+fn test_distance_point_remove_first_by_index()
+{
+  let mut line = d3::Line::default();
+  line.point_add_back( &[ 0.0, 0.0, 0.0 ] );
+  line.point_add_back( &[ 1.0, 0.0, 0.0 ] );
+  line.point_add_back( &[ 1.0, 1.0, 0.0 ] );
+  line.point_add_back( &[ 1.0, 1.0, 1.0 ] );
+
+  // Remove the first point at index 0
+  line.point_remove( 0 );
+
+  // Now line is: (1,0,0) -> (1,1,0) -> (1,1,1), each a unit step apart.
+  assert_eq!( 3, line.distances_get().len() );
+  assert_eq!( 0.0, line.distances_get()[ 0 ] );
+  assert_eq!( [ 0.0, 1.0, 2.0 ], line.distances_get() );
+  assert_eq!( 2.0, line.total_distance_get() );
+}
+
 #[ test ]
 fn test_distance_point_remove_to_single()
 {
