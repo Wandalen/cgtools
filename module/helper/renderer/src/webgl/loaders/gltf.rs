@@ -449,10 +449,22 @@ mod private
     // `.unwrap()` here aborts the whole wasm module (e.g. when a dev server
     // returns an HTML 404 page, or the bytes are not a valid glTF/GLB), leaving
     // it unusable for every subsequent call.
+    // `WebglError::Other` only carries a `&'static str`, so the underlying
+    // `JsValue` / `gltf::Error` (file path, HTTP status, JSON parse location)
+    // would otherwise be lost. Log it to the console before mapping so a failed
+    // load is diagnosable in production.
     let gltf_slice = gl::file::load( gltf_path ).await
-    .map_err( | _ | gl::WebglError::Other( "Failed to load gltf file" ) )?;
+    .map_err( | e |
+    {
+      gl::browser::error!( "Failed to load gltf file '{gltf_path}': {e:?}" );
+      gl::WebglError::Other( "Failed to load gltf file" )
+    } )?;
     let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice )
-    .map_err( | _ | gl::WebglError::Other( "Failed to parse gltf file" ) )?;
+    .map_err( | e |
+    {
+      gl::browser::error!( "Failed to parse gltf file '{gltf_path}': {e}" );
+      gl::WebglError::Other( "Failed to parse gltf file" )
+    } )?;
 
     let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
 
@@ -472,7 +484,11 @@ mod private
         {
           let path = resolve_asset_uri( folder_path, uri );
           let buffer = gl::file::load( &path ).await
-          .map_err( | _ | gl::WebglError::Other( "Failed to load a buffer" ) )?;
+          .map_err( | e |
+          {
+            gl::browser::error!( "Failed to load gltf buffer '{path}': {e:?}" );
+            gl::WebglError::Other( "Failed to load a buffer" )
+          } )?;
 
           gl::debug!
           (
