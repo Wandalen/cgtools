@@ -95,7 +95,8 @@ mod private
   #[ derive( Debug, Clone, Copy ) ]
   pub enum DashPattern
   {
-    /// Single-segment pattern with one dash length.
+    /// Single-segment pattern with one dash length. The gap length is forced equal to
+    /// the dash length (a fixed 50% duty cycle); use `V2` for independent gap control.
     V1( f32 ),
     /// Two-segment pattern (e.g. dash, gap).
     V2( [ f32; 2 ] ),
