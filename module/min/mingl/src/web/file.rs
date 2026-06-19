@@ -46,6 +46,25 @@ mod private
     || url.starts_with( "data:" )
   }
 
+  /// Validates a `data:` URL and returns its base64-encoded payload (the text
+  /// after the comma), without decoding it.
+  ///
+  /// `url` is expected to begin with the `data:` scheme — `load` only calls this
+  /// after checking that prefix. Returns `Err` if the URL is malformed (no comma
+  /// separating the header from the payload) or if the payload is not declared as
+  /// base64 (`;base64` is the only supported encoding). The actual base64 decode
+  /// is left to the caller, because it relies on the browser's `window.atob`.
+  fn data_url_base64_payload( url : &str ) -> Result< &str, &'static str >
+  {
+    let comma_pos = url.find( ',' ).ok_or( "Malformed data URL: missing comma" )?;
+    let header = &url[ "data:".len()..comma_pos ];
+    if !header.ends_with( ";base64" )
+    {
+      return Err( "Only base64-encoded data URLs are supported" );
+    }
+    Ok( &url[ comma_pos + 1.. ] )
+  }
+
   // qqq : implement typed errors
   /// Asynchronously fetches a file over HTTP using the browser's `fetch` API,
   /// or decodes a `data:` URL inline without a network round-trip.
@@ -93,14 +112,7 @@ mod private
     // `fetch()` rejects `cors` mode for `data:` URLs — decode them directly instead.
     if url.starts_with( "data:" )
     {
-      let comma_pos = url.find( ',' )
-      .ok_or_else( || JsValue::from_str( "Malformed data URL: missing comma" ) )?;
-      let header = &url[ 5..comma_pos ]; // skip leading "data:"
-      let payload = &url[ comma_pos + 1.. ];
-      if !header.ends_with( ";base64" )
-      {
-        return Err( JsValue::from_str( "Only base64-encoded data URLs are supported" ) );
-      }
+      let payload = data_url_base64_payload( &url ).map_err( JsValue::from_str )?;
       let decoded = window.atob( payload )?;
       return Ok( decoded.chars().map( | c | c as u8 ).collect() );
     }
@@ -126,7 +138,7 @@ mod private
   #[ cfg( test ) ]
   mod tests
   {
-    use super::resolve_url;
+    use super::{ resolve_url, data_url_base64_payload };
 
     #[ test ]
     fn passes_https_url_through()
@@ -215,6 +227,48 @@ mod private
       (
         resolve_url( "https://app.example.com", "" ),
         "https://app.example.com/"
+      );
+    }
+
+    #[ test ]
+    fn data_url_returns_base64_payload()
+    {
+      assert_eq!
+      (
+        data_url_base64_payload( "data:application/octet-stream;base64,Z2xURg==" ),
+        Ok( "Z2xURg==" )
+      );
+    }
+
+    #[ test ]
+    fn data_url_with_empty_payload_is_ok()
+    {
+      // A `;base64` header with nothing after the comma is a well-formed,
+      // zero-length payload — `atob("")` returns the empty string.
+      assert_eq!
+      (
+        data_url_base64_payload( "data:application/octet-stream;base64," ),
+        Ok( "" )
+      );
+    }
+
+    #[ test ]
+    fn data_url_without_comma_is_err()
+    {
+      assert_eq!
+      (
+        data_url_base64_payload( "data:application/octet-stream;base64" ),
+        Err( "Malformed data URL: missing comma" )
+      );
+    }
+
+    #[ test ]
+    fn data_url_without_base64_marker_is_err()
+    {
+      assert_eq!
+      (
+        data_url_base64_payload( "data:text/plain,Hello" ),
+        Err( "Only base64-encoded data URLs are supported" )
       );
     }
   }
