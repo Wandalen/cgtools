@@ -177,8 +177,8 @@ line.draw( gl )?;
 | `clear` | Remove all points without freeing memory. |
 
 With the `distance` feature, `d3::Line` and `d2::Line` additionally expose
-`total_distance_get` / `total_distance_get`, `distances_get`,
-`distances_update`, and the dash controls (`dash_pattern_set`,
+`total_distance_get`, `distances_get`, `distances_update`, and the dash
+controls (`dash_pattern_set`,
 `dash_offset_set` / `dash_offset_get`).
 
 ### Uniforms expected by the built-in shaders
