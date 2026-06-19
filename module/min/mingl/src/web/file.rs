@@ -14,11 +14,7 @@ mod private
   /// * Anything else is treated as origin-relative and joined with a single `/`.
   fn resolve_url( origin : &str, file_name : &str ) -> String
   {
-    if file_name.starts_with( "http://" )
-    || file_name.starts_with( "https://" )
-    || file_name.starts_with( "//" )
-    || file_name.starts_with( "blob:" )
-    || file_name.starts_with( "data:" )
+    if is_self_contained_url( file_name )
     {
       file_name.to_string()
     }
@@ -30,6 +26,24 @@ mod private
     {
       format!( "{}/{}", origin, file_name )
     }
+  }
+
+  /// Returns `true` for URLs that already carry their own location and must reach
+  /// the network layer verbatim: absolute (`http://`, `https://`), protocol-relative
+  /// (`//`), and self-contained (`blob:`, `data:`) URLs.
+  ///
+  /// Such URLs must never be prefixed with an origin or a folder path — doing so
+  /// mangles them into an unresolvable same-origin path. Note that origin-absolute
+  /// paths (a leading `/`) are deliberately *not* covered here: they carry no scheme
+  /// and the caller still has to join them to an origin or pass them through,
+  /// depending on context.
+  pub fn is_self_contained_url( url : &str ) -> bool
+  {
+    url.starts_with( "http://" )
+    || url.starts_with( "https://" )
+    || url.starts_with( "//" )
+    || url.starts_with( "blob:" )
+    || url.starts_with( "data:" )
   }
 
   // qqq : implement typed errors
@@ -211,5 +225,6 @@ crate::mod_interface!
 {
 
   own use load;
+  own use is_self_contained_url;
 
 }

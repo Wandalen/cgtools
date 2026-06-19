@@ -416,12 +416,10 @@ mod private
   /// Everything else is treated as folder-relative and joined with a single `/`.
   fn resolve_asset_uri( folder_path : &str, uri : &str ) -> String
   {
-    if uri.starts_with( "http://" )
-    || uri.starts_with( "https://" )
-    || uri.starts_with( "//" )
-    || uri.starts_with( "blob:" )
-    || uri.starts_with( "data:" )
-    || uri.starts_with( '/' )
+    // `gl::file::load` already resolves self-contained URLs and origin-absolute
+    // paths against the window origin; only genuinely folder-relative URIs need
+    // the model's folder prefix folded in.
+    if gl::file::is_self_contained_url( uri ) || uri.starts_with( '/' )
     {
       uri.to_string()
     }
