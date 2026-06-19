@@ -35,7 +35,7 @@ mod private
     pub world_units_use : bool,
     /// Fragment shader source
     pub fragment_shader : String,
-    /// Specifies the pattern of the dash, if `dash_use`` is `true``
+    /// Specifies the pattern of the dash, if `dash_use` is `true`
     #[ cfg( feature = "distance" ) ]
     pub dash_pattern : DashPattern,
     #[ cfg( feature = "distance" ) ]
