@@ -114,6 +114,9 @@ fn test_distance_point_remove_by_index_bug_003()
   // Remove the middle point at index 1
   line.point_remove( 1 );
 
+  // The core of bug-003: distances must stay 1:1 with points after removal.
+  assert_eq!( 3, line.distances_get().len() );
+
   // Now line is: (0,0,0) -> (1,1,0) -> (1,1,1)
   let d01 = ( 2.0_f32 ).sqrt();
   let d12 = 1.0;
