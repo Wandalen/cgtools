@@ -405,6 +405,32 @@ mod private
     )
   }
 
+  /// Resolves a glTF asset `uri` (buffer or image) against the model's `folder_path`.
+  ///
+  /// URIs that already carry their own location are returned unchanged, because
+  /// prefixing `folder_path` would corrupt them:
+  /// * absolute / protocol-relative URLs (`http://`, `https://`, `//`),
+  /// * self-contained URIs (`blob:`, `data:`),
+  /// * origin-absolute paths (leading `/`).
+  ///
+  /// Everything else is treated as folder-relative and joined with a single `/`.
+  fn resolve_asset_uri( folder_path : &str, uri : &str ) -> String
+  {
+    if uri.starts_with( "http://" )
+    || uri.starts_with( "https://" )
+    || uri.starts_with( "//" )
+    || uri.starts_with( "blob:" )
+    || uri.starts_with( "data:" )
+    || uri.starts_with( '/' )
+    {
+      uri.to_string()
+    }
+    else
+    {
+      format!( "{}/{}", folder_path, uri )
+    }
+  }
+
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
   pub async fn load
   (
@@ -446,21 +472,7 @@ mod private
       {
         gltf::buffer::Source::Uri( uri ) =>
         {
-          // Absolute URLs, data: and blob: URIs, and origin-absolute paths carry their
-          // own location — prepending folder_path would destroy the scheme or leading slash.
-          let path = if uri.starts_with( "http://" )
-          || uri.starts_with( "https://" )
-          || uri.starts_with( "//" )
-          || uri.starts_with( "blob:" )
-          || uri.starts_with( "data:" )
-          || uri.starts_with( '/' )
-          {
-            uri.to_string()
-          }
-          else
-          {
-            format!( "{}/{}", folder_path, uri )
-          };
+          let path = resolve_asset_uri( folder_path, uri );
           let buffer = gl::file::load( &path ).await
           .map_err( | _ | gl::WebglError::Other( "Failed to load a buffer" ) )?;
 
@@ -559,7 +571,7 @@ mod private
       {
         gltf::image::Source::Uri { uri, mime_type: _ } =>
         {
-          upload_texture( format!( "{}/{}", folder_path, uri ).into() );
+          upload_texture( resolve_asset_uri( folder_path, uri ).into() );
         },
         gltf::image::Source::View { view, mime_type } =>
         {
