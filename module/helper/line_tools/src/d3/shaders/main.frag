@@ -99,7 +99,11 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
         float dashGap = u_dash_pattern.y;
       #endif 
 
-      float totalSegmentSize = dashSize + dashGap;  
+      float totalSegmentSize = dashSize + dashGap;
+
+      // Degenerate pattern ( zero / negative total ): `mod` below would divide by zero and
+      // yield NaN. Treat it as "no dashing" by spanning the whole segment ( solid line ).
+      if ( totalSegmentSize <= 0.0 ) { return vec2( -MAX_FLOAT, MAX_FLOAT ); }
 
       float dashCoverage = mod( vLineDistance + u_dash_offset, totalSegmentSize );
 
@@ -113,7 +117,11 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
       float dashGap1 = u_dash_pattern.y;
       float dashSize2 = u_dash_pattern.z;
 
-      float totalSegmentSize = dashSize1 + dashGap1 + dashSize2;  
+      float totalSegmentSize = dashSize1 + dashGap1 + dashSize2;
+
+      // Degenerate pattern ( zero / negative total ): `mod` below would divide by zero and
+      // yield NaN. Treat it as "no dashing" by spanning the whole segment ( solid line ).
+      if ( totalSegmentSize <= 0.0 ) { return vec2( -MAX_FLOAT, MAX_FLOAT ); }
 
       float dashCoverage = mod( vLineDistance + u_dash_offset, totalSegmentSize );
 
@@ -164,7 +172,11 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
       float dashSize2 = u_dash_pattern.z;
       float dashGap2 = u_dash_pattern.w;
 
-      float totalSegmentSize = dashSize1 + dashGap1 + dashSize2 + dashGap2;  
+      float totalSegmentSize = dashSize1 + dashGap1 + dashSize2 + dashGap2;
+
+      // Degenerate pattern ( zero / negative total ): `mod` below would divide by zero and
+      // yield NaN. Treat it as "no dashing" by spanning the whole segment ( solid line ).
+      if ( totalSegmentSize <= 0.0 ) { return vec2( -MAX_FLOAT, MAX_FLOAT ); }
 
       float dashCoverage = mod( vLineDistance + u_dash_offset, totalSegmentSize );
       float k = min( floor( dashCoverage / ( dashSize1 + dashGap1 ) ), 1.0 );

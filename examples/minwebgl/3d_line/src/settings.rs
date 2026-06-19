@@ -293,7 +293,6 @@ pub fn bind_to_ui
   (
     {
       let lines = lines.clone();
-      let gl = gl.clone();
       move | value : f32 |
       {
         let mut lines = lines.borrow_mut();
