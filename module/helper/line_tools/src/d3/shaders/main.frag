@@ -120,6 +120,15 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
       float distanceA = 0.0;
       float distanceB = 0.0;
 
+      // V3 is an odd-length dash array [ dashSize1, dashGap1, dashSize2 ]. Per the CSS/SVG
+      // stroke-dasharray rule an odd-length pattern is doubled so dash/gap roles keep
+      // alternating ( otherwise dashSize2 would butt against the next dashSize1 with no gap ).
+      // The effective period is therefore 2 * totalSegmentSize, laid out as:
+      //   [ d1 dash ][ g1 gap ][ d2 dash ][ d1 gap ][ g1 dash ][ d2 gap ]
+      // The parity check selects which half a fragment is in: even repetitions hold the d1 and
+      // d2 dashes ( chosen via k below ); odd repetitions hold the single g1-length dash sitting
+      // at offset d1 within the period. The else-branch span [ start+d1, start+d1+g1 ] is that
+      // dash, NOT the gap — this is intentional doubling, not a phase inversion.
       if( int( floor( ( vLineDistance + u_dash_offset ) / totalSegmentSize ) ) % 2 == 0 )
       {
         float k = min( floor( dashCoverage / ( dashSize1 + dashGap1 ) ), 1.0 );
