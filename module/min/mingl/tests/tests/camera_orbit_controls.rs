@@ -557,3 +557,32 @@ fn test_pan_horizontal_direction_depends_on_camera_orientation()
   assert_abs_diff_eq!( exp_center, controls.center );
   assert_abs_diff_eq!( exp_up, controls.up );
 }
+
+#[ test ]
+fn test_pan_negative_horizontal_is_opposite()
+{
+  // Same camera as `test_pan_horizontal`, but with a negative dx (pan left).
+  // A negative delta must move the camera the exact opposite way: where +dx
+  // gave eye/center.z = +dx*k, -dx must give -dx*k. Guards the delta sign
+  // convention for negative inputs, which the positive-only tests miss.
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
+  controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
+  controls.up = F32x3::new( 0.0, 1.0, 0.0 );
+  controls.center = F32x3::new( 0.0, 0.0, 0.0 );
+
+  let dx = -100.0_f32;
+  let dist = ( controls.center - controls.eye ).mag();
+  let k = 2.0 * ( controls.fov / 2.0 ).tan() * dist / controls.window_size.y();
+
+  controls.pan( [ dx, 0.0 ] );
+
+  // dx is negative, so dx*k is negative — displacement opposite to the +dx case.
+  let exp_eye = F32x3::new( 1.0, 0.0, dx * k );
+  let exp_center = F32x3::new( 0.0, 0.0, dx * k );
+  let exp_up = F32x3::new( 0.0, 1.0, 0.0 );
+
+  assert!( controls.eye.z() < 0.0, "negative dx must move camera to -z, got {}", controls.eye.z() );
+  assert_abs_diff_eq!( exp_eye, controls.eye );
+  assert_abs_diff_eq!( exp_center, controls.center );
+  assert_abs_diff_eq!( exp_up, controls.up );
+}
