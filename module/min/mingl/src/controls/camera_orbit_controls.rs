@@ -374,6 +374,8 @@ mod private
     ///
     /// # Arguments
     /// * `screen_d` - The change in screen coordinates `[dx, dy]` from a mouse movement event.
+    ///   Positive dx corresponds to rightward screen movement; positive dy to downward
+    ///   screen movement (`new_pos - prev_pos` convention).
     pub fn pan
     (
       &mut self,
