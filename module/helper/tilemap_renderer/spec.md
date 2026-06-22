@@ -167,6 +167,13 @@ pub trait Backend {
   draws. Range `[-RenderConfig::max_depth, max_depth]` per field (default `1.0`); the shader
   divides by `u_max_depth` so out-of-range depths are clipped by the GPU rather than silently
   saturated
+- Sprite-batch coverage controls (`SpriteBatchParams`): `alpha_clip` uploads to the
+  `u_alpha_clip` uniform — fragments whose sampled texture alpha is below it are `discard`ed
+  (no colour, no depth write); tested before the tint multiply so a translucent tint doesn't
+  pull every fragment under the threshold. `0.0` (default) keeps every fragment. `occlude_overlap`
+  makes the backend clear the depth buffer before the batch and draw it under `depth_func = LESS`
+  (restoring `LEQUAL` after), so overlapping bled instances composite each pixel exactly once —
+  pair with a non-zero `alpha_clip` so the AA fringe doesn't write depth and block a neighbour
 - Per-batch VAO with attrib setup at create/unbind time, just bind at draw time
 - Async image loading uses `Closure::once_into_js` for one-shot `onload` / `onerror` handlers,
   so the browser drops the Rust closures (and their captured `Rc<RefCell<GpuResources>>`)

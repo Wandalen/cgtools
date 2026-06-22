@@ -741,6 +741,33 @@ Within one pipeline bucket, all draw calls from all contributing objects are gat
 
 Applied multiplicatively to every draw call after all per-object tints and effects. Typical use: time-of-day.
 
+### 8.5 Single-coverage buckets (`alpha_clip`, `occlude_overlap`)
+
+A `PipelineLayer` carries two optional coverage controls (both default off, so an
+omitted field reproduces the prior behaviour exactly). They are forwarded
+unchanged onto every sprite batch the bucket emits.
+
+- `alpha_clip: f32` (default `0.0`) — coverage cut-off. Fragments whose sampled
+  texture alpha is below this are discarded (no colour, no depth write). `0.0`
+  disables the test. The cut-off is applied to the sampled alpha *before* the
+  tint multiply, so a translucent tint (e.g. a 0.25-alpha drop shadow) doesn't
+  push every fragment under the threshold.
+- `occlude_overlap: bool` (default `false`) — when set, the backend clears the
+  depth buffer immediately before the bucket draws and switches the depth test
+  to `LESS` for its draw calls (restoring the default `LEQUAL` afterwards). The
+  first fragment to cover a pixel wins; later overlapping fragments from a
+  sibling tile's bleed are rejected, so a translucent bucket composites each
+  pixel exactly once — no double-blend on the overlap.
+
+The pair is meant to be used together: a bucket of overlapping translucent tiles
+(e.g. a bled dual-grid drop shadow) becomes a single-coverage mask. The
+`alpha_clip` removes the soft AA fringe so its depth write doesn't block a
+neighbour, and `occlude_overlap` rejects the overlap cleanly. Edges become hard
+at the clip contour — the intended trade for not double-blending the overlap.
+Safe because every *other* bucket draws painter's-style at depth `0` under
+`LEQUAL`: they never read the depth this bucket writes, and the pre-clear only
+discards depth they don't depend on.
+
 ## 9. Rule Specificity and Priority
 
 Applies to `NeighborCondition` and `VertexCorners` sources, which may have multiple matching rules for the same input.

@@ -241,6 +241,16 @@ mod private
     pub blend : BlendMode,
     /// Optional clip mask.
     pub clip : Option< ResourceId< asset::ClipMask > >,
+    /// Coverage cut-off: fragments whose sampled texture alpha is below this
+    /// are `discard`ed (no colour, no depth write). `0.0` keeps every
+    /// fragment (default — identical to the pre-feature behaviour).
+    pub alpha_clip : f32,
+    /// When `true`, the backend clears the depth buffer before this batch and
+    /// draws it under `depth_func = LESS` (restoring `LEQUAL` after), so
+    /// overlapping instances composite each pixel exactly once. Pair with a
+    /// non-zero `alpha_clip` so the transparent quad area doesn't write depth.
+    /// Default `false`.
+    pub occlude_overlap : bool,
   }
 
   /// Parameters for a mesh batch.

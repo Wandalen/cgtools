@@ -107,6 +107,9 @@ mod private
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
       self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
       self.batch_program.uniform_upload( "u_max_depth", &max_depth );
+      // Coverage cut-off: 0.0 (default) keeps every fragment, matching the
+      // pre-feature behaviour; >0 discards low-alpha texels (see frag shader).
+      self.batch_program.uniform_upload( "u_alpha_clip", &params.alpha_clip );
 
       gl.bind_vertex_array( Some( vao ) );
       gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances.len() as i32 );
@@ -743,17 +746,33 @@ mod private
       };
       // A sprite batch inherits the premultiplied flag of its single sheet
       // texture; mesh batches are straight-alpha.
-      let ( blend, premultiplied ) = match gpu_batch
+      let ( blend, premultiplied, occlude ) = match gpu_batch
       {
         GpuBatch::Sprite { params, .. } =>
-          ( &params.blend, res.texture( params.sheet ).map_or( false, | t | t.premultiplied ) ),
-        GpuBatch::Mesh { params, .. } => ( &params.blend, false ),
+          ( &params.blend, res.texture( params.sheet ).map_or( false, | t | t.premultiplied ), params.occlude_overlap ),
+        GpuBatch::Mesh { params, .. } => ( &params.blend, false, false ),
       };
       apply_blend( &self.gl, blend, premultiplied );
+      // Single-coverage mode: paint each pixel once regardless of how many
+      // overlapping (bled) instances cover it. Clearing depth first gives this
+      // batch a fresh slate — safe because every other bucket draws painter's-
+      // style at depth 0 under LEQUAL and never reads the depth written here —
+      // and LESS rejects the second+ fragment at equal depth (the discard in
+      // the frag shader keeps the transparent quad area from writing depth).
+      // Restored to LEQUAL after so following buckets composite normally.
+      if occlude
+      {
+        self.gl.clear( gl::DEPTH_BUFFER_BIT );
+        self.gl.depth_func( gl::LESS );
+      }
       match gpu_batch
       {
         GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
         GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
+      }
+      if occlude
+      {
+        self.gl.depth_func( gl::LEQUAL );
       }
       Ok( () )
     }
