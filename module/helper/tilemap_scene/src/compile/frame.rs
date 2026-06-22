@@ -693,6 +693,13 @@ mod private
     /// Bucket's sort mode — needed by the batching renderer to decide
     /// whether instance order within a batch matters.
     pub sort : SortMode,
+    /// Coverage cut-off carried from the bucket's `PipelineLayer`; the
+    /// renderer copies it into every `SpriteBatchParams` it emits for this
+    /// bucket. `0.0` disables the discard.
+    pub alpha_clip : f32,
+    /// Single-coverage depth flag carried from the bucket's `PipelineLayer`
+    /// (see `PipelineLayer::occlude_overlap`).
+    pub occlude_overlap : bool,
   }
 
   /// Walk the scene and produce structured per-bucket emit data without
@@ -819,7 +826,14 @@ mod private
         _ => None,
       }).collect();
 
-      buckets.push( BucketEmits { sprites, screen_space, sort : bucket.sort } );
+      buckets.push( BucketEmits
+      {
+        sprites,
+        screen_space,
+        sort : bucket.sort,
+        alpha_clip : bucket.alpha_clip,
+        occlude_overlap : bucket.occlude_overlap,
+      });
     }
 
     Ok( FrameEmits { clear_color, buckets } )

@@ -385,6 +385,10 @@ mod private
       for ( bucket_idx, bucket ) in emits.buckets.into_iter().enumerate()
       {
         let bucket_idx_u32 = bucket_idx as u32;
+        // Per-bucket draw state (Copy) — captured before `bucket.sprites` is
+        // moved below, then forwarded into every `SpriteBatchParams`.
+        let bucket_alpha_clip = bucket.alpha_clip;
+        let bucket_occlude = bucket.occlude_overlap;
 
         // Decide emission strategy. `DrawBatch` is emitted inline at
         // the end of each bucket's prep so the cross-bucket draw order
@@ -403,7 +407,7 @@ mod private
             let groups = self.group_sprites( bucket_idx_u32, &bucket.sprites );
             for ( key, sprites_in_group ) in groups
             {
-              self.emit_or_update_batch( key, sprites_in_group );
+              self.emit_or_update_batch( key, sprites_in_group, bucket_alpha_clip, bucket_occlude );
               used_keys.push( key );
               let id = self.batches.get( &key ).expect( "just inserted" ).id;
               self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
@@ -415,7 +419,7 @@ mod private
             // order matches sort order so a single `DrawBatch`
             // preserves visual correctness without per-sprite
             // emission.
-            self.emit_or_update_batch( key, bucket.sprites );
+            self.emit_or_update_batch( key, bucket.sprites, bucket_alpha_clip, bucket_occlude );
             used_keys.push( key );
             let id = self.batches.get( &key ).expect( "just inserted" ).id;
             self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
@@ -565,6 +569,8 @@ mod private
       &mut self,
       key : BatchKey,
       sprites : Vec< Sprite >,
+      alpha_clip : f32,
+      occlude_overlap : bool,
     )
     {
       if let Some( entry ) = self.batches.get_mut( &key )
@@ -646,6 +652,8 @@ mod private
             sheet : key.sheet,
             blend,
             clip : key.clip,
+            alpha_clip,
+            occlude_overlap,
           },
         }));
         self.cmd_buf.push( RenderCommand::BindBatch( BindBatch { batch : id } ) );
