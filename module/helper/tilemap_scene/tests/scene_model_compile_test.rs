@@ -2077,6 +2077,69 @@ fn vertex_corners_corner_source_isolates_channels()
   );
 }
 
+/// `corner_source` silent fallback (spec §5.6): a misspelled layer name matches
+/// no object's `global_layer`, so every corner resolves to `VOID_ID` — exactly
+/// as for an off-map corner — with NO error. The dual grid then matches none of
+/// its region patterns (all require `region_1`) and emits nothing. This pins the
+/// documented silent behaviour so a regression that turned the miss into a
+/// `CompileError` or a panic would be caught.
+#[ test ]
+fn vertex_corners_corner_source_invalid_layer_falls_back_to_void()
+{
+  let mut spec = region_boundary_spec();
+
+  // A small region_1 patch. With the correct channel its dual grid emits region
+  // frames; with a misspelled channel every corner is void and it emits none.
+  let scene = SceneSnapshot
+  {
+    tiles : vec!
+    [
+      Tile { pos : ( 0, 0 ), objects : vec![ "region_1".into() ] },
+      Tile { pos : ( 1, 0 ), objects : vec![ "region_1".into() ] },
+      Tile { pos : ( 0, 1 ), objects : vec![ "region_1".into() ] },
+    ],
+    ..minimal_scene_3x3()
+  };
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+
+  // Build the set of region-asset sprite ids (all frame families) once; both
+  // runs allocate the same frames (allocation is independent of corner_source).
+  let region_names : Vec< String > = ( 0..2 ).map( | o | format!( "r_full_{o}" ) )
+    .chain( ( 0..6 ).map( | o | format!( "r_edge_{o}" ) ) )
+    .chain( ( 0..6 ).map( | o | format!( "r_corner_{o}" ) ) )
+    .collect();
+  let region_ids : std::collections::HashSet< _ > = region_names.iter()
+    .filter_map( | n | compiled.ids.sprite( "region", n ) )
+    .collect();
+  let count_region = | cmds : &[ RenderCommand ] | cmds.iter()
+    .filter( | c | matches!( c, RenderCommand::Sprite( s ) if region_ids.contains( &s.sprite ) ) )
+    .count();
+
+  // Baseline: the correct channel emits region frames.
+  let cmds_ok = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  assert!( count_region( &cmds_ok ) > 0, "correct corner_source must emit region frames" );
+
+  // Misspell the corner_source — names no object's global_layer.
+  let region_1 = spec.objects.iter_mut().find( | o | o.id == "region_1" ).expect( "region_1 object" );
+  let layer = &mut region_1.states.get_mut( "default" ).expect( "default state" )[ 0 ];
+  if let SpriteSource::VertexCorners { corner_source, .. } = &mut layer.sprite_source
+  {
+    *corner_source = Some( "regionn".into() );   // typo: "regionn" vs "region"
+  }
+  else
+  {
+    panic!( "region_1 layer 0 must be VertexCorners" );
+  }
+
+  // Silent fallback: compile succeeds and emits no region frames at all.
+  let cmds_bad = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  assert_eq!
+  (
+    count_region( &cmds_bad ), 0,
+    "misspelled corner_source must silently resolve every corner to void → no region frames",
+  );
+}
+
 /// Build a two-region scene spec: `region_1` carries an `orient_to_grid` dual
 /// grid keyed off the `"region"` channel, `region_0` is a foreign region that
 /// only marks that channel (no dual grid of its own). Used by the cross-region
