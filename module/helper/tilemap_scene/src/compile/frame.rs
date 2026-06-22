@@ -200,9 +200,23 @@ mod private
     corner_px : &[ ( f32, f32 ); 3 ],
     wx : f32,
     wy : f32,
+    tiling : TilingStrategy,
   ) -> u8
   {
-    use core::f32::consts::FRAC_PI_3;
+    use core::f32::consts::{ FRAC_PI_3, FRAC_PI_6 };
+    // The six dual-triangle corner bearings sit at multiples of 60° for a
+    // flat-top grid but are rotated 30° on a pointy-top grid (the hex itself is
+    // rotated 30°). Without compensating, every pointy bearing lands exactly on
+    // a `round()` half-step boundary, so adjacent orientations collapse onto the
+    // same index and a lone hex yields fewer than six distinct frames. Rotate
+    // the orientation reference by the same 30° so the residuals are integral
+    // again. (The absolute base — which frame is orientation 0 — is calibrated
+    // visually per atlas; this only restores the 60° step alignment.)
+    let base_offset = match tiling
+    {
+      TilingStrategy::HexPointyTop => FRAC_PI_6,
+      _ => 0.0,
+    };
     let ( base, period, dist_idx ) = if let Some( sid ) = self_id
     {
       // Classify by how many corners are THIS object's own id ("present").
@@ -242,7 +256,7 @@ mod private
     let bearing = ( cy - wy ).atan2( cx - wx );
     // `base − bearing` (not `bearing − base`): the baked frames advance
     // clockwise in world because the atlas export flips the PNG vertically.
-    let steps = ( ( base - bearing ) / FRAC_PI_3 ).round() as i32;
+    let steps = ( ( base + base_offset - bearing ) / FRAC_PI_3 ).round() as i32;
     steps.rem_euclid( period ) as u8
   }
 
@@ -327,7 +341,7 @@ mod private
           let self_id = patterns.iter().find_map( | p |
             ( p.corners.0 == p.corners.1 && p.corners.1 == p.corners.2 && p.corners.0 != "*" )
               .then_some( p.corners.0.as_str() ) );
-          dual_orientation_index( &raw_corners, &canonical, self_id, &corner_px, wx, wy )
+          dual_orientation_index( &raw_corners, &canonical, self_id, &corner_px, wx, wy, ctx.tiling )
         }
         else
         {

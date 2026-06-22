@@ -1587,6 +1587,51 @@ fn vertex_corners_orient_to_grid_single_hex_six_orientations()
   assert_eq!( seen.len(), 6, "lone hex must emit all six distinct corner orientations; got {seen:?}" );
 }
 
+/// orient_to_grid (Path B), pointy-top tiling: the same lone-hex invariant as
+/// `_single_hex_six_orientations`, but with `TilingStrategy::HexPointyTop`.
+/// `enumerate_triangles` dispatches to a DIFFERENT coordinate pair for
+/// pointy-top (`Pointy`/`FlatTopped`) than for flat-top (`Flat`/`FlatSided`),
+/// so the pointy-top corner geometry and `dual_orientation_index` bearings are
+/// an independent code path — a regression there would not be caught by the
+/// flat-top tests. A lone hex must still emit all six distinct pre-baked corner
+/// orientations with no runtime rotation.
+#[ test ]
+fn vertex_corners_orient_to_grid_pointy_top_six_orientations()
+{
+  let mut spec = dual_orient_spec();
+  spec.pipeline.hex.tiling = TilingStrategy::HexPointyTop;
+  // dual_orient_spec's (96,111) stride is a *regular* flat-top hex
+  // (cw = ch·√3/2). Pointy-top regularity needs the inverse ratio
+  // (ch = cw·√3/2), so swap to (111,96); otherwise the hexes are stretched and
+  // the six 60°-spaced bearings collapse onto fewer discrete orientations.
+  spec.pipeline.hex.grid_stride = ( 111, 96 );
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+
+  let corner_ids : Vec< _ > = ( 0..6 )
+    .map( | o | compiled.ids.sprite( "dual", &format!( "dual_corner_{o}" ) ).expect( "corner frame allocated" ) )
+    .collect();
+
+  let mut seen = std::collections::HashSet::new();
+  for c in &cmds
+  {
+    if let RenderCommand::Sprite( s ) = c
+    {
+      if let Some( o ) = corner_ids.iter().position( | id | *id == s.sprite )
+      {
+        seen.insert( o );
+        assert_eq!( s.transform.rotation, 0.0, "orient mode must not rotate sprites at runtime" );
+      }
+    }
+  }
+  assert_eq!( seen.len(), 6, "pointy-top lone hex must emit all six distinct corner orientations; got {seen:?}" );
+}
+
 /// orient_to_grid (Path B): a solid patch yields full interior triangles, and
 /// the up-pointing (▲) and down-pointing (▽) duals select DIFFERENT pre-baked
 /// frames (`dual_full_0` vs `dual_full_1` — a solid triangle is 3-fold
