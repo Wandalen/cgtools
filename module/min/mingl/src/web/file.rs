@@ -117,6 +117,12 @@ mod private
     {
       let payload = data_url_base64_payload( &url ).map_err( JsValue::from_str )?;
       let decoded = window.atob( payload )?;
+      // `atob` returns a DOMString whose code points are Latin-1 bytes
+      // (U+0000–U+00FF per Web IDL). Each `char` scalar therefore fits in a `u8`,
+      // so `c as u8` truncation is lossless and reconstructs the original binary
+      // payload. Do not "simplify" this to byte-length arithmetic over the string:
+      // wasm-bindgen transports the DOMString as UTF-8, where every U+0080–U+00FF
+      // code point is two bytes, so `.bytes()` would corrupt non-ASCII payloads.
       return Ok( decoded.chars().map( | c | c as u8 ).collect() );
     }
 
