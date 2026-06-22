@@ -206,9 +206,9 @@ mod private
             let ( a, b, c ) = &pattern.corners;
             // Only a non-wildcard all-equal pattern is truly fully-symmetric
             // (period 2). A `("*","*","*")` pattern is excluded from `self_id`
-            // detection by the `!= "*"` guard in `dual_orientation_index`, so it
-            // falls to the 6-orientation path at runtime — it must reserve 6
-            // frames or the lookup hits `UnresolvedRef`.
+            // detection by the `!= "*"` guard in `compile_vertex_pass` (see
+            // `frame.rs`), so it falls to the 6-orientation path at runtime — it
+            // must reserve 6 frames or the lookup hits `UnresolvedRef`.
             if a == b && b == c && a.as_str() != "*" { 2_u32 } else { 6 }
           }
           else
