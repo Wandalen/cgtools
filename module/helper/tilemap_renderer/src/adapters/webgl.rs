@@ -741,13 +741,17 @@ mod private
         );
         return Ok( () );
       };
-      // A sprite batch inherits the premultiplied flag of its single sheet
-      // texture; mesh batches are straight-alpha.
+      // Both batch kinds inherit the premultiplied flag of their bound texture,
+      // matching the single-command paths (`cmd_sprite` / `cmd_mesh`). A mesh
+      // batch may carry a premultiplied texture (`MeshBatchParams::texture`), so
+      // hardcoding straight-alpha here would double-scale its edges by alpha. An
+      // untextured mesh batch resolves to `false` (no texture) — straight-alpha.
       let ( blend, premultiplied ) = match gpu_batch
       {
         GpuBatch::Sprite { params, .. } =>
           ( &params.blend, res.texture( params.sheet ).map_or( false, | t | t.premultiplied ) ),
-        GpuBatch::Mesh { params, .. } => ( &params.blend, false ),
+        GpuBatch::Mesh { params, .. } =>
+          ( &params.blend, params.texture.and_then( | id | res.texture( id ) ).map_or( false, | t | t.premultiplied ) ),
       };
       apply_blend( &self.gl, blend, premultiplied );
       match gpu_batch
