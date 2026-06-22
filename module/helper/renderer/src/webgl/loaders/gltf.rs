@@ -577,9 +577,28 @@ mod private
         }
       );
 
+      // Without an onerror handler a 404 or malformed image URI fails silently:
+      // the 1x1 white placeholder stays bound, nothing is logged, and load()
+      // still returns Ok. Mirror the error logging added for buffer URI loads so
+      // image failures are diagnosable instead of rendering as blank textures.
+      let on_error : Closure< dyn Fn() > = Closure::new
+      (
+        {
+          let img = img_element.clone();
+          let src = src.clone();
+          move ||
+          {
+            gl::browser::error!( "Failed to load gltf image '{src}'" );
+            img.remove();
+          }
+        }
+      );
+
       img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+      img_element.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
       img_element.set_src( &src );
       load_texture.forget();
+      on_error.forget();
     };
 
     // If a source of an image is Uri - load the file
