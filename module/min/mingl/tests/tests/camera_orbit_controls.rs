@@ -420,7 +420,7 @@ fn test_pan_does_not_change_up_vector()
 /// Mouse delta used inconsistent sign convention: `prev - new` for X, `new - prev`
 /// for Y. The `pan()` method expects standard `new - prev` (positive = right/down).
 ///
-/// ## Why Not Caught Initially
+/// ## Why Not Caught
 /// No pan tests existed. Only rotation/zoom were tested.
 ///
 /// ## Fix Applied
@@ -430,7 +430,7 @@ fn test_pan_does_not_change_up_vector()
 /// ## Prevention
 /// Comprehensive pan tests now cover all movement directions and orientations.
 ///
-/// ## Pitfall to Avoid
+/// ## Pitfall
 /// Screen-space deltas must match method coordinate expectations. Document
 /// expected delta sign convention in method docs.
 // test_kind: bug_reproducer(issue-004)
