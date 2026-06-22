@@ -28,15 +28,18 @@ mod private
     }
   }
 
-  /// Returns `true` for URLs that already carry their own location and must reach
-  /// the network layer verbatim: absolute (`http://`, `https://`), protocol-relative
-  /// (`//`), and self-contained (`blob:`, `data:`) URLs.
+  /// Returns `true` for URLs that already carry their own location and must never
+  /// be prefixed with an origin or a folder path — doing so mangles them into an
+  /// unresolvable same-origin path. Two subcategories qualify:
+  /// * absolute (`http://`, `https://`), protocol-relative (`//`), and `blob:` URLs,
+  ///   which reach `fetch` verbatim, and
+  /// * self-contained `data:` payloads, which `load` decodes inline (see its `data:`
+  ///   branch) and which never reach the network at all — `fetch` rejects `cors`
+  ///   mode for `data:` URIs.
   ///
-  /// Such URLs must never be prefixed with an origin or a folder path — doing so
-  /// mangles them into an unresolvable same-origin path. Note that origin-absolute
-  /// paths (a leading `/`) are deliberately *not* covered here: they carry no scheme
-  /// and the caller still has to join them to an origin or pass them through,
-  /// depending on context.
+  /// Note that origin-absolute paths (a leading `/`) are deliberately *not* covered
+  /// here: they carry no scheme and the caller still has to join them to an origin
+  /// or pass them through, depending on context.
   pub fn is_self_contained_url( url : &str ) -> bool
   {
     url.starts_with( "http://" )
