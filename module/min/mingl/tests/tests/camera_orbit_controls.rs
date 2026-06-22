@@ -433,7 +433,7 @@ fn test_pan_does_not_change_up_vector()
 /// ## Pitfall
 /// Screen-space deltas must match method coordinate expectations. Document
 /// expected delta sign convention in method docs.
-// test_kind: bug_reproducer(issue-004)
+// test_kind: bug_reproducer(BUG-004)
 #[ test ]
 fn test_pan_horizontal()
 {
