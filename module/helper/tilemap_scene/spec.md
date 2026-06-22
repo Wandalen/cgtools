@@ -495,6 +495,15 @@ Applicable to `Vertex` anchor. At render time:
 - **`{rot}` increments clockwise in world space.** The atlas baker's counter-clockwise `u_rot` reads as clockwise in world because the PNG export flips vertically — bake accordingly.
 - The reference corner for frame `rot` points at **`base − 60°·rot`** in world space.
 
+**Out of scope (orient_to_grid, v0.2.0): three-id chiral junctions.** Orientation
+is decided by counting corners equal to the layer's self id (present vs. absent),
+which assumes at most two distinct ids per triangle drive one object's shape. A
+triangle whose three corners hold three *distinct* non-void ids has no
+present/absent split: the emitted frame is deterministic but **not geometrically
+meaningful** (no ▲/▽ mirror pair is selected). Atlas authors should suppress such
+triangles by providing a more-specific pattern for that id combination rather than
+relying on the oriented frame.
+
 **`corner_source`** (default `None`). Selects which per-cell "channel" the corner ids are read from:
 - `None`: the cell's **terrain id** — the first object on the cell that has a `priority` field set (historical behaviour; same as the rule in §11).
 - `Some("layer_name")`: the id of the **first object on the cell whose `global_layer` matches**. This allows multiple independent dual grids to share a single scene: a base terrain layer (`corner_source: None`) and a per-player region layer (`corner_source: Some("region")`) can coexist on the same cells with their corner lookups isolated.
