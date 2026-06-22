@@ -564,7 +564,13 @@ mod private
             gl.generate_mipmap( gl::TEXTURE_2D );
             gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
 
-            gl::web_sys::Url::revoke_object_url( &src ).unwrap();
+            // revoke_object_url is specified only for blob: URLs; for data: URIs or
+            // plain file paths it is a no-op, and unwrapping its result is a latent
+            // panic hazard in stricter runtimes. Only revoke the urls we created.
+            if src.starts_with( "blob:" )
+            {
+              gl::web_sys::Url::revoke_object_url( &src ).unwrap();
+            }
 
             img.remove();
           }
