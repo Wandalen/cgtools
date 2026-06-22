@@ -1,3 +1,9 @@
+//! FFI bindings to the [lil-gui](https://lil-gui.georgealways.com/) JavaScript library.
+//!
+//! These functions are imported from `gui.js` via `wasm_bindgen` and provide
+//! the building blocks for constructing a settings panel: sliders, booleans,
+//! dropdowns, folders, and change callbacks.
+
 use minwebgl as gl;
 use gl::wasm_bindgen::{ self, prelude::* };
 
