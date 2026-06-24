@@ -82,6 +82,15 @@ Used by `examples/minwebgl/slay_map`.
     the previously emitted command slice verbatim — no scene walk,
     no command rebuild. Exposed via `Renderer::cache_hits()` for
     consumer telemetry.
+  - **Vertex-resolve cache:** the dual-grid `VertexCorners` pass is split
+    into a camera/clock-INDEPENDENT *resolve* tier (triangle enumeration +
+    per-triangle corner resolution + pattern match + frame-name building,
+    recorded in world space) and a cheap per-frame *project* tier (camera
+    projection + global-tint fold). The resolve tier is memoised on
+    `scene.revision()`, so an animating-but-idle board (clock ticking,
+    nothing spawned/despawned) skips the whole triangle / pattern / string
+    walk and only re-projects. Inert for specs without `VertexCorners`
+    layers.
   - **Batch emission (SortMode::None buckets):** sprites grouped by
     `(bucket, sheet, blend, clip)` into instanced batches. First
     encounter emits `CreateSpriteBatch` + `BindBatch` + N×
