@@ -51,7 +51,7 @@ mod private
   use crate::compile::assets::{ CompiledAssets, compile_assets };
   use crate::compile::camera::Camera;
   use crate::compile::error::CompileError;
-  use crate::compile::frame::{ BucketEmits, gather_frame_emits };
+  use crate::compile::frame::{ BucketEmits, VertexResolveCache, gather_frame_emits };
   use crate::compile::resolver::AssetResolver;
   use crate::pipeline::SortMode;
   use crate::scene::Scene;
@@ -238,6 +238,14 @@ mod private
     /// each emitted `Sprite`'s batch key in O(1) instead of scanning
     /// the sprites vector per emit.
     sprite_to_sheet : HashMap< ResourceId< asset::Sprite >, ResourceId< asset::Image > >,
+
+    /// Revision-keyed memo for the dual-grid `VertexCorners` pass. The
+    /// structural resolve (triangle enumeration + pattern matching +
+    /// frame-name building) is the dominant per-frame cost on a dual board;
+    /// it depends only on the scene's structure, so this lets a clock-only
+    /// change (animation tick) reuse it instead of recomputing. Inert for
+    /// specs without `VertexCorners` layers (stays empty).
+    vertex_cache : VertexResolveCache,
   }
 
   impl Renderer
@@ -283,6 +291,7 @@ mod private
         batches : HashMap::default(),
         next_batch_id : 0,
         sprite_to_sheet,
+        vertex_cache : VertexResolveCache::new(),
       })
     }
 
@@ -373,7 +382,7 @@ mod private
         return Ok( &self.cmd_buf );
       }
 
-      let emits = gather_frame_emits( &self.compiled, scene, camera )?;
+      let emits = gather_frame_emits( &self.compiled, scene, camera, Some( &mut self.vertex_cache ) )?;
 
       self.cmd_buf.clear();
       self.cmd_buf.push( RenderCommand::Clear( Clear { color : emits.clear_color } ) );

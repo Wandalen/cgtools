@@ -109,7 +109,7 @@ mod private
   /// 0 of the canonical form (for legacy `{rot}` sprite substitution).
   ///
   /// The `orient_to_grid` path does not use `rotation`; it derives a discrete
-  /// orientation from triangle geometry (see `compile_vertex_pass`).
+  /// orientation from triangle geometry (see `resolve_vertex_pass_all`).
   #[ must_use ]
   #[ allow( clippy::needless_pass_by_value ) ]
   pub fn canonicalize( raw : [ String; 3 ] ) -> ( [ String; 3 ], u8 )

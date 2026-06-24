@@ -1612,7 +1612,7 @@ fn vertex_corners_orient_to_grid_up_down_distinct()
 
 /// A per-object `behaviour.tint: Flat(..)` must colour every dual-grid
 /// (VertexCorners) sprite that object emits — the path used by per-player
-/// region overlays. Before this was wired, `compile_vertex_pass` hardcoded the
+/// region overlays. Before this was wired, the vertex pass hardcoded the
 /// global tint and silently ignored the layer's own tint. A lone hex with a
 /// pure-red flat tint should emit corner sprites tinted ≈ [1, 0, 0, 1].
 #[ test ]
