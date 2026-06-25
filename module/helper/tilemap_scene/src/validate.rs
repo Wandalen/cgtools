@@ -54,6 +54,9 @@ mod private
     ///   variant resolves to a declared `assets[*].id`. `Animation` /
     ///   `External` sources stop the walk at their boundary; animation
     ///   bodies are validated separately when iterating `spec.animations`.
+    /// - **Corner-source layers resolve.** Every `VertexCorners.corner_source`
+    ///   (when set) names a layer used by at least one object's `global_layer`;
+    ///   otherwise corner resolution silently falls back to `VOID_ID`.
     /// - **Default state exists.** Every object's `default_state` names a
     ///   key present in its `states` map.
     /// - **Reserved ids.** The reserved id `"void"` is not declared as a
@@ -66,6 +69,13 @@ mod private
         self.assets.iter().map( | a | a.id.as_str() ).collect();
       let layer_ids : HashSet< &str > =
         self.pipeline.layers.iter().map( | l | l.id.as_str() ).collect();
+      // The set of layer names a `VertexCorners.corner_source` can resolve
+      // against: `tile_corner_id` matches `corner_source` to an object's
+      // `global_layer`, so a value naming no object's `global_layer` can only
+      // ever fall back to `VOID_ID` for every corner (silent, geometrically
+      // wrong output). Validating against this set catches such misspellings.
+      let global_layer_names : HashSet< &str > =
+        self.objects.iter().map( | o | o.global_layer.as_str() ).collect();
 
       for object in &self.objects
       {
@@ -93,6 +103,21 @@ mod private
                 context : format!
                 (
                   "object {:?} state {:?} layer pipeline_layer override",
+                  object.id, state_name,
+                ),
+              });
+            }
+
+            if let SpriteSource::VertexCorners { corner_source : Some( cs ), .. } = &layer.sprite_source
+              && !global_layer_names.contains( cs.as_str() )
+            {
+              errors.push( ValidationError::UnresolvedRef
+              {
+                kind : "corner_source layer",
+                id : cs.clone(),
+                context : format!
+                (
+                  "object {:?} state {:?} VertexCorners corner_source",
                   object.id, state_name,
                 ),
               });
