@@ -46,6 +46,7 @@ Used by `examples/minwebgl/slay_map`.
 - Buckets with `SortMode::{ None, XAsc, XDesc, YAsc, YDesc, XAscYDesc, XAscYAsc, YDescXAsc, YAscXAsc }`
 - Per-layer pipeline-bucket override via `ObjectLayer.pipeline_layer`
 - Single-coverage buckets — `PipelineLayer.{ alpha_clip, occlude_overlap }` (both default off) forwarded onto every emitted `SpriteBatchParams`; turn a bucket of overlapping translucent tiles (bled dual-grid drop shadow) into a single-coverage mask so the overlap composites once. See SPEC §8.5
+- Opaque pass — `PipelineLayer.opaque` (default off) joins a bucket to a front-to-back depth-culling pass via the new `SetDepthWrite` render command; when any layer is opaque the frame splits into opaque (depth writes on) then transparent (depth writes off) passes, cutting the flat tilemap's multi-layer overdraw. Inert when no layer is opaque. See SPEC §8.6
 - `RenderPipeline.clear_color` (linear RGBA; `None` = transparent-black)
 - `RenderPipeline.global_tint` (composition — lerp(white, color, strength) multiplied into every emitted sprite)
 

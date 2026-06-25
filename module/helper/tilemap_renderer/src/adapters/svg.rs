@@ -1502,6 +1502,9 @@ mod private
           RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
           RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db )?,
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
+          // No depth buffer in SVG — the opaque/transparent pass split is a
+          // GPU-only optimisation; ignore.
+          RenderCommand::SetDepthWrite( _ ) => {},
           RenderCommand::BeginGroup( bg ) => self.cmd_begin_group( bg )?,
           RenderCommand::EndGroup( _ ) => self.cmd_end_group(),
         }

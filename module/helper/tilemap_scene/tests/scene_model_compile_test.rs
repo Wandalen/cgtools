@@ -165,7 +165,7 @@ fn minimal_spec() -> RenderSpec
       },
       layers : vec!
       [
-        PipelineLayer { id : "terrain".into(), sort : SortMode::None, tint_mask : None, alpha_clip : 0.0, occlude_overlap : false },
+        PipelineLayer { id : "terrain".into(), sort : SortMode::None, tint_mask : None, alpha_clip : 0.0, occlude_overlap : false, opaque : false },
       ],
       global_tint : None,
       viewport_size : None,
@@ -1740,7 +1740,7 @@ fn vertex_corners_corner_source_isolates_channels()
       m
     },
   });
-  spec.pipeline.layers.push( PipelineLayer { id : "region".into(), sort : SortMode::None, tint_mask : None, alpha_clip : 0.0, occlude_overlap : false } );
+  spec.pipeline.layers.push( PipelineLayer { id : "region".into(), sort : SortMode::None, tint_mask : None, alpha_clip : 0.0, occlude_overlap : false, opaque : false } );
 
   // One lone cell carrying BOTH objects → terrain channel sees [hexagon,void,
   // void] and region channel sees [region_0,void,void] on the same triangles.

@@ -100,6 +100,7 @@ All structs are `Copy + Clone + Debug`. No allocations.
 | `BindBatch`..`UnbindBatch` | Batch editing: Add/Set/Remove instances, update params |
 | `DrawBatch` | Draw all instances in a batch |
 | `DeleteBatch` | Free batch resources |
+| `SetDepthWrite` | Toggle depth-buffer writes for subsequent draws (GPU backends; no-op where there is no depth buffer) |
 | `BeginGroup`..`EndGroup` | Nested group with transform, clip, effect |
 | `Effect` | Blur, DropShadow, ColorMatrix, Opacity |
 
