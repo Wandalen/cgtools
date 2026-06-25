@@ -127,7 +127,7 @@ mod private
     }
 
     /// Uploads a uniform matrix to the current program.
-    pub fn upload_matrix< D >( &self, gl : &gl::WebGl2RenderingContext, name : &str, data : &D  ) -> Result< (), gl::WebglError >
+    pub fn matrix_upload< D >( &self, gl : &gl::WebGl2RenderingContext, name : &str, data : &D  ) -> Result< (), gl::WebglError >
     where
       D : gl::UniformMatrixUpload + ?Sized
     {
@@ -177,13 +177,13 @@ mod private
     /// Clear saved uniforms locations
     pub fn uniform_locations_clear( &mut self )
     {
-      self.uniforms.clear_locations();
+      self.uniforms.locations_clear();
     }
 
     /// Clear saved uniforms
     pub fn uniforms_clear( &mut self )
     {
-      self.uniforms.clear_uniforms();
+      self.uniforms.uniforms_clear();
     }
 
     /// Upload the current set of uniform to the program
