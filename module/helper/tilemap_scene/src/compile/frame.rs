@@ -367,8 +367,9 @@ mod private
         let transform = make_transform( sx, sy, ctx.camera.zoom );
 
         // Per-object tint: a `Flat` named tint multiplies the global tint, so
-        // each VertexCorners object (e.g. a per-player region) can be coloured
-        // independently. `Masked` is rejected (not yet implemented).
+        // an object (e.g. a per-player region) can be coloured independently.
+        // This is universal — `layer_base_tint` resolves `Flat` for every layer
+        // type, not just VertexCorners. `Masked` is rejected (not yet implemented).
         let layer_tint = layer_base_tint( ctx, object, &layer.behaviour )?;
 
         out.push
