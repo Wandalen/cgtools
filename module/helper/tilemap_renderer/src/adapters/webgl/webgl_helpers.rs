@@ -303,6 +303,18 @@ mod private
       self.textures.get( &id )
     }
 
+    /// Resolves the premultiplied-alpha flag for a (possibly untextured) mesh
+    /// or mesh batch: a textured mesh inherits its texture's `premultiplied`
+    /// flag, an untextured one is straight-alpha (`false`). Both the single-mesh
+    /// (`cmd_mesh`) and batched (`cmd_draw_batch`) paths route through here so
+    /// the two cannot drift — e.g. a refactor re-hardcoding `false` in one path
+    /// would have to do it in both, or (preferably) neither.
+    #[ must_use ]
+    pub fn mesh_premultiplied( &self, texture : Option< ResourceId< asset::Image > > ) -> bool
+    {
+      texture.and_then( | id | self.texture( id ) ).map_or( false, | t | t.premultiplied )
+    }
+
     /// Looks up a sprite by sprite asset id.
     #[ must_use ]
     pub fn sprite( &self, id : ResourceId< asset::Sprite > ) -> Option< &GpuSprite >

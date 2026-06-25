@@ -370,7 +370,7 @@ mod private
         let color = match m.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
         // Untextured meshes are straight-alpha; a textured mesh inherits its
         // texture's premultiplied flag.
-        let premultiplied = m.texture.and_then( | id | res.texture( id ) ).map_or( false, | t | t.premultiplied );
+        let premultiplied = res.mesh_premultiplied( m.texture );
         apply_blend( &self.gl, &m.blend, premultiplied );
 
         let mut use_texture = false;
@@ -751,7 +751,7 @@ mod private
         GpuBatch::Sprite { params, .. } =>
           ( &params.blend, res.texture( params.sheet ).map_or( false, | t | t.premultiplied ) ),
         GpuBatch::Mesh { params, .. } =>
-          ( &params.blend, params.texture.and_then( | id | res.texture( id ) ).map_or( false, | t | t.premultiplied ) ),
+          ( &params.blend, res.mesh_premultiplied( params.texture ) ),
       };
       apply_blend( &self.gl, blend, premultiplied );
       match gpu_batch
