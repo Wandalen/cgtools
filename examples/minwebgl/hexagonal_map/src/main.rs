@@ -191,6 +191,7 @@ async fn run() -> Result< (), gl::WebglError >
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : Default::default(),
+      premultiplied : false,
     });
   }
 
