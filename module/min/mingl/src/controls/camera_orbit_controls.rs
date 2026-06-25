@@ -374,6 +374,8 @@ mod private
     ///
     /// # Arguments
     /// * `screen_d` - The change in screen coordinates `[dx, dy]` from a mouse movement event.
+    ///   Positive dx corresponds to rightward screen movement; positive dy to downward
+    ///   screen movement (`new_pos - prev_pos` convention).
     pub fn pan
     (
       &mut self,
@@ -616,6 +618,7 @@ mod private
           let pointer_id = e.pointer_id();
           // screen_x/y return f64 under web_sys_unstable_apis (web-sys ≥ 0.3.94); f64→f32 cast is intentional
           let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
+
           let current_state = state.borrow().clone();
 
           // Snapshot the moved pointer's previous position before updating;
@@ -624,7 +627,7 @@ mod private
 
           // Compute movement delta from the single-pointer reference position.
           let prev_pos = *prev_screen_pos.borrow();
-          let delta = [ prev_pos[ 0 ] - new_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
+          let mut delta = [ new_pos[ 0 ] - prev_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
 
           // Update tracking state for all active states.
           *prev_screen_pos.borrow_mut() = new_pos;
@@ -659,7 +662,14 @@ mod private
                 }
               }
             }
-            CameraState::Rotate => camera.borrow_mut().rotate( delta ),
+            CameraState::Rotate =>
+            {
+              // Fix(BUG-004): Standardized mouse delta to new-prev convention for both axes; negate X only in rotate arm
+              // Root cause: Inconsistent delta sign (prev-new for X, new-prev for Y) inverted pan X-axis direction
+              // Pitfall: pan() internally negates X via `- x * dx`; rotate() needs explicit negation for opposite convention
+              delta[ 0 ] = -delta[ 0 ];
+              camera.borrow_mut().rotate( delta )
+            },
             CameraState::Pan => camera.borrow_mut().pan( delta ),
             CameraState::None => {}
           }
