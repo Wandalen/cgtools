@@ -493,6 +493,22 @@ mod private
     pub batch : ResourceId< Batch >,
   }
 
+  /// Toggle depth-buffer writes for subsequent draws (GPU backends only).
+  ///
+  /// Lets a caller split a frame into an opaque pass (writes enabled, so a
+  /// nearer fragment early-Z rejects farther ones and overdraw is cut) and a
+  /// following transparent pass (writes disabled, so back-to-front blending is
+  /// not corrupted by the depth the opaque pass left). The default state is
+  /// `enabled = true`; a caller that emits this MUST restore it to `true`
+  /// before the frame ends so the next frame's opaque pass writes depth.
+  /// SVG and terminal backends ignore it (no depth buffer).
+  #[ derive( Debug, Clone, Copy ) ]
+  pub struct SetDepthWrite
+  {
+    /// `true` enables depth writes (`glDepthMask(GL_TRUE)`), `false` disables.
+    pub enabled : bool,
+  }
+
   // ============================================================================
   // Effects
   // ============================================================================
@@ -624,6 +640,8 @@ mod private
     DrawBatch( DrawBatch ),
     /// Delete a batch.
     DeleteBatch( DeleteBatch ),
+    /// Enable / disable depth-buffer writes for subsequent draws.
+    SetDepthWrite( SetDepthWrite ),
 
     /// Begin a group.
     BeginGroup( BeginGroup ),
@@ -665,6 +683,7 @@ mod_interface::mod_interface!
   own use UnbindBatch;
   own use DrawBatch;
   own use DeleteBatch;
+  own use SetDepthWrite;
   own use Effect;
   own use BeginGroup;
   own use EndGroup;

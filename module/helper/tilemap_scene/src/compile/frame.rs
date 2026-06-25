@@ -743,6 +743,10 @@ mod private
     /// Single-coverage depth flag carried from the bucket's `PipelineLayer`
     /// (see `PipelineLayer::occlude_overlap`).
     pub occlude_overlap : bool,
+    /// Opaque-pass flag carried from the bucket's `PipelineLayer` (see
+    /// `PipelineLayer::opaque`). Drives the renderer's opaque/transparent
+    /// split; `false` for every bucket leaves the original single-pass path.
+    pub opaque : bool,
   }
 
   /// One `VertexCorners` triangle sprite resolved in **world space**.
@@ -969,6 +973,7 @@ mod private
         sort : bucket.sort,
         alpha_clip : bucket.alpha_clip,
         occlude_overlap : bucket.occlude_overlap,
+        opaque : bucket.opaque,
       });
     }
 

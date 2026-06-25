@@ -745,7 +745,8 @@ Applied multiplicatively to every draw call after all per-object tints and effec
 
 A `PipelineLayer` carries two optional coverage controls (both default off, so an
 omitted field reproduces the prior behaviour exactly). They are forwarded
-unchanged onto every sprite batch the bucket emits.
+unchanged onto every sprite batch the bucket emits. A third control, `opaque`,
+drives the cross-layer depth-culling pass and is described separately in §8.6.
 
 - `alpha_clip: f32` (default `0.0`) — coverage cut-off. Fragments whose sampled
   texture alpha is below this are discarded (no colour, no depth write). `0.0`
@@ -764,9 +765,45 @@ The pair is meant to be used together: a bucket of overlapping translucent tiles
 `alpha_clip` removes the soft AA fringe so its depth write doesn't block a
 neighbour, and `occlude_overlap` rejects the overlap cleanly. Edges become hard
 at the clip contour — the intended trade for not double-blending the overlap.
-Safe because every *other* bucket draws painter's-style at depth `0` under
-`LEQUAL`: they never read the depth this bucket writes, and the pre-clear only
-discards depth they don't depend on.
+Safe because every *other* transparent bucket draws painter's-style at depth `0`
+under `LEQUAL`: they never read the depth this bucket writes, and the pre-clear
+only discards depth they don't depend on. (When the opaque pass of §8.6 is
+active, an `occlude_overlap` bucket keeps its depth writes on while the rest of
+the transparent pass turns them off — see §8.6.)
+
+### 8.6 Opaque pass (`opaque`)
+
+A `PipelineLayer` may set `opaque: bool` (default `false`) to mark the bucket as
+fully opaque where it covers, so it joins a depth-culling **opaque pass**. When
+**any** layer in the pipeline is opaque, the renderer splits the frame in two:
+
+1. **Opaque pass** — opaque buckets draw first, **front-to-back** (topmost
+   pipeline layer first) with depth writes **on**. Each bucket is pinned to a
+   distinct clip-space depth `pipeline_index / bucket_count` (kept in `[0, 1)`,
+   so the default `max_depth = 1.0` is unchanged), so a nearer (higher-index)
+   layer early-Z rejects the covered fragments of the farther ones it overlaps.
+   This cuts the multi-layer overdraw of a flat tilemap (background under
+   terrain under region).
+2. **Transparent pass** — the remaining (default `false`) buckets draw after, in
+   painter's (forward pipeline) order, with depth writes **off** so back-to-front
+   blending is not corrupted by the depth the opaque pass left behind. An
+   `occlude_overlap` bucket is the exception: it self-manages depth and keeps
+   writes on for its own draws.
+
+Depth-write toggling is carried to the backend by the `SetDepthWrite` render
+command (GPU backends map it to `glDepthMask`; SVG and terminal backends, having
+no depth buffer, ignore it). The renderer restores depth writes to `true` before
+the frame ends, so the next frame's opaque pass starts clean.
+
+Correctness requirements for an opaque layer:
+
+- It must be visually opaque where it covers (alpha ≈ 1); a translucent layer
+  meant to show what is beneath it must stay `false`.
+- Pair it with a non-zero `alpha_clip` so transparent texels `discard` (no depth
+  write) and lower layers show through gaps.
+
+When no layer is opaque the renderer takes the original single-pass path
+unchanged, so this is inert for existing specs.
 
 ## 9. Rule Specificity and Priority
 

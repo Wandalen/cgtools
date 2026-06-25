@@ -1203,6 +1203,10 @@ mod private
           RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
           RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db, &viewport )?,
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
+          // Opaque/transparent pass split: the scene renderer disables depth
+          // writes for the transparent pass so back-to-front blending is not
+          // corrupted, then restores them. No depth attachment ⇒ harmless no-op.
+          RenderCommand::SetDepthWrite( s ) => self.gl.depth_mask( s.enabled ),
 
           // Path — skip (qqq). Warn on the opener only (not MoveTo/LineTo/etc.)
           // so a 1000-segment path produces one message, not 1000. `capabilities()`
