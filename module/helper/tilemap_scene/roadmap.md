@@ -32,7 +32,7 @@ Used by `examples/minwebgl/slay_map`.
 - `Animation(AnimationRef)` — `AnimationTiming::{ Regular, FromSheet, Irregular }`; `AnimationMode::{ Loop, PingPong, OneShot }`; `PhaseOffset::{ None, Fixed, HashCoord, Linear }`
 - `NeighborBitmask` — 6-bit hex neighbour autotile; `ByMapping` (mask → leaf source with fallback) and `ByAtlas { layout: Bitmask6 }` (numeric frame lookup, 64 entries pre-allocated)
 - `NeighborCondition` — per-side conditional emission; conditions: `NeighborIs`, `NoNeighbor`, `NeighborPriorityLower`, `AnyOf`, `AllOf`, `Not`; `{dir}` pattern substitution; handles skirts and Wesnoth-style edge blends
-- `VertexCorners` — dual-mesh triangle blending; wildcard (`"*"`) matching; specificity → priority → declaration-order tiebreak per SPEC §9
+- `VertexCorners` — dual-mesh triangle blending; wildcard (`"*"`) matching; specificity → priority → declaration-order tiebreak per SPEC §9; `orient_to_grid` (pre-baked 60°-oriented frames, no runtime rotation); `corner_source` (per-layer corner channel — terrain id or named draw layer); `offset` (world-pixel sprite shift for 2.5D shadows); per-object `Flat` tint support
 - `EdgeConnectedBitmask` — 4-bit edge-endpoint autotile for rivers / edge roads; `ByMapping` + `ByAtlas { layout: EdgeHex }` (16 entries pre-allocated); edge canonicalisation so both-side declarations dedupe
 - `ViewportTiled` — `Center`, `Stretch`, `Fit` (single `ScreenSpaceSprite`); `Repeat2D`, `RepeatX`, `RepeatY` (N sprites covering the viewport at camera-zoom scale)
 
@@ -45,6 +45,8 @@ Used by `examples/minwebgl/slay_map`.
 
 - Buckets with `SortMode::{ None, XAsc, XDesc, YAsc, YDesc, XAscYDesc, XAscYAsc, YDescXAsc, YAscXAsc }`
 - Per-layer pipeline-bucket override via `ObjectLayer.pipeline_layer`
+- Single-coverage buckets — `PipelineLayer.{ alpha_clip, occlude_overlap }` (both default off) forwarded onto every emitted `SpriteBatchParams`; turn a bucket of overlapping translucent tiles (bled dual-grid drop shadow) into a single-coverage mask so the overlap composites once. See SPEC §8.5
+- Opaque pass — `PipelineLayer.opaque` (default off) joins a bucket to a front-to-back depth-culling pass via the new `SetDepthWrite` render command; when any layer is opaque the frame splits into opaque (depth writes on) then transparent (depth writes off) passes, cutting the flat tilemap's multi-layer overdraw. Inert when no layer is opaque. See SPEC §8.6
 - `RenderPipeline.clear_color` (linear RGBA; `None` = transparent-black)
 - `RenderPipeline.global_tint` (composition — lerp(white, color, strength) multiplied into every emitted sprite)
 
@@ -81,6 +83,15 @@ Used by `examples/minwebgl/slay_map`.
     the previously emitted command slice verbatim — no scene walk,
     no command rebuild. Exposed via `Renderer::cache_hits()` for
     consumer telemetry.
+  - **Vertex-resolve cache:** the dual-grid `VertexCorners` pass is split
+    into a camera/clock-INDEPENDENT *resolve* tier (triangle enumeration +
+    per-triangle corner resolution + pattern match + frame-name building,
+    recorded in world space) and a cheap per-frame *project* tier (camera
+    projection + global-tint fold). The resolve tier is memoised on
+    `scene.revision()`, so an animating-but-idle board (clock ticking,
+    nothing spawned/despawned) skips the whole triangle / pattern / string
+    walk and only re-projects. Inert for specs without `VertexCorners`
+    layers.
   - **Batch emission (SortMode::None buckets):** sprites grouped by
     `(bucket, sheet, blend, clip)` into instanced batches. First
     encounter emits `CreateSpriteBatch` + `BindBatch` + N×
@@ -139,10 +150,11 @@ below): §8, §10, §11, §12, §13, §14.
 These are small-to-medium-size and independent. Implement when a real
 game use-case demands one.
 
-1. **`TintBehaviour::Flat` / `Masked` + `TeamColor` resolution.** Per-layer
-   tint composition against `Scene.players[i].color` for team-coloured
-   units. Medium. Touches `frame.rs` (`Sprite.tint` composition pass) and
-   adds a small resolver helper.
+1. ~~**`TintBehaviour::Flat` for `VertexCorners`.**~~ *Shipped.* `compile_vertex_pass`
+   now respects `LayerBehaviour.tint = Flat(TintRef)` per object layer — the flat
+   tint multiplies the global tint so per-player region overlays can be coloured
+   independently. Still open: `Masked` + `TeamColor` resolution against
+   `Scene.players[i].color` for team-coloured units.
 2. **`Effects` (`VertexDisplace` / `AlphaPulse` / `ColorShift`).** Compile
    layer just passes effect references through; real work is adapter-side
    shader support. Largely blocked on backend. Consider dropping the variants

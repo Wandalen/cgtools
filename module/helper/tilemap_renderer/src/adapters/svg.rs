@@ -1502,6 +1502,9 @@ mod private
           RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
           RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db )?,
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
+          // No depth buffer in SVG — the opaque/transparent pass split is a
+          // GPU-only optimisation; ignore.
+          RenderCommand::SetDepthWrite( _ ) => {},
           RenderCommand::BeginGroup( bg ) => self.cmd_begin_group( bg )?,
           RenderCommand::EndGroup( _ ) => self.cmd_end_group(),
         }
@@ -2076,6 +2079,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         ..empty_assets()
       };
@@ -2182,6 +2186,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         patterns : vec![ PatternAsset
         {
@@ -2253,6 +2258,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2295,6 +2301,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2337,6 +2344,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2378,6 +2386,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2418,6 +2427,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2440,6 +2450,8 @@ mod private
             sheet : ResourceId::new( 0 ),
             blend : BlendMode::Normal,
             clip : None,
+            alpha_clip : 0.0,
+            occlude_overlap : false,
           },
         }),
         RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
@@ -2543,6 +2555,8 @@ mod private
             sheet : ResourceId::new( 0 ),
             blend : BlendMode::Normal,
             clip : None,
+            alpha_clip : 0.0,
+            occlude_overlap : false,
           },
         }),
         RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
@@ -2595,6 +2609,8 @@ mod private
             sheet : ResourceId::new( 0 ),
             blend : BlendMode::Normal,
             clip : None,
+            alpha_clip : 0.0,
+            occlude_overlap : false,
           },
         }),
         RenderCommand::DeleteBatch( DeleteBatch { batch : batch_id } ),
@@ -3102,6 +3118,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         ..empty_assets()
       };
@@ -3142,6 +3159,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -3174,6 +3192,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         ..empty_assets()
       };
@@ -3207,6 +3226,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -3291,6 +3311,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         ..empty_assets()
       };
@@ -3320,6 +3341,7 @@ mod private
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         }],
         ..empty_assets()
       };

@@ -133,6 +133,7 @@ fn build_spec( animations : Vec< Animation >, layers_for_default : Vec< ObjectLa
         filter : SamplerFilter::Linear,
         mipmap : MipmapMode::Off,
         wrap : WrapMode::Clamp,
+        premultiplied : false,
       },
     ],
     tints : Vec::new(),
@@ -157,7 +158,7 @@ fn build_spec( animations : Vec< Animation >, layers_for_default : Vec< ObjectLa
       hex : HexConfig { tiling : TilingStrategy::HexFlatTop, grid_stride : ( 72, 64 ) },
       layers : vec!
       [
-        PipelineLayer { id : "main".into(), sort : SortMode::None, tint_mask : None },
+        PipelineLayer { id : "main".into(), sort : SortMode::None, tint_mask : None, alpha_clip : 0.0, occlude_overlap : false, opaque : false },
       ],
       global_tint : None,
       viewport_size : None,
@@ -474,6 +475,7 @@ fn oneshot_restarts_on_set_state_after_delay()
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
           wrap : WrapMode::Clamp,
+          premultiplied : false,
         },
       ],
       tints : Vec::new(),
@@ -498,7 +500,7 @@ fn oneshot_restarts_on_set_state_after_delay()
         hex : HexConfig { tiling : TilingStrategy::HexFlatTop, grid_stride : ( 72, 64 ) },
         layers : vec!
         [
-          PipelineLayer { id : "main".into(), sort : SortMode::None, tint_mask : None },
+          PipelineLayer { id : "main".into(), sort : SortMode::None, tint_mask : None, alpha_clip : 0.0, occlude_overlap : false, opaque : false },
         ],
         global_tint : None,
         viewport_size : None,

@@ -71,6 +71,7 @@ mod private
         filter : asset.filter,
         mipmap : asset.mipmap,
         wrap : asset.wrap,
+        premultiplied : asset.premultiplied,
       });
     }
 
@@ -190,13 +191,26 @@ mod private
         }
         Ok( () )
       },
-      SpriteSource::VertexCorners { patterns, asset } =>
+      SpriteSource::VertexCorners { patterns, asset, orient_to_grid, .. } =>
       {
-        // Each pattern has a `{rot}` placeholder in 0..3; allocate all three
-        // rotations so the frame pass has a guaranteed lookup per triangle.
+        // Each pattern's `{rot}` placeholder is expanded to every index the
+        // frame pass can pick, so the lookup is guaranteed. Legacy mode: 0..3
+        // (canonical-sort rotation). Orient mode: the regular hex grid's dual
+        // triangles occur in six discrete orientations, so 0..6 — except a
+        // fully-symmetric tile (all three corners equal, a solid triangle) only
+        // distinguishes ▲/▽, so 0..2. Matches `dual_orientation_index`'s period.
         for pattern in patterns
         {
-          for rot in 0_u32..3
+          let count = if *orient_to_grid
+          {
+            let ( a, b, c ) = &pattern.corners;
+            if a == b && b == c { 2_u32 } else { 6 }
+          }
+          else
+          {
+            3
+          };
+          for rot in 0_u32..count
           {
             let frame_name = pattern.sprite_pattern.replace( "{rot}", &rot.to_string() );
             let sprite_ref = SpriteRef { asset : asset.clone(), frame : frame_name };

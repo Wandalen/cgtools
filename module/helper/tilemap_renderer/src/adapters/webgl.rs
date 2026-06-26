@@ -107,6 +107,9 @@ mod private
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
       self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
       self.batch_program.uniform_upload( "u_max_depth", &max_depth );
+      // Coverage cut-off: 0.0 (default) keeps every fragment, matching the
+      // pre-feature behaviour; >0 discards low-alpha texels (see frag shader).
+      self.batch_program.uniform_upload( "u_alpha_clip", &params.alpha_clip );
 
       gl.bind_vertex_array( Some( vao ) );
       gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances.len() as i32 );
@@ -294,6 +297,10 @@ mod private
       // SRC_ALPHA factor on alpha would yield src_a^2 + dst_a*(1-src_a), corrupting
       // alpha when the canvas is composited against a transparent page or read via
       // readPixels.
+      //
+      // This is just the initial state; `apply_blend` reprograms the blend func
+      // per draw from each sprite/mesh's `BlendMode` and its texture's
+      // premultiplied flag (see `apply_blend`).
       gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
 
       // LEQUAL (not LESS) so equal-depth draws fall back to submission order rather
@@ -364,7 +371,10 @@ mod private
       {
         let mat = m.transform.to_mat3();
         let color = match m.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
-        apply_blend( &self.gl, &m.blend );
+        // Untextured meshes are straight-alpha; a textured mesh inherits its
+        // texture's premultiplied flag.
+        let premultiplied = m.texture.and_then( | id | res.texture( id ) ).map_or( false, | t | t.premultiplied );
+        apply_blend( &self.gl, &m.blend, premultiplied );
 
         let mut use_texture = false;
         if let Some( tex_id ) = m.texture && let Some( gpu_tex ) = res.texture( tex_id )
@@ -394,7 +404,7 @@ mod private
       let tex_size = [ tw as f32, th as f32 ];
 
       let mat = s.transform.to_mat3();
-      apply_blend( &self.gl, &s.blend );
+      apply_blend( &self.gl, &s.blend, gpu_tex.premultiplied );
       self.sprite.draw( &self.gl, &mat, &gpu_sprite.region, &tex_size, &s.tint, viewport, s.transform.depth, self.config.max_depth );
     }
 
@@ -734,15 +744,35 @@ mod private
         );
         return Ok( () );
       };
-      apply_blend( &self.gl, match gpu_batch
+      // A sprite batch inherits the premultiplied flag of its single sheet
+      // texture; mesh batches are straight-alpha.
+      let ( blend, premultiplied, occlude ) = match gpu_batch
       {
-        GpuBatch::Sprite { params, .. } => &params.blend,
-        GpuBatch::Mesh { params, .. } => &params.blend,
-      });
+        GpuBatch::Sprite { params, .. } =>
+          ( &params.blend, res.texture( params.sheet ).map_or( false, | t | t.premultiplied ), params.occlude_overlap ),
+        GpuBatch::Mesh { params, .. } => ( &params.blend, false, false ),
+      };
+      apply_blend( &self.gl, blend, premultiplied );
+      // Single-coverage mode: paint each pixel once regardless of how many
+      // overlapping (bled) instances cover it. Clearing depth first gives this
+      // batch a fresh slate — safe because every other bucket draws painter's-
+      // style at depth 0 under LEQUAL and never reads the depth written here —
+      // and LESS rejects the second+ fragment at equal depth (the discard in
+      // the frag shader keeps the transparent quad area from writing depth).
+      // Restored to LEQUAL after so following buckets composite normally.
+      if occlude
+      {
+        self.gl.clear( gl::DEPTH_BUFFER_BIT );
+        self.gl.depth_func( gl::LESS );
+      }
       match gpu_batch
       {
         GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
         GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
+      }
+      if occlude
+      {
+        self.gl.depth_func( gl::LEQUAL );
       }
       Ok( () )
     }
@@ -886,6 +916,7 @@ mod private
           filter : img.filter,
           mipmap : img.mipmap,
           wrap : img.wrap,
+          premultiplied : img.premultiplied,
         });
       }
 
@@ -1172,6 +1203,10 @@ mod private
           RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
           RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db, &viewport )?,
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
+          // Opaque/transparent pass split: the scene renderer disables depth
+          // writes for the transparent pass so back-to-front blending is not
+          // corrupted, then restores them. No depth attachment ⇒ harmless no-op.
+          RenderCommand::SetDepthWrite( s ) => self.gl.depth_mask( s.enabled ),
 
           // Path — skip (qqq). Warn on the opener only (not MoveTo/LineTo/etc.)
           // so a 1000-segment path produces one message, not 1000. `capabilities()`

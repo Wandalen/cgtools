@@ -35,6 +35,7 @@ mod private
     DrawBatch,
     RemoveInstance,
     RenderCommand,
+    SetDepthWrite,
     SetSpriteInstance,
     Sprite,
     SpriteBatchParams,
@@ -51,7 +52,7 @@ mod private
   use crate::compile::assets::{ CompiledAssets, compile_assets };
   use crate::compile::camera::Camera;
   use crate::compile::error::CompileError;
-  use crate::compile::frame::{ BucketEmits, gather_frame_emits };
+  use crate::compile::frame::{ BucketEmits, VertexResolveCache, gather_frame_emits };
   use crate::compile::resolver::AssetResolver;
   use crate::pipeline::SortMode;
   use crate::scene::Scene;
@@ -238,6 +239,14 @@ mod private
     /// each emitted `Sprite`'s batch key in O(1) instead of scanning
     /// the sprites vector per emit.
     sprite_to_sheet : HashMap< ResourceId< asset::Sprite >, ResourceId< asset::Image > >,
+
+    /// Revision-keyed memo for the dual-grid `VertexCorners` pass. The
+    /// structural resolve (triangle enumeration + pattern matching +
+    /// frame-name building) is the dominant per-frame cost on a dual board;
+    /// it depends only on the scene's structure, so this lets a clock-only
+    /// change (animation tick) reuse it instead of recomputing. Inert for
+    /// specs without `VertexCorners` layers (stays empty).
+    vertex_cache : VertexResolveCache,
   }
 
   impl Renderer
@@ -283,6 +292,7 @@ mod private
         batches : HashMap::default(),
         next_batch_id : 0,
         sprite_to_sheet,
+        vertex_cache : VertexResolveCache::new(),
       })
     }
 
@@ -373,7 +383,7 @@ mod private
         return Ok( &self.cmd_buf );
       }
 
-      let emits = gather_frame_emits( &self.compiled, scene, camera )?;
+      let emits = gather_frame_emits( &self.compiled, scene, camera, Some( &mut self.vertex_cache ) )?;
 
       self.cmd_buf.clear();
       self.cmd_buf.push( RenderCommand::Clear( Clear { color : emits.clear_color } ) );
@@ -382,61 +392,82 @@ mod private
       // `self.batches` not in this set at the end gets `DeleteBatch`'d.
       let mut used_keys : Vec< BatchKey > = Vec::new();
 
-      for ( bucket_idx, bucket ) in emits.buckets.into_iter().enumerate()
+      // Opaque/transparent split. When any bucket is opaque, render in two
+      // passes so the depth buffer cuts the flat tilemap's multi-layer
+      // overdraw: opaque buckets first, **front-to-back** (topmost pipeline
+      // layer first) with depth writes on; transparent buckets after, painter's
+      // order, with depth writes off so blending is unaffected. Each bucket is
+      // pinned to a distinct clip-space depth = `pipeline_index / bucket_count`
+      // (kept in `[0, 1)` so the default `max_depth = 1.0` needs no change), so
+      // a later (higher-index) layer sits nearer and wins `LEQUAL` over the ones
+      // it covers. With no opaque bucket this is exactly the original single
+      // pass — `any_opaque` is false and the `else` branch runs unchanged.
+      let mut buckets = emits.buckets;
+      let any_opaque = buckets.iter().any( | b | b.opaque );
+      if any_opaque
       {
-        let bucket_idx_u32 = bucket_idx as u32;
-
-        // Decide emission strategy. `DrawBatch` is emitted inline at
-        // the end of each bucket's prep so the cross-bucket draw order
-        // (batched vs per-sprite) follows the consumer's declared
-        // pipeline.
-        let dispatch = self.classify_bucket( bucket_idx_u32, &bucket );
-
-        match dispatch
+        let n = buckets.len();
+        // Pin each bucket's sprites to its per-layer depth, and drop the
+        // `occlude_overlap` depth-clear on opaque buckets: that mid-frame clear
+        // would wipe the cross-layer depth the opaque pass relies on, and a
+        // fully opaque layer never needs it (its own overlaps simply overwrite).
+        for ( i, b ) in buckets.iter_mut().enumerate()
         {
-          BucketDispatch::Batched =>
-          {
-            // Group all same-(sheet, blend, clip) sprites. Order
-            // within a group is the bucket's pre-sorted order, which for
-            // `SortMode::None` is the spawn / iteration order from
-            // `Scene` — stable across frames given identical state.
-            let groups = self.group_sprites( bucket_idx_u32, &bucket.sprites );
-            for ( key, sprites_in_group ) in groups
-            {
-              self.emit_or_update_batch( key, sprites_in_group );
-              used_keys.push( key );
-              let id = self.batches.get( &key ).expect( "just inserted" ).id;
-              self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
-            }
-          },
-          BucketDispatch::BatchedPreserveOrder { key } =>
-          {
-            // Single-key sorted bucket: one batch, instance-buffer
-            // order matches sort order so a single `DrawBatch`
-            // preserves visual correctness without per-sprite
-            // emission.
-            self.emit_or_update_batch( key, bucket.sprites );
-            used_keys.push( key );
-            let id = self.batches.get( &key ).expect( "just inserted" ).id;
-            self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
-          },
-          BucketDispatch::PerSprite =>
-          {
-            // Sorted multi-key bucket: cannot be batched without
-            // backend `DrawBatch` range support, so emit per-sprite
-            // and preserve sort order via command stream position.
-            for sprite in bucket.sprites
-            {
-              self.cmd_buf.push( RenderCommand::Sprite( sprite ) );
-            }
-          },
+          let depth = i as f32 / n as f32;
+          for s in &mut b.sprites { s.transform.depth = depth; }
+          for s in &mut b.screen_space { s.transform.depth = depth; }
+          if b.opaque { b.occlude_overlap = false; }
         }
 
-        // Viewport sprites — always per-sprite (viewport-pass batching
-        // is not yet implemented).
-        for sprite in bucket.screen_space
+        // Take buckets out by index so each pass can visit them in its own
+        // order without cloning the sprite vectors.
+        let mut slots : Vec< Option< BucketEmits > > = buckets.into_iter().map( Some ).collect();
+
+        // Opaque pass: front-to-back (reverse pipeline order), depth writes on.
+        self.cmd_buf.push( RenderCommand::SetDepthWrite( SetDepthWrite { enabled : true } ) );
+        let opaque_order : Vec< usize > = ( 0..n )
+          .filter( | &i | slots[ i ].as_ref().is_some_and( | b | b.opaque ) )
+          .rev()
+          .collect();
+        for i in opaque_order
         {
-          self.cmd_buf.push( RenderCommand::ScreenSpaceSprite( sprite ) );
+          let bucket = slots[ i ].take().expect( "opaque bucket present" );
+          self.emit_bucket( i as u32, bucket, &mut used_keys );
+        }
+
+        // Transparent pass: painter's (forward pipeline order), depth writes
+        // off so back-to-front blending is not corrupted by leftover opaque
+        // depth — EXCEPT a bucket that self-manages depth via `occlude_overlap`
+        // (it clears + draws under `LESS` to reject its own bled-tile overlap,
+        // which needs writes enabled). Toggle per bucket, tracking the current
+        // state so we emit a `SetDepthWrite` only when it actually changes.
+        // `depth_write` starts `true`, inherited from the opaque pass.
+        let mut depth_write = true;
+        for ( i, slot ) in slots.iter_mut().enumerate()
+        {
+          let want_write = slot.as_ref().is_some_and( | b | b.occlude_overlap );
+          if let Some( bucket ) = slot.take()
+          {
+            if want_write != depth_write
+            {
+              self.cmd_buf.push( RenderCommand::SetDepthWrite( SetDepthWrite { enabled : want_write } ) );
+              depth_write = want_write;
+            }
+            self.emit_bucket( i as u32, bucket, &mut used_keys );
+          }
+        }
+
+        // Restore depth writes for the next frame's opaque pass.
+        if !depth_write
+        {
+          self.cmd_buf.push( RenderCommand::SetDepthWrite( SetDepthWrite { enabled : true } ) );
+        }
+      }
+      else
+      {
+        for ( bucket_idx, bucket ) in buckets.into_iter().enumerate()
+        {
+          self.emit_bucket( bucket_idx as u32, bucket, &mut used_keys );
         }
       }
 
@@ -460,6 +491,77 @@ mod private
       self.last_camera_signature = camera_signature;
       self.has_rendered = true;
       Ok( &self.cmd_buf )
+    }
+
+    /// Emit one bucket's draw commands into `cmd_buf` — batched or per-sprite
+    /// per [`Self::classify_bucket`] — followed by its viewport (screen-space)
+    /// sprites. Factored out of [`Self::render`] so the single-pass path and the
+    /// opaque/transparent two-pass path share one emission body; `bucket_idx`
+    /// is the bucket's original pipeline index (stable batch-cache key), passed
+    /// through unchanged even when the two-pass path visits buckets out of order.
+    fn emit_bucket
+    (
+      &mut self,
+      bucket_idx : u32,
+      bucket : BucketEmits,
+      used_keys : &mut Vec< BatchKey >,
+    )
+    {
+      // Per-bucket draw state (Copy) — captured before `bucket.sprites` is
+      // moved below, then forwarded into every `SpriteBatchParams`.
+      let bucket_alpha_clip = bucket.alpha_clip;
+      let bucket_occlude = bucket.occlude_overlap;
+
+      // Decide emission strategy. `DrawBatch` is emitted inline at the end of
+      // each bucket's prep so the cross-bucket draw order (batched vs
+      // per-sprite) follows the consumer's declared pipeline.
+      let dispatch = self.classify_bucket( bucket_idx, &bucket );
+
+      match dispatch
+      {
+        BucketDispatch::Batched =>
+        {
+          // Group all same-(sheet, blend, clip) sprites. Order within a group
+          // is the bucket's pre-sorted order, which for `SortMode::None` is the
+          // spawn / iteration order from `Scene` — stable across frames given
+          // identical state.
+          let groups = self.group_sprites( bucket_idx, &bucket.sprites );
+          for ( key, sprites_in_group ) in groups
+          {
+            self.emit_or_update_batch( key, sprites_in_group, bucket_alpha_clip, bucket_occlude );
+            used_keys.push( key );
+            let id = self.batches.get( &key ).expect( "just inserted" ).id;
+            self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
+          }
+        },
+        BucketDispatch::BatchedPreserveOrder { key } =>
+        {
+          // Single-key sorted bucket: one batch, instance-buffer order matches
+          // sort order so a single `DrawBatch` preserves visual correctness
+          // without per-sprite emission.
+          self.emit_or_update_batch( key, bucket.sprites, bucket_alpha_clip, bucket_occlude );
+          used_keys.push( key );
+          let id = self.batches.get( &key ).expect( "just inserted" ).id;
+          self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
+        },
+        BucketDispatch::PerSprite =>
+        {
+          // Sorted multi-key bucket: cannot be batched without backend
+          // `DrawBatch` range support, so emit per-sprite and preserve sort
+          // order via command stream position.
+          for sprite in bucket.sprites
+          {
+            self.cmd_buf.push( RenderCommand::Sprite( sprite ) );
+          }
+        },
+      }
+
+      // Viewport sprites — always per-sprite (viewport-pass batching is not yet
+      // implemented).
+      for sprite in bucket.screen_space
+      {
+        self.cmd_buf.push( RenderCommand::ScreenSpaceSprite( sprite ) );
+      }
     }
 
     /// Pick the emission strategy for one bucket.
@@ -565,6 +667,8 @@ mod private
       &mut self,
       key : BatchKey,
       sprites : Vec< Sprite >,
+      alpha_clip : f32,
+      occlude_overlap : bool,
     )
     {
       if let Some( entry ) = self.batches.get_mut( &key )
@@ -646,6 +750,8 @@ mod private
             sheet : key.sheet,
             blend,
             clip : key.clip,
+            alpha_clip,
+            occlude_overlap,
           },
         }));
         self.cmd_buf.push( RenderCommand::BindBatch( BindBatch { batch : id } ) );

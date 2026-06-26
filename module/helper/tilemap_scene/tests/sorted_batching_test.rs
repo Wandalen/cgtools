@@ -88,6 +88,7 @@ fn atlas_asset( id : &str, path : &str ) -> Asset
     filter : SamplerFilter::Linear,
     mipmap : MipmapMode::Off,
     wrap : WrapMode::Clamp,
+    premultiplied : false,
   }
 }
 
@@ -137,9 +138,9 @@ fn build_spec() -> RenderSpec
       hex : HexConfig { tiling : TilingStrategy::HexFlatTop, grid_stride : ( 72, 64 ) },
       layers : vec!
       [
-        PipelineLayer { id : "terrain".into(), sort : SortMode::None, tint_mask : None },
-        PipelineLayer { id : "units".into(),   sort : SortMode::YAsc, tint_mask : None },
-        PipelineLayer { id : "effects".into(), sort : SortMode::None, tint_mask : None },
+        PipelineLayer { id : "terrain".into(), sort : SortMode::None, tint_mask : None, alpha_clip : 0.0, occlude_overlap : false, opaque : false },
+        PipelineLayer { id : "units".into(),   sort : SortMode::YAsc, tint_mask : None, alpha_clip : 0.0, occlude_overlap : false, opaque : false },
+        PipelineLayer { id : "effects".into(), sort : SortMode::None, tint_mask : None, alpha_clip : 0.0, occlude_overlap : false, opaque : false },
       ],
       global_tint : None,
       viewport_size : None,

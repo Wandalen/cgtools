@@ -372,6 +372,9 @@ mod private
     pub mipmap : MipmapMode,
     /// Wrap mode recorded at creation time; kept for parity with future re-applies.
     pub wrap : WrapMode,
+    /// Premultiplied-alpha flag recorded at creation time; read at draw time to
+    /// pick the premultiplied vs straight "over" blend in `apply_blend`.
+    pub premultiplied : bool,
   }
 
   impl Drop for GpuTexture
@@ -671,12 +674,21 @@ mod private
   /// the RGB factors on the alpha channel would produce wrong framebuffer alpha
   /// (e.g. `src_a^2` under `Normal`) and break readPixels / compositing onto a
   /// transparent canvas background.
-  pub fn apply_blend( gl : &gl::GL, blend : &BlendMode )
+  ///
+  /// `premultiplied` selects the source colour factor for the alpha-compositing
+  /// modes: a premultiplied texture already carries `rgb·a`, so its source factor
+  /// is `ONE` (premultiplied "over"); a straight texture uses `SRC_ALPHA`. Without
+  /// this, a premultiplied texture drawn under `SRC_ALPHA` would be scaled by alpha
+  /// twice (`a²`), darkening every antialiased edge.
+  pub fn apply_blend( gl : &gl::GL, blend : &BlendMode, premultiplied : bool )
   {
+    // For premultiplied sources the colour is pre-scaled by alpha, so the "src·a"
+    // factor becomes plain `ONE`. Affects the alpha-weighted modes (Normal, Add).
+    let src_a = if premultiplied { gl::ONE } else { gl::SRC_ALPHA };
     match blend
     {
       // Color: src + dst. Alpha: standard over.
-      BlendMode::Add => gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
+      BlendMode::Add => gl.blend_func_separate( src_a, gl::ONE, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
       // Approximation: diverges from Photoshop Multiply when src_alpha < 1 — the
       // DST_COLOR factor multiplies dst by raw src.rgb (not src.rgb*src_a), so
       // partially transparent sources darken the destination more than the
@@ -707,10 +719,10 @@ mod private
             &"BlendMode::Overlay is not supported in WebGL2 without an FBO pass; falling back to Normal".into()
           );
         }
-        gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
+        gl.blend_func_separate( src_a, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
       }
-      // Color: src*src_a + dst*(1-src_a). Alpha: standard over.
-      BlendMode::Normal => gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
+      // Color: src*src_a + dst*(1-src_a)  (straight), or src + dst*(1-src_a)  (premultiplied).
+      BlendMode::Normal => gl.blend_func_separate( src_a, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
     }
   }
 
