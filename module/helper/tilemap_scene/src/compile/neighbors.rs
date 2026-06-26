@@ -132,7 +132,7 @@ mod private
   /// object whose id is in `connects_with`. Off-map / empty neighbours
   /// contribute bit 1 only when `"void"` is in `connects_with` (SPEC §15.1).
   #[ must_use ]
-  #[ allow( clippy::implicit_hasher ) ]
+  #[ allow( clippy::implicit_hasher ) ]   // caller passes the frame's fixed-hasher tile_lookup; a generic hasher buys nothing
   pub fn compute_neighbor_bitmask
   (
     pos : ( i32, i32 ),
@@ -182,7 +182,7 @@ mod private
   ///
   /// Off-map neighbours produce `NeighborState { object_ids: &[], max_priority: None }`.
   #[ must_use ]
-  #[ allow( clippy::implicit_hasher ) ]
+  #[ allow( clippy::implicit_hasher ) ]   // caller passes the frame's fixed-hasher tile_lookup; a generic hasher buys nothing
   pub fn neighbor_state_at< 'a >
   (
     pos : ( i32, i32 ),
@@ -236,6 +236,36 @@ mod private
     None
   }
 
+  /// Resolve a cell's id for a `VertexCorners` layer's chosen corner channel.
+  ///
+  /// - `source = None`: the terrain id ([`tile_terrain_id`], first object with a
+  ///   `priority`) — the historical default.
+  /// - `source = Some(layer)`: the id of the first object on the cell whose
+  ///   `global_layer == layer`. Lets independent dual grids share one scene by
+  ///   keying their corner lookups off distinct draw layers (e.g. base terrain
+  ///   vs per-player regions) instead of the single global terrain id.
+  ///
+  /// Returns `None` (→ `VOID_ID` upstream) when the cell has no matching object.
+  #[ must_use ]
+  pub fn tile_corner_id< 'a >
+  (
+    tile : &'a Tile,
+    spec : &RenderSpec,
+    source : Option< &str >,
+  ) -> Option< &'a str >
+  {
+    let Some( layer ) = source else { return tile_terrain_id( tile, spec ); };
+    for object_id in &tile.objects
+    {
+      if let Some( obj ) = find_object( spec, object_id )
+        && obj.global_layer == layer
+      {
+        return Some( object_id.as_str() );
+      }
+    }
+    None
+  }
+
   fn find_object< 'a >( spec : &'a RenderSpec, id : &str ) -> Option< &'a Object >
   {
     spec.objects.iter().find( | o | o.id == id )
@@ -257,4 +287,5 @@ mod_interface::mod_interface!
   exposed use neighbor_state_at;
   exposed use tile_max_priority;
   exposed use tile_terrain_id;
+  exposed use tile_corner_id;
 }

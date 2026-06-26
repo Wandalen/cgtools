@@ -261,6 +261,72 @@ fn validate_rejects_unknown_asset_in_animation()
 }
 
 #[ test ]
+fn validate_rejects_unknown_corner_source_layer()
+{
+  // VertexCorners.corner_source names "ghost_layer", which is not the
+  // global_layer of any object, so corner resolution could only ever fall
+  // back to VOID_ID silently. validate() must flag the misspelling.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: { "default": [ ( sprite_source: VertexCorners( patterns: [], asset: "terrain", corner_source: Some( "ghost_layer" ) ) ) ] },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "unknown corner_source layer must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::UnresolvedRef { kind, id, .. }
+        if *kind == "corner_source layer" && id == "ghost_layer"
+    )),
+    "expected UnresolvedRef for corner_source layer 'ghost_layer', got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_accepts_known_corner_source_layer()
+{
+  // corner_source naming a real object's global_layer must validate clean.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: { "default": [ ( sprite_source: VertexCorners( patterns: [], asset: "terrain", corner_source: Some( "terrain" ) ) ) ] },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  spec.validate().expect( "known corner_source layer validates clean" );
+}
+
+#[ test ]
 fn validate_rejects_missing_default_state()
 {
   // Object.default_state names a key that is not present in the states map.

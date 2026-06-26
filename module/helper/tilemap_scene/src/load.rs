@@ -74,7 +74,7 @@ mod private
     /// Loads, parses, and validates a scene from a file on disk.
     ///
     /// Scene-internal validation is not yet implemented (see [`Validate`]
-    /// for the trait-level note); cross-file Scene → RenderSpec checks run
+    /// for the trait-level note); cross-file Scene → `RenderSpec` checks run
     /// in a separate pass.
     ///
     /// # Errors

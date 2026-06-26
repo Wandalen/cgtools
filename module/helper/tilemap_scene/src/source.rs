@@ -81,6 +81,48 @@ mod private
       patterns : Vec< TriBlendPattern >,
       /// Asset id hosting the patterned sprites.
       asset : String,
+      /// When `true`, pick a **pre-baked oriented frame** per triangle instead
+      /// of rotating a sprite at render time. The dual mesh of a regular hex
+      /// grid only ever appears in six discrete 60°-orientations, so each
+      /// junction shape is baked once per orientation and `{rot}` selects the
+      /// matching one (`transform.rotation` always stays `0`). `{rot}` ranges
+      /// over `0..2` for a fully-symmetric tile — all three corners are this
+      /// layer's own object id (a solid interior) or none are (degenerate void),
+      /// so only ▲/▽ parity differs — and `0..6` otherwise (a mix of present and
+      /// absent corners: an edge with 2 present or a corner with 1). Symmetry is
+      /// decided by counting corners equal to the self id, not by lexical
+      /// equality of the three ids. This keeps seams deterministic (no per-angle
+      /// resampling) and needs no rotation-pivot support in the backend.
+      ///
+      /// When `false` (the default), the legacy behaviour: `{rot}` selects one
+      /// of three pre-baked 120°-rotations keyed to the canonical sort.
+      #[ serde( default ) ]
+      orient_to_grid : bool,
+      /// Which per-cell "channel" the triangle corners resolve from.
+      ///
+      /// `None` (default): the cell's terrain id — the first object on the cell
+      /// with a `priority` (the historical behaviour). `Some(layer)`: the id of
+      /// the first object on the cell whose `global_layer == layer`. This lets
+      /// several independent dual grids live in ONE scene keyed off different
+      /// channels — e.g. a base terrain layer (`corner_source: None`) plus a
+      /// per-player region layer (`corner_source: Some("region")`) drawn from the
+      /// same cells without their corner lookups colliding.
+      #[ serde( default ) ]
+      corner_source : Option< String >,
+      /// Static world-pixel offset added to every emitted tile's position
+      /// (`(dx, dy)`, same units / sign as the grid). `None` (default) = none.
+      /// Lets a layer draw the SAME dual grid shifted — e.g. a grey-tinted copy
+      /// nudged downward as a 2.5D "wall" / drop-shadow under the main terrain.
+      /// The offset moves only the emitted sprite; corner resolution and the
+      /// orient-to-grid frame pick use the true (un-shifted) triangle geometry.
+      ///
+      /// The offset is applied **before** the sprite's position becomes the
+      /// depth-sort key, so an offset tile sorts at its shifted position, not the
+      /// triangle centroid. For a downward-nudged shadow this is usually what you
+      /// want (it sinks in `YAsc`/`YDesc` order); be aware that mixing offset and
+      /// non-offset layers in one sorted bucket can reorder their occlusion.
+      #[ serde( default ) ]
+      offset : Option< ( f32, f32 ) >,
     },
     /// Autotile via edge-endpoint connectivity bitmask (rivers, edge roads). SPEC §5.9.
     EdgeConnectedBitmask
@@ -215,7 +257,10 @@ mod private
     /// Canonicalised, sorted triple of corner object ids. Use `"*"` for
     /// single-slot wildcards.
     pub corners : ( String, String, String ),
-    /// Sprite name template with `{rot}` placeholder (rotation 0..2).
+    /// Sprite name template with `{rot}` placeholder. In legacy mode the index
+    /// ranges over `0..3` (canonical-sort rotation, values 0/1/2); in
+    /// `orient_to_grid` mode it selects the pre-baked discrete orientation
+    /// (`0..2` for a fully-symmetric tile, `0..6` otherwise).
     pub sprite_pattern : String,
     /// Match priority; higher wins ties of equal specificity.
     #[ serde( default ) ]

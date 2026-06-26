@@ -18,7 +18,7 @@ mod private
   use tiles_tools::coordinates::ToDual;
   use tiles_tools::coordinates::hexagonal::{ Axial, Coordinate as HexCoordinate, Flat, Pointy };
   use tiles_tools::coordinates::triangular::{ Coordinate as TriCoordinate, FlatSided, FlatTopped };
-  use crate::compile::neighbors::{ VOID_ID, tile_terrain_id };
+  use crate::compile::neighbors::{ VOID_ID, tile_corner_id };
   use crate::pipeline::TilingStrategy;
   use crate::snapshot::Tile;
   use crate::source::TriBlendPattern;
@@ -79,23 +79,25 @@ mod private
     out
   }
 
-  /// Resolve the three corner "terrain" ids of a triangle against the scene,
-  /// using [`tile_terrain_id`] for each corner. Corners outside the scene
-  /// resolve to [`VOID_ID`].
+  /// Resolve the three corner ids of a triangle against the scene, using
+  /// [`tile_corner_id`] for each corner. `source` selects the corner channel
+  /// (`None` = the cell's terrain id; `Some(layer)` = the cell's object in that
+  /// draw layer). Corners outside the scene resolve to [`VOID_ID`].
   #[ must_use ]
-  #[ allow( clippy::implicit_hasher ) ]
+  #[ allow( clippy::implicit_hasher ) ]   // caller passes the frame's fixed-hasher tile_lookup; a generic hasher buys nothing
   pub fn resolve_corners
   (
     tri : &TriangleContext,
     tile_lookup : &HashMap< ( i32, i32 ), &Tile >,
     spec : &RenderSpec,
+    source : Option< &str >,
   ) -> [ String; 3 ]
   {
     tri.corners.map( | pos |
     {
       match tile_lookup.get( &pos )
       {
-        Some( t ) => tile_terrain_id( t, spec ).unwrap_or( VOID_ID ).to_owned(),
+        Some( t ) => tile_corner_id( t, spec, source ).unwrap_or( VOID_ID ).to_owned(),
         None => VOID_ID.to_owned(),
       }
     })
@@ -103,14 +105,16 @@ mod private
 
   /// Canonicalise three corner terrain ids: sort lexicographically so pattern
   /// matching is insensitive to triangle rotation. Returns the sorted triple
-  /// and a `rotation` u8 in `0..3` capturing which original slot landed in
-  /// slot 0 of the canonical form (for `{rot}` sprite substitution).
+  /// and a `rotation` u8 in `0..3` capturing which original slot landed in slot
+  /// 0 of the canonical form (for legacy `{rot}` sprite substitution).
+  ///
+  /// The `orient_to_grid` path does not use `rotation`; it derives a discrete
+  /// orientation from triangle geometry (see `compile_vertex_pass`).
   #[ must_use ]
-  #[ allow( clippy::needless_pass_by_value ) ]
+  #[ allow( clippy::needless_pass_by_value ) ]   // takes the triple by value: it consumes the owned corners to build the owned canonical triple
   pub fn canonicalize( raw : [ String; 3 ] ) -> ( [ String; 3 ], u8 )
   {
-    // Pair each value with its original index, sort, then record the
-    // permutation by reading out original indices in sorted order.
+    // Pair each value with its original index, sort, then read out the slot.
     let mut indexed : [ ( usize, String ); 3 ] =
     [
       ( 0, raw[ 0 ].clone() ),
