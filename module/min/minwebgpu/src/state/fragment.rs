@@ -2,6 +2,9 @@
 mod private
 {
   use crate::*;
+  // Shadow the glob-imported collection_tools `Vec` (printed under its `Dlist` alias)
+  // with std `Vec`, so sequence-conversion errors name `Vec`, not `Dlist`.
+  use std::vec::Vec;
 
   /// A builder for creating a `web_sys::GpuFragmentState`.
   #[ derive( Clone ) ]
@@ -61,7 +64,7 @@ mod private
     fn from( value: FragmentState< '_ > ) -> Self 
     {
       let targets : Vec< web_sys::GpuColorTargetState > = value.targets.into_iter().map( | t | t.into() ).collect();
-      let state = web_sys::GpuFragmentState::new( &value.module, &targets.into() );
+      let state = web_sys::GpuFragmentState::new( &value.module, &js_option_vec( targets ) );
 
       if let Some( v ) = value.entry_point { state.set_entry_point( v ); }
 

@@ -2,6 +2,9 @@
 mod private
 {
   use crate::*;
+  // Shadow the glob-imported collection_tools `Vec` (printed under its `Dlist` alias)
+  // with std `Vec`, so sequence-conversion errors name `Vec`, not `Dlist`.
+  use std::vec::Vec;
 
   /// A builder for creating a `web_sys::GpuRenderPassDescriptor`.
   #[ derive( Clone ) ]
@@ -25,7 +28,7 @@ mod private
     /// optimization or error checking.
     ///
     /// Defaults to `None`/ 50000000.
-    max_draw_count : Option< f64 >
+    max_draw_count : Option< u32 >
   }
 
   impl< 'a > RenderPassDescriptor< 'a > 
@@ -77,7 +80,7 @@ mod private
     }
 
     /// Sets the maximum draw count for the render pass.
-    pub fn max_draw_count( mut self, count : f64 ) -> Self
+    pub fn max_draw_count( mut self, count : u32 ) -> Self
     {
       self.max_draw_count = Some( count );
       self
@@ -87,7 +90,7 @@ mod private
   impl From< RenderPassDescriptor< '_ > > for web_sys::GpuRenderPassDescriptor {
     fn from( value: RenderPassDescriptor< '_ > ) -> Self 
     {
-      let desc = web_sys::GpuRenderPassDescriptor::new( &value.color_attachments.into() );
+      let desc = web_sys::GpuRenderPassDescriptor::new( &js_option_vec( value.color_attachments ) );
 
       if let Some( v ) = value.depth_stencil_attachment { desc.set_depth_stencil_attachment( &v ); }
       if let Some( v ) = value.label { desc.set_label( v ); }

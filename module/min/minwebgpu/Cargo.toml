@@ -147,6 +147,7 @@ web-sys = { workspace = true, optional = true, features = [
   'GpuMultisampleState',
 
   'GpuRenderPipelineDescriptor',
+  'GpuAutoLayoutMode',
   'GpuRenderPassDescriptor',
   'GpuRenderPassDepthStencilAttachment',
   'GpuRenderPassColorAttachment',
@@ -154,6 +155,7 @@ web-sys = { workspace = true, optional = true, features = [
   'GpuStoreOp',
   'GpuTextureView',
   'GpuTextureViewDescriptor',
+  'GpuTextureAspect',
 
   'GpuCommandEncoder',
   'GpuCommandBuffer',

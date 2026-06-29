@@ -11,7 +11,7 @@ mod private
     usage : u32,
     /// The size of the buffer in bytes.
     /// Defaults to `0` and should be set to a non-zero value before creation.
-    size : f64,
+    size : u32,
     /// A boolean flag indicating whether the buffer should be mapped for writing
     /// immediately upon creation. This is useful for buffers that need to be
     /// populated with data right away.
@@ -28,7 +28,7 @@ mod private
     pub fn new( usage : u32 ) -> Self
     {
       let label = None;
-      let size = 0.0;
+      let size = 0;
       let mapped_at_creation = None;
 
       BufferDescriptor
@@ -43,19 +43,19 @@ mod private
     /// Set size from the provided type
     pub fn size< T >( mut self ) -> Self
     {
-      self.size = std::mem::size_of::< T >() as f64;
+      self.size = std::mem::size_of::< T >() as u32;
       self
     }
 
     /// Set size from the provided variable, i.e. use std::mem::size_of_val
     pub fn size_from_var< T : ?Sized >( mut self, var : &T ) -> Self
     {
-      self.size = std::mem::size_of_val( var ) as f64;
+      self.size = std::mem::size_of_val( var ) as u32;
       self
     }
 
     /// Set size from the provided value
-    pub fn size_from_value( mut self, val : f64 ) -> Self
+    pub fn size_from_value( mut self, val : u32 ) -> Self
     {
       self.size = val;
       self

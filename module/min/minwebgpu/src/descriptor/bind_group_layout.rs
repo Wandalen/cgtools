@@ -3,6 +3,9 @@ mod private
 {
 
   use crate::*;
+  // Shadow the glob-imported collection_tools `Vec` (printed under its `Dlist` alias)
+  // with std `Vec`, so sequence-conversion errors name `Vec`, not `Dlist`.
+  use std::vec::Vec;
 
   /// Describes the layout for a WebGPU bind group.
   #[ derive( Clone ) ]
@@ -104,7 +107,7 @@ mod private
         entry.set_visibility( entry.get_visibility() | value.visibility );
       }
 
-      let layout = web_sys::GpuBindGroupLayoutDescriptor::new( &value.entries.into() );
+      let layout = web_sys::GpuBindGroupLayoutDescriptor::new( &value.entries );
       layout
     }    
   }

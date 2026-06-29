@@ -202,7 +202,7 @@ let bind_group = device.create_bind_group(&gpu::BindGroupDescriptor {
 ## 🎮 Examples
 
 - **[Hello Triangle](../../../examples/minwebgpu/hello_triangle/)** - Basic WebGPU triangle
-- **[Deferred Rendering](../../../examples/minwebgpu/deffered_rendering/)** - Advanced lighting with WebGPU
+- **[Deferred Rendering](../../../examples/minwebgpu/deferred_rendering/)** - Advanced lighting with WebGPU
 - **[Compute Particles](../../../examples/minwebgpu/compute_particles/)** - GPU particle simulation
 
 ## 🔧 Advanced Features

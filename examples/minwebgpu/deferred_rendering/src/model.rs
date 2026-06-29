@@ -3,7 +3,7 @@ use minwebgpu::
   self as gl,
   web_sys
 };
-pub const NUM_MODELS : usize = 9;
+pub const NUM_MODELS : usize = 100;
 
 #[ repr( C ) ]
 #[derive( Default, Clone, Copy, gl::mem::Pod, gl::mem::Zeroable ) ]

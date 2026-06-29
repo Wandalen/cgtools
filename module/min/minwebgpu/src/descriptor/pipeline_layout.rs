@@ -2,6 +2,9 @@
 mod private
 {
   use crate::*;
+  // Shadow the glob-imported collection_tools `Vec` (printed under its `Dlist` alias)
+  // with std `Vec`, so sequence-conversion errors name `Vec`, not `Dlist`.
+  use std::vec::Vec;
 
   /// Describes the configuration for creating a WebGPU pipeline layout.
   #[ derive( Default, Clone ) ]
@@ -52,7 +55,7 @@ mod private
   {
     fn from( value: PipelineLayoutDescriptor< '_ > ) -> Self 
     {
-      let desc =  web_sys::GpuPipelineLayoutDescriptor::new( &value.bind_group_layouts.into() );
+      let desc =  web_sys::GpuPipelineLayoutDescriptor::new( &js_option_vec( value.bind_group_layouts ) );
 
       if let Some( v ) = value.label { desc.set_label( v ); }
 

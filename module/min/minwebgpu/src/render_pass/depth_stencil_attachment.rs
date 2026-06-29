@@ -145,7 +145,7 @@ mod private
   {
     fn from( value: DepthStencilAttachment< '_ > ) -> Self 
     {
-      let a = web_sys::GpuRenderPassDepthStencilAttachment::new( value.view );
+      let a = web_sys::GpuRenderPassDepthStencilAttachment::new_with_gpu_texture_view( value.view );
 
       a.set_depth_clear_value( value.depth_clear_value );
       a.set_depth_read_only( value.depth_read_only ); 

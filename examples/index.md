@@ -128,7 +128,7 @@ Example | Description
 
 Example | Description
 --- | ---
-[Deferred Rendering](./minwebgpu/deffered_rendering/readme.md) | Deferred rendering pipeline using WebGPU
+[Deferred Rendering](./minwebgpu/deferred_rendering/readme.md) | Deferred rendering pipeline using WebGPU
 [Hello Triangle](./minwebgpu/hello_triangle/readme.md) | Basic WebGPU triangle rendering
 
 ## WGPU Examples

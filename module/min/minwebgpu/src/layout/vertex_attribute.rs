@@ -7,8 +7,8 @@ mod private
   #[ derive( Clone ) ]
   pub struct VertexAttribute
   {
-    /// Offset of the attribute. Default: 0.0
-    offset : f64,
+    /// Offset of the attribute. Default: 0
+    offset : u32,
     /// Location in the shader. Default: 0
     location : u32,
     /// Attribute's format. Default: Float32x3
@@ -20,7 +20,7 @@ mod private
     /// Creates a new `VertexAttribute` with default values.
     pub fn new() -> Self
     {
-      let offset = 0.0;
+      let offset = 0;
       let location = 0;
       let format = GpuVertexFormat::Float32x3;
       VertexAttribute
@@ -48,12 +48,12 @@ mod private
     /// Sets the offset from the size of a type
     pub fn offset< T : Sized >( mut self ) -> Self
     {
-      self.offset = std::mem::size_of::< T >() as f64;
+      self.offset = std::mem::size_of::< T >() as u32;
       self
     }
 
     /// Sets the offset from the provided value
-    pub fn offset_from_value( mut self, offset : f64 ) -> Self
+    pub fn offset_from_value( mut self, offset : u32 ) -> Self
     {
       self.offset = offset;
       self

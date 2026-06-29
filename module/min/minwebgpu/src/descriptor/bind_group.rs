@@ -2,6 +2,9 @@
 mod private
 {
   use crate::*;
+  // Shadow the glob-imported collection_tools `Vec` (printed under its `Dlist` alias)
+  // with std `Vec`, so sequence-conversion errors name `Vec`, not `Dlist`.
+  use std::vec::Vec;
 
   /// Describes the configuration for creating a WebGPU bind group.
   #[ derive( Clone ) ]
@@ -60,7 +63,7 @@ mod private
     }
 
     /// Creates a `GpuBindGroupEntry` from a resource and adds it to the descriptor.
-    pub fn entry_from_resource< T : BindingResource >( self, resource : &T ) -> Self
+    pub fn entry_from_resource< T : AsBindingResource >( self, resource : &T ) -> Self
     {
       let entry = BindGroupEntry::new( resource );
       self.entry( entry )
@@ -86,7 +89,7 @@ mod private
         }
       }
 
-      let desc = web_sys::GpuBindGroupDescriptor::new( &value.entries.into() , value.layout );
+      let desc = web_sys::GpuBindGroupDescriptor::new( &value.entries , value.layout );
 
       if let Some( v ) = value.label { desc.set_label( v ); }
 

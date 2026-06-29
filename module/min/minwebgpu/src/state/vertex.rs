@@ -2,6 +2,9 @@
 mod private
 {
   use crate::*;
+  // Shadow the glob-imported collection_tools `Vec` (printed under its `Dlist` alias)
+  // with std `Vec`, so sequence-conversion errors name `Vec`, not `Dlist`.
+  use std::vec::Vec;
 
   /// A builder for creating a `web_sys::GpuVertexState`.
   #[ derive( Clone ) ]
@@ -63,7 +66,7 @@ mod private
       let state = web_sys::GpuVertexState::new( &value.module );
 
       if let Some( v ) = value.entry_point { state.set_entry_point( v ); }
-      if !value.buffers.is_empty() { state.set_buffers( &value.buffers.into() ); }
+      if !value.buffers.is_empty() { state.set_buffers( &js_option_vec( value.buffers ) ); }
 
       state
     }   

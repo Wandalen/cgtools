@@ -2,6 +2,9 @@
 mod private
 {
   use  crate::*;
+  // Shadow the glob-imported collection_tools `Vec` (printed under its `Dlist` alias)
+  // with std `Vec`, so sequence-conversion errors name `Vec`, not `Dlist`.
+  use std::vec::Vec;
 
   #[ derive( Clone ) ]
   /// Builder struct for the GpuTextureDescriptor.
@@ -154,8 +157,8 @@ mod private
     {
       let desc = web_sys::GpuTextureDescriptor::new
       (
-        value.format, 
-        &Vec::from( value.size ).into(), 
+        value.format,
+        &number_vec( value.size ),
         value.usage
       );
 
@@ -166,8 +169,7 @@ mod private
 
       if value.view_formats.len() > 0
       {
-        let view_formats : Vec< u32 > = value.view_formats.into_iter().map( | f | f as u32 ).collect();
-        desc.set_view_formats( &view_formats.into() );
+        desc.set_view_formats( &js_string_vec( value.view_formats ) );
       }
 
       desc

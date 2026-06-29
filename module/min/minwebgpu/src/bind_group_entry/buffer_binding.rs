@@ -8,10 +8,10 @@ mod private
   {
     /// A reference to the underlying WebGPU buffer object.
     buffer : &'a web_sys::GpuBuffer,
-    /// Defaults to `0.0`
-    offset : Option< f64 >,
+    /// Defaults to `0`
+    offset : Option< u32 >,
     /// Defaults to the size of the buffer, if offset is omitted aswell
-    size : Option< f64 >
+    size : Option< u32 >
   }
 
   impl< 'a > BufferBinding< 'a >  
@@ -31,14 +31,14 @@ mod private
     }
 
     /// Sets the offset for the buffer binding.
-    pub fn offset( mut self, offset : f64 ) -> Self
+    pub fn offset( mut self, offset : u32 ) -> Self
     {
       self.offset = Some( offset );
       self
-    }    
+    }
 
     /// Sets the size of the buffer binding.
-    pub fn size( mut self, size : f64 ) -> Self
+    pub fn size( mut self, size : u32 ) -> Self
     {
       self.size = Some( size );
       self
