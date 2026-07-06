@@ -23,6 +23,33 @@ cd cgtools/examples/minwebgl/hexagonal_grid
 trunk serve --release
 ```
 
+### Cloning a smaller copy
+
+This repository is large because it carries example assets (`assets/`) and demo
+crates (`examples/`). A full clone downloads all of it and the whole history.
+Depending on what you are doing, you can pull much less:
+
+```bash
+# Skip history (fast, keeps assets/examples so demos still run):
+git clone --depth 1 https://github.com/Wandalen/cgtools
+
+# Fetch blobs lazily on demand instead of all up front:
+git clone --filter=blob:none https://github.com/Wandalen/cgtools
+```
+
+If you only need the libraries (working under `module/`, not running the
+browser demos), combine a blobless partial clone with a sparse checkout so
+`assets/` and `examples/` are never materialized on disk:
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/Wandalen/cgtools
+cd cgtools
+git sparse-checkout set module        # add 'examples' 'assets' later if you need them
+```
+
+Note: these reduce what *you* download/check out; they do not change the size
+of the repository on the server.
+
 ## Usage
 
 Add to `Cargo.toml`:
