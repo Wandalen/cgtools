@@ -29,6 +29,7 @@ Cargo.lock
 *.db
 *.tmp
 *.build
+*.exe
 *.code-workspace
 .warchive*
 -*
