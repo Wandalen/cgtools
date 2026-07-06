@@ -2,6 +2,13 @@
 name = "behaviour_tree"
 version = "0.1.0"
 edition = "2024"
+include = [
+    "src/**/*",
+    "Cargo.toml",
+    "readme*",
+    "license*",
+    "changelog*",
+]
 
 [dependencies]
 

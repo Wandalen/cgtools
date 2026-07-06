@@ -2,6 +2,14 @@
 name = "minwgpu"
 version = "0.1.0"
 edition = "2024"
+include = [
+    "src/**/*",
+    "spec.md",
+    "Cargo.toml",
+    "readme*",
+    "license*",
+    "changelog*",
+]
 
 [dependencies]
 wgpu.workspace = true
