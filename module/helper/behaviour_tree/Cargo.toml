@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 description = "Behavior tree system for game AI decision making, with action, condition, composite, and decorator nodes"
+repository = "https://github.com/Wandalen/cgtools"
 include = [
     "src/**/*",
     "Cargo.toml",

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 description = "Minimal, opinionated toolkit that reduces boilerplate for common wgpu patterns (context, buffers, textures)"
+repository = "https://github.com/Wandalen/cgtools"
 include = [
     "src/**/*",
     "spec.md",
