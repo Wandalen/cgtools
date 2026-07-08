@@ -396,6 +396,7 @@ mod private
             blend : layer.behaviour.blend,
             pivot : object.pivot,
             alpha_pulse : resolve_alpha_pulse( ctx.spec, &layer.behaviour.effects ),
+            pulse_anchor : ctx.time_seconds,
           });
         }
       }
@@ -432,20 +433,25 @@ mod private
     let mut tint = tinted( layer_tint, rv.alpha );
 
     // Per-frame alpha pulse (see `ResolvedVertexSprite::alpha_pulse`): a raised-
-    // cosine wave in `[0, 1]` off the master clock, at `min` when `t = 0`, easing
-    // to `max` at the half period (smooth, zero slope at both ends, no camera
-    // dependence). The pulse fades the WHOLE tint — RGB *and* alpha by the same
-    // factor — not the alpha alone: the sprite shaders sample premultiplied
-    // atlases (`frag = tex * tint`), where a valid colour keeps `rgb ≤ a`.
-    // Scaling only alpha would leave RGB over-bright as coverage drops, so the
-    // edge haloes lighter than the fill (obvious on a neutral tint like the grey
-    // selection, hidden under a saturated one like the red attack overlay).
-    // Scaling all four channels is exactly a premultiplied fade toward
-    // transparent, so `min: 0, max: 1` breathes cleanly from invisible to the
-    // layer's own alpha and back.
-    if let Some( ( min, max, freq ) ) = rv.alpha_pulse
+    // cosine wave in `[0, 1]`, at `min` when its phase `t = 0`, easing to `max`
+    // at the half period (smooth, zero slope at both ends, no camera dependence).
+    // `restart_on_spawn` phases off `pulse_anchor` (the clock at the last
+    // structural resolve) so the wave starts at `min` each time the layer's
+    // content changes — e.g. the attack overlay fading in from 0 the instant a
+    // unit is selected; otherwise it free-runs off the global clock.
+    //
+    // The pulse fades the WHOLE tint — RGB *and* alpha by the same factor — not
+    // the alpha alone: the sprite shaders sample premultiplied atlases
+    // (`frag = tex * tint`), where a valid colour keeps `rgb ≤ a`. Scaling only
+    // alpha would leave RGB over-bright as coverage drops, so the edge haloes
+    // lighter than the fill (obvious on a neutral tint like the grey selection,
+    // hidden under a saturated one like the red attack overlay). Scaling all four
+    // channels is exactly a premultiplied fade toward transparent, so `min: 0,
+    // max: 1` breathes cleanly from invisible to the layer's own alpha and back.
+    if let Some( ( min, max, freq, restart_on_spawn ) ) = rv.alpha_pulse
     {
-      let wave = 0.5 - 0.5 * ( core::f32::consts::TAU * freq * ctx.time_seconds ).cos();
+      let t = if restart_on_spawn { ( ctx.time_seconds - rv.pulse_anchor ).max( 0.0 ) } else { ctx.time_seconds };
+      let wave = 0.5 - 0.5 * ( core::f32::consts::TAU * freq * t ).cos();
       let k = min + ( max - min ) * wave;
       tint = [ tint[ 0 ] * k, tint[ 1 ] * k, tint[ 2 ] * k, tint[ 3 ] * k ];
     }
@@ -804,14 +810,20 @@ mod private
     alpha : f32,
     blend : BlendMode,
     pivot : ( f32, f32 ),
-    /// Resolved `AlphaPulse` effect `( min, max, frequency_hz )` from the layer's
-    /// `behaviour.effects`, or `None`. Static per layer, so it is cached here
-    /// (does not invalidate on a clock tick); [`project_vertex_sprite`] evaluates
-    /// the wave per frame off `ctx.time_seconds`, so the pulse animates without
-    /// re-running the structural resolve. `min`/`max` are multipliers on the base
-    /// alpha (so `min: 0, max: 1` breathes from fully transparent to the layer's
-    /// own alpha and back).
-    alpha_pulse : Option< ( f32, f32, f32 ) >,
+    /// Resolved `AlphaPulse` effect `( min, max, frequency_hz, restart_on_spawn )`
+    /// from the layer's `behaviour.effects`, or `None`. Static per layer, so it is
+    /// cached here (does not invalidate on a clock tick); [`project_vertex_sprite`]
+    /// evaluates the wave per frame off `ctx.time_seconds`, so the pulse animates
+    /// without re-running the structural resolve. `min`/`max` are multipliers on
+    /// the base alpha (so `min: 0, max: 1` breathes from fully transparent to the
+    /// layer's own alpha and back). When `restart_on_spawn`, the wave is phased
+    /// off [`Self::pulse_anchor`] instead of the global clock.
+    alpha_pulse : Option< ( f32, f32, f32, bool ) >,
+    /// Master-clock time (seconds) captured when this sprite was resolved — i.e.
+    /// at the last structural rebuild, which reruns on any spawn/despawn/move. A
+    /// `restart_on_spawn` pulse uses `time_seconds - pulse_anchor` as its phase,
+    /// so it restarts from `min` each time the layer's content changes.
+    pulse_anchor : f32,
   }
 
   /// Revision-keyed memo of the dual-grid vertex pass.
@@ -1091,14 +1103,14 @@ mod private
   /// simply skipped (effect resolution is best-effort — a missing effect must not
   /// fail the whole frame compile). Cheap (a linear scan over the spec's few
   /// effects), and called only from the revision-cached structural resolve.
-  fn resolve_alpha_pulse( spec : &RenderSpec, effects : &[ EffectRef ] ) -> Option< ( f32, f32, f32 ) >
+  fn resolve_alpha_pulse( spec : &RenderSpec, effects : &[ EffectRef ] ) -> Option< ( f32, f32, f32, bool ) >
   {
     for eff_ref in effects
     {
       let Some( eff ) = spec.effects.iter().find( | e | e.id == eff_ref.0 ) else { continue };
-      if let EffectKind::AlphaPulse { min, max, frequency } = eff.kind
+      if let EffectKind::AlphaPulse { min, max, frequency, restart_on_spawn } = eff.kind
       {
-        return Some( ( min, max, frequency ) );
+        return Some( ( min, max, frequency, restart_on_spawn ) );
       }
     }
     None

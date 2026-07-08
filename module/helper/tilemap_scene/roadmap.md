@@ -165,11 +165,14 @@ game use-case demands one.
    `Scene.players[i].color` for team-coloured units.
 2. **`Effects` (`VertexDisplace` / `AlphaPulse` / `ColorShift`).**
    `AlphaPulse` is plumbed for `VertexCorners` layers: `resolve_alpha_pulse`
-   folds the effect's `(min, max, frequency)` into the revision-cached vertex
-   resolve, and the per-frame project tier evaluates a raised-cosine wave off
-   the master clock, scaling the whole premultiplied tint. `VertexDisplace` /
-   `ColorShift` still pass references through only — real work is adapter-side
-   shader support, largely blocked on backend.
+   folds the effect's `(min, max, frequency, restart_on_spawn)` into the
+   revision-cached vertex resolve, and the per-frame project tier evaluates a
+   raised-cosine wave scaling the whole premultiplied tint. `restart_on_spawn`
+   phases the wave off `pulse_anchor` (the clock at the last structural resolve)
+   so it restarts from `min` on any spawn/despawn/move, instead of free-running
+   off the global clock. `VertexDisplace` / `ColorShift` still pass references
+   through only — real work is adapter-side shader support, largely blocked on
+   backend.
 3. **`Validate` rule implementation.** `validate.rs` has TODO-comments for
    every SPEC §16 rule (unresolved refs, illegal source nesting, anchor ↔
    source compatibility, default_state existence, reserved ids, tiling

@@ -425,6 +425,15 @@ mod private
       max : f32,
       /// Oscillation frequency in Hz.
       frequency : f32,
+      /// When `true`, the pulse phase is anchored to the sprite's most recent
+      /// (re)appearance rather than the free-running master clock, so it starts
+      /// from phase 0 (`min`) each time the layer's content changes — e.g. the
+      /// attack-target overlay restarting its fade-in the instant the player
+      /// selects a unit. Implemented for dual-grid (`VertexCorners`) layers as
+      /// the clock captured at the last structural resolve (which reruns on any
+      /// spawn/despawn/move). Default `false` (free-running global phase).
+      #[ serde( default ) ]
+      restart_on_spawn : bool,
     },
     /// Modulate sprite colour toward a target colour over time.
     ColorShift

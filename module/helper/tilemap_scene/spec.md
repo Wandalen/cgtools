@@ -283,7 +283,7 @@ Effect(
     id: "wind_sway",
     kind: VertexDisplace(axis: X, amplitude: 2.0, frequency: 0.8),
     // Other kinds:
-    // AlphaPulse(min: 0.5, max: 1.0, frequency: 2.0),
+    // AlphaPulse(min: 0.5, max: 1.0, frequency: 2.0, restart_on_spawn: false),
     // ColorShift(target: "#ffaa00", amplitude: 0.2, frequency: 0.5),
     phase_offset: HashCoord,
 )
@@ -651,6 +651,13 @@ premultiplied tint (RGB *and* alpha together, so `min: 0, max: 1` breathes from
 fully transparent to the layer's own alpha and back). The pulse is resolved once
 into the structural vertex cache and evaluated per frame, so it animates without
 re-running the resolve.
+
+`AlphaPulse.restart_on_spawn` (default `false`) phases the wave off the sprite's
+most recent (re)appearance instead of the free-running clock, so it starts at
+`min` each time the layer's content changes — e.g. an attack-target overlay
+fading in from 0 the instant a unit is selected. For dual-grid (`VertexCorners`)
+layers this anchor is the clock captured at the last structural resolve, which
+reruns on any spawn/despawn/move.
 
 ## 7. Animations and Synchronization
 
