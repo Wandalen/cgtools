@@ -52,7 +52,9 @@ Used by `examples/minwebgl/slay_map`.
 
 **Other infrastructure**
 
-- `Camera` with translate + uniform zoom; `viewport_size` source precedence `pipeline.viewport_size` → `camera.viewport_size`
+- `Camera` with translate + uniform zoom; `viewport_size` source precedence `pipeline.viewport_size` → `camera.viewport_size`. `Camera::to_view_mat3` exposes the world→screen projection as a column-major 3×3 so a GPU backend applies it once per frame — world-space draws emit at unit scale in world coordinates, making a pan/zoom a single view-matrix change instead of a per-sprite re-projection (and, for a pan, an idle-replay cache hit)
+- `Renderer::set_disabled_buckets(mask: u64)` — diagnostic / perf layer gate; bit `i` skips the `i`-th `pipeline.layers` bucket (its live batches are released, depth pinning still divides by the full count so the others' depths don't shift). Changing the mask invalidates the idle-replay cache
+- `Renderer::set_batch_id_base(base: u32)` — offsets `ResourceId<Batch>` allocation so several renderers can share one backend without batch-id collisions (e.g. main / static-bake / region-bake). Must be called before the first `render()`
 - `Scene.seed: Option<u64>` — folds to `u32` salt for `hash_coord`; deterministic across frames
 - `FrameSpec::anchor` — per-frame pixel anchor, overrides `Object.pivot` when set; threaded via `CompiledAssets.sprite_anchors`
 - RON + serde loader (`RenderSpec::load`, `Scene::load`) with validation hooks
@@ -82,16 +84,22 @@ Used by `examples/minwebgl/slay_map`.
     fingerprint)` matches the snapshot from the previous call, returns
     the previously emitted command slice verbatim — no scene walk,
     no command rebuild. Exposed via `Renderer::cache_hits()` for
-    consumer telemetry.
+    consumer telemetry. The camera fingerprint deliberately EXCLUDES
+    `world_center`: world-space draws carry world coordinates and the
+    backend applies the pan as a GPU view matrix (`Camera::to_view_mat3`),
+    so a pan is a cache HIT and the caller feeds the new matrix to the
+    backend out-of-band. `zoom` and `viewport_size` still invalidate
+    (viewport-anchored draws depend on them).
   - **Vertex-resolve cache:** the dual-grid `VertexCorners` pass is split
     into a camera/clock-INDEPENDENT *resolve* tier (triangle enumeration +
     per-triangle corner resolution + pattern match + frame-name building,
-    recorded in world space) and a cheap per-frame *project* tier (camera
-    projection + global-tint fold). The resolve tier is memoised on
-    `scene.revision()`, so an animating-but-idle board (clock ticking,
-    nothing spawned/despawned) skips the whole triangle / pattern / string
-    walk and only re-projects. Inert for specs without `VertexCorners`
-    layers.
+    recorded in world space) and a cheap per-frame *project* tier (anchor
+    pivot + global-tint fold + alpha-pulse wave). Since the camera is now
+    applied on the GPU, the project tier no longer projects — it stays in
+    world space, so it is independent of pan/zoom. The resolve tier is
+    memoised on `scene.revision()`, so an animating-but-idle board (clock
+    ticking, nothing spawned/despawned) skips the whole triangle / pattern
+    / string walk. Inert for specs without `VertexCorners` layers.
   - **Batch emission (SortMode::None buckets):** sprites grouped by
     `(bucket, sheet, blend, clip)` into instanced batches. First
     encounter emits `CreateSpriteBatch` + `BindBatch` + N×
@@ -155,10 +163,13 @@ game use-case demands one.
    tint multiplies the global tint so per-player region overlays can be coloured
    independently. Still open: `Masked` + `TeamColor` resolution against
    `Scene.players[i].color` for team-coloured units.
-2. **`Effects` (`VertexDisplace` / `AlphaPulse` / `ColorShift`).** Compile
-   layer just passes effect references through; real work is adapter-side
-   shader support. Largely blocked on backend. Consider dropping the variants
-   entirely if no game asks — they're declared but not plumbed.
+2. **`Effects` (`VertexDisplace` / `AlphaPulse` / `ColorShift`).**
+   `AlphaPulse` is plumbed for `VertexCorners` layers: `resolve_alpha_pulse`
+   folds the effect's `(min, max, frequency)` into the revision-cached vertex
+   resolve, and the per-frame project tier evaluates a raised-cosine wave off
+   the master clock, scaling the whole premultiplied tint. `VertexDisplace` /
+   `ColorShift` still pass references through only — real work is adapter-side
+   shader support, largely blocked on backend.
 3. **`Validate` rule implementation.** `validate.rs` has TODO-comments for
    every SPEC §16 rule (unresolved refs, illegal source nesting, anchor ↔
    source compatibility, default_state existence, reserved ids, tiling

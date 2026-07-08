@@ -45,7 +45,7 @@ mod private
   use crate::layer::{ LayerBehaviour, ObjectLayer, TintBehaviour };
   use crate::object::Object;
   use crate::pipeline::{ SortMode, TilingStrategy };
-  use crate::resource::{ SpriteRef, TintRef };
+  use crate::resource::{ EffectKind, EffectRef, SpriteRef, TintRef };
   use crate::compile::viewport::{ tiled_positions, viewport_transform };
   use crate::instance::{ Instance, Placement };
   use crate::scene::Scene;
@@ -78,13 +78,18 @@ mod private
     global_tint : [ f32; 4 ],
   }
 
-  fn make_transform( sx : f32, sy : f32, zoom : f32 ) -> Transform
+  /// Build a **world-space** [`Transform`] at `( wx, wy )` with unit scale and no
+  /// rotation. Pan and zoom are supplied by the camera view matrix that the
+  /// backend applies on the GPU (see [`crate::compile::camera::Camera::to_view_mat3`]),
+  /// so a world instance always carries scale `1` and never has to be rewritten
+  /// when the camera moves — that is the whole point of emitting world-space.
+  fn make_transform( wx : f32, wy : f32 ) -> Transform
   {
     Transform
     {
-      position : [ sx, sy ],
+      position : [ wx, wy ],
       rotation : 0.0,
-      scale : [ zoom, zoom ],
+      scale : [ 1.0, 1.0 ],
       skew : [ 0.0, 0.0 ],
       depth : 0.0,
     }
@@ -97,13 +102,17 @@ mod private
     [ r, g, b, a * alpha ]
   }
 
-  /// Shift the projected scene-anchor point so the sprite's anchor pixel
+  /// Shift the world-space scene-anchor point so the sprite's anchor pixel
   /// lands exactly on the original scene position.
   ///
   /// Backends render sprites with a bottom-left anchor (quad extends
   /// up-right from `transform.position`). To place some arbitrary anchor
   /// point of the sprite onto the scene position, we shift
-  /// `transform.position` in screen space.
+  /// `transform.position` by the anchor offset **in world pixels**. The camera
+  /// view matrix (applied by the backend) then scales that offset by zoom along
+  /// with the position, so the anchor stays glued at any zoom — the same result
+  /// the old screen-space `offset * zoom` produced, without depending on the
+  /// camera here.
   ///
   /// Priority for picking the anchor point:
   ///
@@ -114,16 +123,15 @@ mod private
   ///    Used as a fallback when no per-frame anchor is set.
   fn apply_pivot
   (
-    sx : f32,
-    sy : f32,
-    zoom : f32,
+    wx : f32,
+    wy : f32,
     pivot : ( f32, f32 ),
     sprite_id : tilemap_renderer::types::ResourceId< tilemap_renderer::types::asset::Sprite >,
     compiled : &CompiledAssets,
   ) -> ( f32, f32 )
   {
     let Some( s ) = compiled.assets.sprites.iter().find( | s | s.id == sprite_id )
-    else { return ( sx, sy ); };
+    else { return ( wx, wy ); };
 
     let w = s.region[ 2 ];
     let h = s.region[ 3 ];
@@ -132,14 +140,14 @@ mod private
     // top-left in image-y-down convention; the sprite renders with Y-up in
     // world, so the offset from sprite bottom in world is `h - ay`. That
     // flipped value is what we subtract to align the anchor pixel with
-    // (sx, sy).
+    // (wx, wy).
     if let Some( [ ax, ay ] ) = compiled.sprite_anchors.get( &sprite_id ).copied()
     {
-      return ( sx - ax * zoom, sy - ( h - ay ) * zoom );
+      return ( wx - ax, wy - ( h - ay ) );
     }
 
     // Normalized pivot fallback.
-    ( sx - pivot.0 * w * zoom, sy - pivot.1 * h * zoom )
+    ( wx - pivot.0 * w, wy - pivot.1 * h )
   }
 
   fn hex_world_pixel
@@ -387,6 +395,7 @@ mod private
             alpha : layer.behaviour.alpha,
             blend : layer.behaviour.blend,
             pivot : object.pivot,
+            alpha_pulse : resolve_alpha_pulse( ctx.spec, &layer.behaviour.effects ),
           });
         }
       }
@@ -397,20 +406,21 @@ mod private
 
   /// **Project tier** of the dual-grid vertex pass — the cheap, per-frame half.
   ///
-  /// Turns one cached world-space [`ResolvedVertexSprite`] into a screen-space
+  /// Turns one cached world-space [`ResolvedVertexSprite`] into a world-space
   /// draw tuple `( sort_x, sort_y, Sprite )`. Folds the scene-global tint in
   /// here (so a global-tint change does not invalidate the resolve cache) and
-  /// applies the camera (`project` + pivot + zoom). Bit-identical to the tail
-  /// of the former `compile_vertex_pass`.
+  /// applies the anchor pivot. The camera is **not** applied here — the emitted
+  /// `Sprite` carries world coordinates and the backend projects it — so this is
+  /// now independent of pan/zoom (only the structural resolve, already cached,
+  /// and the tint remain).
   fn project_vertex_sprite
   (
     rv : &ResolvedVertexSprite,
     ctx : &FrameContext< '_ >,
   ) -> ( f32, f32, Sprite )
   {
-    let ( sx, sy ) = ctx.camera.project( rv.world );
-    let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, rv.pivot, rv.sprite, ctx.compiled );
-    let transform = make_transform( sx, sy, ctx.camera.zoom );
+    let ( sx, sy ) = apply_pivot( rv.world.0, rv.world.1, rv.pivot, rv.sprite, ctx.compiled );
+    let transform = make_transform( sx, sy );
     let layer_tint =
     [
       ctx.global_tint[ 0 ] * rv.base_tint[ 0 ],
@@ -418,13 +428,34 @@ mod private
       ctx.global_tint[ 2 ] * rv.base_tint[ 2 ],
       ctx.global_tint[ 3 ] * rv.base_tint[ 3 ],
     ];
+    // Base tint with the layer's static alpha.
+    let mut tint = tinted( layer_tint, rv.alpha );
+
+    // Per-frame alpha pulse (see `ResolvedVertexSprite::alpha_pulse`): a raised-
+    // cosine wave in `[0, 1]` off the master clock, at `min` when `t = 0`, easing
+    // to `max` at the half period (smooth, zero slope at both ends, no camera
+    // dependence). The pulse fades the WHOLE tint — RGB *and* alpha by the same
+    // factor — not the alpha alone: the sprite shaders sample premultiplied
+    // atlases (`frag = tex * tint`), where a valid colour keeps `rgb ≤ a`.
+    // Scaling only alpha would leave RGB over-bright as coverage drops, so the
+    // edge haloes lighter than the fill (obvious on a neutral tint like the grey
+    // selection, hidden under a saturated one like the red attack overlay).
+    // Scaling all four channels is exactly a premultiplied fade toward
+    // transparent, so `min: 0, max: 1` breathes cleanly from invisible to the
+    // layer's own alpha and back.
+    if let Some( ( min, max, freq ) ) = rv.alpha_pulse
+    {
+      let wave = 0.5 - 0.5 * ( core::f32::consts::TAU * freq * ctx.time_seconds ).cos();
+      let k = min + ( max - min ) * wave;
+      tint = [ tint[ 0 ] * k, tint[ 1 ] * k, tint[ 2 ] * k, tint[ 3 ] * k ];
+    }
     (
       rv.world.0, rv.world.1,
       Sprite
       {
         transform,
         sprite : rv.sprite,
-        tint : tinted( layer_tint, rv.alpha ),
+        tint,
         blend : rv.blend,
         clip : None,
       },
@@ -773,6 +804,14 @@ mod private
     alpha : f32,
     blend : BlendMode,
     pivot : ( f32, f32 ),
+    /// Resolved `AlphaPulse` effect `( min, max, frequency_hz )` from the layer's
+    /// `behaviour.effects`, or `None`. Static per layer, so it is cached here
+    /// (does not invalidate on a clock tick); [`project_vertex_sprite`] evaluates
+    /// the wave per frame off `ctx.time_seconds`, so the pulse animates without
+    /// re-running the structural resolve. `min`/`max` are multipliers on the base
+    /// alpha (so `min: 0, max: 1` breathes from fully transparent to the layer's
+    /// own alpha and back).
+    alpha_pulse : Option< ( f32, f32, f32 ) >,
   }
 
   /// Revision-keyed memo of the dual-grid vertex pass.
@@ -1046,6 +1085,25 @@ mod private
     }).collect()
   }
 
+  /// Resolve the first [`EffectKind::AlphaPulse`] among a layer's `effects` to
+  /// its `( min, max, frequency_hz )` params, or `None` if the layer references
+  /// no alpha-pulse effect. An `EffectRef` naming an absent / non-pulse effect is
+  /// simply skipped (effect resolution is best-effort — a missing effect must not
+  /// fail the whole frame compile). Cheap (a linear scan over the spec's few
+  /// effects), and called only from the revision-cached structural resolve.
+  fn resolve_alpha_pulse( spec : &RenderSpec, effects : &[ EffectRef ] ) -> Option< ( f32, f32, f32 ) >
+  {
+    for eff_ref in effects
+    {
+      let Some( eff ) = spec.effects.iter().find( | e | e.id == eff_ref.0 ) else { continue };
+      if let EffectKind::AlphaPulse { min, max, frequency } = eff.kind
+      {
+        return Some( ( min, max, frequency ) );
+      }
+    }
+    None
+  }
+
   /// Resolve a named [`TintRef`] to a strength-blended multiplier `[r,g,b,a]`.
   ///
   /// `strength` interpolates the parsed colour towards identity `[1,1,1,1]`, so
@@ -1144,9 +1202,8 @@ mod private
         })?;
       let ( q, r ) = pos;
       let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
-      let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-      let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-      let transform = make_transform( sx, sy, ctx.camera.zoom );
+      let ( sx, sy ) = apply_pivot( wx, wy, object.pivot, sprite_id, ctx.compiled );
+      let transform = make_transform( sx, sy );
       return Ok( vec!
       [
         (
@@ -1178,9 +1235,8 @@ mod private
 
     let ( q, r ) = pos;
     let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
-    let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-    let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-    let transform = make_transform( sx, sy, ctx.camera.zoom );
+    let ( sx, sy ) = apply_pivot( wx, wy, object.pivot, sprite_id, ctx.compiled );
+    let transform = make_transform( sx, sy );
 
     Ok( vec!
     [
@@ -1278,7 +1334,6 @@ mod private
     let current_priority = tile_max_priority( tile, ctx.spec );
     let ( q, r ) = tile.pos;
     let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
-    let ( raw_sx, raw_sy ) = ctx.camera.project( ( wx, wy ) );
 
     let mut out = Vec::new();
     for &side in sides
@@ -1297,8 +1352,8 @@ mod private
           context : format!( "object {:?} NeighborCondition side {side:?}", object.id ),
         })?;
 
-      let ( sx, sy ) = apply_pivot( raw_sx, raw_sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-      let transform = make_transform( sx, sy, ctx.camera.zoom );
+      let ( sx, sy ) = apply_pivot( wx, wy, object.pivot, sprite_id, ctx.compiled );
+      let transform = make_transform( sx, sy );
 
       out.push
       ((
@@ -1400,14 +1455,15 @@ mod private
             anchor : "Edge (direction not valid for tiling)",
           });
         };
-        let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-        let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
+        let ( sx, sy ) = apply_pivot( wx, wy, object.pivot, sprite_id, ctx.compiled );
 
+        // World-space + unit scale; the edge's own rotation stays (the camera
+        // has none, so it composes cleanly). Pan/zoom comes from the view matrix.
         let transform = Transform
         {
           position : [ sx, sy ],
           rotation : edge_rotation( canon.1, ctx.tiling ),
-          scale : [ ctx.camera.zoom, ctx.camera.zoom ],
+          scale : [ 1.0, 1.0 ],
           skew : [ 0.0, 0.0 ],
           depth : 0.0,
         };
@@ -1497,9 +1553,8 @@ mod private
               context : format!( "object {:?} free-pos external slot {slot:?}", object.id ),
             })?;
           let ( wx, wy ) = ( x, y );
-          let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-          let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-          let transform = make_transform( sx, sy, ctx.camera.zoom );
+          let ( sx, sy ) = apply_pivot( wx, wy, object.pivot, sprite_id, ctx.compiled );
+          let transform = make_transform( sx, sy );
           out.push((
             wx, wy,
             Sprite
@@ -1528,9 +1583,8 @@ mod private
           })?;
 
         let ( wx, wy ) = ( x, y );
-        let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-        let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-        let transform = make_transform( sx, sy, ctx.camera.zoom );
+        let ( sx, sy ) = apply_pivot( wx, wy, object.pivot, sprite_id, ctx.compiled );
+        let transform = make_transform( sx, sy );
 
         out.push
         ((
