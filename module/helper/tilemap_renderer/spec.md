@@ -168,13 +168,29 @@ pub trait Backend {
   draws. Range `[-RenderConfig::max_depth, max_depth]` per field (default `1.0`); the shader
   divides by `u_max_depth` so out-of-range depths are clipped by the GPU rather than silently
   saturated
-- Sprite-batch coverage controls (`SpriteBatchParams`): `alpha_clip` uploads to the
-  `u_alpha_clip` uniform — fragments whose sampled texture alpha is below it are `discard`ed
-  (no colour, no depth write); tested before the tint multiply so a translucent tint doesn't
-  pull every fragment under the threshold. `0.0` (default) keeps every fragment. `occlude_overlap`
-  makes the backend clear the depth buffer before the batch and draw it under `depth_func = LESS`
-  (restoring `LEQUAL` after), so overlapping bled instances composite each pixel exactly once —
-  pair with a non-zero `alpha_clip` so the AA fringe doesn't write depth and block a neighbour
+- Sprite-batch coverage controls (`SpriteBatchParams`): `alpha_clip` — fragments whose sampled
+  texture alpha is below it are `discard`ed (no colour, no depth write); tested before the tint
+  multiply so a translucent tint doesn't pull every fragment under the threshold. `0.0` (default)
+  keeps every fragment. `occlude_overlap` makes the backend clear the depth buffer before the batch
+  and draw it under `depth_func = LESS` (restoring `LEQUAL` after), so overlapping bled instances
+  composite each pixel exactly once — pair with a non-zero `alpha_clip` so the AA fringe doesn't
+  write depth and block a neighbour
+- Two `sprite_batch.frag` variants compiled from one source (`#define USE_ALPHA_CLIP` injected after
+  the `#version` line): the cutout variant has the `discard` and the `u_alpha_clip` uniform, used
+  for `alpha_clip > 0` batches; the plain variant has no `discard` and is used for `alpha_clip == 0`
+  batches. A shader that can `discard` forces the GPU to disable early-Z, so the discard-free variant
+  lets the flat full-board layers depth-reject under the opaque terrain before their fragment shader runs
+- GPU camera (`set_camera`, column-major 3×3 world→screen view matrix, identity by default): set once
+  per frame and pre-multiplied into every world-space draw's parent transform on the GPU, so a pan/zoom
+  is a single-uniform change instead of a per-instance re-upload. `ScreenSpaceSprite`s are already in
+  viewport-pixel space and bypass the camera
+- Offscreen render targets (`GpuFramebuffer`: RGBA8 colour + `DEPTH_COMPONENT24` texture, RAII cleanup):
+  `create_render_target` / `reset_render_targets` / `begin_render_target` / `end_render_target` /
+  `draw_render_target` let a consumer bake a subset of the frame into a texture once and composite it
+  back as a single world-space quad each frame (trading per-frame overdraw for a couple of blits).
+  Inherent methods driven between `submit` calls; `textures_loaded` / `max_texture_size` gate the bake.
+  `submit` also clears any leftover bound batch from a prior (possibly errored) stream, so several
+  renderers can safely share one backend
 - Per-batch VAO with attrib setup at create/unbind time, just bind at draw time
 - Async image loading uses `Closure::once_into_js` for one-shot `onload` / `onerror` handlers,
   so the browser drops the Rust closures (and their captured `Rc<RefCell<GpuResources>>`)

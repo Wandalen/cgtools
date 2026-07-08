@@ -19,6 +19,7 @@ mod private
     GpuResources,
     GpuTexture,
     GpuSprite,
+    GpuFramebuffer,
     GpuGeometry,
     GpuBatch,
     setup_sprite_batch_vao,
@@ -45,7 +46,14 @@ mod private
   struct SpriteRenderer
   {
     program : gl::Program,
+    /// Cutout variant of the batch shader (`#define USE_ALPHA_CLIP`): has the
+    /// `discard`, used for `alpha_clip > 0` batches (terrain / region / …).
     batch_program : gl::Program,
+    /// Plain variant with NO `discard`, used for `alpha_clip == 0` batches
+    /// (background / `terrain_side` / river / objects / …). Discard-free so the
+    /// GPU keeps early-Z and rejects these under the opaque terrain before
+    /// their fragment shader runs — the fillrate win over the flat board.
+    batch_program_noclip : gl::Program,
   }
 
   impl SpriteRenderer
@@ -58,13 +66,21 @@ mod private
         include_str!( "shaders/sprite.vert" ),
         include_str!( "shaders/sprite.frag" ),
       )?;
+      let batch_vert = include_str!( "shaders/sprite_batch.vert" );
+      let batch_frag = include_str!( "shaders/sprite_batch.frag" );
       let batch_program = gl::Program::new
       (
         gl.clone(),
-        include_str!( "shaders/sprite_batch.vert" ),
-        include_str!( "shaders/sprite_batch.frag" ),
+        batch_vert,
+        &inject_define( batch_frag, "USE_ALPHA_CLIP" ),
       )?;
-      Ok( Self { program, batch_program } )
+      let batch_program_noclip = gl::Program::new
+      (
+        gl.clone(),
+        batch_vert,
+        batch_frag,
+      )?;
+      Ok( Self { program, batch_program, batch_program_noclip } )
     }
 
     /// Draw a single sprite as a textured quad (triangle strip, 4 vertices from `gl_VertexID`).
@@ -86,8 +102,11 @@ mod private
       gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
     }
 
-    /// Draw an instanced sprite batch.
-    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : &[ f32; 2 ], max_depth : f32 )
+    /// Draw an instanced sprite batch. `camera` is the world→screen view matrix
+    /// (column-major 3×3), pre-multiplied into the batch parent so world-space
+    /// instances are projected on the GPU (a pan/zoom updates this uniform only,
+    /// leaving the per-instance buffers untouched).
+    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, camera : &[ f32; 9 ], viewport : &[ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Sprite { instances, vao, params, .. } = batch else { return; };
       if instances.is_empty() { return; }
@@ -100,16 +119,24 @@ mod private
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
 
-      self.batch_program.activate();
-      self.batch_program.uniform_upload( "u_viewport", viewport );
-      self.batch_program.uniform_upload( "u_tex_size", &[ tw as f32, th as f32 ] );
-      let parent_mat = params.transform.to_mat3();
-      self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
-      self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
-      self.batch_program.uniform_upload( "u_max_depth", &max_depth );
-      // Coverage cut-off: 0.0 (default) keeps every fragment, matching the
-      // pre-feature behaviour; >0 discards low-alpha texels (see frag shader).
-      self.batch_program.uniform_upload( "u_alpha_clip", &params.alpha_clip );
+      // Pick the shader variant by whether this batch actually clips. Only
+      // `alpha_clip > 0` batches need the `discard`; the rest use the
+      // discard-free program so the GPU keeps early-Z (see the frag shader).
+      let clips = params.alpha_clip > 0.0;
+      let program = if clips { &self.batch_program } else { &self.batch_program_noclip };
+      program.activate();
+      program.uniform_upload( "u_viewport", viewport );
+      program.uniform_upload( "u_tex_size", &[ tw as f32, th as f32 ] );
+      let parent_mat = mat3_mul( camera, &params.transform.to_mat3() );
+      program.uniform_matrix_upload( "u_parent", &parent_mat, true );
+      program.uniform_upload( "u_parent_depth", &params.transform.depth );
+      program.uniform_upload( "u_max_depth", &max_depth );
+      // Coverage cut-off (cutout variant only): >0 discards low-alpha texels
+      // so transparent quad corners don't seal the depth buffer.
+      if clips
+      {
+        program.uniform_upload( "u_alpha_clip", &params.alpha_clip );
+      }
 
       gl.bind_vertex_array( Some( vao ) );
       gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances.len() as i32 );
@@ -192,7 +219,9 @@ mod private
     }
 
     /// Draw an instanced mesh batch. VAO is already configured via `setup_mesh_batch_vao`.
-    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : &[ f32; 2 ], max_depth : f32 )
+    /// `camera` is the world→screen view matrix, composed into the batch parent (see
+    /// the sprite `draw_batch`).
+    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, camera : &[ f32; 9 ], viewport : &[ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Mesh { instances, vao, params, .. } = batch else { return };
       if instances.is_empty() { return; }
@@ -214,7 +243,7 @@ mod private
       self.batch_program.uniform_upload( "u_viewport", viewport );
       self.batch_program.uniform_upload( "u_color", &color );
       self.batch_program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
-      let parent_mat = params.transform.to_mat3();
+      let parent_mat = mat3_mul( camera, &params.transform.to_mat3() );
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
       self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
       self.batch_program.uniform_upload( "u_max_depth", &max_depth );
@@ -235,6 +264,45 @@ mod private
       // path (`MeshRenderer::draw`) likewise unbinds on exit, so both mesh
       // draw paths leave VAO 0 bound.
       gl.bind_vertex_array( None );
+    }
+  }
+
+  // ============================================================================
+  // Camera / matrix helpers
+  // ============================================================================
+
+  /// Column-major identity 3×3 — the default view matrix (world pixels map
+  /// straight to viewport pixels).
+  const IDENTITY_MAT3 : [ f32; 9 ] = [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 ];
+
+  /// Multiply two column-major 3×3 matrices, returning `a * b` (apply `b` first,
+  /// then `a`). Element `(row i, col j)` lives at index `j * 3 + i`. Used to fold
+  /// the per-frame camera view matrix into each draw's parent transform.
+  #[ inline ]
+  fn mat3_mul( a : &[ f32; 9 ], b : &[ f32; 9 ] ) -> [ f32; 9 ]
+  {
+    let mut r = [ 0.0_f32; 9 ];
+    for j in 0..3
+    {
+      for i in 0..3
+      {
+        r[ j * 3 + i ] = a[ i ] * b[ j * 3 ]
+          + a[ 3 + i ] * b[ j * 3 + 1 ]
+          + a[ 6 + i ] * b[ j * 3 + 2 ];
+      }
+    }
+    r
+  }
+
+  /// Prepend `#define <name>` to a GLSL source, inserted right AFTER the
+  /// `#version` line (which GLSL requires to be first). Used to compile the two
+  /// `sprite_batch.frag` variants (cutout / plain) from one source of truth.
+  fn inject_define( src : &str, name : &str ) -> String
+  {
+    match src.split_once( '\n' )
+    {
+      Some( ( first, rest ) ) => format!( "{first}\n#define {name}\n{rest}" ),
+      None => src.to_string(),
     }
   }
 
@@ -260,8 +328,29 @@ mod private
     mesh : MeshRenderer,
     max_texture_size : u32,
 
+    /// World→screen view matrix (column-major 3×3), pre-multiplied into every
+    /// world-space draw's parent transform. Set once per frame via
+    /// [`Self::set_camera`]; identity until the caller supplies one. Keeping the
+    /// camera here — rather than baked into per-instance transforms — is what
+    /// makes a pan/zoom a single-uniform update instead of a full instance-buffer
+    /// re-upload.
+    camera : [ f32; 9 ],
+
     // -- batch editing state --
     recording_batch : Option< ResourceId< Batch > >,
+
+    /// Offscreen cache surfaces (see [`Self::create_render_target`]), indexed by
+    /// the `usize` id `create_render_target` returns. Used by consumers that bake
+    /// a subset of the frame into a texture and composite it back as a world quad
+    /// via [`Self::draw_render_target`].
+    render_targets : Vec< GpuFramebuffer >,
+
+    /// Viewport override in force while a render-target pass is bound. The
+    /// vertex shaders divide world coords by `u_viewport` to reach NDC, so during
+    /// a bake this MUST be the target's pixel size, not the canvas size — else the
+    /// baked geometry projects to the wrong clip range and lands off-texture.
+    /// `None` outside a bake (shaders use the canvas size).
+    active_viewport : Option< [ f32; 2 ] >,
   }
 
   impl WebGlBackend
@@ -327,13 +416,159 @@ mod private
         sprite,
         mesh,
         max_texture_size,
+        camera : IDENTITY_MAT3,
         recording_batch : None,
+        render_targets : Vec::new(),
+        active_viewport : None,
       })
+    }
+
+    /// Set the world→screen view matrix (column-major 3×3) used to project every
+    /// world-space draw this frame. Call once per frame before [`Backend::submit`]
+    /// (a pan/zoom only changes this matrix — the command stream and instance
+    /// buffers stay identical, so panning costs one uniform per batch, not a
+    /// scene re-upload). `ScreenSpaceSprite`s are unaffected. Identity leaves
+    /// world coordinates mapped straight to viewport pixels.
+    #[ inline ]
+    pub fn set_camera( &mut self, camera : [ f32; 9 ] )
+    {
+      self.camera = camera;
     }
 
     fn viewport_size( &self ) -> [ f32; 2 ]
     {
-      [ self.config.width as f32, self.config.height as f32 ]
+      self.active_viewport.unwrap_or( [ self.config.width as f32, self.config.height as f32 ] )
+    }
+
+    // ========================================================================
+    // Offscreen render targets (cache surfaces)
+    //
+    // These let a consumer bake a subset of the frame into a texture once (or
+    // occasionally) and composite it back as a single world-space quad every
+    // frame, trading per-frame overdraw for a couple of texture-sample blits.
+    // They are inherent methods (like `set_camera`), driven by the consumer
+    // between `submit` calls — the `RenderCommand` stream and the other backends
+    // are untouched. `submit` sets the GL viewport once per frame from `config`
+    // and never mid-loop, so `begin_render_target` sets the target viewport and
+    // `end_render_target` restores it to the canvas size.
+    // ========================================================================
+
+    /// Hardware `MAX_TEXTURE_SIZE`. A cache surface may not exceed this in either
+    /// dimension; the caller clamps its bake resolution to fit.
+    #[ inline ]
+    #[ must_use ]
+    pub fn max_texture_size( &self ) -> u32 { self.max_texture_size }
+
+    /// Whether every registered atlas/image texture has finished loading (a
+    /// non-zero size). Images upload ASYNCHRONOUSLY: a freshly registered texture
+    /// is a `0×0` placeholder until its bytes arrive, and a draw referencing a
+    /// still-zero sheet is skipped (`draw_batch` early-returns). A consumer that
+    /// bakes the scene ONCE into a cache must wait for this — a bake fired before
+    /// the sheets load rasterizes nothing yet never repeats. Returns `true` when
+    /// there are no textures yet only if none are registered, so also gate on
+    /// having loaded a spec.
+    #[ must_use ]
+    pub fn textures_loaded( &self ) -> bool
+    {
+      let res = self.resources.borrow();
+      !res.textures.is_empty()
+        && res.textures.values().all( | t | t.width.get() > 0 && t.height.get() > 0 )
+    }
+
+    /// Allocate an offscreen cache surface (`width×height`, RGBA8 + depth) and
+    /// return its id, or `None` if allocation / completeness fails. Ids are dense
+    /// (`0`, `1`, …) and stable for the backend's lifetime.
+    pub fn create_render_target( &mut self, width : u32, height : u32 ) -> Option< usize >
+    {
+      let fb = GpuFramebuffer::new( &self.gl, width, height )?;
+      let id = self.render_targets.len();
+      self.render_targets.push( fb );
+      Some( id )
+    }
+
+    /// Free every cache surface and reset id allocation to `0`. The GL objects
+    /// are released via each `GpuFramebuffer`'s `Drop`. Call before rebuilding a
+    /// fresh set of targets (e.g. a chunk grid at a new extent / map load) so the
+    /// old textures don't leak and new ids start dense from `0`.
+    pub fn reset_render_targets( &mut self )
+    {
+      self.render_targets.clear();
+    }
+
+    /// Bind cache surface `id` as the draw target and set the viewport to its
+    /// size. `clear` optionally clears it (colour + depth) — pass a transparent
+    /// colour for an overlay cache that must composite over another. Pair with
+    /// [`Self::end_render_target`]. No-op if `id` is unknown.
+    pub fn begin_render_target( &mut self, id : usize, clear : Option< [ f32; 4 ] > )
+    {
+      // Copy out size + a handle clone before mutating `active_viewport` (which
+      // would otherwise conflict with the `render_targets` borrow).
+      let ( w, h, fbh ) = match self.render_targets.get( id )
+      {
+        Some( fb ) => ( fb.width, fb.height, fb.framebuffer.clone() ),
+        None => return,
+      };
+      self.gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &fbh ) );
+      self.gl.viewport( 0, 0, w as i32, h as i32 );
+      self.active_viewport = Some( [ w as f32, h as f32 ] );
+      if let Some( c ) = clear { self.fill( c ); }
+    }
+
+    /// Restore the default framebuffer and the canvas-sized viewport after a
+    /// cache-surface pass.
+    pub fn end_render_target( &mut self )
+    {
+      self.active_viewport = None;
+      self.gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+      self.gl.viewport( 0, 0, self.config.width as i32, self.config.height as i32 );
+    }
+
+    /// Clear the current draw target (colour + depth) to `color`.
+    pub fn fill( &self, color : [ f32; 4 ] )
+    {
+      let [ r, g, b, a ] = color;
+      // A depth clear is a no-op while `depthMask` is false (e.g. left off by a
+      // prior transparent pass), which would leave the FBO's depth buffer at its
+      // stale value and make the opaque bake pass fail its `LEQUAL` test. Force
+      // writes on so the clear actually resets depth to the far plane.
+      self.gl.depth_mask( true );
+      self.gl.clear_color( r, g, b, a );
+      self.gl.clear_depth( 1.0 );
+      self.gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
+    }
+
+    /// Composite cache surface `id` as a textured quad covering the world-pixel
+    /// rectangle `[ min, max ]`, projected through the current camera (so it pans
+    /// and zooms with the board). The cache is treated as premultiplied "over".
+    /// No-op if `id` is unknown.
+    ///
+    /// V-orientation: uploaded atlases use `UNPACK_FLIP_Y`, so their visual top
+    /// sits at the high texel row — the same as an FBO render — so the stock
+    /// sprite shader composites the cache upright with a plain `[0,0,w,h]` region.
+    /// If a cache ever renders vertically mirrored, negate the region height
+    /// (`[0, h, w, -h]`).
+    pub fn draw_render_target( &self, id : usize, min : [ f32; 2 ], max : [ f32; 2 ] )
+    {
+      let Some( fb ) = self.render_targets.get( id ) else { return; };
+      let ( tw, th ) = ( fb.width as f32, fb.height as f32 );
+      if tw == 0.0 || th == 0.0 { return; }
+
+      // Map the unit quad (scaled by region.zw = [tw, th] in the vertex shader)
+      // onto the world rect: scale by world_extent / tex_px, translate to `min`.
+      // Column-major 3×3 (index j*3 + i), same layout as `Transform::to_mat3`.
+      let sx = ( max[ 0 ] - min[ 0 ] ) / tw;
+      let sy = ( max[ 1 ] - min[ 1 ] ) / th;
+      let world_mat = [ sx, 0.0, 0.0, 0.0, sy, 0.0, min[ 0 ], min[ 1 ], 1.0 ];
+      let mat = mat3_mul( &self.camera, &world_mat );
+
+      self.gl.active_texture( gl::TEXTURE0 );
+      self.gl.bind_texture( gl::TEXTURE_2D, Some( &fb.color ) );
+      apply_blend( &self.gl, &BlendMode::Normal, true );
+
+      let region = [ 0.0, 0.0, tw, th ];
+      let tint = [ 1.0_f32, 1.0, 1.0, 1.0 ];
+      let viewport = self.viewport_size();
+      self.sprite.draw( &self.gl, &mat, &region, &[ tw, th ], &tint, &viewport, 0.0, self.config.max_depth );
     }
 
     // ---- Command handlers ----
@@ -369,7 +604,7 @@ mod private
       let res = self.resources.borrow();
       if let Some( geom ) = res.geometry( m.geometry )
       {
-        let mat = m.transform.to_mat3();
+        let mat = mat3_mul( &self.camera, &m.transform.to_mat3() );
         let color = match m.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
         // Untextured meshes are straight-alpha; a textured mesh inherits its
         // texture's premultiplied flag.
@@ -388,7 +623,11 @@ mod private
       }
     }
 
-    fn cmd_sprite( &self, s : &Sprite, viewport : &[ f32; 2 ] )
+    /// Draw one sprite. `apply_camera` selects the coordinate space of
+    /// `s.transform`: `true` for a world-space `Sprite` (the view matrix is
+    /// pre-multiplied so the GPU projects it), `false` for a `ScreenSpaceSprite`
+    /// whose transform is already in viewport pixels and must bypass the camera.
+    fn cmd_sprite( &self, s : &Sprite, apply_camera : bool, viewport : &[ f32; 2 ] )
     {
       let res = self.resources.borrow();
       let Some( gpu_sprite ) = res.sprite( s.sprite ) else { return };
@@ -403,7 +642,7 @@ mod private
 
       let tex_size = [ tw as f32, th as f32 ];
 
-      let mat = s.transform.to_mat3();
+      let mat = if apply_camera { mat3_mul( &self.camera, &s.transform.to_mat3() ) } else { s.transform.to_mat3() };
       apply_blend( &self.gl, &s.blend, gpu_tex.premultiplied );
       self.sprite.draw( &self.gl, &mat, &gpu_sprite.region, &tex_size, &s.tint, viewport, s.transform.depth, self.config.max_depth );
     }
@@ -767,8 +1006,8 @@ mod private
       }
       match gpu_batch
       {
-        GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
-        GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
+        GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch, &res, &self.camera, viewport, self.config.max_depth ),
+        GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch, &res, &self.camera, viewport, self.config.max_depth ),
       }
       if occlude
       {
@@ -1170,6 +1409,22 @@ mod private
     {
       let viewport = self.viewport_size();
 
+      // Each command stream is self-contained: the scene renderer always emits
+      // balanced `BindBatch`…`UnbindBatch` pairs within one stream. Clear any
+      // leftover bind state before starting so a prior submit that errored
+      // part-way — or a DIFFERENT renderer sharing this backend (the dual adapter
+      // runs three: main + static + region bakes) — cannot poison this one. Without
+      // this, one mid-stream failure sticks `recording_batch` and every subsequent
+      // submit fails on its first `BindBatch` ("batch N is already bound"),
+      // cascading into an error spam that never recovers.
+      if let Some( stuck ) = self.recording_batch.take()
+      {
+        web_sys::console::warn_1
+        (
+          &format!( "submit: clearing leftover bound batch {stuck:?} from a prior stream" ).into()
+        );
+      }
+
       for cmd in commands
       {
         // Unimplemented placeholder arms (Path/Text/Group) all map to {} and are
@@ -1181,13 +1436,12 @@ mod private
 
           // Mesh & sprite
           RenderCommand::Mesh( m ) => self.cmd_mesh( m, &viewport ),
-          RenderCommand::Sprite( s ) => self.cmd_sprite( s, &viewport ),
-          // ScreenSpaceSprite uses the same draw path as Sprite — the compile
-          // layer already emits coordinates in screen-space (no camera
-          // project), so the adapter does not need to branch further. The
-          // distinction matters only to callers that post-process the command
-          // stream.
-          RenderCommand::ScreenSpaceSprite( s ) => self.cmd_sprite( s, &viewport ),
+          RenderCommand::Sprite( s ) => self.cmd_sprite( s, true, &viewport ),
+          // ScreenSpaceSprite is already in viewport-pixel space (the compile
+          // layer anchored it to the viewport, not the world), so it bypasses
+          // the camera view matrix — `apply_camera = false` — while a world
+          // `Sprite` gets the camera pre-multiplied on the GPU.
+          RenderCommand::ScreenSpaceSprite( s ) => self.cmd_sprite( s, false, &viewport ),
 
           // Batch lifecycle
           RenderCommand::CreateSpriteBatch( c ) => self.cmd_create_sprite_batch( c )?,
