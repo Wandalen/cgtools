@@ -317,6 +317,12 @@ version = "1.47.1"
 [workspace.dependencies.gltf]
 version = "1.4.1"
 
+[workspace.dependencies.draco-gltf]
+version = "0.1"
+
+[workspace.dependencies.draco-core]
+version = "1.0"
+
 [workspace.dependencies.csgrs]
 version = "0.20.1"
 default-features = false
