@@ -405,6 +405,23 @@ mod private
     Ok( out )
   }
 
+  /// Whether two resolved vertex buckets carry the same CONTENT — matching tile
+  /// count, sprite frames, and world positions. Used to decide if a bucket's
+  /// pulse anchor survives a re-resolve triggered by an unrelated scene mutation
+  /// (see the `restart_on_spawn` carry-forward in `gather_frame_emits`). Ignores
+  /// `pulse_anchor` (that is what's being decided) and the static per-layer tint /
+  /// alpha / blend (never mutated at runtime). Positions compared bit-exact —
+  /// both sides are recomputed identically from the same tile geometry.
+  fn same_vertex_content( a : &[ ResolvedVertexSprite ], b : &[ ResolvedVertexSprite ] ) -> bool
+  {
+    a.len() == b.len()
+      && a.iter().zip( b.iter() ).all( | ( x, y ) |
+        x.sprite == y.sprite
+          && x.world.0.to_bits() == y.world.0.to_bits()
+          && x.world.1.to_bits() == y.world.1.to_bits()
+      )
+  }
+
   /// **Project tier** of the dual-grid vertex pass — the cheap, per-frame half.
   ///
   /// Turns one cached world-space [`ResolvedVertexSprite`] into a world-space
@@ -936,7 +953,29 @@ mod private
       {
         if !cache.valid || cache.revision != revision
         {
-          cache.buckets = resolve_vertex_pass_all( &synthetic_tiles, &ctx )?;
+          let mut fresh = resolve_vertex_pass_all( &synthetic_tiles, &ctx )?;
+          // A `restart_on_spawn` pulse (see `project_vertex_sprite`) anchors to when
+          // its bucket's CONTENT last changed — not to every re-resolve. The resolve
+          // reruns on any scene `revision` bump, including ones that don't touch these
+          // tiles at all (a cursor-preview `move_to` on mouse-move bumps the revision),
+          // which must NOT restart an unrelated layer's pulse. So carry each bucket's
+          // prior anchor forward while its resolved tiles are unchanged; only genuinely
+          // new/changed content takes the fresh `ctx.time_seconds` anchor set above.
+          if cache.valid
+          {
+            for ( i, fb ) in fresh.iter_mut().enumerate()
+            {
+              let Some( ob ) = cache.buckets.get( i ) else { continue };
+              if same_vertex_content( fb, ob )
+              {
+                for ( fs, os ) in fb.iter_mut().zip( ob.iter() )
+                {
+                  fs.pulse_anchor = os.pulse_anchor;
+                }
+              }
+            }
+          }
+          cache.buckets = fresh;
           cache.revision = revision;
           cache.valid = true;
         }
