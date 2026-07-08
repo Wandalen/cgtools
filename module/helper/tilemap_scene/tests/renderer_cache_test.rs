@@ -372,8 +372,12 @@ fn tick_zero_keeps_cache_warm()
 // 5. Camera change invalidates cache.
 // ────────────────────────────────────────────────────────────────────────────
 
+// A pan (world-centre change) is a cache HIT: world-space draws carry world
+// coordinates and the backend applies the pan as a view matrix, so the command
+// stream is unchanged. This is the pan optimisation — the caller feeds the new
+// view matrix to the backend out-of-band while replaying the cached commands.
 #[ test ]
-fn camera_pan_invalidates_cache()
+fn camera_pan_hits_cache_and_replays_identically()
 {
   let spec = build_spec();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
@@ -384,13 +388,19 @@ fn camera_pan_invalidates_cache()
   let cam1 = Camera::default();
   let cam2 = Camera { world_center : ( 100.0, 0.0 ), ..Camera::default() };
 
-  let _ = renderer.render( &scene, &cam1 ).expect( "prime" );
+  let primed = snapshot( renderer.render( &scene, &cam1 ).expect( "prime" ) );
   let hits_before = renderer.cache_hits();
-  let _ = renderer.render( &scene, &cam2 ).expect( "different camera" );
+  let panned = snapshot( renderer.render( &scene, &cam2 ).expect( "panned" ) );
   assert_eq!
   (
-    renderer.cache_hits(), hits_before,
-    "camera pan must invalidate cache",
+    renderer.cache_hits(), hits_before + 1,
+    "camera pan must HIT the cache (world-space draws are camera-independent)",
+  );
+  assert_eq!( primed.len(), panned.len(), "a pan replays the same command stream (count stable)" );
+  assert_eq!
+  (
+    sprite_count( &primed ), sprite_count( &panned ),
+    "a pan draws the same sprites (world coords unchanged)",
   );
 }
 

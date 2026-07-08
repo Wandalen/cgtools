@@ -103,8 +103,14 @@ split the conversion into `tiles_tools`' unit-scale output (`1.5 * q`,
 `sqrt(3)/2 * q + sqrt(3) * r` etc.) times a per-axis compensating
 factor that makes the unit-size output span exactly `grid_stride`.
 
-Downstream, the camera projects world-pixel coordinates onto the
-viewport (still Y-up) — see [`crate::compile::camera::Camera::project`].
+Downstream, world-space draws keep these world-pixel coordinates: the
+compile layer emits them at unit scale and the backend applies the
+camera on the GPU via a per-frame view matrix
+([`crate::compile::camera::Camera::to_view_mat3`]). A pan or zoom
+therefore leaves the compiled command stream untouched (a cache hit —
+only the view matrix changes), which is the point of emitting
+world-space. `Camera::project` remains for the viewport-anchored
+(`ScreenSpaceSprite`) path and for host-side hit-testing.
 
 ## 3. Anchors
 
@@ -639,7 +645,12 @@ Using these fields on non-`Viewport` anchors MUST be a load-time error.
 
 ### 6.5 Alpha
 
-Static scalar 0..1 applied before blending. `AlphaPulse` effect modulates on top.
+Static scalar 0..1 applied before blending. An `AlphaPulse` effect on the layer
+modulates on top: a raised-cosine wave off the master clock scales the whole
+premultiplied tint (RGB *and* alpha together, so `min: 0, max: 1` breathes from
+fully transparent to the layer's own alpha and back). The pulse is resolved once
+into the structural vertex cache and evaluated per frame, so it animates without
+re-running the resolve.
 
 ## 7. Animations and Synchronization
 

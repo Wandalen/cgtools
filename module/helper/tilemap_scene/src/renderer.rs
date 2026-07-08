@@ -58,17 +58,26 @@ mod private
   use crate::scene::Scene;
   use crate::spec::RenderSpec;
 
-  /// Bit-equal fingerprint of a [`Camera`] used by [`Renderer`]'s per-frame
-  /// cache to detect "the camera moved since the last render" without
-  /// reaching into the camera struct's fields each call.
+  /// Bit-equal fingerprint of the camera state that the emitted command stream
+  /// actually depends on — used by [`Renderer`]'s per-frame cache to decide
+  /// whether the previous commands can be replayed.
   ///
-  /// `f32` fields are compared via their `to_bits` representation so
-  /// `-0.0 != +0.0` (sign bit differs) and bit-identical `NaN`s
-  /// compare equal.
+  /// `world_center` is deliberately **excluded**: world-space draws now carry
+  /// world coordinates and the backend applies the pan as a view matrix (see
+  /// [`Camera::to_view_mat3`]), so a pan does not change the command stream — it
+  /// is a cache HIT, and the caller feeds the new view matrix to the backend
+  /// out-of-band. That is the whole optimisation, since panning is the common
+  /// camera move.
+  ///
+  /// `zoom` and `viewport_size` are still captured: viewport-anchored
+  /// (`ScreenSpaceSprite`) draws are laid out against the viewport and, for the
+  /// repeating variants, scaled by zoom in the command stream — so a zoom or a
+  /// resize must still invalidate. World draws are unaffected by zoom (unit
+  /// scale), so a zoom miss re-walks the scene but does not re-upload any
+  /// instance buffer.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
   struct CameraSignature
   {
-    world_center : ( u32, u32 ),
     zoom : u32,
     viewport_size : ( u32, u32 ),
   }
@@ -79,7 +88,6 @@ mod private
     {
       Self
       {
-        world_center : ( camera.world_center.0.to_bits(), camera.world_center.1.to_bits() ),
         zoom : camera.zoom.to_bits(),
         viewport_size : camera.viewport_size,
       }
@@ -247,6 +255,14 @@ mod private
     /// change (animation tick) reuse it instead of recomputing. Inert for
     /// specs without `VertexCorners` layers (stays empty).
     vertex_cache : VertexResolveCache,
+
+    /// Bitmask of pipeline-layer (bucket) indices to SKIP when emitting — a
+    /// diagnostic / perf lever that draws the board with chosen layers turned
+    /// off. Bit `i` set ⇒ the `i`-th `pipeline.layers` bucket emits nothing and
+    /// its live GPU batches are released on the next render (they fall out of
+    /// `used_keys`). `0` (default) draws every layer, so this is transparent to
+    /// consumers that never call [`Renderer::set_disabled_buckets`].
+    disabled_buckets : u64,
   }
 
   impl Renderer
@@ -283,7 +299,6 @@ mod private
         last_clock : 0.0,
         last_camera_signature : CameraSignature
         {
-          world_center : ( 0, 0 ),
           zoom : 0,
           viewport_size : ( 0, 0 ),
         },
@@ -293,6 +308,7 @@ mod private
         next_batch_id : 0,
         sprite_to_sheet,
         vertex_cache : VertexResolveCache::new(),
+        disabled_buckets : 0,
       })
     }
 
@@ -302,6 +318,36 @@ mod private
     #[ inline ]
     #[ must_use ]
     pub fn cache_hits( &self ) -> u64 { self.cache_hits }
+
+    /// Offset this renderer's `ResourceId&lt;Batch&gt;` allocation so several
+    /// renderers can share ONE backend without their batch ids colliding in the
+    /// backend's single batch map. Batch ids are handed out sequentially from
+    /// `base`, so give each co-resident renderer a disjoint range (e.g. `0`,
+    /// `1&lt;&lt;24`, `2&lt;&lt;24`).
+    ///
+    /// **Must be called before the first `render()`** — it sets the next id to
+    /// allocate, so calling it after batches already exist would remint live ids.
+    #[ inline ]
+    pub fn set_batch_id_base( &mut self, base : u32 )
+    {
+      self.next_batch_id = base;
+    }
+
+    /// Set the bitmask of pipeline-layer (bucket) indices to SKIP when drawing.
+    /// Bit `i` corresponds to the `i`-th entry of `RenderSpec.pipeline.layers`;
+    /// a set bit makes that layer emit nothing (and its GPU batches are released
+    /// on the next render). A diagnostic / perf lever — pass `0` to draw every
+    /// layer. Changing the mask invalidates the idle-replay cache so the next
+    /// [`Renderer::render`] re-walks the scene with the new selection.
+    #[ inline ]
+    pub fn set_disabled_buckets( &mut self, mask : u64 )
+    {
+      if mask != self.disabled_buckets
+      {
+        self.disabled_buckets = mask;
+        self.has_rendered = false;
+      }
+    }
 
     /// Drain every live batch into a stream of `DeleteBatch` commands.
     ///
@@ -403,6 +449,12 @@ mod private
       // it covers. With no opaque bucket this is exactly the original single
       // pass — `any_opaque` is false and the `else` branch runs unchanged.
       let mut buckets = emits.buckets;
+      // Perf/diagnostic layer gate: bit `i` set ⇒ skip bucket `i` entirely.
+      // Read into a local Copy so the closure doesn't borrow `self` across the
+      // `&mut self` emit calls. Depth pinning below still divides by the FULL
+      // bucket count, so disabling a layer never shifts the others' depths.
+      let disabled = self.disabled_buckets;
+      let is_disabled = | i : usize | i < 64 && ( disabled >> i ) & 1 == 1;
       let any_opaque = buckets.iter().any( | b | b.opaque );
       if any_opaque
       {
@@ -432,6 +484,7 @@ mod private
         for i in opaque_order
         {
           let bucket = slots[ i ].take().expect( "opaque bucket present" );
+          if is_disabled( i ) { continue; }
           self.emit_bucket( i as u32, bucket, &mut used_keys );
         }
 
@@ -448,6 +501,9 @@ mod private
           let want_write = slot.as_ref().is_some_and( | b | b.occlude_overlap );
           if let Some( bucket ) = slot.take()
           {
+            // Skip a disabled layer without touching the depth-write state (it
+            // draws nothing, so no `SetDepthWrite` toggle is needed for it).
+            if is_disabled( i ) { continue; }
             if want_write != depth_write
             {
               self.cmd_buf.push( RenderCommand::SetDepthWrite( SetDepthWrite { enabled : want_write } ) );
@@ -467,6 +523,7 @@ mod private
       {
         for ( bucket_idx, bucket ) in buckets.into_iter().enumerate()
         {
+          if is_disabled( bucket_idx ) { continue; }
           self.emit_bucket( bucket_idx as u32, bucket, &mut used_keys );
         }
       }

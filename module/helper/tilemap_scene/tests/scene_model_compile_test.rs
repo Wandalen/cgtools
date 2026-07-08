@@ -466,8 +466,11 @@ fn y_flip_applied()
   assert!( y1 < y0, "r=1 should map to smaller Y than r=0 (got y0={y0}, y1={y1})" );
 }
 
+// The camera is now applied on the GPU via a view matrix, not baked into each
+// emitted sprite. A pan therefore leaves the world-space sprite untouched and
+// shows up only in `Camera::to_view_mat3`.
 #[ test ]
-fn camera_translation_shifts_sprites()
+fn camera_pan_leaves_world_sprite_and_shifts_view_matrix()
 {
   let spec = minimal_spec();
   let scene = SceneSnapshot
@@ -479,17 +482,30 @@ fn camera_translation_shifts_sprites()
   let shifted_cam = Camera { world_center : ( 100.0, 0.0 ), ..Camera::default() };
   let shifted_cmds = compile( &spec, &scene, &shifted_cam );
 
+  // World-space emit: the pan does NOT move the sprite.
   let base_x = sprite_x( base_cmds.iter().find( | c | matches!( c, RenderCommand::Sprite( _ ) ) ).unwrap() );
   let shifted_x = sprite_x( shifted_cmds.iter().find( | c | matches!( c, RenderCommand::Sprite( _ ) ) ).unwrap() );
   assert!
   (
-    ( shifted_x - ( base_x - 100.0 ) ).abs() < 1e-3,
-    "camera +100x should subtract 100 from sprite x: base={base_x} shifted={shifted_x}",
+    ( shifted_x - base_x ).abs() < 1e-3,
+    "pan must not move the world-space sprite: base={base_x} shifted={shifted_x}",
+  );
+
+  // The +100x pan instead subtracts 100 from the view-matrix translation
+  // (column-major, tx at index 6).
+  let base_tx = Camera::default().to_view_mat3()[ 6 ];
+  let shifted_tx = shifted_cam.to_view_mat3()[ 6 ];
+  assert!
+  (
+    ( shifted_tx - ( base_tx - 100.0 ) ).abs() < 1e-3,
+    "camera +100x should subtract 100 from view-matrix tx: base={base_tx} shifted={shifted_tx}",
   );
 }
 
+// Zoom likewise lives in the view matrix now — the emitted world sprite keeps
+// unit scale regardless of zoom.
 #[ test ]
-fn camera_zoom_scales_transform()
+fn camera_zoom_lives_in_view_matrix_not_sprite_scale()
 {
   let spec = minimal_spec();
   let scene = SceneSnapshot
@@ -500,15 +516,18 @@ fn camera_zoom_scales_transform()
   let one = compile( &spec, &scene, &Camera::default() );
   let two = compile( &spec, &scene, &Camera { zoom : 2.0, ..Camera::default() } );
 
-  // The sprite-level scale reflects camera zoom.
   let scale_one = if let RenderCommand::Sprite( s ) =
     one.iter().find( | c | matches!( c, RenderCommand::Sprite( _ ) ) ).unwrap()
     { s.transform.scale[ 0 ] } else { panic!() };
   let scale_two = if let RenderCommand::Sprite( s ) =
     two.iter().find( | c | matches!( c, RenderCommand::Sprite( _ ) ) ).unwrap()
     { s.transform.scale[ 0 ] } else { panic!() };
-  assert!( ( scale_one - 1.0 ).abs() < 1e-3, "default zoom is 1.0, got {scale_one}" );
-  assert!( ( scale_two - 2.0 ).abs() < 1e-3, "zoom=2 should set scale 2, got {scale_two}" );
+  assert!( ( scale_one - 1.0 ).abs() < 1e-3, "world sprite is unit-scaled, got {scale_one}" );
+  assert!( ( scale_two - 1.0 ).abs() < 1e-3, "zoom must not scale the world sprite, got {scale_two}" );
+
+  // Zoom shows up in the view-matrix linear part (column-major, index 0).
+  assert!( ( Camera::default().to_view_mat3()[ 0 ] - 1.0 ).abs() < 1e-3, "default zoom → 1.0 on the diagonal" );
+  assert!( ( Camera { zoom : 2.0, ..Camera::default() }.to_view_mat3()[ 0 ] - 2.0 ).abs() < 1e-3, "zoom=2 → 2.0 on the diagonal" );
 }
 
 #[ test ]
@@ -2001,10 +2020,11 @@ fn free_pos_emits_at_instance_position()
   let commands = compile_at_time( &spec, &scene, &camera, 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites.len(), 1 );
-  // Camera project: (wx - 0) * 1 + 400 = 437.5; pivot (0.5, 0.5) over 72x64
-  // sprite shifts by (-36, -32). Final: (437.5 - 36, 300 - 12 - 32) = (401.5, 256).
-  assert!( ( sprites[ 0 ].transform.position[ 0 ] - 401.5 ).abs() < 1e-3 );
-  assert!( ( sprites[ 0 ].transform.position[ 1 ] - 256.0 ).abs() < 1e-3 );
+  // World-space emit (camera applied on the GPU, not here): position is the raw
+  // instance world pos shifted only by the pivot (0.5, 0.5) over the 72x64
+  // sprite → (37.5 - 36, -12 - 32) = (1.5, -44.0).
+  assert!( ( sprites[ 0 ].transform.position[ 0 ] - 1.5 ).abs() < 1e-3 );
+  assert!( ( sprites[ 0 ].transform.position[ 1 ] - ( -44.0 ) ).abs() < 1e-3 );
 }
 
 #[ test ]
