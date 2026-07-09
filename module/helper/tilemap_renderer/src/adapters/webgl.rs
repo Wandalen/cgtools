@@ -511,13 +511,35 @@ mod private
       self.gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &fbh ) );
       self.gl.viewport( 0, 0, w as i32, h as i32 );
       self.active_viewport = Some( [ w as f32, h as f32 ] );
-      if let Some( c ) = clear { self.fill( c ); }
+      if let Some( c ) = clear
+      {
+        // Tell a tiled (mobile) GPU it need not LOAD the prior attachment
+        // contents into tile memory before this pass — the `fill` below fully
+        // redefines both colour and depth immediately, so discarding first is
+        // safe and skips the load-in bandwidth.
+        let discard = gl::js_sys::Array::new();
+        discard.push( &JsValue::from_f64( f64::from( gl::COLOR_ATTACHMENT0 ) ) );
+        discard.push( &JsValue::from_f64( f64::from( gl::DEPTH_ATTACHMENT ) ) );
+        let _ = self.gl.invalidate_framebuffer( gl::FRAMEBUFFER, &discard );
+        self.fill( c );
+      }
     }
 
     /// Restore the default framebuffer and the canvas-sized viewport after a
     /// cache-surface pass.
     pub fn end_render_target( &mut self )
     {
+      // The depth attachment is write-only scratch for the bake's early-Z; only
+      // the colour texture is sampled when compositing. Discard depth before
+      // unbinding so a tiled GPU skips the store-back of the depth tile to main
+      // memory. Guarded on `active_viewport` so this only touches a bound cache
+      // FBO (whose `DEPTH_ATTACHMENT` token is valid), never the default one.
+      if self.active_viewport.is_some()
+      {
+        let discard = gl::js_sys::Array::new();
+        discard.push( &JsValue::from_f64( f64::from( gl::DEPTH_ATTACHMENT ) ) );
+        let _ = self.gl.invalidate_framebuffer( gl::FRAMEBUFFER, &discard );
+      }
       self.active_viewport = None;
       self.gl.bind_framebuffer( gl::FRAMEBUFFER, None );
       self.gl.viewport( 0, 0, self.config.width as i32, self.config.height as i32 );
