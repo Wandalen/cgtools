@@ -148,6 +148,39 @@ let scene = &gltf.scenes[0];
 let materials = &gltf.materials;
 ```
 
+#### Draco-compressed geometry (`KHR_draco_mesh_compression`)
+
+The glTF loader can decode `KHR_draco_mesh_compression` geometry. Decoding is
+pure Rust (via the `draco-gltf` / `draco-core` crates) — there is no C++/JS
+decoder to host and no external `.wasm` asset to fetch, so it works on
+`wasm32-unknown-unknown` with a plain build.
+
+Enable the `draco` feature (it is **off by default** and included in `full`):
+```toml
+renderer = { workspace = true, features = ["webgl", "draco"] }
+```
+
+With the feature enabled, `loaders::gltf::load(..)` transparently decodes any
+Draco primitive it encounters — no separate API call:
+```rust
+// Same call whether or not the asset uses Draco.
+let gltf = loaders::gltf::load(&document, "model-draco.glb", &gl).await?;
+```
+
+Notes:
+- Decoded Draco geometry is the source of truth for attribute data and indices;
+  the glTF accessors still provide the vertex **format** (component type,
+  `normalized`) and the POSITION `min`/`max`, per the extension spec.
+- `KHR_mesh_quantization` is supported alongside Draco: normalized integer
+  attributes (e.g. quantized positions / texcoords) are honored via the
+  accessor's `normalized` flag, so the GPU normalizes them and the node
+  transform places the mesh correctly.
+- Enabling the feature switches the loader to parse without glTF validation,
+  since gltf-rs rejects Draco (and quantized) files during validation.
+- Supported attributes mirror the uncompressed path: POSITION, NORMAL, TANGENT,
+  TEXCOORD_n, COLOR_n, JOINTS_n, WEIGHTS_n, plus triangle indices. Draco point
+  clouds are not handled (mesh triangles only).
+
 ### Features
 
 Enable specific functionality:
@@ -156,7 +189,9 @@ renderer = { workspace = true, features = ["webgl", "full"] }
 ```
 
 - `webgl` - WebGL rendering backend
-- `full` - All features enabled
+- `animation` - Skeletal / morph-target animation support
+- `draco` - `KHR_draco_mesh_compression` geometry decode in the glTF loader (pure-Rust, off by default)
+- `full` - All features enabled (`webgl`, `animation`, `draco`)
 
 ## 🎯 Use Cases
 
@@ -210,6 +245,8 @@ When implementing the `Material` trait for custom materials:
 
 #### KHR Extensions
 - [KHR_materials_specular]
+- [KHR_draco_mesh_compression]
+- [KHR_mesh_quantization]
 
 [Real Shading in Unreal Engine 4]: https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 [Background: Physics and Math of Shading]: https://blog.selfshadow.com/publications/s2013-shading-course/hoffman/s2013_pbs_physics_math_notes.pdf
@@ -229,5 +266,7 @@ When implementing the `Material` trait for custom materials:
 [Normal Mapping Without Precomputed Tangents]: http://www.thetenthplanet.de/archives/1180
 
 [KHR_materials_specular]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_specular/README.md
+[KHR_draco_mesh_compression]: https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_draco_mesh_compression/README.md
+[KHR_mesh_quantization]: https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md
 [Vulkan-glTF-PBR]: https://github.com/SaschaWillems/Vulkan-glTF-PBR/blob/master/data/shaders/genbrdflut.frag
 [Image Based Lighting with Multiple Scattering]: https://bruop.github.io/ibl/
