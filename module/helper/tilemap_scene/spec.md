@@ -656,8 +656,13 @@ re-running the resolve.
 most recent (re)appearance instead of the free-running clock, so it starts at
 `min` each time the layer's content changes — e.g. an attack-target overlay
 fading in from 0 the instant a unit is selected. For dual-grid (`VertexCorners`)
-layers this anchor is the clock captured at the last structural resolve, which
-reruns on any spawn/despawn/move.
+layers this anchor is the master-clock time captured when the bucket's content
+was last resolved. The structural resolve reruns on any scene-`revision` bump —
+including ones that don't touch these tiles (a cursor-preview `move_to` on
+mouse-move bumps the revision) — so the anchor is carried forward whenever the
+re-resolved bucket is content-identical (same tile count, sprite frames, and
+world positions); only genuinely new/changed content takes a fresh anchor. That
+keeps an unrelated mutation from restarting the pulse.
 
 ## 7. Animations and Synchronization
 
