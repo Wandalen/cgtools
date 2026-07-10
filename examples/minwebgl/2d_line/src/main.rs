@@ -57,11 +57,11 @@ fn run() -> Result< (), gl::WebglError >
 
 
   let mut line = line_tools::d2::Line::default();
-  line.set_cap( line_tools::Cap::Butt );
-  line.set_join( line_tools::Join::Miter( 7, 7 ) );
+  line.cap_set( line_tools::Cap::Butt );
+  line.join_set( line_tools::Join::Miter( 7, 7 ) );
 
-  line.create_mesh( &gl, main_frag )?;
-  let mesh = line.get_mesh_mut();
+  line.mesh_create( &gl, main_frag )?;
+  let mesh = line.mesh_get_mut();
 
   mesh.upload( &gl, "u_projection_matrix", &projection_matrix )?;
   mesh.upload( &gl, "u_world_matrix", &world_matrix )?;
@@ -102,9 +102,9 @@ fn run() -> Result< (), gl::WebglError >
         let mut line = line.borrow_mut();
         match value.as_str()
         {
-          "miter" => { line.set_join( line_tools::Join::Miter( 7, 7 ) ); },
-          "bevel" => { line.set_join( line_tools::Join::Bevel( 7, 7 ) ); },
-          "round" => { line.set_join( line_tools::Join::Round( 16, 8 ) ); },
+          "miter" => { line.join_set( line_tools::Join::Miter( 7, 7 ) ); },
+          "bevel" => { line.join_set( line_tools::Join::Bevel( 7, 7 ) ); },
+          "round" => { line.join_set( line_tools::Join::Round( 16, 8 ) ); },
           _ => {}
         }
       }
@@ -125,9 +125,9 @@ fn run() -> Result< (), gl::WebglError >
         let mut line = line.borrow_mut();
         match value.as_str()
         {
-          "butt" => { line.set_cap( line_tools::Cap::Butt ); },
-          "square" => { line.set_cap( line_tools::Cap::Square ); },
-          "round" => { line.set_cap( line_tools::Cap::Round( 16 ) ); },
+          "butt" => { line.cap_set( line_tools::Cap::Butt ); },
+          "square" => { line.cap_set( line_tools::Cap::Square ); },
+          "round" => { line.cap_set( line_tools::Cap::Round( 16 ) ); },
           _ => {}
         }
       }
@@ -144,7 +144,7 @@ fn run() -> Result< (), gl::WebglError >
       let gl = gl.clone();
       move | value : f32 |
       {
-        line.borrow_mut().get_mesh_mut().upload( &gl, "u_width", &value ).unwrap();
+        line.borrow_mut().mesh_get_mut().upload( &gl, "u_width", &value ).unwrap();
       }
     }
   );
@@ -163,10 +163,10 @@ fn run() -> Result< (), gl::WebglError >
 
       update( line.clone(), &canvas, &mut input );
 
-      let distance = line.borrow().get_total_distance();
+      let distance = line.borrow().total_distance_get();
 
-      line.borrow_mut().get_mesh_mut().upload( &gl, "time", &time ).unwrap();
-      line.borrow_mut().get_mesh_mut().upload( &gl, "totalDistance", &distance ).unwrap();
+      line.borrow_mut().mesh_get_mut().upload( &gl, "time", &time ).unwrap();
+      line.borrow_mut().mesh_get_mut().upload( &gl, "totalDistance", &distance ).unwrap();
 
       //draw
       gl.use_program( Some( &background_program ) );
