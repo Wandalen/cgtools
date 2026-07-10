@@ -188,7 +188,11 @@ pub trait Backend {
   `create_render_target` / `reset_render_targets` / `begin_render_target` / `end_render_target` /
   `draw_render_target` let a consumer bake a subset of the frame into a texture once and composite it
   back as a single world-space quad each frame (trading per-frame overdraw for a couple of blits).
-  Inherent methods driven between `submit` calls; `textures_loaded` / `max_texture_size` gate the bake.
+  `begin_render_target` invalidates the colour+depth attachments before the clear (the `fill`
+  fully redefines both, so a tiled GPU can skip loading the prior tile contents) and
+  `end_render_target` invalidates the write-only depth attachment before unbinding (only the
+  colour texture is sampled, so its store-back is skipped). Inherent methods driven between
+  `submit` calls; `textures_loaded` / `max_texture_size` gate the bake.
   `submit` also clears any leftover bound batch from a prior (possibly errored) stream, so several
   renderers can safely share one backend
 - Per-batch VAO with attrib setup at create/unbind time, just bind at draw time
