@@ -405,6 +405,106 @@ mod private
     )
   }
 
+  /// Resolves a glTF asset `uri` (buffer or image) against the model's `folder_path`.
+  ///
+  /// URIs that already carry their own location are returned unchanged, because
+  /// prefixing `folder_path` would corrupt them:
+  /// * absolute / protocol-relative URLs (`http://`, `https://`, `//`),
+  /// * self-contained URIs (`blob:`, `data:`),
+  /// * origin-absolute paths (leading `/`).
+  ///
+  /// Everything else is treated as folder-relative and joined with a single `/`.
+  ///
+  /// When `folder_path` is empty (the glTF was loaded from a bare filename, so it
+  /// sits at the origin root) a folder-relative `uri` resolves to `"/{uri}"`. This
+  /// is intentional and harmless: `resolve_url` joins both `"/buffer.bin"` and
+  /// `"buffer.bin"` against the origin to the same `"{origin}/buffer.bin"`. A glTF
+  /// served from a subdirectory must be loaded with that directory in `gltf_path`
+  /// (e.g. `"assets/scene.gltf"`), otherwise the glTF fetch itself fails first.
+  fn resolve_asset_uri( folder_path : &str, uri : &str ) -> String
+  {
+    // `gl::file::load` already resolves self-contained URLs and origin-absolute
+    // paths against the window origin; only genuinely folder-relative URIs need
+    // the model's folder prefix folded in.
+    if gl::file::is_self_contained_url( uri ) || uri.starts_with( '/' )
+    {
+      uri.to_string()
+    }
+    else
+    {
+      format!( "{}/{}", folder_path, uri )
+    }
+  }
+
+  #[ cfg( test ) ]
+  mod tests
+  {
+    use super::resolve_asset_uri;
+
+    #[ test ]
+    fn joins_relative_uri_with_folder()
+    {
+      assert_eq!
+      (
+        resolve_asset_uri( "models", "scene/buffer.bin" ),
+        "models/scene/buffer.bin"
+      );
+    }
+
+    #[ test ]
+    fn passes_blob_uri_through()
+    {
+      assert_eq!
+      (
+        resolve_asset_uri( "models", "blob:https://app.example.com/uuid-1234" ),
+        "blob:https://app.example.com/uuid-1234"
+      );
+    }
+
+    #[ test ]
+    fn passes_data_uri_through()
+    {
+      assert_eq!
+      (
+        resolve_asset_uri( "models", "data:application/octet-stream;base64,Z2xURg==" ),
+        "data:application/octet-stream;base64,Z2xURg=="
+      );
+    }
+
+    #[ test ]
+    fn passes_absolute_url_through()
+    {
+      assert_eq!
+      (
+        resolve_asset_uri( "models", "https://cdn.example.com/textures/t.png" ),
+        "https://cdn.example.com/textures/t.png"
+      );
+    }
+
+    #[ test ]
+    fn passes_origin_absolute_path_through()
+    {
+      assert_eq!
+      (
+        resolve_asset_uri( "models", "/textures/t.png" ),
+        "/textures/t.png"
+      );
+    }
+
+    #[ test ]
+    fn empty_folder_yields_origin_absolute_uri()
+    {
+      // Documents the benign empty-folder behavior: origin-absolute and
+      // origin-relative forms collapse to the same URL once `resolve_url`
+      // joins them against the window origin.
+      assert_eq!
+      (
+        resolve_asset_uri( "", "buffer.bin" ),
+        "/buffer.bin"
+      );
+    }
+  }
+
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
   pub async fn load
   (
@@ -421,8 +521,26 @@ mod private
 
     // let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
     // .await.expect( "Failed to load gltf file" );
-    let gltf_slice = gl::file::load( gltf_path ).await.expect( "Failed to load gltf file" );
-    let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice ).unwrap();
+    // Propagate fetch / parse failures as errors instead of panicking: an
+    // `.unwrap()` here aborts the whole wasm module (e.g. when a dev server
+    // returns an HTML 404 page, or the bytes are not a valid glTF/GLB), leaving
+    // it unusable for every subsequent call.
+    // `WebglError::Other` only carries a `&'static str`, so the underlying
+    // `JsValue` / `gltf::Error` (file path, HTTP status, JSON parse location)
+    // would otherwise be lost. Log it to the console before mapping so a failed
+    // load is diagnosable in production.
+    let gltf_slice = gl::file::load( gltf_path ).await
+    .map_err( | e |
+    {
+      gl::browser::error!( "Failed to load gltf file '{gltf_path}': {e:?}" );
+      gl::WebglError::Other( "Failed to load gltf file" )
+    } )?;
+    let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice )
+    .map_err( | e |
+    {
+      gl::browser::error!( "Failed to parse gltf file '{gltf_path}': {e}" );
+      gl::WebglError::Other( "Failed to parse gltf file" )
+    } )?;
 
     let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
 
@@ -440,9 +558,13 @@ mod private
       {
         gltf::buffer::Source::Uri( uri ) =>
         {
-          let path = format!( "{}/{}", folder_path, uri );
+          let path = resolve_asset_uri( folder_path, uri );
           let buffer = gl::file::load( &path ).await
-          .expect( "Failed to load a buffer" );
+          .map_err( | e |
+          {
+            gl::browser::error!( "Failed to load gltf buffer '{path}': {e:?}" );
+            gl::WebglError::Other( "Failed to load a buffer" )
+          } )?;
 
           gl::debug!
           (
@@ -518,16 +640,41 @@ mod private
             gl.generate_mipmap( gl::TEXTURE_2D );
             gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
 
-            gl::web_sys::Url::revoke_object_url( &src ).unwrap();
+            // revoke_object_url is specified only for blob: URLs; for data: URIs or
+            // plain file paths it is a no-op, and unwrapping its result is a latent
+            // panic hazard in stricter runtimes. Only revoke the urls we created.
+            if src.starts_with( "blob:" )
+            {
+              gl::web_sys::Url::revoke_object_url( &src ).unwrap();
+            }
 
             img.remove();
           }
         }
       );
 
+      // Without an onerror handler a 404 or malformed image URI fails silently:
+      // the 1x1 white placeholder stays bound, nothing is logged, and load()
+      // still returns Ok. Mirror the error logging added for buffer URI loads so
+      // image failures are diagnosable instead of rendering as blank textures.
+      let on_error : Closure< dyn Fn() > = Closure::new
+      (
+        {
+          let img = img_element.clone();
+          let src = src.clone();
+          move ||
+          {
+            gl::browser::error!( "Failed to load gltf image '{src}'" );
+            img.remove();
+          }
+        }
+      );
+
       img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+      img_element.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
       img_element.set_src( &src );
       load_texture.forget();
+      on_error.forget();
     };
 
     // If a source of an image is Uri - load the file
@@ -539,7 +686,7 @@ mod private
       {
         gltf::image::Source::Uri { uri, mime_type: _ } =>
         {
-          upload_texture( format!( "{}/{}", folder_path, uri ).into() );
+          upload_texture( resolve_asset_uri( folder_path, uri ).into() );
         },
         gltf::image::Source::View { view, mime_type } =>
         {
