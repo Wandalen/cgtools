@@ -767,9 +767,26 @@ mod private
       .wrap_t( WrappingMode::from_gl( gltf_s.wrap_t().as_gl_enum() ) )
       .form();
 
+      // A texture whose image is supplied by an extension ( `KHR_texture_basisu`,
+      // `EXT_texture_webp`, `MSFT_texture_dds` ) carries no `source` field, so this is
+      // `None`. Without the `allow_empty_texture` gltf feature the accessor below would
+      // instead panic on `.nth( u32::MAX ).unwrap()`; fail with a diagnosable error.
+      let Some( gltf_image ) = gltf_t.source()
+      else
+      {
+        gl::browser::error!
+        (
+          "glTF texture {} has no image source. It most likely uses an extension this build \
+           cannot decode ( e.g. KHR_texture_basisu ). Rebuild `renderer` with the `ktx2` feature, \
+           or re-export the asset with an uncompressed fallback image.",
+          gltf_t.index()
+        );
+        return Err( gl::WebglError::Other( "glTF texture has no decodable image source" ) );
+      };
+
       let texture = Texture::former()
       .target( gl::TEXTURE_2D )
-      .source( images.borrow()[ gltf_t.source().index() ].clone() )
+      .source( images.borrow()[ gltf_image.index() ].clone() )
       .sampler( sampler )
       .form();
 
