@@ -31,6 +31,7 @@ members = [
   "module/helper/renderer",
   "module/helper/tilemap_renderer",
   "module/helper/tiles_tools",
+  "module/helper/uastc_tools",
   "module/helper/behaviour_tree",
   "module/helper/tilemap_scene",
   # "module/helper/vectorizer", # TODO: Fix feature gate issues
@@ -128,6 +129,10 @@ path = "module/helper/browser_log"
 [workspace.dependencies.browser_tools]
 version = "~0.2.0"
 path = "module/alias/browser_tools"
+
+[workspace.dependencies.uastc_tools]
+version = "0.1.0"
+path = "module/helper/uastc_tools"
 
 [workspace.dependencies.renderer]
 version = "0.1.0"
