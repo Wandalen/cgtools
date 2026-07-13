@@ -322,6 +322,16 @@ version = "1.47.1"
 [workspace.dependencies.gltf]
 version = "1.4.1"
 
+# KTX2 container parsing for `KHR_texture_basisu`. Parses only -- it hands back raw,
+# still-supercompressed level bytes; `ruzstd` and `uastc_tools` do the rest.
+[workspace.dependencies.ktx2]
+version = "0.5"
+
+# Zstandard de-supercompression of KTX2 mip levels. Not optional for KTX2: `gltf-transform`
+# emits UASTC with `supercompressionScheme = Zstandard` by default. Pure Rust, wasm-clean.
+[workspace.dependencies.ruzstd]
+version = "0.8"
+
 [workspace.dependencies.csgrs]
 version = "0.20.1"
 default-features = false
