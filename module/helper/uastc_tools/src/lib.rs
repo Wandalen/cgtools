@@ -10,15 +10,6 @@
 #![ forbid( unsafe_code ) ]
 #![ no_std ]
 
-// The modules below `lib.rs` are VENDORED THIRD-PARTY CODE, kept byte-for-byte as
-// upstream wrote it ( see readme.md: `basisu_rs` @ 60e1bcb ). They are deliberately not
-// reformatted or re-idiomed to cgtools conventions: the whole value of recording the
-// upstream commit is being able to `diff` against it, and rewriting 3,500 lines of a
-// bit-exact-validated block decoder would destroy that for no functional gain.
-// The workspace lints are therefore relaxed here, and here only. This crate's own
-// surface -- the entry points in this file -- does follow the repo conventions.
-#![ allow( elided_lifetimes_in_paths ) ]
-
 // The BC7 and ETC transcoders use inherent `f32` methods ( `powi`, `round`, `sqrt` ),
 // which live in `std`, not `core`. Linking `std` brings them into scope. Kept behind a
 // feature, as upstream does, so the crate stays usable in a `no_std` build.
@@ -27,11 +18,54 @@ extern crate std;
 
 extern crate alloc;
 
-mod bitreader;
-mod bitwriter;
-mod color;
-mod target_formats;
-mod uastc;
+// ---------------------------------------------------------------------------------------
+// VENDORED THIRD-PARTY CODE -- lints relaxed, here and only here.
+//
+// The five modules below are kept byte-for-byte as upstream wrote them ( see readme.md:
+// `basisu_rs` @ 60e1bcb ). They are deliberately not reformatted or re-idiomed to cgtools
+// conventions: the whole value of recording the upstream commit is being able to `diff`
+// against it, and rewriting 3,500 lines of a bit-exact-validated block decoder would
+// destroy that for no functional gain and considerable risk.
+//
+// The relaxations are attached to the module declarations rather than to the crate, so
+// that this file -- the only hand-written, cgtools-owned code here -- stays fully linted.
+//
+// * `dead_code`: upstream is a complete Basis Universal implementation. cgtools calls only
+//   the UASTC block entry points, so its `.basis` container reader, ETC1S paths and
+//   assorted helpers are genuinely unreachable from our surface. Deleting them would be a
+//   bigger, riskier diff from upstream than tolerating them.
+// * `clippy::pedantic`, and the individual restriction lints the workspace turns on
+//   ( `min_ident_chars`, `else_if_without_else`, `exhaustive_enums`, ... ): style
+//   judgements about code we have chosen not to restyle. Suppressing them is the direct
+//   consequence of the byte-for-byte decision above; treating them as actionable would
+//   contradict it.
+//
+// Nothing here is silenced for *correctness*. `unsafe_code` stays forbidden crate-wide,
+// and the transcoders remain validated bit-exactly against KTX-Software ( readme.md, T1 ).
+// ---------------------------------------------------------------------------------------
+
+/// Declares a vendored module with the workspace lints relaxed. See the comment block above.
+macro_rules! vendored
+{
+  ( $( $name : ident ),* $(,)? ) =>
+  {
+    $(
+      // Upstream is a complete Basis Universal implementation; we call only part of it.
+      #[ allow( dead_code ) ]
+      // Style-only, and all consequences of not restyling vendored source.
+      #[ allow( elided_lifetimes_in_paths ) ]
+      #[ allow( clippy::pedantic ) ]
+      #[ allow( clippy::get_first, clippy::needless_range_loop ) ]
+      #[ allow( clippy::min_ident_chars, clippy::else_if_without_else ) ]
+      #[ allow( clippy::exhaustive_enums, clippy::exhaustive_structs ) ]
+      #[ allow( clippy::missing_inline_in_public_items, clippy::wildcard_imports ) ]
+      #[ allow( clippy::std_instead_of_core, clippy::std_instead_of_alloc ) ]
+      mod $name;
+    )*
+  };
+}
+
+vendored!( bitreader, bitwriter, color, target_formats, uastc );
 
 use color::Color32;
 use uastc::{ ASTC_BLOCK_SIZE, BC7_BLOCK_SIZE, ETC1_BLOCK_SIZE, ETC2_BLOCK_SIZE, UASTC_BLOCK_SIZE };
@@ -50,15 +84,17 @@ type Result< T > = core::result::Result< T, Error >;
 ///
 /// # Errors
 /// Returns `Err` if the block is malformed.
+#[ inline ]
 pub fn unpack_uastc_block_to_rgba( data : [ u8; UASTC_BLOCK_SIZE ] ) -> Result< [ u32; 16 ] >
 {
-  uastc::decode_block_to_rgba( data ).map( | b | b.map( Color32::to_rgba_u32 ) )
+  uastc::decode_block_to_rgba( data ).map( | texels | texels.map( Color32::to_rgba_u32 ) )
 }
 
 /// Transcode a UASTC block to an ASTC 4x4 block.
 ///
 /// # Errors
 /// Returns `Err` if the block is malformed.
+#[ inline ]
 pub fn transcode_uastc_block_to_astc( data : [ u8; UASTC_BLOCK_SIZE ] ) -> Result< [ u8; ASTC_BLOCK_SIZE ] >
 {
   target_formats::astc::convert_block_from_uastc( data )
@@ -68,6 +104,7 @@ pub fn transcode_uastc_block_to_astc( data : [ u8; UASTC_BLOCK_SIZE ] ) -> Resul
 ///
 /// # Errors
 /// Returns `Err` if the block is malformed.
+#[ inline ]
 pub fn transcode_uastc_block_to_bc7( data : [ u8; UASTC_BLOCK_SIZE ] ) -> Result< [ u8; BC7_BLOCK_SIZE ] >
 {
   target_formats::bc7::convert_block_from_uastc( data )
@@ -77,6 +114,7 @@ pub fn transcode_uastc_block_to_bc7( data : [ u8; UASTC_BLOCK_SIZE ] ) -> Result
 ///
 /// # Errors
 /// Returns `Err` if the block is malformed.
+#[ inline ]
 pub fn transcode_uastc_block_to_etc1( data : [ u8; UASTC_BLOCK_SIZE ] ) -> Result< [ u8; ETC1_BLOCK_SIZE ] >
 {
   target_formats::etc::convert_etc1_block_from_uastc( data )
@@ -86,6 +124,7 @@ pub fn transcode_uastc_block_to_etc1( data : [ u8; UASTC_BLOCK_SIZE ] ) -> Resul
 ///
 /// # Errors
 /// Returns `Err` if the block is malformed.
+#[ inline ]
 pub fn transcode_uastc_block_to_etc2( data : [ u8; UASTC_BLOCK_SIZE ] ) -> Result< [ u8; ETC2_BLOCK_SIZE ] >
 {
   target_formats::etc::convert_etc2_block_from_uastc( data )

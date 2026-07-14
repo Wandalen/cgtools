@@ -16,4 +16,8 @@ crate::mod_interface!
 
   /// PMREM IBL generator from equirectangular HDR
   layer pmrem;
+
+  /// KTX2 / Basis Universal texture loader, for the `KHR_texture_basisu` glTF extension.
+  #[ cfg( feature = "ktx2" ) ]
+  layer ktx2;
 }
