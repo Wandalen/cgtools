@@ -571,6 +571,120 @@ mod private
     Ok( image )
   }
 
+  /// Decodes a KTX2 file and uploads it as a complete `TEXTURE_2D`, mip chain and all.
+  ///
+  /// This is the entry point the glTF loader calls. `format` should come from
+  /// [ `gl::texture::compressed::Support::best` ] -- what the device can actually sample.
+  ///
+  /// # Color space
+  ///
+  /// `color_space` is a parameter rather than a decision made here, but note what this renderer
+  /// passes: **`Linear`**, even for a texture whose KTX2 header declares itself sRGB
+  /// ( [ `Info::srgb` ] ). That is not an oversight. The fragment shader applies `SrgbToLinear` to
+  /// base-color, specular and emissive samples itself, so asking the sampler to linearise as well
+  /// would decode twice and visibly darken the image.
+  ///
+  /// # Mip levels
+  ///
+  /// The file's **own** mip chain is uploaded, level by level. `generate_mipmap` is never called,
+  /// for two independent reasons, either of which alone would settle it:
+  ///
+  /// * It would not work. `generateMipmap` on a compressed internal format is an
+  ///   `INVALID_OPERATION` -- the GPU cannot downsample block-compressed data, because doing so
+  ///   would mean decoding, filtering and re-encoding it.
+  /// * It would be worse if it did. The levels in the file were downsampled from the *source*
+  ///   image and only then compressed. A mip chain derived from already-compressed level 0 would
+  ///   compound its error at every step.
+  ///
+  /// `TEXTURE_MAX_LEVEL` is set to the last level the file actually provides. This is what makes the
+  /// texture **complete**: without it, a sampler using a mipmap filter would expect a full chain
+  /// down to 1x1, not find one, and silently sample black.
+  ///
+  /// # Cost
+  ///
+  /// The transcode is synchronous and on the calling thread -- roughly 40 ms natively for a
+  /// three-texture model, and some multiple of that in wasm ( T1 ). Acceptable at load time; if it
+  /// ever becomes a problem the fix is a worker, not a different decoder.
+  ///
+  /// # Errors
+  ///
+  /// Fails if the file is malformed, if its payload is not UASTC ( see
+  /// [ `Ktx2Image::check_supported` ] ), or if a level fails to decode or upload.
+  pub fn load_into_texture
+  (
+    gl : &gl::WebGl2RenderingContext,
+    bytes : &[ u8 ],
+    format : gl::texture::compressed::Format,
+    color_space : gl::texture::compressed::ColorSpace,
+  ) -> Result< gl::web_sys::WebGlTexture, Ktx2Error >
+  {
+    use gl::GL;
+
+    let image = Ktx2Image::parse( bytes )?;
+    let wrapping = image.check_supported()?;
+    let level_count = image.info().level_count;
+
+    let texture = gl.create_texture()
+    .ok_or_else( || Ktx2Error::Upload( "failed to create a texture object".to_string() ) )?;
+
+    gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
+
+    // Both of these make `compressedTexImage2D` fail with `INVALID_OPERATION` if they are left set,
+    // and either could have been left set by an earlier upload on this context. Neither is
+    // meaningful for us anyway: block-compressed data *cannot* be flipped or premultiplied without
+    // decoding it first. ( glTF wants no flip regardless -- its UV origin is the top-left, which is
+    // exactly what an unflipped upload gives. )
+    gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, 0 );
+    gl.pixel_storei( GL::UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0 );
+
+    // Drain any error left over from earlier, unrelated calls, so that the check after the uploads
+    // can only be reporting on us.
+    while gl.get_error() != GL::NO_ERROR {}
+
+    for ( level, data ) in image.levels().enumerate()
+    {
+      let level = level as u32;
+      let ( width, height ) = image.level_size( level );
+
+      let decoded = decode_level( data.data, wrapping, format, width, height )?;
+      upload_level( gl, format, color_space, level, width, height, &decoded )?;
+    }
+
+    // `compressedTexImage2D` has no return value and web-sys does not mark it `catch`, so a rejected
+    // upload is **silent**: the texture is simply left undefined and samples black, with nothing to
+    // distinguish that from a legitimately black asset. The most likely causes are all real
+    // possibilities here -- an `internalformat` whose extension was never enabled ( `INVALID_ENUM` ),
+    // or a byte count that disagrees with the dimensions ( `INVALID_VALUE` ) -- so the error flag is
+    // read once, after the whole chain. One synchronous round-trip per texture at load time is a
+    // small price for not shipping a silent failure mode.
+    let error = gl.get_error();
+    if error != GL::NO_ERROR
+    {
+      gl.delete_texture( Some( &texture ) );
+      return Err( Ktx2Error::Upload( format!
+      (
+        "WebGL error 0x{error:04X} while uploading a {format:?} texture. The device most likely does \
+         not support that format -- was `Support::query` used to choose it?"
+      ) ) );
+    }
+
+    // The file's chain is authoritative, and it may stop short of 1x1. Telling the sampler where it
+    // ends is what makes the texture mipmap-complete; leaving `MAX_LEVEL` at its default of 1000
+    // would have a mipmap-filtered sampler look for levels that were never uploaded and render
+    // black.
+    gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_BASE_LEVEL, 0 );
+    gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAX_LEVEL, ( level_count - 1 ) as i32 );
+
+    // Sensible defaults, which the glTF sampler is free to overwrite afterwards. A file with a
+    // single level gets a non-mipmap filter: legal either way once `MAX_LEVEL` is 0, but there is no
+    // point asking for trilinear filtering across a chain of one.
+    let min_filter = if level_count > 1 { GL::LINEAR_MIPMAP_LINEAR } else { GL::LINEAR };
+    gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, min_filter as i32 );
+    gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::LINEAR as i32 );
+
+    Ok( texture )
+  }
+
   /// Uploads one decoded mip level into the currently-bound `TEXTURE_2D`.
   ///
   /// `bytes` must have come from [ `decode_level` ] with the same `format`, `width` and `height`.
@@ -649,6 +763,7 @@ crate::mod_interface!
     SupercompressionScheme,
     Wrapping,
     decode_level,
+    load_into_texture,
     upload_level,
   };
 }
