@@ -442,33 +442,39 @@ mod private
 
   /// Index of the image a texture actually uses.
   ///
-  /// `Texture::source()` is `None` whenever the image comes from an extension rather than from the
-  /// texture's own `source` field, which is exactly what `KHR_texture_basisu` does: it puts the index
-  /// in `extensions.KHR_texture_basisu.source` instead.
+  /// A texture may name its image in two places, and which one wins depends on what this build can
+  /// decode:
   ///
-  /// The extension is consulted **only when this build can actually decode KTX2**. That is
-  /// deliberate: resolving the index in a build without the `ktx2` feature would hand back an image
-  /// that was never decoded — a 1×1 white placeholder — and the model would render as a blank,
-  /// silently wrong surface. Returning `None` instead keeps the loud, actionable error at the call
-  /// site, which is the better failure.
+  /// * `extensions.KHR_texture_basisu.source` — a KTX2 image.
+  /// * `source` — the texture's own field. `None` for a basisu-only texture.
+  ///
+  /// # Precedence, and why it is this way round
+  ///
+  /// When the `ktx2` feature is on, **the extension wins**. An asset is allowed to ship both, and
+  /// `KHR_texture_basisu` is explicit that `source` is a *fallback for clients that cannot read the
+  /// extension*. So a client that can read it must not take the fallback — otherwise an asset with
+  /// both would quietly load the large uncompressed PNG, the KTX2 would go untouched, and the entire
+  /// feature would silently do nothing while appearing to work. Preferring `source` here is the one
+  /// bug in this function that would leave no visible trace.
+  ///
+  /// When the feature is off, the extension is **not consulted at all**, and a basisu-only texture
+  /// resolves to `None`. That is deliberate too: returning its index would hand back an image that
+  /// was never decoded — a 1×1 white placeholder — and the model would render as a blank, *silently
+  /// wrong* surface. `None` keeps the loud, actionable error at the call site, which is the better
+  /// failure. A texture that ships a plain `source` alongside still resolves through it, and loads
+  /// exactly as it always did.
   fn effective_image_source( gltf_texture : &gltf::Texture< '_ > ) -> Option< usize >
   {
-    if let Some( image ) = gltf_texture.source()
-    {
-      return Some( image.index() );
-    }
-
     #[ cfg( feature = "ktx2" ) ]
+    if let Some( index ) = gltf_texture
+    .extension_value( "KHR_texture_basisu" )
+    .and_then( | extension | extension.get( "source" ) )
+    .and_then( | source | source.as_u64() )
     {
-      return gltf_texture
-      .extension_value( "KHR_texture_basisu" )?
-      .get( "source" )?
-      .as_u64()
-      .map( | index | index as usize );
+      return Some( index as usize );
     }
 
-    #[ cfg( not( feature = "ktx2" ) ) ]
-    None
+    gltf_texture.source().map( | image | image.index() )
   }
 
   /// The raw bytes of an image if it is KTX2, or `None` if it is any other format.
@@ -592,6 +598,68 @@ mod private
       let texture = document.textures().next().expect( "one texture" );
 
       assert_eq!( super::effective_image_source( &texture ), Some( 1 ) );
+    }
+
+    /// A texture carrying **both** a KTX2 image and a plain fallback -- the case `KHR_texture_basisu`
+    /// exists to make loadable by everyone.
+    ///
+    /// Image 0 is the KTX2; image 1 is the uncompressed PNG fallback. Which one is correct depends
+    /// entirely on what the build can decode, so the two tests below assert *opposite* answers.
+    const DUAL_SOURCE_GLTF : &str = r#"{
+      "asset" : { "version" : "2.0" },
+      "extensionsUsed" : [ "KHR_texture_basisu" ],
+      "images" :
+      [
+        { "uri" : "colour.ktx2", "mimeType" : "image/ktx2" },
+        { "uri" : "colour.png", "mimeType" : "image/png" }
+      ],
+      "textures" :
+      [
+        {
+          "source" : 1,
+          "extensions" : { "KHR_texture_basisu" : { "source" : 0 } }
+        }
+      ]
+    }"#;
+
+    /// With the feature **on**, the KTX2 must win over the fallback.
+    ///
+    /// This is the assertion that protects the point of the whole feature. Taking the fallback here
+    /// would be the one bug in `effective_image_source` that leaves *no visible trace*: the model
+    /// renders perfectly, from the large uncompressed PNG, while the KTX2 is never touched and every
+    /// byte of transcoder work goes unused.
+    #[ cfg( feature = "ktx2" ) ]
+    #[ test ]
+    fn ktx2_build_prefers_the_extension_over_the_fallback_source()
+    {
+      let document = gltf::Gltf::from_slice( DUAL_SOURCE_GLTF.as_bytes() ).unwrap();
+      let texture = document.textures().next().unwrap();
+
+      assert_eq!
+      (
+        super::effective_image_source( &texture ),
+        Some( 0 ),
+        "a ktx2-capable build must use the KTX2 image, not the PNG fallback"
+      );
+    }
+
+    /// With the feature **off**, the same file must resolve to the plain fallback and load normally.
+    ///
+    /// This is the other half of the contract: an asset that ships a fallback is supposed to work in
+    /// a build that cannot decode KTX2, with no error and no placeholder.
+    #[ cfg( not( feature = "ktx2" ) ) ]
+    #[ test ]
+    fn non_ktx2_build_falls_back_to_the_plain_source()
+    {
+      let document = gltf::Gltf::from_slice( DUAL_SOURCE_GLTF.as_bytes() ).unwrap();
+      let texture = document.textures().next().unwrap();
+
+      assert_eq!
+      (
+        super::effective_image_source( &texture ),
+        Some( 1 ),
+        "a build without the ktx2 feature must use the uncompressed fallback"
+      );
     }
 
     #[ test ]
