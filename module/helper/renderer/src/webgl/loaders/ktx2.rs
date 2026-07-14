@@ -22,6 +22,9 @@
 
 mod private
 {
+  use minwebgl as gl;
+  use std::borrow::Cow;
+
   // The extern crate and this module share a name. Anchor the path at the crate root so it cannot
   // resolve to this module instead.
   use ::ktx2::{ Reader, TransferFunction };
@@ -141,6 +144,27 @@ mod private
     /// `KHR_texture_basisu` allows only Zstandard or none for a UASTC payload, so in practice this
     /// means a file that is out of spec ( ZLIB, or a vendor scheme ).
     UnsupportedSupercompression( SupercompressionScheme ),
+
+    /// Zstandard decompression of a mip level failed -- the level data is corrupt or truncated.
+    Supercompression( String ),
+
+    /// A UASTC block failed to decode. The level data is corrupt.
+    Transcode( String ),
+
+    /// A mip level is not the size its dimensions imply.
+    ///
+    /// Caught here rather than at upload because the symptom otherwise is a bare `INVALID_VALUE`
+    /// from `compressedTexImage2D` with no indication of which level or by how much.
+    LevelSizeMismatch
+    {
+      /// Bytes the level's dimensions imply it must contain.
+      expected : usize,
+      /// Bytes it actually contains.
+      actual : usize,
+    },
+
+    /// The GPU rejected an upload.
+    Upload( String ),
   }
 
   impl core::fmt::Display for Ktx2Error
@@ -175,6 +199,20 @@ mod private
            KHR_texture_basisu allows only Zstandard, or none, for a UASTC payload. Re-encode it -- \
            for example `gltf-transform uastc in.glb out.glb`."
         ),
+
+        Self::Supercompression( detail ) =>
+          write!( f, "Failed to decompress a Zstandard-supercompressed KTX2 mip level : {detail}" ),
+
+        Self::Transcode( detail ) => write!( f, "Failed to decode a UASTC block : {detail}" ),
+
+        Self::LevelSizeMismatch { expected, actual } => write!
+        (
+          f,
+          "KTX2 mip level is {actual} bytes, but its dimensions imply {expected}. The file is \
+           corrupt or truncated."
+        ),
+
+        Self::Upload( detail ) => write!( f, "The GPU rejected a KTX2 texture upload : {detail}" ),
 
         Self::MissingDataFormatDescriptor =>
           write!( f, "KTX2 file has no basic Data Format Descriptor, so its encoding is unknown" ),
@@ -383,6 +421,220 @@ mod private
       ( width, height )
     }
   }
+
+  /// Bytes in one UASTC block. UASTC is a 4x4, 128-bit encoding, always.
+  const UASTC_BLOCK_BYTES : usize = 16;
+
+  /// Undoes Zstandard supercompression.
+  fn inflate( data : &[ u8 ] ) -> Result< Vec< u8 >, Ktx2Error >
+  {
+    use std::io::Read as _;
+
+    let mut decoder = ruzstd::decoding::StreamingDecoder::new( data )
+    .map_err( | e | Ktx2Error::Supercompression( format!( "{e:?}" ) ) )?;
+
+    let mut out = Vec::new();
+    decoder.read_to_end( &mut out )
+    .map_err( | e | Ktx2Error::Supercompression( format!( "{e:?}" ) ) )?;
+
+    Ok( out )
+  }
+
+  /// Decodes one mip level into bytes ready to hand to the GPU in `format`.
+  ///
+  /// This is the whole decode pipeline, and it is deliberately **pure**: bytes in, bytes out, no
+  /// WebGL context anywhere. That is what lets it be tested natively, without a browser -- and the
+  /// transcode is the part most worth testing, since a wrong block here is a wrong pixel forever.
+  ///
+  /// The two compressions are undone in order:
+  ///
+  /// 1. **Zstandard**, if [ `Wrapping::Zstandard` ] -- generic and lossless, yielding UASTC blocks.
+  /// 2. **UASTC**, always -- transcoded into `format`, because no GPU can sample UASTC itself.
+  ///
+  /// For the compressed targets this is a 1:1 block map: block *n* of the output is block *n* of the
+  /// input, transcoded. Both UASTC and all three targets store blocks in row-major order with a
+  /// 16-byte block, so no reordering is needed and the output length is the input length.
+  ///
+  /// # Errors
+  ///
+  /// Fails if Zstandard decompression fails, if the level is not the size its dimensions imply, or
+  /// if a UASTC block is malformed.
+  pub fn decode_level
+  (
+    data : &[ u8 ],
+    wrapping : Wrapping,
+    format : gl::texture::compressed::Format,
+    width : u32,
+    height : u32,
+  ) -> Result< Vec< u8 >, Ktx2Error >
+  {
+    use gl::texture::compressed::Format;
+
+    // Borrowed when there is nothing to undo -- an uncompressed level needs no copy.
+    let uastc : Cow< '_, [ u8 ] > = match wrapping
+    {
+      Wrapping::None => Cow::Borrowed( data ),
+      Wrapping::Zstandard => Cow::Owned( inflate( data )? ),
+    };
+
+    let blocks_x = ( width.div_ceil( 4 ) ) as usize;
+    let blocks_y = ( height.div_ceil( 4 ) ) as usize;
+
+    // The level's dimensions, not the file's own length field, are the authority: this is exactly
+    // the arithmetic `compressedTexImage2D` will apply, so checking it here turns a bare
+    // `INVALID_VALUE` at upload into an error that says which level and by how much.
+    let expected = blocks_x * blocks_y * UASTC_BLOCK_BYTES;
+    if uastc.len() != expected
+    {
+      return Err( Ktx2Error::LevelSizeMismatch { expected, actual : uastc.len() } );
+    }
+
+    // All three compressed targets share one signature -- 4x4 in, 16 bytes out -- so the format is
+    // resolved once, here, rather than re-matched for every one of the ~65k blocks in a 1024x1024
+    // level.
+    let transcode : fn( [ u8; UASTC_BLOCK_BYTES ] ) -> core::result::Result< [ u8; 16 ], String > =
+    match format
+    {
+      Format::Astc4x4 => uastc_tools::transcode_uastc_block_to_astc,
+      Format::Bc7 => uastc_tools::transcode_uastc_block_to_bc7,
+      Format::Etc2Rgba => uastc_tools::transcode_uastc_block_to_etc2,
+      // The uncompressed fallback is not a block format, so it takes the other path entirely: its
+      // texels must be scattered out of block order into image order.
+      Format::Rgba8 => return unpack_to_rgba( &uastc, blocks_x, width, height ),
+    };
+
+    let mut out = Vec::with_capacity( expected );
+    for block in uastc.chunks_exact( UASTC_BLOCK_BYTES )
+    {
+      // `chunks_exact` guarantees the length, so this cannot fail.
+      let block : [ u8; UASTC_BLOCK_BYTES ] = block.try_into().unwrap_or( [ 0; UASTC_BLOCK_BYTES ] );
+      let transcoded = transcode( block ).map_err( Ktx2Error::Transcode )?;
+      out.extend_from_slice( &transcoded );
+    }
+
+    Ok( out )
+  }
+
+  /// Decodes UASTC blocks to a plain RGBA8 image, for devices that support no compressed format.
+  ///
+  /// Unlike a block-to-block transcode this has to **de-block**: UASTC stores texels grouped by 4x4
+  /// tile, an image stores them by row. Edge tiles of a texture whose size is not a multiple of 4
+  /// are only partly covered, and their surplus texels are dropped rather than written past the end
+  /// of a row -- which is what makes the bounds checks below load-bearing rather than defensive.
+  fn unpack_to_rgba
+  (
+    uastc : &[ u8 ],
+    blocks_x : usize,
+    width : u32,
+    height : u32,
+  ) -> Result< Vec< u8 >, Ktx2Error >
+  {
+    let width = width as usize;
+    let height = height as usize;
+    let mut image = vec![ 0_u8; width * height * 4 ];
+
+    for ( index, block ) in uastc.chunks_exact( UASTC_BLOCK_BYTES ).enumerate()
+    {
+      let block : [ u8; UASTC_BLOCK_BYTES ] = block.try_into().unwrap_or( [ 0; UASTC_BLOCK_BYTES ] );
+      let texels = uastc_tools::unpack_uastc_block_to_rgba( block ).map_err( Ktx2Error::Transcode )?;
+
+      let origin_x = ( index % blocks_x ) * 4;
+      let origin_y = ( index / blocks_x ) * 4;
+
+      for row in 0..4
+      {
+        let y = origin_y + row;
+        if y >= height
+        {
+          break;
+        }
+
+        for column in 0..4
+        {
+          let x = origin_x + column;
+          if x >= width
+          {
+            break;
+          }
+
+          // `uastc_tools` packs each texel as little-endian `[ r, g, b, a ]`, so the bytes come back
+          // in exactly the order WebGL wants for `RGBA` / `UNSIGNED_BYTE`. This is worth stating
+          // because it is not universal -- `texture2ddecoder`, for one, packs BGRA, and swapping the
+          // two produces an image that looks plausible until you notice red and blue are exchanged.
+          let texel = texels[ row * 4 + column ].to_le_bytes();
+          let offset = ( y * width + x ) * 4;
+          image[ offset..offset + 4 ].copy_from_slice( &texel );
+        }
+      }
+    }
+
+    Ok( image )
+  }
+
+  /// Uploads one decoded mip level into the currently-bound `TEXTURE_2D`.
+  ///
+  /// `bytes` must have come from [ `decode_level` ] with the same `format`, `width` and `height`.
+  ///
+  /// # Errors
+  ///
+  /// Fails if `bytes` is not the length `format` and the dimensions imply, or if the GPU rejects the
+  /// upload.
+  pub fn upload_level
+  (
+    gl : &gl::WebGl2RenderingContext,
+    format : gl::texture::compressed::Format,
+    color_space : gl::texture::compressed::ColorSpace,
+    level : u32,
+    width : u32,
+    height : u32,
+    bytes : &[ u8 ],
+  ) -> Result< (), Ktx2Error >
+  {
+    use gl::GL;
+
+    // WebGL validates this itself and answers with a bare `INVALID_VALUE` -- which, for a
+    // compressed upload, is reported asynchronously and names neither the level nor the size. Check
+    // it here so the error can.
+    let expected = format.level_size( width, height );
+    if bytes.len() != expected
+    {
+      return Err( Ktx2Error::LevelSizeMismatch { expected, actual : bytes.len() } );
+    }
+
+    let internal_format = format.internal_format( color_space );
+
+    if format.is_compressed()
+    {
+      gl.compressed_tex_image_2d_with_u8_array
+      (
+        GL::TEXTURE_2D,
+        level as i32,
+        internal_format,
+        width as i32,
+        height as i32,
+        0,
+        bytes,
+      );
+    }
+    else
+    {
+      gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+      (
+        GL::TEXTURE_2D,
+        level as i32,
+        internal_format as i32,
+        width as i32,
+        height as i32,
+        0,
+        GL::RGBA,
+        GL::UNSIGNED_BYTE,
+        Some( bytes ),
+      )
+      .map_err( | e | Ktx2Error::Upload( format!( "{e:?}" ) ) )?;
+    }
+
+    Ok( () )
+  }
 }
 
 crate::mod_interface!
@@ -396,5 +648,7 @@ crate::mod_interface!
     Payload,
     SupercompressionScheme,
     Wrapping,
+    decode_level,
+    upload_level,
   };
 }

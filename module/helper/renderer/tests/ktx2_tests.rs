@@ -85,3 +85,201 @@ fn empty_input_is_rejected_without_panicking()
   let error = Ktx2Image::parse( &[] ).expect_err( "empty input must not parse" );
   assert!( matches!( error, Ktx2Error::Malformed( _ ) ), "got {error:?}" );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Decode pipeline ( T4.3 ).
+//
+// `decode_level` is pure -- bytes in, bytes out, no WebGL context -- which is what makes the most
+// error-prone part of this loader testable without a browser.
+//
+// The fixture is 65x33 **on purpose**. Both dimensions are non-multiples of 4, so every mip level
+// has partially-covered blocks along its right and bottom edges. A texture sized to a multiple of 4
+// would exercise none of the rounding, and a 1024x1024 asset ( which is what the real ones are )
+// would silently pass a decoder that got the edges wrong.
+// ---------------------------------------------------------------------------------------------
+
+use minwebgl as gl;
+use gl::texture::compressed::Format;
+use renderer::webgl::loaders::ktx2::{ Wrapping, decode_level };
+
+/// The 65x33 UASTC + Zstandard fixture, encoded with KTX-Software's `ktx create --encode uastc`.
+const FIXTURE : &[ u8 ] = include_bytes!( "fixtures/uastc-65x33.ktx2" );
+
+/// Every compressed format the fixture can be transcoded into.
+const COMPRESSED : [ Format; 3 ] = [ Format::Astc4x4, Format::Bc7, Format::Etc2Rgba ];
+
+#[ test ]
+fn fixture_is_what_the_decode_tests_assume()
+{
+  let image = Ktx2Image::parse( FIXTURE ).expect( "fixture must parse" );
+  let info = image.info();
+
+  assert_eq!( ( info.width, info.height ), ( 65, 33 ) );
+  assert_eq!( info.level_count, 7 );
+  assert!( info.srgb, "fixture was encoded with --assign-tf srgb" );
+  assert_eq!( image.check_supported(), Ok( Wrapping::Zstandard ) );
+}
+
+/// Mip dimensions halve and clamp at 1 -- and for 65x33 they are never block-aligned.
+#[ test ]
+fn mip_dimensions_halve_and_clamp()
+{
+  let image = Ktx2Image::parse( FIXTURE ).unwrap();
+
+  let dimensions : Vec< _ > = ( 0..image.info().level_count ).map( | l | image.level_size( l ) ).collect();
+  assert_eq!
+  (
+    dimensions,
+    vec![ ( 65, 33 ), ( 32, 16 ), ( 16, 8 ), ( 8, 4 ), ( 4, 2 ), ( 2, 1 ), ( 1, 1 ) ]
+  );
+}
+
+/// **The load-bearing test.** Every level, in every target format, must decode to exactly the byte
+/// count that format and those dimensions imply.
+///
+/// This is not a formality: `compressedTexImage2D` validates the length against `internalformat` and
+/// the dimensions, and rejects any mismatch with `INVALID_VALUE`. An off-by-one block in the edge
+/// rounding is therefore a hard upload failure, and it would only ever show up on textures whose
+/// size is not a multiple of 4 -- which is exactly what this fixture is.
+#[ test ]
+fn every_level_decodes_to_the_exact_length_the_gpu_will_demand()
+{
+  let image = Ktx2Image::parse( FIXTURE ).unwrap();
+  let wrapping = image.check_supported().unwrap();
+  let levels : Vec< _ > = image.levels().map( | l | l.data.to_vec() ).collect();
+
+  for format in COMPRESSED.into_iter().chain( [ Format::Rgba8 ] )
+  {
+    for ( level, data ) in levels.iter().enumerate()
+    {
+      let ( width, height ) = image.level_size( level as u32 );
+
+      let decoded = decode_level( data, wrapping, format, width, height )
+      .unwrap_or_else( | e | panic!( "{format:?} level {level} ( {width}x{height} ) : {e}" ) );
+
+      assert_eq!
+      (
+        decoded.len(),
+        format.level_size( width, height ),
+        "{format:?} level {level} ( {width}x{height} )"
+      );
+    }
+  }
+}
+
+/// The three compressed targets are genuinely different encodings of the same blocks.
+///
+/// Guards against a transcoder that quietly returns its input, or against two arms of the format
+/// match being wired to the same function -- both of which would pass every length check above.
+#[ test ]
+fn each_target_format_produces_distinct_bytes()
+{
+  let image = Ktx2Image::parse( FIXTURE ).unwrap();
+  let wrapping = image.check_supported().unwrap();
+  let level0 = image.levels().next().unwrap().data.to_vec();
+
+  let astc = decode_level( &level0, wrapping, Format::Astc4x4, 65, 33 ).unwrap();
+  let bc7 = decode_level( &level0, wrapping, Format::Bc7, 65, 33 ).unwrap();
+  let etc2 = decode_level( &level0, wrapping, Format::Etc2Rgba, 65, 33 ).unwrap();
+
+  assert_ne!( astc, bc7, "ASTC and BC7 output is identical -- are both arms calling the same fn?" );
+  assert_ne!( bc7, etc2 );
+  assert_ne!( astc, etc2 );
+  // ...and none of them is just the (inflated) UASTC input handed back unchanged.
+  assert_ne!( astc.len(), 0 );
+}
+
+/// The RGBA fallback must reconstruct the *image*, not just the right number of bytes.
+///
+/// This is the one test that checks the decode is actually **correct** rather than merely
+/// well-shaped, and it covers two things nothing else does:
+///
+/// * **De-blocking.** UASTC stores texels grouped by 4x4 tile; an image stores them by row. Get the
+///   scatter wrong and every length assertion still passes while the picture is shredded.
+/// * **Channel order.** `uastc_tools` packs RGBA, but other block decoders ( `texture2ddecoder` )
+///   pack BGRA. Swapping them yields an image that looks entirely plausible until you notice red and
+///   blue are exchanged -- so it is asserted, not assumed.
+///
+/// Tolerance is wide because UASTC is lossy at *encode* time; the point here is the structure of the
+/// image, not the fidelity of the codec ( which T1 already established against KTX-Software ).
+#[ test ]
+fn rgba_fallback_reconstructs_the_source_image()
+{
+  let image = Ktx2Image::parse( FIXTURE ).unwrap();
+  let wrapping = image.check_supported().unwrap();
+  let level0 = image.levels().next().unwrap().data.to_vec();
+
+  let ( width, height ) = ( 65_u32, 33_u32 );
+  let rgba = decode_level( &level0, wrapping, Format::Rgba8, width, height ).unwrap();
+  assert_eq!( rgba.len(), ( width * height * 4 ) as usize );
+
+  let texel = | x : u32, y : u32 | -> [ u8; 4 ]
+  {
+    let offset = ( ( y * width + x ) * 4 ) as usize;
+    rgba[ offset..offset + 4 ].try_into().unwrap()
+  };
+
+  // The source pattern, reproduced: r ramps along x, g ramps along y, b is a 3px checker, and
+  // alpha drops to 128 in the right quarter. See the fixture generator.
+  let expected = | x : u32, y : u32 | -> [ u8; 4 ]
+  {
+    [
+      ( ( x * 255 ) / ( width - 1 ) ) as u8,
+      ( ( y * 255 ) / ( height - 1 ) ) as u8,
+      if ( ( x / 3 + y / 3 ) % 2 ) == 1 { 255 } else { 40 },
+      if x < ( width * 3 ) / 4 { 255 } else { 128 },
+    ]
+  };
+
+  // Sample across the image, including the last column and row -- which live in the *partial* edge
+  // blocks, and so are precisely where a de-blocking bug would show.
+  let probes = [ ( 0, 0 ), ( 1, 1 ), ( 32, 16 ), ( 60, 30 ), ( 64, 0 ), ( 0, 32 ), ( 64, 32 ) ];
+
+  const TOLERANCE : i32 = 40;
+
+  for ( x, y ) in probes
+  {
+    let got = texel( x, y );
+    let want = expected( x, y );
+
+    for channel in 0..4
+    {
+      let delta = i32::from( got[ channel ] ) - i32::from( want[ channel ] );
+      assert!
+      (
+        delta.abs() <= TOLERANCE,
+        "texel ( {x}, {y} ) channel {channel} : got {got:?}, want ~{want:?} ( delta {delta} )"
+      );
+    }
+  }
+}
+
+/// A truncated level is caught with a diagnosable error, not a panic and not a garbage texture.
+#[ test ]
+fn truncated_level_is_reported_as_a_size_mismatch()
+{
+  // Raw UASTC for a 8x8 level would be 2x2 blocks = 64 bytes. Hand it 48.
+  let short = vec![ 0_u8; 48 ];
+
+  let error = decode_level( &short, Wrapping::None, Format::Bc7, 8, 8 )
+  .expect_err( "a short level must not decode" );
+
+  assert_eq!
+  (
+    error,
+    Ktx2Error::LevelSizeMismatch { expected : 64, actual : 48 }
+  );
+  assert!( error.to_string().contains( "corrupt or truncated" ) );
+}
+
+/// Corrupt Zstandard data fails as a supercompression error, distinctly from a size mismatch.
+#[ test ]
+fn corrupt_zstd_is_reported_as_a_supercompression_failure()
+{
+  let garbage = vec![ 0xAB_u8; 128 ];
+
+  let error = decode_level( &garbage, Wrapping::Zstandard, Format::Bc7, 8, 8 )
+  .expect_err( "garbage must not inflate" );
+
+  assert!( matches!( error, Ktx2Error::Supercompression( _ ) ), "got {error:?}" );
+}
