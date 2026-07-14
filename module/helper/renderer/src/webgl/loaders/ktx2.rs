@@ -24,7 +24,13 @@ mod private
 {
   // The extern crate and this module share a name. Anchor the path at the crate root so it cannot
   // resolve to this module instead.
-  use ::ktx2::{ ColorModel, Reader, SupercompressionScheme, TransferFunction };
+  use ::ktx2::{ Reader, TransferFunction };
+
+  // Re-exported, not merely imported: both appear in this module's *public* API -- `ColorModel` in
+  // `Payload::Unsupported`, `SupercompressionScheme` in `Info` and `Ktx2Error` -- so without this a
+  // caller could receive one of these values and have no way to name its type in order to match on
+  // it.
+  pub use ::ktx2::{ ColorModel, SupercompressionScheme };
 
   /// The texture encoding a KTX2 file carries, as reported by its Data Format Descriptor.
   ///
@@ -75,6 +81,24 @@ mod private
     Unsupported( Option< ColorModel > ),
   }
 
+  /// How each mip level's bytes are wrapped, narrowed to the schemes this loader can undo.
+  ///
+  /// This is the *positive* result of [ `Ktx2Image::check_supported` ], and exists so that the
+  /// decode step cannot be reached without having passed that check: there is no way to obtain a
+  /// `Wrapping` for an ETC1S or ZLIB file, so no way to start decoding one. `Info::supercompression`
+  /// keeps the file's raw claim; this is what we agreed to do about it.
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  pub enum Wrapping
+  {
+    /// Level data is raw UASTC blocks, ready to transcode.
+    None,
+    /// Level data is Zstandard-compressed UASTC blocks, and must be inflated first.
+    ///
+    /// This is what `gltf-transform uastc` emits by default, so it is the common case, not the
+    /// exotic one.
+    Zstandard,
+  }
+
   /// Errors that can arise while reading a KTX2 container.
   ///
   /// `Display` is implemented by hand rather than derived. The `error::typed::Error` derive used
@@ -98,6 +122,25 @@ mod private
     /// The DFD is mandatory in KTX2. Its absence means the file is either truncated or was written
     /// by something badly broken, and guessing the payload from the header alone is not possible.
     MissingDataFormatDescriptor,
+
+    /// The texture is ETC1S / BasisLZ encoded, which this renderer cannot decode.
+    ///
+    /// This is the error that most needs to be *loud*. ETC1S is fully legal under
+    /// `KHR_texture_basisu` -- a file another viewer displays without complaint -- so a user who hits
+    /// it has done nothing wrong and has no reason to suspect their asset. It is also the one case
+    /// where a half-hearted implementation could plausibly produce *something* on screen and call it
+    /// a day. Failing with an actionable message beats rendering garbage.
+    Etc1s,
+
+    /// The texture is neither UASTC nor ETC1S -- see [ `Payload::Unsupported` ] for why a
+    /// GPU-ready KTX2 is out of scope rather than merely unimplemented.
+    UnsupportedPayload( Option< ColorModel > ),
+
+    /// The level data is wrapped in a supercompression scheme this loader cannot undo.
+    ///
+    /// `KHR_texture_basisu` allows only Zstandard or none for a UASTC payload, so in practice this
+    /// means a file that is out of spec ( ZLIB, or a vendor scheme ).
+    UnsupportedSupercompression( SupercompressionScheme ),
   }
 
   impl core::fmt::Display for Ktx2Error
@@ -108,6 +151,31 @@ mod private
       {
         Self::Malformed( detail ) => write!( f, "Not a valid KTX2 file : {detail}" ),
         Self::UnsupportedShape( detail ) => write!( f, "Unsupported KTX2 texture shape : {detail}" ),
+
+        Self::Etc1s => write!
+        (
+          f,
+          "This KTX2 texture is ETC1S / BasisLZ encoded. It is a valid KHR_texture_basisu asset, \
+           but this renderer decodes UASTC only. Re-encode the texture as UASTC -- for example \
+           `gltf-transform uastc in.glb out.glb` -- and load it again."
+        ),
+
+        Self::UnsupportedPayload( color_model ) => write!
+        (
+          f,
+          "This KTX2 texture is encoded as {color_model:?}, which KHR_texture_basisu does not permit \
+           ( it allows only UASTC or ETC1S ). Re-encode it as UASTC -- for example \
+           `gltf-transform uastc in.glb out.glb`."
+        ),
+
+        Self::UnsupportedSupercompression( scheme ) => write!
+        (
+          f,
+          "This KTX2 texture uses {scheme:?} supercompression, which this renderer cannot undo. \
+           KHR_texture_basisu allows only Zstandard, or none, for a UASTC payload. Re-encode it -- \
+           for example `gltf-transform uastc in.glb out.glb`."
+        ),
+
         Self::MissingDataFormatDescriptor =>
           write!( f, "KTX2 file has no basic Data Format Descriptor, so its encoding is unknown" ),
       }
@@ -157,6 +225,16 @@ mod private
   {
     reader : Reader< &'data [ u8 ] >,
     info : Info,
+  }
+
+  // Hand-written because `ktx2::Reader` is not `Debug`, and dumping the raw file bytes would be
+  // useless anyway. The `Info` is the entire interesting content.
+  impl core::fmt::Debug for Ktx2Image< '_ >
+  {
+    fn fmt( &self, f : &mut core::fmt::Formatter< '_ > ) -> core::fmt::Result
+    {
+      f.debug_struct( "Ktx2Image" ).field( "info", &self.info ).finish_non_exhaustive()
+    }
   }
 
   impl< 'data > Ktx2Image< 'data >
@@ -243,6 +321,46 @@ mod private
       &self.info
     }
 
+    /// Checks that this file is one the renderer can actually draw, and reports how its levels are
+    /// wrapped.
+    ///
+    /// [ `Ktx2Image::parse` ] deliberately succeeds for files it cannot draw, reporting their
+    /// encoding through [ `Info::payload` ]. This is where that classification becomes a verdict. It
+    /// must be called before any attempt to decode level data -- the whole point is that an
+    /// undrawable file fails *here*, with a message naming the problem and the fix, rather than
+    /// downstream as a nonsense block decode or, worse, as a texture full of garbage.
+    ///
+    /// # Errors
+    ///
+    /// Fails for an ETC1S payload, for any other encoding, and for a supercompression scheme this
+    /// loader cannot undo.
+    pub fn check_supported( &self ) -> Result< Wrapping, Ktx2Error >
+    {
+      // BasisLZ is tested first, and independently of the DFD, because it is the stronger statement
+      // about how the level bytes are *actually* coded: it is not a generic compression wrapper but
+      // an inseparable part of ETC1S transcoding, and it never wraps anything else. So a file whose
+      // DFD claims UASTC while its header says BasisLZ is self-contradictory -- and its bytes are
+      // unreadable to us on either reading, which makes the ETC1S message the useful one to give.
+      if self.info.supercompression == Some( SupercompressionScheme::BasisLZ )
+      {
+        return Err( Ktx2Error::Etc1s );
+      }
+
+      match self.info.payload
+      {
+        Payload::Etc1s => return Err( Ktx2Error::Etc1s ),
+        Payload::Unsupported( color_model ) => return Err( Ktx2Error::UnsupportedPayload( color_model ) ),
+        Payload::Uastc => {},
+      }
+
+      match self.info.supercompression
+      {
+        None => Ok( Wrapping::None ),
+        Some( SupercompressionScheme::Zstandard ) => Ok( Wrapping::Zstandard ),
+        Some( other ) => Err( Ktx2Error::UnsupportedSupercompression( other ) ),
+      }
+    }
+
     /// The mip levels, largest first, **exactly as stored** -- still supercompressed, still UASTC.
     ///
     /// Decoding them is the caller's job, and needs [ `Info::supercompression` ] to know what, if
@@ -271,9 +389,12 @@ crate::mod_interface!
 {
   orphan use
   {
+    ColorModel,
     Info,
     Ktx2Error,
     Ktx2Image,
     Payload,
+    SupercompressionScheme,
+    Wrapping,
   };
 }
