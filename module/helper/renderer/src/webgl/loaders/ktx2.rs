@@ -17,9 +17,8 @@
 //!    *does* support ( see `minwebgl::texture::compressed` ).
 //!
 //! The spec permits exactly two payloads: ETC1S with BasisLZ supercompression, or UASTC with
-//! Zstandard or no supercompression. Everything else -- including a plain BC7 KTX2, which is a
-//! perfectly valid KTX2 file but not a valid `KHR_texture_basisu` one -- is out of scope, and this
-//! module is careful to *name* what it found rather than fail vaguely.
+//! Zstandard or no supercompression. Everything else is out of scope, and this module is careful to
+//! *name* what it found rather than fail vaguely.
 
 mod private
 {
@@ -45,10 +44,34 @@ mod private
     /// is *spec-legal*: a file that is entirely valid and that another viewer would display. That
     /// deserves an error message saying "re-encode as UASTC", not "unsupported color model 163".
     Etc1s,
-    /// Anything else -- a KTX2 file carrying some other encoding entirely ( BC7, ASTC, plain RGBA ).
+    /// Anything else -- a KTX2 file carrying an already-GPU-ready encoding ( BC7, ASTC, ETC2 ), or
+    /// plain uncompressed texels.
     ///
-    /// Valid KTX2, but not valid `KHR_texture_basisu`. The raw color model is kept so the error can
-    /// say what it actually was.
+    /// The raw color model is kept so the error can say what it actually was.
+    ///
+    /// # Why these are rejected, when uploading them would be *less* work
+    ///
+    /// This is the obvious objection, and it deserves an answer: a BC7 KTX2 holds blocks the GPU can
+    /// sample directly, so handling it would mean *skipping* the transcode rather than adding
+    /// anything. It looks like UASTC minus a step.
+    ///
+    /// It is not. It is a **device-locked** asset, and that is the one property UASTC exists to
+    /// avoid. A UASTC file feeds every GPU -- ASTC on mobile, BC7 on desktop, ETC2 on older mobile,
+    /// RGBA when a device has none of them. A BC7 file works only where BPTC does. Worse, there is no
+    /// fallback available to us even in principle: `uastc_tools` is an encoder *into* BC7 / ASTC /
+    /// ETC2, not a decoder *out of* them -- every entry point it exposes takes UASTC input. Handed a
+    /// BC7 file on a device without BPTC, this renderer could not produce a single pixel from it
+    /// without a software BC7 decoder it does not have and would have to take a new dependency for.
+    /// The step saved on desktop is paid for with a decode path on mobile.
+    ///
+    /// And under `KHR_texture_basisu` such a file is out of spec regardless, so accepting one here
+    /// would mean quietly blessing a non-conformant asset through the very code path meant to
+    /// implement that extension.
+    ///
+    /// Supporting GPU-ready KTX2 is a reasonable thing to want -- but it belongs in a *sibling*
+    /// loader keyed on the header's `vkFormat` ( which such files set, and which Basis files leave
+    /// as `VK_FORMAT_UNDEFINED` ), with its own capability check and its own hard failure when the
+    /// device lacks the format. It is not a widening of this one.
     Unsupported( Option< ColorModel > ),
   }
 
