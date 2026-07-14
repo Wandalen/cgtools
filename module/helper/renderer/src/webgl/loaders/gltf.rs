@@ -440,6 +440,47 @@ mod private
   #[ cfg( feature = "ktx2" ) ]
   const KTX2_MIME : &str = "image/ktx2";
 
+  /// Rejects an asset that *requires* an extension this build cannot honour.
+  ///
+  /// glTF draws a hard line between `extensionsUsed` and `extensionsRequired`: a client that cannot
+  /// support a **required** extension must refuse the asset outright, rather than load a degraded
+  /// version of it. `KHR_texture_basisu` in `extensionsRequired` means the author is telling us there
+  /// is no fallback — every texture is KTX2 and nothing else.
+  ///
+  /// # Why this is ours to check, when `gltf` would normally do it
+  ///
+  /// `gltf` *does* enforce this rule, but it enforces it against `ENABLED_EXTENSIONS` — and that list
+  /// contains `KHR_texture_basisu` whenever the `allow_empty_texture` feature is on. We enable that
+  /// feature **unconditionally** ( see `Cargo.toml`: it is what makes `Texture::source()` return an
+  /// `Option` at all, and splitting it on the `ktx2` feature would give the accessor two different
+  /// signatures across builds ). The side effect is that we have switched **gltf's own guard off in
+  /// both of our builds**: a basisu-required asset now parses cleanly even in a build that cannot
+  /// decode a single one of its textures. `gltf-json` is candid about the hand-off — its comment on
+  /// that allowlist reads "Processing is delegated to the user."
+  ///
+  /// So this is that processing. Without it, the failure would still be caught, but only later and
+  /// once per texture, after buffers and images had already been fetched and uploaded.
+  ///
+  /// Only `KHR_texture_basisu` is checked here, not the other two allowlisted texture extensions
+  /// ( `EXT_texture_webp`, `MSFT_texture_dds` ). They are equally undecodable by this renderer and
+  /// equally allowlisted, so an asset requiring one of them has the same hole — but fixing that is a
+  /// pre-existing concern of its own, not part of adding KTX2 support.
+  /// Kept **pure** -- it names the problem and does not report it -- so that it can be tested without
+  /// a browser. The logging and the error live at the call site.
+  fn unsupported_required_extension( gltf_file : &gltf::Gltf ) -> Option< &'static str >
+  {
+    #[ cfg( not( feature = "ktx2" ) ) ]
+    if gltf_file.extensions_required().any( | extension | extension == "KHR_texture_basisu" )
+    {
+      return Some( "KHR_texture_basisu" );
+    }
+
+    // Unused when the `ktx2` feature is on, which is the supported case.
+    let _ = gltf_file;
+
+    None
+  }
+
   /// Index of the image a texture actually uses.
   ///
   /// A texture may name its image in two places, and which one wins depends on what this build can
@@ -662,6 +703,86 @@ mod private
       );
     }
 
+    /// An asset that **requires** `KHR_texture_basisu`: the author is stating there is no fallback.
+    const REQUIRED_BASISU_GLTF : &str = r#"{
+      "asset" : { "version" : "2.0" },
+      "extensionsUsed" : [ "KHR_texture_basisu" ],
+      "extensionsRequired" : [ "KHR_texture_basisu" ],
+      "images" : [ { "uri" : "colour.ktx2", "mimeType" : "image/ktx2" } ],
+      "textures" : [ { "extensions" : { "KHR_texture_basisu" : { "source" : 0 } } } ]
+    }"#;
+
+    /// A basisu-required asset must parse — which is exactly the problem.
+    ///
+    /// `gltf` normally rejects an asset requiring an extension outside `ENABLED_EXTENSIONS`. But
+    /// `KHR_texture_basisu` is on that list whenever `allow_empty_texture` is on, and `renderer`
+    /// enables that unconditionally — so **we have switched gltf's own guard off in both builds**.
+    /// This test pins that fact, because it is the entire reason
+    /// `unsupported_required_extension` has to exist. If a future gltf-rs made this parse fail on its
+    /// own, this test would tell us the manual check had become redundant.
+    #[ test ]
+    fn gltf_does_not_reject_a_basisu_required_asset_for_us()
+    {
+      assert!
+      (
+        gltf::Gltf::from_slice( REQUIRED_BASISU_GLTF.as_bytes() ).is_ok(),
+        "premise broken : gltf now rejects this itself, so the manual guard may be redundant"
+      );
+    }
+
+    /// Without the feature, a *required* basisu asset is refused outright.
+    #[ cfg( not( feature = "ktx2" ) ) ]
+    #[ test ]
+    fn non_ktx2_build_refuses_an_asset_that_requires_basisu()
+    {
+      let document = gltf::Gltf::from_slice( REQUIRED_BASISU_GLTF.as_bytes() ).unwrap();
+
+      assert_eq!
+      (
+        super::unsupported_required_extension( &document ),
+        Some( "KHR_texture_basisu" )
+      );
+    }
+
+    /// With the feature, the same asset is perfectly loadable.
+    #[ cfg( feature = "ktx2" ) ]
+    #[ test ]
+    fn ktx2_build_accepts_an_asset_that_requires_basisu()
+    {
+      let document = gltf::Gltf::from_slice( REQUIRED_BASISU_GLTF.as_bytes() ).unwrap();
+
+      assert_eq!( super::unsupported_required_extension( &document ), None );
+    }
+
+    /// `used` is not `required`, and the difference decides whether the asset loads.
+    ///
+    /// An asset that merely *uses* basisu — and ships an uncompressed fallback alongside, as
+    /// `DUAL_SOURCE_GLTF` does — must still load in a build that cannot decode KTX2. Hard-erroring on
+    /// `extensionsUsed` would break exactly the assets the fallback mechanism was designed to save,
+    /// so this asserts the guard stays quiet in **both** builds.
+    #[ test ]
+    fn an_asset_that_only_uses_basisu_is_never_refused()
+    {
+      let document = gltf::Gltf::from_slice( DUAL_SOURCE_GLTF.as_bytes() ).unwrap();
+
+      assert_eq!
+      (
+        super::unsupported_required_extension( &document ),
+        None,
+        "a merely-used extension has a fallback and must not be a hard error"
+      );
+    }
+
+    /// An asset using no extensions at all is unaffected.
+    #[ test ]
+    fn a_plain_asset_is_never_refused()
+    {
+      const PLAIN : &str = r#"{ "asset" : { "version" : "2.0" } }"#;
+      let document = gltf::Gltf::from_slice( PLAIN.as_bytes() ).unwrap();
+
+      assert_eq!( super::unsupported_required_extension( &document ), None );
+    }
+
     #[ test ]
     fn joins_relative_uri_with_folder()
     {
@@ -762,6 +883,18 @@ mod private
       gl::browser::error!( "Failed to parse gltf file '{gltf_path}': {e}" );
       gl::WebglError::Other( "Failed to parse gltf file" )
     } )?;
+
+    if let Some( extension ) = unsupported_required_extension( &gltf_file )
+    {
+      gl::browser::error!
+      (
+        "'{gltf_path}' lists {extension} in extensionsRequired, but this build of `renderer` cannot \
+         decode it. A required extension means the author has provided no fallback -- every texture \
+         in this asset is KTX2 and nothing else -- so the asset cannot be rendered at all. Rebuild \
+         `renderer` with the `ktx2` feature enabled."
+      );
+      return Err( gl::WebglError::Other( "glTF requires an extension this build cannot decode" ) );
+    }
 
     let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
 
