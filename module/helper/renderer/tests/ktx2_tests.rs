@@ -11,7 +11,7 @@
 
 #![ cfg( feature = "ktx2" ) ]
 
-use renderer::webgl::loaders::ktx2::{ ColorModel, Ktx2Error, Ktx2Image, SupercompressionScheme };
+use renderer::webgl::loaders::ktx2::{ ColorModel, Ktx2Error, Ktx2Image, Payload, SupercompressionScheme };
 
 /// Every refusal must name the fix, not merely the problem.
 ///
@@ -282,4 +282,63 @@ fn corrupt_zstd_is_reported_as_a_supercompression_failure()
   .expect_err( "garbage must not inflate" );
 
   assert!( matches!( error, Ktx2Error::Supercompression( _ ) ), "got {error:?}" );
+}
+
+// ---------------------------------------------------------------------------------------------
+// ETC1S rejection ( T6.3 ), against a real file.
+//
+// The refusal *logic* was written in T4.2, but until now it had only ever been exercised against
+// `Ktx2Error` values constructed by hand. Nothing had confirmed that a genuine ETC1S file is actually
+// *recognised* as one -- that the DFD really does report colour model 163, that the supercompression
+// really is BasisLZ, and that a container whose levels declare `uncompressedByteLength = 0` even
+// survives parsing. Those are assumptions about the format, and assumptions are what T1 taught us to
+// check against a real file rather than a specification reading.
+// ---------------------------------------------------------------------------------------------
+
+/// The same 65x33 source image, encoded as ETC1S / BasisLZ instead of UASTC.
+const ETC1S_FIXTURE : &[ u8 ] = include_bytes!( "fixtures/etc1s-65x33.ktx2" );
+
+/// A real ETC1S file parses, is *identified* as ETC1S, and is then refused.
+///
+/// Parsing must succeed: a file we cannot draw is still a file we must be able to describe, or the
+/// refusal could not name what it found. Note its levels declare `uncompressedByteLength = 0`, which
+/// is legal for BasisLZ and would break a reader that assumed otherwise.
+#[ test ]
+fn a_real_etc1s_file_is_identified_and_refused()
+{
+  let image = Ktx2Image::parse( ETC1S_FIXTURE ).expect( "an ETC1S file must still parse" );
+  let info = image.info();
+
+  assert_eq!( info.payload, Payload::Etc1s, "DFD colour model must identify ETC1S" );
+  assert_eq!
+  (
+    info.supercompression,
+    Some( SupercompressionScheme::BasisLZ ),
+    "ETC1S is always BasisLZ-supercompressed"
+  );
+
+  let error = image.check_supported().expect_err( "ETC1S must be refused" );
+  assert_eq!( error, Ktx2Error::Etc1s );
+
+  // And the refusal is the actionable one, not a generic "unsupported".
+  let message = error.to_string();
+  assert!( message.contains( "ETC1S" ), "{message}" );
+  assert!( message.contains( "gltf-transform uastc" ), "{message}" );
+}
+
+/// ETC1S is refused *before* anything tries to decode it.
+///
+/// This is the point of the whole exercise. The failure mode being guarded against is not an error --
+/// it is the absence of one: BasisLZ level data fed to a UASTC block decoder is not obviously
+/// garbage, it is 16-byte chunks that decode into *something*. A texture full of noise would be the
+/// result, and it would render without a single complaint.
+#[ test ]
+fn etc1s_never_reaches_the_uastc_decoder()
+{
+  let image = Ktx2Image::parse( ETC1S_FIXTURE ).unwrap();
+
+  // `decode_level` cannot even be called: it demands a `Wrapping`, and the only way to obtain one is
+  // `check_supported`, which refuses. That is a compile-time guarantee, not a runtime check -- this
+  // test documents it, since there is no way to write the negative case in Rust at all.
+  assert!( image.check_supported().is_err() );
 }
