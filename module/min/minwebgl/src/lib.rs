@@ -31,7 +31,6 @@
 #![allow(clippy::len_zero)]
 #![allow(clippy::explicit_counter_loop)]
 #![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::missing_panics_doc)]
 #![allow(clippy::unit_arg)]
 #![allow(clippy::incompatible_msrv)]
 #![allow(clippy::unnecessary_cast)]
