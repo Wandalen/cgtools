@@ -436,10 +436,163 @@ mod private
     }
   }
 
+  /// The glTF mime type of a KTX2 image. `KHR_texture_basisu` requires it.
+  #[ cfg( feature = "ktx2" ) ]
+  const KTX2_MIME : &str = "image/ktx2";
+
+  /// Index of the image a texture actually uses.
+  ///
+  /// `Texture::source()` is `None` whenever the image comes from an extension rather than from the
+  /// texture's own `source` field, which is exactly what `KHR_texture_basisu` does: it puts the index
+  /// in `extensions.KHR_texture_basisu.source` instead.
+  ///
+  /// The extension is consulted **only when this build can actually decode KTX2**. That is
+  /// deliberate: resolving the index in a build without the `ktx2` feature would hand back an image
+  /// that was never decoded — a 1×1 white placeholder — and the model would render as a blank,
+  /// silently wrong surface. Returning `None` instead keeps the loud, actionable error at the call
+  /// site, which is the better failure.
+  fn effective_image_source( gltf_texture : &gltf::Texture< '_ > ) -> Option< usize >
+  {
+    if let Some( image ) = gltf_texture.source()
+    {
+      return Some( image.index() );
+    }
+
+    #[ cfg( feature = "ktx2" ) ]
+    {
+      return gltf_texture
+      .extension_value( "KHR_texture_basisu" )?
+      .get( "source" )?
+      .as_u64()
+      .map( | index | index as usize );
+    }
+
+    #[ cfg( not( feature = "ktx2" ) ) ]
+    None
+  }
+
+  /// The raw bytes of an image if it is KTX2, or `None` if it is any other format.
+  ///
+  /// KTX2 is the one image format a browser cannot decode through an `<img>` element, so it has to
+  /// be recognised *before* the normal path and routed to the CPU transcoder instead.
+  #[ cfg( feature = "ktx2" ) ]
+  async fn ktx2_image_bytes
+  (
+    gltf_image : &gltf::Image< '_ >,
+    folder_path : &str,
+    bin_buffers : &[ Vec< u8 > ],
+  ) -> Result< Option< Vec< u8 > >, gl::WebglError >
+  {
+    match gltf_image.source()
+    {
+      gltf::image::Source::View { view, mime_type } =>
+      {
+        if mime_type != KTX2_MIME
+        {
+          return Ok( None );
+        }
+
+        let buffer = bin_buffers.get( view.buffer().index() )
+        .ok_or( gl::WebglError::Other( "glTF KTX2 image points at a buffer that does not exist" ) )?;
+
+        let start = view.offset();
+        let end = start + view.length();
+
+        // A malformed view could name a range outside its buffer. Slicing would panic; say so.
+        let bytes = buffer.get( start..end )
+        .ok_or( gl::WebglError::Other( "glTF KTX2 image view lies outside its buffer" ) )?;
+
+        Ok( Some( bytes.to_vec() ) )
+      },
+      gltf::image::Source::Uri { uri, mime_type } =>
+      {
+        // `mimeType` is optional on a URI image, so the file extension is the fallback signal.
+        let is_ktx2 = mime_type == Some( KTX2_MIME )
+          || std::path::Path::new( uri ).extension().is_some_and( | e | e.eq_ignore_ascii_case( "ktx2" ) );
+
+        if !is_ktx2
+        {
+          return Ok( None );
+        }
+
+        let path = resolve_asset_uri( folder_path, uri );
+        let bytes = gl::file::load( &path ).await
+        .map_err( | e |
+        {
+          gl::browser::error!( "Failed to load KTX2 image '{path}': {e:?}" );
+          gl::WebglError::Other( "Failed to load a KTX2 image" )
+        } )?;
+
+        Ok( Some( bytes ) )
+      },
+    }
+  }
+
   #[ cfg( test ) ]
   mod tests
   {
     use super::resolve_asset_uri;
+
+    /// A minimal glTF whose one texture gets its image from `KHR_texture_basisu` rather than from
+    /// its own `source` field -- which is the entire shape this feature has to cope with.
+    ///
+    /// Note there is **no `source` on the texture at all**. That is not an omission in the fixture;
+    /// it is what the extension mandates, and it is why `Texture::source()` cannot be used here.
+    #[ cfg( feature = "ktx2" ) ]
+    const BASISU_GLTF : &str = r#"{
+      "asset" : { "version" : "2.0" },
+      "extensionsUsed" : [ "KHR_texture_basisu" ],
+      "images" : [ { "uri" : "colour.ktx2", "mimeType" : "image/ktx2" } ],
+      "textures" :
+      [
+        { "extensions" : { "KHR_texture_basisu" : { "source" : 0 } } }
+      ]
+    }"#;
+
+    /// The core of T5: the image index must be read out of the extension, because the texture does
+    /// not carry one.
+    ///
+    /// This also pins the premise the whole design rests on -- that `Texture::source()` really is
+    /// `None` for such a texture. If that ever stopped being true, `effective_image_source` would be
+    /// dead code and we would want to know.
+    #[ cfg( feature = "ktx2" ) ]
+    #[ test ]
+    fn image_source_is_read_from_the_basisu_extension()
+    {
+      let document = gltf::Gltf::from_slice( BASISU_GLTF.as_bytes() )
+      .expect( "a KHR_texture_basisu glTF must parse" );
+
+      let texture = document.textures().next().expect( "one texture" );
+
+      assert!
+      (
+        texture.source().is_none(),
+        "premise broken : a KHR_texture_basisu texture is supposed to have no `source` of its own"
+      );
+
+      assert_eq!
+      (
+        super::effective_image_source( &texture ),
+        Some( 0 ),
+        "the image index must be recovered from the extension"
+      );
+    }
+
+    /// An ordinary texture still resolves through its own `source`, extension or no extension.
+    #[ test ]
+    fn image_source_is_read_from_the_texture_for_ordinary_images()
+    {
+      const PLAIN_GLTF : &str = r#"{
+        "asset" : { "version" : "2.0" },
+        "images" : [ { "uri" : "a.png" }, { "uri" : "b.png" } ],
+        "textures" : [ { "source" : 1 } ]
+      }"#;
+
+      let document = gltf::Gltf::from_slice( PLAIN_GLTF.as_bytes() ).expect( "plain glTF must parse" );
+      let texture = document.textures().next().expect( "one texture" );
+
+      assert_eq!( super::effective_image_source( &texture ), Some( 1 ) );
+    }
 
     #[ test ]
     fn joins_relative_uri_with_folder()
@@ -677,11 +830,46 @@ mod private
       on_error.forget();
     };
 
+    // Which compressed-texture formats this device can actually sample. Queried once: the answer
+    // cannot change over a context's lifetime, and querying is what *enables* the extensions, so it
+    // must happen before the first compressed upload.
+    #[ cfg( feature = "ktx2" ) ]
+    let compressed_support = gl::texture::compressed::Support::query( &gl );
+
     // If a source of an image is Uri - load the file
     // If a source of an image is View - create a blob from buffer, then turn it into an Object Url,
     // then load an image from the url
     for gltf_image in gltf_file.images()
     {
+      // KTX2 images ( `KHR_texture_basisu` ) take a wholly different path. No browser can decode
+      // KTX2 through an `<img>` element, so there is no URL to hand to the DOM and nothing to wait
+      // for: the container is parsed, the UASTC blocks are transcoded on the CPU into whatever
+      // format this GPU supports, and the result is uploaded as compressed blocks. That happens
+      // *synchronously*, so unlike the `<img>` path below it pushes a finished texture rather than a
+      // placeholder to be filled in later.
+      #[ cfg( feature = "ktx2" ) ]
+      if let Some( bytes ) = ktx2_image_bytes( &gltf_image, folder_path, &bin_buffers ).await?
+      {
+        let texture = crate::webgl::loaders::ktx2::load_into_texture
+        (
+          &gl,
+          &bytes,
+          compressed_support.best(),
+          // Linear, deliberately, even when the KTX2 declares itself sRGB: the fragment shader
+          // applies `SrgbToLinear` to base-color, specular and emissive samples itself, so letting
+          // the sampler linearise as well would decode twice and darken the image.
+          gl::texture::compressed::ColorSpace::Linear,
+        )
+        .map_err( | e |
+        {
+          gl::browser::error!( "Failed to decode KTX2 image {} : {e}", gltf_image.index() );
+          gl::WebglError::Other( "Failed to decode a KTX2 image" )
+        } )?;
+
+        images.borrow_mut().push( texture );
+        continue;
+      }
+
       match  gltf_image.source()
       {
         gltf::image::Source::Uri { uri, mime_type: _ } =>
@@ -767,26 +955,42 @@ mod private
       .wrap_t( WrappingMode::from_gl( gltf_s.wrap_t().as_gl_enum() ) )
       .form();
 
-      // A texture whose image is supplied by an extension ( `KHR_texture_basisu`,
-      // `EXT_texture_webp`, `MSFT_texture_dds` ) carries no `source` field, so this is
-      // `None`. Without the `allow_empty_texture` gltf feature the accessor below would
-      // instead panic on `.nth( u32::MAX ).unwrap()`; fail with a diagnosable error.
-      let Some( gltf_image ) = gltf_t.source()
+      // A texture whose image is supplied by an extension carries no `source` field of its own, so
+      // `Texture::source()` is `None` and the index has to come from the extension instead --
+      // which is what `effective_image_source` resolves. It still returns `None` for an extension
+      // this build cannot decode ( `EXT_texture_webp`, `MSFT_texture_dds`, or `KHR_texture_basisu`
+      // in a build without the `ktx2` feature ). Without the `allow_empty_texture` gltf feature the
+      // accessor would instead panic on `.nth( u32::MAX ).unwrap()`; fail with a diagnosable error.
+      let Some( image_index ) = effective_image_source( &gltf_t )
       else
       {
         gl::browser::error!
         (
-          "glTF texture {} has no image source. It most likely uses an extension this build \
-           cannot decode ( e.g. KHR_texture_basisu ). Rebuild `renderer` with the `ktx2` feature, \
-           or re-export the asset with an uncompressed fallback image.",
+          "glTF texture {} has no image source this build can decode. It most likely uses an \
+           extension that is unsupported or not enabled ( e.g. KHR_texture_basisu ). Rebuild \
+           `renderer` with the `ktx2` feature, or re-export the asset with an uncompressed \
+           fallback image.",
           gltf_t.index()
         );
         return Err( gl::WebglError::Other( "glTF texture has no decodable image source" ) );
       };
 
+      // The index comes from the file, so it is not to be trusted with a panicking accessor.
+      let Some( source ) = images.borrow().get( image_index ).cloned()
+      else
+      {
+        gl::browser::error!
+        (
+          "glTF texture {} names image {image_index}, but the file only has {} images.",
+          gltf_t.index(),
+          images.borrow().len()
+        );
+        return Err( gl::WebglError::Other( "glTF texture names an image that does not exist" ) );
+      };
+
       let texture = Texture::former()
       .target( gl::TEXTURE_2D )
-      .source( images.borrow()[ gltf_image.index() ].clone() )
+      .source( source )
       .sampler( sampler )
       .form();
 
