@@ -120,6 +120,52 @@ fn fixture_is_what_the_decode_tests_assume()
   assert_eq!( image.check_supported(), Ok( Wrapping::Zstandard ) );
 }
 
+/// A non-2D container ( 3D, cubemap, array, or 1D ) is refused, not silently read as a flat 2D image.
+///
+/// The loader only knows how to hand a single 2D level chain to `compressedTexImage2D`; a file
+/// declaring extra depth, faces, or layers carries data this path has no place to put, and treating
+/// it as 2D would upload one slice and drop the rest without a word. KTX2 has no header checksum, so
+/// each shape is produced by patching the relevant `u32` in a copy of the real fixture -- exercising
+/// the actual `parse` branches rather than a hand-built header the reader might reject for other
+/// reasons first.
+#[ test ]
+fn a_non_2d_container_shape_is_refused()
+{
+  // Byte offsets of the KTX2 header fields, little-endian, measured from the start of the file
+  // ( the 12-byte identifier precedes them ). See the KTX2 spec, section 3.1.
+  const PIXEL_HEIGHT : usize = 24;
+  const PIXEL_DEPTH  : usize = 28;
+  const LAYER_COUNT  : usize = 32;
+  const FACE_COUNT   : usize = 36;
+
+  let patched = | offset : usize, value : u32 | -> Vec< u8 >
+  {
+    let mut bytes = FIXTURE.to_vec();
+    bytes[ offset..offset + 4 ].copy_from_slice( &value.to_le_bytes() );
+    bytes
+  };
+
+  // ( label, patched file ). Each is a legal 2D fixture with exactly one field changed to make it
+  // 3D / a cubemap / an array / 1D.
+  let shapes =
+  [
+    ( "3D",      patched( PIXEL_DEPTH,  1 ) ),
+    ( "cubemap", patched( FACE_COUNT,   6 ) ),
+    ( "array",   patched( LAYER_COUNT,  2 ) ),
+    ( "1D",      patched( PIXEL_HEIGHT, 0 ) ),
+  ];
+
+  for ( label, bytes ) in shapes
+  {
+    let error = Ktx2Image::parse( &bytes ).expect_err( &format!( "{label} must not parse as 2D" ) );
+    assert!
+    (
+      matches!( error, Ktx2Error::UnsupportedShape( _ ) ),
+      "{label} was not rejected as an unsupported shape : {error:?}"
+    );
+  }
+}
+
 /// Mip dimensions halve and clamp at 1 -- and for 65x33 they are never block-aligned.
 #[ test ]
 fn mip_dimensions_halve_and_clamp()
