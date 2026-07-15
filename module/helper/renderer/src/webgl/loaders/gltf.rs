@@ -585,7 +585,6 @@ mod private
     ///
     /// Note there is **no `source` on the texture at all**. That is not an omission in the fixture;
     /// it is what the extension mandates, and it is why `Texture::source()` cannot be used here.
-    #[ cfg( feature = "ktx2" ) ]
     const BASISU_GLTF : &str = r#"{
       "asset" : { "version" : "2.0" },
       "extensionsUsed" : [ "KHR_texture_basisu" ],
@@ -700,6 +699,31 @@ mod private
         super::effective_image_source( &texture ),
         Some( 1 ),
         "a build without the ktx2 feature must use the uncompressed fallback"
+      );
+    }
+
+    /// Without the feature **and with no fallback**, a basisu-only texture must resolve to no image
+    /// at all -- so the loader raises its actionable per-texture error rather than binding the wrong
+    /// image or a blank placeholder.
+    ///
+    /// This is the deliberate counterpart to `image_source_is_read_from_the_basisu_extension`: the
+    /// extension is *not* consulted in a build that cannot decode it, because returning its index
+    /// would hand back an image that was never decoded -- a silently-wrong surface. `None` is what
+    /// keeps the failure loud. ( The error itself is raised at the impure call site, which needs a
+    /// GL context and cannot run natively; the resolver returning `None` is the testable boundary. )
+    #[ cfg( not( feature = "ktx2" ) ) ]
+    #[ test ]
+    fn non_ktx2_build_has_no_image_for_a_basisu_only_texture()
+    {
+      let document = gltf::Gltf::from_slice( BASISU_GLTF.as_bytes() ).unwrap();
+      let texture = document.textures().next().unwrap();
+
+      assert_eq!
+      (
+        super::effective_image_source( &texture ),
+        None,
+        "a basisu-only texture has no decodable image without the feature; resolving it to \
+         anything would bind an image that was never decoded"
       );
     }
 
