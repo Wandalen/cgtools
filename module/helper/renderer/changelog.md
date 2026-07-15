@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **KTX2 / Basis Universal texture loading** (`KHR_texture_basisu`), behind the optional `ktx2` feature (off by default; default builds are unchanged). The glTF loader decodes UASTC-payload KTX2 textures entirely in pure Rust: `ktx2` parses the container, `ruzstd` undoes Zstandard supercompression, and the vendored `uastc_tools` crate transcodes UASTC blocks to whichever compressed format the device advertises, selected at load time — ASTC 4×4 → BC7 → ETC2, falling back to uncompressed RGBA8. **UASTC only:** ETC1S / BasisLZ payloads are out of scope and rejected with an actionable error pointing at `gltf-transform uastc`. Textures are uploaded as **linear** compressed formats, never the sRGB variants, because the PBR fragment shader already applies `SrgbToLinear` — uploading an sRGB internal format would decode twice and wash the colors out. That is the constraint to keep in mind before adding any sRGB-format support.
 - GPU PMREM generation (`webgl::loaders::pmrem::generate`): converts an equirectangular HDR into a full IBL set — equirect→cubemap, GGX importance-sampled prefiltered specular mips, cosine-weighted irradiance convolution, and a split-sum BRDF integration LUT.
 - `cull_mode` field to `PbrMaterial` for fine-grained face culling control
 - `Drop` implementation for `SwapFramebuffer` to prevent GPU memory leaks
