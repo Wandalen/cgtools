@@ -596,8 +596,8 @@ mod private
       ]
     }"#;
 
-    /// The core of T5: the image index must be read out of the extension, because the texture does
-    /// not carry one.
+    /// A `KHR_texture_basisu` texture carries its image index in the extension, not in `source`, so
+    /// that is where it must be read from.
     ///
     /// This also pins the premise the whole design rests on -- that `Texture::source()` really is
     /// `None` for such a texture. If that ever stopped being true, `effective_image_source` would be

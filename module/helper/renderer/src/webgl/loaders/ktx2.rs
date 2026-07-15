@@ -603,7 +603,7 @@ mod private
   /// # Cost
   ///
   /// The transcode is synchronous and on the calling thread -- roughly 40 ms natively for a
-  /// three-texture model, and some multiple of that in wasm ( T1 ). Acceptable at load time; if it
+  /// three-texture model, and some multiple of that in wasm. Acceptable at load time; if it
   /// ever becomes a problem the fix is a worker, not a different decoder.
   ///
   /// # Errors

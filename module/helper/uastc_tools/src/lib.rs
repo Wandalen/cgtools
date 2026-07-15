@@ -41,7 +41,7 @@ extern crate alloc;
 //   contradict it.
 //
 // Nothing here is silenced for *correctness*. `unsafe_code` stays forbidden crate-wide,
-// and the transcoders remain validated bit-exactly against KTX-Software ( readme.md, T1 ).
+// and the transcoders remain validated bit-exactly against KTX-Software ( see readme.md ).
 // ---------------------------------------------------------------------------------------
 
 /// Declares a vendored module with the workspace lints relaxed. See the comment block above.

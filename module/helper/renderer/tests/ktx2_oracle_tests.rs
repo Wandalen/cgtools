@@ -1,4 +1,4 @@
-//! T7.2 -- the correctness oracle, promoted from the throwaway T1 harness into a repeatable test.
+//! The correctness oracle for the KTX2 loader.
 //!
 //! It answers one question the decode-unit tests cannot: does the *whole* pipeline -- parse the
 //! `.glb`, resolve each texture to an image, transcode UASTC to RGBA -- reproduce the same picture
@@ -13,7 +13,7 @@
 //! `pairing_by_texture_index_would_compare_the_wrong_slots` pins it down.
 //!
 //! These are native tests: parsing a `.glb` and transcoding UASTC to RGBA need no GPU. Only the
-//! upload to the GPU does, and that is T7.3's job.
+//! upload to the GPU does, and that belongs in the browser test suite.
 //!
 //! **Assets:** both live under `assets/gltf/`. `gambeson.glb` (the PNG twin) is committed;
 //! `gambeson-uastc.glb` is the gltf-transform output and must be committed for this test to run in
@@ -162,8 +162,8 @@ fn psnr( a : &[ u8 ], b : &[ u8 ] ) -> f64
 
 /// The oracle: every material slot's transcoded UASTC must reproduce the PNG twin.
 ///
-/// T1's end-to-end numbers on these same textures were 52.9 dB ( baseColor ), 44.7 dB
-/// ( metallicRoughness ) and 39.5 dB ( normal ). A 30 dB floor sits comfortably below all three
+/// The end-to-end numbers on these textures are ~52.9 dB ( baseColor ), ~44.7 dB
+/// ( metallicRoughness ) and ~39.5 dB ( normal ). A 30 dB floor sits comfortably below all three
 /// yet still fails hard on the things this test exists to catch: a decode bug, a swapped channel
 /// order, or a texture paired to the wrong slot.
 #[ test ]
@@ -203,10 +203,10 @@ fn transcoded_uastc_matches_the_png_twin_per_material_slot()
 /// The reason material-slot pairing is mandatory, made concrete.
 ///
 /// `gltf-transform` reorders textures, so pairing the two files by texture *index* diffs a normal
-/// map against a metallic-roughness map -- exactly the mistake that produced a spurious ~5 dB
-/// "failure" in T1. This test proves both halves of why the oracle above is trustworthy: the PSNR
-/// metric genuinely distinguishes one slot from another ( so a high score means the *right* image ),
-/// and the reorder is real in this asset ( so by-slot pairing is load-bearing, not decoration ).
+/// map against a metallic-roughness map -- a mistake that yields a spurious ~5 dB "failure". This
+/// test proves both halves of why the oracle above is trustworthy: the PSNR metric genuinely
+/// distinguishes one slot from another ( so a high score means the *right* image ), and the reorder
+/// is real in this asset ( so by-slot pairing is load-bearing, not decoration ).
 #[ test ]
 fn pairing_by_texture_index_would_compare_the_wrong_slots()
 {

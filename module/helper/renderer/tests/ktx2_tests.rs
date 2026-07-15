@@ -87,7 +87,7 @@ fn empty_input_is_rejected_without_panicking()
 }
 
 // ---------------------------------------------------------------------------------------------
-// Decode pipeline ( T4.3 ).
+// Decode pipeline.
 //
 // `decode_level` is pure -- bytes in, bytes out, no WebGL context -- which is what makes the most
 // error-prone part of this loader testable without a browser.
@@ -247,7 +247,8 @@ fn each_target_format_produces_distinct_bytes()
 ///   blue are exchanged -- so it is asserted, not assumed.
 ///
 /// Tolerance is wide because UASTC is lossy at *encode* time; the point here is the structure of the
-/// image, not the fidelity of the codec ( which T1 already established against KTX-Software ).
+/// image, not the fidelity of the codec ( which `uastc_tools` validates bit-exactly against
+/// KTX-Software ).
 #[ test ]
 fn rgba_fallback_reconstructs_the_source_image()
 {
@@ -331,14 +332,14 @@ fn corrupt_zstd_is_reported_as_a_supercompression_failure()
 }
 
 // ---------------------------------------------------------------------------------------------
-// ETC1S rejection ( T6.3 ), against a real file.
+// ETC1S rejection, against a real file.
 //
-// The refusal *logic* was written in T4.2, but until now it had only ever been exercised against
-// `Ktx2Error` values constructed by hand. Nothing had confirmed that a genuine ETC1S file is actually
-// *recognised* as one -- that the DFD really does report colour model 163, that the supercompression
-// really is BasisLZ, and that a container whose levels declare `uncompressedByteLength = 0` even
-// survives parsing. Those are assumptions about the format, and assumptions are what T1 taught us to
-// check against a real file rather than a specification reading.
+// The refusal *logic* is exercised elsewhere against `Ktx2Error` values constructed by hand. What
+// those cannot confirm is that a genuine ETC1S file is actually *recognised* as one -- that the DFD
+// really does report colour model 163, that the supercompression really is BasisLZ, and that a
+// container whose levels declare `uncompressedByteLength = 0` even survives parsing. Those are
+// assumptions about the format, and format assumptions are worth checking against a real file rather
+// than a specification reading.
 // ---------------------------------------------------------------------------------------------
 
 /// The same 65x33 source image, encoded as ETC1S / BasisLZ instead of UASTC.

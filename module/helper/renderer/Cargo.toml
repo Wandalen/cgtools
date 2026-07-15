@@ -101,10 +101,12 @@ wasm-bindgen-test = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 test_tools = { workspace = true }
 approx = { workspace = true, features = [] }
-# T7.2 correctness oracle: decodes the PNG-textured twin natively so the transcoded UASTC can be
-# diffed against it. Only the `ktx2_oracle_tests` integration test uses it -- PNG codec only, to
-# avoid pulling the full image-codec set ( ravif/avif etc. ) into the test build.
-image = { workspace = true, default-features = false, features = [ "png" ] }
+# The KTX2 correctness-oracle test decodes the PNG-textured twin natively so the transcoded UASTC
+# can be diffed against it. Specified directly rather than via the workspace dep so `png`-only can
+# be selected: `default-features = false` is ignored when inheriting a workspace dependency that
+# does not itself set it. PNG codec only, to keep the full image-codec set ( ravif/avif etc. ) out
+# of the test build.
+image = { version = "0.25", default-features = false, features = [ "png" ] }
 
 # Metadata for crates.io
 [package.metadata.docs.rs]
