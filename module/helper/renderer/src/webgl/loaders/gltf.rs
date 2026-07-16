@@ -535,7 +535,15 @@ mod private
       gl::browser::error!( "Failed to load gltf file '{gltf_path}': {e:?}" );
       gl::WebglError::Other( "Failed to load gltf file" )
     } )?;
-    let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice )
+    // With the `draco` feature, parse without validation: gltf-rs rejects
+    // `KHR_draco_mesh_compression` files ( Draco accessors have no bufferView,
+    // and the required extension is reported as unsupported ) before the
+    // primitive loop can decode them. Without the feature, keep validation.
+    #[ cfg( feature = "draco" ) ]
+    let parsed = gltf::Gltf::from_slice_without_validation( &gltf_slice );
+    #[ cfg( not( feature = "draco" ) ) ]
+    let parsed = gltf::Gltf::from_slice( &gltf_slice );
+    let mut gltf_file = parsed
     .map_err( | e |
     {
       gl::browser::error!( "Failed to parse gltf file '{gltf_path}': {e}" );
@@ -898,6 +906,35 @@ mod private
           dummy_material.add_define( format!( "USE_{}", name.to_uppercase() ), String::new() );
         };
 
+        // Draco-compressed primitives are decoded here; their accessors carry
+        // no bufferView, so they skip the accessor path below entirely.
+        #[ cfg( feature = "draco" ) ]
+        let is_draco_primitive = gltf_primitive.extension_value( "KHR_draco_mesh_compression" ).is_some();
+
+        #[ cfg( feature = "draco" ) ]
+        if is_draco_primitive
+        {
+          let defines = crate::webgl::loaders::draco::load_into_geometry
+          (
+            gl,
+            &mut geometry,
+            &gltf_file.document,
+            bin_buffers.as_slice(),
+            &gltf_primitive,
+          )?;
+          for define in &defines
+          {
+            add_define( define );
+          }
+        }
+
+        #[ cfg( feature = "draco" ) ]
+        let use_accessor_path = !is_draco_primitive;
+        #[ cfg( not( feature = "draco" ) ) ]
+        let use_accessor_path = true;
+
+        if use_accessor_path
+        {
         // Indices
         if let Some( acc ) = gltf_primitive.indices()
         {
@@ -990,6 +1027,7 @@ mod private
             //a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
           };
         }
+        } // end of the accessor ( non-Draco ) geometry path
 
         // Amongst different materials with the same uuid, find the one that has the same vertex defines
         let new_material = if let Some( material ) = material_variation_map
