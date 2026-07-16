@@ -6,6 +6,16 @@ authors = ["cgtools contributors"]
 license = "MIT"
 description = "Agnostic 2D rendering engine with backend adapter support"
 repository = "https://github.com/Wandalen/cgtools"
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "spec.md",
+    "roadmap.md",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
 
 [lints]
 workspace = true

@@ -23,6 +23,33 @@ cd cgtools/examples/minwebgl/hexagonal_grid
 trunk serve --release
 ```
 
+### Cloning a smaller copy
+
+This repository carries demo crates (`examples/`) and the whole history. Large
+binary assets live outside git (see [Assets](#assets) below), so a clone is
+already smaller than it looks — but you can pull less still:
+
+```bash
+# Skip history:
+git clone --depth 1 https://github.com/Wandalen/cgtools
+
+# Fetch blobs lazily on demand instead of all up front:
+git clone --filter=blob:none https://github.com/Wandalen/cgtools
+```
+
+If you only need the libraries (working under `module/`, not running the
+browser demos), combine a blobless partial clone with a sparse checkout so
+`examples/` is never materialized on disk:
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/Wandalen/cgtools
+cd cgtools
+git sparse-checkout set module        # add 'examples' later if you need the demos
+```
+
+Note: these reduce what *you* download/check out; they do not change the size
+of the repository on the server.
+
 ## Assets
 
 Large binary assets — 3D models, textures, HDR environment maps, and example inputs — are **not
