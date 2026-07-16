@@ -10,6 +10,12 @@ authors = [
 [lints]
 workspace = true
 
+[features]
+# Load a KTX2 ( KHR_texture_basisu, UASTC ) model instead of the default, and pull the decode path
+# into `renderer`. Produce such a model with `gltf-transform uastc in.glb out.glb` ( needs
+# KTX-Software's `ktx` CLI on PATH ). The default build is unaffected.
+ktx2 = [ "renderer/ktx2" ]
+
 [dependencies]
 
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }

@@ -10,6 +10,20 @@ glTF is the standard format for 3D content on the web. This example provides a p
 
 **[How to run](../how_to_run.md)**
 
+## KTX2 compressed textures
+
+Build with the `ktx2` feature to load a KTX2 / Basis Universal model (`KHR_texture_basisu`) instead of the default. The textures are decoded in pure Rust and transcoded at load time to whichever compressed format your GPU supports (ASTC 4×4, BC7 or ETC2), falling back to uncompressed RGBA8:
+
+```sh
+trunk serve --release --features ktx2
+```
+
+Only **UASTC** payloads are supported — ETC1S / BasisLZ is rejected with an actionable error. To produce a UASTC-encoded `.glb` from an ordinary one, use [gltf-transform](https://gltf-transform.dev), which shells out to KTX-Software's `ktx` CLI (it must be on your `PATH`):
+
+```sh
+gltf-transform uastc in.glb out.glb
+```
+
 **References:**
 
 * [Real Shading in Unreal Engine 4] - Industry standard PBR implementation

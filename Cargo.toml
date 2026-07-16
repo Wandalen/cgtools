@@ -31,6 +31,7 @@ members = [
   "module/helper/renderer",
   "module/helper/tilemap_renderer",
   "module/helper/tiles_tools",
+  "module/helper/uastc_tools",
   "module/helper/behaviour_tree",
   "module/helper/tilemap_scene",
   # "module/helper/vectorizer", # TODO: Fix feature gate issues
@@ -128,6 +129,10 @@ path = "module/helper/browser_log"
 [workspace.dependencies.browser_tools]
 version = "~0.2.0"
 path = "module/alias/browser_tools"
+
+[workspace.dependencies.uastc_tools]
+version = "0.1.0"
+path = "module/helper/uastc_tools"
 
 [workspace.dependencies.renderer]
 version = "0.1.0"
@@ -316,6 +321,16 @@ version = "1.47.1"
 
 [workspace.dependencies.gltf]
 version = "1.4.1"
+
+# KTX2 container parsing for `KHR_texture_basisu`. Parses only -- it hands back raw,
+# still-supercompressed level bytes; `ruzstd` and `uastc_tools` do the rest.
+[workspace.dependencies.ktx2]
+version = "0.5"
+
+# Zstandard de-supercompression of KTX2 mip levels. Not optional for KTX2: `gltf-transform`
+# emits UASTC with `supercompressionScheme = Zstandard` by default. Pure Rust, wasm-clean.
+[workspace.dependencies.ruzstd]
+version = "0.8"
 
 [workspace.dependencies.csgrs]
 version = "0.20.1"
