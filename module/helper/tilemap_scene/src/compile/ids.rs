@@ -41,6 +41,10 @@ mod private
     pub fn new() -> Self { Self::default() }
 
     /// Allocate or return the existing image id for `asset_id`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if more than `u32::MAX` distinct image ids have been allocated.
     #[ inline ]
     pub fn alloc_image( &mut self, asset_id : &str ) -> ResourceId< asset::Image >
     {
@@ -55,6 +59,10 @@ mod private
     }
 
     /// Allocate or return the existing sprite id for a `(asset_id, frame_name)` pair.
+    ///
+    /// # Panics
+    ///
+    /// Panics if more than `u32::MAX` distinct sprite ids have been allocated.
     #[ inline ]
     pub fn alloc_sprite
     (

@@ -88,6 +88,7 @@ fn atlas_asset( id : &str, path : &str ) -> Asset
     filter : SamplerFilter::Linear,
     mipmap : MipmapMode::Off,
     wrap : WrapMode::Clamp,
+    premultiplied : false,
   }
 }
 

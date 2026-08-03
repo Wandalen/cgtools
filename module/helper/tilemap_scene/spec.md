@@ -203,6 +203,7 @@ Asset(
     filter: Linear,                   // Linear | Nearest           (default: Linear)
     mipmap: Off,                      // Off | Nearest | Linear     (default: Off)
     wrap:   Clamp,                    // Clamp | Repeat | Mirror    (default: Clamp)
+    premultiplied: false,             // bool                       (default: false)
 )
 ```
 
@@ -215,12 +216,13 @@ For `Atlas` assets, frame lookup tries two paths in order:
 
 If neither resolves, compilation fails with an explicit error pointing at the missing frame — there are no silent placeholder regions. Autotile atlases (SPEC §5.4 `ByAtlas`) typically use numeric indices `"0".."63"` and leave `frames` empty; atlases that mix terrain bases, skirts, and triangle blends populate `frames` with semantic names.
 
-**Sampler parameters** (`filter`, `mipmap`, `wrap`) share semantics with `tilemap_renderer::types::SamplerFilter` / `MipmapMode` / `WrapMode`:
+**Sampler parameters** (`filter`, `mipmap`, `wrap`, `premultiplied`) share semantics with `tilemap_renderer::types::SamplerFilter` / `MipmapMode` / `WrapMode`:
 
 - `filter = Nearest` is standard for pixel art; `Linear` for everything else.
 - `mipmap` matters only on GPU backends and only for assets drawn at widely varying scales (parallax mountains, zoomed-out overworld). Enabling costs a small upload at load time.
 - `wrap = Repeat` lets a single draw call cover an arbitrarily large area with a tileable texture — tileable sky backgrounds, long edge-anchored rivers, multi-hex seamless floors. `Mirror` is the same with per-period reflection, which hides seams in some textures cheaply.
 - The WebGL adapter wires `wrap` through to the GL sampler (`CLAMP_TO_EDGE` / `REPEAT` / `MIRRORED_REPEAT`). Non-GPU backends (SVG, terminal) ignore `mipmap` entirely and approximate `wrap` with multiple draw calls where feasible; unsupported modes fall back to `Clamp`-equivalent behaviour with a warning (see §12.2).
+- `premultiplied = true` tells GPU backends that the image's RGB channels are already scaled by alpha. The compositor uses the premultiplied "over" blend (`src + dst·(1-src_a)`) instead of the straight one (`src·src_a + dst·(1-src_a)`), avoiding the double-alpha-scale artefact that darkens antialiased edges. SVG and terminal backends ignore it. Defaults to `false`.
 
 ### 4.2 Tint
 
@@ -466,17 +468,49 @@ sprite_source: VertexCorners(
         (corners: ("*",     "*",     "void"),     sprite_pattern: "tri_edge_{rot}",   priority: 0),
     ],
     asset: "transitions_atlas",
+    // Optional fields — all default to false / None:
+    orient_to_grid: false,   // pick a pre-baked oriented frame instead of runtime rotation
+    corner_source: None,     // None = terrain id; Some("layer") = objects on that draw layer
+    offset: None,            // (dx, dy) world-pixel shift applied to every emitted sprite
 )
 ```
 
 Applicable to `Vertex` anchor. At render time:
 
-1. Read the object ids at the vertex's corners (from the scene).
+1. Read the object ids at the vertex's corners, using `corner_source` to select the channel (see below).
 2. Build the canonical sorted tuple and `rotation`.
 3. Match against `patterns` using specificity (fewer wildcards wins) and then `priority` (§9).
 4. Emit the chosen sprite with `{rot}` substituted. If no pattern matches, the vertex emits nothing.
 
 `"*"` matches any single corner value. Wildcards participate in sorting as if they were lexicographically greater than any concrete id (so they trail in the canonical tuple).
+
+**`orient_to_grid`** (default `false`). When `true`, `{rot}` selects a **pre-baked oriented frame** keyed to the triangle's discrete geometric orientation on the hex grid rather than the canonical-sort rotation. The regular hex dual grid has six 60°-orientations; each junction shape is baked once per orientation at export time so no runtime sprite rotation is needed. `{rot}` ranges over `0..2` for a fully-symmetric tile and `0..6` otherwise. A triangle is fully-symmetric (2-frame, ▲/▽ parity only) when **all three corners are this layer's own object id** (a solid interior) or **none are** (degenerate void); it is asymmetric (6-frame) when the corners are a mix of present and absent — i.e. an edge (2 present) or corner (1 present). Symmetry is decided by counting corners equal to the self id, not by lexical equality of the three corner ids, so a cross-region boundary like `(region_1, region_1, region_0)` is correctly treated as a 6-frame edge for `region_1` even though its three ids are not all equal. When `false` (legacy default), `{rot}` ranges over `0..3` and picks the canonical-sort rotation as before.
+
+**Baker contract (orient_to_grid).** An atlas baker MUST order the `{rot}` frames to match how the renderer selects them, or oriented frames will appear rotated wrong:
+
+- **Orientation 0 is defined by a base angle**, which depends on the triangle's shape relative to the layer's own object id (its "self" id):
+  - **corner tile** (one corner is the self id): base **60°** — orientation aligns the lone present corner. 6 frames.
+  - **edge tile** (two corners are the self id, one is not): base **300°** — orientation aligns the single absent corner. 6 frames.
+  - **full tile** (all three corners are the self id): base **60°**, 2 frames (▲/▽ parity only).
+- **`{rot}` increments clockwise in world space.** The atlas baker's counter-clockwise `u_rot` reads as clockwise in world because the PNG export flips vertically — bake accordingly.
+- The reference corner for frame `rot` points at **`base − 60°·rot`** in world space.
+
+**Out of scope (orient_to_grid, v0.2.0): three-id chiral junctions.** Orientation
+is decided by counting corners equal to the layer's self id (present vs. absent),
+which assumes at most two distinct ids per triangle drive one object's shape. A
+triangle whose three corners hold three *distinct* non-void ids has no
+present/absent split: the emitted frame is deterministic but **not geometrically
+meaningful** (no ▲/▽ mirror pair is selected). Atlas authors should suppress such
+triangles by providing a more-specific pattern for that id combination rather than
+relying on the oriented frame.
+
+**`corner_source`** (default `None`). Selects which per-cell "channel" the corner ids are read from:
+- `None`: the cell's **terrain id** — the first object on the cell that has a `priority` field set (historical behaviour; same as the rule in §11).
+- `Some("layer_name")`: the id of the **first object on the cell whose `global_layer` matches**. This allows multiple independent dual grids to share a single scene: a base terrain layer (`corner_source: None`) and a per-player region layer (`corner_source: Some("region")`) can coexist on the same cells with their corner lookups isolated.
+
+If no object on the cell matches the named channel, the corner resolves to `VOID_ID` — exactly as for an off-map corner. This is a **silent fallback**: a misspelled `corner_source` (e.g. `Some("Terrain")` vs `Some("terrain")`) names no object's `global_layer`, so every corner resolves to void and the layer renders entirely as its void/edge patterns (often nothing at all) with no error. Verify `corner_source` layer names against the scene's object `global_layer`s.
+
+**`offset`** (default `None`). A static `(dx, dy)` world-pixel shift added to every emitted sprite's position. Useful for drawing the same dual grid shifted — e.g. a grey-tinted copy nudged downward as a 2.5D "wall" / drop-shadow under the main terrain layer. Corner resolution and orient-to-grid frame selection always use the true (un-shifted) triangle geometry.
 
 ### 5.7 `ViewportTiled`
 
@@ -900,7 +934,8 @@ The ASCII grid is interpreted in offset coordinates and converted to axial inter
 - Every object declared in `render_spec.objects[]` MUST have a unique `id`.
 - References from scenes (`tiles[].objects`, `entities[].object`, etc.) MUST resolve to a declared object id.
 - `NeighborBitmask.connects_with`, `NeighborIs(...)`, and `NeighborCondition` terrain checks compare against object ids present on neighbour cells.
-- `VertexCorners.patterns[].corners` matches against the **lowest-indexed object id on the cell that has a `priority` field set**, conventionally the terrain object. Implementations SHOULD document this resolution rule in validation errors when no corner is matchable.
+- `VertexCorners.patterns[].corners` matches against the **id of the first object in the cell's object list that has a `priority` field set** (terrain channel, `corner_source: None`) OR the **id of the first object whose `global_layer` matches `corner_source`** when a layer name is supplied. Implementations SHOULD document this resolution rule in validation errors when no corner is matchable.
+  - **"First" means the order of the cell's object list** (`tiles[].objects`), not a global declaration order. For a statically parsed scene this is the textual order objects appear in the cell; for a scene assembled programmatically it is the **insertion order** into that cell's list. The two coincide only when insertion order matches declaration order. Spec authors SHOULD NOT rely on object ordering within a single cell to break ties between two objects that both carry a `priority` (or both match the same `corner_source` layer) — give such objects distinct channels instead. If ordering must be relied upon, the scene builder MUST keep each cell's insertion order equal to the intended declaration order.
 
 ## 12. Rendering Algorithm
 

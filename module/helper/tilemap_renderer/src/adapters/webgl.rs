@@ -294,6 +294,10 @@ mod private
       // SRC_ALPHA factor on alpha would yield src_a^2 + dst_a*(1-src_a), corrupting
       // alpha when the canvas is composited against a transparent page or read via
       // readPixels.
+      //
+      // This is just the initial state; `apply_blend` reprograms the blend func
+      // per draw from each sprite/mesh's `BlendMode` and its texture's
+      // premultiplied flag (see `apply_blend`).
       gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
 
       // LEQUAL (not LESS) so equal-depth draws fall back to submission order rather
@@ -364,7 +368,10 @@ mod private
       {
         let mat = m.transform.to_mat3();
         let color = match m.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
-        apply_blend( &self.gl, &m.blend );
+        // Untextured meshes are straight-alpha; a textured mesh inherits its
+        // texture's premultiplied flag.
+        let premultiplied = res.mesh_premultiplied( m.texture );
+        apply_blend( &self.gl, &m.blend, premultiplied );
 
         let mut use_texture = false;
         if let Some( tex_id ) = m.texture && let Some( gpu_tex ) = res.texture( tex_id )
@@ -394,7 +401,7 @@ mod private
       let tex_size = [ tw as f32, th as f32 ];
 
       let mat = s.transform.to_mat3();
-      apply_blend( &self.gl, &s.blend );
+      apply_blend( &self.gl, &s.blend, gpu_tex.premultiplied );
       self.sprite.draw( &self.gl, &mat, &gpu_sprite.region, &tex_size, &s.tint, viewport, s.transform.depth, self.config.max_depth );
     }
 
@@ -734,11 +741,19 @@ mod private
         );
         return Ok( () );
       };
-      apply_blend( &self.gl, match gpu_batch
+      // Both batch kinds inherit the premultiplied flag of their bound texture,
+      // matching the single-command paths (`cmd_sprite` / `cmd_mesh`). A mesh
+      // batch may carry a premultiplied texture (`MeshBatchParams::texture`), so
+      // hardcoding straight-alpha here would double-scale its edges by alpha. An
+      // untextured mesh batch resolves to `false` (no texture) — straight-alpha.
+      let ( blend, premultiplied ) = match gpu_batch
       {
-        GpuBatch::Sprite { params, .. } => &params.blend,
-        GpuBatch::Mesh { params, .. } => &params.blend,
-      });
+        GpuBatch::Sprite { params, .. } =>
+          ( &params.blend, res.texture( params.sheet ).map_or( false, | t | t.premultiplied ) ),
+        GpuBatch::Mesh { params, .. } =>
+          ( &params.blend, res.mesh_premultiplied( params.texture ) ),
+      };
+      apply_blend( &self.gl, blend, premultiplied );
       match gpu_batch
       {
         GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
@@ -886,6 +901,7 @@ mod private
           filter : img.filter,
           mipmap : img.mipmap,
           wrap : img.wrap,
+          premultiplied : img.premultiplied,
         });
       }
 
