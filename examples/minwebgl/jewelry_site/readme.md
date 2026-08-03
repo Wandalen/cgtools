@@ -4,7 +4,7 @@
 
 This demo showcases a product‑ready 3D jewelry configurator built for real‑time, client‑side customization. Users can explore ring models, switch materials and gems, and preview combinations instantly.
 
-![image](./showcase.png)
+![image](./showcase.webp)
 
 ---
 

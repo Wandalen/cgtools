@@ -6,6 +6,6 @@ This demo demonstrates how to render animated scenes on any object surface as te
 
 This technique is useful for creating water effects, in-game screens or textures with procedurally animated geometry.
 
-![image](showcase.png)
+![image](showcase.webp)
 
 **[How to run](../how_to_run.md)**

@@ -2,7 +2,7 @@
 
 Computer graphics toolkit for WebAssembly applications.
 
-![Abstract Art](./assets/primitives.jpg)
+![Abstract Art](./media/primitives.jpg)
 
 ## Overview
 
@@ -22,6 +22,41 @@ git clone https://github.com/Wandalen/cgtools
 cd cgtools/examples/minwebgl/hexagonal_grid
 trunk serve --release
 ```
+
+## Assets
+
+Large binary assets — 3D models, textures, HDR environment maps, and example inputs — are **not
+stored in git**. They live in a public [Hugging Face dataset](https://huggingface.co/datasets/cgtools/assets)
+and are tracked with [DVC](https://dvc.org).
+
+Cloning the repo gives you the source but not these files. The library crates (`ndarray_cg`,
+`minwebgl`, …) build and test without them — you only need them to run examples that load models
+or textures.
+
+Install DVC and pull. Reads are **anonymous** — no account, credentials, or DVC extras required:
+
+```bash
+pipx install dvc          # or: uv tool install dvc  /  pip install dvc
+dvc pull                  # everything (~312 MB)
+```
+
+You rarely need all of it. Browse what's tracked without downloading, then pull only the file or
+subfolder you want — each file inside `assets/` is fetched individually:
+
+```bash
+dvc list -R . assets              # see the full tree first (no download)
+dvc pull assets/gltf              # just the glTF models
+dvc pull assets/gltf/sponza.glb   # a single file
+```
+
+Grab one file without cloning at all:
+
+```bash
+dvc get https://github.com/Wandalen/cgtools assets/gltf/sponza.glb
+```
+
+Updating assets is maintainer-only (a separate `hf upload` step); opening a PR or cloning never
+pushes anything.
 
 ## Usage
 

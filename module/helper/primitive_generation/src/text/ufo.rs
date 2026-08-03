@@ -551,7 +551,7 @@ mod private
 
     for font_name in font_names
     {
-      let font_path = format!( "fonts/ufo/{}.ufo", font_name );
+      let font_path = format!( "static/fonts/ufo/{}.ufo", font_name );
       fonts.insert( font_name.to_string(), Font::new( &font_path ).await );
     }
 

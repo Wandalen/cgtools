@@ -6,7 +6,7 @@ This demo demonstrates how render tile map data to texture and render it on quad
 
 Techniques from this example can be used for procedural infinite tilemaps visualization, chunk system.
 
-![image](showcase.png)
+![image](showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

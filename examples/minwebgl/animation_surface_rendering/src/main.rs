@@ -246,12 +246,12 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 {
   let window = web_sys::window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
-  let mut gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/sphere.glb", gl ).await?;
+  let mut gltf = renderer::webgl::loaders::gltf::load( &document, "static/gltf/sphere.glb", gl ).await?;
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
   let texture = create_texture( gl, "textures/earth2.jpg" );
-  apply_function_to_node_materials( &earth, | m | { m.base_color_texture.clone_from( &texture ); } );
+  apply_function_to_node_materials( &earth, | m | { m.set_base_color_texture( texture.clone() ); } );
 
   earth.borrow_mut().update_local_matrix();
 
@@ -262,8 +262,8 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
     &clouds,
     | m |
     {
-      m.base_color_texture.clone_from( &texture );
-      m.alpha_mode = renderer::webgl::AlphaMode::Blend;
+      m.set_base_color_texture( texture.clone() );
+      m.set_alpha_mode( renderer::webgl::AlphaMode::Blend );
     }
   );
   let scale = 1.005;
@@ -274,7 +274,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let moon = clone( &mut gltf, &earth );
   let texture = create_texture( gl, "textures/moon2.jpg" );
-  apply_function_to_node_materials( &moon, | m | { m.base_color_texture.clone_from( &texture ); } );
+  apply_function_to_node_materials( &moon, | m | { m.set_base_color_texture( texture.clone() ); } );
   let scale = 0.25;
   let distance = 7.0;
   moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
@@ -632,13 +632,11 @@ async fn run() -> Result< (), gl::WebglError >
     &canvas_sphere,
     | m |
     {
-      if let Some( t ) = m.base_color_texture.as_mut()
-      {
-        let texture = t.texture.borrow().clone();
-        t.texture = Rc::new( RefCell::new( texture ) );
-        t.texture.borrow_mut().source = Some( canvas_texture.clone() );
-      }
-      m.alpha_mode = renderer::webgl::AlphaMode::Blend;
+      let uv_position = m.base_color_texture().map( | t | t.uv_position ).unwrap_or( 0 );
+      let texture = Texture::former().source( canvas_texture.clone() ).form();
+      let texture_info = TextureInfo { texture : Rc::new( RefCell::new( texture ) ), uv_position };
+      m.set_base_color_texture( Some( texture_info ) );
+      m.set_alpha_mode( renderer::webgl::AlphaMode::Blend );
     }
   );
   let scale = 1.01;
@@ -655,7 +653,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera.get_controls().borrow_mut().center = [ 0.0, 1.0, 0.0 ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal", None ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/gltf_viewer_ibl_unreal", None ).await );
   let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" )
   .expect( "Failed to load skybox texture" );
   renderer.set_skybox( skybox.texture.borrow().source.clone() );
@@ -687,7 +685,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.get_main_texture() );
+      swap_buffer.set_input( renderer.main_texture() );
       //swap_buffer.set_input( Some( canvas_renderer.get_texture() ) );
 
       let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )

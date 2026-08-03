@@ -25,44 +25,95 @@ mod private
   pub struct LineRenderState
   {
     // The optional `Mesh` object that holds the WebGL resources for rendering.
-    /// `None` until `create_mesh` is called.
+    /// `None` until `mesh_create` is called.
     pub mesh : Option< Mesh >,
     /// A flag to set whether to use the vertex color or not. Should be set before the mesh creation
-    pub use_vertex_color : bool,
+    pub vertex_color_use : bool,
     /// A flag to set where to use alpha to coverage blending technique instead of alpha testing 
-    pub use_alpha_to_coverage : bool,
+    pub alpha_to_coverage_use : bool,
     /// A flag to set where to use width in world units, or screen space units
-    pub use_world_units : bool,
+    pub world_units_use : bool,
     /// Fragment shader source
-    pub fragment_shader : String
+    pub fragment_shader : String,
+    /// Specifies the pattern of the dash, if `dash_use` is `true`
+    #[ cfg( feature = "distance" ) ]
+    pub dash_pattern : DashPattern,
+    #[ cfg( feature = "distance" ) ]
+    /// A flag to set whether to use dashed line or not
+    pub dash_use : bool,
+    #[ cfg( feature = "distance" ) ]
+    /// Offset to the beginning of the dash pattern
+    pub dash_offset : f32,
   }
 
   impl LineRenderState
   {
     /// Return shader defines to use during shader compilation
-    fn get_defines( &self ) -> String
+    fn defines_get( &self ) -> String
     {
       let mut s = String::new();
       
-      if self.use_vertex_color
+      if self.vertex_color_use
       {
         s += "#define USE_VERTEX_COLORS\n";
       }
 
-      if self.use_alpha_to_coverage
+      if self.alpha_to_coverage_use
       {
         s += "#define USE_ALPHA_TO_COVERAGE\n";
       }
 
-      if self.use_world_units
+      if self.world_units_use
       {
         s += "#define USE_WORLD_UNITS\n";
+      }
+
+      #[ cfg( feature = "distance" ) ]
+      if self.dash_use
+      {
+        s += "#define USE_DASH\n";
+        
+        match self.dash_pattern
+        {
+          DashPattern::V1( _ ) => s += "#define USE_DASH_V1\n",
+          DashPattern::V2( _ ) => s += "#define USE_DASH_V2\n",
+          DashPattern::V3( _ ) => s += "#define USE_DASH_V3\n",
+          DashPattern::V4( _ ) => s += "#define USE_DASH_V4\n",
+        }
+
       }
 
       s
     }
   }
 
+  /// Dash pattern for a 3D line, uploaded as the `u_dash_pattern` shader uniform.
+  ///
+  /// Each variant defines a repeating on/off pattern with a different number of segments.
+  /// Values represent segment lengths within one pattern.
+  /// Defaults to `V1(0.5)`.
+  #[ derive( Debug, Clone, Copy ) ]
+  pub enum DashPattern
+  {
+    /// Single-segment pattern with one dash length. The gap length is forced equal to
+    /// the dash length (a fixed 50% duty cycle); use `V2` for independent gap control.
+    V1( f32 ),
+    /// Two-segment pattern (e.g. dash, gap).
+    V2( [ f32; 2 ] ),
+    /// Three-segment pattern (e.g. dash, gap, dash).
+    V3( [ f32; 3 ] ),
+    /// Four-segment pattern (e.g. dash, gap, dash, gap).
+    V4( [ f32; 4 ] )
+  }
+
+  impl Default for DashPattern
+  {
+    fn default() -> Self 
+    {
+      Self::V1( 0.5 )   
+    }
+  }
+    
   /// Tracks the state change of the line
   #[ derive( Debug, Clone, Default ) ]
   pub struct LineChangeState
@@ -107,6 +158,8 @@ mod private
       let index_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to index_buffer" ) )?;
       let uv_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to uv_buffer" ) )?;
       let color_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to color_buffer" ) )?;
+      #[ cfg( feature = "distance" ) ]
+      let distances_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to distance_buffer" ) )?;
 
       gl::buffer::upload( gl, &position_buffer, &vertices.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
       gl::buffer::upload( gl, &uv_buffer, &uvs.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
@@ -120,10 +173,28 @@ mod private
       gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 2, &points_buffer )?;
       gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 3, &points_buffer )?;
 
-      if self.render_state.use_vertex_color
+      // Bind the color attributes unconditionally rather than gating on `vertex_color_use`. The VAO is
+      // only set up here in `mesh_create`; `mesh_update` recompiles the shader when the flag is toggled
+      // but never rebinds attributes. Binding these only when vertex colors were enabled at creation
+      // time would leave locations 4/5 unwired if a caller enables them later (e.g. via `vertex_color_use`),
+      // causing the shader to read undefined data. `colors_changed` is sticky until an upload actually
+      // happens (which requires the flag to be on), so the colors are uploaded the first time it is
+      // enabled; and the shader only reads locations 4/5 when compiled with `USE_VERTEX_COLORS`, so these
+      // bindings are inert (and not range-checked) when vertex colors are off.
+      gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 4, &color_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 5, &color_buffer )?;
+
+      // Bind the distance attributes unconditionally whenever the `distance` feature is active, rather
+      // than gating on `dash_use`. The VAO is only set up here in `mesh_create`; `mesh_update` merely
+      // recompiles the shader program when dashing is toggled and never rebinds attributes. Binding
+      // these only when dashing was enabled at creation time would leave locations 6/7 unwired if a
+      // caller enables dashing later (e.g. via `dash_use`), causing the shader to read undefined data.
+      // The distances buffer is always created and uploaded under this feature, and the shader only
+      // reads locations 6/7 when compiled with `USE_DASH`, so these bindings are inert when dashing is off.
+      #[ cfg( feature = "distance" ) ]
       {
-        gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 4, &color_buffer )?;
-        gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 5, &color_buffer )?;
+        gl::BufferDescriptor::new::< [ f32; 1 ] >().stride( 1 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 6, &distances_buffer )?;
+        gl::BufferDescriptor::new::< [ f32; 1 ] >().stride( 1 ).offset( 1 ).divisor( 1 ).attribute_pointer( gl, 7, &distances_buffer )?;
       }
 
       let program = Program
@@ -147,6 +218,8 @@ mod private
       mesh.buffer_add( "points", points_buffer );
       mesh.buffer_add( "uv", uv_buffer );
       mesh.buffer_add( "colors", color_buffer );
+      #[ cfg( feature = "distance" ) ]
+      mesh.buffer_add( "distances", distances_buffer );
 
       self.render_state.mesh = Some( mesh );
 
@@ -164,7 +237,7 @@ mod private
     {
       if self.change_state.defines_changed
       {
-        let defines = self.get_defines();
+        let defines = self.defines_get();
         let vertex_shader = d3::MAIN_VERTEX_SHADER.replace( "// #include <defines>", &defines );
         let vertex_shader = gl::ShaderSource::former()
         .shader_type( gl::VERTEX_SHADER )
@@ -191,6 +264,19 @@ mod private
         b_program.vertex_shader = Some( vertex_shader );
 
         b_program.uniform_locations_clear();
+
+        #[ cfg( feature = "distance" ) ]
+        if self.render_state.dash_use
+        {
+          match self.render_state.dash_pattern
+          {
+            DashPattern::V1( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+            DashPattern::V2( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+            DashPattern::V3( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+            DashPattern::V4( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          }
+        }
+
         b_program.all_uniforms_upload( gl )?;
 
         self.change_state.defines_changed = false;
@@ -204,13 +290,20 @@ mod private
         let points : Vec< f32 > = self.geometry.points.iter().flat_map( | p | p.to_array() ).collect();
         gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
 
+        #[ cfg( feature = "distance" ) ]
+        {
+          let distances_buffer = mesh.buffer_get( "distances" );
+          let distances : Vec< f32 > = self.geometry.distances.iter().copied().collect();
+          gl::buffer::upload( &gl, &distances_buffer, &distances, gl::STATIC_DRAW );
+        }
+
         let b_program = mesh.program_get_mut( "body" );
         b_program.instance_count = Some( ( self.geometry.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 );
 
         self.change_state.points_changed = false;
       }
 
-      if self.change_state.colors_changed && self.render_state.use_vertex_color
+      if self.change_state.colors_changed && self.render_state.vertex_color_use
       {
         let mesh = self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
         let colors_buffer = mesh.buffer_get( "colors" );
@@ -224,17 +317,36 @@ mod private
       Ok( () )
     }
 
-    /// Sets whether the alpha to coverage will be used or not
-    pub fn use_alpha_to_coverage( &mut self, value : bool )
+    #[ cfg( feature = "distance" ) ]
+    /// Sets the dash pattern for the line
+    pub fn dash_pattern_set( &mut self, value : DashPattern )
     {
-      self.render_state.use_alpha_to_coverage = value;
+      if std::mem::discriminant( &self.render_state.dash_pattern ) != std::mem::discriminant( &value )
+      {
+        self.change_state.defines_changed = true;
+      }
+      self.render_state.dash_pattern = value;
+    }
+
+    #[ cfg( feature = "distance" ) ]
+    /// Sets whether dashed rendering is enabled for this line.
+    pub fn dash_use( &mut self, value : bool )
+    {
+      self.render_state.dash_use = value;
+      self.change_state.defines_changed = true;
+    }
+
+    /// Sets whether the alpha to coverage will be used or not
+    pub fn alpha_to_coverage_use( &mut self, value : bool )
+    {
+      self.render_state.alpha_to_coverage_use = value;
       self.change_state.defines_changed = true;
     }
 
     /// Sets whether the world units for the line width will be used
-    pub fn use_world_units( &mut self, value : bool )
+    pub fn world_units_use( &mut self, value : bool )
     {
-      self.render_state.use_world_units = value;
+      self.render_state.world_units_use = value;
       self.change_state.defines_changed = true;
     }
 
@@ -243,15 +355,46 @@ mod private
     {
       self.mesh_update( gl )?;
 
-      let mesh = self.render_state.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
+      let mesh = self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
+
+      #[ cfg( feature = "distance" ) ]
+      if self.render_state.dash_use
+      {
+        let b_program = mesh.program_get_mut( "body" );
+        match self.render_state.dash_pattern
+        {
+          DashPattern::V1( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          DashPattern::V2( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          DashPattern::V3( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          DashPattern::V4( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+        }
+
+        b_program.upload( gl, "u_dash_offset", &self.render_state.dash_offset )?;
+      }
+
       mesh.draw( gl, "body" );
 
       Ok( () )
     }
 
-    fn get_defines( &self ) -> String
+    /// Returns the shader defines string based on the current render state flags
+    pub fn defines_get( &self ) -> String
     {
-      self.render_state.get_defines()
+      self.render_state.defines_get()
+    }
+
+    #[ cfg( feature = "distance" ) ]
+    /// Set the dash offset
+    pub fn dash_offset_set( &mut self, value : f32 )
+    {
+      self.render_state.dash_offset = value;
+    }
+
+    #[ cfg( feature = "distance" ) ]
+    /// Get the dash offset
+    pub fn dash_offset_get( &self ) -> f32
+    {
+      self.render_state.dash_offset
     }
   }
 }
@@ -261,6 +404,7 @@ crate::mod_interface!
 
   orphan use
   {
-    Line
+    Line,
+    DashPattern
   };
 }

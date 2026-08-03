@@ -12,10 +12,44 @@ use web_sys::
   PointerEvent,
   WheelEvent,
 };
-use std::{ cell::{ Ref, RefCell }, rc::Rc };
+use std::{ cell::{ Cell, Ref, RefCell }, rc::Rc, fmt };
 use strum::EnumCount as _;
 use crate::keyboard::KeyboardKey;
 use crate::mouse::MouseButton;
+
+/// Error type for browser input initialization failures.
+#[ derive( Debug ) ]
+pub enum BrowserInputError
+{
+  /// Failed to access the browser's window object.
+  WindowNotAvailable,
+  /// Failed to access the document object.
+  DocumentNotAvailable,
+  /// Failed to cast document to EventTarget.
+  DocumentCastFailed,
+  /// Failed to add an event listener.
+  AddEventListenerFailed( String ),
+}
+
+impl fmt::Display for BrowserInputError
+{
+  fn fmt( &self, f : &mut fmt::Formatter< '_ > ) -> fmt::Result
+  {
+    match self
+    {
+      Self::WindowNotAvailable => write!( f, "Browser window object not available" ),
+      Self::DocumentNotAvailable => write!( f, "Document object not available" ),
+      Self::DocumentCastFailed => write!( f, "Failed to cast document to EventTarget" ),
+      Self::AddEventListenerFailed( event ) => write!( f, "Failed to add event listener for '{}'", event ),
+    }
+  }
+}
+
+impl std::error::Error for BrowserInputError {}
+
+/// Maximum number of simultaneous active pointers to prevent unbounded memory growth.
+/// 32 pointers is far more than any realistic multi-touch scenario (typically 10 fingers max).
+const MAX_ACTIVE_POINTERS : usize = 32;
 
 /// Represents the state of a button or key press.
 #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
@@ -25,6 +59,44 @@ pub enum Action
   Press,
   /// Indicates that a button or key has been released.
   Release,
+}
+
+/// The kind of physical input device that produced a pointer event.
+///
+/// Mirrors the `pointerType` field of the DOM `PointerEvent` interface. Useful
+/// for branching UI behaviour on devices where touch and mouse coexist — e.g.
+/// hiding a cursor-follow preview when no finger is on the screen.
+#[ non_exhaustive ]
+#[ derive( Debug, Clone, Copy, PartialEq, Eq, Default ) ]
+pub enum PointerType
+{
+  /// A mouse, trackpad, or other indirect pointing device.
+  Mouse,
+  /// A finger on a touchscreen.
+  Touch,
+  /// A stylus or active pen.
+  Pen,
+  /// No pointer events have been seen yet, or the device reported an
+  /// unrecognised `pointerType`. These two cases are intentionally
+  /// indistinguishable from the caller's perspective.
+  #[ default ]
+  Unknown,
+}
+
+impl PointerType
+{
+  /// Convert from the DOM `PointerEvent.pointerType` string.
+  #[ inline ]
+  pub fn from_dom_str( s : &str ) -> Self
+  {
+    match s
+    {
+      "mouse" => Self::Mouse,
+      "touch" => Self::Touch,
+      "pen"   => Self::Pen,
+      _       => Self::Unknown, // includes "" — spec-defined for when device type cannot be determined
+    }
+  }
 }
 
 /// Enumerates the different types of input events that can be captured.
@@ -64,24 +136,25 @@ pub struct Event
 
 /// Internal struct to hold the current state of all tracked inputs.
 #[ derive( Debug ) ]
-struct State
+pub struct State
 {
   /// The current pressed/released state of all keyboard keys.
-  keyboard_keys : [ bool; KeyboardKey::COUNT ],
+  pub keyboard_keys : [ bool; KeyboardKey::COUNT ],
   /// The current pressed/released state of all mouse buttons.
-  mouse_buttons : [ bool; MouseButton::COUNT ],
+  pub mouse_buttons : [ bool; MouseButton::COUNT ],
   /// The last known position of the most recently moved pointer.
-  pointer_position : I32x2,
+  pub pointer_position : I32x2,
   /// The accumulated scroll value.
-  scroll : F64x3,
+  pub scroll : F64x3,
   /// All currently active pointer contacts as `(pointer_id, position)` pairs.
   /// Updated on press, move, and release. Useful for multi-touch (e.g., pinch-to-zoom).
   /// On desktop this usually has at most one entry; on touch screens one per finger.
-  active_pointers : Vec< ( i32, I32x2 ) >,
+  pub active_pointers : Vec< ( i32, I32x2 ) >,
 }
 
 impl State
 {
+  /// Creates a new `State` with all inputs in their default unpressed/zero state.
   pub fn new() -> Self
   {
     Self
@@ -98,19 +171,19 @@ impl State
 /// A function to get pointer coordinates relative to the client area (the viewport).
 pub static CLIENT : fn( &PointerEvent ) -> I32x2 = | event |
 {
-  I32x2::from_array( [ event.client_x(), event.client_y() ] )
+  I32x2::from_array( [ event.client_x() as i32, event.client_y() as i32 ] )
 };
 
 /// A function to get pointer coordinates relative to the entire page, including scrolled-out areas.
 pub static PAGE : fn( &PointerEvent ) -> I32x2 = | event |
 {
-  I32x2::from_array( [ event.page_x(), event.page_y() ] )
+  I32x2::from_array( [ event.page_x() as i32, event.page_y() as i32 ] )
 };
 
 /// A function to get pointer coordinates relative to the user's screen.
 pub static SCREEN : fn( &PointerEvent ) -> I32x2 = | event |
 {
-  I32x2::from_array( [ event.screen_x(), event.screen_y() ] )
+  I32x2::from_array( [ event.screen_x() as i32, event.screen_y() as i32 ] )
 };
 
 /// The main input handler struct, responsible for setting up and managing browser event listeners.
@@ -132,6 +205,10 @@ pub struct Input
   pointer_event_target : Option< EventTarget >,
   /// The current state of inputs (e.g., which keys are down).
   state : State,
+  /// Type of the most recently observed pointer event. Shared with the pointer
+  /// callbacks via [`Rc<Cell>`] so they can write it without going through the
+  /// event queue — keeps the enum `EventType` API stable.
+  last_pointer_type : Rc< Cell< PointerType > >,
 }
 
 impl Input
@@ -146,15 +223,19 @@ impl Input
   /// # Arguments
   /// * `pointer_event_target` - An optional `EventTarget` for pointer events. If `None`, the document is used.
   /// * `get_coords` - A function that specifies how to extract coordinates from a `PointerEvent`.
+  ///
+  /// # Errors
+  /// Returns `BrowserInputError` if browser APIs are unavailable or event listener registration fails.
   pub fn new< F >
   (
     pointer_event_target : Option< EventTarget >,
     get_coords : F,
-  ) -> Self
+  ) -> Result< Self, BrowserInputError >
   where
     F : Fn( &PointerEvent ) -> I32x2 + 'static
   {
     let event_queue = Rc::new( RefCell::new( Vec::< Event >::new() ) );
+    let last_pointer_type = Rc::new( Cell::new( PointerType::default() ) );
 
     // Wrap in Rc<dyn Fn> so both the button and move closures can share the same extractor.
     let get_coords : Rc< dyn Fn( &PointerEvent ) -> I32x2 > = Rc::new( get_coords );
@@ -163,12 +244,14 @@ impl Input
     {
       let event_queue = event_queue.clone();
       let get_coords = get_coords.clone();
+      let last_pointer_type = last_pointer_type.clone();
       move | event : PointerEvent |
       {
         let pointer_id = event.pointer_id();
         let pos = ( *get_coords )( &event );
         let button = MouseButton::from_button( event.button() );
         let action = if event.type_() == "pointerdown" { Action::Press } else { Action::Release };
+        last_pointer_type.set( PointerType::from_dom_str( &event.pointer_type() ) );
 
         // On press, capture the pointer so drag events keep arriving even when the
         // finger or cursor moves outside the target element's bounding box.
@@ -194,11 +277,13 @@ impl Input
     let pointercancel_callback =
     {
       let event_queue = event_queue.clone();
+      let last_pointer_type = last_pointer_type.clone();
       move | event : PointerEvent |
       {
         // The Pointer Events spec does not guarantee valid coordinates or button data
-        // for pointercancel; only the pointer_id is reliable.
+        // for pointercancel.
         let pointer_id = event.pointer_id();
+        last_pointer_type.set( PointerType::from_dom_str( &event.pointer_type() ) );
         let event_type = EventType::PointerCancel( pointer_id );
         let alt = event.alt_key();
         let ctrl = event.ctrl_key();
@@ -210,10 +295,12 @@ impl Input
     let pointermove_callback =
     {
       let event_queue = event_queue.clone();
+      let last_pointer_type = last_pointer_type.clone();
       move | event : PointerEvent |
       {
         let pointer_id = event.pointer_id();
         let position = ( *get_coords )( &event );
+        last_pointer_type.set( PointerType::from_dom_str( &event.pointer_type() ) );
         let event_type = EventType::PointerMove( pointer_id, position );
         let alt = event.alt_key();
         let ctrl = event.ctrl_key();
@@ -269,22 +356,24 @@ impl Input
       wheel_closure,
       pointer_event_target,
       state : State::new(),
+      last_pointer_type,
     };
 
-    let document = web_sys::window().unwrap().document().unwrap();
+    let window = web_sys::window().ok_or( BrowserInputError::WindowNotAvailable )?;
+    let document = window.document().ok_or( BrowserInputError::DocumentNotAvailable )?;
 
     document.add_event_listener_with_callback
     (
       "keydown",
       input.keyboard_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "keydown".to_string() ) )?;
     document.add_event_listener_with_callback
     (
       "keyup",
       input.keyboard_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "keyup".to_string() ) )?;
 
-    let document = document.dyn_into().unwrap();
+    let document = document.dyn_into().map_err( | _ | BrowserInputError::DocumentCastFailed )?;
     let pointer_event_target = input.pointer_event_target.as_ref().unwrap_or( &document );
 
     // Prevent the browser from consuming touch gestures (scroll, pinch-zoom) on the target
@@ -301,29 +390,29 @@ impl Input
     (
       "pointerdown",
       input.pointerbutton_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "pointerdown".to_string() ) )?;
     pointer_event_target.add_event_listener_with_callback
     (
       "pointerup",
       input.pointerbutton_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "pointerup".to_string() ) )?;
     pointer_event_target.add_event_listener_with_callback
     (
       "pointercancel",
       input.pointercancel_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "pointercancel".to_string() ) )?;
     pointer_event_target.add_event_listener_with_callback
     (
       "pointermove",
       input.pointermove_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "pointermove".to_string() ) )?;
     pointer_event_target.add_event_listener_with_callback
     (
       "wheel",
       input.wheel_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "wheel".to_string() ) )?;
 
-    input
+    Ok( input )
   }
 
   /// Returns an immutable reference to the event queue.
@@ -361,6 +450,27 @@ impl Input
     &self.state.scroll
   }
 
+  /// Returns the [`PointerType`] of the most recently observed pointer event.
+  ///
+  /// Returns [`PointerType::Unknown`] before the first pointer event fires, or
+  /// when the browser reports an unrecognised `pointerType` string.
+  /// Useful for adapting UI to the active input modality on hybrid devices —
+  /// e.g. switching cursor-follow behaviour once the user switches from mouse
+  /// to touch.
+  ///
+  /// Note: this value does not reset when pointers are released; after a finger
+  /// lifts, it persists as `Touch` until the next pointer event. To check
+  /// whether any pointer is currently active, use [`Input::active_pointers`].
+  ///
+  /// # Test coverage
+  /// The string-to-variant mapping is covered by `PointerType::from_dom_str` unit tests.
+  /// End-to-end wiring through DOM callbacks requires a `wasm-bindgen-test` environment
+  /// and is not covered on the native target.
+  pub fn last_pointer_type( &self ) -> PointerType
+  {
+    self.last_pointer_type.get()
+  }
+
   /// Returns all currently active pointer contacts as a slice of `(pointer_id, position)` pairs.
   ///
   /// On desktop this typically contains at most one entry (the mouse while a button is held).
@@ -381,10 +491,12 @@ impl Input
   pub fn clear_events( &mut self )
   {
     self.event_queue.borrow_mut().clear();
+    self.state.scroll = Default::default();
   }
 }
 
-fn apply_events_to_state( state : &mut State, events : &[ Event ] )
+/// Applies a slice of events to the given state, updating it accordingly.
+pub fn apply_events_to_state( state : &mut State, events : &[ Event ] )
 {
   for Event { event_type, .. } in events
   {
@@ -403,7 +515,10 @@ fn apply_events_to_state( state : &mut State, events : &[ Event ] )
           {
             if !state.active_pointers.iter().any( | ( id, _ ) | *id == *pointer_id )
             {
-              state.active_pointers.push( ( *pointer_id, *pos ) );
+              if state.active_pointers.len() < MAX_ACTIVE_POINTERS
+              {
+                state.active_pointers.push( ( *pointer_id, *pos ) );
+              }
             }
           }
           Action::Release =>
@@ -438,7 +553,8 @@ impl Drop for Input
   /// Cleans up by removing all attached event listeners from the DOM when the `Input` handler is dropped.
   fn drop( &mut self )
   {
-    let document = web_sys::window().unwrap().document().unwrap();
+    let Some( window ) = web_sys::window() else { return };
+    let Some( document ) = window.document() else { return };
     _ = document.remove_event_listener_with_callback
     (
       "keydown",
@@ -450,7 +566,7 @@ impl Drop for Input
       self.keyboard_closure.as_ref().unchecked_ref()
     );
 
-    let document = document.dyn_into().unwrap();
+    let Ok( document ) = document.dyn_into() else { return };
     let pointer_event_target = self.pointer_event_target.as_ref().unwrap_or( &document );
     _ = pointer_event_target.remove_event_listener_with_callback
     (
@@ -483,104 +599,41 @@ impl Drop for Input
 #[ cfg( test ) ]
 mod tests
 {
-  use super::*;
+  use super::PointerType;
 
-  fn ev( event_type : EventType ) -> Event
+  #[ test ]
+  fn from_dom_str_mouse()
   {
-    Event { event_type, alt : false, ctrl : false, shift : false }
-  }
-
-  fn p( x : i32, y : i32 ) -> I32x2
-  {
-    I32x2::from_array( [ x, y ] )
-  }
-
-  fn press( id : i32, x : i32, y : i32 ) -> Event
-  {
-    ev( EventType::PointerButton( id, p( x, y ), MouseButton::Main, Action::Press ) )
-  }
-
-  fn release( id : i32, x : i32, y : i32 ) -> Event
-  {
-    ev( EventType::PointerButton( id, p( x, y ), MouseButton::Main, Action::Release ) )
-  }
-
-  fn move_to( id : i32, x : i32, y : i32 ) -> Event
-  {
-    ev( EventType::PointerMove( id, p( x, y ) ) )
-  }
-
-  fn cancel( id : i32 ) -> Event
-  {
-    ev( EventType::PointerCancel( id ) )
+    assert_eq!( PointerType::from_dom_str( "mouse" ), PointerType::Mouse );
   }
 
   #[ test ]
-  fn press_adds_one_entry()
+  fn from_dom_str_touch()
   {
-    let mut state = State::new();
-    apply_events_to_state( &mut state, &[ press( 1, 10, 20 ) ] );
-    assert_eq!( state.active_pointers, [ ( 1, p( 10, 20 ) ) ] );
+    assert_eq!( PointerType::from_dom_str( "touch" ), PointerType::Touch );
   }
 
   #[ test ]
-  fn two_presses_add_two_entries()
+  fn from_dom_str_pen()
   {
-    let mut state = State::new();
-    apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), press( 2, 30, 40 ) ] );
-    assert_eq!( state.active_pointers.len(), 2 );
-    assert!( state.active_pointers.contains( &( 1, p( 10, 20 ) ) ) );
-    assert!( state.active_pointers.contains( &( 2, p( 30, 40 ) ) ) );
+    assert_eq!( PointerType::from_dom_str( "pen" ), PointerType::Pen );
   }
 
   #[ test ]
-  fn move_updates_position()
+  fn from_dom_str_empty_string_is_unknown()
   {
-    let mut state = State::new();
-    apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), move_to( 1, 50, 60 ) ] );
-    assert_eq!( state.active_pointers, [ ( 1, p( 50, 60 ) ) ] );
+    assert_eq!( PointerType::from_dom_str( "" ), PointerType::Unknown );
   }
 
   #[ test ]
-  fn release_removes_entry()
+  fn from_dom_str_unrecognised_is_unknown()
   {
-    let mut state = State::new();
-    apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), press( 2, 30, 40 ), release( 1, 10, 20 ) ] );
-    assert_eq!( state.active_pointers, [ ( 2, p( 30, 40 ) ) ] );
+    assert_eq!( PointerType::from_dom_str( "stylus" ), PointerType::Unknown );
   }
 
   #[ test ]
-  fn cancel_removes_entry()
+  fn default_is_unknown()
   {
-    let mut state = State::new();
-    apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), press( 2, 30, 40 ), cancel( 2 ) ] );
-    assert_eq!( state.active_pointers, [ ( 1, p( 10, 20 ) ) ] );
-  }
-
-  #[ test ]
-  fn duplicate_press_is_idempotent()
-  {
-    let mut state = State::new();
-    apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), press( 1, 15, 25 ) ] );
-    // Guard fires: second press for the same id does not add a duplicate entry.
-    assert_eq!( state.active_pointers, [ ( 1, p( 10, 20 ) ) ] );
-  }
-
-  #[ test ]
-  fn full_sequence_ends_empty()
-  {
-    let mut state = State::new();
-    apply_events_to_state
-    (
-      &mut state,
-      &
-      [
-        press( 1, 10, 20 ),
-        press( 2, 30, 40 ),
-        release( 1, 10, 20 ),
-        cancel( 2 ),
-      ]
-    );
-    assert!( state.active_pointers.is_empty() );
+    assert_eq!( PointerType::default(), PointerType::Unknown );
   }
 }

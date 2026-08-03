@@ -210,7 +210,7 @@ mod private
     }
 
     /// Returns the current bloom radius.
-    pub fn get_bloom_radius( &self ) -> f32
+    pub fn bloom_radius( &self ) -> f32
     {
       self.bloom_radius
     }
@@ -222,7 +222,7 @@ mod private
     }
 
     /// Returns the current bloom strength.
-    pub fn get_bloom_strength( &self ) -> f32
+    pub fn bloom_strength( &self ) -> f32
     {
       self.bloom_strength
     }
@@ -267,6 +267,9 @@ mod private
     {
       gl.disable( gl::DEPTH_TEST );
       gl.disable( gl::BLEND );
+      // Screen-space pass: the fullscreen triangle is back-facing, so it must not
+      // inherit the scene's CULL_FACE state or it gets culled and nothing draws.
+      gl.disable( gl::CULL_FACE );
       gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
       // --- Multi-Pass Gaussian Blur ---
       // Iterate through mip levels to apply horizontal and vertical Gaussian blur.
@@ -309,9 +312,6 @@ mod private
         );
         gl.clear( gl::COLOR_BUFFER_BIT );
         gl.draw_arrays( gl::TRIANGLES, 0, 3 );
-
-        // gl.bind_texture( gl::TEXTURE_2D, None );
-        // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
 
         blur_input = self.vertical_targets[ i ].as_ref();
         // Update size for the next mip.

@@ -6,7 +6,7 @@ This demo is a comprehensive glTF 2.0 viewer implementing physically-based rende
 
 glTF is the standard format for 3D content on the web. This example provides a production-ready viewer with full PBR material support, suitable for e-commerce, education, and 3D asset preview.
 
-![image](./showcase.jpg)
+![image](./showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

@@ -6,7 +6,7 @@ This demo demonstrates area light implementation in WebGL2. Unlike point lights,
 
 Area lighting is essential for photorealistic rendering, providing natural-looking illumination with soft penumbras. This example shows practical techniques for approximating area light contributions efficiently in real-time applications.
 
-![image](showcase.png)
+![image](showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

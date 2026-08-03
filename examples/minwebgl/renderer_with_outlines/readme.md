@@ -4,7 +4,7 @@
 
 This demo demonstrates comprehensive outline rendering techniques in WebGL2. It shows various approaches for drawing object outlines, including edge detection, depth-based, and jump flood algorithm methods. This example shows how to structure rendering code for multi-pass effects, maintaining performance while adding stylistic enhancements. Outlines are crucial for non-photorealistic rendering and visual clarity. This example compares different outline techniques and their performance characteristics.
 
-![image](showcase.png)
+![image](showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

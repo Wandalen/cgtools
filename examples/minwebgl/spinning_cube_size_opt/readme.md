@@ -6,6 +6,6 @@ This demo is a size-optimized version of a spinning cube in WebGL2. It demonstra
 
 This example serves as a benchmark for measuring optimization effectiveness and as a template for size-critical applications.
 
-![image](./showcase.gif)
+![image](./showcase.webp)
 
 **[How to run](../how_to_run.md)**

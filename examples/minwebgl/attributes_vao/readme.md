@@ -6,7 +6,7 @@ This demo demonstrates Vertex Array Objects (VAO) in WebGL2. VAOs encapsulate al
 
 VAOs are essential for managing complex rendering pipelines with multiple mesh types. This example shows best practices for setting up and using VAOs to streamline vertex data management.
 
-![image](./showcase.png)
+![image](./showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

@@ -622,7 +622,7 @@ async fn run() -> Result< (), gl::WebglError >
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 
-  let gltf_path = "2017_porsche_911_turbo_s_exclusive_series_991.2.glb";
+  let gltf_path = "static/2017_porsche_911_turbo_s_exclusive_series_991.2.glb";
   let gltf = load( &document, gltf_path, &renderer.gl ).await?;
   let scenes = gltf.scenes.clone();
   for node in &scenes[ 0 ].borrow().children

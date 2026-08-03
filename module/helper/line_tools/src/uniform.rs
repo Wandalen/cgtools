@@ -199,13 +199,13 @@ mod private
     }
 
     /// Clear uniforms
-    pub fn clear_uniforms( &mut self )
+    pub fn uniforms_clear( &mut self )
     {
       self.uniforms.clear();
     }
 
     /// Clear the locations cache
-    pub fn clear_locations( &mut self )
+    pub fn locations_clear( &mut self )
     {
       self.locations.clear();
     }

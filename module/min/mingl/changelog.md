@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Breaking Changes
+- `web::file::load` no longer prepends `/static/` to its argument. The path is
+  now used verbatim, except that bare filenames (no scheme, no leading `/`) are
+  joined to the origin with a single `/`. Callers that previously relied on the
+  implicit prefix must pass `"static/<path>"` explicitly. Absolute URLs
+  (`http://`, `https://`, `//host/...`) and origin-absolute paths (`/foo`) are
+  honored directly, enabling fetches from CDNs and non-trunk deployments.
+
+### Added
+- `web-sys` `console` feature is now activated (was previously relying on
+  transitive activation that broke under `cargo test` on the host target).
+
 ## [0.2.0] - 2024-08-08
 
 ### Added

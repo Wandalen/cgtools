@@ -6,7 +6,7 @@ This demo demonstrates instanced rendering using per-instance attributes in WebG
 
 This technique is crucial for rendering scenes with many similar objects like trees, rocks, particles, or crowds. The example shows how to set up instanced attributes and leverage GPU parallelism for efficient rendering.
 
-![image](./showcase.png)
+![image](./showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

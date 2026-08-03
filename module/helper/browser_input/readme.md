@@ -8,6 +8,7 @@ Captures DOM events into a per-frame event queue and maintains a persistent inpu
 
 - **Unified pointer model** — mouse, touch, and stylus handled identically via `pointermove` / `pointerdown` / `pointerup` / `pointercancel`
 - **Multi-touch tracking** — `active_pointers()` returns all current contacts as `(pointer_id, position)` pairs; use this for pinch-to-zoom or two-finger pan
+- **Device type detection** — `last_pointer_type()` returns the `PointerType` (`Mouse` / `Touch` / `Pen` / `Unknown`) of the most recent pointer event
 - **Keyboard events** — full key press/release with modifier detection
 - **Scroll wheel** — raw `delta_x / delta_y / delta_z` from the browser
 - **Mobile-ready** — sets `touch-action: none` on the target element and calls `setPointerCapture` on every `pointerdown` so drag events keep firing even when a finger moves outside the element
@@ -26,7 +27,7 @@ use browser_input::{ Input, CLIENT };
 use gl::JsCast as _;
 
 // Attach to a canvas element; coordinates are relative to the viewport.
-let mut input = Input::new( Some( canvas.dyn_into().unwrap() ), CLIENT );
+let mut input = Input::new( Some( canvas.dyn_into().unwrap() ), CLIENT )?;
 
 // Inside the RAF loop:
 input.update_state();
@@ -109,10 +110,11 @@ pub enum EventType
 
 ```rust
 input.is_key_down( KeyboardKey::KeyW )          // -> bool
-input.is_button_down( MouseButton::Main )        // -> bool
+input.is_button_down( MouseButton::Main )        // -> bool  (tracks last press/release; not reference-counted across multiple touches)
 input.pointer_position()                         // -> I32x2   (last moved pointer; non-deterministic with multiple touches)
 input.active_pointers()                          // -> &[(i32, I32x2)]
 input.scroll()                                   // -> &F64x3  (accumulated wheel delta since last clear_events)
+input.last_pointer_type()                        // -> PointerType  (Mouse/Touch/Pen/Unknown; Unknown until first event)
 ```
 
 ### Mouse buttons

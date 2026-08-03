@@ -6,6 +6,6 @@ This demo demonstrates grid rendering using wgpu, the Rust graphics library. It 
 
 wgpu enables cross-platform native graphics. This example provides a foundation for data visualization, game grids, or technical drawing applications.
 
-![image](showcase.png)
+![image](showcase.webp)
 
 **[How to run](../../how_to_run.md)**

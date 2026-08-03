@@ -6,7 +6,7 @@ This demo demonstrates skeletal animation implementation in WebGL2, featuring an
 
 Skeletal animation is fundamental for character animation in games and interactive 3D applications. This example provides a complete implementation of the glTF animation pipeline, including channel interpolation (linear, step, cubic spline), joint hierarchy management, and GPU-accelerated vertex skinning, making it suitable for character-driven applications and animation previews.
 
-![image](./showcase.gif)
+![image](./showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

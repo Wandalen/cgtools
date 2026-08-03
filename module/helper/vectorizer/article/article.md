@@ -4,7 +4,7 @@
 
 An entire algorithm is shown on the diagram below:
 <p align="center">
-<img src="assets/Entire_Algorithm.png" width="800px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/Entire_Algorithm.png" width="800px">
 </p>
 
 Each  stage is explained in consecutive paragraphs
@@ -177,11 +177,11 @@ color_difference( c1, c2 )
 ```
 
 <p align="center">
-<img src="assets/stage_1_primary_example.png" width="800px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/stage_1_primary_example.png" width="800px">
 </p>
 
 <p align="center">
-<img src="assets/stage1_Primary_Clusterization.png" width="800px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/stage1_Primary_Clusterization.png" width="800px">
 </p>
 
 ### 2.3. Preperation for stage 2
@@ -202,7 +202,7 @@ stage_2_preperation( clusters )
 ```
 
 <p align="center">
-<img src="assets/stage2_preparation.png" width="800px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/stage2_preparation.png" width="800px">
 </p>
 
 ### 2.3. Stage 2: Hierarchical cluster merging
@@ -322,11 +322,11 @@ stage_2_merging( cluster_areas, clusters, cluster_indices )
 ```
 
 <p align="center">
-<img src="assets/stage_2_example.jpg" width="800px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/stage_2_example.jpg" width="800px">
 </p>
 
 <p align="center">
-<img src="assets/stage2_cluster_merging.png" width="800px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/stage2_cluster_merging.png" width="800px">
 </p>
 
 ### 2.3. Stage 3: Cluster preprocessing
@@ -434,7 +434,7 @@ stage_3_preprocessing( big_clusters )
 ```
 
 <p align="center">
-<img src="assets/stage3_cluster_preprocessing.png" width="800px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/stage3_cluster_preprocessing.png" width="800px">
 </p>
 
 ### 2.3. Stage 4: Cluster tracing
@@ -448,7 +448,7 @@ A diagram below shows a high level overview of the algorithm implemented in [Vtr
 of the algoritm is assembled into the final svg file
 
 <p align="center">
-<img src="assets/stage4_cluster_tracing.png" width="800px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/stage4_cluster_tracing.png" width="800px">
 </p>
 
 ## 3. Tracing with layers
@@ -645,12 +645,12 @@ stage_1_get_layers( image, background_color )
 ```
 
 <p align="center">
-<img src="assets/layers_stage1_get_layers.png" width="800px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/layers_stage1_get_layers.png" width="800px">
 </p>
 
 
 <p align="center">
-<img src="assets/layers_stage1_reduce_colors.png" width="800px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/layers_stage1_reduce_colors.png" width="800px">
 </p>
 
 
@@ -709,7 +709,7 @@ stage_2_color_mapping( image, layers )
 ```
 
 <p align="center">
-<img src="assets/layers_stage2_color_mapping.png" width="800px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/layers_stage2_color_mapping.png" width="800px">
 </p>
 
 
@@ -815,7 +815,7 @@ stage_3_clusterization( image, layers, color_map )
 ```
 
 <p align="center">
-<img src="assets/layers_stage3_clusterization.png" width="800px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/layers_stage3_clusterization.png" width="800px">
 </p>
 
 ### 3.4 Stage 4: Tracing
@@ -881,29 +881,29 @@ stage_4_tracing( clusters )
 ```
 
 <p align="center">
-<img src="assets/layers_stage4_tracing.png" width="800px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/layers_stage4_tracing.png" width="800px">
 </p>
 
 ## 4. Comparison
 
 <!-- <p float="left">
-  <img src="assets/comparison/flowers.png" width="500px"/>
-  <img src="assets/comparison/clusters_flowers.jpg" width="500px"/>
-  <img src="assets/comparison/layers_flowers.jpg" width="500px"/>
+  <img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/flowers.png" width="500px"/>
+  <img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_flowers.jpg" width="500px"/>
+  <img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_flowers.jpg" width="500px"/>
 </p> -->
 
 Image  | Clusters | Layers
 :-----:|:--------:|:------:
-<img src="assets/comparison/flowers.png" width="500px">|<img src="assets/comparison/clusters_flowers.jpg" width="500px">|<img src="assets/comparison/layers_flowers.jpg" width="500px">
-<img src="assets/comparison/girl.png" width="500px">|<img src="assets/comparison/clusters_girl.jpg" width="500px">|<img src="assets/comparison/layers_girl.jpg" width="500px">
-<img src="assets/comparison/kos_input.png" width="500px">|<img src="assets/comparison/clusters_kos_input.jpg" width="500px">|<img src="assets/comparison/layers_kos_input.jpg" width="500px">
-<img src="assets/comparison/many_flowers.jpg" width="500px">| <img src="assets/comparison/clusters_many_flowers.jpg" width="500px">|<img src="assets/comparison/layers_many_flowers.jpg" width="500px">
-<img src="assets/comparison/mother.jpg" width="500px">|<img src="assets/comparison/clusters_mother.jpg" width="500px">|<img src="assets/comparison/layers_mother.jpg" width="500px">
-<img src="assets/comparison/mountains.jpg" width="500px">|<img src="assets/comparison/clusters_mountains.jpg" width="500px">|<img src="assets/comparison/layers_mountains.jpg" width="500px">
-<img src="assets/comparison/squirrel.png" width="500px">|<img src="assets/comparison/clusters_squirrel.jpg" width="500px">|<img src="assets/comparison/layers_squirrel.jpg" width="500px">
-<img src="assets/comparison/stars.jpg" width="500px">|<img src="assets/comparison/clusters_stars.jpg" width="500px">|<img src="assets/comparison/layers_stars.jpg" width="500px">
-<img src="assets/comparison/swamp.jpg" width="500px">|<img src="assets/comparison/clusters_swamp.jpg" width="500px">|<img src="assets/comparison/layers_swamp.jpg" width="500px">
-<img src="assets/comparison/wolf.png" width="500px">|<img src="assets/comparison/clusters_wolf.jpg" width="500px">|<img src="assets/comparison/layers_wolf.jpg" width="500px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/flowers.png" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_flowers.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_flowers.jpg" width="500px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/girl.png" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_girl.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_girl.jpg" width="500px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/kos_input.png" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_kos_input.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_kos_input.jpg" width="500px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/many_flowers.jpg" width="500px">| <img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_many_flowers.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_many_flowers.jpg" width="500px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/mother.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_mother.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_mother.jpg" width="500px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/mountains.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_mountains.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_mountains.jpg" width="500px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/squirrel.png" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_squirrel.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_squirrel.jpg" width="500px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/stars.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_stars.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_stars.jpg" width="500px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/swamp.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_swamp.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_swamp.jpg" width="500px">
+<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/wolf.png" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_wolf.jpg" width="500px">|<img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_wolf.jpg" width="500px">
 
 
 Useful links:

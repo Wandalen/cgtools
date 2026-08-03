@@ -6,7 +6,6 @@ impl< E, const ROWS : usize, const COLS : usize > IndexingRef
 for Mat< ROWS, COLS, E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl,
-  E : nd::NdFloat,
 {
 
   #[ inline( always ) ]
@@ -143,7 +142,6 @@ impl< E, const ROWS : usize, const COLS : usize > IndexingMut
 for Mat< ROWS, COLS, E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl,
-  E : nd::NdFloat,
 {
 
   fn lane_iter_mut( &mut self, varying_dim : usize, lane : usize ) -> impl Iterator< Item = &mut Self::Scalar >

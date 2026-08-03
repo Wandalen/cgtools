@@ -1,6 +1,6 @@
 [package]
 name = "mingl"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.75.0"
 authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
@@ -99,7 +99,8 @@ web-sys = { workspace = true, optional = true, features = [
   'PointerEvent',
   'MouseEvent',
   'WheelEvent',
-  'KeyboardEvent'
+  'KeyboardEvent',
+  'console',
 ]}
 
 [dev-dependencies]

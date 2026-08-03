@@ -73,6 +73,28 @@ crate::mod_interface!
 
   layer quaternion;
 
-  prelude use ::ndarray::prelude::*;
+  // Re-export ndarray prelude items individually, excluding `ArrayRef`,
+  // `LayoutRef`, `RawRef`, and the `ArrayRefN` aliases that ndarray 0.17
+  // introduced — `ArrayRef` collides with our local `ArrayRef` trait
+  // (see `mdmath_core::vector::ArrayRef`), which is used throughout this
+  // crate as a trait bound.
+  prelude use ::ndarray::prelude::
+  {
+    ArcArray,
+    Array, Array0, Array1, Array2, Array3, Array4, Array5, Array6, ArrayD,
+    ArrayBase,
+    ArrayView, ArrayView0, ArrayView1, ArrayView2, ArrayView3, ArrayView4, ArrayView5, ArrayView6, ArrayViewD,
+    ArrayViewMut, ArrayViewMut0, ArrayViewMut1, ArrayViewMut2, ArrayViewMut3, ArrayViewMut4, ArrayViewMut5, ArrayViewMut6, ArrayViewMutD,
+    CowArray,
+    RawArrayView, RawArrayViewMut,
+    Axis, Dim, Dimension,
+    Ix0, Ix1, Ix2, Ix3, Ix4, Ix5, Ix6, IxDyn,
+    arr0, arr1, arr2, aview0, aview1, aview2, aview_mut1,
+    array, azip, s,
+    ShapeBuilder,
+    NewAxis,
+    AsArray,
+    NdFloat,
+  };
 
 }

@@ -252,6 +252,28 @@ pub fn canvas_to_texture( canvas_id : &str, gl : &minwebgl::GL ) -> Option< web_
   Some( texture )
 }
 
+/// Load image from a Blob object (for bg removal result)
+pub fn load_image_from_blob( blob : &Blob, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )
+{
+  use std::rc::Rc;
+
+  let url = web_sys::Url::create_object_url_with_blob( blob ).expect( "Should create object URL" );
+  let document = web_sys::window().unwrap().document().unwrap();
+  let image = document.create_element( "img" ).unwrap().dyn_into::< HtmlImageElement >().unwrap();
+  let img = image.clone();
+  let callback_rc = Rc::new( on_load_callback );
+  let url_clone = url.clone();
+
+  let callback : Closure< dyn Fn() > = Closure::new( move ||
+  {
+    callback_rc( &img );
+    let _ = web_sys::Url::revoke_object_url( &url_clone );
+  });
+  image.set_onload( Some( callback.as_ref().unchecked_ref() ) );
+  callback.forget();
+  image.set_src( &url );
+}
+
 /// Show canvas and hide placeholder text
 pub fn show_canvas()
 {

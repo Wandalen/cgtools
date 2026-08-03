@@ -12,14 +12,14 @@ use gl::
 
 async fn load_cube_texture( name : &str ) -> Result< [ image::RgbaImage; 6 ], JsValue >
 {
-  let px = gl::file::load( &format!( "{}/PX.png", name ) ).await.expect( "Failed to load PX face" );
-  let nx = gl::file::load( &format!( "{}/NX.png", name ) ).await.expect( "Failed to load NX face" );
+  let px = gl::file::load( &format!( "static/{}/PX.png", name ) ).await.expect( "Failed to load PX face" );
+  let nx = gl::file::load( &format!( "static/{}/NX.png", name ) ).await.expect( "Failed to load NX face" );
 
-  let py = gl::file::load( &format!( "{}/PY.png", name ) ).await.expect( "Failed to load PY face" );
-  let ny = gl::file::load( &format!( "{}/NY.png", name ) ).await.expect( "Failed to load NY face" );
+  let py = gl::file::load( &format!( "static/{}/PY.png", name ) ).await.expect( "Failed to load PY face" );
+  let ny = gl::file::load( &format!( "static/{}/NY.png", name ) ).await.expect( "Failed to load NY face" );
 
-  let pz = gl::file::load( &format!( "{}/PZ.png", name ) ).await.expect( "Failed to load PZ face" );
-  let nz = gl::file::load( &format!( "{}/NZ.png", name ) ).await.expect( "Failed to load NZ face" );
+  let pz = gl::file::load( &format!( "static/{}/PZ.png", name ) ).await.expect( "Failed to load PZ face" );
+  let nz = gl::file::load( &format!( "static/{}/NZ.png", name ) ).await.expect( "Failed to load NZ face" );
 
   let px = image::load_from_memory( &px ).unwrap().to_rgba8();
   let nx = image::load_from_memory( &nx ).unwrap().to_rgba8();
@@ -79,7 +79,7 @@ async fn run() -> Result< (), gl::WebglError >
   let cube_normal_map = load_cube_texture( "normal_cube" ).await.expect( "Failed to load cube normal map" );
 
   // Load model
-  let obj_buffer = gl::file::load( "diamond.glb" ).await.expect( "Failed to load the model" );
+  let obj_buffer = gl::file::load( "static/diamond.glb" ).await.expect( "Failed to load the model" );
   let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
 
   let positions : Vec< [ f32; 3 ] >;

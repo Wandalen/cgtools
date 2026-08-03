@@ -6,7 +6,7 @@ This demo demonstrates narrow outline rendering in WebGL2. It shows techniques f
 
 Outline rendering enhances visual clarity and style. This example presents efficient methods for generating clean outlines without geometric expansion.
 
-![image](showcase.png)
+![image](showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

@@ -186,9 +186,9 @@ The table below shows the difference in output quality between the two processin
 
 | Original | Clusters Mode | Layers Mode |
 |:--------:|:------------:|:-----------:|
-| <img src="article/assets/comparison/kos_input.png" width="300px"> | <img src="article/assets/comparison/clusters_kos_input.jpg" width="300px"> | <img src="article/assets/comparison/layers_kos_input.jpg" width="300px"> |
-| <img src="article/assets/comparison/stars.jpg" width="300px"> | <img src="article/assets/comparison/clusters_stars.jpg" width="300px"> | <img src="article/assets/comparison/layers_stars.jpg" width="300px"> |
-| <img src="article/assets/comparison/wolf.png" width="300px"> | <img src="article/assets/comparison/clusters_wolf.jpg" width="300px"> | <img src="article/assets/comparison/layers_wolf.jpg" width="300px"> |
+| <img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/kos_input.png" width="300px"> | <img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_kos_input.jpg" width="300px"> | <img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_kos_input.jpg" width="300px"> |
+| <img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/stars.jpg" width="300px"> | <img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_stars.jpg" width="300px"> | <img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_stars.jpg" width="300px"> |
+| <img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/wolf.png" width="300px"> | <img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/clusters_wolf.jpg" width="300px"> | <img src="https://huggingface.co/datasets/cgtools/assets/resolve/main/img/vectorizer/article/comparison/layers_wolf.jpg" width="300px"> |
 
 ## 🎯 Use Cases
 

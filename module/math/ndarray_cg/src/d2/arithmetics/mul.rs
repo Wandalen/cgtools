@@ -1,9 +1,14 @@
 use crate::*;
 
 /// Multiplies two matrices.
+///
+/// # Overflow
+/// For integer `E` the inner-product accumulation is not overflow-checked: it
+/// panics in debug / wraps in release once a product or partial sum leaves
+/// `E`'s range.
 pub fn mul< E, A, B, R >( r : &mut R, a : &A, b : &B )
 where
-  E : nd::NdFloat,
+  E : MatNum,
   R : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >,
   A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   B : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
@@ -26,14 +31,10 @@ where
     }
   }
 
-  // println!( "a : {:?}, b : {:?}, r : {:?}", adim, bdim, rdim );
-  // println!( "a.lane( 0, 0 ) : {:?}", a.lane_iter( 0, 0 ).collect::< Vec< _ > >() );
-  // println!( "b.lane( 1, 0 ) : {:?}", a.lane_iter( 1, 0 ).collect::< Vec< _ > >() );
   for row in 0..adim[ 0 ]
   {
     for col in 0..bdim[ 1 ]
     {
-      println!( "{:?}", ( row, col ) );
       *r.scalar_mut( nd::Ix2( row, col ) ) = a.lane_iter( 0, row )
       .zip( b.lane_iter( 1, col ) )
       .map( | ( a_val, b_val ) | *a_val * *b_val )
@@ -43,9 +44,14 @@ where
 }
 
 /// Multiplies vector by a matrix.
+///
+/// # Overflow
+/// For integer `E` the inner-product accumulation is not overflow-checked: it
+/// panics in debug / wraps in release once a product or partial sum leaves
+/// `E`'s range.
 pub fn mul_mat_vec< E, A, B, R, const ROWS : usize >( r : &mut R, a : &A, b : &B )
 where
-  E : nd::NdFloat,
+  E : MatNum,
   R : VectorIterMut< E, ROWS >,
   A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   B : VectorIter< E, ROWS >,
@@ -78,14 +84,17 @@ impl< E, const ROWS : usize, const COLS : usize, const COLS2 : usize, Descriptor
 for Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl,
-  E : nd::NdFloat,
+  E : MatNum,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingMut< Scalar = E >,
   Mat< COLS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   Mat< ROWS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >,
 {
   type Output = Mat< ROWS, COLS2, E, Descriptor >;
 
+  /// # Overflow
+  /// For integer `E` the inner-product accumulation is not overflow-checked: it
+  /// panics in debug / wraps in release once a product or partial sum leaves
+  /// `E`'s range.
   #[ inline ]
   fn mul( self, rhs : Mat< COLS, COLS2, E, Descriptor > ) -> Self::Output
   {
@@ -99,14 +108,17 @@ impl< E, const ROWS : usize, const COLS : usize, const COLS2 : usize, Descriptor
 for &Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl,
-  E : nd::NdFloat,
+  E : MatNum,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingMut< Scalar = E >,
   Mat< COLS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   Mat< ROWS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >,
 {
   type Output = Mat< ROWS, COLS2, E, Descriptor >;
 
+  /// # Overflow
+  /// For integer `E` the inner-product accumulation is not overflow-checked: it
+  /// panics in debug / wraps in release once a product or partial sum leaves
+  /// `E`'s range.
   #[ inline ]
   fn mul( self, rhs : &Mat< COLS, COLS2, E, Descriptor > ) -> Self::Output
   {
@@ -124,11 +136,15 @@ impl< E, const ROWS : usize, const COLS : usize, Descriptor > Mul< Vector< E, CO
 for Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
 {
   type Output = Vector< E, COLS >;
 
+  /// # Overflow
+  /// For integer `E` the inner-product accumulation is not overflow-checked: it
+  /// panics in debug / wraps in release once a product or partial sum leaves
+  /// `E`'s range.
   #[ inline ]
   fn mul( self, rhs : Vector< E, COLS > ) -> Self::Output
   {
@@ -142,11 +158,15 @@ impl< E, const ROWS : usize, const COLS : usize, Descriptor > Mul< &Vector< E, C
 for &Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
 {
   type Output = Vector< E, COLS >;
 
+  /// # Overflow
+  /// For integer `E` the inner-product accumulation is not overflow-checked: it
+  /// panics in debug / wraps in release once a product or partial sum leaves
+  /// `E`'s range.
   #[ inline ]
   fn mul( self, rhs : &Vector< E, COLS > ) -> Self::Output
   {

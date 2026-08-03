@@ -97,7 +97,7 @@ async fn render_frame(
   // Post-processing pipeline
   swap_buffer.reset();
   swap_buffer.bind(gl);
-  swap_buffer.set_input(renderer.get_main_texture());
+  swap_buffer.set_input(renderer.main_texture());
 
   // 1. Tone mapping (HDR -> LDR)
   let tonemapped = tonemapping.render(
@@ -122,7 +122,7 @@ async fn render_frame(
 
 | Component | Purpose | Key Methods |
 |-----------|---------|-------------|
-| `Renderer` | Main rendering engine | `new()`, `render()`, `get_main_texture()` |
+| `Renderer` | Main rendering engine | `new()`, `render()`, `main_texture()` |
 | `SwapFramebuffer` | Post-processing helper | `bind()`, `set_input()`, `swap()` |
 | `Scene` | 3D scene container | `update_world_matrix()` |
 | `Camera` | Viewport and projection | Position, rotation, projection matrices |
@@ -171,7 +171,16 @@ renderer = { workspace = true, features = ["webgl", "full"] }
 ### Custom Materials
 The renderer supports the KHR_materials_specular extension for advanced material properties beyond the standard metallic-roughness workflow.
 
+When implementing the `Material` trait for custom materials:
+- **`bind()`** must call `gl.active_texture(gl::TEXTURE0 + unit)` before each texture bind — this is the only method that should touch texture state.
+- **`configure()`** sets up texture sampler uniform locations once at program creation time.
+- **`upload_on_state_change()`** uploads uniform values; use `needs_update()` / `set_needs_update(false)` with `Cell<bool>` to avoid redundant uploads.
+- IBL textures occupy units starting from `ibl_base_texture_unit()` (3 consecutive units). Custom materials should avoid those units.
+
 ### Performance Optimization
+- **Shader program caching** - Materials with identical shader source share a single compiled GPU program
+- **Draw call grouping** - Primitives are sorted by shader program to minimize state switches
+- **Dirty-flag material updates** - Uniform uploads are skipped when material state hasn't changed
 - Multi-sample anti-aliasing (MSAA) for edge smoothing
 - HDR rendering pipeline for realistic lighting
 - Efficient memory management for large scenes

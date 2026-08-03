@@ -62,6 +62,10 @@ impl< T > Resize< T >
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
     gl.viewport( 0, 0, gl.drawing_buffer_width(), gl.drawing_buffer_height() );
 
+    // Clear with transparent color before drawing resized image
+    gl.clear_color( 0.0, 0.0, 0.0, 0.0 );
+    gl.clear( GL::COLOR_BUFFER_BIT );
+
     renderer.draw();
   }
 }
