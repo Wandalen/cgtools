@@ -75,7 +75,8 @@ mod private
     {
       diffuse_texture,
       specular_1_texture,
-      specular_2_texture
+      specular_2_texture,
+      num_mips : 10,
     }
   }
 }

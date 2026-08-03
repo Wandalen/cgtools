@@ -10,7 +10,7 @@ mod private
   for  Vector< E, COLS >
   where
     Descriptor : mat::Descriptor,
-    E : MatEl + nd::NdFloat,
+    E : MatNum,
     Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   {
     fn mul_assign( &mut self, rhs : Mat< ROWS, COLS, E, Descriptor > )
@@ -22,10 +22,13 @@ mod private
   // Vector * Vector
   impl< E, const LEN : usize > Mul for Vector< E, LEN >
   where
-    E : MatEl + nd::NdFloat
+    E : MatNum
   {
     type Output = Self;
 
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
     fn mul( self, rhs : Self ) -> Self::Output
     {
       mul( &self, &rhs )
@@ -35,10 +38,13 @@ mod private
   // Vector * Scalar
   impl< E, const LEN : usize > Mul< E > for Vector< E, LEN >
   where
-    E : MatEl + nd::NdFloat
+    E : MatNum
   {
     type Output = Self;
 
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
     fn mul( self, rhs : E ) -> Self::Output
     {
       mul_scalar( &self, rhs )
@@ -48,8 +54,11 @@ mod private
   // Vector *= Scalar
   impl< E, const LEN : usize > MulAssign< E > for Vector< E, LEN >
   where
-    E : MatEl + nd::NdFloat
+    E : MatNum
   {
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
     fn mul_assign( &mut self, rhs : E )
     {
       *self = *self * rhs;

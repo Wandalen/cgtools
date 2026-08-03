@@ -115,7 +115,6 @@ where
 impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > Mat< ROWS, COLS, E, Descriptor >
 where
   E : MatEl,
-  E : nd::NdFloat,
   Self : IndexingRef,
 {
   /// Iterate over scalars of a single 1D lane.
@@ -218,7 +217,6 @@ where
 impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > Mat< ROWS, COLS, E, Descriptor >
 where
   E : MatEl,
-  E : nd::NdFloat,
   Self : IndexingMut,
 {
   /// Iterate over scalars of a single 1D lane with mutable access.
@@ -313,7 +311,6 @@ where
 impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > Mat< ROWS, COLS, E, Descriptor >
 where
   E : MatEl,
-  E : nd::NdFloat,
   Self : ScalarRef,
 {
   /// Get a reference to a scalar at a specified index.
@@ -333,7 +330,6 @@ where
 impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > Mat< ROWS, COLS, E, Descriptor >
 where
   E : MatEl,
-  E : nd::NdFloat,
   Self : ScalarMut,
 {
   /// Get a mutable reference to a scalar at a specified index.

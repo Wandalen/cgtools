@@ -226,6 +226,7 @@ mod private
       {
         child.borrow_mut().update_world_matrix( self.matrix, self.needs_update_child_world_matrix );
       }
+      self.needs_update_child_world_matrix = false;
     }
 
     /// Computes the bounding box for the entire hierarchy of a node.

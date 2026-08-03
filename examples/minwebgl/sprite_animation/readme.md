@@ -6,7 +6,7 @@ This demo demonstrates sprite sheet animation in WebGL2. It shows how to efficie
 
 Sprite animation is fundamental for 2D games and UI effects. This example provides an efficient implementation using GPU texture sampling.
 
-![image](./showcase.gif)
+![image](./showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

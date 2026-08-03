@@ -12,7 +12,7 @@ use web_sys::
   PointerEvent,
   WheelEvent,
 };
-use std::{ cell::{ Ref, RefCell }, rc::Rc, fmt };
+use std::{ cell::{ Cell, Ref, RefCell }, rc::Rc, fmt };
 use strum::EnumCount as _;
 use crate::keyboard::KeyboardKey;
 use crate::mouse::MouseButton;
@@ -59,6 +59,44 @@ pub enum Action
   Press,
   /// Indicates that a button or key has been released.
   Release,
+}
+
+/// The kind of physical input device that produced a pointer event.
+///
+/// Mirrors the `pointerType` field of the DOM `PointerEvent` interface. Useful
+/// for branching UI behaviour on devices where touch and mouse coexist — e.g.
+/// hiding a cursor-follow preview when no finger is on the screen.
+#[ non_exhaustive ]
+#[ derive( Debug, Clone, Copy, PartialEq, Eq, Default ) ]
+pub enum PointerType
+{
+  /// A mouse, trackpad, or other indirect pointing device.
+  Mouse,
+  /// A finger on a touchscreen.
+  Touch,
+  /// A stylus or active pen.
+  Pen,
+  /// No pointer events have been seen yet, or the device reported an
+  /// unrecognised `pointerType`. These two cases are intentionally
+  /// indistinguishable from the caller's perspective.
+  #[ default ]
+  Unknown,
+}
+
+impl PointerType
+{
+  /// Convert from the DOM `PointerEvent.pointerType` string.
+  #[ inline ]
+  pub fn from_dom_str( s : &str ) -> Self
+  {
+    match s
+    {
+      "mouse" => Self::Mouse,
+      "touch" => Self::Touch,
+      "pen"   => Self::Pen,
+      _       => Self::Unknown, // includes "" — spec-defined for when device type cannot be determined
+    }
+  }
 }
 
 /// Enumerates the different types of input events that can be captured.
@@ -167,6 +205,10 @@ pub struct Input
   pointer_event_target : Option< EventTarget >,
   /// The current state of inputs (e.g., which keys are down).
   state : State,
+  /// Type of the most recently observed pointer event. Shared with the pointer
+  /// callbacks via [`Rc<Cell>`] so they can write it without going through the
+  /// event queue — keeps the enum `EventType` API stable.
+  last_pointer_type : Rc< Cell< PointerType > >,
 }
 
 impl Input
@@ -193,6 +235,7 @@ impl Input
     F : Fn( &PointerEvent ) -> I32x2 + 'static
   {
     let event_queue = Rc::new( RefCell::new( Vec::< Event >::new() ) );
+    let last_pointer_type = Rc::new( Cell::new( PointerType::default() ) );
 
     // Wrap in Rc<dyn Fn> so both the button and move closures can share the same extractor.
     let get_coords : Rc< dyn Fn( &PointerEvent ) -> I32x2 > = Rc::new( get_coords );
@@ -201,12 +244,14 @@ impl Input
     {
       let event_queue = event_queue.clone();
       let get_coords = get_coords.clone();
+      let last_pointer_type = last_pointer_type.clone();
       move | event : PointerEvent |
       {
         let pointer_id = event.pointer_id();
         let pos = ( *get_coords )( &event );
         let button = MouseButton::from_button( event.button() );
         let action = if event.type_() == "pointerdown" { Action::Press } else { Action::Release };
+        last_pointer_type.set( PointerType::from_dom_str( &event.pointer_type() ) );
 
         // On press, capture the pointer so drag events keep arriving even when the
         // finger or cursor moves outside the target element's bounding box.
@@ -232,11 +277,13 @@ impl Input
     let pointercancel_callback =
     {
       let event_queue = event_queue.clone();
+      let last_pointer_type = last_pointer_type.clone();
       move | event : PointerEvent |
       {
         // The Pointer Events spec does not guarantee valid coordinates or button data
-        // for pointercancel; only the pointer_id is reliable.
+        // for pointercancel.
         let pointer_id = event.pointer_id();
+        last_pointer_type.set( PointerType::from_dom_str( &event.pointer_type() ) );
         let event_type = EventType::PointerCancel( pointer_id );
         let alt = event.alt_key();
         let ctrl = event.ctrl_key();
@@ -248,10 +295,12 @@ impl Input
     let pointermove_callback =
     {
       let event_queue = event_queue.clone();
+      let last_pointer_type = last_pointer_type.clone();
       move | event : PointerEvent |
       {
         let pointer_id = event.pointer_id();
         let position = ( *get_coords )( &event );
+        last_pointer_type.set( PointerType::from_dom_str( &event.pointer_type() ) );
         let event_type = EventType::PointerMove( pointer_id, position );
         let alt = event.alt_key();
         let ctrl = event.ctrl_key();
@@ -307,6 +356,7 @@ impl Input
       wheel_closure,
       pointer_event_target,
       state : State::new(),
+      last_pointer_type,
     };
 
     let window = web_sys::window().ok_or( BrowserInputError::WindowNotAvailable )?;
@@ -398,6 +448,27 @@ impl Input
   pub fn scroll( &self ) -> &F64x3
   {
     &self.state.scroll
+  }
+
+  /// Returns the [`PointerType`] of the most recently observed pointer event.
+  ///
+  /// Returns [`PointerType::Unknown`] before the first pointer event fires, or
+  /// when the browser reports an unrecognised `pointerType` string.
+  /// Useful for adapting UI to the active input modality on hybrid devices —
+  /// e.g. switching cursor-follow behaviour once the user switches from mouse
+  /// to touch.
+  ///
+  /// Note: this value does not reset when pointers are released; after a finger
+  /// lifts, it persists as `Touch` until the next pointer event. To check
+  /// whether any pointer is currently active, use [`Input::active_pointers`].
+  ///
+  /// # Test coverage
+  /// The string-to-variant mapping is covered by `PointerType::from_dom_str` unit tests.
+  /// End-to-end wiring through DOM callbacks requires a `wasm-bindgen-test` environment
+  /// and is not covered on the native target.
+  pub fn last_pointer_type( &self ) -> PointerType
+  {
+    self.last_pointer_type.get()
   }
 
   /// Returns all currently active pointer contacts as a slice of `(pointer_id, position)` pairs.
@@ -522,5 +593,47 @@ impl Drop for Input
       "wheel",
       self.wheel_closure.as_ref().unchecked_ref()
     );
+  }
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::PointerType;
+
+  #[ test ]
+  fn from_dom_str_mouse()
+  {
+    assert_eq!( PointerType::from_dom_str( "mouse" ), PointerType::Mouse );
+  }
+
+  #[ test ]
+  fn from_dom_str_touch()
+  {
+    assert_eq!( PointerType::from_dom_str( "touch" ), PointerType::Touch );
+  }
+
+  #[ test ]
+  fn from_dom_str_pen()
+  {
+    assert_eq!( PointerType::from_dom_str( "pen" ), PointerType::Pen );
+  }
+
+  #[ test ]
+  fn from_dom_str_empty_string_is_unknown()
+  {
+    assert_eq!( PointerType::from_dom_str( "" ), PointerType::Unknown );
+  }
+
+  #[ test ]
+  fn from_dom_str_unrecognised_is_unknown()
+  {
+    assert_eq!( PointerType::from_dom_str( "stylus" ), PointerType::Unknown );
+  }
+
+  #[ test ]
+  fn default_is_unknown()
+  {
+    assert_eq!( PointerType::default(), PointerType::Unknown );
   }
 }

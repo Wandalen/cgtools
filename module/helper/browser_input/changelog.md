@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- `PointerType` enum representing the physical device kind behind a pointer event (`Mouse`, `Touch`, `Pen`, `Unknown`); marked `#[non_exhaustive]` to guard against future DOM spec extensions
+- `Input::last_pointer_type()` — returns the `PointerType` of the most recently observed pointer event; `Unknown` until the first pointer event fires or when the browser reports an unrecognised `pointerType` string
+- `PointerType::from_dom_str(s: &str)` — public constructor converting a DOM `PointerEvent.pointerType` string to `PointerType`; consistent with `MouseButton::from_button` / `KeyboardKey::from_code`
+
 ## [0.3.0] - 2026-02-20
 
 ### Breaking Changes

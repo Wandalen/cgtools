@@ -6,7 +6,7 @@ This demo demonstrates real-time image filtering in WebGL2. It shows how to appl
 
 Image filters are essential for post-processing pipelines, allowing artistic control and visual enhancement of rendered content. This example provides reusable filter implementations.
 
-![image](showcase.png)
+![image](showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

@@ -32,7 +32,7 @@ where
 #[ inline ]
 pub fn scale< E, Scaling >( scaling : Scaling ) -> Mat2< E, mat::DescriptorOrderColumnMajor >
 where
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Scaling : VectorIter< E, 2 >,
   Mat2< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
@@ -56,7 +56,7 @@ where
 #[ inline ]
 pub fn shear< E, Shearing >( shearing : Shearing ) -> Mat2< E, mat::DescriptorOrderColumnMajor >
 where
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Shearing : VectorIter< E, 2 >,
   Mat2< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {

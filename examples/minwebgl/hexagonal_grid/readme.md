@@ -6,7 +6,7 @@ This demo demonstrates procedural generation and rendering of hexagonal grids in
 
 This example shows efficient hex grid generation, coordinate systems, and rendering techniques. It's ideal for implementing tile-based game systems or geographic visualizations.
 
-![image](./showcase.png)
+![image](./showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

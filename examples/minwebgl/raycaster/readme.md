@@ -6,7 +6,7 @@ This demo demonstrates ray casting for 3D scene interaction in WebGL2. Ray casti
 
 Ray casting is fundamental for 3D user interfaces and game mechanics. This example provides a reusable implementation for mouse-based 3D interaction.
 
-![image](showcase.png)
+![image](showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

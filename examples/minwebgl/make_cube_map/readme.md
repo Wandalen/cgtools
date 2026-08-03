@@ -6,7 +6,7 @@ This demo demonstrates cube map generation and usage in WebGL2. Cube maps are es
 
 This example shows how to create, load, and sample cube maps.
 
-![image](showcase.jpg)
+![image](showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

@@ -6,7 +6,7 @@ An advanced WebGL rendering demo showcasing deferred shading techniques with vol
 
 This technique is essential for modern game engines and complex lighting scenarios. The example showcases G-buffer setup, light volume rendering, and accumulation passes for realistic multi-light scenes.
 
-![image](showcase.png)
+![image](showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

@@ -4,7 +4,7 @@
 
 This demo demonstrates comprehensive Jump Flood Algorithm (JFA) outline rendering technique in WebGL2. JFA is post processing technique used for creating wide smooth outlines. JFA propagates captured into render target object silhouettes texture coordinates for every pixel of silhouettes. Then this data is used for calculating outlines position on result frame.
 
-![image](showcase.png)
+![image](showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

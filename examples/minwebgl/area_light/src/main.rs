@@ -111,7 +111,7 @@ async fn run() -> Result< (), gl::WebglError >
   let ltc1 = load_table( &gl, LTC1 );
   let ltc2 = load_table( &gl, LTC2 );
 
-  let skull_mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
+  let skull_mesh = gltf::load( &document, "static/skull_salazar_downloadable.glb", &gl ).await?;
   let skull_model = mat3x3h::translation( [ 0.0, 1.0, 0.0 ] );
 
   let mut camera = renderer::webgl::Camera::new
@@ -183,8 +183,8 @@ async fn run() -> Result< (), gl::WebglError >
         let material = primitive.material.borrow();
         let material = helpers::cast_unchecked_material_to_ref::< PbrMaterial >( material );
 
-        let base_color = material.base_color_texture.as_ref().unwrap();
-        let metallic_roughness = material.metallic_roughness_texture.as_ref().unwrap();
+        let base_color = material.base_color_texture().unwrap();
+        let metallic_roughness = material.metallic_roughness_texture().unwrap();
         gl.active_texture( gl::TEXTURE0 );
         base_color.bind( &gl );
         gl.active_texture( gl::TEXTURE1 );

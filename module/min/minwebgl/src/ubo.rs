@@ -99,7 +99,7 @@ mod private
       BlockId::BlockName( block_name ) =>
       {
         let block_index = gl.get_uniform_block_index( program, &block_name );
-        ( block_index, block_name.to_string() )
+        ( block_index, block_name.clone() )
       },
       BlockId::BlockIndex( ref block_index ) =>
       {

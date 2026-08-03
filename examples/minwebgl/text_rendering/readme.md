@@ -4,7 +4,7 @@
 
 This demo demonstrates 3D text rendering in WebGL2. It uses UFO and TTF font glyphs for extracting its geometry data, then extrude them to create 3D text. Example demonstates several fonts rendering. This example uses simple layout technique for placing correctly words glyphs relatively to each other.
 
-![image](./showcase.png)
+![image](./showcase.webp)
 
 **[How to run](../how_to_run.md)**
 

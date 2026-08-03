@@ -1,0 +1,12 @@
+# Scan and documentation policy for the cgtools workspace.
+# Written by human. Read by .locale.scan and .locale.doc.generate.
+
+scan:
+  depth: 4           # crates at module/helper/<name>/, module/min/<name>/, examples/minwebgl/<name>/, examples/math/<name>/
+  exclude:
+    - "*/.git"
+    - "*/target"
+    - "*/node_modules"
+
+doc:
+  depth: 1

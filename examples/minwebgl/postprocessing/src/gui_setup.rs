@@ -40,9 +40,9 @@ pub fn setup( renderer : Rc< RefCell< Renderer > >, color_grading : Rc< RefCell<
 
   // === Renderer Settings ===
   let mut renderer_settings = RendererSettings::default();
-  renderer_settings.bloom_radius = renderer.borrow().get_bloom_radius();
-  renderer_settings.bloom_strength = renderer.borrow().get_bloom_strength();
-  renderer_settings.exposure = renderer.borrow().get_exposure();
+  renderer_settings.bloom_radius = renderer.borrow().bloom_radius();
+  renderer_settings.bloom_strength = renderer.borrow().bloom_strength();
+  renderer_settings.exposure = renderer.borrow().exposure();
 
   let renderer_object = serde_wasm_bindgen::to_value( &renderer_settings ).unwrap();
   let renderer_folder = add_folder( &gui, "Renderer" );

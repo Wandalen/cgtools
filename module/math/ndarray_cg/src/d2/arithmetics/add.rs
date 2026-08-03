@@ -1,11 +1,14 @@
 use crate::*;
 
 /// Adds two matrices.
+///
+/// # Overflow
+/// For integer `E` the element-wise addition is not overflow-checked: it
+/// panics in debug / wraps in release once a sum leaves `E`'s range.
 #[ inline ]
 pub fn add< E, A, B, R >( r : &mut R, a : &A, b : &B )
 where
-  E : MatEl,
-  E : nd::NdFloat,
+  E : MatNum,
   R : Indexable< Index = Ix2 > + IndexingMut< Scalar = E >,
   A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   B : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
@@ -27,7 +30,6 @@ where
     }
   }
 
-  // println!( "a: {:?}, b: {:?}, r: {:?}", adim, bdim, rdim );
   for ( ( r_val, a_val ), b_val ) in r.iter_lsfirst_mut().zip( a.iter_lsfirst() ).zip( b.iter_lsfirst() )
   {
     *r_val = *a_val + *b_val;
@@ -46,13 +48,15 @@ where
 impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > Add
 for Mat< ROWS, COLS, E, Descriptor >
 where
-  E : MatEl,
-  E : nd::NdFloat,
+  E : MatNum,
   Descriptor : mat::Descriptor,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingMut< Scalar = E >,
 {
   type Output = Self;
 
+  /// # Overflow
+  /// For integer `E` the element-wise addition is not overflow-checked: it
+  /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
   fn add( self, rhs : Self ) -> Self::Output
   {
@@ -67,13 +71,15 @@ impl< E, const ROWS : usize, const COLS : usize, Descriptor > Add< &Mat< ROWS, C
 for &Mat< ROWS, COLS, E, Descriptor >
 where
   Descriptor : mat::Descriptor,
-  E : MatEl,
-  E : nd::NdFloat,
+  E : MatNum,
   // Self : IndexingRef,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingMut< Scalar = E >,
 {
   type Output = Mat< ROWS, COLS, E, Descriptor >;
 
+  /// # Overflow
+  /// For integer `E` the element-wise addition is not overflow-checked: it
+  /// panics in debug / wraps in release once a sum leaves `E`'s range.
   fn add( self, rhs : &Mat< ROWS, COLS, E, Descriptor > ) -> Self::Output
   {
     let mut result = Self::Output::default();

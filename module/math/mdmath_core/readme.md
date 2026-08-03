@@ -23,7 +23,7 @@ A high-performance, type-safe mathematics library providing essential vector ope
 ### 🚀 **Performance**
 - **SIMD Optimization** - Vectorized operations where possible
 - **Stack Allocation** - Minimal heap usage for small vectors
-- **Generic Implementation** - Works with any numeric type
+- **Generic Implementation** - Works with any numeric type. The `Scalar` trait (`Copy + num_traits::Num + NumAssign`) is the element bound for field-agnostic helpers (`dot`, `mag2`, `cross`, `sum`/`sub`/`mul`/`div` and their variants), so every integer primitive and float is supported. Float-only helpers (`mag`, `normalize`, `project_on`, `angle`, `is_orthogonal`) keep the `NdFloat` bound.
 
 ## 📦 Installation
 

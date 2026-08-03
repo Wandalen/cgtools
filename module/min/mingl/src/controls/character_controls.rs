@@ -350,6 +350,7 @@ mod private
         {
           if *is_pointer_locked.borrow()
           {
+            // movement_x/y return i32 regardless of web_sys_unstable_apis (no dual-definition unlike client_x/y)
             let delta_x = e.movement_x() as f64;
             let delta_y = e.movement_y() as f64;
             controls.borrow_mut().rotate( delta_x, delta_y );

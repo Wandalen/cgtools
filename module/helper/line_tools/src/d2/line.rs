@@ -35,7 +35,7 @@ mod private
     ///
     /// This function compiles all necessary shaders, creates all buffers, sets up
     /// the vertex attribute pointers, and links the shader programs.
-    pub fn create_mesh( &mut self, gl : &gl::WebGl2RenderingContext, fragment_shader : &str ) -> Result< (), gl::WebglError >
+    pub fn mesh_create( &mut self, gl : &gl::WebGl2RenderingContext, fragment_shader : &str ) -> Result< (), gl::WebglError >
     {
       let fragment_shader = gl::ShaderSource::former()
       .shader_type( gl::FRAGMENT_SHADER )
@@ -130,7 +130,7 @@ mod private
       self.join_changed = true;
       self.points_changed = true;
 
-      self.update_mesh( gl )?;
+      self.mesh_update( gl )?;
 
       Ok( () )
     }
@@ -145,21 +145,21 @@ mod private
     }
 
     /// Sets the join style of the line and marks it for an update.
-    pub fn set_join( &mut self, join : Join )
+    pub fn join_set( &mut self, join : Join )
     {
       self.join = join;
       self.join_changed = true;
     }
 
     /// Sets the cap style of the line and marks it for an update.
-    pub fn set_cap( &mut self, cap : Cap )
+    pub fn cap_set( &mut self, cap : Cap )
     {
       self.cap = cap;
       self.cap_changed = true;
     }
 
     /// Adds a new point to the line and marks the points as changed.
-    pub fn add_point< P : gl::VectorIter< f32, 2 > >( &mut self, point : P )
+    pub fn point_add< P : gl::VectorIter< f32, 2 > >( &mut self, point : P )
     {
       let mut iter = point.vector_iter();
       let point = gl::F32x2::new( *iter.next().unwrap(), *iter.next().unwrap() );
@@ -185,14 +185,14 @@ mod private
       self.points_changed = true;
     }
 
-    /// Return the total lenth of the line
-    pub fn get_total_distance( &self ) -> f32
+    /// Return the total length of the line
+    pub fn total_distance_get( &self ) -> f32
     {
       self.total_distance
     }
 
     /// Updates the mesh's WebGL resources if any part of the line has changed.
-    pub fn update_mesh( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+    pub fn mesh_update( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       let mesh = self.mesh.as_mut().expect( "Mesh has not been created yet" );
 
@@ -420,7 +420,7 @@ mod private
     pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
 
-      self.update_mesh( gl )?;
+      self.mesh_update( gl )?;
 
       let mesh = self.mesh.as_mut().expect( "Mesh has not been created yet" );
 
@@ -445,19 +445,19 @@ mod private
     }
 
     /// Returns a reference to the internal mesh.
-    pub fn get_mesh( &self ) -> &Mesh
+    pub fn mesh_get( &self ) -> &Mesh
     {
       self.mesh.as_ref().expect( "Mesh has not been created yet" )
     }   
 
     /// Returns a mutable reference to the internal mesh.
-    pub fn get_mesh_mut( &mut self ) -> &mut Mesh
+    pub fn mesh_get_mut( &mut self ) -> &mut Mesh
     {
       self.mesh.as_mut().expect( "Mesh has not been created yet" )
     } 
 
     /// Returns a slice of the line's points.
-    pub fn get_points( &self ) -> &[ math::F32x2 ]
+    pub fn points_get( &self ) -> &[ math::F32x2 ]
     {
       &self.points
     }

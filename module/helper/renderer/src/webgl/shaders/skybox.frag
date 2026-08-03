@@ -24,6 +24,8 @@ void main()
 {
   vec2 uv = dirToEquirectUV( vDir );
 
-  frag_color = texture( equirectMap, uv );
+  // Alpha = 1 marks the skybox as covered geometry so the tone mapping pass maps it
+  // ( the environment is tone mapped, unlike the solid clear-color background ).
+  frag_color = vec4( texture( equirectMap, uv ).rgb, 1.0 );
   emissive_color = vec4( 0.0 );
 }

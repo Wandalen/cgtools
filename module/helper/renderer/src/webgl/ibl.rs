@@ -16,6 +16,8 @@ mod private
     pub specular_1_texture : Option< gl::web_sys::WebGlTexture >,
     /// The 2D lookup texture containing the BRDF (Bidirectional Reflectance Distribution Function) integration result.
     pub specular_2_texture : Option< gl::web_sys::WebGlTexture >,
+    /// Number of mip levels in `specular_1_texture`. `max_lod = num_mips - 1`.
+    pub num_mips : u32,
   }
 
   impl IBL

@@ -1,15 +1,17 @@
 use crate::*;
 
-impl< E, Descriptor > Mat2< E, Descriptor > 
-where 
-E : MatEl + nd::NdFloat,
+impl< E, Descriptor > Mat2< E, Descriptor >
+where
+E : MatNum + ::num_traits::Signed,
 Descriptor : mat::Descriptor,
 Self : RawSliceMut< Scalar = E > +
-       ScalarMut< Scalar = E, Index = Ix2 > + 
-       ConstLayout< Index = Ix2 > + 
+       ScalarMut< Scalar = E, Index = Ix2 > +
+       ConstLayout< Index = Ix2 > +
        IndexingMut< Scalar = E, Index = Ix2 >
 {
-  /// Computes the determinant of the matrix
+  /// Computes the determinant of the matrix. Requires a signed scalar because
+  /// the cofactor expansion subtracts (`a*d - b*c`), which can be negative; the
+  /// result is undefined (panic or wrap) for unsigned element types.
   pub fn determinant( &self ) -> E
   {
     let a = *self.scalar_ref( Ix2( 0, 0 ) );
@@ -18,8 +20,18 @@ Self : RawSliceMut< Scalar = E > +
     let d = *self.scalar_ref( Ix2( 1, 1 ) );
 
     a * d - b * c
-  }    
+  }
+}
 
+impl< E, Descriptor > Mat2< E, Descriptor >
+where
+E : MatEl + nd::NdFloat + ::num_traits::Signed,
+Descriptor : mat::Descriptor,
+Self : RawSliceMut< Scalar = E > +
+       ScalarMut< Scalar = E, Index = Ix2 > +
+       ConstLayout< Index = Ix2 > +
+       IndexingMut< Scalar = E, Index = Ix2 >
+{
   /// Computes the inverse of the matrix.
   /// If the determinant is zero - return `None`
   pub fn inverse( &self ) -> Option< Self >
@@ -44,7 +56,7 @@ Self : RawSliceMut< Scalar = E > +
 
 impl< E, Descriptor > Mat< 2, 2, E, Descriptor >
 where
-E : MatEl + nd::NdFloat,
+E : MatNum,
 Descriptor : mat::Descriptor,
 Self : RawSlice< Scalar = E >
 {
@@ -81,7 +93,7 @@ Self : RawSlice< Scalar = E >
 
 impl< E, Descriptor > Mat< 2, 2, E, Descriptor >
 where
-E : MatEl + nd::NdFloat,
+E : MatNum,
 Descriptor : mat::Descriptor,
 Self : RawSliceMut< Scalar = E >
 {
@@ -96,7 +108,7 @@ Self : RawSliceMut< Scalar = E >
 /// Creates a 2x2 identity matrix
 pub fn identity< E >() -> Mat2< E, mat::DescriptorOrderColumnMajor >
 where
-  E : MatEl + nd::NdFloat,
+  E : MatNum,
   Mat2< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
 {
   Mat2::from_column_major

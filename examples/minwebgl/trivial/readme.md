@@ -6,6 +6,6 @@ This demo is the simplest possible WebGL2 example in cgtools. It demonstrates th
 
 This is the recommended starting point for learning the cgtools framework, showing initialization, basic rendering loop, and minimal shader setup.
 
-![image](./showcase.png)
+![image](./showcase.webp)
 
 **[How to run](../how_to_run.md)**

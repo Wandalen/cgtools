@@ -12,7 +12,7 @@ This demo uses `spart` crate to find points closest to the mouse cursor. The nei
 
 Move your mouse over the canvas to see the spatial search in action.
 
-![image](./showcase.jpg)
+![image](./showcase.webp)
 
 **[How to run](../how_to_run.md)**
 
