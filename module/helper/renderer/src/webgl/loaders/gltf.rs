@@ -2,6 +2,7 @@ mod private
 {
   use std::{ cell::RefCell, rc::Rc };
   use gltf::mesh::iter::MorphTargets;
+  use gltf::json::Value;
   use mingl::F32x3;
   use minwebgl as gl;
   use gl::
@@ -824,6 +825,47 @@ mod private
         material.set_specular_color_texture( make_texture_info( s.specular_color_texture() ) );
       }
 
+      // The `gltf` crate has no typed accessors for KHR_materials_clearcoat / KHR_materials_anisotropy,
+      // so their JSON is parsed manually via `extension_value`.
+      let parse_ext_texture_info = | json : &Value | -> Option< TextureInfo >
+      {
+        let index = json.get( "index" )?.as_u64()? as usize;
+        let uv_position = json.get( "texCoord" ).and_then( Value::as_u64 ).unwrap_or( 0 ) as u32;
+        textures.get( index ).map( | t | TextureInfo { texture : t.clone(), uv_position } )
+      };
+
+      // KHR_materials_clearcoat
+      if let Some( cc ) = gltf_m.extension_value( "KHR_materials_clearcoat" )
+      {
+        material.set_clearcoat_factor( Some( cc.get( "clearcoatFactor" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
+        material.set_clearcoat_roughness_factor( Some( cc.get( "clearcoatRoughnessFactor" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
+
+        if let Some( t ) = cc.get( "clearcoatTexture" )
+        {
+          material.set_clearcoat_texture( parse_ext_texture_info( t ) );
+        }
+        if let Some( t ) = cc.get( "clearcoatRoughnessTexture" )
+        {
+          material.set_clearcoat_roughness_texture( parse_ext_texture_info( t ) );
+        }
+        if let Some( t ) = cc.get( "clearcoatNormalTexture" )
+        {
+          material.clearcoat_normal_scale = t.get( "scale" ).and_then( Value::as_f64 ).unwrap_or( 1.0 ) as f32;
+          material.set_clearcoat_normal_texture( parse_ext_texture_info( t ) );
+        }
+      }
+
+      // KHR_materials_anisotropy
+      if let Some( an ) = gltf_m.extension_value( "KHR_materials_anisotropy" )
+      {
+        material.set_anisotropy_strength( Some( an.get( "anisotropyStrength" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32 ) );
+        material.anisotropy_rotation = an.get( "anisotropyRotation" ).and_then( Value::as_f64 ).unwrap_or( 0.0 ) as f32;
+        if let Some( t ) = an.get( "anisotropyTexture" )
+        {
+          material.set_anisotropy_texture( parse_ext_texture_info( t ) );
+        }
+      }
+
       if let Some( n ) = gltf_m.normal_texture()
       {
         material.normal_scale = n.scale();
@@ -1012,6 +1054,11 @@ mod private
           for ( name, value ) in dummy_material.vertex_defines()
           {
             m.add_vertex_define( name.clone(), value );
+          }
+
+          for ( name, value ) in dummy_material.fragment_defines()
+          {
+            m.add_fragment_define( name.clone(), value );
           }
 
           std::mem::drop( m );

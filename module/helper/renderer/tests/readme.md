@@ -11,4 +11,5 @@
 | skeleton_tests.rs | Tests skeleton stuff |
 | animation_graph_tests.rs | Tests animation graph stuff |
 | mirror_tests.rs | Tests animation mirroring stuff |
+| clearcoat_anisotropy_shader_tests.rs | Headless-browser shader-compilation tests for KHR_materials_clearcoat / KHR_materials_anisotropy |
 | tests.rs | Connects test modules into root |
