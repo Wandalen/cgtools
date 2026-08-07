@@ -102,6 +102,10 @@ mod private
   }
 
   /// Skin joints transforms related data
+  ///
+  /// Owns `global_texture`/`inverse_texture` once `upload()` has created them — see
+  /// the `Drop` impl. `gl` is populated lazily by `upload()` (the constructor has no
+  /// `GL` handle available), so `Drop` is a no-op until the first successful upload.
   #[ derive( Debug ) ]
   pub struct TransformsData
   {
@@ -119,6 +123,9 @@ mod private
     /// Defines if [`TransformsData`] is recently cloned,
     /// but not all fields have been cloned too
     need_clone_inner : bool,
+    /// WebGL context used by `Drop` to delete the textures above. `None` until the
+    /// first `upload()` call actually allocates them.
+    gl : Option< GL >,
   }
 
   impl TransformsData
@@ -143,6 +150,7 @@ mod private
         inverse_texture : None,
         need_update_inverse : true,
         need_clone_inner : false,
+        gl : None,
       }
     }
 
@@ -154,6 +162,8 @@ mod private
       locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
+      if self.gl.is_none() { self.gl = Some( gl.clone() ); }
+
       if self.need_clone_inner
       {
         self.need_clone_inner =
@@ -230,6 +240,10 @@ mod private
 
   impl Clone for TransformsData
   {
+    /// `need_clone_inner: true` makes the next `upload()` allocate fresh GPU textures
+    /// before either texture handle is bound or sampled, so the aliased handles cloned
+    /// below are always replaced before use. `gl: None` matches that — this clone owns
+    /// nothing on the GPU yet, so `Drop` must stay a no-op until its own `upload()` runs.
     fn clone( &self ) -> Self
     {
       Self
@@ -241,12 +255,32 @@ mod private
         global_texture : self.global_texture.clone(),
         inverse_texture : self.inverse_texture.clone(),
         need_update_inverse : true,
-        need_clone_inner : true
+        need_clone_inner : true,
+        gl : None,
+      }
+    }
+  }
+
+  /// Deletes the joint-transform textures this `TransformsData` allocated via `upload()`.
+  /// A no-op if `upload()` was never called (`gl` still `None`) — see the `Clone` impl,
+  /// which intentionally clears `gl` because a freshly cloned instance does not yet own
+  /// its own GPU textures (its next `upload()` allocates new ones before use).
+  impl Drop for TransformsData
+  {
+    fn drop( &mut self )
+    {
+      if let Some( gl ) = &self.gl
+      {
+        gl.delete_texture( self.global_texture.as_ref() );
+        gl.delete_texture( self.inverse_texture.as_ref() );
       }
     }
   }
 
   /// Skin morph targets related data
+  ///
+  /// Owns `displacements_texture` once `upload()` has created it — see the `Drop`
+  /// impl and `TransformsData`'s docs for the same `gl`-lazily-populated pattern.
   #[ derive( Debug ) ]
   pub struct DisplacementsData
   {
@@ -276,7 +310,10 @@ mod private
     need_update_displacement : bool,
     /// Defines if [`DisplacementsData`] is recently cloned,
     /// but not all fields have been cloned too
-    need_clone_inner : bool
+    need_clone_inner : bool,
+    /// WebGL context used by `Drop` to delete `displacements_texture`. `None` until
+    /// the first `upload()` call actually allocates it.
+    gl : Option< GL >,
   }
 
   impl DisplacementsData
@@ -297,7 +334,8 @@ mod private
         disp_offsets : I32x3::splat( -1 ),
         vertices_count : 0,
         need_update_displacement : false,
-        need_clone_inner : false
+        need_clone_inner : false,
+        gl : None,
       }
     }
 
@@ -391,6 +429,11 @@ mod private
       locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
+      if self.gl.is_none()
+      {
+        self.gl = Some( gl.clone() );
+      }
+
       if self.need_clone_inner
       {
         self.need_clone_inner =
@@ -586,6 +629,10 @@ mod private
 
   impl Clone for DisplacementsData
   {
+    /// `need_clone_inner: true` makes the next `upload()` allocate a fresh GPU
+    /// texture for the clone (see `upload`'s `need_clone_inner` branch), so `gl`
+    /// is reset to `None` here — the clone does not yet own any GPU resource of
+    /// its own to delete.
     fn clone( &self ) -> Self
     {
       Self
@@ -601,7 +648,21 @@ mod private
         disp_offsets : self.disp_offsets.clone(),
         vertices_count : self.vertices_count.clone(),
         need_update_displacement : true,
-        need_clone_inner : true
+        need_clone_inner : true,
+        gl : None,
+      }
+    }
+  }
+
+  /// Deletes the morph-target displacement texture this `DisplacementsData`
+  /// allocated via `upload()`. A no-op if `upload()` was never called.
+  impl Drop for DisplacementsData
+  {
+    fn drop( &mut self )
+    {
+      if let Some( gl ) = &self.gl
+      {
+        gl.delete_texture( self.displacements_texture.as_ref() );
       }
     }
   }

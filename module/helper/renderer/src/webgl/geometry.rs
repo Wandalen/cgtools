@@ -45,9 +45,18 @@ mod private
   }
 
   /// Represents a geometric object to be rendered.
-  #[ derive( Debug, Clone ) ]
+  ///
+  /// Owns its GPU resources exclusively (VAO + attribute/index buffers) — see the
+  /// `Drop` impl below. Deliberately **not** `Clone`: a struct-clone would alias the
+  /// raw `web_sys` GPU handles (their `Clone` is a cheap JS-reference copy, not a GPU
+  /// duplication), so two `Geometry` values would secretly share one VAO/buffers and
+  /// each independently delete them on drop. Share a `Geometry` via `Rc::clone` on
+  /// its containing `Rc<RefCell<Geometry>>` instead (see `Primitive::clone`).
+  #[ derive( Debug ) ]
   pub struct Geometry
   {
+    /// The WebGL context, kept so `Drop` can release GPU resources.
+    gl : gl::GL,
     /// The WebGL Vertex Array Object that stores the state for attribute bindings.
     pub vao : gl::WebGlVertexArrayObject,
     /// The primitive drawing mode (e.g., `gl::TRIANGLES`, `gl::LINES`).
@@ -75,6 +84,7 @@ mod private
       (
         Self
         {
+          gl : gl.clone(),
           vao,
           draw_mode,
           vertex_count,
@@ -220,6 +230,25 @@ mod private
           self.vertex_count as i32,
           instance_count
         );
+      }
+    }
+  }
+
+  /// Deletes the VAO and every attribute/index buffer this `Geometry` owns.
+  /// Since `Geometry` is not `Clone` (see the struct docs), this only ever
+  /// fires when the last `Rc<RefCell<Geometry>>` referencing it drops.
+  impl Drop for Geometry
+  {
+    fn drop( &mut self )
+    {
+      self.gl.delete_vertex_array( Some( &self.vao ) );
+      for info in self.attributes.values()
+      {
+        self.gl.delete_buffer( Some( &info.buffer ) );
+      }
+      if let Some( info ) = self.index_info.as_ref()
+      {
+        self.gl.delete_buffer( Some( &info.buffer ) );
       }
     }
   }
