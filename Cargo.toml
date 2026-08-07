@@ -423,3 +423,8 @@ version = "0.22.1"
 
 [workspace.dependencies.ron]
 version = "0.12.1"
+
+# csgrs (via primitive_generation) pulls core2 0.4.0, which was yanked from crates.io.
+# Patch to a fork's commit until csgrs bumps its core2 requirement.
+[patch.crates-io]
+core2 = { git = "https://github.com/technocreatives/core2", rev = "545e84bcb0f235b12e21351e0c69767958efe2a7" }
