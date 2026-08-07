@@ -58,6 +58,8 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_height( pixel_h );
 
   let gltf_path = "static/dodge-challenger/gltf/scene.gltf";
+  // let gltf_path = "static/AnisotropyDiscTest.glb";
+  // let gltf_path = "static/ClearCoatTest.glb";
   // let gltf_path = "gambeson.glb";
   // let gltf_path = "old_rusty_car.glb";
   // let gltf_path = "sponza.glb";

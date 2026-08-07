@@ -62,6 +62,10 @@ mod private
     "specularTexture",
     "specularColorTexture",
     "lightMap",
+    "clearcoatTexture",
+    "clearcoatRoughnessTexture",
+    "clearcoatNormalTexture",
+    "anisotropyTexture",
     //// IBL uniform locations
     "irradianceTexture",
     "prefilterEnvMap",
@@ -77,6 +81,11 @@ mod private
     "specularFactor",
     "specularColorFactor",
     "emissiveFactor",
+    "clearcoatFactor",
+    "clearcoatRoughnessFactor",
+    "clearcoatNormalScale",
+    "anisotropyStrength",
+    "anisotropyRotation",
     // Luminosity
     "alphaCutoff",
     "exposure"
@@ -124,6 +133,26 @@ mod private
     specular_color_texture : Option< TextureInfo >,
     /// Optional lightmap texture containing pre-baked lighting (shadows)
     light_map : Option< TextureInfo >,
+
+    /// Optional scaling factor for the clearcoat layer intensity. (KHR_materials_clearcoat extension)
+    clearcoat_factor : Option< f32 >,
+    /// Optional texture providing the clearcoat intensity in the R channel. (KHR_materials_clearcoat extension)
+    clearcoat_texture : Option< TextureInfo >,
+    /// Optional roughness factor for the clearcoat layer. (KHR_materials_clearcoat extension)
+    clearcoat_roughness_factor : Option< f32 >,
+    /// Optional texture providing the clearcoat roughness in the G channel. (KHR_materials_clearcoat extension)
+    clearcoat_roughness_texture : Option< TextureInfo >,
+    /// Scaling factor applied to each normal vector of the clearcoat normal texture. (KHR_materials_clearcoat extension)
+    pub clearcoat_normal_scale : f32,
+    /// Optional texture containing normal vectors for the clearcoat layer. (KHR_materials_clearcoat extension)
+    clearcoat_normal_texture : Option< TextureInfo >,
+
+    /// Optional strength of the anisotropy effect. (KHR_materials_anisotropy extension)
+    anisotropy_strength : Option< f32 >,
+    /// Rotation of the anisotropy direction, in radians. (KHR_materials_anisotropy extension)
+    pub anisotropy_rotation : f32,
+    /// Optional texture providing the anisotropy direction (RG) and strength (B). (KHR_materials_anisotropy extension)
+    anisotropy_texture : Option< TextureInfo >,
     /// Alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
     pub alpha_cutoff : f32,
     /// The alpha blending mode for the material. Defaults to `Opaque`.
@@ -185,6 +214,17 @@ mod private
 
       let light_map = Default::default();
 
+      let clearcoat_factor = Default::default();
+      let clearcoat_texture = Default::default();
+      let clearcoat_roughness_factor = Default::default();
+      let clearcoat_roughness_texture = Default::default();
+      let clearcoat_normal_scale = 1.0;
+      let clearcoat_normal_texture = Default::default();
+
+      let anisotropy_strength = Default::default();
+      let anisotropy_rotation = 0.0;
+      let anisotropy_texture = Default::default();
+
       let alpha_mode = AlphaMode::default();
       let alpha_cutoff = 0.5;
       let double_sided = false;
@@ -221,6 +261,15 @@ mod private
         cull_mode,
         mipmap_distance_range,
         light_map,
+        clearcoat_factor,
+        clearcoat_texture,
+        clearcoat_roughness_factor,
+        clearcoat_roughness_texture,
+        clearcoat_normal_scale,
+        clearcoat_normal_texture,
+        anisotropy_strength,
+        anisotropy_rotation,
+        anisotropy_texture,
         vertex_defines,
         fragment_defines,
         need_use_ibl,
@@ -363,6 +412,104 @@ mod private
       self.light_map.as_ref()
     }
 
+    /// Sets the clearcoat factor.
+    pub fn set_clearcoat_factor( &mut self, value : Option< f32 > )
+    {
+      self.clearcoat_factor = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the clearcoat factor.
+    pub fn clearcoat_factor( &self ) -> Option< f32 >
+    {
+      self.clearcoat_factor
+    }
+
+    /// Sets the clearcoat texture.
+    pub fn set_clearcoat_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.clearcoat_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the clearcoat texture.
+    pub fn clearcoat_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.clearcoat_texture.as_ref()
+    }
+
+    /// Sets the clearcoat roughness factor.
+    pub fn set_clearcoat_roughness_factor( &mut self, value : Option< f32 > )
+    {
+      self.clearcoat_roughness_factor = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the clearcoat roughness factor.
+    pub fn clearcoat_roughness_factor( &self ) -> Option< f32 >
+    {
+      self.clearcoat_roughness_factor
+    }
+
+    /// Sets the clearcoat roughness texture.
+    pub fn set_clearcoat_roughness_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.clearcoat_roughness_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the clearcoat roughness texture.
+    pub fn clearcoat_roughness_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.clearcoat_roughness_texture.as_ref()
+    }
+
+    /// Sets the clearcoat normal texture.
+    pub fn set_clearcoat_normal_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.clearcoat_normal_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the clearcoat normal texture.
+    pub fn clearcoat_normal_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.clearcoat_normal_texture.as_ref()
+    }
+
+    /// Sets the anisotropy strength.
+    pub fn set_anisotropy_strength( &mut self, value : Option< f32 > )
+    {
+      self.anisotropy_strength = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the anisotropy strength.
+    pub fn anisotropy_strength( &self ) -> Option< f32 >
+    {
+      self.anisotropy_strength
+    }
+
+    /// Sets the anisotropy texture.
+    pub fn set_anisotropy_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.anisotropy_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the anisotropy texture.
+    pub fn anisotropy_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.anisotropy_texture.as_ref()
+    }
+
     /// Sets the alpha mode.
     pub fn set_alpha_mode( &mut self, value : AlphaMode )
     {
@@ -486,6 +633,20 @@ mod private
       let use_occlusion_texture = self.occlusion_texture.is_some();
       let use_alpha_cutoff = self.alpha_mode == AlphaMode::Mask;
 
+      let use_clearcoat_texture = self.clearcoat_texture.is_some();
+      let use_clearcoat_roughness_texture = self.clearcoat_roughness_texture.is_some();
+      let use_clearcoat_normal_texture = self.clearcoat_normal_texture.is_some();
+      let use_khr_materials_clearcoat = self.clearcoat_factor.is_some()
+      || self.clearcoat_roughness_factor.is_some()
+      || use_clearcoat_texture
+      || use_clearcoat_roughness_texture
+      || use_clearcoat_normal_texture;
+
+      let use_anisotropy_texture = self.anisotropy_texture.is_some();
+      let use_khr_materials_anisotropy = self.anisotropy_strength.is_some() || use_anisotropy_texture;
+
+      let use_tbn = use_normal_texture || use_clearcoat_normal_texture || use_khr_materials_anisotropy;
+
       let mut defines = String::new();
 
       defines.push_str( format!( "#define MAX_POINT_LIGHTS {MAX_POINT_LIGHTS}\n" ).as_str() );
@@ -553,6 +714,43 @@ mod private
         add_texture( &mut defines, "USE_LIGHT_MAP", "vLightMapUv", self.light_map.as_ref() );
       }
 
+      // KHR_materials_clearcoat extension related
+      if use_khr_materials_clearcoat
+      {
+        defines.push_str( "#define USE_KHR_materials_clearcoat\n" );
+        if use_clearcoat_texture
+        {
+          add_texture( &mut defines, "USE_CLEARCOAT_TEXTURE", "vClearcoatUv", self.clearcoat_texture.as_ref() );
+        }
+
+        if use_clearcoat_roughness_texture
+        {
+          add_texture( &mut defines, "USE_CLEARCOAT_ROUGHNESS_TEXTURE", "vClearcoatRoughnessUv", self.clearcoat_roughness_texture.as_ref() );
+        }
+
+        if use_clearcoat_normal_texture
+        {
+          add_texture( &mut defines, "USE_CLEARCOAT_NORMAL_TEXTURE", "vClearcoatNormalUv", self.clearcoat_normal_texture.as_ref() );
+        }
+      }
+
+      // KHR_materials_anisotropy extension related
+      if use_khr_materials_anisotropy
+      {
+        defines.push_str( "#define USE_KHR_materials_anisotropy\n" );
+        if use_anisotropy_texture
+        {
+          add_texture( &mut defines, "USE_ANISOTROPY_TEXTURE", "vAnisotropyUv", self.anisotropy_texture.as_ref() );
+        }
+      }
+
+      // Shared tangent/bitangent/normal matrix, needed by normal mapping, clearcoat normal
+      // mapping and anisotropy alike.
+      if use_tbn
+      {
+        defines.push_str( "#define USE_TBN\n" );
+      }
+
       defines
     }
 
@@ -590,7 +788,9 @@ mod private
     {
       if self.need_use_ibl
       {
-        Some( 10 )
+        // 0-7: base PBR textures, 8-11: clearcoat/anisotropy textures, 12: spare,
+        // 13-15: skinning/morph textures (vertex stage, see skeleton.rs).
+        Some( 16 )
       }
       else
       {
@@ -621,6 +821,10 @@ mod private
       gl.uniform1i( locations.get( "specularTexture" ).unwrap().clone().as_ref() , 5 );
       gl.uniform1i( locations.get( "specularColorTexture" ).unwrap().clone().as_ref() , 6 );
       gl.uniform1i( locations.get( "lightMap" ).unwrap().clone().as_ref() , 7 );
+      gl.uniform1i( locations.get( "clearcoatTexture" ).unwrap().clone().as_ref() , 8 );
+      gl.uniform1i( locations.get( "clearcoatRoughnessTexture" ).unwrap().clone().as_ref() , 9 );
+      gl.uniform1i( locations.get( "clearcoatNormalTexture" ).unwrap().clone().as_ref() , 10 );
+      gl.uniform1i( locations.get( "anisotropyTexture" ).unwrap().clone().as_ref() , 11 );
     }
 
     fn upload
@@ -699,6 +903,12 @@ mod private
 
       upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
 
+      upload( "clearcoatFactor", self.clearcoat_factor )?;
+      upload( "clearcoatRoughnessFactor", self.clearcoat_roughness_factor )?;
+      gl::uniform::upload( gl, locations.get( "clearcoatNormalScale" ).unwrap().clone(), &self.clearcoat_normal_scale )?;
+      upload( "anisotropyStrength", self.anisotropy_strength )?;
+      gl::uniform::upload( gl, locations.get( "anisotropyRotation" ).unwrap().clone(), &self.anisotropy_rotation )?;
+
       Ok( () )
     }
 
@@ -721,6 +931,10 @@ mod private
       bind( &self.specular_texture, 5 );
       bind( &self.specular_color_texture, 6 );
       bind( &self.light_map, 7 );
+      bind( &self.clearcoat_texture, 8 );
+      bind( &self.clearcoat_roughness_texture, 9 );
+      bind( &self.clearcoat_normal_texture, 10 );
+      bind( &self.anisotropy_texture, 11 );
     }
 
     fn defines_str( &self ) -> &str
@@ -813,6 +1027,15 @@ mod private
         cull_mode : self.cull_mode,
         mipmap_distance_range : self.mipmap_distance_range.clone(),
         light_map : self.light_map.clone(),
+        clearcoat_factor : self.clearcoat_factor,
+        clearcoat_texture : self.clearcoat_texture.clone(),
+        clearcoat_roughness_factor : self.clearcoat_roughness_factor,
+        clearcoat_roughness_texture : self.clearcoat_roughness_texture.clone(),
+        clearcoat_normal_scale : self.clearcoat_normal_scale,
+        clearcoat_normal_texture : self.clearcoat_normal_texture.clone(),
+        anisotropy_strength : self.anisotropy_strength,
+        anisotropy_rotation : self.anisotropy_rotation,
+        anisotropy_texture : self.anisotropy_texture.clone(),
         vertex_defines : self.vertex_defines.clone(),
         fragment_defines : self.fragment_defines.clone(),
         need_use_ibl : self.need_use_ibl,
