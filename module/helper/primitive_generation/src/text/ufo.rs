@@ -185,7 +185,7 @@ mod private
               (
                 x.unwrap(),
                 y.unwrap(),
-                typ.clone(),
+                typ,
                 smooth,
                 None,
                 None

@@ -233,31 +233,28 @@ impl Animation
           },
           Shape::Geometry( geometry ) =>
           {
-            let primitive = match geometry
+            let primitive = if let Geometry::Spline( Spline { values, .. } ) = geometry
             {
-              Geometry::Spline( Spline { values, .. } ) =>
+              if let Some( path ) = values.first()
               {
-                if let Some( path ) = values.first()
-                {
-                  let contour = path.start.clone().into_iter()
-                  .map( | p | [ p.x as f32, p.y as f32 ] )
-                  .collect::< Vec< _ > >();
-                  primitive_generation::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
-                  .map( | p | ( p, Behavior::default() ) )
-                }
-                else
-                {
-                  None
-                }
-              },
-              _ =>
-              {
-                let mut path = vec![];
-                geometry.evaluate( 0.0, &mut path );
-                let contours = primitive_generation::path_to_points( path );
-                primitive_generation::primitive::contours_to_fill_geometry( &[ contours ] )
+                let contour = path.start.clone().into_iter()
+                .map( | p | [ p.x as f32, p.y as f32 ] )
+                .collect::< Vec< _ > >();
+                primitive_generation::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
                 .map( | p | ( p, Behavior::default() ) )
               }
+              else
+              {
+                None
+              }
+            }
+            else
+            {
+              let mut path = vec![];
+              geometry.evaluate( 0.0, &mut path );
+              let contours = primitive_generation::path_to_points( path );
+              primitive_generation::primitive::contours_to_fill_geometry( &[ contours ] )
+              .map( | p | ( p, Behavior::default() ) )
             };
             if let Some( mut primitive ) = primitive
             {
@@ -294,7 +291,7 @@ impl Animation
             last_repeater = Some( repeater.clone() );
             last_repeater_id = layer_primitives.len();
           },
-          _ => {}
+          Shape::Trim( _ ) => {}
         }
       }
 

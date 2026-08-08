@@ -150,7 +150,7 @@ mod private
 
     for attachment in attachments
     {
-      defines = format!( "{defines} #define {}\n", &attachment.define_const() );
+      defines = format!( "{defines} #define {}\n", attachment.define_const() );
     }
 
     defines
@@ -226,8 +226,8 @@ mod private
       let defines = into_defines( &attachments_set );
       let program = gl::ProgramFromSources::new
       (
-        &format!( "#version 300 es\n{}\n{}", &defines, GBUFFER_VERTEX_SHADER ),
-        &format!( "#version 300 es\n{}\n{}", &defines, GBUFFER_FRAGMENT_SHADER ),
+        &format!( "#version 300 es\n{}\n{}", defines, GBUFFER_VERTEX_SHADER ),
+        &format!( "#version 300 es\n{}\n{}", defines, GBUFFER_FRAGMENT_SHADER ),
       ).compile_and_link( gl )?;
       let shader_program = GBufferShader::new( gl, &program );
 

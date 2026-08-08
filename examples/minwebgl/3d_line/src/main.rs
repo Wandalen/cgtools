@@ -43,6 +43,8 @@ fn run() -> Result< (), gl::WebglError >
   let gl = gl::context::from_canvas( &canvas )?;
 
   // Seed the random number generator with the current time for varied body positions each run.
+  // `Date::now()` is always a non-negative ms-since-epoch value; only used as a PRNG seed.
+  #[ allow( clippy::cast_sign_loss ) ]
   fastrand::seed( js_sys::Date::now() as u64 );
 
   #[ allow( clippy::cast_precision_loss ) ]
@@ -154,6 +156,8 @@ fn run() -> Result< (), gl::WebglError >
 
           // Trim the trail to the maximum allowed length so it doesn't grow indefinitely.
           let num_points = lines.borrow()[ i ].num_points();
+          // `trail_length` is UI-slider-bound to [2.0, 500.0] (see settings.rs), always non-negative.
+          #[ allow( clippy::cast_sign_loss ) ]
           let max_point = settings.borrow().trail_length as usize;
 
           if num_points > max_point

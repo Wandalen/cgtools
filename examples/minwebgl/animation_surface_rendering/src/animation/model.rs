@@ -118,6 +118,7 @@ mod private
   /// Converts a `Transform` into an `interpoli::animated::Transform`.
   impl From< Transform > for interpoli::animated::Transform
   {
+    #[ inline ]
     fn from( val: Transform ) -> Self
     {
       let Transform
@@ -178,6 +179,7 @@ mod private
   /// Converts a `Repeater` into an `interpoli::animated::Repeater`.
   impl From< Repeater > for interpoli::animated::Repeater
   {
+    #[ inline ]
     fn from( val : Repeater ) -> Self
     {
       interpoli::animated::Repeater
@@ -369,6 +371,7 @@ mod private
   /// Converts a `Layer` into an `interpoli::Layer`.
   impl From< Layer > for interpoli::Layer
   {
+    #[ inline ]
     fn from( val : Layer ) -> Self
     {
       let parent = if val.parent == -1
@@ -422,6 +425,7 @@ mod private
   /// Converts a `Model` into an `interpoli::Composition`.
   impl From< Model > for Composition
   {
+    #[ inline ]
     fn from( val : Model ) -> Self
     {
       Composition

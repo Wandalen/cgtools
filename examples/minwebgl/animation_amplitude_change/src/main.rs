@@ -16,6 +16,7 @@
 
 use std::collections::{ HashMap, HashSet };
 use std::{ cell::RefCell, rc::Rc };
+use std::fmt::Write as _;
 use mingl::F32x3;
 use minwebgl as gl;
 use renderer::webgl::
@@ -35,7 +36,7 @@ use renderer::webgl::
 mod lil_gui;
 mod gui_setup;
 
-fn write_tree( node : Rc< RefCell< Node > >, depth : usize, output : &mut String )
+fn write_tree( node : &Rc< RefCell< Node > >, depth : usize, output : &mut String )
 {
   let name = node
   .borrow()
@@ -43,15 +44,15 @@ fn write_tree( node : Rc< RefCell< Node > >, depth : usize, output : &mut String
   .unwrap_or( "<none>".into() );
 
   let indent = "-".repeat( depth );
-  output.push_str( &format!("{}{}\n", indent, name ) );
+  let _ = writeln!( output, "{}{}", indent, name );
 
   for child in node.borrow().get_children()
   {
-    write_tree( Rc::clone( child ), depth + 1, output );
+    write_tree( child, depth + 1, output );
   }
 }
 
-fn print_tree( node : Rc< RefCell< Node > > )
+fn print_tree( node : &Rc< RefCell< Node > > )
 {
   let mut tree_str = String::new();
   write_tree( node, 1, &mut tree_str );
@@ -63,12 +64,12 @@ fn print_tree( node : Rc< RefCell< Node > > )
 /// argument list will be added as separated node names group
 fn split_node_names_into_parts
 (
-  root : Rc< RefCell< Node > >,
+  root : &Rc< RefCell< Node > >,
   part_names : &[ &str ]
 )
 -> HashMap< Box< str >, Vec< Box< str > > >
 {
-  fn collect_names( node : Rc< RefCell< Node > >, out : &mut Vec< Box< str > > )
+  fn collect_names( node : &Rc< RefCell< Node > >, out : &mut Vec< Box< str > > )
   {
     let Some( name ) = node.borrow().get_name()
     else
@@ -79,14 +80,13 @@ fn split_node_names_into_parts
     out.push( name );
     for child in node.borrow().get_children()
     {
-      collect_names( Rc::clone( &child ), out );
+      collect_names( child, out );
     }
   }
 
-  let part_names = HashSet::< Box< str > >::from_iter
-  (
-    part_names.iter().map( | n | (*n).into() )
-  );
+  let part_names = part_names.iter()
+  .map( | n | (*n).into() )
+  .collect::< HashSet< Box< str > > >();
   let mut not_mentioned = HashSet::new();
 
   let mut parts = HashMap::new();
@@ -122,7 +122,7 @@ fn split_node_names_into_parts
       let mut part = vec![];
       if part_names.contains( &name )
       {
-        collect_names( node, &mut part );
+        collect_names( &node, &mut part );
       }
       else
       {
@@ -205,12 +205,12 @@ async fn run() -> Result< (), gl::WebglError >
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
   camera.get_controls().borrow_mut().up = F32x3::from_array( [ 0.0, -1.0, 0.0 ] );
-  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341171e-6, -0.015823878, 0.007656166] );
+  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341_171e-6, -0.015_823_878, 0.007_656_166] );
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
   let scaler = gui_setup::setup( gltf.animations.clone() );
-  print_tree( scenes[ 0 ].borrow().children[ 0 ].clone() );
+  print_tree( &scenes[ 0 ].borrow().children[ 0 ] );
   let parts = vec!
   [
     "mixamorig:Neck",
@@ -222,7 +222,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut parts = split_node_names_into_parts
   (
-    scenes[ 0 ].borrow().children[ 0 ].clone(),
+    &scenes[ 0 ].borrow().children[ 0 ],
     &parts
   );
 

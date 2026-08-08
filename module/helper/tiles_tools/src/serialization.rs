@@ -634,7 +634,7 @@ impl SaveManager {
     }
 
     // Sort by creation time (newest first)
-    saves_info.sort_by(|a, b| b.1.created_at.cmp(&a.1.created_at));
+    saves_info.sort_by_key(|b| std::cmp::Reverse(b.1.created_at));
 
     Ok(saves_info)
   }

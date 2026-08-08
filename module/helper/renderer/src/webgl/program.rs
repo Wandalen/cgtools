@@ -83,7 +83,7 @@ mod private
   {
     ( $program_type:ident, $( $location_name:literal ),* ) =>
     {
-      ///
+      /// Shader program wrapper pairing a compiled WebGL program with its uniform/UBO location cache.
       #[ derive( Debug ) ]
       pub struct $program_type( ProgramInfo );
 

@@ -31,7 +31,6 @@
 #![ allow( clippy::int_plus_one ) ]
 #![ allow( clippy::must_use_candidate ) ]
 #![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::uninlined_format_args ) ]
 #![ allow( clippy::redundant_else ) ]
 #![ allow( clippy::unreadable_literal ) ]
 #![ allow( clippy::exhaustive_structs ) ]

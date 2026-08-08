@@ -182,7 +182,7 @@ mod private
     /// Updates underlying [`AnimatableComposition`] for current [`Animation`]
     pub fn update( &mut self, delta_time : f64 )
     {
-      self.animation.update( delta_time.into() );
+      self.animation.update( delta_time );
     }
 
     /// Sets all simple 3D transformations for every

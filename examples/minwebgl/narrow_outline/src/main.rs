@@ -247,6 +247,7 @@ fn upload_framebuffer(
 /// * `target` - The target buffer type ( e.g., `GL::ARRAY_BUFFER` ).
 /// * `offset` - The offset in bytes within the buffer to start uploading data.
 /// * `data` - The `Vec<u8>` containing the data to upload.
+#[ inline ]
 pub fn upload_buffer_data
 (
   gl : &gl::WebGl2RenderingContext,
@@ -271,6 +272,7 @@ pub fn upload_buffer_data
 }
 
 /// Simplifies new buffer initialization
+#[ inline ]
 pub fn add_buffer
 (
   gl : &gl::WebGl2RenderingContext,
@@ -286,6 +288,7 @@ pub fn add_buffer
 
 /// Adds additional attributes and their data into [`GLTF`] and
 /// returns object_id data for updating data for per object attributes
+#[ inline ]
 pub fn add_attributes
 (
   gl : &gl::WebGl2RenderingContext,
@@ -294,9 +297,8 @@ pub fn add_attributes
 {
   let mut object_id_data : Vec< i32 > = vec![];
 
-  let mut object_id = 1;
   let mut object_vertex_count = 0;
-  for mesh in &gltf.meshes
+  for ( object_id, mesh ) in ( 1.. ).zip( gltf.meshes.iter() )
   {
     for primitive in &mesh.borrow().primitives
     {
@@ -307,8 +309,6 @@ pub fn add_attributes
     }
 
     object_id_data.extend( vec![ object_id; object_vertex_count ] );
-
-    object_id += 1;
   }
 
   let object_id_bytes = object_id_data.iter().map( | i | i.to_be_bytes() ).flatten().collect::< Vec< _ > >();
@@ -400,6 +400,7 @@ fn make_buffer_attribute_info
 /// * `object_ids` - A mutable vector to accumulate object ID data for each vertex.
 /// * `indices` - A mutable vector to accumulate index data.
 /// * `vertex_offset` - A mutable reference to the current vertex offset, which is updated.
+#[ inline ]
 pub fn add_primitive
 (
   primitive : ProcedureMesh,

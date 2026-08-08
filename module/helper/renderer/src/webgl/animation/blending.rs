@@ -35,7 +35,7 @@ mod private
     if sum > 0.0
     {
       let scale_factor = 1.0 / sum;
-      values.iter_mut().for_each( | ( _, w ) | { *w *= scale_factor; } );
+      for ( _, w ) in values.iter_mut() { *w *= scale_factor; }
     }
   }
 
@@ -51,6 +51,14 @@ mod private
     weighted_animations : FxHashMap< Box< str >, ( Sequencer, F64x3 ) >,
     /// Flag that choose need normalize ( reduce to 1.0 ) sum of animation weights or not
     pub normalize : bool
+  }
+
+  impl Default for Blender
+  {
+    fn default() -> Self
+    {
+      Self::new()
+    }
   }
 
   impl Blender

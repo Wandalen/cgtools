@@ -282,10 +282,10 @@ fn demonstrate_performance_profiler()
     // Simulate varying frame times
     let variance = if frame % 20 == 0 {
       // Occasional spike
-      Duration::from_micros(8000)
+      Duration::from_millis(8)
     } else if frame % 7 == 0 {
       // Regular minor spike
-      Duration::from_micros(2000)
+      Duration::from_millis(2)
     } else {
       Duration::from_micros(((frame * 37) % 1000) as u64) // Random variance
     };

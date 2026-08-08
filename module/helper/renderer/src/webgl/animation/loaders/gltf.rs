@@ -336,8 +336,8 @@ mod private
       let duration = t2 - t1;
       let delay = t1;
 
-      let tween = Tween::new( v1, v2, duration.into(), easing )
-      .with_delay( delay.into() );
+      let tween = Tween::new( v1, v2, duration, easing )
+      .with_delay( delay );
       tweens.push( tween );
     }
 

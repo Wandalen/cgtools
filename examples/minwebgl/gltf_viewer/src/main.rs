@@ -29,9 +29,12 @@ fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
 {
   let window = gl::web_sys::window().unwrap();
   let dpr = window.device_pixel_ratio();
-  let css_w = canvas.client_width() as f64;
-  let css_h = canvas.client_height() as f64;
+  let css_w = f64::from( canvas.client_width() );
+  let css_h = f64::from( canvas.client_height() );
+  // Canvas dimensions are always non-negative, so casting to u32 cannot lose sign here.
+  #[ allow( clippy::cast_sign_loss ) ]
   let w = ( css_w * dpr ) as u32;
+  #[ allow( clippy::cast_sign_loss ) ]
   let h = ( css_h * dpr ) as u32;
   ( w.max( 1 ), h.max( 1 ) )
 }

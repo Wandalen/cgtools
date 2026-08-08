@@ -144,7 +144,7 @@ mod private
     /// Sets current [`AnimationNode`]
     pub fn current_set( &mut self, name : &str )
     {
-      self.current = self.animation_nodes.get( &name.to_string().into_boxed_str() ).map( | n | n.clone() );
+      self.current = self.animation_nodes.get( &name.to_string().into_boxed_str() ).cloned();
     }
 
     /// Add new [`AnimationNode`]

@@ -345,7 +345,7 @@ fn main()
   square_game.print_state();
 
   if i < 5 {
-    std::thread::sleep(std::time::Duration::from_millis(1000));
+    std::thread::sleep(std::time::Duration::from_secs(1));
   }
   }
 

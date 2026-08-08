@@ -267,7 +267,7 @@ impl TurnBasedGame
 
   fn rebuild_turn_order(&mut self) {
     let mut participants: Vec<_> = self.participants.values().collect();
-    participants.sort_by(|a, b| b.initiative.cmp(&a.initiative));
+    participants.sort_by_key(|b| std::cmp::Reverse(b.initiative));
     
     self.turn_order = participants.into_iter()
       .map(|p| p.entity_id)

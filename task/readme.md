@@ -1,12 +1,12 @@
 <!-- task_system_metadata
-type: root
-version: 1.0
-highest_id: 039
+highest_id: 040
 -->
 
 # task
 
-Task tracking for cgtools workspace. Bug reports live at `bug/` and share this ID namespace.
+Task tracking for cgtools workspace. This `readme.md` carries no `type: root`/`type: local` hierarchical metadata (`tsk.rulebook.md § Hierarchical Systems : Task System Metadata Format`, TA062). Bug reports live at `bug/` and share this ID namespace.
+
+**Known, unresolved gap — not fixed by this metadata choice either way:** `module/helper/browser_input/task/` is a second directory literally named `task/`, containing one pre-existing, ungoverned note (`001_dependency_cleanup.md`) with no `readme.md` and no `type: local` metadata — it does not qualify as a registered Local Task System per TA062's Required Local Fields. But `§ Hierarchical Systems : Structure Detection`'s (TA124) `TASK_DIR_COUNT` check counts directories by name only, finds 2, and its own Root System Detection fallback (priority 2: shallowest `task/readme.md`) would assign this file Root status regardless of whether `type: root` is declared here. TA063's aggregation duty is triggered by that same mechanical "multiple task/ directories" condition, with no governance carve-out in its text — so per `§ Hierarchical Systems : Consistency Check` (TA125), this workspace currently matches its own "Aggregated Index Missing Entirely" CRITICAL VIOLATION condition, and removing `type: root` does not clear it — only closing the actual second directory (draft/040) or building the full Aggregated Index (TA063) + Global ID Registry (TA123) machinery does. The latter isn't done here: it would mean either fabricating an allocation-timestamp history that doesn't exist, or duplicating this entire table under a second heading to aggregate a system that has nothing else to contribute — deferred as disproportionate until draft/040 resolves which path this workspace actually needs. That file's own ID (`001`) also collides with this system's task `001` — coincidental (independent, ungoverned numbering), but would need explicit renumbering under either resolution path. See [draft/040](draft/040_browser_input_task_note_disposition.md), still open, for disposition options.
 
 ## Tasks Index
 
@@ -49,4 +49,5 @@ Task tracking for cgtools workspace. Bug reports live at `bug/` and share this I
 | 35 | [037](draft/037_workspace_docs_adoption_sweep.md) | — | — | — | — | — | 📝 | any | workspace | lib/yrd_gamedev/cgtools | Sweep docs/ entity adoption workspace-wide | Migrate remaining crates (5/27 done) onto the docs/ doc-entity structure (P8) |
 | 36 | [038](draft/038_workspace_marker_backlog_cleanup.md) | — | — | — | — | — | 📝 | any | workspace | lib/yrd_gamedev/cgtools | Clear the workspace marker backlog | Resolve or file ~86 xxx/qqq/aaa/TODO markers workspace-wide (P8) |
 | 37 | [039](draft/039_root_health_md_capstone.md) | — | — | — | — | — | 📝 | any | workspace | lib/yrd_gamedev/cgtools | Populate root health.md as capstone dashboard | Do last — living per-crate health dashboard summarizing the whole triage plan's outcome |
-| 38 | [008](completed/008_fix_csgrs_core2_yanked_dependency.md) | 0 | 10 | 9 | 9 | 0 | ✅ | any | workspace | lib/yrd_gamedev/cgtools | Fix BUG-007 - csgrs core2 yanked dependency | Confirm and close BUG-007: the core2 patch already resolves workspace-wide cargo resolution failures |
+| 38 | [040](draft/040_browser_input_task_note_disposition.md) | — | — | — | — | — | 📝 | any | module | lib/yrd_gamedev/cgtools/module/helper/browser_input | Decide disposition of browser_input's orphaned task/ note | Adopt as a real local task system, migrate its idea and retire it, or relocate it out of a `task/`-named dir |
+| 39 | [008](completed/008_fix_csgrs_core2_yanked_dependency.md) | 0 | 10 | 9 | 9 | 0 | ✅ | any | workspace | lib/yrd_gamedev/cgtools | Fix BUG-007 - csgrs core2 yanked dependency | Confirm and close BUG-007: the core2 patch already resolves workspace-wide cargo resolution failures |

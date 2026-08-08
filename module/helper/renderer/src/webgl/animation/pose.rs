@@ -51,20 +51,16 @@ mod private
     /// [`Pose`] constructor
     ///
     /// Parameters:
-    /// * _nodes - list of [`Node`]'s which current 3D
+    /// * nodes - list of [`Node`]'s which current 3D
     ///   transformation parameters are used for defining [`Pose`]
-    pub fn new( _nodes : &[ Rc< RefCell< Node > > ] ) -> Self
+    pub fn new( nodes : &[ Rc< RefCell< Node > > ] ) -> Self
     {
-      let animatables = _nodes.iter()
+      let animatables = nodes.iter()
       .filter_map
       (
         | n |
         {
-          let Some( name ) = n.borrow().get_name()
-          else
-          {
-            return None;
-          };
+          let name = n.borrow().get_name()?;
 
           let mut node_animatables: Vec< ( Box< str >, AnimationProperty ) > = vec!
           [
@@ -110,16 +106,12 @@ mod private
       .flatten()
       .collect::< FxHashMap< Box< str >, AnimationProperty > >();
 
-      let nodes = _nodes.iter()
+      let nodes = nodes.iter()
       .filter_map
       (
         | n |
         {
-          let Some( name ) = n.borrow().get_name()
-          else
-          {
-            return None;
-          };
+          let name = n.borrow().get_name()?;
 
           Some( ( name, n.clone() ) )
         }

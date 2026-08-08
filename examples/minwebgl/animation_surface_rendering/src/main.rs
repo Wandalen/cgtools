@@ -632,7 +632,7 @@ async fn run() -> Result< (), gl::WebglError >
     &canvas_sphere,
     | m |
     {
-      let uv_position = m.base_color_texture().map( | t | t.uv_position ).unwrap_or( 0 );
+      let uv_position = m.base_color_texture().map_or( 0, | t | t.uv_position );
       let texture = Texture::former().source( canvas_texture.clone() ).form();
       let texture_info = TextureInfo { texture : Rc::new( RefCell::new( texture ) ), uv_position };
       m.set_base_color_texture( Some( texture_info ) );

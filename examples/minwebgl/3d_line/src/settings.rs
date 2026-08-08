@@ -68,7 +68,7 @@ pub fn init() -> Settings
   let screen_width = 5.0;
   let world_width = 0.01;
 
-  let settings = Settings
+  Settings
   {
     world_width : world_width,
     screen_width : screen_width,
@@ -83,9 +83,7 @@ pub fn init() -> Settings
     dash_gap1 : 0.1,
     dash_size2 : 0.1,
     dash_gap2 : 0.1,
-  };
-
-  settings
+  }
 }
 
 /// Builds the lil-gui panel and wires every control to a closure that updates the line meshes.
@@ -419,5 +417,5 @@ pub fn upload_dash_pattern( lines : Rc< RefCell< Vec< Line > > >, settings : &Se
       }
     },
     _ => {}
-  };
+  }
 }

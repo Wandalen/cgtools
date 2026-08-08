@@ -205,7 +205,7 @@ mod private
         }
         Ok( () )
       },
-      SpriteSource::EdgeConnectedBitmask { source, layout : _, .. } =>
+      SpriteSource::EdgeConnectedBitmask { source, .. } =>
       {
         match source
         {

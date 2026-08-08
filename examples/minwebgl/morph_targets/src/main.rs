@@ -113,15 +113,12 @@ async fn run() -> Result< (), gl::WebglError >
   camera.get_controls().borrow_mut().center.0[ 2 ] += -2.0;
 
   let weights = gltf.meshes.iter()
-  .filter_map
+  .find_map
   (
     | m |
     {
-      let Some( ref s ) = m.borrow().skeleton
-      else
-      {
-        return None;
-      };
+      let m_ref = m.borrow();
+      let s = m_ref.skeleton.as_ref()?;
       let s_ref = s.borrow();
       let Some( d ) = s_ref.displacements_as_ref()
       else
@@ -129,11 +126,10 @@ async fn run() -> Result< (), gl::WebglError >
         return None;
       };
       let weights = d.get_morph_weights();
-      *weights.borrow_mut() = d.default_weights.clone();
+      ( *weights.borrow_mut() ).clone_from( &d.default_weights );
       Some( weights )
     }
   )
-  .next()
   .unwrap();
 
   for mesh in &gltf.meshes

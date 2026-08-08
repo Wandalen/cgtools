@@ -41,16 +41,22 @@ fn apply_aspect_ratio( x : f32, aspect : f32 ) -> f32
 {
   let x = x * 2.0 - 1.0;
   let x = x * aspect;
-  ( x + 1.0 ) / 2.0
+  f32::midpoint( x, 1.0 )
 }
 
+#[ allow( clippy::too_many_lines ) ]
 fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  const NUM_POINTS : usize = 500;
+
+  gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
 
+  // Canvas dimensions are small pixel values; casting to f32 for GL math is always safe here.
+  #[ allow( clippy::cast_precision_loss ) ]
   let width = canvas.width() as f32;
+  #[ allow( clippy::cast_precision_loss ) ]
   let height = canvas.height() as f32;
 
   let aspect = width / height;
@@ -72,9 +78,8 @@ fn run() -> Result< (), gl::WebglError >
   let view_matrix = gl::math::mat3x3::identity();
 
 
-  const NUM_POINTS : usize = 500;
   let mut points = generate_points( NUM_POINTS );
-  for p in points.iter_mut()
+  for p in &mut points
   {
     p.0.0[ 0 ] = apply_aspect_ratio( p.0.0[ 0 ], aspect );
   }
@@ -87,8 +92,8 @@ fn run() -> Result< (), gl::WebglError >
   let positions_buffer = gl::buffer::create( &gl )?;
   let colors_buffer = gl::buffer::create( &gl )?;
 
-  gl::buffer::upload( &gl, &positions_buffer, &points.iter().map( | p | p.0.to_array() ).flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
-  gl::buffer::upload( &gl, &colors_buffer, &colors.iter().map( | p | p.to_array() ).flatten().collect::< Vec< f32 > >(), gl::DYNAMIC_DRAW );
+  gl::buffer::upload( &gl, &positions_buffer, &points.iter().flat_map( | p | p.0.to_array() ).collect::< Vec< f32 > >(), gl::STATIC_DRAW );
+  gl::buffer::upload( &gl, &colors_buffer, &colors.iter().flat_map( gl::Vector::to_array ).collect::< Vec< f32 > >(), gl::DYNAMIC_DRAW );
 
   let points_vao = gl::vao::create( &gl )?;
   gl.bind_vertex_array( Some( &points_vao ) );
@@ -131,7 +136,7 @@ fn run() -> Result< (), gl::WebglError >
       let settings = settings.clone();
       move | value : String |
       {
-        gl::info!( "{:?}", value );
+        gl::info!( "{value:?}" );
         settings.borrow_mut().search = value;
       }
     }
@@ -147,7 +152,11 @@ fn run() -> Result< (), gl::WebglError >
       let settings = settings.clone();
       move | value : f32 |
       {
-        settings.borrow_mut().k_neighbours = value as usize;
+        // `value` is UI-slider-bound to [0.0, 100.0] (see the "K Neighbours" slider above),
+        // always non-negative and well within usize range.
+        #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
+        let k_neighbours = value as usize;
+        settings.borrow_mut().k_neighbours = k_neighbours;
       }
     }
   );
@@ -176,20 +185,23 @@ fn run() -> Result< (), gl::WebglError >
   let update_and_draw =
   {
     let settings = settings.clone();
-    move | t : f64 |
+    move | _ : f64 |
     {
-      let _time = t as f32 / 1000.0;
-
+      // Canvas dimensions are small pixel values; casting to f32 for GL math is always safe here.
+      #[ allow( clippy::cast_precision_loss ) ]
       let width = canvas.width() as f32;
+      #[ allow( clippy::cast_precision_loss ) ]
       let height = canvas.height() as f32;
 
-      for i in 0..NUM_POINTS
+      for c in &mut colors
       {
-        colors[ i ] = gl::F32x3::splat( 0.0 );
+        *c = gl::F32x3::splat( 0.0 );
       }
 
       input.update_state();
       let mouse_pos = input.pointer_position();
+      // Pointer coordinates are small pixel values; casting to f32 for GL math is always safe here.
+      #[ allow( clippy::cast_precision_loss ) ]
       let mut mouse_pos = gl::F32x2::new( mouse_pos.0[ 0 ] as f32, height - mouse_pos.0[ 1 ] as f32 ) / gl::F32x2::new( width, height );
 
       mouse_pos.0[ 0 ] = apply_aspect_ratio( mouse_pos.0[ 0 ], aspect );
@@ -198,7 +210,7 @@ fn run() -> Result< (), gl::WebglError >
       match settings.borrow().search.as_str()
       {
         "KNN" => {  kd_tree.knn_search::< spart::geometry::EuclideanDistance >( &impls::Point2D( mouse_pos, 0 ), settings.borrow().k_neighbours ) },
-        "Range" =>  kd_tree.range_search::< spart::geometry::EuclideanDistance >( &impls::Point2D( mouse_pos, 0 ), settings.borrow().range_radius as f64 ),
+        "Range" =>  kd_tree.range_search::< spart::geometry::EuclideanDistance >( &impls::Point2D( mouse_pos, 0 ), f64::from( settings.borrow().range_radius ) ),
         _ => { panic!( "Search option does not exist" ) }
       };
 
@@ -231,7 +243,7 @@ fn run() -> Result< (), gl::WebglError >
 
       input.clear_events();
 
-      gl::buffer::upload( &gl, &colors_buffer, &colors.iter().map( | p | p.to_array() ).flatten().collect::< Vec< f32 > >(), gl::DYNAMIC_DRAW );
+      gl::buffer::upload( &gl, &colors_buffer, &colors.iter().flat_map( gl::Vector::to_array ).collect::< Vec< f32 > >(), gl::DYNAMIC_DRAW );
 
       // Draw background
       gl.use_program( Some( &background_program ) );
@@ -240,6 +252,8 @@ fn run() -> Result< (), gl::WebglError >
       // Draw points
       gl.use_program( Some( &point_program ) );
       gl.bind_vertex_array( Some( &points_vao ) );
+      // `NUM_POINTS` is a small compile-time constant (500); always fits i32.
+      #[ allow( clippy::cast_possible_truncation, clippy::cast_possible_wrap ) ]
       gl.draw_arrays( gl::POINTS, 0, NUM_POINTS as i32 );
 
       match settings.borrow().search.as_str()
@@ -247,9 +261,9 @@ fn run() -> Result< (), gl::WebglError >
         "KNN" =>
         {
           // Draw lines
-          for i in 0..neighbours.len()
+          for line in lines.iter_mut().take( neighbours.len() )
           {
-            lines[ i ].draw( &gl ).unwrap();
+            line.draw( &gl ).unwrap();
           }
         },
         "Range" =>
@@ -261,7 +275,7 @@ fn run() -> Result< (), gl::WebglError >
           gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
         },
         _ => { panic!( "Search option does not exist" ) }
-      };
+      }
 
       true
     }
@@ -274,5 +288,5 @@ fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  run().unwrap()
+  run().unwrap();
 }

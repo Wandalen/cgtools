@@ -6,7 +6,6 @@
 #![ allow( clippy::cast_sign_loss ) ]
 #![ allow( clippy::std_instead_of_alloc ) ]
 #![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::cast_possible_wrap ) ]
 #![ allow( clippy::must_use_candidate ) ]
 #![ allow( clippy::needless_for_each ) ]
@@ -223,7 +222,7 @@ fn create_texture( gl : &GL, res : u32, format : u32 ) -> Option< web_sys::WebGl
   gl.bind_texture( gl::TEXTURE_2D, ret.as_ref() );
   gl.tex_storage_2d( gl::TEXTURE_2D, 1, format, res as i32, res as i32 );
   gl::texture::d2::filter_linear( gl );
-  gl::texture::d2::wrap_clamp( &gl );
+  gl::texture::d2::wrap_clamp( gl );
 
   ret
 }

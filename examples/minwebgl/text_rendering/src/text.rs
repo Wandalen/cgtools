@@ -175,7 +175,7 @@ pub mod ufo
               ContourPoint::new(
                 x.unwrap(),
                 y.unwrap(),
-                typ.clone(),
+                typ,
                 smooth,
                 None,
                 None
@@ -494,21 +494,15 @@ pub mod ufo
       let mut flat_positions: Vec< f64 > = Vec::new();
       let mut hole_indices: Vec< usize > = Vec::new();
 
-      if let Some( outer_contour ) = contours.get( 0 )
-      {
-        if outer_contour.is_empty()
-        {
-          return None;
-        }
-        for &[ x, y ] in outer_contour
-        {
-          flat_positions.push( x as f64 );
-          flat_positions.push( y as f64 );
-        }
-      }
-      else
+      let outer_contour = contours.get( 0 )?;
+      if outer_contour.is_empty()
       {
         return None;
+      }
+      for &[ x, y ] in outer_contour
+      {
+        flat_positions.push( x as f64 );
+        flat_positions.push( y as f64 );
       }
 
       // Process holes (remaining contours)
@@ -720,7 +714,7 @@ pub mod ufo
     for font_name in font_names
     {
       let font_path = format!( "static/fonts/ufo/{}.ufo", font_name );
-      fonts.insert( font_name.to_string(), Font::new( &font_path ).await );
+      fonts.insert( font_name.clone(), Font::new( &font_path ).await );
     }
 
     fonts
@@ -997,7 +991,7 @@ pub mod ttf
     for font_name in font_names
     {
       let font_path = format!( "static/fonts/ttf/{}.ttf", font_name );
-      fonts.insert( font_name.to_string(), Font3D::new( gl, &font_path ).await );
+      fonts.insert( font_name.clone(), Font3D::new( gl, &font_path ).await );
     }
 
     fonts

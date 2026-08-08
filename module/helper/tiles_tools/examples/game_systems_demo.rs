@@ -661,13 +661,11 @@ fn demonstrate_integrated_gameplay()
         resources.modify_health(2, -18.0);
         turn_game.spend_action_points(3);
       },
-      13 => { // Orc Shaman
-        if resources.get_resources(13).unwrap().health.current > 0.0 {
-          println!("  {} casts dark bolt at Cleric!", entity_name);
-          resources.modify_health(3, -15.0);
-          resources.modify_mana(13, -10.0);
-          turn_game.spend_action_points(2);
-        }
+      13 if resources.get_resources(13).unwrap().health.current > 0.0 => { // Orc Shaman
+        println!("  {} casts dark bolt at Cleric!", entity_name);
+        resources.modify_health(3, -15.0);
+        resources.modify_mana(13, -10.0);
+        turn_game.spend_action_points(2);
       },
       _ => {}
     }

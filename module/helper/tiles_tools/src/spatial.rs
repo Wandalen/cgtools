@@ -240,7 +240,7 @@ where
     /// Queries all entities that intersect with the specified boundary.
     pub fn query_region(&self, query_bounds: &SpatialBounds) -> Vec<SpatialEntity<C>> {
         let mut results = Vec::new();
-        self.query_recursive(&self.root, query_bounds, &self.bounds, &mut results);
+        Self::query_recursive(&self.root, query_bounds, &self.bounds, &mut results);
         results
     }
 
@@ -266,7 +266,7 @@ where
     /// Gets all entities stored in the quadtree.
     pub fn all_entities(&self) -> Vec<SpatialEntity<C>> {
         let mut entities = Vec::new();
-        self.collect_all_entities(&self.root, &mut entities);
+        Self::collect_all_entities(&self.root, &mut entities);
         entities
     }
 
@@ -279,7 +279,7 @@ where
     /// Returns statistics about the quadtree structure.
     pub fn stats(&self) -> QuadtreeStats {
         let mut stats = QuadtreeStats::default();
-        self.calculate_stats(&self.root, 0, &mut stats);
+        Self::calculate_stats(&self.root, 0, &mut stats);
         stats
     }
 
@@ -391,7 +391,6 @@ where
     }
 
     fn query_recursive(
-        &self,
         node: &QuadtreeNode<C>,
         query_bounds: &SpatialBounds,
         node_bounds: &SpatialBounds,
@@ -411,23 +410,23 @@ where
             }
             QuadtreeNode::Internal { northeast, northwest, southeast, southwest } => {
                 let (center_x, center_y) = node_bounds.center();
-                
-                self.query_recursive(
+
+                Self::query_recursive(
                     northeast, query_bounds,
                     &SpatialBounds::new(center_x, node_bounds.top, node_bounds.right, center_y),
                     results
                 );
-                self.query_recursive(
+                Self::query_recursive(
                     northwest, query_bounds,
                     &SpatialBounds::new(node_bounds.left, node_bounds.top, center_x, center_y),
                     results
                 );
-                self.query_recursive(
+                Self::query_recursive(
                     southeast, query_bounds,
                     &SpatialBounds::new(center_x, center_y, node_bounds.right, node_bounds.bottom),
                     results
                 );
-                self.query_recursive(
+                Self::query_recursive(
                     southwest, query_bounds,
                     &SpatialBounds::new(node_bounds.left, center_y, center_x, node_bounds.bottom),
                     results
@@ -436,21 +435,21 @@ where
         }
     }
 
-    fn collect_all_entities(&self, node: &QuadtreeNode<C>, entities: &mut Vec<SpatialEntity<C>>) {
+    fn collect_all_entities(node: &QuadtreeNode<C>, entities: &mut Vec<SpatialEntity<C>>) {
         match node {
             QuadtreeNode::Leaf { entities: node_entities } => {
                 entities.extend_from_slice(node_entities);
             }
             QuadtreeNode::Internal { northeast, northwest, southeast, southwest } => {
-                self.collect_all_entities(northeast, entities);
-                self.collect_all_entities(northwest, entities);
-                self.collect_all_entities(southeast, entities);
-                self.collect_all_entities(southwest, entities);
+                Self::collect_all_entities(northeast, entities);
+                Self::collect_all_entities(northwest, entities);
+                Self::collect_all_entities(southeast, entities);
+                Self::collect_all_entities(southwest, entities);
             }
         }
     }
 
-    fn calculate_stats(&self, node: &QuadtreeNode<C>, depth: usize, stats: &mut QuadtreeStats) {
+    fn calculate_stats(node: &QuadtreeNode<C>, depth: usize, stats: &mut QuadtreeStats) {
         stats.total_nodes += 1;
         stats.max_depth = stats.max_depth.max(depth);
 
@@ -465,10 +464,10 @@ where
             }
             QuadtreeNode::Internal { northeast, northwest, southeast, southwest } => {
                 stats.internal_nodes += 1;
-                self.calculate_stats(northeast, depth + 1, stats);
-                self.calculate_stats(northwest, depth + 1, stats);
-                self.calculate_stats(southeast, depth + 1, stats);
-                self.calculate_stats(southwest, depth + 1, stats);
+                Self::calculate_stats(northeast, depth + 1, stats);
+                Self::calculate_stats(northwest, depth + 1, stats);
+                Self::calculate_stats(southeast, depth + 1, stats);
+                Self::calculate_stats(southwest, depth + 1, stats);
             }
         }
     }

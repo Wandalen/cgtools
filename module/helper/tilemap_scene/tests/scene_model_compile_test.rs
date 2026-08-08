@@ -738,7 +738,7 @@ fn variant_random_deterministic_across_frames()
       Tile { pos : ( 1, 0 ), objects : vec![ "grass".into() ] },
       Tile { pos : ( 2, 0 ), objects : vec![ "grass".into() ] },
     ],
-    seed : Some( 0xDEADBEEF ),
+    seed : Some( 0xDEAD_BEEF ),
     ..minimal_scene_3x3()
   };
 

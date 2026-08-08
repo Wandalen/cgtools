@@ -86,10 +86,10 @@ async fn setup_scene( gl : &GL ) -> Result< GLTF, WebglError >
   let document = window.document().unwrap();
 
   let gltf_path = "static/gltf/multi_animation_extended.glb";
-  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
+  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, gl ).await?;
   gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
 
-  create_plane( &gl, &gltf.scenes[ 0 ] );
+  create_plane( gl, &gltf.scenes[ 0 ] );
 
   let character = gltf.scenes[ 0 ].borrow().get_nodes_by_substring( "Armature" )[ 0 ].clone();
   let plane = gltf.scenes[ 0 ].borrow().get_nodes_by_substring( "Plane" )[ 0 ].clone();
@@ -140,7 +140,7 @@ fn setup_input( canvas : &HtmlCanvasElement ) -> ( Rc< RefCell< CharacterControl
   // Bind character controls to input
   mingl::controls::character_controls::bind_controls_to_input
   (
-    &canvas,
+    canvas,
     &character_controls,
     &character_input
   );
@@ -200,7 +200,7 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   };
   graph.edge_add( "idle", "jump", "idle_to_jump", tween, condition );
 
-  graph.edge_add( "jump", "idle", "jump_to_idle", instant_tween.clone(), true_condition.clone() );
+  graph.edge_add( "jump", "idle", "jump_to_idle", instant_tween.clone(), true_condition );
 
   graph.node_add( "walk", animations.get( "female_walk" ).unwrap().clone() );
   graph.node_add( "walk_backward", animations.get( "running_backward" ).unwrap().clone() );
@@ -228,7 +228,7 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   };
   graph.edge_add( "walk", "stop_walk", "walk_to_stop_walk", tween, condition );
 
-  graph.edge_add( "stop_walk", "idle", "stop_walk_to_idle", instant_tween.clone(), true_condition.clone() );
+  graph.edge_add( "stop_walk", "idle", "stop_walk_to_idle", instant_tween.clone(), true_condition );
 
   let input = input_.clone();
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
@@ -286,7 +286,7 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   };
   graph.edge_add( "run", "run_jump", "run_to_run_jump", tween, condition );
 
-  graph.edge_add( "run_jump", "run", "run_jump_to_run", instant_tween.clone(), true_condition.clone() );
+  graph.edge_add( "run_jump", "run", "run_jump_to_run", instant_tween.clone(), true_condition );
 
   let input = input_.clone();
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
@@ -346,7 +346,7 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   graph.edge_add( "idle", "idle_to_fight", "idle_to_idle_to_fight", tween.clone(), condition );
 
   let tween = Tween::new( 0.0, 0.0, 1.0, Linear::new() );
-  graph.edge_add( "fight_to_idle", "idle", "fight_to_idle_to_idle", tween.clone(), true_condition.clone() );
+  graph.edge_add( "fight_to_idle", "idle", "fight_to_idle_to_idle", tween.clone(), true_condition );
 
   let input = input_.clone();
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |

@@ -204,18 +204,16 @@ pub fn setup
       move | value : String |
       {
         let mut current_animation = current_animation.borrow_mut();
-        if animations.get( value.as_str() ).is_none()
+        if !animations.contains_key( value.as_str() )
         {
-          current_animation.as_mut()
-          .map
-          (
-            | a |
+          if let Some( a ) = current_animation.as_mut()
+          {
+            if let Some( s ) = a.inner_get_mut::< animation::Sequencer >().as_mut()
             {
-              a.inner_get_mut::< animation::Sequencer >().as_mut()
-              .map( | s | s.reset() );
-              a.set();
+              s.reset();
             }
-          );
+            a.set();
+          }
         }
         *current_animation = animations.get( value.as_str() ).cloned();
       }
@@ -239,8 +237,10 @@ pub fn setup
           return;
         };
 
-        weights_ref.get_mut( i )
-        .map( | w | { *w = value; } );
+        if let Some( w ) = weights_ref.get_mut( i )
+        {
+          *w = value;
+        }
       }
     );
 

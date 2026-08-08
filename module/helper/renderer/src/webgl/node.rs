@@ -7,7 +7,7 @@ mod private
   use crate::webgl::{ Mesh, Light };
 
   /// Represents a 3D object that can be part of the scene graph.
-  #[ derive( Debug ) ]
+  #[ derive( Debug, Default ) ]
   pub enum Object3D
   {
     /// A mesh object, containing geometry and material information.
@@ -15,15 +15,8 @@ mod private
     /// A light object
     Light( Light ),
     /// A placeholder for other types of 3D objects.
+    #[ default ]
     Other
-  }
-
-  impl Default for Object3D
-  {
-    fn default() -> Self
-    {
-      Self::Other
-    }
   }
 
   impl Default for Node

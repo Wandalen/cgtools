@@ -33,6 +33,7 @@ members = [
   "module/helper/tiles_tools",
   "module/helper/behaviour_tree",
   "module/helper/tilemap_scene",
+  "module/helper/scene_script",
   # "module/helper/vectorizer", # TODO: Fix feature gate issues
 
   # Math modules
@@ -71,15 +72,20 @@ missing_inline_in_public_items = "warn"
 exhaustive_enums = "warn"
 exhaustive_structs = "warn"
 else_if_without_else = "warn"
-min_ident_chars = "warn"
+# Allows short/single-character identifiers (e.g. loop indices, math variables).
+min_ident_chars = "allow"
 # Enforces strict coding styles.
 pedantic = { level = "warn", priority = -1 }
 # Requires documentation for unsafe blocks.
 undocumented_unsafe_blocks = "deny"
-# Suggests using core instead of std when possible.
-std_instead_of_core = "warn"
-# Suggests using alloc instead of std when possible.
-std_instead_of_alloc = "warn"
+# Allows std imports; crates here always link std (wasm32 + host dev builds via web-sys/wasm-bindgen), never no_std.
+std_instead_of_core = "allow"
+# Allows std imports where alloc would suffice (same no_std rationale as above).
+std_instead_of_alloc = "allow"
+# Allows field assignment after Default::default() instead of forcing struct-update syntax.
+field_reassign_with_default = "allow"
+# Allows doc comments without requiring backticks around every code term.
+doc_markdown = "allow"
 # Allows functions called only once.
 single_call_fn = "allow"
 # Permits #[ inline( always ) ] usage.
@@ -156,6 +162,10 @@ path = "module/helper/tilemap_scene"
 [workspace.dependencies.behaviour_tree]
 version = "0.1.0"
 path = "module/helper/behaviour_tree"
+
+[workspace.dependencies.scene_script]
+version = "0.1.0"
+path = "module/helper/scene_script"
 
 # = min
 
@@ -266,6 +276,9 @@ version = "0.4.67"
 
 [workspace.dependencies.wasm-bindgen-test]
 version = "0.3"
+
+[workspace.dependencies.rhai]
+version = "1.21"
 
 # [workspace.dependencies.generic-array]
 # version = "1.1.0"

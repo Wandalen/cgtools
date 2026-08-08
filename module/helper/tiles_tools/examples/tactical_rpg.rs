@@ -638,7 +638,7 @@ impl TacticalRPG {
     }
   }
   
-  units_by_initiative.sort_by(|a, b| b.1.cmp(&a.1)); // Descending initiative
+  units_by_initiative.sort_by_key(|b| std::cmp::Reverse(b.1)); // Descending initiative
   
   self.turn_queue.clear();
   for (entity, _init) in units_by_initiative {

@@ -176,6 +176,10 @@ mod private
 }
 
 #[ cfg( test ) ]
+// These assertions compare against exact literal constants (e.g. `0.0`,
+// known integer-valued results), not derived floating-point computations —
+// exact comparison is the correct check here, not an epsilon tolerance.
+#[ allow( clippy::float_cmp ) ]
 mod tests
 {
   use super::private::*;

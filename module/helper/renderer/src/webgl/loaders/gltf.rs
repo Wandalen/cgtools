@@ -139,7 +139,7 @@ mod private
 
   fn load_skeleton_displacements_data
   (
-    primitives_morph_targets : &Option< Vec< MorphTargets< '_ > > >,
+    primitives_morph_targets : Option< &Vec< MorphTargets< '_ > > >,
     primitives_vertices_count : &[ usize ],
     weights : Option< Vec< f32 > >,
     buffers : &[ Vec< u8 > ]
@@ -179,8 +179,10 @@ mod private
     }
 
     let skin_vertices_count = primitives_vertices_count.iter().sum::< usize >();
-    let ( positions, normals, tangents ) = if let Some( primitives_morph_targets ) = primitives_morph_targets
+    let ( positions, normals, tangents ) =
     {
+      let primitives_morph_targets = primitives_morph_targets?;
+
       let mut skin_positions = Vec::with_capacity( skin_vertices_count );
       let mut skin_normals = Vec::with_capacity( skin_vertices_count );
       let mut skin_tangents = Vec::with_capacity( skin_vertices_count );
@@ -242,10 +244,6 @@ mod private
         ( !skin_normals.is_empty() ).then_some( skin_normals ),
         ( !skin_tangents.is_empty() ).then_some( skin_tangents )
       )
-    }
-    else
-    {
-      return None;
     };
 
     let mut displacements = skeleton::DisplacementsData::new();
@@ -267,7 +265,7 @@ mod private
   (
     skin : Option< gltf::Skin< '_ > >,
     nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
-    primitives_morph_targets : &Option< Vec< MorphTargets< '_ > > >,
+    primitives_morph_targets : Option< &Vec< MorphTargets< '_ > > >,
     primitives_vertices_count : &[ usize ],
     weights : Option< Vec< f32 > >,
     buffers : &[ Vec< u8 > ]
@@ -347,8 +345,8 @@ mod private
               position : F32x3::default(),
               direction : F32x3::default(),
               color: color.into(),
-              strength : strength as f32,
-              range : range as f32,
+              strength,
+              range,
               inner_cone_angle,
               outer_cone_angle,
               use_light_map : false,
@@ -433,75 +431,6 @@ mod private
     else
     {
       format!( "{}/{}", folder_path, uri )
-    }
-  }
-
-  #[ cfg( test ) ]
-  mod tests
-  {
-    use super::resolve_asset_uri;
-
-    #[ test ]
-    fn joins_relative_uri_with_folder()
-    {
-      assert_eq!
-      (
-        resolve_asset_uri( "models", "scene/buffer.bin" ),
-        "models/scene/buffer.bin"
-      );
-    }
-
-    #[ test ]
-    fn passes_blob_uri_through()
-    {
-      assert_eq!
-      (
-        resolve_asset_uri( "models", "blob:https://app.example.com/uuid-1234" ),
-        "blob:https://app.example.com/uuid-1234"
-      );
-    }
-
-    #[ test ]
-    fn passes_data_uri_through()
-    {
-      assert_eq!
-      (
-        resolve_asset_uri( "models", "data:application/octet-stream;base64,Z2xURg==" ),
-        "data:application/octet-stream;base64,Z2xURg=="
-      );
-    }
-
-    #[ test ]
-    fn passes_absolute_url_through()
-    {
-      assert_eq!
-      (
-        resolve_asset_uri( "models", "https://cdn.example.com/textures/t.png" ),
-        "https://cdn.example.com/textures/t.png"
-      );
-    }
-
-    #[ test ]
-    fn passes_origin_absolute_path_through()
-    {
-      assert_eq!
-      (
-        resolve_asset_uri( "models", "/textures/t.png" ),
-        "/textures/t.png"
-      );
-    }
-
-    #[ test ]
-    fn empty_folder_yields_origin_absolute_uri()
-    {
-      // Documents the benign empty-folder behavior: origin-absolute and
-      // origin-relative forms collapse to the same URL once `resolve_url`
-      // joins them against the window origin.
-      assert_eq!
-      (
-        resolve_asset_uri( "", "buffer.bin" ),
-        "/buffer.bin"
-      );
     }
   }
 
@@ -1129,7 +1058,7 @@ mod private
         (
           skin,
           &nodes_map,
-          &primitives_morph_targets,
+          primitives_morph_targets.as_ref(),
           primitives_vertices_count.as_slice(),
           weights,
           bin_buffers.as_slice()
@@ -1193,6 +1122,75 @@ mod private
         animations
       }
     )
+  }
+
+  #[ cfg( test ) ]
+  mod tests
+  {
+    use super::resolve_asset_uri;
+
+    #[ test ]
+    fn joins_relative_uri_with_folder()
+    {
+      assert_eq!
+      (
+        resolve_asset_uri( "models", "scene/buffer.bin" ),
+        "models/scene/buffer.bin"
+      );
+    }
+
+    #[ test ]
+    fn passes_blob_uri_through()
+    {
+      assert_eq!
+      (
+        resolve_asset_uri( "models", "blob:https://app.example.com/uuid-1234" ),
+        "blob:https://app.example.com/uuid-1234"
+      );
+    }
+
+    #[ test ]
+    fn passes_data_uri_through()
+    {
+      assert_eq!
+      (
+        resolve_asset_uri( "models", "data:application/octet-stream;base64,Z2xURg==" ),
+        "data:application/octet-stream;base64,Z2xURg=="
+      );
+    }
+
+    #[ test ]
+    fn passes_absolute_url_through()
+    {
+      assert_eq!
+      (
+        resolve_asset_uri( "models", "https://cdn.example.com/textures/t.png" ),
+        "https://cdn.example.com/textures/t.png"
+      );
+    }
+
+    #[ test ]
+    fn passes_origin_absolute_path_through()
+    {
+      assert_eq!
+      (
+        resolve_asset_uri( "models", "/textures/t.png" ),
+        "/textures/t.png"
+      );
+    }
+
+    #[ test ]
+    fn empty_folder_yields_origin_absolute_uri()
+    {
+      // Documents the benign empty-folder behavior: origin-absolute and
+      // origin-relative forms collapse to the same URL once `resolve_url`
+      // joins them against the window origin.
+      assert_eq!
+      (
+        resolve_asset_uri( "", "buffer.bin" ),
+        "/buffer.bin"
+      );
+    }
   }
 }
 

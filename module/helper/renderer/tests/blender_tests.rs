@@ -87,6 +87,9 @@ fn test_normalize_weights_unequal()
 }
 
 #[ test ]
+// Weights are never touched by `normalize_weights` when their sum is zero, so the
+// retrieved value is the exact input literal, not a computed/rounded result.
+#[ allow( clippy::float_cmp ) ]
 fn test_normalize_weights_zero_sum()
 {
   let mut values = vec!
@@ -104,13 +107,16 @@ fn test_normalize_weights_zero_sum()
 }
 
 #[ test ]
+// These assert the exact weight literal written via `weights_get_mut` round-trips
+// unchanged through `weights_get` (no arithmetic in between), so exact equality is correct.
+#[ allow( clippy::float_cmp ) ]
 fn test_blender_weights_get_mut()
 {
   let mut blender = Blender::new();
   let mut sequencer = Sequencer::new();
   sequencer.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
@@ -144,6 +150,9 @@ fn test_blender_animation_get()
 }
 
 #[ test ]
+// These assert the exact weight literal passed to `add` round-trips unchanged through
+// `weights_get` (no arithmetic in between), so exact equality is correct.
+#[ allow( clippy::float_cmp ) ]
 fn test_blender_multiple_animations_with_different_weights()
 {
   let mut blender = Blender::new();
@@ -151,14 +160,14 @@ fn test_blender_multiple_animations_with_different_weights()
   let mut seq1 = Sequencer::new();
   seq1.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
   );
 
@@ -187,14 +196,14 @@ fn test_blender_normalization_enabled()
   let mut seq1 = Sequencer::new();
   seq1.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 2.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 2.0, 0.0 ), 1.0 )
   );
 
@@ -212,6 +221,9 @@ fn test_blender_normalization_enabled()
 }
 
 #[ test ]
+// These assert the exact weight literal passed to `add` round-trips unchanged through
+// `weights_get` (no arithmetic in between), so exact equality is correct.
+#[ allow( clippy::float_cmp ) ]
 fn test_blender_independent_transform_blend()
 {
   let mut blender = Blender::new();
@@ -219,12 +231,12 @@ fn test_blender_independent_transform_blend()
   let mut seq1 = Sequencer::new();
   seq1.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
   seq1.insert
   (
-    format!( "node1{}", ROTATION_PREFIX ).as_str(),
+    format!( "node1{ROTATION_PREFIX}" ).as_str(),
     create_rotation_sequence
     (
       QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] ),
@@ -234,7 +246,7 @@ fn test_blender_independent_transform_blend()
   );
   seq1.insert
   (
-    format!( "node1{}", SCALE_PREFIX ).as_str(),
+    format!( "node1{SCALE_PREFIX}" ).as_str(),
     create_scale_sequence( F64x3::new( 1.0, 1.0, 1.0 ), F64x3::new( 2.0, 2.0, 2.0 ), 1.0 )
   );
 
@@ -255,6 +267,9 @@ fn test_blender_independent_transform_blend()
 }
 
 #[ test ]
+// These assert the exact weight literal passed to `add` round-trips unchanged through
+// `weights_get` (no arithmetic in between), so exact equality is correct.
+#[ allow( clippy::float_cmp ) ]
 fn test_blender_scale_blend_independence()
 {
   let mut blender = Blender::new();
@@ -262,14 +277,14 @@ fn test_blender_scale_blend_independence()
   let mut seq1 = Sequencer::new();
   seq1.insert
   (
-    format!( "node1{}", SCALE_PREFIX ).as_str(),
+    format!( "node1{SCALE_PREFIX}" ).as_str(),
     create_scale_sequence( F64x3::new( 1.0, 1.0, 1.0 ), F64x3::new( 2.0, 2.0, 2.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
-    format!( "node1{}", SCALE_PREFIX ).as_str(),
+    format!( "node1{SCALE_PREFIX}" ).as_str(),
     create_scale_sequence( F64x3::new( 1.0, 1.0, 1.0 ), F64x3::new( 0.5, 0.5, 0.5 ), 1.0 )
   );
 
@@ -297,7 +312,7 @@ fn test_blender_reset()
 
   sequencer.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
@@ -318,7 +333,7 @@ fn test_blender_update()
 
   sequencer.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
@@ -345,7 +360,7 @@ fn test_is_completed_single_animation_not_completed()
 
   sequencer.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
@@ -365,7 +380,7 @@ fn test_is_completed_single_animation_completed()
 
   sequencer.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
@@ -385,14 +400,14 @@ fn test_is_completed_multiple_animations_same_time_not_completed()
   let mut seq1 = Sequencer::new();
   seq1.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
-    format!( "node2{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node2{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
   );
 
@@ -413,14 +428,14 @@ fn test_is_completed_multiple_animations_same_time_completed()
   let mut seq1 = Sequencer::new();
   seq1.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
-    format!( "node2{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node2{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
   );
 
@@ -441,14 +456,14 @@ fn test_is_completed_multiple_animations_different_times()
   let mut seq1 = Sequencer::new();
   seq1.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
-    format!( "node2{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node2{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 2.0 )
   );
 
@@ -469,14 +484,14 @@ fn test_is_completed_multiple_animations_different_durations()
   let mut seq1 = Sequencer::new();
   seq1.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
-    format!( "node2{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node2{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 2.0 )
   );
 
@@ -498,7 +513,7 @@ fn test_is_completed_after_reset()
 
   sequencer.insert
   (
-    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 

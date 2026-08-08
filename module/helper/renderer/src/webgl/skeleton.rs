@@ -214,15 +214,15 @@ mod private
         }
       }
 
-      if self.inverse_texture.is_some() && self.global_texture.is_some()
+      if let ( Some( global_texture ), Some( inverse_texture ) ) = ( &self.global_texture, &self.inverse_texture )
       {
         let global_matrices_loc = locations.get( "globalJointTransformMatricesTexture" ).unwrap();
         let inverse_matrices_loc = locations.get( "inverseBindMatricesTexture" ).unwrap();
         let texture_size_loc = locations.get( "skinMatricesTextureSize" ).unwrap();
 
-        let _ = load_texture_data_4f( gl, self.global_texture.as_ref().unwrap(), global_data.as_slice(), texture_size );
-        upload_texture( gl, self.global_texture.as_ref().unwrap(), global_matrices_loc.clone(), GLOBAL_MATRICES_SLOT );
-        upload_texture( gl, self.inverse_texture.as_ref().unwrap(), inverse_matrices_loc.clone(), INVERSE_MATRICES_SLOT );
+        let _ = load_texture_data_4f( gl, global_texture, global_data.as_slice(), texture_size );
+        upload_texture( gl, global_texture, global_matrices_loc.clone(), GLOBAL_MATRICES_SLOT );
+        upload_texture( gl, inverse_texture, inverse_matrices_loc.clone(), INVERSE_MATRICES_SLOT );
         gl::uniform::upload( gl, texture_size_loc.clone(), texture_size.as_slice() ).unwrap();
       }
     }
@@ -277,6 +277,14 @@ mod private
     /// Defines if [`DisplacementsData`] is recently cloned,
     /// but not all fields have been cloned too
     need_clone_inner : bool
+  }
+
+  impl Default for DisplacementsData
+  {
+    fn default() -> Self
+    {
+      Self::new()
+    }
   }
 
   impl DisplacementsData
@@ -349,14 +357,7 @@ mod private
 
       let attributes_count = arrays.len();
 
-      self.targets_count = if self.vertices_count > 0
-      {
-        len / self.vertices_count
-      }
-      else
-      {
-        0
-      };
+      self.targets_count = len.checked_div( self.vertices_count ).unwrap_or( 0 );
 
       let mut data = Vec::with_capacity
       (
@@ -425,7 +426,7 @@ mod private
         {
           let v = vertex_displacement_len as f32;
           let i = ( ( data.len() as f32 ).sqrt() / v ).floor();
-          let a = ( v * i as f32 ) as u32;
+          let a = ( v * i ) as u32;
           let b = ( data.len() as f32 / a as f32 ).ceil() as u32;
 
           let max_size = gl.get_parameter( gl::MAX_TEXTURE_SIZE )
@@ -449,7 +450,7 @@ mod private
           let _ = load_texture_data_4f( gl, self.displacements_texture.as_ref().unwrap(), data.as_slice(), [ a, b ] );
         }
 
-        let mut offset = 0 as i32;
+        let mut offset = 0_i32;
         let offsets =
         [
           &self.positions_displacements,
@@ -478,11 +479,11 @@ mod private
         self.need_update_displacement = false;
       }
 
-      if self.displacements_texture.is_some()
+      if let Some( displacements_texture ) = &self.displacements_texture
       {
         if let Some( displacements_loc ) = locations.get( "morphTargetsDisplacementsTexture" )
         {
-          upload_texture( gl, self.displacements_texture.as_ref().unwrap(), displacements_loc.clone(), DISPLACEMENTS_SLOT );
+          upload_texture( gl, displacements_texture, displacements_loc.clone(), DISPLACEMENTS_SLOT );
         }
         if let Some( morph_weights_loc ) = locations.get( "morphWeights" )
         {
@@ -546,7 +547,7 @@ mod private
       let tangents_len = self.tangents_displacements.as_ref().map( | v | v.len() ).unwrap_or_default();
       let mut unique =
       [
-        displacement_array.as_ref().map( | v | v.len() ).unwrap_or( 0 ),
+        displacement_array.as_ref().map_or( 0, | v | v.len() ),
         positions_len,
         normals_len,
         tangents_len
@@ -623,6 +624,14 @@ mod private
     displacements : Option< DisplacementsData >
   }
 
+  impl Default for Skeleton
+  {
+    fn default() -> Self
+    {
+      Self::new()
+    }
+  }
+
   impl Skeleton
   {
     /// Creates a new [`Skeleton`] instance
@@ -643,8 +652,14 @@ mod private
       locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
-      self.transforms.as_mut().map( | t | { t.upload( gl, locations ); } );
-      self.displacements.as_mut().map( | d | { d.upload( gl, locations ); } );
+      if let Some( t ) = self.transforms.as_mut()
+      {
+        t.upload( gl, locations );
+      }
+      if let Some( d ) = self.displacements.as_mut()
+      {
+        d.upload( gl, locations );
+      }
     }
 
     /// Get [`Self::transforms`] as reference

@@ -432,7 +432,7 @@ impl Renderer
     };
 
     // Traverse the scene and draw all opaque objects.
-    let _ = scene.borrow().traverse( &mut draw_node )?;
+    scene.borrow().traverse( &mut draw_node )?;
 
     gl.use_program( None );
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
