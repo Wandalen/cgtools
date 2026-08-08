@@ -15,7 +15,7 @@ mod private
   }
 
   impl< E > CubicHermite< Vec< E > >
-  where E : MatEl + std::default::Default + std::marker::Copy
+  where E : MatEl + core::default::Default + core::marker::Copy
   {
     /// [`CubicHermite`] constructor
     pub fn new
@@ -38,7 +38,7 @@ mod private
   }
 
   impl< E, const N : usize > CubicHermite< Vector< E, N > >
-  where E : MatEl + std::default::Default + std::marker::Copy
+  where E : MatEl + core::default::Default + core::marker::Copy
   {
     /// [`CubicHermite`] constructor
     pub fn new
@@ -81,8 +81,8 @@ mod private
   impl< E > EasingFunction for CubicHermite< Vec< E > >
   where
     E : MatEl +
-    std::default::Default +
-    std::marker::Copy +
+    core::default::Default +
+    core::marker::Copy +
     NdFloat
   {
     type AnimatableType = Vec< E >;
@@ -93,9 +93,8 @@ mod private
       start.resize( len, E::default() );
       end.resize( len, E::default() );
 
-      let t = time;
-      let t2 = t * t;
-      let t3 = t2 * t;
+      let t2 = time * time;
+      let t3 = t2 * time;
 
       let mut result = vec![];
 
@@ -104,7 +103,7 @@ mod private
         result.push
         (
           E::from( 2.0 * t3 - 3.0 * t2 + 1.0 ).unwrap() * start[ i ] +
-          E::from( t3 - 2.0 * t2 + t ).unwrap() * self.m1[ i ] +
+          E::from( t3 - 2.0 * t2 + time ).unwrap() * self.m1[ i ] +
           E::from( -2.0 * t3 + 3.0 * t2 ).unwrap() * end[ i ] +
           E::from( t3 - t2 ).unwrap() * self.m2[ i ]
         );

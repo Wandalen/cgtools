@@ -1,4 +1,4 @@
-//! This file contains UniformStorage that helps you store and efficiently retrieve uniform data from your webgl program.
+//! This file contains `UniformStorage` that helps you store and efficiently retrieve uniform data from your webgl program.
 
 mod private
 {
@@ -189,10 +189,10 @@ mod private
       Ok( () )
     }
 
-    /// Copy uniform to another UniformStorage
+    /// Copy uniform to another `UniformStorage`
     pub fn copy_to( &self, other : &mut Self )
     {
-      for ( name, value ) in self.uniforms.iter()
+      for ( name, value ) in &self.uniforms
       {
         other.uniform_set( name.clone(), *value );
       }

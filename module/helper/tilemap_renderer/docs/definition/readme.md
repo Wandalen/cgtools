@@ -1,6 +1,6 @@
-# Doc Entities
+# Doc Definitions
 
-## Master Doc Entities Table
+## Master Doc Definitions Table
 
 | Type | Purpose | Master File | Instances |
 |------|---------|-------------|----------:|
@@ -11,7 +11,7 @@
 
 ## Master Doc Instances Table
 
-| Entity    | ID  | Name                                     | File                                                                                                             |
+| Definition | ID  | Name                                     | File                                                                                                             |
 |-----------|-----|-------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
 | feature   | 001 | SVG Backend Adapter                       | [feature/001_svg_backend_adapter.md](../feature/001_svg_backend_adapter.md)                                          |
 | feature   | 002 | WebGL2 Backend Adapter                    | [feature/002_webgl2_backend_adapter.md](../feature/002_webgl2_backend_adapter.md)                                    |

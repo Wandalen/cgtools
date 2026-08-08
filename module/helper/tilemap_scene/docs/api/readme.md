@@ -1,4 +1,4 @@
-# Api Doc Entity
+# Api Doc Definition
 
 ### Scope
 

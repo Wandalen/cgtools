@@ -1,6 +1,6 @@
-# Doc Entities
+# Doc Definitions
 
-## Master Doc Entities Table
+## Master Doc Definitions Table
 
 | Type | Purpose | Master File | Instances |
 |------|---------|-------------|----------:|
@@ -12,7 +12,7 @@
 
 ## Master Doc Instances Table
 
-| Entity | ID | Name | File |
+| Definition | ID | Name | File |
 |--------|-----|------|------|
 | algorithm | 001 | Animation Phase & Frame Selection | [algorithm/001_animation_phase_and_frame_selection.md](../algorithm/001_animation_phase_and_frame_selection.md) |
 | algorithm | 002 | Scene Rendering Pass | [algorithm/002_scene_rendering_pass.md](../algorithm/002_scene_rendering_pass.md) |

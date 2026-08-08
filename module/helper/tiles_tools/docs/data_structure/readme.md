@@ -1,4 +1,4 @@
-# Data Structure Doc Entity
+# Data Structure Doc Definition
 
 ### Scope
 

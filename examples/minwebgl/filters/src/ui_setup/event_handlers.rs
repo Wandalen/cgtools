@@ -41,7 +41,6 @@ pub fn setup_channels_filter
       // Parse string to enum
       let channel = match channel_str.as_str()
       {
-        "Red" => channels::Channel::Red,
         "Green" => channels::Channel::Green,
         "Blue" => channels::Channel::Blue,
         _ => channels::Channel::Red,
@@ -95,7 +94,6 @@ pub fn setup_flip_filter
       // Parse string to enum
       let flip = match flip_str.as_str()
       {
-        "FlipX" => flip::FlipDirection::FlipX,
         "FlipY" => flip::FlipDirection::FlipY,
         "FlipXY" => flip::FlipDirection::FlipXY,
         _ => flip::FlipDirection::FlipX,

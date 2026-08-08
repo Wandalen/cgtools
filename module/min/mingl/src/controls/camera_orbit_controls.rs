@@ -253,6 +253,7 @@ mod private
     /// # Preconditions
     /// - `eye` must not equal `center` (direction vector must be non-zero)
     /// - `up` must not be parallel to the view direction
+    ///
     /// Violating these conditions results in undefined behavior (NaN or panic).
     pub fn rotate
     (
@@ -668,7 +669,7 @@ mod private
               // Root cause: Inconsistent delta sign (prev-new for X, new-prev for Y) inverted pan X-axis direction
               // Pitfall: pan() internally negates X via `- x * dx`; rotate() needs explicit negation for opposite convention
               delta[ 0 ] = -delta[ 0 ];
-              camera.borrow_mut().rotate( delta )
+              camera.borrow_mut().rotate( delta );
             },
             CameraState::Pan => camera.borrow_mut().pan( delta ),
             CameraState::None => {}

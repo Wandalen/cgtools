@@ -1,4 +1,4 @@
-# Pitfall Doc Entity
+# Pitfall Doc Definition
 
 ### Scope
 

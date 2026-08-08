@@ -2,7 +2,7 @@ mod private
 {
   use crate::*;
   use minwebgl as gl;
-  use std::collections::VecDeque;
+  use alloc::collections::VecDeque;
 
   /// Encapsulates geometry related state of the line
   #[ derive( Debug, Clone, Default ) ]

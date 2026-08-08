@@ -1,4 +1,4 @@
-# Persistence Doc Entity
+# Persistence Doc Definition
 
 ### Scope
 

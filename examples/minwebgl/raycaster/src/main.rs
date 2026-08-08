@@ -238,7 +238,11 @@ fn map_vao( gl : &GL ) -> gl::WebGlVertexArrayObject
   }
 
   let buf = gl::buffer::create( gl ).unwrap();
-  gl::upload( gl, &buf, data.as_slice(), GL::STATIC_DRAW );
+  // Fully qualified because `minwebgl`'s `buffer` and `index` layers both
+  // expose an `upload` fn, making the crate-root glob-imported `gl::upload`
+  // ambiguous (E0659). This buffer is used as a vertex attribute source via
+  // `attribute_pointer` below, so `buffer::upload` (ARRAY_BUFFER) is correct.
+  gl::buffer::upload( gl, &buf, data.as_slice(), GL::STATIC_DRAW );
 
   let vao = gl::vao::create( gl ).unwrap();
   gl.bind_vertex_array( Some( &vao ) );

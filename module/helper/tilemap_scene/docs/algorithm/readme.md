@@ -1,4 +1,4 @@
-# Algorithm Doc Entity
+# Algorithm Doc Definition
 
 ### Scope
 

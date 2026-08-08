@@ -1,4 +1,4 @@
-# Type Doc Entity
+# Type Doc Definition
 
 ### Scope
 

@@ -1,4 +1,4 @@
-# Architectural Evaluation Doc Entity
+# Architectural Evaluation Doc Definition
 
 ### Scope
 

@@ -1,6 +1,6 @@
-# Doc Entities
+# Doc Definitions
 
-## Master Doc Entities Table
+## Master Doc Definitions Table
 
 | Type | Purpose | Master File | Instances |
 |------|---------|-------------|----------:|
@@ -12,7 +12,7 @@
 
 ## Master Doc Instances Table
 
-| Entity  | ID  | Name | File |
+| Definition | ID  | Name | File |
 |---------|-----|------|------|
 | feature | 001 | Context, Device & Shader Setup | [feature/001_context_device_and_shader_setup.md](../feature/001_context_device_and_shader_setup.md) |
 | feature | 002 | Buffer Management | [feature/002_buffer_management.md](../feature/002_buffer_management.md) |

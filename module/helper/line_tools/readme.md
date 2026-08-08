@@ -210,7 +210,7 @@ See the runnable examples in the repository for complete applications:
 cargo doc --open
 ```
 
-Design documentation (features, known pitfalls) lives in [`docs/`](docs/entity/readme.md).
+Design documentation (features, known pitfalls) lives in [`docs/`](docs/definition/readme.md).
 
 ## Directory Layout
 
@@ -218,6 +218,6 @@ Design documentation (features, known pitfalls) lives in [`docs/`](docs/entity/r
 |------|----------------|
 | `src/` | Crate source — 2D/3D line implementations, caps, joins, mesh/program/uniform plumbing |
 | `tests/` | Integration tests (WebGL-backed) |
-| `docs/` | Design documentation as typed doc entities — see [docs/entity/readme.md](docs/entity/readme.md) |
+| `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
 | `changelog.md` | Release history |
 | `readme.md` | This file — user-facing entry point |

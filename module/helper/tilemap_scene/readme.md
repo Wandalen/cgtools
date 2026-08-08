@@ -7,7 +7,7 @@ Compositional declarative scene format for 2D tile-based games.
 instances sit where on a grid, plus camera / seed / metadata) and a
 `Renderer` that walks the scene each frame and emits a flat stream of
 [`tilemap_renderer`]'s `RenderCommand`s. The format is documented in
-[`docs/`](docs/entity/readme.md); this crate is the reference implementation.
+[`docs/`](docs/definition/readme.md); this crate is the reference implementation.
 
 The runtime architecture is **Path A** — `Scene` owns the retained
 render-world (mutated through typed `InstanceHandle`s), `Renderer` is a
@@ -40,7 +40,7 @@ crosstalk.
 | `src/error.rs` | `LoadError`, `ValidationError`, `SnapshotLoadError`. |
 | `src/compile/` | Internal lowering passes called by `Renderer`. See sub-table. |
 | `tests/` | Integration tests — `scene_state_test`, `scene_events_test`, `renderer_test`, `renderer_cache_test`, `scene_model_compile_test`, `scene_model_test`. `tests/common/mod.rs` carries the shared `flatten_to_sprites` / `BatchFlattener` helpers used to project batch streams back to pre-batch `Sprite` commands for assertions. |
-| `docs/` | Design documentation as typed doc entities — see [docs/entity/readme.md](docs/entity/readme.md) |
+| `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
 | `roadmap.md` | Open work and design sketches. |
 
 ### `src/compile/` sub-layer
@@ -129,7 +129,7 @@ for event in scene.tick( dt )
 
 ## related documents
 
-- [`docs/entity/readme.md`](docs/entity/readme.md) — format specification and runtime API, as typed doc entities.
+- [`docs/definition/readme.md`](docs/definition/readme.md) — format specification and runtime API, as typed doc definitions.
 - `roadmap.md` — open work, design sketches, and known gaps.
 - repo-root `rulebook.md` — workspace-wide lint / style / test policy.
 - `tilemap_renderer/readme.md` — the renderer this crate compiles into; co-evolves with this format.

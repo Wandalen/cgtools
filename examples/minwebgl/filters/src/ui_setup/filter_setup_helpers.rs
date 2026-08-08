@@ -28,7 +28,7 @@ blur::Blur< T > : Filter
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
     filter_renderer_clone.borrow_mut().restore_previous_texture();
-    *current_filter_clone.borrow_mut() = card_id_str.clone();
+    ( *current_filter_clone.borrow_mut() ).clone_from( &card_id_str );
     filter_renderer_clone.borrow_mut().save_previous_texture();
 
     controls::clear_controls();
@@ -79,7 +79,7 @@ resize::Resize< T > : Filter
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
     filter_renderer_clone.borrow_mut().restore_previous_texture();
-    *current_filter_clone.borrow_mut() = card_id_str.clone();
+    ( *current_filter_clone.borrow_mut() ).clone_from( &card_id_str );
     filter_renderer_clone.borrow_mut().save_previous_texture();
 
     controls::clear_controls();
@@ -111,6 +111,7 @@ resize::Resize< T > : Filter
 }
 
 /// Helper for brightness/contrast filters (they have generic type parameters)
+#[allow(clippy::too_many_arguments)]
 pub fn setup_brightness_contrast_filter< T : 'static + Clone >
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
@@ -133,7 +134,7 @@ brightness_contrast::BrightnessContrast< T > : Filter
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
     filter_renderer_clone.borrow_mut().restore_previous_texture();
-    *current_filter_clone.borrow_mut() = card_id_str.clone();
+    ( *current_filter_clone.borrow_mut() ).clone_from( &card_id_str );
     filter_renderer_clone.borrow_mut().save_previous_texture();
 
     controls::clear_controls();

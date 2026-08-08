@@ -28,7 +28,7 @@
 //!   / viewport — decides what "position" means and what neighbour context
 //!   is visible to the layer.
 //!
-//! See `docs/entity/readme.md` for the format specification and runtime API.
+//! See `docs/definition/readme.md` for the format specification and runtime API.
 
 extern crate alloc;
 

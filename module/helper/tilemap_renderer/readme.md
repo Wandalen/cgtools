@@ -155,7 +155,7 @@ outer `1 - ...` can be removed.
 |------|----------------|
 | `src/` | Crate source — core types/commands/assets/backend trait, feature-gated backend adapters |
 | `tests/` | Integration tests (core types, commands, assets, `Backend` trait contract) |
-| `docs/` | Design documentation as typed doc entities — see [docs/entity/readme.md](docs/entity/readme.md) |
+| `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
 | `roadmap.md` | Future work and per-adapter gaps |
 | `readme.md` | This file — user-facing entry point |
 

@@ -24,9 +24,9 @@ mod private
     state : AnimationState,
   }
 
-  impl std::fmt::Debug for Sequencer
+  impl core::fmt::Debug for Sequencer
   {
-    fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+    fn fmt( &self, f : &mut core::fmt::Formatter< '_ > ) -> core::fmt::Result
     {
       f.debug_struct( "Sequencer" )
       .field("players", &self.players.len() )
@@ -45,14 +45,14 @@ mod private
         players : self.players.iter()
         .map
         (
-          | ( k, v ) |
+          | ( name, player ) |
           {
-            ( k.clone(), clone_dyn_types::clone_into_box( v.as_ref() ) )
+            ( name.clone(), clone_dyn_types::clone_into_box( player.as_ref() ) )
           }
         )
         .collect::< FxHashMap< _, _ > >(),
-        time : self.time.clone(),
-        state : self.state.clone()
+        time : self.time,
+        state : self.state
       }
     }
   }
@@ -194,7 +194,7 @@ mod private
     /// Renames an player in the Sequencer.
     pub fn rename_player( &mut self, current_name : &str, new_name : &str ) -> bool
     {
-      if let Some( ( _, value ) ) = self.players.remove_entry( current_name.into() )
+      if let Some( ( _, value ) ) = self.players.remove_entry( current_name )
       {
         self.players.insert( new_name.into(), value );
         true
@@ -246,9 +246,9 @@ mod private
     pub fn duration_get( &self ) -> f64
     {
       let mut max_duration = 0.0;
-      for ( _, p ) in &self.players
+      for player in self.players.values()
       {
-        max_duration = p.duration_get().max( max_duration );
+        max_duration = player.duration_get().max( max_duration );
       }
 
       max_duration
@@ -258,9 +258,9 @@ mod private
     pub fn delay_get( &self ) -> f64
     {
       let mut min_delay = f64::MAX;
-      for ( _, p ) in &self.players
+      for player in self.players.values()
       {
-        min_delay = p.delay_get().max( min_delay );
+        min_delay = player.delay_get().max( min_delay );
       }
 
       min_delay
@@ -276,6 +276,7 @@ mod private
   }
 
   /// Error for handling wrong [`Sequence`] input data
+  #[ non_exhaustive ]
   #[ derive( Debug, error::typed::Error ) ]
   pub enum SequenceError
   {

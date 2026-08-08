@@ -90,15 +90,15 @@ mod private
       {
         start_value : self.start_value.clone(),
         end_value : self.end_value.clone(),
-        duration : self.duration.clone(),
-        elapsed : self.elapsed.clone(),
+        duration : self.duration,
+        elapsed : self.elapsed,
         easing : clone_dyn_types::clone_into_box( &*self.easing ),
-        state : self.state.clone(),
-        delay : self.delay.clone(),
-        remain : self.remain.clone(),
-        repeat_count : self.repeat_count.clone(),
-        current_repeat : self.current_repeat.clone(),
-        yoyo : self.yoyo.clone()
+        state : self.state,
+        delay : self.delay,
+        remain : self.remain,
+        repeat_count : self.repeat_count,
+        current_repeat : self.current_repeat,
+        yoyo : self.yoyo
       }
     }
   }
@@ -511,7 +511,7 @@ mod private
     {
       let mut copy = *self;
       copy.iter_mut().zip( other.iter() )
-      .for_each( | ( a, b ) | *a = a.interpolate( b, time ) );
+      .for_each( | ( elem, other_elem ) | *elem = elem.interpolate( other_elem, time ) );
 
       copy
     }
@@ -525,8 +525,8 @@ mod private
       self.iter().zip( other.iter() )
       .map
       (
-        | ( a, b ) |
-        a.interpolate( b, time )
+        | ( elem, other_elem ) |
+        elem.interpolate( other_elem, time )
       )
       .collect::< Vec< _ > >()
     }

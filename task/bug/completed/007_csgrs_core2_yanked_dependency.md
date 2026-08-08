@@ -1,13 +1,16 @@
 # BUG-007: csgrs's mandatory core2 dependency is permanently yanked, breaking all workspace cargo resolution
 
 - **Severity:** Critical
-- **state:** Verified
+- **state:** Completed
 - **Affects:** Any `cargo metadata`/`build`/`test`/`nextest run` invocation anywhere in the workspace (no committed `Cargo.lock` — every invocation re-resolves the full graph from scratch)
 - **Component:** workspace root `Cargo.toml` — `[workspace.dependencies.csgrs]` / `[patch.crates-io]` (the only manifest where a crates.io patch is honored; consumer crates listed in `## Impact`)
 - **repo_identity:** self
 - **Filed:** 2026-08-08
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 - **Reproducer:** `cd /tmp/mre007 && cargo metadata --format-version=1` (see `## Minimum Reproducible Example`)
+- **Fix Task:** [008](../../completed/008_fix_csgrs_core2_yanked_dependency.md)
+- **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/bug/
+- **verification_date:** 2026-08-08
 
 ## Symptom
 
@@ -218,6 +221,9 @@ Any resolver failure citing "is yanked" violates this invariant.
 |------|-------|-------|
 | 2026-08-08 | filed | Initial report — csgrs 0.20.1's `core2 ^0.4` dependency is entirely yanked, breaking all workspace cargo resolution |
 | 2026-08-08 | confirmed | VERIFY_PASS — Tier 2 Dual-Role Self-Check, 8/8 dimensions 🟢 (2 findings caught and fixed in-loop: D4 Root Cause label, D6 Component scope); MRE executed 3× fresh; fix already applied and independently verified (root `Cargo.toml:424-433`; `cargo metadata --all-features` exit 0; user's original command exit 0, 21/21 tests passed) |
+| 2026-08-08 | executed | CLAIM → EXEC_COMPLETE via Fix Task 008: re-ran `cargo metadata --all-features` from workspace root (exit 0; resolved `core2` id confirmed `git+https://github.com/bbqsrc/core2?rev=545e84bcb0f235b12e21351e0c69767958efe2a7#0.4.0`) and `cargo nextest run --all-features` from `module/helper/animation` (exit 0, 21/21 passed) directly against the live repo, independent of the confirmation already recorded above. State → Executed; awaits an independent acceptance-review CLAIM before Completed. |
+| 2026-08-08 | claimed | `CLAIM` — Claimed for independent acceptance review by verifier (`user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/bug/`), a distinct actor identity from the executor (`user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/`), per PROC16's executor ≠ verifier mandate. State → Accepting; file moved to `bug/accepting/`. |
+| 2026-08-08 | completed | `VERIFY_PASS` — Independent acceptance verification (Tier 3 Spot Verification): re-confirmed the `core2` patch pin (`Cargo.toml:427-433`, exact match), re-ran `cargo metadata --all-features` from the workspace root (exit 0, resolved `core2` id `git+https://github.com/bbqsrc/core2?rev=545e84bcb0f235b12e21351e0c69767958efe2a7#0.4.0`) and `cargo nextest run --all-features` from `module/helper/animation` (exit 0, 21/21 passed) directly, and confirmed both `narrow_outline`/`text_rendering` resolve cleanly in the same graph. All 4 acceptance gates 🟢 — see `## Verification Record`. State → Completed. |
 
 ## Verification Record
 
@@ -236,3 +242,54 @@ Any resolver failure citing "is yanked" violates this invariant.
 | **Total** | | 🔴 | 🟢 | 2 found, 2 fixed | 2/2 |
 
 **Reproduced:** YES — Verify Command exit 0, 2026-08-08 (underlying `cargo metadata` itself exits 101, matching the documented Actual block).
+
+---
+
+**Acceptance Verification** (🔎 Accepting → ✅ Completed, independent of the Readiness gate above — separate actor, `PROC16`'s executor ≠ verifier mandate)
+
+**Gate Check** · Tier: 3 · Type: Full · Verdict: PASS · Agents: 1 · 4/4
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+|------|------|------|-----|--------|-------|
+| A1 | Fix Location Presence & Resolution | — | 🟢 | — | — |
+| A2 | Workspace-Wide Resolution (`cargo metadata`) | — | 🟢 | — | — |
+| A3 | Original Symptom Non-Reproduction (`cargo nextest`) | — | 🟢 | — | — |
+| A4 | Consumer Crate Resolution (`narrow_outline`, `text_rendering`) | — | 🟢 | — | — |
+| **Total** | | — | 🟢 | — | — |
+
+- **A1 evidence:** Root `Cargo.toml:427-433` read directly (verifier session, 2026-08-08) — byte-for-byte match
+  against this file's own `## Fix Location` "After" block: same 5-line explanatory comment, same
+  `[patch.crates-io]` header, same `core2 = { git = "https://github.com/bbqsrc/core2", rev =
+  "545e84bcb0f235b12e21351e0c69767958efe2a7" }` entry.
+- **A2 evidence:** `cargo metadata --format-version=1 --all-features` launched via `longrun .launch` from
+  the workspace root (`/home/user1/pro/lib/yrd_gamedev/cgtools`); Durable Log
+  `task/bug/-0002_longrun.log` completion marker `exit 0 · pid 1435805 · 2026-08-08 · 18:54:16 · elapsed
+  0s`; zero occurrences of `"is yanked"` in the full output; resolved `core2` package `id`:
+  `git+https://github.com/bbqsrc/core2?rev=545e84bcb0f235b12e21351e0c69767958efe2a7#0.4.0` (matches the
+  pin exactly — same evidence also satisfies AF1 in the anti-faking sense: the pin resolves a real,
+  reachable git revision).
+- **A3 evidence:** `cargo nextest run --all-features` (the exact command in this file's own `## Symptom`
+  section) launched via `longrun .launch` from `module/helper/animation`; Durable Log
+  `task/bug/-0003_longrun.log` shows `Summary [0.062s] 21 tests run: 21 passed, 0 skipped`, completion
+  marker `exit 0 · pid 1564965 · 2026-08-08 · 18:56:05 · elapsed 1s` — matches this file's own documented
+  "correct" Symptom block exactly (21 tests run: 21 passed, 0 skipped).
+- **A4 evidence:** `jq` query against the A2 metadata JSON (`task/bug/-0002_longrun.log`, line 3) confirms
+  both `narrow_outline` (`manifest_path`: `examples/minwebgl/narrow_outline/Cargo.toml`) and
+  `text_rendering` (`manifest_path`: `examples/minwebgl/text_rendering/Cargo.toml`) resolve as ordinary
+  packages within the same zero-error, zero-yank workspace-wide graph — independently confirms both
+  unconditional csgrs consumers named in `## Impact` resolve cleanly, without a redundant per-directory
+  `cargo metadata` re-invocation (same resolution scope, per Cargo's own workspace-wide resolver
+  semantics).
+
+**Note on git-diff scope check:** this verification session operated under an explicit "no git commands
+whatsoever" constraint (no `git status`/`diff`/`show`), so scope-of-change confirmation relied on direct
+file inspection (A1 above) plus this file's own `## Fix Location`/`## Prevention` sections rather than a
+mechanical `git diff` — flagged here for traceability, not treated as a gap: A1's line-exact match is
+sufficient to confirm the fix itself; no other file is named anywhere in this bug's `## Fix Location` or
+any `## Refs:` section.
+
+**Aggregate verdict:** PASS — all 4 gates 🟢, single dispatched independent verifier (Tier 3 Spot
+Verification in MAAV terms; independence comes from PROC16's own structural executor ≠ verifier mandate,
+not from a Primary/Dimension-Adversary pair), no self-verification (verifier actor
+`user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/bug/` is distinct from both the filing/executing
+actor `user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/` and the original investigation).

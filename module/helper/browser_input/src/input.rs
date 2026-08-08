@@ -12,7 +12,8 @@ use web_sys::
   PointerEvent,
   WheelEvent,
 };
-use std::{ cell::{ Cell, Ref, RefCell }, rc::Rc, fmt };
+use std::cell::{ Cell, Ref, RefCell };
+use alloc::{ rc::Rc, fmt };
 use strum::EnumCount as _;
 use crate::keyboard::KeyboardKey;
 use crate::mouse::MouseButton;
@@ -40,7 +41,7 @@ impl fmt::Display for BrowserInputError
       Self::WindowNotAvailable => write!( f, "Browser window object not available" ),
       Self::DocumentNotAvailable => write!( f, "Document object not available" ),
       Self::DocumentCastFailed => write!( f, "Failed to cast document to EventTarget" ),
-      Self::AddEventListenerFailed( event ) => write!( f, "Failed to add event listener for '{}'", event ),
+      Self::AddEventListenerFailed( event ) => write!( f, "Failed to add event listener for '{event}'" ),
     }
   }
 }
@@ -168,19 +169,33 @@ impl State
   }
 }
 
+impl Default for State
+{
+  fn default() -> Self
+  {
+    Self::new()
+  }
+}
+
 /// A function to get pointer coordinates relative to the client area (the viewport).
+// Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
+#[ allow( clippy::cast_possible_truncation ) ]
 pub static CLIENT : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.client_x() as i32, event.client_y() as i32 ] )
 };
 
 /// A function to get pointer coordinates relative to the entire page, including scrolled-out areas.
+// Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
+#[ allow( clippy::cast_possible_truncation ) ]
 pub static PAGE : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.page_x() as i32, event.page_y() as i32 ] )
 };
 
 /// A function to get pointer coordinates relative to the user's screen.
+// Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
+#[ allow( clippy::cast_possible_truncation ) ]
 pub static SCREEN : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.screen_x() as i32, event.screen_y() as i32 ] )
@@ -514,11 +529,9 @@ pub fn apply_events_to_state( state : &mut State, events : &[ Event ] )
           Action::Press =>
           {
             if !state.active_pointers.iter().any( | ( id, _ ) | *id == *pointer_id )
+              && state.active_pointers.len() < MAX_ACTIVE_POINTERS
             {
-              if state.active_pointers.len() < MAX_ACTIVE_POINTERS
-              {
-                state.active_pointers.push( ( *pointer_id, *pos ) );
-              }
+              state.active_pointers.push( ( *pointer_id, *pos ) );
             }
           }
           Action::Release =>

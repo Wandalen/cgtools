@@ -449,6 +449,10 @@ mod private
       };
 
       let mut png = Vec::new();
+      // `core::io` is unstable (feature `core_io`, rust-lang/rust#154046) on this
+      // toolchain's stable channel, so clippy's suggested `core::` swap does not
+      // compile here; `std::io::Cursor` is the only usable path.
+      #[ allow( clippy::std_instead_of_core ) ]
       dynamic.write_to( &mut std::io::Cursor::new( &mut png ), image::ImageFormat::Png ).ok()?;
       Some( png )
     }
@@ -459,6 +463,12 @@ mod private
     /// crate's format guesser. Supports any format the crate can decode the
     /// dimensions of — PNG, JPEG, GIF, WebP, BMP, TIFF, etc. Returns `None`
     /// when the format is unrecognized or the header is malformed.
+    // `core::io` is unstable (feature `core_io`, rust-lang/rust#154046) on this
+    // toolchain's stable channel, so clippy's suggested `core::` swap does not
+    // compile here; `std::io::Cursor` is the only usable path. Attribute is at
+    // function level because the call is this function's tail expression,
+    // where item-level attributes (not statement-level) are required on stable.
+    #[ allow( clippy::std_instead_of_core ) ]
     fn image_dimensions( bytes : &[ u8 ] ) -> Option< ( u32, u32 ) >
     {
       image::ImageReader::new( std::io::Cursor::new( bytes ) )
@@ -1249,6 +1259,11 @@ mod private
           {
             if ( ri.index as usize ) < instances.len() { instances.swap_remove( ri.index as usize ); }
           }
+          // Collapsing into a match guard (`Some(Mesh{..}) if cond => ..`) would
+          // make this arm's pattern not count toward exhaustiveness (verified:
+          // E0004 "match arms with guards don't count towards exhaustivity"),
+          // since `SvgBatch` has only Sprite/Mesh variants and no wildcard arm.
+          #[ allow( clippy::collapsible_match ) ]
           Some( SvgBatch::Mesh { instances, .. } ) =>
           {
             if ( ri.index as usize ) < instances.len() { instances.swap_remove( ri.index as usize ); }

@@ -394,7 +394,7 @@ mod private
         {
           if !*is_pointer_locked.borrow()
           {
-            let _ = canvas.request_pointer_lock();
+            canvas.request_pointer_lock();
           }
         }
       }

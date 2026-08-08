@@ -56,7 +56,7 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 ├── Cargo.toml
 ├── readme.md
 ├── roadmap.md
-└── docs/                   # Design documentation (typed doc entities)
+└── docs/                   # Design documentation (typed doc definitions)
 ```
 
 ## remaining work

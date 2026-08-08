@@ -1,6 +1,6 @@
-# Doc Entities
+# Doc Definitions
 
-## Master Doc Entities Table
+## Master Doc Definitions Table
 
 | Type | Purpose | Master File | Instances |
 |------|---------|-------------|----------:|
@@ -15,7 +15,7 @@
 
 ## Master Doc Instances Table
 
-| Entity | ID | Name | File |
+| Definition | ID | Name | File |
 |--------|-----|------|------|
 | algorithm | 001 | Coordinate Distance & Neighbor Formulas | [algorithm/001_coordinate_distance_and_neighbor_formulas.md](../algorithm/001_coordinate_distance_and_neighbor_formulas.md) |
 | algorithm | 002 | Generic A* Pathfinding | [algorithm/002_generic_astar_pathfinding.md](../algorithm/002_generic_astar_pathfinding.md) |

@@ -80,13 +80,9 @@ mod private
         Radius = self.report.bounding_sphere.radius
       )?;
 
-      if self.report.material.is_none()
+      if let Some( m ) = self.report.material
       {
-        write!( f, "Material: None" )
-      }
-      else
-      {
-        let m = self.report.material.unwrap().clone();
+        let m = m.clone();
         let ambient = m.ambient.map_or_else( || String::from( "None" ), | v | format_vec3( v ) );
         let diffuse = m.diffuse.map_or_else( || String::from( "None" ), | v | format_vec3( v ) );
         let specular = m.specular.map_or_else( || String::from( "None" ), | v | format_vec3( v ) );
@@ -94,12 +90,12 @@ mod private
         let dissolve = m.dissolve.map_or_else( || String::from( "None" ), | v | v.to_string() );
         let optical_density = m.optical_density.map_or_else( || String::from( "None" ), | v | v.to_string() );
 
-        let ambient_texture = m.ambient_texture.map_or_else( || String::from( "None" ), | v | v );
-        let diffuse_texture = m.diffuse_texture.map_or_else( || String::from( "None" ), | v | v );
-        let specular_texture = m.specular_texture.map_or_else( || String::from( "None" ), | v | v );
-        let normal_texture = m.normal_texture.map_or_else( || String::from( "None" ), | v | v );
-        let shininess_texture = m.shininess_texture.map_or_else( || String::from( "None" ), | v | v );
-        let dissolve_texture = m.dissolve_texture.map_or_else( || String::from( "None" ), | v | v );
+        let ambient_texture = m.ambient_texture.unwrap_or_else( || String::from( "None" ) );
+        let diffuse_texture = m.diffuse_texture.unwrap_or_else( || String::from( "None" ) );
+        let specular_texture = m.specular_texture.unwrap_or_else( || String::from( "None" ) );
+        let normal_texture = m.normal_texture.unwrap_or_else( || String::from( "None" ) );
+        let shininess_texture = m.shininess_texture.unwrap_or_else( || String::from( "None" ) );
+        let dissolve_texture = m.dissolve_texture.unwrap_or_else( || String::from( "None" ) );
 
         let illumination_model = m.illumination_model.map_or_else( || String::from( "None" ), | v | v.to_string() );
         let unknown_param = format!( "{:#?}", m.unknown_param );
@@ -140,6 +136,10 @@ mod private
           IllumModel = illumination_model,
           Other = unknown_param
         )
+      }
+      else
+      {
+        write!( f, "Material: None" )
       }
     }
   }

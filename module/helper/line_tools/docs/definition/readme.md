@@ -1,6 +1,6 @@
-# Doc Entities
+# Doc Definitions
 
-## Master Doc Entities Table
+## Master Doc Definitions Table
 
 | Type | Purpose | Master File | Instances |
 |------|---------|-------------|----------:|
@@ -9,7 +9,7 @@
 
 ## Master Doc Instances Table
 
-| Entity  | ID  | Name                                    | File                                                                                                            |
+| Definition | ID  | Name                                    | File                                                                                                            |
 |---------|-----|------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
 | feature | 001 | 2D Line Rendering                        | [feature/001_2d_line_rendering.md](../feature/001_2d_line_rendering.md)                                             |
 | feature | 002 | 3D Line Rendering                        | [feature/002_3d_line_rendering.md](../feature/002_3d_line_rendering.md)                                             |

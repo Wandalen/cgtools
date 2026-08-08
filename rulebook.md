@@ -10,8 +10,8 @@ override is recorded under the crate's own roof.
 ## Documentation layout
 
 **Rule:** Each crate's design documentation lives in `docs/`, organized as
-typed doc entity instances (`docs/feature/`, `docs/invariant/`, `docs/api/`,
-and other types as warranted by content) per the standard doc entity
+typed doc definition instances (`docs/feature/`, `docs/invariant/`, `docs/api/`,
+and other types as warranted by content) per the standard doc definition
 framework in `doc_des.rulebook.md`. Do not use a monolithic `spec.md` file
 at the crate root.
 

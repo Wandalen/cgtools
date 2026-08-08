@@ -33,6 +33,16 @@ where
   assert_eq!( halved, v );
 }
 
+// `op_ref` is allowed at function level (not per-assertion) because
+// `#[allow]` on a macro-invocation statement like `assert_eq!( .. )` is
+// silently ignored by rustc ("unused attribute", since the attribute cannot
+// attach to the macro's expansion) and itself becomes an error under
+// `-D warnings`. The reference-form assertions below intentionally exercise
+// `impl Rem for &Vector< E, LEN >` and `impl Rem< E > for &Vector< E, LEN >`
+// (src/vector/operator.rs) — distinct impls from the owned-value forms
+// already covered earlier in this function. Applying clippy's "remove the &"
+// suggestion would silently drop coverage of those reference-operand impls.
+#[ allow( clippy::op_ref ) ]
 fn vector_rem_generic< E >()
 where
   E : the_module::MatNum + From< u8 > + PartialEq + core::fmt::Debug,
@@ -46,9 +56,9 @@ where
   // vector % scalar
   assert_eq!( a % E::from( 3 ), Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 1 ), E::from( 0 ) ] ) );
 
-  // &vector % &vector  (reference form)
+  // &vector % &vector  (reference form; see function-level #[allow] above)
   assert_eq!( &a % &b, Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 2 ), E::from( 3 ) ] ) );
-  // &vector % scalar  (reference form)
+  // &vector % scalar  (reference form; see function-level #[allow] above)
   assert_eq!( &a % E::from( 3 ), Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 1 ), E::from( 0 ) ] ) );
 
   // %= vector

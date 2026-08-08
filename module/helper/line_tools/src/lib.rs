@@ -32,6 +32,8 @@
 #![ allow( clippy::too_many_lines ) ]
 #![ allow( clippy::match_wildcard_for_single_variants ) ]
 
+extern crate alloc;
+
 mod private
 {
   /// Return the types corresponding to the provided length
@@ -125,7 +127,7 @@ mod private
           {
             let distance = if let Some( last ) = self.geometry.points.back().copied()
             {
-              if ( last - point ).mag2() <= std::$primitive_type::EPSILON 
+              if ( last - point ).mag2() <= $primitive_type::EPSILON 
               {
                 return;
               }
@@ -157,7 +159,7 @@ mod private
           {
             let distance = if let Some( last ) = geometry.points.front().copied()
             {
-              if ( last - point ).mag2() <= std::$primitive_type::EPSILON 
+              if ( last - point ).mag2() <= $primitive_type::EPSILON 
               {
                 return;
               }

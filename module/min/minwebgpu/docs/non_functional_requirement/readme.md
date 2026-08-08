@@ -1,4 +1,4 @@
-# Non Functional Requirement Doc Entity
+# Non Functional Requirement Doc Definition
 
 ### Scope
 
