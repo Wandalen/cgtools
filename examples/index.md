@@ -21,6 +21,7 @@ Interactive WebGL/WebGPU examples demonstrating CGTools capabilities.
   - [WebGPU Examples](#webgpu-examples)
   - [WGPU Examples](#wgpu-examples)
   - [Scripting Examples](#scripting-examples)
+  - [Tiles Tools Examples](#tiles-tools-examples)
   - [Development](#development)
   - [Structure](#structure)
   - [Troubleshooting](#troubleshooting)
@@ -145,3 +146,20 @@ Example | Description
 --- | ---
 [F32x2 Vector Arithmetic](./scene_script/f32x2_vector_arithmetic/readme.md) | Rhai script building an F32x2 value from vector arithmetic
 [Pingpong Animation](./scene_script/pingpong_animation/readme.md) | Rhai-driven ball/paddle simulation tweened with animation::Tween
+
+## Tiles Tools Examples
+
+Example | Description
+--- | ---
+[Advanced Pathfinding Demo](./tiles_tools/advanced_pathfinding_demo/readme.md) | A* pathfinding across obstacles, costs, multi-goal search, and coordinate systems
+[Beginner Tutorial](./tiles_tools/beginner_tutorial/readme.md) | Step-by-step introduction to tiles_tools' core concepts
+[Debug Demo](./tiles_tools/debug_demo/readme.md) | Grid, pathfinding, and ECS debug visualization and profiling tools
+[ECS Collision Demo](./tiles_tools/ecs_collision_demo/readme.md) | ECS collision detection, resolution, and spatial queries
+[Event System Demo](./tiles_tools/event_system_demo/readme.md) | Decoupled pub/sub event system with priorities and statistics
+[Field of View Demo](./tiles_tools/field_of_view_demo/readme.md) | Shadowcasting, ray casting, and multi-source lighting algorithms
+[Game of Life (tiles_tools)](./tiles_tools/game_of_life/readme.md) | Conway's Game of Life via tiles_tools ECS across coordinate systems
+[Game Systems Demo](./tiles_tools/game_systems_demo/readme.md) | Turn-based systems, resource management, quests, and status effects
+[Serialization Demo](./tiles_tools/serialization_demo/readme.md) | Save/load functionality across JSON, binary, and RON formats
+[Simple Collision Demo](./tiles_tools/simple_collision_demo/readme.md) | Minimal ECS collision detection walkthrough
+[Stealth Game](./tiles_tools/stealth_game/readme.md) | Field-of-view-driven stealth game with guard AI
+[Tactical RPG](./tiles_tools/tactical_rpg/readme.md) | Hex-grid tactical combat with AI-controlled enemies

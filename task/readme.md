@@ -1,5 +1,5 @@
 <!-- task_system_metadata
-highest_id: 040
+highest_id: 042
 -->
 
 # task
@@ -24,7 +24,7 @@ Task tracking for cgtools workspace. This `readme.md` carries no `type: root`/`t
 | 10 | [012](draft/012_minwebgl_exec_loop_duplication.md) | — | — | — | — | — | 📝 | any | module | lib/yrd_gamedev/cgtools/module/min/minwebgl | Consolidate minwebgl's exec_loop.rs via mingl reuse | Replace duplicated render-loop logic with the mod_interface reuse pattern minwebgpu already uses (P3) |
 | 11 | [013](draft/013_renderer_result_signature_panic.md) | — | — | — | — | — | 📝 | any | module | lib/yrd_gamedev/cgtools/module/helper/renderer | Fix renderer's Result-signature-violating panic | Fix a function that panics instead of returning Err despite its own Result signature (P1) |
 | 12 | [014](draft/014_ndarray_cg_debug_only_dimension_checks.md) | — | — | — | — | — | 📝 | any | module | lib/yrd_gamedev/cgtools/module/math/ndarray_cg | Fix ndarray_cg debug-only dimension checks | Make dimension/bounds checks fail loudly in release instead of silently passing (P2) |
-| 13 | [015](draft/015_animation_sequencer_bugs_and_api_doc.md) | — | — | — | — | — | 📝 | any | module | lib/yrd_gamedev/cgtools/module/helper/animation | Fix animation's Sequencer/Tween bugs, API doc, and macro lint | Fix 3 logic bugs, correct the readme's wrong API table, and fix a macro-export future-incompat warning (P2) |
+| 13 | [015](draft/015_animation_sequencer_bugs_and_api_doc.md) | — | — | — | — | — | 📝 | any | module | lib/yrd_gamedev/cgtools/module/helper/animation | Fix animation's Sequencer/Tween bugs, API doc, and macro lint | 4 bugs + API doc table fixed 2026-08-09 (29/29 tests pass); macro-export lint still deferred (P2) |
 | 14 | [016](draft/016_canvas_renderer_color_desync.md) | — | — | — | — | — | 📝 | any | module | lib/yrd_gamedev/cgtools/module/helper/canvas_renderer | Fix canvas_renderer silent color-desync bug | Fix rendered color state silently desyncing from logical state (P2) |
 | 15 | [017](draft/017_behaviour_tree_hang_livelock_risk.md) | — | — | — | — | — | 📝 | any | module | lib/yrd_gamedev/cgtools/module/helper/behaviour_tree | Fix behaviour_tree hang/livelock risk | Fix a node configuration that can hang or livelock rather than terminate (P2) |
 | 16 | [018](draft/018_primitive_generation_silent_failure_nan.md) | — | — | — | — | — | 📝 | any | module | lib/yrd_gamedev/cgtools/module/helper/primitive_generation | Fix primitive_generation silent failure and NaN gap | Fix a doc-contradicting silent failure and a precondition gap producing NaN (P2) |
@@ -51,3 +51,5 @@ Task tracking for cgtools workspace. This `readme.md` carries no `type: root`/`t
 | 37 | [039](draft/039_root_health_md_capstone.md) | — | — | — | — | — | 📝 | any | workspace | lib/yrd_gamedev/cgtools | Populate root health.md as capstone dashboard | Do last — living per-crate health dashboard summarizing the whole triage plan's outcome |
 | 38 | [040](draft/040_browser_input_task_note_disposition.md) | — | — | — | — | — | 📝 | any | module | lib/yrd_gamedev/cgtools/module/helper/browser_input | Decide disposition of browser_input's orphaned task/ note | Adopt as a real local task system, migrate its idea and retire it, or relocate it out of a `task/`-named dir |
 | 39 | [008](completed/008_fix_csgrs_core2_yanked_dependency.md) | 0 | 10 | 9 | 9 | 0 | ✅ | any | workspace | lib/yrd_gamedev/cgtools | Fix BUG-007 - csgrs core2 yanked dependency | Confirm and close BUG-007: the core2 patch already resolves workspace-wide cargo resolution failures |
+| 40 | [041](completed/041_animation_cubic_easing_bugs.md) | — | — | — | — | — | ✅ | any | module | lib/yrd_gamedev/cgtools/module/helper/animation | Fix animation's CubicBezier/CubicHermite bugs | 2 easing/cubic bugs (default iterations, silent length truncation) fixed and tested, 2026-08-09 |
+| 41 | [042](completed/042_animation_dedup_deps_and_lint_cleanup.md) | — | — | — | — | — | ✅ | any | module | lib/yrd_gamedev/cgtools/module/helper/animation | Clean up animation's duplication, dead dep, and lint allows | Sequencer::value_get dedup, dead web-sys removal, lib.rs allow-attribute sweep, 2026-08-09 |

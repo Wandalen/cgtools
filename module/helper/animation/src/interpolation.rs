@@ -242,6 +242,16 @@ mod private
     }
 
     /// Handles animation repeat logic.
+    // Fix(TASK-015): the post-wrap elapsed time was clamped with .min(0.0), but
+    // `elapsed - duration * floor(elapsed/duration)` is the floor-division remainder, which is
+    // mathematically always >= 0.0 — so .min(0.0) forced elapsed back to exactly 0.0 on every
+    // repeat instead of preserving the real leftover time, dropping the fractional progress made
+    // into the new loop.
+    // Root cause: `.min(0.0)` written where `.max(0.0)` was intended (guarding against
+    // floating-point drift producing a tiny negative remainder), inverting the clamp direction.
+    // Pitfall: existing tests only drive `update()` with deltas that are exact multiples of
+    // `duration`, where the remainder is exactly 0.0 either way — the bug is invisible unless the
+    // elapsed time crosses a repeat boundary mid-frame.
     fn repeat_handle( &mut self )
     {
       let elapsed_repeats = ( self.elapsed / self.duration ).floor();
@@ -249,14 +259,14 @@ mod private
       {
         // Infinite repeat
         self.current_repeat += elapsed_repeats as i32;
-        self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).min( 0.0 );
+        self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).max( 0.0 );
         self.state = AnimationState::Running;
       }
       else if self.repeat_count > 0 && self.current_repeat < self.repeat_count
       {
         // Finite repeat
         self.current_repeat += elapsed_repeats as i32;
-        self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).min( 0.0 );
+        self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).max( 0.0 );
         self.state = AnimationState::Running;
       }
       else

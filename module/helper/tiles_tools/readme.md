@@ -83,17 +83,26 @@ fn main()
 
 ## 📦 Examples
 
-The crate includes a wide range of examples to demonstrate its capabilities.
+The crate includes a wide range of examples to demonstrate its capabilities. Each
+lives as its own standalone crate at
+[`examples/tiles_tools/`](../../../examples/tiles_tools/) at the workspace root,
+not under this crate — see
+[`examples/how_to_run.md`](../../../examples/how_to_run.md) for run instructions.
 
-| Example | Description | Command |
-|---|---|---|
-| **beginner\_tutorial** | A step-by-step guide to the core concepts. | `cargo run --example beginner_tutorial` |
-| **tactical\_rpg** | A complete hexagonal grid tactical combat game. | `cargo run --example tactical_rpg` |
-| **stealth\_game** | Demonstrates field-of-view and lighting mechanics. | `cargo run --example stealth_game` |
-| **behavior\_tree\_demo** | Showcases the advanced AI decision-making system. | `cargo run --example behavior_tree_demo` |
-| **serialization\_demo** | Implements save/load functionality. | `cargo run --example serialization_demo --features serialization` |
-
-To run an example, use the command `cargo run --example <example_name>`. Some examples may require specifying features.
+| Example | Description |
+|---|---|
+| **beginner\_tutorial** | A step-by-step guide to the core concepts. |
+| **tactical\_rpg** | A complete hexagonal grid tactical combat game. |
+| **stealth\_game** | Demonstrates field-of-view and lighting mechanics. |
+| **serialization\_demo** | Implements save/load functionality. |
+| **advanced\_pathfinding\_demo** | A* across obstacles, costs, multi-goal search, and coordinate systems. |
+| **debug\_demo** | Grid, pathfinding, and ECS debug visualization and profiling tools. |
+| **ecs\_collision\_demo** | ECS collision detection, resolution, and spatial queries. |
+| **event\_system\_demo** | Decoupled pub/sub event system with priorities and statistics. |
+| **field\_of\_view\_demo** | Shadowcasting, ray casting, and multi-source lighting algorithms. |
+| **game\_of\_life** | Conway's Game of Life across coordinate systems. |
+| **game\_systems\_demo** | Turn-based systems, resource management, quests, and status effects. |
+| **simple\_collision\_demo** | Minimal ECS collision detection walkthrough. |
 
 ## 📚 Documentation
 

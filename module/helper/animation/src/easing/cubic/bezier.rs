@@ -50,6 +50,16 @@ use crate::Animatable;
     ///
     /// `parameters` should be an array of four `f64` values representing
     /// `[ in_tangent_x, in_tangent_y, out_tangent_x, out_tangent_y ]`.
+    // Fix(TASK-041): `iterations` defaulted to 0, which skips `apply`'s Newton-Raphson solve loop
+    // entirely — the curve's `y_get` was evaluated at the raw input fraction instead of the
+    // solved Bezier parameter, silently producing the wrong easing shape for every named curve
+    // built through this constructor without an explicit `set_iterations`/`with_iterations` call
+    // (all 24 in `impl_easing_function!` invocations below).
+    // Root cause: a numeric-solver parameter defaulted to its degenerate "off" value instead of a
+    // value that actually performs the solve.
+    // Pitfall: boundary-only tests (t = 0.0 / 1.0) can't catch this — `apply`'s early-return
+    // guards bypass the solve loop at both boundaries regardless of `iterations`, so only
+    // mid-curve values expose the wrong shape.
     pub fn new( parameters : [ f64; 4 ] ) -> Self
     {
       let [ i1, i2, o1, o2 ] = parameters;
@@ -57,7 +67,7 @@ use crate::Animatable;
       {
         in_tangent : [ i1, i2 ],
         out_tangent : [ o1, o2 ],
-        iterations : 0,
+        iterations : 8,
         _marker : PhantomData
       }
     }
@@ -68,6 +78,17 @@ use crate::Animatable;
     pub fn set_iterations( &mut self, iterations : usize )
     {
       self.iterations = iterations;
+    }
+
+    /// Sets the number of iterations for the easing function's internal calculation, consuming
+    /// and returning `Self` for fluent construction.
+    ///
+    /// Higher values increase precision at the cost of performance.
+    #[ must_use ]
+    pub fn with_iterations( mut self, iterations : usize ) -> Self
+    {
+      self.iterations = iterations;
+      self
     }
   }
 
@@ -107,37 +128,37 @@ use crate::Animatable;
     }
   }
 
-  impl_easing_function!( EaseInSine, CubicBezier< A >, CubicBezier::< A >::new( [ 0.12, 0.0, 0.39, 0.0 ] ) );
-  impl_easing_function!( EaseOutSine, CubicBezier< A >, CubicBezier::< A >::new( [ 0.61, 1.0, 0.88, 1.0 ] ) );
-  impl_easing_function!( EaseInOutSine, CubicBezier< A >, CubicBezier::< A >::new( [ 0.37, 0.0, 0.63, 1.0 ] ) );
+  impl_easing_function!( EaseInSine, CubicBezier< A >, CubicBezier::< A >::new( [ 0.12, 0.0, 0.39, 0.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseOutSine, CubicBezier< A >, CubicBezier::< A >::new( [ 0.61, 1.0, 0.88, 1.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseInOutSine, CubicBezier< A >, CubicBezier::< A >::new( [ 0.37, 0.0, 0.63, 1.0 ] ).with_iterations( 8 ) );
 
-  impl_easing_function!( EaseInQuad, CubicBezier< A >, CubicBezier::< A >::new( [ 0.11, 0.0, 0.5, 0.0 ] ) );
-  impl_easing_function!( EaseOutQuad, CubicBezier< A >, CubicBezier::< A >::new( [ 0.5, 1.0, 0.89, 1.0 ] ) );
-  impl_easing_function!( EaseInOutQuad, CubicBezier< A >, CubicBezier::< A >::new( [ 0.45, 0.0, 0.55, 1.0 ] ) );
+  impl_easing_function!( EaseInQuad, CubicBezier< A >, CubicBezier::< A >::new( [ 0.11, 0.0, 0.5, 0.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseOutQuad, CubicBezier< A >, CubicBezier::< A >::new( [ 0.5, 1.0, 0.89, 1.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseInOutQuad, CubicBezier< A >, CubicBezier::< A >::new( [ 0.45, 0.0, 0.55, 1.0 ] ).with_iterations( 8 ) );
 
-  impl_easing_function!( EaseInCubic, CubicBezier< A >, CubicBezier::< A >::new( [ 0.32, 0.0, 0.67, 0.0 ] ) );
-  impl_easing_function!( EaseOutCubic, CubicBezier< A >, CubicBezier::< A >::new( [ 0.33, 1.0, 0.68, 1.0 ] ) );
-  impl_easing_function!( EaseInOutCubic, CubicBezier< A >, CubicBezier::< A >::new( [ 0.65, 0.0, 0.35, 1.0 ] ) );
+  impl_easing_function!( EaseInCubic, CubicBezier< A >, CubicBezier::< A >::new( [ 0.32, 0.0, 0.67, 0.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseOutCubic, CubicBezier< A >, CubicBezier::< A >::new( [ 0.33, 1.0, 0.68, 1.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseInOutCubic, CubicBezier< A >, CubicBezier::< A >::new( [ 0.65, 0.0, 0.35, 1.0 ] ).with_iterations( 8 ) );
 
-  impl_easing_function!( EaseInQuart, CubicBezier< A >, CubicBezier::< A >::new( [ 0.5, 0.0, 0.75, 0.0 ] ) );
-  impl_easing_function!( EaseOutQuart, CubicBezier< A >, CubicBezier::< A >::new( [ 0.25, 1.0, 0.5, 1.0 ] ) );
-  impl_easing_function!( EaseInOutQuart, CubicBezier< A >, CubicBezier::< A >::new( [ 0.76, 0.0, 0.24, 1.0 ] ) );
+  impl_easing_function!( EaseInQuart, CubicBezier< A >, CubicBezier::< A >::new( [ 0.5, 0.0, 0.75, 0.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseOutQuart, CubicBezier< A >, CubicBezier::< A >::new( [ 0.25, 1.0, 0.5, 1.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseInOutQuart, CubicBezier< A >, CubicBezier::< A >::new( [ 0.76, 0.0, 0.24, 1.0 ] ).with_iterations( 8 ) );
 
-  impl_easing_function!( EaseInQuint, CubicBezier< A >, CubicBezier::< A >::new( [ 0.64, 0.0, 0.78, 0.0 ] ) );
-  impl_easing_function!( EaseOutQuint, CubicBezier< A >, CubicBezier::< A >::new( [ 0.22, 1.0, 0.36, 1.0 ] ) );
-  impl_easing_function!( EaseInOutQuint, CubicBezier< A >, CubicBezier::< A >::new( [ 0.83, 0.0, 0.17, 1.0 ] ) );
+  impl_easing_function!( EaseInQuint, CubicBezier< A >, CubicBezier::< A >::new( [ 0.64, 0.0, 0.78, 0.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseOutQuint, CubicBezier< A >, CubicBezier::< A >::new( [ 0.22, 1.0, 0.36, 1.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseInOutQuint, CubicBezier< A >, CubicBezier::< A >::new( [ 0.83, 0.0, 0.17, 1.0 ] ).with_iterations( 8 ) );
 
-  impl_easing_function!( EaseInExpo, CubicBezier< A >, CubicBezier::< A >::new( [ 0.7, 0.0, 0.84, 0.0 ] ) );
-  impl_easing_function!( EaseOutExpo, CubicBezier< A >, CubicBezier::< A >::new( [ 0.16, 1.0, 0.3, 1.0 ] ) );
-  impl_easing_function!( EaseInOutExpo, CubicBezier< A >, CubicBezier::< A >::new( [ 0.87, 0.0, 0.13, 1.0 ] ) );
+  impl_easing_function!( EaseInExpo, CubicBezier< A >, CubicBezier::< A >::new( [ 0.7, 0.0, 0.84, 0.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseOutExpo, CubicBezier< A >, CubicBezier::< A >::new( [ 0.16, 1.0, 0.3, 1.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseInOutExpo, CubicBezier< A >, CubicBezier::< A >::new( [ 0.87, 0.0, 0.13, 1.0 ] ).with_iterations( 8 ) );
 
-  impl_easing_function!( EaseInCirc, CubicBezier< A >, CubicBezier::< A >::new( [ 0.55, 0.0, 1.0, 0.45 ] ) );
-  impl_easing_function!( EaseOutCirc, CubicBezier< A >, CubicBezier::< A >::new( [ 0.0, 0.55, 0.45, 1.0 ] ) );
-  impl_easing_function!( EaseInOutCirc, CubicBezier< A >, CubicBezier::< A >::new( [ 0.85, 0.0, 0.15, 1.0 ] ) );
+  impl_easing_function!( EaseInCirc, CubicBezier< A >, CubicBezier::< A >::new( [ 0.55, 0.0, 1.0, 0.45 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseOutCirc, CubicBezier< A >, CubicBezier::< A >::new( [ 0.0, 0.55, 0.45, 1.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseInOutCirc, CubicBezier< A >, CubicBezier::< A >::new( [ 0.85, 0.0, 0.15, 1.0 ] ).with_iterations( 8 ) );
 
-  impl_easing_function!( EaseInBack, CubicBezier< A >, CubicBezier::< A >::new( [ 0.36, 0.0, 0.66, -0.56 ] ) );
-  impl_easing_function!( EaseOutBack, CubicBezier< A >, CubicBezier::< A >::new( [ 0.34, 1.56, 0.64, 1.0 ] ) );
-  impl_easing_function!( EaseInOutBack, CubicBezier< A >, CubicBezier::< A >::new( [ 0.68, -0.6, 0.32, 1.6 ] ) );
+  impl_easing_function!( EaseInBack, CubicBezier< A >, CubicBezier::< A >::new( [ 0.36, 0.0, 0.66, -0.56 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseOutBack, CubicBezier< A >, CubicBezier::< A >::new( [ 0.34, 1.56, 0.64, 1.0 ] ).with_iterations( 8 ) );
+  impl_easing_function!( EaseInOutBack, CubicBezier< A >, CubicBezier::< A >::new( [ 0.68, -0.6, 0.32, 1.6 ] ).with_iterations( 8 ) );
 }
 
 crate::mod_interface!

@@ -1,4 +1,14 @@
 //! Tools for managing [`AnimatablePlayer`] playback in every time moment
+//!
+//! This module provides two distinct playback coordinators, chosen based on how the underlying
+//! players relate to each other:
+//!
+//! - [`Sequencer`]: a named, heterogeneous collection of independent [`AnimatablePlayer`]s (any
+//!   mix of types) that all run in parallel, advanced by the same `update()` call every frame.
+//!   Use it to coordinate multiple unrelated animations that play concurrently.
+//! - [`Sequence`]: an ordered, homogeneous chain of same-type [`AnimatablePlayer`]s that play one
+//!   at a time based on each player's `delay_get()`, like a timeline of consecutive clips. Use it
+//!   to chain a strictly time-ordered series of animations of the same type.
 
 mod private
 {
@@ -68,15 +78,6 @@ mod private
         time : 0.0,
         state : AnimationState::Pending,
       }
-    }
-
-    /// Gets the current value of a named animation.
-    pub fn value_get< T >( &self, name : &str ) -> Option< &T >
-    where T : AnimatablePlayer + 'static
-    {
-      let player_box = self.players.get( name )?;
-      let any_ref = player_box.as_any();
-      any_ref.downcast_ref::< T >()
     }
 
     /// Returns list of contained [`AnimatablePlayer`]'s names
@@ -242,7 +243,8 @@ mod private
       }
     }
 
-    /// Get max delay of [`Self::players`]
+    /// Gets the longest duration among [`Self::players`], used as the Sequencer's overall
+    /// animation duration in [`Self::progress`].
     pub fn duration_get( &self ) -> f64
     {
       let mut max_duration = 0.0;
@@ -254,13 +256,22 @@ mod private
       max_duration
     }
 
+    // Fix(TASK-015): the reduction was seeded at f64::MAX (correct for a min-reduction) but then
+    // called .max( min_delay ) instead of .min( min_delay ), so no real delay could ever displace
+    // the seed — delay_get always returned f64::MAX, which made progress()'s
+    // `( time - delay_get() ) / duration_get()` collapse to 0.0 after clamping, regardless of
+    // actual elapsed time.
+    // Root cause: wrong reduction direction — a max-reduction's comparison used against a
+    // min-reduction's seed.
+    // Pitfall: the return type and correct seed value are easy to eyeball as right; only the
+    // comparison direction is wrong, so a glance at the seed alone gives false confidence.
     /// Get smallest delay of [`Self::players`]
     pub fn delay_get( &self ) -> f64
     {
       let mut min_delay = f64::MAX;
       for player in self.players.values()
       {
-        min_delay = player.delay_get().max( min_delay );
+        min_delay = player.delay_get().min( min_delay );
       }
 
       min_delay
@@ -288,7 +299,12 @@ mod private
     NotEnough
   }
 
-  /// Sequence of [`AnimatablePlayer`]s of one type
+  /// Sequence of [`AnimatablePlayer`]s of one type, played one at a time in delay order.
+  ///
+  /// Unlike [`Sequencer`], which runs a named, heterogeneous set of players in parallel,
+  /// [`Sequence`] advances through a single ordered, homogeneous chain — only one player is
+  /// active at any given elapsed time, selected by comparing elapsed time against each player's
+  /// `delay_get()`.
   #[ derive( Debug, Clone ) ]
   pub struct Sequence< T >
   {
@@ -319,13 +335,21 @@ mod private
         return Err( SequenceError::NotEnough );
       }
 
-      let last_delay = 0.0;
+      // Fix(TASK-015): `last_delay` was declared immutable and never reassigned inside the loop,
+      // so every iteration compared against the initial 0.0 instead of the previous player's
+      // delay, making the Unsorted check fire only for a negative delay (which delay_get() never
+      // produces) — the validation was effectively dead code regardless of actual player order.
+      // Root cause: missing `last_delay = player.delay_get();` update at the end of the loop body.
+      // Pitfall: the check reads as correct at a glance (right comparison, right error) — only
+      // the absence of the reassignment reveals it can never trigger on realistic input.
+      let mut last_delay = 0.0;
       for player in &mut players
       {
         if last_delay > player.delay_get()
         {
           return Err( SequenceError::Unsorted );
         }
+        last_delay = player.delay_get();
       }
 
       let delay = players.first().unwrap().delay_get();

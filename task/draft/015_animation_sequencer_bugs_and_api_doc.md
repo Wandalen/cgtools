@@ -18,13 +18,60 @@
 
 ## Goal
 
-Fix 3 logic bugs identified in `animation`'s `Sequencer`/`Tween` code during the workspace audit (P2 —
-remaining logic bugs, Fix-in-place), separately correct the crate's readme/doc API table, which was
-found to describe an API shape that doesn't match the real one, and separately fix a compiler
-future-incompatibility warning on `impl_easing_function`. **Carried forward from the audit triage plan —
-exact file/line citations for the 3 bugs and the specific wrong table entries are not re-verified in this
-filing pass; re-confirm against current `module/helper/animation/src/` and its readme before touching
-anything.** The future-incompatibility item, by contrast, was directly confirmed this session
+Fix logic bugs identified in `animation`'s `Sequencer`/`Tween` code during the workspace audit (P2 —
+remaining logic bugs, Fix-in-place), correct the crate's readme API-reference table (which described an
+API shape that didn't match the real one), and separately fix a compiler future-incompatibility warning
+on `impl_easing_function`. Originally filed without re-verified citations; re-audited with exact
+file:line citations and fixed in full on 2026-08-09 for the bugs and doc concerns — the macro-export
+lint concern remains deliberately deferred, unchanged from the 2026-08-08 decision recorded below.
+
+### Bugs (re-audited and fixed, 2026-08-09)
+
+Each fixed in-place with a `Fix(TASK-015)` / `Root cause` / `Pitfall` source comment, plus a dedicated
+`bug_reproducer(TASK-015)` test:
+
+1. **`[Tween<T>; N]::duration_get` / `delay_get`** (`src/interpolation.rs:415-441`) — `duration_get`
+   computed its `min_start` reduction via `.max()` seeded at `0.0` (returning the latest per-element
+   delay instead of the earliest); `delay_get` seeded its `.min()` reduction at `0.0` instead of
+   `f64::MAX` (always returning `0.0` whenever every real delay was positive). Reproducer:
+   `tests/interpolation_test.rs::test_tween_array_duration_and_delay_get`.
+2. **`Sequencer::delay_get`** (`src/sequencer.rs:269-278`) — seeded at `f64::MAX` (correct) but reduced
+   via `.max( min_delay )` instead of `.min( min_delay )`, so it always returned `f64::MAX`, collapsing
+   `progress()` to `0.0` regardless of actual elapsed time. Reproducer:
+   `tests/sequencer_test.rs::test_sequencer_delay_get_and_progress_with_delayed_tween`.
+3. **`Tween::repeat_handle`** (`src/interpolation.rs:255-278`) — both repeat branches clamped the
+   post-wrap elapsed time with `.min( 0.0 )` instead of `.max( 0.0 )`, discarding real leftover progress
+   on any repeat that didn't land on an exact duration multiple. Reproducers:
+   `tests/interpolation_test.rs::test_tween_infinite_repeat_preserves_overflow_elapsed` and
+   `::test_tween_finite_repeat_preserves_overflow_elapsed`.
+4. **`Sequence::new`'s Unsorted validation** (`src/sequencer.rs:331-371`) — `last_delay` was declared
+   immutable and never reassigned inside the validation loop, so the check always compared against
+   `0.0` instead of the previous player's delay, making it dead code for any realistic
+   (non-negative-delay) input. Reproducer:
+   `tests/sequencer_test.rs::test_sequence_new_rejects_unsorted_players`.
+
+`cargo nextest run -p animation --all-features` confirms all tests pass (29/29), including the 5 new
+reproducer tests above.
+
+### API doc table (fixed, 2026-08-09)
+
+`readme.md`'s `## API Reference § Core Components` table described `Sequencer::add()` / `get_value()`,
+neither of which exist on the real API — corrected to `insert()` / `get()` / `value_get()`, and added
+the missing `Sequence` row (the table previously covered only `Sequencer` / `Tween` / `EasingFunction`).
+
+### Macro-export lint (still deferred — no change from the 2026-08-08 decision below)
+
+Not touched this session. The fix recipe remains empirically verified and ready to re-apply at a future
+pickup — re-verify current line numbers in `src/easing/base.rs` / `src/easing/cubic/bezier.rs` first,
+since this session's separate `CubicBezier` default-iterations fix (`TASK-041`) shifted line numbers
+throughout `bezier.rs`.
+
+Two related findings from the same 2026-08-09 re-audit pass were split into their own tasks rather than
+bundled here: `TASK-041` (`CubicBezier` default-iterations bug + `CubicHermite` silent-truncation bug,
+both confined to `easing/cubic/`) and `TASK-042` (`Sequencer::value_get` duplication, dead `web-sys`
+dependency, `lib.rs` `#[allow(...)]` justification sweep) — both filed and resolved the same session.
+
+The future-incompatibility item below was directly confirmed in an earlier session
 (2026-08-09) via `cargo check -p scene_script --target wasm32-unknown-unknown --lib`, which pulls in
 `animation` as a transitive dependency:
 
@@ -81,3 +128,16 @@ separate tasks at pickup if any turns out to be larger than expected.
   needs two. Then reverted (`git diff --stat` confirmed byte-identical to HEAD) since the user asked
   only to file this for later pickup, not to apply it now. Fix recipe in Goal is empirically verified,
   not speculative.
+- **[2026-08-09]** `PARTIAL_FIX` — Re-audited with exact file:line citations (superseding the original
+  filing's "3 logic bugs... unverified/uncited" framing) and fixed the bugs + readme API-table concerns
+  in full: 4 confirmed logic-bug locations in `Sequencer`/`Tween` fixed in-place with
+  `Fix(TASK-015)`/`Root cause`/`Pitfall` source comments and 5 new `bug_reproducer(TASK-015)` tests
+  (`cargo nextest run -p animation --all-features`: 29/29 passing); `readme.md`'s Core Components table
+  corrected to the real API (`insert()`/`get()`/`value_get()`, added missing `Sequence` row). The
+  macro-export lint concern is unchanged — still deferred per the 2026-08-08 decision above, not part of
+  this session's authorized scope. Two related findings from the same re-audit pass were split into
+  their own tasks rather than bundled here: `TASK-041` and `TASK-042` (see Goal for scope) — both filed
+  and resolved the same session. Verification performed as a Tier 2 Dual-Role Self-Check (same session,
+  no independent dispatch) per `governance/maav.rulebook.md § MAAV : Verification Tier Selection`'s
+  default — not an independent PROC16-style acceptance pass. Task remains open (state unchanged)
+  pending the deferred macro-export lint concern.

@@ -36,6 +36,7 @@ Examples are organized into the following categories:
 - **minwgpu/** - wgpu examples (native rendering)
 - **math/** - Mathematical computation examples
 - **scene_script/** - Rhai scripting examples (native, no rendering)
+- **tiles_tools/** - Tile-based game-dev examples (native, no rendering)
 
 ---
 

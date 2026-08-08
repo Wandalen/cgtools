@@ -71,6 +71,17 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 |:-------------------------:|:-------------------------:|
 |[F32x2 vector arithmetic](./scene_script/f32x2_vector_arithmetic/readme.md)<br>*(No showcase — console output)* |[Pingpong animation](./scene_script/pingpong_animation/readme.md)<br>*(No showcase — console output)* |
 
+## Tiles Tools Examples
+
+| | |
+|:-------------------------:|:-------------------------:|
+|[Advanced pathfinding demo](./tiles_tools/advanced_pathfinding_demo/readme.md)<br>*(No showcase — console output)* |[Beginner tutorial](./tiles_tools/beginner_tutorial/readme.md)<br>*(No showcase — console output)* |
+|[Debug demo](./tiles_tools/debug_demo/readme.md)<br>*(No showcase — console output)* |[ECS collision demo](./tiles_tools/ecs_collision_demo/readme.md)<br>*(No showcase — console output)* |
+|[Event system demo](./tiles_tools/event_system_demo/readme.md)<br>*(No showcase — console output)* |[Field of view demo](./tiles_tools/field_of_view_demo/readme.md)<br>*(No showcase — console output)* |
+|[Game of life (tiles_tools)](./tiles_tools/game_of_life/readme.md)<br>*(No showcase — console output)* |[Game systems demo](./tiles_tools/game_systems_demo/readme.md)<br>*(No showcase — console output)* |
+|[Serialization demo](./tiles_tools/serialization_demo/readme.md)<br>*(No showcase — console output)* |[Simple collision demo](./tiles_tools/simple_collision_demo/readme.md)<br>*(No showcase — console output)* |
+|[Stealth game](./tiles_tools/stealth_game/readme.md)<br>*(No showcase — console output)* |[Tactical RPG](./tiles_tools/tactical_rpg/readme.md)<br>*(No showcase — console output)* |
+
 ## Responsibility Table
 
 | File | Responsibility |
@@ -88,3 +99,4 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 | minwgpu/ | WGPU examples directory (2 demos) |
 | readme.md | Root documentation for examples directory |
 | scene_script/ | Rhai scripting examples directory (2 demos) |
+| tiles_tools/ | tiles_tools game-dev examples directory (12 demos) |

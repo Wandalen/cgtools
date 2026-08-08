@@ -46,3 +46,15 @@
 | hello_triangle (wgpu) | yes | yes | yes | yes | | | |
 | f32x2_vector_arithmetic | no | yes | yes | no | | | |
 | pingpong_animation | no | yes | yes | no | | | |
+| advanced_pathfinding_demo | no | yes | yes | no | | | |
+| beginner_tutorial | no | yes | yes | no | | | |
+| debug_demo | no | yes | yes | no | | | |
+| ecs_collision_demo | no | yes | yes | no | | | |
+| event_system_demo | no | yes | yes | no | | | |
+| field_of_view_demo | no | yes | yes | no | | | |
+| game_of_life | no | yes | yes | no | | | |
+| game_systems_demo | no | yes | yes | no | | | |
+| serialization_demo | no | yes | yes | no | | | |
+| simple_collision_demo | no | yes | yes | no | | | |
+| stealth_game | no | yes | yes | no | | | |
+| tactical_rpg | no | yes | yes | no | | | |
