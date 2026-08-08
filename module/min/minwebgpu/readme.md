@@ -268,3 +268,16 @@ wasm-pack build --target web --out-dir pkg
 trunk serve --release
 ```
 
+## 📖 Documentation
+
+Design documentation (architecture pattern, invariants, features, known pitfalls) lives in [`docs/`](docs/entity/readme.md).
+
+## Directory Layout
+
+| Path | Responsibility |
+|------|----------------|
+| `src/` | Crate source — WebGPU context, resource, pipeline, and command-encoding wrappers |
+| `docs/` | Design documentation as typed doc entities — see [docs/entity/readme.md](docs/entity/readme.md) |
+| `changelog.md` | Release history |
+| `readme.md` | This file — user-facing entry point |
+

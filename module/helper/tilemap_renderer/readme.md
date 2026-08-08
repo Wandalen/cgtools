@@ -149,6 +149,16 @@ authoring UVs in GL convention (e.g. `examples/minwebgl/hexagonal_map`)
 needs its UVs re-authored in image convention, and the sprite shader's
 outer `1 - ...` can be removed.
 
+## Directory Layout
+
+| Path | Responsibility |
+|------|----------------|
+| `src/` | Crate source — core types/commands/assets/backend trait, feature-gated backend adapters |
+| `tests/` | Integration tests (core types, commands, assets, `Backend` trait contract) |
+| `docs/` | Design documentation as typed doc entities — see [docs/entity/readme.md](docs/entity/readme.md) |
+| `roadmap.md` | Future work and per-adapter gaps |
+| `readme.md` | This file — user-facing entry point |
+
 ## license
 
 Licensed under MIT license.

@@ -55,8 +55,8 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 │       └── shaders/        # GLSL shaders for WebGL
 ├── Cargo.toml
 ├── readme.md
-├── spec.md
-└── roadmap.md
+├── roadmap.md
+└── docs/                   # Design documentation (typed doc entities)
 ```
 
 ## remaining work

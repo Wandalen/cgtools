@@ -1526,7 +1526,8 @@ mod private
     {
       // Note: `text: true` reflects that text rendering works, but font assets
       // (`Assets.fonts`) are currently ignored — all text renders in the SVG
-      // viewer's default font. See `SvgBackend` type docs, NFR-12 in spec.md.
+      // viewer's default font. See `SvgBackend` type docs and
+      // docs/feature/001_svg_backend_adapter.md ("Known gap — font selection").
       Capabilities
       {
         paths : true,

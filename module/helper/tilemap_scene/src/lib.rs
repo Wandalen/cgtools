@@ -13,7 +13,7 @@
 
 //! Compositional declarative scene format for 2D tile-based games.
 //!
-//! Implements the format described in `spec.md` (v0.2.0). Provides
+//! Implements the format described in `docs/` (v0.2.0). Provides
 //! serde-compatible data types for describing a render spec and a scene,
 //! plus a compile layer that turns them into a stream of
 //! [`tilemap_renderer::commands::RenderCommand`]s consumable by existing
@@ -28,7 +28,7 @@
 //!   / viewport — decides what "position" means and what neighbour context
 //!   is visible to the layer.
 //!
-//! See `spec.md` for the normative specification.
+//! See `docs/entity/readme.md` for the format specification and runtime API.
 
 extern crate alloc;
 

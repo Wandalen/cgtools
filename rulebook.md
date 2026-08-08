@@ -9,27 +9,29 @@ override is recorded under the crate's own roof.
 
 ## Documentation layout
 
-**Rule:** Each crate's specification, when it has one, lives in a single
-`spec.md` file at the crate root. Requirements, architecture notes, and
-conformance checklists are co-located in that one file — **not** split across
-a per-entity `docs/feature/`, `docs/invariant/`, or `docs/api/` tree.
+**Rule:** Each crate's design documentation lives in `docs/`, organized as
+typed doc entity instances (`docs/feature/`, `docs/invariant/`, `docs/api/`,
+and other types as warranted by content) per the standard doc entity
+framework in `doc_des.rulebook.md`. Do not use a monolithic `spec.md` file
+at the crate root.
 
-Applies to all crates in the workspace. Current users of this convention:
-`tilemap_renderer`, `tilemap_scene`, `line_tools`, `tiles_tools`, `minwebgpu`,
-`minwgpu`.
+Applies to all crates in the workspace that carry design documentation.
 
 Companion files per crate:
 
-- `spec.md` — requirements, architecture, conformance checklist
+- `docs/` — requirements, architecture, and design documentation as typed
+  doc instances; present only when the crate has content that warrants it
+  (see doc_des.rulebook.md's Documentation Necessity Test)
 - `roadmap.md` — future work
-- `readme.md` — user-facing entry point, may link to `spec.md`
+- `readme.md` — user-facing entry point, may link into `docs/`
 - `rulebook.md` — crate-local lint/style rules **only when overrides are
   needed**; absent by default, since this workspace rulebook is authoritative
 
-**Rationale:** A single co-located spec is the right trade-off for crates of
-this size — splitting across many per-requirement files adds navigation cost
-without new signal. Uniformity across sibling crates keeps the repository
-predictable.
+**Rationale:** Typed doc instances keep documentation navigable by design
+dimension and cross-referenceable at instance granularity — a requirement,
+an invariant, and an API contract each evolve independently and are easier
+to keep current as separate, focused files than as sections buried inside
+one growing document.
 
 ---
 

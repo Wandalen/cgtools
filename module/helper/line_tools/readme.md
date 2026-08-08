@@ -209,3 +209,15 @@ See the runnable examples in the repository for complete applications:
 ```bash
 cargo doc --open
 ```
+
+Design documentation (features, known pitfalls) lives in [`docs/`](docs/entity/readme.md).
+
+## Directory Layout
+
+| Path | Responsibility |
+|------|----------------|
+| `src/` | Crate source — 2D/3D line implementations, caps, joins, mesh/program/uniform plumbing |
+| `tests/` | Integration tests (WebGL-backed) |
+| `docs/` | Design documentation as typed doc entities — see [docs/entity/readme.md](docs/entity/readme.md) |
+| `changelog.md` | Release history |
+| `readme.md` | This file — user-facing entry point |
