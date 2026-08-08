@@ -500,7 +500,7 @@ fn test_pathfinding_square_grid() {
 
 ### Definition of Success
 - ✅ **API Stability:** No breaking changes between minor versions
-- ✅ **Performance:** All operations under specified time limits (see spec)
+- ✅ **Performance:** All operations under specified time limits (see `docs/algorithm/` for per-algorithm complexity notes)
 - ✅ **Documentation:** 100% rustdoc coverage with working examples
 - ✅ **Testing:** >90% code coverage with integration tests
 - ✅ **Usability:** New developers productive within 2 hours

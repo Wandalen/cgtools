@@ -95,6 +95,10 @@ The crate includes a wide range of examples to demonstrate its capabilities.
 
 To run an example, use the command `cargo run --example <example_name>`. Some examples may require specifying features.
 
+## 📚 Documentation
+
+Design documentation lives in [`docs/`](docs/entity/readme.md) as typed doc entities — coordinate/component types, algorithms (A* pathfinding, field of view, hex mesh generation, coordinate conversion), the `Grid2D`/`Quadtree` data structures, the ECS `World` runtime API, the save-file persistence format, known pitfalls in the current implementation (including which pieces are stubs), and the ECS library selection decision record. See [`docs/entity/readme.md`](docs/entity/readme.md) for the full index. Planned/future work is tracked separately in [`roadmap.md`](roadmap.md).
+
 ---
 
 **Built with ❤️ for the Rust game development community**

@@ -1,12 +1,12 @@
 <!-- task_system_metadata
 type: root
 version: 1.0
-highest_id: 006
+highest_id: 007
 -->
 
 # task
 
-Task tracking for cgtools workspace.
+Task tracking for cgtools workspace. Bug reports live at `bug/` and share this ID namespace.
 
 ## Tasks Index
 

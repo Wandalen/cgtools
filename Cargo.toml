@@ -423,3 +423,11 @@ version = "0.22.1"
 
 [workspace.dependencies.ron]
 version = "0.12.1"
+
+# csgrs (see [workspace.dependencies.csgrs] above) unconditionally depends on core2 ^0.4.
+# Every published core2 version on crates.io is yanked — upstream deprecated the crate in
+# favor of using `core`/`std::io` directly, and removed Cargo.toml from HEAD entirely, so a
+# bare `git` dependency won't resolve either. This pins the last commit before deprecation,
+# which still has the real 0.4.0 manifest. Remove this patch if csgrs ever drops core2.
+[patch.crates-io]
+core2 = { git = "https://github.com/bbqsrc/core2", rev = "545e84bcb0f235b12e21351e0c69767958efe2a7" }
