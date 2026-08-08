@@ -104,7 +104,7 @@ mod private
         entry.set_visibility( entry.get_visibility() | value.visibility );
       }
 
-      let layout = web_sys::GpuBindGroupLayoutDescriptor::new( &value.entries.into() );
+      let layout = web_sys::GpuBindGroupLayoutDescriptor::new( &value.entries );
       layout
     }    
   }

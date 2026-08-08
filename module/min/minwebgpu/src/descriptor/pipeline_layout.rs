@@ -52,7 +52,9 @@ mod private
   {
     fn from( value: PipelineLayoutDescriptor< '_ > ) -> Self 
     {
-      let desc =  web_sys::GpuPipelineLayoutDescriptor::new( &value.bind_group_layouts.into() );
+      let bind_group_layouts : Vec< js_sys::JsNullable< web_sys::GpuBindGroupLayout > > =
+      value.bind_group_layouts.into_iter().map( js_sys::JsNullable::wrap ).collect();
+      let desc = web_sys::GpuPipelineLayoutDescriptor::new( &bind_group_layouts );
 
       if let Some( v ) = value.label { desc.set_label( v ); }
 

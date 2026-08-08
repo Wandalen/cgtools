@@ -63,7 +63,12 @@ mod private
       let state = web_sys::GpuVertexState::new( &value.module );
 
       if let Some( v ) = value.entry_point { state.set_entry_point( v ); }
-      if !value.buffers.is_empty() { state.set_buffers( &value.buffers.into() ); }
+      if !value.buffers.is_empty()
+      {
+        let buffers : Vec< js_sys::JsNullable< web_sys::GpuVertexBufferLayout > > =
+        value.buffers.into_iter().map( js_sys::JsNullable::wrap ).collect();
+        state.set_buffers( &buffers );
+      }
 
       state
     }   

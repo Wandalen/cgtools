@@ -1,0 +1,13 @@
+[package]
+name = "pingpong_animation"
+version = "0.1.0"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+animation = { workspace = true }
+ndarray_cg = { workspace = true }
+rhai = { workspace = true }
+scene_script = { workspace = true }

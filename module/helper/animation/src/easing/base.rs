@@ -37,35 +37,6 @@ mod private
     fn new() -> Box< T >;
   }
 
-  /// Implements the `EasingBuilder` trait for a specified easing function.
-  ///
-  /// This macro generates a new public struct that acts as a builder for
-  /// a specific easing function, allowing you to create a boxed instance
-  /// of the function.
-  #[ macro_export ]
-  macro_rules! impl_easing_function
-  {
-    ( $builder_ty:ident, $function_ty:ty, $value:expr ) =>
-    {
-      /// A builder for the `EasingFunction` of type [`$function_ty`].
-      ///
-      /// This struct provides a way to create a boxed instance of the
-      /// associated easing function.
-      #[ non_exhaustive ]
-      pub struct $builder_ty< A >( PhantomData< A > );
-
-      impl< A > EasingBuilder< $function_ty, A > for $builder_ty< A >
-      where A : Animatable
-      {
-        /// Creates a new `Box` containing an instance of the easing function.
-        fn new() -> Box< $function_ty >
-        {
-          Box::new( $value )
-        }
-      }
-    };
-  }
-
   /// A basic linear easing function.
   ///
   /// The value returned is the same as the input `t`.

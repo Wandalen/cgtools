@@ -126,6 +126,7 @@ web-sys = { workspace = true, optional = true, features = [
   'GpuRenderPipeline',
   'GpuPipelineLayout',
   'GpuPipelineLayoutDescriptor',
+  'GpuAutoLayoutMode',
   'GpuShaderModule',
   'GpuShaderModuleDescriptor',
   'GpuVertexState',

@@ -88,9 +88,9 @@ mod private
         let a_offset = a.get_offset();
         offset = offset.max( a_offset );
 
-        if value.compute_offsets 
+        if value.compute_offsets
         {
-          a.set_offset( offset );
+          a.set_offset_f64( offset );
         }
 
         let size = layout::vertex_attribute::format_to_size( a.get_format() ) as f64;
@@ -100,10 +100,10 @@ mod private
       if value.array_stride.is_none() { value.array_stride = Some( offset ); }
 
       
-      let layout = web_sys::GpuVertexBufferLayout::new
-      ( 
-        value.array_stride.unwrap(), 
-        &value.attributes.into()
+      let layout = web_sys::GpuVertexBufferLayout::new_with_f64
+      (
+        value.array_stride.unwrap(),
+        &value.attributes
       );
 
       layout.set_step_mode( value.step_mode );

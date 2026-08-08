@@ -63,7 +63,7 @@ use minwebgl::WebGlVertexArrayObject;
 use std::rc::Rc;
 use std::cell::RefCell;
 use web_sys::{ HtmlInputElement, HtmlButtonElement, FileReader, Event };
-use wfc::*;
+use wfc_algo::*;
 use wfc_image::{ generate_image, wrap::*, retry::* };
 use ndarray_cg::mat3x3h;
 
@@ -602,7 +602,7 @@ fn generate_map_wfc_image( app_state : &mut ApplicationState )
     pattern_img,
     std::num::NonZero::new( PATTERN_SIZE ).unwrap(),
     Size::try_new( SIZE as u32, SIZE as u32 ).unwrap(),
-    &wfc::orientation::ALL,
+    &wfc_algo::orientation::ALL,
     WrapXY,
     ForbidNothing,
     NumTimes( 1 )

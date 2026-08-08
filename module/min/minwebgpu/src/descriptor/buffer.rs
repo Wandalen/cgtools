@@ -86,7 +86,7 @@ mod private
   {
     fn from( value: BufferDescriptor< '_ > ) -> Self 
     {
-      let desc = web_sys::GpuBufferDescriptor::new( value.size, value.usage );
+      let desc = web_sys::GpuBufferDescriptor::new_with_f64( value.size, value.usage );
 
       if let Some( v ) = value.label { desc.set_label( v ); }
       if let Some( v ) = value.mapped_at_creation { desc.set_mapped_at_creation( v ); }

@@ -2,14 +2,10 @@ mod private
 {
   use core::marker::PhantomData;
 
-use crate::{impl_easing_function, Animatable};
+use crate::Animatable;
   use crate::easing::
   {
-    base::
-    {
-      EasingFunction,
-      EasingBuilder,
-    },
+    base::EasingFunction,
   };
 
   /// Represents a cubic Bezier curve easing function.

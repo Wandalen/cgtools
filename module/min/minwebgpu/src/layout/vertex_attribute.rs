@@ -63,10 +63,10 @@ mod private
   impl From< VertexAttribute > for web_sys::GpuVertexAttribute 
   {
     fn from( value: VertexAttribute ) -> Self {
-      let attribute = web_sys::GpuVertexAttribute::new
+      let attribute = web_sys::GpuVertexAttribute::new_with_f64
       (
-        value.format, 
-        value.offset, 
+        value.format,
+        value.offset,
         value.location
       );
 

@@ -1,0 +1,12 @@
+[package]
+name = "f32x2_vector_arithmetic"
+version = "0.1.0"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+ndarray_cg = { workspace = true }
+rhai = { workspace = true }
+scene_script = { workspace = true }

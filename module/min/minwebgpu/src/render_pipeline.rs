@@ -34,7 +34,6 @@ mod private
     let pipeline = JsFuture::from( device.create_render_pipeline_async( descriptor ) ).await
     .map_err( | e | DeviceError::FailedToCreateRenderPipeline( format!( "{:?}", e ) ))?;
 
-    let pipeline = web_sys::GpuRenderPipeline::from( pipeline );
     Ok( pipeline )
   }
 }

@@ -87,11 +87,13 @@ mod private
   impl From< RenderPassDescriptor< '_ > > for web_sys::GpuRenderPassDescriptor {
     fn from( value: RenderPassDescriptor< '_ > ) -> Self 
     {
-      let desc = web_sys::GpuRenderPassDescriptor::new( &value.color_attachments.into() );
+      let color_attachments : Vec< js_sys::JsNullable< web_sys::GpuRenderPassColorAttachment > > =
+      value.color_attachments.into_iter().map( js_sys::JsNullable::wrap ).collect();
+      let desc = web_sys::GpuRenderPassDescriptor::new( &color_attachments );
 
       if let Some( v ) = value.depth_stencil_attachment { desc.set_depth_stencil_attachment( &v ); }
       if let Some( v ) = value.label { desc.set_label( v ); }
-      if let Some( v ) = value.max_draw_count { desc.set_max_draw_count( v ); }
+      if let Some( v ) = value.max_draw_count { desc.set_max_draw_count_f64( v ); }
 
       desc
     }

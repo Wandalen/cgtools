@@ -1,0 +1,25 @@
+[package]
+name = "gpu_hal"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+rust-version = "1.81.0"
+repository = "https://github.com/Wandalen/cgtools"
+description = "GPU hardware abstraction layer over the min* drivers (reserved)"
+readme = "readme.md"
+keywords = ["gpu", "hal", "webgl", "webgpu", "wasm"]
+
+[lints]
+workspace = true
+
+[features]
+enabled = [
+  "dep:mod_interface",
+]
+default = [ "enabled" ]
+full = [ "default" ]
+
+[dependencies]
+
+mod_interface = { workspace = true, optional = true }

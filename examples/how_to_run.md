@@ -12,6 +12,7 @@ This guide provides comprehensive instructions for setting up your environment a
   - [WebGL and WebGPU Examples (minwebgl / minwebgpu)](#webgl-and-webgpu-examples-minwebgl--minwebgpu)
   - [WGPU Examples (minwgpu)](#wgpu-examples-minwgpu)
   - [Math Examples](#math-examples)
+  - [Scripting Examples (scene_script)](#scripting-examples-scene_script)
 - [Development Workflow](#development-workflow)
 - [Troubleshooting](#troubleshooting)
 - [Testing](#testing)
@@ -131,6 +132,21 @@ Mathematical computation examples that run natively:
 cd examples/math/life
 
 # Run the example
+cargo run --release
+```
+
+### Scripting Examples (scene_script)
+
+Rhai scene-scripting examples that run natively and print to the console:
+
+```bash
+# Declarative pattern: a script builds an F32x2 from vector arithmetic
+cd examples/scene_script/f32x2_vector_arithmetic
+cargo run --release
+
+# Imperative pattern: a script drives a ball/paddle simulation via
+# callbacks, then the host tweens between two recorded frames
+cd examples/scene_script/pingpong_animation
 cargo run --release
 ```
 

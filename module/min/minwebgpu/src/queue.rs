@@ -6,7 +6,7 @@ mod private
   /// Submits a command buffer to the WebGPU queue.
   pub fn submit( queue : &web_sys::GpuQueue, buffer : web_sys::GpuCommandBuffer )
   {
-    queue.submit( &Vec::from( [ buffer ] ).into() );
+    queue.submit( &[ buffer ] );
   }
 
   /// Writes data to a WebGPU buffer.

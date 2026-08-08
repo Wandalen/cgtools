@@ -7,7 +7,7 @@
 | `algorithm/` | Deterministic computational procedures: animation phase resolution, scene rendering pass | [algorithm/readme.md](../algorithm/readme.md) | 2 |
 | `api/` | Public runtime operations a game uses to drive a loaded scene and render it | [api/readme.md](../api/readme.md) | 1 |
 | `format/` | RON/serde schema constructs: data model, encoding, version-compatibility contracts | [format/readme.md](../format/readme.md) | 8 |
-| `invariant/` | Correctness properties that must always hold, and their enforcement mechanisms | [invariant/readme.md](../invariant/readme.md) | 2 |
+| `invariant/` | Correctness properties that must always hold, and their enforcement mechanisms | [invariant/readme.md](../invariant/readme.md) | 4 |
 | `pitfall/` | Known traps in load-time validation, their failure modes, and mitigations | [pitfall/readme.md](../pitfall/readme.md) | 1 |
 
 ## Master Doc Instances Table
@@ -27,4 +27,6 @@
 | format | 008 | Top-Level File Structure | [format/008_top_level_file_structure.md](../format/008_top_level_file_structure.md) |
 | invariant | 001 | RenderSpec Referential Integrity | [invariant/001_renderspec_referential_integrity.md](../invariant/001_renderspec_referential_integrity.md) |
 | invariant | 002 | Edge and Vertex Canonical Uniqueness | [invariant/002_edge_and_vertex_canonical_uniqueness.md](../invariant/002_edge_and_vertex_canonical_uniqueness.md) |
+| invariant | 003 | Compiles to Renderer Commands Only | [invariant/003_compiles_to_renderer_commands_only.md](../invariant/003_compiles_to_renderer_commands_only.md) |
+| invariant | 004 | Deterministic Compilation | [invariant/004_deterministic_compilation.md](../invariant/004_deterministic_compilation.md) |
 | pitfall | 001 | Load-Time Validation Is Only Partially Enforced | [pitfall/001_load_time_validation_partially_enforced.md](../pitfall/001_load_time_validation_partially_enforced.md) |

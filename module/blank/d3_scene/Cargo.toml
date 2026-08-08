@@ -1,0 +1,25 @@
+[package]
+name = "d3_scene"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+rust-version = "1.81.0"
+repository = "https://github.com/Wandalen/cgtools"
+description = "Scene-as-script for the d3 rendering stack (reserved)"
+readme = "readme.md"
+keywords = ["3d", "scene", "wasm", "cg"]
+
+[lints]
+workspace = true
+
+[features]
+enabled = [
+  "dep:mod_interface",
+]
+default = [ "enabled" ]
+full = [ "default" ]
+
+[dependencies]
+
+mod_interface = { workspace = true, optional = true }

@@ -4,7 +4,7 @@
 
 - **Purpose**: Navigational hub for `tilemap_scene`'s correctness properties that must always hold.
 - **Responsibility**: Document each invariant's precise statement, enforcement mechanism, and violation consequences.
-- **In Scope**: `RenderSpec` referential integrity, edge/vertex canonical uniqueness.
+- **In Scope**: `RenderSpec` referential integrity, edge/vertex canonical uniqueness, compilation target purity, deterministic compilation.
 - **Out of Scope**: The schema fields the invariants constrain (see `format/`); the consumer-facing trap created where enforcement is incomplete (see `pitfall/`).
 
 ### Overview Table
@@ -13,5 +13,7 @@
 |----|------|---------|--------|
 | 001 | [RenderSpec Referential Integrity](001_renderspec_referential_integrity.md) | Every id reference resolves; enforced-vs-declared-only breakdown | ⚠️ |
 | 002 | [Edge and Vertex Canonical Uniqueness](002_edge_and_vertex_canonical_uniqueness.md) | Each physical edge/vertex has exactly one canonical encoding | ✅ |
+| 003 | [Compiles to Renderer Commands Only](003_compiles_to_renderer_commands_only.md) | Output is purely the `tilemap_renderer` command stream — no GPU or platform code | ✅ |
+| 004 | [Deterministic Compilation](004_deterministic_compilation.md) | Same `(spec, scene, time, seed)` yields the identical command stream every run | ✅ |
 
 Status ⚠️ marks an invariant whose enforcement is partial — see the file's own Enforcement Mechanism section.

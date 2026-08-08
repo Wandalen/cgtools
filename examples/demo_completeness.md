@@ -44,3 +44,5 @@
 | hello_triangle (webgpu) | yes | yes | yes | yes | | | |
 | grid_render | yes | yes | yes | yes | | | |
 | hello_triangle (wgpu) | yes | yes | yes | yes | | | |
+| f32x2_vector_arithmetic | no | yes | yes | no | | | |
+| pingpong_animation | no | yes | yes | no | | | |

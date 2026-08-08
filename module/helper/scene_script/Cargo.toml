@@ -14,7 +14,6 @@ categories = ["game-development", "wasm"]
 include = [
   "src/**/*",
   "tests/**/*",
-  "examples/**/*",
   "Cargo.toml",
   "readme.md",
   "license*",

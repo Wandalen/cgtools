@@ -186,6 +186,14 @@ When implementing the `Material` trait for custom materials:
 - Efficient memory management for large scenes
 - WebAssembly-optimized rendering paths
 
+## 📐 Design Documentation
+
+Typed design docs live in [`docs/`](docs/definition/readme.md): the crate's
+invariants (GPU-resolved visibility with OIT, PBR metallic-roughness
+baseline, HDR-internal pipeline), confirmed pitfalls
+(`EXT_color_buffer_float` is required but never enabled by the crate), and
+feature hubs for the PBR core, image-based lighting, and shadow mapping.
+
 ## 📚 References & Research
 
 #### PBR

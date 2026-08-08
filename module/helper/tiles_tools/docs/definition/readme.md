@@ -8,7 +8,7 @@
 | `api/` | Public runtime operation surfaces: the ECS `World` | [api/readme.md](../api/readme.md) | 1 |
 | `architectural_evaluation/` | Structured multi-alternative architectural decisions: ECS library selection | [architectural_evaluation/readme.md](../architectural_evaluation/readme.md) | 1 |
 | `data_structure/` | Core storage containers: `Grid2D`, `Quadtree` | [data_structure/readme.md](../data_structure/readme.md) | 2 |
-| `invariant/` | Correctness properties that must always hold: triangular coordinate sum constraint | [invariant/readme.md](../invariant/readme.md) | 1 |
+| `invariant/` | Correctness properties that must always hold: triangular coordinate sum constraint, lattice address primacy | [invariant/readme.md](../invariant/readme.md) | 2 |
 | `persistence/` | On-disk save-file formats: storage model, data layout, durability | [persistence/readme.md](../persistence/readme.md) | 1 |
 | `pitfall/` | Known traps in the current implementation, their failure modes, and mitigations | [pitfall/readme.md](../pitfall/readme.md) | 4 |
 | `type/` | Core generic type contracts: coordinate system model, ECS component vocabulary | [type/readme.md](../type/readme.md) | 2 |
@@ -27,6 +27,7 @@
 | data_structure | 001 | Grid2D Dense Hex-Bounded Storage | [data_structure/001_grid2d_dense_hex_bounded_storage.md](../data_structure/001_grid2d_dense_hex_bounded_storage.md) |
 | data_structure | 002 | Spatial Quadtree | [data_structure/002_spatial_quadtree.md](../data_structure/002_spatial_quadtree.md) |
 | invariant | 001 | Triangular Coordinate Sum Constraint | [invariant/001_triangular_coordinate_sum_constraint.md](../invariant/001_triangular_coordinate_sum_constraint.md) |
+| invariant | 002 | Lattice Address Primacy | [invariant/002_lattice_address_primacy.md](../invariant/002_lattice_address_primacy.md) |
 | persistence | 001 | Save File Model | [persistence/001_save_file_model.md](../persistence/001_save_file_model.md) |
 | pitfall | 001 | Flow Field Algorithm Unimplemented | [pitfall/001_flow_field_algorithm_unimplemented.md](../pitfall/001_flow_field_algorithm_unimplemented.md) |
 | pitfall | 002 | ECS Movement Requests Are a No-Op | [pitfall/002_ecs_movement_requests_are_a_no_op.md](../pitfall/002_ecs_movement_requests_are_a_no_op.md) |

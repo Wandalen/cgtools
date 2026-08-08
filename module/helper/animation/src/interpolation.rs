@@ -394,12 +394,20 @@ mod private
       for tween in self.iter_mut() { tween.reset(); }
     }
 
+    // Fix(TASK-015): duration_get computed min_start via .max() (seeded 0.0), returning the
+    // latest delay instead of the earliest, and delay_get seeded its .min() reduction at 0.0
+    // instead of f64::MAX, so it always returned 0.0 whenever every real delay was positive.
+    // Root cause: min-reduction pattern copy-pasted from a max-reduction without adjusting the
+    // seed value or comparison direction.
+    // Pitfall: a min-reduction seeded at a real domain value like 0.0 silently returns that seed
+    // whenever every element is >= it, so arrays containing a zero-delay tween mask the bug —
+    // it only surfaces once every element is strictly positive.
     fn duration_get( &self ) -> f64
     {
-      let mut min_start = 0.0;
+      let mut min_start = f64::MAX;
       for tween in self
       {
-        min_start = tween.delay.max( min_start );
+        min_start = tween.delay.min( min_start );
       }
 
       let mut max_end = 0.0;
@@ -413,7 +421,7 @@ mod private
 
     fn delay_get( &self ) -> f64
     {
-      let mut min_delay = 0.0;
+      let mut min_delay = f64::MAX;
       for tween in self
       {
         min_delay = tween.delay.min( min_delay );

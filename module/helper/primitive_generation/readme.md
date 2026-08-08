@@ -59,7 +59,9 @@ let attributes = AttributesData {
 };
 
 let primitive = PrimitiveData {
-  attributes: Rc::new(RefCell::new(attributes)),
+  name: None,
+  parent: None,
+  attributes: Some(Rc::new(RefCell::new(attributes))),
   color: F32x4::from_array([1.0, 0.0, 0.0, 1.0]),
   transform: Transform::default(),
 };

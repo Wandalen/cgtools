@@ -44,7 +44,10 @@ mod private
   {
     fn from( value: BindGroupEntry ) -> Self 
     {
-      let entry = web_sys::GpuBindGroupEntry::new( value.binding, &value.resource );
+      // `resource` is a dynamically-typed GPU resource (buffer, texture view, or sampler);
+      // web-sys only generates a `&GpuSampler`-typed `new()`, so reinterpret the JsValue -
+      // the actual JS object passed to WebGPU is unaffected by this Rust-side static type.
+      let entry = web_sys::GpuBindGroupEntry::new( value.binding, value.resource.unchecked_ref() );
       entry
     }   
   }

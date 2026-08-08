@@ -152,10 +152,11 @@ mod private
   {
     fn from( value: TextureDescriptor< '_ > ) -> Self 
     {
+      let size : Vec< js_sys::Number > = value.size.into_iter().map( js_sys::Number::from ).collect();
       let desc = web_sys::GpuTextureDescriptor::new
       (
-        value.format, 
-        &Vec::from( value.size ).into(), 
+        value.format,
+        &size,
         value.usage
       );
 
@@ -166,8 +167,10 @@ mod private
 
       if value.view_formats.len() > 0
       {
-        let view_formats : Vec< u32 > = value.view_formats.into_iter().map( | f | f as u32 ).collect();
-        desc.set_view_formats( &view_formats.into() );
+        let view_formats : Vec< js_sys::JsString > = value.view_formats.into_iter()
+        .map( | f | wasm_bindgen::JsValue::from( f ).unchecked_into() )
+        .collect();
+        desc.set_view_formats( &view_formats );
       }
 
       desc

@@ -50,8 +50,8 @@ mod private
     fn from( value: &BufferBinding< '_ > ) -> Self {
       let binding = web_sys::GpuBufferBinding::new( value.buffer );
 
-      if let Some( v ) = value.size { binding.set_size( v ); }
-      if let Some( v ) = value.offset { binding.set_offset( v ); }
+      if let Some( v ) = value.size { binding.set_size_f64( v ); }
+      if let Some( v ) = value.offset { binding.set_offset_f64( v ); }
 
       binding
     }

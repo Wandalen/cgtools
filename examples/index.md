@@ -20,6 +20,7 @@ Interactive WebGL/WebGPU examples demonstrating CGTools capabilities.
     - [Optimization](#optimization)
   - [WebGPU Examples](#webgpu-examples)
   - [WGPU Examples](#wgpu-examples)
+  - [Scripting Examples](#scripting-examples)
   - [Development](#development)
   - [Structure](#structure)
   - [Troubleshooting](#troubleshooting)
@@ -137,3 +138,10 @@ Example | Description
 --- | ---
 [Grid Renderer](./minwgpu/grid_render/readme.md) | Grid rendering using WGPU
 [Hello Triangle](./minwgpu/hello_triangle/readme.md) | Basic WGPU triangle rendering
+
+## Scripting Examples
+
+Example | Description
+--- | ---
+[F32x2 Vector Arithmetic](./scene_script/f32x2_vector_arithmetic/readme.md) | Rhai script building an F32x2 value from vector arithmetic
+[Pingpong Animation](./scene_script/pingpong_animation/readme.md) | Rhai-driven ball/paddle simulation tweened with animation::Tween

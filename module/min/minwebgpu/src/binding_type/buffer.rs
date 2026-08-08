@@ -82,7 +82,7 @@ mod private
 
       if let Some( v ) = value.b_type { layout.set_type( v ); }
       if let Some( v ) = value.has_dynamic_offset { layout.set_has_dynamic_offset( v ); }
-      if let Some( v ) = value.min_binding_size { layout.set_min_binding_size( v ); }
+      if let Some( v ) = value.min_binding_size { layout.set_min_binding_size_f64( v ); }
 
       layout
     }

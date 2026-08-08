@@ -9,6 +9,9 @@ members = [
   # Blank modules
   "module/blank/cg_tools",
   "module/blank/cgtools",
+  "module/blank/d3_scene",
+  "module/blank/frame_graph",
+  "module/blank/gpu_hal",
   "module/blank/mdmath",
   "module/blank/mdmath_ai",
   "module/blank/mdmath_cg",
@@ -49,6 +52,8 @@ members = [
   "examples/minwebgpu/*",
   "examples/minwgpu/*",
   "examples/math/*",
+  "examples/scene_script/*",
+  "examples/tiles_tools/*",
 ]
 
 # Source :: https://github.com/obox-systems/conventions/blob/master/code_style.md#lints-and-warnings

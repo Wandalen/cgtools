@@ -2,6 +2,11 @@
 //!
 //! This example only works on WebAssembly (wasm32) targets where WebGPU APIs are available.
 
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_sign_loss)]
+
 #[cfg(target_arch = "wasm32")]
 use light::{LightState, LightVisualizationState, NUM_LIGHTS};
 
@@ -24,7 +29,6 @@ mod light;
 mod model;
 
 #[cfg(target_arch = "wasm32")]
-
 fn create_textures
 (
   device : &gl::web_sys::GpuDevice,
@@ -47,9 +51,9 @@ fn create_textures
   .format( gl::GpuTextureFormat::Rgba16float )
   .to_web();
 
-  let position_tex = gl::texture::create( &device, &vector_tex_desc )?;
-  let albedo_tex = gl::texture::create( &device, &color_tex_desc )?;
-  let normal_tex = gl::texture::create( &device, &vector_tex_desc )?;
+  let position_tex = gl::texture::create( device, &vector_tex_desc )?;
+  let albedo_tex = gl::texture::create( device, &color_tex_desc )?;
+  let normal_tex = gl::texture::create( device, &vector_tex_desc )?;
 
   Ok( [ position_tex, albedo_tex, normal_tex ] )
 }
@@ -57,7 +61,7 @@ fn create_textures
 #[cfg(target_arch = "wasm32")]
 async fn run() -> Result< (), gl::WebGPUError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::retrieve_or_make()?;
   //let canvas = gl::canvas::make()?;
   let context = gl::context::from_canvas( &canvas )?;
@@ -281,7 +285,7 @@ async fn run() -> Result< (), gl::WebGPUError >
         projection_matrix,
         camera_pos : eye,
         time : t,
-        elapsed_time : elapsed_time
+        elapsed_time
       };
 
       uniform_state.update( &queue ).unwrap();

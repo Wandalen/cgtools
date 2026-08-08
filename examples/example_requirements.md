@@ -35,6 +35,7 @@ Examples are organized into the following categories:
 - **minwebgpu/** - WebGPU examples (browser-based)
 - **minwgpu/** - wgpu examples (native rendering)
 - **math/** - Mathematical computation examples
+- **scene_script/** - Rhai scripting examples (native, no rendering)
 
 ---
 

@@ -106,10 +106,14 @@ mod private
   {
     fn from( value: ColorAttachment< '_ > ) -> Self 
     {
-      let a =  web_sys::GpuRenderPassColorAttachment::new( value.load_op, value.store_op, value.view);
+      let a = web_sys::GpuRenderPassColorAttachment::new_with_gpu_texture_view( value.load_op, value.store_op, value.view );
 
-      if let Some( v ) = value.clear_value { a.set_clear_value( &Vec::from( v ).into() ); }
-      if let Some( v ) = value.resolve_target { a.set_resolve_target( &v ); }
+      if let Some( v ) = value.clear_value
+      {
+        let clear_value : Vec< js_sys::Number > = v.into_iter().map( js_sys::Number::from ).collect();
+        a.set_clear_value( &clear_value );
+      }
+      if let Some( v ) = value.resolve_target { a.set_resolve_target_gpu_texture_view( v ); }
       if let Some( v ) = value.depth_slice { a.set_depth_slice( v ); }
 
       a
