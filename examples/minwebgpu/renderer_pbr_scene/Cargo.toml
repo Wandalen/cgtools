@@ -1,0 +1,20 @@
+[package]
+name = "minwebgpu_renderer_pbr_scene"
+version = "0.1.0"
+edition = "2021"
+authors = [
+  "Kostiantyn Mysnyk <wandalen@obox.systems>"
+]
+license = "MIT"
+
+[lints]
+workspace = true
+
+# The canonical path is wasm32-only; native builds get a stub main.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+renderer = { workspace = true, features = [ "webgpu" ] }
+gpu_hal = { workspace = true, features = [ "webgpu", "webgl" ] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.minwebgpu]
+workspace = true
+features = [ 'future', 'math' ]

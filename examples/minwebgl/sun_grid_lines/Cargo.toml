@@ -6,3 +6,10 @@ license = "MIT"
 
 [dependencies]
 minwebgl = { workspace = true }
+renderer = { workspace = true }
+
+[dependencies.web-sys]
+features = [
+  "KeyboardEvent",
+]
+workspace = true

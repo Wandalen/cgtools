@@ -132,6 +132,7 @@ Example | Description
 --- | ---
 [Deferred Rendering](./minwebgpu/deffered_rendering/readme.md) | Deferred rendering pipeline using WebGPU
 [Hello Triangle](./minwebgpu/hello_triangle/readme.md) | Basic WebGPU triangle rendering
+[Sun Grid Lines](./minwebgpu/sun_grid_lines/readme.md) | Procedural sci-fi HUD solar-system diagram, ported to WebGPU/WGSL
 
 ## WGPU Examples
 
@@ -139,6 +140,8 @@ Example | Description
 --- | ---
 [Grid Renderer](./minwgpu/grid_render/readme.md) | Grid rendering using WGPU
 [Hello Triangle](./minwgpu/hello_triangle/readme.md) | Basic WGPU triangle rendering
+[Sun Grid Lines](./minwgpu/sun_grid_lines/readme.md) | Procedural sci-fi HUD solar-system diagram, rendered offscreen with native wgpu
+[Sun Grid Lines (Vulkan)](./minwgpu/sun_grid_lines_vulkan/readme.md) | Same offscreen render, backend pinned explicitly to Vulkan
 
 ## Scripting Examples
 

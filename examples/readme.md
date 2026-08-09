@@ -58,12 +58,14 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 | | |
 |:-------------------------:|:-------------------------:|
 |<img width="500px" src="./minwebgpu/deffered_rendering/showcase.webp"><br>[Deffered rendering](./minwebgpu/deffered_rendering/readme.md) |<img width="500px" src="./minwebgpu/hello_triangle/showcase.webp"><br>[Hello triangle](./minwebgpu/hello_triangle/readme.md) |
+|[Sun grid lines](./minwebgpu/sun_grid_lines/readme.md)<br>*(No showcase — see readme for why)* | |
 
 ## WGPU Examples
 
 | | |
 |:-------------------------:|:-------------------------:|
 |<img width="500px" src="./minwgpu/grid_render/showcase.webp"><br>[Grid renderer](./minwgpu/grid_render/readme.md) |<img width="500px" src="./minwgpu/hello_triangle/showcase.webp"><br>[Hello triangle](./minwgpu/hello_triangle/readme.md) |
+|<img width="500px" src="./minwgpu/sun_grid_lines/showcase.webp"><br>[Sun grid lines](./minwgpu/sun_grid_lines/readme.md) |<img width="500px" src="./minwgpu/sun_grid_lines_vulkan/showcase.webp"><br>[Sun grid lines (Vulkan)](./minwgpu/sun_grid_lines_vulkan/readme.md) |
 
 ## Scripting Examples
 
@@ -95,8 +97,8 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 | index.md | Markdown-formatted examples list |
 | math/ | Math-based examples directory (1 demo) |
 | minwebgl/ | WebGL examples directory (45 demos) |
-| minwebgpu/ | WebGPU examples directory (2 demos) |
-| minwgpu/ | WGPU examples directory (2 demos) |
+| minwebgpu/ | WebGPU examples directory (3 demos) |
+| minwgpu/ | WGPU examples directory (4 demos) |
 | readme.md | Root documentation for examples directory |
 | scene_script/ | Rhai scripting examples directory (2 demos) |
 | tiles_tools/ | tiles_tools game-dev examples directory (12 demos) |

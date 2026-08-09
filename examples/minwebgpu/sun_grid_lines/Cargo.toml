@@ -1,0 +1,29 @@
+[package]
+name = "minwebgpu_sun_grid_lines"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lints]
+workspace = true
+
+# Only include WebGPU and related dependencies for wasm32 targets
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+bytemuck = { workspace = true, features = [ "derive" ] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.minwebgpu]
+workspace = true
+features = [
+  'future'
+]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+workspace = true
+features = [
+  "KeyboardEvent",
+  "Window",
+]
+
+# Stub dependency for other targets to allow compilation
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# No minwebgpu dependency for native targets
