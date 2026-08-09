@@ -36,7 +36,7 @@
 //! - System-based game state updates
 //! - Cross-coordinate system compatibility
 //!
-//! Run with: `cargo run --example game_of_life --features enabled`
+//! Run with: `cd examples/tiles_tools/game_of_life && cargo run --release`
 
 use tiles_tools::{
   ecs::{World, Position},

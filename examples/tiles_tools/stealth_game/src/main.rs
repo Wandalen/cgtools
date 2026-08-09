@@ -38,7 +38,7 @@
 //! - Multi-layered security with overlapping vision cones
 //! - Noise propagation and detection systems
 //!
-//! Run with: `cargo run --example stealth_game --features enabled`
+//! Run with: `cd examples/tiles_tools/stealth_game && cargo run --release`
 
 #![allow(dead_code ) ]
 

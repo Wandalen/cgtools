@@ -30,7 +30,7 @@ default = []
 mod_interface = { workspace = true }
 ndarray_cg = { workspace = true }
 animation = { workspace = true }
-rhai = { workspace = true }
+rhai = { workspace = true, features = ["internals"] }
 
 # `rhai` pulls in `getrandom` v0.3 (via `ahash`); on wasm32 that version needs
 # its own `wasm_js` feature in addition to the workspace's `--cfg

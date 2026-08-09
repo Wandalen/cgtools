@@ -41,7 +41,7 @@
 //! - Experience and leveling system
 //! - Equipment and inventory management
 //!
-//! Run with: `cargo run --example tactical_rpg --features enabled`
+//! Run with: `cd examples/tiles_tools/tactical_rpg && cargo run --release`
 
 use tiles_tools::{
   ecs::{World, Position, Health, Stats, Team, AI, Movable, Size},

@@ -18,4 +18,7 @@ mod private
 
   /// Pre-configured `rhai::Engine` builder.
   layer engine;
+
+  /// Enforces the top-level-bindings / imperative-in-`main` convention.
+  layer top_level_lint;
 }

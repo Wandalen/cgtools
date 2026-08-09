@@ -38,9 +38,14 @@ Embed a scripting language and curate its surface:
 - **Live iteration**: scripts reload without recompiling the host — the
   authoring loop this pattern exists for.
 - **Determinism by discipline** (the cost): nothing structural stops a
-  script from time-dependent or order-dependent behavior. L5's
-  "same script → same frames" contract must be kept by the author and can
-  only be spot-checked, never proven, from outside.
+  script from time-dependent or order-dependent behavior —
+  `top_level_lint` checks *where* imperative code may live (inside
+  `main()`, never at top level), not *whether* it behaves deterministically,
+  pinned only for shape by
+  [`scene_script` invariant/001](../../module/helper/scene_script/docs/invariant/001_top_level_bindings_convention.md),
+  never for full determinism. L5's "same script → same frames" contract
+  must still be kept by the author and can only be spot-checked, never
+  proven, from outside.
 - **Scripts are opaque to tools**: not validatable without execution, not
   diffable as structured data — a script diff is a code diff.
 - **Every binding is an API commitment**: the exposed surface must be
@@ -73,3 +78,4 @@ retrofit.
 | `module/helper/scene_script/src/engine.rs` | Interpreter assembly (`build_engine()`) |
 | `module/helper/scene_script/src/tween_binding.rs` | Binding slice: animation tweens |
 | `module/helper/scene_script/src/vector_binding.rs` | Binding slice: vector math |
+| `module/helper/scene_script/src/top_level_lint.rs` | Structural check: imperative code confined to `main()` |

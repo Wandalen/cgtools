@@ -27,7 +27,7 @@ runners that execute them interactively or off-screen. This layer is where
 | Crate | Stack | Role |
 |-------|-------|------|
 | `tilemap_scene` | tile | Script-as-data: RON scenes compiled deterministically to `tilemap_renderer` commands; headless snapshot tests are the CI proof ([invariant/003](../../module/helper/tilemap_scene/docs/invariant/003_compiles_to_renderer_commands_only.md), [invariant/004](../../module/helper/tilemap_scene/docs/invariant/004_deterministic_compilation.md)) |
-| `scene_script` | d2 | Script-as-glue: Rhai bindings (`vector_binding`, `tween_binding`, `build_engine()`) exposing math + tween vocabulary to embedded scripts |
+| `scene_script` | d2 | Script-as-glue: Rhai bindings (`vector_binding`, `tween_binding`, `build_engine()`) exposing math + tween vocabulary to embedded scripts; top-level script shape (bindings only, imperative code confined to `main()`) is checked by `top_level_lint` |
 | `d3_scene` | d3 | Reserved (`module/blank/d3_scene/`) — no d3 script layer exists yet |
 
 The two existing occupants embody the layer's two script forms, each a
@@ -65,4 +65,5 @@ recommendation.
 |------|--------------|
 | `module/blank/d3_scene/` | Reserved d3 script-layer slot |
 | `module/helper/scene_script/src/engine.rs` | Rhai engine assembly (`build_engine()`) |
+| `module/helper/scene_script/src/top_level_lint.rs` | Structural check that imperative code lives inside `main()`, not a proof of the temporal/order determinism the Contract section above requires |
 | `module/helper/tilemap_scene/src/compile/frame.rs` | Deterministic scene→commands compilation |
