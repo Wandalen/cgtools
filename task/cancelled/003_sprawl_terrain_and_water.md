@@ -8,7 +8,7 @@
 - **started_at:** null
 - **expires_at:** null
 - **round:** 1
-- **state:** 🎯 (Verified)
+- **state:** 🚫 (Cancelled)
 - **closes:** null
 - **unit_type:** workspace
 - **unit:** lib/yrd_gamedev/cgtools
@@ -145,3 +145,4 @@ Desired answer for every question is YES.
 
 - **[2026-08-08 12:55:06]** `FILED` — Filed by splitting task 001 (`task/cancelled/001_sprawl_procedural_city_dashboard.md`) per `Q-01` in `task/decisions.md`, Option A (`tsk.rulebook.md § Core Procedures : Procedure - Decompose by Crate`, adapted from crate-boundary to milestone-boundary partitioning). Covers Development Milestone 2 only. Goal: real terrain/water generation and rendering wired into the wasm_bridge scaffold from task 002.
 - **[2026-08-08 12:55:06]** `VERIFY_PASS` — Readiness Verification Gate (Tier 2 Dual-Role Self-Check) run: all 8 dimensions PASS on first pass, no issues found. State → 🎯 Verified; file moved to `task/verified/`.
+- **[2026-08-09]** `CANCELLED` — Reason: Filer (i4@wbox.pro) cancelled the entire SPRAWL initiative (parent task 001 and this milestone split, `Q-01` in `task/decisions.md`) as exploratory/idea-stage work, not committed for implementation.

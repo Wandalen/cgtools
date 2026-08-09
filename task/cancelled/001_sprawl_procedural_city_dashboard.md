@@ -8,7 +8,7 @@
 - **started_at:** null
 - **expires_at:** null
 - **round:** 1
-- **state:** ❓ (Unverified)
+- **state:** 🚫 (Cancelled)
 - **closes:** null
 - **unit_type:** workspace
 - **unit:** lib/yrd_gamedev/cgtools
@@ -416,3 +416,4 @@ Readiness Verification Gate (`tsk.rulebook.md § Task File : Readiness Verificat
 
 - **[2026-08-08 12:40:02]** `FILED` — Backfilled: original filing date not recorded (task predates `## History` section adoption; git log unavailable this session per user instruction — see `governance/maav.rulebook.md`-adjacent session constraint). Task retroactively attributed to i4@wbox.pro based on repository authorship context. Goal (as originally filed): implement the SPRAWL procedural city generation dashboard.
 - **[2026-08-08 12:40:03]** `NOTE` — Normalized into canonical `tsk.rulebook.md` structure: added `## Execution State`, `## Goal`, `## In Scope`, `## Out of Scope`, `## Delivery Requirements`, `## Test Matrix`, `## Verification`, `## Verification Findings`, `## History`; corrected `## Requirements` rulebook-discovery citation from non-canonical `prompt .rulebooks.relevant` to `kbase .rulebooks`; moved from `task/` root to `task/unverified/`. Pre-existing content (`## Description`, `## Reuse Analysis`, `## Technical Specification`, `## Development Milestones`, `## Acceptance Criteria`) preserved verbatim in place. Readiness Verification Gate run: D2 (MOST Goal Quality — Scoped) FAILs on 5-milestone bundling; task left at ❓ Unverified pending `Q-01` (`task/decisions.md`).
+- **[2026-08-09]** `CANCELLED` — Reason: Filer (i4@wbox.pro) cancelled the entire SPRAWL initiative as exploratory/idea-stage work, not committed for implementation — decided before `Q-01`'s ENDORSE step ever fired (see `task/decisions.md` Q-01, now ➖ Cancelled). Supersedes the open D2 (Scoped) failure recorded in `## Verification Findings` above; no split/narrow/plan-extract path will be pursued. Milestone tasks 002-006 (split per `Q-01` Option A) cancelled in the same action.

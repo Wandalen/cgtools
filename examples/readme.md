@@ -15,6 +15,9 @@ Run example:
 cd minwebgl/hexagonal_grid
 trunk serve --release
 # Open http://localhost:8080
+
+# Or, from any directory, by partial unique match against the example/binary path:
+action/run hexagonal_grid
 ```
 
 More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)

@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+#@ purpose: Build and run any example or binary crate by partial, case-insensitive match against its path.
+#@ output:  Unique match: builds and launches it — `trunk serve --release` for browser examples
+#@          (crate has an index.html), `cargo run --release --all-features` for everything else.
+#@          No match or ambiguous match: lists candidates instead of guessing.
+#@ param:   <query>   partial match against the crate's path relative to repo root
+#@                    e.g. `sun_grid` matches `examples/minwgpu/sun_grid_lines`
+#@ param:   list      print every discoverable example/binary path instead of running anything
+set -euo pipefail
+
+if [[ "${1:-}" == "." ]]
+then
+  printf '\n  %s\n\n' "$(basename "$0")"
+  sed -n 's/^#@ /  /p' "$0"
+  printf '\n'
+  exit 0
+fi
+
+_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+_REPO_ROOT="$( cd "$_SCRIPT_DIR/.." && pwd )"
+
+# Discover every crate meaningful to "run": anything under examples/ (any
+# depth), plus any crate elsewhere that declares its own [[bin]] target.
+# Classified as browser (has index.html, served via trunk) or native
+# (built and run via plain cargo run) — no family names hardcoded, so new
+# example directories/binaries are picked up automatically.
+_discover()
+{
+  local _manifest _dir _rel _kind
+  while IFS= read -r -d '' _manifest
+  do
+    _dir="$( dirname "$_manifest" )"
+    _rel="${_dir#"$_REPO_ROOT"/}"
+
+    case "$_rel" in
+      examples/*) ;;
+      *) grep -q '^\[\[bin\]\]' "$_manifest" || continue ;;
+    esac
+
+    if [[ -f "$_dir/index.html" ]]
+    then
+      _kind="browser"
+    else
+      _kind="native"
+    fi
+    printf '%s|%s\n' "$_rel" "$_kind"
+  done < <(find "$_REPO_ROOT" \( -name target -o -name .git \) -prune -o -name Cargo.toml -print0)
+}
+
+if [[ $# -eq 0 ]]
+then
+  printf 'error: missing query — pass a partial match against an example/binary path, or "list"\n' >&2
+  printf 'try: %s list\n' "$(basename "$0")" >&2
+  exit 2
+elif [[ $# -gt 1 ]]
+then
+  printf 'error: expected exactly one argument, got %d\n' "$#" >&2
+  exit 2
+fi
+
+_query="$1"
+
+if [[ "$_query" == "list" ]]
+then
+  _discover | sort | while IFS='|' read -r _p _k
+  do
+    printf '%-60s %s\n' "$_p" "$_k"
+  done
+  exit 0
+fi
+
+_query_lc="${_query,,}"
+_matches=()
+while IFS= read -r _c
+do
+  _relpath="${_c%%|*}"
+  if [[ "${_relpath,,}" == *"$_query_lc"* ]]
+  then
+    _matches+=( "$_c" )
+  fi
+done < <(_discover)
+
+case "${#_matches[@]}" in
+  0)
+    printf 'error: no example/binary matches %q\n' "$_query" >&2
+    printf 'try: %s list\n' "$(basename "$0")" >&2
+    exit 1
+    ;;
+  1)
+    ;;
+  *)
+    printf 'error: ambiguous match %q — %d candidates:\n' "$_query" "${#_matches[@]}" >&2
+    for _c in "${_matches[@]}"
+    do
+      printf '  %s\n' "${_c%%|*}" >&2
+    done
+    exit 1
+    ;;
+esac
+
+_relpath="${_matches[0]%%|*}"
+_kind="${_matches[0]##*|}"
+_absdir="$_REPO_ROOT/$_relpath"
+
+case "$_kind" in
+  browser)
+    printf 'building and serving (trunk) -> %s\n' "$_relpath" >&2
+    exec env -C "$_absdir" trunk serve --release
+    ;;
+  native)
+    printf 'building and running (cargo) -> %s\n' "$_relpath" >&2
+    exec env -C "$_absdir" cargo run --release --all-features
+    ;;
+esac

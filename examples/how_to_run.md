@@ -84,6 +84,13 @@ make env-install
 
 ## Running Examples
 
+**Shortcut:** from any directory, `action/run <partial-name>` builds and runs any example or
+binary below by a unique partial match against its path — e.g. `action/run trivial` or
+`action/run sun_grid`. It picks the right mechanism automatically (`trunk serve --release` for
+browser examples, `cargo run --release --all-features` otherwise). Run `action/run list` to see
+every match candidate, or `action/run .` for its own usage. The manual per-family steps below
+still apply if you want more control (dev-mode serving, watching, etc.).
+
 ### WebGL and WebGPU Examples (minwebgl / minwebgpu)
 
 WebGL and WebGPU examples both run in the browser using WebAssembly and follow the same workflow.
