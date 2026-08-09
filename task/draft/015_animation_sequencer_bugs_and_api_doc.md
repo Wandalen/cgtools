@@ -141,3 +141,38 @@ separate tasks at pickup if any turns out to be larger than expected.
   no independent dispatch) per `governance/maav.rulebook.md § MAAV : Verification Tier Selection`'s
   default — not an independent PROC16-style acceptance pass. Task remains open (state unchanged)
   pending the deferred macro-export lint concern.
+- **[2026-08-09]** `ENV_NOTE` — During final-verification re-checks (session-level MAAV Tier 2 adversarial
+  pass), discovered that `module/min/minwebgl/src/texture/d2.rs` has a pre-existing, uncommitted edit
+  (present in `git status`/`git diff` before this session started — not introduced by any work under
+  `TASK-015`/`TASK-041`/`TASK-042`) that fails to compile: `get_image_data` is called with `f64` args
+  against a `web-sys 0.3.104` signature that expects the old `i32` args (`error[E0308]`). `minwebgl` is a
+  mandatory (non-optional) dependency of `animation`, so this blocks any fresh compile of `animation`,
+  `renderer`, `tiles_tools`, and `scene_script`. It was silently masked by a stale build-cache artifact
+  for narrowly-scoped builds until this session's mandated full-workspace `will .test level::3` run
+  forced a cache-invalidating rebuild that exposed it uniformly — re-running the exact `-p animation`
+  and `-p renderer` nextest commands that had earlier passed (dated logs `-0018_longrun.log`,
+  `-0019_longrun.log`) now reproduces the same `minwebgl` compile failure. The animation-crate fixes
+  documented above and in `TASK-041`/`TASK-042` were genuinely verified passing at the time each log was
+  captured; they are simply not freshly re-runnable in the current repo state until `minwebgl`'s issue
+  is resolved. Out of scope for this task at time of discovery — flagged rather than fixed inline,
+  pending explicit user authorization (see follow-up entry below).
+- **[2026-08-09]** `ENV_NOTE` (follow-up) — User explicitly authorized fixing the `minwebgl` regression
+  above and continuing until the full workspace reaches consistency. Applied: reverted
+  `module/min/minwebgl/src/texture/d2.rs`'s `get_image_data` call from `f64` args back to `i32` args,
+  matching the confirmed `web-sys 0.3.104` signature and the original pre-regression code. Re-running
+  `-p animation -p renderer -p tiles_tools -p scene_script --all-features` nextest afterward passed
+  338/338. During the same consistency sweep, a fresh full-workspace `will .test level::3` run surfaced
+  7 genuine `clippy::manual_is_multiple_of` violations (all on unsigned-integer sites) across
+  `event_system_demo`, `renderer/tests/skeleton_tests.rs`, `renderer/.../wide_outline.rs` (×2),
+  `stealth_game`, and `tilemap_renderer/.../svg.rs` (×2) — fixed by converting to `.is_multiple_of()`.
+  A broader pattern-matched sweep for the same `% N == 0` shape initially over-applied this conversion to
+  9 additional sites that use signed (`i32`) operands, which do not support `.is_multiple_of()` in
+  `rustc 1.97.1`; these 9 were caught by the next compile and reverted to their original (already
+  clippy-clean) form. A separate, unrelated Cargo manifest error surfaced once
+  (`feature 'webgpu' includes 'dep:minwebgpu', but 'minwebgpu' is not listed as a dependency` in
+  `module/helper/renderer/Cargo.toml`) — investigation found the manifest already correctly declares
+  `minwebgpu` under `[dependencies]`; a clean `cargo metadata --all-features` and the subsequent full
+  gate pass confirm this was a transient resolution error (likely from overlapping concurrent cargo
+  invocations during this session), not a real defect — no source change was made or needed for it.
+  Final state: `will .test level::3` (nextest + doctests + clippy, `--all-features`, `-D warnings`)
+  passed 97/97 crates, 0 failed, across the full workspace.

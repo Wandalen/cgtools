@@ -365,7 +365,7 @@ mod private
         upload_framebuffer( gl, jfa_step_fb_0, self.width as i32, self.height as i32 ); // Render to FB 0
         upload_texture( gl, jfa_init_fb_color, &jfa_init_loc, GL::TEXTURE0 ); // Input is JFA init texture
       }
-      else if i % 2 == 0 // Even steps ( 2, 4, ... ) read from FB 1, render to FB 0
+      else if i.is_multiple_of( 2 ) // Even steps ( 2, 4, ... ) read from FB 1, render to FB 0
       {
         upload_framebuffer( gl, jfa_step_fb_0, self.width as i32, self.height as i32 ); // Render to FB 0
         upload_texture( gl, &jfa_step_fb_color_1, &jfa_init_loc, GL::TEXTURE0 ); // Input is texture from FB 1
@@ -434,7 +434,7 @@ mod private
       upload_texture( gl, &source, &source_loc, GL::TEXTURE0 );
       upload_texture( gl, object_color, &object_color_loc, GL::TEXTURE1 );
       // The final JFA result is in jfa_step_fb_color_0 if num_passes is even, otherwise in jfa_step_fb_color_1
-      if self.num_passes % 2 == 0
+      if self.num_passes.is_multiple_of( 2 )
       {
         upload_texture( gl, jfa_step_fb_color_0, &jfa_step_loc, GL::TEXTURE2 );
       }

@@ -249,7 +249,7 @@ fn main()
   *count += 1;
   println!("🔥 Player {} died: {} (event #{})", event.player_id, event.cause, *count);
   
-  if *count % 3 == 0 {
+  if (*count).is_multiple_of(3) {
     println!("💀 Consumed death event #{}!", *count);
     EventResult::Consume
   } else {

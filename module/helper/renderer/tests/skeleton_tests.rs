@@ -178,7 +178,7 @@ mod tests
 
     fn is_power_of_4( v : u32 ) -> bool
     {
-      v > 0 && ( v & ( v - 1 ) ) == 0 && ( v.trailing_zeros() % 2 == 0 )
+      v > 0 && ( v & ( v - 1 ) ) == 0 && v.trailing_zeros().is_multiple_of( 2 )
     }
 
     #[ test ]

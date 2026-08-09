@@ -153,8 +153,8 @@ mod tests
   fn test_cubic_mid_curve_accuracy()
   {
     let eps = 0.001;
-    assert_f_eq( EaseInSine::new().apply( 0.0, 1.0, 0.5 ), 0.300338, eps );
-    assert_f_eq( EaseOutQuad::new().apply( 0.0, 1.0, 0.5 ), 0.749269, eps );
+    assert_f_eq( EaseInSine::new().apply( 0.0, 1.0, 0.5 ), 0.300_338, eps );
+    assert_f_eq( EaseOutQuad::new().apply( 0.0, 1.0, 0.5 ), 0.749_269, eps );
   }
 
   // test_kind: bug_reproducer(TASK-041)

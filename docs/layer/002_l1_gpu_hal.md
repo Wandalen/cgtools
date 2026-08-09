@@ -2,8 +2,9 @@
 
 The keystone layer — one API over all three drivers, so everything above is
 written once per stack instead of once per backend. The *contract* is
-decided; the *implementation strategy* is not: the slot is reserved by the
-blank crate `gpu_hal`, gated on
+decided and an in-house *v0 implementation* exists in `gpu_hal` ( WebGPU +
+WebGL2 backends ); formally closing the build-vs-buy decision as an ADR
+still waits on
 [../explorations/001_gpu_hal_buy_vs_build.md](../explorations/001_gpu_hal_buy_vs_build.md).
 
 ### Scope
@@ -30,10 +31,15 @@ blank crate `gpu_hal`, gated on
 
 ### Status
 
-Reserved: `module/blank/gpu_hal` holds the name and the slot. Building it
-(or making it a thin facade over `wgpu`) waits on the exploration's spike
-results. Until then, L3 engines keep their accepted direct-to-L0
-dependencies.
+v0 implemented in `module/blank/gpu_hal` — the exploration's spike extracted
+it from the webgl-vs-webgpu diff of `renderer`'s canonical opaque path, which
+now builds against it on both backends ( `webgpu` / `webgl` features;
+runtime smoke tests still to run ). The v0
+surface covers that path only: buffers, 2d textures, samplers, shader
+modules, bind groups, one-color-attachment render passes. Not yet covered:
+texture upload, mipmaps, MSAA, compute, the `wgpu`-native backend.
+`renderer`'s legacy `webgl` tree and the other L3 engines keep their accepted
+direct-to-L0 dependencies until strangled onto the HAL.
 
 ### Layers
 
@@ -46,10 +52,11 @@ dependencies.
 
 | File | Relationship |
 |------|--------------|
-| [../explorations/001_gpu_hal_buy_vs_build.md](../explorations/001_gpu_hal_buy_vs_build.md) | The open decision gating this layer's implementation |
+| [../explorations/001_gpu_hal_buy_vs_build.md](../explorations/001_gpu_hal_buy_vs_build.md) | Build-vs-buy decision — spike delivered the in-house v0; formal closure ( ADR ) pending |
 
 ### Sources
 
 | File | Relationship |
 |------|--------------|
-| `module/blank/gpu_hal/` | The reserved crate slot |
+| `module/blank/gpu_hal/` | The v0 implementation |
+| `module/helper/renderer/src/webgpu/` | First consumer — the canonical opaque path on both backends |

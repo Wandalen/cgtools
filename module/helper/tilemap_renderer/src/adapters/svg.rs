@@ -1047,7 +1047,7 @@ mod private
             let mut valid = true;
             // Alternate winding on odd triangles to preserve consistent CCW order,
             // matching standard triangle-strip semantics (OpenGL/D3D).
-            let order : [ usize; 3 ] = if i % 2 == 0 { [ 0, 1, 2 ] } else { [ 1, 0, 2 ] };
+            let order : [ usize; 3 ] = if i.is_multiple_of( 2 ) { [ 0, 1, 2 ] } else { [ 1, 0, 2 ] };
             for j in order
             {
               let v_idx = idx.map_or( i + j, | v | v[ i + j ] as usize );
@@ -1070,7 +1070,7 @@ mod private
             let Some( &y ) = geom.positions.get( v_idx * 2 + 1 ) else { continue; };
             let _ = write!( pts, "{x},{y} " );
 
-            if topology == Topology::LineList && ( i + 1 ) % 2 == 0
+            if topology == Topology::LineList && ( i + 1 ).is_multiple_of( 2 )
             {
               let _ = write!( def_content, "<polyline points=\"{}\" fill=\"none\"/>", pts.trim() );
               pts.clear();

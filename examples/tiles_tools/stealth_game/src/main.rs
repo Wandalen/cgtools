@@ -461,7 +461,7 @@ impl StealthGame {
   }
   
   // Gradually reduce alert level
-  if self.turn_counter % 5 == 0 {
+  if self.turn_counter.is_multiple_of(5) {
     let mut alert_decreased = true;
     for &guard in &self.guard_entities {
       if let Ok(mut vision) = self.world.get_mut::<Vision>(guard) {

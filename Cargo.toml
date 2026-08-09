@@ -190,6 +190,12 @@ path = "module/min/minwebgpu"
 version = "0.1.0"
 path = "module/min/minwgpu"
 
+# = hal
+
+[workspace.dependencies.gpu_hal]
+version = "~0.1.0"
+path = "module/blank/gpu_hal"
+
 # = vectorizer
 [workspace.dependencies.vectorizer]
 version = "~0.1.0"

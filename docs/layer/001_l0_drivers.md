@@ -38,11 +38,13 @@ alternatives).
 
 ### Current Direct Consumers (pre-HAL)
 
-Because L1–L2 do not exist yet, L3 code reaches L0 directly: `renderer`,
-`tilemap_renderer`'s WebGL2 adapter (optional `dep:minwebgl`), and
-`line_tools`. These are the accepted violations named in
+[L1](002_l1_gpu_hal.md) exists as v0 and `renderer`'s canonical opaque path
+routes through it; the remaining L3 code still reaches L0 directly:
+`renderer`'s legacy `webgl` tree, `tilemap_renderer`'s WebGL2 adapter
+(optional `dep:minwebgl`), and `line_tools`. These are the accepted
+violations named in
 [../pattern/002](../pattern/002_strict_layering_one_step_drilldown.md),
-scheduled to route through [L1](002_l1_gpu_hal.md) once it exists.
+scheduled to strangle onto L1.
 
 ### Layers
 

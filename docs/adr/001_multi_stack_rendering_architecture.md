@@ -54,7 +54,7 @@ complexity into every layer.
    | L4 | Scene model | `tilemap_scene` data model; glTF via `renderer` loaders | per stack |
    | L3 | Stack engine (commands / passes) | `tilemap_renderer` (d2), `renderer` (d3) | per stack |
    | L2 | Frame orchestration (pass scheduling, render targets) | embedded inside L3 crates | shared where invariants allow |
-   | L1 | GPU hardware abstraction layer | **missing** | one crate, WebGPU-shaped (see [explorations/001](../explorations/001_gpu_hal_buy_vs_build.md)) |
+   | L1 | GPU hardware abstraction layer | `gpu_hal` v0 (WebGPU + WebGL2) | one crate, WebGPU-shaped (see [explorations/001](../explorations/001_gpu_hal_buy_vs_build.md)) |
    | L0 | Drivers | `minwebgl`, `minwebgpu`, `minwgpu` (+ `mingl` substrate) | unchanged |
 
 3. **Three initial stacks — `d2`, `tile`, `d3`.** Rust identifiers cannot
@@ -111,10 +111,12 @@ complexity into every layer.
   already demonstrates the payoff at L3.
 - SVG/terminal/off-screen outputs remain guaranteed in the d2 and tile stacks
   because they are invariants, not adapter accidents.
-- Cost: the HAL is a substantial build and is *not yet committed* — it stays
-  behind [explorations/001](../explorations/001_gpu_hal_buy_vs_build.md) until
-  a decision lands. Until then `renderer` stays WebGL-bound; migrating it onto
-  the HAL later is a breaking change accepted in advance.
+- Cost: the HAL is a substantial build. The exploration's spike delivered an
+  in-house v0 (`gpu_hal`, WebGPU + WebGL2) and `renderer`'s canonical opaque
+  path runs on it; formally closing build-vs-buy as an ADR still waits on
+  [explorations/001](../explorations/001_gpu_hal_buy_vs_build.md). The legacy
+  `renderer::webgl` tree stays WebGL-bound until strangled onto the HAL — a
+  breaking change accepted in advance.
 - Strict layering adds hand-off ceremony for power users; drill-down handles
   are the deliberate escape valve.
 

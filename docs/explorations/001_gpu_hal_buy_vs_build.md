@@ -1,6 +1,6 @@
 # Exploration: GPU HAL — Buy vs Build
 
-- **Status**: Open — no decision; nothing in this file is committed work
+- **Status**: Open — buy-vs-build not decided; evidence gathering is committed and underway: a slice-by-slice WebGPU `renderer` path is being built, and the HAL surface is extracted from the diff between the WebGL and WebGPU implementations rather than designed up front
 - **Opened**: 2026-08-08
 
 ## Objective
@@ -51,9 +51,16 @@ non-WebGL backend — building L1 before then would be speculative.
 
 ## Next Steps
 
-- Spike: one triangle + one textured quad through all three drivers behind a
-  single WebGPU-shaped facade; measure the WebGL2 emulation surface actually
-  required.
+- Spike (done, superseded the triangle/quad form): built the d3 renderer's
+  opaque path on `minwebgpu` slice by slice (`renderer::webgpu`), extracted
+  the `gpu_hal` v0 surface from the webgl-vs-webgpu diff, then implemented a
+  WebGL2 backend of that surface and ported the canonical path onto the HAL —
+  it now compiles clean against both backends. Measured WebGL2 emulation
+  surface: uniform-block/texture-unit introspection by name convention
+  (`ub_{g}_{b}`/`tex_{g}_{b}`), per-pass FBO lifecycle, eager state
+  application at bind time, GLSL twin shaders (no transpilation yet) —
+  moderate, contained in one file-set. Approach 2 (in-house) is working in
+  practice; runtime smoke tests per backend remain to run.
 - Measure wasm binary size: spike facade vs `wgpu` for the same two scenes.
 - Evaluate `naga` build-time WGSL→GLSL ES output against the hand-written
   shaders in `module/helper/renderer/src/webgl/shaders/`.

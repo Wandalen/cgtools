@@ -38,6 +38,18 @@ Add to your `Cargo.toml`:
 renderer = { workspace = true, features = ["webgl"] }
 ```
 
+## 🧪 Canonical `gpu_hal` path ( `webgpu` feature )
+
+Beside the WebGL renderer above, the `webgpu` feature builds the canonical
+backend-portable opaque path ( `renderer::webgpu` ): PBR opaque pass + ACES
+tone mapping, written once against the L1 `gpu_hal` crate and targeting
+either backend — `GpuContext::new_webgpu( &canvas )` or
+`GpuContext::new_webgl( &canvas )`. Canonical shaders are WGSL with GLSL 300
+es twins; projections must match `context.device.depth_range()`. Verified at
+compile/lint level on both backends; runtime smoke tests are still to run.
+Scope today is the direct-lit opaque slice — IBL, shadows, skinning and the
+loaders stay with the `webgl` renderer until strangled onto the HAL.
+
 ## 🚀 Quick Start
 
 ### Basic Rendering Setup

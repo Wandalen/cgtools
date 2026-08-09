@@ -1,0 +1,522 @@
+mod private
+{
+  #[ cfg( feature = "webgpu" ) ]
+  use minwebgpu as gl;
+  #[ cfg( feature = "webgpu" ) ]
+  use gl::web_sys;
+  #[ cfg( feature = "webgl" ) ]
+  use minwebgl as glw;
+  #[ cfg( feature = "webgl" ) ]
+  use std::rc::Rc;
+  #[ cfg( feature = "webgl" ) ]
+  use crate::
+  {
+    TextureViewWebGl,
+    BindGroupEntryWebGl,
+    RenderPassWebGl,
+    webgl::to_i32,
+    webgl::to_u32
+  };
+  use crate::
+  {
+    Error,
+    IndexFormat,
+    TextureView,
+    Buffer,
+    BindGroup,
+    RenderPipeline
+  };
+
+  /// Color attachment of a render pass; always cleared on load, stored on
+  /// end — the v0 fixed function set.
+  #[ derive( Debug ) ]
+  pub struct ColorAttachmentDesc< 'a >
+  {
+    /// Target view.
+    pub view : &'a TextureView,
+    /// Clear color.
+    pub clear : [ f32; 4 ]
+  }
+
+  /// Depth attachment of a render pass; always cleared to 1.0 on load,
+  /// stored on end — the v0 fixed function set.
+  #[ derive( Debug ) ]
+  pub struct DepthAttachmentDesc< 'a >
+  {
+    /// Target view.
+    pub view : &'a TextureView
+  }
+
+  /// Records commands of one frame of the active backend.
+  #[ derive( Debug ) ]
+  pub enum CommandEncoder
+  {
+    /// WebGPU backend command encoder.
+    #[ cfg( feature = "webgpu" ) ]
+    WebGpu( web_sys::GpuCommandEncoder ),
+    /// WebGL backend command encoder — the GL context executes eagerly, so
+    /// the encoder is the context itself.
+    #[ cfg( feature = "webgl" ) ]
+    WebGl( glw::GL )
+  }
+
+  impl CommandEncoder
+  {
+    /// Begins a render pass with one color attachment and an optional depth
+    /// attachment.
+    ///
+    /// On the WebGL backend the canvas backbuffer accepts no depth
+    /// attachment, and attachments must be texture views of matching size.
+    pub fn begin_render_pass
+    (
+      &self,
+      color : &ColorAttachmentDesc< '_ >,
+      depth : Option< &DepthAttachmentDesc< '_ > >
+    ) -> Result< RenderPass, Error >
+    {
+      match self
+      {
+        #[ cfg( feature = "webgpu" ) ]
+        Self::WebGpu( encoder ) =>
+        {
+          let mut desc = gl::render_pass::desc()
+          .color_attachment
+          (
+            gl::ColorAttachment::new( color.view.expect_webgpu() ).clear_value( color.clear )
+          );
+          if let Some( depth ) = depth
+          {
+            desc = desc.depth_stencil_attachment
+            (
+              gl::DepthStencilAttachment::new( depth.view.expect_webgpu() )
+            );
+          }
+          let pass = encoder.begin_render_pass( &desc.into() )
+          .map_err( | e | Error::WebGpu( format!( "failed to begin render pass : {e:?}" ) ) )?;
+          Ok( RenderPass::WebGpu( pass ) )
+        }
+        #[ cfg( feature = "webgl" ) ]
+        Self::WebGl( context ) =>
+        {
+          match color.view.expect_webgl()
+          {
+            TextureViewWebGl::CanvasBackbuffer =>
+            {
+              webgl_begin_canvas_pass( context, color.clear, depth.is_some() )
+            }
+            TextureViewWebGl::Texture { texture, size, .. } =>
+            {
+              webgl_begin_texture_pass( context, texture, *size, color.clear, depth )
+            }
+          }
+        }
+      }
+    }
+
+    /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
+    #[ cfg( feature = "webgpu" ) ]
+    pub fn as_webgpu( &self ) -> Option< &web_sys::GpuCommandEncoder >
+    {
+      match self
+      {
+        Self::WebGpu( raw ) => Some( raw ),
+        #[ cfg( feature = "webgl" ) ]
+        Self::WebGl( _ ) => None
+      }
+    }
+
+    /// The raw GL context, when the handle belongs to the WebGL backend.
+    #[ cfg( feature = "webgl" ) ]
+    pub fn as_webgl( &self ) -> Option< &glw::GL >
+    {
+      match self
+      {
+        Self::WebGl( raw ) => Some( raw ),
+        #[ cfg( feature = "webgpu" ) ]
+        Self::WebGpu( _ ) => None
+      }
+    }
+
+    #[ cfg( feature = "webgpu" ) ]
+    pub( crate ) fn expect_webgpu( &self ) -> &web_sys::GpuCommandEncoder
+    {
+      match self
+      {
+        Self::WebGpu( raw ) => raw,
+        #[ cfg( feature = "webgl" ) ]
+        Self::WebGl( _ ) => panic!( "backend mismatch : expected a WebGPU command encoder" )
+      }
+    }
+  }
+
+  /// Records draws of one render pass of the active backend.
+  ///
+  /// The WebGL backend applies state eagerly, which imposes one ordering
+  /// requirement WebGPU shares in spirit : `set_pipeline` must precede
+  /// `set_bind_group` and `set_vertex_buffer`, as both resolve through the
+  /// active pipeline's introspected binding maps.
+  #[ derive( Debug ) ]
+  pub enum RenderPass
+  {
+    /// WebGPU backend render pass encoder.
+    #[ cfg( feature = "webgpu" ) ]
+    WebGpu( web_sys::GpuRenderPassEncoder ),
+    /// WebGL backend render pass state.
+    #[ cfg( feature = "webgl" ) ]
+    WebGl( RenderPassWebGl )
+  }
+
+  impl RenderPass
+  {
+    /// Sets the active render pipeline.
+    pub fn set_pipeline( &self, pipeline : &RenderPipeline )
+    {
+      match self
+      {
+        #[ cfg( feature = "webgpu" ) ]
+        Self::WebGpu( pass ) =>
+        {
+          pass.set_pipeline( pipeline.expect_webgpu() );
+        }
+        #[ cfg( feature = "webgl" ) ]
+        Self::WebGl( pass ) =>
+        {
+          let raw = Rc::clone( pipeline.expect_webgl() );
+          pass.gl.use_program( Some( &raw.program ) );
+          // Attribute arrays enabled by a previous pipeline would otherwise
+          // leak into this one ( GL state is global ), breaking attributeless
+          // draws such as a fullscreen triangle. 16 is the WebGL2
+          // MAX_VERTEX_ATTRIBS floor — every location a layout could enable.
+          for location in 0u32..16
+          {
+            pass.gl.disable_vertex_attrib_array( location );
+          }
+          if raw.depth.is_some()
+          {
+            pass.gl.enable( glw::GL::DEPTH_TEST );
+            pass.gl.depth_func( glw::GL::LESS );
+            pass.gl.depth_mask( true );
+          }
+          else
+          {
+            pass.gl.disable( glw::GL::DEPTH_TEST );
+          }
+          if raw.cull_back
+          {
+            pass.gl.enable( glw::GL::CULL_FACE );
+            pass.gl.cull_face( glw::GL::BACK );
+          }
+          else
+          {
+            pass.gl.disable( glw::GL::CULL_FACE );
+          }
+          pass.set_current_pipeline( raw );
+        }
+      }
+    }
+
+    /// Binds `group` at group `index`.
+    ///
+    /// On the WebGL backend the bindings apply through the active pipeline's
+    /// introspected maps; entries the shader does not reference are skipped,
+    /// and the call is a no-op before `set_pipeline`.
+    pub fn set_bind_group( &self, index : u32, group : &BindGroup )
+    {
+      match self
+      {
+        #[ cfg( feature = "webgpu" ) ]
+        Self::WebGpu( pass ) =>
+        {
+          pass.set_bind_group( index, Some( group.expect_webgpu() ) );
+        }
+        #[ cfg( feature = "webgl" ) ]
+        Self::WebGl( pass ) =>
+        {
+          let Some( pipeline ) = pass.current_pipeline()
+          else
+          {
+            return;
+          };
+          let mut last_unit = None;
+          for ( binding_index, entry ) in group.expect_webgl().entries.iter().enumerate()
+          {
+            let key = ( index, to_u32( binding_index ) );
+            match entry
+            {
+              BindGroupEntryWebGl::Buffer( buffer ) =>
+              {
+                if let Some( ( _, point ) ) = pipeline.ubo_points.iter().find( | ( k, _ ) | *k == key )
+                {
+                  pass.gl.bind_buffer_base( glw::GL::UNIFORM_BUFFER, *point, Some( buffer ) );
+                }
+              }
+              BindGroupEntryWebGl::Texture( texture ) =>
+              {
+                if let Some( ( _, unit ) ) = pipeline.texture_units.iter().find( | ( k, _ ) | *k == key )
+                {
+                  pass.gl.active_texture( glw::GL::TEXTURE0 + *unit );
+                  pass.gl.bind_texture( glw::GL::TEXTURE_2D, Some( texture ) );
+                  last_unit = Some( *unit );
+                }
+                else
+                {
+                  last_unit = None;
+                }
+              }
+              BindGroupEntryWebGl::Sampler( sampler ) =>
+              {
+                // A sampler pairs with the nearest preceding texture entry.
+                if let Some( unit ) = last_unit
+                {
+                  pass.gl.bind_sampler( unit, Some( sampler ) );
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    /// Binds `buffer` at vertex buffer `slot`.
+    ///
+    /// On the WebGL backend the attribute pointers of the pipeline's slot
+    /// layout apply immediately; the call is a no-op before `set_pipeline`.
+    pub fn set_vertex_buffer( &self, slot : u32, buffer : &Buffer )
+    {
+      match self
+      {
+        #[ cfg( feature = "webgpu" ) ]
+        Self::WebGpu( pass ) =>
+        {
+          pass.set_vertex_buffer( slot, Some( buffer.expect_webgpu() ) );
+        }
+        #[ cfg( feature = "webgl" ) ]
+        Self::WebGl( pass ) =>
+        {
+          let Some( pipeline ) = pass.current_pipeline()
+          else
+          {
+            return;
+          };
+          let Some( layout ) = pipeline.vertex_buffers.get( slot as usize )
+          else
+          {
+            return;
+          };
+          pass.gl.bind_buffer( glw::GL::ARRAY_BUFFER, Some( &buffer.expect_webgl().buffer ) );
+          for attribute in &layout.attributes
+          {
+            pass.gl.enable_vertex_attrib_array( attribute.location );
+            pass.gl.vertex_attrib_pointer_with_i32
+            (
+              attribute.location,
+              attribute.format.webgl_component_count(),
+              glw::GL::FLOAT,
+              false,
+              to_i32( layout.stride ),
+              to_i32( attribute.offset )
+            );
+          }
+        }
+      }
+    }
+
+    /// Binds `buffer` as the index buffer.
+    pub fn set_index_buffer( &self, buffer : &Buffer, format : IndexFormat )
+    {
+      match self
+      {
+        #[ cfg( feature = "webgpu" ) ]
+        Self::WebGpu( pass ) =>
+        {
+          pass.set_index_buffer( buffer.expect_webgpu(), format.to_webgpu() );
+        }
+        #[ cfg( feature = "webgl" ) ]
+        Self::WebGl( pass ) =>
+        {
+          // v0 has a single index format; draw_indexed hardcodes the
+          // matching GL element type.
+          let IndexFormat::Uint32 = format;
+          pass.gl.bind_buffer( glw::GL::ELEMENT_ARRAY_BUFFER, Some( &buffer.expect_webgl().buffer ) );
+        }
+      }
+    }
+
+    /// Draws `vertex_count` vertices.
+    pub fn draw( &self, vertex_count : u32 )
+    {
+      match self
+      {
+        #[ cfg( feature = "webgpu" ) ]
+        Self::WebGpu( pass ) => pass.draw( vertex_count ),
+        #[ cfg( feature = "webgl" ) ]
+        Self::WebGl( pass ) =>
+        {
+          pass.gl.draw_arrays( glw::GL::TRIANGLES, 0, to_i32( vertex_count ) );
+        }
+      }
+    }
+
+    /// Draws `index_count` indices from the bound index buffer.
+    pub fn draw_indexed( &self, index_count : u32 )
+    {
+      match self
+      {
+        #[ cfg( feature = "webgpu" ) ]
+        Self::WebGpu( pass ) => pass.draw_indexed( index_count ),
+        #[ cfg( feature = "webgl" ) ]
+        Self::WebGl( pass ) =>
+        {
+          pass.gl.draw_elements_with_i32
+          (
+            glw::GL::TRIANGLES,
+            to_i32( index_count ),
+            glw::GL::UNSIGNED_INT,
+            0
+          );
+        }
+      }
+    }
+
+    /// Ends the pass, consuming the recorder.
+    pub fn end( self )
+    {
+      match self
+      {
+        #[ cfg( feature = "webgpu" ) ]
+        Self::WebGpu( pass ) => pass.end(),
+        #[ cfg( feature = "webgl" ) ]
+        Self::WebGl( pass ) =>
+        {
+          pass.gl.bind_framebuffer( glw::GL::FRAMEBUFFER, None );
+          if let Some( fbo ) = &pass.fbo
+          {
+            pass.gl.delete_framebuffer( Some( fbo ) );
+          }
+        }
+      }
+    }
+
+    /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
+    #[ cfg( feature = "webgpu" ) ]
+    pub fn as_webgpu( &self ) -> Option< &web_sys::GpuRenderPassEncoder >
+    {
+      match self
+      {
+        Self::WebGpu( raw ) => Some( raw ),
+        #[ cfg( feature = "webgl" ) ]
+        Self::WebGl( _ ) => None
+      }
+    }
+
+    /// The WebGL backend data, when the handle belongs to the WebGL backend.
+    #[ cfg( feature = "webgl" ) ]
+    pub fn as_webgl( &self ) -> Option< &RenderPassWebGl >
+    {
+      match self
+      {
+        Self::WebGl( raw ) => Some( raw ),
+        #[ cfg( feature = "webgpu" ) ]
+        Self::WebGpu( _ ) => None
+      }
+    }
+  }
+
+  /// Begins a pass on the canvas backbuffer : the default framebuffer,
+  /// which accepts no depth attachment.
+  #[ cfg( feature = "webgl" ) ]
+  fn webgl_begin_canvas_pass
+  (
+    context : &glw::GL,
+    clear : [ f32; 4 ],
+    has_depth : bool
+  ) -> Result< RenderPass, Error >
+  {
+    if has_depth
+    {
+      return Err( Error::Unsupported
+      (
+        "the WebGL backend cannot attach depth to the canvas backbuffer".to_string()
+      ) );
+    }
+    context.bind_framebuffer( glw::GL::FRAMEBUFFER, None );
+    context.viewport( 0, 0, context.drawing_buffer_width(), context.drawing_buffer_height() );
+    context.color_mask( true, true, true, true );
+    context.clear_color( clear[ 0 ], clear[ 1 ], clear[ 2 ], clear[ 3 ] );
+    context.clear( glw::GL::COLOR_BUFFER_BIT );
+    Ok( RenderPass::WebGl( RenderPassWebGl::new( context.clone(), None ) ) )
+  }
+
+  /// Begins a pass on a texture view : builds a framebuffer around the
+  /// attachments, owned by the pass and deleted when it ends.
+  #[ cfg( feature = "webgl" ) ]
+  fn webgl_begin_texture_pass
+  (
+    context : &glw::GL,
+    texture : &glw::web_sys::WebGlTexture,
+    size : [ u32; 2 ],
+    clear : [ f32; 4 ],
+    depth : Option< &DepthAttachmentDesc< '_ > >
+  ) -> Result< RenderPass, Error >
+  {
+    let fbo = context.create_framebuffer()
+    .ok_or_else( || Error::WebGl( "failed to allocate framebuffer".to_string() ) )?;
+    context.bind_framebuffer( glw::GL::FRAMEBUFFER, Some( &fbo ) );
+    context.framebuffer_texture_2d
+    (
+      glw::GL::FRAMEBUFFER,
+      glw::GL::COLOR_ATTACHMENT0,
+      glw::GL::TEXTURE_2D,
+      Some( texture ),
+      0
+    );
+    let mut clear_bits = glw::GL::COLOR_BUFFER_BIT;
+    if let Some( depth ) = depth
+    {
+      let TextureViewWebGl::Texture { texture : depth_texture, .. } = depth.view.expect_webgl()
+      else
+      {
+        context.bind_framebuffer( glw::GL::FRAMEBUFFER, None );
+        context.delete_framebuffer( Some( &fbo ) );
+        return Err( Error::Unsupported
+        (
+          "the canvas backbuffer cannot serve as a depth attachment".to_string()
+        ) );
+      };
+      context.framebuffer_texture_2d
+      (
+        glw::GL::FRAMEBUFFER,
+        glw::GL::DEPTH_ATTACHMENT,
+        glw::GL::TEXTURE_2D,
+        Some( depth_texture ),
+        0
+      );
+      context.depth_mask( true );
+      context.clear_depth( 1.0 );
+      clear_bits |= glw::GL::DEPTH_BUFFER_BIT;
+    }
+    let status = context.check_framebuffer_status( glw::GL::FRAMEBUFFER );
+    if status != glw::GL::FRAMEBUFFER_COMPLETE
+    {
+      context.bind_framebuffer( glw::GL::FRAMEBUFFER, None );
+      context.delete_framebuffer( Some( &fbo ) );
+      return Err( Error::WebGl( format!( "framebuffer incomplete : status {status}" ) ) );
+    }
+    context.viewport( 0, 0, to_i32( size[ 0 ] ), to_i32( size[ 1 ] ) );
+    context.color_mask( true, true, true, true );
+    context.clear_color( clear[ 0 ], clear[ 1 ], clear[ 2 ], clear[ 3 ] );
+    context.clear( clear_bits );
+    Ok( RenderPass::WebGl( RenderPassWebGl::new( context.clone(), Some( fbo ) ) ) )
+  }
+}
+
+crate::mod_interface!
+{
+  orphan use
+  {
+    ColorAttachmentDesc,
+    DepthAttachmentDesc,
+    CommandEncoder,
+    RenderPass
+  };
+}

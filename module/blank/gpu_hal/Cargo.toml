@@ -6,7 +6,7 @@ authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
 license = "MIT"
 rust-version = "1.81.0"
 repository = "https://github.com/Wandalen/cgtools"
-description = "GPU hardware abstraction layer over the min* drivers (reserved)"
+description = "GPU hardware abstraction layer over the min* drivers"
 readme = "readme.md"
 keywords = ["gpu", "hal", "webgl", "webgpu", "wasm"]
 
@@ -17,9 +17,17 @@ workspace = true
 enabled = [
   "dep:mod_interface",
 ]
+webgpu = [ "dep:minwebgpu" ]
+webgl = [ "dep:minwebgl", "dep:web-sys" ]
 default = [ "enabled" ]
-full = [ "default" ]
+full = [ "default", "webgpu", "webgl" ]
 
 [dependencies]
 
 mod_interface = { workspace = true, optional = true }
+minwebgpu = { workspace = true, features = [ "math" ], optional = true }
+minwebgl = { workspace = true, optional = true }
+# The WebGL backend maps SamplerDesc onto GL sampler objects, which
+# minwebgl's own web-sys feature set does not enable; feature unification
+# adds them to the shared web-sys instance minwebgl re-exports.
+web-sys = { workspace = true, optional = true, features = [ "WebGl2RenderingContext", "WebGlSampler" ] }

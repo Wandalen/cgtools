@@ -71,4 +71,9 @@ mod private
   /// Webgl implementation of the renderer
   //#[ cfg( feature = "webgl" ) ]
   layer webgl;
+
+  /// Canonical `gpu_hal`-based renderer — WebGPU-first, also runs on the
+  /// WebGL2 backend ( `GpuContext::new_webgl` ).
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+  layer webgpu;
 }
