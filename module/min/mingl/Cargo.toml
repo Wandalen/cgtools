@@ -65,9 +65,6 @@ web_log = [ "dep:browser_log" ]
 [dependencies]
 
 asbytes = { workspace = true, optional = true }
-# bytemuck = { workspace = true, features = [ "derive" ] } # xxx : replace
-# anyhow = "1.0.48"
-# slice-of-array = "0.3.1"
 tobj = { workspace = true, optional = true }
 browser_log = { workspace = true, optional = true }
 

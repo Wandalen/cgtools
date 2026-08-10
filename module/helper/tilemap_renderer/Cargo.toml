@@ -49,3 +49,4 @@ image = { workspace = true, optional = true }
 serde = { workspace = true, features = [ "derive" ], optional = true }
 
 [dev-dependencies]
+bytemuck.workspace = true

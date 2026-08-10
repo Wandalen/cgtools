@@ -8,7 +8,7 @@ This example is ideal for beginners learning WebGL2 fundamentals, covering verte
 
 ![image](./showcase.png)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

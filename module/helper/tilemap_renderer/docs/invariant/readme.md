@@ -1,5 +1,7 @@
 # Invariant Doc Definition
 
+An **invariant** is a guarantee this crate enforces and callers may rely on. In `tilemap_renderer`, these are the cross-backend correctness guarantees that aren't obvious from any single adapter's source alone, each documented with how it's enforced and what happens if it's violated. This collection holds one instance per invariant, each pinned to where it is enforced in code; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: `tilemap_renderer` makes cross-backend correctness guarantees that are not obvious from any single adapter's source alone.

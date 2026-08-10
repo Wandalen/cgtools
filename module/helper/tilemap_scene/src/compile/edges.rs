@@ -276,39 +276,6 @@ mod private
   }
 }
 
-#[ cfg( test ) ]
-mod tests
-{
-  use super::private::*;
-  use crate::anchor::EdgeDirection;
-  use crate::pipeline::TilingStrategy;
-  use crate::snapshot::EdgePosition;
-
-  #[ test ]
-  fn canonical_picks_smaller_hex()
-  {
-    let tiling = TilingStrategy::HexFlatTop;
-    // Edge between (0,0) and its N neighbour (0,-1).
-    let from_a = EdgePosition { hex : ( 0, 0 ), dir : EdgeDirection::N };
-    let from_b = EdgePosition { hex : ( 0, -1 ), dir : EdgeDirection::S };
-    let ca = canonical_edge( from_a, tiling ).unwrap();
-    let cb = canonical_edge( from_b, tiling ).unwrap();
-    assert_eq!( ca, cb, "both sides must canonicalise to the same key" );
-    // (0,-1) is lexicographically smaller than (0,0) → canonical hex = (0,-1).
-    assert_eq!( ca.0, ( 0, -1 ) );
-  }
-
-  #[ test ]
-  fn edge_rotation_flat_top_table()
-  {
-    use core::f32::consts::PI;
-    let t = TilingStrategy::HexFlatTop;
-    assert!( ( edge_rotation( EdgeDirection::N,  t ) - 0.0 ).abs() < 1e-5 );
-    assert!( ( edge_rotation( EdgeDirection::NE, t ) - PI / 3.0 ).abs() < 1e-5 );
-    assert!( ( edge_rotation( EdgeDirection::S,  t ) - PI ).abs() < 1e-5 );
-  }
-}
-
 mod_interface::mod_interface!
 {
   exposed use CanonicalEdge;

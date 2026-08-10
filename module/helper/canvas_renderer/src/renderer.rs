@@ -376,6 +376,14 @@ mod private
   }
 }
 
+// Documented exception (task 068) to the all-tests-in-tests/ convention: this test stays
+// inline because it needs `super::private::*` by design. `resolve_mesh_colors` is
+// deliberately internal -- it exists precisely so the mesh-to-color correspondence can be
+// verified WITHOUT a live WebGL context, and publishing it solely for test placement would
+// widen the API for no caller. Testing through the public surface instead is not an option
+// either: every `CanvasRenderer` method takes `&GL`, so a native `tests/` suite would have
+// nothing it could exercise -- browser-side testing waits on the workspace's wasm
+// test-runner infrastructure (see tilemap_renderer's roadmap for that gap).
 #[ cfg( test ) ]
 mod tests
 {

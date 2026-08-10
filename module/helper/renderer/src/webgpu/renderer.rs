@@ -118,12 +118,12 @@ mod private
 
   impl WebGpuRenderer
   {
-    /// Builds pipelines and frame targets sized to the canvas' current size.
+    /// Builds pipelines and frame targets sized to the context's current
+    /// surface size.
     pub fn new( context : &GpuContext ) -> Result< Self, Error >
     {
       let device = &context.device;
-      let width = context.canvas.width();
-      let height = context.canvas.height();
+      let [ width, height ] = context.size();
 
       // Group 0 — camera ( vertex + fragment ) and lights ( fragment ).
       let frame_layout = device.create_bind_group_layout
@@ -390,7 +390,8 @@ mod private
     }
 
     /// Renders `items`: the opaque pass into the HDR target, then the tone
-    /// mapping pass onto the canvas' current texture.
+    /// mapping pass onto the surface's current texture ( the canvas in the
+    /// browser, the offscreen readback target natively ).
     pub fn render
     (
       &self,

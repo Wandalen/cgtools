@@ -1,14 +1,22 @@
-// Procedural sci-fi HUD diagram: animated star, orbit ring, and a Cartesian
-// grid, rendered by a fullscreen fragment shader. WGSL port of the WebGL2
-// `minwebgl_sun_grid_lines` example's scene.frag; glow uses the same
-// analytic radial-falloff / exp terms as that example's original single-pass
-// version ( no multi-pass Gaussian bloom infrastructure exists for WebGPU in
-// this workspace ).
+// Procedural sci-fi HUD diagram: animated star, three orbit rings, six
+// authored planets/moons, drifting multi-band nebula, twinkling multi-layer
+// star field, and a Cartesian grid, rendered by a fullscreen fragment
+// shader. WGSL port of the WebGL2 `minwebgl_sun_grid_lines` example's
+// scene.frag; glow uses the same analytic radial-falloff / exp terms as
+// that example's original single-pass version ( no multi-pass Gaussian
+// bloom infrastructure exists for WebGPU in this workspace ).
 //
-// Every color/opacity/radius below reads from `uniforms`, sourced host-side
-// from `scene.rhai` ( see `../src/scene.rs` ) — nothing here is a hardcoded
-// visual constant except generation internals ( noise/hash magic numbers,
-// AA epsilons, node jitter ) that aren't meant to be author-facing content.
+// Every color/opacity/radius/dynamic below reads from `uniforms`, sourced
+// host-side from `scene.rhai` ( see `../src/scene.rs` ) — nothing here is a
+// hardcoded visual constant except generation internals ( noise/hash magic
+// numbers, AA epsilons, node jitter ) that aren't meant to be author-facing
+// content. List-shaped scene content ( nebula bands, star layers, orbit
+// rings, nodes ) uses fixed-size arrays, matching how `scene.rs` requires
+// `scene.rhai` to declare exactly `NEBULA_BAND_COUNT`/`STAR_LAYER_COUNT`/
+// `ORBIT_RING_COUNT`/`NODE_COUNT` entries — a WGSL `uniform` binding's
+// arrays must be a compile-time fixed size, so there is no runtime element
+// count to loop against; the counts below are this shader's own copy of
+// those same numbers, kept in sync by hand.
 
 struct Uniforms
 {
@@ -17,30 +25,58 @@ struct Uniforms
   node_count : i32,
   grid_density : f32,
 
-  // Static scene styling, sourced from `scene.rhai` on the host side (see
-  // `src/scene.rs`) instead of being baked in here as shader constants.
   bg_top : vec4f,
   bg_bottom : vec4f,
-  nebula_color : vec4f,
-  stars_color : vec4f,
+
+  // .xyz = color, .w = opacity
+  nebula_colors : array< vec4f, 3 >,
+  // .x = vertical center, .y = thickness, .z = noise scale, .w = drift speed
+  nebula_params : array< vec4f, 3 >,
+
+  // .xyz = color, .w = intensity
+  star_colors : array< vec4f, 2 >,
+  // .x = density (cells across), .y = point size, .z = twinkle speed, .w = unused
+  star_params : array< vec4f, 2 >,
+
   grid_color : vec4f,
+  // .x = opacity, .y = line width, .z = glow, .w = unused
+  grid_params : vec4f,
+
   corona_inner : vec4f,
   corona_mid : vec4f,
   corona_outer : vec4f,
+  // .x = inner radius, .y = mid radius, .z = outer radius, .w = unused
+  corona_radii : vec4f,
+  // .x = flicker amplitude, .y = flicker speed, .zw = unused
+  corona_flicker : vec4f,
+
   disc_dark : vec4f,
   disc_mid : vec4f,
   disc_bright : vec4f,
-  ring_color : vec4f,
+  // .x = base radius, .y = pulsate amplitude, .z = pulsate speed, .w = granulation scale
+  disc_params : vec4f,
 
-  // x = nebula opacity, y = grid opacity, z = sun disc base radius, w = orbit ring radius
-  scalars_a : vec4f,
-  // x = star intensity, yzw = unused padding
-  scalars_b : vec4f,
+  // .xyz = color, .w = glow amount
+  ring_colors : array< vec4f, 3 >,
+  // .x = radius, .y = stroke width, .z = pulse speed, .w = unused
+  ring_params : array< vec4f, 3 >,
+
+  // .xyz = color, .w = size
+  node_colors : array< vec4f, 6 >,
+  // .x = orbit radius, .y = angular speed, .z = phase, .w = unused
+  node_params : array< vec4f, 6 >,
+
+  // .x = vignette strength, .y = vignette radius, .z = glow intensity, .w = scanline intensity
+  effects : vec4f,
 }
 
 @group( 0 ) @binding( 0 ) var< uniform > uniforms : Uniforms;
 
-const MAX_NODES : i32 = 8;
+const MAX_NODES : i32 = 8; // keyboard-controlled procedural nodes (unchanged demo)
+const NEBULA_BAND_COUNT : u32 = 3u;
+const STAR_LAYER_COUNT : u32 = 2u;
+const ORBIT_RING_COUNT : u32 = 3u;
+const NODE_COUNT : u32 = 6u;
 
 struct VertexOutput
 {
@@ -105,6 +141,7 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
   let uv = in.uv; // y = 0 at canvas bottom, y = 1 at canvas top
   let center = vec2f( 0.5, 0.5 );
   let d = distance( uv, center );
+  let effects = uniforms.effects;
 
   // 1. Background: vertical gradient, lighter toward vertical center.
   let navy = uniforms.bg_top.xyz;
@@ -112,56 +149,89 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
   let vgrad = 1.0 - abs( uv.y - 0.5 ) * 2.0;
   var color = mix( navy, slate, vgrad );
 
-  // 2. Nebula fog band across the vertical middle, noise-modulated.
-  let band = smoothstep( 0.35, 0.45, uv.y ) * ( 1.0 - smoothstep( 0.55, 0.65, uv.y ) );
-  let fog_n = fbm3( vec2f( uv.x * 3.0, uv.y * 8.0 ) + uniforms.seed * 0.37 );
-  let nebula = uniforms.nebula_color.xyz;
-  color = mix( color, nebula, band * fog_n * uniforms.scalars_a.x );
-
-  // 3. Sparse background stars: one hashed candidate point per grid cell.
+  // 2. Nebula: up to NEBULA_BAND_COUNT drifting fog bands, each its own
+  // height, thickness, hue, noise scale, and drift direction/speed.
+  for ( var i : u32 = 0u; i < NEBULA_BAND_COUNT; i++ )
   {
-    let cell = floor( uv * 9.0 );
-    let cell_uv = fract( uv * 9.0 );
-    let has_star = step( 0.86, hash21( cell + uniforms.seed ) );
-    let star_pos = vec2f( hash21( cell + 0.17 + uniforms.seed ), hash21( cell + 4.31 + uniforms.seed ) );
-    let star_d = distance( cell_uv, star_pos );
-    let twinkle = 0.5 + 0.5 * sin( uniforms.time * ( 1.5 + hash21( cell + uniforms.seed ) * 2.0 ) + hash21( cell + uniforms.seed ) * 6.283 );
-    let star = has_star * ( 1.0 - smoothstep( 0.0, 0.06, star_d ) ) * ( 0.4 + 0.6 * twinkle );
-    color += uniforms.stars_color.xyz * star * uniforms.scalars_b.x;
+    let band_color = uniforms.nebula_colors[ i ].xyz;
+    let opacity = uniforms.nebula_colors[ i ].w;
+    let band_center = uniforms.nebula_params[ i ].x;
+    let thickness = uniforms.nebula_params[ i ].y;
+    let noise_scale = uniforms.nebula_params[ i ].z;
+    let drift_speed = uniforms.nebula_params[ i ].w;
+
+    let half_thickness = thickness * 0.5;
+    let falloff = thickness / 3.0;
+    let band = smoothstep( band_center - half_thickness, band_center - half_thickness + falloff, uv.y )
+      * ( 1.0 - smoothstep( band_center + half_thickness - falloff, band_center + half_thickness, uv.y ) );
+    let fog_n = fbm3( vec2f( uv.x * 3.0 * noise_scale, uv.y * 8.0 * noise_scale ) + uniforms.seed * 0.37 + uniforms.time * drift_speed );
+    color = mix( color, band_color, band * fog_n * opacity );
   }
 
-  // 4. Grid overlay, density controlled by uniforms.grid_density, constant
-  // screen-space line width via fwidth.
+  // 3. Background stars: up to STAR_LAYER_COUNT hashed point fields at
+  // different densities, sizes, and twinkle speeds.
+  for ( var i : u32 = 0u; i < STAR_LAYER_COUNT; i++ )
   {
+    let layer_color = uniforms.star_colors[ i ].xyz;
+    let intensity = uniforms.star_colors[ i ].w;
+    let density = uniforms.star_params[ i ].x;
+    let size = uniforms.star_params[ i ].y;
+    let twinkle_speed = uniforms.star_params[ i ].z;
+    let layer_seed = uniforms.seed + f32( i ) * 91.7;
+
+    let cell = floor( uv * density );
+    let cell_uv = fract( uv * density );
+    let has_star = step( 0.86, hash21( cell + layer_seed ) );
+    let star_pos = vec2f( hash21( cell + 0.17 + layer_seed ), hash21( cell + 4.31 + layer_seed ) );
+    let star_d = distance( cell_uv, star_pos );
+    let twinkle = 0.5 + 0.5 * sin( uniforms.time * ( twinkle_speed + hash21( cell + layer_seed ) * 2.0 ) + hash21( cell + layer_seed ) * 6.283 );
+    let star = has_star * ( 1.0 - smoothstep( 0.0, size, star_d ) ) * ( 0.4 + 0.6 * twinkle );
+    color += layer_color * star * intensity;
+  }
+
+  // 4. Grid overlay: density stays keyboard-live; line width and glow are
+  // scene-authored, constant screen-space line width via fwidth.
+  {
+    let grid_color = uniforms.grid_color.xyz;
+    let grid_params = uniforms.grid_params;
     let g = uv * uniforms.grid_density;
     let grid_d = abs( fract( g - 0.5 ) - 0.5 ) / fwidth( g );
-    let line = 1.0 - min( min( grid_d.x, grid_d.y ), 1.0 );
-    let grid_color = uniforms.grid_color.xyz;
-    color = mix( color, grid_color, line * uniforms.scalars_a.y );
+    let min_grid_d = min( grid_d.x, grid_d.y );
+    let line = 1.0 - min( min_grid_d / grid_params.y, 1.0 );
+    let grid_glow = exp( -min_grid_d * 3.0 ) * grid_params.z * effects.z;
+    color = mix( color, grid_color, line * grid_params.x );
+    color += grid_color * grid_glow;
   }
 
-  // 5. Central star corona: three-stop radial falloff, back to front.
+  // 5. Central star corona: three-stop radial falloff, back to front, radii
+  // and a slow brightness flicker are scene-authored.
   {
     let c0 = uniforms.corona_inner.xyz; // inner-most, warm yellow
     let c1 = uniforms.corona_mid.xyz; // mid corona, amber
     let c2 = uniforms.corona_outer.xyz; // outer corona, red-orange fading out
-    let a0 = 1.0 - smoothstep( 0.0, 0.08, d );
-    let a1 = ( 1.0 - smoothstep( 0.08, 0.15, d ) ) * 0.8;
-    let a2 = ( 1.0 - smoothstep( 0.15, 0.25, d ) ) * 0.3;
+    let r0 = uniforms.corona_radii.x;
+    let r1 = uniforms.corona_radii.y;
+    let r2 = uniforms.corona_radii.z;
+    let flicker = 1.0 + uniforms.corona_flicker.x * sin( uniforms.time * uniforms.corona_flicker.y );
+    let a0 = ( 1.0 - smoothstep( 0.0, r0, d ) ) * flicker;
+    let a1 = ( 1.0 - smoothstep( r0, r1, d ) ) * 0.8 * flicker;
+    let a2 = ( 1.0 - smoothstep( r1, r2, d ) ) * 0.3 * flicker;
     let corona = c0 * a0 + c1 * a1 * ( 1.0 - a0 ) + c2 * a2 * ( 1.0 - a0 ) * ( 1.0 - a1 );
     let corona_a = clamp( a0 + a1 + a2, 0.0, 1.0 );
     color = mix( color, corona, corona_a );
   }
 
-  // 6. Star disk: fbm surface granulation inside a noise-jagged rim.
+  // 6. Star disk: fbm surface granulation inside a noise-jagged rim, plus a
+  // gentle authored breathing pulsation.
   {
-    let base_radius = uniforms.scalars_a.z;
+    let pulsate = 1.0 + uniforms.disc_params.y * sin( uniforms.time * uniforms.disc_params.z );
+    let base_radius = uniforms.disc_params.x * pulsate;
     let angle = atan2( uv.y - 0.5, uv.x - 0.5 );
     let rim_noise = fbm3( vec2f( cos( angle ), sin( angle ) ) * 4.0 ) - 0.4375;
     let radius = base_radius + rim_noise * 0.015;
     let disk = 1.0 - smoothstep( radius - 0.004, radius, d );
 
-    let gran_n = fbm3( uv * 40.0 + 3.0 );
+    let gran_n = fbm3( uv * 40.0 * uniforms.disc_params.w + 3.0 );
     let dark = uniforms.disc_dark.xyz;
     let mid = uniforms.disc_mid.xyz;
     let bright = uniforms.disc_bright.xyz;
@@ -171,20 +241,52 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
     color = mix( color, surface, disk );
   }
 
-  // 7. Orbital ring: soft wide glow plus a crisp stroke core.
+  // 7. Orbit rings: up to ORBIT_RING_COUNT concentric rails, each a soft
+  // wide glow plus a crisp stroke core, with a slow authored brightness
+  // pulse (phase-offset per ring so they don't pulse in lockstep).
+  for ( var i : u32 = 0u; i < ORBIT_RING_COUNT; i++ )
   {
-    let ring_r = uniforms.scalars_a.w;
+    let ring_color = uniforms.ring_colors[ i ].xyz;
+    let ring_glow_amt = uniforms.ring_colors[ i ].w;
+    let ring_r = uniforms.ring_params[ i ].x;
+    let stroke_width = uniforms.ring_params[ i ].y;
+    let pulse_speed = uniforms.ring_params[ i ].z;
+
+    let pulse = 1.0 + 0.15 * sin( uniforms.time * pulse_speed + f32( i ) * 2.1 );
     let ring_d = abs( d - ring_r );
-    let ring_color = uniforms.ring_color.xyz;
-    let glow = exp( -ring_d * 220.0 ) * 0.35;
-    let core = 1.0 - smoothstep( 0.0, 0.0022, ring_d );
+    let glow = exp( -ring_d * 220.0 ) * ring_glow_amt * pulse * effects.z;
+    let core = 1.0 - smoothstep( 0.0, 0.0022 * stroke_width, ring_d );
     color += ring_color * glow;
     color = mix( color, ring_color, core );
   }
 
-  // 8. Orbiting nodes, count controlled by uniforms.node_count. Each node's
-  // phase and orbit radius are perturbed by a hash of uniforms.seed so
-  // re-seeding visibly reshuffles the layout, not just the star field.
+  // 8. Authored planets/moons: up to NODE_COUNT bodies, each with its own
+  // orbit radius, angular speed (sign = direction), phase, size, and color
+  // — independent of the keyboard-controlled procedural nodes below.
+  for ( var i : u32 = 0u; i < NODE_COUNT; i++ )
+  {
+    let node_color = uniforms.node_colors[ i ].xyz;
+    let size = uniforms.node_colors[ i ].w;
+    let radius = uniforms.node_params[ i ].x;
+    let speed = uniforms.node_params[ i ].y;
+    let phase = uniforms.node_params[ i ].z;
+
+    let theta = uniforms.time * speed + phase;
+    let pos = vec2f( 0.5 + radius * cos( theta ), 0.5 - radius * sin( theta ) );
+    let pd = distance( uv, pos );
+
+    let halo = ( 1.0 - smoothstep( 0.0, size * 1.6, pd ) ) * 0.85 * effects.z;
+    color += node_color * halo;
+
+    let core = 1.0 - smoothstep( size * 0.2, size * 0.4, pd );
+    color = mix( color, node_color, core );
+  }
+
+  // 9. Keyboard-controlled procedural nodes, count controlled by
+  // uniforms.node_count. Each node's phase and orbit radius are perturbed
+  // by a hash of uniforms.seed so re-seeding visibly reshuffles the layout,
+  // not just the star field. Unchanged demo behavior — orbits at the
+  // innermost authored ring's radius/color.
   {
     let node_count = clamp( uniforms.node_count, 1, MAX_NODES );
     for ( var i : i32 = 0; i < MAX_NODES; i++ )
@@ -205,17 +307,28 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
       // a small per-node speed offset so nodes don't move in lockstep.
       let theta = radians( 325.0 ) + uniforms.time * ( 0.15 - fi * 0.015 )
         + fi * ( 6.28318 / f32( node_count ) ) + phase_jitter;
-      let orbit_r = uniforms.scalars_a.w * radius_jitter;
+      let orbit_r = uniforms.ring_params[ 0 ].x * radius_jitter;
       let planet_pos = vec2f( 0.5 + orbit_r * cos( theta ), 0.5 - orbit_r * sin( theta ) );
       let pd = distance( uv, planet_pos );
 
-      let halo_color = uniforms.ring_color.xyz;
+      let halo_color = uniforms.ring_colors[ 0 ].xyz;
       let halo = ( 1.0 - smoothstep( 0.0, 0.018, pd ) ) * 0.85;
       color += halo_color * halo * 0.85;
 
       let core = 1.0 - smoothstep( 0.003, 0.006, pd );
       color = mix( color, vec3f( 1.0, 1.0, 1.0 ), core );
     }
+  }
+
+  // 10. Effects: vignette darkens toward the frame edge; scanline adds a
+  // faint sci-fi HUD texture. Both are single-pass analytic — no offscreen
+  // texture exists to sample at an offset for a true multi-tap effect like
+  // chromatic aberration.
+  {
+    let vignette_d = d * 1.4142136; // normalize so the farthest corner (uv (0,0)/(1,1)) reaches ~1.0
+    let vignette = 1.0 - effects.x * smoothstep( effects.y, 1.0, vignette_d );
+    let scanline = 1.0 - effects.w * ( 0.5 + 0.5 * sin( uv.y * 800.0 ) );
+    color *= vignette * scanline;
   }
 
   return vec4f( color, 1.0 );

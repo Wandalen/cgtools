@@ -3,6 +3,42 @@ mod private
 {
   use wasm_bindgen::JsCast;
   use crate::web::*;
+  use crate::*;
+
+  /// Error returned by `load` when fetching or decoding a file fails.
+  #[ derive( Debug, error::typed::Error ) ]
+  pub enum Error
+  {
+    /// The `data:` URL is malformed or uses an unsupported ( non-base64 ) encoding.
+    #[ error( "Data URL error :: {0}" ) ]
+    DataUrl( &'static str ),
+    /// The underlying browser API rejected — request construction, `fetch`, or body read.
+    #[ error( "Web API error :: {0:?}" ) ]
+    Js( JsValue ),
+  }
+
+  impl From< JsValue > for Error
+  {
+    fn from( value : JsValue ) -> Self
+    {
+      Error::Js( value )
+    }
+  }
+
+  // Callers in wasm contexts commonly return `Result< _, JsValue >` and rely on `?` —
+  // this conversion keeps that pattern working, preserving the original browser error
+  // object where one exists.
+  impl From< Error > for JsValue
+  {
+    fn from( error : Error ) -> Self
+    {
+      match error
+      {
+        Error::Js( value ) => value,
+        other => JsValue::from_str( &other.to_string() ),
+      }
+    }
+  }
 
   /// Resolves `file_name` against `origin` according to `load`'s contract.
   ///
@@ -68,7 +104,6 @@ mod private
     Ok( &url[ comma_pos + 1.. ] )
   }
 
-  // qqq : implement typed errors
   /// Asynchronously fetches a file over HTTP using the browser's `fetch` API,
   /// or decodes a `data:` URL inline without a network round-trip.
   ///
@@ -93,20 +128,22 @@ mod private
   ///
   /// # Returns
   /// A `Result` which is either a `Vec<u8>` containing the file's byte data on success,
-  /// or a `JsValue` containing a JavaScript error on failure.
+  /// or a typed [`Error`] on failure.
   ///
   /// # Errors
-  /// Returns the `JsValue` that the underlying request construction, `fetch`, or
-  /// `Response::array_buffer` rejected with — typically a `TypeError` for network /
-  /// CORS failures or a `DOMException` for aborted reads. HTTP error status codes
-  /// (4xx, 5xx) do **not** produce an `Err` here; `fetch` resolves successfully and
-  /// the caller receives the response body as `Ok`.
-  /// For `data:` URLs, returns `Err` if the URL is malformed or does not use base64 encoding.
+  /// Returns [`Error::Js`] wrapping the `JsValue` that the underlying request
+  /// construction, `fetch`, or `Response::array_buffer` rejected with — typically a
+  /// `TypeError` for network / CORS failures or a `DOMException` for aborted reads.
+  /// HTTP error status codes (4xx, 5xx) do **not** produce an `Err` here; `fetch`
+  /// resolves successfully and the caller receives the response body as `Ok`.
+  /// For `data:` URLs, returns [`Error::DataUrl`] if the URL is malformed or does not
+  /// use base64 encoding. `Error` converts into `JsValue` (preserving the original
+  /// browser error object), so callers returning `Result< _, JsValue >` can keep using `?`.
   ///
   /// # Panics
   /// Panics only if the browser `window` object is unavailable (i.e. not running in
   /// a browsing context).
-  pub async fn load( file_name : &str ) -> Result< Vec< u8 >, JsValue >
+  pub async fn load( file_name : &str ) -> Result< Vec< u8 >, Error >
   {
     let window = web_sys::window().unwrap();
     let origin = window.location().origin()?;
@@ -115,7 +152,7 @@ mod private
     // `fetch()` rejects `cors` mode for `data:` URLs — decode them directly instead.
     if url.starts_with( "data:" )
     {
-      let payload = data_url_base64_payload( &url ).map_err( JsValue::from_str )?;
+      let payload = data_url_base64_payload( &url ).map_err( Error::DataUrl )?;
       let decoded = window.atob( payload )?;
       // `atob` returns a DOMString whose code points are Latin-1 bytes
       // (U+0000–U+00FF per Web IDL). Each `char` scalar therefore fits in a `u8`,
@@ -144,6 +181,15 @@ mod private
     Ok( uint8_array.to_vec() )
   }
 
+  // Exception ( task 074 ) : these tests stay inline because they pin the two
+  // PRIVATE pure helpers -- `resolve_url` and `data_url_base64_payload` -- that
+  // hold the natively-testable logic deliberately extracted from the wasm-only
+  // `load` ( which needs a browser `window` for fetch/atob ). Relocating them to
+  // `tests/` requires exporting both helpers, widening the public API solely for
+  // test placement : external callers use `load`, whose doc contract already
+  // documents the resolution rules these tests pin. Rejected alternatives :
+  // exposing the helpers ( zero non-test callers ), or testing through `load`
+  // itself ( impossible natively -- browser-only APIs ).
   #[ cfg( test ) ]
   mod tests
   {
@@ -289,5 +335,6 @@ crate::mod_interface!
 
   own use load;
   own use is_self_contained_url;
+  own use Error;
 
 }

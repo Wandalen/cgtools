@@ -106,6 +106,5 @@ mod private
 
 crate::mod_interface!
 {
-  // xxx : reuse
   reuse ::mdmath_core::vector::arithmetics;
 }

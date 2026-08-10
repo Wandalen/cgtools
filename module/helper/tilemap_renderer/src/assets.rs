@@ -416,9 +416,9 @@ mod private
     /// embedded SVG document. Callers passing SVG bytes are responsible for
     /// trusting or sanitizing their source.
     ///
-    /// **WebGL backend:** not yet implemented — this variant is silently
-    /// skipped during `load_assets`. Use `Bitmap` (pre-decoded) or `Path`
-    /// instead.
+    /// **WebGL backend:** not yet implemented — this variant is skipped
+    /// during `load_assets` with a console warning. Use `Bitmap`
+    /// (pre-decoded) or `Path` instead.
     Encoded( Vec< u8 > ),
     /// Raw pixel data — ready to upload directly.
     Bitmap
@@ -453,6 +453,11 @@ mod private
   pub enum Source
   {
     /// File path to load data from.
+    ///
+    /// **SVG backend:** read via blocking `std::fs` at `load_assets` time; a
+    /// failed read (missing file, or wasm32 where no filesystem exists) skips
+    /// the whole geometry with a stderr warning and a diagnostic comment in
+    /// the output. **WebGL backend:** fetched asynchronously.
     Path( PathBuf ),
     /// Raw byte data in memory.
     Bytes( Vec< u8 > ),

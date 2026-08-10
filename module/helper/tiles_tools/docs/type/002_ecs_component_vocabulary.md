@@ -64,7 +64,6 @@ All 13 items below live in `src/ecs/components.rs` and are re-exported via `ecs:
 
 | File | Relationship |
 |------|--------------|
-| [pitfall/002_ecs_movement_requests_are_a_no_op.md](../pitfall/002_ecs_movement_requests_are_a_no_op.md) | `Movable`/`Position` are real, queryable components, but `World::request_movement` — the API that should move an entity's `Position` using `Movable`'s range — discards its target coordinate unread |
 
 ### Sources
 

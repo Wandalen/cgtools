@@ -43,6 +43,7 @@ Example | Description
 Example | Description
 --- | ---
 [3D Line](./minwebgl/3d_line/readme.md) | 3D line rendering with simulation
+[Jewelry Site](./minwebgl/jewelry_site/readme.md) | Product-ready 3D jewelry configurator with material/gem/ring switching
 [Simple PBR](./minwebgl/simple_pbr/readme.md) | Simple physically-based rendering implementation
 [Spinning Cube](./minwebgl/spinning_cube_size_opt/readme.md) | Optimized spinning cube demonstration
 [Trivial](./minwebgl/trivial/readme.md) | Minimal WebGL rendering example
@@ -73,6 +74,7 @@ Example | Description
 [Postprocessing](./minwebgl/postprocessing/readme.md) | Postprocessing effects pipeline
 [Raycaster](./minwebgl/raycaster/readme.md) | Raycasting implementation with controls
 [Shadowmap](./minwebgl/shadowmap/readme.md) | Shadow mapping implementation
+[Sun Grid Lines](./minwebgl/sun_grid_lines/readme.md) | Procedural sci-fi HUD solar-system diagram with real multi-pass bloom
 [Video as Texture](./minwebgl/video_as_texture/readme.md) | Using video as texture source
 
 ### Image Processing
@@ -119,7 +121,6 @@ Example | Description
 [Attributes VAO](./minwebgl/attributes_vao/readme.md) | Vertex Array Object (VAO) usage
 [Uniform UBO](./minwebgl/uniforms_ubo/readme.md) | Uniform Buffer Objects for efficient uniform handling
 [Minimize WASM](./minwebgl/minimize_wasm/readme.md) | WASM size optimization techniques
-[Derive Tools Issue](./minwebgl/derive_tools_issue/readme.md) | Debugging and optimization example
 [Space Partition](./minwebgl/space_partition/readme.md) | Spatial partitioning data structures for efficient collision detection
 
 ## WebGPU Examples
@@ -128,6 +129,8 @@ Example | Description
 --- | ---
 [Deferred Rendering](./minwebgpu/deffered_rendering/readme.md) | Deferred rendering pipeline using WebGPU
 [Hello Triangle](./minwebgpu/hello_triangle/readme.md) | Basic WebGPU triangle rendering
+[Hello Triangle Quickstart](./minwebgpu/hello_triangle_quickstart/readme.md) | Same triangle via minwebgpu's aggregated setup/draw helpers
+[PBR Scene (gpu_hal)](./minwebgpu/renderer_pbr_scene/readme.md) | Canonical `gpu_hal` opaque path — metallic-roughness sphere grid, runs on WebGPU and WebGL2
 [Sun Grid Lines](./minwebgpu/sun_grid_lines/readme.md) | Procedural sci-fi HUD solar-system diagram, ported to WebGPU/WGSL
 
 ## WGPU Examples

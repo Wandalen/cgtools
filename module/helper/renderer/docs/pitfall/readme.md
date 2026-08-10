@@ -1,5 +1,7 @@
 # Pitfall Doc Definition
 
+A **pitfall** documents one way this crate's API can be misused or misunderstood — the trap, why it happens, and how to avoid it. In `renderer`, each instance is a confirmed trap grounded in the current source, spelling out its concrete failure mode and how to mitigate it. This collection holds one instance per known pitfall; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Navigational hub for confirmed traps consumers of `renderer` hit in practice.

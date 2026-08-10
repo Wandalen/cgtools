@@ -28,6 +28,9 @@ mod private
     /// An error related to WebGPU bind group layout entries.
     #[ error( "BindGroup error :: {0}" ) ]
     BindGroupError( #[ from ] BindGroupError ),
+    /// An error related to WebGPU render passes.
+    #[ error( "RenderPass error :: {0}" ) ]
+    RenderPassError( #[ from ] RenderPassError ),
   }
 
   #[ allow( missing_docs ) ]
@@ -109,6 +112,15 @@ mod private
     TypeNotSet( u32 )
   }
 
+  #[ allow( missing_docs ) ]
+  #[ derive( Debug, error::typed::Error ) ]
+  pub enum RenderPassError
+  {
+    /// Indicates a failure to begin a render pass on a command encoder.
+    #[ error( "Failed to begin render pass: {0}" )]
+    FailedToBegin( String )
+  }
+
 }
 
 crate::mod_interface!
@@ -127,7 +139,8 @@ crate::mod_interface!
     ContextError,
     TextureError,
     BufferError,
-    BindGroupError
+    BindGroupError,
+    RenderPassError
   };
 }
 

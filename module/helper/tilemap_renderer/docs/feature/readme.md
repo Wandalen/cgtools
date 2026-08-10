@@ -1,5 +1,7 @@
 # Feature Doc Definition
 
+A **feature** instance documents one cohesive slice of the crate's public API. In `tilemap_renderer`, each feature is one of the backend adapters — SVG, WebGL2, or terminal — that let a single command stream render to a different target, and its instance acts as a navigational hub over that adapter's source, invariants, patterns, and known pitfalls. This collection holds one instance per feature; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: `tilemap_renderer`'s backend adapters exist to let one command stream render to SVG, WebGL2, or a terminal.

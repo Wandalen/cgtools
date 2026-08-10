@@ -11,8 +11,8 @@ crate::mod_interface!
   layer gbuffer;
   /// Unreal bloom post-processing
   layer unreal_bloom;
-  /// Puts post-processing effects in a pipeline
-  layer composer;
+  /// The `Pass` trait and the ping-pong `SwapFramebuffer` for chaining effects
+  layer pass;
   /// Tomapping post-processing
   layer tonemapping;
   /// Color grading post-processing

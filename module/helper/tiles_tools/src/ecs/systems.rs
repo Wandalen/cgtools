@@ -33,32 +33,45 @@ use std::collections::HashMap;
 /// for entities with movement capabilities.
 pub struct MovementSystem;
 
-impl MovementSystem {
+impl MovementSystem
+{
   /// Processes movement for all movable entities.
   ///
   /// This method validates movement requests, performs pathfinding when needed,
   /// and updates entity positions based on their movement capabilities.
-  pub fn process_movement<C>(
-    world: &mut hecs::World,
-    movement_requests: &HashMap<hecs::Entity, C>,
-  ) -> Vec<MovementResult<C>>
+  ///
+  /// `is_accessible` and `cost` are the caller's obstacle and terrain policies,
+  /// forwarded verbatim to [ `astar` ]: the ECS deliberately defines no obstacle or
+  /// terrain component to derive them from, so the caller owns both. Pass
+  /// `| _ | true` and `| _ | 1` for an open field with uniform cost.
+  pub fn process_movement< C, Fa, Fc >
+  (
+    world : &mut hecs::World,
+    movement_requests : &HashMap< hecs::Entity, C >,
+    mut is_accessible : Fa,
+    mut cost : Fc,
+  ) -> Vec< MovementResult< C > >
   where
-    C: Distance + Neighbors + Clone + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
+    C : Distance + Neighbors + Clone + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
+    Fa : FnMut( &C ) -> bool,
+    Fc : FnMut( &C ) -> u32,
   {
     let mut results = Vec::new();
 
-    for (entity, target) in movement_requests {
-      if let Ok((pos, movable)) = world.query_one_mut::<(&mut Position<C>, &Movable)>(*entity) {
-        let movement_result = Self::calculate_movement(&pos.coord, target, movable);
-        
+    for ( entity, target ) in movement_requests
+    {
+      if let Ok( ( pos, movable ) ) = world.query_one_mut::< ( &mut Position< C >, &Movable ) >( *entity )
+      {
+        let movement_result = Self::calculate_movement( &pos.coord, target, movable, &mut is_accessible, &mut cost );
+
         match movement_result
         {
           MovementResult::Success { path, new_position } =>
           {
             pos.coord = new_position.clone();
-            results.push(MovementResult::Success { path, new_position });
+            results.push( MovementResult::Success { path, new_position } );
           }
-          other => results.push(other),
+          other => results.push( other ),
         }
       }
     }
@@ -66,45 +79,53 @@ impl MovementSystem {
     results
   }
 
-  /// Calculates movement path and validates movement request.
-  fn calculate_movement<C>(
-    current: &C,
-    target: &C,
-    movable: &Movable,
-  ) -> MovementResult<C>
+  /// Calculates movement path and validates movement request, using the caller's
+  /// `is_accessible`/`cost` policies for pathfinding.
+  fn calculate_movement< C, Fa, Fc >
+  (
+    current : &C,
+    target : &C,
+    movable : &Movable,
+    is_accessible : Fa,
+    cost : Fc,
+  ) -> MovementResult< C >
   where
-    C: Distance + Neighbors + Clone + PartialEq + Eq + std::hash::Hash,
+    C : Distance + Neighbors + Clone + PartialEq + Eq + std::hash::Hash,
+    Fa : FnMut( &C ) -> bool,
+    Fc : FnMut( &C ) -> u32,
   {
     // Check if target is within movement range
-    let distance = current.distance(target);
-    if distance > movable.range {
-      return MovementResult::OutOfRange {
-        requested_distance: distance,
-        maximum_range: movable.range,
+    let distance = current.distance( target );
+    if distance > movable.range
+    {
+      return MovementResult::OutOfRange
+      {
+        requested_distance : distance,
+        maximum_range : movable.range,
       };
     }
 
     // Use pathfinding to find valid path
-    let path_result = astar(
-      current,
-      target,
-      |_coord| true, // TODO: Add obstacle checking
-      |_coord| 1,    // TODO: Add terrain cost calculation
-    );
+    let path_result = astar( current, target, is_accessible, cost );
 
     match path_result
     {
-      Some((path, cost)) =>
+      Some( ( path, cost ) ) =>
       {
-        if cost <= movable.range {
-          MovementResult::Success {
-            path: path.clone(),
-            new_position: target.clone(),
+        if cost <= movable.range
+        {
+          MovementResult::Success
+          {
+            path : path.clone(),
+            new_position : target.clone(),
           }
-        } else {
-          MovementResult::PathTooLong {
-            path_length: cost,
-            maximum_range: movable.range,
+        }
+        else
+        {
+          MovementResult::PathTooLong
+          {
+            path_length : cost,
+            maximum_range : movable.range,
           }
         }
       }

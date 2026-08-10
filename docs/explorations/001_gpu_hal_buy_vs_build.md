@@ -1,7 +1,8 @@
 # Exploration: GPU HAL — Buy vs Build
 
-- **Status**: Open — buy-vs-build not decided; evidence gathering is committed and underway: a slice-by-slice WebGPU `renderer` path is being built, and the HAL surface is extracted from the diff between the WebGL and WebGPU implementations rather than designed up front
+- **Status**: Closed — decided in-house; recorded as [ADR-002](../adr/002_gpu_hal_in_house.md)
 - **Opened**: 2026-08-08
+- **Closed**: 2026-08-10
 
 ## Objective
 
@@ -60,8 +61,14 @@ non-WebGL backend — building L1 before then would be speculative.
   (`ub_{g}_{b}`/`tex_{g}_{b}`), per-pass FBO lifecycle, eager state
   application at bind time, GLSL twin shaders (no transpilation yet) —
   moderate, contained in one file-set. Approach 2 (in-house) is working in
-  practice; runtime smoke tests per backend remain to run.
-- Measure wasm binary size: spike facade vs `wgpu` for the same two scenes.
-- Evaluate `naga` build-time WGSL→GLSL ES output against the hand-written
-  shaders in `module/helper/renderer/src/webgl/shaders/`.
-- On a decision, close this exploration and record it as an ADR.
+  practice; the canonical path is pixel-verified end-to-end on the native
+  backend (`opaque_path_renders_lit_quad`), browser-backend runtime pixel
+  tests remain to run.
+- ~~Measure wasm binary size: spike facade vs `wgpu` for the same two
+  scenes.~~ Not run; carried into ADR-002's consequences as
+  measure-on-pressure, not load-bearing for the decision.
+- ~~Evaluate `naga` build-time WGSL→GLSL ES output against the hand-written
+  shaders in `module/helper/renderer/src/webgl/shaders/`.~~ Carried into
+  ADR-002's consequences as an open refinement.
+- ~~On a decision, close this exploration and record it as an ADR.~~ Done —
+  [ADR-002](../adr/002_gpu_hal_in_house.md).

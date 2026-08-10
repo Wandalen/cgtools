@@ -470,11 +470,18 @@ impl< System, Orientation > DynamicFlowField< System, Orientation >
   }
 }
 
+// Exception ( task 072 ) : the two tests below stay inline because they pin
+// private fields with no public accessor -- `FlowField`'s stored `width`/`height`
+// ( `#[ allow( dead_code ) ]` construction state ) and `DynamicFlowField`'s
+// `dirty_positions` accumulation behind `mark_dirty` ( `incremental_update`
+// consumes the set without any observable distinguishing marked from unmarked
+// positions ). Rejected alternative : exposing the fields or adding getters
+// widens the API solely for test placement. The module's three public-surface
+// tests were relocated to `tests/flowfield_test.rs` ( task 072 ).
 #[ cfg( test ) ]
 mod tests
 {
   use super::*;
-  // use crate::coordinates::square::{ Coordinate as SquareCoord, FourConnected };
 
   #[ test ]
   fn test_flow_field_creation()
@@ -482,35 +489,6 @@ mod tests
     let flow_field = FlowField::< (), () >::new( 10, 10 );
     assert_eq!( flow_field.width, 10 );
     assert_eq!( flow_field.height, 10 );
-  }
-
-  #[ test ]
-  fn test_integration_field_creation()
-  {
-    let integration = IntegrationField::< (), () >::new( 5, 5 );
-    assert_eq!( integration.max_cost, u32::MAX );
-  }
-
-  #[ test ]
-  fn test_flow_direction_enum()
-  {
-    let dir = FlowDirection::Move( 1, 0 );
-    match dir
-    {
-      FlowDirection::Move( dx, dy ) =>
-      {
-        assert_eq!( dx, 1 );
-        assert_eq!( dy, 0 );
-      }
-      FlowDirection::None => panic!( "Expected Move direction" ),
-    }
-  }
-
-  #[ test ]
-  fn test_multi_goal_flow_field_creation()
-  {
-    let multi_field = MultiGoalFlowField::< (), () >::new( 8, 8 );
-    assert_eq!( multi_field.goal_fields.len(), 0 );
   }
 
   #[ test ]

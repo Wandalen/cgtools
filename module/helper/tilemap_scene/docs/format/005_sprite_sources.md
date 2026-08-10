@@ -20,7 +20,7 @@ A `SpriteSource` is a rule that, given a layer's render-time context, produces a
 | `Static` | `SpriteRef` | Fixed sprite, no selection logic. |
 | `Variant` | `variants: Vec<{sprite: SpriteSource, weight}>`, `selection: VariantSelection` | Picks one weighted entry per **object instance** (not per frame); the picked entry's own sub-source still runs every frame. |
 | `Animation` | `AnimationRef` | Current frame selected per `algorithm/001`. |
-| `External` | `slot: String` | Sprite supplied by game code at runtime via `set_sprite(instance, slot, SpriteRef)` (see `api/001`); unset slot skips the layer this frame with a warning. Applicable to all anchors. |
+| `External` | `slot: String` | Sprite supplied by game code at runtime via `set_external_sprite(instance, slot, SpriteRef)` (see `api/001`); unset slot silently skips the layer this frame — no warning, no placeholder; a set slot that doesn't resolve fails the pass with `CompileError::UnresolvedRef` (see `algorithm/002`). Applicable to all anchors. |
 
 `VariantSelection`: `HashCoord` (default; deterministic hash of the anchor's grid coordinate — requires a grid-coordinate anchor) | `Random` (same deterministic hash, salted by `Scene.seed` instead of a fixed salt — "random" here means seed-reshuffleable and run-stable, not runtime entropy) | `Fixed(usize)` (forces one entry).
 

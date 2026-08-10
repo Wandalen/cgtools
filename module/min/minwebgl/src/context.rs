@@ -104,7 +104,6 @@ mod private
     retrieve_or_make_with( Default::default() )
   }
 
-  // aaa : explain difference between similar functions
   /// Retrieves a WebGL2 context from an existing canvas or creates a new canvas if none is found,
   /// applying the specified `ContextOptions`.
   ///
@@ -115,11 +114,9 @@ mod private
   /// # Errors
   /// - Returns an error if the canvas cannot be found, created, or if the WebGL2 context cannot
   ///   be retrieved.
-  // aaa : use o instead of long name in such cases
   pub fn retrieve_or_make_with( o : ContextOptions ) -> Result< GL, Error >
   {
     let canvas = canvas::retrieve_or_make()?;
-    // aaa : no, opposite retrieve_or_make is shortcut for retrieve_or_make_with
     from_canvas_with( &canvas, o )
   }
 

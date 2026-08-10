@@ -29,8 +29,9 @@ representability.
   command can *depend* on GPU state to be meaningful.
 - **The SVG adapter is the living proof**: `src/adapters/svg.rs` implements
   the full command set (paths, text, sprites, meshes, batches, groups,
-  effects, gradients, patterns, blend modes — see `roadmap.md`, "SVG adapter —
-  full implementation"). A proposed command that cannot be given an SVG
+  effects, gradients, patterns, blend modes — see `roadmap.md`'s "completed"
+  entry; its remaining holes are asset-level, listed under "svg adapter
+  gaps", not command-level). A proposed command that cannot be given an SVG
   rendering fails this invariant and must be rejected or redesigned.
 - **Capability declaration**: where a backend approximates or omits (e.g.
   blend modes), `Backend::capabilities` declares it — degradation is

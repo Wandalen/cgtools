@@ -1,5 +1,7 @@
 # Invariant Doc Definition
 
+An **invariant** is a guarantee this crate enforces and callers may rely on. In `tilemap_scene`, that covers `RenderSpec` referential integrity, edge/vertex canonical uniqueness, compilation target purity, and deterministic compilation — each pinned down with its precise statement, enforcement mechanism, and violation consequences. This collection holds one instance per invariant, each pinned to where it is enforced in code; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Navigational hub for `tilemap_scene`'s correctness properties that must always hold.

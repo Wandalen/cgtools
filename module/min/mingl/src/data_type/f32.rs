@@ -26,7 +26,6 @@ impl< const N : usize > IntoVectorDataType for [ f32 ; N ]
   }
 }
 
-// qqq : xxx : implement similar for other primitive types
 impl< const N : usize, const N2 : usize > IntoVectorDataType for [ [ f32 ; N2 ] ; N ]
 {
   fn into_vector_data_type() -> VectorDataType

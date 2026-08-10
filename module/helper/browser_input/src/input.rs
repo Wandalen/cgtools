@@ -2,11 +2,10 @@
 //! capturing mouse, keyboard, and wheel events. It maintains an internal state
 //! and an event queue for structured input processing in an application loop.
 
-use minwebgl as min;
-use min::{ JsCast as _, I32x2, F64x3 };
+use ndarray_cg::{ I32x2, F64x3 };
 use web_sys::
 {
-  wasm_bindgen::prelude::Closure,
+  wasm_bindgen::{ JsCast as _, prelude::Closure },
   EventTarget,
   KeyboardEvent,
   PointerEvent,
@@ -493,7 +492,8 @@ impl Input
   /// whether any pointer is currently active, use [`Input::active_pointers`].
   ///
   /// # Test coverage
-  /// The string-to-variant mapping is covered by `PointerType::from_dom_str` unit tests.
+  /// The string-to-variant mapping is covered by the `from_dom_str` pins in
+  /// `tests/pointer_type_test.rs`.
   /// End-to-end wiring through DOM callbacks requires a `wasm-bindgen-test` environment
   /// and is not covered on the native target.
   pub fn last_pointer_type( &self ) -> PointerType
@@ -621,47 +621,5 @@ impl Drop for Input
       "wheel",
       self.wheel_closure.as_ref().unchecked_ref()
     );
-  }
-}
-
-#[ cfg( test ) ]
-mod tests
-{
-  use super::PointerType;
-
-  #[ test ]
-  fn from_dom_str_mouse()
-  {
-    assert_eq!( PointerType::from_dom_str( "mouse" ), PointerType::Mouse );
-  }
-
-  #[ test ]
-  fn from_dom_str_touch()
-  {
-    assert_eq!( PointerType::from_dom_str( "touch" ), PointerType::Touch );
-  }
-
-  #[ test ]
-  fn from_dom_str_pen()
-  {
-    assert_eq!( PointerType::from_dom_str( "pen" ), PointerType::Pen );
-  }
-
-  #[ test ]
-  fn from_dom_str_empty_string_is_unknown()
-  {
-    assert_eq!( PointerType::from_dom_str( "" ), PointerType::Unknown );
-  }
-
-  #[ test ]
-  fn from_dom_str_unrecognised_is_unknown()
-  {
-    assert_eq!( PointerType::from_dom_str( "stylus" ), PointerType::Unknown );
-  }
-
-  #[ test ]
-  fn default_is_unknown()
-  {
-    assert_eq!( PointerType::default(), PointerType::Unknown );
   }
 }

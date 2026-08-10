@@ -1124,6 +1124,15 @@ mod private
     )
   }
 
+  // Exception ( task 075 ) : these tests stay inline because they pin the
+  // PRIVATE pure helper `resolve_asset_uri` -- the URI-resolution logic
+  // extracted from the browser-bound glTF `load` path ( the rest of the loader
+  // needs a live GL context and `fetch` ). Relocating them to `tests/` requires
+  // exporting the helper, widening the public API solely for test placement :
+  // external callers use `load`, and the origin-side rules already live in
+  // mingl's exported `is_self_contained_url`, which this helper delegates to.
+  // Rejected alternatives : exposing the helper ( zero non-test callers ), or
+  // testing through `load` ( needs a browser context ).
   #[ cfg( test ) ]
   mod tests
   {

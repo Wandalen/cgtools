@@ -99,119 +99,13 @@ impl< E > ArrayMut< E, 1 > for ( E, )
   }
 }
 
-#[ derive( Clone ) ]
-struct Tuple1Iter< 'tuple_ref, E >
-{
-  tuple : &'tuple_ref ( E, ),
-  index : usize,
-}
-
-impl< 'tuple_ref, E > Iterator for Tuple1Iter< 'tuple_ref, E >
-{
-  type Item = &'tuple_ref E;
-
-  fn next( &mut self ) -> Option< Self::Item >
-  {
-    if self.index == 0 {
-      self.index = 1;
-      Some( &self.tuple.0 )
-    } else {
-      None
-    }
-  }
-
-  fn size_hint( &self ) -> ( usize, Option< usize > )
-  {
-    let remaining = 1 - self.index;
-    ( remaining, Some( remaining ) )
-  }
-}
-
-impl< 'tuple_ref, E > ExactSizeIterator for Tuple1Iter< 'tuple_ref, E > {}
-
-impl< 'tuple_ref, E > DoubleEndedIterator for Tuple1Iter< 'tuple_ref, E >
-{
-  fn next_back( &mut self ) -> Option< Self::Item >
-  {
-    if self.index == 0 {
-      self.index = 1;
-      Some( &self.tuple.0 )
-    } else {
-      None
-    }
-  }
-}
-
-struct Tuple1IterMut< 'tuple_ref, E >
-{
-  tuple : &'tuple_ref mut ( E, ),
-  index : usize,
-}
-
-impl< 'tuple_ref, E > Iterator for Tuple1IterMut< 'tuple_ref, E >
-{
-  type Item = &'tuple_ref mut E;
-
-  fn next( &mut self ) -> Option< Self::Item >
-  {
-    if self.index == 0
-    {
-      self.index = 1;
-      // SAFETY: This is safe because we are returning a mutable reference to the only element,
-      // and we won't return it again in subsequent calls.
-      // qqq : not sure it's sound, either prove it or find a sound solution
-      #[ allow( unsafe_code ) ]
-      unsafe
-      {
-        Some( &mut *( &mut self.tuple.0 as *mut E ) )
-      }
-    }
-    else
-    {
-      None
-    }
-  }
-
-  fn size_hint( &self ) -> ( usize, Option< usize > )
-  {
-    let remaining = 1 - self.index;
-    ( remaining, Some( remaining ) )
-  }
-}
-
-impl< 'tuple_ref, E > ExactSizeIterator for Tuple1IterMut< 'tuple_ref, E > {}
-
-impl< 'tuple_ref, E > DoubleEndedIterator for Tuple1IterMut< 'tuple_ref, E >
-{
-  fn next_back( &mut self ) -> Option< Self::Item >
-  {
-    if self.index == 0
-    {
-      self.index = 1;
-      // SAFETY: This is safe because we are returning a mutable reference to the only element,
-      // and we won't return it again in subsequent calls.
-      // qqq : not sure it's sound, either prove it or find a sound solution
-      #[ allow( unsafe_code ) ]
-      unsafe { Some( &mut *( &mut self.tuple.0 as *mut E ) ) }
-    }
-    else
-    {
-      None
-    }
-  }
-}
-
 impl< E: Clone > VectorIter< E, 1 > for ( E, )
 {
   fn vector_iter< 'tuple_ref >( &'tuple_ref self ) -> impl VectorIteratorRef< 'tuple_ref, &'tuple_ref E >
   where
     E : 'tuple_ref,
   {
-    Tuple1Iter
-    {
-      tuple : self,
-      index : 0,
-    }
+    std::iter::once( &self.0 )
   }
 }
 
@@ -221,10 +115,6 @@ impl< E: Clone > VectorIterMut< E, 1 > for ( E, )
   where
     E : 'tuple_ref,
   {
-    Tuple1IterMut
-    {
-      tuple : self,
-      index : 0,
-    }
+    std::iter::once( &mut self.0 )
   }
 }

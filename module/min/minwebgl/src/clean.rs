@@ -130,6 +130,12 @@ mod private
     Ok( () )
   }
 
+  // Documented exception (task 069) to the all-tests-in-tests/ convention: these tests stay
+  // inline because `convert_attachment_id` is a private helper by design -- extracting it INTO
+  // a testable private function returning `Result` was the TASK-011 fix; publishing it solely
+  // for test placement would widen the API for no caller. Native `tests/` coverage of the
+  // crate's public pure-logic surface lives in `tests/` (see the readme's Testing section for
+  // the full runnability story).
   #[ cfg( test ) ]
   mod tests
   {

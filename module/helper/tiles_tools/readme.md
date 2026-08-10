@@ -106,7 +106,7 @@ not under this crate — see
 
 ## 📚 Documentation
 
-Design documentation lives in [`docs/`](docs/definition/readme.md) as typed doc definitions — coordinate/component types, algorithms (A* pathfinding, field of view, hex mesh generation, coordinate conversion), the `Grid2D`/`Quadtree` data structures, the ECS `World` runtime API, the save-file persistence format, known pitfalls in the current implementation (including which pieces are stubs), and the ECS library selection decision record. See [`docs/definition/readme.md`](docs/definition/readme.md) for the full index. Planned/future work is tracked separately in [`roadmap.md`](roadmap.md).
+Design documentation lives in [`docs/`](docs/definition/readme.md) as typed doc definitions — coordinate/component types, algorithms (A* pathfinding, field of view, hex geometry generation, coordinate conversion), the `Grid2D`/`Quadtree` data structures, the ECS `World` runtime API, the save-file persistence format, known pitfalls in the current implementation (including which pieces are stubs), and the ECS library selection decision record. See [`docs/definition/readme.md`](docs/definition/readme.md) for the full index. Planned/future work is tracked separately in [`roadmap.md`](roadmap.md).
 
 ---
 

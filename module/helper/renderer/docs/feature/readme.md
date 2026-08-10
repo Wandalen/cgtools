@@ -1,5 +1,7 @@
 # Feature Doc Definition
 
+A **feature** instance documents one cohesive slice of the crate's public API. Each instance ties one of `renderer`'s major subsystems to its sources, invariants, and pitfalls, capturing what it does today beyond what any single source file reveals on its own. This collection holds one instance per feature; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Navigational hubs for `renderer`'s major subsystems, tying each to its sources, invariants, and pitfalls.

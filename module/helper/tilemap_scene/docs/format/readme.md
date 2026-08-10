@@ -1,5 +1,7 @@
 # Format Doc Definition
 
+A **format** instance documents one piece of this crate's on-disk or data-file schema. In `tilemap_scene`, that's the RON/serde scene-file specification — the object/layer model, grid coordinates, anchors, declared resources, sprite sources, layer behaviour, render pipeline, and top-level file structure — with each construct's data model, encoding, and version-compatibility contract on record. This collection holds one instance per format concern; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Navigational hub for `tilemap_scene`'s RON/serde data-format specification.

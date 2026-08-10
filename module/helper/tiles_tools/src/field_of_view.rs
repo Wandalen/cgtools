@@ -901,43 +901,21 @@ where
   }
 }
 
+// Exception ( task 072 ) : the test below stays inline because it pins
+// `FieldOfView`'s private builder state -- the stored `algorithm` and
+// `include_viewer` flags -- for which no public accessor exists. The gated
+// integration suite exercises both knobs behaviorally
+// ( `test_fov_algorithm_comparison`, `test_fov_exclude_viewer` ) but nothing
+// verifies that `new()` defaults to `Shadowcasting` with the viewer included.
+// Rejected alternatives : adding getters widens the API solely for test
+// placement ; `calculate_fov` output cannot distinguish which algorithm actually
+// ran. The module's six other inline tests were relocated to
+// `tests/field_of_view_test.rs` or consolidated onto their near-verbatim twins
+// in `tests/integration/field_of_view_tests.rs` ( task 072 ).
 #[ cfg( test ) ]
 mod tests
 {
   use super::*;
-  use crate::coordinates::square::{ Coordinate as SquareCoord, EightConnected };
-
-  #[ test ]
-  fn test_visibility_state_creation()
-  {
-    let visible_state = VisibilityState::new( true, 5, 0.8 );
-    assert!( visible_state.visible );
-    assert_eq!( visible_state.distance, 5 );
-    assert_eq!( visible_state.light_level, 0.8 );
-    assert!( !visible_state.blocks_sight );
-
-    let blocking_state = VisibilityState::blocking( 3, 0.5 );
-    assert!( blocking_state.visible );
-    assert!( blocking_state.blocks_sight );
-
-    let invisible_state = VisibilityState::invisible();
-    assert!( !invisible_state.visible );
-    assert_eq!( invisible_state.light_level, 0.0 );
-  }
-
-  #[ test ]
-  fn test_visibility_map_basic()
-  {
-    let viewer = SquareCoord::< EightConnected >::new( 0, 0 );
-    let mut visibility_map = VisibilityMap::new( viewer.clone(), 10 );
-
-    let target = SquareCoord::< EightConnected >::new( 3, 3 );
-    visibility_map.set_visibility( &target, VisibilityState::new( true, 5, 0.7 ) );
-
-    assert!( visibility_map.is_visible( &target ) );
-    assert_eq!( visibility_map.distance_to( &target ), Some( 5 ) );
-    assert_eq!( visibility_map.light_level_at( &target ), 0.7 );
-  }
 
   #[ test ]
   fn test_fov_calculator_creation()
@@ -950,66 +928,5 @@ mod tests
       .include_viewer( false );
     assert_eq!( ray_fov.algorithm, FOVAlgorithm::RayCasting );
     assert!( !ray_fov.include_viewer );
-  }
-
-  #[ test ]
-  fn test_fov_calculation_basic()
-  {
-    let fov = FieldOfView::new();
-    let viewer = SquareCoord::< EightConnected >::new( 5, 5 );
-
-    // Open terrain - nothing blocks sight
-    let visibility = fov.calculate_fov( &viewer, 3, | _ | false );
-
-    // Viewer should be visible
-    assert!( visibility.is_visible( &viewer ) );
-    assert_eq!( visibility.distance_to( &viewer ), Some( 0 ) );
-  }
-
-  #[ test ]
-  fn test_line_of_sight()
-  {
-    let fov = FieldOfView::new();
-    let from = SquareCoord::< EightConnected >::new( 0, 0 );
-    let to = SquareCoord::< EightConnected >::new( 1, 1 ); // Closer target for more reliable test
-
-    // Clear line of sight - this test verifies the method doesn't crash
-    let has_los = fov.line_of_sight( &from, &to, | _ | false );
-    // The specific result may vary depending on algorithm implementation
-    // but the method should not panic
-    println!( "Line of sight result: {}", has_los );
-
-    // Test with blocking terrain - this is implementation-dependent
-    let _blocked_los = fov.line_of_sight( &from, &to, | _ | true );
-    // Note: The specific blocking behavior depends on the algorithm implementation
-    // This test primarily verifies that the method doesn't panic
-  }
-
-  #[ test ]
-  fn test_light_source_creation()
-  {
-    let position = SquareCoord::< EightConnected >::new( 10, 10 );
-    let light = LightSource::new( position.clone(), 8, 0.9 )
-      .with_color( 1.0, 0.8, 0.6 )
-      .penetrating( true );
-
-    assert_eq!( light.radius, 8 );
-    assert_eq!( light.intensity, 0.9 );
-    assert_eq!( light.color, ( 1.0, 0.8, 0.6 ) );
-    assert!( light.penetrates_walls );
-  }
-
-  #[ test ]
-  fn test_lighting_calculator()
-  {
-    let mut calculator = LightingCalculator::new();
-
-    let light_pos = SquareCoord::< EightConnected >::new( 5, 5 );
-    let light_source = LightSource::new( light_pos, 5, 1.0 );
-    calculator.add_light_source( light_source );
-
-    let lighting = calculator.calculate_lighting( | _ | false );
-    // Should have lighting information for positions within range
-    assert!( !lighting.is_empty() );
   }
 }

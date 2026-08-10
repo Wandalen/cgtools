@@ -1085,17 +1085,24 @@ pub mod utils {
   }
 }
 
-#[cfg(test)]
+// Exception ( task 072 ) : the two tests below stay inline because they pin
+// `GridRenderer`'s private builder state -- `width`/`height`/`style` accumulation
+// and `markers` storage -- for which no public accessor exists. Rendering output
+// is the only public observable, and inferring storage from rendered ASCII would
+// test a different behavior ( a marker can be stored yet not rendered ). Rejected
+// alternative : exposing the fields or adding getters widens the API solely for
+// test placement ( zero external callers ). All other debug tests were relocated
+// to `tests/debug_test.rs` ( task 072 ).
+#[ cfg( test ) ]
 mod tests {
   use super::*;
-  use std::time::Duration;
 
   #[test]
   fn test_grid_renderer_creation() {
     let renderer = GridRenderer::new()
       .with_size(10, 8)
       .with_style(GridStyle::Hexagonal);
-    
+
     assert_eq!(renderer.width, 10);
     assert_eq!(renderer.height, 8);
     assert!(matches!(renderer.style, GridStyle::Hexagonal));
@@ -1106,91 +1113,9 @@ mod tests {
     let mut renderer = GridRenderer::new();
     renderer.add_marker((5, 3), "S", "Start position");
     renderer.add_colored_marker((8, 6), "G", "Goal", DebugColor::Blue, 10);
-    
+
     assert_eq!(renderer.markers.len(), 2);
     assert!(renderer.markers.contains_key(&(5, 3)));
     assert!(renderer.markers.contains_key(&(8, 6)));
-  }
-
-  #[test]
-  fn test_pathfinding_debugger() {
-    let mut debugger = PathfindingDebugger::new(10, 10);
-    
-    debugger.set_start((0, 0));
-    debugger.set_goal((9, 9));
-    debugger.add_obstacle((5, 5));
-    debugger.add_path(vec![(0, 0), (1, 1), (2, 2), (3, 3)], "Test Path");
-    
-    let output = debugger.render_ascii();
-    assert!(output.contains("Start"));
-    assert!(output.contains("Goal"));
-    assert!(output.contains("Obstacle"));
-  }
-
-  #[test]
-  fn test_ecs_inspector() {
-    let mut inspector = ECSInspector::new();
-    
-    let entity = EntityDebugInfo {
-      id: 42,
-      components: vec!["Position".to_string(), "Health".to_string()],
-      position: Some((10, 20)),
-      data: vec![("level".to_string(), "5".to_string())].into_iter().collect(),
-    };
-    
-    inspector.record_entity(entity);
-    inspector.record_system_timing("MovementSystem".to_string(), Duration::from_millis(5));
-    
-    let report = inspector.generate_report();
-    assert!(report.contains("Entity 42"));
-    assert!(report.contains("Position"));
-    assert!(report.contains("MovementSystem"));
-  }
-
-  #[test]
-  fn test_performance_profiler() {
-    let mut profiler = PerformanceProfiler::new();
-    
-    profiler.record_frame_time(Duration::from_millis(16));
-    profiler.record_frame_time(Duration::from_millis(18));
-    profiler.record_system_time("RenderSystem".to_string(), Duration::from_millis(8));
-    profiler.record_memory_sample(1024 * 1024, 100); // 1MB, 100 entities
-    
-    let stats = profiler.get_stats();
-    assert_eq!(stats.frame_count, 2);
-    assert!(stats.fps > 0.0);
-    assert_eq!(stats.current_memory, 1024 * 1024);
-    assert_eq!(stats.current_entities, 100);
-  }
-
-  #[test]
-  fn test_debug_utilities() {
-    let grid = vec![
-      vec![true, false, true],
-      vec![false, true, false],
-      vec![true, true, false],
-    ];
-    
-    let output = utils::render_bool_grid(&grid, '#', '.');
-    assert!(output.contains('#'));
-    assert!(output.contains('.'));
-    
-    let duration = Duration::from_micros(1500);
-    let formatted = utils::format_duration(duration);
-    assert!(formatted.contains("1.5ms"));
-    
-    let memory = utils::format_memory(1536 * 1024); // 1.5 MB
-    assert!(memory.contains("1.5") && memory.contains("MB"));
-  }
-
-  #[test]
-  fn test_coordinate_conversion() {
-    let int_coord = (5, 10);
-    let float_coord = (5.7, 10.3);
-    let usize_coord = (5usize, 10usize);
-    
-    assert_eq!(int_coord.into_debug_coord(), (5, 10));
-    assert_eq!(float_coord.into_debug_coord(), (5, 10));
-    assert_eq!(usize_coord.into_debug_coord(), (5, 10));
   }
 }

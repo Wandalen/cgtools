@@ -15,3 +15,4 @@
 | pmrem_tests.rs | Structural browser tests of the PMREM IBL generator |
 | tests.rs | Connects test modules into root |
 | shader_validation_tests.rs | Validates WGSL shader sources offline via naga |
+| native_render_test.rs | Pixel-asserted opaque path render on the native backend |

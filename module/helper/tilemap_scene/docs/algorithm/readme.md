@@ -1,5 +1,7 @@
 # Algorithm Doc Definition
 
+An **algorithm** instance documents one nontrivial computation this crate performs, worked through precisely enough to reimplement or audit. In `tilemap_scene`, that means the deterministic, cross-context-reusable procedures — such as animation phase/frame resolution and the per-frame scene rendering pass — whose step-by-step computation and correctness properties need to be pinned down. This collection holds one instance per algorithm; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Navigational hub for `tilemap_scene`'s deterministic, cross-context-reusable procedures.

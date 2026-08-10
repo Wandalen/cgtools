@@ -7,7 +7,7 @@
 | `feature/` | Backend adapters (SVG, WebGL2, Terminal) as navigational hubs over source, invariants, patterns, and pitfalls | [feature/readme.md](../feature/readme.md) | 3 |
 | `invariant/` | Cross-backend correctness guarantees (Y-up coordinates, SVG injection safety, draw ordering, vector representability) | [invariant/readme.md](../invariant/readme.md) | 4 |
 | `pattern/` | The core/adapter (Ports and Adapters) architecture shared by all backends | [pattern/readme.md](../pattern/readme.md) | 1 |
-| `pitfall/` | Confirmed GPU-buffer and asset-handling traps, their failure modes, and mitigations | [pitfall/readme.md](../pitfall/readme.md) | 3 |
+| `pitfall/` | Confirmed GPU-buffer traps, their failure modes, and mitigations | [pitfall/readme.md](../pitfall/readme.md) | 2 |
 
 ## Master Doc Instances Table
 
@@ -23,4 +23,3 @@
 | pattern   | 001 | Ports and Adapters Backend Architecture   | [pattern/001_ports_and_adapters_backend_architecture.md](../pattern/001_ports_and_adapters_backend_architecture.md)  |
 | pitfall   | 001 | ArrayBuffer Swap-Remove Buffer-Binding Violation | [pitfall/001_arraybuffer_swap_remove_buffer_binding_violation.md](../pitfall/001_arraybuffer_swap_remove_buffer_binding_violation.md) |
 | pitfall   | 002 | GPU Instance Struct Field-Reorder Desync  | [pitfall/002_gpu_instance_struct_field_reorder_desync.md](../pitfall/002_gpu_instance_struct_field_reorder_desync.md) |
-| pitfall   | 003 | SVG Geometry Path Source Silently Skipped | [pitfall/003_svg_geometry_path_source_silently_skipped.md](../pitfall/003_svg_geometry_path_source_silently_skipped.md) |

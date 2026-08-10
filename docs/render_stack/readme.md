@@ -1,5 +1,7 @@
 # Render Stack Doc Definition
 
+A **render stack** (`d2`, `tile`, `d3`) is a vertical slice through the layer ladder — the vocabulary and invariants one rendering domain commits to, as defined by [the invariant-defined-stack pattern](../pattern/001_invariant_defined_stack.md). This collection holds one **instance** — one identity card — per stack: its invariant table, renounced capabilities, member crates, and which layers it occupies. The table below is the index into those three cards.
+
 ### Scope
 
 - **Purpose**: One instance per render stack — the stack's identity card: its invariant table, renounced capabilities, member crates, and layer occupancy.

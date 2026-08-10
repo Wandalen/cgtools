@@ -405,6 +405,14 @@ mod private
   }
 }
 
+// Documented exception (task 070) to the all-tests-in-tests/ convention: these tests stay
+// inline because they pin descriptor accumulation through `pub( super )` fields and construct
+// mid-state builders by struct literal -- impossible externally, where the fields are private
+// and the state markers (`AdapterBuilder`, `DeviceBuilder`) are not exported. The builder
+// exposes no descriptor getters, and the public observables (`request_adapter`,
+// `finish_context`) need a real adapter/device. Publishing getters or the state markers
+// solely for test placement would widen the API for no caller. Deterministic external
+// coverage of the adapter-request error surface lives in `tests/context_test.rs`.
 #[ cfg( test ) ]
 mod tests
 {

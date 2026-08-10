@@ -37,6 +37,12 @@
 //! 
 //! // Update game systems
 //! world.update( 0.016 ); // 60 FPS
+//!
+//! // Request a movement; the next update applies it to the Position component
+//! world.request_movement( player, SquareCoord::< FourConnected >::new( 1, 0 ) );
+//! world.update( 0.016 );
+//! let position = world.get::< Position< SquareCoord< FourConnected > > >( player ).unwrap();
+//! assert_eq!( ( position.coord.x, position.coord.y ), ( 1, 0 ) );
 //! ```
 
 use crate::ecs::{ components::*, systems::* };
@@ -52,10 +58,12 @@ pub struct World
 {
   /// The underlying HECS world for entity-component storage
   pub hecs_world : hecs::World,
-  /// Pending movement requests from various sources (AI, player input, etc.)
-  /// Note: In a real implementation, this would use a proper enum or trait object
-  /// for type-safe movement requests across coordinate systems
-  movement_requests : HashMap< hecs::Entity, String >, // Simplified for now
+  /// Pending movement requests from various sources (AI, player input, etc.),
+  /// latest request per entity wins. Each request is stored as a boxed apply
+  /// closure capturing its typed target coordinate — closure capture is what makes
+  /// the queue type-safe across coordinate systems without `World` itself being
+  /// generic over any single coordinate type.
+  movement_requests : HashMap< hecs::Entity, Box< dyn FnOnce( &mut hecs::World ) -> bool + Send + Sync > >,
   /// Game events generated this frame
   events : Vec< GameEvent >,
   /// Total elapsed time
@@ -141,12 +149,32 @@ impl World
   }
 
   /// Requests movement for an entity to a specific coordinate.
-  /// Note: Simplified implementation - in practice would handle proper coordinate types
-  pub fn request_movement< C >( &mut self, entity : hecs::Entity, _target : C )
+  ///
+  /// The request is queued and applied by the next `update` call ( latest request
+  /// per entity wins ). On application, the entity's `Position< C >` component is
+  /// set to `target` and a `GameEvent::EntityMoved` event is emitted. A request
+  /// whose entity no longer exists, or whose `C` does not match the entity's
+  /// actual `Position< C >` component type, is discarded without effect.
+  pub fn request_movement< C >( &mut self, entity : hecs::Entity, target : C )
   where
-    C : 'static + Clone,
+    C : 'static + Clone + Send + Sync,
   {
-    self.movement_requests.insert( entity, "movement_requested".to_string() );
+    self.movement_requests.insert
+    (
+      entity,
+      Box::new( move | hecs_world : &mut hecs::World | -> bool
+      {
+        match hecs_world.get::< &mut Position< C > >( entity )
+        {
+          Ok( mut position ) =>
+          {
+            position.coord = target;
+            true
+          }
+          Err( _ ) => false,
+        }
+      }),
+    );
   }
 
   /// Gets all events generated this frame.
@@ -196,7 +224,7 @@ impl World
   #[ allow( dead_code ) ]
   fn process_ai_actions< C >( &mut self, actions : Vec< AIAction< C > > )
   where
-    C : 'static + Clone,
+    C : 'static + Clone + Send + Sync,
   {
     for action in actions
     {
@@ -222,13 +250,19 @@ impl World
     }
   }
 
-  /// Processes pending movement requests.
+  /// Applies pending movement requests to their entities' `Position` components,
+  /// emitting `GameEvent::EntityMoved` for each request that actually moved an
+  /// entity. Requests whose entity is gone or whose coordinate type does not match
+  /// the entity's `Position` component are discarded.
   fn process_movement_requests( &mut self )
   {
-    // This is a simplified version - in reality we'd need to handle different coordinate types
-    // For now, we'll clear the requests to prevent memory leaks
-    // TODO: Implement proper type-safe movement request processing
-    self.movement_requests.clear();
+    for ( entity, apply ) in self.movement_requests.drain()
+    {
+      if apply( &mut self.hecs_world )
+      {
+        self.events.push( GameEvent::EntityMoved { entity } );
+      }
+    }
   }
 
   /// Processes combat events.

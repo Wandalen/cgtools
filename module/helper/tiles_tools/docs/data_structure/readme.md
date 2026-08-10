@@ -1,5 +1,7 @@
 # Data Structure Doc Definition
 
+A **data structure** instance documents one storage or indexing structure the crate uses internally — its layout and complexity characteristics. In `tiles_tools`, that means the crate's core storage containers — `Grid2D` dense storage and the `Quadtree` spatial index — with each one's structure, operations, and invariants written down. This collection holds one instance per structure; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Navigational hub for `tiles_tools`' core storage containers.

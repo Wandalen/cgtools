@@ -3,8 +3,8 @@
 ### Scope
 
 - **Purpose**: Walk a scene's pipeline buckets once per frame, producing a sorted, tint-composed draw-call list.
-- **Responsibility**: Document the per-bucket gather/sort/submit walk, the 5-step tint composition order, missing-sprite fallback, and the cache-replay optimization that skips the walk on an unchanged frame.
-- **In Scope**: Per-layer sprite sampling and behaviour application, bucket-level sorting, tint composition order, missing-sprite placeholder handling, `Renderer`'s idle-frame cache replay.
+- **Responsibility**: Document the per-bucket gather/sort/submit walk, the 5-step tint composition order, missing-sprite failure semantics, and the cache-replay optimization that skips the walk on an unchanged frame.
+- **In Scope**: Per-layer sprite sampling and behaviour application, bucket-level sorting, tint composition order, missing-sprite failure semantics (unset-`External` skip vs hard `CompileError`), `Renderer`'s idle-frame cache replay.
 - **Out of Scope**: How an individual sprite source resolves to a sprite (see `format/005`, `algorithm/001`); how a bucket's declared sort mode is defined (see `format/007`).
 
 ### Abstract
@@ -41,7 +41,13 @@ A layer whose `sprite_source` is a composite source (`NeighborCondition`, `Verte
 4. The bucket's own `PipelineLayer.tint_mask`, if set (see `format/007`).
 5. `RenderPipeline.global_tint` (see `format/007`), applied last, uniformly across every draw call in the frame regardless of which bucket or object it came from.
 
-**Missing-sprite handling**: if a sprite reference cannot be resolved at render time — an `External` slot left unset, a referenced asset missing, an autotile mapping lookup with no matching entry and no `fallback` — the renderer logs a warning naming the layer and context, substitutes a placeholder (magenta checkerboard) at the intended destination, and continues with the remaining draw calls for that frame rather than aborting the pass. This is deliberately more lenient than `format/004`'s load-time asset/frame-lookup failure, which has no placeholder path — the placeholder exists specifically for conditions only detectable at render time (an unset `External` slot cannot be known at load time; it depends on whether game code has called `set_sprite` yet).
+**Missing-sprite handling**: there is no render-time warning or placeholder path — the crate has no logging dependency at all, and the originally-specified warn-and-substitute behavior (magenta checkerboard) is a deliberately-unimplemented pending option tracked in `roadmap.md`'s `External` sprite-source item, not current behavior. What actually happens splits by cause:
+
+- **Unset `External` slot** (game code has not called `set_external_sprite` yet — the one condition unknowable at load time): that layer of that instance silently emits nothing this frame and the pass continues (`src/compile/frame.rs`, `compile_instance_layer`'s unset-slot early return and its free-pos counterpart). Pinned by `tests/renderer_test.rs`'s "unset External slot must not emit any Sprite" assertion.
+- **Any reference that fails to resolve during the walk** — a *set* `External` slot whose `(asset, frame)` pair was never pre-allocated at `Renderer::new` (External refs are not themselves pre-allocated, see `src/compile/assets.rs`, so the pair must be reachable from some other declared source or animation), an unresolvable tint or animation, an unparseable hex color — aborts the entire pass: `render()` returns `Err(CompileError::UnresolvedRef { .. })` and no command buffer is produced for that frame.
+- **Autotile mask miss cannot degrade at all**: `NeighborBitmaskSource::ByMapping`'s `fallback` is a required field (`Box<SpriteSource>`, not an `Option` — see `format/005`), so a mask absent from `mapping` always resolves the declared fallback source.
+
+Both this walk and `format/004`'s load-time frame lookup therefore fail hard on an unresolvable reference; the only deliberate leniency anywhere is the unset-`External` skip.
 
 **Cache replay** (an optimization layered on top of the walk above, not part of the format's own contract): `Renderer::render` computes a signature from `(scene_revision, clock, camera_signature)` before doing any of the above; if the signature exactly matches the previous call's, the previously-built command buffer is returned unchanged (an idle-frame replay, counted via `cache_hits()`) and the gather/sort/compose walk above is skipped entirely for that call. Any scene mutation (`spawn`, `set_state`, `set_tint`, `tick` advancing the clock, etc. — see `api/001`) changes `scene_revision` or `clock` and invalidates the cache for the next call.
 

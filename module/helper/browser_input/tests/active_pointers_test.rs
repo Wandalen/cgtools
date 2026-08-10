@@ -1,7 +1,7 @@
 #![ allow( missing_docs ) ]
 use browser_input::*;
 use browser_input::mouse::MouseButton;
-use minwebgl::math::I32x2;
+use ndarray_cg::I32x2;
 
 fn ev( event_type : EventType ) -> Event
 {

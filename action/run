@@ -1,19 +1,29 @@
 #!/usr/bin/env bash
-#@ purpose: Build and run any example crate by partial, case-insensitive match against its path.
+#@ purpose: Build and run any example crate by partial, case-insensitive match against its path,
+#@          or by the numeric order id shown in `list` output.
 #@ output:  Unique match: delegates to that example's own `verb/run` — `trunk serve --release`
 #@          on a fresh random port for browser examples (crate has an index.html), opening the
 #@          served page via `browsee` once the build is ready (silently skipped if `browsee` is
 #@          missing, fails, or hangs — the dev server keeps running regardless, open the printed
 #@          URL manually in that case); `cargo run --release --all-features` for native and
 #@          offscreen examples (crate has a `.offscreen` marker: renders once to a file, no
-#@          window — everything else is a live native window).
-#@          No match or ambiguous match: lists candidates instead of guessing.
+#@          window — everything else is a live native window). A query that exactly names one
+#@          example (full path, or a complete trailing path-segment chain, e.g. basename alone)
+#@          always resolves to it, even if the same query is also a substring of other, unrelated
+#@          example paths.
+#@          No match: lists nothing, suggests `list`. Fuzzy query loosely matching several
+#@          unrelated paths: reported as ambiguous, candidates listed. Query that exactly names
+#@          more than one example (same basename reused under different parent directories):
+#@          reported as a name collision, not ambiguity — candidates listed, qualify with a
+#@          parent directory to pick one. Never guesses in any of these cases.
 #@ param:   <query>   partial match against the crate's path relative to repo root, e.g.
-#@                    `sun_grid` matches `examples/minwgpu/sun_grid_lines`. Two reserved
-#@                    values instead of a real query: `list [tag]` prints every discoverable
-#@                    example path, optionally filtered to those carrying `tag` (e.g.
+#@                    `sun_grid` matches `examples/minwgpu/sun_grid_lines`; or the numeric order
+#@                    id shown in `list` output's leftmost column, e.g. `62`. Two reserved values
+#@                    instead of a real query: `list [tag]` prints every discoverable example
+#@                    path with its order id, optionally filtered to those carrying `tag` (e.g.
 #@                    `runtime:offscreen` or `api:wgpu` — see the `_TAGS` array below for the
-#@                    full predefined set); `.` prints this help text.
+#@                    full predefined set) — ids reflect position in the full sorted list, so
+#@                    they stay stable across different tag filters; `.` prints this help text.
 set -euo pipefail
 
 if [[ "${1:-}" == "." ]]
@@ -103,6 +113,20 @@ _discover()
   done < <(find "$_REPO_ROOT/examples" \( -name target -o -name .git \) -prune -o -name Cargo.toml -print0)
 }
 
+# Canonical numbered ordering, shared by `list` (display) and numeric-query
+# lookup (resolution) so an id printed by one always resolves via the other.
+# Emits "<id>|<path>|<kind>|<tags>", 1-based, in the same sorted order `list`
+# already displayed before order ids existed.
+_discover_numbered()
+{
+  local _id=0 _line
+  while IFS= read -r _line
+  do
+    _id=$(( _id + 1 ))
+    printf '%s|%s\n' "$_id" "$_line"
+  done < <(_discover | sort)
+}
+
 if [[ $# -eq 0 ]]
 then
   printf 'error: missing query — pass a partial match against an example path, or "list"\n' >&2
@@ -119,7 +143,7 @@ _query="$1"
 if [[ "$_query" == "list" ]]
 then
   _tag_filter="${2:-}"
-  _discover | sort | while IFS='|' read -r _p _k _t
+  _discover_numbered | while IFS='|' read -r _id _p _k _t
   do
     if [[ -n "$_tag_filter" ]]
     then
@@ -128,21 +152,56 @@ then
         *) continue ;;
       esac
     fi
-    printf '%-60s %-10s %s\n' "$_p" "$_k" "$_t"
+    printf '%-4s %-60s %-10s %s\n' "$_id" "$_p" "$_k" "$_t"
   done
   exit 0
 fi
 
-_query_lc="${_query,,}"
 _matches=()
-while IFS= read -r _c
-do
-  _relpath="${_c%%|*}"
-  if [[ "${_relpath,,}" == *"$_query_lc"* ]]
+if [[ "$_query" =~ ^[0-9]+$ ]]
+then
+  while IFS='|' read -r _id _p _k _t
+  do
+    if (( _id == 10#$_query ))
+    then
+      _matches+=( "$_p|$_k|$_t" )
+    fi
+  done < <(_discover_numbered)
+else
+  _query_lc="${_query,,}"
+  while IFS= read -r _c
+  do
+    _relpath="${_c%%|*}"
+    if [[ "${_relpath,,}" == *"$_query_lc"* ]]
+    then
+      _matches+=( "$_c" )
+    fi
+  done < <(_discover)
+
+  # An exact match — full relpath, or a complete trailing path-segment chain
+  # — is a different, higher-confidence category than a candidate that merely
+  # contains the query as a substring: narrow to exact matches whenever at
+  # least one exists, and remember it via _exact_tie so a leftover collision
+  # among them (e.g. `sun_grid_lines` naming 3 unrelated examples) is reported
+  # as a name collision below, never lumped in with genuine fuzzy ambiguity.
+  _exact=()
+  for _c in "${_matches[@]}"
+  do
+    _relpath="${_c%%|*}"
+    _relpath_lc="${_relpath,,}"
+    if [[ "$_relpath_lc" == "$_query_lc" || "$_relpath_lc" == *"/$_query_lc" ]]
+    then
+      _exact+=( "$_c" )
+    fi
+  done
+  if [[ "${#_exact[@]}" -gt 0 ]]
   then
-    _matches+=( "$_c" )
+    _matches=( "${_exact[@]}" )
+    _exact_tie=1
+  else
+    _exact_tie=0
   fi
-done < <(_discover)
+fi
 
 case "${#_matches[@]}" in
   0)
@@ -153,7 +212,12 @@ case "${#_matches[@]}" in
   1)
     ;;
   *)
-    printf 'error: ambiguous match %q — %d candidates:\n' "$_query" "${#_matches[@]}" >&2
+    if [[ "${_exact_tie:-0}" -eq 1 ]]
+    then
+      printf 'error: %q exactly names %d examples — qualify with a parent directory:\n' "$_query" "${#_matches[@]}" >&2
+    else
+      printf 'error: ambiguous match %q — %d candidates:\n' "$_query" "${#_matches[@]}" >&2
+    fi
     for _c in "${_matches[@]}"
     do
       printf '  %s\n' "${_c%%|*}" >&2

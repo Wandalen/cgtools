@@ -9,7 +9,7 @@
 
 ### Abstract
 
-`ecs::World` is a real, working central container wrapping `hecs::World` directly (`pub hecs_world: hecs::World`, `src/ecs/world.rs:54`) — not an opaque abstraction over it. `spawn`/`despawn`/`query`/`query_mut`/`get`/`get_mut` all delegate straight to the underlying `hecs::World` method of the same name. `update(dt)` genuinely dispatches to 4 real systems each call — `AnimationSystem`, `AISystem`, `CombatSystem`, `CleanupSystem` — translating their results into a per-frame `GameEvent` list. One operation, `request_movement`, is a confirmed no-op (see `pitfall/002`). `EntityBuilder` provides 6 archetype helpers (`unit`/`player`/`enemy`/`obstacle`/`trigger`/`decoration`) composing real component bundles.
+`ecs::World` is a real, working central container wrapping `hecs::World` directly (`pub hecs_world: hecs::World`, `src/ecs/world.rs:54`) — not an opaque abstraction over it. `spawn`/`despawn`/`query`/`query_mut`/`get`/`get_mut` all delegate straight to the underlying `hecs::World` method of the same name. `update(dt)` genuinely dispatches to 4 real systems each call — `AnimationSystem`, `AISystem`, `CombatSystem`, `CleanupSystem` — translating their results into a per-frame `GameEvent` list, and additionally applies queued movement requests. `request_movement` queues a typed target coordinate (boxed apply closure, latest request per entity wins) that the next `update` writes into the entity's `Position<C>` component, emitting `GameEvent::EntityMoved` (implemented by task 063; formerly a no-op tracked as `pitfall/002`). `EntityBuilder` provides 6 archetype helpers (`unit`/`player`/`enemy`/`obstacle`/`trigger`/`decoration`) composing real component bundles.
 
 ### Operations
 
@@ -20,8 +20,8 @@
 | `World::despawn(entity)` | Delegates directly to `hecs::World::despawn`; returns `Result<(), hecs::NoSuchEntity>`. |
 | `World::query::<Q>()` / `query_mut::<Q>()` | Delegate directly to `hecs::World::query`/`query_mut`. |
 | `World::get::<T>(entity)` / `get_mut::<T>(entity)` | Delegate to `hecs::World::get::<&T>`/`get::<&mut T>`; return `Result<hecs::Ref<T>, hecs::ComponentError>` / `Result<hecs::RefMut<T>, hecs::ComponentError>`. |
-| `World::update(dt)` | Real dispatch, in order: `AnimationSystem::update_animations`, `AISystem::update_ai`, `process_movement_requests` (no-op, see `pitfall/002`), `CombatSystem::process_combat` (translated into `GameEvent::Damage`/`EntityDefeated`), `CleanupSystem::cleanup_defeated_entities` (translated into `GameEvent::EntityDestroyed`). |
-| `World::request_movement(entity, target)` | **No-op** — `target` is discarded unread; see `pitfall/002` for the exact mechanism. |
+| `World::update(dt)` | Real dispatch, in order: `AnimationSystem::update_animations`, `AISystem::update_ai`, `process_movement_requests` (applies queued requests to `Position` components, emitting `GameEvent::EntityMoved` per applied request), `CombatSystem::process_combat` (translated into `GameEvent::Damage`/`EntityDefeated`), `CleanupSystem::cleanup_defeated_entities` (translated into `GameEvent::EntityDestroyed`). |
+| `World::request_movement(entity, target)` | Queues `target` as a typed, boxed apply closure — latest request per entity wins; applied by the next `update`. A request whose entity is gone, or whose coordinate type does not match the entity's `Position<C>`, is discarded without effect. |
 | `World::events()` / `clear_events()` | Return/clear the `Vec<GameEvent>` accumulated by the most recent `update` call. |
 | `World::elapsed_time()` | Returns cumulative `dt` summed across all `update` calls. |
 | `World::find_entities_in_range(center, range)` / `find_nearest_entity(center)` | Real spatial queries over `Position<C>` components, generic over `C: Distance`. |
@@ -45,7 +45,6 @@ No custom error type wraps ECS failures — `despawn` propagates `hecs::NoSuchEn
 
 | File | Relationship |
 |------|--------------|
-| [pitfall/002_ecs_movement_requests_are_a_no_op.md](../pitfall/002_ecs_movement_requests_are_a_no_op.md) | Full detail on `request_movement`'s no-op mechanism |
 
 ### Architectural Evaluations
 
@@ -63,4 +62,4 @@ No custom error type wraps ECS failures — `despawn` propagates `hecs::NoSuchEn
 
 ### Tests
 
-Inline doc-tests exist on both `ecs/mod.rs`'s and `ecs/world.rs`'s module-level doc comments (spawn/query examples, `src/ecs/mod.rs:25-48`, `src/ecs/world.rs:16-40`) — both exercise `spawn`/`query`/`update` against real component types. No test currently exercises `request_movement` end-to-end (see `pitfall/002`).
+Inline doc-tests exist on both `ecs/mod.rs`'s and `ecs/world.rs`'s module-level doc comments (spawn/query examples) — both exercise `spawn`/`query`/`update` against real component types, and `ecs/world.rs`'s additionally exercises `request_movement` + `update` end-to-end, asserting the `Position` component actually changed. `tests/integration/ecs_tests.rs` pins the same path plus the discard cases (despawned entity, mismatched coordinate type) and `EntityMoved` event emission.

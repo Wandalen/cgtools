@@ -41,8 +41,8 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 |<img width="500px" src="./minwebgl/diamond/showcase.webp"><br>[Diamond](./minwebgl/diamond/readme.md) |<img width="500px" src="./minwebgl/filter/showcase.webp"><br>[Image filter](./minwebgl/filter/readme.md) |
 |<img width="500px" src="./minwebgl/filters/showcase.webp"><br>[Image filters](./minwebgl/filters/readme.md) |<img width="500px" src="./minwebgl/gltf_viewer/showcase.webp"><br>[GLTF viewer](./minwebgl/gltf_viewer/readme.md) |
 |<img width="500px" src="./minwebgl/hexagonal_grid/showcase.webp"><br>[Hexagonal grid](./minwebgl/hexagonal_grid/readme.md) |<img width="500px" src="./minwebgl/hexagonal_map/showcase.webp"><br>[Hexagonal map](./minwebgl/hexagonal_map/readme.md) |
-|<img width="500px" src="./minwebgl/lottie_surface_rendering/showcase.webp"><br>[Lottie surface rendering](./minwebgl/lottie_surface_rendering/readme.md) |<img width="500px" src="./minwebgl/make_cube_map/showcase.webp"><br>[Cube map](./minwebgl/make_cube_map/readme.md) |
-|<img width="500px" src="./minwebgl/mapgen_tiles_rendering/showcase.webp"><br>[Tilemaps rendering](./minwebgl/mapgen_tiles_rendering/readme.md) |<img width="500px" src="./minwebgl/minimize_wasm/showcase.webp"><br>[Minimize wasm](./minwebgl/minimize_wasm/readme.md) |
+|<img width="500px" src="./minwebgl/jewelry_site/showcase.webp"><br>[Jewelry site](./minwebgl/jewelry_site/readme.md) |<img width="500px" src="./minwebgl/lottie_surface_rendering/showcase.webp"><br>[Lottie surface rendering](./minwebgl/lottie_surface_rendering/readme.md) |
+|<img width="500px" src="./minwebgl/make_cube_map/showcase.webp"><br>[Cube map](./minwebgl/make_cube_map/readme.md) |<img width="500px" src="./minwebgl/mapgen_tiles_rendering/showcase.webp"><br>[Tilemaps rendering](./minwebgl/mapgen_tiles_rendering/readme.md) |
 |<img width="500px" src="./minwebgl/minimize_wasm/showcase.webp"><br>[Minimize wasm](./minwebgl/minimize_wasm/readme.md) |<img width="500px" src="./minwebgl/morph_targets/showcase.webp"><br>[Morph targets](./minwebgl/morph_targets/readme.md) |
 |<img width="500px" src="./minwebgl/narrow_outline/showcase.webp"><br>[Narrow outline](./minwebgl/narrow_outline/readme.md) |<img width="500px" src="./minwebgl/obj_load/showcase.webp"><br>[OBJ loading](./minwebgl/obj_load/readme.md) |
 |<img width="500px" src="./minwebgl/obj_viewer/showcase.webp"><br>[OBJ viewer](./minwebgl/obj_viewer/readme.md) |<img width="500px" src="./minwebgl/object_picking/showcase.webp"><br>[Object picking](./minwebgl/object_picking/readme.md) |
@@ -51,8 +51,9 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 |<img width="500px" src="./minwebgl/renderer_with_outlines/showcase.webp"><br>[Outlines postprocessing](./minwebgl/renderer_with_outlines/readme.md) |[Shadowmap](./minwebgl/shadowmap/readme.md)<br>*(No showcase yet)* |
 |<img width="500px" src="./minwebgl/simple_pbr/showcase.webp"><br>[Simple PBR](./minwebgl/simple_pbr/readme.md) |<img width="500px" src="./minwebgl/skeletal_animation/showcase.webp"><br>[Skeletal animation](./minwebgl/skeletal_animation/readme.md) |
 |<img width="500px" src="./minwebgl/space_partition/showcase.webp"><br>[Space partition](./minwebgl/space_partition/readme.md) |<img width="500px" src="./minwebgl/spinning_cube_size_opt/showcase.webp"><br>[Spinning cube](./minwebgl/spinning_cube_size_opt/readme.md) |
-|<img width="500px" src="./minwebgl/sprite_animation/showcase.webp"><br>[Sprite animation](./minwebgl/sprite_animation/readme.md) |<img width="500px" src="./minwebgl/text_msdf/showcase.webp"><br>[Text MSDF](./minwebgl/text_msdf/readme.md) |
-|<img width="500px" src="./minwebgl/text_rendering/showcase.webp"><br>[Text rendering](./minwebgl/text_rendering/readme.md) |<img width="500px" src="./minwebgl/trivial/showcase.webp"><br>[Trivial](./minwebgl/trivial/readme.md) |
+|<img width="500px" src="./minwebgl/sprite_animation/showcase.webp"><br>[Sprite animation](./minwebgl/sprite_animation/readme.md) |<img width="500px" src="./minwebgl/sun_grid_lines/showcase.webp"><br>[Sun grid lines](./minwebgl/sun_grid_lines/readme.md) |
+|<img width="500px" src="./minwebgl/text_msdf/showcase.webp"><br>[Text MSDF](./minwebgl/text_msdf/readme.md) |<img width="500px" src="./minwebgl/text_rendering/showcase.webp"><br>[Text rendering](./minwebgl/text_rendering/readme.md) |
+|[Touch input test](./minwebgl/touch_input_test/readme.md)<br>*(No showcase — manual testing aid, not a demo)* |<img width="500px" src="./minwebgl/trivial/showcase.webp"><br>[Trivial](./minwebgl/trivial/readme.md) |
 |<img width="500px" src="./minwebgl/uniforms_animation/showcase.webp"><br>[Uniform animation](./minwebgl/uniforms_animation/readme.md) |<img width="500px" src="./minwebgl/uniforms_ubo/showcase.webp"><br>[Uniform UBO](./minwebgl/uniforms_ubo/readme.md) |
 |<img width="500px" src="./minwebgl/video_as_texture/showcase.webp"><br>[Video as texture](./minwebgl/video_as_texture/readme.md) |<img width="500px" src="./minwebgl/wfc/showcase.webp"><br>[Wave function collapse](./minwebgl/wfc/readme.md) |
 
@@ -61,6 +62,7 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 | | |
 |:-------------------------:|:-------------------------:|
 |<img width="500px" src="./minwebgpu/deffered_rendering/showcase.webp"><br>[Deffered rendering](./minwebgpu/deffered_rendering/readme.md) |<img width="500px" src="./minwebgpu/hello_triangle/showcase.webp"><br>[Hello triangle](./minwebgpu/hello_triangle/readme.md) |
+|<img width="500px" src="./minwebgpu/hello_triangle_quickstart/showcase.webp"><br>[Hello triangle quickstart](./minwebgpu/hello_triangle_quickstart/readme.md) |[PBR scene (gpu_hal)](./minwebgpu/renderer_pbr_scene/readme.md)<br>*(No showcase yet)* |
 |[Sun grid lines](./minwebgpu/sun_grid_lines/readme.md)<br>*(No showcase — see readme for why)* | |
 
 ## WGPU Examples
@@ -96,11 +98,11 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 | demo_todo_categorized.md | Categorized todo list for examples |
 | example_requirements.md | Requirements documentation for examples |
 | how_to_run.md | Setup and execution instructions for examples |
-| index.html | Interactive HTML gallery with 50 example showcases |
+| index.html | Interactive HTML gallery with 72 example showcases |
 | index.md | Markdown-formatted examples list |
 | math/ | Math-based examples directory (1 demo) |
-| minwebgl/ | WebGL examples directory (49 demos) |
-| minwebgpu/ | WebGPU examples directory (4 demos) |
+| minwebgl/ | WebGL examples directory (48 demos) |
+| minwebgpu/ | WebGPU examples directory (5 demos) |
 | minwgpu/ | WGPU examples directory (4 demos) |
 | readme.md | Root documentation for examples directory |
 | scene_script/ | Rhai scripting examples directory (2 demos) |

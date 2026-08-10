@@ -293,39 +293,6 @@ mod private
       Self::new()
     }
   }
-
-  #[ cfg( test ) ]
-  mod test
-  {
-    use super::*;
-    use stitch_instruction::*;
-
-    #[ test ]
-    fn test_add_stitch_relative()
-    {
-      let mut emb = EmbroideryFile::new();
-      emb.add_stitch_relative( Stitch { x : 10, y : 20, instruction: Instruction::Stitch } );
-      emb.add_stitch_relative( Stitch { x : 30, y : 40, instruction: Instruction::Stitch } );
-
-      let stitches = emb.stitches();
-
-      assert_eq!( stitches[ 0 ], Stitch { x : 10, y : 20, instruction: Instruction::Stitch } );
-      assert_eq!( stitches[ 1 ], Stitch { x : 40, y : 60, instruction: Instruction::Stitch } );
-    }
-
-    #[ test ]
-    fn test_add_stitch_absolute()
-    {
-      let mut emb = EmbroideryFile::new();
-      emb.add_stitch_absolute( Stitch { x : 10, y : 20, instruction: Instruction::Stitch } );
-      emb.add_stitch_absolute( Stitch { x : 30, y : 40, instruction: Instruction::Stitch } );
-
-      let stitches = emb.stitches();
-
-      assert_eq!( stitches[ 0 ], Stitch { x : 10, y : 20, instruction: Instruction::Stitch } );
-      assert_eq!( stitches[ 1 ], Stitch { x : 30, y : 40, instruction: Instruction::Stitch } );
-    }
-  }
 }
 
 crate::mod_interface!

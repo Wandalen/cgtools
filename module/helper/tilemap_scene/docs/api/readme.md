@@ -1,5 +1,7 @@
 # Api Doc Definition
 
+An **api** instance documents one integration surface — the entry points external code uses to drive this crate. Here, that's the public operations a game uses to drive a loaded scene and render it — `Scene` instance lifecycle and mutation, `Renderer::render`, and `Camera`. This collection holds one instance per API surface; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Navigational hub for `tilemap_scene`'s programmatic runtime integration surface.

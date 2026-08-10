@@ -42,8 +42,8 @@
 //! | EC6.1   | Query    | World  | Multiple  | Found    |
 
 use tiles_tools::ecs::{
-  World, Position, Health, Movable, Stats, Team, AI, PlayerControlled, 
-  EntityBuilder, Animation, Sprite, Size
+  World, Position, Health, Movable, Stats, Team, AI, PlayerControlled,
+  EntityBuilder, Animation, Sprite, Size, GameEvent, MovementSystem, MovementResult
 };
 use tiles_tools::coordinates::{
   square::{Coordinate as SquareCoord, FourConnected, EightConnected},
@@ -384,21 +384,120 @@ fn test_entity_lifecycle()
 fn test_movement_requests()
 {
   let mut world = World::new();
-  
+
   let entity = world.spawn((
-    Position::new(SquareCoord::<FourConnected>::new(1, 1)),
-    Movable::new(5),
+    Position::new( SquareCoord::< FourConnected >::new( 1, 1 ) ),
+    Movable::new( 5 ),
   ));
-  
-  // Request movement
-  world.request_movement(entity, SquareCoord::<FourConnected>::new(3, 3));
-  
-  // Update should process the movement request
-  world.update(0.016);
-  
-  // Note: The current implementation just clears requests
-  // In a full implementation, position would be updated
-  // This test verifies the API works without errors
+
+  // Request movement; the next update applies it to the Position component.
+  world.request_movement( entity, SquareCoord::< FourConnected >::new( 3, 3 ) );
+  world.update( 0.016 );
+
+  {
+    let position = world.get::< Position< SquareCoord< FourConnected > > >( entity ).unwrap();
+    assert_eq!( ( position.coord.x, position.coord.y ), ( 3, 3 ) );
+  }
+
+  // The applied request is reported as an EntityMoved event of that same frame.
+  assert!
+  (
+    world.events().iter().any( | event | matches!( event, GameEvent::EntityMoved { entity : moved } if *moved == entity ) ),
+    "an applied movement request must emit EntityMoved"
+  );
+}
+
+#[ test ]
+fn test_movement_request_latest_wins()
+{
+  let mut world = World::new();
+
+  let entity = world.spawn((
+    Position::new( SquareCoord::< FourConnected >::new( 0, 0 ) ),
+  ));
+
+  // Two requests before one update: the later one wins; exactly one move happens.
+  world.request_movement( entity, SquareCoord::< FourConnected >::new( 5, 5 ) );
+  world.request_movement( entity, SquareCoord::< FourConnected >::new( 2, 2 ) );
+  world.update( 0.016 );
+
+  {
+    let position = world.get::< Position< SquareCoord< FourConnected > > >( entity ).unwrap();
+    assert_eq!( ( position.coord.x, position.coord.y ), ( 2, 2 ) );
+  }
+  assert_eq!( world.events().len(), 1 );
+}
+
+#[ test ]
+fn test_movement_request_discard_cases()
+{
+  let mut world = World::new();
+
+  let entity = world.spawn((
+    Position::new( SquareCoord::< FourConnected >::new( 7, 7 ) ),
+  ));
+
+  // A request whose coordinate type does not match the entity's Position< C >
+  // component is discarded without effect and without an event.
+  world.request_movement( entity, HexCoord::< Axial, Pointy >::new( 4, 4 ) );
+  world.update( 0.016 );
+  {
+    let position = world.get::< Position< SquareCoord< FourConnected > > >( entity ).unwrap();
+    assert_eq!( ( position.coord.x, position.coord.y ), ( 7, 7 ) );
+  }
+  assert!( world.events().is_empty(), "a mismatched-type request must not emit events" );
+
+  // A request for a despawned entity is discarded without panic and without an event.
+  world.despawn( entity ).unwrap();
+  world.request_movement( entity, SquareCoord::< FourConnected >::new( 9, 9 ) );
+  world.update( 0.016 );
+  assert!( world.events().is_empty(), "a request for a despawned entity must not emit events" );
+}
+
+#[ test ]
+fn test_movement_system_uses_caller_policies()
+{
+  let mut world = World::new();
+
+  let entity = world.spawn((
+    Position::new( SquareCoord::< FourConnected >::new( 0, 0 ) ),
+    Movable::new( 5 ),
+  ));
+
+  let mut requests = std::collections::HashMap::new();
+  requests.insert( entity, SquareCoord::< FourConnected >::new( 2, 0 ) );
+
+  // Open field: movement succeeds and the position is written.
+  let results = MovementSystem::process_movement( &mut world.hecs_world, &requests, | _ | true, | _ | 1 );
+  assert!( matches!( results[ .. ], [ MovementResult::Success { .. } ] ) );
+  {
+    let position = world.get::< Position< SquareCoord< FourConnected > > >( entity ).unwrap();
+    assert_eq!( ( position.coord.x, position.coord.y ), ( 2, 0 ) );
+  }
+
+  // The caller's obstacle policy is honored: with accessibility restricted to a
+  // finite box around the entity that excludes the target, the search exhausts
+  // the box, yields NoPathFound, and the position stays put. ( The box must be
+  // finite: the square grid is unbounded, so an unreachable goal with an
+  // unbounded accessibility policy would never terminate. )
+  requests.insert( entity, SquareCoord::< FourConnected >::new( 4, 0 ) );
+  let results = MovementSystem::process_movement
+  (
+    &mut world.hecs_world,
+    &requests,
+    | coord | ( 1 ..= 3 ).contains( &coord.x ) && ( -1 ..= 1 ).contains( &coord.y ),
+    | _ | 1,
+  );
+  assert!( matches!( results[ .. ], [ MovementResult::NoPathFound ] ) );
+  {
+    let position = world.get::< Position< SquareCoord< FourConnected > > >( entity ).unwrap();
+    assert_eq!( ( position.coord.x, position.coord.y ), ( 2, 0 ) );
+  }
+
+  // The caller's cost policy is honored: uniform cost 4 over a 2-step path
+  // overruns the movement range of 5, yielding PathTooLong.
+  let results = MovementSystem::process_movement( &mut world.hecs_world, &requests, | _ | true, | _ | 4 );
+  assert!( matches!( results[ .. ], [ MovementResult::PathTooLong { .. } ] ) );
 }
 
 // =============================================================================

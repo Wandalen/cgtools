@@ -8,7 +8,7 @@ This example introduces fundamental 3D graphics concepts including model-view-pr
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

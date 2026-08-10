@@ -20,7 +20,7 @@
 | algorithm | 001 | Coordinate Distance & Neighbor Formulas | [algorithm/001_coordinate_distance_and_neighbor_formulas.md](../algorithm/001_coordinate_distance_and_neighbor_formulas.md) |
 | algorithm | 002 | Generic A* Pathfinding | [algorithm/002_generic_astar_pathfinding.md](../algorithm/002_generic_astar_pathfinding.md) |
 | algorithm | 003 | Field of View Calculation | [algorithm/003_field_of_view_calculation.md](../algorithm/003_field_of_view_calculation.md) |
-| algorithm | 004 | Hexagon Mesh Generation | [algorithm/004_hexagon_mesh_generation.md](../algorithm/004_hexagon_mesh_generation.md) |
+| algorithm | 004 | Hexagon Geometry Generation | [algorithm/004_hexagon_geometry_generation.md](../algorithm/004_hexagon_geometry_generation.md) |
 | algorithm | 005 | Coordinate System Conversion | [algorithm/005_coordinate_system_conversion.md](../algorithm/005_coordinate_system_conversion.md) |
 | api | 001 | ECS World Runtime API | [api/001_ecs_world_runtime_api.md](../api/001_ecs_world_runtime_api.md) |
 | architectural_evaluation | 001 | ECS Library Selection | [architectural_evaluation/001_ecs_library_selection.md](../architectural_evaluation/001_ecs_library_selection.md) |
@@ -30,7 +30,6 @@
 | invariant | 002 | Lattice Address Primacy | [invariant/002_lattice_address_primacy.md](../invariant/002_lattice_address_primacy.md) |
 | persistence | 001 | Save File Model | [persistence/001_save_file_model.md](../persistence/001_save_file_model.md) |
 | pitfall | 001 | Flow Field Algorithm Unimplemented | [pitfall/001_flow_field_algorithm_unimplemented.md](../pitfall/001_flow_field_algorithm_unimplemented.md) |
-| pitfall | 002 | ECS Movement Requests Are a No-Op | [pitfall/002_ecs_movement_requests_are_a_no_op.md](../pitfall/002_ecs_movement_requests_are_a_no_op.md) |
 | pitfall | 003 | Save-File Compression Is a Fake Wrapper | [pitfall/003_savefile_compression_is_a_fake_wrapper.md](../pitfall/003_savefile_compression_is_a_fake_wrapper.md) |
 | pitfall | 004 | Hexagonal Axial Distance Method Ambiguity | [pitfall/004_hexagonal_axial_distance_method_ambiguity.md](../pitfall/004_hexagonal_axial_distance_method_ambiguity.md) |
 | type | 001 | Coordinate System Type Model | [type/001_coordinate_system_type_model.md](../type/001_coordinate_system_type_model.md) |

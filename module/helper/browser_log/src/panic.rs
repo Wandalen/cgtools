@@ -69,13 +69,16 @@ mod private
   }
 
   /// Specify how to handle panic.
+  ///
+  /// The two flags gate message sections on the wasm32 target only, where the
+  /// hook assembles the `console.error` payload; the native fallback prints the
+  /// panic info as-is and ignores them. Defaults and field contract are pinned
+  /// by `tests/panic_hook_test.rs`.
   #[ derive( Debug ) ]
   pub struct Config
   {
-    // qqq : cover by test
     /// Print location.
     pub with_location : bool,
-    // qqq : cover by test
     /// Print stack trace.
     pub with_stack_trace : bool,
   }

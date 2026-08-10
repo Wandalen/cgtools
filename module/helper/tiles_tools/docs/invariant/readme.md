@@ -1,5 +1,7 @@
 # Invariant Doc Definition
 
+An **invariant** is a guarantee this crate enforces and callers may rely on. In `tiles_tools`, that covers correctness properties such as the triangular coordinate sum constraint and lattice address primacy, each written down with its enforcement mechanism and the consequences of violating it. This collection holds one instance per invariant, each pinned to where it is enforced in code; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Navigational hub for correctness properties that must always hold in `tiles_tools`.

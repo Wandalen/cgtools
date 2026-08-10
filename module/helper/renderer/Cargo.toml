@@ -43,9 +43,12 @@ enabled = [
   "dep:rustc-hash"
 ]
 default = [ "enabled" ]
-full = [ "enabled", "webgl", "animation", "webgpu" ]
+full = [ "enabled", "webgl", "animation", "webgpu", "native" ]
 webgl = []
 webgpu = [ "dep:minwebgpu", "dep:bytemuck", "dep:gpu_hal" ]
+# The canonical gpu_hal renderer on the native wgpu backend — same layer as
+# `webgpu`, materializing off-wasm instead ( terminal pixel tests, no browser ).
+native = [ "dep:minwebgpu", "dep:bytemuck", "dep:gpu_hal", "gpu_hal/native" ]
 animation = [ "dep:animation", "dep:clone_dyn_types" ]
 
 [dependencies]

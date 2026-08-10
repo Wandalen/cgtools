@@ -34,6 +34,7 @@ mod ecs_tests;
 mod field_of_view_tests;
 // Temporarily disabled until flowfield generic constraints are resolved
 // mod flowfield_tests;
+mod geometry_tests;
 mod isometric_coords_tests;
 mod square_coords_tests;
 mod triangular_coords_tests;

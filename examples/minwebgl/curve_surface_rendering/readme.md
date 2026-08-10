@@ -6,7 +6,7 @@ This demo demonstrates how to render 2D shapes from lines data as texture on obj
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

@@ -152,10 +152,7 @@ fn test_normalize_to()
   let mut vec_a = [ 3.0, 4.0 ];
   vector::normalize_to( &mut vec_a, 10.0 );
   let expected = [ 6.0, 8.0 ];
-  for ( a, b ) in vec_a.iter().zip( expected.iter() )
-  {
-    assert_ulps_eq!( a, b );
-  }
+  assert_ulps_eq!( vec_a[ .. ], expected[ .. ] );
 
   let mut got = [ 0.0, 0.0 ];
   vector::normalize_to( &mut got, 10.0 );
@@ -180,10 +177,7 @@ fn test_normalized_to()
   let vec_a = [ 3.0, 4.0 ];
   let result = vector::normalized_to( &vec_a, 10.0 );
   let expected = [ 6.0, 8.0 ];
-  for ( a, b ) in result.iter().zip( expected.iter() )
-  {
-    assert_ulps_eq!( a, b );
-  }
+  assert_ulps_eq!( result[ .. ], expected[ .. ] );
 
   let vec_zero = [ 0.0, 0.0 ];
   let got = vector::normalized_to( &vec_zero, 10.0 );
@@ -207,11 +201,9 @@ fn test_project_on()
   let vec_b = [ 4.0, 5.0, 6.0 ];
   vector::project_on( &mut vec_a, &vec_b );
   let expected = [ 1.662_337_662_337_662_4, 2.077_922_077_922_078, 2.493_506_493_506_493_4 ];
-  for ( a, b ) in vec_a.iter().zip( expected.iter() )
-  {
-    assert_ulps_eq!( a, b );
-    // qqq : xxx : make that working : assert_ulps_eq!( vec_a, expected );
-  }
+  // approx has no fixed-size array impls, so whole-vector comparison goes through the
+  // slice impl ( `UlpsEq< [ B ] > for [ A ]` ) via `[ .. ]`.
+  assert_ulps_eq!( vec_a[ .. ], expected[ .. ] );
 
   let mut vec_zero = [ 0.0, 0.0, 0.0 ];
   vector::project_on( &mut vec_zero, &vec_b );
@@ -232,11 +224,7 @@ fn test_projected_on()
   let vec_b = [ 4.0, 5.0, 6.0 ];
   let result = vector::projected_on( &vec_a, &vec_b );
   let expected = [ 1.662_337_662_337_662_4, 2.077_922_077_922_078, 2.493_506_493_506_493_4 ];
-  // xxx : rid of cylce here
-  for ( a, b ) in result.iter().zip( expected.iter() )
-  {
-    assert_ulps_eq!( a, b, max_ulps = 10000 );
-  }
+  assert_ulps_eq!( result[ .. ], expected[ .. ], max_ulps = 10000 );
 
   let vec_zero = [ 0.0, 0.0, 0.0 ];
   let got = vector::projected_on( &vec_zero, &vec_b );

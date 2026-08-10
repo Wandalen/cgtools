@@ -11,7 +11,6 @@ members = [
   "module/blank/cgtools",
   "module/blank/d3_scene",
   "module/blank/frame_graph",
-  "module/blank/gpu_hal",
   "module/blank/mdmath",
   "module/blank/mdmath_ai",
   "module/blank/mdmath_cg",
@@ -31,6 +30,7 @@ members = [
   "module/helper/embroidery_tools",
   "module/helper/primitive_generation",
   "module/helper/line_tools",
+  "module/helper/gpu_hal",
   "module/helper/renderer",
   "module/helper/tilemap_renderer",
   "module/helper/tiles_tools",
@@ -193,7 +193,7 @@ path = "module/min/minwgpu"
 
 [workspace.dependencies.gpu_hal]
 version = "~0.1.0"
-path = "module/blank/gpu_hal"
+path = "module/helper/gpu_hal"
 
 # = math
 

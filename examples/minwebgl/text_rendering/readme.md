@@ -6,7 +6,7 @@ This demo demonstrates 3D text rendering in WebGL2. It uses UFO and TTF font gly
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

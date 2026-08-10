@@ -1,5 +1,7 @@
 # Pitfall Doc Definition
 
+A **pitfall** documents one way this crate's API can be misused or misunderstood — the trap, why it happens, and how to avoid it. In `line_tools`, these are confirmed edge cases in the geometry and shader math — point spacing, join angles, and degenerate input — that the shaders alone won't reveal, each entry recording what goes wrong and how, or whether, it's addressed. This collection holds one instance per known pitfall; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: `line_tools`' geometry and shader math contain confirmed edge cases in point spacing, join angles, and degenerate input that are not obvious from reading the shaders alone.

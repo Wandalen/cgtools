@@ -1,5 +1,7 @@
 # Type Doc Definition
 
+A **type** instance documents one significant data type's shape and role in the crate. In `tiles_tools`, that covers the generic `Coordinate<System, Orientation>` model spanning all four grid topologies and the ECS component vocabulary, each written down with its structural role, phantom-type parameters, and validation rules. This collection holds one instance per type; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Navigational hub for `tiles_tools`' core generic type contracts.

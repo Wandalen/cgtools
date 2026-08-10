@@ -1,5 +1,7 @@
 # Feature Doc Definition
 
+A **feature** instance documents one cohesive slice of the crate's public API. In `line_tools`, each instance covers one configurable, anti-aliased 2D or 3D polyline rendering capability, linking out to the source, shaders, and pitfalls behind it. This collection holds one instance per feature; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: `line_tools`' user-facing rendering capabilities exist to give 2D and 3D applications configurable, anti-aliased polyline rendering without hand-writing WebGL.

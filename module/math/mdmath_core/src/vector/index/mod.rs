@@ -2,7 +2,7 @@
 use std::mem::{ align_of_val, size_of_val };
 
 use crate::{ Collection, ConstLength, IntoArray, ArrayRef, ArrayMut, Ix };
-use ::ndarray::{ Ix0, Ix1, Ix2, Ix3 };
+use ::ndarray::{ Ix0, Ix1, Ix2, Ix3, Ix4 };
 
 // = 0
 
@@ -307,4 +307,86 @@ impl ArrayMut< usize, 3 > for Ix3
   }
 }
 
-// qqq : implement for 4 please
+// = 4
+
+impl Collection for Ix4
+{
+  type Scalar = Ix;
+}
+
+impl ConstLength for Ix4
+{
+  const LEN : usize = 4;
+}
+
+impl IntoArray< usize, 4 > for Ix4
+{
+  #[ inline ]
+  fn into_array( self ) -> [ usize ; 4 ]
+  {
+    [ self[ 0 ], self[ 1 ], self[ 2 ], self[ 3 ] ]
+  }
+}
+
+impl ArrayRef< usize, 4 > for Ix4
+{
+  #[ inline( always ) ]
+  fn array_ref( &self ) -> &[ usize ; 4 ]
+  {
+    use std::mem::transmute;
+
+    // SAFETY: We are using `transmute` to convert a reference to a tuple `([ usize; N ])`
+    // into a reference to an array `[usize; N]`. This is safe because:
+    // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
+    //    - Both contain N elements of type `E`.
+    // 2. We ensure that the size and alignment of the tuple and the array are the same
+    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
+    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
+    //    ensuring that the reference does not outlive the data it points to.
+
+    #[ allow( unsafe_code ) ]
+    let result : &[ Ix ; 4 ] = unsafe { transmute( self ) };
+
+    // Check size and alignment of the whole collection
+    debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
+    debug_assert_eq!( align_of_val( self ), align_of_val( result ), "Alignment should be the same" );
+
+    // Return the result
+    result
+  }
+}
+
+impl ArrayMut< usize, 4 > for Ix4
+{
+  #[ inline( always ) ]
+  fn vector_mut( &mut self ) -> &mut [ usize ; 4 ]
+  {
+    use std::mem::transmute;
+
+    // Store layout information in temporary variables
+    #[ cfg( debug_assertions ) ]
+    let size_self = size_of_val( self );
+    #[ cfg( debug_assertions ) ]
+    let align_self = align_of_val( self );
+
+    // SAFETY: We are using `transmute` to convert a reference to a tuple `([ usize; N ])`
+    // into a reference to an array `[usize; N]`. This is safe because:
+    // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
+    //    - Both contain N elements of type `E`.
+    // 2. We ensure that the size and alignment of the tuple and the array are the same
+    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
+    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
+    //    ensuring that the reference does not outlive the data it points to.
+    #[ allow( unsafe_code ) ]
+    let result : &mut [ Ix ; 4 ] = unsafe { transmute( self ) };
+
+    // Perform checks under debug conditions
+    #[ cfg( debug_assertions ) ]
+    debug_assert_eq!( size_self, size_of_val( result ), "Size should be the same" );
+    #[ cfg( debug_assertions ) ]
+    debug_assert_eq!( align_self, align_of_val( result ), "Alignment should be the same" );
+
+    // Return the result
+    result
+  }
+}

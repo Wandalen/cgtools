@@ -17,6 +17,9 @@ mod tests
   /// Contains tests specifically related to `ndarray` functionalities.
   mod nd_test;
 
+  /// Verifies VectorDataType descriptor invariants across primitives.
+  mod data_type_test;
+
   /// Tests for bounding box calculations
   mod bounding_box;
 

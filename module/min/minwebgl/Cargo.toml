@@ -28,7 +28,6 @@ workspace = true
 
 enabled = [
   "dep:mingl",
-  # "dep:bytemuck",
   "dep:asbytes",
   "dep:browser_log",
   "dep:wasm-bindgen-futures",
@@ -74,10 +73,6 @@ mingl = { workspace = true, optional = true }
 # = external
 
 asbytes = { workspace = true, optional = true }
-# bytemuck = { workspace = true, optional = true, features = [ "derive" ] } # xxx : replace
-# anyhow = "1.0.48"
-# slice-of-array = "0.3.1"
-# log = { workspace = true }
 browser_log = { workspace = true, optional = true }
 
 tobj =  { workspace = true, optional = true }

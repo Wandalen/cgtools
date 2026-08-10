@@ -136,3 +136,9 @@ pub mod stub {
 // Re-export stub for non-wasm targets when enabled
 #[ cfg( all( feature = "enabled", not( target_arch = "wasm32" ) ) ) ]
 pub use stub::*;
+
+// Math is pure CPU-side linear algebra with nothing browser-bound, so it
+// stays reachable off-wasm — native consumers ( e.g. the renderer's wgpu
+// backend ) keep the same `minwebgpu::math` path browser code uses.
+#[ cfg( all( feature = "enabled", feature = "math", not( target_arch = "wasm32" ) ) ) ]
+pub use mingl::math;

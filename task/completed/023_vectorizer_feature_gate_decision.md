@@ -30,6 +30,10 @@ added since none exist today, or (b) if the crate is genuinely unmaintained/supe
 entirely (Delete-candidate). Whichever direction, fix the wrong dependency path as part of the same
 change.
 
+**Related Tasks:** `056` (`task/draft/056_vectorizer_revival_watch_item.md`) — a placeholder task filed
+to keep the door open on this task's DELETE decision for a future revival if a real consumer emerges.
+Does not reopen or otherwise change this task's own terminal state; see this task's History entry below.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P3 (decision point)
@@ -111,6 +115,18 @@ change.
   recorded as such rather than overclaiming confirmation. Post-fix re-verification: repo-wide grep now
   returns only `locales.md` (accepted staleness, reasoned above) and this task's own file/index row —
   zero unaccounted references remain. All 8 dimensions PASS after the loop; state → ✅ Completed.
+
+- **[2026-08-10]** `RELATED_TASK_LINKED` — User asked to "keep [the vectorizer question] open for now"
+  after reviewing this task's DELETE decision and execution, without reverting the already-executed,
+  already-verified code deletion. Checked `tsk.rulebook.md` and confirmed `✅ Completed` is a strict
+  terminal state in the current rulebook version (v5.13) — the REOPEN transition was removed entirely
+  (`§ Vocabulary : Regression Event`: "create a new task and link it via `**Related Tasks:**` to the
+  original... REOPEN transition is removed"; T2 state machine shows no outgoing transition from `✅`).
+  Moving this file back to `task/draft/` would have violated that invariant. Instead filed task `056`
+  (`task/draft/056_vectorizer_revival_watch_item.md`) as a Deduplication Search Case E match (closed task,
+  differing scope) and added a bidirectional `**Related Tasks:**` cross-link. This task's own state,
+  location, and all prior content remain unchanged — this entry and the `**Related Tasks:**` line above
+  are the only edits made.
 
 ## Verification Record
 

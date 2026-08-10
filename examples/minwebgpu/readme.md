@@ -24,5 +24,6 @@ chromium --enable-unsafe-webgpu --enable-features=Vulkan http://127.0.0.1:8080
 |---------|----------------|
 | `deffered_rendering/` | Deferred shading: G-buffer pass, lighting pass, compute-updated lights |
 | `hello_triangle/` | Minimal WebGPU pipeline drawing one shape to the canvas |
+| `hello_triangle_quickstart/` | Same triangle via minwebgpu's `context::setup`/`render_pass::draw_to` helpers |
 | `renderer_pbr_scene/` | Canonical `gpu_hal` PBR scene via `renderer::webgpu` — WebGPU with WebGL2 fallback |
 | `sun_grid_lines/` | Procedural sci-fi HUD diagram: animated star, orbit ring, Cartesian grid — styled via `scene.rhai` |

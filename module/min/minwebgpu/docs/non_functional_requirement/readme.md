@@ -1,5 +1,7 @@
 # Non Functional Requirement Doc Definition
 
+A **non-functional requirement** instance documents one quality attribute the crate is held to — a constraint every feature must respect, rather than a feature in itself. In `minwebgpu`, that means tracking measurable targets, such as abstraction-overhead performance, that aren't verifiable by reading the source alone, together with the method intended to measure each one. This collection holds one instance per requirement; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Track measurable quality-attribute targets that are not verifiable by reading source alone.

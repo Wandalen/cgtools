@@ -23,7 +23,7 @@ Injection-safety for caller-controlled text and path strings is a dedicated cros
 
 **Known gap — font selection**: `Assets.fonts` is currently ignored by `load_assets`; no `@font-face`/`<font-face>` definitions are emitted and `<text>` elements carry no `font-family`, so all text renders in the SVG viewer's default font. Text *rendering* (positioning, anchoring, styling other than font) works; font *selection* does not. Confirmed directly in the `capabilities()` doc comment in `src/adapters/svg.rs` and listed under svg adapter gaps in `roadmap.md`.
 
-**Known gap — asset `Path` sources**: neither `ImageSource::Path` nor `GeometryAsset`'s `Source::Path` perform file I/O at `load_assets` time (there is no file loader in this adapter; callers must supply `Source::Bytes`/`ImageSource::Bitmap`/`ImageSource::Encoded`). The two cases are **not** handled the same way — image/sprite `Path` sources produce a visible stderr warning and an HTML diagnostic comment in the output; geometry `Path` sources are dropped with no diagnostic at all. See [pitfall/003](../pitfall/003_svg_geometry_path_source_silently_skipped.md) for the full failure chain.
+**Known gap — image `Path` sources**: `ImageSource::Path` performs no file I/O at `load_assets` time — callers must supply `ImageSource::Bitmap`/`ImageSource::Encoded` when sprite regions are needed; sprites referencing a `Path` sheet are skipped with a stderr warning and an HTML diagnostic comment. `GeometryAsset`'s `Source::Path`, by contrast, *is* loaded, via a blocking `std::fs` read (implemented by task 064): on success the geometry behaves exactly like `Source::Bytes`; on read failure — missing file, or wasm32 where no filesystem exists — the geometry is skipped with the same stderr-warning + diagnostic-comment idiom, and a failed *index* source skips the whole geometry rather than silently falling back to unindexed topology. The former silent-drop trap (pitfall/003) is retired.
 
 Given the font gap, this adapter's status is tracked as partial (⚠️) rather than fully complete, even though every other command and asset family is implemented.
 
@@ -44,7 +44,6 @@ Given the font gap, this adapter's status is tracked as partial (⚠️) rather 
 
 | File | Relationship |
 |------|--------------|
-| [pitfall/003_svg_geometry_path_source_silently_skipped.md](../pitfall/003_svg_geometry_path_source_silently_skipped.md) | `Source::Path` geometries are dropped with no diagnostic, unlike the analogous image case |
 
 ### Sources
 
@@ -56,5 +55,5 @@ Given the font gap, this adapter's status is tracked as partial (⚠️) rather 
 
 | File | Relationship |
 |------|--------------|
-| `src/adapters/svg.rs` (inline `#[cfg(test)]`) | Internal-helper coverage: transform conversion, escaping, MIME detection, asset-skip diagnostics, blend modes, effects, and more |
+| `src/adapters/svg.rs` (inline `#[cfg(test)]`) | Internal-helper coverage: transform conversion, escaping, MIME detection, asset-skip diagnostics, geometry `Source::Path` loading (from-disk happy path, missing-file skip, missing-index whole-skip), blend modes, effects, and more |
 | `tests/backend_test.rs` | `Backend` trait contract exercised generically (not SVG-specific) |

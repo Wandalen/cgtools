@@ -5,7 +5,7 @@
 - **Purpose**: State the property that every id reference within a loaded `RenderSpec`/`SceneSnapshot` pair must resolve to a declaration, and how much of that property the loader actually checks today.
 - **Responsibility**: Enumerate every referential-integrity rule the format declares (§16-equivalent checklist), and split it into what `src/validate.rs` enforces now versus what remains a declared-but-unchecked `ValidationError` variant.
 - **In Scope**: Id uniqueness within each resource/object collection, `*Ref` resolution, `default_state` existence, reserved-id exclusion, pipeline-layer reference resolution, composite-source nesting, anchor↔source compatibility, tiling-strategy whitelist.
-- **Out of Scope**: The Edge/Vertex canonical-form uniqueness rule, which is a distinct invariant (see `invariant/002`); render-time missing-sprite fallback, which is deliberate leniency rather than a validation gap (see `algorithm/002`).
+- **Out of Scope**: The Edge/Vertex canonical-form uniqueness rule, which is a distinct invariant (see `invariant/002`); render-time missing-sprite semantics — the unset-`External` skip (deliberate leniency) and the hard `CompileError::UnresolvedRef` failures documented in `algorithm/002` — which are runtime behavior, not load-time validation.
 
 ### Invariant Statement
 

@@ -28,14 +28,16 @@ workspace = true
 default = ["enabled"]
 
 # Core input handling functionality
-enabled = ["dep:minwebgl", "dep:web-sys", "dep:strum"]
+enabled = ["dep:ndarray_cg", "dep:web-sys", "dep:strum"]
 
 # Full feature set
 full = ["enabled"]
 
 [dependencies]
-minwebgl = { workspace = true, features = ["math"], optional = true }
+ndarray_cg = { workspace = true, optional = true }
 web-sys = { workspace = true, features = [
+  "Window",
+  "Document",
   "KeyboardEvent",
   "PointerEvent",
   "WheelEvent",

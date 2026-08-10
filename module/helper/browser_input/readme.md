@@ -22,9 +22,8 @@ browser_input = { workspace = true }
 ```
 
 ```rust
-use minwebgl as gl;
 use browser_input::{ Input, CLIENT };
-use gl::JsCast as _;
+use web_sys::wasm_bindgen::JsCast as _;
 
 // Attach to a canvas element; coordinates are relative to the viewport.
 let mut input = Input::new( Some( canvas.dyn_into().unwrap() ), CLIENT )?;

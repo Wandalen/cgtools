@@ -156,8 +156,9 @@ game use-case demands one.
    `Scene::set_external_sprite( handle, slot, SpriteRef )` populates
    the per-instance slot map; the renderer resolves
    `SpriteSource::External { slot }` against it. Unset slots emit
-   nothing (no error, no placeholder — see §12.2 of the spec for the
-   pending magenta-checkerboard option).
+   nothing (no error, no placeholder — the originally-specified
+   warn-and-substitute magenta checkerboard remains an unimplemented
+   design option; `docs/algorithm/002` documents actual behavior).
 5. **`AssetKind::SpriteSheet` support.** Currently rejected at compile with
    `UnsupportedAssetKind`. Useful shorthand for horizontal / vertical /
    grid sprite sheets that an atlas already covers — optional.

@@ -8,7 +8,7 @@ Image filters are essential for post-processing pipelines, allowing artistic con
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

@@ -6,7 +6,7 @@ Morph targets (also called blend shapes) are a technique used in 3D graphics and
 
 ![image]( ./showcase.png )
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

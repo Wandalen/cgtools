@@ -1,5 +1,7 @@
 # Pitfall Doc Definition
 
+A **pitfall** documents one way this crate's API can be misused or misunderstood — the trap, why it happens, and how to avoid it. In `scene_script`, this collection is the navigational hub for the implementation's known traps — non-obvious ways its current behavior can bite a consumer — recording each one's concrete failure mode and how to mitigate it. This collection holds one instance per known pitfall; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Navigational hub for `scene_script`'s known traps — non-obvious ways to get bitten by the current implementation.

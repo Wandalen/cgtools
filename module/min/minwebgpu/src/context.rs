@@ -69,11 +69,60 @@ mod private
 
     Ok( format )
   }
+
+  /// Gets a default view of the context's current texture in one call.
+  /// Equivalent to [`current_texture`] followed by [`texture::view`].
+  pub fn current_view( context : &GL ) -> Result< web_sys::GpuTextureView, WebGPUError >
+  {
+    let texture = current_texture( context )?;
+    texture::view( &texture )
+  }
+
+  /// The objects produced by the one-shot [`setup`] convenience.
+  ///
+  /// Every field is the plain native `web_sys` type you would have gotten by
+  /// calling [`from_canvas`], [`request_adapter`], [`request_device`] and
+  /// [`preferred_format`] yourself — this struct only aggregates their
+  /// results, it does not wrap or hide them.
+  pub struct GpuSetup
+  {
+    /// The configured WebGPU canvas context.
+    pub context : GL,
+    /// The adapter the device was requested from.
+    pub adapter : web_sys::GpuAdapter,
+    /// The logical GPU device.
+    pub device : web_sys::GpuDevice,
+    /// The device's default command queue.
+    pub queue : web_sys::GpuQueue,
+    /// The canvas's preferred texture format, already passed to [`configure`].
+    pub format : GpuTextureFormat
+  }
+
+  /// Runs the common "get a WebGPU device and a configured canvas context"
+  /// sequence in one call: [`from_canvas`], [`request_adapter`],
+  /// [`request_device`], [`preferred_format`], then [`configure`].
+  ///
+  /// This is pure sequencing — nothing is defaulted beyond what those
+  /// functions already do on their own. Call them individually instead when
+  /// you need to inspect the adapter before requesting a device, request
+  /// specific device features or limits, or otherwise need to intervene
+  /// partway through.
+  pub async fn setup( canvas : &web_sys::HtmlCanvasElement ) -> Result< GpuSetup, WebGPUError >
+  {
+    let context = from_canvas( canvas )?;
+    let adapter = request_adapter().await;
+    let device = request_device( &adapter ).await;
+    let queue = device.queue();
+    let format = preferred_format();
+    configure( &device, &context, format )?;
+
+    Ok( GpuSetup { context, adapter, device, queue, format } )
+  }
 }
 
 crate::mod_interface!
 {
-  own use 
+  own use
   {
     request_adapter,
     request_device,
@@ -81,7 +130,14 @@ crate::mod_interface!
     navigator,
     preferred_format,
     configure,
-    current_texture
+    current_texture,
+    current_view,
+    setup
+  };
+
+  exposed use
+  {
+    GpuSetup
   };
 
 }

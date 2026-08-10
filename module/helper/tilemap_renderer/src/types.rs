@@ -188,9 +188,9 @@ mod private
     /// An out-of-range sum clips the instance the same way a single-draw
     /// overflow does.
     ///
-    /// qqq: SVG and terminal backends still emit in submission order and
-    /// ignore this field. Callers targeting those backends must pre-sort.
-    /// Future work: stable sort by `depth` in the SVG adapter.
+    /// SVG and terminal backends still emit in submission order and ignore
+    /// this field — callers targeting those backends must pre-sort their
+    /// draws (a depth sort in the SVG adapter is a roadmap item).
     pub depth : f32,
   }
 
@@ -404,8 +404,8 @@ mod private
     /// This equals pure `src * dst` only when `src_alpha = 1`; for semi-transparent
     /// sprites the multiply effect weakens with alpha, which is a known limitation.
     ///
-    /// **qqq (requires FBO):** Replace with the Photoshop-accurate formula
-    /// `dst * (src * src_alpha + (1 − src_alpha))`. This cannot be expressed as a
+    /// **Accurate formula (requires FBO):** the Photoshop-accurate blend
+    /// `dst * (src * src_alpha + (1 − src_alpha))` cannot be expressed as a
     /// single `blend_func` call with straight alpha — it needs a custom shader that
     /// reads the destination color from a bound FBO texture and computes the blend
     /// in the fragment shader, or a two-pass approach (blit dst to FBO, sample in shader).

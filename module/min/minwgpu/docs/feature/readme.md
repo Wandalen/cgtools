@@ -1,5 +1,7 @@
 # Feature Doc Definition
 
+A **feature** instance documents one cohesive slice of the crate's public API. In `minwgpu`, each instance covers one builder-based capability that removes `wgpu` setup and resource-construction boilerplate without hiding the underlying `wgpu` types, and serves as a navigational hub over that capability's source and tests. This collection holds one instance per feature; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: `minwgpu`'s builders exist to remove `wgpu` setup and resource-construction boilerplate without hiding the underlying `wgpu` types.

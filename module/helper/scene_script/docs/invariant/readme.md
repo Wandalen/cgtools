@@ -1,5 +1,7 @@
 # Invariant Doc Definition
 
+An **invariant** is a guarantee this crate enforces and callers may rely on. In `scene_script`, this collection is the navigational hub for the correctness properties that must always hold, tying each one to its enforcement mechanism and the consequences of violating it. This collection holds one instance per invariant, each pinned to where it is enforced in code; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Navigational hub for `scene_script`'s correctness properties that must always hold.

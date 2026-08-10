@@ -1,9 +1,7 @@
 //! This module provides utility functions for interacting with browser-specific features,
 //! such as event handling, that are common in WebAssembly applications.
 
-use minwebgl as gl;
-use gl::JsCast as _;
-use web_sys::{ wasm_bindgen::prelude::Closure, EventTarget };
+use web_sys::{ wasm_bindgen::{ JsCast as _, prelude::Closure }, EventTarget };
 
 /// Disables the default browser context menu on a given event target.
 ///

@@ -324,58 +324,6 @@ mod private
 
     Ok( () )
   }
-
-  #[ cfg( test ) ]
-  mod tests
-  {
-    use crate::*;
-    use format::pec::{ read_memory, pec_threads, write };
-    use embroidery_file::EmbroideryFile;
-    use stitch_instruction::{ Stitch, Instruction };
-    use std::io::Cursor;
-
-    #[ test ]
-    fn test_pec_encoding()
-    {
-      let mut emb = EmbroideryFile::new();
-      emb.stitch( 0, 0 );
-      emb.stitch( -2, -3 );
-      emb.color_change( 0, 0 );
-      emb.stitch( 2, 3 );
-      emb.trim();
-      emb.jump( 40, 30 );
-      emb.stitch( 0, 0 );
-      emb.stitch( 1, 1 );
-      emb.end();
-
-      let threads = pec_threads();
-      emb.add_thread( threads[ 0 ].clone() );
-      emb.add_thread( threads[ 2 ].clone() );
-
-      let mut memory = vec![ 0_u8; 2048 ];
-      
-      {
-        let mut writer = Cursor::new( &mut memory );
-        write( &mut emb, &mut writer ).unwrap();
-      }
-      
-      let emb = read_memory( &memory ).unwrap();
-      
-      let stitches = emb.stitches();
-      assert_eq!( stitches[ 0 ], Stitch { x : 0, y : 0, instruction : Instruction::Stitch } );
-      assert_eq!( stitches[ 1 ], Stitch { x : -2, y : -3, instruction : Instruction::Stitch } );
-      assert_eq!( stitches[ 2 ], Stitch { x : -2, y : -3, instruction : Instruction::ColorChange } );
-      assert_eq!( stitches[ 3 ], Stitch { x : 0, y : 0, instruction : Instruction::Stitch } );
-      assert_eq!( stitches[ 4 ], Stitch { x : 0, y : 0, instruction : Instruction::Trim } );
-      assert_eq!( stitches[ 5 ], Stitch { x : 40, y : 30, instruction : Instruction::Jump } );
-      assert_eq!( stitches[ 6 ], Stitch { x : 40, y : 30, instruction : Instruction::Stitch } );
-      assert_eq!( stitches[ 7 ], Stitch { x : 41, y : 31, instruction : Instruction::Stitch } );
-      assert_eq!( stitches[ 8 ], Stitch { x : 41, y : 31, instruction : Instruction::End } );
-      
-      assert_eq!( emb.threads()[ 0 ], threads[ 2 ] );
-      // assert_eq!( emb.threads()[ 1 ], threads[ 2 ] );
-    }
-  }
 }
 
 crate::mod_interface!

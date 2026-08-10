@@ -8,7 +8,7 @@ scoped to a single crate lives in that crate's own `docs/` instead.
 
 | Type | Purpose | Master File | Instances |
 |------|---------|-------------|----------:|
-| `adr/` | Accepted ecosystem-level architecture decisions and their alternatives | [adr/readme.md](../adr/readme.md) | 1 |
+| `adr/` | Accepted ecosystem-level architecture decisions and their alternatives | [adr/readme.md](../adr/readme.md) | 2 |
 | `explorations/` | Open multi-crate design investigations that have not yet produced a decision | [explorations/readme.md](../explorations/readme.md) | 1 |
 | `layer/` | One identity card per ecosystem layer (L0–L5): contract, occupants, status | [layer/readme.md](../layer/readme.md) | 6 |
 | `pattern/` | Reusable cross-crate design rules the ecosystem is built on | [pattern/readme.md](../pattern/readme.md) | 5 |
@@ -19,6 +19,7 @@ scoped to a single crate lives in that crate's own `docs/` instead.
 | Definition | ID | Name | File |
 |-----------|-----|------|------|
 | adr | 001 | Multi-Stack Rendering Architecture | [adr/001_multi_stack_rendering_architecture.md](../adr/001_multi_stack_rendering_architecture.md) |
+| adr | 002 | In-House GPU HAL | [adr/002_gpu_hal_in_house.md](../adr/002_gpu_hal_in_house.md) |
 | explorations | 001 | GPU HAL: Buy vs Build | [explorations/001_gpu_hal_buy_vs_build.md](../explorations/001_gpu_hal_buy_vs_build.md) |
 | layer | 001 | L0 Drivers | [layer/001_l0_drivers.md](../layer/001_l0_drivers.md) |
 | layer | 002 | L1 GPU Hardware Abstraction | [layer/002_l1_gpu_hal.md](../layer/002_l1_gpu_hal.md) |

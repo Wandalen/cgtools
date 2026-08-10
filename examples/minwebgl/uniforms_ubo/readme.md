@@ -8,7 +8,7 @@ UBOs are essential for complex rendering pipelines with shared data. This exampl
 
 ![](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

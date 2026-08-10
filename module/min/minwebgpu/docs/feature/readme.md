@@ -1,5 +1,7 @@
 # Feature Doc Definition
 
+A **feature** instance documents one cohesive slice of the crate's public API. In `minwebgpu`, features are grouped by WebGPU concern — context/device/shader setup, buffer management, pipeline management, resource binding, and command recording — with each entry linking out to its source, pattern, and invariants. This collection holds one instance per feature; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Navigational hub for `minwebgpu`'s public API surface, grouped by WebGPU concern.

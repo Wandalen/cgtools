@@ -54,7 +54,7 @@ complexity into every layer.
    | L4 | Scene model | `tilemap_scene` data model; glTF via `renderer` loaders | per stack |
    | L3 | Stack engine (commands / passes) | `tilemap_renderer` (d2), `renderer` (d3) | per stack |
    | L2 | Frame orchestration (pass scheduling, render targets) | embedded inside L3 crates | shared where invariants allow |
-   | L1 | GPU hardware abstraction layer | `gpu_hal` v0 (WebGPU + WebGL2) | one crate, WebGPU-shaped (see [explorations/001](../explorations/001_gpu_hal_buy_vs_build.md)) |
+   | L1 | GPU hardware abstraction layer | `gpu_hal` v0 (WebGPU + WebGL2 + native `wgpu`) | one crate, WebGPU-shaped (decided in [ADR-002](002_gpu_hal_in_house.md)) |
    | L0 | Drivers | `minwebgl`, `minwebgpu`, `minwgpu` (+ `mingl` substrate) | unchanged |
 
 3. **Three initial stacks — `d2`, `tile`, `d3`.** Rust identifiers cannot
@@ -99,8 +99,8 @@ complexity into every layer.
 - **`wgpu` as the sole backend everywhere.** Rejected as the web-default:
   it inserts a translation layer over WebGL2, costs wasm binary size, and
   removes the direct driver control the `min*` crates exist to provide. It
-  remains the intended native path and a serious HAL candidate — kept open in
-  [explorations/001](../explorations/001_gpu_hal_buy_vs_build.md).
+  is the native path (at L0, via `minwgpu`, under the HAL); its HAL candidacy
+  was closed against it in [ADR-002](002_gpu_hal_in_house.md).
 
 ## Consequences
 
@@ -112,9 +112,9 @@ complexity into every layer.
 - SVG/terminal/off-screen outputs remain guaranteed in the d2 and tile stacks
   because they are invariants, not adapter accidents.
 - Cost: the HAL is a substantial build. The exploration's spike delivered an
-  in-house v0 (`gpu_hal`, WebGPU + WebGL2) and `renderer`'s canonical opaque
-  path runs on it; formally closing build-vs-buy as an ADR still waits on
-  [explorations/001](../explorations/001_gpu_hal_buy_vs_build.md). The legacy
+  in-house v0 (`gpu_hal`) and `renderer`'s canonical opaque path runs on it;
+  build-vs-buy is formally closed in-house by
+  [ADR-002](002_gpu_hal_in_house.md). The legacy
   `renderer::webgl` tree stays WebGL-bound until strangled onto the HAL — a
   breaking change accepted in advance.
 - Strict layering adds hand-off ceremony for power users; drill-down handles
@@ -122,6 +122,7 @@ complexity into every layer.
 
 ## Related
 
+- [002_gpu_hal_in_house.md](002_gpu_hal_in_house.md) — closes the L1 buy-vs-build this ADR left open
 - [pattern/001_invariant_defined_stack.md](../pattern/001_invariant_defined_stack.md)
 - [pattern/002_strict_layering_one_step_drilldown.md](../pattern/002_strict_layering_one_step_drilldown.md)
 - [pattern/003_cross_stack_bridge_via_foundation_resources.md](../pattern/003_cross_stack_bridge_via_foundation_resources.md)

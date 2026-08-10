@@ -38,6 +38,10 @@ mod private
   ///   }
   /// }
   /// ```
+  // Counts are `i32`, not `usize`, deliberately: descriptors feed WebGL parameter slots
+  // (`GLint` size/stride/offset in `vertex_attrib_pointer`-family calls), and consumers
+  // (minwebgl buffer/geometry, renderer gltf loader) do `i32` arithmetic on them directly —
+  // `usize` would force a cast at every GL boundary.
   #[ derive( Clone, Copy, Debug, PartialEq, Hash, Eq ) ]
   pub struct VectorDataType
   {
@@ -47,7 +51,6 @@ mod private
     pub natoms : i32,
     /// The number of elements in the data structure.
     pub nelements : i32,
-    // xxx : usize?
   }
 
   impl VectorDataType
@@ -67,21 +70,13 @@ mod private
     /// Length in number of scalars of the data type.
     /// For flat structures it's equal to number of atoms( components ).
     /// For multidimensional structures it's not equal to number of atoms( components ).
-    // xxx : usize?
     pub fn natoms( &self ) -> i32
     {
       self.natoms
     }
 
-    // /// Length of an element( component ). For flat strcuture it'
-    // pub fn nelements( &self ) -> i32
-    // {
-    //   self.natoms / self.nelements
-    // }
-
     /// Length of an element. For flat strcutures it's always 1.
     /// For matrices it's number of scalars a row has.
-    // xxx : qqq : verify
     pub fn nelements( &self ) -> i32
     {
       self.nelements

@@ -15,7 +15,7 @@
 //! Agnostic 2D rendering engine.
 //!
 //! Backend-agnostic rendering with POD commands and Y-up coordinate system.
-//! Define commands once, render to any backend (SVG, WebGL, terminal).
+//! Define commands once, render to any backend (SVG and WebGL today; terminal planned).
 //!
 //! ## Coordinate system
 //!
@@ -30,8 +30,6 @@
 //! use tilemap_renderer::{ commands::*, types::*, assets::*, backend::* };
 //! use tilemap_renderer::adapters::SvgBackend;
 //!
-//! // Note: SvgBackend and TerminalBackend are stubs —
-//! // implementations arrive in follow-up PRs.
 //! let config = RenderConfig { width : 800, height : 600, ..Default::default() };
 //! let mut svg = SvgBackend::new( config );
 //! svg.load_assets( &assets )?;

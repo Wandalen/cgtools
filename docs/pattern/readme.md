@@ -1,5 +1,7 @@
 # Pattern Doc Definition
 
+A **pattern** here is a reusable design rule applied — or intended to be applied — across more than one crate, distinct from a single-crate pattern that lives inside that crate's own `docs/pattern/`. This collection holds one **instance** — one pattern file — per rule; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Document the reusable cross-crate design rules the rendering ecosystem is built on — solutions applied (or intended) across multiple crates, not inside one.

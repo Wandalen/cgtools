@@ -1,5 +1,7 @@
 # Invariant Doc Definition
 
+An **invariant** is a guarantee this crate enforces and callers may rely on. In `renderer`, these are the d3 stack's defining correctness guarantees, each one recorded with its statement, how it is enforced, and what happens if it is violated. This collection holds one instance per invariant, each pinned to where it is enforced in code; the table below is the index into them.
+
 ### Scope
 
 - **Purpose**: Navigational hub for `renderer`'s correctness guarantees — the d3 stack's defining invariants, pinned where they are enforced.

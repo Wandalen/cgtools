@@ -42,9 +42,7 @@ mod private
   where
     R : Read + Seek
   {
-    // Header string
-    // Should be "#PEC0001", so maybe return Error if it is not
-    // TODO: Decide later
+    // Header string, must be "#PEC0001"
     let mut header = [ 0; 8 ];
     reader.read_exact( &mut header )?;
     let header = String::from_utf8_lossy( &header );
@@ -371,54 +369,6 @@ mod private
         }
         Err( _ ) => {}
       }
-    }
-  }
-
-  #[ cfg( test ) ]
-  mod tests
-  {
-    use crate::*;
-    use format::pec;
-    use stitch_instruction::{ Instruction, Stitch };
-    use super::read_file;
-
-    #[ test ]
-    fn test_read_stitches()
-    {
-      let emb = read_file( "test_files/read_sample.pec" ).unwrap();
-      let stitches = emb.stitches();
-
-      // these instructions should match instructions when reading with pyembroidery
-      assert_eq!( stitches[ 0 ], Stitch { x : 10, y : 20, instruction : Instruction::Jump } );
-      assert_eq!( stitches[ 1 ], Stitch { x : 10, y : 20, instruction : Instruction::Stitch } );
-      
-      assert_eq!( stitches[ 2 ], Stitch { x : 40, y : 60, instruction : Instruction::Stitch } );
-      assert_eq!( stitches[ 3 ], Stitch { x : 40, y : 60, instruction : Instruction::ColorChange } );
-      assert_eq!( stitches[ 4 ], Stitch { x : 40, y : 60, instruction : Instruction::Trim } );
-      
-      assert_eq!( stitches[ 5 ], Stitch { x : 43, y : 64, instruction : Instruction::Jump } );
-      assert_eq!( stitches[ 6 ], Stitch { x : 43, y : 64, instruction : Instruction::Stitch } );
-
-      assert_eq!( stitches[ 7 ], Stitch { x : 43, y : 64, instruction : Instruction::Stop } );
-      assert_eq!( stitches[ 8 ], Stitch { x : 43, y : 64, instruction : Instruction::Trim } );
-      
-      assert_eq!( stitches[ 9 ], Stitch { x : 63, y : 74, instruction : Instruction::Jump } );
-      assert_eq!( stitches[ 10 ], Stitch { x : 63, y : 74, instruction : Instruction::Trim } );
-      
-      assert_eq!( stitches[ 11 ], Stitch { x : 64, y : 75, instruction : Instruction::Jump } );
-      assert_eq!( stitches[ 12 ], Stitch { x : 64, y : 75, instruction : Instruction::Stitch } );
-      assert_eq!( stitches[ 13 ], Stitch { x : 64, y : 75, instruction : Instruction::End } );
-    }
-
-    #[ test ]
-    fn test_read_threads()
-    {
-      let emb = read_file( "test_files/read_sample.pec" ).unwrap();
-      let threads = emb.threads();
-      let default_palette = pec::pec_threads();
-      
-      assert_eq!( threads[ 0 ], default_palette[ 14 ] );
-      assert_eq!( threads[ 1 ], default_palette[ 10 ] );
     }
   }
 }

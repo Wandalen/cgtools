@@ -2,8 +2,6 @@ mod private
 {
   use crate::*;
 
-  // qqq : xxx : document please
-
   impl< E, const N : usize > Vector< E, N >
   where
     E : MatEl,
@@ -32,7 +30,7 @@ mod private
     ///
     /// # Panics
     ///
-    /// Panics if `src` lenght does not match vector size
+    /// Panics if `src` length does not match vector size
     pub fn from_slice( src : &[ E ] ) -> Self
     {
       assert_eq!( src.len(), N );
@@ -144,17 +142,39 @@ mod private
     }
   }
 
+  /// Error returned when converting a slice into a `Vector` fails because the slice's length
+  /// does not match the vector's compile-time length.
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  pub struct VectorLengthMismatch
+  {
+    /// The vector's compile-time length ( `N` ).
+    pub expected : usize,
+    /// The actual length of the source slice.
+    pub actual : usize,
+  }
+
+  impl std::fmt::Display for VectorLengthMismatch
+  {
+    fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+    {
+      write!( f, "Slice length {} does not equal vector's length {}", self.actual, self.expected )
+    }
+  }
+
+  impl std::error::Error for VectorLengthMismatch
+  {
+  }
+
   impl< E, const N : usize > TryFrom< &[ E ] > for Vector< E, N >
   where
     E : MatEl,
   {
-    type Error = &'static str;
-    // qqq : xxx : use typed error
+    type Error = VectorLengthMismatch;
     fn try_from( value : &[ E ] ) -> Result< Self, Self::Error >
     {
       if value.len() != N
       {
-        return Err( "Slice length does not equal vector's length" );
+        return Err( VectorLengthMismatch { expected : N, actual : value.len() } );
       }
       Ok( Self( value.try_into().unwrap() ) )
     }
@@ -176,17 +196,6 @@ mod private
     }
   }
 
-  // impl< E, const N : usize > From< E > for Vector< E, N >
-  // where
-  //   E : MatEl
-  // {
-  //   fn from ( value: E ) -> Self
-  //   {
-  //     Self::from( [ value; N ] )
-  //   }
-  // }
-
-  // xxx : test cover
   /// A trait for types that can be converted into a `Vector`.
   ///
   /// This provides a common interface for various data structures
@@ -220,15 +229,6 @@ mod private
       Vector::< E, N >( self.into_array() )
     }
   }
-
-  // // xxx : enable and test cover, maybe
-  // pub trait FromVector< Dst, E, const N : usize >
-  // where
-  //   E : MatEl,
-  //   // Self : Vector< E, N >,
-  // {
-  //   fn from_vector( self ) -> Dst;
-  // }
 
   /// A marker trait that groups together the essential immutable behaviors of a fixed-size vector.
   ///
@@ -323,8 +323,7 @@ crate::mod_interface!
   {
 
     IntoVector,
-    // AsVector,
-    // FromVector,
+    VectorLengthMismatch,
 
     VectorSpace,
     VectorSpaceMut,

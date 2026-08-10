@@ -681,7 +681,8 @@ mod private
       // DST_COLOR factor multiplies dst by raw src.rgb (not src.rgb*src_a), so
       // partially transparent sources darken the destination more than the
       // reference formula prescribes. Exact only when src_alpha = 1.
-      // qqq(FBO): replace with Photoshop-accurate formula — see BlendMode::Multiply doc.
+      // An FBO / custom-shader pass would be needed for the Photoshop-accurate
+      // formula — see the BlendMode::Multiply doc.
       // Color: src*dst + dst*(1-src_a). Alpha: standard over.
       BlendMode::Multiply => gl.blend_func_separate( gl::DST_COLOR, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
       // Same class of approximation as Multiply: the ONE / ONE_MINUS_SRC_COLOR
@@ -690,7 +691,7 @@ mod private
       // or when the source is premultiplied.
       // Color: src + dst*(1-src). Alpha: standard over.
       BlendMode::Screen => gl.blend_func_separate( gl::ONE, gl::ONE_MINUS_SRC_COLOR, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
-      // qqq: true Overlay (Multiply where dst<0.5, Screen where dst>0.5) cannot be
+      // True Overlay (Multiply where dst<0.5, Screen where dst>0.5) cannot be
       // expressed as a single blend_func call — it requires a custom shader or a
       // separate FBO read-back pass, neither of which is implemented yet.
       // Overlay falls back to Normal so rendering is at least visible; the warn

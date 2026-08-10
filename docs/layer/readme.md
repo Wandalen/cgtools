@@ -1,9 +1,11 @@
 # Layer Doc Definition
 
+The rendering ecosystem is built as a ladder of **layers**, L0 through L5, each one a distinct responsibility that depends only on the layer directly beneath it — the full ladder is introduced in [ADR-001](../adr/001_multi_stack_rendering_architecture.md) and summarized in the [workspace rulebook](../../rulebook.md#rendering-layer-placement). This collection holds one **instance** — one identity card — per layer: a dedicated file recording that layer's contract, which crates currently occupy it, and what may depend on it. The table below is the index into those six cards.
+
 ### Scope
 
 - **Purpose**: One instance per layer of the rendering architecture (L0–L5) — the layer's role, contract, current occupants, and what may depend on it.
-- **Responsibility**: Keep each layer's living definition in one place, recording where the layer is real, embedded, or reserved.
+- **Responsibility**: Keep each layer's living definition in one place, recording whether it is ✅ operating today, 🔄 partially built or embedded in another layer, or ⏸️ a reserved slot with no crate yet (legend repeated below the table).
 - **In Scope**: The six layers adopted by [ADR-001](../adr/001_multi_stack_rendering_architecture.md).
 - **Out of Scope**: The dependency and drill-down rules *between* layers (see [../pattern/002_strict_layering_one_step_drilldown.md](../pattern/002_strict_layering_one_step_drilldown.md)); the vertical stack membership of crates (see [../render_stack/readme.md](../render_stack/readme.md)).
 
