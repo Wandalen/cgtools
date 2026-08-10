@@ -246,6 +246,17 @@ mod private
     /// Dyn safe clone method
     fn dyn_clone( &self ) -> Box< dyn Material >;
 
+    /// Returns `self` as `&dyn Any`, for downcasting a `&dyn Material` back to its concrete type
+    /// (e.g. `Rc<RefCell<Box<dyn Material>>>` on a [`crate::webgl::Primitive`] down to `&PbrMaterial`
+    /// when applying node-scoped configuration such as engraving that isn't expressed through
+    /// the `Material` trait itself). Implementations should always be `{ self }` — there is no
+    /// generic default because the `&Self -> &dyn Any` coercion requires `Self: Sized`, which a
+    /// trait method usable through `dyn Material` cannot assume.
+    fn as_any( &self ) -> &dyn std::any::Any;
+
+    /// Returns `self` as `&mut dyn Any`, the mutable counterpart of [`Material::as_any`].
+    fn as_any_mut( &mut self ) -> &mut dyn std::any::Any;
+
     /// Returns an alpha mode for the current materials
     fn alpha_mode( &self ) -> AlphaMode
     {

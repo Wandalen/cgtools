@@ -29,6 +29,7 @@ A comprehensive 3D rendering system built specifically for WebAssembly and WebGL
 - **Specular Extensions** - Advanced material properties via KHR_materials_specular
 - **Texture Streaming** - Efficient texture memory management
 - **Configurable Rendering Properties** - Per-material control of face culling, depth testing, and winding order
+- **Dynamic Text Engraving** - Node-scoped, runtime-editable engraved text (relief normal, groove roughness/darkening) on `PbrMaterial`; see `src/webgl/engraving/`
 
 
 ## 📦 Installation
@@ -176,6 +177,20 @@ When implementing the `Material` trait for custom materials:
 - **`configure()`** sets up texture sampler uniform locations once at program creation time.
 - **`upload_on_state_change()`** uploads uniform values; use `needs_update()` / `set_needs_update(false)` with `Cell<bool>` to avoid redundant uploads.
 - IBL textures occupy units starting from `ibl_base_texture_unit()` (3 consecutive units). Custom materials should avoid those units.
+- **`as_any()` / `as_any_mut()`** let calling code downcast a `Box<dyn Material>` back to its concrete type — used by the engraving system to reach `PbrMaterial`-specific setters after resolving a node by name.
+
+### Dynamic Text Engraving
+`src/webgl/engraving/` maps glTF node names to an engraving zone (a dedicated UV channel, aspect ratio, character limit and font whitelist — see `engraving_config.schema.json`), and wires user-supplied text all the way to the GPU:
+
+1. `EngravingConfig::from_json` parses `engraving_config.json`.
+2. `EngravingSession::build` resolves each configured node against a loaded `Scene`, allocates one offscreen canvas + one GPU mask texture per node, and turns on `PbrMaterial`'s `USE_ENGRAVING` shader path.
+3. `EngravingSession::set_text` (async — it awaits `document.fonts.load()`) rasterizes white-on-black text once per mip level (re-drawn at each level's own resolution, not box-filtered down from level 0 — a binary text mask aliases badly under a naive `generateMipmap`, and that aliasing feeds straight into the shader's derivative-based relief normal) and uploads the whole chain via `texSubImage2D` per level — no reallocation or shader recompilation, so it's cheap to call on every keystroke.
+
+Font sizing per node follows one of three `SizingMode`s (`EngravingNodeConfig::resolved_sizing_mode`): `PHYSICAL` and `HYBRID` derive a target size in canvas px from `defaultFontSizeMm / stripHeightMm` (HYBRID shrinks toward `minFontSizeMm` on overflow instead of rejecting it outright), `RELATIVE` either uses a fixed `fontSizeRatio` of canvas height or auto-fits the largest size that fits the padded bounds. A node with none of the physical fields set resolves to `RELATIVE` automatically, so `sizingMode` is opt-in, not required.
+
+`main.frag`'s `USE_ENGRAVING` block bounds-checks the mask UV against `[0, 1]`, perturbs the normal from a UV-space surface gradient (explicit-LOD `textureLod` central differences along the mask's U/V axes, projected onto the tangent frame — a first-order bump-mapping approximation of a beveled groove), and pushes roughness/albedo towards a matte, slightly darkened look inside the mask — without touching the base metal's hue. Sampling the gradient at an explicit LOD (rather than differentiating a filtered `texture()` fetch via `dFdx`/`dFdy`) keeps it well-behaved at any distance or viewing angle, so no separate fade-out stage is needed.
+
+See `src/webgl/engraving/artist_guide.md` for the 3D-artist-facing asset prep guide (mesh/UV requirements, export settings, `engraving_config.json` fields) covering the Blender -> glTF side of this pipeline.
 
 ### Performance Optimization
 - **Shader program caching** - Materials with identical shader source share a single compiled GPU program
