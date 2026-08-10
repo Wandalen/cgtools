@@ -3,8 +3,8 @@
 The keystone layer — one API over all three drivers, so everything above is
 written once per stack instead of once per backend. The *contract* is
 decided and an in-house *v0 implementation* exists in `gpu_hal` ( WebGPU +
-WebGL2 backends ); formally closing the build-vs-buy decision as an ADR
-still waits on
+WebGL2 + native wgpu backends ); formally closing the build-vs-buy decision
+as an ADR still waits on
 [../explorations/001_gpu_hal_buy_vs_build.md](../explorations/001_gpu_hal_buy_vs_build.md).
 
 ### Scope
@@ -33,11 +33,15 @@ still waits on
 
 v0 implemented in `module/blank/gpu_hal` — the exploration's spike extracted
 it from the webgl-vs-webgpu diff of `renderer`'s canonical opaque path, which
-now builds against it on both backends ( `webgpu` / `webgl` features;
-runtime smoke tests still to run ). The v0
-surface covers that path only: buffers, 2d textures, samplers, shader
-modules, bind groups, one-color-attachment render passes. Not yet covered:
-texture upload, mipmaps, MSAA, compute, the `wgpu`-native backend.
+now builds against it on both browser backends ( `webgpu` / `webgl`
+features; runtime smoke tests still to run ). A third, native backend
+( `native` feature, `minwgpu` + raw `wgpu` ) renders into an offscreen
+texture with pixel readback, and is proven by an in-repo render test
+( `triangle_render_readback` ) that draws through the full public surface
+and asserts on the bytes read back — no browser involved. The v0 surface
+covers the opaque path only: buffers, 2d textures, samplers, shader modules,
+bind groups, one-color-attachment render passes. Not yet covered: texture
+upload, mipmaps, MSAA, compute.
 `renderer`'s legacy `webgl` tree and the other L3 engines keep their accepted
 direct-to-L0 dependencies until strangled onto the HAL.
 

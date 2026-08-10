@@ -204,7 +204,7 @@ mod pure_tests
 
     fn is_power_of_4( v : u32 ) -> bool
     {
-      v > 0 && ( v & ( v - 1 ) ) == 0 && v.trailing_zeros().is_multiple_of( 2 )
+      v.is_power_of_two() && v.trailing_zeros().is_multiple_of( 2 )
     }
 
     #[ test ]
@@ -216,9 +216,7 @@ mod pure_tests
         assert!
         (
           is_power_of_4( size ),
-          "size={} is not a power of 4 for data_size={}",
-          size,
-          data_size
+          "size={size} is not a power of 4 for data_size={data_size}"
         );
       }
     }
@@ -234,10 +232,7 @@ mod pure_tests
         assert!
         (
           capacity >= data_size,
-          "texture {}x{} cannot fit {} elements",
-          size,
-          size,
-          data_size
+          "texture {size}x{size} cannot fit {data_size} elements"
         );
       }
     }
@@ -257,9 +252,7 @@ mod pure_tests
           assert!
           (
             smaller_capacity < data_size,
-            "size={} is not minimal for data_size={}",
-            size,
-            data_size
+            "size={size} is not minimal for data_size={data_size}"
           );
         }
       }
@@ -296,8 +289,7 @@ mod pure_tests
         (
           size,
           expected_side,
-          "wrong side for data_size={}",
-          data_size
+          "wrong side for data_size={data_size}"
         );
       }
     }

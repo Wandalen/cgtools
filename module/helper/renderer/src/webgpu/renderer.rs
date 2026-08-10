@@ -416,12 +416,12 @@ mod private
 
       let canvas_view = context.surface.current_view()?;
 
-      let encoder = context.device.create_command_encoder();
+      let mut encoder = context.device.create_command_encoder();
 
       {
         // Color clears to ( 0, 0, 0, 0 ) — alpha 0 marks background for the
         // tone mapping bypass — and depth clears to 1.0.
-        let opaque_pass = encoder.begin_render_pass
+        let mut opaque_pass = encoder.begin_render_pass
         (
           &ColorAttachmentDesc { view : &self.hdr_view, clear : [ 0.0, 0.0, 0.0, 0.0 ] },
           Some( &DepthAttachmentDesc { view : &self.depth_view } )
@@ -453,7 +453,7 @@ mod private
       }
 
       {
-        let tonemap_pass = encoder.begin_render_pass
+        let mut tonemap_pass = encoder.begin_render_pass
         (
           &ColorAttachmentDesc { view : &canvas_view, clear : [ 0.0, 0.0, 0.0, 0.0 ] },
           None

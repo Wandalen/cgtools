@@ -1,16 +1,16 @@
 mod private
 {
-  #[ cfg( feature = "webgpu" ) ]
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   use minwebgpu as gl;
-  #[ cfg( feature = "webgpu" ) ]
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   use gl::web_sys;
-  #[ cfg( feature = "webgl" ) ]
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   use minwebgl as glw;
-  #[ cfg( all( feature = "webgl", not( feature = "webgpu" ) ) ) ]
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32", not( feature = "webgpu" ) ) ) ]
   use glw::web_sys;
-  #[ cfg( feature = "webgl" ) ]
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   use std::rc::Rc;
-  #[ cfg( feature = "webgl" ) ]
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   use crate::
   {
     BufferWebGl,
@@ -25,12 +25,26 @@ mod private
     webgl::to_i32,
     webgl::to_u32
   };
-  #[ cfg( feature = "webgpu" ) ]
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   use crate::
   {
     TextureUsage,
     ShaderStages
   };
+  // The native arms reach these enums through their `to_wgpu` methods on
+  // field values, never by name — inside this layer, wasm32 implies at
+  // least one browser backend ( see the layer gates in `lib.rs` ).
+  #[ cfg( target_arch = "wasm32" ) ]
+  use crate::
+  {
+    FilterMode,
+    AddressMode,
+    BindingType
+  };
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  use wgpu::util::DeviceExt;
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  use crate::native::read_texture_rgba8;
   use crate::
   {
     Error,
@@ -38,10 +52,7 @@ mod private
     TextureFormat,
     TextureDesc,
     SamplerDesc,
-    FilterMode,
-    AddressMode,
     ShaderSource,
-    BindingType,
     BindGroupLayoutEntry,
     DepthRange,
     Buffer,
@@ -62,11 +73,14 @@ mod private
   pub enum Device
   {
     /// WebGPU backend device.
-    #[ cfg( feature = "webgpu" ) ]
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
     WebGpu( web_sys::GpuDevice ),
     /// WebGL backend device — the GL context itself.
-    #[ cfg( feature = "webgl" ) ]
-    WebGl( glw::GL )
+    #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    WebGl( glw::GL ),
+    /// Native backend device.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    Native( wgpu::Device )
   }
 
   /// The command queue of a device.
@@ -74,11 +88,14 @@ mod private
   pub enum Queue
   {
     /// WebGPU backend queue.
-    #[ cfg( feature = "webgpu" ) ]
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
     WebGpu( web_sys::GpuQueue ),
     /// WebGL backend queue — the GL context executes commands eagerly.
-    #[ cfg( feature = "webgl" ) ]
-    WebGl( glw::GL )
+    #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    WebGl( glw::GL ),
+    /// Native backend queue.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    Native( wgpu::Queue )
   }
 
   /// The canvas presentation surface of a device.
@@ -86,7 +103,7 @@ mod private
   pub enum Surface
   {
     /// WebGPU backend surface: a configured canvas context.
-    #[ cfg( feature = "webgpu" ) ]
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
     WebGpu
     {
       /// Configured canvas presentation context.
@@ -95,11 +112,21 @@ mod private
       format : TextureFormat
     },
     /// WebGL backend surface — the canvas backbuffer of the GL context.
-    #[ cfg( feature = "webgl" ) ]
+    #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
     WebGl
     {
       /// The GL context whose canvas the surface presents to.
       context : glw::GL
+    },
+    /// Native backend surface : an offscreen render target, readable
+    /// through `read_pixels` — there is no window to present to.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    Native
+    {
+      /// Offscreen color target of the surface.
+      texture : wgpu::Texture,
+      /// Format the target is created with.
+      format : TextureFormat
     }
   }
 
@@ -107,7 +134,7 @@ mod private
   {
     /// Requests a WebGPU adapter and device, then configures `canvas` for
     /// presentation in the browser's preferred canvas format.
-    #[ cfg( feature = "webgpu" ) ]
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
     pub async fn new_webgpu
     (
       canvas : &web_sys::HtmlCanvasElement
@@ -133,7 +160,7 @@ mod private
     ///
     /// Requires `EXT_color_buffer_float`, so float color targets are
     /// renderable on this backend too.
-    #[ cfg( feature = "webgl" ) ]
+    #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
     pub fn new_webgl
     (
       canvas : &web_sys::HtmlCanvasElement
@@ -155,15 +182,54 @@ mod private
       ))
     }
 
+    /// Requests a wgpu adapter and device ( default options — any adapter
+    /// qualifies, software rasterizers included ) and builds an offscreen
+    /// rgba8 surface of the given size, readable through
+    /// `Surface::read_pixels`.
+    ///
+    /// Synchronous : `minwgpu` blocks on the async requests internally,
+    /// which is the natural shape off the browser event loop.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    pub fn new_native( width : u32, height : u32 ) -> Result< ( Device, Queue, Surface ), Error >
+    {
+      let context = minwgpu::context::Context::builder()
+      .make_instance()
+      .request_adapter()?
+      .finish_context()?;
+      let device = context.get_device().clone();
+      let queue = context.get_queue().clone();
+      let format = TextureFormat::Rgba8Unorm;
+      let texture = device.create_texture( &wgpu::TextureDescriptor
+      {
+        label : Some( "gpu_hal offscreen surface" ),
+        size : wgpu::Extent3d { width, height, depth_or_array_layers : 1 },
+        mip_level_count : 1,
+        sample_count : 1,
+        dimension : wgpu::TextureDimension::D2,
+        format : format.to_wgpu(),
+        usage : wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats : &[]
+      } );
+
+      Ok
+      ((
+        Device::Native( device ),
+        Queue::Native( queue ),
+        Surface::Native { texture, format }
+      ))
+    }
+
     /// Clip-space depth range the backend's projection matrices must target.
     pub fn depth_range( &self ) -> DepthRange
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( _ ) => DepthRange::ZeroToOne,
-        #[ cfg( feature = "webgl" ) ]
-        Self::WebGl( _ ) => DepthRange::NegOneToOne
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( _ ) => DepthRange::NegOneToOne,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => DepthRange::ZeroToOne
       }
     }
 
@@ -172,11 +238,12 @@ mod private
     {
       // Browser buffer allocations sit far below f64's exact integer
       // range, so the cast is lossless in practice.
+      #[ cfg( target_arch = "wasm32" ) ]
       #[ allow( clippy::cast_precision_loss ) ]
       let size_f64 = size as f64;
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( device ) =>
         {
           let raw = gl::BufferDescriptor::new( usage.bits() )
@@ -184,7 +251,7 @@ mod private
           .create( device )?;
           Ok( Buffer::WebGpu( raw ) )
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( context ) =>
         {
           let target = webgl_buffer_target( usage );
@@ -194,6 +261,17 @@ mod private
           context.buffer_data_with_f64( target, size_f64, webgl_buffer_hint( usage ) );
           Ok( Buffer::WebGl( BufferWebGl { buffer, target } ) )
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( device ) =>
+        {
+          Ok( Buffer::Native( device.create_buffer( &wgpu::BufferDescriptor
+          {
+            label : None,
+            size,
+            usage : usage.to_wgpu(),
+            mapped_at_creation : false
+          } ) ) )
+        }
       }
     }
 
@@ -202,7 +280,7 @@ mod private
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( device ) =>
         {
           // v0 tradeoff : the init descriptor needs a sized value, so the
@@ -211,7 +289,7 @@ mod private
           let raw = gl::BufferInitDescriptor::new( &data, usage.bits() ).create( device )?;
           Ok( Buffer::WebGpu( raw ) )
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( context ) =>
         {
           let target = webgl_buffer_target( usage );
@@ -221,6 +299,18 @@ mod private
           context.buffer_data_with_u8_array( target, data, webgl_buffer_hint( usage ) );
           Ok( Buffer::WebGl( BufferWebGl { buffer, target } ) )
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( device ) =>
+        {
+          // DeviceExt::create_buffer_init pads to wgpu's copy alignment,
+          // which a hand-rolled mapped_at_creation path would have to redo.
+          Ok( Buffer::Native( device.create_buffer_init( &wgpu::util::BufferInitDescriptor
+          {
+            label : None,
+            contents : data,
+            usage : usage.to_wgpu()
+          } ) ) )
+        }
       }
     }
 
@@ -229,7 +319,7 @@ mod private
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( device ) =>
         {
           let mut builder = gl::texture::desc()
@@ -249,7 +339,7 @@ mod private
           }
           Ok( Texture::WebGpu( builder.create( device )? ) )
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( context ) =>
         {
           let internal_format = desc.format.webgl_internal_format()?;
@@ -275,6 +365,26 @@ mod private
             format : desc.format
           } ) )
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( device ) =>
+        {
+          Ok( Texture::Native( device.create_texture( &wgpu::TextureDescriptor
+          {
+            label : None,
+            size : wgpu::Extent3d
+            {
+              width : desc.size[ 0 ],
+              height : desc.size[ 1 ],
+              depth_or_array_layers : desc.size[ 2 ]
+            },
+            mip_level_count : 1,
+            sample_count : 1,
+            dimension : wgpu::TextureDimension::D2,
+            format : desc.format.to_wgpu(),
+            usage : desc.usage.to_wgpu(),
+            view_formats : &[]
+          } ) ) )
+        }
       }
     }
 
@@ -286,7 +396,7 @@ mod private
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( device ) =>
         {
           let mut builder = gl::sampler::desc();
@@ -300,7 +410,7 @@ mod private
           }
           Ok( Sampler::WebGpu( gl::sampler::create( device, builder ) ) )
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( context ) =>
         {
           let sampler = context.create_sampler()
@@ -321,6 +431,20 @@ mod private
           context.sampler_parameteri( &sampler, glw::GL::TEXTURE_WRAP_T, to_i32( address ) );
           Ok( Sampler::WebGl( sampler ) )
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( device ) =>
+        {
+          Ok( Sampler::Native( device.create_sampler( &wgpu::SamplerDescriptor
+          {
+            label : None,
+            address_mode_u : desc.address.to_wgpu(),
+            address_mode_v : desc.address.to_wgpu(),
+            address_mode_w : desc.address.to_wgpu(),
+            mag_filter : desc.filter.to_wgpu(),
+            min_filter : desc.filter.to_wgpu(),
+            ..wgpu::SamplerDescriptor::default()
+          } ) ) )
+        }
       }
     }
 
@@ -335,12 +459,12 @@ mod private
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( device ) =>
         {
           Ok( ShaderModule::WebGpu( gl::ShaderModule::new( source.wgsl ).create( device ) ) )
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( _ ) =>
         {
           let ( Some( vertex ), Some( fragment ) ) = ( source.glsl_vertex, source.glsl_fragment )
@@ -357,6 +481,15 @@ mod private
             fragment : fragment.to_string()
           } ) )
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( device ) =>
+        {
+          Ok( ShaderModule::Native( device.create_shader_module( wgpu::ShaderModuleDescriptor
+          {
+            label : None,
+            source : wgpu::ShaderSource::Wgsl( source.wgsl.into() )
+          } ) ) )
+        }
       }
     }
 
@@ -372,7 +505,7 @@ mod private
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( device ) =>
         {
           let mut builder = gl::BindGroupLayoutDescriptor::new().auto_bindings();
@@ -405,12 +538,34 @@ mod private
           }
           Ok( BindGroupLayout::WebGpu( builder.create( device )? ) )
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( _ ) =>
         {
           // GL has no layout objects — the entry list is the layout, consumed
           // by pipeline creation for binding introspection.
           Ok( BindGroupLayout::WebGl( BindGroupLayoutWebGl { entries : entries.to_vec() } ) )
+        }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( device ) =>
+        {
+          let raw_entries : Vec< wgpu::BindGroupLayoutEntry > = entries.iter().enumerate()
+          .map
+          (
+            | ( index, entry ) |
+            wgpu::BindGroupLayoutEntry
+            {
+              binding : u32::try_from( index ).unwrap_or( u32::MAX ),
+              visibility : entry.visibility.to_wgpu(),
+              ty : entry.ty.to_wgpu(),
+              count : None
+            }
+          )
+          .collect();
+          Ok( BindGroupLayout::Native( device.create_bind_group_layout( &wgpu::BindGroupLayoutDescriptor
+          {
+            label : None,
+            entries : &raw_entries
+          } ) ) )
         }
       }
     }
@@ -428,7 +583,7 @@ mod private
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( device ) =>
         {
           let raw_layout = layout.expect_webgpu();
@@ -453,7 +608,7 @@ mod private
           }
           Ok( BindGroup::WebGpu( builder.create( device ) ) )
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( _ ) =>
         {
           let _ = layout;
@@ -491,6 +646,38 @@ mod private
           }
           Ok( BindGroup::WebGl( BindGroupWebGl { entries } ) )
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( device ) =>
+        {
+          let raw_entries : Vec< wgpu::BindGroupEntry< '_ > > = resources.iter().enumerate()
+          .map
+          (
+            | ( index, resource ) |
+            wgpu::BindGroupEntry
+            {
+              binding : u32::try_from( index ).unwrap_or( u32::MAX ),
+              resource : match resource
+              {
+                BindingResource::Buffer( buffer ) => buffer.expect_native().as_entire_binding(),
+                BindingResource::TextureView( view ) =>
+                {
+                  wgpu::BindingResource::TextureView( view.expect_native() )
+                }
+                BindingResource::Sampler( sampler ) =>
+                {
+                  wgpu::BindingResource::Sampler( sampler.expect_native() )
+                }
+              }
+            }
+          )
+          .collect();
+          Ok( BindGroup::Native( device.create_bind_group( &wgpu::BindGroupDescriptor
+          {
+            label : None,
+            layout : layout.expect_native(),
+            entries : &raw_entries
+          } ) ) )
+        }
       }
     }
 
@@ -499,7 +686,7 @@ mod private
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( device ) =>
         {
           let shader = desc.shader.expect_webgpu();
@@ -548,7 +735,7 @@ mod private
           }
           Ok( RenderPipeline::WebGpu( pipeline_desc.create( device )? ) )
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( context ) =>
         {
           let module = desc.shader.expect_webgl();
@@ -568,6 +755,8 @@ mod private
             texture_units
           } ) ) )
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( device ) => Ok( native_create_render_pipeline( device, desc ) )
       }
     }
 
@@ -576,34 +765,65 @@ mod private
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( device ) => CommandEncoder::WebGpu( device.create_command_encoder() ),
-        #[ cfg( feature = "webgl" ) ]
-        Self::WebGl( context ) => CommandEncoder::WebGl( context.clone() )
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( context ) => CommandEncoder::WebGl( context.clone() ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( device ) =>
+        {
+          CommandEncoder::Native
+          (
+            device.create_command_encoder( &wgpu::CommandEncoderDescriptor::default() )
+          )
+        }
       }
     }
 
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
-    #[ cfg( feature = "webgpu" ) ]
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuDevice >
     {
       match self
       {
         Self::WebGpu( raw ) => Some( raw ),
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( _ ) => None
       }
     }
 
     /// The raw GL context, when the handle belongs to the WebGL backend.
-    #[ cfg( feature = "webgl" ) ]
+    #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
     pub fn as_webgl( &self ) -> Option< &glw::GL >
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( _ ) => None,
         Self::WebGl( raw ) => Some( raw )
+      }
+    }
+
+    /// The raw wgpu object, when the handle belongs to the native backend.
+    // The browser variants live on the other side of the target boundary,
+    // so the surviving match is infallible; Option keeps the drill-down
+    // contract uniform across backends.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    #[ allow( clippy::unnecessary_wraps ) ]
+    pub fn as_native( &self ) -> Option< &wgpu::Device >
+    {
+      match self
+      {
+        Self::Native( raw ) => Some( raw )
+      }
+    }
+
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    pub( crate ) fn expect_native( &self ) -> &wgpu::Device
+    {
+      match self
+      {
+        Self::Native( raw ) => raw
       }
     }
   }
@@ -618,18 +838,24 @@ mod private
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( queue ) =>
         {
           gl::queue::write_buffer( queue, buffer.expect_webgpu(), data )?;
           Ok( () )
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( context ) =>
         {
           let raw = buffer.expect_webgl();
           context.bind_buffer( raw.target, Some( &raw.buffer ) );
           context.buffer_sub_data_with_i32_and_u8_array( raw.target, 0, data );
+          Ok( () )
+        }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( queue ) =>
+        {
+          queue.write_buffer( buffer.expect_native(), 0, data );
           Ok( () )
         }
       }
@@ -643,12 +869,12 @@ mod private
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( queue ) =>
         {
           gl::queue::submit( queue, encoder.expect_webgpu().finish() );
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( context ) =>
         {
           // GL executed the commands eagerly as the pass recorded them;
@@ -656,30 +882,66 @@ mod private
           let _ = encoder;
           context.flush();
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( queue ) =>
+        {
+          // Finishing needs ownership of the raw encoder, so the drill-down
+          // happens by value here rather than through `expect_native`.
+          match encoder
+          {
+            CommandEncoder::Native( raw ) =>
+            {
+              queue.submit( core::iter::once( raw.finish() ) );
+            }
+          }
+        }
       }
     }
 
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
-    #[ cfg( feature = "webgpu" ) ]
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuQueue >
     {
       match self
       {
         Self::WebGpu( raw ) => Some( raw ),
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( _ ) => None
       }
     }
 
     /// The raw GL context, when the handle belongs to the WebGL backend.
-    #[ cfg( feature = "webgl" ) ]
+    #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
     pub fn as_webgl( &self ) -> Option< &glw::GL >
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( _ ) => None,
         Self::WebGl( raw ) => Some( raw )
+      }
+    }
+
+    /// The raw wgpu object, when the handle belongs to the native backend.
+    // The browser variants live on the other side of the target boundary,
+    // so the surviving match is infallible; Option keeps the drill-down
+    // contract uniform across backends.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    #[ allow( clippy::unnecessary_wraps ) ]
+    pub fn as_native( &self ) -> Option< &wgpu::Queue >
+    {
+      match self
+      {
+        Self::Native( raw ) => Some( raw )
+      }
+    }
+
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    pub( crate ) fn expect_native( &self ) -> &wgpu::Queue
+    {
+      match self
+      {
+        Self::Native( raw ) => raw
       }
     }
   }
@@ -691,12 +953,14 @@ mod private
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu { format, .. } => *format,
         // The GL canvas backbuffer is 8-bit rgba; this is the nearest name
         // the v0 surface has for it.
-        #[ cfg( feature = "webgl" ) ]
-        Self::WebGl { .. } => TextureFormat::Rgba8Unorm
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl { .. } => TextureFormat::Rgba8Unorm,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native { format, .. } => *format
       }
     }
 
@@ -710,39 +974,95 @@ mod private
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu { context, .. } =>
         {
           let texture = gl::context::current_texture( context )?;
           Ok( TextureView::WebGpu( gl::texture::view( &texture )? ) )
         }
-        #[ cfg( feature = "webgl" ) ]
-        Self::WebGl { .. } => Ok( TextureView::WebGl( TextureViewWebGl::CanvasBackbuffer ) )
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl { .. } => Ok( TextureView::WebGl( TextureViewWebGl::CanvasBackbuffer ) ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native { texture, .. } =>
+        {
+          Ok( TextureView::Native( texture.create_view( &wgpu::TextureViewDescriptor::default() ) ) )
+        }
       }
     }
 
     /// The raw WebGPU canvas context, when the handle belongs to the WebGPU
     /// backend.
-    #[ cfg( feature = "webgpu" ) ]
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
     pub fn as_webgpu( &self ) -> Option< &gl::GL >
     {
       match self
       {
         Self::WebGpu { context, .. } => Some( context ),
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl { .. } => None
       }
     }
 
     /// The raw GL context, when the handle belongs to the WebGL backend.
-    #[ cfg( feature = "webgl" ) ]
+    #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
     pub fn as_webgl( &self ) -> Option< &glw::GL >
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu { .. } => None,
         Self::WebGl { context } => Some( context )
+      }
+    }
+
+    /// Reads the surface's pixels back as tightly-packed rgba8 bytes, top
+    /// row first — the native backend's counterpart of presenting to a
+    /// canvas, and the ground truth a pixel-asserting test reads.
+    ///
+    /// The browser surfaces present to their canvas instead and return
+    /// `Unsupported` — read the canvas from the embedding page there.
+    pub fn read_pixels( &self, device : &Device, queue : &Queue ) -> Result< Vec< u8 >, Error >
+    {
+      match self
+      {
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu { .. } =>
+        {
+          let _ = ( device, queue );
+          Err( Error::Unsupported
+          (
+            "read_pixels is a native-backend operation; browser surfaces present to their canvas".to_string()
+          ) )
+        }
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl { .. } =>
+        {
+          let _ = ( device, queue );
+          Err( Error::Unsupported
+          (
+            "read_pixels is a native-backend operation; browser surfaces present to their canvas".to_string()
+          ) )
+        }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native { texture, .. } =>
+        {
+          read_texture_rgba8( device.expect_native(), queue.expect_native(), texture )
+        }
+      }
+    }
+
+    /// The raw wgpu texture the surface renders into, when the handle
+    /// belongs to the native backend.
+    // The browser variants live on the other side of the target boundary,
+    // so the surviving match is infallible; Option keeps the drill-down
+    // contract uniform across backends.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    #[ allow( clippy::unnecessary_wraps ) ]
+    pub fn as_native( &self ) -> Option< &wgpu::Texture >
+    {
+      match self
+      {
+        Self::Native { texture, .. } => Some( texture )
       }
     }
   }
@@ -752,7 +1072,7 @@ mod private
   /// `tex_{group}_{binding}` receive sequential binding points and texture
   /// units; names the linker pruned are skipped, matching GL practice for
   /// optimized-out uniforms.
-  #[ cfg( feature = "webgl" ) ]
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   fn webgl_introspect_bindings
   (
     context : &glw::GL,
@@ -802,7 +1122,7 @@ mod private
   }
 
   /// GL bind target a buffer is created against, from its usage flags.
-  #[ cfg( feature = "webgl" ) ]
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   fn webgl_buffer_target( usage : BufferUsage ) -> u32
   {
     if usage.contains( BufferUsage::INDEX )
@@ -821,7 +1141,7 @@ mod private
 
   /// GL data-store usage hint, from the buffer's usage flags — uniforms are
   /// rewritten per frame, everything else is uploaded once.
-  #[ cfg( feature = "webgl" ) ]
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   fn webgl_buffer_hint( usage : BufferUsage ) -> u32
   {
     if usage.contains( BufferUsage::UNIFORM )
@@ -832,6 +1152,108 @@ mod private
     {
       glw::GL::STATIC_DRAW
     }
+  }
+
+  /// Builds the v0 fixed function pipeline over a raw wgpu device : triangle
+  /// list, one color target without blending, optional always-on depth.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_create_render_pipeline
+  (
+    device : &wgpu::Device,
+    desc : &RenderPipelineDesc< '_ >
+  ) -> RenderPipeline
+  {
+    let shader = desc.shader.expect_native();
+
+    let raw_layouts : Vec< &wgpu::BindGroupLayout > = desc.bind_group_layouts.iter()
+    .map( | layout | layout.expect_native() )
+    .collect();
+    let pipeline_layout = device.create_pipeline_layout( &wgpu::PipelineLayoutDescriptor
+    {
+      label : None,
+      bind_group_layouts : &raw_layouts,
+      push_constant_ranges : &[]
+    } );
+
+    // Two passes because wgpu's slot layout borrows its attribute
+    // slice — the attributes must outlive the layouts referencing them.
+    let attributes : Vec< Vec< wgpu::VertexAttribute > > = desc.vertex_buffers.iter()
+    .map
+    (
+      | layout |
+      layout.attributes.iter()
+      .map
+      (
+        | attribute |
+        wgpu::VertexAttribute
+        {
+          format : attribute.format.to_wgpu(),
+          offset : u64::from( attribute.offset ),
+          shader_location : attribute.location
+        }
+      )
+      .collect()
+    )
+    .collect();
+    let vertex_buffers : Vec< wgpu::VertexBufferLayout< '_ > > = desc.vertex_buffers.iter()
+    .zip( &attributes )
+    .map
+    (
+      | ( layout, attributes ) |
+      wgpu::VertexBufferLayout
+      {
+        array_stride : u64::from( layout.stride ),
+        step_mode : wgpu::VertexStepMode::Vertex,
+        attributes
+      }
+    )
+    .collect();
+
+    let pipeline = device.create_render_pipeline( &wgpu::RenderPipelineDescriptor
+    {
+      label : None,
+      layout : Some( &pipeline_layout ),
+      vertex : wgpu::VertexState
+      {
+        module : shader,
+        entry_point : Some( desc.vertex_entry ),
+        compilation_options : wgpu::PipelineCompilationOptions::default(),
+        buffers : &vertex_buffers
+      },
+      primitive : wgpu::PrimitiveState
+      {
+        cull_mode : if desc.cull_back { Some( wgpu::Face::Back ) } else { None },
+        ..wgpu::PrimitiveState::default()
+      },
+      depth_stencil : desc.depth.map
+      (
+        | depth |
+        wgpu::DepthStencilState
+        {
+          format : depth.format.to_wgpu(),
+          depth_write_enabled : true,
+          depth_compare : wgpu::CompareFunction::Less,
+          stencil : wgpu::StencilState::default(),
+          bias : wgpu::DepthBiasState::default()
+        }
+      ),
+      multisample : wgpu::MultisampleState::default(),
+      fragment : Some( wgpu::FragmentState
+      {
+        module : shader,
+        entry_point : Some( desc.fragment_entry ),
+        compilation_options : wgpu::PipelineCompilationOptions::default(),
+        targets : &[ Some( wgpu::ColorTargetState
+        {
+          format : desc.color_format.to_wgpu(),
+          blend : None,
+          write_mask : wgpu::ColorWrites::ALL
+        } ) ]
+      } ),
+      multiview : None,
+      cache : None
+    } );
+    RenderPipeline::Native( pipeline )
   }
 }
 

@@ -1,8 +1,8 @@
 mod private
 {
-  #[ cfg( feature = "webgpu" ) ]
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   use minwebgpu as gl;
-  #[ cfg( feature = "webgpu" ) ]
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   use crate::Error;
 
   /// Buffer usage bit flags ( WebGPU bit values ).
@@ -93,7 +93,7 @@ mod private
     Depth24Plus
   }
 
-  #[ cfg( feature = "webgpu" ) ]
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   impl TextureFormat
   {
     /// The equivalent raw WebGPU format.
@@ -136,7 +136,7 @@ mod private
     Float32x4
   }
 
-  #[ cfg( feature = "webgpu" ) ]
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   impl VertexFormat
   {
     /// The equivalent raw WebGPU format.
@@ -159,7 +159,7 @@ mod private
     Uint32
   }
 
-  #[ cfg( feature = "webgpu" ) ]
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   impl IndexFormat
   {
     /// The equivalent raw WebGPU format.

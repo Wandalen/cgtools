@@ -1,14 +1,14 @@
 mod private
 {
-  #[ cfg( feature = "webgpu" ) ]
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   use minwebgpu as gl;
-  #[ cfg( feature = "webgpu" ) ]
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   use gl::web_sys;
-  #[ cfg( feature = "webgl" ) ]
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   use minwebgl as glw;
-  #[ cfg( feature = "webgl" ) ]
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   use std::rc::Rc;
-  #[ cfg( feature = "webgl" ) ]
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   use crate::
   {
     TextureViewWebGl,
@@ -52,12 +52,15 @@ mod private
   pub enum CommandEncoder
   {
     /// WebGPU backend command encoder.
-    #[ cfg( feature = "webgpu" ) ]
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
     WebGpu( web_sys::GpuCommandEncoder ),
     /// WebGL backend command encoder — the GL context executes eagerly, so
     /// the encoder is the context itself.
-    #[ cfg( feature = "webgl" ) ]
-    WebGl( glw::GL )
+    #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    WebGl( glw::GL ),
+    /// Native backend command encoder.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    Native( wgpu::CommandEncoder )
   }
 
   impl CommandEncoder
@@ -65,18 +68,21 @@ mod private
     /// Begins a render pass with one color attachment and an optional depth
     /// attachment.
     ///
+    /// Takes `&mut self` because the native backend records into its raw
+    /// encoder mutably; the browser backends share the signature.
+    ///
     /// On the WebGL backend the canvas backbuffer accepts no depth
     /// attachment, and attachments must be texture views of matching size.
     pub fn begin_render_pass
     (
-      &self,
+      &mut self,
       color : &ColorAttachmentDesc< '_ >,
       depth : Option< &DepthAttachmentDesc< '_ > >
     ) -> Result< RenderPass, Error >
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( encoder ) =>
         {
           let mut desc = gl::render_pass::desc()
@@ -95,7 +101,7 @@ mod private
           .map_err( | e | Error::WebGpu( format!( "failed to begin render pass : {e:?}" ) ) )?;
           Ok( RenderPass::WebGpu( pass ) )
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( context ) =>
         {
           match color.view.expect_webgl()
@@ -110,46 +116,109 @@ mod private
             }
           }
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( encoder ) =>
+        {
+          let depth_stencil_attachment = depth.map
+          (
+            | depth |
+            wgpu::RenderPassDepthStencilAttachment
+            {
+              view : depth.view.expect_native(),
+              depth_ops : Some( wgpu::Operations
+              {
+                load : wgpu::LoadOp::Clear( 1.0 ),
+                store : wgpu::StoreOp::Store
+              } ),
+              stencil_ops : None
+            }
+          );
+          let pass = encoder.begin_render_pass( &wgpu::RenderPassDescriptor
+          {
+            label : None,
+            color_attachments : &[ Some( wgpu::RenderPassColorAttachment
+            {
+              view : color.view.expect_native(),
+              depth_slice : None,
+              resolve_target : None,
+              ops : wgpu::Operations
+              {
+                load : wgpu::LoadOp::Clear( wgpu::Color
+                {
+                  r : f64::from( color.clear[ 0 ] ),
+                  g : f64::from( color.clear[ 1 ] ),
+                  b : f64::from( color.clear[ 2 ] ),
+                  a : f64::from( color.clear[ 3 ] )
+                } ),
+                store : wgpu::StoreOp::Store
+              }
+            } ) ],
+            depth_stencil_attachment,
+            timestamp_writes : None,
+            occlusion_query_set : None
+          } );
+          // Untying the pass from the encoder borrow lets the HAL hand it
+          // out as a plain value, like the browser passes; wgpu then checks
+          // the encode-before-finish ordering at runtime instead.
+          Ok( RenderPass::Native( pass.forget_lifetime() ) )
+        }
       }
     }
 
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
-    #[ cfg( feature = "webgpu" ) ]
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuCommandEncoder >
     {
       match self
       {
         Self::WebGpu( raw ) => Some( raw ),
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( _ ) => None
       }
     }
 
     /// The raw GL context, when the handle belongs to the WebGL backend.
-    #[ cfg( feature = "webgl" ) ]
+    #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
     pub fn as_webgl( &self ) -> Option< &glw::GL >
     {
       match self
       {
         Self::WebGl( raw ) => Some( raw ),
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( _ ) => None
       }
     }
 
-    #[ cfg( feature = "webgpu" ) ]
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
     pub( crate ) fn expect_webgpu( &self ) -> &web_sys::GpuCommandEncoder
     {
       match self
       {
         Self::WebGpu( raw ) => raw,
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( _ ) => panic!( "backend mismatch : expected a WebGPU command encoder" )
+      }
+    }
+
+    /// The raw wgpu object, when the handle belongs to the native backend.
+    // The browser variants live on the other side of the target boundary,
+    // so the surviving match is infallible; Option keeps the drill-down
+    // contract uniform across backends.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    #[ allow( clippy::unnecessary_wraps ) ]
+    pub fn as_native( &self ) -> Option< &wgpu::CommandEncoder >
+    {
+      match self
+      {
+        Self::Native( raw ) => Some( raw )
       }
     }
   }
 
   /// Records draws of one render pass of the active backend.
+  ///
+  /// Recording methods take `&mut self` because the native backend records
+  /// into its raw pass mutably; the browser backends share the signature.
   ///
   /// The WebGL backend applies state eagerly, which imposes one ordering
   /// requirement WebGPU shares in spirit : `set_pipeline` must precede
@@ -159,26 +228,29 @@ mod private
   pub enum RenderPass
   {
     /// WebGPU backend render pass encoder.
-    #[ cfg( feature = "webgpu" ) ]
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
     WebGpu( web_sys::GpuRenderPassEncoder ),
     /// WebGL backend render pass state.
-    #[ cfg( feature = "webgl" ) ]
-    WebGl( RenderPassWebGl )
+    #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    WebGl( RenderPassWebGl ),
+    /// Native backend render pass, untied from its encoder's borrow.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    Native( wgpu::RenderPass< 'static > )
   }
 
   impl RenderPass
   {
     /// Sets the active render pipeline.
-    pub fn set_pipeline( &self, pipeline : &RenderPipeline )
+    pub fn set_pipeline( &mut self, pipeline : &RenderPipeline )
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( pass ) =>
         {
           pass.set_pipeline( pipeline.expect_webgpu() );
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( pass ) =>
         {
           let raw = Rc::clone( pipeline.expect_webgl() );
@@ -212,6 +284,11 @@ mod private
           }
           pass.set_current_pipeline( raw );
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( pass ) =>
+        {
+          pass.set_pipeline( pipeline.expect_native() );
+        }
       }
     }
 
@@ -220,16 +297,16 @@ mod private
     /// On the WebGL backend the bindings apply through the active pipeline's
     /// introspected maps; entries the shader does not reference are skipped,
     /// and the call is a no-op before `set_pipeline`.
-    pub fn set_bind_group( &self, index : u32, group : &BindGroup )
+    pub fn set_bind_group( &mut self, index : u32, group : &BindGroup )
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( pass ) =>
         {
           pass.set_bind_group( index, Some( group.expect_webgpu() ) );
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( pass ) =>
         {
           let Some( pipeline ) = pass.current_pipeline()
@@ -274,6 +351,11 @@ mod private
             }
           }
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( pass ) =>
+        {
+          pass.set_bind_group( index, group.expect_native(), &[] );
+        }
       }
     }
 
@@ -281,16 +363,16 @@ mod private
     ///
     /// On the WebGL backend the attribute pointers of the pipeline's slot
     /// layout apply immediately; the call is a no-op before `set_pipeline`.
-    pub fn set_vertex_buffer( &self, slot : u32, buffer : &Buffer )
+    pub fn set_vertex_buffer( &mut self, slot : u32, buffer : &Buffer )
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( pass ) =>
         {
           pass.set_vertex_buffer( slot, Some( buffer.expect_webgpu() ) );
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( pass ) =>
         {
           let Some( pipeline ) = pass.current_pipeline()
@@ -318,20 +400,25 @@ mod private
             );
           }
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( pass ) =>
+        {
+          pass.set_vertex_buffer( slot, buffer.expect_native().slice( .. ) );
+        }
       }
     }
 
     /// Binds `buffer` as the index buffer.
-    pub fn set_index_buffer( &self, buffer : &Buffer, format : IndexFormat )
+    pub fn set_index_buffer( &mut self, buffer : &Buffer, format : IndexFormat )
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( pass ) =>
         {
           pass.set_index_buffer( buffer.expect_webgpu(), format.to_webgpu() );
         }
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( pass ) =>
         {
           // v0 has a single index format; draw_indexed hardcodes the
@@ -339,32 +426,39 @@ mod private
           let IndexFormat::Uint32 = format;
           pass.gl.bind_buffer( glw::GL::ELEMENT_ARRAY_BUFFER, Some( &buffer.expect_webgl().buffer ) );
         }
-      }
-    }
-
-    /// Draws `vertex_count` vertices.
-    pub fn draw( &self, vertex_count : u32 )
-    {
-      match self
-      {
-        #[ cfg( feature = "webgpu" ) ]
-        Self::WebGpu( pass ) => pass.draw( vertex_count ),
-        #[ cfg( feature = "webgl" ) ]
-        Self::WebGl( pass ) =>
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( pass ) =>
         {
-          pass.gl.draw_arrays( glw::GL::TRIANGLES, 0, to_i32( vertex_count ) );
+          pass.set_index_buffer( buffer.expect_native().slice( .. ), format.to_wgpu() );
         }
       }
     }
 
-    /// Draws `index_count` indices from the bound index buffer.
-    pub fn draw_indexed( &self, index_count : u32 )
+    /// Draws `vertex_count` vertices.
+    pub fn draw( &mut self, vertex_count : u32 )
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu( pass ) => pass.draw( vertex_count ),
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( pass ) =>
+        {
+          pass.gl.draw_arrays( glw::GL::TRIANGLES, 0, to_i32( vertex_count ) );
+        }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( pass ) => pass.draw( 0..vertex_count, 0..1 )
+      }
+    }
+
+    /// Draws `index_count` indices from the bound index buffer.
+    pub fn draw_indexed( &mut self, index_count : u32 )
+    {
+      match self
+      {
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( pass ) => pass.draw_indexed( index_count ),
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( pass ) =>
         {
           pass.gl.draw_elements_with_i32
@@ -375,6 +469,8 @@ mod private
             0
           );
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( pass ) => pass.draw_indexed( 0..index_count, 0, 0..1 )
       }
     }
 
@@ -383,9 +479,9 @@ mod private
     {
       match self
       {
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( pass ) => pass.end(),
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( pass ) =>
         {
           pass.gl.bind_framebuffer( glw::GL::FRAMEBUFFER, None );
@@ -394,37 +490,54 @@ mod private
             pass.gl.delete_framebuffer( Some( fbo ) );
           }
         }
+        // Dropping the raw pass is wgpu's own end-of-pass signal.
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( pass ) => drop( pass )
       }
     }
 
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
-    #[ cfg( feature = "webgpu" ) ]
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuRenderPassEncoder >
     {
       match self
       {
         Self::WebGpu( raw ) => Some( raw ),
-        #[ cfg( feature = "webgl" ) ]
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( _ ) => None
       }
     }
 
     /// The WebGL backend data, when the handle belongs to the WebGL backend.
-    #[ cfg( feature = "webgl" ) ]
+    #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
     pub fn as_webgl( &self ) -> Option< &RenderPassWebGl >
     {
       match self
       {
         Self::WebGl( raw ) => Some( raw ),
-        #[ cfg( feature = "webgpu" ) ]
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( _ ) => None
+      }
+    }
+
+    /// The raw wgpu object, when the handle belongs to the native backend.
+    // The browser variants live on the other side of the target boundary,
+    // so the surviving match is infallible; Option keeps the drill-down
+    // contract uniform across backends.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    #[ allow( clippy::unnecessary_wraps ) ]
+    pub fn as_native( &self ) -> Option< &wgpu::RenderPass< 'static > >
+    {
+      match self
+      {
+        Self::Native( raw ) => Some( raw )
       }
     }
   }
 
   /// Begins a pass on the canvas backbuffer : the default framebuffer,
   /// which accepts no depth attachment.
-  #[ cfg( feature = "webgl" ) ]
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   fn webgl_begin_canvas_pass
   (
     context : &glw::GL,
@@ -449,7 +562,7 @@ mod private
 
   /// Begins a pass on a texture view : builds a framebuffer around the
   /// attachments, owned by the pass and deleted when it ends.
-  #[ cfg( feature = "webgl" ) ]
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   fn webgl_begin_texture_pass
   (
     context : &glw::GL,

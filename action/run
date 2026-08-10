@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #@ purpose: Build and run any example crate by partial, case-insensitive match against its path.
 #@ output:  Unique match: delegates to that example's own `verb/run` — `trunk serve --release`
-#@          on a fresh random port with the browser auto-opened for browser examples (crate has
-#@          an index.html), `cargo run --release --all-features` for native and offscreen
-#@          examples (crate has a `.offscreen` marker: renders once to a file, no window —
-#@          everything else is a live native window).
+#@          on a fresh random port for browser examples (crate has an index.html), opening the
+#@          served page via `browsee` once the build is ready (silently skipped if `browsee` is
+#@          missing, fails, or hangs — the dev server keeps running regardless, open the printed
+#@          URL manually in that case); `cargo run --release --all-features` for native and
+#@          offscreen examples (crate has a `.offscreen` marker: renders once to a file, no
+#@          window — everything else is a live native window).
 #@          No match or ambiguous match: lists candidates instead of guessing.
 #@ param:   <query>   partial match against the crate's path relative to repo root, e.g.
 #@                    `sun_grid` matches `examples/minwgpu/sun_grid_lines`. Two reserved

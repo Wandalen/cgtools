@@ -8,6 +8,8 @@ mod private
     WebGpu( String ),
     /// Underlying WebGL driver error.
     WebGl( String ),
+    /// Underlying native wgpu driver error.
+    Native( String ),
     /// The requested operation or value is not supported by the active
     /// backend.
     Unsupported( String )
@@ -21,6 +23,7 @@ mod private
       {
         Error::WebGpu( message ) => write!( f, "WebGPU backend error :: {message}" ),
         Error::WebGl( message ) => write!( f, "WebGL backend error :: {message}" ),
+        Error::Native( message ) => write!( f, "Native backend error :: {message}" ),
         Error::Unsupported( message ) => write!( f, "Unsupported :: {message}" )
       }
     }
@@ -28,7 +31,7 @@ mod private
 
   impl std::error::Error for Error {}
 
-  #[ cfg( feature = "webgpu" ) ]
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   impl From< minwebgpu::WebGPUError > for Error
   {
     fn from( error : minwebgpu::WebGPUError ) -> Self
@@ -37,12 +40,21 @@ mod private
     }
   }
 
-  #[ cfg( feature = "webgl" ) ]
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   impl From< minwebgl::WebglError > for Error
   {
     fn from( error : minwebgl::WebglError ) -> Self
     {
       Self::WebGl( error.to_string() )
+    }
+  }
+
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  impl From< minwgpu::Error > for Error
+  {
+    fn from( error : minwgpu::Error ) -> Self
+    {
+      Self::Native( error.to_string() )
     }
   }
 }

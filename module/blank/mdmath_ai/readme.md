@@ -1,3 +1,3 @@
-# mdmath_ia
+# mdmath_ai
 
 Multidimensional math.

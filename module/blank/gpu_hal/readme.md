@@ -7,13 +7,14 @@ knowing which backend they run on.
 ## Surface ( v0 )
 
 - `Device` / `Queue` / `Surface` — backend selection happens once, at
-  construction ( `Device::new_webgpu( canvas )` or
-  `Device::new_webgl( canvas )` ); everything downstream is backend-agnostic.
+  construction ( `Device::new_webgpu( canvas )`, `Device::new_webgl( canvas )`
+  or `Device::new_native( width, height )` ); everything downstream is
+  backend-agnostic.
 - Resource handles ( `Buffer`, `Texture`, `TextureView`, `Sampler`,
   `ShaderModule`, `BindGroupLayout`, `BindGroup`, `RenderPipeline` ) — enum
-  dispatch over backends, each with one-step `as_webgpu()` / `as_webgl()`
-  drill-downs to the raw driver object for anything the portable surface does
-  not cover.
+  dispatch over backends, each with one-step `as_webgpu()` / `as_webgl()` /
+  `as_native()` drill-downs to the raw driver object for anything the portable
+  surface does not cover.
 - `CommandEncoder` / `RenderPass` — one color attachment plus optional depth,
   always-clear load ops, the draw calls the opaque path needs.
 - Plain-data descriptors ( `TextureDesc`, `SamplerDesc`,
@@ -29,9 +30,13 @@ knowing which backend they run on.
 | --- | --- | --- |
 | WebGPU ( `minwebgpu` ) | `webgpu` | implemented |
 | WebGL2 ( `minwebgl` ) | `webgl` | implemented |
+| Native wgpu ( `minwgpu` ) | `native` | implemented |
 
-Browser-only, like the drivers it wraps: on native targets the crate compiles
-to a stub, mirroring `minwebgpu`.
+Backends materialize per target : the browser pair exists only on `wasm32`,
+the native backend only elsewhere. A build where no backend fits its target
+( e.g. browser features on a native target ) still compiles — to just the
+error and descriptor types — so cross-target feature unification never
+breaks a consumer.
 
 ### WebGL2 backend notes
 
@@ -47,6 +52,30 @@ to a stub, mirroring `minwebgpu`.
   depth-tested passes.
 - `new_webgl` requires `EXT_color_buffer_float`, keeping float color targets
   renderable on both backends.
+
+### Native backend notes
+
+- `Device::new_native( width, height )` builds its context through `minwgpu`
+  and renders into an offscreen texture — there is no window; the machine
+  needs a Vulkan ICD, and a software one ( lavapipe ) suffices.
+- `Surface::read_pixels( &device, &queue )` is the native counterpart of
+  presenting to a canvas : tightly-packed rgba8 bytes, top row first — the
+  ground truth a pixel-asserting test reads. Browser surfaces return
+  `Unsupported` there and present to their canvas instead.
+- Recording is `&mut` : `begin_render_pass` and the `RenderPass` methods take
+  `&mut self` on every backend, because the native backend records into its
+  raw wgpu objects mutably.
+- The WGSL slot of `ShaderSource` is consumed directly; the GLSL overrides
+  are ignored.
+
+## Verify
+
+```bash
+cargo nextest run -p gpu_hal --features native
+```
+
+`triangle_render_readback` draws through the full public surface and asserts
+on pixels read back from the offscreen target.
 
 ## Context
 

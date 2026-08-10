@@ -1,5 +1,5 @@
 [package]
-name = "mdmath_ia"
+name = "mdmath_ai"
 version = "0.1.0"
 edition = "2021"
 authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]

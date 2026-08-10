@@ -6,4 +6,4 @@ Per-actor action plans for the cgtools task system.
 
 | Order | Actor | Format | Last Updated |
 |-------|-------|--------|--------------|
-| 001 | [i4@wbox.pro](001_i4.md) | dev | 2026-08-08 |
+| 001 | [i4@wbox.pro](001_i4.md) | dev | 2026-08-10 |

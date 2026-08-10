@@ -9,7 +9,7 @@
 - **expires_at:** null
 - **round:** 1
 - **state:** ✅ (Completed)
-- **closes:** 2026-08-10
+- **closes:** null
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/canvas_renderer
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/

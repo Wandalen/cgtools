@@ -1,18 +1,27 @@
 # Practical Development Roadmap: Tiles Tools Engine
 
-**Version:** 1.3 (Practical Focus)  
-**Date:** 2025-08-08  
-**Status:** Phase 1 Complete → Phase 2 Active  
-**Next Sprint Goal:** Square coordinate system implementation
+**Version:** 2.0 (Ground-Truth Rewrite)
+**Date:** 2026-08-10
+**Status:** Phases 1, 2, 6 complete · Phase 3 substantially complete (1 known gap) · Phase 4 partially complete (1 known gap, 1 sub-area not started) · Phase 5 not started
+**Next Priority:** see [Next Priority Actions](#next-priority-actions)
+
+> **Revision note:** this file previously contained two contradictory status
+> claims for Phase 2 (a "🎉 COMPLETED!" dashboard alongside a "0/4 milestones
+> complete, Milestone 08 starting today" table) and described Phase 3 as
+> "just started" and Phases 4/6 as pure future work. All of that was stale.
+> This version was rewritten from the crate's actual source, tests, and
+> `docs/` (the authoritative implementation contract in this repo — see
+> `docs/definition/readme.md`), not from the roadmap's own prior claims. See
+> [Revision History](#revision-history).
 
 ## Quick Start for Contributors
 
-**Current Priority:** Milestone 08 (Square Coordinates) - see [Sprint Tasks](#current-sprint-milestone-08-square-coordinates) below
+**Current Priority:** see [Next Priority Actions](#next-priority-actions) — the two documented functional gaps (Flow Fields, ECS movement resolution) or Phase 5 (Procedural Generation), depending on interest.
 
 **Ready to Code:**
-1. Clone repo and run `cargo test` to verify Phase 1 works
+1. Clone repo and run `cargo nextest run -p tiles_tools --all-features` to verify the current state
 2. Check [Development Environment](#development-environment) setup
-3. Pick a task from [Current Sprint](#current-sprint-milestone-08-square-coordinates)
+3. Read [Known Gaps](#known-gaps) before touching Flow Fields or ECS movement — both already have a documented pitfall explaining the current stub behavior
 4. Follow [Definition of Done](#definition-of-done) criteria
 
 ## Development Environment
@@ -20,356 +29,93 @@
 **Prerequisites:**
 - Rust 1.70+ with stable toolchain
 - Git configured for the cgtools workspace
-- `cargo clippy` and `cargo fmt` installed
+- `cargo clippy` installed (this workspace uses a custom codestyle — see the repo's rulebooks; do not run `cargo fmt`)
 
 **Setup Commands:**
 ```bash
-cd /home/user1/pro/lib/cgtools/module/helper/tiles_tools
-cargo test                    # Verify all tests pass
-cargo clippy -- -D warnings  # Ensure no warnings
-cargo doc --open              # Review current API
+cd /home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/tiles_tools
+cargo nextest run --all-features   # Verify all tests pass
+cargo clippy --all-targets --all-features -- -D warnings  # Ensure no warnings
+cargo doc --open                   # Review current API
 ```
 
 **Files to Understand First:**
-1. `src/coordinates/hexagonal.rs` - Reference implementation pattern
-2. `src/coordinates/mod.rs` - Distance/Neighbors traits
+1. `src/coordinates/hexagonal.rs` - Reference implementation pattern for a coordinate system
+2. `src/coordinates.rs` - Distance/Neighbors traits
 3. `tests/integration/coordinates_tests.rs` - Testing patterns
+4. `docs/definition/readme.md` - Authoritative index of documented types, algorithms, data structures, and pitfalls
 
 ## Implementation Status Dashboard
 
-| Component | Status | Files | Test Coverage | Docs |
-|-----------|--------|-------|---------------|------|
-| Hexagonal Coords | ✅ Complete | `hexagonal.rs` | ✅ 100% | ✅ Full |
-| Pixel Conversion | ✅ Complete | `pixel.rs` | ✅ 100% | ✅ Full |
-| Grid Storage | ✅ Complete | `collection.rs` | ✅ 100% | ✅ Full |
-| A* Pathfinding | ✅ Complete | `pathfind.rs` | ✅ 100% | ✅ Full |
-| Hex Geometry | ✅ Complete | `geometry.rs` | ✅ 100% | ✅ Full |
-| Square Coords | ✅ Complete | `square.rs` | ✅ 100% | ✅ Full |
-| Triangular Coords | ✅ Complete | `triangular.rs` | ✅ 100% | ✅ Full |
-| Isometric Coords | ✅ Complete | `isometric.rs` | ✅ 100% | ✅ Full |
-| Conversion Utils | ✅ Complete | `conversion.rs` | ✅ 100% | ✅ Full |
-| ECS Integration | ⏳ Planned | - | ❌ 0% | ❌ 0% |
-| Flow Fields | ⏳ Planned | - | ❌ 0% | ❌ 0% |
+| Component | Status | Files | Docs |
+|-----------|--------|-------|------|
+| Hexagonal Coords | ✅ Complete | `coordinates/hexagonal.rs` | ✅ `docs/type/001`, `docs/algorithm/001` |
+| Pixel Conversion | ✅ Complete | `coordinates/pixel.rs` | ✅ `docs/algorithm/001` |
+| Square Coords | ✅ Complete | `coordinates/square.rs` | ✅ `docs/type/001` |
+| Triangular Coords | ✅ Complete | `coordinates/triangular.rs` | ✅ `docs/invariant/001` |
+| Isometric Coords | ✅ Complete | `coordinates/isometric.rs` | ✅ `docs/type/001` |
+| Coordinate Conversion | ✅ Complete | `coordinates/conversion.rs` | ✅ `docs/algorithm/005` |
+| Grid Storage (`Grid2D`) | ✅ Complete | `collection.rs` | ✅ `docs/data_structure/001` |
+| Rectangular Layout over Hex Grids | ✅ Complete | `layout.rs` | ⚠️ no `docs/` instance yet |
+| Spatial Partitioning (`Quadtree`) | ✅ Complete | `spatial.rs` | ✅ `docs/data_structure/002` |
+| Hex Geometry / Mesh Gen | ✅ Complete | `geometry.rs` | ✅ `docs/algorithm/004` |
+| A* Pathfinding | ✅ Complete | `pathfind.rs` | ✅ `docs/algorithm/002` |
+| ECS Integration (`World`, components, systems) | ⚠️ Substantially complete — movement resolution is a no-op | `ecs/` | ✅ `docs/api/001`, `docs/type/002` · ⚠️ `docs/pitfall/002` |
+| Field of View | ✅ Complete | `field_of_view.rs` | ✅ `docs/algorithm/003` |
+| Flow Fields | ⚠️ Scaffolded only — every query returns a fixed stub value | `flowfield.rs` | ⚠️ `docs/pitfall/001` |
+| Region analysis / flood fill / multi-grid pathfinding | ⏳ Not started | - | - |
+| Serialization / save-load | ⚠️ Complete except compression | `serialization.rs` | ✅ `docs/persistence/001` · ⚠️ `docs/pitfall/003` |
+| Event System | ✅ Complete | `events.rs` | - |
+| Debug Visualization | ✅ Complete | `debug.rs` | - |
+| Game Systems (turn order, resources, quests) | ✅ Complete | `game_systems.rs` | - |
+| Procedural Generation (WFC, tileset, noise) | ⏳ Not started | - | - |
+| Benchmark Suite | ✅ Complete | `benches/` (2 suites) | - |
+| Examples | ✅ Complete | `examples/tiles_tools/` (12 example crates) | ✅ `readme.md` example table |
 
-**Phase 1 Metrics:**
-- ✅ 7/7 milestones complete
-- ✅ 1,200+ lines of production code
-- ✅ 800+ lines of test code
-- ✅ 100% documentation coverage
-- ✅ Zero compiler warnings
+**Current, reproducible test count:** 237 tests passing (`cargo nextest run -p tiles_tools --all-features`, verified 2026-08-10). Re-run the command yourself for the live number — do not trust a number written into this file, it will drift.
 
-**Phase 2 Target:**
-- ✅ 4 additional coordinate systems (✅ 4/4 complete - Square, Triangular, Isometric, Conversions)
-- ✅ Universal pathfinding for all grid types  
-- ✅ Universal coordinate system interoperability
+## Known Gaps
 
-## 🎉 Phase 2: Grid System Extensions - COMPLETED!
+Four functional gaps are known and already documented in `docs/pitfall/` — this section links to them rather than duplicating their content, per `docs/pitfall/readme.md`:
 
-**Duration:** 3 weeks  
-**Status:** ✅ Complete with all 4 coordinate systems implemented
-**Achievement:** Universal grid system library with seamless interoperability
+| Pitfall | Impact | Blocking? |
+|---------|--------|-----------|
+| [`pitfall/001`](docs/pitfall/001_flow_field_algorithm_unimplemented.md) — Flow Field algorithm unimplemented | `FlowField`/`IntegrationField` compile and run but every query returns a fixed constant | Blocks real RTS-style multi-unit movement |
+| [`pitfall/002`](docs/pitfall/002_ecs_movement_requests_are_a_no_op.md) — ECS movement requests are a no-op | `World::request_movement`'s target coordinate is recorded but never applied | Blocks ECS-driven entity movement |
+| [`pitfall/003`](docs/pitfall/003_savefile_compression_is_a_fake_wrapper.md) — Save-file compression is a fake wrapper | `compress_data` adds a 7-byte header without shrinking anything | Non-blocking — save/load still round-trips correctly, just without real compression |
+| [`pitfall/004`](docs/pitfall/004_hexagonal_axial_distance_method_ambiguity.md) — Hexagonal axial distance method ambiguity | Two same-named `distance` methods resolve differently by argument shape | Non-blocking — surprising, not incorrect, when used carefully |
 
-### Phase 2 Completed Milestones
-
-✅ **Milestone 08: Square Coordinates** - 4-connected and 8-connected grids  
-✅ **Milestone 09: Triangular Coordinates** - 12-neighbor tessellation  
-✅ **Milestone 10: Isometric Coordinates** - Pseudo-3D visualization with screen transforms  
-✅ **Milestone 11: Conversion Utilities** - Universal coordinate system interoperability
-
-### Phase 2 Final Metrics
-
-**Code Statistics:**
-- ✅ 2,000+ lines of production code
-- ✅ 1,500+ lines of comprehensive test code  
-- ✅ 159 passing integration tests
-- ✅ 4 complete coordinate systems with full interoperability
-- ✅ 100% documentation coverage with working examples
-
-**Technical Achievements:**
-- ✅ Universal A* pathfinding across all grid types
-- ✅ Exact conversions: Square ↔ Isometric (perfect roundtrip)
-- ✅ Approximate conversions: Hexagonal, Triangular ↔ All others
-- ✅ Batch conversion utilities for performance  
-- ✅ Screen coordinate transformations for isometric rendering
-- ✅ Type-safe coordinate system prevents mixing errors
-- ✅ Serde serialization support across all systems
-
----
-
-## Current Phase: Phase 3 - ECS Integration 🚧
-
-**Duration:** 4 weeks  
-**Status:** ✅ Started - Building entity-component-system foundation  
-**Goal:** HECS-based ECS with grid-aware components and systems
-
-### Definition of Done
+## Definition of Done
 
 **Code Quality:**
-- [ ] All code follows existing patterns from hexagonal.rs
-- [ ] Zero compiler warnings with `cargo clippy -- -D warnings`
-- [ ] All functions have rustdoc comments with examples
-- [ ] Code formatted with `cargo fmt`
+- [ ] All code follows existing patterns from `hexagonal.rs`
+- [ ] Zero compiler warnings with `cargo clippy --all-targets --all-features -- -D warnings`
+- [ ] All public functions have rustdoc comments with examples
+- [ ] Code formatted per this workspace's custom codestyle (not `cargo fmt`)
 
 **Testing:**
 - [ ] Unit tests for all public functions
-- [ ] Integration tests with pathfinding algorithm
-- [ ] Tests pass with `cargo test`
-- [ ] Test coverage matches hexagonal implementation
+- [ ] Integration tests for cross-module behavior (pathfinding, ECS, etc.)
+- [ ] `cargo nextest run --all-features` passes
+- [ ] Test coverage matches the depth of the hexagonal implementation
 
 **Documentation:**
 - [ ] All public APIs documented
-- [ ] Code examples in rustdoc work
-- [ ] Updated module-level documentation
+- [ ] Code examples in rustdoc compile and run
+- [ ] New Domain Types/algorithms get a `docs/` doc instance (see `docs/definition/readme.md`)
 
 **Integration:**
-- [ ] Works with existing Grid2D storage
-- [ ] Compatible with A* pathfinding algorithm
-- [ ] No breaking changes to existing APIs
+- [ ] Works with existing `Grid2D` storage
+- [ ] Compatible with the A* pathfinding algorithm
+- [ ] No breaking changes to existing APIs without a changelog entry
 
 ---
 
-## Development Phases Overview
-
-### ✅ Phase 1: Hexagonal Foundation (Completed)
-**Duration:** 4 weeks  
-**Status:** Complete with comprehensive test coverage
-
-### 🚧 Phase 2: Grid System Extensions (Current)
-**Duration:** 3 weeks  
-**Progress:** 0/4 milestones complete  
-**Current Focus:** Square coordinates (Milestone 08)
-
-| Milestone | Status | Estimate | Start Date | Target Date |
-|-----------|--------|----------|------------|-------------|
-| 08: Square Coords | 🚧 Active | 3 days | Today | +3 days |
-| 09: Triangle Coords | ⏳ Ready | 5 days | +3 days | +8 days |
-| 10: Isometric Coords | ⏳ Blocked | 4 days | +8 days | +12 days |
-| 11: Conversion Utils | ⏳ Blocked | 2 days | +12 days | +14 days |
-
-### 📅 Phase 3: ECS Integration (Next)
-**Duration:** 4 weeks  
-**Target Start:** 3 weeks from today
-**Scope:** HECS integration with component system
-
----
-
-## Detailed Milestone Specifications
-
-### Current Sprint: Milestone 08 - Square Coordinates
-
-**Objective:** Implement square/rectangular grid coordinate system following established patterns
-
-#### Task 08.1: File Structure Setup (1h)
-```bash
-# Commands to run:
-touch src/coordinates/square.rs
-# Add to src/coordinates/mod.rs:
-# pub mod square;
-```
-
-**Acceptance Criteria:**
-- [ ] File `src/coordinates/square.rs` created
-- [ ] Module exported in `mod.rs`
-- [ ] File compiles without errors
-
-#### Task 08.2: Basic Square Coordinate (2h)
-
-**Code Template:**
-```rust
-//! Square/rectangular grid coordinate system implementation
-
-use std::{fmt::Debug, hash::Hash, marker::PhantomData};
-use serde::{Deserialize, Serialize};
-use crate::coordinates::{Distance, Neighbors};
-
-/// Square grid system marker
-#[derive(Debug)]
-pub struct Square;
-
-/// Four-connected neighbors (orthogonal only)
-#[derive(Debug)]
-pub struct FourConnected;
-
-/// Eight-connected neighbors (orthogonal + diagonal)
-#[derive(Debug)]
-pub struct EightConnected;
-
-/// Square coordinate with connectivity type
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Coordinate<Connectivity> {
-    pub x: i32,
-    pub y: i32,
-    #[serde(skip)]
-    pub _marker: PhantomData<Connectivity>,
-}
-
-// Basic implementations...
-```
-
-**Acceptance Criteria:**
-- [ ] Coordinate struct matches hexagonal pattern
-- [ ] Phantom type system implemented correctly
-- [ ] Basic trait implementations (Debug, Clone, Copy, etc.)
-- [ ] Serde support for serialization
-
-#### Task 08.3: Manhattan Distance (2h)
-
-```rust
-impl Distance for Coordinate<FourConnected> {
-    fn distance(&self, other: &Self) -> u32 {
-        ((self.x - other.x).abs() + (self.y - other.y).abs()) as u32
-    }
-}
-```
-
-**Test Requirements:**
-- [ ] Distance between (0,0) and (3,4) equals 7
-- [ ] Distance is symmetric: d(a,b) == d(b,a)
-- [ ] Distance to self equals 0
-
-#### Task 08.4: Chebyshev Distance (2h)
-
-```rust
-impl Distance for Coordinate<EightConnected> {
-    fn distance(&self, other: &Self) -> u32 {
-        ((self.x - other.x).abs().max((self.y - other.y).abs())) as u32
-    }
-}
-```
-
-**Test Requirements:**
-- [ ] Distance between (0,0) and (3,4) equals 4
-- [ ] Diagonal movement correctly calculated
-
-#### Task 08.5: Four-Way Neighbors (2h)
-
-```rust
-impl Neighbors for Coordinate<FourConnected> {
-    fn neighbors(&self) -> Vec<Self> {
-        vec![
-            Self::new(self.x + 1, self.y),     // Right
-            Self::new(self.x - 1, self.y),     // Left
-            Self::new(self.x, self.y + 1),     // Up
-            Self::new(self.x, self.y - 1),     // Down
-        ]
-    }
-}
-```
-
-**Test Requirements:**
-- [ ] Returns exactly 4 neighbors
-- [ ] Neighbors are orthogonally adjacent
-- [ ] No duplicate coordinates
-
-#### Task 08.6: Eight-Way Neighbors (1h)
-
-Extend to include diagonal neighbors.
-
-**Test Requirements:**
-- [ ] Returns exactly 8 neighbors
-- [ ] Includes all orthogonal and diagonal adjacencies
-
-#### Task 08.7: Comprehensive Test Suite (3h)
-
-Create `tests/integration/square_coords_tests.rs`:
-
-```rust
-//! ## Test Matrix for Square Coordinates
-//!
-//! | Test ID | Operation | Input | Expected |
-//! |---------|-----------|-------|----------|
-//! | SC1.1   | Create    | (0,0) | Success  |
-//! | SC2.1   | Distance  | 4-conn| Manhattan|
-//! | SC2.2   | Distance  | 8-conn| Chebyshev|
-//! | SC3.1   | Neighbors | 4-conn| 4 coords |
-//! | SC3.2   | Neighbors | 8-conn| 8 coords |
-
-#[test]
-fn test_square_coordinate_creation() {
-    let coord = SquareCoord4::new(5, 10);
-    assert_eq!(coord.x, 5);
-    assert_eq!(coord.y, 10);
-}
-
-// More tests...
-```
-
-**Test Categories:**
-- [ ] Coordinate creation and basic operations
-- [ ] Distance calculations for both connectivity types
-- [ ] Neighbor finding for both connectivity types
-- [ ] Serialization/deserialization
-- [ ] Hash and equality operations
-
-#### Task 08.8: Pathfinding Integration (2h)
-
-```rust
-#[test]
-fn test_pathfinding_square_grid() {
-    use crate::pathfind::astar;
-    use crate::coordinates::square::{Coordinate, FourConnected};
-    
-    let start = Coordinate::<FourConnected>::new(0, 0);
-    let goal = Coordinate::<FourConnected>::new(3, 3);
-    
-    let result = astar(
-        &start,
-        &goal,
-        |_coord| true,  // All accessible
-        |_coord| 1,     // Unit cost
-    );
-    
-    assert!(result.is_some());
-    let (path, cost) = result.unwrap();
-    assert_eq!(cost, 6);  // Manhattan distance
-    assert_eq!(path.len(), 7);  // Start + 6 steps
-}
-```
-
-**Acceptance Criteria:**
-- [ ] A* algorithm works with square coordinates
-- [ ] Path finding produces correct Manhattan distance
-- [ ] Integration with existing pathfinding code
-
-#### Task 08.9: Documentation (1h)
-
-**Requirements:**
-- [ ] Module-level documentation with examples
-- [ ] All public functions have rustdoc
-- [ ] Code examples in docs compile and run
-- [ ] Usage examples for both connectivity types
-
-**Example Documentation:**
-```rust
-//! # Square Grid Coordinates
-//! 
-//! This module provides coordinate systems for square/rectangular grids.
-//! 
-//! ## Example
-//! ```rust
-//! use tiles_tools::coordinates::square::{Coordinate, FourConnected};
-//! use tiles_tools::coordinates::{Distance, Neighbors};
-//! 
-//! let coord = Coordinate::<FourConnected>::new(2, 3);
-//! let neighbors = coord.neighbors();
-//! assert_eq!(neighbors.len(), 4);
-//! ```
-```
-
-### Next Up: Milestone 09 - Triangular Coordinates
-
-**Scope:** Triangular grid with 12-neighbor connectivity  
-**Challenge:** Complex neighbor calculations  
-**Estimate:** 5 days  
-**Prerequisites:** Milestone 08 complete
-
----
-
-## Phase 1: Completed Foundation
+## Phase 1: Hexagonal Foundation
 
 ### Milestone 01: ECS Research ✅ (2 days completed)
 **Outcome:** Selected HECS over Bevy ECS  
-**Deliverable:** `docs/ecs_decision.md` with analysis  
+**Deliverable:** [`docs/architectural_evaluation/001_ecs_library_selection.md`](docs/architectural_evaluation/001_ecs_library_selection.md) with analysis  
 **Impact:** Foundation for Phase 3 ECS integration
 
 ### Milestone 02: Hexagonal Coords ✅ (3 days completed)
@@ -430,87 +176,99 @@ fn test_pathfinding_square_grid() {
     - Pathfinding algorithm validation
 *   **Files:** `tests/integration/`
 
-## Upcoming Milestones (Phase 2)
+---
 
-### Milestone 09: Triangular Coordinates (5 days)
-**Goal:** 12-neighbor connectivity for specialized applications  
-**Challenge:** Complex neighbor calculations with up/down triangles  
-**Deliverables:**
-- `src/coordinates/triangular.rs` with dual triangle types
-- 12-neighbor implementation (3 edge + 9 vertex adjacent)
-- Distance calculations for triangular topology
-- Integration tests with pathfinding
+## Phase 2: Grid System Extensions ✅ Complete
 
-**Ready to Start:** After Milestone 08 complete
+Universal grid system library with seamless interoperability across four coordinate systems.
 
-### Milestone 10: Isometric Coordinates (4 days)
-**Goal:** Popular pseudo-3D coordinate system  
-**Challenge:** Screen-to-world transformation accuracy  
-**Deliverables:**
-- `src/coordinates/isometric.rs` with diamond visuals
-- Screen-to-world and world-to-screen conversions
-- Integration with square grid underlying logic
-- Rendering transformation utilities
+### Milestone 08: Square Coordinates ✅
+**Outcome:** 4-connected (Manhattan) and 8-connected (Chebyshev) square grids, phantom-typed like the hexagonal pattern  
+**Files:** `src/coordinates/square.rs`, `tests/integration/square_coords_tests.rs`
 
-### Milestone 11: Conversion Utilities (2 days)
-**Goal:** Universal coordinate system interoperability  
-**Deliverables:**
-- Generic conversion traits between systems
-- Approximate conversions where exact isn't possible
-- Batch conversion utilities for performance
-- Comprehensive conversion test matrix
+### Milestone 09: Triangular Coordinates ✅
+**Outcome:** 12-neighbor tessellation (3 edge + 9 vertex adjacent) with dual up/down triangle types  
+**Files:** `src/coordinates/triangular.rs`, `tests/integration/triangular_coords_tests.rs`, [`docs/invariant/001`](docs/invariant/001_triangular_coordinate_sum_constraint.md) documents the coordinate-sum correctness constraint
+
+### Milestone 10: Isometric Coordinates ✅
+**Outcome:** Pseudo-3D diamond-projection coordinates with screen-to-world/world-to-screen transforms, built on the square grid's underlying logic  
+**Files:** `src/coordinates/isometric.rs`, `tests/integration/isometric_coords_tests.rs`
+
+### Milestone 11: Conversion Utilities ✅
+**Outcome:** Universal coordinate system interoperability — exact conversions where geometrically possible (Square ↔ Isometric, perfect roundtrip), approximate conversions elsewhere (Hexagonal, Triangular ↔ all others), plus batch conversion utilities  
+**Files:** `src/coordinates/conversion.rs`, `tests/integration/conversion_tests.rs`, [`docs/algorithm/005`](docs/algorithm/005_coordinate_system_conversion.md)
 
 ---
 
-## Future Phases (Planning)
+## Phase 3: ECS Integration ⚠️ Substantially Complete
 
-### Phase 3: ECS Integration (4 weeks)
-**Target Start:** 3 weeks from now  
-**Key Milestones:**
-- ECS abstraction layer over HECS
-- Standard tile-based game components  
-- Entity-grid integration
-- World management system
+**Goal:** HECS-based ECS with grid-aware components and systems.
 
-### Phase 4: Advanced Analysis (3 weeks)
-**Key Features:**
-- Flow field pathfinding for RTS games
-- Field-of-view calculations  
-- Region analysis and flood fill
-- Multi-grid pathfinding utilities
+**Delivered:** a full `hecs`-backed `World` with `Position`, `Movable`, `Health`, `Stats`, `Team`, `AI`, `Animation`, `PlayerControlled` components and Movement, Combat, AI, Animation systems, plus an equipment/abilities system and initiative-based turn management. See [`docs/api/001`](docs/api/001_ecs_world_runtime_api.md) (runtime API) and [`docs/type/002`](docs/type/002_ecs_component_vocabulary.md) (component vocabulary). Exercised by the `ecs_collision_demo` and `tactical_rpg` examples.
 
-### Phase 5: Procedural Generation (4 weeks)
-**Key Features:**
+**Known gap:** `World::request_movement` records the request but never applies the target coordinate — see [`docs/pitfall/002`](docs/pitfall/002_ecs_movement_requests_are_a_no_op.md). Everything else in the ECS layer is functional; this is the one call that isn't.
+
+---
+
+## Phase 4: Advanced Analysis 🚧 Partially Complete
+
+**Field of View** ✅ Complete — shadowcasting and raycasting algorithms, light source management, visibility state tracking. See [`docs/algorithm/003`](docs/algorithm/003_field_of_view_calculation.md); exercised by `field_of_view_demo` and `stealth_game`.
+
+**Flow Fields** ⚠️ Scaffolded only — the `FlowField`/`IntegrationField` API surface exists and compiles, but every method body is a stub returning a fixed value; no real integration-field or flow-direction computation happens. See [`docs/pitfall/001`](docs/pitfall/001_flow_field_algorithm_unimplemented.md).
+
+**Region analysis, flood fill, multi-grid pathfinding utilities** ⏳ Not started — no corresponding module, doc instance, or test exists anywhere in the crate.
+
+---
+
+## Phase 5: Procedural Generation ⏳ Not Started
+
+No Wave Function Collapse, tileset-definition, noise-generation, or configuration-driven generation code exists anywhere in `src/` — confirmed by a repo-wide search for these terms. This phase has not been started at all, unlike Phases 3/4 which have partial implementations.
+
+**Scope (unchanged from original plan):**
 - Wave Function Collapse implementation
 - Tileset definition system with constraints
 - Noise generation for terrain
 - Configuration-driven generation
 
-### Phase 6: Performance & Examples (2 weeks)
-**Key Deliverables:**
-- Performance optimization pass
-- Game of Life example
-- Tactical RPG example  
-- Procedural map generation example
-- Benchmarking suite
+---
+
+## Phase 6: Performance & Examples ✅ Substantially Complete
+
+**Examples** ✅ Complete — 12 standalone example crates under `examples/tiles_tools/` (`beginner_tutorial`, `tactical_rpg`, `stealth_game`, `serialization_demo`, `advanced_pathfinding_demo`, `debug_demo`, `ecs_collision_demo`, `event_system_demo`, `field_of_view_demo`, `game_of_life`, `game_systems_demo`, `simple_collision_demo`), covering every planned deliverable (Game of Life, Tactical RPG) and considerably more. See `readme.md`'s example table and `examples/how_to_run.md`.
+
+**Benchmarking suite** ✅ Complete — `benches/coordinate_benchmarks.rs` and `benches/pathfinding_benchmarks.rs` (criterion-based, feature-gated).
+
+**Performance optimization pass** — no dedicated tracked activity found; not claimed as either done or outstanding here. If a specific performance regression or bottleneck is found, file it as a bug rather than reopening this phase generically.
+
+---
+
+## Next Priority Actions
+
+In rough priority order, grounded in [Known Gaps](#known-gaps) and the phase statuses above:
+
+1. **Close `docs/pitfall/001`** — implement a real Flow Field / Integration Field algorithm (replace the stub bodies in `flowfield.rs`). Unblocks RTS-style multi-unit movement, the stated purpose of the module.
+2. **Close `docs/pitfall/002`** — make `World::request_movement` actually move the entity's `Position` component instead of discarding the target. Unblocks ECS-driven movement generally.
+3. **Phase 5: Procedural Generation** — genuinely unstarted; Wave Function Collapse is the largest single piece of scope left in the whole roadmap.
+4. **Region analysis / flood fill / multi-grid pathfinding** (remainder of Phase 4) — no code exists yet.
+5. **Lower priority, non-blocking:** `docs/pitfall/003` (real compression) and `docs/pitfall/004` (rename or merge the two ambiguous `distance` methods).
 
 ---
 
 ## Success Metrics & Risk Management
 
 ### Definition of Success
-- ✅ **API Stability:** No breaking changes between minor versions
-- ✅ **Performance:** All operations under specified time limits (see `docs/algorithm/` for per-algorithm complexity notes)
-- ✅ **Documentation:** 100% rustdoc coverage with working examples
-- ✅ **Testing:** >90% code coverage with integration tests
-- ✅ **Usability:** New developers productive within 2 hours
+- **API Stability:** No breaking changes between minor versions without a changelog entry
+- **Performance:** All operations under specified time limits (see `docs/algorithm/` for per-algorithm complexity notes)
+- **Documentation:** rustdoc coverage with working examples for all public APIs
+- **Testing:** integration tests covering every coordinate system and cross-module interaction (pathfinding, ECS, FOV)
+- **Usability:** new contributors productive within 2 hours using this roadmap + `docs/definition/readme.md`
 
 ### Risk Mitigation
-- **Scope Creep:** Strict phase boundaries, no feature additions mid-phase
-- **Performance Issues:** Benchmarking integrated from Phase 2
-- **API Design Flaws:** Extensive real-world examples in each phase
-- **Testing Gaps:** Test Matrix methodology prevents coverage gaps
-- **Documentation Debt:** Rustdoc required for all public APIs
+- **Scope Creep:** phase boundaries stay meaningful even after most phases are complete — new work goes in the phase it actually belongs to, not bolted onto whichever phase is currently open
+- **Stale Documentation:** this roadmap previously drifted far enough from reality to contradict itself (see Revision History) — re-verify against `src/`, `docs/`, and a live test run before trusting any status claim here, including this one, more than a few months old
+- **Performance Issues:** benchmarking suite exists (`benches/`) — extend it before optimizing, not after
+- **API Design Flaws:** 12 real examples exist and exercise most of the public API — run them when changing a public signature
+- **Testing Gaps:** Test Matrix methodology (see `tests/integration/`) documents intended coverage per module
 
 ---
 
@@ -532,30 +290,15 @@ fn test_pathfinding_square_grid() {
 4. **Performance Optimized**: Efficient data structures and algorithms throughout
 5. **Comprehensive Testing**: Test Matrix methodology ensures complete coverage
 
-### Next Priority Actions
-
-1. **Milestone 08** (Square Coordinates) - Essential for completeness and broad applicability
-2. **Milestone 12** (ECS Abstraction) - Foundation for entity-based game development  
-3. **Milestone 16** (Flow Fields) - Advanced pathfinding capabilities
-4. **Milestone 20** (Tileset System) - Procedural generation foundation
-
-### Success Metrics
-
-- **Phase 1**: ✅ Completed (Hexagonal coordinate foundation)
-- **Phase 2**: 🎯 Target completion by end of current development cycle
-- **Overall**: On track for 1.0 release with comprehensive tile system support
-
-### Risk Mitigation
-
-- **Performance**: Benchmarking integrated throughout development
-- **API Stability**: Extensive testing prevents breaking changes
-- **Complexity**: Phased approach prevents overwhelming complexity
-- **Documentation**: Comprehensive rustdoc maintained throughout
-
 ---
+
+## Revision History
+
+- **2026-08-10** — Rewritten from ground truth (`src/`, `tests/`, `docs/`, `changelog.md`, `examples/tiles_tools/`, a live `cargo nextest` run) to resolve a self-contradictory Phase 2 status (a "COMPLETED!" dashboard next to a "0/4 milestones complete" table) and outdated "Phase 3 just started, Phases 4-6 pure future work" framing. Actual state at rewrite time: Phases 1, 2, and 6 complete; Phase 3 complete except one documented no-op (`docs/pitfall/002`); Phase 4 complete for Field of View but Flow Fields is a stub (`docs/pitfall/001`) and region analysis/flood fill was never started; Phase 5 (Procedural Generation) genuinely not started. Milestone numbering and phase structure preserved; the Milestone 08 hour-by-hour task template was removed as no-longer-actionable execution detail now that the milestone is long complete, condensed into the same historical-summary style already used for Milestones 01-07.
+- **2025-08-08** — Prior version (1.3), the one this rewrite replaced.
 
 ### Updated Project Status
 
-**Current State**: Phase 1 complete with robust hexagonal coordinate foundation
-**Next Milestone**: Square coordinate system implementation (Milestone 08)
-**Target**: Complete multi-grid-system library with ECS integration and procedural generation
+**Current State:** Phases 1, 2, and 6 complete; Phase 3 and Phase 4 substantially complete with documented gaps; Phase 5 not started.
+**Next Priority:** see [Next Priority Actions](#next-priority-actions) above.
+**Target:** Complete multi-grid-system library with functional flow fields, functional ECS movement, and procedural generation.
