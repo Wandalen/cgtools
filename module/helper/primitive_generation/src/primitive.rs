@@ -5,7 +5,7 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::{ F32x2, F32x4, geometry::BoundingBox };
+  use gl::{ F32x2, F32x4 };
   use std::cell::RefCell;
   use std::rc::Rc;
   use crate::
@@ -14,6 +14,9 @@ mod private
     PrimitiveData,
     Transform
   };
+
+  #[ cfg( feature = "font-processing" ) ]
+  use gl::geometry::BoundingBox;
 
   #[ cfg( feature = "text" ) ]
   use kurbo::PathEl;

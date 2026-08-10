@@ -87,7 +87,8 @@ make env-install
 **Shortcut:** from any directory, `action/run <partial-name>` builds and runs any example or
 binary below by a unique partial match against its path — e.g. `action/run trivial` or
 `action/run sun_grid`. It resolves the match then delegates to that example's own `verb/run`
-(`trunk serve --release` for browser examples, `cargo run --release --all-features` otherwise).
+(`trunk serve --release` on a fresh random port with the browser auto-opened for browser
+examples, `cargo run --release --all-features` otherwise).
 Run `action/run list` to see every match candidate with its runtime/api tags, or
 `action/run list <tag>` to filter to examples carrying a specific tag (e.g.
 `action/run list runtime:offscreen` or `action/run list api:wgpu`) — see `action/run .` for the
