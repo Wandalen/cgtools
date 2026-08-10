@@ -91,6 +91,15 @@ test_tools = { workspace = true }
 approx = { workspace = true, features = [] }
 naga = { workspace = true }
 
+# Not a real dependency — a feature shim. `test_tools` drags in
+# rand 0.8 → getrandom 0.2, which refuses to compile for
+# wasm32-unknown-unknown unless its `js` backend is switched on; this
+# activates it for browser test builds only. Deliberately version-local
+# (not `workspace = true`): the workspace's own getrandom generation is 0.3+
+# with the `getrandom_backend` cfg from `.cargo/config.toml`.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+getrandom = { version = "0.2", features = [ "js" ] }
+
 # Metadata for crates.io
 [package.metadata.docs.rs]
 all-features = true

@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-#@ purpose: Build and run any example or binary crate by partial, case-insensitive match against its path.
-#@ output:  Unique match: builds and launches it — `trunk serve --release` for browser examples
-#@          (crate has an index.html), `cargo run --release --all-features` for everything else.
+#@ purpose: Build and run any example crate by partial, case-insensitive match against its path.
+#@ output:  Unique match: delegates to that example's own `verb/run` — `trunk serve --release`
+#@          for browser examples (crate has an index.html), `cargo run --release --all-features`
+#@          for native and offscreen examples (crate has a `.offscreen` marker: renders once to
+#@          a file, no window — everything else is a live native window).
 #@          No match or ambiguous match: lists candidates instead of guessing.
-#@ param:   <query>   partial match against the crate's path relative to repo root
-#@                    e.g. `sun_grid` matches `examples/minwgpu/sun_grid_lines`
-#@ param:   list      print every discoverable example/binary path instead of running anything
+#@ param:   <query>   partial match against the crate's path relative to repo root, e.g.
+#@                    `sun_grid` matches `examples/minwgpu/sun_grid_lines`. Two reserved
+#@                    values instead of a real query: `list [tag]` prints every discoverable
+#@                    example path, optionally filtered to those carrying `tag` (e.g.
+#@                    `runtime:offscreen` or `api:wgpu` — see the `_TAGS` array below for the
+#@                    full predefined set); `.` prints this help text.
 set -euo pipefail
 
 if [[ "${1:-}" == "." ]]
@@ -19,42 +24,90 @@ fi
 _SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 _REPO_ROOT="$( cd "$_SCRIPT_DIR/.." && pwd )"
 
-# Discover every crate meaningful to "run": anything under examples/ (any
-# depth), plus any crate elsewhere that declares its own [[bin]] target.
-# Classified as browser (has index.html, served via trunk) or native
-# (built and run via plain cargo run) — no family names hardcoded, so new
-# example directories/binaries are picked up automatically.
+# Predefined tag vocabulary (group:name). Each example may declare up to 3,
+# via `[package.metadata.action]` / `tags = [...]` in its own Cargo.toml.
+# Keep sorted within each group.
+_TAGS=(
+  api:webgl
+  api:webgpu
+  api:wgpu
+  runtime:browser
+  runtime:native
+  runtime:offscreen
+)
+
+_tag_known()
+{
+  local _t
+  for _t in "${_TAGS[@]}"
+  do
+    [[ "$_t" == "$1" ]] && return 0
+  done
+  return 1
+}
+
+# Discover every example crate: anything under examples/ (any depth) with
+# its own Cargo.toml — module/helper crates like embroidery_tools are real
+# products, not examples, so they're deliberately out of scope here.
+# Classified as browser (has index.html, served via trunk), offscreen (has
+# a .offscreen marker: renders once to a file and exits, no window opens),
+# or native (everything else, built and run via plain cargo run) — no
+# family names hardcoded, so new example directories are picked up
+# automatically. Also reads each crate's declared tags (up to 3, from the
+# predefined _TAGS set — unknown or excess tags warn to stderr but don't
+# block discovery).
 _discover()
 {
-  local _manifest _dir _rel _kind
+  local _manifest _dir _rel _kind _tags_raw _tags _t _n
   while IFS= read -r -d '' _manifest
   do
     _dir="$( dirname "$_manifest" )"
     _rel="${_dir#"$_REPO_ROOT"/}"
 
-    case "$_rel" in
-      examples/*) ;;
-      *) grep -q '^\[\[bin\]\]' "$_manifest" || continue ;;
-    esac
-
     if [[ -f "$_dir/index.html" ]]
     then
       _kind="browser"
+    elif [[ -f "$_dir/.offscreen" ]]
+    then
+      _kind="offscreen"
     else
       _kind="native"
     fi
-    printf '%s|%s\n' "$_rel" "$_kind"
-  done < <(find "$_REPO_ROOT" \( -name target -o -name .git \) -prune -o -name Cargo.toml -print0)
+
+    _tags_raw="$( sed -n -E 's/^tags = \[(.*)\]$/\1/p' "$_manifest" | tr -d '"' )"
+    _tags=""
+    _n=0
+    if [[ -n "$_tags_raw" ]]
+    then
+      while IFS= read -r _t
+      do
+        _t="$( printf '%s' "$_t" | sed -E 's/^ +| +$//g' )"
+        [[ -n "$_t" ]] || continue
+        _n=$(( _n + 1 ))
+        if ! _tag_known "$_t"
+        then
+          printf 'warning: %s declares unknown tag %q\n' "$_rel" "$_t" >&2
+        fi
+        _tags="${_tags:+$_tags,}$_t"
+      done < <( printf '%s\n' "$_tags_raw" | tr ',' '\n' )
+      if (( _n > 3 ))
+      then
+        printf 'warning: %s declares %d tags, max is 3\n' "$_rel" "$_n" >&2
+      fi
+    fi
+
+    printf '%s|%s|%s\n' "$_rel" "$_kind" "$_tags"
+  done < <(find "$_REPO_ROOT/examples" \( -name target -o -name .git \) -prune -o -name Cargo.toml -print0)
 }
 
 if [[ $# -eq 0 ]]
 then
-  printf 'error: missing query — pass a partial match against an example/binary path, or "list"\n' >&2
+  printf 'error: missing query — pass a partial match against an example path, or "list"\n' >&2
   printf 'try: %s list\n' "$(basename "$0")" >&2
   exit 2
-elif [[ $# -gt 1 ]]
+elif [[ $# -gt 2 ]] || { [[ $# -eq 2 ]] && [[ "$1" != "list" ]]; }
 then
-  printf 'error: expected exactly one argument, got %d\n' "$#" >&2
+  printf 'error: unexpected arguments (a second argument is only valid after "list")\n' >&2
   exit 2
 fi
 
@@ -62,9 +115,17 @@ _query="$1"
 
 if [[ "$_query" == "list" ]]
 then
-  _discover | sort | while IFS='|' read -r _p _k
+  _tag_filter="${2:-}"
+  _discover | sort | while IFS='|' read -r _p _k _t
   do
-    printf '%-60s %s\n' "$_p" "$_k"
+    if [[ -n "$_tag_filter" ]]
+    then
+      case ",$_t," in
+        *",$_tag_filter,"*) ;;
+        *) continue ;;
+      esac
+    fi
+    printf '%-60s %-10s %s\n' "$_p" "$_k" "$_t"
   done
   exit 0
 fi
@@ -82,7 +143,7 @@ done < <(_discover)
 
 case "${#_matches[@]}" in
   0)
-    printf 'error: no example/binary matches %q\n' "$_query" >&2
+    printf 'error: no example matches %q\n' "$_query" >&2
     printf 'try: %s list\n' "$(basename "$0")" >&2
     exit 1
     ;;
@@ -99,16 +160,13 @@ case "${#_matches[@]}" in
 esac
 
 _relpath="${_matches[0]%%|*}"
-_kind="${_matches[0]##*|}"
 _absdir="$_REPO_ROOT/$_relpath"
 
-case "$_kind" in
-  browser)
-    printf 'building and serving (trunk) -> %s\n' "$_relpath" >&2
-    exec env -C "$_absdir" trunk serve --release
-    ;;
-  native)
-    printf 'building and running (cargo) -> %s\n' "$_relpath" >&2
-    exec env -C "$_absdir" cargo run --release --all-features
-    ;;
-esac
+if [[ ! -x "$_absdir/verb/run" ]]
+then
+  printf 'error: %s has no executable verb/run\n' "$_relpath" >&2
+  exit 1
+fi
+
+printf 'running -> %s\n' "$_relpath" >&2
+exec "$_absdir/verb/run"

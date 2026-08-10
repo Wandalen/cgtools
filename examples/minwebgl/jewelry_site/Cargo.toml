@@ -7,3 +7,6 @@ authors = [
   "Bilan Vadym <vadym.b@obox.systems>"
 ]
 license = "MIT"
+
+[package.metadata.action]
+tags = ["runtime:browser"]

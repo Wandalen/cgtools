@@ -39,3 +39,6 @@ features = [
     'WebGlTexture',
     'WebGlFramebuffer',
 ]
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

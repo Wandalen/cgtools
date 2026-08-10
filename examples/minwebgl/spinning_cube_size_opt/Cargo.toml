@@ -8,3 +8,6 @@ license = "MIT"
 [dependencies]
 minwebgl = { workspace = true, features = [ "math" ] }
 lol_alloc = "0.4.1"
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

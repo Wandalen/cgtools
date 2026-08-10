@@ -6,6 +6,9 @@
 mod tests
 {
   use wasm_bindgen_test::wasm_bindgen_test;
+
+  // Browser, not Node: every test here needs a real WebGL2 context.
+  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
   use gl::GL;
   use std::{ rc::Rc, cell::RefCell };
@@ -18,10 +21,9 @@ mod tests
   {
     Node,
     Object3D,
-    calculate_data_texture_size,
     load_texture_data_4f,
-    loaders::gltf::{ GLTF, load },
-    skeleton::{ DisplacementsData, Skeleton, TransformsData }
+    loaders::gltf::load,
+    skeleton::Skeleton
   };
 
   async fn init_test() -> GL
@@ -70,11 +72,11 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn set_displacement_another_new_displacement_size_test()
   {
-    let skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
+    let mut skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
 
     assert!
     (
-      !skeleton.displacements_as_mut().unwrap()
+      !skeleton.displacements_as_mut().as_mut().unwrap()
       .set_displacement
       (
         Some( [ [ 0.0; 3 ]; 2 ].to_vec() ),
@@ -93,7 +95,7 @@ mod tests
 
     assert_eq!( skeleton.has_skin(), skeleton_clone.has_skin() );
     assert_eq!( skeleton.has_morph_targets(), skeleton_clone.has_morph_targets() );
-    assert_eq!( skeleton.displacements_as_ref().unwrap().default_weights, skeleton_clone.displacements_as_ref().unwrap().default_weights );
+    assert_eq!( skeleton.displacements_as_ref().as_ref().unwrap().default_weights, skeleton_clone.displacements_as_ref().as_ref().unwrap().default_weights );
   }
 
   #[ wasm_bindgen_test( async ) ]
@@ -111,6 +113,33 @@ mod tests
 
     assert!( skeleton.transforms_as_ref().is_some() );
   }
+
+  #[ wasm_bindgen_test( async ) ]
+  async fn load_texture_data_4f_test()
+  {
+    let gl = init_test().await;
+
+    let texture = gl.create_texture().unwrap();
+
+    for a in ( 0..1024_u32 ).step_by( 256 )
+    {
+      let data = vec![ 0.0_f32; ( a * a ) as usize * 4 ];
+
+      assert!( load_texture_data_4f( &gl, &texture, &data, [ a, a ] ).is_ok() );
+    }
+  }
+}
+
+// Pure-logic tests: no browser, no GL context. They live outside the
+// wasm-only module above because the browser harness collects only
+// `#[ wasm_bindgen_test ]` functions — a plain `#[ test ]` inside that
+// module is silently dead on both targets (cfg'd out natively, never
+// collected on wasm).
+#[ cfg( not( target_arch = "wasm32" ) ) ]
+#[ cfg( test ) ]
+mod pure_tests
+{
+  use renderer::webgl::{ calculate_data_texture_size, skeleton::DisplacementsData };
 
   #[ test ]
   fn pack_displacements_data_test()
@@ -167,21 +196,6 @@ mod tests
     assert_ne!( data.len(), 0 );
     assert_eq!( data.len(), 16 * 4 * 2 );
     assert_eq!( data.get( 0..8 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 1.0 ] );
-  }
-
-  #[ wasm_bindgen_test( async ) ]
-  async fn load_texture_data_4f_test()
-  {
-    let gl = init_test().await;
-
-    let texture = gl.create_texture().unwrap();
-
-    for a in ( 0..1024_u32 ).step_by( 256 )
-    {
-      let data = vec![ 0.0_f32; ( a * a ) as usize * 4 ];
-
-      assert!( load_texture_data_4f( &gl, &texture, &data, [ a, a ] ).is_ok() );
-    }
   }
 
   mod calculate_data_texture_size_tests
@@ -251,17 +265,28 @@ mod tests
       }
     }
 
+    // Replaces two never-executed tests that expected power-of-2 sides
+    // ( f( 4 ) = 2, f( 17 ) = 8, ... ) — impossible alongside
+    // `returns_power_of_4`, which passes against the real implementation.
+    // The suite was dead ( plain `#[ test ]`s inside a wasm-only module ),
+    // so the contradiction was never caught.
     #[ test ]
-    fn exact_square_boundaries()
+    fn power_of_four_boundaries()
     {
+      // Spec: the side is the smallest power of 4 whose square fits
+      // `data_size` ( sides stay powers of 4 so a matrix never straddles two
+      // texture rows — see the doc comment on `calculate_data_texture_size` ).
+      // An exact fit stays put; one element over jumps to the next power.
       let cases =
       [
         ( 1, 1 ),
-        ( 4, 2 ),
+        ( 2, 4 ),
         ( 16, 4 ),
-        ( 64, 8 ),
+        ( 17, 16 ),
         ( 256, 16 ),
-        ( 1024, 32 ),
+        ( 257, 64 ),
+        ( 4096, 64 ),
+        ( 4097, 256 ),
       ];
 
       for ( data_size, expected_side ) in cases
@@ -271,32 +296,7 @@ mod tests
         (
           size,
           expected_side,
-          "wrong size for perfect square data_size={}",
-          data_size
-        );
-      }
-    }
-
-    #[ test ]
-    fn just_over_square_boundary()
-    {
-      let cases =
-      [
-        ( 2, 2 ),
-        ( 5, 4 ),
-        ( 17, 8 ),
-        ( 65, 16 ),
-        ( 257, 32 ),
-      ];
-
-      for ( data_size, expected_side ) in cases
-       {
-        let size = calculate_data_texture_size( data_size );
-        assert_eq!
-        (
-          size,
-          expected_side,
-          "wrong size just over square boundary data_size={}",
+          "wrong side for data_size={}",
           data_size
         );
       }

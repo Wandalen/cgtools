@@ -9,3 +9,6 @@ strum = { workspace = true, features = ["derive"] }
 
 [lints]
 workspace = true
+
+[package.metadata.action]
+tags = ["runtime:native"]

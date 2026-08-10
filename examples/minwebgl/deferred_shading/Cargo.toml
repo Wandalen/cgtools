@@ -23,3 +23,6 @@ web-sys = { workspace = true, features = [
 renderer = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde-wasm-bindgen = { workspace = true }
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

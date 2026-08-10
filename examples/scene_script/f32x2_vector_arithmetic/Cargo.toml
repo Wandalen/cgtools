@@ -10,3 +10,6 @@ workspace = true
 ndarray_cg = { workspace = true }
 rhai = { workspace = true }
 scene_script = { workspace = true }
+
+[package.metadata.action]
+tags = ["runtime:native"]

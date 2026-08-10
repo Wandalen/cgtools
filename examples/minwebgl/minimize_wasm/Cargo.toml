@@ -12,3 +12,6 @@ wee_alloc = { workspace = true }
 # minwebgl = "0.2"
 # cgmath = "0.18.0"
 # wee_alloc = "0.4"
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

@@ -16,3 +16,6 @@ web-sys = { workspace = true, features = [
   'DomRect',
   'MouseEvent',
 ] }
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

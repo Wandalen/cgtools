@@ -18,3 +18,6 @@ gpu_hal = { workspace = true, features = [ "webgpu", "webgl" ] }
 [target.'cfg(target_arch = "wasm32")'.dependencies.minwebgpu]
 workspace = true
 features = [ 'future', 'math' ]
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgpu"]

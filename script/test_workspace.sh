@@ -27,14 +27,6 @@ else
     echo "❌ embroidery_tools check failed"
 fi
 
-# Test vectorizer without CLI features  
-echo "Testing vectorizer..."
-if cargo check -p vectorizer --no-default-features --features enabled; then
-    echo "✅ vectorizer check passed"
-else
-    echo "❌ vectorizer check failed"
-fi
-
 # Test workspace with basic features only
 echo "3. Testing workspace with minimal features..."
 if cargo check --workspace --no-default-features; then

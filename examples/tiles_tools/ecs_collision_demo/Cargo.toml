@@ -8,3 +8,6 @@ workspace = true
 
 [dependencies]
 tiles_tools = { workspace = true }
+
+[package.metadata.action]
+tags = ["runtime:native"]

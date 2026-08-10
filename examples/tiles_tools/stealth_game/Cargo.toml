@@ -9,3 +9,6 @@ workspace = true
 [dependencies]
 tiles_tools = { workspace = true, features = ["ecs-systems"] }
 hecs = { workspace = true }
+
+[package.metadata.action]
+tags = ["runtime:native"]

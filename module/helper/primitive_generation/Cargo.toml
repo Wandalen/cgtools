@@ -94,6 +94,13 @@ features = [
 [dev-dependencies]
 test_tools = { workspace = true }
 
+# Exercises `contours_to_fill_geometry`, which is gated behind `font-processing`
+# (TASK-055) -- without `required-features`, this test binary would fail to
+# *compile* (not just skip) whenever the feature is off.
+[[test]]
+name = "contours_to_fill_geometry_test"
+required-features = ["font-processing"]
+
 # Metadata for crates.io
 [package.metadata.docs.rs]
 all-features = true

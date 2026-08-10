@@ -12,6 +12,7 @@
 //! (`*.vert.glsl` / `*.frag.glsl`) are outside naga's reach — its `glsl-in`
 //! front end parses desktop GLSL, not ES profiles — and need the Khronos
 //! reference validator (`glslangValidator`) instead.
+#![ cfg( not( target_arch = "wasm32" ) ) ]
 
 /// Parses `source` as WGSL and runs naga's full IR validation over it,
 /// panicking with a span-annotated report on any defect. `name` labels the

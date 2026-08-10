@@ -86,10 +86,13 @@ make env-install
 
 **Shortcut:** from any directory, `action/run <partial-name>` builds and runs any example or
 binary below by a unique partial match against its path — e.g. `action/run trivial` or
-`action/run sun_grid`. It picks the right mechanism automatically (`trunk serve --release` for
-browser examples, `cargo run --release --all-features` otherwise). Run `action/run list` to see
-every match candidate, or `action/run .` for its own usage. The manual per-family steps below
-still apply if you want more control (dev-mode serving, watching, etc.).
+`action/run sun_grid`. It resolves the match then delegates to that example's own `verb/run`
+(`trunk serve --release` for browser examples, `cargo run --release --all-features` otherwise).
+Run `action/run list` to see every match candidate with its runtime/api tags, or
+`action/run list <tag>` to filter to examples carrying a specific tag (e.g.
+`action/run list runtime:offscreen` or `action/run list api:wgpu`) — see `action/run .` for the
+full predefined tag set and usage. The manual per-family steps below still apply if you want more
+control (dev-mode serving, watching, etc.).
 
 ### WebGL and WebGPU Examples (minwebgl / minwebgpu)
 

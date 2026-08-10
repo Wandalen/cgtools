@@ -37,7 +37,6 @@ members = [
   "module/helper/behaviour_tree",
   "module/helper/tilemap_scene",
   "module/helper/scene_script",
-  # "module/helper/vectorizer", # TODO: Fix feature gate issues
 
   # Math modules
   "module/math/mdmath_core",
@@ -195,11 +194,6 @@ path = "module/min/minwgpu"
 [workspace.dependencies.gpu_hal]
 version = "~0.1.0"
 path = "module/blank/gpu_hal"
-
-# = vectorizer
-[workspace.dependencies.vectorizer]
-version = "~0.1.0"
-path = "module/vectorizer"
 
 # = math
 

@@ -189,6 +189,6 @@ fn run()
   device.poll( wgpu::PollType::Wait { submission_index : None, timeout : None } ).expect( "Failed to render an image" );
 
   let data = buffer_slice.get_mapped_range();
-  image::save_buffer( "triangle.png", &data, width, height, image::ColorType::Rgba8 )
+  image::save_buffer( "-triangle.png", &data, width, height, image::ColorType::Rgba8 )
   .expect( "Failed to save image" );
 }

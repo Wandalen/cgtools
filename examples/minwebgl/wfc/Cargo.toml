@@ -38,3 +38,6 @@ features = [
   'FileList',
   'FileReader',
 ]
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

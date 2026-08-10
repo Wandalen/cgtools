@@ -25,3 +25,6 @@ workspace = true
 features = [
   'PointerEvent',
 ]
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

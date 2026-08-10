@@ -13,7 +13,8 @@
 #
 # usage:
 #   script/example_smoke.sh [example_dir ...]
-# defaults: examples/minwebgl/sun_grid_lines examples/minwebgpu/sun_grid_lines
+# defaults: both sun_grid_lines twins plus the canonical WebGPU-path pair
+# (hello_triangle, renderer_pbr_scene)
 #
 # Verify any verdict yourself by replaying the printed browsee line, e.g.:
 #   browsee .run http://127.0.0.1:<port>/ features::software_gl timeout::40 dom::1
@@ -26,7 +27,12 @@ cd "$root" || exit 2
 examples=( "$@" )
 if [ "${#examples[@]}" -eq 0 ]
 then
-  examples=( examples/minwebgl/sun_grid_lines examples/minwebgpu/sun_grid_lines )
+  examples=(
+    examples/minwebgl/sun_grid_lines
+    examples/minwebgpu/sun_grid_lines
+    examples/minwebgpu/hello_triangle
+    examples/minwebgpu/renderer_pbr_scene
+  )
 fi
 
 command -v browsee > /dev/null || { echo "example_smoke: browsee not on PATH" >&2 ; exit 2 ; }
