@@ -234,6 +234,11 @@ pub fn update_video( gl : &GL, texture : &web_sys::WebGlTexture, video_element :
 /// # When it useful
 /// - Loading sprites
 /// - Working with texture arrays
+// `get_image_data` below is `#[cfg(web_sys_unstable_apis)]`-gated at two argument-type
+// signatures inside web-sys itself (see BUG-053); `web_sys_unstable_apis` is a raw `--cfg`
+// flag, not a Cargo feature, so rustc has no `check-cfg` declaration for it and always
+// classifies referencing it as `unexpected_cfgs` regardless of which signature is active.
+#[ allow( unexpected_cfgs ) ]
 pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement, sprite_sheet : &SpriteSheet ) -> Result< web_sys::WebGlTexture, WebglError >
 {
   let load_promise = js_sys::Promise::new
@@ -279,7 +284,24 @@ pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement
     ctx.draw_image_with_html_image_element( image_element, 0.0, 0.0 ).unwrap();
 
     // Get pixel array of the image.
+    // Fix(BUG-053): `web_sys::CanvasRenderingContext2d::get_image_data` has two mutually
+    // exclusive signatures gated by the `web_sys_unstable_apis` cfg — `f64` args when it's off,
+    // `i32` args when it's on — and this workspace's `.cargo/config.toml` sets it on via
+    // `[build] rustflags`, EXCEPT that setting is entirely replaced (not merged) whenever a
+    // caller sets the `RUSTFLAGS` env var directly, e.g. this project's own Level 1 command
+    // `RUSTFLAGS="-D warnings" cargo nextest run --all-features`. A single literal-typed call
+    // site can only ever match one of the two, so it must branch on the same cfg web-sys does.
+    // Root cause: this exact line has flip-flopped between bare `f64` and `i32` casts across at
+    // least 8 distinct commits in git history — each prior "fix" only matched whichever
+    // RUSTFLAGS state the fixer happened to build under, immediately breaking the other.
+    // Pitfall: `cargo check -p minwebgl` (no RUSTFLAGS override) and
+    // `RUSTFLAGS="-D warnings" cargo nextest run --all-features` (this project's own Level 1
+    // command) resolve to opposite overloads of the SAME function in the SAME workspace —
+    // never assume one invocation style's success implies the other's.
+    #[ cfg( web_sys_unstable_apis ) ]
     let data = ctx.get_image_data( 0, 0, img_width as i32, img_height as i32 ).unwrap().data().to_vec();
+    #[ cfg( not( web_sys_unstable_apis ) ) ]
+    let data = ctx.get_image_data( 0.0, 0.0, img_width as f64, img_height as f64 ).unwrap().data().to_vec();
 
     tmp_canvas.remove();
 

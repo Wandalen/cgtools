@@ -320,6 +320,56 @@ fn test_out_of_bounds_lane_index_column_major()
   test_out_of_bounds_lane_index_generic::<DescriptorOrderColumnMajor>();
 }
 
+/// ## Root Cause
+/// `lane_iter`'s column-lane bound (`varying_dim == 1`) was checked only via
+/// `debug_assert!( lane < COLS, .. )`. `test_out_of_bounds_lane_index_generic` above only
+/// ever exercises the row-lane bound (`varying_dim == 0`), so the column-lane bound had no
+/// out-of-bounds regression coverage at all.
+///
+/// ## Why Not Caught
+/// No existing test called `lane_iter( 1, out_of_range_lane )`, so the column-lane
+/// `debug_assert!` was never exercised by a bounds-violating input in either build profile.
+///
+/// ## Fix Applied
+/// TASK-014 changed the underlying `debug_assert!` to `assert!` in
+/// `access_row_major.rs`/`access_column_major.rs` so the check fires in every build
+/// profile, not just debug. This test pins that behavior down for the column-lane branch.
+///
+/// ## Prevention
+/// Running this test under a release profile (`debug_assertions` off) would have failed
+/// before the fix (no panic; `.skip( lane * ROWS )` either silently returns an empty
+/// iterator or the wrong lane's data) and passes after.
+///
+/// ## Pitfall
+/// A bound check guarded by `debug_assert!` needs its own dedicated out-of-bounds test per
+/// branch — coverage of a sibling branch (here, the row-lane check) does not exercise it.
+fn test_out_of_bounds_column_lane_index_generic<D: the_module::mat::Descriptor>()
+where
+  the_module::Mat<2, 2, f32, D>: Default + the_module::RawSliceMut<Scalar = f32> + the_module::IndexingRef<Scalar = f32>,
+{
+  use the_module::{ Mat, IndexingRef, RawSliceMut };
+
+  let mat = Mat::<2, 2, f32, D>::default().set([ 1.0, 2.0, 3.0, 4.0 ]);
+  let _collected: Vec<_> = mat.lane_iter( 1, 2 ).collect();
+  println!( "{_collected:?}" )
+}
+
+#[test]
+#[should_panic]
+fn test_out_of_bounds_column_lane_index_row_major()
+{
+  use the_module::mat::DescriptorOrderRowMajor;
+  test_out_of_bounds_column_lane_index_generic::<DescriptorOrderRowMajor>();
+}
+
+#[test]
+#[should_panic]
+fn test_out_of_bounds_column_lane_index_column_major()
+{
+  use the_module::mat::DescriptorOrderColumnMajor;
+  test_out_of_bounds_column_lane_index_generic::<DescriptorOrderColumnMajor>();
+}
+
 fn test_lane_iter_mut_generic<D: the_module::mat::Descriptor>()
 where
   the_module::Mat<3, 3, f32, D>: Default + the_module::RawSliceMut<Scalar = f32> + the_module::IndexingMut<Scalar = f32>,
@@ -350,4 +400,98 @@ fn test_lane_iter_mut_column_major()
 {
   use the_module::mat::DescriptorOrderColumnMajor;
   test_lane_iter_mut_generic::<DescriptorOrderColumnMajor>();
+}
+
+/// ## Root Cause
+/// `lane_iter_mut`'s row-lane bound (`varying_dim == 0`) was checked only via
+/// `debug_assert!( lane < ROWS, .. )`, mirroring the immutable `lane_iter`'s row-lane check
+/// but with no out-of-bounds regression coverage of its own.
+///
+/// ## Why Not Caught
+/// Existing `lane_iter_mut` tests (`test_lane_iter_mut_generic`) only exercise valid lane
+/// indices; no test called `lane_iter_mut` with an out-of-range lane.
+///
+/// ## Fix Applied
+/// TASK-014 changed the underlying `debug_assert!` to `assert!` in
+/// `access_row_major.rs`/`access_column_major.rs` so the check fires in every build
+/// profile, not just debug.
+///
+/// ## Prevention
+/// Running this test under a release profile would have failed before the fix (no panic;
+/// `.skip( lane * COLS )` silently returns an empty or wrong-offset mutable iterator) and
+/// passes after.
+///
+/// ## Pitfall
+/// The `_mut` sibling of a checked accessor needs its own out-of-bounds test — a passing
+/// immutable-accessor test says nothing about the mutable accessor's own debug-only guard.
+fn test_lane_iter_mut_out_of_bounds_row_generic<D: the_module::mat::Descriptor>()
+where
+  the_module::Mat<2, 2, f32, D>: Default + the_module::RawSliceMut<Scalar = f32> + the_module::IndexingMut<Scalar = f32>,
+{
+  use the_module::{ Mat, IndexingMut, RawSliceMut };
+
+  let mut mat = Mat::<2, 2, f32, D>::default().set([ 1.0, 2.0, 3.0, 4.0 ]);
+  let _collected: Vec<_> = mat.lane_iter_mut( 0, 2 ).collect();
+  println!( "{_collected:?}" )
+}
+
+#[test]
+#[should_panic]
+fn test_lane_iter_mut_out_of_bounds_row_row_major()
+{
+  use the_module::mat::DescriptorOrderRowMajor;
+  test_lane_iter_mut_out_of_bounds_row_generic::<DescriptorOrderRowMajor>();
+}
+
+#[test]
+#[should_panic]
+fn test_lane_iter_mut_out_of_bounds_row_column_major()
+{
+  use the_module::mat::DescriptorOrderColumnMajor;
+  test_lane_iter_mut_out_of_bounds_row_generic::<DescriptorOrderColumnMajor>();
+}
+
+/// ## Root Cause
+/// `lane_iter_mut`'s column-lane bound (`varying_dim == 1`) was checked only via
+/// `debug_assert!( lane < COLS, .. )`, with no out-of-bounds regression coverage.
+///
+/// ## Why Not Caught
+/// No test called `lane_iter_mut( 1, out_of_range_lane )`.
+///
+/// ## Fix Applied
+/// TASK-014 changed the underlying `debug_assert!` to `assert!` so the check fires in
+/// every build profile, not just debug.
+///
+/// ## Prevention
+/// Running this test under a release profile would have failed before the fix and passes
+/// after.
+///
+/// ## Pitfall
+/// Each of the four lane-bound branches (`lane_iter`/`lane_iter_mut` x row/column) is an
+/// independent debug-only guard and needs its own dedicated out-of-bounds test.
+fn test_lane_iter_mut_out_of_bounds_column_generic<D: the_module::mat::Descriptor>()
+where
+  the_module::Mat<2, 2, f32, D>: Default + the_module::RawSliceMut<Scalar = f32> + the_module::IndexingMut<Scalar = f32>,
+{
+  use the_module::{ Mat, IndexingMut, RawSliceMut };
+
+  let mut mat = Mat::<2, 2, f32, D>::default().set([ 1.0, 2.0, 3.0, 4.0 ]);
+  let _collected: Vec<_> = mat.lane_iter_mut( 1, 2 ).collect();
+  println!( "{_collected:?}" )
+}
+
+#[test]
+#[should_panic]
+fn test_lane_iter_mut_out_of_bounds_column_row_major()
+{
+  use the_module::mat::DescriptorOrderRowMajor;
+  test_lane_iter_mut_out_of_bounds_column_generic::<DescriptorOrderRowMajor>();
+}
+
+#[test]
+#[should_panic]
+fn test_lane_iter_mut_out_of_bounds_column_column_major()
+{
+  use the_module::mat::DescriptorOrderColumnMajor;
+  test_lane_iter_mut_out_of_bounds_column_generic::<DescriptorOrderColumnMajor>();
 }

@@ -91,7 +91,7 @@ mod private
     /// * `as_define`: A boolean indicating whether to add a `#define USE_UPPERCASE_NAME` to the `defines` string.
     ///
     /// It binds the VAO, uploads the attribute, and stores the `AttributeInfo`.
-    /// It panics if an attribute with the same name already exists.
+    /// Returns `Err` if an attribute with the same name already exists.
     pub fn add_attribute< Name : Into< Box< str > > >
     (
       &mut self,
@@ -109,7 +109,14 @@ mod private
       }
       else
       {
-        panic!( "An attribute {} already exists", name );
+        // Fix(task 013): was `panic!( "An attribute {} already exists", name )` — aborted the
+        // whole wasm module on a duplicate attribute name instead of returning `Err`.
+        // Root cause: the `Result` error branch was authored as a `panic!` afterthought
+        // instead of being routed through the `Result< (), WebglError >` this fn already returns.
+        // Pitfall: a fn declared `-> Result< _, _ >` must route EVERY failure branch through
+        // `Err`, even ones that read like "should never happen" — grep for stray `panic!`/
+        // `.unwrap()`/`.expect()` inside any fn whose own signature already promises `Result`.
+        return Err( gl::WebglError::Other( "An attribute with this name already exists" ) );
       }
 
       Ok( () )

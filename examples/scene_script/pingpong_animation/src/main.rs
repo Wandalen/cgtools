@@ -8,7 +8,7 @@ use ndarray_cg::F32x2;
 use scene_script::build_engine;
 use std::{ cell::RefCell, rc::Rc };
 
-#[ derive( Debug, Clone ) ]
+#[ derive( Debug, Clone, PartialEq ) ]
 struct Frame
 {
   tick : i64,
@@ -17,7 +17,12 @@ struct Frame
   paddle_right_y : f64,
 }
 
-fn main() -> Result< (), Box< rhai::EvalAltResult > >
+/// Builds a fresh engine, evaluates the bundled script, and returns every
+/// emitted frame — the entire simulation as a pure function of the script's
+/// own hardcoded inputs, no external state in or out. Off-screen (no GPU, no
+/// browser) and, per L5's contract, deterministic: see
+/// `simulation_is_deterministic` below.
+fn simulate() -> Result< Vec< Frame >, Box< rhai::EvalAltResult > >
 {
   let mut engine = build_engine();
 
@@ -36,7 +41,19 @@ fn main() -> Result< (), Box< rhai::EvalAltResult > >
   let script = include_str!( "pingpong_animation.rhai" );
   let _ : rhai::Dynamic = engine.eval( script )?;
 
-  let frames = frames.borrow();
+  // `engine` still holds a clone of `frames_sink` inside the registered
+  // closure at this point, so `Rc::try_unwrap` would see 2 strong refs and
+  // fail — clone the `Vec` out of the shared `RefCell` instead. Bound to a
+  // local first: inlined into `Ok( frames.borrow().clone() )`, the `Ref`
+  // guard's temporary-scope extension to the end of the block conflicts
+  // with `frames` itself dropping there too (E0597).
+  let recorded_frames = frames.borrow().clone();
+  Ok( recorded_frames )
+}
+
+fn main() -> Result< (), Box< rhai::EvalAltResult > >
+{
+  let frames = simulate()?;
   println!( "simulated {} ticks", frames.len() );
   for frame in frames.iter().step_by( 10 )
   {
@@ -66,4 +83,27 @@ fn main() -> Result< (), Box< rhai::EvalAltResult > >
   }
 
   Ok( () )
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::*;
+
+  /// Off-screen (no GPU, no browser) determinism proof for L5's contract —
+  /// see `docs/layer/006_l5_scene_script_and_runners.md`'s "same script +
+  /// same seed → same frame sequence" Contract bullet. Runs the simulation
+  /// twice from the script's own fixed, hardcoded inputs and asserts the
+  /// two frame sequences are exactly equal; formalizes what was previously
+  /// only a one-off manual rebuild-and-diff into a regression-suite-visible
+  /// check.
+  #[ test ]
+  fn simulation_is_deterministic()
+  {
+    let run_1 = simulate().expect( "pingpong_animation.rhai is bundled at compile time and must evaluate" );
+    let run_2 = simulate().expect( "pingpong_animation.rhai is bundled at compile time and must evaluate" );
+
+    assert_eq!( run_1.len(), 40, "script hardcodes ticks = 40" );
+    assert_eq!( run_1, run_2, "same script + same hardcoded inputs must produce the same frame sequence" );
+  }
 }

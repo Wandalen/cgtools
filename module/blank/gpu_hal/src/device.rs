@@ -393,7 +393,15 @@ mod private
               BindingType::Texture => raw_entry.ty( gl::binding_type::texture_type() ),
               BindingType::Sampler => raw_entry.ty( gl::binding_type::sampler_type() )
             };
-            builder = builder.entry( raw_entry );
+            // Fix(BUG-051): `BindGroupLayoutDescriptor::entry` became fallible (returns
+            // `Result<Self, WebGPUError>`) once its underlying `TryFrom` conversion stopped
+            // panicking on an unset binding type — propagate with `?` instead of a plain
+            // assignment.
+            // Root cause: caller written against the old infallible `entry` signature.
+            // Pitfall: a downstream `From`-to-`TryFrom` signature change is a silent type
+            // error at every call site, not a panic — the compiler catches it immediately,
+            // but only once this crate is actually rebuilt against the new minwebgpu.
+            builder = builder.entry( raw_entry )?;
           }
           Ok( BindGroupLayout::WebGpu( builder.create( device )? ) )
         }

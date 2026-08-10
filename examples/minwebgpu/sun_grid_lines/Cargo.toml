@@ -7,6 +7,14 @@ license = "MIT"
 [lints]
 workspace = true
 
+# Scene-script parsing (scene.rs) has no wasm/WebGPU dependency and is
+# unit-tested natively, so serde/rhai/scene_script are unconditional, not
+# target-gated.
+[dependencies]
+serde = { workspace = true, features = [ "derive" ] }
+rhai = { workspace = true, features = [ "serde" ] }
+scene_script = { workspace = true }
+
 # Only include WebGPU and related dependencies for wasm32 targets
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 bytemuck = { workspace = true, features = [ "derive" ] }

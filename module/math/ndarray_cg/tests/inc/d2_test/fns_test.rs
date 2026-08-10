@@ -114,3 +114,97 @@ fn test_transpose_column_major()
   use the_module::mat::DescriptorOrderColumnMajor;
   test_transpose_generic::< DescriptorOrderColumnMajor >();
 }
+
+/// ## Root Cause
+/// `Mat::from_row_major`'s size check (`N == ROWS*COLS`) lived in `debug_assert_eq!`, so
+/// a release build skipped it and passed the mis-sized array straight into
+/// `with_row_major`/`with_column_major` (whichever the matrix's descriptor selects) —
+/// one of which performs unchecked raw pointer arithmetic downstream (see
+/// `raw_slice_test.rs`'s `with_column_major`/`with_row_major` tests).
+///
+/// ## Why Not Caught
+/// Every existing `from_row_major` call in this suite (e.g. `test_debug_generic` above)
+/// passes a correctly-sized array; none exercised a size mismatch.
+///
+/// ## Fix Applied
+/// TASK-014 changed `from_row_major`'s `debug_assert_eq!` to `assert_eq!` in
+/// `access_common.rs` so the check runs, and fails loudly with a clear message, in every
+/// build profile — before the caller-supplied data can reach either downstream
+/// `with_row_major`/`with_column_major` implementation.
+///
+/// ## Prevention
+/// Running this test under a release profile would have failed before the fix (no panic
+/// at this boundary) and passes after, for both descriptors.
+///
+/// ## Pitfall
+/// A debug-only size check at a public constructor can be the only thing standing between
+/// caller input and an `unsafe` block several calls downstream.
+fn test_from_row_major_size_mismatch_generic< D : the_module::mat::Descriptor >()
+where
+  the_module::Mat< 2, 2, f32, D > : the_module::RawSliceMut< Scalar = f32 >,
+{
+  use the_module::Mat;
+
+  // 2x2 matrix needs 4 scalars; only 3 are supplied.
+  let _mat = Mat::< 2, 2, f32, D >::from_row_major( [ 1.0, 2.0, 3.0 ] );
+}
+
+#[ test ]
+#[ should_panic ]
+fn test_from_row_major_size_mismatch_row_major()
+{
+  use the_module::mat::DescriptorOrderRowMajor;
+  test_from_row_major_size_mismatch_generic::< DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+#[ should_panic ]
+fn test_from_row_major_size_mismatch_column_major()
+{
+  use the_module::mat::DescriptorOrderColumnMajor;
+  test_from_row_major_size_mismatch_generic::< DescriptorOrderColumnMajor >();
+}
+
+/// ## Root Cause
+/// `Mat::from_column_major`'s size check (`N == ROWS*COLS`) lived in `debug_assert_eq!`,
+/// mirroring `from_row_major` above with the same release-mode gap.
+///
+/// ## Why Not Caught
+/// No existing test exercised `from_column_major` with a mis-sized array.
+///
+/// ## Fix Applied
+/// TASK-014 changed `from_column_major`'s `debug_assert_eq!` to `assert_eq!` in
+/// `access_common.rs`.
+///
+/// ## Prevention
+/// Running this test under a release profile would have failed before the fix and passes
+/// after, for both descriptors.
+///
+/// ## Pitfall
+/// A debug-only size check at a public constructor can be the only thing standing between
+/// caller input and an `unsafe` block several calls downstream.
+fn test_from_column_major_size_mismatch_generic< D : the_module::mat::Descriptor >()
+where
+  the_module::Mat< 2, 2, f32, D > : the_module::RawSliceMut< Scalar = f32 >,
+{
+  use the_module::Mat;
+
+  // 2x2 matrix needs 4 scalars; only 3 are supplied.
+  let _mat = Mat::< 2, 2, f32, D >::from_column_major( [ 1.0, 2.0, 3.0 ] );
+}
+
+#[ test ]
+#[ should_panic ]
+fn test_from_column_major_size_mismatch_row_major()
+{
+  use the_module::mat::DescriptorOrderRowMajor;
+  test_from_column_major_size_mismatch_generic::< DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+#[ should_panic ]
+fn test_from_column_major_size_mismatch_column_major()
+{
+  use the_module::mat::DescriptorOrderColumnMajor;
+  test_from_column_major_size_mismatch_generic::< DescriptorOrderColumnMajor >();
+}

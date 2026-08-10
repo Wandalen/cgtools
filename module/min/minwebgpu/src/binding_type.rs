@@ -18,7 +18,20 @@ mod private
     StorageTexture( web_sys::GpuStorageTextureBindingLayout ),
     /// Represents an external texture binding, used for binding video frames.
     ExternalTexture( web_sys::GpuExternalTextureBindingLayout ),
+    // Fix(BUG-051): documented this variant's contract explicitly after its consumer
+    // (`BindGroupLayoutEntry`'s `web_sys` conversion) was changed from panicking on it to
+    // returning `Err`.
+    // Root cause: the variant's original one-line doc said "placeholder" but never stated what
+    // happens when it reaches a conversion — a caller had no documented way to know reaching
+    // `Other` was an error condition rather than silently accepted.
+    // Pitfall: a placeholder/default enum variant needs its failure contract documented at the
+    // variant itself, not only inside the conversion that enforces it — a reader of the enum
+    // alone should be able to tell this value is not universally acceptable.
     /// A placeholder for other or unhandled binding types.
+    ///
+    /// This is the default `BindGroupLayoutEntry` type. Converting an entry that is still
+    /// `Other` (i.e. `.ty(..)` was never called) fails with `error::BindGroupError::TypeNotSet`
+    /// instead of silently producing an invalid layout.
     Other
   }
 

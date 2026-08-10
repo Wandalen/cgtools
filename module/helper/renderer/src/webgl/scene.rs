@@ -227,12 +227,15 @@ mod private
         child.borrow_mut().update_world_matrix( self.matrix, self.needs_update_child_world_matrix );
       }
       self.needs_update_child_world_matrix = false;
+      self.compute_bounding_box();
     }
 
-    /// Computes the bounding box for the entire hierarchy of a node.
+    /// Computes the bounding box for the entire hierarchy of the scene and caches it in
+    /// `self.bounding_box`.
     ///
-    /// This function calculates a `BoundingBox` that encompasses the current node and all of its descendants.
-    pub fn bounding_box( &self ) -> BoundingBox
+    /// This function calculates a `BoundingBox` that encompasses all of the scene's children and
+    /// their descendants.
+    pub fn compute_bounding_box( &mut self )
     {
       let mut bbox = BoundingBox::default();
 
@@ -241,7 +244,13 @@ mod private
         bbox.combine_mut( &child.borrow().bounding_box_hierarchical() );
       }
 
-      bbox
+      self.bounding_box = bbox;
+    }
+
+    /// Returns the pre-computed bounding box for the entire hierarchy of the scene.
+    pub fn bounding_box( &self ) -> BoundingBox
+    {
+      self.bounding_box
     }
 
     /// Gets [`Node`]s by `substring`

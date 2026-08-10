@@ -5,6 +5,7 @@ mod array_test;
 mod float_test;
 // #[ cfg( feature = "index" ) ]
 // mod index_test;
+mod min_max_test;
 mod slice_test;
 
 mod tuple0_test;

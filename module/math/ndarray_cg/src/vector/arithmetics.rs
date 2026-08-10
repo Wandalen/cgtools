@@ -73,25 +73,32 @@ mod private
       mag( self )
     }
 
+    /// Compute length of the vector between two points in space. Requires
+    /// float scalar (uses `sqrt`).
+    pub fn distance( &self, rhs : &Self ) -> E
+    {
+      ( rhs - self ).mag()
+    }
+  }
+
+  impl< E : MatNum + PartialOrd, const LEN : usize > Vector< E, LEN >
+  {
     /// Compute a vector whose elements are the minimum of both vectors:
-    /// `r[ i ] = a[ i ].min( b[ i ] )`. Currently float-only.
+    /// `r[ i ] = a[ i ].min( b[ i ] )`. Satisfied by all integer primitives and
+    /// floats alike — see `mdmath_core::vector::min_mut` for the float NaN
+    /// tie-break behavior.
     pub fn min( self, rhs : Self ) -> Self
     {
       min( &self, &rhs )
     }
 
     /// Compute a vector whose elements are the maximum of both vectors:
-    /// `r[ i ] = a[ i ].max( b[ i ] )`. Currently float-only.
+    /// `r[ i ] = a[ i ].max( b[ i ] )`. Satisfied by all integer primitives and
+    /// floats alike — see `mdmath_core::vector::max_mut` for the float NaN
+    /// tie-break behavior.
     pub fn max( self, rhs : Self ) -> Self
     {
       max( &self, &rhs )
-    }
-
-    /// Compute length of the vector between two points in space. Requires
-    /// float scalar (uses `sqrt`).
-    pub fn distance( &self, rhs : &Self ) -> E
-    {
-      ( rhs - self ).mag()
     }
   }
 

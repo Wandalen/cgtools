@@ -44,6 +44,24 @@ mod private
       return None;
     };
 
+    // Fix(TASK-018): reject a curve containing a zero-length segment (two
+    // consecutive points -- including the implicit closing segment back to
+    // the first point -- that coincide) before any geometry math runs.
+    // Root cause: `add_segment` (below) computes
+    // `direction = ( end_point - start_point ).normalize()` for every
+    // segment, including the closing one, with no check that the two points
+    // differ. `F32x2::normalize()` divides each component by the vector's
+    // magnitude with no zero-length guard, so a zero-length segment (e.g. a
+    // single-point curve, whose only segment closes onto itself) silently
+    // computes `0.0 / 0.0`, i.e. `NaN`, instead of failing.
+    // Pitfall: any code that normalizes a difference vector must validate
+    // that the two inputs actually differ first -- `normalize()` has no
+    // zero-length guard anywhere in the underlying vector math stack.
+    if curve.windows( 2 ).any( | pair | pair[ 0 ] == pair[ 1 ] ) || curve.first() == curve.last()
+    {
+      return None;
+    }
+
     let mut positions = Vec::new();
     let mut indices = Vec::new();
 
@@ -251,11 +269,24 @@ mod private
         }
       }
 
+      // Fix(TASK-018): return None on triangulation failure instead of
+      // silently skipping the failed body and continuing with whatever
+      // other bodies happened to succeed.
+      // Root cause: the doc comment above promises `Returns None ... if the
+      // triangulation process fails`, but this `let-else` only ever
+      // `continue`d past a failed body, so the function kept going and
+      // returned `Some( PrimitiveData )` -- with that body's geometry
+      // silently missing -- regardless of the documented failure contract.
+      // Pitfall: a `let-else` failure branch inside a `for` loop reads as
+      // "handle this item's failure and move on," which silently downgrades
+      // a documented hard failure into a partial success -- always check
+      // the doc comment's stated contract before choosing `continue` over
+      // `return`.
       // Perform triangulation
       let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 )
       else
       {
-        continue;
+        return None;
       };
 
       let body_indices = body_indices.into_iter()

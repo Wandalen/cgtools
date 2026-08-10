@@ -17,6 +17,31 @@ mod private
     pub nvertices : i32,
   }
 
+  /// Checks whether `natoms` is a vector arity currently supported for
+  /// vertex attribute upload by [ `Positions::new` ].
+  ///
+  /// # Errors
+  /// Returns `WebglError::NotSupportedForType` if `natoms` is not currently
+  /// supported ( only `2` is supported at the moment ).
+  // Fix(BUG-052): was `_ => panic!( "Unsapported buffer descriptor" )` — an
+  // unsupported natoms value ( e.g. loading geometry with 3 or 4 components
+  // per vertex ) crashed the whole process instead of giving the caller a
+  // `Result` to handle.
+  // Root cause: `Positions::new` already returns `Result< Self, WebglError >`
+  // and uses `?` for every other fallible step, but this one arm was written
+  // as a `panic!` instead of returning through the existing error type.
+  // Pitfall: a function that already returns `Result` is exactly where a
+  // stray `panic!`/`unwrap`/`expect` is easiest to miss in review — grep for
+  // those macros in any function whose signature already promises `Result`.
+  fn validate_natoms( natoms : i32 ) -> Result< (), WebglError >
+  {
+    match natoms
+    {
+      2 => Ok( () ),
+      _ => Err( WebglError::NotSupportedForType( "natoms other than 2 is not supported by Positions::new" ) ),
+    }
+  }
+
   impl Positions
   {
     /// Creates a new `Positions` for a 2D shape from a list of vertex positions.
@@ -44,6 +69,7 @@ mod private
     /// ```
     pub fn new( gl : GL, positions : &[ f32 ], natoms : i32 ) -> Result< Self, WebglError >
     {
+      validate_natoms( natoms )?;
       let position_buffer = buffer::create( &gl )?;
       let typ = VectorDataType::new( DataType::F32, natoms, 1 );
       buffer::upload( &gl, &position_buffer, positions, GL::STATIC_DRAW );
@@ -61,7 +87,9 @@ mod private
           .divisor( 0 )
           .attribute_pointer( &gl, 0, &position_buffer )?;
         },
-        _ => { panic!( "Unsapported buffer descriptor" ) }
+        // natoms is already validated by `validate_natoms` above, so any value
+        // other than 2 already returned early via `?` — this arm can't run.
+        _ => unreachable!( "natoms already validated by validate_natoms" ),
       }
 
       let nvertices = positions.len() as i32 / natoms;
@@ -81,6 +109,28 @@ mod private
       self.gl.bind_vertex_array( Some( &self.vao ) );
     }
 
+  }
+
+  #[ cfg( test ) ]
+  mod tests
+  {
+    use super::*;
+
+    #[ test ]
+    fn validate_natoms_accepts_supported_value()
+    {
+      assert!( validate_natoms( 2 ).is_ok() );
+    }
+
+    /// RED state (empirically confirmed): reverting this helper's body to the pre-fix
+    /// `panic!( "Unsapported buffer descriptor" )` and marking this test `#[should_panic]`
+    /// genuinely panics — verified via a temporary probe before this fix was finalized.
+    #[ test ]
+    fn validate_natoms_rejects_unsupported_value()
+    {
+      let result = validate_natoms( 3 );
+      assert!( matches!( result, Err( WebglError::NotSupportedForType( _ ) ) ) );
+    }
   }
 
 }

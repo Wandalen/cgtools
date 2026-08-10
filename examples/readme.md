@@ -99,8 +99,8 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 | index.html | Interactive HTML gallery with 50 example showcases |
 | index.md | Markdown-formatted examples list |
 | math/ | Math-based examples directory (1 demo) |
-| minwebgl/ | WebGL examples directory (45 demos) |
-| minwebgpu/ | WebGPU examples directory (3 demos) |
+| minwebgl/ | WebGL examples directory (49 demos) |
+| minwebgpu/ | WebGPU examples directory (4 demos) |
 | minwgpu/ | WGPU examples directory (4 demos) |
 | readme.md | Root documentation for examples directory |
 | scene_script/ | Rhai scripting examples directory (2 demos) |

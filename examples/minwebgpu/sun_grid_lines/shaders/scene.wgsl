@@ -4,6 +4,11 @@
 // analytic radial-falloff / exp terms as that example's original single-pass
 // version ( no multi-pass Gaussian bloom infrastructure exists for WebGPU in
 // this workspace ).
+//
+// Every color/opacity/radius below reads from `uniforms`, sourced host-side
+// from `scene.rhai` ( see `../src/scene.rs` ) — nothing here is a hardcoded
+// visual constant except generation internals ( noise/hash magic numbers,
+// AA epsilons, node jitter ) that aren't meant to be author-facing content.
 
 struct Uniforms
 {
@@ -11,6 +16,26 @@ struct Uniforms
   seed : f32,
   node_count : i32,
   grid_density : f32,
+
+  // Static scene styling, sourced from `scene.rhai` on the host side (see
+  // `src/scene.rs`) instead of being baked in here as shader constants.
+  bg_top : vec4f,
+  bg_bottom : vec4f,
+  nebula_color : vec4f,
+  stars_color : vec4f,
+  grid_color : vec4f,
+  corona_inner : vec4f,
+  corona_mid : vec4f,
+  corona_outer : vec4f,
+  disc_dark : vec4f,
+  disc_mid : vec4f,
+  disc_bright : vec4f,
+  ring_color : vec4f,
+
+  // x = nebula opacity, y = grid opacity, z = sun disc base radius, w = orbit ring radius
+  scalars_a : vec4f,
+  // x = star intensity, yzw = unused padding
+  scalars_b : vec4f,
 }
 
 @group( 0 ) @binding( 0 ) var< uniform > uniforms : Uniforms;
@@ -82,16 +107,16 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
   let d = distance( uv, center );
 
   // 1. Background: vertical gradient, lighter toward vertical center.
-  let navy = vec3f( 0.0196, 0.0549, 0.0941 );
-  let slate = vec3f( 0.0549, 0.1490, 0.2392 );
+  let navy = uniforms.bg_top.xyz;
+  let slate = uniforms.bg_bottom.xyz;
   let vgrad = 1.0 - abs( uv.y - 0.5 ) * 2.0;
   var color = mix( navy, slate, vgrad );
 
   // 2. Nebula fog band across the vertical middle, noise-modulated.
   let band = smoothstep( 0.35, 0.45, uv.y ) * ( 1.0 - smoothstep( 0.55, 0.65, uv.y ) );
   let fog_n = fbm3( vec2f( uv.x * 3.0, uv.y * 8.0 ) + uniforms.seed * 0.37 );
-  let nebula = vec3f( 0.0706, 0.2000, 0.2902 );
-  color = mix( color, nebula, band * fog_n * 0.45 );
+  let nebula = uniforms.nebula_color.xyz;
+  color = mix( color, nebula, band * fog_n * uniforms.scalars_a.x );
 
   // 3. Sparse background stars: one hashed candidate point per grid cell.
   {
@@ -102,7 +127,7 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
     let star_d = distance( cell_uv, star_pos );
     let twinkle = 0.5 + 0.5 * sin( uniforms.time * ( 1.5 + hash21( cell + uniforms.seed ) * 2.0 ) + hash21( cell + uniforms.seed ) * 6.283 );
     let star = has_star * ( 1.0 - smoothstep( 0.0, 0.06, star_d ) ) * ( 0.4 + 0.6 * twinkle );
-    color += vec3f( 0.6275, 0.8980, 1.0000 ) * star * 0.6;
+    color += uniforms.stars_color.xyz * star * uniforms.scalars_b.x;
   }
 
   // 4. Grid overlay, density controlled by uniforms.grid_density, constant
@@ -111,15 +136,15 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
     let g = uv * uniforms.grid_density;
     let grid_d = abs( fract( g - 0.5 ) - 0.5 ) / fwidth( g );
     let line = 1.0 - min( min( grid_d.x, grid_d.y ), 1.0 );
-    let grid_color = vec3f( 0.3137, 0.5490, 0.7451 );
-    color = mix( color, grid_color, line * 0.18 );
+    let grid_color = uniforms.grid_color.xyz;
+    color = mix( color, grid_color, line * uniforms.scalars_a.y );
   }
 
   // 5. Central star corona: three-stop radial falloff, back to front.
   {
-    let c0 = vec3f( 1.0000, 0.8941, 0.4392 ); // inner-most, warm yellow
-    let c1 = vec3f( 1.0000, 0.6824, 0.1020 ); // mid corona, amber
-    let c2 = vec3f( 1.0000, 0.2314, 0.0000 ); // outer corona, red-orange fading out
+    let c0 = uniforms.corona_inner.xyz; // inner-most, warm yellow
+    let c1 = uniforms.corona_mid.xyz; // mid corona, amber
+    let c2 = uniforms.corona_outer.xyz; // outer corona, red-orange fading out
     let a0 = 1.0 - smoothstep( 0.0, 0.08, d );
     let a1 = ( 1.0 - smoothstep( 0.08, 0.15, d ) ) * 0.8;
     let a2 = ( 1.0 - smoothstep( 0.15, 0.25, d ) ) * 0.3;
@@ -130,16 +155,16 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
 
   // 6. Star disk: fbm surface granulation inside a noise-jagged rim.
   {
-    let base_radius = 0.075;
+    let base_radius = uniforms.scalars_a.z;
     let angle = atan2( uv.y - 0.5, uv.x - 0.5 );
     let rim_noise = fbm3( vec2f( cos( angle ), sin( angle ) ) * 4.0 ) - 0.4375;
     let radius = base_radius + rim_noise * 0.015;
     let disk = 1.0 - smoothstep( radius - 0.004, radius, d );
 
     let gran_n = fbm3( uv * 40.0 + 3.0 );
-    let dark = vec3f( 1.0000, 0.4157, 0.0000 );
-    let mid = vec3f( 1.0000, 0.8941, 0.4392 );
-    let bright = vec3f( 1.0, 1.0, 1.0 );
+    let dark = uniforms.disc_dark.xyz;
+    let mid = uniforms.disc_mid.xyz;
+    let bright = uniforms.disc_bright.xyz;
     var surface = mix( dark, mid, smoothstep( 0.3, 0.6, gran_n ) );
     surface = mix( surface, bright, smoothstep( 0.75, 0.95, gran_n ) );
 
@@ -148,9 +173,9 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
 
   // 7. Orbital ring: soft wide glow plus a crisp stroke core.
   {
-    let ring_r = 0.425;
+    let ring_r = uniforms.scalars_a.w;
     let ring_d = abs( d - ring_r );
-    let ring_color = vec3f( 0.3922, 0.8235, 1.0000 );
+    let ring_color = uniforms.ring_color.xyz;
     let glow = exp( -ring_d * 220.0 ) * 0.35;
     let core = 1.0 - smoothstep( 0.0, 0.0022, ring_d );
     color += ring_color * glow;
@@ -180,11 +205,11 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
       // a small per-node speed offset so nodes don't move in lockstep.
       let theta = radians( 325.0 ) + uniforms.time * ( 0.15 - fi * 0.015 )
         + fi * ( 6.28318 / f32( node_count ) ) + phase_jitter;
-      let orbit_r = 0.425 * radius_jitter;
+      let orbit_r = uniforms.scalars_a.w * radius_jitter;
       let planet_pos = vec2f( 0.5 + orbit_r * cos( theta ), 0.5 - orbit_r * sin( theta ) );
       let pd = distance( uv, planet_pos );
 
-      let halo_color = vec3f( 0.3922, 0.8235, 1.0000 );
+      let halo_color = uniforms.ring_color.xyz;
       let halo = ( 1.0 - smoothstep( 0.0, 0.018, pd ) ) * 0.85;
       color += halo_color * halo * 0.85;
 

@@ -8,6 +8,16 @@ where
   E : MatEl,
 {
 
+  // Fix(TASK-014): changed `debug_assert!` to `assert!` for the row-branch and
+  // column-branch lane-bound checks below so they run unconditionally instead of only in
+  // debug builds.
+  // Root cause: in a release build these checks were skipped, so an out-of-range `lane`
+  // reached `.skip(..).step_by(..).take(..)` on the underlying slice, which never panics
+  // on an out-of-range count — it silently returns a truncated or empty iterator,
+  // producing wrong (or no) data instead of a loud failure.
+  // Pitfall: `Iterator::skip`/`step_by`/`take` never panic on out-of-range arguments, so a
+  // debug-only bound check in front of them is the only thing standing between bad input
+  // and silently wrong output.
   #[ inline( always ) ]
   fn lane_iter( &self, varying_dim : usize, lane : usize )
   -> impl Iterator< Item = &Self::Scalar >
@@ -28,7 +38,7 @@ where
         }
         else
         {
-          debug_assert!( lane < ROWS );
+          assert!( lane < ROWS );
           self
           .raw_slice()
           .iter()
@@ -51,7 +61,7 @@ where
         }
         else
         {
-          debug_assert!( lane < COLS, "lane:{lane} | COLS:{COLS}" );
+          assert!( lane < COLS, "lane:{lane} | COLS:{COLS}" );
           self
           .raw_slice()
           .iter()
@@ -144,6 +154,16 @@ where
   E : MatEl,
 {
 
+  // Fix(TASK-014): changed `debug_assert!` to `assert!` for the row-branch and
+  // column-branch lane-bound checks below so they run unconditionally instead of only in
+  // debug builds.
+  // Root cause: in a release build these checks were skipped, so an out-of-range `lane`
+  // reached `.skip(..).step_by(..).take(..)` on the underlying slice, which never panics
+  // on an out-of-range count — it silently returns a truncated or empty iterator,
+  // producing wrong (or no) data instead of a loud failure.
+  // Pitfall: `Iterator::skip`/`step_by`/`take` never panic on out-of-range arguments, so a
+  // debug-only bound check in front of them is the only thing standing between bad input
+  // and silently wrong output.
   fn lane_iter_mut( &mut self, varying_dim : usize, lane : usize ) -> impl Iterator< Item = &mut Self::Scalar >
   {
     match varying_dim
@@ -163,7 +183,7 @@ where
         }
         else
         {
-          debug_assert!( lane < ROWS );
+          assert!( lane < ROWS );
           self
           .raw_slice_mut()
           .iter_mut()
@@ -187,7 +207,7 @@ where
         }
         else
         {
-          debug_assert!( lane < COLS, "lane:{lane} | COLS:{COLS}" );
+          assert!( lane < COLS, "lane:{lane} | COLS:{COLS}" );
           self
           .raw_slice_mut()
           .iter_mut()
@@ -313,9 +333,19 @@ where
   }
 
   #[ inline( always ) ]
+  // Fix(TASK-014): changed `debug_assert_eq!` to `assert_eq!` so this size check runs
+  // unconditionally instead of only in debug builds.
+  // Root cause: the `unsafe` block below reads `ROWS*COLS` elements out of `scalars` via
+  // raw pointer arithmetic (`ptr.add(row*COLS+col)`), relying on `scalars.len() ==
+  // ROWS*COLS` as its safety invariant. In a release build the check was skipped, so a
+  // shorter `scalars` slice caused an out-of-bounds read through the raw pointer —
+  // undefined behavior, not just wrong data.
+  // Pitfall: `debug_assert!` must never be the sole guard of an `unsafe` block's safety
+  // invariant — once `debug_assertions` is off, the invariant goes unchecked and the
+  // `unsafe` code's soundness proof no longer holds.
   fn with_row_major( mut self, scalars : &[ Self::Scalar ] ) -> Self {
-    debug_assert_eq!( scalars.len(), ROWS*COLS, "Size should be equal" );
-    
+    assert_eq!( scalars.len(), ROWS*COLS, "Size should be equal" );
+
     let ptr = scalars.as_ptr();
     let scalars : Vec< Self::Scalar > = 
     ( 0..COLS ).flat_map( move | col |

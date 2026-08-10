@@ -13,7 +13,13 @@ where
   A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   B : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
 {
-  #[ cfg( debug_assertions ) ]
+  // Fix(TASK-014): removed `#[ cfg( debug_assertions ) ]` so this dimension check runs
+  // unconditionally instead of only in debug builds.
+  // Root cause: the check was gated to debug builds, so a release build skipped it and
+  // the `zip()` below silently truncated to the shortest iterator on a dimension mismatch,
+  // writing a partial/wrong result into `r` instead of failing.
+  // Pitfall: gating a correctness-critical dimension check behind `debug_assertions` makes
+  // release builds trade a loud failure for silently wrong numeric output.
   {
     let rdim = r.dim();
     let adim = a.dim();

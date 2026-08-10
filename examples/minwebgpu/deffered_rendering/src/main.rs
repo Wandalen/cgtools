@@ -110,6 +110,12 @@ async fn run() -> Result< (), gl::WebGPUError >
 
   // First entry - uniform paramters like view_matrix, time
   // Second entry - array of lights
+  // Fix(BUG-051): `.entry(..)`/`.entry_from_ty(..)` became fallible (`Result<Self, WebGPUError>`)
+  // once the underlying `BindGroupLayoutEntry` conversion stopped panicking on an unset binding
+  // type — propagate each with `?` instead of chaining directly.
+  // Root cause: written against the old infallible builder signature.
+  // Pitfall: a builder chain that becomes fallible mid-chain needs `?` after every call that
+  // changed, not just the final one — the compiler flags each one individually.
   let uniform_bind_group_layout = gl::BindGroupLayoutDescriptor::new()
   .fragment()
   .auto_bindings()
@@ -118,8 +124,8 @@ async fn run() -> Result< (), gl::WebGPUError >
     gl::BindGroupLayoutEntry::new()
     .vertex()
     .ty( gl::binding_type::buffer_type() )
-  )
-  .entry_from_ty( gl::binding_type::buffer_type().storage_readonly() )
+  )?
+  .entry_from_ty( gl::binding_type::buffer_type().storage_readonly() )?
   .create( &device )?;
 
   let uniform_bind_group = gl::BindGroupDescriptor::new( &uniform_bind_group_layout )
@@ -135,13 +141,15 @@ async fn run() -> Result< (), gl::WebGPUError >
     &device,
     // Sets the visibility `FRAGMENT` to all entries
     // And auto computes binding value for each entry
+    // Fix(BUG-051): see the identical note above `uniform_bind_group_layout` — each
+    // `.entry_from_ty(..)` in this chain now returns `Result<Self, WebGPUError>`.
     &gl::layout::bind_group::desc()
     .fragment()
     .auto_bindings()
-    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )
-    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )
-    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )
-    .entry_from_ty( gl::binding_type::texture_type().sample_depth() )
+    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )?
+    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )?
+    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )?
+    .entry_from_ty( gl::binding_type::texture_type().sample_depth() )?
     .to_web()
   )?;
 

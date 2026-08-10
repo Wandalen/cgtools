@@ -12,9 +12,18 @@ mod private
 
   impl< E : MatEl > From< &[ E ] > for Quat< E >
   {
+    // Fix(TASK-014): removed the `debug_assert!( value.len() > 4, .. )` line entirely.
+    // Root cause: the condition used `> 4` (strictly greater than 4) instead of `>= 4`,
+    // so a valid, correctly-sized 4-element slice failed the assertion in every debug
+    // build. The check was also fully redundant: the very next line,
+    // `value.try_into().unwrap()`, already panics unconditionally (in every build
+    // profile, not just debug) when `value.len() != 4`.
+    // Pitfall: a `debug_assert!` duplicating a check that another, always-on code path
+    // already performs can silently drift out of sync with it (here: `> 4` vs the real
+    // `== 4` requirement) without being noticed, since release builds never evaluate the
+    // drifted condition.
     fn from( value: &[ E ] ) -> Self
     {
-      debug_assert!( value.len() > 4, "Slice should be at least of size 4 to create a Quaternion" );
       let array : [ E; 4 ] = value.try_into().unwrap();
       Self( Vector::< E, 4 >::from( array ) )
     }

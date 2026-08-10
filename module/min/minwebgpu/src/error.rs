@@ -25,6 +25,9 @@ mod private
     /// An error related to WebGPU buffers.
     #[ error( "Buffer error :: {0}" ) ]
     BufferError( #[ from ] BufferError ),
+    /// An error related to WebGPU bind group layout entries.
+    #[ error( "BindGroup error :: {0}" ) ]
+    BindGroupError( #[ from ] BindGroupError ),
   }
 
   #[ allow( missing_docs ) ]
@@ -87,6 +90,25 @@ mod private
     FailedToCreateBuffer( String )
   }
 
+  // Fix(BUG-051): new variant carrying the case that used to panic in
+  // `BindGroupLayoutEntry`'s `web_sys` conversion (`descriptor/bind_group_layout_entry.rs`)
+  // instead of returning an error.
+  // Root cause: no existing `WebGPUError` variant represented "binding type never set" —
+  // the conversion had to panic because there was nowhere to route a proper error.
+  // Pitfall: an umbrella error enum with only browser/FFI-failure variants (all carrying a
+  // JS-originated `String`) has no natural home for a caller-side "you forgot to configure
+  // this" error — don't force such cases to panic for lack of a matching variant, add one.
+  #[ allow( missing_docs ) ]
+  #[ derive( Debug, error::typed::Error ) ]
+  pub enum BindGroupError
+  {
+    /// Indicates a `BindGroupLayoutEntry` was converted to its `web_sys` representation
+    /// without ever calling `.ty(..)` to set its binding type — it is still the default,
+    /// unset `BindingType::Other` placeholder.
+    #[ error( "BindGroupLayoutEntry at binding {0} has no type set: call `.ty(..)` before conversion" )]
+    TypeNotSet( u32 )
+  }
+
 }
 
 crate::mod_interface!
@@ -104,7 +126,8 @@ crate::mod_interface!
     DeviceError,
     ContextError,
     TextureError,
-    BufferError
+    BufferError,
+    BindGroupError
   };
 }
 

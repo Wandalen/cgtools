@@ -180,6 +180,11 @@ impl Default for State
 /// A function to get pointer coordinates relative to the client area (the viewport).
 // Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
 #[ allow( clippy::cast_possible_truncation ) ]
+// Fix(BUG-053): `PointerEvent` derefs to `MouseEvent`, whose `client_x`/`client_y` return `i32`
+// or `f64` depending on `web_sys_unstable_apis` (see minwebgl/src/texture/d2.rs); `as i32` is a
+// real truncating cast in the `f64` case and a same-type identity cast clippy calls
+// "unnecessary" in the `i32` case — both are the same source line.
+#[ allow( clippy::unnecessary_cast ) ]
 pub static CLIENT : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.client_x() as i32, event.client_y() as i32 ] )
@@ -188,6 +193,11 @@ pub static CLIENT : fn( &PointerEvent ) -> I32x2 = | event |
 /// A function to get pointer coordinates relative to the entire page, including scrolled-out areas.
 // Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
 #[ allow( clippy::cast_possible_truncation ) ]
+// Fix(BUG-053): `PointerEvent` derefs to `MouseEvent`, whose `page_x`/`page_y` return `i32` or
+// `f64` depending on `web_sys_unstable_apis` (see minwebgl/src/texture/d2.rs); `as i32` is a
+// real truncating cast in the `f64` case and a same-type identity cast clippy calls
+// "unnecessary" in the `i32` case — both are the same source line.
+#[ allow( clippy::unnecessary_cast ) ]
 pub static PAGE : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.page_x() as i32, event.page_y() as i32 ] )
@@ -196,6 +206,11 @@ pub static PAGE : fn( &PointerEvent ) -> I32x2 = | event |
 /// A function to get pointer coordinates relative to the user's screen.
 // Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
 #[ allow( clippy::cast_possible_truncation ) ]
+// Fix(BUG-053): `PointerEvent` derefs to `MouseEvent`, whose `screen_x`/`screen_y` return `i32`
+// or `f64` depending on `web_sys_unstable_apis` (see minwebgl/src/texture/d2.rs); `as i32` is a
+// real truncating cast in the `f64` case and a same-type identity cast clippy calls
+// "unnecessary" in the `i32` case — both are the same source line.
+#[ allow( clippy::unnecessary_cast ) ]
 pub static SCREEN : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.screen_x() as i32, event.screen_y() as i32 ] )

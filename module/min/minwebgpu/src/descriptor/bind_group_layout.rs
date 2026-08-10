@@ -66,19 +66,34 @@ mod private
       self
     }
 
-    /// Adds an entry to the layout
-    pub fn entry( mut self, entry : impl Into< web_sys::GpuBindGroupLayoutEntry > ) -> Self
+    // Fix(BUG-051): signature changed from `impl Into<web_sys::GpuBindGroupLayoutEntry>` /
+    // infallible push to `BindGroupLayoutEntry` / `Result`-returning, since the entry's own
+    // conversion stopped being infallible (see `descriptor/bind_group_layout_entry.rs`).
+    // Root cause: this builder trusted its entry parameter's conversion to always succeed,
+    // which stopped being true once that conversion could fail on an unset binding type.
+    // Pitfall: a builder method that calls `.into()` on a caller-supplied value silently
+    // inherits whatever that conversion's own fallibility becomes — when the conversion grows
+    // a failure case, every caller of the builder method must propagate it too.
+    /// Adds an entry to the layout.
+    ///
+    /// # Errors
+    /// Returns `error::BindGroupError::TypeNotSet` if `entry`'s binding type was never set
+    /// via `BindGroupLayoutEntry::ty`.
+    pub fn entry( mut self, entry : BindGroupLayoutEntry ) -> Result< Self, WebGPUError >
     {
-      self.entries.push( entry.into() );
-      self
+      self.entries.push( entry.try_into()? );
+      Ok( self )
     }
 
-    /// Adds an entry to the layout
-    pub fn entry_from_ty( mut self, ty : impl Into< BindingType > ) -> Self
+    /// Adds an entry to the layout, constructing it from a binding type directly.
+    ///
+    /// # Errors
+    /// Returns `error::BindGroupError::TypeNotSet` if `ty`'s conversion yields no usable
+    /// binding type (see `entry`).
+    pub fn entry_from_ty( self, ty : impl Into< BindingType > ) -> Result< Self, WebGPUError >
     {
       let entry = BindGroupLayoutEntry::new().ty( ty );
-      self.entries.push( entry.into() );
-      self
+      self.entry( entry )
     }
 
     /// Creates a `web_sys::GpuBindGroupLayout` from this descriptor.

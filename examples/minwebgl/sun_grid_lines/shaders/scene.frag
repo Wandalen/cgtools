@@ -9,6 +9,29 @@ uniform float u_seed;
 uniform int u_node_count;
 uniform float u_grid_density;
 
+// Static scene styling, sourced from `scene.rhai` on the host side ( see
+// `../src/scene.rs` ) instead of being baked in here as shader constants.
+// Nothing below is a hardcoded visual constant except generation internals
+// ( noise/hash magic numbers, AA epsilons, node jitter ) that aren't meant
+// to be author-facing content.
+uniform vec3 u_bg_top;
+uniform vec3 u_bg_bottom;
+uniform vec3 u_nebula_color;
+uniform float u_nebula_opacity;
+uniform vec3 u_stars_color;
+uniform float u_stars_intensity;
+uniform vec3 u_grid_color;
+uniform float u_grid_opacity;
+uniform vec3 u_corona_inner;
+uniform vec3 u_corona_mid;
+uniform vec3 u_corona_outer;
+uniform vec3 u_disc_dark;
+uniform vec3 u_disc_mid;
+uniform vec3 u_disc_bright;
+uniform float u_disc_base_radius;
+uniform vec3 u_ring_color;
+uniform float u_ring_radius;
+
 layout( location = 0 ) out vec4 frag_color;
 // G-buffer-style emission output: only the layers that should bloom write
 // here ( corona, star disk, ring, node halos ). Background/nebula/stars/grid
@@ -58,8 +81,8 @@ void main()
   float d = distance( uv, center );
 
   // 1. Background: vertical gradient, lighter toward vertical center.
-  vec3 navy = vec3( 0.0196, 0.0549, 0.0941 );
-  vec3 slate = vec3( 0.0549, 0.1490, 0.2392 );
+  vec3 navy = u_bg_top;
+  vec3 slate = u_bg_bottom;
   float vgrad = 1.0 - abs( uv.y - 0.5 ) * 2.0;
   vec3 color = mix( navy, slate, vgrad );
   vec3 emission = vec3( 0.0 );
@@ -67,8 +90,8 @@ void main()
   // 2. Nebula fog band across the vertical middle, noise-modulated.
   float band = smoothstep( 0.35, 0.45, uv.y ) * ( 1.0 - smoothstep( 0.55, 0.65, uv.y ) );
   float fog_n = fbm3( vec2( uv.x * 3.0, uv.y * 8.0 ) + u_seed * 0.37 );
-  vec3 nebula = vec3( 0.0706, 0.2000, 0.2902 );
-  color = mix( color, nebula, band * fog_n * 0.45 );
+  vec3 nebula = u_nebula_color;
+  color = mix( color, nebula, band * fog_n * u_nebula_opacity );
 
   // 3. Sparse background stars: one hashed candidate point per grid cell.
   {
@@ -79,7 +102,7 @@ void main()
     float star_d = distance( cell_uv, star_pos );
     float twinkle = 0.5 + 0.5 * sin( u_time * ( 1.5 + hash21( cell + u_seed ) * 2.0 ) + hash21( cell + u_seed ) * 6.283 );
     float star = has_star * ( 1.0 - smoothstep( 0.0, 0.06, star_d ) ) * ( 0.4 + 0.6 * twinkle );
-    color += vec3( 0.6275, 0.8980, 1.0000 ) * star * 0.6;
+    color += u_stars_color * star * u_stars_intensity;
   }
 
   // 4. Grid overlay, density controlled by u_grid_density, constant
@@ -88,16 +111,16 @@ void main()
     vec2 g = uv * u_grid_density;
     vec2 grid_d = abs( fract( g - 0.5 ) - 0.5 ) / fwidth( g );
     float line = 1.0 - min( min( grid_d.x, grid_d.y ), 1.0 );
-    vec3 grid_color = vec3( 0.3137, 0.5490, 0.7451 );
-    color = mix( color, grid_color, line * 0.18 );
+    vec3 grid_color = u_grid_color;
+    color = mix( color, grid_color, line * u_grid_opacity );
   }
 
   // 5. Central star corona: three-stop radial falloff, back to front.
   // Feeds emission at full strength — this is the scene's primary light source.
   {
-    vec3 c0 = vec3( 1.0000, 0.8941, 0.4392 ); // inner-most, warm yellow
-    vec3 c1 = vec3( 1.0000, 0.6824, 0.1020 ); // mid corona, amber
-    vec3 c2 = vec3( 1.0000, 0.2314, 0.0000 ); // outer corona, red-orange fading out
+    vec3 c0 = u_corona_inner; // inner-most, warm yellow
+    vec3 c1 = u_corona_mid; // mid corona, amber
+    vec3 c2 = u_corona_outer; // outer corona, red-orange fading out
     float a0 = 1.0 - smoothstep( 0.0, 0.08, d );
     float a1 = ( 1.0 - smoothstep( 0.08, 0.15, d ) ) * 0.8;
     float a2 = ( 1.0 - smoothstep( 0.15, 0.25, d ) ) * 0.3;
@@ -109,16 +132,16 @@ void main()
 
   // 6. Star disk: fbm surface granulation inside a noise-jagged rim.
   {
-    float base_radius = 0.075;
+    float base_radius = u_disc_base_radius;
     float angle = atan( uv.y - 0.5, uv.x - 0.5 );
     float rim_noise = fbm3( vec2( cos( angle ), sin( angle ) ) * 4.0 ) - 0.4375;
     float radius = base_radius + rim_noise * 0.015;
     float disk = 1.0 - smoothstep( radius - 0.004, radius, d );
 
     float gran_n = fbm3( uv * 40.0 + 3.0 );
-    vec3 dark = vec3( 1.0000, 0.4157, 0.0000 );
-    vec3 mid = vec3( 1.0000, 0.8941, 0.4392 );
-    vec3 bright = vec3( 1.0, 1.0, 1.0 );
+    vec3 dark = u_disc_dark;
+    vec3 mid = u_disc_mid;
+    vec3 bright = u_disc_bright;
     vec3 surface = mix( dark, mid, smoothstep( 0.3, 0.6, gran_n ) );
     surface = mix( surface, bright, smoothstep( 0.75, 0.95, gran_n ) );
 
@@ -128,9 +151,9 @@ void main()
 
   // 7. Orbital ring: soft wide glow plus a crisp stroke core.
   {
-    float ring_r = 0.425;
+    float ring_r = u_ring_radius;
     float ring_d = abs( d - ring_r );
-    vec3 ring_color = vec3( 0.3922, 0.8235, 1.0000 );
+    vec3 ring_color = u_ring_color;
     float glow = exp( -ring_d * 220.0 ) * 0.35;
     float core = 1.0 - smoothstep( 0.0, 0.0022, ring_d );
     color += ring_color * glow;
@@ -162,11 +185,11 @@ void main()
       // with a small per-node speed offset so nodes don't move in lockstep.
       float theta = radians( 325.0 ) + u_time * ( 0.15 - fi * 0.015 )
         + fi * ( 6.28318 / float( node_count ) ) + phase_jitter;
-      float orbit_r = 0.425 * radius_jitter;
+      float orbit_r = u_ring_radius * radius_jitter;
       vec2 planet_pos = vec2( 0.5 + orbit_r * cos( theta ), 0.5 - orbit_r * sin( theta ) );
       float pd = distance( uv, planet_pos );
 
-      vec3 halo_color = vec3( 0.3922, 0.8235, 1.0000 );
+      vec3 halo_color = u_ring_color;
       float halo = ( 1.0 - smoothstep( 0.0, 0.018, pd ) ) * 0.85;
       color += halo_color * halo * 0.85;
       emission += halo_color * halo * 0.85;

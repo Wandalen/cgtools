@@ -160,10 +160,20 @@ impl< 'tuple_ref, E > DoubleEndedIterator for Tuple3Iter< 'tuple_ref, E >
   }
 }
 
+// Fix(BUG-050): `index : usize` was shared between `next()` and `next_back()`, whose match
+// arms were hardcoded per-direction — mixing the two calls on one iterator (e.g. two `.next()`
+// then one `.next_back()`) re-yielded an already-returned tuple field as a second
+// simultaneously-live `&mut E` reference instead of reaching the untouched one.
+// Root cause: copy-pasted from the immutable `Tuple3Iter` above (where aliasing `&E` is
+// harmless) into a `&mut` context without redesigning the cursor for unique-borrow safety.
+// Pitfall: a hand-rolled `DoubleEndedIterator` yielding `&mut` references needs independent
+// front/back cursors (mirrors `core::slice::IterMut`), never a single shared counter — always
+// test a mixed `.next()`/`.next_back()` sequence, not just pure-forward or pure-`.rev()`.
 struct Tuple3IterMut< 'tuple_ref, E >
 {
   tuple : &'tuple_ref mut ( E, E, E ),
-  index : usize,
+  front : usize,
+  back : usize,
 }
 
 impl< 'tuple_ref, E > Iterator for Tuple3IterMut< 'tuple_ref, E >
@@ -172,40 +182,44 @@ impl< 'tuple_ref, E > Iterator for Tuple3IterMut< 'tuple_ref, E >
 
   fn next( &mut self ) -> Option< Self::Item >
   {
-    match self.index
+    if self.front >= self.back
+    {
+      return None;
+    }
+
+    let index = self.front;
+    self.front += 1;
+
+    match index
     {
       0 =>
       {
-        self.index += 1;
-        // SAFETY: This is safe because we are returning a mutable reference to the first element,
-        // and we won't return it again in subsequent calls.
-        // qqq : not sure it's sound, either prove it or find a sound solution
+        // SAFETY: `front` and `back` never cross (guarded above), so this field is
+        // reborrowed at most once across the whole iteration — either here, from the
+        // front, or in `next_back`, from the back, but never both — so this can never
+        // alias a mutable reference already handed out by a previous call.
         #[ allow( unsafe_code ) ]
         unsafe { Some( &mut *( &mut self.tuple.0 as *mut E ) ) }
       },
       1 =>
       {
-        self.index += 1;
-        // SAFETY: This is safe because we are returning a mutable reference to the second element,
-        // and we won't return it again in subsequent calls.
+        // SAFETY: see the arm above.
         #[ allow( unsafe_code ) ]
         unsafe { Some( &mut *( &mut self.tuple.1 as *mut E ) ) }
       },
       2 =>
       {
-        self.index += 1;
-        // SAFETY: This is safe because we are returning a mutable reference to the third element,
-        // and we won't return it again in subsequent calls.
+        // SAFETY: see the arm above.
         #[ allow( unsafe_code ) ]
         unsafe { Some( &mut *( &mut self.tuple.2 as *mut E ) ) }
       },
-      _ => None,
+      _ => unreachable!(),
     }
   }
 
   fn size_hint( &self ) -> ( usize, Option< usize > )
   {
-    let remaining = 3 - self.index;
+    let remaining = self.back - self.front;
     ( remaining, Some( remaining ) )
   }
 }
@@ -216,30 +230,30 @@ impl< 'tuple_ref, E > DoubleEndedIterator for Tuple3IterMut< 'tuple_ref, E >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
-    match self.index {
+    if self.front >= self.back {
+      return None;
+    }
+
+    self.back -= 1;
+
+    match self.back {
       0 => {
-        self.index += 1;
-        // SAFETY: This is safe because we are returning a mutable reference to the third element,
-        // and we won't return it again in subsequent calls.
-        // qqq : not sure it's sound, either prove it or find a sound solution
+        // SAFETY: see `next` — `front`/`back` never cross, so each field is reborrowed
+        // at most once across the whole iteration.
         #[ allow( unsafe_code ) ]
-        unsafe { Some( &mut *( &mut self.tuple.2 as *mut E ) ) }
+        unsafe { Some( &mut *( &mut self.tuple.0 as *mut E ) ) }
       },
       1 => {
-        self.index += 1;
-        // SAFETY: This is safe because we are returning a mutable reference to the second element,
-        // and we won't return it again in subsequent calls.
+        // SAFETY: see the arm above.
         #[ allow( unsafe_code ) ]
         unsafe { Some( &mut *( &mut self.tuple.1 as *mut E ) ) }
       },
       2 => {
-        self.index += 1;
-        // SAFETY: This is safe because we are returning a mutable reference to the first element,
-        // and we won't return it again in subsequent calls.
+        // SAFETY: see the arm above.
         #[ allow( unsafe_code ) ]
-        unsafe { Some( &mut *( &mut self.tuple.0 as *mut E ) ) }
+        unsafe { Some( &mut *( &mut self.tuple.2 as *mut E ) ) }
       },
-      _ => None,
+      _ => unreachable!(),
     }
   }
 }
@@ -267,7 +281,8 @@ impl< E: Clone > VectorIterMut< E, 3 > for ( E, E, E )
     Tuple3IterMut
     {
       tuple : self,
-      index : 0,
+      front : 0,
+      back : 3,
     }
   }
 }

@@ -1,7 +1,4 @@
 use super::*;
-// use super::hset;
-use test_tools::hset; // xxx : remove it later
-use the_module::nd::Dim;
 
 fn test_iter_unstable_generic< D : the_module::mat::Descriptor >()
 where

@@ -50,9 +50,16 @@ impl< E, const N : usize > ArrayMut< E, N > for [ E ]
   fn vector_mut( &mut self ) -> &mut [ E ; N ]
   {
     assert!( self.len() >= N, "Slice must have at least {} element", N );
+    // Fix(BUG-054): as_ptr() carries only SharedReadOnly provenance; casting
+    // it to *mut and retagging Unique is UB under Stacked Borrows even
+    // though the outer reference is &mut. as_mut_ptr() retags Unique first.
+    // Root cause: copy-pasted from the immutable array_ref() sibling above
+    // without switching as_ptr() -> as_mut_ptr(). Pitfall: a *mut cast alone
+    // never upgrades a pointer's borrow provenance — the source accessor
+    // must already be the mutable one.
     // SAFETY: This is safe if the slice has at least N element.
     #[ allow( unsafe_code ) ]
-    unsafe { &mut *( self.as_ptr() as *mut [ E ; N ] ) }
+    unsafe { &mut *( self.as_mut_ptr() as *mut [ E ; N ] ) }
   }
 }
 

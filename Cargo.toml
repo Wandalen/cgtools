@@ -291,6 +291,12 @@ version = "0.3"
 [workspace.dependencies.rhai]
 version = "1.21"
 
+# Offline WGSL parse/validate for shader sources that otherwise compile only
+# inside a browser (dev-dependency of `renderer`).
+[workspace.dependencies.naga]
+version = "27.0"
+features = [ "wgsl-in" ]
+
 # [workspace.dependencies.generic-array]
 # version = "1.1.0"
 

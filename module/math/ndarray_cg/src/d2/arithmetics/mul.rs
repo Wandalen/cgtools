@@ -16,7 +16,13 @@ where
   let adim = a.dim();
   let bdim = b.dim();
 
-  #[ cfg( debug_assertions ) ]
+  // Fix(TASK-014): removed `#[ cfg( debug_assertions ) ]` so this dimension check runs
+  // unconditionally instead of only in debug builds.
+  // Root cause: the check was gated to debug builds, so a release build skipped it and
+  // `a.lane_iter(..).zip(b.lane_iter(..))` below silently truncated to the shorter lane on
+  // an incompatible inner dimension, producing a wrong dot product instead of failing.
+  // Pitfall: gating a correctness-critical dimension check behind `debug_assertions` makes
+  // release builds trade a loud failure for silently wrong numeric output.
   {
     let rdim = r.dim();
 
@@ -56,7 +62,15 @@ where
   A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   B : VectorIter< E, ROWS >,
 {
-  #[ cfg( debug_assertions ) ]
+  // Fix(TASK-014): removed `#[ cfg( debug_assertions ) ]` so this dimension check runs
+  // unconditionally instead of only in debug builds.
+  // Root cause: the check was gated to debug builds, so a release build skipped it and
+  // `a.lane_iter(..).zip(b.vector_iter())` below silently truncated to the shorter of the
+  // two on a mismatched shape, producing a wrong dot product instead of failing. This
+  // free function is only reachable directly (bypassing the `Mul<Vector<COLS>>` operator
+  // impls, which always pass a matching `COLS`), so the check was its only guard.
+  // Pitfall: gating a correctness-critical dimension check behind `debug_assertions` makes
+  // release builds trade a loud failure for silently wrong numeric output.
   {
     let adim = a.dim();
 

@@ -50,6 +50,23 @@ Embed a scripting language and curate its surface:
   diffable as structured data — a script diff is a code diff.
 - **Every binding is an API commitment**: the exposed surface must be
   curated and versioned like any public API.
+- **Declarative shape does not imply script-as-data**: `top_level_lint`
+  (`scene_script`) enforces top-level *shape* only — no loop, branch, or
+  mutation sitting bare at top level — never whether the script calls into
+  engine-registered vocabulary. A script can be shape-declarative and still
+  be script-as-glue in substance. Concrete boundary case, verified directly
+  against the source:
+  `examples/scene_script/f32x2_vector_arithmetic/src/f32x2_vector_arithmetic.rhai`
+  is a `let`/`let`/trailing-expression sequence — structurally declarative,
+  accepted by the checker — yet it calls the registered `f32x2(...)`
+  constructor and the registered `+`/`*` operator overloads
+  (`vector_binding.rs`'s `register_fn` calls): genuine engine calls, which
+  makes it script-as-glue by this pattern's own defining property (a
+  script-as-data document "cannot call the engine" — see
+  [004_script_as_data.md](004_script_as_data.md)) regardless of its
+  declarative-looking shape. Never infer pattern membership from
+  `top_level_lint` passing, or from a script's mere absence of loops and
+  branches — check whether it calls a registered binding instead.
 
 ### When to Choose
 

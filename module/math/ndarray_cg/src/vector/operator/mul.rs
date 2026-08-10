@@ -86,6 +86,62 @@ mod private
       mul_scalar( &rhs, self )
     }
   }
+
+  // Scalar * Vector
+  impl< const LEN : usize > Mul< Vector< i32, LEN > > for i32
+  {
+    type Output = Vector< i32, LEN >;
+
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
+    fn mul( self, rhs : Vector< i32, LEN > ) -> Self::Output
+    {
+      mul_scalar( &rhs, self )
+    }
+  }
+
+  // Scalar * Vector
+  impl< const LEN : usize > Mul< Vector< i64, LEN > > for i64
+  {
+    type Output = Vector< i64, LEN >;
+
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
+    fn mul( self, rhs : Vector< i64, LEN > ) -> Self::Output
+    {
+      mul_scalar( &rhs, self )
+    }
+  }
+
+  // Scalar * Vector
+  impl< const LEN : usize > Mul< Vector< u32, LEN > > for u32
+  {
+    type Output = Vector< u32, LEN >;
+
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
+    fn mul( self, rhs : Vector< u32, LEN > ) -> Self::Output
+    {
+      mul_scalar( &rhs, self )
+    }
+  }
+
+  // Scalar * Vector
+  impl< const LEN : usize > Mul< Vector< u64, LEN > > for u64
+  {
+    type Output = Vector< u64, LEN >;
+
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
+    fn mul( self, rhs : Vector< u64, LEN > ) -> Self::Output
+    {
+      mul_scalar( &rhs, self )
+    }
+  }
 }
 
 crate::mod_interface!

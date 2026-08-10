@@ -6,7 +6,6 @@ Interactive WebGL/WebGPU examples demonstrating CGTools capabilities.
 
 - [Examples](#examples)
   - [Table of Contents](#table-of-contents)
-  - [Quick Start](#quick-start)
   - [Math Examples](#math-examples)
   - [WebGL Examples](#webgl-examples)
     - [2D Rendering](#2d-rendering)
@@ -22,9 +21,6 @@ Interactive WebGL/WebGPU examples demonstrating CGTools capabilities.
   - [WGPU Examples](#wgpu-examples)
   - [Scripting Examples](#scripting-examples)
   - [Tiles Tools Examples](#tiles-tools-examples)
-  - [Development](#development)
-  - [Structure](#structure)
-  - [Troubleshooting](#troubleshooting)
 
 ## Math Examples
 

@@ -34,7 +34,17 @@ mod private
   impl_to_web!( RenderPipelineDescriptor< '_ >, GpuRenderPipelineDescriptor );
   impl_to_web!( SamplerDescriptor< '_ >, GpuSamplerDescriptor );
   impl_to_web!( TextureDescriptor< '_ >, GpuTextureDescriptor );
-  impl_to_web!( BindGroupLayoutEntry, GpuBindGroupLayoutEntry );
+  // Fix(BUG-051): removed `impl_to_web!( BindGroupLayoutEntry, GpuBindGroupLayoutEntry );` —
+  // `BindGroupLayoutEntry` intentionally has no `AsWeb` impl: its conversion to
+  // `web_sys::GpuBindGroupLayoutEntry` is fallible (fails with `error::BindGroupError::TypeNotSet`
+  // when `.ty(..)` was never called), and `AsWeb::to_web` is infallible by design. Use
+  // `TryInto::try_into` / `TryFrom::try_from` instead.
+  // Root cause: this macro line assumed `BindGroupLayoutEntry`'s conversion was, and would
+  // remain, infallible — `AsWeb::to_web` has no `Result` in its signature to carry a failure.
+  // Pitfall: `impl_to_web!` unconditionally assumes `Into`/infallibility for whatever type it's
+  // instantiated with; once a type's conversion becomes fallible (`TryFrom`), its `impl_to_web!`
+  // line must be removed, not left to silently fail to compile (or worse, silently compile
+  // against a stale blanket `Into` if one still existed).
   impl_to_web!( BindGroupLayoutDescriptor, GpuBindGroupLayoutDescriptor );
   impl_to_web!( PipelineLayoutDescriptor< '_ >, GpuPipelineLayoutDescriptor );
   impl_to_web!( BufferDescriptor< '_ >, GpuBufferDescriptor );

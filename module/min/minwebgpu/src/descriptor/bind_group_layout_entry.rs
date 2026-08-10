@@ -21,6 +21,10 @@ mod private
     ///
     /// This enum specifies the kind of resource, such as a uniform buffer, a sampled
     /// texture, or a sampler. This is a key part of the bind group layout.
+    ///
+    /// Defaults to `BindingType::Other`, a placeholder. Converting a `BindGroupLayoutEntry`
+    /// still carrying that placeholder (i.e. `.ty(..)` was never called) fails with
+    /// `error::BindGroupError::TypeNotSet` rather than succeeding with an invalid layout.
     ty : BindingType
   }
 
@@ -83,9 +87,23 @@ mod private
     }
   }
 
-  impl From< BindGroupLayoutEntry > for web_sys::GpuBindGroupLayoutEntry
+  // Fix(BUG-051): this conversion used to be an infallible `From` that panicked with
+  // "The type of the binding entry was not set" whenever `ty` was still `BindingType::Other` —
+  // yet `Other` is `BindGroupLayoutEntry::new()`'s own default and is documented (binding_type.rs)
+  // as "a placeholder for other or unhandled binding types", i.e. expected, reachable, recoverable
+  // input, not an invariant violation. Converted to `TryFrom`, returning
+  // `WebGPUError::BindGroupError(BindGroupError::TypeNotSet(binding))` instead of panicking.
+  // Root cause: an infallible `From` was used for a conversion that has one documented input
+  // variant (`Other`, the struct's own default, reachable simply by never calling `.ty(..)`)
+  // with no valid WebGPU representation.
+  // Pitfall: a placeholder/default enum variant reachable via ordinary construction is
+  // foreseeable caller input, not an invariant violation — the conversion touching it must be
+  // fallible (`TryFrom`), never `From` plus a panic on the unhandled arm.
+  impl TryFrom< BindGroupLayoutEntry > for web_sys::GpuBindGroupLayoutEntry
   {
-    fn from( value: BindGroupLayoutEntry ) -> Self 
+    type Error = WebGPUError;
+
+    fn try_from( value: BindGroupLayoutEntry ) -> Result< Self, Self::Error >
     {
       let layout = web_sys::GpuBindGroupLayoutEntry::new( value.binding, value.visibility );
 
@@ -96,10 +114,10 @@ mod private
         BindingType::Texture( texture ) => layout.set_texture( &texture ),
         BindingType::StorageTexture( texture ) => layout.set_storage_texture( &texture ),
         BindingType::ExternalTexture( texture ) => layout.set_external_texture( &texture ),
-        BindingType::Other => panic!( "The type of the binding entry was not set" ) 
+        BindingType::Other => return Err( error::BindGroupError::TypeNotSet( value.binding ).into() )
       }
 
-      layout
+      Ok( layout )
     }
   }
 }

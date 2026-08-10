@@ -96,6 +96,27 @@ where
   assert_eq!( d, Vector::< E, 3 >::from_array( [ -E::from( 2 ), -E::from( 3 ), -E::from( 5 ) ] ) );
 }
 
+fn vector_min_max_generic< E >()
+where
+  E : the_module::MatNum + PartialOrd + From< u8 > + PartialEq + core::fmt::Debug,
+{
+  use the_module::Vector;
+  let a = Vector::< E, 3 >::from_array( [ E::from( 3 ), E::from( 1 ), E::from( 2 ) ] );
+  let b = Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 5 ), E::from( 0 ) ] );
+  assert_eq!( a.min( b ), Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 1 ), E::from( 0 ) ] ) );
+  assert_eq!( a.max( b ), Vector::< E, 3 >::from_array( [ E::from( 3 ), E::from( 5 ), E::from( 2 ) ] ) );
+}
+
+fn vector_scalar_mul_commutative_generic< E >()
+where
+  E : the_module::MatNum + From< u8 > + PartialEq + core::fmt::Debug
+    + core::ops::Mul< the_module::Vector< E, 3 >, Output = the_module::Vector< E, 3 > >,
+{
+  use the_module::Vector;
+  let v = Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 2 ), E::from( 3 ) ] );
+  assert_eq!( E::from( 3 ) * v, v * E::from( 3 ) );
+}
+
 fn vector_dot_generic< E >()
 where
   E : the_module::MatNum + From< u8 > + PartialEq + core::fmt::Debug,
@@ -365,6 +386,12 @@ macro_rules! integer_arithmetic_tests
 
         #[ test ]
         fn vector_dot_and_mag2() { vector_dot_generic::< $ty >(); }
+
+        #[ test ]
+        fn vector_min_max() { vector_min_max_generic::< $ty >(); }
+
+        #[ test ]
+        fn vector_scalar_mul_commutative() { vector_scalar_mul_commutative_generic::< $ty >(); }
 
         #[ test ]
         fn mat_add_sub_row_major()

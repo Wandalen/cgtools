@@ -572,6 +572,14 @@ pub struct RepeatNode
 
 impl RepeatNode
 {
+  /// Maximum number of times `execute` may synchronously re-invoke its
+  /// child within a single call before yielding `BehaviorStatus::Running`
+  /// back to the caller. Bounds worst-case per-tick cost and guarantees
+  /// `execute` always returns, even when the child never produces
+  /// `Running` and `max_repeats` is `None` (see the `Root cause` note on
+  /// the `BehaviorNode` impl below).
+  const MAX_SYNC_ITERATIONS : u32 = 10_000;
+
   /// Creates a repeat node that runs indefinitely.
   #[ inline ]
   #[ must_use ]
@@ -603,10 +611,23 @@ impl RepeatNode
 
 impl BehaviorNode for RepeatNode
 {
+  // Fix(TASK-017): bound the number of synchronous child re-invocations
+  // per `execute()` call to `Self::MAX_SYNC_ITERATIONS` and yield
+  // `Running` once the cap is hit, instead of looping unconditionally.
+  // Root cause: when built via `RepeatNode::infinite` (`max_repeats ==
+  // None`) and the child never returns `Running` (e.g. an instant
+  // action/condition, or a Sequence/Selector made entirely of instant
+  // nodes), neither `loop` exit branch was ever reachable, so the loop
+  // spun forever inside one call and hung the calling thread (livelock).
+  // Pitfall: a decorator that synchronously re-invokes an opaque
+  // `Box< dyn BehaviorNode >` child in a loop must bound the number of
+  // re-invocations independently of any user-supplied repeat count --
+  // "infinite repeat" must mean "unbounded across ticks", never
+  // "unbounded within a single tick".
   #[ inline ]
   fn execute( &mut self, context : &mut BehaviorContext ) -> BehaviorStatus
   {
-    loop
+    for _ in 0 .. Self::MAX_SYNC_ITERATIONS
     {
       match self.child.execute( context )
       {
@@ -625,6 +646,11 @@ impl BehaviorNode for RepeatNode
         }
       }
     }
+
+    // Synchronous-iteration cap reached without the child yielding
+    // `Running` or `current_repeats` reaching `max_repeats`: yield control
+    // back to the caller instead of spinning forever (see Root cause above).
+    BehaviorStatus::Running
   }
 
   #[ inline ]
@@ -1327,5 +1353,70 @@ mod tests
     context.update( Duration::from_millis( 150 ) );
     let status3 = cooldown.execute( &mut context );
     assert_eq!( status3, BehaviorStatus::Success );
+  }
+
+  /// ## Root Cause
+  /// `RepeatNode::execute` re-invoked its child inside an unconditional
+  /// `loop { ... }`. The loop only had two exit branches: the child
+  /// returning `Running`, or `current_repeats` reaching `max_repeats`.
+  /// When a node is built via `RepeatNode::infinite` (`max_repeats ==
+  /// None`) and wraps a child that never returns `Running` (e.g. an
+  /// instant action/condition, or a Sequence/Selector made entirely of
+  /// instant nodes), neither branch is ever reachable, so the loop spins
+  /// forever inside a single call to `execute`, hanging the calling
+  /// thread (a livelock: full CPU use, zero progress toward returning).
+  ///
+  /// ## Why Not Caught
+  /// The existing `test_repeat_node` only exercised the finite
+  /// `RepeatNode::times` path with a small count, which always terminates
+  /// in a handful of iterations regardless of this bug. Nothing exercised
+  /// `RepeatNode::infinite` paired with a child that never yields
+  /// `Running`, so the non-terminating branch was never reached.
+  ///
+  /// ## Fix Applied
+  /// `RepeatNode::execute` now bounds synchronous child re-invocations
+  /// within a single call to `RepeatNode::MAX_SYNC_ITERATIONS`; once that
+  /// cap is hit without the child returning `Running` or `current_repeats`
+  /// reaching `max_repeats`, the node yields `BehaviorStatus::Running`
+  /// back to the caller instead of continuing to loop.
+  ///
+  /// ## Prevention
+  /// This test runs the risky `execute()` call on a background thread
+  /// (building the whole tree inside that thread, since
+  /// `Box< dyn BehaviorNode >` is not `Send` and cannot cross the thread
+  /// boundary itself) and receives the result through a channel with
+  /// `recv_timeout`, so a real hang fails the test after a bounded wait
+  /// instead of blocking the suite. Confirmed against pre-fix source: this
+  /// assertion reproducibly timed out instead of observing `Running`.
+  ///
+  /// ## Pitfall
+  /// A decorator that synchronously re-invokes an opaque
+  /// `Box< dyn BehaviorNode >` child in a loop must bound the number of
+  /// re-invocations independently of any user-supplied repeat count --
+  /// "infinite repeat" must mean "unbounded across ticks", never
+  /// "unbounded within a single tick".
+  #[ test ]
+  fn test_repeat_node_infinite_livelock_guard()
+  {
+    let ( tx, rx ) = std::sync::mpsc::channel();
+
+    // Built and executed entirely inside the spawned thread: `RepeatNode`
+    // holds a `Box< dyn BehaviorNode >`, which is not `Send`, so only the
+    // `BehaviorStatus` result is allowed to cross the channel.
+    std::thread::spawn( move ||
+    {
+      let mut repeat = RepeatNode::infinite
+      (
+        Box::new( SetBlackboardAction::new( "tick", true ) ) // never returns Running
+      );
+      let mut context = BehaviorContext::new();
+      let status = repeat.execute( &mut context );
+      let _ = tx.send( status );
+    } );
+
+    let status = rx.recv_timeout( Duration::from_secs( 2 ) )
+    .expect( "RepeatNode::infinite over a non-Running child hung past the bounded-time guard" );
+
+    assert_eq!( status, BehaviorStatus::Running );
   }
 }

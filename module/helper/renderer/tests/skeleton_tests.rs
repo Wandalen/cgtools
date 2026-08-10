@@ -9,8 +9,14 @@ mod tests
   use minwebgl as gl;
   use gl::GL;
   use std::{ rc::Rc, cell::RefCell };
+  // Fix(BUG-046): `Node` was used below (in `get_skeleton`) but missing from this import list.
+  // Root cause: import list never updated when `get_skeleton`'s closure parameter was typed as
+  // `Rc<RefCell<Node>>` — a compile error, so the whole test module never ran.
+  // Pitfall: a missing-import compile error silently disables every test in the module; nextest
+  // reports 0 tests collected rather than a loud per-test failure.
   use renderer::webgl::
   {
+    Node,
     Object3D,
     calculate_data_texture_size,
     load_texture_data_4f,
@@ -50,7 +56,13 @@ mod tests
       Ok( () )
     };
 
-    gltf.scene[ 0 ].borrow().traverse( &mut get_skeleton );
+    // Fix(BUG-046): was `gltf.scene[ 0 ]` — `GLTF` has no `.scene` field, only `.scenes` (plural).
+    // Root cause: written against an assumed singular field name never checked against `GLTF`'s
+    // actual definition.
+    // Pitfall: `.scene` vs `.scenes` is a one-character typo that the compiler catches loudly, but
+    // only if the module compiles far enough to reach this line — the missing `Node` import above
+    // masked this second error until the first was fixed.
+    gltf.scenes[ 0 ].borrow().traverse( &mut get_skeleton );
 
     skeleton.unwrap().borrow().clone()
   }

@@ -44,8 +44,6 @@ where
   assert_eq!( mat_r.raw_slice(), exp.raw_slice(), "Expected {:?}, got {:?}", exp.raw_slice(), mat_r.raw_slice() );
 }
 
-// xxx
-
 #[ test ]
 fn test_add_matrices_row_major()
 {

@@ -40,6 +40,12 @@ mod private
     /// Error when required data is missing.
     #[ error( "Can't find {0}" ) ]
     MissingDataError( &'static str ),
+    /// Error when a numeric id (e.g. a framebuffer attachment index) does not fit into the
+    /// `u32` range a WebGL id requires. Ids computed at runtime (e.g. while iterating a
+    /// dynamically sized framebuffer configuration) can legitimately be out of range, so
+    /// this is surfaced as a recoverable error instead of panicking.
+    #[ error( "{0}" ) ]
+    IdOutOfRange( String ),
     /// General error type
     #[ error( "{0}" ) ]
     Other( &'static str ),

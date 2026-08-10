@@ -256,7 +256,11 @@ async fn run() -> Result< (), gl::WebglError >
     Some( canvas.clone().dyn_into().unwrap() ),
     move | e |
     {
-      let coord = gl::F64x2::new( e.client_x(), e.client_y() ) * dpr;
+      // Fix(BUG-053): `client_x`/`client_y` return `i32` or `f64` depending on whether
+      // `web_sys_unstable_apis` is active (see minwebgl/src/texture/d2.rs); `.into()` targets
+      // `f64` correctly in both cases (`i32: Into<f64>` widens, `f64: Into<f64>` is identity).
+      #[ allow( clippy::useless_conversion ) ]
+      let coord = gl::F64x2::new( e.client_x().into(), e.client_y().into() ) * dpr;
       I32x2::from_array( [ coord.x() as i32, coord.y() as i32 ] )
     },
   ).expect( "Failed to initialize input" );
