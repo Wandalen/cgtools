@@ -226,7 +226,7 @@ where
   T: Convert<U>,
 {
   fn convert_batch_exact(self) -> Vec<U> {
-    self.into_iter().map(|coord| coord.convert()).collect()
+    self.into_iter().map(Convert::convert).collect()
   }
 }
 
@@ -236,7 +236,7 @@ where
   T: ApproximateConvert<U>,
 {
   fn convert_batch_approximate(self) -> Vec<U> {
-    self.into_iter().map(|coord| coord.approximate_convert()).collect()
+    self.into_iter().map(ApproximateConvert::approximate_convert).collect()
   }
 }
 
@@ -264,11 +264,12 @@ where
 /// ];
 /// let isometric_coords: Vec<IsoCoord<Diamond>> = convert_batch_exact(squares);
 /// ```
+#[must_use]
 pub fn convert_batch_exact<T, U>(coords: Vec<T>) -> Vec<U>
 where
   T: Convert<U>,
 {
-  coords.into_iter().map(|coord| coord.convert()).collect()
+  coords.into_iter().map(Convert::convert).collect()
 }
 
 /// Converts a collection of coordinates using approximate conversion.
@@ -292,11 +293,12 @@ where
 /// let square_coords: Vec<SquareCoord<FourConnected>> =
 ///     convert_batch_approximate(hex_coords);
 /// ```
+#[must_use]
 pub fn convert_batch_approximate<T, U>(coords: Vec<T>) -> Vec<U>
 where
   T: ApproximateConvert<U>,
 {
-  coords.into_iter().map(|coord| coord.approximate_convert()).collect()
+  coords.into_iter().map(ApproximateConvert::approximate_convert).collect()
 }
 
 /// Checks if a coordinate conversion preserves the roundtrip property.
@@ -316,6 +318,7 @@ where
 /// let square = SquareCoord::<FourConnected>::new(5, 3);
 /// assert!(test_roundtrip_conversion::<_, IsoCoord<Diamond>, SquareCoord<FourConnected>>(square));
 /// ```
+#[allow(clippy::needless_pass_by_value)] // Public API: by-value is the deliberate contract for Copy coordinate types.
 pub fn test_roundtrip_conversion<T, U, V>(original: T) -> bool
 where
   T: Convert<U> + PartialEq + Clone,
@@ -345,7 +348,7 @@ where
   let (x2, y2) = roundtrip.into();
 
   // Calculate Euclidean distance
-  let dx = (x2 - x1) as f64;
-  let dy = (y2 - y1) as f64;
+  let dx = f64::from(x2 - x1);
+  let dy = f64::from(y2 - y1);
   (dx * dx + dy * dy).sqrt()
 }

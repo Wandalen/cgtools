@@ -171,8 +171,8 @@ where
   use the_module::{ Mat, IndexingRef, RawSliceMut };
 
   let mat = Mat::<2, 2, f32, D>::default().set([ 1.0, 2.0, 3.0, 4.0 ]);
-  let _collected: Vec<_> = mat.lane_indexed_iter( 0, 2 ).collect();
-  println!( "{_collected:?}" );
+  let collected: Vec<_> = mat.lane_indexed_iter( 0, 2 ).collect();
+  println!( "{collected:?}" );
 }
 
 #[test]

@@ -7,7 +7,7 @@ re-run the command to refresh a number instead of trusting the table. Live work 
 - **Snapshot date:** 2026-08-10
 - **Workspace build:** ✅ `cargo check --workspace --all-features` — exit 0, 57s, all crates
   (module/ + examples/) compile clean.
-- **Task system:** 58 completed · 4 draft · 6 cancelled (see task/readme.md for the live table).
+- **Task system:** 59 completed · 3 draft · 6 cancelled (see task/readme.md for the live table).
 
 ## Regeneration commands
 
@@ -47,7 +47,7 @@ re-run the command to refresh a number instead of trusting the table. Live work 
 | helper/scene_script | 2 / 16 | 0 | yes | 0 | — | |
 | helper/tilemap_renderer | 6 / 100 | 29 | yes | 0 | 23 | Markers resolved by task 064 (Source::Path geometry loading implemented, pitfall/003 retired) · 54 tests relocated to tests/ by task 071 (29 inline kept as documented exceptions pinning private helpers) |
 | helper/tilemap_scene | 12 / 171 | 0 | yes | 0 | 39 | All 38 inline tests relocated to 2 new domain files by task 073 (hash_test.rs + compile_units_test.rs; zero exceptions — mod_interface root re-exports reach everything); tests/readme.md added |
-| helper/tiles_tools | 18 / 257 | 5 | yes | 0 | 460 | Markers resolved by task 063 (movement queue implemented, pitfall/002 retired) · 46 tests relocated to 7 new feature-mirrored tests/ files by task 072 (5 inline kept as documented exceptions; 5 fov duplicates consolidated) · disabled flowfield integration module → draft 078 · largest allow count |
+| helper/tiles_tools | 18 / 241 | 5 | yes | 0 | 38 | Markers resolved by task 063 (movement queue implemented, pitfall/002 retired) · 46 tests relocated to 7 new feature-mirrored tests/ files by task 072 (5 inline kept as documented exceptions; 5 fov duplicates consolidated) · Flowfield integration module revived by task 078 (5 of 21 dead tests repaired to hex + Ord on hexagonal::Coordinate un-deadened calculate_flow; 16 retired with named reasons — fn count dropped because the old grep counted tests that never ran) · Allow sweep by draft 058 increment: 460 → 38 (449 blanket lines stripped, ~330 machine + ~30 manual fixes, missing_docs + 17 # Errors sections cleared; 37 justified attrs remain, each with a reason — 1 of the 38 matches is a comment mention) |
 | math/mdmath_core | 23 / 89 | 0 | — | 2 | 83 | Markers resolved by task 059 (soundness unsafe removed, Ix4 added); 2 lint markers → draft 058; no workspace-lints inheritance |
 | math/ndarray_cg | 36 / 222 | 0 | — | 2 | 41 | Markers resolved by task 060 (typed TryFrom error, IntoVector tests); 2 lint markers → draft 058; suite shared with ndarray_tools; no workspace-lints inheritance |
 | min/mingl | 6 / 38 | 13 | — | 0 | 44 | Markers resolved by task 061 · 13 inline tests kept as one documented exception by task 074 (private pure URL helpers of the wasm-only web loader; proven to run natively under --all-features) |
@@ -56,9 +56,9 @@ re-run the command to refresh a number instead of trusting the table. Live work 
 | min/minwgpu | 2 / 5 | 21 | yes | 0 | — | Deterministic adapter-error tests/ established by task 070 (21 inline kept as documented exceptions — pub(super) builder internals) |
 
 Notes column links go through task/readme.md; `—` in Allows = not in the top-count sweep (small or
-zero). Examples tree (~50 demo crates) is intentionally not tabulated per-crate: demos carry no
-tests/ requirement; their 13 open markers are triaged in draft 065 (6 need human decisions,
-including two `rid of this crate` calls on `diamond` and `make_cube_map`).
+zero). Examples tree (72 demo crates — see examples/readme.md) is intentionally not tabulated
+per-crate: demos carry no tests/ requirement; their 13 open markers are triaged in draft 065 (6 need
+human decisions, including two `rid of this crate` calls on `diamond` and `make_cube_map`).
 
 ## Known issues (workspace level)
 
@@ -81,7 +81,7 @@ including two `rid of this crate` calls on `diamond` and `make_cube_map`).
 - **Test-coverage stream (035 decomposition) COMPLETE** — 066–077 closed embroidery_tools,
   behaviour_tree, canvas_renderer, minwebgl, minwgpu, tilemap_renderer, tiles_tools,
   tilemap_scene, mingl, renderer, browser_input, and browser_log; every crate's inline tests
-  are relocated or documented exceptions. **078** — re-enable or retire tiles_tools' disabled
-  flowfield integration tests.
+  are relocated or documented exceptions. Follow-up 078 (tiles_tools' disabled flowfield
+  integration module) closed too — zero disabled tests remain in the workspace.
 - **056** — vectorizer revival watch item.
 

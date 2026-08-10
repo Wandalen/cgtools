@@ -13,7 +13,7 @@ only with the `integration` feature (enabled by `--all-features`), via the gate 
 | coordinates_tests.rs | Coordinate creation, distance, and neighbor operations |
 | ecs_tests.rs | ECS world, components, systems, movement requests |
 | field_of_view_tests.rs | Field-of-view calculation contracts |
-| flowfield_tests.rs | Flow-field pathfinding (disabled pending generic constraints) |
+| flowfield_tests.rs | Flow-field calculation, batch, multi-goal, and ECS contracts (hex-only) |
 | geometry_tests.rs | Hexagon geometry generator contracts |
 | isometric_coords_tests.rs | Isometric coordinate system behavior |
 | square_coords_tests.rs | Square coordinate system behavior |

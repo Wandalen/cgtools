@@ -58,15 +58,15 @@ fn triangles_from_vertices( points : &[ F32x2; 6 ] ) -> Vec< f32 >
 
   for w in points[ 1.. ].windows( 2 )
   {
-    let point1 = w[ 0 ];
-    let point2 = w[ 1 ];
+    let a = w[ 0 ];
+    let b = w[ 1 ];
 
     positions.push( first[ 0 ] );
     positions.push( first[ 1 ] );
-    positions.push( point1[ 0 ] );
-    positions.push( point1[ 1 ] );
-    positions.push( point2[ 0 ] );
-    positions.push( point2[ 1 ] );
+    positions.push( a[ 0 ] );
+    positions.push( a[ 1 ] );
+    positions.push( b[ 0 ] );
+    positions.push( b[ 1 ] );
   }
 
   positions
@@ -94,6 +94,7 @@ fn triangles_from_vertices( points : &[ F32x2; 6 ] ) -> Vec< f32 >
     \  ____                  /
      \______________________/
 */
+#[ must_use ]
 pub fn hexagon_triangles() -> Vec< f32 >
 {
   triangles_from_vertices( &hexagon_vertices() )
@@ -103,6 +104,7 @@ pub fn hexagon_triangles() -> Vec< f32 >
 /// every corner point transformed by `transform` before triangle assembly.
 ///
 /// Intended draw mode: `TRIANGLES` — 4 standalone triangles, 24 floats total.
+#[ must_use ]
 pub fn hexagon_triangles_with_transform( transform : F32x3x3 ) -> Vec< f32 >
 {
   let mut points = hexagon_vertices();
@@ -138,19 +140,20 @@ pub fn hexagon_triangles_with_transform( transform : F32x3x3 ) -> Vec< f32 >
     \                        /
      \______________________/
 */
+#[ must_use ]
 pub fn hexagon_lines() -> Vec< f32 >
 {
   let points = hexagon_vertices();
   let mut positions = vec![];
   for w in points.windows( 2 )
   {
-    let point1 = w[ 0 ];
-    let point2 = w[ 1 ];
+    let a = w[ 0 ];
+    let b = w[ 1 ];
 
-    positions.push( point1[ 0 ] );
-    positions.push( point1[ 1 ] );
-    positions.push( point2[ 0 ] );
-    positions.push( point2[ 1 ] );
+    positions.push( a[ 0 ] );
+    positions.push( a[ 1 ] );
+    positions.push( b[ 0 ] );
+    positions.push( b[ 1 ] );
   }
 
   positions.push( points[ 5 ][ 0 ] );
@@ -177,6 +180,7 @@ pub fn hexagon_lines() -> Vec< f32 >
 
      *                      *
 */
+#[ must_use ]
 pub fn hexagon_vertices() -> [ F32x2; 6 ]
 {
   let mut points : [ F32x2; 6 ] = Default::default();

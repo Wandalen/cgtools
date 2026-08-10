@@ -68,12 +68,12 @@ pub struct IntegrationField< System, Orientation >
 pub struct FlowField< System, Orientation >
 {
   /// Integration field with costs to goal
-  #[ allow( dead_code ) ]
+  #[ allow( dead_code ) ] // Construction state retained for the incremental-recalculation pass; not read yet.
   integration : IntegrationField< System, Orientation >,
   /// Grid dimensions
-  #[ allow( dead_code ) ]
+  #[ allow( dead_code ) ] // Construction state retained for the incremental-recalculation pass; not read yet.
   width : i32,
-  #[ allow( dead_code ) ]
+  #[ allow( dead_code ) ] // Construction state retained for the incremental-recalculation pass; not read yet.
   height : i32,
   /// Phantom marker for system type
   _phantom_system : std::marker::PhantomData< System >,
@@ -84,6 +84,7 @@ pub struct FlowField< System, Orientation >
 impl< System, Orientation > IntegrationField< System, Orientation >
 {
   /// Creates a new integration field with the specified dimensions.
+  #[ must_use ]
   pub fn new( _width : i32, _height : i32 ) -> Self
   {
     // Simplified stub implementation for testing
@@ -128,6 +129,7 @@ impl< System, Orientation > IntegrationField< System, Orientation >
 impl< System, Orientation > FlowField< System, Orientation >
 {
   /// Creates a new flow field with the specified dimensions.
+  #[ must_use ]
   pub fn new( width : i32, height : i32 ) -> Self
   {
     // Simplified stub implementation for testing
@@ -184,6 +186,7 @@ impl< System, Orientation > FlowField< System, Orientation >
   }
 
   /// Calculates integration field using modified Dijkstra's algorithm.
+  #[ allow( clippy::unused_self ) ] // Stub body; the Dijkstra implementation will write `self`'s fields.
   fn calculate_integration_field< C, Fa, Fc >( &mut self, _goal : &C, _is_passable : &Fa, _get_cost : &Fc )
   where
     C : Distance + Neighbors + Clone + PartialEq + std::hash::Hash + Ord,
@@ -203,6 +206,7 @@ impl< System, Orientation > FlowField< System, Orientation >
   }
 
   /// Generates flow directions from the integration field.
+  #[ allow( clippy::unused_self ) ] // Stub body; the direction pass will write `self`'s fields.
   fn generate_flow_directions< C, Fa >( &mut self, _is_passable : &Fa )
   where
     C : Neighbors + Clone,
@@ -296,6 +300,7 @@ impl FlowFieldAnalyzer
   ///
   /// Returns diagnostic information about the flow field including
   /// unreachable areas, flow convergence, and potential bottlenecks.
+  #[ must_use ]
   pub fn analyze_flow< System, Orientation >
   (
     _field : &FlowField< System, Orientation >
@@ -348,9 +353,9 @@ pub struct MultiGoalFlowField< System, Orientation >
   /// Individual flow fields for each goal
   pub goal_fields : Vec< FlowField< System, Orientation > >,
   /// Grid dimensions
-  #[ allow( dead_code ) ]
+  #[ allow( dead_code ) ] // Construction state retained for the incremental-recalculation pass; not read yet.
   width : i32,
-  #[ allow( dead_code ) ]
+  #[ allow( dead_code ) ] // Construction state retained for the incremental-recalculation pass; not read yet.
   height : i32,
   /// Phantom marker for system type
   _phantom_system : std::marker::PhantomData< System >,
@@ -361,6 +366,7 @@ pub struct MultiGoalFlowField< System, Orientation >
 impl< System, Orientation > MultiGoalFlowField< System, Orientation >
 {
   /// Creates a new multi-goal flow field.
+  #[ must_use ]
   pub fn new( width : i32, height : i32 ) -> Self
   {
     // Simplified stub implementation for testing
@@ -394,6 +400,7 @@ impl< System, Orientation > MultiGoalFlowField< System, Orientation >
   }
 
   /// Recalculates the combined flow field from all individual goal fields.
+  #[ allow( clippy::unused_self ) ] // Stub body; the combining pass will write `self`'s fields.
   fn recalculate_combined_field( &mut self )
   {
     // Implementation would combine multiple flow fields by choosing
@@ -437,6 +444,7 @@ pub struct DynamicFlowField< System, Orientation >
 impl< System, Orientation > DynamicFlowField< System, Orientation >
 {
   /// Creates a new dynamic flow field.
+  #[ must_use ]
   pub fn new( width : i32, height : i32 ) -> Self
   {
     // Simplified stub implementation for testing

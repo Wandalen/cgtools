@@ -104,6 +104,7 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 | minwebgl/ | WebGL examples directory (48 demos) |
 | minwebgpu/ | WebGPU examples directory (5 demos) |
 | minwgpu/ | WGPU examples directory (4 demos) |
+| non_developer_how_to_run.md | Beginner-friendly step-by-step guide for running examples with no prior Rust experience |
 | readme.md | Root documentation for examples directory |
 | scene_script/ | Rhai scripting examples directory (2 demos) |
 | tiles_tools/ | tiles_tools game-dev examples directory (12 demos) |

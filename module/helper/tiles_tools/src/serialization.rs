@@ -53,7 +53,7 @@ use std::fs::{File, create_dir_all};
 use std::io::{Read, Write, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
-use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use serde::{Serialize, Deserialize};
 
 /// Version information for save file compatibility.
 #[ derive( Debug, Clone, Serialize, Deserialize ) ]
@@ -72,6 +72,7 @@ pub struct SaveVersion
 impl SaveVersion
 {
   /// Creates a new save version.
+  #[must_use]
   pub fn new(major: u32, minor: u32, patch: u32) -> Self {
     Self {
       major,
@@ -85,11 +86,13 @@ impl SaveVersion
   }
 
   /// Current version of the tiles_tools serialization format.
+  #[must_use]
   pub fn current() -> Self {
     Self::new(1, 0, 0)
   }
 
   /// Checks if this version is compatible with another version.
+  #[must_use]
   pub fn is_compatible_with(&self, other: &SaveVersion) -> bool {
     self.major == other.major && self.minor >= other.minor
   }
@@ -122,6 +125,7 @@ pub struct SaveMetadata {
 
 impl SaveMetadata {
   /// Creates new save metadata.
+  #[must_use]
   pub fn new(description: String) -> Self {
     Self {
       version: SaveVersion::current(),
@@ -138,18 +142,21 @@ impl SaveMetadata {
   }
 
   /// Adds a tag to the metadata.
+  #[must_use]
   pub fn with_tag(mut self, tag: String) -> Self {
     self.tags.push(tag);
     self
   }
 
   /// Adds custom metadata.
+  #[must_use]
   pub fn with_custom(mut self, key: String, value: String) -> Self {
     self.custom.insert(key, value);
     self
   }
 
   /// Sets compression flag.
+  #[must_use]
   pub fn with_compression(mut self, compressed: bool) -> Self {
     self.compressed = compressed;
     self
@@ -390,6 +397,7 @@ pub struct GameStateSerializer {
 
 impl GameStateSerializer {
   /// Creates a new game state serializer with JSON format.
+  #[must_use]
   pub fn new() -> Self {
     Self {
       format: SerializationFormat::Json,
@@ -399,24 +407,30 @@ impl GameStateSerializer {
   }
 
   /// Sets the serialization format.
+  #[must_use]
   pub fn with_format(mut self, format: SerializationFormat) -> Self {
     self.format = format;
     self
   }
 
   /// Enables or disables compression.
+  #[must_use]
   pub fn with_compression(mut self, compress: bool) -> Self {
     self.compress = compress;
     self
   }
 
   /// Sets a custom version.
+  #[must_use]
   pub fn with_version(mut self, version: SaveVersion) -> Self {
     self.version = version;
     self
   }
 
   /// Serializes a game state to bytes.
+  ///
+  /// # Errors
+  /// Returns an error when encoding in the selected format fails.
   pub fn serialize_game_state(&self, state: &SerializableGameState) -> Result<Vec<u8>, SerializationError> {
     let data = match self.format {
       SerializationFormat::Json => serde_json::to_vec(state)?,
@@ -432,6 +446,9 @@ impl GameStateSerializer {
   }
 
   /// Deserializes a game state from bytes.
+  ///
+  /// # Errors
+  /// Returns an error when decompression fails or the bytes are not valid for the selected format.
   pub fn deserialize_game_state(&self, data: &[u8]) -> Result<SerializableGameState, SerializationError> {
     let data = if self.compress {
       self.decompress_data(data)?
@@ -446,7 +463,7 @@ impl GameStateSerializer {
         let text = String::from_utf8(data)?;
         ron::from_str(&text).map_err(|e| {
           let ron::error::SpannedError { code, .. } = e;
-          SerializationError::Ron(ron::Error::from(code))
+          SerializationError::Ron(code)
         })?
       }
     };
@@ -455,6 +472,7 @@ impl GameStateSerializer {
   }
 
   /// Creates a basic game state for testing.
+  #[must_use]
   pub fn create_basic_game_state(description: String) -> SerializableGameState {
     SerializableGameState {
       metadata: SaveMetadata::new(description),
@@ -466,6 +484,7 @@ impl GameStateSerializer {
   }
 
   // Private compression methods (stubbed for now - would use flate2 or similar)
+  #[allow(clippy::unused_self)] // Stub body; a real codec will read `self` settings.
   fn compress_data(&self, data: Vec<u8>) -> Vec<u8> {
     // In a real implementation, this would use flate2 or similar
     // For now, just return the data unchanged with a marker
@@ -475,6 +494,7 @@ impl GameStateSerializer {
     compressed
   }
 
+  #[allow(clippy::unused_self)] // Stub body; a real codec will read `self` settings.
   fn decompress_data(&self, data: &[u8]) -> Result<Vec<u8>, SerializationError> {
     // Check for compression marker
     if data.len() < 7 || data[0..3] != [0xC0, 0x4D, 0x50] {
@@ -512,17 +532,21 @@ impl SaveManager {
   }
 
   /// Sets the serializer to use for save operations.
+  #[must_use]
   pub fn with_serializer(mut self, serializer: GameStateSerializer) -> Self {
     self.serializer = serializer;
     self
   }
 
   /// Saves a game state to a file.
+  ///
+  /// # Errors
+  /// Returns an error when the saves directory or files cannot be written, or serialization fails.
   pub fn save_game_state(&self, save_name: &str, state: &SerializableGameState) -> Result<(), SerializationError> {
     create_dir_all(&self.saves_directory)?;
     
-    let save_path = self.saves_directory.join(format!("{}.save", save_name));
-    let metadata_path = self.saves_directory.join(format!("{}.meta", save_name));
+    let save_path = self.saves_directory.join(format!("{save_name}.save"));
+    let metadata_path = self.saves_directory.join(format!("{save_name}.meta"));
 
     // Serialize the game state
     let serialized_data = self.serializer.serialize_game_state(state)?;
@@ -546,8 +570,11 @@ impl SaveManager {
   }
 
   /// Loads a game state from a file.
+  ///
+  /// # Errors
+  /// Returns an error when the save does not exist, cannot be read, or cannot be deserialized.
   pub fn load_game_state(&self, save_name: &str) -> Result<SerializableGameState, SerializationError> {
-    let save_path = self.saves_directory.join(format!("{}.save", save_name));
+    let save_path = self.saves_directory.join(format!("{save_name}.save"));
     
     if !save_path.exists() {
       return Err(SerializationError::SaveNotFound(save_name.to_string()));
@@ -561,8 +588,11 @@ impl SaveManager {
   }
 
   /// Loads save metadata without loading the full save.
+  ///
+  /// # Errors
+  /// Returns an error when the metadata file does not exist, cannot be read, or is not valid JSON.
   pub fn load_save_metadata(&self, save_name: &str) -> Result<SaveMetadata, SerializationError> {
-    let metadata_path = self.saves_directory.join(format!("{}.meta", save_name));
+    let metadata_path = self.saves_directory.join(format!("{save_name}.meta"));
     
     if !metadata_path.exists() {
       return Err(SerializationError::MetadataNotFound(save_name.to_string()));
@@ -576,6 +606,9 @@ impl SaveManager {
   }
 
   /// Lists all available saves.
+  ///
+  /// # Errors
+  /// Returns an error when the saves directory cannot be read.
   pub fn list_saves(&self) -> Result<Vec<String>, SerializationError> {
     if !self.saves_directory.exists() {
       return Ok(Vec::new());
@@ -603,9 +636,12 @@ impl SaveManager {
   }
 
   /// Deletes a save file and its metadata.
+  ///
+  /// # Errors
+  /// Returns an error when an existing save or metadata file cannot be removed.
   pub fn delete_save(&self, save_name: &str) -> Result<(), SerializationError> {
-    let save_path = self.saves_directory.join(format!("{}.save", save_name));
-    let metadata_path = self.saves_directory.join(format!("{}.meta", save_name));
+    let save_path = self.saves_directory.join(format!("{save_name}.save"));
+    let metadata_path = self.saves_directory.join(format!("{save_name}.meta"));
 
     if save_path.exists() {
       std::fs::remove_file(save_path)?;
@@ -619,17 +655,17 @@ impl SaveManager {
   }
 
   /// Gets information about all saves including metadata.
+  ///
+  /// # Errors
+  /// Returns an error when the saves directory cannot be read.
   pub fn get_saves_info(&self) -> Result<Vec<(String, SaveMetadata)>, SerializationError> {
     let save_names = self.list_saves()?;
     let mut saves_info = Vec::new();
 
     for name in save_names {
-      match self.load_save_metadata(&name) {
-        Ok(metadata) => saves_info.push((name, metadata)),
-        Err(_) => {
-          // Skip saves with missing or invalid metadata
-          continue;
-        }
+      // Saves with missing or invalid metadata are skipped
+      if let Ok(metadata) = self.load_save_metadata(&name) {
+        saves_info.push((name, metadata));
       }
     }
 
@@ -654,6 +690,9 @@ impl ConfigManager {
   }
 
   /// Saves configuration to file.
+  ///
+  /// # Errors
+  /// Returns an error when the config directory or file cannot be written.
   pub fn save_config(&self, config: &GameConfig) -> Result<(), SerializationError> {
     if let Some(parent) = self.config_path.parent() {
       create_dir_all(parent)?;
@@ -668,6 +707,9 @@ impl ConfigManager {
   }
 
   /// Loads configuration from file.
+  ///
+  /// # Errors
+  /// Returns an error when the config file cannot be read or is not valid JSON.
   pub fn load_config(&self) -> Result<GameConfig, SerializationError> {
     if !self.config_path.exists() {
       return Ok(GameConfig::default());
@@ -681,6 +723,9 @@ impl ConfigManager {
   }
 
   /// Resets configuration to defaults.
+  ///
+  /// # Errors
+  /// Returns an error when the default config cannot be written.
   pub fn reset_config(&self) -> Result<(), SerializationError> {
     self.save_config(&GameConfig::default())
   }
@@ -708,19 +753,24 @@ pub enum SerializationError {
   /// Corrupted save data
   CorruptedData,
   /// Version incompatibility
-  IncompatibleVersion { found: SaveVersion, expected: SaveVersion },
+  IncompatibleVersion {
+    /// Version found in the save data.
+    found: SaveVersion,
+    /// Version this build expects.
+    expected: SaveVersion,
+  },
 }
 
 impl std::fmt::Display for SerializationError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      SerializationError::Io(e) => write!(f, "IO error: {}", e),
-      SerializationError::Json(e) => write!(f, "JSON error: {}", e),
-      SerializationError::Binary(e) => write!(f, "Binary serialization error: {}", e),
-      SerializationError::Ron(e) => write!(f, "RON error: {}", e),
-      SerializationError::Utf8(e) => write!(f, "UTF-8 error: {}", e),
-      SerializationError::SaveNotFound(name) => write!(f, "Save '{}' not found", name),
-      SerializationError::MetadataNotFound(name) => write!(f, "Metadata for save '{}' not found", name),
+      SerializationError::Io(e) => write!(f, "IO error: {e}"),
+      SerializationError::Json(e) => write!(f, "JSON error: {e}"),
+      SerializationError::Binary(e) => write!(f, "Binary serialization error: {e}"),
+      SerializationError::Ron(e) => write!(f, "RON error: {e}"),
+      SerializationError::Utf8(e) => write!(f, "UTF-8 error: {e}"),
+      SerializationError::SaveNotFound(name) => write!(f, "Save '{name}' not found"),
+      SerializationError::MetadataNotFound(name) => write!(f, "Metadata for save '{name}' not found"),
       SerializationError::InvalidCompressionFormat => write!(f, "Invalid compression format"),
       SerializationError::CorruptedData => write!(f, "Save data is corrupted"),
       SerializationError::IncompatibleVersion { found, expected } => {

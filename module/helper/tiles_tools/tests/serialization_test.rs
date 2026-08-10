@@ -8,29 +8,6 @@
 
 #![ cfg( feature = "serialization" ) ]
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
 
 use tiles_tools::serialization::*;
 use tempfile::TempDir;
@@ -77,11 +54,11 @@ fn test_game_state_serializer() {
 
   let game_state = GameStateSerializer::create_basic_game_state("Test Game".to_string());
 
-  let serialized = serializer.serialize_game_state(&game_state).unwrap();
-  let deserialized = serializer.deserialize_game_state(&serialized).unwrap();
+  let bytes_out = serializer.serialize_game_state(&game_state).unwrap();
+  let restored = serializer.deserialize_game_state(&bytes_out).unwrap();
 
-  assert_eq!(game_state.metadata.description, deserialized.metadata.description);
-  assert_eq!(game_state.world_data.len(), deserialized.world_data.len());
+  assert_eq!(game_state.metadata.description, restored.metadata.description);
+  assert_eq!(game_state.world_data.len(), restored.world_data.len());
 }
 
 #[test]
@@ -161,7 +138,7 @@ fn test_player_progress_serialization() {
     id: "first_kill".to_string(),
     name: "First Kill".to_string(),
     description: "Defeat your first enemy".to_string(),
-    unlocked_at: 1234567890,
+    unlocked_at: 1_234_567_890,
     points: 10,
   });
 

@@ -14,31 +14,8 @@
 //! | FOV3.1  | Multi     | Line of Sight | Boolean Result |
 //! | FOV4.1  | Lighting  | Multi-Source  | Combined Light |
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::float_cmp)]
-#![allow(clippy::clone_on_copy)]
+
+#![allow(clippy::float_cmp)] // Tests assert exact stored/configured values; no arithmetic precedes the comparisons.
 
 use tiles_tools::field_of_view::{FieldOfView, FOVAlgorithm, VisibilityState, LightSource, LightingCalculator};
 use tiles_tools::coordinates::{
@@ -241,9 +218,7 @@ fn test_line_of_sight_partial_blocking()
   let to = SquareCoord::<EightConnected>::new(6, 2);
 
   // Block specific positions
-  let obstacles = vec![
-    SquareCoord::<EightConnected>::new(4, 2),
-  ];
+  let obstacles = [SquareCoord::<EightConnected>::new(4, 2)];
 
   let has_los = fov.line_of_sight(&from, &to, |coord| obstacles.contains(coord));
   // Should be blocked by the obstacle in a full implementation
@@ -346,7 +321,7 @@ fn test_fov_distance_ranges()
 fn test_light_source_creation()
 {
   let position = SquareCoord::<EightConnected>::new(15, 15);
-  let light = LightSource::new(position.clone(), 6, 0.8)
+  let light = LightSource::new(position, 6, 0.8)
     .with_color(1.0, 0.5, 0.2)
     .penetrating(true);
 
@@ -362,7 +337,7 @@ fn test_single_light_source_calculation()
   let mut calculator = LightingCalculator::new();
 
   let light_pos = SquareCoord::<EightConnected>::new(5, 5);
-  let light_source = LightSource::new(light_pos.clone(), 4, 1.0);
+  let light_source = LightSource::new(light_pos, 4, 1.0);
   calculator.add_light_source(light_source);
 
   let lighting = calculator.calculate_lighting(|_| false);
@@ -414,10 +389,8 @@ fn test_light_with_obstacles()
   calculator.add_light_source(light_source);
 
   // Define walls that block light
-  let walls = vec![
-    SquareCoord::<EightConnected>::new(9, 8),
-    SquareCoord::<EightConnected>::new(10, 8),
-  ];
+  let walls = [SquareCoord::<EightConnected>::new(9, 8),
+    SquareCoord::<EightConnected>::new(10, 8)];
 
   let lighting = calculator.calculate_lighting(|coord| walls.contains(coord));
 

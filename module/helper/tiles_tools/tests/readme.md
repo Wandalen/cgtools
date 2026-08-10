@@ -23,7 +23,7 @@ Two layers:
 | `debug_test.rs` | Debugger, inspector, profiler, and formatting utilities behavior |
 | `events_test.rs` | Event bus lifecycle, priorities, consumption, statistics |
 | `field_of_view_test.rs` | Direct `VisibilityMap` construction and mutation API |
-| `flowfield_test.rs` | Flowfield public construction surface (live coverage; see task 078) |
+| `flowfield_test.rs` | Flowfield public construction surface |
 | `game_systems_test.rs` | Turn management, state machine, resources, quests, effects |
 | `serialization_test.rs` | Save/config round-trips, compression, managers, error variants |
 | `spatial_test.rs` | Bounds arithmetic, spatial entities, quadtree operations |

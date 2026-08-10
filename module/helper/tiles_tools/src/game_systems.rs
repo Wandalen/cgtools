@@ -50,8 +50,6 @@
 
 use std::collections::{HashMap, VecDeque, BTreeMap};
 use std::time::{Duration, Instant};
-use crate::events::{Event, EventBus, EventResult};
-use crate::coordinates::{Distance, Neighbors};
 
 /// Turn-based game manager for handling initiative, action points, and turn order.
 pub struct TurnBasedGame {
@@ -127,6 +125,7 @@ pub enum EffectCategory {
 impl TurnBasedGame
 {
   /// Creates a new turn-based game manager.
+  #[must_use]
   pub fn new() -> Self
   {
     Self
@@ -141,6 +140,7 @@ impl TurnBasedGame
   }
 
   /// Sets a time limit for each turn.
+  #[must_use]
   pub fn with_turn_time_limit(mut self, duration: Duration) -> Self {
     self.turn_time_limit = Some(duration);
     self
@@ -168,6 +168,7 @@ impl TurnBasedGame
   }
 
   /// Gets the entity ID of the current turn.
+  #[must_use]
   pub fn current_turn(&self) -> Option<u32> {
     if self.turn_order.is_empty() {
       return None;
@@ -178,6 +179,7 @@ impl TurnBasedGame
   }
 
   /// Gets the current participant data.
+  #[must_use]
   pub fn current_participant(&self) -> Option<&TurnParticipant> {
     self.current_turn().and_then(|id| self.participants.get(&id))
   }
@@ -229,6 +231,7 @@ impl TurnBasedGame
   }
 
   /// Checks if the current turn has timed out.
+  #[must_use]
   pub fn is_turn_timed_out(&self) -> bool {
     if let (Some(limit), Some(start)) = (self.turn_time_limit, self.turn_start_time) {
       start.elapsed() > limit
@@ -238,6 +241,7 @@ impl TurnBasedGame
   }
 
   /// Gets the current round number.
+  #[must_use]
   pub fn round_number(&self) -> u32 {
     self.round_number
   }
@@ -258,6 +262,7 @@ impl TurnBasedGame
   }
 
   /// Gets all participants in turn order.
+  #[must_use]
   pub fn participants_in_order(&self) -> Vec<&TurnParticipant> {
     self.turn_order
       .iter()
@@ -302,9 +307,12 @@ pub struct GameStateMachine {
   previous_state: Option<GameState>,
   state_data: HashMap<String, String>,
   transitions: HashMap<(GameState, GameStateEvent), GameState>,
-  state_enter_handlers: HashMap<GameState, Box<dyn Fn(&mut Self)>>,
-  state_exit_handlers: HashMap<GameState, Box<dyn Fn(&mut Self)>>,
+  state_enter_handlers: HashMap<GameState, StateHandler>,
+  state_exit_handlers: HashMap<GameState, StateHandler>,
 }
+
+/// Boxed handler invoked when the state machine enters or exits a state.
+type StateHandler = Box<dyn Fn(&mut GameStateMachine)>;
 
 /// Possible game states.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -382,6 +390,7 @@ pub enum GameStateEvent {
 
 impl GameStateMachine {
   /// Creates a new game state machine.
+  #[must_use]
   pub fn new(initial_state: GameState) -> Self {
     let mut machine = Self {
       current_state: initial_state,
@@ -397,11 +406,13 @@ impl GameStateMachine {
   }
 
   /// Gets the current state.
+  #[must_use]
   pub fn current_state(&self) -> GameState {
     self.current_state
   }
 
   /// Gets the previous state.
+  #[must_use]
   pub fn previous_state(&self) -> Option<GameState> {
     self.previous_state
   }
@@ -447,11 +458,13 @@ impl GameStateMachine {
   }
 
   /// Gets data associated with the current state.
+  #[must_use]
   pub fn get_state_data(&self, key: &str) -> Option<&String> {
     self.state_data.get(key)
   }
 
   /// Checks if the machine can transition on the given event.
+  #[must_use]
   pub fn can_transition(&self, event: GameStateEvent) -> bool {
     self.transitions.contains_key(&(self.current_state, event))
   }
@@ -533,6 +546,7 @@ pub struct Resource {
 
 impl Resource {
   /// Creates a new resource with the given maximum value.
+  #[must_use]
   pub fn new(maximum: f32) -> Self {
     Self {
       current: maximum,
@@ -542,6 +556,7 @@ impl Resource {
   }
 
   /// Creates a resource with regeneration.
+  #[must_use]
   pub fn with_regeneration(maximum: f32, regeneration: f32) -> Self {
     Self {
       current: maximum,
@@ -551,6 +566,7 @@ impl Resource {
   }
 
   /// Gets the current value as a percentage of maximum.
+  #[must_use]
   pub fn percentage(&self) -> f32 {
     if self.maximum > 0.0 {
       (self.current / self.maximum).clamp(0.0, 1.0)
@@ -583,11 +599,13 @@ impl Resource {
   }
 
   /// Checks if the resource is depleted.
+  #[must_use]
   pub fn is_depleted(&self) -> bool {
     self.current <= 0.0
   }
 
   /// Checks if the resource is at maximum.
+  #[must_use]
   pub fn is_full(&self) -> bool {
     (self.current - self.maximum).abs() < f32::EPSILON
   }
@@ -595,6 +613,7 @@ impl Resource {
 
 impl ResourceManager {
   /// Creates a new resource manager.
+  #[must_use]
   pub fn new() -> Self {
     Self {
       resources: HashMap::new(),
@@ -621,6 +640,7 @@ impl ResourceManager {
   }
 
   /// Gets resources for an entity.
+  #[must_use]
   pub fn get_resources(&self, entity_id: u32) -> Option<&EntityResources> {
     self.resources.get(&entity_id)
   }
@@ -659,6 +679,7 @@ impl ResourceManager {
   }
 
   /// Gets all entities with depleted health.
+  #[must_use]
   pub fn get_defeated_entities(&self) -> Vec<u32> {
     self.resources
       .iter()
@@ -737,17 +758,47 @@ pub struct QuestObjective {
 #[derive(Debug, Clone)]
 pub enum ObjectiveType {
   /// Kill specific entities
-  KillTargets { target_type: String, count: u32, current: u32 },
+  KillTargets {
+    /// Entity type that must be killed.
+    target_type: String,
+    /// Total kills required.
+    count: u32,
+    /// Kills achieved so far.
+    current: u32,
+  },
   /// Reach a specific location
-  ReachLocation { x: i32, y: i32, radius: u32 },
+  ReachLocation {
+    /// Target x coordinate.
+    x: i32,
+    /// Target y coordinate.
+    y: i32,
+    /// Acceptance radius around the target.
+    radius: u32,
+  },
   /// Collect specific items
-  CollectItems { item_id: String, count: u32, current: u32 },
+  CollectItems {
+    /// Identifier of the item to collect.
+    item_id: String,
+    /// Total items required.
+    count: u32,
+    /// Items collected so far.
+    current: u32,
+  },
   /// Talk to specific NPCs
-  TalkToNPC { npc_id: u32 },
+  TalkToNPC {
+    /// Identifier of the NPC to talk to.
+    npc_id: u32,
+  },
   /// Survive for a duration
-  Survive { duration_seconds: u32 },
+  Survive {
+    /// How long to survive, in seconds.
+    duration_seconds: u32,
+  },
   /// Custom objective
-  Custom { data: HashMap<String, String> },
+  Custom {
+    /// Free-form objective parameters.
+    data: HashMap<String, String>,
+  },
 }
 
 /// Conditions for quest availability.
@@ -780,6 +831,7 @@ pub enum QuestReward {
 
 impl QuestManager {
   /// Creates a new quest manager.
+  #[must_use]
   pub fn new() -> Self {
     Self {
       quests: HashMap::new(),
@@ -837,11 +889,8 @@ impl QuestManager {
         for objective in &mut quest.objectives {
           if objective.id == objective_id {
             match &mut objective.objective_type {
-              ObjectiveType::KillTargets { count, current, .. } => {
-                *current = (*current + progress).min(*count);
-                objective.completed = *current >= *count;
-              },
-              ObjectiveType::CollectItems { count, current, .. } => {
+              ObjectiveType::KillTargets { count, current, .. }
+              | ObjectiveType::CollectItems { count, current, .. } => {
                 *current = (*current + progress).min(*count);
                 objective.completed = *current >= *count;
               },
@@ -869,11 +918,13 @@ impl QuestManager {
   }
 
   /// Gets a global flag value.
+  #[must_use]
   pub fn get_flag(&self, flag: &str) -> bool {
     self.global_flags.get(flag).copied().unwrap_or(false)
   }
 
   /// Gets all active quests.
+  #[must_use]
   pub fn active_quests(&self) -> Vec<&Quest> {
     self.active_quests
       .iter()
@@ -882,6 +933,7 @@ impl QuestManager {
   }
 
   /// Gets all completed quests.
+  #[must_use]
   pub fn completed_quests(&self) -> Vec<&Quest> {
     self.completed_quests
       .iter()
@@ -890,11 +942,13 @@ impl QuestManager {
   }
 
   /// Gets the number of completed quests.
+  #[must_use]
   pub fn completed_quest_count(&self) -> usize {
     self.completed_quests.len()
   }
 
   /// Checks if a quest is completed.
+  #[must_use]
   pub fn is_quest_completed(&self, quest_id: &str) -> bool {
     self.completed_quests.contains(&quest_id.to_string())
   }
@@ -922,28 +976,42 @@ impl Default for QuestManager {
 /// Game events for system integration.
 #[derive(Debug, Clone)]
 pub struct TurnStartedEvent {
+  /// Entity whose turn started.
   pub entity_id: u32,
+  /// Current round number.
   pub round_number: u32,
+  /// Action points available this turn.
   pub action_points: u32,
 }
 
+/// Event fired when an entity's turn ends.
 #[derive(Debug, Clone)]
 pub struct TurnEndedEvent {
+  /// Entity whose turn ended.
   pub entity_id: u32,
+  /// Actions the entity took during the turn.
   pub actions_taken: u32,
 }
 
+/// Event fired when an entity's resource amount changes.
 #[derive(Debug, Clone)]
 pub struct ResourceChangedEvent {
+  /// Entity whose resource changed.
   pub entity_id: u32,
+  /// Which resource changed.
   pub resource_type: String,
+  /// Amount before the change.
   pub old_value: f32,
+  /// Amount after the change.
   pub new_value: f32,
 }
 
+/// Event fired when a quest is completed.
 #[derive(Debug, Clone)]
 pub struct QuestCompletedEvent {
+  /// Identifier of the completed quest.
   pub quest_id: String,
+  /// Rewards granted on completion.
   pub rewards: Vec<QuestReward>,
 }
 

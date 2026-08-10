@@ -1,83 +1,4 @@
 //! # 🎲 Tiles Tools
-
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::missing_inline_in_public_items ) ]
-#![ allow( clippy::default_numeric_fallback ) ]
-#![ allow( clippy::missing_trait_methods ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::arithmetic_side_effects ) ]
-#![ allow( clippy::indexing_slicing ) ]
-#![ allow( clippy::panic ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::ptr_as_ptr ) ]
-#![ allow( clippy::as_conversions ) ]
-#![ allow( clippy::needless_maybe_sized ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::blanket_clippy_restriction_lints ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::transmute_ptr_to_ptr ) ]
-#![ allow( clippy::elidable_lifetime_names ) ]
-#![ allow( clippy::if_then_some_else_none ) ]
-#![ allow( clippy::borrow_as_ptr ) ]
-#![ allow( clippy::return_self_not_must_use ) ]
-#![ allow( clippy::missing_docs_in_private_items ) ]
-#![ allow( clippy::single_char_lifetime_names ) ]
-#![ allow( clippy::module_name_repetitions ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::missing_errors_doc ) ]
-#![ allow( clippy::missing_panics_doc ) ]
-#![ allow( clippy::else_if_without_else ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::int_plus_one ) ]
-#![ allow( clippy::must_use_candidate ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::redundant_else ) ]
-#![ allow( clippy::unreadable_literal ) ]
-#![ allow( clippy::exhaustive_structs ) ]
-#![ allow( clippy::exhaustive_enums ) ]
-#![ allow( clippy::match_same_arms ) ]
-#![ allow( clippy::float_cmp ) ]
-#![ allow( clippy::manual_map ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::many_single_char_names ) ]
-#![ allow( clippy::unused_self ) ]
-#![ allow( clippy::needless_continue ) ]
-#![ allow( unused_imports ) ]
-#![ allow( missing_docs ) ]
-#![ allow( clippy::derivable_impls ) ]
-#![ allow( clippy::missing_fields_in_debug ) ]
-#![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::map_unwrap_or ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::unnecessary_cast ) ]
-#![ allow( clippy::unnecessary_semicolon ) ]
-#![ allow( clippy::only_used_in_recursion ) ]
-#![ allow( clippy::no_effect_underscore_binding ) ]
-#![ allow( clippy::trivially_copy_pass_by_ref ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::clone_on_copy ) ]
-#![ allow( dead_code ) ]
-#![ allow( clippy::redundant_closure_for_method_calls ) ]
-#![ allow( clippy::from_over_into ) ]
-#![ allow( clippy::iter_without_into_iter ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::mem_replace_option_with_some ) ]
-#![ allow( clippy::needless_range_loop ) ]
-#![ allow( clippy::non_canonical_clone_impl ) ]
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::cast_abs_to_unsigned ) ]
-#![ allow( clippy::useless_conversion ) ]
-#![ allow( clippy::needless_raw_string_hashes ) ]
-#![ allow( clippy::format_push_string ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::type_complexity ) ]
-#![ allow( clippy::if_not_else ) ]
-
-//! # 🎲 Tiles Tools
 //!
 //! **High-Performance Tile-Based Game Development Toolkit**
 //!
@@ -189,6 +110,15 @@
 //! - **Memory Efficiency**: Cache-friendly data structures and algorithms
 
 #![ cfg_attr( not( feature = "enabled" ), allow( unused ) ) ]
+
+// Crate-wide policy allows. Each entry is a deliberate API/domain decision, not noise suppression.
+#![ allow( clippy::missing_inline_in_public_items ) ] // 450+ public items; inlining is deferred to profile-guided passes.
+#![ allow( clippy::exhaustive_structs ) ] // Literal construction of coordinate/config structs is the public API contract.
+#![ allow( clippy::exhaustive_enums ) ] // Matching all variants exhaustively is intended for grid/game enums.
+#![ allow( clippy::cast_precision_loss ) ] // Grid indices are game-scale; i32→f32 pixel math never nears 2^24.
+#![ allow( clippy::cast_possible_truncation ) ] // Pixel→grid floor/round results are game-scale, far below i32 limits.
+#![ allow( clippy::cast_possible_wrap ) ] // Grid dimensions are game-scale; usize→i32 never nears i32::MAX.
+#![ allow( clippy::cast_sign_loss ) ] // Casts follow explicit non-negativity checks or clamps in grid math.
 
 pub mod coordinates;
 

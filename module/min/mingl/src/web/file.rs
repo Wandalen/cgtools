@@ -35,7 +35,7 @@ mod private
       match error
       {
         Error::Js( value ) => value,
-        other => JsValue::from_str( &other.to_string() ),
+        other @ Error::DataUrl( _ ) => JsValue::from_str( &other.to_string() ),
       }
     }
   }

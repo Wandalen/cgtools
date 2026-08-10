@@ -74,11 +74,13 @@ pub enum EventResult
 
 /// Priority level for event listeners.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Default)]
 pub enum EventPriority
 {
   /// Lowest priority - processed last
   Low = 0,
   /// Normal priority - default processing order
+  #[default]
   Normal = 1,
   /// High priority - processed before normal
   High = 2,
@@ -86,12 +88,6 @@ pub enum EventPriority
   Critical = 3,
 }
 
-impl Default for EventPriority
-{
-  fn default() -> Self {
-    EventPriority::Normal
-  }
-}
 
 /// Unique identifier for event listeners.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -127,7 +123,7 @@ impl<T> std::fmt::Debug for PrioritizedListener<T> {
     f.debug_struct("PrioritizedListener")
       .field("id", &self.id)
       .field("priority", &self.priority)
-      .finish()
+      .finish_non_exhaustive()
   }
 }
 
@@ -181,7 +177,7 @@ impl<T> EventChannel<T> {
       
       for listener in &self.listeners {
         match (listener.listener)(&event) {
-          EventResult::Continue => continue,
+          EventResult::Continue => {}
           EventResult::Consume => break,
           EventResult::Unsubscribe => {
             listeners_to_remove.push(listener.id);
@@ -194,10 +190,6 @@ impl<T> EventChannel<T> {
         self.remove_listener(id);
       }
     }
-  }
-
-  fn has_listeners(&self) -> bool {
-    !self.listeners.is_empty()
   }
 
   fn listener_count(&self) -> usize {
@@ -218,20 +210,14 @@ impl<T> Default for EventChannel<T> {
 /// Type-erased event channel for storage in the event bus.
 trait AnyEventChannel: Send + Sync {
   fn process_events(&mut self);
-  fn has_listeners(&self) -> bool;
   fn listener_count(&self) -> usize;
   fn pending_count(&self) -> usize;
-  fn as_any(&self) -> &dyn Any;
   fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 impl<T: Event> AnyEventChannel for EventChannel<T> {
   fn process_events(&mut self) {
-    EventChannel::process_events(self)
-  }
-
-  fn has_listeners(&self) -> bool {
-    EventChannel::has_listeners(self)
+    EventChannel::process_events(self);
   }
 
   fn listener_count(&self) -> usize {
@@ -240,10 +226,6 @@ impl<T: Event> AnyEventChannel for EventChannel<T> {
 
   fn pending_count(&self) -> usize {
     EventChannel::pending_count(self)
-  }
-
-  fn as_any(&self) -> &dyn Any {
-    self
   }
 
   fn as_any_mut(&mut self) -> &mut dyn Any {
@@ -260,6 +242,7 @@ pub struct EventBus {
 
 impl EventBus {
   /// Creates a new event bus.
+  #[must_use]
   pub fn new() -> Self {
     Self::default()
   }
@@ -341,6 +324,7 @@ impl EventBus {
   }
 
   /// Gets statistics about event bus usage.
+  #[must_use]
   pub fn statistics(&self) -> &EventStatistics {
     &self.statistics
   }
@@ -351,22 +335,23 @@ impl EventBus {
   }
 
   /// Gets the number of subscribers for a specific event type.
+  #[must_use]
   pub fn subscriber_count<T: Event>(&self) -> usize {
     let type_id = TypeId::of::<T>();
     self.channels.get(&type_id)
-      .map(|channel| channel.listener_count())
-      .unwrap_or(0)
+      .map_or(0, |channel| channel.listener_count())
   }
 
   /// Gets the number of pending events for a specific type.
+  #[must_use]
   pub fn pending_count<T: Event>(&self) -> usize {
     let type_id = TypeId::of::<T>();
     self.channels.get(&type_id)
-      .map(|channel| channel.pending_count())
-      .unwrap_or(0)
+      .map_or(0, |channel| channel.pending_count())
   }
 
   /// Gets the total number of pending events across all types.
+  #[must_use]
   pub fn total_pending_count(&self) -> usize {
     self.channels.values()
       .map(|channel| channel.pending_count())
@@ -374,6 +359,7 @@ impl EventBus {
   }
 
   /// Checks if there are any pending events.
+  #[must_use]
   pub fn has_pending_events(&self) -> bool {
     self.channels.values().any(|channel| channel.pending_count() > 0)
   }
@@ -385,6 +371,7 @@ impl EventBus {
   }
 
   /// Gets the number of different event types registered.
+  #[must_use]
   pub fn channel_count(&self) -> usize {
     self.channels.len()
   }
@@ -416,6 +403,7 @@ pub struct EventStatistics {
 
 impl EventStatistics {
   /// Gets the average events processed per cycle.
+  #[must_use]
   pub fn average_events_per_cycle(&self) -> f64 {
     if self.process_cycles > 0 {
       self.events_processed as f64 / self.process_cycles as f64
@@ -425,6 +413,7 @@ impl EventStatistics {
   }
 
   /// Gets the processing efficiency (processed / published).
+  #[must_use]
   pub fn processing_efficiency(&self) -> f64 {
     if self.events_published > 0 {
       self.events_processed as f64 / self.events_published as f64
@@ -438,7 +427,7 @@ impl EventStatistics {
 
 /// Common game events for typical tile-based game scenarios.
 pub mod common_events {
-  use super::*;
+  
 
   /// Event fired when an entity moves from one position to another.
   #[derive(Debug, Clone)]
@@ -465,7 +454,10 @@ pub mod common_events {
     /// Flying movement
     Fly,
     /// Custom movement with specific duration
-    Custom { duration_ms: u32 },
+    Custom {
+      /// How long the effect lasts, in milliseconds.
+      duration_ms: u32,
+    },
   }
 
   /// Event fired when an entity's health changes.
@@ -485,9 +477,15 @@ pub mod common_events {
   #[derive(Debug, Clone, PartialEq)]
   pub enum HealthChangeCause {
     /// Damage from combat
-    Damage { attacker_id: Option<u32> },
+    Damage {
+      /// Entity that dealt the damage, if any.
+      attacker_id: Option<u32>,
+    },
     /// Healing from items or spells
-    Healing { source: HealingSource },
+    Healing {
+      /// What produced the healing.
+      source: HealingSource,
+    },
     /// Natural regeneration over time
     Regeneration,
     /// Direct modification (cheats, admin commands)
@@ -498,9 +496,17 @@ pub mod common_events {
   #[derive(Debug, Clone, PartialEq)]
   pub enum HealingSource {
     /// Healing potion or item
-    Item { item_id: u32 },
+    Item {
+      /// Identifier of the healing item.
+      item_id: u32,
+    },
     /// Healing spell or ability
-    Spell { spell_id: u32, caster_id: Option<u32> },
+    Spell {
+      /// Identifier of the healing spell.
+      spell_id: u32,
+      /// Entity that cast it, if any.
+      caster_id: Option<u32>,
+    },
     /// Environmental healing (shrine, fountain)
     Environmental,
   }
@@ -526,7 +532,10 @@ pub mod common_events {
     /// Entity entered another's trigger zone
     Trigger,
     /// Projectile hit target
-    Projectile { damage: i32 },
+    Projectile {
+      /// Damage the projectile carries.
+      damage: i32,
+    },
   }
 
   /// Event fired when an item is collected.
@@ -576,7 +585,12 @@ pub mod common_events {
     /// Gold or currency
     Gold(u32),
     /// Specific item
-    Item { item_id: u32, quantity: u32 },
+    Item {
+      /// Identifier of the collected item.
+      item_id: u32,
+      /// How many were collected.
+      quantity: u32,
+    },
     /// Multiple rewards
     Multiple(Vec<ObjectiveReward>),
     /// No reward
@@ -618,7 +632,7 @@ pub mod common_events {
 pub fn debug_listener<T: Event>(name: &str) -> impl Fn(&T) -> EventResult {
   let name = name.to_string();
   move |event| {
-    println!("[{}] Event: {:?}", name, event);
+    println!("[{name}] Event: {event:?}");
     EventResult::Continue
   }
 }

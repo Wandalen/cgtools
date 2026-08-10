@@ -35,33 +35,8 @@
 //! | IC9.1   | Serde    | serialize | coord | json     | ✅ |
 //! | IC9.2   | Serde    | deserial  | json  | coord    | ✅ |
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::single_char_pattern)]
-#![allow(clippy::clone_on_copy)]
-#![allow(clippy::default_trait_access)]
-#![allow(clippy::min_ident_chars)]
+
+#![allow(clippy::cast_precision_loss)] // Expected-value math on single-digit coordinates; well within f32's exact-integer range.
 
 use tiles_tools::coordinates::isometric::{Coordinate, Diamond, IsometricCoord};
 use tiles_tools::coordinates::{Distance, Neighbors, pixel::Pixel};
@@ -240,7 +215,7 @@ fn test_neighbors_positions()
   assert_eq!(neighbors.len(), expected.len());
   for expected_neighbor in expected {
     assert!(neighbors.contains(&expected_neighbor),
-            "Missing neighbor: {:?}", expected_neighbor);
+            "Missing neighbor: {expected_neighbor:?}");
   }
 }
 
@@ -354,7 +329,7 @@ fn test_screen_coordinate_roundtrip_various_sizes()
       let screen_pos = coord.to_screen(*tile_size);
       let converted_back = Coordinate::<Diamond>::from_screen(screen_pos, *tile_size);
       assert_eq!(coord, converted_back,
-                 "Roundtrip failed for coord {:?} with tile size {}", coord, tile_size);
+                 "Roundtrip failed for coord {coord:?} with tile size {tile_size}");
     }
   }
 }
@@ -450,8 +425,8 @@ fn test_into_array()
 fn test_debug_trait()
 {
   let coord = Coordinate::<Diamond>::new(5, -1);
-  let debug_str = format!("{:?}", coord);
-  assert!(debug_str.contains("5"));
+  let debug_str = format!("{coord:?}");
+  assert!(debug_str.contains('5'));
   assert!(debug_str.contains("-1"));
 }
 
@@ -459,7 +434,7 @@ fn test_debug_trait()
 fn test_clone_trait()
 {
   let coord = Coordinate::<Diamond>::new(4, 2);
-  let cloned = coord.clone();
+  let cloned = coord;
   assert_eq!(coord, cloned);
 }
 
@@ -500,7 +475,7 @@ fn test_hash_trait()
 #[ test ]
 fn test_default_trait()
 {
-  let coord: Coordinate<Diamond> = Default::default();
+  let coord: Coordinate<Diamond> = Coordinate::default();
   assert_eq!(coord.x, 0);
   assert_eq!(coord.y, 0);
 }
@@ -516,7 +491,7 @@ fn test_serialize()
   let serialized = serde_json::to_string(&coord).expect("Serialization should succeed");
   
   // Should contain the x and y values but not the phantom marker
-  assert!(serialized.contains("5"));
+  assert!(serialized.contains('5'));
   assert!(serialized.contains("-2"));
   assert!(!serialized.contains("_marker"));
 }
@@ -551,7 +526,7 @@ fn test_round_trip_serialization()
 #[ test ]
 fn test_large_coordinates()
 {
-  let coord = Coordinate::<Diamond>::new(1000000, -1000000);
+  let coord = Coordinate::<Diamond>::new(1_000_000, -1_000_000);
   let neighbors = coord.neighbors();
   assert_eq!(neighbors.len(), 4);
   assert!(coord.is_valid());
@@ -611,8 +586,7 @@ fn test_neighbors_reciprocal()
   for neighbor in neighbors {
     let neighbor_neighbors = neighbor.neighbors();
     assert!(neighbor_neighbors.contains(&coord),
-            "Reciprocal neighbor relationship should hold for {:?} and {:?}",
-            coord, neighbor);
+            "Reciprocal neighbor relationship should hold for {coord:?} and {neighbor:?}");
   }
 }
 
@@ -620,7 +594,7 @@ fn test_neighbors_reciprocal()
 fn test_isometric_visual_properties()
 {
   // Test that the isometric transformation creates the expected diamond pattern
-  let coords = vec![
+  let coords = [
     Coordinate::<Diamond>::new(0, 0),  // Center
     Coordinate::<Diamond>::new(1, 0),  // Right in world -> NE in screen
     Coordinate::<Diamond>::new(0, 1),  // Up in world -> NW in screen

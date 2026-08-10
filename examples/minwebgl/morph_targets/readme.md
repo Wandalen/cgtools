@@ -4,7 +4,7 @@ This example demonstrates how to use a renderer crate for playing animations, up
 
 Morph targets (also called blend shapes) are a technique used in 3D graphics and animation to smoothly transform a mesh from one shape into another.
 
-![image]( ./showcase.png )
+![image]( ./showcase.webp )
 
 **[How to run](../../how_to_run.md)**
 

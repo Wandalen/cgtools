@@ -35,7 +35,7 @@ fn test_try_from_slice_ok()
 {
   use the_module::Vector;
 
-  let data = vec![ 7, 8, 9 ];
+  let data = [ 7, 8, 9 ];
   let got = Vector::< i32, 3 >::try_from( &data[ .. ] );
   assert_eq!( got.unwrap().to_array(), [ 7, 8, 9 ] );
 }
@@ -47,12 +47,12 @@ fn test_try_from_slice_length_mismatch_typed_error()
 {
   use the_module::{ Vector, VectorLengthMismatch };
 
-  let data = vec![ 7, 8, 9 ];
+  let data = [ 7, 8, 9 ];
   let got = Vector::< i32, 2 >::try_from( &data[ .. ] );
   let err = got.unwrap_err();
   assert_eq!( err, VectorLengthMismatch { expected : 2, actual : 3 } );
   let rendered = format!( "{}", err );
-  assert!( rendered.contains( "3" ) && rendered.contains( "2" ), "Display must name both lengths, got: {rendered}" );
+  assert!( rendered.contains( '3' ) && rendered.contains( '2' ), "Display must name both lengths, got: {rendered}" );
 
   // The error participates in std error handling ( boxable as dyn Error ).
   let _boxed : Box< dyn std::error::Error > = Box::new( err );

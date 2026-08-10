@@ -60,11 +60,13 @@ pub struct SpatialBounds
 impl SpatialBounds
 {
     /// Creates a new spatial boundary.
+    #[must_use]
     pub fn new(left: i32, top: i32, right: i32, bottom: i32) -> Self {
         Self { left, top, right, bottom }
     }
 
     /// Creates a boundary from center point and dimensions.
+    #[must_use]
     pub fn from_center_size(center_x: i32, center_y: i32, width: i32, height: i32) -> Self {
         let half_width = width / 2;
         let half_height = height / 2;
@@ -77,26 +79,31 @@ impl SpatialBounds
     }
 
     /// Returns the width of this boundary.
+    #[must_use]
     pub fn width(&self) -> i32 {
         self.right - self.left
     }
 
     /// Returns the height of this boundary.
+    #[must_use]
     pub fn height(&self) -> i32 {
         self.bottom - self.top
     }
 
     /// Returns the area of this boundary.
+    #[must_use]
     pub fn area(&self) -> i32 {
         self.width() * self.height()
     }
 
     /// Checks if this boundary contains a point.
+    #[must_use]
     pub fn contains_point(&self, x: i32, y: i32) -> bool {
         x >= self.left && x <= self.right && y >= self.top && y <= self.bottom
     }
 
     /// Checks if this boundary intersects with another boundary.
+    #[must_use]
     pub fn intersects(&self, other: &SpatialBounds) -> bool {
         !(self.right < other.left || 
           self.left > other.right || 
@@ -105,6 +112,7 @@ impl SpatialBounds
     }
 
     /// Checks if this boundary completely contains another boundary.
+    #[must_use]
     pub fn contains(&self, other: &SpatialBounds) -> bool {
         self.left <= other.left && 
         self.right >= other.right && 
@@ -113,6 +121,7 @@ impl SpatialBounds
     }
 
     /// Returns the center point of this boundary.
+    #[must_use]
     pub fn center(&self) -> (i32, i32) {
         ((self.left + self.right) / 2, (self.top + self.bottom) / 2)
     }
@@ -214,6 +223,7 @@ where
     C: SpatialCoordinate + Clone,
 {
     /// Creates a new quadtree with the specified bounds and capacity.
+    #[must_use]
     pub fn new(bounds: SpatialBounds, max_entities: usize) -> Self {
         Self {
             root: QuadtreeNode::new_leaf(),
@@ -238,6 +248,7 @@ where
     }
 
     /// Queries all entities that intersect with the specified boundary.
+    #[must_use]
     pub fn query_region(&self, query_bounds: &SpatialBounds) -> Vec<SpatialEntity<C>> {
         let mut results = Vec::new();
         Self::query_recursive(&self.root, query_bounds, &self.bounds, &mut results);
@@ -245,6 +256,7 @@ where
     }
 
     /// Queries all entities within a circular area.
+    #[must_use]
     pub fn query_circle(&self, center_x: i32, center_y: i32, radius: i32) -> Vec<SpatialEntity<C>>
     where
         C: Distance,
@@ -264,6 +276,7 @@ where
     }
 
     /// Gets all entities stored in the quadtree.
+    #[must_use]
     pub fn all_entities(&self) -> Vec<SpatialEntity<C>> {
         let mut entities = Vec::new();
         Self::collect_all_entities(&self.root, &mut entities);
@@ -277,6 +290,7 @@ where
     }
 
     /// Returns statistics about the quadtree structure.
+    #[must_use]
     pub fn stats(&self) -> QuadtreeStats {
         let mut stats = QuadtreeStats::default();
         Self::calculate_stats(&self.root, 0, &mut stats);
@@ -333,7 +347,7 @@ where
                             &SpatialBounds::new(bounds.left, center_y, center_x, bounds.bottom), 
                             depth + 1, max_entities, current_max_depth);
                     }
-                };
+                }
             }
         }
     }
@@ -494,6 +508,7 @@ pub struct QuadtreeStats {
 
 impl QuadtreeStats {
     /// Calculates the average entities per leaf node.
+    #[must_use]
     pub fn average_entities_per_leaf(&self) -> f32 {
         if self.leaf_nodes > 0 {
             self.total_entities as f32 / self.leaf_nodes as f32
@@ -503,6 +518,7 @@ impl QuadtreeStats {
     }
 
     /// Calculates the fill ratio (non-empty nodes / total nodes).
+    #[must_use]
     pub fn fill_ratio(&self) -> f32 {
         if self.total_nodes > 0 {
             (self.total_nodes - self.empty_nodes) as f32 / self.total_nodes as f32

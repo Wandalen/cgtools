@@ -72,6 +72,7 @@ pub struct VisibilityState
 impl VisibilityState
 {
   /// Creates a new visibility state
+  #[ must_use ]
   pub fn new( visible : bool, distance : u32, light_level : f32 ) -> Self
   {
     Self
@@ -84,6 +85,7 @@ impl VisibilityState
   }
 
   /// Creates a visibility state for a blocking position
+  #[ must_use ]
   pub fn blocking( distance : u32, light_level : f32 ) -> Self
   {
     Self
@@ -96,6 +98,7 @@ impl VisibilityState
   }
 
   /// Creates an invisible state
+  #[ must_use ]
   pub fn invisible() -> Self
   {
     Self
@@ -114,10 +117,10 @@ pub struct VisibilityMap< C >
   /// Visibility states by coordinate
   visibility : std::collections::HashMap< C, VisibilityState >,
   /// Center point of this visibility calculation
-  #[ allow( dead_code ) ]
+  #[ allow( dead_code ) ] // Stored at build time for future viewer-relative queries; not read yet.
   viewer_position : C,
   /// Maximum view distance
-  #[ allow( dead_code ) ]
+  #[ allow( dead_code ) ] // Stored at build time for future viewer-relative queries; not read yet.
   view_range : u32,
 }
 
@@ -152,8 +155,7 @@ where
   pub fn is_visible( &self, coord : &C ) -> bool
   {
     self.visibility.get( coord )
-      .map( | state | state.visible )
-      .unwrap_or( false )
+      .is_some_and( | state | state.visible )
   }
 
   /// Gets the distance to a coordinate.
@@ -166,8 +168,7 @@ where
   pub fn light_level_at( &self, coord : &C ) -> f32
   {
     self.visibility.get( coord )
-      .map( | state | state.light_level )
-      .unwrap_or( 0.0 )
+      .map_or( 0.0, | state | state.light_level )
   }
 
   /// Returns all visible coordinates.
@@ -224,6 +225,7 @@ pub struct FieldOfView
 impl FieldOfView
 {
   /// Creates a new FOV calculator with shadowcasting algorithm.
+  #[ must_use ]
   pub fn new() -> Self
   {
     Self
@@ -234,6 +236,7 @@ impl FieldOfView
   }
 
   /// Creates a FOV calculator with a specific algorithm.
+  #[ must_use ]
   pub fn with_algorithm( algorithm : FOVAlgorithm ) -> Self
   {
     Self
@@ -244,6 +247,7 @@ impl FieldOfView
   }
 
   /// Sets whether to include the viewer position in visibility results.
+  #[ must_use ]
   pub fn include_viewer( mut self, include : bool ) -> Self
   {
     self.include_viewer = include;
@@ -307,7 +311,7 @@ impl FieldOfView
     C : Distance + Neighbors + Clone + std::hash::Hash + Eq,
     F : Fn( &C ) -> bool,
   {
-    let distance = from.distance( to ) as u32;
+    let distance = from.distance( to );
     let visibility = self.calculate_fov( from, distance + 1, blocks_sight );
     visibility.is_visible( to )
   }
@@ -340,6 +344,7 @@ impl FieldOfView
   }
 
   /// Casts shadows in a specific octant direction.
+  #[ allow( clippy::unused_self ) ] // Simplified implementation; the full algorithm will read `self` configuration.
   fn cast_octant_shadows< C, F >
   (
     &self,
@@ -374,7 +379,7 @@ impl FieldOfView
           if ( i + total_directions - octant ) % total_directions < 3 ||
              ( i + total_directions - octant ) % total_directions > total_directions - 3
           {
-            let actual_distance = viewer.distance( neighbor ) as u32;
+            let actual_distance = viewer.distance( neighbor );
             if actual_distance <= max_range
             {
               let light_level = ( 1.0f32 - ( actual_distance as f32 / max_range as f32 ) ).max( 0.0f32 );
@@ -491,7 +496,7 @@ impl FieldOfView
       if let Some(next) = best_next
       {
         current = next;
-        distance = viewer.distance(&current) as u32;
+        distance = viewer.distance(&current);
 
         if distance > max_range
         {
@@ -525,6 +530,7 @@ impl FieldOfView
   }
 
   /// Calculates how well a move from current to next aligns with the target direction.
+  #[allow(clippy::unused_self)] // Simplified implementation; the full algorithm will read `self` configuration.
   fn calculate_direction_alignment<C>(
     &self,
     viewer: &C,
@@ -554,6 +560,7 @@ impl FieldOfView
   }
 
   /// Finds a diagonal target position for ray casting.
+  #[allow(clippy::unused_self)] // Simplified implementation; the full algorithm will read `self` configuration.
   fn find_diagonal_target<C>(
     &self,
     viewer: &C,
@@ -566,13 +573,13 @@ impl FieldOfView
   {
     // Try to find a position that represents a diagonal direction
     // This is a simplified approach - we look for common neighbors
-    let neighbors1 = neighbor1.neighbors();
-    let neighbors2 = neighbor2.neighbors();
+    let first_neighbors = neighbor1.neighbors();
+    let second_neighbors = neighbor2.neighbors();
 
     // Find positions that are neighbors to both directions
-    for n1 in &neighbors1
+    for n1 in &first_neighbors
     {
-      for n2 in &neighbors2
+      for n2 in &second_neighbors
       {
         if n1 == n2 && viewer.distance(n1) <= max_range
         {
@@ -585,6 +592,7 @@ impl FieldOfView
   }
 
   /// Flood fill FOV algorithm implementation.
+  #[allow(clippy::unused_self)] // Simplified implementation; the full algorithm will read `self` configuration.
   fn calculate_flood_fill_fov<C, F>(
     &self,
     viewer: &C,
@@ -668,7 +676,7 @@ impl FieldOfView
 
     // Check line of sight to each position
     for target in all_positions {
-      let distance = viewer.distance(&target) as u32;
+      let distance = viewer.distance(&target);
       let has_line_of_sight = self.check_bresenham_line(viewer, &target, blocks_sight);
 
       if has_line_of_sight {
@@ -716,6 +724,7 @@ impl FieldOfView
   ///
   /// This provides a Bresenham-like line tracing that works with any coordinate
   /// system by using neighbor relationships rather than integer arithmetic.
+  #[allow(clippy::unused_self)] // Simplified implementation; the full algorithm will read `self` configuration.
   fn trace_bresenham_line<C>(&self, from: &C, to: &C) -> Vec<C>
   where
     C: Distance + Neighbors + Clone + std::hash::Hash + Eq,
@@ -811,6 +820,7 @@ impl< C > LightSource< C >
   }
 
   /// Sets the light color.
+  #[ must_use ]
   pub fn with_color( mut self, r : f32, g : f32, b : f32 ) -> Self
   {
     self.color = ( r, g, b );
@@ -818,6 +828,7 @@ impl< C > LightSource< C >
   }
 
   /// Sets whether light penetrates walls.
+  #[ must_use ]
   pub fn penetrating( mut self, penetrates : bool ) -> Self
   {
     self.penetrates_walls = penetrates;
@@ -839,6 +850,7 @@ where
   C : Distance + Neighbors + Clone + std::hash::Hash + Eq,
 {
   /// Creates a new lighting calculator.
+  #[ must_use ]
   pub fn new() -> Self
   {
     Self

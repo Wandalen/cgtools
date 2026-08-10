@@ -12,6 +12,8 @@
 //! | GG4.1   | `hexagon_triangles_with_transform` | Matches transforming each position of the untransformed fill |
 //! | GG5.1   | `from_iter` | One shape copy per coordinate, offset by ( x, -y ) of the cell's pixel position |
 
+#![ allow( clippy::cast_precision_loss ) ] // Vertex-angle math on tiny loop indices; well within f32's exact-integer range.
+
 use tiles_tools::geometry::{ from_iter, hexagon_lines, hexagon_triangles, hexagon_triangles_with_transform, hexagon_vertices };
 use tiles_tools::coordinates::pixel::Pixel;
 use ndarray_cg::{ F32x3x3, Vector };
@@ -118,7 +120,7 @@ fn hexagon_triangles_with_transform_matches_manual_transformation()
 #[ test ]
 fn from_iter_replicates_shape_per_cell()
 {
-  let cells = vec![ Pixel::new( 3.0, 2.0 ), Pixel::new( -1.0, 0.5 ) ];
+  let cells = [Pixel::new( 3.0, 2.0 ), Pixel::new( -1.0, 0.5 )];
   let shape = hexagon_triangles();
 
   let positions = from_iter( cells.iter().copied(), hexagon_triangles, F32x3x3::identity() );

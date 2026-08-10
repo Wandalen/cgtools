@@ -2,20 +2,14 @@
 //! `IntegrationField` defaults, `FlowDirection` variants, and
 //! `MultiGoalFlowField` creation.
 //!
-//! Relocated from `src/flowfield.rs` by task 072. This is the crate's only LIVE
-//! flowfield coverage in `tests/`: `tests/integration/flowfield_tests.rs` exists
-//! but is disabled in `tests/integration/mod.rs` ("temporarily disabled until
-//! flowfield generic constraints are resolved") — re-enabling it is tracked by
+//! Relocated from `src/flowfield.rs` by task 072. Cross-module flowfield
+//! scenarios (calculation calls, batch queries, multi-goal fields, ECS
+//! interplay) live in `tests/integration/flowfield_tests.rs`, revived by
 //! task 078. Two inline tests remain in `src/flowfield.rs` as a documented
 //! exception (they pin private fields with no public accessor).
 
 #![ cfg( feature = "enabled" ) ]
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::std_instead_of_core)]
 
 use tiles_tools::flowfield::{ FlowDirection, IntegrationField, MultiGoalFlowField };
 
@@ -39,6 +33,10 @@ fn test_flow_direction_enum()
     }
     FlowDirection::None => panic!( "Expected Move direction" ),
   }
+
+  // Variant inequality pin (absorbed from the retired integration-suite
+  // duplicate of this test by task 078).
+  assert_ne!( FlowDirection::None, FlowDirection::Move( 1, 0 ) );
 }
 
 #[ test ]

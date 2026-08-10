@@ -20,7 +20,7 @@ fn default()
   use the_module::{ Mat, IndexingRef, Zero };
   use the_module::mat::DescriptorOrderRowMajor;
 
-  let mat : Mat::< 2, 2, f32, DescriptorOrderRowMajor > = Default::default();
+  let mat : Mat::< 2, 2, f32, DescriptorOrderRowMajor > = Mat::default();
   assert!( IndexingRef::iter_unstable( &mat ).all( | e | e.is_zero() ), "Matrix should not be zero after setting non-zero values" );
   // assert!( Default::is_zero( &mat ), "Matrix should be zero after calling set_zero()" );
   let mat = Mat::< 2, 2, f32, DescriptorOrderRowMajor >::default();
@@ -32,7 +32,7 @@ fn default()
   assert!( !IndexingRef::iter_unstable( &mat ).all( | e | e.is_zero() ), "Matrix should not be zero after setting non-zero values" );
   // assert!( !mat.is_zero(), "Matrix should not be zero after setting non-zero values" );
   // mat.set_zero();
-  mat = Default::default();
+  mat = Mat::default();
   assert!( IndexingRef::iter_unstable( &mat ).all( | e | e.is_zero() ), "Matrix should not be zero after setting non-zero values" );
   // assert!( mat.is_zero(), "Matrix should be zero after calling set_zero()" );
 

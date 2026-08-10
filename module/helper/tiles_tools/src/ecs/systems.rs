@@ -18,7 +18,7 @@
 //! allowing them to function correctly regardless of the underlying grid type
 //! (hexagonal, square, triangular, or isometric).
 
-use crate::ecs::components::*;
+use crate::ecs::components::{Position, Movable, Health, AI, Animation, Team};
 use crate::coordinates::{Distance, Neighbors};
 use crate::pathfind::astar;
 use std::collections::HashMap;
@@ -62,7 +62,7 @@ impl MovementSystem
     {
       if let Ok( ( pos, movable ) ) = world.query_one_mut::< ( &mut Position< C >, &Movable ) >( *entity )
       {
-        let movement_result = Self::calculate_movement( &pos.coord, target, movable, &mut is_accessible, &mut cost );
+        let movement_result = Self::calculate_movement( &pos.coord, target, *movable, &mut is_accessible, &mut cost );
 
         match movement_result
         {
@@ -85,7 +85,7 @@ impl MovementSystem
   (
     current : &C,
     target : &C,
-    movable : &Movable,
+    movable : Movable,
     is_accessible : Fa,
     cost : Fc,
   ) -> MovementResult< C >
@@ -179,7 +179,7 @@ impl CombatSystem {
     // position-based combat with specific coordinate systems
     // For now, we just check for defeated entities
     
-    for (entity, health) in world.query::<&Health>().iter() {
+    for (entity, health) in &mut world.query::<&Health>() {
       if !health.is_alive() {
         combat_events.push(CombatEvent::Defeated { entity });
       }
@@ -296,7 +296,7 @@ impl CleanupSystem {
     let mut entities_to_remove = Vec::new();
 
     // Find entities with 0 health
-    for (entity, health) in world.query::<&Health>().iter() {
+    for (entity, health) in &mut world.query::<&Health>() {
       if !health.is_alive() {
         entities_to_remove.push(entity);
       }
@@ -328,7 +328,7 @@ where
 {
   let mut entities = Vec::new();
 
-  for (entity, pos) in world.query::<&Position<C>>().iter() {
+  for (entity, pos) in &mut world.query::<&Position<C>>() {
     if center.distance_to(pos) <= range {
       entities.push((entity, pos.clone()));
     }
@@ -348,7 +348,7 @@ where
   let mut nearest = None;
   let mut nearest_distance = u32::MAX;
 
-  for (entity, pos) in world.query::<&Position<C>>().iter() {
+  for (entity, pos) in &mut world.query::<&Position<C>>() {
     let distance = center.distance_to(pos);
     if distance < nearest_distance {
       nearest_distance = distance;
@@ -368,6 +368,7 @@ pub struct CollisionSystem;
 
 impl CollisionSystem {
   /// Detects collisions between all entities with collision components.
+  #[allow(clippy::similar_names)] // Pairwise collision loop — numbered pair bindings are the clearest naming.
   pub fn detect_collisions<C>(
     world: &hecs::World,
   ) -> Vec<CollisionEvent<C>>
@@ -470,6 +471,7 @@ pub struct Collision {
 
 impl Collision {
   /// Creates a new collision component.
+  #[ must_use ]
   pub fn new(radius: u32) -> Self {
     Self {
       radius,
@@ -479,12 +481,14 @@ impl Collision {
   }
 
   /// Sets the collision as non-solid (can overlap).
+  #[ must_use ]
   pub fn non_solid(mut self) -> Self {
     self.solid = false;
     self
   }
 
   /// Sets the collision layer.
+  #[ must_use ]
   pub fn with_layer(mut self, layer: u32) -> Self {
     self.layer = layer;
     self
@@ -527,7 +531,7 @@ impl SpatialQuerySystem {
     
     // Find entities at each position along the line
     for line_pos in line_positions {
-      for (entity, pos) in world.query::<&Position<C>>().iter() {
+      for (entity, pos) in &mut world.query::<&Position<C>>() {
         if pos.coord == line_pos {
           entities.push((entity, pos.clone()));
         }
@@ -550,7 +554,7 @@ impl SpatialQuerySystem {
     let mut entities = Vec::new();
     let max_distance = ((width * width + height * height) as f32).sqrt() as u32;
 
-    for (entity, pos) in world.query::<&Position<C>>().iter() {
+    for (entity, pos) in &mut world.query::<&Position<C>>() {
       let distance = center.distance_to(pos);
       if distance <= max_distance {
         // Additional filtering could be added here for precise rectangular bounds
@@ -573,9 +577,9 @@ impl SpatialQuerySystem {
   {
     let mut entities = Vec::new();
 
-    for (entity, (pos, team)) in world.query::<(&Position<C>, &Team)>().iter() {
+    for (entity, (pos, team)) in &mut world.query::<(&Position<C>, &Team)>() {
       if center.distance_to(pos) <= radius && team_filter(team) {
-        entities.push((entity, pos.clone(), team.clone()));
+        entities.push((entity, pos.clone(), *team));
       }
     }
 

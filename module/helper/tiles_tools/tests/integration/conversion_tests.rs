@@ -1,29 +1,5 @@
 //! # Comprehensive Test Suite for Coordinate System Conversions
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::redundant_closure_for_method_calls)]
 //!
 //! This test suite follows the Test Matrix methodology to ensure complete
 //! coverage of the coordinate conversion system implementation.
@@ -136,7 +112,7 @@ fn test_multiple_exact_conversions()
   for coord in coords {
     let iso: IsoCoord<Diamond> = coord.convert();
     let back: SquareCoord<SquareFour> = iso.convert();
-    assert_eq!(coord, back, "Roundtrip failed for {:?}", coord);
+    assert_eq!(coord, back, "Roundtrip failed for {coord:?}");
   }
 }
 
@@ -329,7 +305,7 @@ fn test_roundtrip_conversion_utility()
 
   for coord in coords {
     assert!(test_roundtrip_conversion::<_, IsoCoord<Diamond>, SquareCoord<SquareFour>>(coord),
-            "Roundtrip test failed for {:?}", coord);
+            "Roundtrip test failed for {coord:?}");
   }
 }
 
@@ -345,7 +321,7 @@ fn test_measure_approximate_conversion_error()
 
   // For some conversions, there might be no error (though this is rare for approximate)
   // We just verify it doesn't panic and returns a reasonable value
-  assert!(error < 100.0, "Error seems unreasonably large: {}", error);
+  assert!(error < 100.0, "Error seems unreasonably large: {error}");
 }
 
 #[ test ]
@@ -360,8 +336,8 @@ fn test_measure_error_various_coordinates()
 
   for coord in test_coords {
     let error = measure_approximate_conversion_error::<_, SquareCoord<SquareFour>>(coord);
-    assert!(error >= 0.0, "Error should be non-negative for {:?}", coord);
-    assert!(error.is_finite(), "Error should be finite for {:?}", coord);
+    assert!(error >= 0.0, "Error should be non-negative for {coord:?}");
+    assert!(error.is_finite(), "Error should be finite for {coord:?}");
   }
 }
 
@@ -395,7 +371,7 @@ fn test_conversion_with_negative_coordinates()
 #[ test ]
 fn test_conversion_with_large_coordinates()
 {
-  let square_large = SquareCoord::<SquareFour>::new(1000000, -1000000);
+  let square_large = SquareCoord::<SquareFour>::new(1_000_000, -1_000_000);
   let iso_large: IsoCoord<Diamond> = square_large.convert();
   let back: SquareCoord<SquareFour> = iso_large.convert();
 
@@ -432,8 +408,8 @@ fn test_batch_conversion_preserves_order()
 
   // Verify order is preserved
   for (i, (original, converted)) in coords.iter().zip(converted.iter()).enumerate() {
-    assert_eq!(original.x, converted.x, "Order not preserved at index {}", i);
-    assert_eq!(original.y, converted.y, "Order not preserved at index {}", i);
+    assert_eq!(original.x, converted.x, "Order not preserved at index {i}");
+    assert_eq!(original.y, converted.y, "Order not preserved at index {i}");
   }
 }
 
@@ -480,7 +456,7 @@ fn test_roundtrip_stress()
         let back: SquareCoord<SquareFour> = iso.convert();
 
         assert_eq!(original, back,
-                   "Roundtrip failed for coordinates ({}, {})", x, y);
+                   "Roundtrip failed for coordinates ({x}, {y})");
       }
     }
   }
@@ -515,7 +491,7 @@ fn test_conversion_with_pathfinding()
 
   // Convert path back to square coordinates
   let square_path: Vec<SquareCoord<SquareFour>> = path.into_iter()
-    .map(|iso| iso.convert())
+    .map(tiles_tools::coordinates::conversion::Convert::convert)
     .collect();
 
   assert_eq!(square_path[0], square_start);

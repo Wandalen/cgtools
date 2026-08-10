@@ -37,11 +37,11 @@ impl< System, Orientation, T > Grid2D< System, Orientation, T >
     F : Fn() -> T,
   {
     let Coordinate { q, r, .. } = min_inclusive;
-    let min_q = q as i64;
-    let min_r = r as i64;
+    let min_q = i64::from(q);
+    let min_r = i64::from(r);
     let Coordinate { q, r, .. } = max_exclusive;
-    let max_q = q as i64;
-    let max_r = r as i64;
+    let max_q = i64::from(q);
+    let max_r = i64::from(r);
 
     let columns : usize = ( max_q - min_q ).try_into().expect( "Invalid size" );
     let rows : usize = ( max_r - min_r ).try_into().expect( "Invalid size" );
@@ -55,6 +55,7 @@ impl< System, Orientation, T > Grid2D< System, Orientation, T >
   }
 
   /// Returns an iterator over the values in the grid.
+  #[ must_use ]
   pub fn iter( &self ) -> Iter< '_, T, ndarray_cg::Dim< [ usize; 2 ] > >
   {
     self.data.iter()
@@ -79,6 +80,30 @@ impl< System, Orientation, T > Grid2D< System, Orientation, T >
   }
 }
 
+impl< 'a, System, Orientation, T > IntoIterator for &'a Grid2D< System, Orientation, T >
+{
+  type Item = &'a T;
+  type IntoIter = Iter< 'a, T, ndarray_cg::Dim< [ usize; 2 ] > >;
+
+  /// Iterates over references to the values in the grid.
+  fn into_iter( self ) -> Self::IntoIter
+  {
+    self.iter()
+  }
+}
+
+impl< 'a, System, Orientation, T > IntoIterator for &'a mut Grid2D< System, Orientation, T >
+{
+  type Item = &'a mut T;
+  type IntoIter = IterMut< 'a, T, ndarray_cg::Dim< [ usize; 2 ] > >;
+
+  /// Iterates over mutable references to the values in the grid.
+  fn into_iter( self ) -> Self::IntoIter
+  {
+    self.iter_mut()
+  }
+}
+
 impl< System, Orientation, T > Grid2D< System, Orientation, T >
 where
   T : Default,
@@ -95,11 +120,11 @@ where
   -> Self
   {
     let Coordinate { q, r, .. } = min_inclusive;
-    let min_q = q as i64;
-    let min_r = r as i64;
+    let min_q = i64::from(q);
+    let min_r = i64::from(r);
     let Coordinate { q, r, .. } = max_exclusive;
-    let max_q = q as i64;
-    let max_r = r as i64;
+    let max_q = i64::from(q);
+    let max_r = i64::from(r);
 
     let columns : usize = ( max_q - min_q ).try_into().expect( "Invalid size" );
     let rows : usize = ( max_r - min_r ).try_into().expect( "Invalid size" );
@@ -124,13 +149,13 @@ impl< System, Orientation, T > Grid2D< System, Orientation, Option< T > >
     C : Into< Coordinate< System, Orientation > >,
   {
     let coord : Coordinate< System, Orientation > = coord.into();
-    let i : usize = ( coord.r as i64 - self.min[ 1 ] )
+    let i : usize = ( i64::from(coord.r) - self.min[ 1 ] )
     .try_into()
     .expect( "Coordinate out of bound" );
-    let j : usize = ( coord.q as i64 - self.min[ 0 ] )
+    let j : usize = ( i64::from(coord.q) - self.min[ 0 ] )
     .try_into()
     .expect( "Coordinate out of bound" );
-    std::mem::replace( &mut self.data[ ( i, j ) ], Some( value ) )
+    self.data[ ( i, j ) ].replace(value)
   }
 
   /// Removes and returns the value at the given coordinate, leaving `None` in its place.
@@ -142,10 +167,10 @@ impl< System, Orientation, T > Grid2D< System, Orientation, Option< T > >
     C : Into< Coordinate< System, Orientation > >,
   {
     let coord : Coordinate< System, Orientation > = coord.into();
-    let i : usize = ( coord.r as i64 - self.min[ 1 ] )
+    let i : usize = ( i64::from(coord.r) - self.min[ 1 ] )
     .try_into()
     .expect( "Coordinate out of bound" );
-    let j : usize = ( coord.q as i64 - self.min[ 0 ] )
+    let j : usize = ( i64::from(coord.q) - self.min[ 0 ] )
     .try_into()
     .expect( "Coordinate out of bound" );
     std::mem::take( &mut self.data[ ( i, j ) ] )
@@ -160,9 +185,9 @@ impl< System, Orientation, T > Grid2D< System, Orientation, Option< T > >
     C : Into< Coordinate< System, Orientation > >,
   {
     let coord : Coordinate< System, Orientation > = coord.into();
-    let i : usize = ( coord.r as i64 - self.min[ 1 ] )
+    let i : usize = ( i64::from(coord.r) - self.min[ 1 ] )
     .try_into().ok()?;
-    let j : usize = ( coord.q as i64 - self.min[ 0 ] )
+    let j : usize = ( i64::from(coord.q) - self.min[ 0 ] )
     .try_into().ok()?;
     self.data.get( ( i, j ) ).and_then( | o | o.as_ref() )
   }
@@ -176,9 +201,9 @@ impl< System, Orientation, T > Grid2D< System, Orientation, Option< T > >
     C : Into< Coordinate< System, Orientation > >,
   {
     let coord : Coordinate< System, Orientation > = coord.into();
-    let i : usize = ( coord.r as i64 - self.min[ 1 ] )
+    let i : usize = ( i64::from(coord.r) - self.min[ 1 ] )
     .try_into().ok()?;
-    let j : usize = ( coord.q as i64 - self.min[ 0 ] )
+    let j : usize = ( i64::from(coord.q) - self.min[ 0 ] )
     .try_into().ok()?;
     self.data.get_mut( ( i, j ) ).and_then( | o | o.as_mut() )
   }
@@ -197,10 +222,10 @@ where
   fn index( &self, index : C ) -> &Self::Output
   {
     let coord : Coordinate< System, Orientation > = index.into();
-    let i : usize = ( coord.r as i64 - self.min[ 1 ] )
+    let i : usize = ( i64::from(coord.r) - self.min[ 1 ] )
     .try_into()
     .expect( "Coordinate out of bound" );
-    let j : usize = ( coord.q as i64 - self.min[ 0 ] )
+    let j : usize = ( i64::from(coord.q) - self.min[ 0 ] )
     .try_into()
     .expect( "Coordinate out of bound" );
     self.data.index( ( i, j ) )
@@ -218,10 +243,10 @@ where
   fn index_mut( &mut self, index : C ) -> &mut Self::Output
   {
     let coord : Coordinate< System, Orientation > = index.into();
-    let i : usize = ( coord.r as i64 - self.min[ 1 ] )
+    let i : usize = ( i64::from(coord.r) - self.min[ 1 ] )
     .try_into()
     .expect( "Coordinate out of bound" );
-    let j : usize = ( coord.q as i64 - self.min[ 0 ] )
+    let j : usize = ( i64::from(coord.q) - self.min[ 0 ] )
     .try_into()
     .expect( "Coordinate out of bound" );
     self.data.index_mut( ( i, j ) )
