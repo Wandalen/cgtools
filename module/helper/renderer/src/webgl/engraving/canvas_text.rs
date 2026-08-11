@@ -119,7 +119,11 @@ mod private
       canvas.set_width( width );
       canvas.set_height( height );
 
-      let ctx = gl::context::from_canvas_2d( &canvas )
+      // `true`: this context is read back via `get_image_data` on every `render_text_mip_chain`
+      // call (once per mip level), not just once — hint that up front so the browser doesn't
+      // have to migrate the canvas off the GPU-backed fast path after the fact (and warn about
+      // it in the console).
+      let ctx = gl::context::from_canvas_2d_with_options( &canvas, true )
       .map_err( | e | EngravingCanvasError::CanvasSetup( format!( "{e:?}" ) ) )?;
 
       Ok( Self { canvas, ctx, width, height } )

@@ -81,8 +81,24 @@ mod private
   /// Create a 2d context from a canvas.
   pub fn from_canvas_2d( canvas : &HtmlCanvasElement ) -> Result< web_sys::CanvasRenderingContext2d, Error >
   {
+    from_canvas_2d_with_options( canvas, false )
+  }
+
+  /// Create a 2d context from a canvas, optionally hinting that `getImageData` will be called
+  /// on it repeatedly (e.g. once per frame/keystroke rather than a single one-off decode).
+  ///
+  /// Chromium logs a console warning ("Multiple readback operations using getImageData are
+  /// faster with the willReadFrequently attribute set to true") once it observes repeated
+  /// reads on a context that wasn't created with this hint, because it then has to migrate the
+  /// canvas from a GPU-backed surface to a software one after the fact. Passing
+  /// `will_read_frequently: true` up front makes that choice at context-creation time instead.
+  pub fn from_canvas_2d_with_options( canvas : &HtmlCanvasElement, will_read_frequently : bool ) -> Result< web_sys::CanvasRenderingContext2d, Error >
+  {
+    let context_options = js_sys::Object::new();
+    js_sys::Reflect::set( &context_options, &"willReadFrequently".into(), &will_read_frequently.into() ).unwrap();
+
     let context = canvas
-    .get_context( "2d" )
+    .get_context_with_context_options( "2d", &context_options )
     .map_err( |_| Error::ContextRetrievingError( "Failed to get 2d context" ) )?
     .ok_or( Error::ContextRetrievingError( "No 2d context" ) )?;
 
@@ -327,6 +343,7 @@ crate::mod_interface!
     from_canvas_with,
     retrieve_or_make,
     from_canvas_2d,
+    from_canvas_2d_with_options,
     retrieve_or_make_with,
     ContextOptions,
     PowerPreference,
