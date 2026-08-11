@@ -58,7 +58,7 @@ fn create_texture
 /// Initializes the WebGL2 rendering context and an HTML canvas.
 fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()
@@ -117,7 +117,7 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
   if let Object3D::Mesh( ref mesh ) = clone.borrow().object
   {
     let mesh = Rc::new( RefCell::new( mesh.borrow().clone() ) );
-    for p in mesh.borrow().primitives.iter()
+    for p in &mesh.borrow().primitives
     {
       gltf.materials.push( p.borrow().material.clone() );
     }
@@ -158,11 +158,11 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 {
   let window = web_sys::window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
-  let mut gltf = renderer::webgl::loaders::gltf::load( &document, "static/gltf/sphere.glb", &gl ).await?;
+  let mut gltf = renderer::webgl::loaders::gltf::load( &document, "static/gltf/sphere.glb", gl ).await?;
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
-  let texture = create_texture( &gl, "textures/earth2.jpg" );
+  let texture = create_texture( gl, "textures/earth2.jpg" );
   apply_function_to_node_materials
   (
     &earth,
@@ -175,7 +175,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "textures/clouds2.png" );
+  let texture = create_texture( gl, "textures/clouds2.png" );
   apply_function_to_node_materials
   (
     &clouds,
@@ -193,7 +193,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   clouds.borrow_mut().update_local_matrix();
 
   let moon = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "textures/moon2.jpg" );
+  let texture = create_texture( gl, "textures/moon2.jpg" );
   apply_function_to_node_materials
   (
     &moon,
@@ -229,7 +229,7 @@ async fn run() -> Result< (), gl::WebglError >
   {
     let controls = canvas_camera.get_controls();
     let mut controls_ref = controls.borrow_mut();
-    controls_ref.center = [ 7.671358, 105.80746, 61.174854 ].into();
+    controls_ref.center = [ 7.671_358, 105.807_46, 61.174_854 ].into();
     controls_ref.eye = [ -43.71087, -343.4742, 744.99524 ].into();
   }
 

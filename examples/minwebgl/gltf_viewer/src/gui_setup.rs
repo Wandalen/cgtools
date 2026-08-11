@@ -18,7 +18,7 @@ pub struct Settings
   exposure : f32
 }
 
-pub fn setup( renderer : Rc< RefCell< Renderer > > )
+pub fn setup( renderer : &Rc< RefCell< Renderer > > )
 {
   let mut settings = Settings::default();
   settings.bloom_radius = renderer.borrow().bloom_radius();

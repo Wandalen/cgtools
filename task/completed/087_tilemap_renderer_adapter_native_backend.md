@@ -4,18 +4,26 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **started_at:** 2026-08-11 16:09:11
-- **expires_at:** 2026-08-11 18:09:11
+- **actor:** null
+- **started_at:** null
+- **expires_at:** null
 - **round:** 1
-- **state:** ⚙️ (Executing)
+- **state:** ✅ (Completed)
 - **closes:** null
 - **repo_identity:** self
 - **unit_type:** module
 - **unit:** module/helper/tilemap_renderer
-- **verified_by:** null
-- **verification_date:** null
+- **verified_by:** verifier@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **verification_date:** 2026-08-11 18:15:26
 - **blocked_by:** null
+- **executing_at:** 2026-08-11 16:09:11
+- **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **in_motion:** false
+- **accepting_at:** 2026-08-11 17:59:22
+- **accepting_by:** verifier@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **priority:** 0
+- **completed_at:** 2026-08-11 18:15:26
+- **completed_by:** verifier@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 
 ## Goal
 
@@ -198,12 +206,105 @@ independent verifier performs the walk after the task reaches 🔎 Accepting.
 - `module/helper/gpu_hal/src/device.rs` — `Device::new_native`, `Surface::read_pixels` surface this
   task consumes unmodified
 
+## Outcomes
+
+<!-- verified implementation deliverables -->
+
+
+## Journal
+
+| Timestamp           | Actor                | Event | Note         |
+|---------------------|----------------------|-------|--------------|
+| 2026-08-11 17:59:22 | verifier@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_ACCEPT | acceptance claimed |
+| 2026-08-11 18:15:26 | verifier@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | ACCEPTANCE_PASS | acceptance passed |
+
 ## History
 
 - **[2026-08-11]** `FILED` — Filed from `docs/adr/003_d2_stack_hal_adoption.md` Decision #1 via
   `doc_tsk`, following user authorization to implement the ADR in full. Goal: second `gpu_hal`
   consumer, native leg, with an in-repo pixel-readback proof; Vulkan-forcing explicitly deferred
   pending a `gpu_hal`-side backend-selection capability that does not exist today.
+- **[2026-08-11]** `EXECUTED` — Implemented `NativeBackend` in `src/adapters/native.rs` (375 lines):
+  constructs via unmodified `gpu_hal::Device::new_native(width, height)`, renders sprites through a
+  shared `GpuState` (device/queue/surface/sampler/index-buffer/bind-group-layout/pipeline) rebuilt
+  wholesale by `build_gpu_state` from both `new()` and `resize()`, uploads `ImageSource::Bitmap`
+  assets via a real `queue.write_texture()` (any `PixelFormat` converted to tight RGBA8 via a local
+  `to_rgba8()` helper), and reads back through unmodified `gpu_hal::Surface::read_pixels`.
+  `capabilities()` honestly reports `sprites: true` only; `submit()`'s match arms mirror that claim
+  exactly (`RenderCommand::Sprite` succeeds, every other family returns `Err(Unsupported)`).
+  Wired `adapter-native = ["enabled", "dep:gpu_hal"]` into `Cargo.toml` (merging into task 086's
+  pre-existing `gpu_hal` dependency line, adding its `native` feature alongside the existing
+  `webgpu` one) and `#[cfg(all(feature = "adapter-native", not(target_arch = "wasm32")))] layer
+  native;` into `adapters/mod.rs`.
+  **Fix during implementation:** `adapters/mod.rs`'s own inner gate was correct, but `lib.rs`'s
+  separate, outer `#[cfg(any(...))]` gate on `layer adapters;` itself had never been given
+  `feature = "adapter-native"` — the whole `adapters` module compiled out at the crate's top level
+  even with `mod.rs`'s gate correct, producing `E0433: cannot find adapters in tilemap_renderer`.
+  Added the missing `feature = "adapter-native",` line to `lib.rs`. This was only surfaced by
+  actually compiling the tests, not by code review of `native.rs`/`mod.rs`/`Cargo.toml` alone.
+  Authored `tests/native_backend_test.rs` (T01–T03, C4, AF1, AF2) against a real native
+  `gpu_hal` device (a software Vulkan ICD such as lavapipe suffices), mirroring
+  `gpu_hal/tests/native_backend_test.rs::triangle_render_readback`'s exact-byte-equality style: a
+  centered sprite quad asserted equal to its configured RGBA at the viewport center, and equal to
+  the clear color at a corner outside it (rules out an all-clear false pass). During this session's
+  live, shared working tree, this test file was independently rewritten in place by concurrent
+  activity to an equivalent 3-test version (same exact-equality proof shape, different helper/test
+  names, an 8×8 solid-red texture instead of a 1×1 tinted one, an explicit leading `Clear` command
+  instead of relying on background fill) — re-verified by full nextest re-run rather than assumed
+  correct, and left in place rather than reverted (functionally equivalent coverage; re-editing a
+  live-contended file adds collision risk with no verification benefit). One residual defect in
+  that version — 3× `clippy::default_trait_access` (`Default::default()` for `filter`/`mipmap`/
+  `wrap` instead of the concrete `SamplerFilter`/`MipmapMode`/`WrapMode` types) — was fixed directly
+  (`task/verified/-0051_longrun.log` showed the failure; fix confirmed clean in
+  `task/verified/-0055_longrun.log`). Verifier note: the current test file's C4/AF2 coverage
+  (`capabilities()` vs. `submit()` cross-reference; rejection of an unsupported command family) is
+  not exercised by a dedicated automated test in the current 3-test version — both were manually
+  verified against `native.rs` source directly during implementation (capabilities() returns
+  `sprites: true` only; submit()'s match has exactly one non-`Unsupported` arm, `RenderCommand::Sprite`).
+  **Diff-contamination note (read before verifying):** all 3 modified files are clean — `git diff`
+  on `Cargo.toml`, `adapters/mod.rs`, and `lib.rs` each show only this task's own additions, no
+  unrelated churn mixed in.
+  **Test Matrix results:**
+  - T01/T02/T03 — exercised by `native_backend_test.rs`'s 3 tests, confirmed passing via I1's full
+    nextest run below (`construct_load_submit_output_returns_matching_dimensions`,
+    `sprite_and_corner_pixels_match_configured_colors`, `resize_then_output_reflects_new_dimensions`)
+  - T04 — `cargo build -p tilemap_renderer --no-default-features --features adapter-native` → exit 0,
+    16s (`task/verified/-0062_longrun.log`)
+  - T05 — see I3 below (identical command)
+  **Invariant results:**
+  - I1 — `cargo nextest run -p tilemap_renderer --all-features` → exit 0, 131 tests run, 131 passed,
+    0 skipped (`task/verified/-0060_longrun.log`)
+  - I2 — `RUSTFLAGS="-D warnings" cargo clippy -p tilemap_renderer --all-targets --all-features -- -D warnings`
+    currently **fails** (exit 101, `task/verified/-0056_longrun.log`) — but independently isolated
+    (re-run with only `adapter-webgl` instead of `--all-features`, `task/verified/-0059_longrun.log`,
+    identical failure with `adapter-native` entirely absent) to a pre-existing `minwebgl` defect
+    unrelated to this task: `clippy::cast_lossless` on `src/texture/d2.rs:363` (`img_width as f64`/
+    `img_height as f64`), reached only because `--all-features` pulls in `adapter-webgl` →
+    `dep:minwebgl`. Git-blamed to commit `9b71cf39` (2026-08-10, predates this task and this
+    session's GPU HAL work entirely). Filed as `BUG-091` (`task/bug/draft/091_...md`) rather than
+    fixed inline — `module/min/minwebgl/src/` is outside this task's own declared scope, and the
+    file has recent same-day concurrent activity (commit `96bb2aef`). The Delivery Requirement's own
+    narrower clippy command (`--features adapter-native`, not `--all-features`) passes clean: exit 0,
+    0 warnings (`task/verified/-0055_longrun.log`) — this task's own changes are lint-clean.
+  - I3 — `cargo check -p tilemap_renderer --target wasm32-unknown-unknown --all-features` → exit 0
+    (`task/verified/-0061_longrun.log`); `native.rs` absence mechanically confirmed via the build's
+    own dep-info file (`target/wasm32-unknown-unknown/debug/deps/tilemap_renderer-f4ded20becff482d.d`
+    lists `mod.rs, none.rs, svg.rs, terminal.rs, webgl.rs, webgpu.rs` — `native.rs` absent — even
+    though `adapter-native` is nominally enabled by `--all-features`, correctly excluded by
+    `mod.rs`'s `not(target_arch = "wasm32")` gate)
+  **Measurements:**
+  - M1 — `wc -l src/adapters/native.rs` → 375 lines (was: file did not exist)
+  - M2 — `git diff --stat -- module/helper/gpu_hal/` → 4 files changed, 28 insertions (not the
+    spec's literal "expected 0"). Confirmed none of this is from this task: this task's own `git
+    status` touches only `tilemap_renderer/{Cargo.toml, src/adapters/mod.rs, src/lib.rs,
+    src/adapters/native.rs, tests/native_backend_test.rs}` — zero files under `module/helper/gpu_hal/`.
+    The `gpu_hal` diff (`device.rs`, `pass.rs`, `resource.rs`, `types.rs`) corresponds to task 089's
+    already-completed-and-verified `write_texture` work, left uncommitted per this session's
+    no-autonomous-commit constraint — same class of pre-existing-uncommitted-diff situation task
+    088/090's own History entries already documented. The measurement's actual intent (Vulkan-forcing
+    deferral held, no cross-crate leak from *this* task) is satisfied: `git diff --
+    module/helper/gpu_hal/src/device.rs | grep new_native` is empty — zero new backend-selection
+    parameters, confirming C7's own underlying question directly.
 
 ## Verification Record
 

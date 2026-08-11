@@ -36,7 +36,7 @@ use web_sys::HtmlCanvasElement;
 
 fn main()
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   gl::spawn_local( async move { gl::info!( "{:?}", run().await ) } );
 }
 
@@ -91,10 +91,7 @@ fn render_geometry_pass
 }
 
 /// Render the lighting pass: calculate lighting using G-buffer and light volumes
-// 10 parameters : the lighting pass irreducibly needs the GL context, every
-// G-buffer/shader/geometry resource, the camera, viewport size, view-projection, and
-// per-frame light state; bundling into a struct would only rename the coupling.
-#[ allow( clippy::too_many_arguments ) ]
+#[ expect( clippy::too_many_arguments, reason = "the lighting pass irreducibly needs the GL context, every G-buffer/shader/geometry resource, the camera, viewport size, view-projection, and per-frame light state; bundling into a struct would only rename the coupling" ) ]
 fn render_lighting_pass
 (
   gl : &web_sys::WebGl2RenderingContext,
@@ -247,7 +244,8 @@ fn update_light_radii
 ) -> bool
 {
   let mut prev_range = lights.prev_radius_range.borrow_mut();
-  if prev_range.0 != min_radius || prev_range.1 != max_radius
+  // Exact identity check on cached slider values - epsilon comparison would skip small real changes
+  if prev_range.0.to_bits() != min_radius.to_bits() || prev_range.1.to_bits() != max_radius.to_bits()
   {
     let new_radii = generate_light_radii( max_light_count, min_radius, max_radius );
     *lights.radii.borrow_mut() = new_radii;
@@ -307,7 +305,7 @@ fn setup_scene_transform( scene_bounding_box : &gl::geometry::BoundingBox ) -> (
     transformed_center_4d.y(),
     transformed_center_4d.z()
   );
-  gl::info!( "Scene center (world space): {:?}", scene_center );
+  gl::info!( "Scene center (world space): {scene_center:?}" );
 
   ( scene_transform, rotation, scene_center )
 }
@@ -399,7 +397,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   sponza.scenes[ 0 ].borrow_mut().update_world_matrix();
   let scene_bounding_box = sponza.scenes[ 0 ].borrow().bounding_box();
-  gl::info!( "Scene bounding box: {:?}", scene_bounding_box );
+  gl::info!( "Scene bounding box: {scene_bounding_box:?}" );
 
   configure_webgl_state( &gl, width, height );
 
@@ -431,7 +429,7 @@ async fn run() -> Result< (), gl::WebglError >
     // Update fps text when a whole second elapsed
     if current_time as u32 > last_time as u32
     {
-      fps_counter.set_text_content( Some( &format!( "fps: {}", fps ) ) );
+      fps_counter.set_text_content( Some( &format!( "fps: {fps}" ) ) );
       fps = 0;
     }
     last_time = current_time;

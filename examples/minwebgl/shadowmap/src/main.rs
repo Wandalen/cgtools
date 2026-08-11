@@ -28,26 +28,10 @@ fn main()
   gl::spawn_local( async { gl::info!( "{:?}", run().await ) } );
 }
 
-async fn run() -> Result< (), gl::WebglError >
+/// Creates the scene camera sized to the canvas and binds its controls.
+fn setup_camera( canvas : &HtmlCanvasElement, width : i32, height : i32 ) -> renderer::webgl::Camera
 {
-  let window = web_sys::window().unwrap();
-  let document = window.document().unwrap();
-
-  let fwidth = window.inner_width().unwrap().as_f64().unwrap();
-  let fheight = window.inner_height().unwrap().as_f64().unwrap();
-  let dpr = window.device_pixel_ratio();
-  let width = ( fwidth * dpr ) as i32;
-  let height = ( fheight * dpr ) as i32;
   let aspect = width as f32 / height as f32;
-
-  let gl = gl::context::retrieve_or_make().expect( "Failed to retrieve WebGl context" );
-
-  let canvas = gl.canvas()
-  .unwrap()
-  .dyn_into::< HtmlCanvasElement >()
-  .unwrap();
-  canvas.set_width( width as u32 );
-  canvas.set_height( height as u32 );
 
   let mut camera = renderer::webgl::Camera::new
   (
@@ -60,7 +44,95 @@ async fn run() -> Result< (), gl::WebglError >
     100.0
   );
   camera.set_window_size( [ width as f32, height as f32 ].into() );
-  camera.bind_controls( &canvas );
+  camera.bind_controls( canvas );
+
+  camera
+}
+
+/// Creates a spot light node at the given position and direction.
+fn spot_light_node( light_pos : gl::F32x3, light_dir : gl::F32x3 ) -> Node
+{
+  let mut node = Node::new();
+  node.object = Object3D::Light
+  (
+    Light::Spot
+    (
+      SpotLight
+      {
+        position : light_pos,
+        direction : light_dir,
+        color : [ 1.0, 1.0, 1.0 ].into(),
+        strength : 300.0,
+        range : 100.0,
+        inner_cone_angle : 40.0_f32.to_radians(),
+        outer_cone_angle : 60.0_f32.to_radians(),
+        use_light_map : true
+      }
+    )
+  );
+
+  node
+}
+
+/// Marks every mesh in the scene as a shadow caster.
+fn mark_shadow_casters( scene : &renderer::webgl::Scene )
+{
+  _ = scene.traverse
+  (
+    &mut | node |
+    {
+      let node = node.borrow();
+      if let Object3D::Mesh( mesh ) = &node.object
+      {
+        let mut mesh = mesh.borrow_mut();
+        mesh.is_shadow_caster = true;
+      }
+      Ok( () )
+    }
+  );
+}
+
+/// Applies the baked colored shadow texture as the floor's base color texture.
+fn apply_floor_texture( floor_node : &Rc< RefCell< Node > >, colored_texture : Option< web_sys::WebGlTexture > )
+{
+  if let Object3D::Mesh( mesh ) = &floor_node.borrow().object
+  {
+    let mut texture = Texture::new();
+    texture.source = colored_texture;
+    let texture_info = TextureInfo
+    {
+      texture : Rc::new( RefCell::new( texture ) ),
+      uv_position : 0,
+    };
+    let mesh_borrow = mesh.borrow_mut();
+    let primitive = &mesh_borrow.primitives[ 0 ];
+    let primitive_borrow = primitive.borrow_mut();
+    let material_ref = primitive_borrow.material.borrow_mut();
+    let mut pbr_material = cast_unchecked_material_to_ref_mut::< PbrMaterial >( material_ref );
+    pbr_material.set_base_color_texture( Some( texture_info ) );
+  }
+}
+
+async fn run() -> Result< (), gl::WebglError >
+{
+  let window = web_sys::window().unwrap();
+  let document = window.document().unwrap();
+
+  let fwidth = window.inner_width().unwrap().as_f64().unwrap();
+  let fheight = window.inner_height().unwrap().as_f64().unwrap();
+  let dpr = window.device_pixel_ratio();
+  let width = ( fwidth * dpr ) as i32;
+  let height = ( fheight * dpr ) as i32;
+  let gl = gl::context::retrieve_or_make().expect( "Failed to retrieve WebGl context" );
+
+  let canvas = gl.canvas()
+  .unwrap()
+  .dyn_into::< HtmlCanvasElement >()
+  .unwrap();
+  canvas.set_width( width as u32 );
+  canvas.set_height( height as u32 );
+
+  let camera = setup_camera( &canvas, width, height );
 
   // EXT_color_buffer_float is required for rendering to float framebuffer attachments (RGBA16F/RGBA32F).
   gl.get_extension( "EXT_color_buffer_float" )
@@ -96,39 +168,9 @@ async fn run() -> Result< (), gl::WebglError >
   let light_pos = gl::F32x3::from_array( [ 0.0, 3.0, 3.0 ] );
   let light_dir = gl::F32x3::from_array( [ 0.0, -1.0, -1.0 ] ).normalize();
 
-  let mut node = Node::new();
-  node.object = Object3D::Light
-  (
-    Light::Spot
-    (
-      SpotLight
-      {
-        position : light_pos,
-        direction : light_dir,
-        color : [ 1.0, 1.0, 1.0 ].into(),
-        strength : 300.0,
-        range : 100.0,
-        inner_cone_angle : 40.0_f32.to_radians(),
-        outer_cone_angle : 60.0_f32.to_radians(),
-        use_light_map : true
-      }
-    )
-  );
-  main_scene.add( Rc::new( RefCell::new( node ) ) );
+  main_scene.add( Rc::new( RefCell::new( spot_light_node( light_pos, light_dir ) ) ) );
 
-  _ = main_scene.traverse
-  (
-    &mut | node |
-    {
-      let node = node.borrow();
-      if let Object3D::Mesh( mesh ) = &node.object
-      {
-        let mut mesh = mesh.borrow_mut();
-        mesh.is_shadow_caster = true;
-      }
-      Ok( () )
-    }
-  );
+  mark_shadow_casters( &main_scene );
 
   let near = 0.1;
   let far = 30.0;
@@ -163,22 +205,7 @@ async fn run() -> Result< (), gl::WebglError >
   // Unbind framebuffer
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
-  if let Object3D::Mesh( mesh ) = &floor_node.borrow().object
-  {
-    let mut texture = Texture::new();
-    texture.source = colored_texture;
-    let texture_info = TextureInfo
-    {
-      texture : Rc::new( RefCell::new( texture ) ),
-      uv_position : 0,
-    };
-    let mesh_borrow = mesh.borrow_mut();
-    let primitive = &mesh_borrow.primitives[ 0 ];
-    let primitive_borrow = primitive.borrow_mut();
-    let material_ref = primitive_borrow.material.borrow_mut();
-    let mut pbr_material = cast_unchecked_material_to_ref_mut::< PbrMaterial >( material_ref );
-    pbr_material.set_base_color_texture( Some( texture_info ) );
-  }
+  apply_floor_texture( &floor_node, colored_texture );
 
   let update = move | _ |
   {

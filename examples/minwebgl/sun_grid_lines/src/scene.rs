@@ -126,10 +126,8 @@ mod tests
   /// spot check ) so every field is exercised on every target, including
   /// native, where `main.rs`'s wasm32-gated `run()` — the only other
   /// consumer — never compiles in and can't do it instead.
-  // Exact comparison is intentional: every value here is a literal parsed
-  // straight out of scene.rhai with no arithmetic in between, so bit-exact
-  // round-trip fidelity is exactly what this test means to check.
   #[ test ]
+  #[ expect( clippy::float_cmp, reason = "every value here is a literal parsed straight out of scene.rhai with no arithmetic in between, so bit-exact round-trip fidelity is exactly what this test means to check" ) ]
   fn scene_rhai_parses_and_matches_known_values()
   {
     let scene = SceneConfig::load();

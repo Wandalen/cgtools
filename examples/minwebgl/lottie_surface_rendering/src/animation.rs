@@ -22,7 +22,7 @@ use gl::
 };
 use std::cell::RefCell;
 use std::rc::Rc;
-use primitive_generation::{ PrimitiveData, primitives_data_to_gltf };
+use primitive_generation::{ PrimitiveData, Transform, primitives_data_to_gltf };
 use std::ops::Range;
 
 use renderer::webgl::
@@ -47,8 +47,8 @@ impl Default for Behavior
   {
     Self
     {
-      animated_transform : Default::default(),
-      repeater : Default::default(),
+      animated_transform : None,
+      repeater : None,
       brush : velato::model::Brush::Fixed( velato::model::fixed::Brush::default() ),
       frames : 0.0..0.0
     }
@@ -103,8 +103,289 @@ fn brush_to_color( brush : &velato::model::Brush, frame : f64 ) -> F32x4
   }
 }
 
+/// Repeater assignment collected while processing layers : ( layer index, primitive id range, repeater ).
+type RepeaterAssignment = ( usize, Range< usize >, velato::model::Repeater );
+
+/// Expands `Instance` layers into their asset sublayers and returns the extended layer list.
+fn expand_instance_layers( composition : &Composition ) -> Vec< velato::model::Layer >
+{
+  let assets = composition.assets.clone();
+
+  let mut layers = composition.layers.clone();
+
+  let mut additional_layers : Vec< velato::model::Layer > = vec![];
+
+  let layers_count = layers.len();
+
+  for ( i, layer ) in layers.iter_mut().enumerate()
+  {
+    let velato::model::Content::Instance{ name : ref asset_name, .. } = layer.content
+    else
+    {
+      continue;
+    };
+
+    if let Some( asset_layers ) = assets.get( asset_name ).cloned()
+    {
+      for mut sublayer in asset_layers
+      {
+        sublayer.parent = if let Some( k ) = sublayer.parent
+        {
+          let j = layers_count + additional_layers.len();
+          Some( j + k )
+        }
+        else
+        {
+          Some( i )
+        };
+
+        additional_layers.push( sublayer );
+      }
+    }
+  }
+
+  layers.extend( additional_layers );
+
+  layers
+}
+
+/// Scans a layer's shapes for the last draw brush, defaulting to a fully transparent solid brush.
+fn scan_layer_brush( shapes : &[ Shape ] ) -> Brush
+{
+  let mut brush = Brush::Fixed( velato::model::fixed::Brush::Solid( color::AlphaColor::from_rgba8( 0, 0, 0, 0 ) ) );
+
+  for shape in shapes
+  {
+    if let Shape::Draw( Draw { brush : b, .. } ) = shape
+    {
+      brush = b.clone();
+    }
+  }
+
+  brush
+}
+
+/// Converts a geometry shape into primitive data, returning `None` when tessellation yields nothing.
+fn geometry_to_primitive( geometry : &Geometry, stroke_width : f32 ) -> Option< PrimitiveData >
+{
+  if let Geometry::Spline( Spline { values, .. } ) = geometry
+  {
+    let path = values.first()?;
+    let contour = path.start.clone().into_iter()
+    .map( | p | [ p.x as f32, p.y as f32 ] )
+    .collect::< Vec< _ > >();
+    primitive_generation::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
+  }
+  else
+  {
+    let mut path = vec![];
+    geometry.evaluate( 0.0, &mut path );
+    let contours = primitive_generation::path_to_points( path );
+    primitive_generation::primitive::contours_to_fill_geometry( &[ contours ] )
+  }
+}
+
+/// Builds the base primitive and behavior for a layer from its scanned brush.
+fn layer_base_primitive( i : usize, layer : &velato::model::Layer, brush : &Brush ) -> ( PrimitiveData, Behavior )
+{
+  (
+    PrimitiveData
+    {
+      name : Some( format!( "{i}" ).into_boxed_str() ),
+      attributes : None,
+      parent : layer.parent,
+      transform : Transform::default(),
+      color : F32x4::default(),
+    },
+    Behavior
+    {
+      animated_transform : Some( layer.transform.clone() ),
+      repeater : None,
+      brush : brush.clone(),
+      frames : layer.frames.clone()
+    }
+  )
+}
+
+/// Processes one layer's shape content into primitives, appending group sublayers to `layers` and repeater assignments to `repeaters`; returns `None` for non-shape content.
+fn layer_to_primitives
+(
+  i : usize,
+  layers : &mut Vec< velato::model::Layer >,
+  repeaters : &mut Vec< RepeaterAssignment >
+) -> Option< Vec< ( PrimitiveData, Behavior ) > >
+{
+  let layer = layers[ i ].clone();
+  let Content::Shape( shapes ) = layer.content.clone()
+  else
+  {
+    return None;
+  };
+
+  let mut layer_primitives = vec![];
+
+  let mut brush = scan_layer_brush( &shapes );
+
+  let mut stroke_width = 1.0;
+
+  layer_primitives.push( layer_base_primitive( i, &layer, &brush ) );
+
+  let mut last_repeater_id = 0;
+  let mut last_repeater : Option< velato::model::Repeater > = None;
+
+  for shape in shapes
+  {
+    match shape
+    {
+      Shape::Group( shapes, group_transform ) =>
+      {
+        let mut sublayer = layer.clone();
+        sublayer.content = Content::Shape( shapes );
+        sublayer.parent = Some( i );
+        if let Some( group_transform ) = group_transform
+        {
+          sublayer.transform = group_transform.transform.clone();
+          sublayer.opacity = group_transform.opacity.clone();
+        }
+        layers.push( sublayer );
+        if let Some( ref repeater ) = last_repeater
+        {
+          repeaters.push( ( layers.len() - 1, 0..0, repeater.clone() ) );
+        }
+      },
+      Shape::Geometry( geometry ) =>
+      {
+        if let Some( primitive ) = geometry_to_primitive( &geometry, stroke_width )
+        {
+          let behavior = Behavior
+          {
+            animated_transform : None,
+            repeater : None,
+            brush : brush.clone(),
+            frames : layer.frames.clone()
+          };
+          layer_primitives.push( ( primitive, behavior ) );
+        }
+      },
+      Shape::Draw
+      (
+        Draw
+        {
+          stroke,
+          brush : b,
+          ..
+        }
+      ) =>
+      {
+        if let Some( Stroke::Fixed( stroke ) ) = stroke
+        {
+          stroke_width = stroke.width as f32;
+        }
+
+        brush = b.clone();
+      },
+      Shape::Repeater( repeater ) =>
+      {
+        repeaters.push( ( i, last_repeater_id..layer_primitives.len(), repeater.clone() ) );
+        last_repeater = Some( repeater.clone() );
+        last_repeater_id = layer_primitives.len();
+      },
+      Shape::Trim( _ ) => {}
+    }
+  }
+
+  Some( layer_primitives )
+}
+
+/// Collects primitives for every layer, including group sublayers appended during processing.
+fn collect_layer_primitives
+(
+  layers : &mut Vec< velato::model::Layer >
+) -> ( Vec< Vec< ( PrimitiveData, Behavior ) > >, Vec< RepeaterAssignment > )
+{
+  let mut primitives = vec![];
+  let mut repeaters = vec![];
+
+  let mut i = 0;
+  while i < layers.len()
+  {
+    let Some( layer_primitives ) = layer_to_primitives( i, layers, &mut repeaters )
+    else
+    {
+      continue;
+    };
+
+    primitives.push( layer_primitives );
+
+    i += 1;
+  }
+
+  ( primitives, repeaters )
+}
+
+/// Applies collected repeater assignments onto their target primitives.
+fn apply_repeaters
+(
+  primitives : &mut [ Vec< ( PrimitiveData, Behavior ) > ],
+  repeaters : Vec< RepeaterAssignment >
+)
+{
+  for ( layer, primitive_ids, repeater ) in repeaters
+  {
+    if primitive_ids.end == 0
+    {
+      primitives[ layer ][ 0 ].1.repeater = Some( repeater );
+    }
+    else
+    {
+      for primitive_id in primitive_ids
+      {
+        primitives[ layer ][ primitive_id ].1.repeater = Some( repeater.clone() );
+      }
+    }
+  }
+}
+
+/// Assigns parent links and hierarchical names across all collected primitives.
+fn assign_parents
+(
+  layers : &[ velato::model::Layer ],
+  primitives : &mut [ Vec< ( PrimitiveData, Behavior ) > ]
+)
+{
+  let layer_iter = layers.iter().enumerate()
+  .zip( primitives.iter_mut() );
+
+  let mut last_element_id = 0;
+  let mut parent_layer_to_primitive_id = HashMap::new();
+  for ( ( i, layer ), primitives ) in layer_iter
+  {
+    parent_layer_to_primitive_id.insert( i, last_element_id );
+    if layer.parent.is_some()
+    {
+      primitives[ 0 ].0.parent = layer.parent;
+    }
+    let layer_name = primitives[ 0 ].0.name.clone();
+    for ( j, primitive ) in primitives.iter_mut().skip( 1 ).enumerate()
+    {
+      primitive.0.parent = Some( last_element_id );
+      primitive.0.name = Some( format!( "{}_{j}", layer_name.clone().unwrap() ).into_boxed_str() );
+    }
+    last_element_id += primitives.len();
+  }
+
+  let layer_iter = layers.iter()
+  .zip( primitives.iter_mut() );
+  for ( layer, primitives ) in layer_iter
+  {
+    if let Some( parent_id ) = layer.parent
+    {
+      primitives[ 0 ].0.parent = parent_layer_to_primitive_id.get( &parent_id ).copied();
+    }
+  }
+}
+
 /// Represents a loaded and parsed animation, ready to be rendered.
-#[ allow( dead_code ) ]
 pub struct Animation
 {
   /// The GLTF scene data for the animation.
@@ -112,6 +393,7 @@ pub struct Animation
   /// A map of node names to their associated behaviors, such as transforms and repeaters.
   behaviors : HashMap< Box< str >, Behavior >,
   /// The original Lottie composition data.
+  #[ expect( dead_code, reason = "original composition retained alongside its derived GLTF scene and behaviors; not read back after construction" ) ]
   composition : Composition
 }
 
@@ -121,229 +403,11 @@ impl Animation
   pub fn new( gl : &GL, composition : impl Into< Composition > ) -> Self
   {
     let composition : Composition = composition.into();
-    let mut primitives = vec![];
-    let mut repeaters = vec![]; // ( layer, primitive_ids, repeater )
 
-    let assets = composition.assets.clone();
-
-    let mut layers = composition.layers.clone();
-
-    let mut additional_layers : Vec< velato::model::Layer > = vec![];
-
-    let layers_count = layers.len();
-
-    for ( i, layer ) in layers.iter_mut().enumerate()
-    {
-      let velato::model::Content::Instance{ name : ref asset_name, .. } = layer.content
-      else
-      {
-        continue;
-      };
-
-      if let Some( asset_layers ) = assets.get( asset_name ).cloned()
-      {
-        for mut sublayer in asset_layers
-        {
-          sublayer.parent = if let Some( k ) = sublayer.parent
-          {
-            let j = layers_count + additional_layers.len();
-            Some( j + k )
-          }
-          else
-          {
-            Some( i )
-          };
-
-          additional_layers.push( sublayer );
-        }
-      }
-    }
-
-    layers.extend( additional_layers );
-
-    let mut i = 0;
-    while i < layers.len()
-    {
-      let layer = layers[ i ].clone();
-      let Content::Shape( shapes ) = layer.content.clone()
-      else
-      {
-        continue;
-      };
-
-      let mut layer_primitives = vec![];
-
-      let mut brush = Brush::Fixed( velato::model::fixed::Brush::Solid( color::AlphaColor::from_rgba8( 0, 0, 0, 0 ) ) );
-
-      for shape in &shapes
-      {
-        match shape
-        {
-          Shape::Draw( Draw { brush : b, .. } ) => { brush = b.clone(); },
-          _ => continue
-        }
-      }
-
-      let mut stroke_width = 1.0;
-
-      let layer_base =
-      (
-        PrimitiveData
-        {
-          name : Some( format!( "{i}" ).into_boxed_str() ),
-          attributes : None,
-          parent : layer.parent,
-          transform : Default::default(),
-          color : Default::default(),
-        },
-        Behavior
-        {
-          animated_transform : Some( layer.transform.clone() ),
-          repeater : None,
-          brush : brush.clone(),
-          frames : layer.frames.clone()
-        }
-      );
-
-      layer_primitives.push( layer_base );
-
-      let mut last_repeater_id = 0;
-      let mut last_repeater : Option< velato::model::Repeater > = None;
-
-      for shape in shapes
-      {
-        match shape
-        {
-          Shape::Group( shapes, group_transform ) =>
-          {
-            let mut sublayer = layer.clone();
-            sublayer.content = Content::Shape( shapes );
-            sublayer.parent = Some( i );
-            if let Some( group_transform ) = group_transform
-            {
-              sublayer.transform = group_transform.transform.clone();
-              sublayer.opacity = group_transform.opacity.clone();
-            }
-            layers.push( sublayer );
-            if let Some( ref repeater ) = last_repeater
-            {
-              repeaters.push( ( layers.len() - 1, 0..0, repeater.clone() ) );
-            }
-          },
-          Shape::Geometry( geometry ) =>
-          {
-            let primitive = if let Geometry::Spline( Spline { values, .. } ) = geometry
-            {
-              if let Some( path ) = values.first()
-              {
-                let contour = path.start.clone().into_iter()
-                .map( | p | [ p.x as f32, p.y as f32 ] )
-                .collect::< Vec< _ > >();
-                primitive_generation::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
-                .map( | p | ( p, Behavior::default() ) )
-              }
-              else
-              {
-                None
-              }
-            }
-            else
-            {
-              let mut path = vec![];
-              geometry.evaluate( 0.0, &mut path );
-              let contours = primitive_generation::path_to_points( path );
-              primitive_generation::primitive::contours_to_fill_geometry( &[ contours ] )
-              .map( | p | ( p, Behavior::default() ) )
-            };
-            if let Some( mut primitive ) = primitive
-            {
-              primitive.1 = Behavior
-              {
-                animated_transform : None,
-                repeater : None,
-                brush : brush.clone(),
-                frames : layer.frames.clone()
-              };
-              layer_primitives.push( primitive );
-            }
-          },
-          Shape::Draw
-          (
-            Draw
-            {
-              stroke,
-              brush : b,
-              ..
-            }
-          ) =>
-          {
-            if let Some( Stroke::Fixed( stroke ) ) = stroke
-            {
-              stroke_width = stroke.width as f32;
-            }
-
-            brush = b.clone();
-          },
-          Shape::Repeater( repeater ) =>
-          {
-            repeaters.push( ( i, last_repeater_id..layer_primitives.len(), repeater.clone() ) );
-            last_repeater = Some( repeater.clone() );
-            last_repeater_id = layer_primitives.len();
-          },
-          Shape::Trim( _ ) => {}
-        }
-      }
-
-      primitives.push( layer_primitives );
-
-      i += 1;
-    }
-
-    for ( layer, primitive_ids, repeater ) in repeaters
-    {
-      if primitive_ids.end == 0
-      {
-        primitives[ layer ][ 0 ].1.repeater = Some( repeater );
-      }
-      else
-      {
-        for primitive_id in primitive_ids
-        {
-          primitives[ layer ][ primitive_id ].1.repeater = Some( repeater.clone() );
-        }
-      }
-    }
-
-    let layer_iter = layers.iter().enumerate()
-    .zip( primitives.iter_mut() );
-
-    let mut last_element_id = 0;
-    let mut parent_layer_to_primitive_id = HashMap::new();
-    for ( ( i, layer ), primitives ) in layer_iter
-    {
-      parent_layer_to_primitive_id.insert( i, last_element_id );
-      if layer.parent.is_some()
-      {
-        primitives[ 0 ].0.parent = layer.parent;
-      }
-      let layer_name = primitives[ 0 ].0.name.clone();
-      for ( j, primitive ) in primitives.iter_mut().skip( 1 ).enumerate()
-      {
-        primitive.0.parent = Some( last_element_id );
-        primitive.0.name = Some( format!( "{}_{j}", layer_name.clone().unwrap() ).into_boxed_str() );
-      }
-      last_element_id += primitives.len();
-    }
-
-    let layer_iter = layers.iter()
-    .zip( primitives.iter_mut() );
-    for ( layer, primitives ) in layer_iter
-    {
-      if let Some( parent_id ) = layer.parent
-      {
-        primitives[ 0 ].0.parent = parent_layer_to_primitive_id.get( &parent_id ).copied();
-      }
-    }
+    let mut layers = expand_instance_layers( &composition );
+    let ( mut primitives, repeaters ) = collect_layer_primitives( &mut layers );
+    apply_repeaters( &mut primitives, repeaters );
+    assign_parents( &layers, &mut primitives );
 
     let primitives_data = primitives.into_iter()
     .flatten()

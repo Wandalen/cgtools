@@ -360,7 +360,7 @@ pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement
     #[ cfg( web_sys_unstable_apis ) ]
     let data = ctx.get_image_data( 0, 0, dim_as_i32( img_width ), dim_as_i32( img_height ) ).unwrap().data().to_vec();
     #[ cfg( not( web_sys_unstable_apis ) ) ]
-    let data = ctx.get_image_data( 0.0, 0.0, img_width as f64, img_height as f64 ).unwrap().data().to_vec();
+    let data = ctx.get_image_data( 0.0, 0.0, f64::from( img_width ), f64::from( img_height ) ).unwrap().data().to_vec();
 
     tmp_canvas.remove();
 

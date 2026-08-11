@@ -24,9 +24,9 @@ mod private
   ///
   /// # Returns
   ///
-  /// A `GeometryData` struct containing the 3D vertex positions and triangle indices
+  /// A `PrimitiveData` containing the 3D vertex positions and triangle indices
   /// that form the rectangular segments of the path. The Z-coordinate is always 0.0.
-  pub fn curve_to_geometry( curve : &[ [ f32; 2 ] ], width : f32 ) -> Option< PrimitiveData >
+  pub fn curve_to_geometry( curve : &[ [ f32; 2 ] ], width : f32 ) -> PrimitiveData
   {
     let mut positions = Vec::new();
     let mut indices = Vec::new();
@@ -82,35 +82,12 @@ mod private
       indices
     };
 
-    Some
-    (
-      PrimitiveData::new( Some( Rc::new( RefCell::new( attributes ) ) ) )
-    )
+    PrimitiveData::new( Some( Rc::new( RefCell::new( attributes ) ) ) )
   }
 
-  /// Converts a vector of contours (closed paths) into a filled geometry.
-  ///
-  /// This function takes a set of contours, identifies the outer boundary
-  /// (the largest contour), and then triangulates the resulting shape,
-  /// accounting for any inner contours which act as holes.
-  ///
-  /// # Arguments
-  ///
-  /// * `contours` - A slice of vectors, where each inner vector represents a
-  ///   contour as a series of 2D points. The first contour is the outer body,
-  ///   subsequent ones are holes.
-  ///
-  /// # Returns
-  ///
-  /// An `Option<PrimitiveData>` containing the triangulated geometry for the
-  /// filled shape. Returns `None` if the input is empty or invalid.
-  pub fn contours_to_fill_geometry( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  /// Finds the contour with the largest bounding-box diagonal — treated as the body outline.
+  fn find_body_contour( contours : &[ Vec< [ f32; 2 ] > ] ) -> usize
   {
-    if contours.is_empty()
-    {
-      return None;
-    }
-
     let mut body_id = 0;
     let mut max_box_diagonal_size = 0.0;
     for ( i, contour ) in contours.iter().enumerate()
@@ -137,6 +114,17 @@ mod private
       }
     }
 
+    body_id
+  }
+
+  /// Groups contours into bodies : the body contour and its inner holes form the base body,
+  /// while every contour reaching outside the body becomes its own standalone body.
+  fn group_contours_into_bodies
+  (
+    contours : &[ Vec< [ f32; 2 ] > ],
+    body_id : usize
+  ) -> Vec< Vec< Vec< [ f32; 2 ] > > >
+  {
     let body_bounding_box = BoundingBox::compute2d
     (
       contours.get( body_id ).unwrap_or( &vec![] )
@@ -187,13 +175,24 @@ mod private
     let mut bodies = vec![ base ];
     bodies.extend( outside_body_list.into_iter().map( | c | vec![ c ] ) );
 
+    bodies
+  }
+
+  /// Triangulates every body with `earcutr`, concatenating all vertex positions and indices.
+  ///
+  /// Returns `None` when a body has no outer contour or its outer contour is empty.
+  fn triangulate_bodies
+  (
+    bodies : Vec< Vec< Vec< [ f32; 2 ] > > >
+  ) -> Option< ( Vec< [ f32; 3 ] >, Vec< u32 > ) >
+  {
     let mut positions = vec![];
     let mut indices = vec![];
 
     for contours in bodies
     {
-      let mut flat_positions: Vec< f64 > = Vec::new();
-      let mut hole_indices: Vec< usize > = Vec::new();
+      let mut flat_positions : Vec< f64 > = Vec::new();
+      let mut hole_indices : Vec< usize > = Vec::new();
 
       let outer_contour = contours.first()?;
       if outer_contour.is_empty()
@@ -202,15 +201,14 @@ mod private
       }
       for &[ x, y ] in outer_contour
       {
-        flat_positions.push( x as f64 );
-        flat_positions.push( y as f64 );
+        flat_positions.push( f64::from(x) );
+        flat_positions.push( f64::from(y) );
       }
 
       // Process holes (remaining contours)
       // Their winding order must be opposite to the outer (e.g., CW for holes)
-      for i in 1..contours.len()
+      for hole_contour in contours.iter().skip( 1 )
       {
-        let hole_contour = &contours[ i ];
         if hole_contour.is_empty()
         {
           continue;
@@ -220,8 +218,8 @@ mod private
 
         for &[ x, y ] in hole_contour
         {
-          flat_positions.push( x as f64 );
-          flat_positions.push( y as f64 );
+          flat_positions.push( f64::from(x) );
+          flat_positions.push( f64::from(y) );
         }
       }
 
@@ -248,6 +246,36 @@ mod private
         .map( | i | i + positions_count as u32 )
       );
     }
+
+    Some( ( positions, indices ) )
+  }
+
+  /// Converts a vector of contours (closed paths) into a filled geometry.
+  ///
+  /// This function takes a set of contours, identifies the outer boundary
+  /// (the largest contour), and then triangulates the resulting shape,
+  /// accounting for any inner contours which act as holes.
+  ///
+  /// # Arguments
+  ///
+  /// * `contours` - A slice of vectors, where each inner vector represents a
+  ///   contour as a series of 2D points. The first contour is the outer body,
+  ///   subsequent ones are holes.
+  ///
+  /// # Returns
+  ///
+  /// An `Option<PrimitiveData>` containing the triangulated geometry for the
+  /// filled shape. Returns `None` if the input is empty or invalid.
+  pub fn contours_to_fill_geometry( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  {
+    if contours.is_empty()
+    {
+      return None;
+    }
+
+    let body_id = find_body_contour( contours );
+    let bodies = group_contours_into_bodies( contours, body_id );
+    let ( positions, indices ) = triangulate_bodies( bodies )?;
 
     let attributes = AttributesData
     {
@@ -279,7 +307,7 @@ mod private
     (
       | [ x, y ] |
       {
-        PathEl::LineTo( kurbo::Point::new( x as f64, y as f64 ) )
+        PathEl::LineTo( kurbo::Point::new( f64::from(x), f64::from(y) ) )
       }
     )
     .collect::< Vec< _ > >();

@@ -26,14 +26,14 @@ pub fn plane_material
     base_color.as_slice(),
     0
   ).unwrap();
-  gl::texture::d2::filter_nearest( &gl );
-  gl::texture::d2::wrap_clamp( &gl );
+  gl::texture::d2::filter_nearest( gl );
+  gl::texture::d2::wrap_clamp( gl );
 
   let arm =
   [
-    ( ao        * u8::MAX as f32 ).round() as u8,
-    ( roughness * u8::MAX as f32 ).round() as u8,
-    ( metalness * u8::MAX as f32 ).round() as u8,
+    ( ao        * f32::from(u8::MAX) ).round() as u8,
+    ( roughness * f32::from(u8::MAX) ).round() as u8,
+    ( metalness * f32::from(u8::MAX) ).round() as u8,
     0,
   ];
   let arm_tex = gl.create_texture();
@@ -51,8 +51,8 @@ pub fn plane_material
     arm.as_slice(),
     0
   ).unwrap();
-  gl::texture::d2::filter_nearest( &gl );
-  gl::texture::d2::wrap_clamp( &gl );
+  gl::texture::d2::filter_nearest( gl );
+  gl::texture::d2::wrap_clamp( gl );
 
   ( base_color_tex, arm_tex )
 }

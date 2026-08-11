@@ -40,6 +40,7 @@ mod_interface::mod_interface!
     feature = "adapter-terminal",
     feature = "adapter-webgl",
     feature = "adapter-webgpu",
+    feature = "adapter-native",
     feature = "adapter-none",
   ) ) ]
   layer adapters;

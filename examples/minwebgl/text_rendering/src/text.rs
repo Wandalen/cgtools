@@ -47,33 +47,33 @@ pub mod ufo
       )
       .collect::< Vec< _ > >();
 
-      let flat_contours = contours.iter().flatten().flatten().cloned().collect::< Vec< _ > >();
+      let flat_contours = contours.iter().flatten().flatten().copied().collect::< Vec< _ > >();
       let bounding_box = BoundingBox::compute2d( &flat_contours );
 
       let [ x1, y1 ] = [ bounding_box.left(), bounding_box.down() ];
       let [ x2, y2 ] = [ bounding_box.right(), bounding_box.up() ];
 
-      let halfx = ( x2 - x1 ) / 2.0;
-      let halfy = ( y2 - y1 ) / 2.0;
-      let offsetx = x1;
-      let offsety = y1;
-      let offsetx = - halfx - offsetx;
-      let offsety = - halfy - offsety;
+      let half_x = ( x2 - x1 ) / 2.0;
+      let half_y = ( y2 - y1 ) / 2.0;
+      let offset_x = x1;
+      let offset_y = y1;
+      let offset_x = - half_x - offset_x;
+      let offset_y = - half_y - offset_y;
 
-      for contour in contours.iter_mut()
+      for contour in &mut contours
       {
         for point in contour.iter_mut()
         {
-          point[ 0 ] += offsetx;
-          point[ 1 ] += offsety;
+          point[ 0 ] += offset_x;
+          point[ 1 ] += offset_y;
         }
       }
 
-      let bounding_box = BoundingBox
-      {
-        min : [ ( x1 + offsetx ) as f32, ( y1 + offsety ) as f32, 0.0 ].into(),
-        max : [ ( x2 + offsetx ) as f32, ( y2 + offsety ) as f32, 0.0 ].into()
-      };
+      let bounding_box = BoundingBox::new
+      (
+        [ x1 + offset_x, y1 + offset_y, 0.0 ],
+        [ x2 + offset_x, y2 + offset_y, 0.0 ]
+      );
 
       Self
       {
@@ -88,7 +88,7 @@ pub mod ufo
       let [ x1, y1 ] = [ self.bounding_box.left(), self.bounding_box.down() ];
       let [ x2, y2 ] = [ self.bounding_box.right(), self.bounding_box.up() ];
 
-      for contour in self.contours.iter_mut()
+      for contour in &mut self.contours
       {
         for point in contour.iter_mut()
         {
@@ -101,91 +101,14 @@ pub mod ufo
       self.bounding_box.max = [ x2 * scale, y2 * scale, 0.0 ].into();
     }
 
-    fn from_glif( glif_bytes : Vec< u8 >, character : char ) -> Option< Self >
+    fn from_glif( glif_bytes : &[ u8 ], character : char ) -> Option< Self >
     {
-      let glif_str = std::str::from_utf8( &glif_bytes ).unwrap();
-      let mut reader = Reader::from_str( glif_str );
-      reader.config_mut().trim_text( true );
-
-      let mut _contours = vec![];
-      let mut contour_points = vec![];
-      let mut typ = PointType::Move;
-
-      loop
-      {
-        let event = reader.read_event();
-        match event
-        {
-          Ok( Event::Empty( e ) ) if e.starts_with( b"point" ) =>
-          {
-            let element = e.clone();
-
-            let mut x = None;
-            let mut y = None;
-            let smooth = true;
-
-            for attr in element.attributes()
-            {
-              let Ok( attr ) = attr
-              else
-              {
-                continue;
-              };
-
-              let Ok( value ) = String::from_utf8( attr.value.to_vec() )
-              else
-              {
-                continue;
-              };
-
-              match attr.key.0
-              {
-                b"x" => x = value.parse::< f64 >().ok(),
-                b"y" => y = value.parse::< f64 >().ok(),
-                b"typ" =>
-                {
-                  let Ok( t ) = PointType::from_str( &value )
-                  else
-                  {
-                    continue;
-                  };
-                  typ = t;
-                }
-                _ => continue
-              }
-            }
-
-            if x.is_none() || y.is_none()
-            {
-              continue;
-            }
-
-            contour_points.push(
-              ContourPoint::new(
-                x.unwrap(),
-                y.unwrap(),
-                typ,
-                smooth,
-                None,
-                None
-              )
-            )
-          },
-          Ok( Event::End( e ) ) if e.starts_with( b"contour" ) =>
-          {
-            typ = PointType::Move;
-            let mut contour = Contour::default();
-            contour.points = contour_points.drain( .. ).collect::< Vec< _ > >();
-            _contours.push( contour );
-          },
-          Ok( Event::Eof ) => break,
-          _ => ()
-        }
-      }
+      let glif_str = std::str::from_utf8( glif_bytes ).unwrap();
+      let raw_contours = parse_glif_contours( glif_str );
 
       let mut contours = vec![];
 
-      for contour in _contours
+      for contour in raw_contours
       {
         let mut path = vec![];
         let Ok( bez_path ) = contour.to_kurbo()
@@ -195,31 +118,27 @@ pub mod ufo
         };
 
         flatten(
-          bez_path.elements().iter().cloned(),
+          bez_path.elements().iter().copied(),
           0.25,
           | p | path.push( p )
         );
 
         let mut contour = vec![];
 
-        path.iter()
-        .for_each
-        (
-          | p |
+        for p in &path
+        {
+          match p
           {
-            match p
+            kurbo::PathEl::MoveTo( point ) |
+            kurbo::PathEl::LineTo( point ) => contour.push( [ point.x, point.y ] ),
+            kurbo::PathEl::ClosePath =>
             {
-              kurbo::PathEl::MoveTo( point ) |
-              kurbo::PathEl::LineTo( point ) => contour.push( [ point.x, point.y ] ),
-              kurbo::PathEl::ClosePath =>
-              {
-                contours.push( contour.clone() );
-                contour.clear();
-              },
-              _ => ()
-            }
+              contours.push( contour.clone() );
+              contour.clear();
+            },
+            _ => ()
           }
-        );
+        }
 
         contours.push( contour );
       }
@@ -233,6 +152,91 @@ pub mod ufo
 
       Some( Glyph::new( contours, character ) )
     }
+  }
+
+  /// Parses the `<point>` elements of a glif XML document into norad contours.
+  fn parse_glif_contours( glif_str : &str ) -> Vec< Contour >
+  {
+    let mut reader = Reader::from_str( glif_str );
+    reader.config_mut().trim_text( true );
+
+    let mut raw_contours = vec![];
+    let mut contour_points = vec![];
+    let mut typ = PointType::Move;
+
+    loop
+    {
+      let event = reader.read_event();
+      match event
+      {
+        Ok( Event::Empty( e ) ) if e.starts_with( b"point" ) =>
+        {
+          let element = e.clone();
+
+          let mut x = None;
+          let mut y = None;
+          let smooth = true;
+
+          for attr in element.attributes()
+          {
+            let Ok( attr ) = attr
+            else
+            {
+              continue;
+            };
+
+            let Ok( value ) = String::from_utf8( attr.value.to_vec() )
+            else
+            {
+              continue;
+            };
+
+            match attr.key.0
+            {
+              b"x" => x = value.parse::< f64 >().ok(),
+              b"y" => y = value.parse::< f64 >().ok(),
+              b"typ" =>
+              {
+                let Ok( t ) = PointType::from_str( &value )
+                else
+                {
+                  continue;
+                };
+                typ = t;
+              }
+              _ => ()
+            }
+          }
+
+          if x.is_none() || y.is_none()
+          {
+            continue;
+          }
+
+          contour_points.push(
+            ContourPoint::new(
+              x.unwrap(),
+              y.unwrap(),
+              typ,
+              smooth,
+              None,
+              None
+            )
+          );
+        },
+        Ok( Event::End( e ) ) if e.starts_with( b"contour" ) =>
+        {
+          typ = PointType::Move;
+          let mut contour = Contour::default();
+          contour.points = std::mem::take( &mut contour_points );
+          raw_contours.push( contour );
+        },
+        Ok( Event::Eof ) => break,
+        _ => ()
+      }
+    }
+
+    raw_contours
   }
 
   #[ derive( Clone ) ]
@@ -254,7 +258,7 @@ pub mod ufo
         let glyph_path = format!( "{}/{}.glif", glyphs_path, c as char );
         let glif_bytes = gl::file::load( &glyph_path ).await
         .expect( "Failed to load glif file" );
-        if let Some( glyph ) = Glyph::from_glif( glif_bytes, c as char )
+        if let Some( glyph ) = Glyph::from_glif( &glif_bytes, c as char )
         {
           glyphs.insert( c as char, glyph );
         }
@@ -265,7 +269,7 @@ pub mod ufo
         let glyph_path = format!( "{}/{}_.glif", glyphs_path, c as char );
         let glif_bytes = gl::file::load( &glyph_path ).await
         .expect( "Failed to load glif file" );
-        if let Some( glyph ) = Glyph::from_glif( glif_bytes, c as char )
+        if let Some( glyph ) = Glyph::from_glif( &glif_bytes, c as char )
         {
           glyphs.insert( c as char, glyph );
         }
@@ -285,17 +289,17 @@ pub mod ufo
         ( '9', "nine" )
       ]
       {
-        let glyph_path = format!( "{}/{}.glif", glyphs_path, name );
+        let glyph_path = format!( "{glyphs_path}/{name}.glif" );
         let glif_bytes = gl::file::load( &glyph_path ).await
         .expect( "Failed to load glif file" );
-        if let Some( glyph ) = Glyph::from_glif( glif_bytes, c )
+        if let Some( glyph ) = Glyph::from_glif( &glif_bytes, c )
         {
           glyphs.insert( c, glyph );
         }
       }
 
       let [ mut max_x, mut max_y ] = [ 0.0, 0.0 ];
-      for ( _, glyph ) in &glyphs
+      for glyph in glyphs.values()
       {
         let [ x1, y1 ] = [ glyph.bounding_box.left(), glyph.bounding_box.down() ];
         let [ x2, y2 ] = [ glyph.bounding_box.right(), glyph.bounding_box.up() ];
@@ -312,14 +316,14 @@ pub mod ufo
       }
 
       let scale = 250.0;
-      for ( _, glyph ) in glyphs.iter_mut()
+      for glyph in glyphs.values_mut()
       {
         glyph.scale( scale / max_y );
       }
 
       let mut min = F32x3::MAX;
       let mut max = F32x3::MIN;
-      for ( _, glyph ) in &glyphs
+      for glyph in glyphs.values()
       {
         if min > glyph.bounding_box.min
         {
@@ -334,11 +338,7 @@ pub mod ufo
       Self
       {
         glyphs,
-        _max_size : BoundingBox
-        {
-          min,
-          max
-        }
+        _max_size : BoundingBox::new( min, max )
       }
     }
   }
@@ -353,7 +353,7 @@ pub mod ufo
 
   impl Glyph3D
   {
-    fn from_glyph( gl : &GL, glyph : Glyph ) -> Self
+    fn from_glyph( gl : &GL, glyph : &Glyph ) -> Self
     {
       let Some( primitive_data ) = contours_to_mesh( gl, &glyph.contours )
       else
@@ -372,8 +372,8 @@ pub mod ufo
                 }
               )
             ),
-            material :  Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) as Box< dyn Material > ) ),
-            transform : Default::default()
+            material :  Rc::new( RefCell::new( Box::new( PbrMaterial::new( gl ) ) as Box< dyn Material > ) ),
+            transform : Transform::default()
           },
           bounding_box : BoundingBox::default()
         };
@@ -381,11 +381,7 @@ pub mod ufo
 
       let a = glyph.bounding_box.min.0;
       let b = glyph.bounding_box.max.0;
-      let bounding_box = BoundingBox
-      {
-        min : [ a[ 0 ], a[ 1 ], -0.5 ].into(),
-        max : [ b[ 0 ], b[ 1 ], 0.5 ].into()
-      };
+      let bounding_box = BoundingBox::new( [ a[ 0 ], a[ 1 ], -0.5 ], [ b[ 0 ], b[ 1 ], 0.5 ] );
 
       Self
       {
@@ -396,13 +392,9 @@ pub mod ufo
     }
   }
 
-  fn contours_to_mesh( gl : &GL, contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  /// Finds the index of the contour with the largest bounding box diagonal - the glyph's main body.
+  fn find_body_contour( contours : &[ Vec< [ f32; 2 ] > ] ) -> usize
   {
-    if contours.is_empty()
-    {
-      return None;
-    }
-
     let mut body_id = 0;
     let mut max_box_diagonal_size = 0;
     for ( i, contour ) in contours.iter().enumerate()
@@ -425,12 +417,18 @@ pub mod ufo
       }
     }
 
+    body_id
+  }
+
+  /// Splits contours into triangulation bodies : the main body with its holes, plus each outside contour as its own body.
+  fn split_into_bodies( contours : &[ Vec< [ f32; 2 ] > ], body_id : usize ) -> Vec< Vec< Vec< [ f32; 2 ] > > >
+  {
     let body_bounding_box = BoundingBox::compute2d
     (
       contours.get( body_id ).unwrap()
       .iter()
       .flatten()
-      .cloned()
+      .copied()
       .collect::< Vec< _ > >()
       .as_slice()
     );
@@ -449,7 +447,7 @@ pub mod ufo
         contour
         .iter()
         .flatten()
-        .cloned()
+        .copied()
         .collect::< Vec< _ > >()
         .as_slice()
       );
@@ -475,138 +473,177 @@ pub mod ufo
     let mut bodies = vec![ base ];
     bodies.extend( outside_body_list.into_iter().map( | c | vec![ c ] ) );
 
+    bodies
+  }
+
+  /// Flattens a body's contours into earcut input : interleaved coordinates and hole start indices.
+  fn body_flat_positions( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< ( Vec< f64 >, Vec< usize > ) >
+  {
+    let mut flat_positions : Vec< f64 > = Vec::new();
+    let mut hole_indices : Vec< usize > = Vec::new();
+
+    let outer_contour = contours.first()?;
+    if outer_contour.is_empty()
+    {
+      return None;
+    }
+    for &[ x, y ] in outer_contour
+    {
+      flat_positions.push( f64::from( x ) );
+      flat_positions.push( f64::from( y ) );
+    }
+
+    // Process holes (remaining contours)
+    // Their winding order must be opposite to the outer (e.g., CW for holes)
+    for hole_contour in &contours[ 1.. ]
+    {
+      if hole_contour.is_empty()
+      {
+        continue;
+      }
+
+      hole_indices.push( flat_positions.len() / 2 );
+
+      for &[ x, y ] in hole_contour
+      {
+        flat_positions.push( f64::from( x ) );
+        flat_positions.push( f64::from( y ) );
+      }
+    }
+
+    Some( ( flat_positions, hole_indices ) )
+  }
+
+  /// Extends the mesh with side walls connecting the front and back glyph outlines.
+  fn add_border_walls
+  (
+    contours : &[ Vec< [ f32; 2 ] > ],
+    body_positions : &mut Vec< [ f32; 3 ] >,
+    body_indices : &mut Vec< u32 >
+  )
+  {
+    let vc1 = body_positions.len() as u32;
+    let vc2 = vc1 + contours.iter().flatten().count() as u32;
+
+    for z in [ 0.5, -0.5 ]
+    {
+      for c in contours
+      {
+        body_positions.extend( c.iter().map( | p | [ p[ 0 ], p[ 1 ], z ] ) );
+      }
+    }
+
+    let mut edges = vec![];
+
+    let mut offset = 0;
+    for c in contours
+    {
+      let mut contour_edges = vec![];
+      for ( i, _ ) in c.iter().enumerate()
+      {
+        contour_edges.push( [ i as u32 + offset + vc1, i as u32 + offset + vc2 ] );
+      }
+      offset += c.len() as u32;
+
+      edges.push( contour_edges );
+    }
+
+    for ce in &edges
+    {
+      if ce.len() > 2
+      {
+        let mut i = 0;
+        while i < ce.len() - 1
+        {
+          // Counter clockwise ↺
+          // [ i + 1 ] c *---* d
+          //             |\  |
+          //             | \ |
+          //             |  \|
+          // [   i   ] a *---* b
+          let [ a, b ] = [ ce[ i ][ 0 ], ce[ i ][ 1 ] ];
+          let [ c, d ] = [ ce[ i + 1 ][ 0 ], ce[ i + 1 ][ 1 ] ];
+          body_indices.extend( [ c, a, b ] );
+          body_indices.extend( [ c, b, d ] );
+          i += 1;
+        }
+
+        let first = ce.first().unwrap();
+        let last = ce.last().unwrap();
+        let [ a, b ] = [ last[ 0 ], last[ 1 ] ];
+        let [ c, d ] = [ first[ 0 ], first[ 1 ] ];
+        body_indices.extend( [ c, a, b ] );
+        body_indices.extend( [ c, b, d ] );
+      }
+    }
+  }
+
+  /// Triangulates one body ( outer contour + holes ) into front/back surfaces plus border walls.
+  fn body_to_mesh_data( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< ( Vec< [ f32; 3 ] >, Vec< u32 > ) >
+  {
+    let ( flat_positions, hole_indices ) = body_flat_positions( contours )?;
+
+    // Perform triangulation
+    let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 )
+    else
+    {
+      return None;
+    };
+
+    let mut body_indices = body_indices.into_iter()
+    .map( | i | i as u32 )
+    .collect::< Vec< _ > >();
+
+    // Create two surface of glyph
+    let mut body_positions = flat_positions.chunks( 2 )
+    .map(
+      | p |
+      {
+        [ p[ 0 ] as f32, p[ 1 ] as f32, 0.5 ]
+      }
+    )
+    .collect::< Vec< _ > >();
+
+    let second_surface_positions = flat_positions.chunks( 2 )
+    .map(
+      | p |
+      {
+        [ p[ 0 ] as f32, p[ 1 ] as f32, -0.5 ]
+      }
+    )
+    .collect::< Vec< _ > >();
+
+    body_positions.extend( second_surface_positions );
+
+    let vertex_count = flat_positions.len() as u32;
+    let second_surface_indices = body_indices.iter()
+    .map( | i | i + vertex_count )
+    .collect::< Vec< _ > >();
+
+    body_indices.extend( second_surface_indices );
+
+    // Add border to glyph mesh
+    add_border_walls( contours, &mut body_positions, &mut body_indices );
+
+    Some( ( body_positions, body_indices ) )
+  }
+
+  fn contours_to_mesh( gl : &GL, contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  {
+    if contours.is_empty()
+    {
+      return None;
+    }
+
+    let body_id = find_body_contour( contours );
+    let bodies = split_into_bodies( contours, body_id );
+
     let mut positions = vec![];
     let mut indices = vec![];
 
     for contours in bodies
     {
-      let mut flat_positions: Vec< f64 > = Vec::new();
-      let mut hole_indices: Vec< usize > = Vec::new();
-
-      let outer_contour = contours.get( 0 )?;
-      if outer_contour.is_empty()
-      {
-        return None;
-      }
-      for &[ x, y ] in outer_contour
-      {
-        flat_positions.push( x as f64 );
-        flat_positions.push( y as f64 );
-      }
-
-      // Process holes (remaining contours)
-      // Their winding order must be opposite to the outer (e.g., CW for holes)
-      for i in 1..contours.len()
-      {
-        let hole_contour = &contours[ i ];
-        if hole_contour.is_empty()
-        {
-          continue;
-        }
-
-        hole_indices.push( flat_positions.len() / 2 );
-
-        for &[ x, y ] in hole_contour
-        {
-          flat_positions.push( x as f64 );
-          flat_positions.push( y as f64 );
-        }
-      }
-
-      // Perform triangulation
-      let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 )
-      else
-      {
-        return None;
-      };
-
-      let mut body_indices = body_indices.into_iter()
-      .map( | i | i as u32 )
-      .collect::< Vec< _ > >();
-
-      // Create two surface of glyph
-      let mut body_positions = flat_positions.chunks( 2 )
-      .map(
-        | p |
-        {
-          [ p[ 0 ] as f32, p[ 1 ] as f32, 0.5 ]
-        }
-      )
-      .collect::< Vec< _ > >();
-
-      let second_surface_positions = flat_positions.chunks( 2 )
-      .map(
-        | p |
-        {
-          [ p[ 0 ] as f32, p[ 1 ] as f32, -0.5 ]
-        }
-      )
-      .collect::< Vec< _ > >();
-
-      body_positions.extend( second_surface_positions );
-
-      let vertex_count = flat_positions.len() as u32;
-      let second_surface_indices = body_indices.iter()
-      .map( | i | i + vertex_count )
-      .collect::< Vec< _ > >();
-
-      body_indices.extend( second_surface_indices );
-
-      // Add border to glyph mesh
-      let vc1 = body_positions.len() as u32;
-      let vc2 = vc1 + contours.iter().flatten().count() as u32;
-
-      for z in [ 0.5, -0.5 ]
-      {
-        for c in &contours
-        {
-          body_positions.extend( c.iter().map( | p | [ p[ 0 ], p[ 1 ], z ] ) );
-        }
-      }
-
-      let mut edges = vec![];
-
-      let mut offset = 0;
-      for c in contours.iter()
-      {
-        let mut contour_edges = vec![];
-        for ( i, _ ) in c.iter().enumerate()
-        {
-          contour_edges.push( [ i as u32 + offset + vc1, i as u32 + offset + vc2 ] );
-        }
-        offset += c.len() as u32;
-
-        edges.push( contour_edges );
-      }
-
-      for ce in &edges
-      {
-        if ce.len() > 2
-        {
-          let mut i = 0;
-          while i < ce.len() - 1
-          {
-            // Counter clockwise ↺
-            // [ i + 1 ] c *---* d
-            //             |\  |
-            //             | \ |
-            //             |  \|
-            // [   i   ] a *---* b
-            let [ a, b ] = [ ce[ i ][ 0 ], ce[ i ][ 1 ] ];
-            let [ c, d ] = [ ce[ i + 1 ][ 0 ], ce[ i + 1 ][ 1 ] ];
-            body_indices.extend( [ c, a, b ] );
-            body_indices.extend( [ c, b, d ] );
-            i += 1;
-          }
-
-          let first = ce.first().unwrap();
-          let last = ce.last().unwrap();
-          let [ a, b ] = [ last[ 0 ], last[ 1 ] ];
-          let [ c, d ] = [ first[ 0 ], first[ 1 ] ];
-          body_indices.extend( [ c, a, b ] );
-          body_indices.extend( [ c, b, d ] );
-        }
-      }
+      let ( body_positions, body_indices ) = body_to_mesh_data( &contours )?;
 
       let positions_count = positions.len();
       positions.extend( body_positions );
@@ -646,7 +683,7 @@ pub mod ufo
     let primitive_data = PrimitiveData
     {
       attributes : Rc::new( RefCell::new( attributes ) ),
-      material :  Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) as Box< dyn Material > ) ),
+      material :  Rc::new( RefCell::new( Box::new( PbrMaterial::new( gl ) ) as Box< dyn Material > ) ),
       transform : Transform::default()
     };
 
@@ -667,12 +704,12 @@ pub mod ufo
 
       for ( char, glyph ) in font.glyphs
       {
-        glyphs.insert( char, Glyph3D::from_glyph( gl, glyph ) );
+        glyphs.insert( char, Glyph3D::from_glyph( gl, &glyph ) );
       }
 
       let mut min = F32x3::MAX;
       let mut max = F32x3::MIN;
-      for ( _, glyph ) in glyphs.iter_mut()
+      for glyph in glyphs.values_mut()
       {
         if min > glyph.bounding_box.min
         {
@@ -687,11 +724,7 @@ pub mod ufo
       Self
       {
         glyphs,
-        max_size : BoundingBox
-        {
-          min,
-          max
-        }
+        max_size : BoundingBox::new( min, max )
       }
     }
   }
@@ -702,7 +735,7 @@ pub mod ufo
 
     for font_name in font_names
     {
-      let font_path = format!( "static/fonts/ufo/{}.ufo", font_name );
+      let font_path = format!( "static/fonts/ufo/{font_name}.ufo" );
       fonts.insert( font_name.clone(), Font::new( &font_path ).await );
     }
 
@@ -727,21 +760,21 @@ pub mod ufo
     transform.scale = [ 0.003, 0.003, 0.05 ];
     let max_x = font.max_size.max[ 0 ] - font.max_size.min[ 0 ];
     let max_y = font.max_size.max[ 1 ] - font.max_size.min[ 1 ];
-    let halfx = max_x * transform.scale[ 0 ];
+    let half_x = max_x * transform.scale[ 0 ];
 
     for char in text.chars()
     {
       let Some( glyph ) = font.glyphs.get( &char )
       else
       {
-        transform.translation[ 0 ] -= halfx / 2.0;
+        transform.translation[ 0 ] -= half_x / 2.0;
         continue;
       };
 
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] -= if glyph_x < halfx / 4.0
+      transform.translation[ 0 ] -= if glyph_x < half_x / 4.0
       {
-        halfx / 2.0
+        half_x / 2.0
       }
       else
       {
@@ -754,7 +787,7 @@ pub mod ufo
       let Some( mut glyph ) = font.glyphs.get( &char ).cloned()
       else
       {
-        transform.translation[ 0 ] += halfx;
+        transform.translation[ 0 ] += half_x;
         continue;
       };
 
@@ -763,9 +796,9 @@ pub mod ufo
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
       transform.translation[ 1 ] -= diff;
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] += if glyph_x < halfx / 4.0
+      transform.translation[ 0 ] += if glyph_x < half_x / 4.0
       {
-        halfx
+        half_x
       }
       else
       {
@@ -844,7 +877,7 @@ pub mod ttf
 
       let indices = mesh.indices()
       .iter()
-      .cloned()
+      .copied()
       .flatten()
       .collect::< Vec< _ > >();
 
@@ -869,7 +902,7 @@ pub mod ttf
 
       let attributes = AttributesData
       {
-        positions : positions,
+        positions,
         normals,
         indices,
       };
@@ -877,7 +910,7 @@ pub mod ttf
       let data = PrimitiveData
       {
         attributes : Rc::new( RefCell::new( attributes ) ),
-        material : Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) as Box< dyn Material > ) ),
+        material : Rc::new( RefCell::new( Box::new( PbrMaterial::new( gl ) ) as Box< dyn Material > ) ),
         transform : Transform::default()
       };
 
@@ -891,7 +924,7 @@ pub mod ttf
 
     fn scale( &mut self, scale : [ f32; 3 ] )
     {
-      for position in self.data.attributes.borrow_mut().positions.iter_mut()
+      for position in &mut self.data.attributes.borrow_mut().positions
       {
         position[ 0 ] *= scale[ 0 ];
         position[ 1 ] *= scale[ 1 ];
@@ -921,11 +954,11 @@ pub mod ttf
 
       for c in [ 'C', 'G', 'T', 'o', 'l', 's' ]
       {
-        glyphs.insert( c, Glyph3D::from_ttf( gl, &ttf_bytes, c as char ) );
+        glyphs.insert( c, Glyph3D::from_ttf( gl, &ttf_bytes, c ) );
       }
 
       let [ mut max_x, mut max_y ] = [ 0.0, 0.0 ];
-      for ( _, glyph ) in &glyphs
+      for glyph in glyphs.values()
       {
         let [ x1, y1 ] = [ glyph.bounding_box.left(), glyph.bounding_box.down() ];
         let [ x2, y2 ] = [ glyph.bounding_box.right(), glyph.bounding_box.up() ];
@@ -942,14 +975,14 @@ pub mod ttf
       }
 
       let scale = 250.0;
-      for ( _, glyph ) in glyphs.iter_mut()
+      for glyph in glyphs.values_mut()
       {
         glyph.scale( [ scale / max_y, scale / max_y, 1.0 ] );
       }
 
       let mut min = F32x3::MAX;
       let mut max = F32x3::MIN;
-      for ( _, glyph ) in &glyphs
+      for glyph in glyphs.values()
       {
         if min > glyph.bounding_box.min
         {
@@ -964,11 +997,7 @@ pub mod ttf
       Self
       {
         glyphs,
-        max_size : BoundingBox
-        {
-          min,
-          max
-        }
+        max_size : BoundingBox::new( min, max )
       }
     }
   }
@@ -979,7 +1008,7 @@ pub mod ttf
 
     for font_name in font_names
     {
-      let font_path = format!( "static/fonts/ttf/{}.ttf", font_name );
+      let font_path = format!( "static/fonts/ttf/{font_name}.ttf" );
       fonts.insert( font_name.clone(), Font3D::new( gl, &font_path ).await );
     }
 
@@ -995,21 +1024,21 @@ pub mod ttf
     transform.scale = [ 0.003, 0.003, 0.05 ];
     let max_x = font.max_size.max[ 0 ] - font.max_size.min[ 0 ];
     let max_y = font.max_size.max[ 1 ] - font.max_size.min[ 1 ];
-    let halfx = max_x * transform.scale[ 0 ];
+    let half_x = max_x * transform.scale[ 0 ];
 
     for char in text.chars()
     {
       let Some( glyph ) = font.glyphs.get( &char )
       else
       {
-        transform.translation[ 0 ] -= halfx / 2.0;
+        transform.translation[ 0 ] -= half_x / 2.0;
         continue;
       };
 
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] -= if glyph_x < halfx / 4.0
+      transform.translation[ 0 ] -= if glyph_x < half_x / 4.0
       {
-        halfx / 2.0
+        half_x / 2.0
       }
       else
       {
@@ -1022,7 +1051,7 @@ pub mod ttf
       let Some( mut glyph ) = font.glyphs.get( &char ).cloned()
       else
       {
-        transform.translation[ 0 ] += halfx;
+        transform.translation[ 0 ] += half_x;
         continue;
       };
 
@@ -1031,9 +1060,9 @@ pub mod ttf
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
       transform.translation[ 1 ] -= diff;
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] += if glyph_x < halfx / 4.0
+      transform.translation[ 0 ] += if glyph_x < half_x / 4.0
       {
-        halfx
+        half_x
       }
       else
       {

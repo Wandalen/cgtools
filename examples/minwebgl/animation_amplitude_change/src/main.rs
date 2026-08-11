@@ -33,7 +33,7 @@ fn write_tree( node : &Rc< RefCell< Node > >, depth : usize, output : &mut Strin
   .unwrap_or( "<none>".into() );
 
   let indent = "-".repeat( depth );
-  let _ = writeln!( output, "{}{}", indent, name );
+  let _ = writeln!( output, "{indent}{name}" );
 
   for child in node.borrow().get_children()
   {
@@ -45,7 +45,7 @@ fn print_tree( node : &Rc< RefCell< Node > > )
 {
   let mut tree_str = String::new();
   write_tree( node, 1, &mut tree_str );
-  gl::info!( "{}", tree_str );
+  gl::info!( "{tree_str}" );
 }
 
 /// Splits root sub [`Node`]s names into named subtrees
@@ -134,29 +134,10 @@ fn split_node_names_into_parts
   parts
 }
 
-async fn run() -> Result< (), gl::WebglError >
+/// Creates the orbit camera framed on the scene's bounding box and binds its controls.
+fn setup_camera( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : &mingl::geometry::BoundingBox, width : f32, height : f32 ) -> Camera
 {
-  gl::browser::setup( Default::default() );
-  let options = gl::context::ContextOptions::default().antialias( false );
-
-  let canvas = gl::canvas::make()?;
-  let gl = gl::context::from_canvas_with( &canvas, options )?;
-  let window = gl::web_sys::window().unwrap();
-  let document = window.document().unwrap();
-
-  let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
-  let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
-
-  let width = canvas.width() as f32;
-  let height = canvas.height() as f32;
-
-  let gltf_path = "static/gltf/multi_animation.glb";
-  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
-  let scenes = gltf.scenes;
-  scenes[ 0 ].borrow_mut().update_world_matrix();
-
-  let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
+  gl::info!( "Scene boudnig box: {scene_bounding_box:?}" );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let dist = scene_bounding_box.max.mag();
   let exponent =
@@ -165,7 +146,7 @@ async fn run() -> Result< (), gl::WebglError >
     let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
     exponent_field - 127
   };
-  gl::info!( "Exponent: {:?}", exponent );
+  gl::info!( "Exponent: {exponent:?}" );
 
   // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
@@ -181,25 +162,14 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
-  camera.bind_controls( &canvas );
+  camera.bind_controls( canvas );
 
-  let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
+  camera
+}
 
-  let renderer = Rc::new( RefCell::new( renderer ) );
-
-  let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
-
-  let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
-  let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
-
-  camera.get_controls().borrow_mut().up = F32x3::from_array( [ 0.0, -1.0, 0.0 ] );
-  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341_171e-6, -0.015_823_878, 0.007_656_166] );
-
-  let last_time = Rc::new( RefCell::new( 0.0 ) );
-
-  let scaler = gui_setup::setup( gltf.animations.clone() );
-  print_tree( &scenes[ 0 ].borrow().children[ 0 ] );
+/// Groups the skeleton's node names into named body-part lists for the scaler.
+fn assemble_parts( root : &Rc< RefCell< Node > > ) -> HashMap< Box< str >, Vec< Box< str > > >
+{
   let parts = vec!
   [
     "mixamorig:Neck",
@@ -209,11 +179,7 @@ async fn run() -> Result< (), gl::WebglError >
     "mixamorig:LeftUpLeg"
   ];
 
-  let mut parts = split_node_names_into_parts
-  (
-    &scenes[ 0 ].borrow().children[ 0 ],
-    &parts
-  );
+  let mut parts = split_node_names_into_parts( root, &parts );
 
   let mut hands = parts.remove( "mixamorig:RightShoulder" ).unwrap();
   hands.extend( parts.remove( "mixamorig:LeftShoulder" ).unwrap() );
@@ -236,7 +202,53 @@ async fn run() -> Result< (), gl::WebglError >
   replace_key( "mixamorig:Neck", "head" );
   replace_key( "Armature", "body" );
 
-  gl::info!( "{:#?}", parts );
+  gl::info!( "{parts:#?}" );
+
+  parts
+}
+
+async fn run() -> Result< (), gl::WebglError >
+{
+  gl::browser::setup( gl::browser::Config::default() );
+  let options = gl::context::ContextOptions::default().antialias( false );
+
+  let canvas = gl::canvas::make()?;
+  let gl = gl::context::from_canvas_with( &canvas, options )?;
+  let window = gl::web_sys::window().unwrap();
+  let document = window.document().unwrap();
+
+  let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
+  let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
+
+  let width = canvas.width() as f32;
+  let height = canvas.height() as f32;
+
+  let gltf_path = "static/gltf/multi_animation.glb";
+  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
+  let scenes = gltf.scenes;
+  scenes[ 0 ].borrow_mut().update_world_matrix();
+
+  let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
+  let camera = setup_camera( &canvas, &scene_bounding_box, width, height );
+
+  let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
+
+  let renderer = Rc::new( RefCell::new( renderer ) );
+
+  let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
+
+  let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
+  let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
+
+  camera.get_controls().borrow_mut().up = F32x3::from_array( [ 0.0, -1.0, 0.0 ] );
+  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341_171e-6, -0.015_823_878, 0.007_656_166] );
+
+  let last_time = Rc::new( RefCell::new( 0.0 ) );
+
+  let scaler = gui_setup::setup( gltf.animations.clone() );
+  print_tree( &scenes[ 0 ].borrow().children[ 0 ] );
+  let parts = assemble_parts( &scenes[ 0 ].borrow().children[ 0 ] );
 
   if let Some( scaler ) = scaler.borrow_mut().as_mut()
   {

@@ -31,6 +31,7 @@ mod private
     PixelFormat,
     Source,
     SpriteAsset,
+    detect_image_mime,
   };
   use crate::backend::
   {
@@ -509,55 +510,42 @@ mod private
     /// Returns `None` if the dimensions don't match the byte count.
     fn bitmap_to_png( bytes : &[ u8 ], width : u32, height : u32, format : PixelFormat ) -> Option< Vec< u8 > >
     {
-      use image::DynamicImage;
-
-      let dynamic = match format
+      let color_type = match format
       {
-        PixelFormat::Rgba8 =>
-          DynamicImage::ImageRgba8( image::RgbaImage::from_raw( width, height, bytes.to_vec() )? ),
-        PixelFormat::Rgb8 =>
-          DynamicImage::ImageRgb8( image::RgbImage::from_raw( width, height, bytes.to_vec() )? ),
-        PixelFormat::Gray8 =>
-          DynamicImage::ImageLuma8( image::GrayImage::from_raw( width, height, bytes.to_vec() )? ),
-        PixelFormat::GrayAlpha8 =>
-          DynamicImage::ImageLumaA8( image::GrayAlphaImage::from_raw( width, height, bytes.to_vec() )? ),
+        PixelFormat::Rgba8 => png::ColorType::Rgba,
+        PixelFormat::Rgb8 => png::ColorType::Rgb,
+        PixelFormat::Gray8 => png::ColorType::Grayscale,
+        PixelFormat::GrayAlpha8 => png::ColorType::GrayscaleAlpha,
       };
 
-      let mut png = Vec::new();
-      // `core::io` is unstable (feature `core_io`, rust-lang/rust#154046) on this
-      // toolchain's stable channel; `std::io::Cursor` is the only usable path.
-      dynamic.write_to( &mut std::io::Cursor::new( &mut png ), image::ImageFormat::Png ).ok()?;
-      Some( png )
+      let mut png_bytes = Vec::new();
+      let mut encoder = png::Encoder::new( &mut png_bytes, width, height );
+      encoder.set_color( color_type );
+      encoder.set_depth( png::BitDepth::Eight );
+      let mut writer = encoder.write_header().ok()?;
+      // `write_image_data` returns `Err` (never panics) on a byte-count that
+      // doesn't match `width * height * bytes_per_pixel( color_type )`, which
+      // is what preserves the dimension-mismatch-returns-`None` contract.
+      writer.write_image_data( bytes ).ok()?;
+      // `Writer::finish` performs the real IEND write/flush and surfaces
+      // encode errors; `Drop` alone would silently swallow them instead.
+      writer.finish().ok()?;
+      Some( png_bytes )
     }
 
-    /// Extracts width and height from a PNG byte buffer by reading the IHDR chunk.
-    /// Returns `None` if the buffer is too short or does not start with the PNG signature.
-    /// Extracts (width, height) from an encoded image buffer using the `image`
-    /// crate's format guesser. Supports any format the crate can decode the
-    /// dimensions of — PNG, JPEG, GIF, WebP, BMP, TIFF, etc. Returns `None`
-    /// when the format is unrecognized or the header is malformed.
+    /// Extracts width and height from a PNG byte buffer by reading its header
+    /// chunk (no full pixel decode). Returns `None` if the buffer is not a
+    /// valid PNG or the header is malformed. PNG-only: unlike the crate's
+    /// previous `image`-backed implementation, non-PNG bytes (JPEG, GIF,
+    /// WebP, BMP, TIFF) no longer resolve dimensions — callers already
+    /// handle `None` via their existing `(0, 0)` fallback.
     // `core::io` is unstable (feature `core_io`, rust-lang/rust#154046) on this
     // toolchain's stable channel; `std::io::Cursor` is the only usable path.
     fn image_dimensions( bytes : &[ u8 ] ) -> Option< ( u32, u32 ) >
     {
-      image::ImageReader::new( std::io::Cursor::new( bytes ) )
-        .with_guessed_format()
-        .ok()?
-        .into_dimensions()
-        .ok()
-    }
-
-    /// Detects the MIME type of an encoded image by inspecting its magic bytes.
-    /// Falls back to `image/png` when the signature is unknown, which matches
-    /// the prior behavior for well-formed PNG inputs.
-    fn detect_image_mime( bytes : &[ u8 ] ) -> &'static str
-    {
-      if bytes.starts_with( &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ] ) { return "image/png"; }
-      if bytes.starts_with( &[ 0xff, 0xd8, 0xff ] ) { return "image/jpeg"; }
-      if bytes.starts_with( b"GIF87a" ) || bytes.starts_with( b"GIF89a" ) { return "image/gif"; }
-      if bytes.len() >= 12 && bytes.starts_with( b"RIFF" ) && &bytes[ 8..12 ] == b"WEBP" { return "image/webp"; }
-      if bytes.starts_with( b"<svg" ) || bytes.starts_with( b"<?xml" ) { return "image/svg+xml"; }
-      "image/png"
+      let mut decoder = png::Decoder::new( std::io::Cursor::new( bytes ) );
+      let info = decoder.read_header_info().ok()?;
+      Some( ( info.width, info.height ) )
     }
 
     // Legacy PNG-only IHDR reader. Production code uses `image_dimensions` for
@@ -981,11 +969,11 @@ mod private
           }
           ImageSource::Encoded( bytes ) =>
           {
-            // Decode dimensions for any format the `image` crate recognizes (PNG,
-            // JPEG, GIF, WebP, ...) so that sprites using this sheet can render
-            // with correct viewBox/use sizing.
+            // Decode dimensions from a PNG header (non-PNG bytes fall back to
+            // (0, 0) below) so that sprites using this sheet can render with
+            // correct viewBox/use sizing.
             let ( w, h ) = Self::image_dimensions( bytes ).unwrap_or( ( 0, 0 ) );
-            let mime = Self::detect_image_mime( bytes );
+            let mime = detect_image_mime( bytes );
             let encoded = base64::prelude::BASE64_STANDARD.encode( bytes );
             // Per SVG 1.1 §11.5, `<image>` without width/height renders at 0×0.
             // Emit viewBox + explicit dimensions so `<use>` references resolve.
@@ -2129,17 +2117,17 @@ mod private
     fn detect_image_mime_by_magic()
     {
       // PNG
-      assert_eq!( SvgBackend::detect_image_mime( &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0 ] ), "image/png" );
+      assert_eq!( detect_image_mime( &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0 ] ), "image/png" );
       // JPEG
-      assert_eq!( SvgBackend::detect_image_mime( &[ 0xff, 0xd8, 0xff, 0xe0 ] ), "image/jpeg" );
+      assert_eq!( detect_image_mime( &[ 0xff, 0xd8, 0xff, 0xe0 ] ), "image/jpeg" );
       // GIF
-      assert_eq!( SvgBackend::detect_image_mime( b"GIF89a..." ), "image/gif" );
+      assert_eq!( detect_image_mime( b"GIF89a..." ), "image/gif" );
       // WebP
       let mut webp = Vec::from( *b"RIFF\0\0\0\0WEBP" );
       webp.push( 0 );
-      assert_eq!( SvgBackend::detect_image_mime( &webp ), "image/webp" );
+      assert_eq!( detect_image_mime( &webp ), "image/webp" );
       // Unknown falls back to PNG
-      assert_eq!( SvgBackend::detect_image_mime( &[ 0, 0, 0, 0 ] ), "image/png" );
+      assert_eq!( detect_image_mime( &[ 0, 0, 0, 0 ] ), "image/png" );
     }
 
     /// Verifies that `path_to_href` produces a valid URI reference:
@@ -2238,6 +2226,34 @@ mod private
       // 2×2 Rgba8 needs 16 bytes; supplying only 4 must return None
       let png = SvgBackend::bitmap_to_png( &[ 255, 0, 0, 255 ], 2, 2, PixelFormat::Rgba8 );
       assert!( png.is_none(), "expected None for undersized buffer" );
+    }
+
+    /// Verifies pixel-for-pixel round-trip fidelity through `bitmap_to_png` for
+    /// all 4 `PixelFormat` variants — the tests above only check
+    /// magic-bytes/`is_some()`, not that the encoded pixel data is correct.
+    #[ test ]
+    fn bitmap_to_png_round_trip_pixel_fidelity()
+    {
+      let cases : &[ ( PixelFormat, u32, u32, &[ u8 ] ) ] =
+      &[
+        ( PixelFormat::Rgba8, 2, 2, &[ 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160 ] ),
+        ( PixelFormat::Rgb8, 3, 1, &[ 10, 20, 30, 40, 50, 60, 70, 80, 90 ] ),
+        ( PixelFormat::Gray8, 2, 2, &[ 10, 20, 30, 40 ] ),
+        ( PixelFormat::GrayAlpha8, 3, 1, &[ 10, 20, 30, 40, 50, 60 ] ),
+      ];
+
+      for &( format, width, height, pixels ) in cases
+      {
+        let png = SvgBackend::bitmap_to_png( pixels, width, height, format )
+          .unwrap_or_else( || panic!( "expected Some for valid {width}x{height} {format:?}" ) );
+
+        let decoder = png::Decoder::new( std::io::Cursor::new( png ) );
+        let mut reader = decoder.read_info().expect( "valid PNG should decode" );
+        let mut buf = vec![ 0u8; reader.output_buffer_size() ];
+        let info = reader.next_frame( &mut buf ).expect( "should decode frame" );
+
+        assert_eq!( &buf[ ..info.buffer_size() ], pixels, "pixel mismatch for {format:?}" );
+      }
     }
 
     // anchor_to_svg — 9 variants (private method, must stay inline)

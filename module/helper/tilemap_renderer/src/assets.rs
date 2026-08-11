@@ -435,9 +435,9 @@ mod private
     ///
     /// **SVG backend:** MIME type is auto-detected from magic bytes
     /// (PNG, JPEG, GIF, WebP, SVG). Unknown signatures fall back to `image/png`.
-    /// Dimensions are extracted via the `image` crate for any format it
-    /// recognizes (PNG, JPEG, GIF, WebP, BMP, TIFF, ...). If dimension
-    /// extraction fails, any sprite referencing this sheet is skipped with a
+    /// Dimensions are extracted via a minimal PNG-only header read (the `png`
+    /// crate). Non-PNG bytes (JPEG, GIF, WebP, BMP, TIFF, ...) do not resolve
+    /// dimensions; any sprite referencing this sheet is then skipped with a
     /// warning — see [`ImageSource::Path`] for the reporting behavior.
     ///
     /// **Security — embedded SVG bytes:** bytes starting with `<svg`/`<?xml`
@@ -450,9 +450,14 @@ mod private
     /// embedded SVG document. Callers passing SVG bytes are responsible for
     /// trusting or sanitizing their source.
     ///
-    /// **WebGL backend:** not yet implemented — this variant is skipped
-    /// during `load_assets` with a console warning. Use `Bitmap`
-    /// (pre-decoded) or `Path` instead.
+    /// **WebGL backend:** MIME type is auto-detected the same way as the SVG
+    /// backend (shared `detect_image_mime` helper, crate-internal). The
+    /// bytes are wrapped in a `Blob` and decoded via a browser-native
+    /// `blob:` object URL, then uploaded asynchronously through the same
+    /// `HtmlImageElement` path as [`ImageSource::Path`] — including its
+    /// failure-reporting behavior (logged to `console.error`, texture
+    /// remains empty, cannot propagate back through `load_assets`). The
+    /// object URL is revoked once the image has loaded or failed to load.
     Encoded( Vec< u8 > ),
     /// Raw pixel data — ready to upload directly.
     Bitmap
@@ -539,4 +544,22 @@ mod_interface::mod_interface!
   own use PixelFormat;
   own use Source;
   own use DataType;
+}
+
+/// Detects the MIME type of an encoded image by inspecting its magic bytes.
+/// Falls back to `image/png` when the signature is unknown, which matches
+/// the prior behavior for well-formed PNG inputs.
+///
+/// Crate-internal helper shared by the `svg` and `webgl` adapters — kept
+/// outside `mod private` and the `mod_interface!` block above so both can
+/// call it without depending on `mod_interface`'s visibility-tier semantics.
+#[ cfg( any( feature = "adapter-svg", feature = "adapter-webgl" ) ) ]
+pub( crate ) fn detect_image_mime( bytes : &[ u8 ] ) -> &'static str
+{
+  if bytes.starts_with( &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ] ) { return "image/png"; }
+  if bytes.starts_with( &[ 0xff, 0xd8, 0xff ] ) { return "image/jpeg"; }
+  if bytes.starts_with( b"GIF87a" ) || bytes.starts_with( b"GIF89a" ) { return "image/gif"; }
+  if bytes.len() >= 12 && bytes.starts_with( b"RIFF" ) && &bytes[ 8..12 ] == b"WEBP" { return "image/webp"; }
+  if bytes.starts_with( b"<svg" ) || bytes.starts_with( b"<?xml" ) { return "image/svg+xml"; }
+  "image/png"
 }

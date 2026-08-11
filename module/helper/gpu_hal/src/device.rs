@@ -134,6 +134,12 @@ mod private
   {
     /// Requests a WebGPU adapter and device, then configures `canvas` for
     /// presentation in the browser's preferred canvas format.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WebGpu`] if creating the canvas context or
+    /// configuring it for presentation fails, or [`Error::Unsupported`] if
+    /// the canvas's preferred format has no HAL equivalent.
     #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
     pub async fn new_webgpu
     (
@@ -160,6 +166,12 @@ mod private
     ///
     /// Requires `EXT_color_buffer_float`, so float color targets are
     /// renderable on this backend too.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WebGl`] if creating the WebGL2 context or querying
+    /// `EXT_color_buffer_float` fails, or [`Error::Unsupported`] if the
+    /// extension is unavailable.
     #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
     pub fn new_webgl
     (
@@ -830,6 +842,7 @@ mod private
 
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
     #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+    #[must_use]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuDevice >
     {
       match self
@@ -842,6 +855,7 @@ mod private
 
     /// The raw GL context, when the handle belongs to the WebGL backend.
     #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    #[ must_use ]
     pub fn as_webgl( &self ) -> Option< &glw::GL >
     {
       match self
@@ -1010,6 +1024,7 @@ mod private
     }
 
     /// Finishes `encoder` and submits its command buffer.
+    #[ allow( clippy::needless_pass_by_value, reason = "submitting consumes the encoder -- WebGPU's and wgpu's finish() both take ownership, and a submitted encoder must not be reusable afterward" ) ]
     pub fn submit( &self, encoder : CommandEncoder )
     {
       match self
@@ -1045,6 +1060,7 @@ mod private
 
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
     #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+    #[must_use]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuQueue >
     {
       match self
@@ -1057,6 +1073,7 @@ mod private
 
     /// The raw GL context, when the handle belongs to the WebGL backend.
     #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    #[ must_use ]
     pub fn as_webgl( &self ) -> Option< &glw::GL >
     {
       match self
@@ -1140,6 +1157,7 @@ mod private
     /// The raw WebGPU canvas context, when the handle belongs to the WebGPU
     /// backend.
     #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+    #[must_use]
     pub fn as_webgpu( &self ) -> Option< &gl::GL >
     {
       match self
@@ -1152,6 +1170,7 @@ mod private
 
     /// The raw GL context, when the handle belongs to the WebGL backend.
     #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    #[ must_use ]
     pub fn as_webgl( &self ) -> Option< &glw::GL >
     {
       match self
@@ -1177,6 +1196,7 @@ mod private
     /// `read_texture_rgba8`'s errors: [`Error::Unsupported`] if the
     /// surface's texture format is not `Rgba8Unorm`, or [`Error::Native`]
     /// if the GPU readback fails.
+    #[ cfg_attr( all( feature = "webgpu", feature = "webgl", target_arch = "wasm32" ), expect( clippy::match_same_arms, reason = "the WebGpu and WebGl arms are gated by independent features and cannot be merged into an or-pattern without breaking single-feature builds" ) ) ]
     pub fn read_pixels( &self, device : &Device, queue : &Queue ) -> Result< Vec< u8 >, Error >
     {
       match self

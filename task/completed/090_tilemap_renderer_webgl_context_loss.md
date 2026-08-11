@@ -18,6 +18,7 @@
 - **blocked_by:** null
 - **executing_at:** 2026-08-11 15:41:40
 - **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **priority:** 0
 
 ## Goal
 

@@ -1,16 +1,16 @@
 # BUG-080: `mingl::geometry::BoundingBox`'s `#[non_exhaustive]` breaks 7 struct-literal construction sites across 2 crates, including the default `cargo check --workspace` build
 
 - **Severity:** High
-- **state:** 📝 (Draft)
+- **state:** Completed
 - **Affects:** `module/helper/primitive_generation` (`src/text/ufo.rs`, 2 sites, under `--features font-processing`/`full`/`--all-features`) and `examples/minwebgl/text_rendering` (`src/text.rs`, 5 sites, unconditionally — no feature gate); combined, breaks the plain `cargo check --workspace` / `cargo build --workspace` default-features command from the repo root
 - **Component:** `module/min/mingl` (defect origin: `src/geometry.rs`'s `BoundingBox` struct) × 2 downstream consumer crates (breakage sites)
 - **repo_identity:** self
 - **Filed:** 2026-08-11
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/bug/
-- **verified_by:** null
-- **verification_date:** null
-- **Fixed:** null
-- **Accepted By:** null
+- **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **verification_date:** 2026-08-11
+- **Fixed:** 2026-08-11
+- **Accepted By:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ (self — same-session Tier 2 Dual-Role Self-Check, no separate PROC16 acceptance actor)
 
 ## Symptom
 
@@ -184,11 +184,25 @@ time I've independently found the same root-caused regression in an unrelated ta
 section" as a specific trigger to check for (and, if absent, file) a dedicated tracker — not just to
 note it again in the Nth+1 place.
 
-## Fix Location (not yet applied — options, not a decision)
+## Fix Applied
 
-Recorded here rather than applied unilaterally — fixing requires editing `src/` in 2 downstream
-crates, outside this filing session's own edit scope (`task/`, `-task/`, `docs/` only). Candidate
-approaches:
+Option 1 below is what landed — all 7 call sites now construct via `BoundingBox::new( min, max )`:
+
+- `examples/minwebgl/text_rendering/src/text.rs` — all 5 sites switched by the task-058
+  all-warnings sweep lane (2026-08-11), as part of that sweep's text_rendering pass.
+- `module/helper/primitive_generation/src/text/ufo.rs` — both sites observed already switched to
+  `BoundingBox::new` as of commit `96bb2aef` ("feat: consolidate GPU HAL adoption, modernize
+  examples, and expand test infrastructure", 2026-08-11); fixed upstream of this closure, not by
+  the sweep lane.
+
+**Verification (2026-08-11):**
+- `cargo check -p text_rendering` → exit 0, `Finished` (previously exit 101, 5×E0639).
+- `cargo check -p primitive_generation --features font-processing` → exit 0, `Finished` (previously exit 101, 2×E0639).
+- The session's 4-phase workspace gate (host clippy `--workspace --all-features -D warnings`, with
+  only the live-claim `tilemap_renderer` cone excluded; wasm32 clippy over 20 examples including
+  `text_rendering`; `--workspace` nextest 1220/1220; `--workspace` doc tests) → all green.
+
+The original candidate approaches, kept for the record:
 
 1. **Switch all 7 call sites to `BoundingBox::new(min, max)`** — the already-available,
    already-idiomatic-elsewhere constructor. Cheapest, lowest-risk option: no API change needed
@@ -220,3 +234,4 @@ is the concrete check to run before landing `#[non_exhaustive]` on any existing 
 | Date | Event | Notes |
 |------|-------|-------|
 | 2026-08-11 | filed | Discovered as an already-four-times-independently-rediscovered, never-tracked regression (tasks 036/018/021/055's own Verification sections, plus health.md's known-issues list) during this session's TA106 out-of-scope-findings triage. Re-verified fresh directly against source (not trusted from the prior mentions alone): confirmed 7 total call sites across 2 crates (not the 2 originally assumed), confirmed `cargo check --workspace` itself currently fails (not just an opt-in-feature edge case), confirmed the replacement constructor (`BoundingBox::new`) already exists and is already the established pattern elsewhere. Left in Draft/unfixed state — fixing requires `src/` edits in 2 downstream crates, outside this filing session's own edit scope. |
+| 2026-08-11 | fixed + completed | Option 1 landed at all 7 sites: `text_rendering/src/text.rs` ×5 by the task-058 all-warnings sweep lane; `primitive_generation/src/text/ufo.rs` ×2 observed already fixed in commit `96bb2aef` (upstream of this closure). Both per-crate Verify Commands re-run fresh → exit 0; workspace gate green (see Fix Applied). Closed same-session, Round 0, self-accepted per BUG-079 precedent. |

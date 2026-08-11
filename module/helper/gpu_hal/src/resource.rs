@@ -46,6 +46,7 @@ mod private
   {
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
     #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+    #[must_use]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuBuffer >
     {
       match self
@@ -58,6 +59,7 @@ mod private
 
     /// The WebGL backend data, when the handle belongs to the WebGL backend.
     #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    #[ must_use ]
     pub fn as_webgl( &self ) -> Option< &BufferWebGl >
     {
       match self
@@ -157,6 +159,7 @@ mod private
 
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
     #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+    #[must_use]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuTexture >
     {
       match self
@@ -169,6 +172,7 @@ mod private
 
     /// The WebGL backend data, when the handle belongs to the WebGL backend.
     #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    #[ must_use ]
     pub fn as_webgl( &self ) -> Option< &TextureWebGl >
     {
       match self
@@ -243,6 +247,7 @@ mod private
   {
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
     #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+    #[must_use]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuTextureView >
     {
       match self
@@ -255,6 +260,7 @@ mod private
 
     /// The WebGL backend data, when the handle belongs to the WebGL backend.
     #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    #[ must_use ]
     pub fn as_webgl( &self ) -> Option< &TextureViewWebGl >
     {
       match self
@@ -327,6 +333,7 @@ mod private
   {
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
     #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+    #[must_use]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuSampler >
     {
       match self
@@ -339,6 +346,7 @@ mod private
 
     /// The raw WebGL object, when the handle belongs to the WebGL backend.
     #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    #[ must_use ]
     pub fn as_webgl( &self ) -> Option< &web_sys::WebGlSampler >
     {
       match self
@@ -411,6 +419,7 @@ mod private
   {
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
     #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+    #[must_use]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuShaderModule >
     {
       match self
@@ -423,6 +432,7 @@ mod private
 
     /// The WebGL backend data, when the handle belongs to the WebGL backend.
     #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    #[ must_use ]
     pub fn as_webgl( &self ) -> Option< &ShaderModuleWebGl >
     {
       match self
@@ -495,6 +505,7 @@ mod private
   {
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
     #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+    #[must_use]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuBindGroupLayout >
     {
       match self
@@ -507,6 +518,7 @@ mod private
 
     /// The WebGL backend data, when the handle belongs to the WebGL backend.
     #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    #[ must_use ]
     pub fn as_webgl( &self ) -> Option< &BindGroupLayoutWebGl >
     {
       match self
@@ -579,6 +591,7 @@ mod private
   {
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
     #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+    #[must_use]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuBindGroup >
     {
       match self
@@ -591,6 +604,7 @@ mod private
 
     /// The WebGL backend data, when the handle belongs to the WebGL backend.
     #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    #[ must_use ]
     pub fn as_webgl( &self ) -> Option< &BindGroupWebGl >
     {
       match self
@@ -664,6 +678,7 @@ mod private
   {
     /// The raw WebGPU object, when the handle belongs to the WebGPU backend.
     #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+    #[must_use]
     pub fn as_webgpu( &self ) -> Option< &web_sys::GpuRenderPipeline >
     {
       match self
@@ -676,6 +691,7 @@ mod private
 
     /// The WebGL backend data, when the handle belongs to the WebGL backend.
     #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    #[ must_use ]
     pub fn as_webgl( &self ) -> Option< &RenderPipelineWebGl >
     {
       match self

@@ -4,20 +4,27 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **started_at:** 2026-08-11 13:37:03
-- **expires_at:** 2026-08-11 15:37:03
+- **actor:** null
+- **started_at:** null
+- **expires_at:** null
 - **round:** 1
-- **state:** ⚙️ (Executing)
+- **state:** ✅ (Completed)
 - **closes:** null
 - **repo_identity:** self
 - **unit_type:** module
 - **unit:** module/helper/tilemap_renderer
-- **verified_by:** null
-- **verification_date:** null
+- **verified_by:** verifier@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **verification_date:** 2026-08-11 18:19:29
 - **blocked_by:** null
-- **executing_at:** 2026-08-11 13:37:03
+- **executing_at:** 2026-08-11 17:20:49
 - **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **verified_at:** 2026-08-11 17:19:28
+- **in_motion:** false
+- **accepting_at:** 2026-08-11 17:59:17
+- **accepting_by:** verifier@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **priority:** 0
+- **completed_at:** 2026-08-11 18:19:29
+- **completed_by:** verifier@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 
 ## Goal
 
@@ -197,12 +204,23 @@ independent verifier performs the walk after the task reaches 🔎 Accepting.
 - `module/helper/gpu_hal/src/device.rs` — `Device::new_webgpu`, `create_texture`,
   `create_command_encoder` surface this task consumes
 
+## Outcomes
+
+<!-- verified implementation deliverables -->
+
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |
 |---------------------|----------------------|-------|--------------|
 | 2026-08-11 13:37:03 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
 | 2026-08-11 14:40:00 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | NOTE | Implementation written: `src/adapters/webgpu.rs` (409 lines), `Cargo.toml` feature/dep, `adapters/mod.rs` layer registration, and a `lib.rs` top-level `adapters` gate fix (was missing `feature = "adapter-webgpu"` in the `any(...)` list — without it the whole `adapters` module compiled to nothing under `--features adapter-webgpu` alone, so T01/T02's first "clean" passes were false positives that silently compiled zero of this task's own code). `tests/webgpu_backend_test.rs` covers T03/T05/AF2 as pure-function `#[wasm_bindgen_test]`s (no live device) and genuinely executed via the headless-browser wasm32 runner: 3/3 passed. T01/T02/T04 passed cleanly on isolated runs. I3 (`cargo clippy --target wasm32-unknown-unknown --features adapter-webgpu -- -D warnings`) and a T01 re-run intermittently failed on `gpu_hal`'s own pre-existing code (`#[must_use]`/`# Errors`/`dead_code` in `pass.rs`/`resource.rs`/etc, not in `tilemap_renderer`) — confirmed via mtime that `gpu_hal/src/{resource,types,webgl}.rs` were edited live, minutes apart, by a concurrent actor during this session's own verification run. `gpu_hal` is not in this task's In Scope; did not touch it. I3/T01-stability is left open pending the concurrent edit settling — re-run once `gpu_hal`'s working tree is quiescent. |
+| 2026-08-11 17:19:28 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-11 17:20:49 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
+| 2026-08-11 17:20:49 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | NOTE | Re-claimed after TIMEOUT_2H (row above) to record completion. The prior actor-instability read on `gpu_hal` (see NOTE row above) was superseded: those live edits had already been consolidated by an external commit before this claim began; what remained was a stable, fixable set of 19 pre-existing `gpu_hal` `clippy::pedantic` issues blocking I3, unrelated to any concurrent actor. Fixed all 19 (16× `#[must_use]` on `as_webgpu`/`to_webgpu`/`as_native`-pattern accessors in `types.rs`/`resource.rs`/`device.rs`/`pass.rs`; 2× `# Errors` doc sections on `from_webgpu`/`new_webgpu`; 1× justified `#[allow(clippy::needless_pass_by_value, reason = "...")]` on `Queue::submit`, which genuinely needs by-value `CommandEncoder` since `.finish()` consumes it on both WebGPU and native paths). `gpu_hal` is a dependency, not this task's own In Scope, but the user explicitly authorized fixing all found problems. Full re-verification after the fix, all green: I1 (wasm32 check) ✓, I2 (`cargo nextest -p tilemap_renderer --all-features`) ✓ 131/131, I3 (`clippy --target wasm32-unknown-unknown -- -D warnings`) ✓ 0 warnings — the original blocker is cleared; T01/T02/T04 ✓; T03/T05/AF2 ✓ via the same 3/3 genuine wasm32 browser-executed tests; M2 (warning count) ✓ 0. Two side-incidents hit and resolved during re-verification, neither a code defect: (1) a transient spike to 0 free space on the shared 301G `/`+`/tmp` filesystem failed a T04 attempt (`os error 28`) — self-recovered to 23G/7% free within minutes (consistent with concurrent/retried builds on this shared workspace), retried clean; (2) that same disk-full moment corrupted the `~/.cargo` registry extraction of `js-sys-0.3.104`/`regex-syntax-0.7.5` (`E0425`/`E0433`/`E0583`), failing an I2 attempt — verified via direct file inspection that Cargo's own extraction machinery had already self-healed the cache before retrying (no manual `rm`/`cargo clean` needed); I2 retry passed 131/131. Documentation updated: `docs/layer/002_l1_gpu_hal.md`'s Status section now records that `adapter-webgpu` builds and passes its own compile-and-construct-level test suite (same browser-pixel-test gap noted for `renderer`'s WebGPU path) while `adapter-native` remains unimplemented. |
+| 2026-08-11 17:21:44 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | EXEC_COMPLETE | execution complete |
+| 2026-08-11 17:59:17 | verifier@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_ACCEPT | acceptance claimed |
+| 2026-08-11 18:19:29 | verifier@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | ACCEPTANCE_PASS | acceptance passed |
 
 ## History
 

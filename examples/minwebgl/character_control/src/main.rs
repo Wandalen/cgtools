@@ -40,6 +40,7 @@ use primitive_generation::
   plane_to_geometry
 };
 use web_sys::HtmlCanvasElement;
+use browser_input::keyboard::KeyboardKey;
 
 /// Add new plane [`renderer::webgl::Node`] to [`Scene`]
 fn create_plane( gl : &GL, scene : &Rc< RefCell< Scene > > )
@@ -137,10 +138,31 @@ fn setup_input( canvas : &HtmlCanvasElement ) -> ( Rc< RefCell< CharacterControl
   ( character_controls, character_input )
 }
 
-fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_input::Input > > ) -> AnimationGraph
+/// Edge condition that always fires.
+fn always( _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose ) -> bool
 {
-  let mut graph = AnimationGraph::new( &animations[ 0 ].nodes );
+  true
+}
 
+/// Builds an edge condition that fires while `key` is held down.
+fn key_down_condition( input : &Rc< RefCell< browser_input::Input > >, key : KeyboardKey )
+-> impl Fn( &AnimationEdge, &Pose, &Pose ) -> bool
+{
+  let input = input.clone();
+  move | _edge, _p1, _p2 | input.borrow().is_key_down( key )
+}
+
+/// Builds an edge condition that fires while `key` is released.
+fn key_up_condition( input : &Rc< RefCell< browser_input::Input > >, key : KeyboardKey )
+-> impl Fn( &AnimationEdge, &Pose, &Pose ) -> bool
+{
+  let input = input.clone();
+  move | _edge, _p1, _p2 | !input.borrow().is_key_down( key )
+}
+
+/// Prepares named sequencers : strips the global hips translation ( except listed animations ) and flips running_jump's lateral axes.
+fn prepare_animations( animations : Vec< Animation > ) -> FxHashMap< String, Sequencer >
+{
   let mut animations = animations.into_iter()
   .filter_map( | a | Some( ( a.name?.into_string(), a.animation.as_any().downcast_ref::< Sequencer >().unwrap().clone() ) ) )
   .collect::< FxHashMap< String, Sequencer > >();
@@ -172,24 +194,25 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
     }
   }
 
-  let instant_tween = Tween::new( 1.0, 1.0, 0.0, Linear::build() );
-  let true_condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    true
-  };
+  animations
+}
 
+/// Adds idle, jump, and walk nodes with their keyboard-driven edges.
+fn add_locomotion_states
+(
+  graph : &mut AnimationGraph,
+  animations : &FxHashMap< String, Sequencer >,
+  input : &Rc< RefCell< browser_input::Input > >,
+  instant_tween : &Tween< f64 >
+)
+{
   graph.node_add( "idle", animations.get( "happy_idle" ).unwrap().clone() );
   graph.node_add( "jump", animations.get( "standing_jump" ).unwrap().clone() );
 
-  let input = input_.clone();
   let tween = Tween::new( 1.0, 1.0, 2.4, Linear::build() );
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::Space )
-  };
-  graph.edge_add( "idle", "jump", "idle_to_jump", tween, condition );
+  graph.edge_add( "idle", "jump", "idle_to_jump", tween, key_down_condition( input, KeyboardKey::Space ) );
 
-  graph.edge_add( "jump", "idle", "jump_to_idle", instant_tween.clone(), true_condition );
+  graph.edge_add( "jump", "idle", "jump_to_idle", instant_tween.clone(), always );
 
   graph.node_add( "walk", animations.get( "female_walk" ).unwrap().clone() );
   graph.node_add( "walk_backward", animations.get( "running_backward" ).unwrap().clone() );
@@ -202,65 +225,30 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   let stop_walk = animations.get( "female_stop_walking" ).unwrap().clone();
   graph.node_add( "stop_walk", stop_walk );
 
-  let input = input_.clone();
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW )
-  };
-  graph.edge_add( "idle", "walk", "idle_to_walk", instant_tween.clone(), condition );
+  graph.edge_add( "idle", "walk", "idle_to_walk", instant_tween.clone(), key_down_condition( input, KeyboardKey::KeyW ) );
 
-  let input = input_.clone();
   let tween = Tween::new( 1.0, 1.0, 1.55, Linear::build() );
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW )
-  };
-  graph.edge_add( "walk", "stop_walk", "walk_to_stop_walk", tween, condition );
+  graph.edge_add( "walk", "stop_walk", "walk_to_stop_walk", tween, key_up_condition( input, KeyboardKey::KeyW ) );
 
-  graph.edge_add( "stop_walk", "idle", "stop_walk_to_idle", instant_tween.clone(), true_condition );
+  graph.edge_add( "stop_walk", "idle", "stop_walk_to_idle", instant_tween.clone(), always );
 
-  let input = input_.clone();
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyS )
-  };
-  graph.edge_add( "idle", "walk_backward", "idle_to_walk_backward", instant_tween.clone(), condition );
+  graph.edge_add( "idle", "walk_backward", "idle_to_walk_backward", instant_tween.clone(), key_down_condition( input, KeyboardKey::KeyS ) );
+  graph.edge_add( "walk_backward", "idle", "walk_backward_to_idle", instant_tween.clone(), key_up_condition( input, KeyboardKey::KeyS ) );
+  graph.edge_add( "idle", "walk_left", "idle_to_walk_left", instant_tween.clone(), key_down_condition( input, KeyboardKey::KeyA ) );
+  graph.edge_add( "walk_left", "idle", "walk_left_to_idle", instant_tween.clone(), key_up_condition( input, KeyboardKey::KeyA ) );
+  graph.edge_add( "idle", "walk_right", "idle_to_walk_right", instant_tween.clone(), key_down_condition( input, KeyboardKey::KeyD ) );
+  graph.edge_add( "walk_right", "idle", "walk_right_to_idle", instant_tween.clone(), key_up_condition( input, KeyboardKey::KeyD ) );
+}
 
-  let input = input_.clone();
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyS )
-  };
-  graph.edge_add( "walk_backward", "idle", "walk_backward_to_idle", instant_tween.clone(), condition );
-
-  let input = input_.clone();
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyA )
-  };
-  graph.edge_add( "idle", "walk_left", "idle_to_walk_left", instant_tween.clone(), condition );
-
-  let input = input_.clone();
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyA )
-  };
-  graph.edge_add( "walk_left", "idle", "walk_left_to_idle", instant_tween.clone(), condition );
-
-  let input = input_.clone();
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyD )
-  };
-  graph.edge_add( "idle", "walk_right", "idle_to_walk_right", instant_tween.clone(), condition );
-
-  let input = input_.clone();
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyD )
-  };
-  graph.edge_add( "walk_right", "idle", "walk_right_to_idle", instant_tween.clone(), condition );
-
+/// Adds run nodes and the edges between walk, run, and jump states.
+fn add_run_states
+(
+  graph : &mut AnimationGraph,
+  animations : &FxHashMap< String, Sequencer >,
+  input_ : &Rc< RefCell< browser_input::Input > >,
+  instant_tween : &Tween< f64 >
+)
+{
   graph.node_add( "run", animations.get( "run_forward" ).unwrap().clone() );
   graph.node_add( "run_backward", animations.get( "running_backward" ).unwrap().clone() );
   graph.node_add( "run_jump", animations.get( "running_jump" ).unwrap().clone() );
@@ -269,57 +257,57 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   let tween = Tween::new( 1.0, 1.0, 0.9, Linear::build() );
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW ) &&
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::ShiftLeft ) &&
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::Space )
+    input.borrow().is_key_down( KeyboardKey::KeyW ) &&
+    input.borrow().is_key_down( KeyboardKey::ShiftLeft ) &&
+    input.borrow().is_key_down( KeyboardKey::Space )
   };
   graph.edge_add( "run", "run_jump", "run_to_run_jump", tween, condition );
 
-  graph.edge_add( "run_jump", "run", "run_jump_to_run", instant_tween.clone(), true_condition );
+  graph.edge_add( "run_jump", "run", "run_jump_to_run", instant_tween.clone(), always );
 
   let input = input_.clone();
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW ) && input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::ShiftLeft )
+    input.borrow().is_key_down( KeyboardKey::KeyW ) && input.borrow().is_key_down( KeyboardKey::ShiftLeft )
   };
   graph.edge_add( "walk", "run", "walk_to_run", instant_tween.clone(), condition );
 
   let input = input_.clone();
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW ) && !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::ShiftLeft )
+    input.borrow().is_key_down( KeyboardKey::KeyW ) && !input.borrow().is_key_down( KeyboardKey::ShiftLeft )
   };
   graph.edge_add( "run", "walk", "run_to_walk", instant_tween.clone(), condition );
 
-  let input = input_.clone();
   let tween = Tween::new( 1.0, 1.0, 1.55, Linear::build() );
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW )
-  };
-  graph.edge_add( "run", "stop_walk", "run_to_stop_walk", tween, condition );
+  graph.edge_add( "run", "stop_walk", "run_to_stop_walk", tween, key_up_condition( input_, KeyboardKey::KeyW ) );
 
   let input = input_.clone();
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyS ) && input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::ShiftLeft )
+    input.borrow().is_key_down( KeyboardKey::KeyS ) && input.borrow().is_key_down( KeyboardKey::ShiftLeft )
   };
   graph.edge_add( "walk_backward", "run_backward", "walk_backward_to_run_backward", instant_tween.clone(), condition );
 
   let input = input_.clone();
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyS ) && !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::ShiftLeft )
+    input.borrow().is_key_down( KeyboardKey::KeyS ) && !input.borrow().is_key_down( KeyboardKey::ShiftLeft )
   };
   graph.edge_add( "run_backward", "walk_backward", "run_backward_to_walk_backward", instant_tween.clone(), condition );
 
-  let input = input_.clone();
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyS )
-  };
-  graph.edge_add( "run_backward", "idle", "run_backward_to_idle", instant_tween.clone(), condition );
+  graph.edge_add( "run_backward", "idle", "run_backward_to_idle", instant_tween.clone(), key_up_condition( input_, KeyboardKey::KeyS ) );
+}
 
+/// Adds fight nodes and the kick edges driven by the E and Q keys.
+fn add_fight_states
+(
+  graph : &mut AnimationGraph,
+  animations : &FxHashMap< String, Sequencer >,
+  input_ : &Rc< RefCell< browser_input::Input > >,
+  instant_tween : &Tween< f64 >
+)
+{
   graph.node_add( "idle_to_fight", animations.get( "standing_idle_to_fight_idle" ).unwrap().clone() );
   graph.node_add( "fight_to_idle", animations.get( "fight_idle_to_standing_idle" ).unwrap().clone() );
   graph.node_add( "arm_kick", animations.get( "punching" ).unwrap().clone() );
@@ -329,56 +317,47 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   let tween = Tween::new( 1.0, 1.0, 1.0, Linear::build() );
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyE ) ||
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyQ )
+    input.borrow().is_key_down( KeyboardKey::KeyE ) ||
+    input.borrow().is_key_down( KeyboardKey::KeyQ )
   };
   graph.edge_add( "idle", "idle_to_fight", "idle_to_idle_to_fight", tween.clone(), condition );
 
   let tween = Tween::new( 0.0, 0.0, 1.0, Linear::build() );
-  graph.edge_add( "fight_to_idle", "idle", "fight_to_idle_to_idle", tween.clone(), true_condition );
+  graph.edge_add( "fight_to_idle", "idle", "fight_to_idle_to_idle", tween.clone(), always );
+
+  graph.edge_add( "idle_to_fight", "arm_kick", "idle_to_fight_to_arm_kick", instant_tween.clone(), key_down_condition( input_, KeyboardKey::KeyE ) );
+  graph.edge_add( "idle_to_fight", "leg_kick", "idle_to_fight_to_leg_kick", instant_tween.clone(), key_down_condition( input_, KeyboardKey::KeyQ ) );
+  graph.edge_add( "arm_kick", "fight_to_idle", "arm_kick_to_fight_to_idle", instant_tween.clone(), key_up_condition( input_, KeyboardKey::KeyE ) );
+  graph.edge_add( "leg_kick", "fight_to_idle", "leg_kick_to_fight_to_idle", instant_tween.clone(), key_up_condition( input_, KeyboardKey::KeyQ ) );
 
   let input = input_.clone();
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyE )
-  };
-  graph.edge_add( "idle_to_fight", "arm_kick", "idle_to_fight_to_arm_kick", instant_tween.clone(), condition );
-
-  let input = input_.clone();
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyQ )
-  };
-  graph.edge_add( "idle_to_fight", "leg_kick", "idle_to_fight_to_leg_kick", instant_tween.clone(), condition );
-
-  let input = input_.clone();
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyE )
-  };
-  graph.edge_add( "arm_kick", "fight_to_idle", "arm_kick_to_fight_to_idle", instant_tween.clone(), condition );
-
-  let input = input_.clone();
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyQ )
-  };
-  graph.edge_add( "leg_kick", "fight_to_idle", "leg_kick_to_fight_to_idle", instant_tween.clone(), condition );
-
-  let input = input_.clone();
-  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
-  {
-    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyE ) &&
-    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyQ )
+    !input.borrow().is_key_down( KeyboardKey::KeyE ) &&
+    !input.borrow().is_key_down( KeyboardKey::KeyQ )
   };
   graph.edge_add( "idle_to_fight", "fight_to_idle", "idle_to_fight_to_fight_to_idle", instant_tween.clone(), condition );
+}
+
+/// Builds the character's animation state graph from the loaded animations.
+fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_input::Input > > ) -> AnimationGraph
+{
+  let mut graph = AnimationGraph::new( &animations[ 0 ].nodes );
+
+  let animations = prepare_animations( animations );
+
+  let instant_tween = Tween::new( 1.0, 1.0, 0.0, Linear::build() );
+
+  add_locomotion_states( &mut graph, &animations, input_, &instant_tween );
+  add_run_states( &mut graph, &animations, input_, &instant_tween );
+  add_fight_states( &mut graph, &animations, input_, &instant_tween );
 
   graph
 }
 
 async fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()?;

@@ -34,7 +34,7 @@ impl Default for Settings
   {
     Self
     {
-      animation : Default::default(),
+      animation : String::default(),
       head : 1.0,
       hands : 1.0,
       body : 1.0,

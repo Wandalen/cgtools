@@ -68,7 +68,7 @@ expansion variance, trait-signature constraints, test idioms (`float_cmp`), genu
 | module/helper/tilemap_scene | ~~⏸ BLOCKED~~ ✅ swept 2026-08-11 → 15 justified (5 expect + 10 allow-with-reason; tests/common dead_code allows documented per-binary) — 35 findings across lib + 7 test binaries, all real fixes (project_to_transform dedup, sampler-type re-exports, file-level float_cmp expects); suite 169/169 — see History | yes |
 | module/min/minwebgpu | ~~32~~ ~~⏳ IN PROGRESS~~ ✅ landed + verified 2026-08-11 → 0 attrs: wasm32 `--lib` + host gates green (3 findings fixed here incl. a real copy-paste bug — compute_pipeline.rs `map_err` built `FailedToCreateRenderPipeline` instead of `FailedToCreateComputePipeline`); 6 stale cast_precision_loss duplicates deleted; wasm32 `--all-targets` BUG-079 block RESOLVED 2026-08-11 (target-gated getrandom 0.2 `js` shim; per-crate `--all-features --all-targets` `-D warnings` gate green, ledger `-0261`) — see History | yes |
 | module/helper/line_tools | ~~32~~ ✅ swept 2026-08-11 → 4 justified (all expect) — census was stale: crate had 0 attrs and 151 latent lib errors | yes |
-| module/helper/gpu_hal | ~~28~~ ✅ swept 2026-08-11 → 6 justified (all allow-with-reason, combo-dependent); 14 stale suppressions deleted via expect-flip | yes |
+| module/helper/gpu_hal | ~~28~~ ✅ swept 2026-08-11 → 7 justified (6 allow-with-reason, combo-dependent + 1 cfg-gated expect); 14 stale suppressions deleted via expect-flip; wasm32-context lint debt (16 findings: 15 `must_use`, 1 `# Errors`, 1 `match_same_arms`) adopted + fixed 2026-08-11 after the concurrent lane's conclusion, both-target clippy green — see History | yes |
 | module/helper/embroidery_tools | ~~12~~ ✅ swept 2026-08-11 → ~~12~~ 0 attrs (residue tranche 2026-08-11: all 12 were stale central-family duplicates — `exhaustive_structs`/cast family — deleted, cast-safety comments kept; 172 raw findings fixed once reachable — see History) | yes (fixed this session — was **no**) |
 | module/helper/tilemap_renderer | ~~(not in original census)~~ ~~⚠️ 40 sites needing `reason=`~~ ✅ re-swept 2026-08-11 → 1 justified expect in src/ minus webgl.rs (svg.rs `collapsible_match`, E0004 exhaustiveness rationale), 0 in tests/: the 40 debt sites were all `#[ allow( clippy::exhaustive_structs ) ]` — centrally allowed family, deleted as stale duplicates rather than given reasons; +4 more stale feature-gated duplicates deleted in svg.rs (casts ×2 attrs, `std_instead_of_core` ×2), +2 test files' crate docs moved above `#![ cfg ]` (latent `missing_docs` when the feature is off); `adapters/webgl.rs` backlog closed 2026-08-11: fixed in the concurrent minwebgl-tranche work, independently verified by this task (`enabled,adapter-webgl` + `--all-features` clippy green, suite 128/128 all-features); webgl.rs now 4 reasoned allows, 0 reasonless — see History | yes |
 | module/helper/browser_input | ~~(not in original census)~~ ✅ swept 2026-08-11 → ~~9~~ 6 justified, 2 files (residue tranche 2026-08-11: 3 `too_many_lines` → expect, 3 cfg-dependent `unnecessary_cast` → allow-with-reason (BUG-053 — cast is real under `web_sys_unstable_apis` f64 signature, expect would be unfulfilled there), 3 stale truncation duplicates deleted; 73 raw findings fixed; a prior "completed" report was false — see History) | yes |
@@ -77,7 +77,7 @@ expansion variance, trait-signature constraints, test idioms (`float_cmp`), genu
 | module/helper/scene_script | ~~(not in original census)~~ ✅ swept 2026-08-11 → 0 attrs (1 stale central-family allow deleted) | yes |
 | module/helper/browser_log | ~~(not in original census)~~ ✅ swept 2026-08-11 → 0 attrs (1 stale central-family allow deleted) | yes |
 | remaining 13 members with zero attr sites (behaviour_tree, browser_tools, canvas_renderer, cg_tools, cgtools, d3_scene, frame_graph, mdmath, mdmath_ai, mdmath_cg, mdmath_linalg, minwgpu, ndarray_tools) | ✅ audit-gated 2026-08-11 — 12 green as-found; canvas_renderer latent-red (11 errors) fixed properly, 0 suppressions added — see History | yes |
-| examples safe tranche: minwebgl/jewelry_site, math/life, minwebgpu/{hello_triangle, hello_triangle_quickstart, deffered_rendering, renderer_pbr_scene}, minwgpu/sun_grid_lines_chunked | ~~(part of bulk row below)~~ ✅ wired + host-gate green 2026-08-11 → 2 justified expects (life's ndarray `reversed_empty_ranges` ×2), 0 allows; 4 manifests newly wired to inheritance, 3 already inherited; math_trivial's 4 findings fixed properly. Coverage caveat ~~(4 minwebgpu-dir demos wasm-target pass pending)~~ RESOLVED 3/4 2026-08-11: wasm32 `--all-features` `-D warnings` gate green for hello_triangle + hello_triangle_quickstart (`Default::default()` → `Config::default()`) and deffered_rendering (253/100 `fn run()` decomposed into 6 setup helpers + 4 per-pass recorders, following the file's own State-struct pattern); renderer_pbr_scene's wasm gate BLOCKED on the in-flight gpu_hal sweep (34 warnings in its dependency deny-fail the gate — other agent's lane) — see History | yes |
+| examples safe tranche: minwebgl/jewelry_site, math/life, minwebgpu/{hello_triangle, hello_triangle_quickstart, deffered_rendering, renderer_pbr_scene}, minwgpu/sun_grid_lines_chunked | ~~(part of bulk row below)~~ ✅ wired + host-gate green 2026-08-11 → 2 justified expects (life's ndarray `reversed_empty_ranges` ×2), 0 allows; 4 manifests newly wired to inheritance, 3 already inherited; math_trivial's 4 findings fixed properly. Coverage caveat ~~(4 minwebgpu-dir demos wasm-target pass pending)~~ RESOLVED 4/4 2026-08-11: wasm32 `--all-features` `-D warnings` gate green for hello_triangle + hello_triangle_quickstart (`Default::default()` → `Config::default()`) and deffered_rendering (253/100 `fn run()` decomposed into 6 setup helpers + 4 per-pass recorders, following the file's own State-struct pattern); renderer_pbr_scene's wasm gate — formerly blocked by 34 gpu_hal dependency warnings — green 2026-08-11 after this task adopted and fixed gpu_hal's wasm32 lint debt post-conclusion of the concurrent lane — see History | yes |
 | examples/* remainder (~~≈43~~ 23 minwebgl crates) | ~~⏸ BLOCKED~~ ✅ swept 2026-08-11 → 4 justified (filter ×2 `unnecessary_cast` + object_picking ×2 `useless_conversion`, all cfg-dependent Fix(BUG-053) allow-with-reason), 0 blanket blocks existed (the ~1000-site estimate was stale — every non-minwebgl example was already covered by the rows above); 23 manifests wired to `[lints] workspace = true`; ~152 findings fixed properly incl. 6 `fn run()` too_many_lines decompositions; wasm32 `-D warnings` gate green — see History | yes |
 
 **New this session:** `getrandom`/`rand` wasm32 version-split gap discovered while verifying the
@@ -873,3 +873,49 @@ findings. Remainder is mechanical once minwebgl/minwebgpu land.
   `../bug/completed/079_getrandom_wasm32_backend_version_split.md`, both readme tables updated.
   The minwebgpu census row's `--all-targets` caveat (row 69) and the "New this session" note are
   resolved accordingly.
+- **[2026-08-11]** `INCREMENT` — **all-warnings sweep closed: census gap swept, gpu_hal wasm32 lint
+  debt adopted + fixed, BUG-080 + BUG-091 closed, 4-phase workspace gate green.** The user's
+  standing directive ("fix all warnings / all clippy errors/warnings") exposed a tranche-boundary
+  coverage gap recorded honestly here: the census rows track `#[allow]` *attribute sites*, so crates
+  with zero attrs could still carry live clippy findings the attr-oriented tranches never gated.
+  Sweeping the gap found 5 dirty example crates, all fixed properly (no suppressions added):
+  minwebgl_gltf_viewer, area_light (2 findings, run() decomposed via `setup_gui`/`create_shaders`/
+  `initial_light`/`setup_camera`/`draw_skull` helpers), animation_blending (dir
+  `animation_amplitude_change/` — 8 findings: format inlining, `Config::default`, camera/parts
+  extraction), postprocessing (4: pass-by-value ×2, 169-line `setup` deduped via a
+  field-accessor-fn-pointer `add_grading_slider` helper ×8), pbr_lighting (25: the largest —
+  matches!/collapsed if-lets, single-variant wildcards → explicit `Light::Spot` arms,
+  `needless_range_loop` → `for color in colors`, dropdown callback split into per-mode `apply_*`
+  handlers, position sliders deduped via `fn( &mut Settings ) -> &mut f32` accessors; pre-existing
+  quirks preserved verbatim: lights double-added to `scene.children`, redundant `light_mode`
+  re-assignments). Patchers `-0290`/`-0291`/`-0292` (count-asserted). **gpu_hal stale-cache phantom
+  failures diagnosed:** gate runs `-0290` (74s) and `-0291` (19s) failed with 16 gpu_hal errors
+  flagging `cfg( target_arch = "wasm32" )`-gated items during a HOST build — physically impossible
+  fresh; isolated busted-fingerprint repro (`touch` + re-clippy) = 0 findings, and the exact Phase-1
+  command then passed foreground. Root cause: stale cached diagnostics replayed from the concurrent
+  lane's clippy units. Lesson: before trusting a gate failure on a crate another actor touched,
+  reproduce in isolation with a busted fingerprint. The 16 findings were nonetheless REAL in their
+  home config (wasm32): after confirming the concurrent lane's 086/087 arc concluded, this task
+  adopted the debt — `webgl.rs` `to_i32`/`to_u32` `#[ must_use ]` ×2, patcher `-0293`: 13 more
+  `#[ must_use ]` on the `as_webgl` accessor family (resource.rs ×8, device.rs ×3, pass.rs ×2 —
+  completing the family symmetry; the concurrent lane had already covered `as_webgpu`/`as_native`),
+  `# Errors` doc section on `new_webgl` (worded from the verified `From< WebglError > → Error::WebGl`
+  mapping), and a `cfg_attr( all( webgpu, webgl, wasm32 ), expect( match_same_arms ) )` on
+  `read_pixels` (arms unmergeable — variants feature-gated; plain `expect` would be unfulfilled on
+  host/single-feature builds). gpu_hal clippy green on host AND wasm32 `--all-features`. This also
+  unblocked `minwebgpu_renderer_pbr_scene`'s wasm32 gate (green — safe-tranche caveat now 4/4).
+  **BUG-091 fixed + closed** (minwebgl `d2.rs` `as f64` ×2 → `f64::from`, live only under
+  RUSTFLAGS-override configs post-BUG-053; verified via its exact MRE + branch-activating +
+  normal-config clippy, all exit 0). **BUG-080 closed** (all 7 struct-literal sites now
+  `BoundingBox::new`: text_rendering ×5 by this sweep, ufo.rs ×2 landed via `96bb2aef`; both
+  per-crate Verify Commands exit 0). Both reports → `../bug/completed/`, both readme tables updated.
+  **Final gate:** first relaunch (`-0293_longrun.log`) failed in 4s on tilemap_renderer
+  `too_many_lines` (`adapters/webgl.rs:814 load_images`, 107/100) — that is task 092's live claim
+  (expires 20:59) mid-flight WIP, not swept-scope residue; per the concurrent-actor protocol it was
+  NOT touched. Relaunched (`-0295_longrun.log`) with the live-lane dependency cone excluded
+  (tilemap_renderer, tilemap_scene, hexagonal_map, pingpong_animation): **all 4 phases green in
+  476s** — Phase 1 host `--workspace --all-targets --all-features` clippy `-D warnings`; Phase 2
+  wasm32 clippy over the 20 touched example packages; Phase 3 `--workspace` nextest **1220/1220**;
+  Phase 4 `--workspace` doc tests. Zero `is ignored` manifest-warning hits in the gate log — the
+  user's originally-reported warning class is clean. The excluded cone re-enters workspace gating
+  when task 092's lane concludes (its own per-crate gates govern it meanwhile).

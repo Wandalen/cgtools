@@ -822,93 +822,35 @@ mod private
         {
           crate::assets::ImageSource::Bitmap { bytes, width, height, format } =>
           {
-            let tex = gl.create_texture()
-            .ok_or_else( || RenderError::BackendError( "failed to create texture".into() ) )?;
-
-            gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
-
-            // Pick a WebGL2 format + upload bytes. Gray8 and GrayAlpha8 are
-            // expanded to RGBA8 on the CPU before upload because:
-            //
-            //   1. WebGL1's LUMINANCE / LUMINANCE_ALPHA replicated the stored
-            //      channels across RGB on sample. On WebGL2 they are legacy
-            //      unsized formats backed by R8 / RG8 and sample as
-            //      (L, 0, 0, 1) / (L, 0, 0, A) — grayscale images render red.
-            //
-            //   2. The obvious native GL ES 3.0 fix — R8 / RG8 + TEXTURE_SWIZZLE_*
-            //      — is explicitly *removed* from WebGL2 (spec §6.19):
-            //      TEXTURE_SWIZZLE_R/G/B/A are not valid `texParameteri` names
-            //      and produce INVALID_ENUM.
-            //
-            // CPU expansion costs 4× memory for Gray8 / 2× for GrayAlpha8 at
-            // upload time, which is acceptable for the grayscale images typical
-            // in tilemap content (masks, icons, height fields) and is portable
-            // across WebGL2 implementations without special GL state.
-            let ( gl_fmt, unpack_alignment, bytes_owned ) : ( u32, i32, Option< Vec< u8 > > ) = match format
-            {
-              crate::assets::PixelFormat::Rgba8 => ( gl::RGBA, 4, None ),
-              // RGB rows are 3*width bytes — may not be 4-aligned, so relax the
-              // UNPACK stride to match. Restored below.
-              crate::assets::PixelFormat::Rgb8  => ( gl::RGB, 1, None ),
-              crate::assets::PixelFormat::Gray8 =>
-              {
-                let mut rgba = Vec::with_capacity( bytes.len() * 4 );
-                for &l in bytes
-                {
-                  rgba.extend_from_slice( &[ l, l, l, 0xFF ] );
-                }
-                ( gl::RGBA, 4, Some( rgba ) )
-              }
-              crate::assets::PixelFormat::GrayAlpha8 =>
-              {
-                let mut rgba = Vec::with_capacity( bytes.len() * 2 );
-                for pair in bytes.chunks_exact( 2 )
-                {
-                  let ( l, a ) = ( pair[ 0 ], pair[ 1 ] );
-                  rgba.extend_from_slice( &[ l, l, l, a ] );
-                }
-                ( gl::RGBA, 4, Some( rgba ) )
-              }
-            };
-
-            // Relax UNPACK_ALIGNMENT only when the per-row byte count may not be
-            // a multiple of 4 (RGB8 at odd widths). Default 4 is correct for
-            // RGBA8 and for the CPU-expanded grayscale paths above.
-            if unpack_alignment != 4 { gl.pixel_storei( gl::UNPACK_ALIGNMENT, unpack_alignment ); }
-
-            let upload_bytes : &[ u8 ] = bytes_owned.as_deref().unwrap_or( bytes );
-
-            gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
-            (
-              gl::TEXTURE_2D, 0, gl_fmt as i32,
-              *width as i32, *height as i32, 0,
-              gl_fmt, gl::UNSIGNED_BYTE, Some( upload_bytes ),
-            )
-            .map_err( | e | RenderError::BackendError
-            (
-              format!
-              (
-                "tex_image_2d failed for image {:?}: {:?}",
-                img.id, e
-              )
-            ))?;
-
-            // Restore default so later uploads aren't surprised by residual state.
-            if unpack_alignment != 4 { gl.pixel_storei( gl::UNPACK_ALIGNMENT, 4 ); }
-
+            let tex = upload_bitmap_texture( gl, bytes, *width, *height, *format, img.id )?;
             ( tex, *width, *height )
           }
-          crate::assets::ImageSource::Encoded( _ ) =>
+          crate::assets::ImageSource::Encoded( bytes ) =>
           {
-            // Encoded bytes are not decoded on this backend yet (the SVG
-            // backend decodes them via the `image` crate; here a decoder or a
-            // browser-side `createImageBitmap` path is roadmap work). Skip
-            // loudly rather than silently — the texture will be missing.
-            web_sys::console::warn_1
-            (
-              &format!( "WebGlBackend: ImageSource::Encoded is not implemented; image {:?} will be skipped", img.id ).into()
-            );
-            continue;
+            let mime = crate::assets::detect_image_mime( bytes );
+            let parts = gl::js_sys::Array::new();
+            parts.push( &gl::js_sys::Uint8Array::from( bytes.as_slice() ) );
+            let url = match gl::blob::create_blob( parts, mime )
+            {
+              Ok( url ) => url,
+              Err( err ) =>
+              {
+                web_sys::console::error_1
+                (
+                  &format!( "WebGlBackend: failed to create Blob URL for image {:?}: {err:?}", img.id ).into()
+                );
+                continue;
+              }
+            };
+            // Async path, same as `ImageSource::Path` below: sampler state is
+            // applied inside the on_load callback once the image is actually
+            // uploaded. `upload_image_from_path` revokes this `blob:` URL
+            // (guarded by prefix) once the browser has decoded it — unlike a
+            // real path, nothing else keeps the URL alive.
+            let generation = self.resources.borrow().generation;
+            let tex = upload_image_from_path( gl, &url, img.id, &self.resources, img.filter, img.mipmap, img.wrap, generation );
+            gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
+            ( tex, 0, 0 )
           }
           crate::assets::ImageSource::Path( path ) =>
           {
@@ -1341,6 +1283,89 @@ mod private
     }
   }
 
+  /// Uploads CPU-resident bitmap bytes as a new texture. Gray8 and
+  /// GrayAlpha8 are expanded to RGBA8 on the CPU before upload because:
+  ///
+  ///   1. WebGL1's LUMINANCE / LUMINANCE_ALPHA replicated the stored
+  ///      channels across RGB on sample. On WebGL2 they are legacy
+  ///      unsized formats backed by R8 / RG8 and sample as
+  ///      (L, 0, 0, 1) / (L, 0, 0, A) — grayscale images render red.
+  ///
+  ///   2. The obvious native GL ES 3.0 fix — R8 / RG8 + TEXTURE_SWIZZLE_*
+  ///      — is explicitly *removed* from WebGL2 (spec §6.19):
+  ///      TEXTURE_SWIZZLE_R/G/B/A are not valid `texParameteri` names
+  ///      and produce INVALID_ENUM.
+  ///
+  /// CPU expansion costs 4× memory for Gray8 / 2× for GrayAlpha8 at
+  /// upload time, which is acceptable for the grayscale images typical
+  /// in tilemap content (masks, icons, height fields) and is portable
+  /// across WebGL2 implementations without special GL state.
+  fn upload_bitmap_texture
+  (
+    gl : &gl::GL,
+    bytes : &[ u8 ],
+    width : u32,
+    height : u32,
+    format : crate::assets::PixelFormat,
+    id : ResourceId< asset::Image >,
+  ) -> Result< web_sys::WebGlTexture, RenderError >
+  {
+    let tex = gl.create_texture()
+    .ok_or_else( || RenderError::BackendError( "failed to create texture".into() ) )?;
+
+    gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
+
+    let ( gl_fmt, unpack_alignment, bytes_owned ) : ( u32, i32, Option< Vec< u8 > > ) = match format
+    {
+      crate::assets::PixelFormat::Rgba8 => ( gl::RGBA, 4, None ),
+      // RGB rows are 3*width bytes — may not be 4-aligned, so relax the
+      // UNPACK stride to match. Restored below.
+      crate::assets::PixelFormat::Rgb8  => ( gl::RGB, 1, None ),
+      crate::assets::PixelFormat::Gray8 =>
+      {
+        let mut rgba = Vec::with_capacity( bytes.len() * 4 );
+        for &l in bytes
+        {
+          rgba.extend_from_slice( &[ l, l, l, 0xFF ] );
+        }
+        ( gl::RGBA, 4, Some( rgba ) )
+      }
+      crate::assets::PixelFormat::GrayAlpha8 =>
+      {
+        let mut rgba = Vec::with_capacity( bytes.len() * 2 );
+        for pair in bytes.chunks_exact( 2 )
+        {
+          let ( l, a ) = ( pair[ 0 ], pair[ 1 ] );
+          rgba.extend_from_slice( &[ l, l, l, a ] );
+        }
+        ( gl::RGBA, 4, Some( rgba ) )
+      }
+    };
+
+    // Relax UNPACK_ALIGNMENT only when the per-row byte count may not be
+    // a multiple of 4 (RGB8 at odd widths). Default 4 is correct for
+    // RGBA8 and for the CPU-expanded grayscale paths above.
+    if unpack_alignment != 4 { gl.pixel_storei( gl::UNPACK_ALIGNMENT, unpack_alignment ); }
+
+    let upload_bytes : &[ u8 ] = bytes_owned.as_deref().unwrap_or( bytes );
+
+    gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+    (
+      gl::TEXTURE_2D, 0, gl_fmt as i32,
+      width as i32, height as i32, 0,
+      gl_fmt, gl::UNSIGNED_BYTE, Some( upload_bytes ),
+    )
+    .map_err( | e | RenderError::BackendError
+    (
+      format!( "tex_image_2d failed for image {id:?}: {e:?}" )
+    ))?;
+
+    // Restore default so later uploads aren't surprised by residual state.
+    if unpack_alignment != 4 { gl.pixel_storei( gl::UNPACK_ALIGNMENT, 4 ); }
+
+    Ok( tex )
+  }
+
   /// Like `gl::texture::d2::upload_image_from_path`, but updates
   /// `GpuTexture.width` / `height` cells once the image loads.
   #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct texture-loading input (source, id, resource table, and independent sampler settings); grouping into a struct would add indirection for this single-call-site private helper" ) ]
@@ -1374,6 +1399,7 @@ mod private
     // `on_load`) to be freed after the single invocation, or via finalizer if
     // the event never fires and the JS function is GC'd. This is what lets a
     // `WebGlBackend` drop actually release its GPU resources.
+    let src_for_load = src.to_owned();
     let on_load = Closure::once_into_js(
     {
       let gl = gl.clone();
@@ -1382,6 +1408,20 @@ mod private
       let resources = Rc::clone( resources );
       move ||
       {
+        // `revoke_object_url` is only meaningful for `blob:` URLs created by
+        // `minwebgl::create_blob` (`ImageSource::Encoded`); a real
+        // `ImageSource::Path` string passed through this same shared closure
+        // must never be revoked. Done unconditionally, before the staleness
+        // check below: the browser has already decoded the image into `img`
+        // by the time `load` fires, so the URL is safe to release regardless
+        // of whether this generation is still current — deferring it behind
+        // the early return would leak the URL whenever `load_assets` reruns
+        // before an `Encoded` image finishes loading.
+        if src_for_load.starts_with( "blob:" )
+        {
+          web_sys::Url::revoke_object_url( &src_for_load ).unwrap();
+        }
+
         // Bail out if `load_assets` ran again before the image finished loading —
         // this closure belongs to a previous cycle and must not touch the fresh
         // texture that now occupies this id.
@@ -1431,6 +1471,13 @@ mod private
         // and can be GC'd, rather than sitting on a detached img for the lifetime
         // of the document.
         img.remove();
+
+        // See the matching guard in `on_load` above — only revoke URLs this
+        // function itself created via a Blob.
+        if src_for_err.starts_with( "blob:" )
+        {
+          web_sys::Url::revoke_object_url( &src_for_err ).unwrap();
+        }
       }
     });
 

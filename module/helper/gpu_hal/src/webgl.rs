@@ -15,6 +15,7 @@ mod private
 
   /// Saturating u32 → i32 conversion for GL parameters — GL sizes never
   /// approach the boundary, so saturation is a formality, not a data path.
+  #[ must_use ]
   pub fn to_i32( value : u32 ) -> i32
   {
     i32::try_from( value ).unwrap_or( i32::MAX )
@@ -23,6 +24,7 @@ mod private
   /// Saturating usize → u32 conversion for binding indices — group and
   /// binding counts never approach the boundary, so saturation is a
   /// formality, not a data path.
+  #[ must_use ]
   pub fn to_u32( value : usize ) -> u32
   {
     u32::try_from( value ).unwrap_or( u32::MAX )

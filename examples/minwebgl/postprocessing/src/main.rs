@@ -27,7 +27,7 @@ fn main()
 /// 3. Gamma correction (final sRGB conversion for display)
 async fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas_with( &canvas, options )?;
@@ -98,7 +98,7 @@ async fn run() -> Result< (), gl::WebglError >
   let color_grading = Rc::new( RefCell::new( color_grading ) );
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  gui_setup::setup( renderer.clone(), color_grading.clone() );
+  gui_setup::setup( &renderer, &color_grading );
 
   let update_and_draw = move | _ : f64 |
   {

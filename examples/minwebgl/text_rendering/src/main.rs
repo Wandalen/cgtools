@@ -70,9 +70,44 @@ fn make_buffer_attribute_info
       slot,
       buffer : buffer.clone(),
       descriptor,
-      bounding_box : Default::default()
+      bounding_box : mingl::geometry::BoundingBox::default()
     }
   )
+}
+
+/// Builds the shared position and normal attribute descriptors for the scene buffers.
+fn scene_attribute_infos
+(
+  position_buffer : &web_sys::WebGlBuffer,
+  normal_buffer : &web_sys::WebGlBuffer
+) -> [ ( &'static str, AttributeInfo ); 2 ]
+{
+  [
+    (
+      "positions",
+      make_buffer_attribute_info
+      (
+        position_buffer,
+        0,
+        3,
+        0,
+        false,
+        VectorDataType::new( mingl::DataType::F32, 3, 1 )
+      ).unwrap()
+    ),
+    (
+      "normals",
+      make_buffer_attribute_info
+      (
+        normal_buffer,
+        0,
+        3,
+        1,
+        false,
+        VectorDataType::new( mingl::DataType::F32, 3, 1 )
+      ).unwrap()
+    )
+  ]
 }
 
 #[ derive( Debug, Clone ) ]
@@ -98,7 +133,7 @@ impl Default for Transform
 
 impl Transform
 {
-  fn set_node_transform( &self, node : Rc< RefCell< Node > > )
+  fn set_node_transform( &self, node : &Rc< RefCell< Node > > )
   {
     let t = self.translation;
     let r = self.rotation;
@@ -153,33 +188,7 @@ fn primitives_data_to_gltf
     gl_buffers.push( buffer );
   }
 
-  let attribute_infos =
-  [
-    (
-      "positions",
-      make_buffer_attribute_info
-      (
-        &position_buffer,
-        0,
-        3,
-        0,
-        false,
-        VectorDataType::new( mingl::DataType::F32, 3, 1 )
-      ).unwrap()
-    ),
-    (
-      "normals",
-      make_buffer_attribute_info
-      (
-        &normal_buffer,
-        0,
-        3,
-        1,
-        false,
-        VectorDataType::new( mingl::DataType::F32, 3, 1 )
-      ).unwrap()
-    )
-  ];
+  let attribute_infos = scene_attribute_infos( &position_buffer, &normal_buffer );
 
   let index_buffer = gl.create_buffer().unwrap();
   gl_buffers.push( index_buffer.clone() );
@@ -234,16 +243,16 @@ fn primitives_data_to_gltf
 
     let node = Rc::new( RefCell::new( Node::new() ) );
     node.borrow_mut().object = Object3D::Mesh( mesh.clone() );
-    primitive_data.transform.set_node_transform( node.clone() );
+    primitive_data.transform.set_node_transform( &node );
 
     nodes.push( node.clone() );
     meshes.push( mesh );
     scenes[ 0 ].borrow_mut().children.push( node );
   }
 
-  gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
-  gl::buffer::upload( &gl, &normal_buffer, &normals, GL::STATIC_DRAW );
-  gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
+  gl::buffer::upload( gl, &position_buffer, &positions, GL::STATIC_DRAW );
+  gl::buffer::upload( gl, &normal_buffer, &normals, GL::STATIC_DRAW );
+  gl::index::upload( gl, &index_buffer, &indices, GL::STATIC_DRAW );
 
   GLTF
   {
@@ -261,7 +270,7 @@ fn primitives_data_to_gltf
 
 fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make().unwrap();
@@ -290,7 +299,7 @@ fn init_camera( canvas : &HtmlCanvasElement ) -> Camera
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
 
-  camera.bind_controls( &canvas );
+  camera.bind_controls( canvas );
 
   camera
 }
@@ -316,26 +325,26 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut primitives_data = vec![];
   let mut transform_ufo = Transform::default();
-  transform_ufo.translation[ 1 ] += (font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
+  transform_ufo.translation[ 1 ] += f32::midpoint( font_names.len() as f32, 1.0 ) + 0.5;
   transform_ufo.translation[ 0 ] -= 1.8;
   let mut transform_ttf = Transform::default();
-  transform_ttf.translation[ 1 ] += (font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
+  transform_ttf.translation[ 1 ] += f32::midpoint( font_names.len() as f32, 1.0 ) + 0.5;
   transform_ttf.translation[ 0 ] += 1.8;
   for font_name in font_names
   {
     transform_ufo.translation[ 1 ] -= 1.0;
     let mut text_mesh = text::ufo::text_to_mesh( &text, fonts_ufo_3d.get( &font_name ).unwrap(), &transform_ufo );
-    for p in text_mesh.iter_mut()
+    for p in &mut text_mesh
     {
-      p.material = material.clone()
+      p.material = material.clone();
     }
     primitives_data.extend( text_mesh );
 
     transform_ttf.translation[ 1 ] -= 1.0;
     let mut text_mesh = text::ttf::text_to_mesh( &text, fonts_ttf_3d.get( &font_name ).unwrap(), &transform_ttf );
-    for p in text_mesh.iter_mut()
+    for p in &mut text_mesh
     {
-      p.material = material.clone()
+      p.material = material.clone();
     }
     primitives_data.extend( text_mesh );
   }
@@ -356,11 +365,9 @@ async fn run() -> Result< (), gl::WebglError >
   // Define the update and draw logic
   let update_and_draw =
   {
-    move | t : f64 |
+    move | _ : f64 |
     {
       // If textures are of different size, gl.view_port needs to be called
-      let _time = t as f32 / 1000.0;
-
       renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
 

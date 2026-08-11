@@ -348,6 +348,9 @@ features = ["derive"]
 [workspace.dependencies.image]
 version = "0.25.6"
 
+[workspace.dependencies.png]
+version = "0.17.16"
+
 [workspace.dependencies.tokio]
 version = "1.47.1"
 

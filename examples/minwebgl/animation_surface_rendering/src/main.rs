@@ -55,12 +55,12 @@ use crate::animation::{ model, Model, Shape, Layer, Transform, Color, fixed, eas
 ///
 /// # Returns
 ///
-/// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
+/// A `TextureInfo` containing the texture data.
 fn create_texture
 (
   gl : &WebGl2RenderingContext,
   image_path : &str
-) -> Option< TextureInfo >
+) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
   let texture_id = upload_image_from_path( gl, &image_path, false );
@@ -78,13 +78,11 @@ fn create_texture
   .sampler( sampler )
   .end();
 
-  let texture_info = TextureInfo
+  TextureInfo
   {
     texture : Rc::new( RefCell::new( texture ) ),
     uv_position : 0,
-  };
-
-  Some( texture_info )
+  }
 }
 
 /// Initializes the WebGL2 rendering context and canvas.
@@ -236,13 +234,13 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
-  let texture = create_texture( gl, "textures/earth2.jpg" );
+  let texture = Some( create_texture( gl, "textures/earth2.jpg" ) );
   apply_function_to_node_materials( &earth, | m | { m.set_base_color_texture( texture.clone() ); } );
 
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
-  let texture = create_texture( gl, "textures/clouds2.png" );
+  let texture = Some( create_texture( gl, "textures/clouds2.png" ) );
   apply_function_to_node_materials
   (
     &clouds,
@@ -259,7 +257,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   clouds.borrow_mut().update_local_matrix();
 
   let moon = clone( &mut gltf, &earth );
-  let texture = create_texture( gl, "textures/moon2.jpg" );
+  let texture = Some( create_texture( gl, "textures/moon2.jpg" ) );
   apply_function_to_node_materials( &moon, | m | { m.set_base_color_texture( texture.clone() ); } );
   let scale = 0.25;
   let distance = 7.0;
@@ -307,8 +305,10 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
       &transform,
       5.0
     );
-    text_mesh.iter_mut()
-    .for_each( | p | p.color = colors[ 0 ] );
+    for p in &mut text_mesh
+    {
+      p.color = colors[ 0 ];
+    }
     primitives_data.extend( text_mesh );
   }
 
@@ -318,6 +318,136 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let canvas_gltf = primitive_generation::primitives_data_to_gltf( gl, &primitives_data );
 
   ( canvas_gltf, colors )
+}
+
+/// Builds the transform of a spinning circle layer.
+///
+/// # Arguments
+///
+/// * `rotation_range` - Start and end rotation in degrees, eased linearly over the animation.
+///
+/// # Returns
+///
+/// A `Transform` with the given rotation and a 100 → 200 `EASE_IN_OUT_BACK` scale pulse.
+fn make_circle_transform( rotation_range : ( f64, f64 ) ) -> Transform
+{
+  Transform::former()
+  .rotation
+  (
+    ease
+    (
+      ( 0.0, 10.0 ),
+      rotation_range,
+      LINEAR
+    )
+  )
+  .scale
+  (
+    ease
+    (
+      ( 0.0, 10.0 ),
+      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
+      EASE_IN_OUT_BACK
+    )
+  )
+  .form()
+}
+
+/// Builds the transform of a rectangle layer.
+///
+/// # Arguments
+///
+/// * `position_x` - Fixed horizontal offset of the rectangle from its circle center.
+/// * `scale` - Optional uniform fixed scale; `None` keeps the default scale.
+///
+/// # Returns
+///
+/// A `Transform` with a fixed position, a fixed -20 degree rotation, and the optional scale.
+fn make_rect_transform( position_x : f64, scale : Option< f64 > ) -> Transform
+{
+  let former = Transform::former()
+  .position( fixed( kurbo::Point::new( position_x, 0.0 ) ) )
+  .rotation( fixed( -20.0 ) );
+
+  match scale
+  {
+    Some( scale ) => former.scale( fixed( kurbo::Vec2::new( scale, scale ) ) ).form(),
+    None => former.form(),
+  }
+}
+
+/// Appends one spinning circle to the model : a circle layer parented to the circles layer,
+/// carrying `repeats` rectangles spread evenly around it.
+///
+/// # Arguments
+///
+/// * `model` - The composition model receiving the new layers.
+/// * `rect_geo` - The shared rectangle geometry shape.
+/// * `circle_transform` - Transform of the circle layer itself.
+/// * `rect_transform` - Transform of each rectangle relative to its offset layer.
+/// * `color` - Fill color of the rectangles.
+/// * `repeats` - How many rectangles to distribute around the circle.
+fn add_circle
+(
+  model : &mut Model,
+  rect_geo : &Shape,
+  circle_transform : Transform,
+  rect_transform : Transform,
+  color : F32x4,
+  repeats : usize
+)
+{
+  let circle = Layer::former()
+  .parent( 1_isize )
+  .frames( 0.0..10.0 )
+  .transform( interpoli::Transform::Animated( circle_transform.into() ) )
+  .form();
+
+  model.layers.push( circle );
+  let circle_id = model.layers.len() as isize - 1;
+
+  let offset_rect_transform = Transform::former()
+  .rotation
+  (
+    ease
+    (
+      ( 0.0, 10.0 ),
+      ( 0.0, 360.0 ),
+      LINEAR
+    )
+  )
+  .form();
+
+  let offset_rect = Layer::former()
+  .parent( circle_id )
+  .frames( 0.0..10.0 )
+  .transform( interpoli::Transform::Animated( offset_rect_transform.clone().into() ) )
+  .form();
+
+  let rect = Layer::former()
+  .parent( 3_isize )
+  .frames( 0.0..10.0 )
+  .transform( interpoli::Transform::Animated( rect_transform.into() ) )
+  .content()
+  .add( Shape::Color( Color::Fixed( *color ) ) )
+  .add( rect_geo.clone() )
+  .end()
+  .form();
+
+  let diff = 360.0 / repeats as f64;
+  for i in 0..repeats
+  {
+    let mut rect = rect.clone();
+    let mut offset_rect = offset_rect.clone();
+
+    let mut transform = offset_rect_transform.clone();
+    transform.rotation = fixed( diff * i as f64 );
+    offset_rect.transform = interpoli::Transform::Animated( transform.into() );
+    model.layers.push( offset_rect );
+
+    rect.parent = model.layers.len() as isize - 1;
+    model.layers.push( rect );
+  }
 }
 
 /// Sets up a complex 2D animation using the `animation` module.
@@ -371,205 +501,55 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
   .end()
   .form();
 
-  let mut add_circle =
-  | circle_transform : Transform, rect_transform : Transform, color : F32x4, repeats : usize |
-  {
-    let circle = Layer::former()
-    .parent( 1_isize )
-    .frames( 0.0..10.0 )
-    .transform( interpoli::Transform::Animated( circle_transform.into() ) )
-    .form();
-
-    model.layers.push( circle );
-    let circle_id = model.layers.len() as isize - 1;
-
-    let offset_rect_transform = Transform::former()
-    .rotation
-    (
-      ease
-      (
-        ( 0.0, 10.0 ),
-        ( 0.0, 360.0 ),
-        LINEAR
-      )
-    )
-    .form();
-
-    let offset_rect = Layer::former()
-    .parent( circle_id )
-    .frames( 0.0..10.0 )
-    .transform( interpoli::Transform::Animated( offset_rect_transform.clone().into() ) )
-    .form();
-
-    let rect = Layer::former()
-    .parent( 3_isize )
-    .frames( 0.0..10.0 )
-    .transform( interpoli::Transform::Animated( rect_transform.into() ) )
-    .content()
-    .add( Shape::Color( Color::Fixed( *color ) ) )
-    .add( rect_geo.clone() )
-    .end()
-    .form();
-
-    let diff = 360.0 / repeats as f64;
-    for i in 0..repeats
-    {
-      let mut rect = rect.clone();
-      let mut offset_rect = offset_rect.clone();
-
-      let mut transform = offset_rect_transform.clone();
-      transform.rotation = fixed( diff * i as f64 );
-      offset_rect.transform = interpoli::Transform::Animated( transform.into() );
-      model.layers.push( offset_rect );
-
-      rect.parent = model.layers.len() as isize - 1;
-      model.layers.push( rect );
-    }
-  };
-
-  let circle_transform = Transform::former()
-  .rotation
+  add_circle
   (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( -10.0, 350.0 ),
-      LINEAR
-    )
-  )
-  .scale
+    &mut model,
+    &rect_geo,
+    make_circle_transform( ( -10.0, 350.0 ) ),
+    make_rect_transform( 1.6, Some( 60.0 ) ),
+    F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ),
+    11
+  );
+
+  add_circle
   (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
-      EASE_IN_OUT_BACK
-    )
-  )
-  .form();
+    &mut model,
+    &rect_geo,
+    make_circle_transform( ( 0.0, 360.0 ) ),
+    make_rect_transform( 2.7, Some( 80.0 ) ),
+    F32x4::from_array( [ 1.0, 0.75, 0.75, 1.0 ] ),
+    15
+  );
 
-  let rect_transform = Transform::former()
-  .position( fixed( kurbo::Point::new( 1.6, 0.0 ) ) )
-  .rotation( fixed( -20.0 ) )
-  .scale( fixed( kurbo::Vec2::new( 60.0, 60.0 ) ) )
-  .form();
-
-  add_circle( circle_transform.clone(), rect_transform, F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ), 11 );
-
-  let circle_transform = Transform::former()
-  .rotation
+  add_circle
   (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( 0.0, 360.0 ),
-      LINEAR
-    )
-  )
-  .scale
+    &mut model,
+    &rect_geo,
+    make_circle_transform( ( 10.0, 370.0 ) ),
+    make_rect_transform( 4.2, None ),
+    F32x4::from_array( [ 1.0, 0.5, 0.5, 1.0 ] ),
+    17
+  );
+
+  add_circle
   (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
-      EASE_IN_OUT_BACK
-    )
-  )
-  .form();
+    &mut model,
+    &rect_geo,
+    make_circle_transform( ( 20.0, 380.0 ) ),
+    make_rect_transform( 5.7, Some( 120.0 ) ),
+    F32x4::from_array( [ 1.0, 0.25, 0.25, 1.0 ] ),
+    19
+  );
 
-  let rect_transform = Transform::former()
-  .position( fixed( kurbo::Point::new( 2.7, 0.0 ) ) )
-  .rotation( fixed( -20.0 ) )
-  .scale( fixed( kurbo::Vec2::new( 80.0, 80.0 ) ) )
-  .form();
-
-  add_circle( circle_transform.clone(), rect_transform, F32x4::from_array( [ 1.0, 0.75, 0.75, 1.0 ] ), 15 );
-
-  let circle_transform = Transform::former()
-  .rotation
+  add_circle
   (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( 10.0, 370.0 ),
-      LINEAR
-    )
-  )
-  .scale
-  (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
-      EASE_IN_OUT_BACK
-    )
-  )
-  .form();
-
-  let rect_transform = Transform::former()
-  .position( fixed( kurbo::Point::new( 4.2, 0.0 ) ) )
-  .rotation( fixed( -20.0 ) )
-  .form();
-
-  add_circle( circle_transform.clone(), rect_transform, F32x4::from_array( [ 1.0, 0.5, 0.5, 1.0 ] ), 17 );
-
-  let circle_transform = Transform::former()
-  .rotation
-  (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( 20.0, 380.0 ),
-      LINEAR
-    )
-  )
-  .scale
-  (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
-      EASE_IN_OUT_BACK
-    )
-  )
-  .form();
-
-  let rect_transform = Transform::former()
-  .position( fixed( kurbo::Point::new( 5.7, 0.0 ) ) )
-  .rotation( fixed( -20.0 ) )
-  .scale( fixed( kurbo::Vec2::new( 120.0, 120.0 ) ) )
-  .form();
-
-  add_circle( circle_transform, rect_transform, F32x4::from_array( [ 1.0, 0.25, 0.25, 1.0 ] ), 19 );
-
-  let circle_transform = Transform::former()
-  .rotation
-  (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( 30.0, 390.0 ),
-      LINEAR
-    )
-  )
-  .scale
-  (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
-      EASE_IN_OUT_BACK
-    )
-  )
-  .form();
-
-  let rect_transform = Transform::former()
-  .position( fixed( kurbo::Point::new( 7.4, 0.0 ) ) )
-  .rotation( fixed( -20.0 ) )
-  .scale( fixed( kurbo::Vec2::new( 140.0, 140.0 ) ) )
-  .form();
-
-  add_circle( circle_transform, rect_transform, F32x4::from_array( [ 0.8, 0.0, 0.0, 1.0 ] ), 21 );
+    &mut model,
+    &rect_geo,
+    make_circle_transform( ( 30.0, 390.0 ) ),
+    make_rect_transform( 7.4, Some( 140.0 ) ),
+    F32x4::from_array( [ 0.8, 0.0, 0.0, 1.0 ] ),
+    21
+  );
 
   animation::Animation::new( gl, model )
 }
@@ -640,8 +620,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/gltf_viewer_ibl_unreal", None ).await );
-  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" )
-  .expect( "Failed to load skybox texture" );
+  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
   renderer.set_skybox( skybox.texture.borrow().source.clone() );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
@@ -703,7 +682,7 @@ fn main()
   (
     async move
     {
-      run().await.expect( "Program finish work with errors" )
+      run().await.expect( "Program finish work with errors" );
     }
   );
 }

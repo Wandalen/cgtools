@@ -123,6 +123,7 @@ mod private
   impl TextureFormat
   {
     /// The equivalent raw WebGPU format.
+    #[must_use]
     pub fn to_webgpu( self ) -> gl::GpuTextureFormat
     {
       match self
@@ -136,6 +137,11 @@ mod private
     }
 
     /// The HAL equivalent of a raw WebGPU format, when the v0 surface has one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] when `format` has no equivalent in the
+    /// v0 surface.
     pub fn from_webgpu( format : gl::GpuTextureFormat ) -> Result< Self, Error >
     {
       match format
@@ -166,6 +172,7 @@ mod private
   impl VertexFormat
   {
     /// The equivalent raw WebGPU format.
+    #[must_use]
     pub fn to_webgpu( self ) -> gl::GpuVertexFormat
     {
       match self
@@ -189,6 +196,7 @@ mod private
   impl IndexFormat
   {
     /// The equivalent raw WebGPU format.
+    #[must_use]
     pub fn to_webgpu( self ) -> gl::GpuIndexFormat
     {
       match self

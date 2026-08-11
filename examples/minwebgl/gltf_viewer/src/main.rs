@@ -23,16 +23,14 @@ fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
   // Canvas dimensions are always non-negative and far below `u32::MAX`, so casting to `u32`
   // cannot lose sign; the fractional part is intentionally floored to get an integer
   // backing-store pixel count.
-  #[ allow( clippy::cast_sign_loss, clippy::cast_possible_truncation ) ]
   let w = ( css_w * dpr ) as u32;
-  #[ allow( clippy::cast_sign_loss, clippy::cast_possible_truncation ) ]
   let h = ( css_h * dpr ) as u32;
   ( w.max( 1 ), h.max( 1 ) )
 }
 
 async fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default()
   .antialias( false )
   .depth( false )
@@ -110,7 +108,7 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  gui_setup::setup( renderer.clone() );
+  gui_setup::setup( &renderer );
 
   let prev_size : Rc< RefCell< ( u32, u32 ) > > = Rc::new( RefCell::new( ( pixel_w, pixel_h ) ) );
 

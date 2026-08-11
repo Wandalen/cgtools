@@ -18,6 +18,7 @@ use gl::
     HtmlSelectElement,
     HtmlSpanElement,
     HtmlInputElement,
+    HtmlCanvasElement,
     window,
     wasm_bindgen::closure::Closure
   }
@@ -62,12 +63,12 @@ use std::cell::RefCell;
 ///
 /// # Returns
 ///
-/// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
+/// A `TextureInfo` containing the texture data.
 fn create_texture
 (
   gl : &GL,
   image_path : &str
-) -> Option< TextureInfo >
+) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
   let texture_id = upload_image_from_path( gl, &image_path, true );
@@ -85,18 +86,18 @@ fn create_texture
   .sampler( sampler )
   .end();
 
-  let texture_info = TextureInfo
+  TextureInfo
   {
     texture : Rc::new( RefCell::new( texture ) ),
     uv_position : 0,
-  };
-
-  Some( texture_info )
+  }
 }
 
 fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
 {
-  let object_colors = ( 0..object_count )
+  
+
+  ( 0..object_count )
   .map
   (
     | _ |
@@ -112,9 +113,7 @@ fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
       )
     }
   )
-  .collect::< Vec< _ > >();
-
-  object_colors
+  .collect::< Vec< _ > >()
 }
 
 fn get_attributes( gltf : &GLTF ) -> Result< FxHashMap< Box< str >, AttributeInfo >, gl::WebglError >
@@ -122,7 +121,7 @@ fn get_attributes( gltf : &GLTF ) -> Result< FxHashMap< Box< str >, AttributeInf
   for mesh in &gltf.meshes
   {
     let mesh_ref = mesh.as_ref().borrow();
-    for primitive in &mesh_ref.primitives
+    if let Some(primitive) = mesh_ref.primitives.first()
     {
       let primitive_ref = primitive.as_ref().borrow();
       return Ok( primitive_ref.geometry.as_ref().borrow().get_attributes().clone() );
@@ -158,6 +157,275 @@ fn get_html_input_element_by_id( id : &str ) -> HtmlInputElement
   .unwrap()
 }
 
+/// Initializes the browser context, canvas, and WebGL2 context with the required extensions.
+fn init_context() -> Result< ( HtmlCanvasElement, GL ), gl::WebglError >
+{
+  gl::browser::setup( gl::browser::Config::default() );
+  let options = gl::context::ContextOptions::default().antialias( false );
+
+  let canvas = gl::canvas::make()?;
+  let gl = gl::context::from_canvas_with( &canvas, options )?;
+
+  let _ = gl.get_extension( "EXT_color_buffer_float" )
+  .expect( "Failed to enable EXT_color_buffer_float extension" );
+
+  let _ = gl.get_extension( "EXT_shader_image_load_store" )
+  .expect( "Failed to enable EXT_shader_image_load_store  extension" );
+
+  Ok( ( canvas, gl ) )
+}
+
+/// Creates the scene camera looking at `center` and binds its controls to the canvas.
+fn setup_camera( canvas : &HtmlCanvasElement, center : gl::F32x3 ) -> Camera
+{
+  let width = canvas.width() as f32;
+  let height = canvas.height() as f32;
+
+  let eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
+  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
+
+  let aspect_ratio = width / height;
+  let fov = 70.0f32.to_radians();
+  let near = 0.01;
+  let far = 1_000_000.0;
+
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  camera.set_window_size( [ width, height ].into() );
+  camera.bind_controls( canvas );
+
+  camera
+}
+
+/// Creates the G-buffer with attachments wired to the mesh attribute buffers.
+fn create_gbuffer
+(
+  gl : &GL,
+  canvas : &HtmlCanvasElement,
+  attributes : &FxHashMap< Box< str >, AttributeInfo >
+) -> Result< GBuffer, gl::WebglError >
+{
+  let get_buffer = | name | attributes.get( name ).unwrap().buffer.clone();
+
+  let attachments = FxHashMap::from_iter(
+    [
+      ( GBufferAttachment::Position, vec![ get_buffer( "positions" ) ] ),
+      ( GBufferAttachment::Albedo, vec![] ),
+      ( GBufferAttachment::Uv1, vec![] ),
+      ( GBufferAttachment::Normal, vec![ get_buffer( "normals" ) ] ),
+      ( GBufferAttachment::PbrInfo, vec![ get_buffer( "texture_coordinates_2" ) ] ),
+      ( GBufferAttachment::ObjectColor, vec![] )
+    ]
+  );
+
+  GBuffer::new( gl, canvas.width(), canvas.height(), attachments )
+}
+
+/// Rendering resources needed to resolve the texture selected in the UI dropdown.
+struct SelectTextureContext
+{
+  gl : Rc< RefCell< GL > >,
+  gbuffer : Rc< RefCell< GBuffer > >,
+  swap_buffer : Rc< RefCell< SwapFramebuffer > >,
+  narrow_outline : Rc< RefCell< NarrowOutlinePass > >,
+  normal_depth_outline : Rc< RefCell< NormalDepthOutlinePass > >,
+  wide_outline : Rc< RefCell< WideOutlinePass > >,
+  outline_thickness : Rc< RefCell< f32 > >,
+}
+
+impl SelectTextureContext
+{
+  /// Creates the context, constructing the three outline passes over the G-buffer.
+  fn new
+  (
+    gl : Rc< RefCell< GL > >,
+    gbuffer : Rc< RefCell< GBuffer > >,
+    swap_buffer : Rc< RefCell< SwapFramebuffer > >,
+    outline_thickness : Rc< RefCell< f32 > >,
+    canvas : &HtmlCanvasElement
+  ) -> Result< Self, gl::WebglError >
+  {
+    let narrow_outline = Rc::new
+    (
+      RefCell::new
+      (
+        NarrowOutlinePass::new
+        (
+          &gl.borrow(),
+          gbuffer.borrow().texture( GBufferAttachment::Position ),
+          gbuffer.borrow().texture( GBufferAttachment::ObjectColor ),
+          *outline_thickness.borrow(),
+          canvas.width(),
+          canvas.height()
+        )?
+      )
+    );
+
+    let normal_depth_outline = Rc::new
+    (
+      RefCell::new
+      (
+        NormalDepthOutlinePass::new
+        (
+          &gl.borrow(),
+          gbuffer.borrow().texture( GBufferAttachment::Position ),
+          gbuffer.borrow().texture( GBufferAttachment::Normal ),
+          gbuffer.borrow().texture( GBufferAttachment::ObjectColor ),
+          *outline_thickness.borrow(),
+          canvas.width(),
+          canvas.height()
+        )?
+      )
+    );
+
+    let wide_outline = Rc::new
+    (
+      RefCell::new
+      (
+        WideOutlinePass::new
+        (
+          &gl.borrow(),
+          gbuffer.borrow()
+          .texture( GBufferAttachment::ObjectColor ).unwrap(),
+          *outline_thickness.borrow(),
+          canvas.width(),
+          canvas.height()
+        )?
+      )
+    );
+
+    Ok
+    (
+      Self
+      {
+        gl,
+        gbuffer,
+        swap_buffer,
+        narrow_outline,
+        normal_depth_outline,
+        wide_outline,
+        outline_thickness
+      }
+    )
+  }
+
+  /// Resolves the texture to display for the given dropdown selection, running outline passes on demand.
+  fn select( &self, select_value : &str ) -> Option< gl::web_sys::WebGlTexture >
+  {
+    let current_outline_thickness = *self.outline_thickness.borrow();
+
+    match select_value
+    {
+      "position" => self.gbuffer.borrow().texture( GBufferAttachment::Position ),
+      "normal" => self.gbuffer.borrow().texture( GBufferAttachment::Normal ),
+      "albedo" => self.gbuffer.borrow().texture( GBufferAttachment::Albedo ),
+      "object_color" => self.gbuffer.borrow().texture( GBufferAttachment::ObjectColor ),
+      "narrow_outline" =>
+      {
+        self.narrow_outline.borrow_mut()
+        .set_outline_thickness( current_outline_thickness );
+        self.narrow_outline.borrow_mut()
+        .render( &self.gl.borrow(), self.swap_buffer.borrow().get_input(), self.swap_buffer.borrow().get_output() )
+        .expect( "Failed to render outline pass" )
+      },
+      "normal_depth_outline" =>
+      {
+        self.normal_depth_outline.borrow_mut()
+        .set_outline_thickness( current_outline_thickness );
+        self.normal_depth_outline.borrow_mut()
+        .render( &self.gl.borrow(), self.swap_buffer.borrow().get_input(), self.swap_buffer.borrow().get_output() )
+        .expect( "Failed to render outline pass" )
+      },
+      _ if select_value.starts_with( "wide_outline" ) =>
+      {
+        if let Some( passes ) = select_value.strip_prefix( "wide_outline" )
+        {
+          if let Ok( passes ) = passes.parse::< u32 >()
+          {
+            self.wide_outline.borrow_mut().set_num_passes( passes );
+          }
+        }
+
+        self.wide_outline.borrow_mut()
+        .set_outline_thickness( current_outline_thickness );
+        self.wide_outline.borrow_mut()
+        .render( &self.gl.borrow(), self.swap_buffer.borrow().get_input(), self.swap_buffer.borrow().get_output() )
+        .expect( "Failed to render outline pass" )
+      },
+      _ => None
+    }
+  }
+}
+
+/// Attaches the change listener that tracks the display dropdown's selected value.
+fn bind_select_listener( select_value : Rc< RefCell< String > > )
+{
+  let select_change_closure = Closure::wrap
+  (
+    Box::new
+    (
+    move | event: web_sys::Event |
+    {
+      let select_element_target = event.target()
+      .and_then( | t | t.dyn_into::< HtmlSelectElement >().ok() );
+      if let Some( select_elem ) = select_element_target
+      {
+        ( *select_value.borrow_mut() ).clone_from( &select_elem.value() );
+      }
+      else
+      {
+        gl::warn!( "Failed to cast event target to HtmlSelectElement" );
+      }
+    }
+    )
+    as Box< dyn FnMut( _ ) >
+  );
+
+  let select_element = get_html_element_by_id( "displayOption" );
+  let _ = select_element.add_event_listener_with_callback( "change", select_change_closure.as_ref().unchecked_ref() );
+  select_change_closure.forget();
+}
+
+/// Attaches the input listener that syncs the outline thickness slider with its display span.
+fn bind_thickness_slider( outline_thickness : Rc< RefCell< f32 > > )
+{
+  let outline_thickness_slider_element = get_html_input_element_by_id( "outlineThicknessSlider" );
+  let outline_thickness_display_span = get_html_span_element_by_id( "outlineThicknessValue" );
+
+  // Set initial value of the display span
+  let () = outline_thickness_display_span.set_text_content( Some( &outline_thickness.borrow().to_string() ) );
+
+  let slider_change_closure =
+  Closure::wrap
+  (
+    Box::new(
+      move | event : web_sys::Event |
+      {
+        let input_element_target = event.target()
+        .and_then( | t | t.dyn_into::< HtmlInputElement >().ok() );
+        if let Some(input_elem) = input_element_target
+        {
+          if let Ok( value ) = input_elem.value().parse::<f32>()
+          {
+            *outline_thickness.borrow_mut() = value;
+            let () = outline_thickness_display_span.set_text_content( Some( &value.to_string() ) );
+          }
+          else
+          {
+            gl::warn!( "Failed to parse slider value to f32" );
+          }
+        }
+        else
+        {
+          gl::warn!( "Failed to cast event target to HtmlInputElement" );
+        }
+      }
+    ) as Box< dyn FnMut( _ ) >
+  );
+
+  let _ = outline_thickness_slider_element.add_event_listener_with_callback( "input", slider_change_closure.as_ref().unchecked_ref() );
+  slider_change_closure.forget();
+}
+
 /// Sets up the main 3D scene by loading a GLTF file and configuring objects.
 ///
 /// # Arguments
@@ -187,40 +455,15 @@ async fn setup_scene( gl : &GL ) -> Result< GLTF, gl::WebglError >
 
 async fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
-  let options = gl::context::ContextOptions::default().antialias( false );
-
-  let canvas = gl::canvas::make()?;
-  let gl = gl::context::from_canvas_with( &canvas, options )?;
-
-  let _ = gl.get_extension( "EXT_color_buffer_float" )
-  .expect( "Failed to enable EXT_color_buffer_float extension" );
-
-  let _ = gl.get_extension( "EXT_shader_image_load_store" )
-  .expect( "Failed to enable EXT_shader_image_load_store  extension" );
-
-  let width = canvas.width() as f32;
-  let height = canvas.height() as f32;
+  let ( canvas, gl ) = init_context()?;
 
   let gltf = setup_scene( &gl ).await.unwrap();
   let scenes = gltf.scenes.clone();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
+  gl::info!( "Scene boudnig box: {scene_bounding_box:?}" );
 
-  // Camera setup
-  let eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
-  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
-  let center = scene_bounding_box.center();
-
-  let aspect_ratio = width / height;
-  let fov = 70.0f32.to_radians();
-  let near = 0.01;
-  let far = 1_000_000.0;
-
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ width, height ].into() );
-  camera.bind_controls( &canvas );
+  let camera = setup_camera( &canvas, scene_bounding_box.center() );
 
   let renderer = Rc::new
   (
@@ -232,7 +475,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let ibl = renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/pink_sunrise_4k/", None ).await;
   renderer.borrow_mut().set_ibl( ibl );
-  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/pink_sunrise.jpg" ).unwrap();
+  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/pink_sunrise.jpg" );
   renderer.borrow_mut().set_skybox( skybox.texture.borrow().source.clone() );
   let renderer1 = renderer.clone();
 
@@ -240,33 +483,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   gl::info!( "{:?}", attributes.keys() );
 
-  let get_buffer = | name | attributes.get( name ).unwrap().buffer.clone();
-
-  let attachments = FxHashMap::from_iter(
-    [
-      ( GBufferAttachment::Position, vec![ get_buffer( "positions" ) ] ),
-      ( GBufferAttachment::Albedo, vec![] ),
-      ( GBufferAttachment::Uv1, vec![] ),
-      ( GBufferAttachment::Normal, vec![ get_buffer( "normals" ) ] ),
-      ( GBufferAttachment::PbrInfo, vec![ get_buffer( "texture_coordinates_2" ) ] ),
-      ( GBufferAttachment::ObjectColor, vec![] )
-    ]
-  );
-
-  let gbuffer = Rc::new
-  (
-    RefCell::new
-    (
-      GBuffer::new
-      (
-        &gl,
-        canvas.width(),
-        canvas.height(),
-        attachments
-      )?
-    )
-  );
-  let gbuffer_rc = gbuffer.clone();
+  let gbuffer = Rc::new( RefCell::new( create_gbuffer( &gl, &canvas, &attributes )? ) );
 
   let swap_buffer = Rc::new
   (
@@ -276,187 +493,31 @@ async fn run() -> Result< (), gl::WebglError >
     )
   );
 
-  let sw1 = swap_buffer.clone();
   let sw2 = swap_buffer.clone();
 
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
   let outline_thickness = Rc::new( RefCell::new( 5.0f32 ) );
-  let outline_thickness_1 = outline_thickness.clone();
-  let outline_thickness_2 = outline_thickness.clone();
-
-  let narrow_outline = Rc::new
-  (
-    RefCell::new
-    (
-      NarrowOutlinePass::new
-      (
-        &gl,
-        gbuffer.borrow().texture( GBufferAttachment::Position ),
-        gbuffer.borrow().texture( GBufferAttachment::ObjectColor ),
-        *outline_thickness.borrow(),
-        canvas.width(),
-        canvas.height()
-      )?
-    )
-  );
-
-  let normal_depth_outline = Rc::new
-  (
-    RefCell::new
-    (
-      NormalDepthOutlinePass::new
-      (
-        &gl,
-        gbuffer.borrow().texture( GBufferAttachment::Position ),
-        gbuffer.borrow().texture( GBufferAttachment::Normal ),
-        gbuffer.borrow().texture( GBufferAttachment::ObjectColor ),
-        *outline_thickness.borrow(),
-        canvas.width(),
-        canvas.height()
-      )?
-    )
-  );
-
-  let wide_outline = Rc::new
-  (
-    RefCell::new
-    (
-      WideOutlinePass::new
-      (
-        &gl,
-        gbuffer.borrow()
-        .texture( GBufferAttachment::ObjectColor ).unwrap(),
-        *outline_thickness.borrow(),
-        canvas.width(),
-        canvas.height()
-      )?
-    )
-  );
 
   let object_colors = generate_object_colors( gltf.meshes.len() as u32 );
 
   let gl = Rc::new( RefCell::new( gl ) );
-  let gl1 = gl.clone();
   let gl2 = gl.clone();
 
-  let select_texture = move | select_value : &str |
-  {
-    let current_outline_thickness = *outline_thickness_1.borrow();
-
-    match select_value
-    {
-      "position" => gbuffer_rc.borrow().texture( GBufferAttachment::Position ),
-      "normal" => gbuffer_rc.borrow().texture( GBufferAttachment::Normal ),
-      "albedo" => gbuffer_rc.borrow().texture( GBufferAttachment::Albedo ),
-      "object_color" => gbuffer_rc.borrow().texture( GBufferAttachment::ObjectColor ),
-      "narrow_outline" =>
-      {
-        let narrow_outline_1 = narrow_outline.clone();
-        narrow_outline_1.borrow_mut()
-        .set_outline_thickness( current_outline_thickness );
-        narrow_outline.clone().borrow_mut()
-        .render( &gl1.borrow(), sw1.borrow().get_input(), sw1.borrow().get_output() )
-        .expect( "Failed to render outline pass" )
-      },
-      "normal_depth_outline" =>
-      {
-        let normal_depth_outline_1 = normal_depth_outline.clone();
-        normal_depth_outline_1.borrow_mut()
-        .set_outline_thickness( current_outline_thickness );
-        normal_depth_outline.clone().borrow_mut()
-        .render( &gl1.borrow(), sw1.borrow().get_input(), sw1.borrow().get_output() )
-        .expect( "Failed to render outline pass" )
-      },
-      _ if select_value.starts_with( "wide_outline" ) =>
-      {
-        let wide_outline_1 = wide_outline.clone();
-        if let Some( passes ) = select_value.strip_prefix( "wide_outline" )
-        {
-          if let Ok( passes ) = u32::from_str_radix( passes, 10 )
-          {
-            wide_outline_1.borrow_mut().set_num_passes( passes );
-          }
-        }
-
-        wide_outline_1.borrow_mut()
-        .set_outline_thickness( current_outline_thickness );
-        let texture = wide_outline_1.borrow_mut()
-        .render( &gl1.borrow(), sw1.borrow().get_input(), sw1.borrow().get_output() )
-        .expect( "Failed to render outline pass" );
-
-        texture
-      },
-      _ => None
-    }
-  };
+  let select_texture = SelectTextureContext::new
+  (
+    gl,
+    gbuffer.clone(),
+    swap_buffer,
+    outline_thickness.clone(),
+    &canvas
+  )?;
 
   let select_value = Rc::new( RefCell::new( String::new() ) );
-  let select_value_clone = select_value.clone();
 
-  let select_change_closure = Closure::wrap
-  (
-    Box::new
-    (
-    move | event: web_sys::Event |
-    {
-      let select_element_target = event.target()
-      .and_then( | t | t.dyn_into::< HtmlSelectElement >().ok() );
-      if let Some( select_elem ) = select_element_target
-      {
-        ( *select_value_clone.borrow_mut() ).clone_from( &select_elem.value() );
-      }
-      else
-      {
-        gl::warn!( "Failed to cast event target to HtmlSelectElement" );
-      }
-    }
-    )
-    as Box< dyn FnMut( _ ) >
-  );
-
-  let select_element = get_html_element_by_id( "displayOption" );
-  let _ = select_element.add_event_listener_with_callback( "change", select_change_closure.as_ref().unchecked_ref() );
-  select_change_closure.forget();
-
-  // --- Slider Event Listener ---
-  let outline_thickness_slider_element = get_html_input_element_by_id( "outlineThicknessSlider" );
-  let outline_thickness_display_span = get_html_span_element_by_id( "outlineThicknessValue" );
-
-  // Set initial value of the display span
-  let _ = outline_thickness_display_span.set_text_content( Some( &outline_thickness.borrow().to_string() ) );
-
-  let slider_change_closure =
-  Closure::wrap
-  (
-    Box::new(
-      move | event : web_sys::Event |
-      {
-        let input_element_target = event.target()
-        .and_then( | t | t.dyn_into::< HtmlInputElement >().ok() );
-        if let Some(input_elem) = input_element_target
-        {
-          if let Ok( value ) = input_elem.value().parse::<f32>()
-          {
-            *outline_thickness_2.borrow_mut() = value;
-            let _ = outline_thickness_display_span.set_text_content( Some( &value.to_string() ) );
-          }
-          else
-          {
-            gl::warn!( "Failed to parse slider value to f32" );
-          }
-        }
-        else
-        {
-          gl::warn!( "Failed to cast event target to HtmlInputElement" );
-        }
-      }
-    ) as Box< dyn FnMut( _ ) >
-  );
-
-  let _ = outline_thickness_slider_element.add_event_listener_with_callback( "input", slider_change_closure.as_ref().unchecked_ref() );
-  slider_change_closure.forget();
+  bind_select_listener( select_value.clone() );
+  bind_thickness_slider( outline_thickness );
 
   let fps_value = get_html_span_element_by_id( "fpsValue" );
   let mut last_time = 0.0;
@@ -472,7 +533,7 @@ async fn run() -> Result< (), gl::WebglError >
       // Update fps text when a whole second elapsed
       if time as u32 > last_time as u32
       {
-        fps_value.set_text_content( Some( &format!( "{}", fps ) ) );
+        fps_value.set_text_content( Some( &format!( "{fps}" ) ) );
         fps = 0;
       }
       last_time = time;
@@ -490,7 +551,7 @@ async fn run() -> Result< (), gl::WebglError >
       sw2.borrow_mut().bind( &gl2.borrow() );
       sw2.borrow_mut().set_input( renderer1.borrow().main_texture() );
 
-      if let Some( t ) = select_texture( &select_value.borrow() )
+      if let Some( t ) = select_texture.select( &select_value.borrow() )
       {
         sw2.borrow_mut().bind( &gl2.borrow() );
         sw2.borrow_mut().set_output( Some( t ) );

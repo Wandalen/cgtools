@@ -30,9 +30,188 @@ fn add_light( scene : &Rc< RefCell< Scene > >, light : Light ) -> Rc< RefCell< N
   light_node
 }
 
+/// Creates the orbit camera framed on the scene's bounding box and binds its controls.
+fn setup_camera( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : &mingl::geometry::BoundingBox, width : f32, height : f32 ) -> Camera
+{
+  gl::info!( "Scene boudnig box: {scene_bounding_box:?}" );
+  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
+  let dist = scene_bounding_box.max.mag() * 40.0;
+  let exponent =
+  {
+    let bits = diagonal.to_bits();
+    let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
+    exponent_field - 127
+  };
+  gl::info!( "Exponent: {exponent:?}" );
+
+  // Camera setup
+  let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
+  //eye = gl::math::F32x3::from( [ 0.0, 0.0, 1.0 ] );
+  eye *= dist;
+  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
+
+  let center = scene_bounding_box.center();
+
+  let aspect_ratio = width / height;
+  let fov = 70.0f32.to_radians();
+  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 100.0;
+  let far = near * 100.0f32.powi( exponent.abs() );
+
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  camera.set_window_size( [ width, height ].into() );
+  camera.bind_controls( canvas );
+
+  camera
+}
+
+/// Adds the three rotating direct lights, three rotating point lights, and the named controllable light to the scene.
+fn create_lights( scene : &Rc< RefCell< Scene > > ) -> ( Vec< Rc< RefCell< Node > > >, Rc< RefCell< Node > > )
+{
+  let mut lights = vec![];
+
+  let colors =
+  [
+    F32x3::from_array( [ 1.0, 0.0, 0.0 ] ),
+    F32x3::from_array( [ 0.0, 1.0, 0.0 ] ),
+    F32x3::from_array( [ 0.0, 0.0, 1.0 ] ),
+  ];
+
+  for color in colors
+  {
+    let d = add_light
+    (
+      scene,
+      Light::Direct
+      (
+        DirectLight
+        {
+          direction : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
+          color,
+          strength : 0.0
+        }
+      )
+    );
+
+    lights.push( d );
+  }
+
+  for color in colors
+  {
+    let p = add_light
+    (
+      scene,
+      Light::Point
+      (
+        PointLight
+        {
+          position : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
+          color,
+          strength : 0.0,
+          range : 10.0
+        }
+      )
+    );
+
+    lights.push( p );
+  }
+
+  let controllable_light = add_light
+  (
+    scene,
+    Light::Direct
+    (
+      DirectLight
+      {
+        direction : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
+        color : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
+        strength : 0.0
+      }
+    )
+  );
+  controllable_light.borrow_mut().set_name( "controllable" );
+
+  ( lights, controllable_light )
+}
+
+/// Clones the marker sphere onto every light's position or direction.
+fn create_light_spheres( sphere : &Rc< RefCell< Node > >, lights : &[ Rc< RefCell< Node > > ] ) -> Vec< Rc< RefCell< Node > > >
+{
+  lights.iter()
+  .filter_map
+  (
+    | node |
+    {
+      let node = node.borrow();
+      let Object3D::Light( light ) = &node.object
+      else
+      {
+        return None;
+      };
+      let position = match light
+      {
+        Light::Point( point_light ) => point_light.position,
+        Light::Direct( direct_light ) => direct_light.direction,
+        Light::Spot( _ ) => return None
+      };
+
+      let sphere_clone = sphere.borrow().clone_tree();
+      sphere_clone.borrow_mut().set_translation( position );
+
+      Some( sphere_clone )
+    }
+  )
+  .collect::< Vec< _ > >()
+}
+
+/// Rotates every non-controllable light around the scene and moves its marker sphere with it.
+fn animate_lights( lights : &[ Rc< RefCell< Node > > ], spheres : &[ Rc< RefCell< Node > > ], t : f64, light_radius : f32, light_speed : f32 )
+{
+  for ( i, light ) in lights.iter().enumerate()
+  {
+    if let Some( name ) = light.borrow().get_name()
+    {
+      if name.to_string().as_str() == "controllable"
+      {
+        continue;
+      }
+    }
+    if let Object3D::Light( light ) = &mut light.borrow_mut().object
+    {
+      match light
+      {
+        Light::Direct( direct ) =>
+        {
+          let direction = F32x3::from_spherical
+          (
+            light_radius,
+            i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ),
+            45.0
+          );
+
+          direct.direction = direction;
+          spheres[ i ].borrow_mut().set_translation( direction );
+        },
+        Light::Point( point ) =>
+        {
+          let position = F32x3::from_spherical
+          (
+            light_radius,
+            i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ),
+            45.0
+          );
+
+          point.position = position;
+          spheres[ i ].borrow_mut().set_translation( position );
+        }
+        Light::Spot( _ ) => ()
+      }
+    }
+  }
+}
+
 async fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()?;
@@ -58,33 +237,7 @@ async fn run() -> Result< (), gl::WebglError >
   }
 
   let scene_bounding_box = scene.borrow().bounding_box();
-  gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
-  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  let dist = scene_bounding_box.max.mag() * 40.0;
-  let exponent =
-  {
-    let bits = diagonal.to_bits();
-    let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
-    exponent_field - 127
-  };
-  gl::info!( "Exponent: {:?}", exponent );
-
-  // Camera setup
-  let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
-  //eye = gl::math::F32x3::from( [ 0.0, 0.0, 1.0 ] );
-  eye *= dist;
-  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
-
-  let center = scene_bounding_box.center();
-
-  let aspect_ratio = width / height;
-  let fov = 70.0f32.to_radians();
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 100.0;
-  let far = near * 100.0f32.powi( exponent.abs() );
-
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ width, height ].into() );
-  camera.bind_controls( &canvas );
+  let camera = setup_camera( &canvas, &scene_bounding_box, width, height );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_use_emission( &gl, true );
@@ -100,96 +253,11 @@ async fn run() -> Result< (), gl::WebglError >
   let sphere_gltf = renderer::webgl::loaders::gltf::load( &document, "static/sphere.glb", &gl ).await?;
   let sphere = sphere_gltf.scenes[ 0 ].borrow().children.last().cloned().unwrap();
 
-  let mut lights = vec![];
-
-  let colors =
-  [
-    F32x3::from_array( [ 1.0, 0.0, 0.0 ] ),
-    F32x3::from_array( [ 0.0, 1.0, 0.0 ] ),
-    F32x3::from_array( [ 0.0, 0.0, 1.0 ] ),
-  ];
-
-  for i in 0..3
-  {
-    let d = add_light
-    (
-      &scene,
-      Light::Direct
-      (
-        DirectLight
-        {
-          direction : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
-          color : colors[ i ],
-          strength : 0.0
-        }
-      )
-    );
-
-    lights.push( d );
-  }
-
-  for i in 0..3
-  {
-    let p = add_light
-    (
-      &scene,
-      Light::Point
-      (
-        PointLight
-        {
-          position : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
-          color : colors[ i ],
-          strength : 0.0,
-          range : 10.0
-        }
-      )
-    );
-
-    lights.push( p );
-  }
-
-  let controllable_light = add_light
-  (
-    &scene,
-    Light::Direct
-    (
-      DirectLight
-      {
-        direction : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
-        color : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
-        strength : 0.0
-      }
-    )
-  );
-  controllable_light.borrow_mut().set_name( "controllable" );
+  let ( lights, controllable_light ) = create_lights( &scene );
 
   sphere.borrow_mut().set_scale( F32x3::splat( 0.02 ) );
 
-  let spheres = lights.iter()
-  .filter_map
-  (
-    | node |
-    {
-      let node = node.borrow();
-      let Object3D::Light( light ) = &node.object
-      else
-      {
-        return None;
-      };
-      let position = match light
-      {
-        Light::Point( point_light ) => point_light.position,
-        Light::Direct( direct_light ) => direct_light.direction,
-        _ => return None
-      };
-
-      let sphere_clone = sphere.borrow().clone_tree();
-      sphere_clone.borrow_mut().set_translation( position );
-
-      Some( sphere_clone )
-    }
-  )
-  .collect::< Vec< _ > >();
+  let spheres = create_light_spheres( &sphere, &lights );
 
   let controllable_sphere = sphere.borrow().clone_tree();
   controllable_sphere.borrow_mut().set_translation( F32x3::splat( 1.0 ) );
@@ -198,7 +266,7 @@ async fn run() -> Result< (), gl::WebglError >
   scene.borrow_mut().children.extend_from_slice( &spheres );
   scene.borrow_mut().add( controllable_sphere.clone() );
 
-  let _settings = gui_setup::setup( renderer.clone(), lights.clone(), controllable_light.clone() ).unwrap();
+  let _settings = gui_setup::setup( &renderer, lights.clone(), &controllable_light ).unwrap();
 
   let light_radius = 1.0;
   let light_speed = 50.0;
@@ -214,57 +282,16 @@ async fn run() -> Result< (), gl::WebglError >
         {
           Light::Point( point_light ) => Some( point_light.position ),
           Light::Direct( direct_light ) => Some( direct_light.direction ),
-          _ => None
+          Light::Spot( _ ) => None
         }
         {
           controllable_sphere.borrow_mut().set_translation( position );
         }
       }
 
-      for ( i, light ) in lights.iter().enumerate()
-      {
-        if let Some( name ) = light.borrow().get_name()
-        {
-          if name.to_string().as_str() == "controllable"
-          {
-            continue;
-          }
-        }
-        if let Object3D::Light( light ) = &mut light.borrow_mut().object
-        {
-          match light
-          {
-            Light::Direct( direct ) =>
-            {
-              let direction = F32x3::from_spherical
-              (
-                light_radius,
-                i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ),
-                45.0
-              );
-
-              direct.direction = direction;
-              spheres[ i ].borrow_mut().set_translation( direction );
-            },
-            Light::Point( point ) =>
-            {
-              let position = F32x3::from_spherical
-              (
-                light_radius,
-                i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ),
-                45.0
-              );
-
-              point.position = position;
-              spheres[ i ].borrow_mut().set_translation( position );
-            }
-            _ => ()
-          }
-        }
-      }
+      animate_lights( &lights, &spheres, t, light_radius, light_speed );
 
       // If textures are of different size, gl.view_port needs to be called
-      let _time = t as f32 / 1000.0;
 
       renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &camera )
       .expect( "Failed to render" );

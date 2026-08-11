@@ -24,7 +24,7 @@ mod gui_setup;
 
 async fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()?;
@@ -44,7 +44,7 @@ async fn run() -> Result< (), gl::WebglError >
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
+  gl::info!( "Scene boudnig box: {scene_bounding_box:?}" );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let dist = scene_bounding_box.max.mag();
   let exponent =
@@ -53,7 +53,7 @@ async fn run() -> Result< (), gl::WebglError >
     let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
     exponent_field - 127
   };
-  gl::info!( "Exponent: {:?}", exponent );
+  gl::info!( "Exponent: {exponent:?}" );
 
   // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
@@ -94,7 +94,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let current_animation = Rc::new( RefCell::new( gltf.animations[ 0 ].clone() ) );
 
-  gui_setup::setup( gltf.animations.clone(), current_animation.clone() );
+  gui_setup::setup( gltf.animations.clone(), &current_animation );
 
   // Define the update and draw logic
   let update_and_draw =

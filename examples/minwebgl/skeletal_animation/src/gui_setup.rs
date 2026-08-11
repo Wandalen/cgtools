@@ -18,7 +18,7 @@ pub struct Settings
 pub fn setup
 (
   animations : Vec< Animation >,
-  current_animation : Rc< RefCell< Animation > >
+  current_animation : &Rc< RefCell< Animation > >
 )
 {
   if animations.is_empty()

@@ -8,10 +8,11 @@ workspace = true
 
 [features]
 adapter-svg = ["dep:tilemap_renderer", "tilemap_renderer/adapter-svg"]
-adapter-webgl = ["dep:tilemap_renderer", "tilemap_renderer/adapter-webgl"]
+adapter-webgl = ["dep:tilemap_renderer", "tilemap_renderer/adapter-webgl", "dep:minwebgl"]
 
 [dependencies]
 animation = { workspace = true }
+minwebgl = { workspace = true, optional = true }
 ndarray_cg = { workspace = true }
 rhai = { workspace = true }
 scene_script = { workspace = true }

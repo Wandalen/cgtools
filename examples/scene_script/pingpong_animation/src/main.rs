@@ -2,7 +2,9 @@
 //! its recorded frames, and demos `animation::Tween< F32x2 >` interpolation
 //! between two of them. With `adapter-svg` enabled, also compiles each frame
 //! via `pingpong_animation::render::frame_to_commands` and submits it to a
-//! `tilemap_renderer` `SvgBackend`.
+//! `tilemap_renderer` `SvgBackend`. With `adapter-webgl` enabled (wasm32
+//! target only), does the same against a `WebGlBackend` bound to a
+//! browser-provided canvas instead.
 
 use pingpong_animation::simulate;
 
@@ -71,14 +73,6 @@ fn render_frames( frames : &[ pingpong_animation::Frame ] )
     }
   }
 
-  // `adapter-webgl` is feature-forwarded in Cargo.toml (satisfying this
-  // crate's own Cargo-level contract) but not wired here: `WebGlBackend::new`
-  // needs a real browser-provided `web_sys::WebGl2RenderingContext`, and
-  // `tilemap_renderer`'s own `adapter-webgl` feature requires the
-  // wasm32-unknown-unknown target — neither is available from this crate's
-  // plain native `fn main()` (tagged `runtime:native`). Wiring it would mean
-  // restructuring this crate as a dual native+wasm32 target, which no Test
-  // Matrix row or Checklist item in this task asks for.
   match backend.output()
   {
     Ok( Output::String( svg ) ) => println!( "\nrendered {} frame(s) to SVG ({} bytes)", frames.len(), svg.len() ),
@@ -87,8 +81,70 @@ fn render_frames( frames : &[ pingpong_animation::Frame ] )
   }
 }
 
+/// Compiles each frame via [`pingpong_animation::render::frame_to_commands`]
+/// and submits it to a fresh `WebGlBackend`, bound to a WebGL2 context
+/// retrieved (or created) from the page via `minwebgl::context::retrieve_or_make`.
+/// `tilemap_renderer`'s own `adapter-webgl` feature requires the
+/// wasm32-unknown-unknown target (no native windowing exists to source a real
+/// `web_sys::WebGl2RenderingContext` from) — matching this task's own Testable
+/// clause, which tests this feature "on the wasm32 target" rather than via a
+/// plain native `cargo run`.
+#[ cfg( all( feature = "adapter-webgl", not( feature = "adapter-svg" ) ) ) ]
+fn render_frames( frames : &[ pingpong_animation::Frame ] )
+{
+  use pingpong_animation::render::{ frame_to_commands, render_assets };
+  use tilemap_renderer::
+  {
+    adapters::webgl::WebGlBackend,
+    backend::{ Backend, Output },
+    types::RenderConfig,
+  };
+
+  let commands : Vec< _ > = frames.iter().map( frame_to_commands ).collect();
+  let assets = render_assets();
+  let tick_count = frames.len();
+
+  minwebgl::browser::setup( minwebgl::browser::Config::default() );
+  minwebgl::spawn_local( async move
+  {
+    let gl = match minwebgl::context::retrieve_or_make()
+    {
+      Ok( gl ) => gl,
+      Err( error ) => { minwebgl::warn!( "failed to retrieve WebGL2 context: {error}" ); return; }
+    };
+
+    let mut backend = match WebGlBackend::new( RenderConfig::default(), gl )
+    {
+      Ok( backend ) => backend,
+      Err( error ) => { minwebgl::warn!( "failed to construct WebGlBackend: {error}" ); return; }
+    };
+
+    if let Err( error ) = backend.load_assets( &assets )
+    {
+      minwebgl::warn!( "failed to load render assets: {error}" );
+      return;
+    }
+
+    for frame_commands in &commands
+    {
+      if let Err( error ) = backend.submit( frame_commands )
+      {
+        minwebgl::warn!( "failed to submit frame: {error}" );
+        return;
+      }
+    }
+
+    match backend.output()
+    {
+      Ok( Output::Presented ) => minwebgl::info!( "rendered {tick_count} frame(s) via WebGL2 (presented to canvas)" ),
+      Ok( _ ) => {}
+      Err( error ) => minwebgl::warn!( "failed to retrieve WebGL2 output: {error}" ),
+    }
+  } );
+}
+
 /// No-op when no adapter feature is enabled — the default (console-only) build.
-#[ cfg( not( feature = "adapter-svg" ) ) ]
+#[ cfg( not( any( feature = "adapter-svg", feature = "adapter-webgl" ) ) ) ]
 fn render_frames( _frames : &[ pingpong_animation::Frame ] ) {}
 
 #[ cfg( test ) ]

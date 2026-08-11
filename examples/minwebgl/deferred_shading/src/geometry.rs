@@ -90,7 +90,7 @@ pub fn create_light_volume( gl : &GL ) -> Result< renderer::webgl::Geometry, Web
   gl.bind_vertex_array( None );
 
   // Create a new Geometry object
-  let mut light_volume = renderer::webgl::Geometry::new( &gl )?;
+  let mut light_volume = renderer::webgl::Geometry::new( gl )?;
 
   // Create and upload the position buffer
   let position_buffer = gl::buffer::create( gl )?;
@@ -103,7 +103,7 @@ pub fn create_light_volume( gl : &GL ) -> Result< renderer::webgl::Geometry, Web
     descriptor : BufferDescriptor::new::< [ f32; 3 ] >(), // Non-instanced attribute
     bounding_box : BoundingBox::default(),
   };
-  light_volume.add_attribute( &gl, "position", attribute )?;
+  light_volume.add_attribute( gl, "position", attribute )?;
 
   // Create and upload the index buffer
   let index_buffer = gl::buffer::create( gl )?;
@@ -116,7 +116,7 @@ pub fn create_light_volume( gl : &GL ) -> Result< renderer::webgl::Geometry, Web
     offset : 0,
     data_type : GL::UNSIGNED_INT,
   };
-  light_volume.add_index( &gl, index )?;
+  light_volume.add_index( gl, index )?;
 
   Ok( light_volume )
 }

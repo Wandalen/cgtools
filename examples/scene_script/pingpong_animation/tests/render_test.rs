@@ -4,6 +4,7 @@
 //! exist once that feature pulls in the optional `tilemap_renderer` dependency.
 
 #![ cfg( feature = "adapter-svg" ) ]
+#![ expect( clippy::float_cmp, reason = "assertions check exact pass-through of ball coordinates into mesh transforms; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 
 use ndarray_cg::F32x2;
 use pingpong_animation::{ render::{ frame_to_commands, render_assets }, Frame };

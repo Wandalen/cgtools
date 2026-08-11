@@ -47,9 +47,14 @@ upload, mipmaps, MSAA, compute.
 `renderer`'s legacy `webgl` tree keeps its accepted direct-to-L0 dependency
 until strangled onto the HAL. `tilemap_renderer` (d2) is the second targeted
 consumer — its `adapter-webgpu` / `adapter-native` adopt the HAL per
-[../adr/003_d2_stack_hal_adoption.md](../adr/003_d2_stack_hal_adoption.md);
-its existing `adapter-webgl` keeps its direct `minwebgl` dependency for now,
-on the same accepted-until-strangled posture.
+[../adr/003_d2_stack_hal_adoption.md](../adr/003_d2_stack_hal_adoption.md).
+`adapter-webgpu` now builds and passes its own compile-and-construct-level
+test suite ( same browser-side-pixel-test gap noted above for `renderer` );
+`adapter-native` now also builds and passes an in-repo pixel-readback test
+suite mirroring `gpu_hal`'s own `triangle_render_readback` precedent, proving
+the offscreen-render-plus-readback path with no browser involved. Its existing
+`adapter-webgl` keeps its direct `minwebgl` dependency for now, on the same
+accepted-until-strangled posture.
 
 ### Layers
 

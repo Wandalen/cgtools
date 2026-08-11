@@ -2,7 +2,7 @@
 use minwebgl as gl;
 use std::rc::Rc;
 use core::cell::RefCell;
-use renderer::webgl::{ Renderer, post_processing::ColorGradingPass };
+use renderer::webgl::{ Renderer, post_processing::{ ColorGradingPass, ColorGradingParams } };
 use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
 use crate::lil_gui::{ add_slider, add_folder, new_gui, on_change, show };
@@ -30,7 +30,32 @@ pub struct ColorGradingSettings
   saturation : f32,
 }
 
-pub fn setup( renderer : Rc< RefCell< Renderer > >, color_grading : Rc< RefCell< ColorGradingPass > > )
+/// Adds one color grading slider wired to a single `ColorGradingParams` field.
+fn add_grading_slider
+(
+  folder : &JsValue,
+  cg_object : &JsValue,
+  name : &str,
+  color_grading : &Rc< RefCell< ColorGradingPass > >,
+  field : fn( &mut ColorGradingParams ) -> &mut f32,
+)
+{
+  let prop = add_slider( folder, cg_object, name, -1.0, 1.0, 0.01 );
+  let callback = Closure::new
+  (
+    {
+      let color_grading = color_grading.clone();
+      move | value |
+      {
+        *field( color_grading.borrow_mut().get_params_mut() ) = value;
+      }
+    }
+  );
+  on_change( &prop, &callback );
+  callback.forget();
+}
+
+pub fn setup( renderer : &Rc< RefCell< Renderer > >, color_grading : &Rc< RefCell< ColorGradingPass > > )
 {
   let gui = new_gui();
 
@@ -107,131 +132,27 @@ pub fn setup( renderer : Rc< RefCell< Renderer > >, color_grading : Rc< RefCell<
   // White Balance folder
   let wb_folder = add_folder( &cg_folder, "White Balance" );
 
-  // Temperature
-  let prop = add_slider( &wb_folder, &cg_object, "temperature", -1.0, 1.0, 0.01 );
-  let callback = Closure::new
-  (
-    {
-      let color_grading = color_grading.clone();
-      move | value |
-      {
-        color_grading.borrow_mut().get_params_mut().temperature = value;
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
+  add_grading_slider( &wb_folder, &cg_object, "temperature", color_grading, | p | &mut p.temperature );
 
-  // Tint
-  let prop = add_slider( &wb_folder, &cg_object, "tint", -1.0, 1.0, 0.01 );
-  let callback = Closure::new
-  (
-    {
-      let color_grading = color_grading.clone();
-      move | value |
-      {
-        color_grading.borrow_mut().get_params_mut().tint = value;
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
+  add_grading_slider( &wb_folder, &cg_object, "tint", color_grading, | p | &mut p.tint );
 
   // Tone Controls folder
   let tone_folder = add_folder( &cg_folder, "Tone Controls" );
 
-  // Exposure
-  let prop = add_slider( &tone_folder, &cg_object, "exposure", -1.0, 1.0, 0.01 );
-  let callback = Closure::new
-  (
-    {
-      let color_grading = color_grading.clone();
-      move | value |
-      {
-        color_grading.borrow_mut().get_params_mut().exposure = value;
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
+  add_grading_slider( &tone_folder, &cg_object, "exposure", color_grading, | p | &mut p.exposure );
 
-  // Shadows
-  let prop = add_slider( &tone_folder, &cg_object, "shadows", -1.0, 1.0, 0.01 );
-  let callback = Closure::new
-  (
-    {
-      let color_grading = color_grading.clone();
-      move | value |
-      {
-        color_grading.borrow_mut().get_params_mut().shadows = value;
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
+  add_grading_slider( &tone_folder, &cg_object, "shadows", color_grading, | p | &mut p.shadows );
 
-  // Highlights
-  let prop = add_slider( &tone_folder, &cg_object, "highlights", -1.0, 1.0, 0.01 );
-  let callback = Closure::new
-  (
-    {
-      let color_grading = color_grading.clone();
-      move | value |
-      {
-        color_grading.borrow_mut().get_params_mut().highlights = value;
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
+  add_grading_slider( &tone_folder, &cg_object, "highlights", color_grading, | p | &mut p.highlights );
 
   // Color Adjustments folder
   let color_folder = add_folder( &cg_folder, "Color Adjustments" );
 
-  // Contrast
-  let prop = add_slider( &color_folder, &cg_object, "contrast", -1.0, 1.0, 0.01 );
-  let callback = Closure::new
-  (
-    {
-      let color_grading = color_grading.clone();
-      move | value |
-      {
-        color_grading.borrow_mut().get_params_mut().contrast = value;
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
+  add_grading_slider( &color_folder, &cg_object, "contrast", color_grading, | p | &mut p.contrast );
 
-  // Vibrance
-  let prop = add_slider( &color_folder, &cg_object, "vibrance", -1.0, 1.0, 0.01 );
-  let callback = Closure::new
-  (
-    {
-      let color_grading = color_grading.clone();
-      move | value |
-      {
-        color_grading.borrow_mut().get_params_mut().vibrance = value;
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
+  add_grading_slider( &color_folder, &cg_object, "vibrance", color_grading, | p | &mut p.vibrance );
 
-  // Saturation
-  let prop = add_slider( &color_folder, &cg_object, "saturation", -1.0, 1.0, 0.01 );
-  let callback = Closure::new
-  (
-    {
-      let color_grading = color_grading.clone();
-      move | value |
-      {
-        color_grading.borrow_mut().get_params_mut().saturation = value;
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
+  add_grading_slider( &color_folder, &cg_object, "saturation", color_grading, | p | &mut p.saturation );
 
   core::mem::forget( renderer_object );
   core::mem::forget( cg_object );
