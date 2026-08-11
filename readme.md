@@ -99,6 +99,9 @@ cargo test --workspace
 # Run example
 cd examples/minwebgl/trivial
 trunk serve --release
+
+# Or, from any directory, by partial unique match against the example/binary path:
+action/run trivial
 ```
 
 ## Testing

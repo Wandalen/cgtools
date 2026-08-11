@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{MatEl, nd, Mat3, mat, RawSliceMut, VectorIter, Collection};
 
 /// Produces a 2D rotation matrix for a given angle in radians.
 ///
@@ -30,6 +30,9 @@ where
 ///
 /// # Returns
 /// - A 3x3 translation matrix.
+///
+/// # Panics
+/// Panics if `translation`'s iterator yields fewer than 2 elements.
 #[ inline ]
 pub fn translate< E, Translation >( translation : Translation ) -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
@@ -55,6 +58,9 @@ where
 ///
 /// # Returns
 /// - A 3x3 scaling matrix.
+///
+/// # Panics
+/// Panics if `scaling`'s iterator yields fewer than 2 elements.
 #[ inline ]
 pub fn scale< E, Scaling >( scaling : Scaling ) -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
@@ -80,6 +86,9 @@ where
 ///
 /// # Returns
 /// - A 3x3 shearing matrix.
+///
+/// # Panics
+/// Panics if `shearing`'s iterator yields fewer than 2 elements.
 #[ inline ]
 pub fn shear< E, Shearing >( shearing : Shearing ) -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
@@ -103,6 +112,7 @@ where
 /// # Returns
 /// - A 3x3 reflection matrix.
 #[ inline ]
+#[ must_use ]
 pub fn reflect_x< E >() -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
   E : MatEl + nd::NdFloat,
@@ -121,6 +131,7 @@ where
 /// # Returns
 /// - A 3x3 reflection matrix.
 #[ inline ]
+#[ must_use ]
 pub fn reflect_y< E >() -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
   E : MatEl + nd::NdFloat,
@@ -142,6 +153,9 @@ where
 ///
 /// # Returns
 /// - A 3x3 rotation matrix.
+///
+/// # Panics
+/// Panics if `p`'s iterator yields fewer than 2 elements.
 #[ inline ]
 pub fn rot_around_point< E, Point >( angle_radians : E, p : Point ) -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
@@ -170,6 +184,9 @@ where
 ///
 /// # Returns
 /// - A 3x3 scaling matrix.
+///
+/// # Panics
+/// Panics if `scaling`'s or `p`'s iterator yields fewer than 2 elements.
 #[ inline ]
 pub fn scale_relative_to_point< E, Scaling, Point >( scaling : Scaling, p : Point ) -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where

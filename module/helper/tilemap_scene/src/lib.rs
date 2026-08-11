@@ -1,19 +1,7 @@
-#![ allow( clippy::exhaustive_structs ) ]
-#![ allow( clippy::exhaustive_enums ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::missing_inline_in_public_items ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::too_many_arguments ) ]
-#![ allow( clippy::module_name_repetitions ) ]
 
 //! Compositional declarative scene format for 2D tile-based games.
 //!
-//! Implements the format described in `spec.md` (v0.2.0). Provides
+//! Implements the format described in `docs/` (v0.2.0). Provides
 //! serde-compatible data types for describing a render spec and a scene,
 //! plus a compile layer that turns them into a stream of
 //! [`tilemap_renderer::commands::RenderCommand`]s consumable by existing
@@ -28,7 +16,7 @@
 //!   / viewport — decides what "position" means and what neighbour context
 //!   is visible to the layer.
 //!
-//! See `spec.md` for the normative specification.
+//! See `docs/definition/readme.md` for the format specification and runtime API.
 
 extern crate alloc;
 

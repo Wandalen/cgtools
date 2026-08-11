@@ -151,6 +151,18 @@ For asset loading with Trunk:
 <link data-trunk rel="copy-dir" href="assets/" data-target-path="static"/>
 ```
 
+### Testing
+
+The crate compiles on native targets, so its pure-logic layer is tested natively — no browser needed:
+
+```bash
+cargo test -p minwebgl --all-features
+```
+
+That invocation runs the `tests/` suite (public pure-logic API, e.g. `DataType` ↔ `Const` conversions) plus two inline test modules kept in `src/` as documented exceptions (they cover private validation helpers — `validate_natoms`, `convert_attachment_id` — extracted for testability during bug fixes; see the comments on those modules). Verify the split yourself: `grep -rn "cfg( test )" src/` lists the two inline sites, `ls tests/` the native suite.
+
+Anything that touches a live GL context or the DOM (context creation, shaders, VAOs, textures, uniforms, file/fetch) is **not** natively testable and has no test runner yet — browser-side execution waits on workspace-level `wasm-bindgen-test` runner infrastructure. When building for wasm32 directly, never pass a bare `RUSTFLAGS` value: it clobbers `.cargo/config.toml`'s `--cfg web_sys_unstable_apis`.
+
 ## 📚 API Overview
 
 | Module | Description | Key Functions |

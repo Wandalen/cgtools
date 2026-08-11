@@ -38,83 +38,114 @@ Add to your `Cargo.toml`:
 renderer = { workspace = true, features = ["webgl"] }
 ```
 
+## 🧪 Canonical `gpu_hal` path ( `webgpu` feature )
+
+Beside the WebGL renderer above, the `webgpu` feature builds the canonical
+backend-portable opaque path ( `renderer::webgpu` ): PBR opaque pass + ACES
+tone mapping, written once against the L1 `gpu_hal` crate and targeting any
+of its backends — `GpuContext::new_webgpu( &canvas )`,
+`GpuContext::new_webgl( &canvas )`, or, off-browser with the `native`
+feature, `GpuContext::new_native( width, height )` over the machine's
+Vulkan driver ( a software ICD such as lavapipe suffices ). Canonical
+shaders are WGSL with GLSL 300 es twins; projections must match
+`context.device.depth_range()`. The opaque path is pixel-verified in the
+terminal on the native backend:
+
+```sh
+cargo nextest run -p renderer --features native
+```
+
+Scope today is the direct-lit opaque slice — IBL, shadows, skinning and the
+loaders stay with the `webgl` renderer until strangled onto the HAL.
+
 ## 🚀 Quick Start
 
 ### Basic Rendering Setup
 
-```rust
+```rust,no_run
 use minwebgl as gl;
-use renderer::webgl::{loaders, Renderer, SwapFramebuffer};
-use renderer::webgl::post_processing::{ToneMappingPass, ToSrgbPass, ToneMappingAces};
+use renderer::webgl::{ loaders, Camera, Renderer };
 
-async fn setup_renderer() -> Result<(), Box<dyn std::error::Error>> {
-  // Setup WebGL context
+async fn setup() -> Result< (), gl::WebglError >
+{
+  // Setup the WebGL context — the renderer does MSAA internally,
+  // so disable the built-in antialiasing
+  let options = gl::context::ContextOptions::default().antialias( false );
+  let canvas = gl::canvas::make()?;
+  let gl = gl::context::from_canvas_with( &canvas, options )?;
+
+  // HDR rendering needs float color buffers
+  let _ = gl.get_extension( "EXT_color_buffer_float" )
+  .expect( "EXT_color_buffer_float is not supported" );
+
+  // Load a glTF scene
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
-  let canvas = gl::canvas::make()?;
+  let gltf = loaders::gltf::load( &document, "static/model.glb", &gl ).await?;
+  let scenes = gltf.scenes;
+  scenes[ 0 ].borrow_mut().update_world_matrix();
 
-  // Disable antialiasing (renderer uses MSAA internally)
-  let options = gl::context::ContexOptions::default().antialias(false);
-  let gl = gl::context::from_canvas_with(&canvas, options)?;
+  // Camera: eye, up, look-at center, aspect, vertical fov, near, far
+  let eye = gl::math::F32x3::from( [ 0.0, 1.0, 3.0 ] );
+  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
+  let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
+  let aspect = canvas.width() as f32 / canvas.height() as f32;
+  let mut camera = Camera::new( eye, up, center, aspect, 70.0f32.to_radians(), 0.1, 1000.0 );
+  camera.set_window_size( [ canvas.width() as f32, canvas.height() as f32 ].into() );
 
-  // Enable HDR rendering
-  gl.get_extension("EXT_color_buffer_float")
-    .expect("HDR textures not supported");
+  // Renderer with 4x MSAA, then a first frame into its internal HDR buffer
+  let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
+  renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )?;
 
-  // Create renderer with 4x MSAA
-  let renderer = Renderer::new(&gl, canvas.width(), canvas.height(), 4);
-
-  // Load 3D scene
-  let gltf = loaders::gltf::load(&document, "assets/model.gltf", &gl).await?;
-  let scene = &gltf.scenes[0];
-
-  Ok(())
+  Ok( () )
 }
+# fn main() { let _ = setup; }
 ```
 
 ### Complete Render Loop with Post-Processing
 
-```rust
-async fn render_frame(
-  renderer: &Renderer,
-  scene: &mut Scene,
-  camera: &Camera,
-  gl: &WebGl2RenderingContext,
-) -> Result<(), Box<dyn std::error::Error>> {
-  // Setup post-processing pipeline
-  let mut swap_buffer = SwapFramebuffer::new(gl, canvas.width(), canvas.height());
-  let tonemapping = ToneMappingPass::<ToneMappingAces>::new(
-    gl, canvas.width(), canvas.height()
-  )?;
-  let to_srgb = ToSrgbPass::new(gl, true)?; // Render to screen
+```rust,no_run
+use minwebgl as gl;
+use renderer::webgl::{ Camera, Renderer, Scene };
+use renderer::webgl::post_processing::{ Pass, SwapFramebuffer, ToneMappingAces, ToneMappingPass, ToSrgbPass };
 
-  // Update scene transformations
-  scene.update_world_matrix();
+// Create the pipeline pieces once and reuse them every frame:
+//   SwapFramebuffer::new( &gl, width, height )
+//   ToneMappingPass::< ToneMappingAces >::new( &gl )?
+//   ToSrgbPass::new( &gl, true )?   // true = render to the screen
+fn render_frame
+(
+  gl : &gl::WebGl2RenderingContext,
+  renderer : &mut Renderer,
+  scene : &mut Scene,
+  camera : &Camera,
+  swap_buffer : &mut SwapFramebuffer,
+  tonemapping : &ToneMappingPass< ToneMappingAces >,
+  to_srgb : &ToSrgbPass
+) -> Result< (), gl::WebglError >
+{
+  // Render the scene into the renderer's internal HDR buffer
+  renderer.render( gl, scene, camera )?;
 
-  // Render scene to HDR buffer
-  renderer.render(gl, scene, camera)?;
-
-  // Post-processing pipeline
+  // Feed that HDR result into the post-processing chain
   swap_buffer.reset();
-  swap_buffer.bind(gl);
-  swap_buffer.set_input(renderer.main_texture());
+  swap_buffer.bind( gl );
+  swap_buffer.set_input( renderer.main_texture() );
 
-  // 1. Tone mapping (HDR -> LDR)
-  let tonemapped = tonemapping.render(
-    gl,
-    swap_buffer.get_input(),
-    swap_buffer.get_output()
-  )?;
-
-  swap_buffer.set_output(tonemapped);
+  // 1. Tone mapping ( HDR -> LDR, ACES )
+  let tonemapped = tonemapping.render( gl, swap_buffer.get_input(), swap_buffer.get_output() )?;
+  swap_buffer.set_output( tonemapped );
   swap_buffer.swap();
 
-  // 2. Gamma correction (final output to screen)
-  to_srgb.render(gl, swap_buffer.get_input(), swap_buffer.get_output())?;
+  // 2. Gamma correction ( final output to the screen )
+  let _ = to_srgb.render( gl, swap_buffer.get_input(), swap_buffer.get_output() )?;
 
-  Ok(())
+  Ok( () )
 }
+# fn main() { let _ = render_frame; }
 ```
+
+See `examples/minwebgl/postprocessing` for the full interactive version of this pipeline.
 
 ## 📖 API Reference
 
@@ -137,15 +168,26 @@ async fn render_frame(
 
 ### Asset Loading
 
-```rust
+```rust,no_run
+use minwebgl as gl;
 use renderer::webgl::loaders;
 
-// Load glTF 2.0 files
-let gltf = loaders::gltf::load(&document, "model.gltf", &gl).await?;
+async fn load_assets
+(
+  document : &gl::web_sys::Document,
+  gl : &gl::WebGl2RenderingContext
+) -> Result< (), gl::WebglError >
+{
+  // Load glTF 2.0 files
+  let gltf = loaders::gltf::load( document, "static/model.glb", gl ).await?;
 
-// Access scenes, meshes, materials
-let scene = &gltf.scenes[0];
-let materials = &gltf.materials;
+  // Access scenes, meshes, materials
+  let scene = &gltf.scenes[ 0 ];
+  let materials = &gltf.materials;
+  # let _ = ( scene, materials );
+  Ok( () )
+}
+# fn main() { let _ = load_assets; }
 ```
 
 ### Features
@@ -156,6 +198,8 @@ renderer = { workspace = true, features = ["webgl", "full"] }
 ```
 
 - `webgl` - WebGL rendering backend
+- `webgpu` - Canonical `gpu_hal` opaque path ( browser targets )
+- `native` - The same canonical path on the native wgpu backend ( terminal pixel tests, no browser )
 - `full` - All features enabled
 
 ## 🎯 Use Cases
@@ -185,6 +229,14 @@ When implementing the `Material` trait for custom materials:
 - HDR rendering pipeline for realistic lighting
 - Efficient memory management for large scenes
 - WebAssembly-optimized rendering paths
+
+## 📐 Design Documentation
+
+Typed design docs live in [`docs/`](docs/definition/readme.md): the crate's
+invariants (GPU-resolved visibility with OIT, PBR metallic-roughness
+baseline, HDR-internal pipeline), confirmed pitfalls
+(`EXT_color_buffer_float` is required but never enabled by the crate), and
+feature hubs for the PBR core, image-based lighting, and shadow mapping.
 
 ## 📚 References & Research
 

@@ -29,3 +29,6 @@ tilemap_renderer = { workspace = true, features = ["adapter-webgl"] }
 
 [lints]
 workspace = true
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

@@ -1,4 +1,3 @@
-#![ allow( missing_docs ) ]
 
 /// Internal namespace.
 mod private
@@ -243,10 +242,6 @@ mod private
     where
       D : uniform::UniformMatrixUpload + ?Sized;
 
-    // xxx : clean
-    // /// Draws the active shader program.
-    // fn draw( &self, mode : u32, count : i32 );
-
   }
 
   /// A shader program for rendering with WebGL.
@@ -346,18 +341,6 @@ mod private
       }
     }
 
-    // xxx : clean
-    // /// Draws the active shader program using the specified mode and vertex count.
-    // ///
-    // /// # Parameters
-    // /// - `mode`: The primitive type to render (e.g., `GL::TRIANGLES`).
-    // /// - `count`: The number of vertices to render.
-    // pub fn draw( &self, mode : u32, count : i32 )
-    // {
-    //   // Assumes the program is already in use.
-    //   self.gl.draw_arrays( mode, 0, count );
-    // }
-
   }
 
   impl ProgramInterface for Program
@@ -404,17 +387,6 @@ mod private
     {
       Program::uniform_matrix_upload( self, name, data, column_major );
     }
-
-    // xxx : clean
-    // /// Draws the active shader program using the specified mode and vertex count.
-    // ///
-    // /// # Parameters
-    // /// - `mode`: The primitive type to render (e.g., `GL::TRIANGLES`).
-    // /// - `count`: The number of vertices to render.
-    // fn draw( &self, mode : u32, count : i32 )
-    // {
-    //   Program::draw( self, mode, count );
-    // }
 
   }
 

@@ -1,41 +1,5 @@
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::assign_op_pattern ) ]
-#![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::redundant_field_names ) ]
-#![ allow( clippy::useless_format ) ]
-#![ allow( clippy::let_unit_value ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::needless_continue ) ]
-#![ allow( clippy::else_if_without_else ) ]
-#![ allow( clippy::unreadable_literal ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::collapsible_if ) ]
-#![ allow( clippy::unused_async ) ]
-#![ allow( clippy::needless_borrows_for_generic_args ) ]
-#![ allow( clippy::manual_midpoint ) ]
-#![ allow( clippy::needless_for_each ) ]
-#![ allow( clippy::clone_on_copy ) ]
-#![ allow( clippy::option_map_unit_fn ) ]
-#![ allow( clippy::no_effect_underscore_binding ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::expect_fun_call ) ]
-#![ allow( clippy::assigning_clones ) ]
-
 use std::cell::RefCell;
 use minwebgl as gl;
 use gl::
@@ -281,7 +245,7 @@ async fn run() -> Result< (), gl::WebglError >
     | m |
     {
       let mut m = cast_unchecked_material_to_ref_mut::< PbrMaterial >( m.borrow_mut() );
-      let uv_position = m.base_color_texture().map( | t | t.uv_position ).unwrap_or( 0 );
+      let uv_position = m.base_color_texture().map_or( 0, | t | t.uv_position );
       let texture = Texture::former().source( canvas_texture.clone() ).form();
       let texture_info = TextureInfo { texture : Rc::new( RefCell::new( texture ) ), uv_position };
       m.set_base_color_texture( Some( texture_info ) );

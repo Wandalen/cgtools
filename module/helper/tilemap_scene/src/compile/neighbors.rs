@@ -132,6 +132,10 @@ mod private
   /// object whose id is in `connects_with`. Off-map / empty neighbours
   /// contribute bit 1 only when `"void"` is in `connects_with` (SPEC §15.1).
   #[ must_use ]
+  // `tile_lookup` is always this crate's `FxHashMap` alias (every caller builds
+  // it via `tile_lookup()` below); there is no existing or planned caller
+  // passing a different hasher, so generalizing over `BuildHasher` would add
+  // API surface for no current need.
   #[ allow( clippy::implicit_hasher ) ]
   pub fn compute_neighbor_bitmask
   (
@@ -182,6 +186,10 @@ mod private
   ///
   /// Off-map neighbours produce `NeighborState { object_ids: &[], max_priority: None }`.
   #[ must_use ]
+  // `tile_lookup` is always this crate's `FxHashMap` alias (every caller builds
+  // it via `tile_lookup()` above); there is no existing or planned caller
+  // passing a different hasher, so generalizing over `BuildHasher` would add
+  // API surface for no current need.
   #[ allow( clippy::implicit_hasher ) ]
   pub fn neighbor_state_at< 'a >
   (

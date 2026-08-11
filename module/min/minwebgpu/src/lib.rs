@@ -6,31 +6,6 @@
 //! For native targets, this crate provides stub implementations to enable compilation
 //! without runtime functionality.
 
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::exhaustive_enums)]
-#![allow(clippy::must_use_candidate)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::missing_errors_doc)]
-#![allow(clippy::min_ident_chars)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::let_and_return)]
-#![allow(clippy::return_self_not_must_use)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::elidable_lifetime_names)]
-#![allow(clippy::needless_borrow)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::new_without_default)]
-#![allow(clippy::should_implement_trait)]
-#![allow(clippy::inconsistent_struct_constructor)]
-#![allow(clippy::exhaustive_structs)]
-#![allow(clippy::len_zero)]
-#![allow(clippy::explicit_counter_loop)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::redundant_closure_for_method_calls)]
-
 // WebAssembly target - full WebGPU functionality
 #[ cfg( all( feature = "enabled", target_arch = "wasm32" ) ) ]
 pub use mingl::mod_interface;
@@ -113,26 +88,51 @@ mod_interface!
 
 // Native target stub - provides minimal compatibility without WebGPU functionality
 #[ cfg( all( feature = "enabled", not( target_arch = "wasm32" ) ) ) ]
-pub mod stub {
+pub mod stub
+{
   //! Stub implementations for native targets
-  //! 
+  //!
   //! This module provides empty/stub implementations of the minwebgpu API
   //! to allow compilation on native targets without WebGPU support.
   //! All functions will return appropriate errors when called.
-  
-  /// Stub error type for native targets
-  #[derive(Debug)]
+
+  /// Stub error type for native targets.
+  // Constructed via `new()`, not the unit-struct literal, so this stays
+  // `#[non_exhaustive]` — downstream native-target stub code can match on it
+  // without depending on it having exactly zero fields forever.
+  #[ non_exhaustive ]
+  #[ derive( Debug, Default ) ]
   pub struct WebGPUNotAvailableError;
-  
-  impl std::fmt::Display for WebGPUNotAvailableError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-      write!(f, "WebGPU functionality is only available on WebAssembly targets")
+
+  impl WebGPUNotAvailableError
+  {
+    /// Creates a new `WebGPUNotAvailableError`.
+    #[ inline ]
+    #[ must_use ]
+    pub fn new() -> Self
+    {
+      Self::default()
     }
   }
-  
+
+  impl std::fmt::Display for WebGPUNotAvailableError
+  {
+    #[ inline ]
+    fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+    {
+      write!( f, "WebGPU functionality is only available on WebAssembly targets" )
+    }
+  }
+
   impl std::error::Error for WebGPUNotAvailableError {}
 }
 
 // Re-export stub for non-wasm targets when enabled
 #[ cfg( all( feature = "enabled", not( target_arch = "wasm32" ) ) ) ]
 pub use stub::*;
+
+// Math is pure CPU-side linear algebra with nothing browser-bound, so it
+// stays reachable off-wasm — native consumers ( e.g. the renderer's wgpu
+// backend ) keep the same `minwebgpu::math` path browser code uses.
+#[ cfg( all( feature = "enabled", feature = "math", not( target_arch = "wasm32" ) ) ) ]
+pub use mingl::math;

@@ -83,6 +83,10 @@ mod private
   /// using [`tile_terrain_id`] for each corner. Corners outside the scene
   /// resolve to [`VOID_ID`].
   #[ must_use ]
+  // `tile_lookup` is always this crate's `FxHashMap` alias (every caller builds
+  // it via `tile_lookup()` in `neighbors.rs`); there is no existing or planned
+  // caller passing a different hasher, so generalizing over `BuildHasher` would
+  // add API surface for no current need.
   #[ allow( clippy::implicit_hasher ) ]
   pub fn resolve_corners
   (
@@ -106,8 +110,7 @@ mod private
   /// and a `rotation` u8 in `0..3` capturing which original slot landed in
   /// slot 0 of the canonical form (for `{rot}` sprite substitution).
   #[ must_use ]
-  #[ allow( clippy::needless_pass_by_value ) ]
-  pub fn canonicalize( raw : [ String; 3 ] ) -> ( [ String; 3 ], u8 )
+  pub fn canonicalize( raw : &[ String; 3 ] ) -> ( [ String; 3 ], u8 )
   {
     // Pair each value with its original index, sort, then record the
     // permutation by reading out original indices in sorted order.
@@ -219,66 +222,6 @@ mod private
   {
     let c = &pattern.corners;
     [ &c.0, &c.1, &c.2 ].iter().filter( | s | s.as_str() == "*" ).count() as i32
-  }
-}
-
-#[ cfg( test ) ]
-mod tests
-{
-  use super::private::*;
-  use crate::source::TriBlendPattern;
-
-  fn pattern( a : &str, b : &str, c : &str, priority : i32, sprite : &str ) -> TriBlendPattern
-  {
-    TriBlendPattern
-    {
-      corners : ( a.into(), b.into(), c.into() ),
-      sprite_pattern : sprite.into(),
-      priority,
-      animation : None,
-    }
-  }
-
-  #[ test ]
-  fn canonicalize_sorts_ids()
-  {
-    let ( sorted, _rot ) = canonicalize( [ "water".into(), "grass".into(), "sand".into() ] );
-    assert_eq!( sorted, [ "grass".to_string(), "sand".into(), "water".into() ] );
-  }
-
-  #[ test ]
-  fn exact_beats_wildcard()
-  {
-    let patterns = [ pattern( "*", "*", "void", 0, "edge_fade" ), pattern( "grass", "sand", "water", 5, "tri_g_s_w" ) ];
-    let canonical = [ "grass".into(), "sand".into(), "water".into() ];
-    let found = find_matching_pattern( &patterns, &canonical );
-    assert!( matches!( found, Some( p ) if p.sprite_pattern == "tri_g_s_w" ) );
-  }
-
-  #[ test ]
-  fn priority_tiebreaks_same_specificity()
-  {
-    let patterns = [ pattern( "grass", "grass", "water", 1, "low" ), pattern( "grass", "grass", "water", 10, "high" ) ];
-    let canonical = [ "grass".into(), "grass".into(), "water".into() ];
-    let found = find_matching_pattern( &patterns, &canonical );
-    assert!( matches!( found, Some( p ) if p.sprite_pattern == "high" ) );
-  }
-
-  #[ test ]
-  fn wildcard_fallback_when_nothing_specific()
-  {
-    let patterns = [ pattern( "*", "*", "void", 0, "edge_fade" ) ];
-    let canonical = [ "grass".into(), "sand".into(), "void".into() ];
-    let found = find_matching_pattern( &patterns, &canonical );
-    assert!( matches!( found, Some( p ) if p.sprite_pattern == "edge_fade" ) );
-  }
-
-  #[ test ]
-  fn no_match_returns_none()
-  {
-    let patterns = [ pattern( "grass", "grass", "grass", 0, "pure_grass" ) ];
-    let canonical = [ "grass".into(), "grass".into(), "water".into() ];
-    assert!( find_matching_pattern( &patterns, &canonical ).is_none() );
   }
 }
 

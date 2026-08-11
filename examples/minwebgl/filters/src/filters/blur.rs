@@ -1,4 +1,3 @@
-#![ allow( clippy::unused_self ) ]
 
 use super::*;
 use serde::{ Serialize, Deserialize };

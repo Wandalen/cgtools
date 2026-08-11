@@ -1,31 +1,26 @@
 //! This module provides functionality for loading UFO
 //! fonts and converting text into a 3D mesh representation.
 
-#![ allow( clippy::needless_continue ) ]
-#![ allow( clippy::cloned_instead_of_copied ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::unnecessary_cast ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::redundant_closure_for_method_calls ) ]
 
-#[ cfg( feature = "text" ) ]
+// Fix(TASK-021)
+// Root cause : this module was gated on `text` while its glyph pipeline calls
+// `contours_to_fill_geometry`, which only exists under `font-processing` — so
+// `--features text` alone could never compile (surfaced by TASK-055).
+// Pitfall : gate a module on the feature that provides everything it calls,
+// not on the broadest feature it is thematically related to.
+#[ cfg( feature = "font-processing" ) ]
 mod private
 {
-  use std::rc::Rc;
-  use std::cell::RefCell;
   use rustc_hash::FxHashMap;
   use std::str::FromStr;
   use kurbo::flatten;
   use mingl::geometry::BoundingBox;
   use norad::{ PointType, ContourPoint, Contour };
   use minwebgl as gl;
-  use gl::{ F32x3, F32x4 };
+  use gl::F32x3;
   use quick_xml::{ Reader, events::Event };
   use crate::
   {
-    AttributesData,
     PrimitiveData,
     Transform,
     contours_to_fill_geometry
@@ -76,7 +71,7 @@ mod private
       let offsetx = - halfx - offsetx;
       let offsety = - halfy - offsety;
 
-      for contour in contours.iter_mut()
+      for contour in &mut contours
       {
         for point in contour.iter_mut()
         {
@@ -106,7 +101,7 @@ mod private
       let [ x1, y1 ] = [ self.bounding_box.left(), self.bounding_box.down() ];
       let [ x2, y2 ] = [ self.bounding_box.right(), self.bounding_box.up() ];
 
-      for contour in self.contours.iter_mut()
+      for contour in &mut self.contours
       {
         for point in contour.iter_mut()
         {
@@ -120,6 +115,9 @@ mod private
     }
 
     /// Creates a `Glyph` from a `.glif` file's byte data.
+    // The glif XML event loop is one linear state machine; splitting it into helpers would
+    // scatter the per-event state transitions without shrinking the logic.
+    #[ allow( clippy::too_many_lines ) ]
     fn from_glif( glif_bytes : Vec< u8 >, character : char ) -> Option< Self >
     {
       let glif_str = std::str::from_utf8( &glif_bytes ).unwrap();
@@ -170,7 +168,7 @@ mod private
                   };
                   typ = t;
                 }
-                _ => continue
+                _ => {}
               }
             }
 
@@ -185,12 +183,12 @@ mod private
               (
                 x.unwrap(),
                 y.unwrap(),
-                typ.clone(),
+                typ,
                 smooth,
                 None,
                 None
               )
-            )
+            );
           },
           Ok( Event::End( e ) ) if e.starts_with( b"contour" ) =>
           {
@@ -313,7 +311,7 @@ mod private
         ( '9', "nine" )
       ]
       {
-        let glyph_path = format!( "{}/{}.glif", glyphs_path, name );
+        let glyph_path = format!( "{glyphs_path}/{name}.glif" );
         let glif_bytes = gl::file::load( &glyph_path ).await
         .expect( "Failed to load glif file" );
         if let Some( glyph ) = Glyph::from_glif( glif_bytes, c )
@@ -340,7 +338,7 @@ mod private
       }
 
       let scale = 250.0;
-      for ( _, glyph ) in glyphs.iter_mut()
+      for ( _, glyph ) in &mut glyphs
       {
         glyph.scale( scale / max_y );
       }
@@ -359,7 +357,7 @@ mod private
         }
       }
 
-      for ( _, glyph ) in glyphs.iter_mut()
+      for ( _, glyph ) in &mut glyphs
       {
         glyph.body = contours_to_fill_geometry( &glyph.contours );
       }
@@ -376,174 +374,6 @@ mod private
     }
   }
 
-  /// Converts a set of 2D contours into a triangulated mesh with holes support.
-  #[ cfg( feature = "font-processing" ) ]
-  #[ allow( dead_code ) ]
-  pub fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
-  {
-    if contours.is_empty()
-    {
-      return None;
-    }
-
-    let mut body_id = 0;
-    let mut max_box_diagonal_size = 0;
-    for ( i, contour ) in contours.iter().enumerate()
-    {
-      if contour.is_empty()
-      {
-        continue;
-      }
-      let [ x1, y1 ] = contour.iter()
-      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
-      .min().unwrap();
-      let [ x2, y2 ] = contour.iter()
-      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
-      .max().unwrap();
-      let controur_size = ( ( x2 - x1 ).pow( 2 ) + ( y2 - y1 ).pow( 2 ) ).isqrt();
-      if max_box_diagonal_size < controur_size
-      {
-        max_box_diagonal_size = controur_size;
-        body_id = i;
-      }
-    }
-
-    let body_bounding_box = BoundingBox::compute2d
-    (
-      contours.get( body_id ).unwrap()
-      .iter()
-      .flatten()
-      .cloned()
-      .collect::< Vec< _ > >()
-      .as_slice()
-    );
-
-    let mut outside_body_list = vec![];
-    let mut inside_body_list = vec![];
-    for ( i, contour ) in contours.iter().enumerate()
-    {
-      if body_id == i
-      {
-        continue;
-      }
-
-      let bounding_box = BoundingBox::compute2d
-      (
-        contour
-        .iter()
-        .flatten()
-        .cloned()
-        .collect::< Vec< _ > >()
-        .as_slice()
-      );
-
-      let has_part_outside_body = bounding_box.left() < body_bounding_box.left() ||
-      bounding_box.right() > body_bounding_box.right() ||
-      bounding_box.up() > body_bounding_box.up() ||
-      bounding_box.down() < body_bounding_box.down();
-
-      if has_part_outside_body
-      {
-        outside_body_list.push( contour.clone() );
-      }
-      else
-      {
-        inside_body_list.push( contour.clone() );
-      }
-    }
-
-    let mut base = vec![ contours[ body_id ].clone() ];
-    base.extend( inside_body_list );
-
-    let mut bodies = vec![ base ];
-    bodies.extend( outside_body_list.into_iter().map( | c | vec![ c ] ) );
-
-    let mut positions = vec![];
-    let mut indices = vec![];
-
-    for contours in bodies
-    {
-      let mut flat_positions: Vec< f64 > = Vec::new();
-      let mut hole_indices: Vec< usize > = Vec::new();
-
-      if let Some( outer_contour ) = contours.get( 0 )
-      {
-        if outer_contour.is_empty()
-        {
-          return None;
-        }
-        for &[ x, y ] in outer_contour
-        {
-          flat_positions.push( x as f64 );
-          flat_positions.push( y as f64 );
-        }
-      }
-      else
-      {
-        return None;
-      }
-
-      // Process holes (remaining contours)
-      // Their winding order must be opposite to the outer (e.g., CW for holes)
-      for i in 1..contours.len()
-      {
-        let hole_contour = &contours[ i ];
-        if hole_contour.is_empty()
-        {
-          continue;
-        }
-
-        hole_indices.push( flat_positions.len() / 2 );
-
-        for &[ x, y ] in hole_contour
-        {
-          flat_positions.push( x as f64 );
-          flat_positions.push( y as f64 );
-        }
-      }
-
-      // Perform triangulation
-      let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 )
-      else
-      {
-        continue;
-      };
-
-      let body_indices = body_indices.into_iter()
-      .map( | i | i as u32 )
-      .collect::< Vec< _ > >();
-
-      let body_positions = flat_positions.chunks( 2 )
-      .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
-      .collect::< Vec< _ > >();
-
-      let positions_count = positions.len();
-      positions.extend( body_positions );
-      indices.extend
-      (
-        body_indices.iter()
-        .map( | i | i + positions_count as u32 )
-      );
-    }
-
-    let attributes = AttributesData
-    {
-      positions,
-      indices,
-    };
-
-    let primitive_data = PrimitiveData
-    {
-      name : None,
-      parent : None,
-      attributes : Some( Rc::new( RefCell::new( attributes ) ) ),
-      color : F32x4::default(),
-      transform : Transform::default()
-    };
-
-    Some( primitive_data )
-  }
-
   /// Asynchronously loads multiple fonts from a list of font names.
   pub async fn load_fonts( font_names : &[ &str ] ) -> FxHashMap< String, Font >
   {
@@ -551,7 +381,7 @@ mod private
 
     for font_name in font_names
     {
-      let font_path = format!( "static/fonts/ufo/{}.ufo", font_name );
+      let font_path = format!( "static/fonts/ufo/{font_name}.ufo" );
       fonts.insert( font_name.to_string(), Font::new( &font_path ).await );
     }
 
@@ -699,61 +529,19 @@ mod private
   }
 }
 
-#[ cfg( not( feature = "text" ) ) ]
+// Without `font-processing` the UFO pipeline simply does not exist — the
+// symbols are configured out (loud absence at compile time), matching how
+// `contours_to_fill_geometry` is gated in `primitive.rs`. The former
+// always-return-None/empty stubs were silent-failure machinery with drifted
+// signatures and are gone (TASK-021).
+#[ cfg( not( feature = "font-processing" ) ) ]
 mod private
 {
-  use std::collections::HashMap;
-  use crate::{ PrimitiveData };
-
-  /// Stub implementation of Glyph when text feature is disabled
-  #[ derive( Clone ) ]
-  pub struct Glyph;
-
-  /// Stub implementation of Font when text feature is disabled
-  #[ derive( Clone ) ]
-  pub struct Font;
-
-  impl Font
-  {
-    /// Stub implementation for Font constructor when text feature is disabled
-    pub async fn new( _path : &str ) -> Self
-    {
-      Self
-    }
-  }
-
-  /// Stub implementation - always returns None when text feature is disabled
-  pub fn contours_to_mesh( _contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
-  {
-    None
-  }
-
-  /// Stub implementation - always returns empty map when text feature is disabled
-  pub async fn load_fonts( _font_names : &[ &str ] ) -> HashMap< String, Font >
-  {
-    HashMap::new()
-  }
-
-  /// Stub implementation - always returns None when text feature is disabled
-  pub fn text_to_mesh( _text : &str, _font : &Font ) -> Option< PrimitiveData >
-  {
-    None
-  }
-
-  /// Stub implementation - always returns empty vec when text feature is disabled
-  pub fn text_to_countour_mesh(
-    _text : &str,
-    _font : &Font,
-    _transform : &crate::Transform,
-    _width : f32
-  ) -> Vec< PrimitiveData >
-  {
-    Vec::new()
-  }
 }
 
 crate::mod_interface!
 {
+  #[ cfg( feature = "font-processing" ) ]
   orphan use
   {
     load_fonts,

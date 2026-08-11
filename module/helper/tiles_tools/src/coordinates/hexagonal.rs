@@ -66,7 +66,7 @@ impl< System, Orientation > Clone for Coordinate< System, Orientation >
     /// Clones the coordinate.
   fn clone( &self ) -> Self
   {
-    Self::new_uncheked( self.q, self.r )
+    *self
   }
 }
 
@@ -94,6 +94,28 @@ impl< System, Orientation > Hash for Coordinate< System, Orientation >
     }
 }
 
+impl< System, Orientation > PartialOrd for Coordinate< System, Orientation >
+{
+    /// Delegates to the total order defined by `Ord`.
+  fn partial_cmp( &self, other : &Self ) -> Option< std::cmp::Ordering >
+  {
+    Some( self.cmp( other ) )
+  }
+}
+
+impl< System, Orientation > Ord for Coordinate< System, Orientation >
+{
+    /// Orders coordinates lexicographically by `( q, r )` — consistent with `PartialEq`.
+    ///
+    /// Required so the flowfield methods whose bounds demand `C : Ord` (priority-queue
+    /// ordering in `calculate_flow` / `add_goal`) are callable with hexagonal
+    /// coordinates; before this impl no coordinate type in the crate satisfied them.
+  fn cmp( &self, other : &Self ) -> std::cmp::Ordering
+  {
+    ( self.q, self.r ).cmp( &( other.q, other.r ) )
+  }
+}
+
 impl< System, Orientation > Default for Coordinate< System, Orientation >
 {
     /// Returns a default coordinate at (0, 0).
@@ -103,26 +125,26 @@ impl< System, Orientation > Default for Coordinate< System, Orientation >
     {
       q : Default::default(),
       r : Default::default(),
-      _marker : Default::default(),
-        }
+      _marker : PhantomData,
     }
+  }
 }
 
-impl< System, Orientation > Into< I32x2 > for Coordinate< System, Orientation >
+impl< System, Orientation > From< Coordinate< System, Orientation > > for I32x2
 {
     /// Converts the coordinate into an `I32x2` vector.
-  fn into( self ) -> I32x2
+  fn from( val: Coordinate< System, Orientation > ) -> Self
   {
-    I32x2::from_array( [ self.q, self.r ] )
+    I32x2::from_array( [ val.q, val.r ] )
     }
 }
 
-impl< System, Orientation > Into< ( i32, i32 ) > for Coordinate< System, Orientation >
+impl< System, Orientation > From< Coordinate< System, Orientation > > for ( i32, i32 )
 {
     /// Converts the coordinate into a tuple `(q, r)`.
-  fn into( self ) -> ( i32, i32 )
+  fn from( val: Coordinate< System, Orientation > ) -> Self
   {
-    ( self.q, self.r )
+    ( val.q, val.r )
     }
 }
 
@@ -140,6 +162,7 @@ impl< System, Orientation > Coordinate< System, Orientation >
   }
 
   /// Creates a new `Offset` coordinate.
+  #[ must_use ]
   pub const fn new( q : i32, r : i32 ) -> Self
   {
     Self::new_uncheked( q, r )
@@ -153,6 +176,7 @@ impl< System, Orientation > Coordinate< System, Orientation >
 impl< Orientation > Coordinate< Axial, Orientation >
 {
   /// Calculates the grid distance between two `Axial` coordinates.
+  #[ must_use ]
   pub fn distance( &self, Self { q, r, .. } : Self ) -> i32
   {
     let s = -self.q - self.r;
@@ -383,6 +407,10 @@ fn axial_round( q : f32, r : f32 ) -> ( i32, i32 )
   {
     rr = -rq - rs;
   }
+  else
+  {
+    // `rs` would be recomputed here, but only `rq`/`rr` are returned.
+  }
 
   ( rq as i32, rr as i32 )
 }
@@ -392,12 +420,12 @@ impl< Orientation > Distance for Coordinate< Axial, Orientation >
   /// Calculates the grid distance between two `Axial` coordinates.
   fn distance( &self, Self { q, r, .. } : &Self ) -> u32
   {
-    let s = -self.q as i64 - self.r as i64;
-    let other_s = -q as i64 - *r as i64;
-    let q = self.q as i64 - *q as i64;
-    let r = self.r as i64 - *r as i64;
+    let s = i64::from(-self.q) - i64::from(self.r);
+    let other_s = i64::from(-q) - i64::from(*r);
+    let q = i64::from(self.q) - i64::from(*q);
+    let r = i64::from(self.r) - i64::from(*r);
     let s = s - other_s;
-    ( q.abs() as u32 + r.abs() as u32 + s.abs() as u32 ) / 2
+    ( q.unsigned_abs() as u32 + r.unsigned_abs() as u32 + s.unsigned_abs() as u32 ) / 2
   }
 }
 
@@ -421,36 +449,42 @@ impl< Orientation > Neighbors for Coordinate< Axial, Orientation >
 impl Coordinate< Axial, Flat >
 {
   /// Returns the coordinate directly above in a flat-topped layout.
+  #[ must_use ]
   pub fn up( &self ) -> Self
   {
     Self::new( self.q, self.r - 1 )
   }
 
   /// Returns the coordinate directly below in a flat-topped layout.
+  #[ must_use ]
   pub fn down( &self ) -> Self
   {
     Self::new( self.q, self.r + 1 )
   }
 
   /// Returns the coordinate to the upper-left in a flat-topped layout.
+  #[ must_use ]
   pub fn left_up( &self ) -> Self
   {
     Self::new( self.q - 1, self.r )
   }
 
   /// Returns the coordinate to the lower-left in a flat-topped layout.
+  #[ must_use ]
   pub fn left_down( &self ) -> Self
   {
     Self::new( self.q - 1, self.r + 1 )
   }
 
   /// Returns the coordinate to the upper-right in a flat-topped layout.
+  #[ must_use ]
   pub fn right_up( &self ) -> Self
   {
     Self::new( self.q + 1, self.r - 1 )
   }
 
   /// Returns the coordinate to the lower-right in a flat-topped layout.
+  #[ must_use ]
   pub fn right_down( &self ) -> Self
   {
     Self::new( self.q + 1, self.r )

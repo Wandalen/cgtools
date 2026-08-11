@@ -8,7 +8,7 @@ This example demonstrates practical 3D viewer implementation, suitable for asset
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

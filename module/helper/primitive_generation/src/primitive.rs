@@ -1,11 +1,10 @@
 //! This module store functions and structures for creating `PrimitiveData`
 //! of different abstactions like curves.
 
-#[ allow( clippy::too_many_lines ) ]
 mod private
 {
   use minwebgl as gl;
-  use gl::{ F32x2, F32x4, geometry::BoundingBox };
+  use gl::{ F32x2, F32x4 };
   use std::cell::RefCell;
   use std::rc::Rc;
   use crate::
@@ -14,6 +13,9 @@ mod private
     PrimitiveData,
     Transform
   };
+
+  #[ cfg( feature = "font-processing" ) ]
+  use gl::geometry::BoundingBox;
 
   #[ cfg( feature = "text" ) ]
   use kurbo::PathEl;
@@ -43,6 +45,24 @@ mod private
     {
       return None;
     };
+
+    // Fix(TASK-018): reject a curve containing a zero-length segment (two
+    // consecutive points -- including the implicit closing segment back to
+    // the first point -- that coincide) before any geometry math runs.
+    // Root cause: `add_segment` (below) computes
+    // `direction = ( end_point - start_point ).normalize()` for every
+    // segment, including the closing one, with no check that the two points
+    // differ. `F32x2::normalize()` divides each component by the vector's
+    // magnitude with no zero-length guard, so a zero-length segment (e.g. a
+    // single-point curve, whose only segment closes onto itself) silently
+    // computes `0.0 / 0.0`, i.e. `NaN`, instead of failing.
+    // Pitfall: any code that normalizes a difference vector must validate
+    // that the two inputs actually differ first -- `normalize()` has no
+    // zero-length guard anywhere in the underlying vector math stack.
+    if curve.windows( 2 ).any( | pair | pair[ 0 ] == pair[ 1 ] ) || curve.first() == curve.last()
+    {
+      return None;
+    }
 
     let mut positions = Vec::new();
     let mut indices = Vec::new();
@@ -126,6 +146,17 @@ mod private
   /// Returns `Some( PrimitiveData )` on success, containing the generated mesh
   /// data. Returns `None` if the input `contours` is empty or if the
   /// triangulation process fails.
+  //
+  // Fix(TASK-055): gated behind `font-processing`, matching `path_to_points`'s
+  // existing `#[cfg(feature = "text")]` gate below.
+  // Root cause: this function unconditionally called `earcutr::earcut(..)`, but
+  // `earcutr` is an optional dependency only pulled in by `font-processing` --
+  // any build with default features alone (`enabled` only, no `text`/
+  // `font-processing`) failed with E0433 "cannot find crate earcutr".
+  // Pitfall: a function using an optional-dependency's API must be gated behind
+  // the same feature that activates that dependency -- the `use`/`dep:` line
+  // being correctly gated is not enough if the call site itself is not.
+  #[ cfg( feature = "font-processing" ) ]
   pub fn contours_to_fill_geometry( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()
@@ -251,11 +282,24 @@ mod private
         }
       }
 
+      // Fix(TASK-018): return None on triangulation failure instead of
+      // silently skipping the failed body and continuing with whatever
+      // other bodies happened to succeed.
+      // Root cause: the doc comment above promises `Returns None ... if the
+      // triangulation process fails`, but this `let-else` only ever
+      // `continue`d past a failed body, so the function kept going and
+      // returned `Some( PrimitiveData )` -- with that body's geometry
+      // silently missing -- regardless of the documented failure contract.
+      // Pitfall: a `let-else` failure branch inside a `for` loop reads as
+      // "handle this item's failure and move on," which silently downgrades
+      // a documented hard failure into a partial success -- always check
+      // the doc comment's stated contract before choosing `continue` over
+      // `return`.
       // Perform triangulation
       let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 )
       else
       {
-        continue;
+        return None;
       };
 
       let body_indices = body_indices.into_iter()
@@ -379,8 +423,13 @@ crate::mod_interface!
   orphan use
   {
     curve_to_geometry,
-    contours_to_fill_geometry,
     plane_to_geometry
+  };
+
+  #[ cfg( feature = "font-processing" ) ]
+  orphan use
+  {
+    contours_to_fill_geometry
   };
 
   #[ cfg( feature = "text" ) ]

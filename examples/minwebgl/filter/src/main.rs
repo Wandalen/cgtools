@@ -1,4 +1,3 @@
-#![ allow( clippy::needless_borrow ) ]
 
 use minwebgl as gl;
 use gl::GL;
@@ -70,8 +69,14 @@ fn run()
       move | e : MouseEvent |
       {
         let rect = canvas.get_bounding_client_rect();
-        let x = ( e.client_x() - rect.left() ) as f32;
-        let y = ( e.client_y() - rect.top() ) as f32;
+        // Fix(BUG-053): `client_x`/`client_y` return `i32` or `f64` depending on whether
+        // `web_sys_unstable_apis` is active (see minwebgl/src/texture/d2.rs); the explicit
+        // `as f64` before subtracting `rect.left()`/`.top()` (always `f64`) compiles in both
+        // cases (`i32 as f64` widens, `f64 as f64` is an identity cast).
+        #[ allow( clippy::unnecessary_cast ) ]
+        let x = ( e.client_x() as f64 - rect.left() ) as f32;
+        #[ allow( clippy::unnecessary_cast ) ]
+        let y = ( e.client_y() as f64 - rect.top() ) as f32;
         let y = canvas.height() as f32 - y;
         gl::uniform::upload( &gl, cursor_pos_location.clone(), [ x, y ].as_slice() ).unwrap();
         gl.draw_arrays( GL::TRIANGLES, 0, 3 );

@@ -107,6 +107,7 @@ impl<Projection> Coordinate<Projection> {
   /// assert_eq!(coord.x, 5);
   /// assert_eq!(coord.y, 3);
   /// ```
+  #[must_use]
   pub const fn new(x: i32, y: i32) -> Self {
     Self {
       x,
@@ -126,6 +127,7 @@ impl<Projection> Coordinate<Projection> {
   /// let coord = Coordinate::<Diamond>::new(-10, 15);
   /// assert!(coord.is_valid());
   /// ```
+  #[must_use]
   pub fn is_valid(&self) -> bool {
     // All finite integer coordinates are valid in isometric grids
     true
@@ -154,6 +156,7 @@ impl Coordinate<Diamond> {
   /// // Isometric transformation: x_screen = (x - y) * tile_size/2
   /// //                          y_screen = (x + y) * tile_size/4
   /// ```
+  #[must_use]
   pub fn to_screen(&self, tile_size: f32) -> Pixel {
     // Standard isometric diamond transformation
     let x_screen = (self.x - self.y) as f32 * (tile_size / 2.0);
@@ -182,6 +185,7 @@ impl Coordinate<Diamond> {
   /// let screen_pos = Pixel::new(32.0, 24.0);
   /// let coord = Coordinate::<Diamond>::from_screen(screen_pos, 32.0);
   /// ```
+  #[must_use]
   pub fn from_screen(screen_pos: Pixel, tile_size: f32) -> Self {
     // Inverse isometric transformation
     let x_norm = screen_pos.x() / (tile_size / 2.0);
@@ -206,6 +210,7 @@ impl Coordinate<Diamond> {
   /// # Returns
   /// Array of 4 `Pixel` coordinates representing the diamond corners
   /// in clockwise order: top, right, bottom, left
+  #[must_use]
   pub fn tile_corners(&self, tile_size: f32) -> [Pixel; 4] {
     let center = self.to_screen(tile_size);
     let half_width = tile_size / 2.0;
@@ -234,17 +239,17 @@ impl From<[i32; 2]> for Coordinate<Diamond> {
   }
 }
 
-impl Into<(i32, i32)> for Coordinate<Diamond> {
+impl From<Coordinate<Diamond>> for (i32, i32) {
   /// Converts the isometric coordinate into a tuple (x, y).
-  fn into(self) -> (i32, i32) {
-    (self.x, self.y)
+  fn from(val: Coordinate<Diamond>) -> Self {
+    (val.x, val.y)
   }
 }
 
-impl Into<[i32; 2]> for Coordinate<Diamond> {
+impl From<Coordinate<Diamond>> for [i32; 2] {
   /// Converts the isometric coordinate into an array [x, y].
-  fn into(self) -> [i32; 2] {
-    [self.x, self.y]
+  fn from(val: Coordinate<Diamond>) -> Self {
+    [val.x, val.y]
   }
 }
 

@@ -134,6 +134,10 @@ mod private
   }
 
   /// Converts a collection of primitive data into a GLTF scene for WebGL rendering.
+  // GLTF assembly is inherently a flat sequence of buffer/mesh/node/scene
+  // construction steps; splitting it would scatter tightly-coupled local
+  // state (buffers, meshes, nodes) across artificial helper functions.
+  #[ allow( clippy::too_many_lines ) ]
   pub fn primitives_data_to_gltf
   (
     gl : &WebGl2RenderingContext,

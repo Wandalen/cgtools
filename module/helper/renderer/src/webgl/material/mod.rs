@@ -175,18 +175,25 @@ mod private
     fn fragment_shader( &self ) -> String;
 
     /// Return a string containing combined version of the vertex and fragment defines
+    // The default body returns a `'static` literal, but overrides (e.g. `pbr.rs`) return a
+    // reference into a `&self`-owned cache field, so the signature must stay generic over `&self`.
+    #[ allow( clippy::unnecessary_literal_bound ) ]
     fn defines_str( &self ) -> &str
     {
       ""
     }
 
     /// Returns a string containing vertex shader related defines
+    // See `defines_str` above: overrides return non-`'static` cached-field references.
+    #[ allow( clippy::unnecessary_literal_bound ) ]
     fn vertex_defines_str( &self ) -> &str
     {
       ""
     }
 
     /// Returns a string containing fragment shader related defines
+    // See `defines_str` above: overrides return non-`'static` cached-field references.
+    #[ allow( clippy::unnecessary_literal_bound ) ]
     fn fragment_defines_str( &self ) -> &str
     {
       ""

@@ -3,27 +3,6 @@
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Compares different outline methods for GLTF files" ) ]
 
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::let_and_return ) ]
-#![ allow( clippy::never_loop ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::from_str_radix_10 ) ]
-#![ allow( clippy::excessive_precision ) ]
-#![ allow( clippy::map_unwrap_or ) ]
-#![ allow( clippy::unnecessary_wraps ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::let_unit_value ) ]
-#![ allow( clippy::ignored_unit_patterns ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-
 use rustc_hash::FxHashMap;
 use mingl::F32x4;
 use minwebgl as gl;
@@ -194,9 +173,9 @@ async fn setup_scene( gl : &GL ) -> Result< GLTF, gl::WebglError >
   let document =  window.document().expect( "Can't get document" );
 
   let gltf_path = "static/2017_porsche_911_turbo_s_exclusive_series_991.2.glb";
-  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
+  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, gl ).await?;
 
-  let car = gltf.scenes[ 0 ].borrow().children.get( 0 )
+  let car = gltf.scenes[ 0 ].borrow().children.first()
   .expect( "Scene is empty" ).clone();
   let scale = 10.0;
 
@@ -237,7 +216,7 @@ async fn run() -> Result< (), gl::WebglError >
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
   let near = 0.01;
-  let far = 1000000.0;
+  let far = 1_000_000.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
@@ -251,7 +230,8 @@ async fn run() -> Result< (), gl::WebglError >
     )
   );
 
-  renderer.borrow_mut().set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/pink_sunrise_4k/", None ).await );
+  let ibl = renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/pink_sunrise_4k/", None ).await;
+  renderer.borrow_mut().set_ibl( ibl );
   let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/pink_sunrise.jpg" ).unwrap();
   renderer.borrow_mut().set_skybox( skybox.texture.borrow().source.clone() );
   let renderer1 = renderer.clone();
@@ -425,7 +405,7 @@ async fn run() -> Result< (), gl::WebglError >
       .and_then( | t | t.dyn_into::< HtmlSelectElement >().ok() );
       if let Some( select_elem ) = select_element_target
       {
-        *select_value_clone.borrow_mut() = select_elem.value().to_string();
+        ( *select_value_clone.borrow_mut() ).clone_from( &select_elem.value() );
       }
       else
       {

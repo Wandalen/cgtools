@@ -42,6 +42,7 @@ mod private
   impl Texture
   {
     /// Creates a new `Texture` with default values.
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()

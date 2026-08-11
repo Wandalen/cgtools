@@ -7,10 +7,10 @@ A specialized logging utility designed for Rust WebAssembly applications running
 ## ✨ Features
 
 ### 📊 **Console Integration**
-- **Multi-Level Logging** - Debug, info, warn, error logging levels
+- **Multi-Level Logging** - Trace, debug, info, warn, error levels with optional target (module-path prefix) filtering
 - **JavaScript Console API** - Direct integration with browser developer tools
-- **Formatted Output** - Structured log messages with timestamps and context
-- **Performance Logging** - Timing and performance measurement utilities
+- **Formatted Output** - CSS-styled messages with a level badge and `file:line` source context
+- **Console Re-export** - `browser_log::log::console` re-exports `web_sys::console`, so timing/grouping helpers are available without a direct `web-sys` dependency
 
 ### 🔧 **Panic Management**
 - **Panic Interception** - Capture Rust panics in WASM environment
@@ -38,12 +38,15 @@ browser_log = { workspace = true }
 ```rust
 use browser_log::*;
 
-// Initialize logging (call once at startup)
+// Initialize logging + panic handling (call once at startup)
 fn init_logging() {
-  // Setup panic handler
+  // One call sets up both the logger and the panic hook
+  browser_log::setup(browser_log::Config::default());
+}
+
+// Or set up each part separately
+fn init_logging_separately() {
   panic::setup(panic::Config::default());
-  
-  // Initialize logger with default settings
   log::setup::setup(log::setup::Config::default());
 }
 
@@ -86,10 +89,12 @@ fn setup_advanced_logging() {
 
 | Function | Purpose | Example |
 |----------|---------|---------|
-| `log::setup::setup()` | Initialize logger | `browser_log::log::setup::setup(Default::default())` |
-| `panic::setup()` | Setup panic handling | `browser_log::panic::setup(Default::default())` |
-| `console::log_1()` | Direct console output | `console::log_1(&JsValue::from_str("message"))` |
-| `console::time()` | Performance timing | `console::time()` |
+| `setup()` | Initialize logger and panic hook together | `browser_log::setup(Default::default())` |
+| `log::setup::setup()` | Initialize logger only | `browser_log::log::setup::setup(Default::default())` |
+| `panic::setup()` | Setup panic handling only | `browser_log::panic::setup(Default::default())` |
+| `DebugLog` trait | Log any `Debug` type's representation | `my_struct.debug_info()` |
+| `console::log_1()` | Direct console output (re-exported `web_sys::console`) | `console::log_1(&JsValue::from_str("message"))` |
+| `console::time()` | Performance timing (re-exported `web_sys::console`) | `console::time()` |
 
 ### Logging Levels
 
@@ -233,8 +238,10 @@ fn expensive_operation() {
 ```toml
 [dependencies]
 browser_log = { workspace = true }
-console_error_panic_hook = "0.1"
 ```
+
+No separate `console_error_panic_hook` dependency is needed — `browser_log::panic` provides the
+console panic hook (with location and stack-trace options) itself.
 
 ### With web frameworks
 The logger integrates seamlessly with popular Rust web frameworks like Yew, Seed, and others that compile to WebAssembly.
@@ -244,5 +251,5 @@ The logger integrates seamlessly with popular Rust web frameworks like Yew, Seed
 ### WebAssembly Compatibility
 - Optimized for `wasm32-unknown-unknown` target
 - Minimal overhead for high-performance applications
-- Compatible with all WebAssembly runtimes
+- Requires a JavaScript-hosted runtime for console output (browsers, Node.js, Deno) — not WASI runtimes
 - Thread-safe for multi-threaded WASM applications (when supported)

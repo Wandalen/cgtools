@@ -74,11 +74,13 @@ pub enum EventResult
 
 /// Priority level for event listeners.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Default)]
 pub enum EventPriority
 {
   /// Lowest priority - processed last
   Low = 0,
   /// Normal priority - default processing order
+  #[default]
   Normal = 1,
   /// High priority - processed before normal
   High = 2,
@@ -86,12 +88,6 @@ pub enum EventPriority
   Critical = 3,
 }
 
-impl Default for EventPriority
-{
-  fn default() -> Self {
-    EventPriority::Normal
-  }
-}
 
 /// Unique identifier for event listeners.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -127,7 +123,7 @@ impl<T> std::fmt::Debug for PrioritizedListener<T> {
     f.debug_struct("PrioritizedListener")
       .field("id", &self.id)
       .field("priority", &self.priority)
-      .finish()
+      .finish_non_exhaustive()
   }
 }
 
@@ -181,7 +177,7 @@ impl<T> EventChannel<T> {
       
       for listener in &self.listeners {
         match (listener.listener)(&event) {
-          EventResult::Continue => continue,
+          EventResult::Continue => {}
           EventResult::Consume => break,
           EventResult::Unsubscribe => {
             listeners_to_remove.push(listener.id);
@@ -194,10 +190,6 @@ impl<T> EventChannel<T> {
         self.remove_listener(id);
       }
     }
-  }
-
-  fn has_listeners(&self) -> bool {
-    !self.listeners.is_empty()
   }
 
   fn listener_count(&self) -> usize {
@@ -218,20 +210,14 @@ impl<T> Default for EventChannel<T> {
 /// Type-erased event channel for storage in the event bus.
 trait AnyEventChannel: Send + Sync {
   fn process_events(&mut self);
-  fn has_listeners(&self) -> bool;
   fn listener_count(&self) -> usize;
   fn pending_count(&self) -> usize;
-  fn as_any(&self) -> &dyn Any;
   fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 impl<T: Event> AnyEventChannel for EventChannel<T> {
   fn process_events(&mut self) {
-    EventChannel::process_events(self)
-  }
-
-  fn has_listeners(&self) -> bool {
-    EventChannel::has_listeners(self)
+    EventChannel::process_events(self);
   }
 
   fn listener_count(&self) -> usize {
@@ -240,10 +226,6 @@ impl<T: Event> AnyEventChannel for EventChannel<T> {
 
   fn pending_count(&self) -> usize {
     EventChannel::pending_count(self)
-  }
-
-  fn as_any(&self) -> &dyn Any {
-    self
   }
 
   fn as_any_mut(&mut self) -> &mut dyn Any {
@@ -260,6 +242,7 @@ pub struct EventBus {
 
 impl EventBus {
   /// Creates a new event bus.
+  #[must_use]
   pub fn new() -> Self {
     Self::default()
   }
@@ -341,6 +324,7 @@ impl EventBus {
   }
 
   /// Gets statistics about event bus usage.
+  #[must_use]
   pub fn statistics(&self) -> &EventStatistics {
     &self.statistics
   }
@@ -351,22 +335,23 @@ impl EventBus {
   }
 
   /// Gets the number of subscribers for a specific event type.
+  #[must_use]
   pub fn subscriber_count<T: Event>(&self) -> usize {
     let type_id = TypeId::of::<T>();
     self.channels.get(&type_id)
-      .map(|channel| channel.listener_count())
-      .unwrap_or(0)
+      .map_or(0, |channel| channel.listener_count())
   }
 
   /// Gets the number of pending events for a specific type.
+  #[must_use]
   pub fn pending_count<T: Event>(&self) -> usize {
     let type_id = TypeId::of::<T>();
     self.channels.get(&type_id)
-      .map(|channel| channel.pending_count())
-      .unwrap_or(0)
+      .map_or(0, |channel| channel.pending_count())
   }
 
   /// Gets the total number of pending events across all types.
+  #[must_use]
   pub fn total_pending_count(&self) -> usize {
     self.channels.values()
       .map(|channel| channel.pending_count())
@@ -374,6 +359,7 @@ impl EventBus {
   }
 
   /// Checks if there are any pending events.
+  #[must_use]
   pub fn has_pending_events(&self) -> bool {
     self.channels.values().any(|channel| channel.pending_count() > 0)
   }
@@ -385,6 +371,7 @@ impl EventBus {
   }
 
   /// Gets the number of different event types registered.
+  #[must_use]
   pub fn channel_count(&self) -> usize {
     self.channels.len()
   }
@@ -416,6 +403,7 @@ pub struct EventStatistics {
 
 impl EventStatistics {
   /// Gets the average events processed per cycle.
+  #[must_use]
   pub fn average_events_per_cycle(&self) -> f64 {
     if self.process_cycles > 0 {
       self.events_processed as f64 / self.process_cycles as f64
@@ -425,6 +413,7 @@ impl EventStatistics {
   }
 
   /// Gets the processing efficiency (processed / published).
+  #[must_use]
   pub fn processing_efficiency(&self) -> f64 {
     if self.events_published > 0 {
       self.events_processed as f64 / self.events_published as f64
@@ -438,7 +427,7 @@ impl EventStatistics {
 
 /// Common game events for typical tile-based game scenarios.
 pub mod common_events {
-  use super::*;
+  
 
   /// Event fired when an entity moves from one position to another.
   #[derive(Debug, Clone)]
@@ -465,7 +454,10 @@ pub mod common_events {
     /// Flying movement
     Fly,
     /// Custom movement with specific duration
-    Custom { duration_ms: u32 },
+    Custom {
+      /// How long the effect lasts, in milliseconds.
+      duration_ms: u32,
+    },
   }
 
   /// Event fired when an entity's health changes.
@@ -485,9 +477,15 @@ pub mod common_events {
   #[derive(Debug, Clone, PartialEq)]
   pub enum HealthChangeCause {
     /// Damage from combat
-    Damage { attacker_id: Option<u32> },
+    Damage {
+      /// Entity that dealt the damage, if any.
+      attacker_id: Option<u32>,
+    },
     /// Healing from items or spells
-    Healing { source: HealingSource },
+    Healing {
+      /// What produced the healing.
+      source: HealingSource,
+    },
     /// Natural regeneration over time
     Regeneration,
     /// Direct modification (cheats, admin commands)
@@ -498,9 +496,17 @@ pub mod common_events {
   #[derive(Debug, Clone, PartialEq)]
   pub enum HealingSource {
     /// Healing potion or item
-    Item { item_id: u32 },
+    Item {
+      /// Identifier of the healing item.
+      item_id: u32,
+    },
     /// Healing spell or ability
-    Spell { spell_id: u32, caster_id: Option<u32> },
+    Spell {
+      /// Identifier of the healing spell.
+      spell_id: u32,
+      /// Entity that cast it, if any.
+      caster_id: Option<u32>,
+    },
     /// Environmental healing (shrine, fountain)
     Environmental,
   }
@@ -526,7 +532,10 @@ pub mod common_events {
     /// Entity entered another's trigger zone
     Trigger,
     /// Projectile hit target
-    Projectile { damage: i32 },
+    Projectile {
+      /// Damage the projectile carries.
+      damage: i32,
+    },
   }
 
   /// Event fired when an item is collected.
@@ -576,7 +585,12 @@ pub mod common_events {
     /// Gold or currency
     Gold(u32),
     /// Specific item
-    Item { item_id: u32, quantity: u32 },
+    Item {
+      /// Identifier of the collected item.
+      item_id: u32,
+      /// How many were collected.
+      quantity: u32,
+    },
     /// Multiple rewards
     Multiple(Vec<ObjectiveReward>),
     /// No reward
@@ -618,7 +632,7 @@ pub mod common_events {
 pub fn debug_listener<T: Event>(name: &str) -> impl Fn(&T) -> EventResult {
   let name = name.to_string();
   move |event| {
-    println!("[{}] Event: {:?}", name, event);
+    println!("[{name}] Event: {event:?}");
     EventResult::Continue
   }
 }
@@ -636,272 +650,4 @@ pub fn counting_listener<T: Event>() -> (impl Fn(&T) -> EventResult, Arc<Mutex<u
   };
   
   (listener, counter)
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-  use crate::coordinates::square::{Coordinate as SquareCoord, FourConnected};
-  use std::sync::{Arc, Mutex};
-
-  #[derive(Debug, Clone)]
-  struct TestEvent {
-    id: u32,
-    message: String,
-  }
-
-  #[test]
-  fn test_event_bus_creation() {
-    let bus = EventBus::new();
-    assert_eq!(bus.channel_count(), 0);
-    assert_eq!(bus.total_pending_count(), 0);
-  }
-
-  #[test]
-  fn test_subscribe_and_publish() {
-    let mut bus = EventBus::new();
-    let received = Arc::new(Mutex::new(Vec::new()));
-    let received_clone = received.clone();
-
-    bus.subscribe(move |event: &TestEvent| {
-      received_clone.lock().unwrap().push(event.clone());
-      EventResult::Continue
-    });
-
-    let event = TestEvent {
-      id: 1,
-      message: "test".to_string(),
-    };
-
-    bus.publish(event.clone());
-    assert_eq!(bus.pending_count::<TestEvent>(), 1);
-
-    bus.process_events();
-    assert_eq!(bus.pending_count::<TestEvent>(), 0);
-
-    let received_events = received.lock().unwrap();
-    assert_eq!(received_events.len(), 1);
-    assert_eq!(received_events[0].id, 1);
-    assert_eq!(received_events[0].message, "test");
-  }
-
-  #[test]
-  fn test_event_priorities() {
-    let mut bus = EventBus::new();
-    let execution_order = Arc::new(Mutex::new(Vec::new()));
-
-    // Add listeners in reverse priority order
-    let order1 = execution_order.clone();
-    bus.subscribe_with_priority(move |_: &TestEvent| {
-      order1.lock().unwrap().push("low");
-      EventResult::Continue
-    }, EventPriority::Low);
-
-    let order2 = execution_order.clone();
-    bus.subscribe_with_priority(move |_: &TestEvent| {
-      order2.lock().unwrap().push("critical");
-      EventResult::Continue
-    }, EventPriority::Critical);
-
-    let order3 = execution_order.clone();
-    bus.subscribe_with_priority(move |_: &TestEvent| {
-      order3.lock().unwrap().push("normal");
-      EventResult::Continue
-    }, EventPriority::Normal);
-
-    bus.publish(TestEvent { id: 1, message: "test".to_string() });
-    bus.process_events();
-
-    let order = execution_order.lock().unwrap();
-    assert_eq!(*order, vec!["critical", "normal", "low"]);
-  }
-
-  #[test]
-  fn test_event_consumption() {
-    let mut bus = EventBus::new();
-    let received = Arc::new(Mutex::new(Vec::new()));
-
-    // First listener consumes the event
-    bus.subscribe(|_: &TestEvent| EventResult::Consume);
-
-    // Second listener should never receive the event
-    let received_clone = received.clone();
-    bus.subscribe(move |event: &TestEvent| {
-      received_clone.lock().unwrap().push(event.clone());
-      EventResult::Continue
-    });
-
-    bus.publish(TestEvent { id: 1, message: "test".to_string() });
-    bus.process_events();
-
-    let received_events = received.lock().unwrap();
-    assert_eq!(received_events.len(), 0); // Event was consumed before reaching second listener
-  }
-
-  #[test]
-  fn test_unsubscribe() {
-    let mut bus = EventBus::new();
-    let received = Arc::new(Mutex::new(0));
-    let received_clone = received.clone();
-
-    let listener_id = bus.subscribe(move |_: &TestEvent| {
-      *received_clone.lock().unwrap() += 1;
-      EventResult::Continue
-    });
-
-    // Publish and process first event
-    bus.publish(TestEvent { id: 1, message: "test1".to_string() });
-    bus.process_events();
-    assert_eq!(*received.lock().unwrap(), 1);
-
-    // Unsubscribe and publish second event
-    assert!(bus.unsubscribe::<TestEvent>(listener_id));
-    bus.publish(TestEvent { id: 2, message: "test2".to_string() });
-    bus.process_events();
-    assert_eq!(*received.lock().unwrap(), 1); // Should still be 1
-  }
-
-  #[test]
-  fn test_auto_unsubscribe() {
-    let mut bus = EventBus::new();
-    let call_count = Arc::new(Mutex::new(0));
-    let counter_clone = call_count.clone();
-
-    bus.subscribe(move |_: &TestEvent| {
-      let mut count = counter_clone.lock().unwrap();
-      *count += 1;
-      if *count >= 2 {
-        EventResult::Unsubscribe
-      } else {
-        EventResult::Continue
-      }
-    });
-
-    // First event - listener remains
-    bus.publish(TestEvent { id: 1, message: "test1".to_string() });
-    bus.process_events();
-    assert_eq!(bus.subscriber_count::<TestEvent>(), 1);
-
-    // Second event - listener unsubscribes
-    bus.publish(TestEvent { id: 2, message: "test2".to_string() });
-    bus.process_events();
-    assert_eq!(bus.subscriber_count::<TestEvent>(), 0);
-  }
-
-  #[test]
-  fn test_batch_publishing() {
-    let mut bus = EventBus::new();
-    let received = Arc::new(Mutex::new(Vec::new()));
-    let received_clone = received.clone();
-
-    bus.subscribe(move |event: &TestEvent| {
-      received_clone.lock().unwrap().push(event.id);
-      EventResult::Continue
-    });
-
-    let events = vec![
-      TestEvent { id: 1, message: "test1".to_string() },
-      TestEvent { id: 2, message: "test2".to_string() },
-      TestEvent { id: 3, message: "test3".to_string() },
-    ];
-
-    bus.publish_batch(events);
-    bus.process_events();
-
-    let received_ids = received.lock().unwrap();
-    assert_eq!(*received_ids, vec![1, 2, 3]);
-  }
-
-  #[test]
-  fn test_statistics() {
-    let mut bus = EventBus::new();
-    bus.subscribe(|_: &TestEvent| EventResult::Continue);
-
-    assert_eq!(bus.statistics().events_published, 0);
-    assert_eq!(bus.statistics().events_processed, 0);
-
-    bus.publish(TestEvent { id: 1, message: "test".to_string() });
-    assert_eq!(bus.statistics().events_published, 1);
-    assert_eq!(bus.statistics().events_processed, 0);
-
-    bus.process_events();
-    assert_eq!(bus.statistics().events_processed, 1);
-    assert_eq!(bus.statistics().process_cycles, 1);
-  }
-
-  #[test]
-  fn test_common_events() {
-    use common_events::*;
-
-    let mut bus = EventBus::new();
-    let moves = Arc::new(Mutex::new(Vec::new()));
-    let moves_clone = moves.clone();
-
-    bus.subscribe(move |event: &EntityMoved<SquareCoord<FourConnected>>| {
-      moves_clone.lock().unwrap().push((event.entity_id, event.from, event.to));
-      EventResult::Continue
-    });
-
-    bus.publish(EntityMoved {
-      entity_id: 42,
-      from: SquareCoord::<FourConnected>::new(1, 1),
-      to: SquareCoord::<FourConnected>::new(2, 1),
-      movement_type: MovementType::Walk,
-    });
-
-    bus.process_events();
-
-    let recorded_moves = moves.lock().unwrap();
-    assert_eq!(recorded_moves.len(), 1);
-    assert_eq!(recorded_moves[0].0, 42);
-  }
-
-  #[test]
-  fn test_utility_functions() {
-    let mut bus = EventBus::new();
-
-    // Test counting listener
-    let (listener, counter) = counting_listener::<TestEvent>();
-    bus.subscribe(listener);
-
-    bus.publish(TestEvent { id: 1, message: "test1".to_string() });
-    bus.publish(TestEvent { id: 2, message: "test2".to_string() });
-    bus.process_events();
-
-    assert_eq!(*counter.lock().unwrap(), 2);
-  }
-
-  #[derive(Debug, Clone)]
-  struct EventA { value: i32 }
-
-  #[derive(Debug, Clone)]
-  struct EventB { text: String }
-
-  #[test]
-  fn test_multiple_event_types() {
-    let mut bus = EventBus::new();
-
-    let received_a = Arc::new(Mutex::new(Vec::new()));
-    let received_b = Arc::new(Mutex::new(Vec::new()));
-
-    let a_clone = received_a.clone();
-    bus.subscribe(move |event: &EventA| {
-      a_clone.lock().unwrap().push(event.value);
-      EventResult::Continue
-    });
-
-    let b_clone = received_b.clone();
-    bus.subscribe(move |event: &EventB| {
-      b_clone.lock().unwrap().push(event.text.clone());
-      EventResult::Continue
-    });
-
-    bus.publish(EventA { value: 42 });
-    bus.publish(EventB { text: "hello".to_string() });
-    bus.process_events();
-
-    assert_eq!(*received_a.lock().unwrap(), vec![42]);
-    assert_eq!(*received_b.lock().unwrap(), vec!["hello".to_string()]);
-    assert_eq!(bus.channel_count(), 2);
-  }
 }

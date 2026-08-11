@@ -1,4 +1,3 @@
-#![allow(unsafe_code)]
 //! Custom controls module for filter parameters
 
 use minwebgl::wasm_bindgen;

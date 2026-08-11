@@ -146,8 +146,8 @@ pub fn setup_filters_with_controls
   );
 
   // BrightnessContrast filters need manual setup due to generic type parameters
-  filter_setup_helpers::setup_brightness_contrast_filter( filter_renderer, current_filter, "bcgimp", "BC (GIMP)", brightness_contrast::GIMP, -100.0, 100.0, 1.0 );
-  filter_setup_helpers::setup_brightness_contrast_filter( filter_renderer, current_filter, "bcph", "BC (PS)", brightness_contrast::Photoshop, -1.0, 1.0, 0.01 );
+  filter_setup_helpers::setup_brightness_contrast_filter( filter_renderer, current_filter, "bcgimp", "BC (GIMP)", brightness_contrast::GIMP, filter_setup_helpers::SliderRange { min : -100.0, max : 100.0, step : 1.0 } );
+  filter_setup_helpers::setup_brightness_contrast_filter( filter_renderer, current_filter, "bcph", "BC (PS)", brightness_contrast::Photoshop, filter_setup_helpers::SliderRange { min : -1.0, max : 1.0, step : 0.01 } );
 
   // Color Transform
   setup_filter_with_sliders!(

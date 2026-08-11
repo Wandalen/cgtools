@@ -57,7 +57,7 @@ pub fn make_closure_with_filter_tracking
     }
     // Restore previous state if switching from another unapplied filter
     filter_renderer.borrow_mut().restore_previous_texture();
-    *current_filter.borrow_mut() = filter_name.clone();
+    ( *current_filter.borrow_mut() ).clone_from( &filter_name );
     filter_renderer.borrow_mut().save_previous_texture();
     controls::clear_controls();
     filter_renderer.borrow_mut().apply_filter( &filter );

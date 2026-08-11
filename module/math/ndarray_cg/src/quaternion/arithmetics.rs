@@ -3,7 +3,7 @@
 //! then selectively exposed through the public interface.
 mod private
 {
-  use crate::{ mat::DescriptorOrderColumnMajor, * };
+  use crate::{ mat::DescriptorOrderColumnMajor, MatEl, NdFloat, Quat, VectorIter, Vector, Into, Mat3 };
 
   #[ inline ]
   fn wrap_pi< E : MatEl + NdFloat >( a : E ) -> E
@@ -19,6 +19,10 @@ mod private
     /// # Arguments
     /// * `axis` - The normalized 3D vector representing the axis of rotation.
     /// * `angle` - The angle of rotation in radians.
+    ///
+    /// # Panics
+    /// Panics if `axis`'s iterator yields fewer than 3 elements.
+    #[ inline ]
     pub fn from_axis_angle< T >( axis : T, angle : E ) -> Self
     where
       T : VectorIter< E, 3 >
@@ -33,18 +37,23 @@ mod private
     }
 
     /// Normalizes the quaternion to have a magnitude of 1.
+    #[ inline ]
+    #[ must_use ]
     pub fn normalize( self ) -> Self
     {
       Self( self.0.normalize() )
     }
 
     /// Converts the quaternion's components into a 4-element array `[x, y, z, w]`.
+    #[ inline ]
     pub fn to_array( &self ) -> [ E; 4 ]
     {
       self.0.into()
     }
 
     /// Computes the conjugate of the quaternion, inverting its vector part.
+    #[ inline ]
+    #[ must_use ]
     pub fn conjugate( mut self ) -> Self
     {
       self.0[ 0 ] = -self.0[ 0 ];
@@ -54,24 +63,29 @@ mod private
     }
 
     /// Calculates the squared magnitude (length) of the quaternion.
+    #[ inline ]
     pub fn mag2( &self ) -> E
     {
       self.0.mag2()
     }
 
     /// Calculates the magnitude (length) of the quaternion.
+    #[ inline ]
     pub fn mag( &self ) -> E
     {
       self.0.mag()
     }
 
     /// Computes the dot product of this quaternion with another.
+    #[ inline ]
     pub fn dot( &self, other : &Self ) -> E
     {
       self.0.dot( &other.0 )
     }
 
     /// Multiplies this quaternion by another quaternion (`self * other`).
+    #[ inline ]
+    #[ must_use ]
     pub fn multiply( &self, other : &Self ) -> Self
     {
       let q1x = self.x();
@@ -93,30 +107,37 @@ mod private
     }
 
     /// Multiplies this quaternion by another in-place.
+    #[ inline ]
     pub fn multiply_mut( &mut self, other : &Self )
     {
       *self = self.multiply( other );
     }
 
     /// Multiplies another quaternion by this one (`other * self`).
+    #[ inline ]
+    #[ must_use ]
     pub fn premultiply( &self, other : &Self ) -> Self
     {
       other.multiply( self )
     }
 
     /// Multiplies another quaternion by this one in-place.
+    #[ inline ]
     pub fn premultiply_mut( &mut self, other : &Self )
     {
       *self = self.premultiply( other );
     }
 
     /// Divides this quaternion by another (equivalent to `self * other.invert()`).
+    #[ inline ]
+    #[ must_use ]
     pub fn devide( &self, other : &Self ) -> Self
     {
       *self * other.invert()
     }
 
     /// Divides this quaternion by another in-place.
+    #[ inline ]
     pub fn device_mut( &mut self, other : &Self )
     {
       *self = self.devide( other );
@@ -127,6 +148,8 @@ mod private
     /// # Arguments
     /// * `other` - The target quaternion to interpolate towards.
     /// * `s` - The interpolation factor, a value between 0.0 and 1.0.
+    #[ inline ]
+    #[ must_use ]
     pub fn slerp( self, other : &Self, s : E ) -> Self
     {
       if s.is_zero() { return self; }
@@ -168,18 +191,22 @@ mod private
     }
 
     /// Performs spherical linear interpolation (slerp) in-place.
+    #[ inline ]
     pub fn slerp_mut( &mut self, other : &Self, s : E )
     {
       *self = self.slerp( other, s );
     }
 
     /// Inverts the unit-length quaternion, which is equivalent to its conjugate.
+    #[ inline ]
+    #[ must_use ]
     pub fn invert( &self ) -> Self
     {
       self.conjugate()
     }
 
     /// Converts the quaternion into a column-major 3x3 rotation matrix.
+    #[ inline ]
     pub fn to_matrix( &self ) -> Mat3< E, DescriptorOrderColumnMajor >
     {
       Mat3::< E, DescriptorOrderColumnMajor >::from_quat( *self )
@@ -189,6 +216,7 @@ mod private
     ///
     /// # Arguments
     /// * `x` - The rotation angle in radians.
+    #[ inline ]
     pub fn from_angle_x( x : E ) -> Self
     {
       let two = E::one() + E::one();
@@ -200,6 +228,7 @@ mod private
     ///
     /// # Arguments
     /// * `y` - The rotation angle in radians.
+    #[ inline ]
     pub fn from_angle_y( y : E ) -> Self
     {
       let two = E::one() + E::one();
@@ -211,6 +240,7 @@ mod private
     ///
     /// # Arguments
     /// * `z` - The rotation angle in radians.
+    #[ inline ]
     pub fn from_angle_z( z : E ) -> Self
     {
       let two = E::one() + E::one();
@@ -222,6 +252,10 @@ mod private
     ///
     /// # Arguments
     /// * `angles` - A 3D vector containing the rotation angles (in radians) for the X, Y, and Z axes.
+    ///
+    /// # Panics
+    /// Panics if `angles`'s iterator yields fewer than 3 elements.
+    #[ inline ]
     pub fn from_euler_xyz< T : VectorIter< E, 3 > >( angles : T ) -> Self
     {
       let mut iter = angles.vector_iter();
@@ -244,6 +278,11 @@ mod private
     }
 
     /// Converts a quaternion to Euler angles in XYZ order (radians)
+    ///
+    /// # Panics
+    /// Panics if `E::from( 1e-6 )` fails, i.e. if `E` cannot represent that
+    /// literal (not expected for the standard float types this is used with).
+    #[ inline ]
     pub fn to_euler_xyz( &self ) -> Vector< E, 3 >
     {
       let q = self.normalize();

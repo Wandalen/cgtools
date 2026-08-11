@@ -40,6 +40,12 @@ mod private
     /// Error when required data is missing.
     #[ error( "Can't find {0}" ) ]
     MissingDataError( &'static str ),
+    /// Error when a numeric id (e.g. a framebuffer attachment index) does not fit into the
+    /// `u32` range a WebGL id requires. Ids computed at runtime (e.g. while iterating a
+    /// dynamically sized framebuffer configuration) can legitimately be out of range, so
+    /// this is surfaced as a recoverable error instead of panicking.
+    #[ error( "{0}" ) ]
+    IdOutOfRange( String ),
     /// General error type
     #[ error( "{0}" ) ]
     Other( &'static str ),
@@ -98,7 +104,6 @@ mod private
     retrieve_or_make_with( Default::default() )
   }
 
-  // aaa : explain difference between similar functions
   /// Retrieves a WebGL2 context from an existing canvas or creates a new canvas if none is found,
   /// applying the specified `ContextOptions`.
   ///
@@ -109,11 +114,9 @@ mod private
   /// # Errors
   /// - Returns an error if the canvas cannot be found, created, or if the WebGL2 context cannot
   ///   be retrieved.
-  // aaa : use o instead of long name in such cases
   pub fn retrieve_or_make_with( o : ContextOptions ) -> Result< GL, Error >
   {
     let canvas = canvas::retrieve_or_make()?;
-    // aaa : no, opposite retrieve_or_make is shortcut for retrieve_or_make_with
     from_canvas_with( &canvas, o )
   }
 

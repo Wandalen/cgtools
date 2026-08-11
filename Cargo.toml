@@ -9,6 +9,8 @@ members = [
   # Blank modules
   "module/blank/cg_tools",
   "module/blank/cgtools",
+  "module/blank/d3_scene",
+  "module/blank/frame_graph",
   "module/blank/mdmath",
   "module/blank/mdmath_ai",
   "module/blank/mdmath_cg",
@@ -28,12 +30,13 @@ members = [
   "module/helper/embroidery_tools",
   "module/helper/primitive_generation",
   "module/helper/line_tools",
+  "module/helper/gpu_hal",
   "module/helper/renderer",
   "module/helper/tilemap_renderer",
   "module/helper/tiles_tools",
   "module/helper/behaviour_tree",
   "module/helper/tilemap_scene",
-  # "module/helper/vectorizer", # TODO: Fix feature gate issues
+  "module/helper/scene_script",
 
   # Math modules
   "module/math/mdmath_core",
@@ -48,6 +51,8 @@ members = [
   "examples/minwebgpu/*",
   "examples/minwgpu/*",
   "examples/math/*",
+  "examples/scene_script/*",
+  "examples/tiles_tools/*",
 ]
 
 # Source :: https://github.com/obox-systems/conventions/blob/master/code_style.md#lints-and-warnings
@@ -67,19 +72,31 @@ unsafe-code = "warn"
 # Individual restriction lints (not as a group per clippy recommendations)
 # Common useful restriction lints
 wildcard_imports = "warn"
-missing_inline_in_public_items = "warn"
-exhaustive_enums = "warn"
-exhaustive_structs = "warn"
 else_if_without_else = "warn"
-min_ident_chars = "warn"
+# Inlining is left to LLVM/wasm-opt; per-item #[inline] on hundreds of small accessors is noise.
+missing_inline_in_public_items = "allow"
+# Data-bag structs/enums constructed and matched literally are the API contract here.
+exhaustive_enums = "allow"
+exhaustive_structs = "allow"
+# GPU/game interop crosses u32/i32/f32/usize at every GL/WGPU/grid boundary; per-site annotation drowns the code.
+cast_precision_loss = "allow"
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_sign_loss = "allow"
+# Allows short/single-character identifiers (e.g. loop indices, math variables).
+min_ident_chars = "allow"
 # Enforces strict coding styles.
 pedantic = { level = "warn", priority = -1 }
 # Requires documentation for unsafe blocks.
 undocumented_unsafe_blocks = "deny"
-# Suggests using core instead of std when possible.
-std_instead_of_core = "warn"
-# Suggests using alloc instead of std when possible.
-std_instead_of_alloc = "warn"
+# Allows std imports; crates here always link std (wasm32 + host dev builds via web-sys/wasm-bindgen), never no_std.
+std_instead_of_core = "allow"
+# Allows std imports where alloc would suffice (same no_std rationale as above).
+std_instead_of_alloc = "allow"
+# Allows field assignment after Default::default() instead of forcing struct-update syntax.
+field_reassign_with_default = "allow"
+# Allows doc comments without requiring backticks around every code term.
+doc_markdown = "allow"
 # Allows functions called only once.
 single_call_fn = "allow"
 # Permits #[ inline( always ) ] usage.
@@ -96,8 +113,8 @@ mod_module_files = "allow"
 self_named_module_files = "allow"
 # Allows allow attributes (needed for targeted allows)
 allow_attributes = "allow"
-# Allows allow attributes without reasons (for brevity)
-allow_attributes_without_reason = "allow"
+# Every remaining allow/expect must carry reason = "..." — suppressions are exceptional and self-documenting.
+allow_attributes_without_reason = "warn"
 # Allows arbitrary source item ordering
 arbitrary_source_item_ordering = "allow"
 # Allows missing docs in private items (not required for private)
@@ -157,6 +174,10 @@ path = "module/helper/tilemap_scene"
 version = "0.1.0"
 path = "module/helper/behaviour_tree"
 
+[workspace.dependencies.scene_script]
+version = "0.1.0"
+path = "module/helper/scene_script"
+
 # = min
 
 [workspace.dependencies.mingl]
@@ -175,10 +196,11 @@ path = "module/min/minwebgpu"
 version = "0.1.0"
 path = "module/min/minwgpu"
 
-# = vectorizer
-[workspace.dependencies.vectorizer]
+# = hal
+
+[workspace.dependencies.gpu_hal]
 version = "~0.1.0"
-path = "module/vectorizer"
+path = "module/helper/gpu_hal"
 
 # = math
 
@@ -266,6 +288,15 @@ version = "0.4.67"
 
 [workspace.dependencies.wasm-bindgen-test]
 version = "0.3"
+
+[workspace.dependencies.rhai]
+version = "1.21"
+
+# Offline WGSL parse/validate for shader sources that otherwise compile only
+# inside a browser (dev-dependency of `renderer`).
+[workspace.dependencies.naga]
+version = "27.0"
+features = [ "wgsl-in" ]
 
 # [workspace.dependencies.generic-array]
 # version = "1.1.0"
@@ -423,3 +454,11 @@ version = "0.22.1"
 
 [workspace.dependencies.ron]
 version = "0.12.1"
+
+# csgrs (see [workspace.dependencies.csgrs] above) unconditionally depends on core2 ^0.4.
+# Every published core2 version on crates.io is yanked — upstream deprecated the crate in
+# favor of using `core`/`std::io` directly, and removed Cargo.toml from HEAD entirely, so a
+# bare `git` dependency won't resolve either. This pins the last commit before deprecation,
+# which still has the real 0.4.0 manifest. Remove this patch if csgrs ever drops core2.
+[patch.crates-io]
+core2 = { git = "https://github.com/bbqsrc/core2", rev = "545e84bcb0f235b12e21351e0c69767958efe2a7" }

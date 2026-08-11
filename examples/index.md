@@ -6,7 +6,6 @@ Interactive WebGL/WebGPU examples demonstrating CGTools capabilities.
 
 - [Examples](#examples)
   - [Table of Contents](#table-of-contents)
-  - [Quick Start](#quick-start)
   - [Math Examples](#math-examples)
   - [WebGL Examples](#webgl-examples)
     - [2D Rendering](#2d-rendering)
@@ -20,9 +19,8 @@ Interactive WebGL/WebGPU examples demonstrating CGTools capabilities.
     - [Optimization](#optimization)
   - [WebGPU Examples](#webgpu-examples)
   - [WGPU Examples](#wgpu-examples)
-  - [Development](#development)
-  - [Structure](#structure)
-  - [Troubleshooting](#troubleshooting)
+  - [Scripting Examples](#scripting-examples)
+  - [Tiles Tools Examples](#tiles-tools-examples)
 
 ## Math Examples
 
@@ -45,6 +43,7 @@ Example | Description
 Example | Description
 --- | ---
 [3D Line](./minwebgl/3d_line/readme.md) | 3D line rendering with simulation
+[Jewelry Site](./minwebgl/jewelry_site/readme.md) | Product-ready 3D jewelry configurator with material/gem/ring switching
 [Simple PBR](./minwebgl/simple_pbr/readme.md) | Simple physically-based rendering implementation
 [Spinning Cube](./minwebgl/spinning_cube_size_opt/readme.md) | Optimized spinning cube demonstration
 [Trivial](./minwebgl/trivial/readme.md) | Minimal WebGL rendering example
@@ -75,6 +74,7 @@ Example | Description
 [Postprocessing](./minwebgl/postprocessing/readme.md) | Postprocessing effects pipeline
 [Raycaster](./minwebgl/raycaster/readme.md) | Raycasting implementation with controls
 [Shadowmap](./minwebgl/shadowmap/readme.md) | Shadow mapping implementation
+[Sun Grid Lines](./minwebgl/sun_grid_lines/readme.md) | Procedural sci-fi HUD solar-system diagram with real multi-pass bloom
 [Video as Texture](./minwebgl/video_as_texture/readme.md) | Using video as texture source
 
 ### Image Processing
@@ -121,7 +121,6 @@ Example | Description
 [Attributes VAO](./minwebgl/attributes_vao/readme.md) | Vertex Array Object (VAO) usage
 [Uniform UBO](./minwebgl/uniforms_ubo/readme.md) | Uniform Buffer Objects for efficient uniform handling
 [Minimize WASM](./minwebgl/minimize_wasm/readme.md) | WASM size optimization techniques
-[Derive Tools Issue](./minwebgl/derive_tools_issue/readme.md) | Debugging and optimization example
 [Space Partition](./minwebgl/space_partition/readme.md) | Spatial partitioning data structures for efficient collision detection
 
 ## WebGPU Examples
@@ -130,6 +129,9 @@ Example | Description
 --- | ---
 [Deferred Rendering](./minwebgpu/deffered_rendering/readme.md) | Deferred rendering pipeline using WebGPU
 [Hello Triangle](./minwebgpu/hello_triangle/readme.md) | Basic WebGPU triangle rendering
+[Hello Triangle Quickstart](./minwebgpu/hello_triangle_quickstart/readme.md) | Same triangle via minwebgpu's aggregated setup/draw helpers
+[PBR Scene (gpu_hal)](./minwebgpu/renderer_pbr_scene/readme.md) | Canonical `gpu_hal` opaque path — metallic-roughness sphere grid, runs on WebGPU and WebGL2
+[Sun Grid Lines](./minwebgpu/sun_grid_lines/readme.md) | Procedural sci-fi HUD solar-system diagram, ported to WebGPU/WGSL
 
 ## WGPU Examples
 
@@ -137,3 +139,29 @@ Example | Description
 --- | ---
 [Grid Renderer](./minwgpu/grid_render/readme.md) | Grid rendering using WGPU
 [Hello Triangle](./minwgpu/hello_triangle/readme.md) | Basic WGPU triangle rendering
+[Sun Grid Lines](./minwgpu/sun_grid_lines/readme.md) | Procedural sci-fi HUD solar-system diagram, rendered offscreen with native wgpu
+[Sun Grid Lines (Vulkan)](./minwgpu/sun_grid_lines_vulkan/readme.md) | Same offscreen render, backend pinned explicitly to Vulkan
+
+## Scripting Examples
+
+Example | Description
+--- | ---
+[F32x2 Vector Arithmetic](./scene_script/f32x2_vector_arithmetic/readme.md) | Rhai script building an F32x2 value from vector arithmetic
+[Pingpong Animation](./scene_script/pingpong_animation/readme.md) | Rhai-driven ball/paddle simulation tweened with animation::Tween
+
+## Tiles Tools Examples
+
+Example | Description
+--- | ---
+[Advanced Pathfinding Demo](./tiles_tools/advanced_pathfinding_demo/readme.md) | A* pathfinding across obstacles, costs, multi-goal search, and coordinate systems
+[Beginner Tutorial](./tiles_tools/beginner_tutorial/readme.md) | Step-by-step introduction to tiles_tools' core concepts
+[Debug Demo](./tiles_tools/debug_demo/readme.md) | Grid, pathfinding, and ECS debug visualization and profiling tools
+[ECS Collision Demo](./tiles_tools/ecs_collision_demo/readme.md) | ECS collision detection, resolution, and spatial queries
+[Event System Demo](./tiles_tools/event_system_demo/readme.md) | Decoupled pub/sub event system with priorities and statistics
+[Field of View Demo](./tiles_tools/field_of_view_demo/readme.md) | Shadowcasting, ray casting, and multi-source lighting algorithms
+[Game of Life (tiles_tools)](./tiles_tools/game_of_life/readme.md) | Conway's Game of Life via tiles_tools ECS across coordinate systems
+[Game Systems Demo](./tiles_tools/game_systems_demo/readme.md) | Turn-based systems, resource management, quests, and status effects
+[Serialization Demo](./tiles_tools/serialization_demo/readme.md) | Save/load functionality across JSON, binary, and RON formats
+[Simple Collision Demo](./tiles_tools/simple_collision_demo/readme.md) | Minimal ECS collision detection walkthrough
+[Stealth Game](./tiles_tools/stealth_game/readme.md) | Field-of-view-driven stealth game with guard AI
+[Tactical RPG](./tiles_tools/tactical_rpg/readme.md) | Hex-grid tactical combat with AI-controlled enemies

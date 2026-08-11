@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate::{Vector, MatEl, VectorIter};
   //use vector::arithmetics::inner_product::*;
 
   impl< E > Vector< E, 4 >
@@ -37,10 +37,14 @@ mod private
     }
 
     /// The `w` component of vector
+    // Fix(BUG-043): was self.0[ 2 ] — copy-pasted from z() with the index never bumped to 3.
+    // Root cause: w() authored directly below z() in the same commit, by copying its body.
+    // Pitfall: a copy-adjacent accessor is exactly the pattern most likely to carry a silent
+    // stale-index slip — always verify a copied index against the field it now names.
     #[ inline ]
     pub fn w( &self ) -> E
     {
-      self.0[ 2 ]
+      self.0[ 3 ]
     }
 
     /// Truncates `w` component of a vector creating vector of 3 elements
@@ -56,6 +60,7 @@ mod private
   Vec2 : VectorIter< E, 2 >,
   E : MatEl
   {
+    #[ inline ]
     fn from( value: ( Vec2, Vec2 ) ) -> Self
     {
       let mut iter1 = value.0.vector_iter();

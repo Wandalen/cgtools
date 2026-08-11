@@ -43,30 +43,40 @@ mod private
   impl CharacterControls
   {
     /// Returns the current position of the character.
+    #[ inline ]
+    #[ must_use ]
     pub fn position( &self ) -> F64x3
     {
       self.position
     }
 
     /// Returns the current rotation of the character.
+    #[ inline ]
+    #[ must_use ]
     pub fn rotation( &self ) -> QuatF64
     {
       self.rotation
     }
 
     /// Returns the current yaw of the character.
+    #[ inline ]
+    #[ must_use ]
     pub fn yaw( &self ) -> f64
     {
       self.yaw
     }
 
     /// Returns the current pitch of the character.
+    #[ inline ]
+    #[ must_use ]
     pub fn pitch( &self ) -> f64
     {
       self.pitch
     }
 
     /// Returns the forward direction vector based on current rotation in XZ plane.
+    #[ inline ]
+    #[ must_use ]
     pub fn forward_xz( &self ) -> F64x3
     {
       let forward = QuatF64::from( [ 0.0, 0.0, 1.0, 0.0 ] );
@@ -75,6 +85,8 @@ mod private
     }
 
     /// Returns the right direction vector based on current rotation in XZ plane.
+    #[ inline ]
+    #[ must_use ]
     pub fn right_xz( &self ) -> F64x3
     {
       let right = QuatF64::from( [ -1.0, 0.0, 0.0, 0.0 ] );
@@ -85,6 +97,8 @@ mod private
     /// Returns the forward direction vector based on current rotation.
     ///
     /// This is the direction the character is facing.
+    #[ inline ]
+    #[ must_use ]
     pub fn forward( &self ) -> F64x3
     {
       let forward = QuatF64::from( [ 0.0, 0.0, 1.0, 0.0 ] );
@@ -94,6 +108,8 @@ mod private
     /// Returns the right direction vector based on current rotation.
     ///
     /// This is perpendicular to the forward direction, used for strafing.
+    #[ inline ]
+    #[ must_use ]
     pub fn right( &self ) -> F64x3
     {
       let right = QuatF64::from( [ -1.0, 0.0, 0.0, 0.0 ] );
@@ -101,6 +117,8 @@ mod private
     }
 
     /// Returns the up direction vector based on current rotation.
+    #[ inline ]
+    #[ must_use ]
     pub fn up( &self ) -> F64x3
     {
       let up = QuatF64::from( [ 0.0, 1.0, 0.0, 0.0 ] );
@@ -112,6 +130,7 @@ mod private
     /// # Arguments
     /// * `delta_x` - Horizontal mouse movement (affects yaw)
     /// * `delta_y` - Vertical mouse movement (affects pitch)
+    #[ inline ]
     pub fn rotate( &mut self, delta_x : f64, delta_y : f64 )
     {
       // Update yaw (left/right rotation around Y axis)
@@ -136,6 +155,7 @@ mod private
     /// # Arguments
     /// * `input` - Movement input state containing key press information
     /// * `delta_time` - Time elapsed since last update in seconds
+    #[ inline ]
     pub fn update( &mut self, input : &CharacterInput, delta_time : f64 )
     {
       let mut movement = F64x3::from( [ 0.0, 0.0, 0.0 ] );
@@ -177,6 +197,7 @@ mod private
     }
 
     /// Sets the character position.
+    #[ inline ]
     pub fn set_position( &mut self, position : F64x3 )
     {
       self.position = position;
@@ -187,6 +208,7 @@ mod private
     /// # Arguments
     /// * `yaw` - Rotation around Y axis in radians
     /// * `pitch` - Rotation around X axis in radians
+    #[ inline ]
     pub fn set_rotation( &mut self, yaw : f64, pitch : f64 )
     {
       self.yaw = yaw;
@@ -203,6 +225,7 @@ mod private
     /// # Arguments
     /// * `delta_y` - The scroll amount, typically from a mouse wheel event.
     ///   A negative value zooms in, and a positive value zooms out.
+    #[ inline ]
     pub fn zoom
     (
       &mut self,
@@ -218,6 +241,7 @@ mod private
   impl Default for CharacterControls
   {
     /// Creates a new `CharacterControls` with sensible default values.
+    #[ inline ]
     fn default() -> Self
     {
       Self
@@ -238,6 +262,7 @@ mod private
 
   /// Tracks the current state of character input (which keys are pressed).
   #[ derive( Debug, Clone, Default ) ]
+  #[ non_exhaustive ]
   pub struct CharacterInput
   {
     /// W key pressed - move forward
@@ -253,12 +278,15 @@ mod private
   impl CharacterInput
   {
     /// Creates a new CharacterInput with all keys unpressed.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
     }
 
     /// Resets all input states to false.
+    #[ inline ]
     pub fn reset( &mut self )
     {
       self.move_forward = false;
@@ -266,6 +294,168 @@ mod private
       self.move_left = false;
       self.move_right = false;
     }
+  }
+
+  /// Creates the `keydown` event closure that sets movement flags in `input`.
+  #[ inline ]
+  fn make_key_down_closure( input : &Rc< RefCell< CharacterInput > > ) -> Closure< dyn Fn( web_sys::KeyboardEvent ) >
+  {
+    let input = input.clone();
+    Closure::new
+    (
+      move | e : web_sys::KeyboardEvent |
+      {
+        let key = e.key();
+        let mut input = input.borrow_mut();
+
+        match key.as_str()
+        {
+          "w" | "W" => input.move_forward = true,
+          "s" | "S" => input.move_backward = true,
+          "a" | "A" => input.move_left = true,
+          "d" | "D" => input.move_right = true,
+          _ => {}
+        }
+      }
+    )
+  }
+
+  /// Creates the `keyup` event closure that clears movement flags in `input`.
+  #[ inline ]
+  fn make_key_up_closure( input : &Rc< RefCell< CharacterInput > > ) -> Closure< dyn Fn( web_sys::KeyboardEvent ) >
+  {
+    let input = input.clone();
+    Closure::new
+    (
+      move | e : web_sys::KeyboardEvent |
+      {
+        let key = e.key();
+        let mut input = input.borrow_mut();
+
+        match key.as_str()
+        {
+          "w" | "W" => input.move_forward = false,
+          "s" | "S" => input.move_backward = false,
+          "a" | "A" => input.move_left = false,
+          "d" | "D" => input.move_right = false,
+          _ => {}
+        }
+      }
+    )
+  }
+
+  /// Creates the `mousemove` event closure that rotates `controls` while the pointer is locked.
+  #[ inline ]
+  fn make_mouse_move_closure
+  (
+    controls : &Rc< RefCell< CharacterControls > >,
+    is_pointer_locked : &Rc< RefCell< bool > >
+  ) -> Closure< dyn Fn( web_sys::MouseEvent ) >
+  {
+    let controls = controls.clone();
+    let is_pointer_locked = is_pointer_locked.clone();
+    Closure::new
+    (
+      move | e : web_sys::MouseEvent |
+      {
+        if *is_pointer_locked.borrow()
+        {
+          // movement_x/y return i32 regardless of web_sys_unstable_apis (no dual-definition unlike client_x/y)
+          let delta_x = f64::from( e.movement_x() );
+          let delta_y = f64::from( e.movement_y() );
+          controls.borrow_mut().rotate( delta_x, delta_y );
+        }
+      }
+    )
+  }
+
+  /// Creates the `wheel` event closure that zooms `controls` while the pointer is locked.
+  #[ inline ]
+  fn make_wheel_closure
+  (
+    controls : &Rc< RefCell< CharacterControls > >,
+    is_pointer_locked : &Rc< RefCell< bool > >
+  ) -> Closure< dyn Fn( web_sys::WheelEvent ) >
+  {
+    let controls = controls.clone();
+    let is_pointer_locked = is_pointer_locked.clone();
+    Closure::new
+    (
+      move | e : web_sys::WheelEvent |
+      {
+        if *is_pointer_locked.borrow()
+        {
+          let delta_y = e.delta_y();
+          controls.borrow_mut().zoom( delta_y );
+        }
+      }
+    )
+  }
+
+  /// Creates the `contextmenu` event closure that suppresses the browser's context menu.
+  #[ inline ]
+  fn make_context_menu_closure() -> Closure< dyn Fn( web_sys::MouseEvent ) >
+  {
+    Closure::new
+    (
+      move | e : web_sys::MouseEvent |
+      {
+        e.prevent_default();
+      }
+    )
+  }
+
+  /// Creates the `click` event closure that requests pointer lock on `canvas`.
+  #[ inline ]
+  fn make_click_closure
+  (
+    canvas : &web_sys::HtmlCanvasElement,
+    is_pointer_locked : &Rc< RefCell< bool > >
+  ) -> Closure< dyn Fn() >
+  {
+    let canvas = canvas.clone();
+    let is_pointer_locked = is_pointer_locked.clone();
+    Closure::new
+    (
+      move | |
+      {
+        if !*is_pointer_locked.borrow()
+        {
+          canvas.request_pointer_lock();
+        }
+      }
+    )
+  }
+
+  /// Creates the `pointerlockchange` document event closure that tracks lock state.
+  #[ inline ]
+  fn make_pointer_lock_change_closure( is_pointer_locked : &Rc< RefCell< bool > > ) -> Closure< dyn Fn() >
+  {
+    let is_pointer_locked = is_pointer_locked.clone();
+    Closure::new
+    (
+      move | |
+      {
+        if let Some( document ) = web_sys::window().and_then( | w | w.document() )
+        {
+          let locked = document.pointer_lock_element().is_some();
+          *is_pointer_locked.borrow_mut() = locked;
+        }
+      }
+    )
+  }
+
+  /// Creates the `pointerlockerror` document event closure that logs lock failures.
+  #[ inline ]
+  fn make_pointer_lock_error_closure() -> Closure< dyn Fn() >
+  {
+    Closure::new
+    (
+      move | |
+      {
+        crate::web::error!( "Pointer lock error" );
+      }
+    )
   }
 
   /// Binds keyboard and mouse events to character controls for interaction.
@@ -290,6 +480,7 @@ mod private
   /// // In your update loop:
   /// controls.borrow_mut().update( &input.borrow(), delta_time );
   /// ```
+  #[ inline ]
   pub fn bind_controls_to_input
   (
     canvas : &web_sys::HtmlCanvasElement,
@@ -299,131 +490,14 @@ mod private
   {
     let is_pointer_locked = Rc::new( RefCell::new( false ) );
 
-    let on_key_down : Closure< dyn Fn( _ ) > = Closure::new
-    (
-      {
-        let input = input.clone();
-        move | e : web_sys::KeyboardEvent |
-        {
-          let key = e.key();
-          let mut input = input.borrow_mut();
-
-          match key.as_str()
-          {
-            "w" | "W" => input.move_forward = true,
-            "s" | "S" => input.move_backward = true,
-            "a" | "A" => input.move_left = true,
-            "d" | "D" => input.move_right = true,
-            _ => {}
-          }
-        }
-      }
-    );
-
-    let on_key_up : Closure< dyn Fn( _ ) > = Closure::new
-    (
-      {
-        let input = input.clone();
-        move | e : web_sys::KeyboardEvent |
-        {
-          let key = e.key();
-          let mut input = input.borrow_mut();
-
-          match key.as_str()
-          {
-            "w" | "W" => input.move_forward = false,
-            "s" | "S" => input.move_backward = false,
-            "a" | "A" => input.move_left = false,
-            "d" | "D" => input.move_right = false,
-            _ => {}
-          }
-        }
-      }
-    );
-
-    let on_mouse_move : Closure< dyn Fn( _ ) > = Closure::new
-    (
-      {
-        let controls = controls.clone();
-        let is_pointer_locked = is_pointer_locked.clone();
-        move | e : web_sys::MouseEvent |
-        {
-          if *is_pointer_locked.borrow()
-          {
-            // movement_x/y return i32 regardless of web_sys_unstable_apis (no dual-definition unlike client_x/y)
-            let delta_x = e.movement_x() as f64;
-            let delta_y = e.movement_y() as f64;
-            controls.borrow_mut().rotate( delta_x, delta_y );
-          }
-        }
-      }
-    );
-
-    let on_wheel : Closure< dyn Fn( _ ) > = Closure::new
-    (
-      {
-        let controls = controls.clone();
-        let is_pointer_locked = is_pointer_locked.clone();
-        move | e : web_sys::WheelEvent |
-        {
-          if *is_pointer_locked.borrow()
-          {
-            let delta_y = e.delta_y();
-            controls.borrow_mut().zoom( delta_y );
-          }
-        }
-      }
-    );
-
-    let on_context_menu : Closure< dyn Fn( _ ) > = Closure::new
-    (
-      {
-        move | e : web_sys::MouseEvent |
-        {
-          e.prevent_default();
-        }
-      }
-    );
-
-    let on_click : Closure< dyn Fn() > = Closure::new
-    (
-      {
-        let canvas = canvas.clone();
-        let is_pointer_locked = is_pointer_locked.clone();
-        move | |
-        {
-          if !*is_pointer_locked.borrow()
-          {
-            let _ = canvas.request_pointer_lock();
-          }
-        }
-      }
-    );
-
-    let on_pointer_lock_change : Closure< dyn Fn() > = Closure::new
-    (
-      {
-        let is_pointer_locked = is_pointer_locked.clone();
-        move | |
-        {
-          if let Some( document ) = web_sys::window().and_then( | w | w.document() )
-          {
-            let locked = document.pointer_lock_element().is_some();
-            *is_pointer_locked.borrow_mut() = locked;
-          }
-        }
-      }
-    );
-
-    let on_pointer_lock_error : Closure< dyn Fn() > = Closure::new
-    (
-      {
-        move | |
-        {
-          crate::web::error!( "Pointer lock error" );
-        }
-      }
-    );
+    let on_key_down = make_key_down_closure( input );
+    let on_key_up = make_key_up_closure( input );
+    let on_mouse_move = make_mouse_move_closure( controls, &is_pointer_locked );
+    let on_wheel = make_wheel_closure( controls, &is_pointer_locked );
+    let on_context_menu = make_context_menu_closure();
+    let on_click = make_click_closure( canvas, &is_pointer_locked );
+    let on_pointer_lock_change = make_pointer_lock_change_closure( &is_pointer_locked );
+    let on_pointer_lock_error = make_pointer_lock_error_closure();
 
     let _ = canvas.set_attribute( "tabindex", "0" );
     let _ = canvas.focus();

@@ -1,8 +1,4 @@
 //! Postprocessing demo
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::implicit_return ) ]
 
 mod lil_gui;
 mod gui_setup;

@@ -12,6 +12,8 @@ This guide provides comprehensive instructions for setting up your environment a
   - [WebGL and WebGPU Examples (minwebgl / minwebgpu)](#webgl-and-webgpu-examples-minwebgl--minwebgpu)
   - [WGPU Examples (minwgpu)](#wgpu-examples-minwgpu)
   - [Math Examples](#math-examples)
+  - [Scripting Examples (scene_script)](#scripting-examples-scene_script)
+  - [Tiles Tools Examples (tiles_tools)](#tiles-tools-examples-tiles_tools)
 - [Development Workflow](#development-workflow)
 - [Troubleshooting](#troubleshooting)
 - [Testing](#testing)
@@ -82,6 +84,19 @@ make env-install
 
 ## Running Examples
 
+**Shortcut:** from any directory, `action/run <partial-name>` builds and runs any example or
+binary below by a unique partial match against its path — e.g. `action/run trivial` or
+`action/run sun_grid`. It resolves the match then delegates to that example's own `verb/run`
+(`trunk serve --release` on a fresh random port for browser examples, opening the page via
+`browsee` once the build is ready — silently skipped if `browsee` is missing, fails, or hangs;
+the dev server keeps running either way, so you can always open the printed URL yourself;
+`cargo run --release --all-features` otherwise).
+Run `action/run list` to see every match candidate with its runtime/api tags, or
+`action/run list <tag>` to filter to examples carrying a specific tag (e.g.
+`action/run list runtime:offscreen` or `action/run list api:wgpu`) — see `action/run .` for the
+full predefined tag set and usage. The manual per-family steps below still apply if you want more
+control (dev-mode serving, watching, etc.).
+
 ### WebGL and WebGPU Examples (minwebgl / minwebgpu)
 
 WebGL and WebGPU examples both run in the browser using WebAssembly and follow the same workflow.
@@ -132,6 +147,40 @@ cd examples/math/life
 
 # Run the example
 cargo run --release
+```
+
+### Scripting Examples (scene_script)
+
+Rhai scene-scripting examples that run natively and print to the console:
+
+```bash
+# Declarative pattern: a script builds an F32x2 from vector arithmetic
+cd examples/scene_script/f32x2_vector_arithmetic
+cargo run --release
+
+# Imperative pattern: a script drives a ball/paddle simulation via
+# callbacks, then the host tweens between two recorded frames
+cd examples/scene_script/pingpong_animation
+cargo run --release
+```
+
+### Tiles Tools Examples (tiles_tools)
+
+Tile-based game-dev examples that run natively and print to the console. Each is its own crate, so no `--features` flag is needed even for the examples that use `tiles_tools`' optional ECS/serialization functionality — the required features are already set on that crate's own `tiles_tools` dependency.
+
+```bash
+cd examples/tiles_tools/advanced_pathfinding_demo && cargo run --release   # A* across obstacle/cost/multi-goal/coordinate-system variations
+cd examples/tiles_tools/beginner_tutorial && cargo run --release          # step-by-step introduction to core tiles_tools concepts
+cd examples/tiles_tools/debug_demo && cargo run --release                 # grid/pathfinding/ECS debug visualization and profiling
+cd examples/tiles_tools/ecs_collision_demo && cargo run --release         # ECS collision detection, resolution, and spatial queries
+cd examples/tiles_tools/event_system_demo && cargo run --release          # pub/sub event system with priorities and statistics
+cd examples/tiles_tools/field_of_view_demo && cargo run --release         # shadowcasting, ray casting, and multi-source lighting
+cd examples/tiles_tools/game_of_life && cargo run --release               # Conway's Game of Life across coordinate systems
+cd examples/tiles_tools/game_systems_demo && cargo run --release          # turn-based systems, quests, and status effects
+cd examples/tiles_tools/serialization_demo && cargo run --release         # save/load across JSON, binary, and RON formats
+cd examples/tiles_tools/simple_collision_demo && cargo run --release      # minimal ECS collision detection walkthrough
+cd examples/tiles_tools/stealth_game && cargo run --release               # field-of-view-driven stealth game with guard AI
+cd examples/tiles_tools/tactical_rpg && cargo run --release               # hex-grid tactical combat with AI-controlled enemies
 ```
 
 ## Development Workflow

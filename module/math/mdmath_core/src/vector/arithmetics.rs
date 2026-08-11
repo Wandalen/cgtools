@@ -130,6 +130,9 @@ mod private
   }
 
   /// Projects vector `a` onto vector `b`.
+  ///
+  /// # Panics
+  /// Panics if `r` or `b`'s iterator yields fewer than `SIZE` elements.
   #[ inline ]
   pub fn project_on< E, R, B, const SIZE : usize >( r : &mut R, b : &B )
   where
@@ -189,6 +192,9 @@ mod private
   /// For integer scalars the per-component multiplications and subtractions are
   /// not overflow-checked: they panic in debug / wrap in release once any
   /// intermediate value leaves `E`'s range.
+  ///
+  /// # Panics
+  /// Panics if `r` or `b`'s iterator yields fewer than 3 elements.
   #[ inline ]
   pub fn cross_mut< E, R, B >( r : &mut R, b : &B )
   where
@@ -540,27 +546,35 @@ mod private
 
   /// Performs element-wise minimum operation on vectors.
   /// Modifies first vector in place.
+  ///
+  /// Satisfied by all integer primitives and floats alike (`E : Scalar + PartialOrd`) — this is
+  /// pure ordering comparison, not floating-point arithmetic. NaN tie-break: if either operand is
+  /// unordered with respect to the other (i.e. either is NaN), `r`'s original value is kept — `a`'s
+  /// value is only ever selected when `*a < *r` is a well-defined `true`.
   #[ inline ]
   pub fn min_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
     R : VectorIterMut< E, N >,
     A : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar + PartialOrd,
   {
     let iter = r.vector_iter_mut().zip( a.vector_iter() );
     for ( r, a ) in iter
     {
-      *r = ( *r ).min( *a );
+      *r = if *a < *r { *a } else { *r };
     }
   }
 
   /// Performs element-wise minimum operation on vectors.
+  ///
+  /// Satisfied by all integer primitives and floats alike — see [`min_mut`] for the NaN tie-break
+  /// behavior.
   #[ inline ]
   pub fn min< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
     B : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar + PartialOrd,
   {
     let mut r = a.clone();
     min_mut( &mut r, b );
@@ -569,27 +583,35 @@ mod private
 
   /// Performs element-wise maximum operation on vectors.
   /// Modifies first vector in place.
+  ///
+  /// Satisfied by all integer primitives and floats alike (`E : Scalar + PartialOrd`) — this is
+  /// pure ordering comparison, not floating-point arithmetic. NaN tie-break: if either operand is
+  /// unordered with respect to the other (i.e. either is NaN), `r`'s original value is kept — `a`'s
+  /// value is only ever selected when `*a > *r` is a well-defined `true`.
   #[ inline ]
   pub fn max_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
     R : VectorIterMut< E, N >,
     A : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar + PartialOrd,
   {
     let iter = r.vector_iter_mut().zip( a.vector_iter() );
     for ( r, a ) in iter
     {
-      *r = ( *r ).max( *a );
+      *r = if *a > *r { *a } else { *r };
     }
   }
 
   /// Performs element-wise maximum operation on vectors.
+  ///
+  /// Satisfied by all integer primitives and floats alike — see [`max_mut`] for the NaN tie-break
+  /// behavior.
   #[ inline ]
   pub fn max< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
     B : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar + PartialOrd,
   {
     let mut r = a.clone();
     max_mut( &mut r, b );

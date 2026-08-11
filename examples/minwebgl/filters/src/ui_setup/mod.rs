@@ -8,8 +8,6 @@
 //! - Advanced filter setup in `ui_setup::filter_setup_advanced`
 //! - Event handlers in `ui_setup::event_handlers`
 
-#![ allow( clippy::if_not_else ) ]
-
 mod filter_buttons;
 mod filter_setup_simple;
 mod filter_setup_helpers;

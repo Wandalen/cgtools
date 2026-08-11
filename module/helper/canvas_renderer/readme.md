@@ -120,7 +120,7 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
   .source( canvas_texture_handle )
   .end();
 
-  set_texture
+  apply_function_to_node_materials
   (
     &object,
     | m |
@@ -129,17 +129,15 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
       (
         m.borrow_mut()
       );
-      m.base_color_texture.as_mut()
-      .map
-      (
-        | t |
-        {
-          let texture = t.texture.borrow().clone();
-          t.texture = Rc::new( RefCell::new( texture ) );
-          t.texture.borrow_mut().source = canvas_texture.clone().source;
-        }
-      );
-      m.alpha_mode = renderer::webgl::AlphaMode::Blend;
+      if let Some( existing ) = m.base_color_texture()
+      {
+        let cloned_texture = existing.texture.borrow().clone();
+        let uv_position = existing.uv_position;
+        let new_texture = Rc::new( RefCell::new( cloned_texture ) );
+        new_texture.borrow_mut().source = canvas_texture.clone().source;
+        m.set_base_color_texture( Some( TextureInfo { texture : new_texture, uv_position } ) );
+      }
+      m.set_alpha_mode( renderer::webgl::AlphaMode::Blend );
     }
   );
 

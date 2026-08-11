@@ -3,7 +3,7 @@
 //! This program demonstrates how to render a triangle in the middle of the screen using WebGL in Rust. It utilizes shaders with Uniform Block Objects (UBOs) to manage uniforms efficiently.
 
 use minwebgl as gl;
-use gl::{ GL, WebGl2RenderingContext, DebugLog, AsBytes };
+use gl::{ GL, DebugLog };
 use std::
 {
   cell::RefCell,
@@ -40,16 +40,15 @@ fn run() -> Result< (), gl::WebglError >
   let color_block_index = gl.get_uniform_block_index( &program, "ColorBlock" );
   let color_block_point = 0;
   gl.uniform_block_binding( &program, color_block_index, color_block_point );
-  gl.buffer_data_with_i32( WebGl2RenderingContext::UNIFORM_BUFFER, color.borrow().byte_size() as _, GL::DYNAMIC_DRAW );
-  // qqq : does it give any benefit?
+  // No pre-sizing buffer_data call here: gl::ubo::upload (below, every frame)
+  // always does a full reallocating bufferData before any draw reads the
+  // buffer, so a separate size-only allocation upfront has no effect.
 
   // Transformation
   let trans_buffer = gl::buffer::create( &gl )?;
   let trans_block_index : u32 = gl.get_uniform_block_index( &program, "TransformBlock" );
   let trans_block_point = 1;
   gl.uniform_block_binding( &program, trans_block_index, trans_block_point );
-  gl.buffer_data_with_i32( GL::UNIFORM_BUFFER, trans.borrow().byte_size() as _, GL::DYNAMIC_DRAW );
-  // qqq : does it give any benefit?
 
   // Retrieve UBO information for diagnostic purposes only; these lines should be removed in production builds.
   gl::ubo::diagnostic_info( &gl, &program, color_block_index ).debug_info();

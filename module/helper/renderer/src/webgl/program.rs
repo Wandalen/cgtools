@@ -83,16 +83,18 @@ mod private
   {
     ( $program_type:ident, $( $location_name:literal ),* ) =>
     {
-      ///
+      /// Shader program wrapper pairing a compiled WebGL program with its uniform/UBO location cache.
       #[ derive( Debug ) ]
       pub struct $program_type( ProgramInfo );
 
+      // The zero-location expansion ( e.g. `EmptyShader` ) leaves `gl` and `program` unused.
       #[ allow( unused_variables ) ]
       impl $program_type
       {
         /// Creates a new shader instance.
         pub fn new( gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Self
         {
+          // Never mutated in the zero-location expansion.
           #[ allow( unused_mut ) ]
           let mut locations = FxHashMap::default();
 
@@ -174,14 +176,17 @@ mod private
       #[ derive( Debug ) ]
       pub struct $program_type( ProgramInfo );
 
+      // The zero-location expansion ( e.g. `EmptyShader` ) leaves `gl` and `program` unused.
       #[ allow( unused_variables ) ]
       impl $program_type
       {
         /// Creates a new shader instance.
         pub fn new( gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Self
         {
+          // Never mutated in the zero-location expansion.
           #[ allow( unused_mut ) ]
           let mut locations = FxHashMap::default();
+          // Never mutated when the invocation lists no UBO blocks.
           #[ allow( unused_mut ) ]
           let mut ubo_indices = FxHashMap::default();
 
@@ -285,6 +290,8 @@ mod private
     pub ubo_indices : FxHashMap< String, u32 >,
   }
 
+  // Debug prints location keys and UBO indices; the raw `WebGlProgram` handle has
+  // no useful textual form.
   #[ allow( clippy::missing_fields_in_debug ) ]
   impl core::fmt::Debug for ProgramInfo
   {

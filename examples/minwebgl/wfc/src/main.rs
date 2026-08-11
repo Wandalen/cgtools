@@ -10,49 +10,6 @@
 //! the source.
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::assign_op_pattern ) ]
-#![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::redundant_field_names ) ]
-#![ allow( clippy::useless_format ) ]
-#![ allow( clippy::let_unit_value ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::manual_assert ) ]
-#![ allow( clippy::iter_overeager_cloned ) ]
-#![ allow( clippy::needless_continue ) ]
-#![ allow( clippy::unnecessary_semicolon ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::cloned_instead_of_copied ) ]
-#![ allow( clippy::map_flatten ) ]
-#![ allow( clippy::else_if_without_else ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::trivially_copy_pass_by_ref ) ]
-#![ allow( clippy::assigning_clones ) ]
-#![ allow( clippy::ptr_arg ) ]
-#![ allow( clippy::explicit_counter_loop ) ]
-#![ allow( clippy::unnecessary_wraps ) ]
-#![ allow( clippy::redundant_comparisons ) ]
-#![ allow( clippy::useless_conversion ) ]
-#![ allow( clippy::unreadable_literal ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::collapsible_if ) ]
-#![ allow( clippy::unused_async ) ]
-#![ allow( clippy::needless_borrows_for_generic_args ) ]
-
 use gl::GL;
 use image::{ DynamicImage, ImageBuffer, Luma };
 use minwebgl as gl;
@@ -63,7 +20,7 @@ use minwebgl::WebGlVertexArrayObject;
 use std::rc::Rc;
 use std::cell::RefCell;
 use web_sys::{ HtmlInputElement, HtmlButtonElement, FileReader, Event };
-use wfc::*;
+use wfc_algo::*;
 use wfc_image::{ generate_image, wrap::*, retry::* };
 use ndarray_cg::mat3x3h;
 
@@ -602,7 +559,7 @@ fn generate_map_wfc_image( app_state : &mut ApplicationState )
     pattern_img,
     std::num::NonZero::new( PATTERN_SIZE ).unwrap(),
     Size::try_new( SIZE as u32, SIZE as u32 ).unwrap(),
-    &wfc::orientation::ALL,
+    &wfc_algo::orientation::ALL,
     WrapXY,
     ForbidNothing,
     NumTimes( 1 )

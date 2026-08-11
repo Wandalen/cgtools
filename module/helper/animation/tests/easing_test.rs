@@ -1,8 +1,6 @@
 //! Integration tests related to `EasingFunction` and `EasingBuilder`
 //! traits and structs that implements them
 
-#![ allow( clippy::float_cmp ) ]
-
 #[ cfg( test ) ]
 mod tests
 {
@@ -38,6 +36,7 @@ mod tests
     EaseOutBack,
     EaseInOutBack
   };
+  use animation::easing::cubic::hermite::CubicHermite;
 
   #[ test ]
   fn test_linear_function()
@@ -126,5 +125,82 @@ mod tests
 
     // EaseOutQuad should be faster than linear at the start
     assert!( EaseOutQuad::new().apply( 0.0, 1.0, 0.2 ) > Linear::new().apply( 0.0, 1.0, 0.2 ) );
+  }
+
+  // test_kind: bug_reproducer(TASK-041)
+  /// ## Root Cause
+  /// `CubicBezier::new` defaulted `iterations` to `0`, which skips the Newton-Raphson solve loop
+  /// in `apply` entirely — `y_get` was evaluated at the raw input fraction instead of the solved
+  /// Bezier parameter, producing the wrong easing shape for every named curve.
+  /// ## Why Not Caught
+  /// `test_cubic_boundaries_and_properties` above only checks `t = 0.0` / `t = 1.0`, where
+  /// `apply`'s early-return guards bypass the solve loop regardless of `iterations` — only a
+  /// mid-curve point exposes the wrong shape.
+  /// ## Fix Applied
+  /// Changed the default to `iterations: 8` and had all 24 named curves chain
+  /// `.with_iterations( 8 )` explicitly. See `easing/cubic/bezier.rs`.
+  /// ## Prevention
+  /// A numeric solver's iteration-count parameter should never default to its degenerate "off"
+  /// value — boundary-only tests can't distinguish "solved" from "not solved" for a curve whose
+  /// endpoints are fixed by construction.
+  /// ## Pitfall
+  /// Reference values below are solved to near-convergence independently (100 Newton-Raphson
+  /// iterations); the buggy `iterations = 0` behavior would instead give the raw input fraction
+  /// (0.5) run through `y_get` directly — 0.125 for `EaseInSine`, 0.875 for `EaseOutQuad`.
+  #[ test ]
+  fn test_cubic_mid_curve_accuracy()
+  {
+    let eps = 0.001;
+    assert_f_eq( EaseInSine::new().apply( 0.0, 1.0, 0.5 ), 0.300_338, eps );
+    assert_f_eq( EaseOutQuad::new().apply( 0.0, 1.0, 0.5 ), 0.749_269, eps );
+  }
+
+  // test_kind: bug_reproducer(TASK-041)
+  /// ## Root Cause
+  /// `CubicHermite::<Vec<E>>::new` silently `.resize()`d `m1`/`m2` down to the shorter of the two
+  /// lengths instead of surfacing the mismatch.
+  /// ## Why Not Caught
+  /// No existing test constructed a `CubicHermite` with mismatched tangent vector lengths —
+  /// there was no coverage of this constructor at all.
+  /// ## Fix Applied
+  /// Replaced the `.resize()` calls with `assert_eq!` panics naming both lengths. See
+  /// `easing/cubic/hermite.rs`.
+  /// ## Prevention
+  /// `EasingFunction::apply` returns `Self::AnimatableType` directly (no `Result`) for every
+  /// implementor, so a malformed-input precondition here can only be surfaced as a loud panic,
+  /// not a recoverable error — silent `.resize()` truncation is never the right normalization for
+  /// a caller precondition violation.
+  /// ## Pitfall
+  /// A silently truncated tangent vector produces a plausible-looking but wrong interpolation
+  /// result for every subsequent `apply()` call — no signal at the call site that data was lost.
+  #[ test ]
+  #[ should_panic( expected = "m1 and m2 must have the same length" ) ]
+  fn test_cubic_hermite_new_panics_on_mismatched_tangent_lengths()
+  {
+    let _ = CubicHermite::< Vec< f32 > >::new( vec![ 0.0, 1.0, 2.0 ], vec![ 0.0, 1.0 ] );
+  }
+
+  // test_kind: bug_reproducer(TASK-041)
+  /// ## Root Cause
+  /// `CubicHermite::<Vec<E>>::apply` silently `.resize()`d `start`, `end`, and the tangents down
+  /// to the shortest of 3 independent lengths instead of surfacing the mismatch.
+  /// ## Why Not Caught
+  /// No existing test called `CubicHermite::apply` with a `start`/`end` length differing from the
+  /// tangent length established at construction.
+  /// ## Fix Applied
+  /// Replaced the `.resize()` calls with `assert_eq!` panics naming both lengths. See
+  /// `easing/cubic/hermite.rs`.
+  /// ## Prevention
+  /// Same as the constructor's Prevention — the shared `EasingFunction` trait signature has no
+  /// `Result`, so a loud panic on malformed input is the correct fix at every call site here.
+  /// ## Pitfall
+  /// Same as the constructor's Pitfall — silent truncation produces a plausible-looking but wrong
+  /// interpolation result with no signal that components were dropped.
+  #[ test ]
+  #[ should_panic( expected = "start and end must have the same length" ) ]
+  fn test_cubic_hermite_apply_panics_on_mismatched_value_lengths()
+  {
+    let hermite = CubicHermite::< Vec< f32 > >::new( vec![ 0.0, 1.0 ], vec![ 0.0, 1.0 ] );
+    let _ = hermite.apply( vec![ 0.0, 1.0, 2.0 ], vec![ 0.0, 1.0 ], 0.5 );
   }
 }

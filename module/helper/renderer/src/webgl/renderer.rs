@@ -60,6 +60,7 @@ mod private
     /// are blitted to, making them ready for sampling.
     pub resolved_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
     /// The renderbuffer used for depth and stencil testing in the multisample framebuffer.
+    // Never read back after attachment; held so the GPU resource outlives the framebuffer.
     #[ allow( dead_code ) ]
     pub multisample_depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
     /// The renderbuffer that receives the main color output during multisampled rendering.
@@ -80,6 +81,7 @@ mod private
     pub transparent_accumulate_texture : Option< gl::web_sys::WebGlTexture >,
     /// The 2D texture that calculates total revealage during blending pass.
     pub transparent_revealage_texture : Option< gl::web_sys::WebGlTexture >,
+    // Never read back after attachment; held so the GPU resource outlives the framebuffer.
     #[ allow( dead_code ) ]
     pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
     /// Texture with equirectangular map
@@ -107,6 +109,9 @@ mod private
     /// # Returns
     ///
     /// A new `FramebufferContext` instance.
+    // 113 lines : one linear GL create/bind/attach sequence over every framebuffer,
+    // renderbuffer, and texture; splitting would scatter paired setup steps.
+    #[ allow( clippy::too_many_lines ) ]
     pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32, samples : i32 ) -> Self
     {
       // Create the core framebuffer objects.
@@ -390,6 +395,9 @@ mod private
     /// # Arguments
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
+    // `&self` kept : the commented-out detach calls in the body are the intended full
+    // implementation and need the framebuffer handles from `self`.
+    #[ allow( clippy::unused_self ) ]
     pub fn unbind_multisample( &self, gl : &gl::WebGl2RenderingContext )
     {
       // gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
@@ -408,6 +416,9 @@ mod private
     /// # Arguments
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
+    // `&self` kept : the commented-out detach calls in the body are the intended full
+    // implementation and need the framebuffer handles from `self`.
+    #[ allow( clippy::unused_self ) ]
     pub fn unbind_resolved( &self, gl : &gl::WebGl2RenderingContext )
     {
       //  gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
@@ -436,6 +447,13 @@ mod private
   }
 
 
+  /// A transparent-pass draw-queue entry :
+  /// ( node, primitive, primitive index, program UUID ).
+  type TransparentNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid );
+  /// An opaque-pass draw-queue entry :
+  /// ( node, primitive, primitive index, program UUID, has emission ).
+  type OpaqueNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid, bool );
+
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
   pub struct Renderer
   {
@@ -447,9 +465,9 @@ mod private
     /// Material UUID → program UUID
     material_program_map : FxHashMap< uuid::Uuid, uuid::Uuid >,
     /// (node, primitive, primitive_index, program_uuid)
-    transparent_nodes : Vec< ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid ) >,
+    transparent_nodes : Vec< TransparentNodeEntry >,
     /// (node, primitive, primitive_index, program_uuid, has_emission)
-    opaque_nodes : Vec< ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid, bool ) >,
+    opaque_nodes : Vec< OpaqueNodeEntry >,
 
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
@@ -485,7 +503,7 @@ mod private
       let mut blend_effect = BlendPass::new( gl )?;
       blend_effect.dst_factor = gl::ONE;
       blend_effect.src_factor = gl::ONE;
-      blend_effect.blend_texture = framebuffer_ctx.main_texture.clone();
+      blend_effect.blend_texture.clone_from( &framebuffer_ctx.main_texture );
       let exposure = 0.0;
 
       let composite_program = gl::ProgramFromSources::new( VS_TRIANGLE, include_str!( "shaders/composite.frag" ) ).compile_and_link( gl )?;
@@ -581,6 +599,7 @@ mod private
     }
 
     /// Returns the current exposure value.
+    #[ must_use ]
     pub fn exposure( &self ) -> f32
     {
       self.exposure
@@ -613,7 +632,7 @@ mod private
     /// Gets the radius of the bloom effect.
     pub fn bloom_radius( &self ) -> f32
     {
-      self.bloom_effect.as_ref().map_or( 0.5, | b | b.bloom_radius() )
+      self.bloom_effect.as_ref().map_or( 0.5, crate::webgl::post_processing::UnrealBloomPass::bloom_radius )
     }
 
     /// Sets the strength (intensity) of the bloom effect.
@@ -631,10 +650,11 @@ mod private
     /// Gets the strength (intensity) of the bloom effect.
     pub fn bloom_strength( &self ) -> f32
     {
-      self.bloom_effect.as_ref().map_or( 1.5, | b | b.bloom_strength() )
+      self.bloom_effect.as_ref().map_or( 1.5, crate::webgl::post_processing::UnrealBloomPass::bloom_strength )
     }
 
     /// Retrieves a clone of the main color texture from the internal framebuffer context.
+    #[ must_use ]
     pub fn main_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.framebuffer_ctx.main_texture.clone()
@@ -678,6 +698,9 @@ mod private
     /// * `gl`: The `WebGl2RenderingContext` to use for rendering.
     /// * `scene`: A mutable reference to the `Scene` to be rendered.
     /// * `camera`: A reference to the `Camera` defining the viewpoint.
+    // 140 lines : the full frame sequence ( collect, sort, opaque, transparent,
+    // composite ) shares pass-ordering state that splitting would obscure.
+    #[ allow( clippy::too_many_lines ) ]
     pub fn render
     (
       &mut self,
@@ -705,7 +728,7 @@ mod private
         if let Object3D::Light( light ) = &node.borrow().object
         {
           let type_ : LightType = light.into();
-          lights.entry( type_ ).or_default().push( light.clone() );
+          lights.entry( type_ ).or_default().push( *light );
         }
 
         let Object3D::Mesh( ref mesh ) = node.borrow().object else { return Ok( () ); };
@@ -746,7 +769,7 @@ mod private
             // but intentionally omitted from the vertex shader — IBL is fragment-only.
             let defines = material.defines_str();
             let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
-            let full_defines = format!( "{}{}", defines, ibl_define );
+            let full_defines = format!( "{defines}{ibl_define}" );
             let cache_key = ( ( **material ).type_id(), full_defines.clone() );
 
             let prog_id = if let Some( &existing_id ) = self.shader_source_registry.get( &cache_key )
@@ -883,11 +906,11 @@ mod private
     ) -> Result< (), gl::WebglError >
     {
       let mut active_program_ids : FxHashSet< uuid::Uuid > = FxHashSet::default();
-      for ( _, _, _, pid, _ ) in self.opaque_nodes.iter()
+      for ( _, _, _, pid, _ ) in &self.opaque_nodes
       {
         active_program_ids.insert( *pid );
       }
-      for ( _, _, _, pid ) in self.transparent_nodes.iter()
+      for ( _, _, _, pid ) in &self.transparent_nodes
       {
         active_program_ids.insert( *pid );
       }
@@ -924,7 +947,7 @@ mod private
       let mut current_emission = false;
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
-      for ( node_rc, primitive_rc, prim_idx, program_id, has_em ) in self.opaque_nodes.iter()
+      for ( node_rc, primitive_rc, prim_idx, program_id, has_em ) in &self.opaque_nodes
       {
         let need_emission = self.use_emission && *has_em;
         if need_emission != current_emission
@@ -945,7 +968,7 @@ mod private
         let material = primitive.material.borrow();
         let Some( shader_program ) = self.compiled_programs.get( program_id ) else
         {
-          gl::warn!( "compiled_programs missing {:?} — skipping draw call", program_id );
+          gl::warn!( "compiled_programs missing {program_id:?} — skipping draw call" );
           continue;
         };
 
@@ -1035,14 +1058,14 @@ mod private
 
       let mut current_program_id : Option< uuid::Uuid > = None;
       let mut last_material_id : Option< uuid::Uuid > = None;
-      for ( node_rc, primitive_rc, prim_idx, program_id ) in self.transparent_nodes.iter()
+      for ( node_rc, primitive_rc, prim_idx, program_id ) in &self.transparent_nodes
       {
         let node_ref = node_rc.borrow();
         let primitive = primitive_rc.borrow();
         let material = primitive.material.borrow();
         let Some( shader_program ) = self.compiled_programs.get( program_id ) else
         {
-          gl::warn!( "compiled_programs missing {:?} — skipping draw call", program_id );
+          gl::warn!( "compiled_programs missing {program_id:?} — skipping draw call" );
           continue;
         };
 
@@ -1325,7 +1348,7 @@ mod private
             let _ = gl::uniform::upload( gl, inner_angle_loc, &light.inner_cone_angle );
             let _ = gl::uniform::upload( gl, outer_angle_loc, &light.outer_cone_angle );
 
-            let use_lightmap_int = light.use_light_map as i32;
+            let use_lightmap_int = i32::from(light.use_light_map);
             let _ = gl::uniform::upload( gl, use_lightmap_loc, &use_lightmap_int );
           }
         }

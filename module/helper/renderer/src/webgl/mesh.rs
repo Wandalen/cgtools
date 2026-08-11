@@ -47,6 +47,7 @@ mod private
   impl Mesh
   {
     /// Creates a new, empty `Mesh`.
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
@@ -61,11 +62,12 @@ mod private
     }
 
     /// Calculates and returns the combined bounding box for all primitives in the scene.
+    #[ must_use ]
     pub fn bounding_box( &self ) -> BoundingBox
     {
       let mut bbox = BoundingBox::default();
 
-      for primitive in self.primitives.iter()
+      for primitive in &self.primitives
       {
         bbox.combine_mut( &primitive.borrow().bounding_box() );
       }

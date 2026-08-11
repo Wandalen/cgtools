@@ -1,0 +1,25 @@
+[package]
+name = "frame_graph"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+rust-version = "1.81.0"
+repository = "https://github.com/Wandalen/cgtools"
+description = "Frame orchestration: pass scheduling and render-target management (reserved)"
+readme = "readme.md"
+keywords = ["rendering", "frame-graph", "wasm", "cg"]
+
+[lints]
+workspace = true
+
+[features]
+enabled = [
+  "dep:mod_interface",
+]
+default = [ "enabled" ]
+full = [ "default" ]
+
+[dependencies]
+
+mod_interface = { workspace = true, optional = true }

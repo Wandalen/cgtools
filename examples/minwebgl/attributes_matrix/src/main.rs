@@ -1,4 +1,9 @@
-//! Just draw a large point in the middle of the screen.
+//! Draws 6 static triangles via `draw_arrays_instanced`, each of the 3
+//! instances offset by a distinct translation matrix supplied as a
+//! per-instance vertex attribute (divisor 1), then further animated every
+//! frame by a shared rotation uploaded through a `TransformBlock` UBO —
+//! showing attribute-driven and uniform-driven transforms composed in the
+//! same draw call.
 
 use minwebgl as gl;
 use gl::{ GL, math::nd, math::nd::array, DebugLog };
@@ -7,8 +12,6 @@ use std::
   cell::RefCell,
   rc::Rc,
 };
-
-// qqq : make usecase more and picture more impressive changing code minimally
 
 fn run() -> Result< (), gl::WebglError >
 {

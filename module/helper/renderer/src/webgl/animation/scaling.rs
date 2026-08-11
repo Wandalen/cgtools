@@ -57,7 +57,7 @@ mod private
     let angle = 2.0 * w.acos();
     let sin_half = ( 1.0 - w * w ).sqrt();
 
-    let axis = if sin_half.abs() > std::f32::EPSILON as f64
+    let axis = if sin_half.abs() > f64::from(f32::EPSILON)
     {
       F64x3::new
       (
@@ -77,6 +77,7 @@ mod private
   impl Scaler
   {
     /// Create new [`Scaler`]
+    #[ must_use ]
     pub fn new( animation : Sequencer ) -> Self
     {
       Self
@@ -99,12 +100,13 @@ mod private
     }
 
     /// Remove scaled nodes group
-    pub fn remove( &mut self, group_name : Box< str > )
+    pub fn remove( &mut self, group_name : &str )
     {
-      self.scaled_nodes.remove( &group_name );
+      self.scaled_nodes.remove( group_name );
     }
 
     /// Get reference to group nodes
+    #[ must_use ]
     pub fn group_get( &self, group : &str ) -> Option< Vec< Box< str > > >
     {
       self.scaled_nodes.get( group ).map( | ( n, _ ) | n ).cloned()
@@ -117,6 +119,7 @@ mod private
     }
 
     /// Get reference to group scale
+    #[ must_use ]
     pub fn scale_get( &self, group : &str ) -> Option< &F64x4 >
     {
       self.scaled_nodes.get( group ).map( | ( _, s ) | s )
@@ -144,14 +147,14 @@ mod private
     fn apply_scaled_rotation
     (
       &self,
-      node : Rc< RefCell< Node > >,
+      node : &Rc< RefCell< Node > >,
       name : &str,
       scale : f64
     )
     {
       let Some( rotation ) = self.animation.get::< Sequence< Tween< QuatF64 > > >
       (
-        &format!( "{}{}", name, ROTATION_PREFIX )
+        &format!( "{name}{ROTATION_PREFIX}" )
       )
       else
       {
@@ -201,13 +204,13 @@ mod private
     fn apply_unscaled_transforms
     (
       &self,
-      node : Rc< RefCell< Node > >,
+      node : &Rc< RefCell< Node > >,
       name : &str
     )
     {
       if let Some( translation ) = self.animation.get::< Sequence< Tween< F64x3 > > >
       (
-        &format!( "{}{}", name, TRANSLATION_PREFIX )
+        &format!( "{name}{TRANSLATION_PREFIX}" )
       )
       {
         if let Some( translation ) = translation.current_get()
@@ -219,7 +222,7 @@ mod private
 
       if let Some( rotation ) = self.animation.get::< Sequence< Tween< QuatF64 > > >
       (
-        &format!( "{}{}", name, ROTATION_PREFIX )
+        &format!( "{name}{ROTATION_PREFIX}" )
       )
       {
         if let Some( rotation ) = rotation.current_get()
@@ -231,7 +234,7 @@ mod private
 
       if let Some( scale ) = self.animation.get::< Sequence< Tween< F64x3 > > >
       (
-        &format!( "{}{}", name, SCALE_PREFIX )
+        &format!( "{name}{SCALE_PREFIX}" )
       )
       {
         if let Some( scale ) = scale.current_get()
@@ -281,7 +284,7 @@ mod private
           };
 
           used_nodes.insert( name.clone() );
-          self.apply_scaled_rotation( node.clone(), name, scales.y() );
+          self.apply_scaled_rotation( node, name, scales.y() );
         }
       }
 
@@ -290,7 +293,7 @@ mod private
       {
         if !used_nodes.contains( name )
         {
-          self.apply_unscaled_transforms( node.clone(), name );
+          self.apply_unscaled_transforms( node, name );
         }
       }
     }

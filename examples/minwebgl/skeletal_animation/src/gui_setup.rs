@@ -1,5 +1,3 @@
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::field_reassign_with_default ) ]
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -10,7 +8,6 @@ use gl::wasm_bindgen::prelude::*;
 use rustc_hash::FxHashMap;
 
 use crate::lil_gui::{ on_change_string, new_gui, add_dropdown, show };
-
 
 #[ derive( Default, Serialize, Deserialize ) ]
 pub struct Settings

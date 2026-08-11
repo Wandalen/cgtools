@@ -204,7 +204,7 @@ mod private
     for tri in &triangles
     {
       let raw_corners = resolve_corners( tri, &ctx.tile_lookup, ctx.spec );
-      let ( canonical, rotation ) = canonicalize( raw_corners );
+      let ( canonical, rotation ) = canonicalize( &raw_corners );
 
       for ( object, layer ) in &layers
       {
@@ -965,7 +965,10 @@ mod private
   /// `emit_neighbor_condition` variant that composes the per-instance
   /// tint into each emitted sprite.
   #[ allow( clippy::too_many_arguments ) ]
-  #[ allow( clippy::similar_names ) ]   // raw_sx / raw_sy are a coordinate pair
+  // `raw_sx` / `raw_sy` denote one (x, y) screen-space pair produced together by
+  // `ctx.camera.project`; splitting the names further apart would obscure that
+  // pairing rather than reduce confusion.
+  #[ allow( clippy::similar_names ) ]
   fn emit_neighbor_condition_with_overrides
   (
     object : &Object,

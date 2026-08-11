@@ -11,6 +11,11 @@ mod private
   use crate::format::pec;
 
   /// RGB color
+  // Fixed-shape 3-component RGB triple with no invariant between fields — direct
+  // struct-literal construction is the deliberate public contract, pinned by
+  // `tests/pes_test.rs` and documented in `readme.md`, so `#[non_exhaustive]`
+  // would break that contract (same precedent as `browser_log::panic::Config`).
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Default, Clone, Copy, PartialEq, Eq, Hash ) ]
   pub struct Color
   {
@@ -24,6 +29,11 @@ mod private
 
   /// General Thread structure for storing information about threads
   /// used in embroidery file. Not all fields may be used. Depends on a format
+  // Plain data record with no invariant between fields — direct struct-literal
+  // construction (including `..Default::default()`) is the deliberate public
+  // contract, pinned by `tests/pes_test.rs` and documented in `readme.md`, so
+  // `#[non_exhaustive]` would break that contract (same precedent as `Color` above).
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Default, Clone, PartialEq, Eq, Hash ) ]
   pub struct Thread
   {
@@ -46,6 +56,10 @@ mod private
   /// Takes unique colors from `threadlist` and maps them by finding closest colors from `palette` for each unique color.
   /// # Returns
   /// Indices into `palette` for every color in `threadlist`
+  /// # Panics
+  /// Panics if `palette` is empty, since `chart` is then empty too and every
+  /// lookup in `threadlist` has no candidate index to resolve to.
+  #[ inline ]
   pub fn build_unique_palette( palette : &[ Thread ], threadlist : &[ Thread ] ) -> Vec< usize >
   {
     let mut chart = vec![ None; palette.len() ];
@@ -78,6 +92,8 @@ mod private
   /// # Returns
   /// `None` if palette consists only of `None` values,
   /// otherwise returns index of closest color
+  #[ must_use ]
+  #[ inline ]
   pub fn find_nearest_color( color : &Color, palette : &[ Option< &Thread > ] ) -> Option< usize >
   {
     let mut closest_index = None;
@@ -100,15 +116,17 @@ mod private
   }
 
   /// Calculates distance between colors
+  #[ must_use ]
+  #[ inline ]
   pub fn color_distance_red_mean( color1 : &Color, color2 : &Color ) -> i32
   {
     // See the very good color distance paper:
     // https://www.compuphase.com/cmetric.htm
 
-    let red_mean = ( color1.r as i32 + color2.r as i32 ) / 2;
-    let r = color1.r as i32 - color2.r as i32;
-    let g = color1.g as i32 - color2.g as i32;
-    let b = color1.b as i32 - color2.b as i32;
+    let red_mean = ( i32::from( color1.r ) + i32::from( color2.r ) ) / 2;
+    let r = i32::from( color1.r ) - i32::from( color2.r );
+    let g = i32::from( color1.g ) - i32::from( color2.g );
+    let b = i32::from( color1.b ) - i32::from( color2.b );
 
     ( ( ( 512 + red_mean ) * r * r ) >> 8 )
     + 4 * g * g
@@ -116,6 +134,12 @@ mod private
   }
 
   /// Retrieves a random thread from PEC pallete
+  /// # Panics
+  /// Never panics in practice: the PEC thread palette is a fixed 65-entry
+  /// array, so the `1..` slice is always non-empty and `choose` always
+  /// yields `Some`.
+  #[ must_use ]
+  #[ inline ]
   pub fn get_random_thread() -> Thread
   {
     #[ cfg( feature = "random" ) ]

@@ -2,22 +2,23 @@
 //! capturing mouse, keyboard, and wheel events. It maintains an internal state
 //! and an event queue for structured input processing in an application loop.
 
-use minwebgl as min;
-use min::{ JsCast as _, I32x2, F64x3 };
+use ndarray_cg::{ I32x2, F64x3 };
 use web_sys::
 {
-  wasm_bindgen::prelude::Closure,
+  wasm_bindgen::{ JsCast as _, prelude::Closure },
   EventTarget,
   KeyboardEvent,
   PointerEvent,
   WheelEvent,
 };
-use std::{ cell::{ Cell, Ref, RefCell }, rc::Rc, fmt };
+use std::cell::{ Cell, Ref, RefCell };
+use alloc::{ rc::Rc, fmt };
 use strum::EnumCount as _;
 use crate::keyboard::KeyboardKey;
 use crate::mouse::MouseButton;
 
 /// Error type for browser input initialization failures.
+#[ non_exhaustive ]
 #[ derive( Debug ) ]
 pub enum BrowserInputError
 {
@@ -33,6 +34,7 @@ pub enum BrowserInputError
 
 impl fmt::Display for BrowserInputError
 {
+  #[ inline ]
   fn fmt( &self, f : &mut fmt::Formatter< '_ > ) -> fmt::Result
   {
     match self
@@ -40,7 +42,7 @@ impl fmt::Display for BrowserInputError
       Self::WindowNotAvailable => write!( f, "Browser window object not available" ),
       Self::DocumentNotAvailable => write!( f, "Document object not available" ),
       Self::DocumentCastFailed => write!( f, "Failed to cast document to EventTarget" ),
-      Self::AddEventListenerFailed( event ) => write!( f, "Failed to add event listener for '{}'", event ),
+      Self::AddEventListenerFailed( event ) => write!( f, "Failed to add event listener for '{event}'" ),
     }
   }
 }
@@ -52,6 +54,7 @@ impl std::error::Error for BrowserInputError {}
 const MAX_ACTIVE_POINTERS : usize = 32;
 
 /// Represents the state of a button or key press.
+#[ non_exhaustive ]
 #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
 pub enum Action
 {
@@ -87,6 +90,7 @@ impl PointerType
 {
   /// Convert from the DOM `PointerEvent.pointerType` string.
   #[ inline ]
+  #[ must_use ]
   pub fn from_dom_str( s : &str ) -> Self
   {
     match s
@@ -121,6 +125,7 @@ pub enum EventType
 }
 
 /// Represents a single, complete input event, including its type and any active modifier keys.
+#[ non_exhaustive ]
 #[ derive( Debug, Clone, Copy, PartialEq ) ]
 pub struct Event
 {
@@ -134,7 +139,19 @@ pub struct Event
   pub shift : bool,
 }
 
+impl Event
+{
+  /// Creates a new `Event` from its type and the modifier keys held during it.
+  #[ inline ]
+  #[ must_use ]
+  pub fn new( event_type : EventType, alt : bool, ctrl : bool, shift : bool ) -> Self
+  {
+    Self { event_type, alt, ctrl, shift }
+  }
+}
+
 /// Internal struct to hold the current state of all tracked inputs.
+#[ non_exhaustive ]
 #[ derive( Debug ) ]
 pub struct State
 {
@@ -155,32 +172,64 @@ pub struct State
 impl State
 {
   /// Creates a new `State` with all inputs in their default unpressed/zero state.
+  #[ inline ]
+  #[ must_use ]
   pub fn new() -> Self
   {
     Self
     {
       keyboard_keys : [ false; KeyboardKey::COUNT ],
       mouse_buttons : [ false; MouseButton::COUNT ],
-      pointer_position : Default::default(),
-      scroll : Default::default(),
+      pointer_position : I32x2::default(),
+      scroll : F64x3::default(),
       active_pointers : Vec::new(),
     }
   }
 }
 
+impl Default for State
+{
+  #[ inline ]
+  fn default() -> Self
+  {
+    Self::new()
+  }
+}
+
 /// A function to get pointer coordinates relative to the client area (the viewport).
+// Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
+#[ allow( clippy::cast_possible_truncation ) ]
+// Fix(BUG-053): `PointerEvent` derefs to `MouseEvent`, whose `client_x`/`client_y` return `i32`
+// or `f64` depending on `web_sys_unstable_apis` (see minwebgl/src/texture/d2.rs); `as i32` is a
+// real truncating cast in the `f64` case and a same-type identity cast clippy calls
+// "unnecessary" in the `i32` case — both are the same source line.
+#[ allow( clippy::unnecessary_cast ) ]
 pub static CLIENT : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.client_x() as i32, event.client_y() as i32 ] )
 };
 
 /// A function to get pointer coordinates relative to the entire page, including scrolled-out areas.
+// Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
+#[ allow( clippy::cast_possible_truncation ) ]
+// Fix(BUG-053): `PointerEvent` derefs to `MouseEvent`, whose `page_x`/`page_y` return `i32` or
+// `f64` depending on `web_sys_unstable_apis` (see minwebgl/src/texture/d2.rs); `as i32` is a
+// real truncating cast in the `f64` case and a same-type identity cast clippy calls
+// "unnecessary" in the `i32` case — both are the same source line.
+#[ allow( clippy::unnecessary_cast ) ]
 pub static PAGE : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.page_x() as i32, event.page_y() as i32 ] )
 };
 
 /// A function to get pointer coordinates relative to the user's screen.
+// Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
+#[ allow( clippy::cast_possible_truncation ) ]
+// Fix(BUG-053): `PointerEvent` derefs to `MouseEvent`, whose `screen_x`/`screen_y` return `i32`
+// or `f64` depending on `web_sys_unstable_apis` (see minwebgl/src/texture/d2.rs); `as i32` is a
+// real truncating cast in the `f64` case and a same-type identity cast clippy calls
+// "unnecessary" in the `i32` case — both are the same source line.
+#[ allow( clippy::unnecessary_cast ) ]
 pub static SCREEN : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.screen_x() as i32, event.screen_y() as i32 ] )
@@ -226,6 +275,12 @@ impl Input
   ///
   /// # Errors
   /// Returns `BrowserInputError` if browser APIs are unavailable or event listener registration fails.
+  #[ inline ]
+  // Sets up 5 independent event closures (pointer button/cancel/move, wheel, keyboard) that
+  // share captured state (`event_queue`, `get_coords`, `last_pointer_type`) via `Rc::clone`.
+  // Splitting each closure into its own function would require threading that shared state
+  // through extra parameters for no behavioral change — a real refactor, not a mechanical one.
+  #[ allow( clippy::too_many_lines ) ]
   pub fn new< F >
   (
     pointer_event_target : Option< EventTarget >,
@@ -416,18 +471,24 @@ impl Input
   }
 
   /// Returns an immutable reference to the event queue.
+  #[ inline ]
+  #[ must_use ]
   pub fn event_queue( &self ) -> Ref< '_, Vec< Event > >
   {
     self.event_queue.borrow()
   }
 
   /// Checks if a specific mouse button is currently held down.
+  #[ inline ]
+  #[ must_use ]
   pub fn is_button_down( &self, button : MouseButton ) -> bool
   {
     self.state.mouse_buttons[ button as usize ]
   }
 
   /// Checks if a specific keyboard key is currently held down.
+  #[ inline ]
+  #[ must_use ]
   pub fn is_key_down( &self, key : KeyboardKey ) -> bool
   {
     self.state.keyboard_keys[ key as usize ]
@@ -439,12 +500,16 @@ impl Input
   /// On touch screens with multiple simultaneous contacts this value is non-deterministic —
   /// it reflects whichever finger sent the last `PointerMove` event. For multi-touch
   /// tracking use [`Input::active_pointers`] instead.
+  #[ inline ]
+  #[ must_use ]
   pub fn pointer_position( &self ) -> I32x2
   {
     self.state.pointer_position
   }
 
   /// Returns a reference to the accumulated scroll delta.
+  #[ inline ]
+  #[ must_use ]
   pub fn scroll( &self ) -> &F64x3
   {
     &self.state.scroll
@@ -463,9 +528,12 @@ impl Input
   /// whether any pointer is currently active, use [`Input::active_pointers`].
   ///
   /// # Test coverage
-  /// The string-to-variant mapping is covered by `PointerType::from_dom_str` unit tests.
+  /// The string-to-variant mapping is covered by the `from_dom_str` pins in
+  /// `tests/pointer_type_test.rs`.
   /// End-to-end wiring through DOM callbacks requires a `wasm-bindgen-test` environment
   /// and is not covered on the native target.
+  #[ inline ]
+  #[ must_use ]
   pub fn last_pointer_type( &self ) -> PointerType
   {
     self.last_pointer_type.get()
@@ -476,26 +544,31 @@ impl Input
   /// On desktop this typically contains at most one entry (the mouse while a button is held).
   /// On touch screens it contains one entry per finger currently in contact with the screen.
   /// Use this to implement multi-touch gestures such as pinch-to-zoom or two-finger pan.
+  #[ inline ]
+  #[ must_use ]
   pub fn active_pointers( &self ) -> &[ ( i32, I32x2 ) ]
   {
     &self.state.active_pointers
   }
 
   /// Processes all pending events in the queue and updates the internal input state.
+  #[ inline ]
   pub fn update_state( &mut self )
   {
     apply_events_to_state( &mut self.state, &self.event_queue.borrow() );
   }
 
   /// Clears all events from the event queue.
+  #[ inline ]
   pub fn clear_events( &mut self )
   {
     self.event_queue.borrow_mut().clear();
-    self.state.scroll = Default::default();
+    self.state.scroll = F64x3::default();
   }
 }
 
 /// Applies a slice of events to the given state, updating it accordingly.
+#[ inline ]
 pub fn apply_events_to_state( state : &mut State, events : &[ Event ] )
 {
   for Event { event_type, .. } in events
@@ -504,7 +577,7 @@ pub fn apply_events_to_state( state : &mut State, events : &[ Event ] )
     {
       EventType::KeyboardKey( keyboard_key, action ) =>
       {
-        state.keyboard_keys[ *keyboard_key as usize ] = *action == Action::Press
+        state.keyboard_keys[ *keyboard_key as usize ] = *action == Action::Press;
       }
       EventType::PointerButton( pointer_id, pos, mouse_button, action ) =>
       {
@@ -514,11 +587,9 @@ pub fn apply_events_to_state( state : &mut State, events : &[ Event ] )
           Action::Press =>
           {
             if !state.active_pointers.iter().any( | ( id, _ ) | *id == *pointer_id )
+              && state.active_pointers.len() < MAX_ACTIVE_POINTERS
             {
-              if state.active_pointers.len() < MAX_ACTIVE_POINTERS
-              {
-                state.active_pointers.push( ( *pointer_id, *pos ) );
-              }
+              state.active_pointers.push( ( *pointer_id, *pos ) );
             }
           }
           Action::Release =>
@@ -551,6 +622,7 @@ pub fn apply_events_to_state( state : &mut State, events : &[ Event ] )
 impl Drop for Input
 {
   /// Cleans up by removing all attached event listeners from the DOM when the `Input` handler is dropped.
+  #[ inline ]
   fn drop( &mut self )
   {
     let Some( window ) = web_sys::window() else { return };
@@ -593,47 +665,5 @@ impl Drop for Input
       "wheel",
       self.wheel_closure.as_ref().unchecked_ref()
     );
-  }
-}
-
-#[ cfg( test ) ]
-mod tests
-{
-  use super::PointerType;
-
-  #[ test ]
-  fn from_dom_str_mouse()
-  {
-    assert_eq!( PointerType::from_dom_str( "mouse" ), PointerType::Mouse );
-  }
-
-  #[ test ]
-  fn from_dom_str_touch()
-  {
-    assert_eq!( PointerType::from_dom_str( "touch" ), PointerType::Touch );
-  }
-
-  #[ test ]
-  fn from_dom_str_pen()
-  {
-    assert_eq!( PointerType::from_dom_str( "pen" ), PointerType::Pen );
-  }
-
-  #[ test ]
-  fn from_dom_str_empty_string_is_unknown()
-  {
-    assert_eq!( PointerType::from_dom_str( "" ), PointerType::Unknown );
-  }
-
-  #[ test ]
-  fn from_dom_str_unrecognised_is_unknown()
-  {
-    assert_eq!( PointerType::from_dom_str( "stylus" ), PointerType::Unknown );
-  }
-
-  #[ test ]
-  fn default_is_unknown()
-  {
-    assert_eq!( PointerType::default(), PointerType::Unknown );
   }
 }

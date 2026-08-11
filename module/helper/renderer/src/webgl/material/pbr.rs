@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::webgl::{ Object3D, material::* };
+  use crate::webgl::{ Object3D, material::{Material, TextureInfo, AlphaMode, CullMode} };
   use minwebgl as gl;
   use gl::{ GL, WebGlProgram };
   use mingl::Former;
@@ -8,11 +8,12 @@ mod private
   use crate::webgl::{ MaterialUploadContext, program::{ ShaderProgram, ProgramInfo } };
   use crate::webgl::program::impl_locations;
   use std::cell::Cell;
+  use std::fmt::Write as _;
 
   /// The source code for the main vertex shader.
-  const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
+  const MAIN_VERTEX_SHADER : &str = include_str!( "../shaders/main.vert" );
   /// The source code for the main fragment shader.
-  const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/main.frag" );
+  const MAIN_FRAGMENT_SHADER : &str = include_str!( "../shaders/main.frag" );
 
   /// Max point light sources count
   pub const MAX_POINT_LIGHTS : usize = 8;
@@ -159,31 +160,32 @@ mod private
   impl PbrMaterial
   {
     /// Creates new [`PbrMaterial`] with predefined optimal parameters
+    #[ must_use ]
     pub fn new( _ : &GL ) -> Self
     {
       let id = uuid::Uuid::new_v4();
       let base_color_factor = gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] );
 
-      let base_color_texture = Default::default();
+      let base_color_texture = None;
       let metallic_factor = 1.0;
       let roughness_factor = 1.0;
-      let metallic_roughness_texture = Default::default();
+      let metallic_roughness_texture = None;
 
       let normal_scale = 1.0;
-      let normal_texture = Default::default();
+      let normal_texture = None;
 
       let occlusion_strength = 1.0;
-      let occlusion_texture = Default::default();
+      let occlusion_texture = None;
 
-      let emissive_texture = Default::default();
+      let emissive_texture = None;
       let emissive_factor = gl::F32x3::from( [ 0.0, 0.0, 0.0 ] );
 
-      let specular_factor = Default::default();
-      let specular_texture = Default::default();
-      let specular_color_factor = Default::default();
-      let specular_color_texture = Default::default();
+      let specular_factor = None;
+      let specular_texture = None;
+      let specular_color_factor = None;
+      let specular_color_texture = None;
 
-      let light_map = Default::default();
+      let light_map = None;
 
       let alpha_mode = AlphaMode::default();
       let alpha_cutoff = 0.5;
@@ -417,7 +419,7 @@ mod private
       vertex_entries.sort_by_key( |( k, _ )| *k );
       for ( name, value ) in vertex_entries
       {
-        vertex_defines.push_str( &format!( "#define {} {}\n", name, value ) );
+        let _ = writeln!( vertex_defines, "#define {name} {value}" );
       }
 
       let mut fragment_defines = local_defines;
@@ -425,7 +427,7 @@ mod private
       fragment_entries.sort_by_key( |( k, _ )| *k );
       for ( name, value ) in fragment_entries
       {
-        fragment_defines.push_str( &format!( "#define {} {}\n", name, value ) );
+        let _ = writeln!( fragment_defines, "#define {name} {value}" );
       }
 
       // Combined = vertex + fragment defines
@@ -494,8 +496,9 @@ mod private
 
       let add_texture = | defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > |
       {
-        defines.push_str( &format!( "#define {}\n", name ) );
-        defines.push_str( &format!( "#define {} vUv_{}\n", uv_name, info.unwrap().uv_position ) );
+        let _ = writeln!( defines, "#define {name}" );
+        let uv_position = info.unwrap().uv_position;
+        let _ = writeln!( defines, "#define {uv_name} vUv_{uv_position}" );
       };
 
       // Base color texture related

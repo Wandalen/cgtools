@@ -65,11 +65,14 @@ fn test_scaler_remove_group()
   scaler.add( "group1", vec![ "node1".into() ], F64x4::splat( 0.5 ) );
   assert!( scaler.group_get( "group1" ).is_some(), "Group should exist" );
 
-  scaler.remove( "group1".into() );
+  scaler.remove( "group1" );
   assert!( scaler.group_get( "group1" ).is_none(), "Group should be removed" );
 }
 
 #[ test ]
+// Compared values are read back unmodified through a getter right after being written via
+// the exact same literal (no arithmetic in between), so strict float equality is safe.
+#[ allow( clippy::float_cmp ) ]
 fn test_scaler_scale_get_mut()
 {
   let sequencer = Sequencer::new();
@@ -103,6 +106,9 @@ fn test_scaler_clear()
 }
 
 #[ test ]
+// Compared values are read back unmodified through a getter right after being written via
+// the exact same literal (no arithmetic in between), so strict float equality is safe.
+#[ allow( clippy::float_cmp ) ]
 fn test_grouped_nodes_independence()
 {
   let mut sequencer = Sequencer::new();
@@ -111,12 +117,12 @@ fn test_grouped_nodes_independence()
   let rot1_start = QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] );
   let rot1_end = QuatF64::from_axis_angle( F64x3::new( 0.0, 0.0, 1.0 ), PI / 2.0 );
   let seq1 = create_rotation_sequence( rot1_start, rot1_end, 1.0 );
-  sequencer.insert( format!( "node1{}", ROTATION_PREFIX ).as_str(), seq1 );
+  sequencer.insert( format!( "node1{ROTATION_PREFIX}" ).as_str(), seq1 );
 
   let rot2_start = QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] );
   let rot2_end = QuatF64::from_axis_angle( F64x3::new( 1.0, 0.0, 0.0 ), PI );
   let seq2 = create_rotation_sequence( rot2_start, rot2_end, 1.0 );
-  sequencer.insert( format!( "node2{}", ROTATION_PREFIX ).as_str(), seq2 );
+  sequencer.insert( format!( "node2{ROTATION_PREFIX}" ).as_str(), seq2 );
 
   let mut scaler = Scaler::new( sequencer );
 
@@ -141,7 +147,7 @@ fn test_animatable_composition_update()
   let start = F64x3::new( 0.0, 0.0, 0.0 );
   let end = F64x3::new( 1.0, 1.0, 1.0 );
   let seq = create_translation_sequence( start, end, 1.0 );
-  sequencer.insert( format!( "node1{}", TRANSLATION_PREFIX ).as_str(), seq );
+  sequencer.insert( format!( "node1{TRANSLATION_PREFIX}" ).as_str(), seq );
 
   let mut scaler = Scaler::new( sequencer );
 
@@ -150,6 +156,9 @@ fn test_animatable_composition_update()
 }
 
 #[ test ]
+// Compared values are read back unmodified through a getter right after being written via
+// the exact same literal (no arithmetic in between), so strict float equality is safe.
+#[ allow( clippy::float_cmp ) ]
 fn test_scaler_weights_structure()
 {
   let sequencer = Sequencer::new();

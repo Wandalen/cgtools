@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate::{vector, Vector, MatEl, MatNum, NdFloat};
   use vector::{ cross };
 
   impl< E > Vector< E, 3 >
@@ -56,6 +56,8 @@ mod private
     /// Calculates cross product with another vector. Requires a signed scalar
     /// because each component computes `a*b - c*d`, which can be negative;
     /// the result is undefined (panic or wrap) for unsigned element types.
+    #[ must_use ]
+    #[ inline ]
     pub fn cross( self, rhs : Self ) -> Self
     {
       cross( &self, &rhs )
@@ -68,6 +70,7 @@ mod private
   {
 
     /// Converts spherical coords to decart
+    #[ inline ]
     pub fn from_spherical( radius : E, theta : E, phi : E ) -> Self
     {
       let phi = phi.to_radians();
@@ -85,6 +88,7 @@ mod private
     }
 
     /// Converts decart coords to spherical and returns ( radius, theta, phi )
+    #[ inline ]
     pub fn to_spherical( self ) -> ( E, E, E )
     {
       let radius = self.mag();

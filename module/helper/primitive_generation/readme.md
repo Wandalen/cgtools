@@ -8,13 +8,11 @@
 
 ## Features
 
-- **3D Primitives**: Generate spheres, cubes, cylinders, and other basic shapes
-- **Text Rendering**: Convert text to 3D geometry with font support
-- **Procedural Generation**: Create complex shapes algorithmically
-- **CSG Operations**: Constructive Solid Geometry for shape combinations
-- **Font Processing**: Advanced typography and text layout capabilities
-- **glTF Import**: Load and process 3D models from glTF files
-- **WebAssembly Ready**: Optimized for browser environments
+- **Primitive Data Model**: `PrimitiveData`/`AttributesData`/`Transform` plus `primitives_data_to_gltf` to assemble primitives into a renderable `renderer` GLTF scene
+- **Curve Meshing**: `curve_to_geometry` turns a 2D polyline into a triangulated ribbon of given width; `plane_to_geometry` for full-screen quads
+- **Path Flattening** (`text`): `path_to_points` flattens a `kurbo` path (curves included) into a point sequence
+- **Text Rendering** (`font-processing`): load UFO fonts and convert strings to triangulated 3D meshes — `load_fonts`, `text_to_mesh`, `text_to_countour_mesh`, `contours_to_fill_geometry`
+- **WebAssembly Ready**: font loading fetches over the network; used by the `text_rendering`, `curve_surface_rendering`, and `animation_surface_rendering` examples
 
 ## Installation
 
@@ -32,15 +30,14 @@ For full functionality, enable all features:
 primitive_generation = { version = "0.1.0", features = ["full"] }
 ```
 
-## Features
+## Feature Flags
 
-- `enabled` (default): Core geometry generation functionality
-- `full`: All features enabled
-- `csg`: Constructive Solid Geometry operations
-- `text`: Text rendering and font processing
-- `font-processing`: Advanced font processing features
-- `gltf-import`: glTF model loading support
-- `random`: Random geometry generation
+- `enabled` (default): primitive data model, curve meshing, GLTF assembly
+- `text`: `kurbo` path flattening (`path_to_points`)
+- `font-processing`: UFO font loading and text-to-mesh (implies `text`; adds `earcutr`, `norad`, `quick-xml`)
+- `full`: everything above
+
+Verify what a flag actually exports: `cargo doc -p primitive_generation --features font-processing --open`, or `cargo check -p primitive_generation --no-default-features --features text` to see the surface shrink.
 
 ## Usage
 
@@ -59,25 +56,40 @@ let attributes = AttributesData {
 };
 
 let primitive = PrimitiveData {
-  attributes: Rc::new(RefCell::new(attributes)),
+  name: None,
+  parent: None,
+  attributes: Some(Rc::new(RefCell::new(attributes))),
   color: F32x4::from_array([1.0, 0.0, 0.0, 1.0]),
   transform: Transform::default(),
 };
 ```
 
+### Curve to Ribbon Mesh
+
+```rust,no_run
+use primitive_generation::curve_to_geometry;
+
+// A 2D polyline becomes a triangulated ribbon 0.1 units wide.
+let ribbon = curve_to_geometry( &[ [ 0.0, 0.0 ], [ 1.0, 0.5 ], [ 2.0, 0.0 ] ], 0.1 );
+assert!( ribbon.is_some() );
+```
+
 ### Text to 3D Geometry
 
-```rust,no_test
-// Text rendering functionality is planned but not yet implemented
-// This feature will be available in future versions
+Requires the `font-processing` feature; fonts load from `static/fonts/ufo/<name>.ufo`.
+
+```rust,no_run
+use primitive_generation::{ text, Transform };
+
+async fn text_to_meshes() -> usize
+{
+  let fonts = text::ufo::load_fonts( &[ "main_font" ] ).await;
+  text::ufo::text_to_mesh( "hello", &fonts[ "main_font" ], &Transform::default() ).len()
+}
+# fn main() { let _ = text_to_meshes; }
 ```
 
-### CSG Operations
-
-```rust,no_test
-// CSG operations are planned but not yet implemented
-// This feature will be available in future versions
-```
+See `examples/minwebgl/text_rendering` for the full pipeline rendered in a browser.
 
 ## Platform Support
 
@@ -92,10 +104,10 @@ This crate supports multiple platforms:
 
 - `minwebgl`: WebGL context management
 - `mingl`: 3D mathematics utilities
-- `renderer`: Core rendering support
-- `gltf`: 3D model loading (optional)
-- `csgrs`: CSG operations (optional)
-- `kurbo`: Vector graphics (optional)
+- `renderer`: GLTF scene types that `primitives_data_to_gltf` assembles into
+- `kurbo`: vector path flattening (`text`)
+- `norad` + `quick-xml`: UFO font parsing (`font-processing`)
+- `earcutr`: polygon triangulation with holes (`font-processing`)
 
 ## License
 

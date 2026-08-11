@@ -22,3 +22,6 @@ features = [
   'WebGlTexture',
   'HtmlImageElement'
 ]
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

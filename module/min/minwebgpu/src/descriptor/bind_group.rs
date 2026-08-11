@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ web_sys, Into, BindingResource, BindGroupEntry, bind_group };
 
   /// Describes the configuration for creating a WebGPU bind group.
   #[ derive( Clone ) ]
@@ -24,6 +24,8 @@ mod private
   impl< 'a > BindGroupDescriptor< 'a >
   {
     /// Creates a new `BindGroupDescriptor` for a given bind group layout.
+    #[ inline ]
+    #[ must_use ]
     pub fn new( layout : &'a web_sys::GpuBindGroupLayout ) -> Self
     {
       let entries = Vec::new();
@@ -39,6 +41,8 @@ mod private
     }
 
     /// Sets the `auto_bindings` property to `true`.
+    #[ inline ]
+    #[ must_use ]
     pub fn auto_bindings( mut self ) -> Self
     {
       self.auto_bindings = true;
@@ -46,6 +50,8 @@ mod private
     }
 
     /// Sets an optional label for the bind group.
+    #[ inline ]
+    #[ must_use ]
     pub fn label( mut self, label : &'a str ) -> Self
     {
       self.label = Some( label );
@@ -53,6 +59,8 @@ mod private
     }
 
     /// Adds a `web_sys::GpuBindGroupEntry` to the descriptor.
+    #[ inline ]
+    #[ must_use ]
     pub fn entry( mut self, entry : impl Into< web_sys::GpuBindGroupEntry > ) -> Self
     {
       self.entries.push( entry.into() );
@@ -60,6 +68,8 @@ mod private
     }
 
     /// Creates a `GpuBindGroupEntry` from a resource and adds it to the descriptor.
+    #[ inline ]
+    #[ must_use ]
     pub fn entry_from_resource< T : BindingResource >( self, resource : &T ) -> Self
     {
       let entry = BindGroupEntry::new( resource );
@@ -67,6 +77,8 @@ mod private
     }
 
     /// Creates a `web_sys::GpuBindGroup` from this descriptor.
+    #[ inline ]
+    #[ must_use ]
     pub fn create( self, device : &web_sys::GpuDevice ) -> web_sys::GpuBindGroup
     {
       bind_group::create( device, &self.into() )
@@ -75,18 +87,17 @@ mod private
 
   impl From< BindGroupDescriptor< '_ > > for web_sys::GpuBindGroupDescriptor 
   {
+    #[ inline ]
     fn from( mut value: BindGroupDescriptor< '_ > ) -> Self {
       if value.auto_bindings
       {
-        let mut binding = 0;
-        for e in value.entries.iter_mut()
+        for ( binding, e ) in value.entries.iter_mut().enumerate()
         {
-          e.set_binding( binding );
-          binding += 1;
+          e.set_binding( u32::try_from( binding ).unwrap_or( u32::MAX ) );
         }
       }
 
-      let desc = web_sys::GpuBindGroupDescriptor::new( &value.entries.into() , value.layout );
+      let desc = web_sys::GpuBindGroupDescriptor::new( &value.entries, value.layout );
 
       if let Some( v ) = value.label { desc.set_label( v ); }
 

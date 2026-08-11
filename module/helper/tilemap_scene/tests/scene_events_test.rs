@@ -8,13 +8,6 @@
 //! degenerates, `HashCoord` phase-driven divergence between instances at
 //! different grid coordinates, and the `set_state` re-arm rule.
 
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow
-(
-  clippy::default_trait_access,
-  clippy::too_many_lines,
-) ]
-
 extern crate alloc;
 use alloc::sync::Arc;
 use rustc_hash::FxHashMap as HashMap;

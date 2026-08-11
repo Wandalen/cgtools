@@ -1,8 +1,5 @@
 // setup_gui.rs
 
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::field_reassign_with_default ) ]
-
 use std::{ cell::RefCell, rc::Rc };
 use animation::Sequencer;
 use minwebgl as gl;
@@ -72,7 +69,7 @@ pub fn setup
   {
     for part in PART_NAMES
     {
-      scaler.add( part, vec![], gl::F64x4::splat( 1.0 ) )
+      scaler.add( part, vec![], gl::F64x4::splat( 1.0 ) );
     }
   }
 
@@ -131,18 +128,14 @@ pub fn setup
           return;
         };
 
-        scaler_ref.as_mut()
-        .map
-        (
-          | s |
+        if let Some( s ) = scaler_ref.as_mut()
+        {
+          if let Some( scale ) = s.scale_get_mut( part )
           {
-            if let Some( scale ) = s.scale_get_mut( part )
-            {
-              *scale = gl::F64x4::splat( value as f64 );
-            }
-            s.animation.reset();
+            *scale = gl::F64x4::splat( f64::from( value ) );
           }
-        );
+          s.animation.reset();
+        }
       }
     );
 

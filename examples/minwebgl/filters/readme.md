@@ -6,7 +6,7 @@ A comprehensive collection of image filters and post-processing effects implemen
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 ## Features
 

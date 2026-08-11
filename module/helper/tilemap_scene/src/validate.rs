@@ -182,8 +182,7 @@ mod private
     /// today.
     fn validate( &self ) -> Result< (), Vec< ValidationError > >
     {
-      #[ allow( unused_mut ) ]
-      let mut errors : Vec< ValidationError > = Vec::new();
+      let errors : Vec< ValidationError > = Vec::new();
 
       // TODO SPEC §16: exactly one of (tiles) vs (palette + map) is provided.
       // TODO SPEC §16: palette characters map to valid object ids in the linked render spec.

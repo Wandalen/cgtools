@@ -57,43 +57,6 @@ mod private
   }
 }
 
-#[ cfg( test ) ]
-mod tests
-{
-  use super::private::*;
-
-  #[ test ]
-  fn default_centers_origin()
-  {
-    let cam = Camera::default();
-    let ( x, y ) = cam.project( ( 0.0, 0.0 ) );
-    assert!( ( x - 400.0 ).abs() < 1e-3, "expected x ~= 400, got {x}" );
-    assert!( ( y - 300.0 ).abs() < 1e-3, "expected y ~= 300, got {y}" );
-  }
-
-  #[ test ]
-  fn translate_shifts_projection()
-  {
-    let cam = Camera { world_center : ( 100.0, 0.0 ), ..Camera::default() };
-    let ( x, y ) = cam.project( ( 0.0, 0.0 ) );
-    assert!( ( x - 300.0 ).abs() < 1e-3, "translate didn't shift x correctly: {x}" );
-    assert!( ( y - 300.0 ).abs() < 1e-3, "translate changed y unexpectedly: {y}" );
-  }
-
-  #[ test ]
-  fn zoom_scales_distance_from_center()
-  {
-    let cam = Camera { zoom : 2.0, ..Camera::default() };
-    let ( x_zoomed, _ ) = cam.project( ( 50.0, 0.0 ) );
-    let cam_one = Camera::default();
-    let ( x_one, _ ) = cam_one.project( ( 50.0, 0.0 ) );
-    // Distance from viewport centre should be doubled under 2x zoom.
-    let d_zoomed = x_zoomed - 400.0;
-    let d_one    = x_one - 400.0;
-    assert!( ( d_zoomed / d_one - 2.0 ).abs() < 1e-3, "zoom distance ratio: {d_zoomed} / {d_one}" );
-  }
-}
-
 mod_interface::mod_interface!
 {
   exposed use Camera;

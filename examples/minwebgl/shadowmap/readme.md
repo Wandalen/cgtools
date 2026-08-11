@@ -6,7 +6,7 @@ This demo demonstrates real-time shadow mapping implementation with soft shadow 
 
 Shadow mapping is a fundamental technique in real-time 3D graphics for creating realistic shadows. This implementation features a spot light casting soft shadows on a scene with glTF models, combining traditional shadow maps with lightmap baking for enhanced visual quality.
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

@@ -18,3 +18,6 @@ web-sys = { workspace = true, features = [
 tiles_tools = { workspace = true }
 pathfinding = { workspace = true }
 browser_input = { workspace = true }
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

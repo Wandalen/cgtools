@@ -304,6 +304,13 @@ mod private
 }
 
 
+// Documented exception (task 070) to the all-tests-in-tests/ convention: these tests stay
+// inline because they pin builder-state accumulation through `pub( super )` fields
+// (`inner.*`, `array_stride`, `step_mode`, `attributes`) that are internal by design -- the
+// builders expose no getters, and the only public observable (`build`) requires a live
+// `wgpu::Device`, which is environment-dependent (needs an adapter). Publishing getters
+// solely for test placement would widen the API for no caller. Deterministic external
+// coverage of the crate's public error surface lives in `tests/`.
 #[ cfg( test ) ]
 mod tests
 {

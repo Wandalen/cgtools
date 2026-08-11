@@ -1,9 +1,7 @@
 //! This module provides utility functions for interacting with browser-specific features,
 //! such as event handling, that are common in WebAssembly applications.
 
-use minwebgl as gl;
-use gl::JsCast as _;
-use web_sys::{ wasm_bindgen::prelude::Closure, EventTarget };
+use web_sys::{ wasm_bindgen::{ JsCast as _, prelude::Closure }, EventTarget };
 
 /// Disables the default browser context menu on a given event target.
 ///
@@ -12,7 +10,13 @@ use web_sys::{ wasm_bindgen::prelude::Closure, EventTarget };
 ///
 /// # Arguments
 /// * `target`: The `EventTarget` (e.g., an HTML element) on which to prevent the context menu.
-pub fn prevent_rightclick( target : EventTarget )
+///
+/// # Panics
+/// Panics if the browser rejects registering the `contextmenu` listener on `target`
+/// (`add_event_listener_with_callback` returning `Err`) — not expected to happen for a
+/// valid, live `EventTarget`.
+#[ inline ]
+pub fn prevent_rightclick( target : &EventTarget )
 {
   let prevent_default = | e : web_sys::Event | e.prevent_default();
   let prevent_default = Closure::< dyn Fn( _ ) >::new( prevent_default );

@@ -1,7 +1,13 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::error;
+  // The `error::typed::Error` derive resolves to `thiserror::Error` through several
+  // re-export layers (see `error_tools::error::typed`). Its generated `Display` impl
+  // contains its own internal `use thiserror::__private::AsDisplay as _;`, which needs
+  // the bare name `thiserror` resolvable here — `mingl` depends on `error_tools`, not
+  // `thiserror` directly, so it isn't in the extern prelude without this import.
+  use error::thiserror;
   pub use web_sys::
   {
     wasm_bindgen::
@@ -11,6 +17,10 @@ mod private
   };
 
   /// Represents errors related to dom elements handling.
+  // Variants are constructed directly by sibling crates (`minwebgpu::context`,
+  // `minwebgl::context`) across the crate boundary — `#[non_exhaustive]` would
+  // break that construction, so this is a deliberate public contract instead.
+  #[ allow( clippy::exhaustive_enums ) ]
   #[ derive( Debug, error::typed::Error ) ]
   pub enum Error
   {
@@ -47,12 +57,19 @@ mod private
   ///
   /// # When it useful
   /// - Create an video element for the natural and cheapest video upload to the web
+  ///
+  /// # Errors
+  /// Returns an error if the video element cannot be created/cast, or if playback fails to start.
+  ///
+  /// # Panics
+  /// Panics if the global `window`/`document` is unavailable, or if the window's location has no origin.
+  #[ inline ]
   pub fn create_video_element( path : &str, video_width : u32, video_height : u32 ) -> Result< web_sys::HtmlVideoElement, wasm_bindgen::JsValue >
   {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
     let origin = window.location().origin().unwrap();
-    let url = format!( "{}/{}", origin, path );
+    let url = format!( "{origin}/{path}" );
 
     let video_element = document
     .create_element( "video" )?
@@ -82,12 +99,19 @@ mod private
   ///
   /// # When it useful
   /// - Create an image element for the natural and cheapest image upload to the web
+  ///
+  /// # Errors
+  /// Returns an error if the image element cannot be created or cast.
+  ///
+  /// # Panics
+  /// Panics if the global `window`/`document` is unavailable, or if the window's location has no origin.
+  #[ inline ]
   pub fn create_image_element( path : &str ) -> Result< web_sys::HtmlImageElement, wasm_bindgen::JsValue >
   {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
     let origin = window.location().origin().unwrap();
-    let url = format!( "{}/{}", origin, path );
+    let url = format!( "{origin}/{path}" );
 
     let image_element = document
     .create_element( "img" )?

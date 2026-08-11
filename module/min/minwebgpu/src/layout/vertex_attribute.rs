@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ web_sys, GpuVertexFormat };
 
   /// A builder for creating a `web_sys::GpuVertexAttribute`.
   #[ derive( Clone ) ]
@@ -15,9 +15,20 @@ mod private
     format : GpuVertexFormat
   }
 
-  impl VertexAttribute 
+  impl Default for VertexAttribute
+  {
+    #[ inline ]
+    fn default() -> Self
+    {
+      Self::new()
+    }
+  }
+
+  impl VertexAttribute
   {
     /// Creates a new `VertexAttribute` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       let offset = 0.0;
@@ -32,6 +43,8 @@ mod private
     }
 
     /// Sets the location in the shader
+    #[ inline ]
+    #[ must_use ]
     pub fn location( mut self, location : u32 ) -> Self
     {
       self.location = location;
@@ -39,6 +52,8 @@ mod private
     }
 
     /// Sets the format of the attribute
+    #[ inline ]
+    #[ must_use ]
     pub fn format( mut self, format : GpuVertexFormat ) -> Self
     {
       self.format = format;
@@ -46,13 +61,21 @@ mod private
     }
 
     /// Sets the offset from the size of a type
+    #[ inline ]
+    #[ must_use ]
     pub fn offset< T : Sized >( mut self ) -> Self
     {
-      self.offset = std::mem::size_of::< T >() as f64;
+      // `size_of::<T>()` reflects a single Rust type's compile-time byte size, which will
+      // never approach f64's 2^52 exact-integer limit — the precision loss is unreachable.
+      #[ allow( clippy::cast_precision_loss ) ]
+      let offset = std::mem::size_of::< T >() as f64;
+      self.offset = offset;
       self
     }
 
     /// Sets the offset from the provided value
+    #[ inline ]
+    #[ must_use ]
     pub fn offset_from_value( mut self, offset : f64 ) -> Self
     {
       self.offset = offset;
@@ -62,19 +85,23 @@ mod private
 
   impl From< VertexAttribute > for web_sys::GpuVertexAttribute 
   {
+    #[ inline ]
     fn from( value: VertexAttribute ) -> Self {
-      let attribute = web_sys::GpuVertexAttribute::new
+      web_sys::GpuVertexAttribute::new_with_f64
       (
-        value.format, 
-        value.offset, 
+        value.format,
+        value.offset,
         value.location
-      );
-
-      attribute
-    }    
+      )
+    }
   }
 
   /// Calculates the size in bytes of a given `GpuVertexFormat`.
+  ///
+  /// # Panics
+  /// Panics if `format` is not one of the `GpuVertexFormat` variants matched by this function.
+  #[ inline ]
+  #[ must_use ]
   pub fn format_to_size( format : web_sys::GpuVertexFormat ) -> usize
   {
     use web_sys::GpuVertexFormat;

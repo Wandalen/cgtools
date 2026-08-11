@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{RawSlice, Mat, mat, MatEl, ScalarRef, ConstLayout, Indexable, ScalarMut, RawSliceMut, ArrayRef};
 
 impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > RawSlice
 for Mat< ROWS, COLS, E, Descriptor >
@@ -13,7 +13,7 @@ where
     // SAFETY: This is safe because the memory layout of [ [ E ; COLS ] ; ROWS ]
     // is contiguous and can be reinterpreted as a flat slice of E.
     #[ allow( unsafe_code ) ]
-    unsafe { std::slice::from_raw_parts( self.as_ptr() as *const Self::Scalar, ROWS * COLS ) }
+    unsafe { std::slice::from_raw_parts( self.as_ptr(), ROWS * COLS ) }
   }
 
 }
@@ -79,16 +79,42 @@ where
   Self : RawSliceMut< Scalar = E >,
 {
   /// Creates a matrix assuming the input to be in row major order
+  ///
+  /// # Panics
+  ///
+  /// Panics if `scalars`'s length does not equal `ROWS * COLS`.
+  #[ inline ]
   pub fn from_row_major< const N : usize >( scalars: impl ArrayRef< E, N > ) -> Self {
-    debug_assert_eq!( N, ROWS*COLS, "Matrix size should be equal to the size of the input" );
+    // Fix(TASK-014): changed `debug_assert_eq!` to `assert_eq!` so this size check runs
+    // unconditionally instead of only in debug builds.
+    // Root cause: in a release build this check was skipped, letting a mis-sized `scalars`
+    // reach `with_row_major`/`with_column_major` — one of which (whichever the matrix's
+    // descriptor selects) performs unchecked raw pointer arithmetic downstream, so a
+    // mismatch became an out-of-bounds read (undefined behavior) instead of a panic here.
+    // Pitfall: a debug-only size check at a public constructor can be the only thing
+    // standing between caller input and an `unsafe` block several calls downstream.
+    assert_eq!( N, ROWS*COLS, "Matrix size should be equal to the size of the input" );
 
     let result = Self::default();
     result.with_row_major( scalars.array_ref() )
   }
 
   /// Creates a matrix assuming the input to be in column major order
+  ///
+  /// # Panics
+  ///
+  /// Panics if `scalars`'s length does not equal `ROWS * COLS`.
+  #[ inline ]
   pub fn from_column_major< const N : usize >( scalars: impl ArrayRef< E, N > ) -> Self {
-    debug_assert_eq!( N, ROWS*COLS, "Matrix size should be equal to the size of the input" );
+    // Fix(TASK-014): changed `debug_assert_eq!` to `assert_eq!` so this size check runs
+    // unconditionally instead of only in debug builds.
+    // Root cause: in a release build this check was skipped, letting a mis-sized `scalars`
+    // reach `with_row_major`/`with_column_major` — one of which (whichever the matrix's
+    // descriptor selects) performs unchecked raw pointer arithmetic downstream, so a
+    // mismatch became an out-of-bounds read (undefined behavior) instead of a panic here.
+    // Pitfall: a debug-only size check at a public constructor can be the only thing
+    // standing between caller input and an `unsafe` block several calls downstream.
+    assert_eq!( N, ROWS*COLS, "Matrix size should be equal to the size of the input" );
 
     let result = Self::default();
     result.with_column_major( scalars.array_ref() )

@@ -11,14 +11,6 @@
 //! fallback drawn between two batched buckets does not slip behind
 //! their `DrawBatch`es.
 
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow
-(
-  clippy::default_trait_access,
-  clippy::too_many_lines,
-  clippy::float_cmp,
-) ]
-
 extern crate alloc;
 use alloc::sync::Arc;
 use rustc_hash::FxHashMap as HashMap;

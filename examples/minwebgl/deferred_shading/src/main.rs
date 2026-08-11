@@ -9,25 +9,6 @@
 //! Light volumes further optimize the lighting pass by only calculating lighting
 //! for pixels within the bounding volume of each light source.
 
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::float_cmp ) ]
-#![ allow( clippy::many_single_char_names ) ]
-#![ allow( clippy::indexing_slicing ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::module_name_repetitions ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::type_complexity ) ]
-
 mod elliptical_orbit;
 mod lil_gui;
 mod types;
@@ -110,6 +91,9 @@ fn render_geometry_pass
 }
 
 /// Render the lighting pass: calculate lighting using G-buffer and light volumes
+// 10 parameters : the lighting pass irreducibly needs the GL context, every
+// G-buffer/shader/geometry resource, the camera, viewport size, view-projection, and
+// per-frame light state; bundling into a struct would only rename the coupling.
 #[ allow( clippy::too_many_arguments ) ]
 fn render_lighting_pass
 (

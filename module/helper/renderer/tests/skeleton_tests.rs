@@ -6,16 +6,24 @@
 mod tests
 {
   use wasm_bindgen_test::wasm_bindgen_test;
+
+  // Browser, not Node: every test here needs a real WebGL2 context.
+  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
   use gl::GL;
   use std::{ rc::Rc, cell::RefCell };
+  // Fix(BUG-046): `Node` was used below (in `get_skeleton`) but missing from this import list.
+  // Root cause: import list never updated when `get_skeleton`'s closure parameter was typed as
+  // `Rc<RefCell<Node>>` — a compile error, so the whole test module never ran.
+  // Pitfall: a missing-import compile error silently disables every test in the module; nextest
+  // reports 0 tests collected rather than a loud per-test failure.
   use renderer::webgl::
   {
+    Node,
     Object3D,
-    calculate_data_texture_size,
     load_texture_data_4f,
-    loaders::gltf::{ GLTF, load },
-    skeleton::{ DisplacementsData, Skeleton, TransformsData }
+    loaders::gltf::load,
+    skeleton::Skeleton
   };
 
   async fn init_test() -> GL
@@ -50,7 +58,13 @@ mod tests
       Ok( () )
     };
 
-    gltf.scene[ 0 ].borrow().traverse( &mut get_skeleton );
+    // Fix(BUG-046): was `gltf.scene[ 0 ]` — `GLTF` has no `.scene` field, only `.scenes` (plural).
+    // Root cause: written against an assumed singular field name never checked against `GLTF`'s
+    // actual definition.
+    // Pitfall: `.scene` vs `.scenes` is a one-character typo that the compiler catches loudly, but
+    // only if the module compiles far enough to reach this line — the missing `Node` import above
+    // masked this second error until the first was fixed.
+    gltf.scenes[ 0 ].borrow().traverse( &mut get_skeleton );
 
     skeleton.unwrap().borrow().clone()
   }
@@ -58,15 +72,15 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn set_displacement_another_new_displacement_size_test()
   {
-    let skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
+    let mut skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
 
     assert!
     (
-      !skeleton.displacements_as_mut().unwrap()
+      !skeleton.displacements_as_mut().as_mut().unwrap()
       .set_displacement
       (
         Some( [ [ 0.0; 3 ]; 2 ].to_vec() ),
-        gltf::Semantic::Tangents,
+        &gltf::Semantic::Tangents,
         2
       )
     );
@@ -81,7 +95,7 @@ mod tests
 
     assert_eq!( skeleton.has_skin(), skeleton_clone.has_skin() );
     assert_eq!( skeleton.has_morph_targets(), skeleton_clone.has_morph_targets() );
-    assert_eq!( skeleton.displacements_as_ref().unwrap().default_weights, skeleton_clone.displacements_as_ref().unwrap().default_weights );
+    assert_eq!( skeleton.displacements_as_ref().as_ref().unwrap().default_weights, skeleton_clone.displacements_as_ref().as_ref().unwrap().default_weights );
   }
 
   #[ wasm_bindgen_test( async ) ]
@@ -100,63 +114,6 @@ mod tests
     assert!( skeleton.transforms_as_ref().is_some() );
   }
 
-  #[ test ]
-  fn pack_displacements_data_test()
-  {
-    let mut displacements = DisplacementsData::new();
-
-    let data = displacements.pack_displacements_data();
-
-    assert_eq!( data.len(), 0 );
-
-    displacements.set_displacement
-    (
-      Some( [ [ 1.0, 1.0, 1.0 ]; 16 ].to_vec() ),
-      gltf::Semantic::Positions,
-      16
-    );
-
-    let data = displacements.pack_displacements_data();
-
-    assert_ne!( data.len(), 0 );
-    assert_eq!( data.len(), 16 * 4 );
-    assert_eq!( data.get( 0..4 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0 ] );
-
-    displacements.set_displacement
-    (
-      Some( [ [ 2.0, 2.0, 2.0 ]; 16 ].to_vec() ),
-      gltf::Semantic::Normals,
-      16
-    );
-
-    let data = displacements.pack_displacements_data();
-
-    assert_ne!( data.len(), 0 );
-    assert_eq!( data.len(), 16 * 4 * 2 );
-    assert_eq!( data.get( 0..8 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 1.0 ] );
-
-    displacements.set_displacement
-    (
-      Some( [ [ 3.0, 3.0, 3.0 ]; 16 ].to_vec() ),
-      gltf::Semantic::Tangents,
-      16
-    );
-
-    let data = displacements.pack_displacements_data();
-
-    assert_ne!( data.len(), 0 );
-    assert_eq!( data.len(), 16 * 4 * 3 );
-    assert_eq!( data.get( 0..12 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 3.0, 3.0, 3.0, 1.0 ] );
-
-    displacements.set_displacement( None, gltf::Semantic::Normals, 16 );
-
-    let data = displacements.pack_displacements_data();
-
-    assert_ne!( data.len(), 0 );
-    assert_eq!( data.len(), 16 * 4 * 2 );
-    assert_eq!( data.get( 0..8 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 1.0 ] );
-  }
-
   #[ wasm_bindgen_test( async ) ]
   async fn load_texture_data_4f_test()
   {
@@ -171,6 +128,75 @@ mod tests
       assert!( load_texture_data_4f( &gl, &texture, &data, [ a, a ] ).is_ok() );
     }
   }
+}
+
+// Pure-logic tests: no browser, no GL context. They live outside the
+// wasm-only module above because the browser harness collects only
+// `#[ wasm_bindgen_test ]` functions — a plain `#[ test ]` inside that
+// module is silently dead on both targets (cfg'd out natively, never
+// collected on wasm).
+#[ cfg( not( target_arch = "wasm32" ) ) ]
+#[ cfg( test ) ]
+mod pure_tests
+{
+  use renderer::webgl::{ calculate_data_texture_size, skeleton::DisplacementsData };
+
+  #[ test ]
+  fn pack_displacements_data_test()
+  {
+    let mut displacements = DisplacementsData::new();
+
+    let data = displacements.pack_displacements_data();
+
+    assert_eq!( data.len(), 0 );
+
+    displacements.set_displacement
+    (
+      Some( [ [ 1.0, 1.0, 1.0 ]; 16 ].to_vec() ),
+      &gltf::Semantic::Positions,
+      16
+    );
+
+    let data = displacements.pack_displacements_data();
+
+    assert_ne!( data.len(), 0 );
+    assert_eq!( data.len(), 16 * 4 );
+    assert_eq!( data.get( 0..4 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0 ] );
+
+    displacements.set_displacement
+    (
+      Some( [ [ 2.0, 2.0, 2.0 ]; 16 ].to_vec() ),
+      &gltf::Semantic::Normals,
+      16
+    );
+
+    let data = displacements.pack_displacements_data();
+
+    assert_ne!( data.len(), 0 );
+    assert_eq!( data.len(), 16 * 4 * 2 );
+    assert_eq!( data.get( 0..8 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 1.0 ] );
+
+    displacements.set_displacement
+    (
+      Some( [ [ 3.0, 3.0, 3.0 ]; 16 ].to_vec() ),
+      &gltf::Semantic::Tangents,
+      16
+    );
+
+    let data = displacements.pack_displacements_data();
+
+    assert_ne!( data.len(), 0 );
+    assert_eq!( data.len(), 16 * 4 * 3 );
+    assert_eq!( data.get( 0..12 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 3.0, 3.0, 3.0, 1.0 ] );
+
+    displacements.set_displacement( None, &gltf::Semantic::Normals, 16 );
+
+    let data = displacements.pack_displacements_data();
+
+    assert_ne!( data.len(), 0 );
+    assert_eq!( data.len(), 16 * 4 * 2 );
+    assert_eq!( data.get( 0..8 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 1.0 ] );
+  }
 
   mod calculate_data_texture_size_tests
   {
@@ -178,7 +204,7 @@ mod tests
 
     fn is_power_of_4( v : u32 ) -> bool
     {
-      v > 0 && ( v & ( v - 1 ) ) == 0 && ( v.trailing_zeros() % 2 == 0 )
+      v.is_power_of_two() && v.trailing_zeros().is_multiple_of( 2 )
     }
 
     #[ test ]
@@ -190,9 +216,7 @@ mod tests
         assert!
         (
           is_power_of_4( size ),
-          "size={} is not a power of 4 for data_size={}",
-          size,
-          data_size
+          "size={size} is not a power of 4 for data_size={data_size}"
         );
       }
     }
@@ -208,10 +232,7 @@ mod tests
         assert!
         (
           capacity >= data_size,
-          "texture {}x{} cannot fit {} elements",
-          size,
-          size,
-          data_size
+          "texture {size}x{size} cannot fit {data_size} elements"
         );
       }
     }
@@ -231,25 +252,34 @@ mod tests
           assert!
           (
             smaller_capacity < data_size,
-            "size={} is not minimal for data_size={}",
-            size,
-            data_size
+            "size={size} is not minimal for data_size={data_size}"
           );
         }
       }
     }
 
+    // Replaces two never-executed tests that expected power-of-2 sides
+    // ( f( 4 ) = 2, f( 17 ) = 8, ... ) — impossible alongside
+    // `returns_power_of_4`, which passes against the real implementation.
+    // The suite was dead ( plain `#[ test ]`s inside a wasm-only module ),
+    // so the contradiction was never caught.
     #[ test ]
-    fn exact_square_boundaries()
+    fn power_of_four_boundaries()
     {
+      // Spec: the side is the smallest power of 4 whose square fits
+      // `data_size` ( sides stay powers of 4 so a matrix never straddles two
+      // texture rows — see the doc comment on `calculate_data_texture_size` ).
+      // An exact fit stays put; one element over jumps to the next power.
       let cases =
       [
         ( 1, 1 ),
-        ( 4, 2 ),
+        ( 2, 4 ),
         ( 16, 4 ),
-        ( 64, 8 ),
+        ( 17, 16 ),
         ( 256, 16 ),
-        ( 1024, 32 ),
+        ( 257, 64 ),
+        ( 4096, 64 ),
+        ( 4097, 256 ),
       ];
 
       for ( data_size, expected_side ) in cases
@@ -259,33 +289,7 @@ mod tests
         (
           size,
           expected_side,
-          "wrong size for perfect square data_size={}",
-          data_size
-        );
-      }
-    }
-
-    #[ test ]
-    fn just_over_square_boundary()
-    {
-      let cases =
-      [
-        ( 2, 2 ),
-        ( 5, 4 ),
-        ( 17, 8 ),
-        ( 65, 16 ),
-        ( 257, 32 ),
-      ];
-
-      for ( data_size, expected_side ) in cases
-       {
-        let size = calculate_data_texture_size( data_size );
-        assert_eq!
-        (
-          size,
-          expected_side,
-          "wrong size just over square boundary data_size={}",
-          data_size
+          "wrong side for data_size={data_size}"
         );
       }
     }

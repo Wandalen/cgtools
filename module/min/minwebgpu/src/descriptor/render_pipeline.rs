@@ -2,7 +2,7 @@
 mod private
 {
   
-  use crate::*;
+  use crate::{ web_sys, Into, WebGPUError, render_pipeline };
 
   /// A builder for creating a `web_sys::GpuRenderPipeline`.
   #[ derive( Clone ) ]
@@ -46,6 +46,7 @@ mod private
   impl< 'a > RenderPipelineDescriptor< 'a >
   {
     /// Creates a new `RenderPipelineDescriptor` with the required vertex state.
+    #[ inline ]
     pub fn new< T : Into< web_sys::GpuVertexState > >( vertex : T ) -> Self
     {
       let label = None;
@@ -69,6 +70,8 @@ mod private
     }
 
     /// Sets the debug label for the pipeline.
+    #[ inline ]
+    #[ must_use ]
     pub fn label( mut self, label : &'a str ) -> Self
     {
       self.label = Some( label );
@@ -76,6 +79,8 @@ mod private
     }
 
     /// Sets the pipeline layout.
+    #[ inline ]
+    #[ must_use ]
     pub fn layout( mut self, layout : &'a web_sys::GpuPipelineLayout ) -> Self
     {
       self.layout = Some( layout );
@@ -83,6 +88,8 @@ mod private
     }
 
     /// Sets the fragment state for the pipeline.
+    #[ inline ]
+    #[ must_use ]
     pub fn fragment< T : Into< web_sys::GpuFragmentState > >( mut self, state : T ) -> Self
     {
       self.fragment = Some( state.into() );
@@ -90,6 +97,8 @@ mod private
     }
 
     /// Sets the primitive state.
+    #[ inline ]
+    #[ must_use ]
     pub fn primitive< T : Into< web_sys::GpuPrimitiveState > >( mut self, state : T ) -> Self
     {
       self.primitive = Some( state.into() );
@@ -97,6 +106,8 @@ mod private
     }
 
     /// Sets the depth-stencil state.
+    #[ inline ]
+    #[ must_use ]
     pub fn depth_stencil< T : Into< web_sys::GpuDepthStencilState > >( mut self, state : T ) -> Self
     {
       self.depth_stencil = Some( state.into() );
@@ -104,6 +115,8 @@ mod private
     }
 
     /// Sets the multisample state.
+    #[ inline ]
+    #[ must_use ]
     pub fn multisample< T : Into< web_sys::GpuMultisampleState > >( mut self, state : T ) -> Self
     {
       self.multisample = Some( state.into() );
@@ -111,12 +124,22 @@ mod private
     }
 
     /// Creates a synchronous render pipeline.
+    ///
+    /// # Errors
+    /// Returns `error::DeviceError::FailedToCreateRenderPipeline` if the underlying
+    /// `GPUDevice.createRenderPipeline` call throws (see [`render_pipeline::create`]).
+    #[ inline ]
     pub fn create( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuRenderPipeline, WebGPUError >
     {
       render_pipeline::create( device, &self.into() )
     }
 
     /// Creates an asynchronous render pipeline.
+    ///
+    /// # Errors
+    /// Returns `error::DeviceError::FailedToCreateRenderPipeline` if the underlying
+    /// `GPUDevice.createRenderPipelineAsync` call rejects (see [`render_pipeline::create_async`]).
+    #[ inline ]
     pub async fn create_async( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuRenderPipeline, WebGPUError >
     {
       render_pipeline::create_async( device, &self.into() ).await
@@ -125,19 +148,18 @@ mod private
 
   impl From< RenderPipelineDescriptor< '_ > > for web_sys::GpuRenderPipelineDescriptor 
   {
+    #[ inline ]
     fn from( value: RenderPipelineDescriptor< '_ > ) -> Self 
     {
-      let layout = 
+      let desc =
       if let Some( l ) = value.layout
       {
-        l.into()
+        web_sys::GpuRenderPipelineDescriptor::new( l, &value.vertex )
       }
       else
       {
-        "auto".into()
+        web_sys::GpuRenderPipelineDescriptor::new_with_gpu_auto_layout_mode( web_sys::GpuAutoLayoutMode::Auto, &value.vertex )
       };
-
-      let desc = web_sys::GpuRenderPipelineDescriptor::new( &layout, &value.vertex );
 
       if let Some( v ) = value.label { desc.set_label( v ); }
       if let Some( v ) = value.fragment { desc.set_fragment( &v ); }

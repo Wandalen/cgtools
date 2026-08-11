@@ -14,6 +14,10 @@ mod private
     }
   };
 
+  /// Shared transition-trigger predicate : from the edge plus past and current
+  /// [`Pose`], decides whether the transition should start.
+  type ConditionFn = Rc< RefCell< dyn Fn( &AnimationEdge, &Pose, &Pose ) -> bool > >;
+
   /// Controls transition process from one [`AnimationNode`] to another
   pub struct AnimationEdge
   {
@@ -26,7 +30,7 @@ mod private
     /// Condition closure that manages when apply transition. This implementation
     /// assumes that transition may happen when [`Node`] or [`CharacterControls`]
     /// change theirs state that can be identified by past and present [`Node`]'s [`Pose`].
-    condition : Rc< RefCell< dyn Fn( &AnimationEdge, &Pose, &Pose ) -> bool > >
+    condition : ConditionFn
   }
 
   impl AnimationEdge
@@ -45,7 +49,7 @@ mod private
       {
         name,
         next : next.clone(),
-        transition : transition.clone(),
+        transition,
         condition : Rc::new( RefCell::new( condition ) )
       }
     }
@@ -57,12 +61,14 @@ mod private
     }
 
     /// Check if [`Self::condition`] returns true
+    #[ must_use ]
     pub fn is_triggered( &self, past : &Pose, current : &Pose ) -> bool
     {
       ( self.condition.borrow() )( self, past, current )
     }
 
     /// Get [`Self::transition`] as reference
+    #[ must_use ]
     pub fn transition_as_ref( &self ) -> &Transition
     {
       &self.transition
@@ -124,6 +130,7 @@ mod private
   impl AnimationGraph
   {
     /// Creates new [`AnimationGraph`]
+    #[ must_use ]
     pub fn new( nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > > ) -> Self
     {
       Self
@@ -136,6 +143,7 @@ mod private
     }
 
     /// Gets current [`AnimationNode`] name
+    #[ must_use ]
     pub fn current_name_get( &self ) -> Option< Box< str > >
     {
       self.current.as_ref().map( | n | n.borrow().name.clone() )
@@ -144,7 +152,7 @@ mod private
     /// Sets current [`AnimationNode`]
     pub fn current_set( &mut self, name : &str )
     {
-      self.current = self.animation_nodes.get( &name.to_string().into_boxed_str() ).map( | n | n.clone() );
+      self.current = self.animation_nodes.get( &name.to_string().into_boxed_str() ).cloned();
     }
 
     /// Add new [`AnimationNode`]
@@ -233,12 +241,14 @@ mod private
     }
 
     /// Gets map of animated [`Node`]'s
+    #[ must_use ]
     pub fn animated_nodes_get( &self ) -> &FxHashMap< Box< str >, Rc< RefCell< Node > > >
     {
       &self.nodes
     }
 
     /// Returns [`Sequencer`] from [`AnimationNode`] by node name
+    #[ must_use ]
     pub fn node_get( &self, name : &str ) -> Option< Sequencer >
     {
       let name = name.to_string().into_boxed_str();
@@ -253,6 +263,7 @@ mod private
     }
 
     /// Returns [`Transition`] from [`AnimationEdge`] by start node name ( `a` ) and edge name ( `name` )
+    #[ must_use ]
     pub fn edge_get( &self, node_name : &str, name : &str ) -> Option< Transition >
     {
       let node_name = node_name.to_string().into_boxed_str();
@@ -280,7 +291,7 @@ mod private
         if current.borrow().in_process.is_none()
         {
           let mut triggered_edge = None;
-          for ( _, edge ) in &current.borrow().edges
+          for edge in current.borrow().edges.values()
           {
             if edge.borrow().is_triggered( self.last_pose.as_ref().unwrap_or( &current_pose ), &current_pose )
             {

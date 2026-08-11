@@ -10,5 +10,8 @@ mingl.workspace = true
 error_tools.workspace = true
 asbytes.workspace = true
 
+[dev-dependencies]
+wgpu.workspace = true
+
 [lints]
 workspace = true

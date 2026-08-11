@@ -66,7 +66,6 @@ pub fn create_light_system
       orbits,
       offsets,
       prev_radius_range,
-      max_count,
     }
   )
 }

@@ -30,7 +30,7 @@ mod private
       ;
   }
 
-  impl<'item_ref, I > IterExt for I
+  impl< I > IterExt for I
   where
     I : Iterator,
     // IntoBool : Into< bool >,
@@ -41,7 +41,7 @@ mod private
       Self : Sized,
       < Self as Iterator >::Item : ToRef< bool >,
     {
-      return self.all( | x : Self::Item | return *x.to_ref() )
+      self.all( | x : Self::Item | *x.to_ref() )
     }
     #[ inline ]
     fn any_true( &mut self ) -> bool
@@ -49,7 +49,7 @@ mod private
       Self : Sized,
       < Self as Iterator >::Item : ToRef< bool >,
     {
-      return self.any( | x : Self::Item | return *x.to_ref() )
+      self.any( | x : Self::Item | *x.to_ref() )
     }
   }
 
@@ -58,8 +58,8 @@ mod private
   where
     Self : Iterator + IterExt + sealed::Sealed,
   {
-    /// Checks if all elements in the iterator are `NaN`.
-    fn is_nan( self ) -> Map< Self, fn( Self::Item ) -> bool >
+    /// Maps each element of the iterator to whether it is `NaN`.
+    fn map_is_nan( self ) -> Map< Self, fn( Self::Item ) -> bool >
     where
       Self : Sized;
   }
@@ -70,11 +70,11 @@ mod private
     Item : Copy + Float + 'item_ref,
   {
     #[ inline ]
-    fn is_nan( self ) -> Map< Self, fn( Self::Item ) -> bool >
+    fn map_is_nan( self ) -> Map< Self, fn( Self::Item ) -> bool >
     where
       Self : Sized,
     {
-      return self.map( | x : Self::Item | return x.is_nan() )
+      self.map( | x : Self::Item | x.is_nan() )
     }
   }
 

@@ -79,14 +79,14 @@ mod private
   (
     gl : &GL,
     texture : &WebGlTexture,
-    location : Option< WebGlUniformLocation >,
+    location : Option< &WebGlUniformLocation >,
     slot : u32,
   )
   {
     gl.active_texture( gl::TEXTURE0 + slot );
-    gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
+    gl.bind_texture( GL::TEXTURE_2D, Some( texture ) );
     // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
-    gl.uniform1i( location.as_ref(), slot as i32 );
+    gl.uniform1i( location, slot as i32 );
   }
 
   /// Nodes' global transform data texture and inverse bind matrices texture
@@ -96,6 +96,7 @@ mod private
   ///    We need this to ensure that a single matrix inside of the texture can't be split
   ///    between two rows and all matrices have grid alignment.
   /// 3. The ceil is needed to get the smallest integer side length that fits all the data.
+  #[ must_use ]
   pub fn calculate_data_texture_size( data_size : usize ) -> u32
   {
     4.0_f32.powf( ( data_size as f32 ).sqrt().log( 4.0 ).ceil() ) as u32
@@ -131,6 +132,7 @@ mod private
   impl TransformsData
   {
     /// Creates [`TransformsData`]
+    #[ must_use ]
     pub fn new( joints : Vec< ( Rc< RefCell< Node > >, F32x4x4 ) > ) -> Self
     {
       let mut nodes = vec![];
@@ -184,11 +186,7 @@ mod private
       .collect::< Vec< _ > >();
 
       let mut global_data = global_matrices.iter()
-      .map
-      (
-        | m | m.to_array().to_vec()
-      )
-      .flatten()
+      .flat_map(| m | m.to_array().to_vec())
       .collect::< Vec< _ > >();
 
       let a = calculate_data_texture_size(global_data.len() );
@@ -208,11 +206,7 @@ mod private
         }
 
         let mut inverse_data = self.inverse_bind_matrices.iter()
-        .map
-        (
-          | m | m.to_array().to_vec()
-        )
-        .flatten()
+        .flat_map(| m | m.to_array().to_vec())
         .collect::< Vec< _ > >();
 
         inverse_data.extend( vec![ 0.0; ( a * a * 4 ) as usize - inverse_data.len() ] );
@@ -224,15 +218,15 @@ mod private
         }
       }
 
-      if self.inverse_texture.is_some() && self.global_texture.is_some()
+      if let ( Some( global_texture ), Some( inverse_texture ) ) = ( &self.global_texture, &self.inverse_texture )
       {
         let global_matrices_loc = locations.get( "globalJointTransformMatricesTexture" ).unwrap();
         let inverse_matrices_loc = locations.get( "inverseBindMatricesTexture" ).unwrap();
         let texture_size_loc = locations.get( "skinMatricesTextureSize" ).unwrap();
 
-        let _ = load_texture_data_4f( gl, self.global_texture.as_ref().unwrap(), global_data.as_slice(), texture_size );
-        upload_texture( gl, self.global_texture.as_ref().unwrap(), global_matrices_loc.clone(), GLOBAL_MATRICES_SLOT );
-        upload_texture( gl, self.inverse_texture.as_ref().unwrap(), inverse_matrices_loc.clone(), INVERSE_MATRICES_SLOT );
+        let _ = load_texture_data_4f( gl, global_texture, global_data.as_slice(), texture_size );
+        upload_texture( gl, global_texture, global_matrices_loc.as_ref(), GLOBAL_MATRICES_SLOT );
+        upload_texture( gl, inverse_texture, inverse_matrices_loc.as_ref(), INVERSE_MATRICES_SLOT );
         gl::uniform::upload( gl, texture_size_loc.clone(), texture_size.as_slice() ).unwrap();
       }
     }
@@ -316,9 +310,18 @@ mod private
     gl : Option< GL >,
   }
 
+  impl Default for DisplacementsData
+  {
+    fn default() -> Self
+    {
+      Self::new()
+    }
+  }
+
   impl DisplacementsData
   {
     /// Creates empty [`DisplacementsData`]
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self
@@ -340,6 +343,7 @@ mod private
     }
 
     /// Returns binded attributes count
+    #[ must_use ]
     pub fn attributes_count( &self ) -> usize
     {
       [
@@ -381,20 +385,13 @@ mod private
       .collect::< Vec< _ > >();
 
       let len = arrays.iter()
-      .map( | v | v.len() )
+      .map( std::vec::Vec::len )
       .max()
       .unwrap_or_default();
 
       let attributes_count = arrays.len();
 
-      self.targets_count = if self.vertices_count > 0
-      {
-        len / self.vertices_count
-      }
-      else
-      {
-        0
-      };
+      self.targets_count = len.checked_div( self.vertices_count ).unwrap_or( 0 );
 
       let mut data = Vec::with_capacity
       (
@@ -422,6 +419,9 @@ mod private
     }
 
     /// Uploads morph targets data to uniforms
+    // 111 lines : one GPU-upload sequence ( texture realloc, weight defaults, packing,
+    // size guard, uniform uploads ) over tightly coupled GL state; splitting would scatter it.
+    #[ allow( clippy::too_many_lines ) ]
     fn upload
     (
       &mut self,
@@ -468,13 +468,12 @@ mod private
         {
           let v = vertex_displacement_len as f32;
           let i = ( ( data.len() as f32 ).sqrt() / v ).floor();
-          let a = ( v * i as f32 ) as u32;
+          let a = ( v * i ) as u32;
           let b = ( data.len() as f32 / a as f32 ).ceil() as u32;
 
           let max_size = gl.get_parameter( gl::MAX_TEXTURE_SIZE )
           .ok()
-          .map( | v | v.as_f64() )
-          .flatten()
+          .and_then(| v | v.as_f64())
           .unwrap_or( 0.0 ) as u32;
           if a.max( b ) > max_size
           {
@@ -492,7 +491,7 @@ mod private
           let _ = load_texture_data_4f( gl, self.displacements_texture.as_ref().unwrap(), data.as_slice(), [ a, b ] );
         }
 
-        let mut offset = 0 as i32;
+        let mut offset = 0_i32;
         let offsets =
         [
           &self.positions_displacements,
@@ -521,11 +520,11 @@ mod private
         self.need_update_displacement = false;
       }
 
-      if self.displacements_texture.is_some()
+      if let Some( displacements_texture ) = &self.displacements_texture
       {
         if let Some( displacements_loc ) = locations.get( "morphTargetsDisplacementsTexture" )
         {
-          upload_texture( gl, self.displacements_texture.as_ref().unwrap(), displacements_loc.clone(), DISPLACEMENTS_SLOT );
+          upload_texture( gl, displacements_texture, displacements_loc.as_ref(), DISPLACEMENTS_SLOT );
         }
         if let Some( morph_weights_loc ) = locations.get( "morphWeights" )
         {
@@ -559,6 +558,7 @@ mod private
     }
 
     /// Returns morph weights that is used for updating geometry
+    #[ must_use ]
     pub fn get_morph_weights( &self ) -> Rc< RefCell< Vec< f32 > > >
     {
       self.morph_weights.clone()
@@ -569,7 +569,7 @@ mod private
     (
       &mut self,
       displacement_array : Option< Vec< [ f32; 3 ] > >,
-      displacement_type : gltf::Semantic,
+      displacement_type : &gltf::Semantic,
       vertices_count : usize
     )
     -> bool
@@ -584,12 +584,12 @@ mod private
         self.vertices_count = vertices_count;
       }
 
-      let positions_len = self.positions_displacements.as_ref().map( | v | v.len() ).unwrap_or_default();
-      let normals_len = self.normals_displacements.as_ref().map( | v | v.len() ).unwrap_or_default();
-      let tangents_len = self.tangents_displacements.as_ref().map( | v | v.len() ).unwrap_or_default();
+      let positions_len = self.positions_displacements.as_ref().map( std::vec::Vec::len ).unwrap_or_default();
+      let normals_len = self.normals_displacements.as_ref().map( std::vec::Vec::len ).unwrap_or_default();
+      let tangents_len = self.tangents_displacements.as_ref().map( std::vec::Vec::len ).unwrap_or_default();
       let mut unique =
       [
-        displacement_array.as_ref().map( | v | v.len() ).unwrap_or( 0 ),
+        displacement_array.as_ref().map_or( 0, std::vec::Vec::len ),
         positions_len,
         normals_len,
         tangents_len
@@ -641,12 +641,12 @@ mod private
         normals_displacements : self.normals_displacements.clone(),
         tangents_displacements : self.tangents_displacements.clone(),
         displacements_texture : self.displacements_texture.clone(),
-        disp_texture_size : self.disp_texture_size.clone(),
+        disp_texture_size : self.disp_texture_size,
         morph_weights : Rc::new( RefCell::new( self.morph_weights.borrow().clone() ) ),
         default_weights : self.default_weights.clone(),
-        targets_count : self.targets_count.clone(),
-        disp_offsets : self.disp_offsets.clone(),
-        vertices_count : self.vertices_count.clone(),
+        targets_count : self.targets_count,
+        disp_offsets : self.disp_offsets,
+        vertices_count : self.vertices_count,
         need_update_displacement : true,
         need_clone_inner : true,
         gl : None,
@@ -684,9 +684,18 @@ mod private
     displacements : Option< DisplacementsData >
   }
 
+  impl Default for Skeleton
+  {
+    fn default() -> Self
+    {
+      Self::new()
+    }
+  }
+
   impl Skeleton
   {
     /// Creates a new [`Skeleton`] instance
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self
@@ -704,11 +713,18 @@ mod private
       locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
-      self.transforms.as_mut().map( | t | { t.upload( gl, locations ); } );
-      self.displacements.as_mut().map( | d | { d.upload( gl, locations ); } );
+      if let Some( t ) = self.transforms.as_mut()
+      {
+        t.upload( gl, locations );
+      }
+      if let Some( d ) = self.displacements.as_mut()
+      {
+        d.upload( gl, locations );
+      }
     }
 
     /// Get [`Self::transforms`] as reference
+    #[ must_use ]
     pub fn transforms_as_ref( &self ) -> &Option< TransformsData >
     {
       &self.transforms
@@ -721,6 +737,7 @@ mod private
     }
 
     /// Get [`Self::displacements`] as reference
+    #[ must_use ]
     pub fn displacements_as_ref( &self ) -> &Option< DisplacementsData >
     {
       &self.displacements
@@ -733,12 +750,14 @@ mod private
     }
 
     /// Can be used for checking if skin is available at this [`Skeleton`]
+    #[ must_use ]
     pub fn has_skin( &self ) -> bool
     {
       self.transforms.is_some()
     }
 
     /// Can be used for checking if morph targets are available at this [`Skeleton`]
+    #[ must_use ]
     pub fn has_morph_targets( &self ) -> bool
     {
       self.displacements.is_some()

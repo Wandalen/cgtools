@@ -24,7 +24,6 @@ mod light;
 mod model;
 
 #[cfg(target_arch = "wasm32")]
-
 fn create_textures
 (
   device : &gl::web_sys::GpuDevice,
@@ -47,9 +46,9 @@ fn create_textures
   .format( gl::GpuTextureFormat::Rgba16float )
   .to_web();
 
-  let position_tex = gl::texture::create( &device, &vector_tex_desc )?;
-  let albedo_tex = gl::texture::create( &device, &color_tex_desc )?;
-  let normal_tex = gl::texture::create( &device, &vector_tex_desc )?;
+  let position_tex = gl::texture::create( device, &vector_tex_desc )?;
+  let albedo_tex = gl::texture::create( device, &color_tex_desc )?;
+  let normal_tex = gl::texture::create( device, &vector_tex_desc )?;
 
   Ok( [ position_tex, albedo_tex, normal_tex ] )
 }
@@ -57,7 +56,7 @@ fn create_textures
 #[cfg(target_arch = "wasm32")]
 async fn run() -> Result< (), gl::WebGPUError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::retrieve_or_make()?;
   //let canvas = gl::canvas::make()?;
   let context = gl::context::from_canvas( &canvas )?;
@@ -106,6 +105,12 @@ async fn run() -> Result< (), gl::WebGPUError >
 
   // First entry - uniform paramters like view_matrix, time
   // Second entry - array of lights
+  // Fix(BUG-051): `.entry(..)`/`.entry_from_ty(..)` became fallible (`Result<Self, WebGPUError>`)
+  // once the underlying `BindGroupLayoutEntry` conversion stopped panicking on an unset binding
+  // type — propagate each with `?` instead of chaining directly.
+  // Root cause: written against the old infallible builder signature.
+  // Pitfall: a builder chain that becomes fallible mid-chain needs `?` after every call that
+  // changed, not just the final one — the compiler flags each one individually.
   let uniform_bind_group_layout = gl::BindGroupLayoutDescriptor::new()
   .fragment()
   .auto_bindings()
@@ -114,8 +119,8 @@ async fn run() -> Result< (), gl::WebGPUError >
     gl::BindGroupLayoutEntry::new()
     .vertex()
     .ty( gl::binding_type::buffer_type() )
-  )
-  .entry_from_ty( gl::binding_type::buffer_type().storage_readonly() )
+  )?
+  .entry_from_ty( gl::binding_type::buffer_type().storage_readonly() )?
   .create( &device )?;
 
   let uniform_bind_group = gl::BindGroupDescriptor::new( &uniform_bind_group_layout )
@@ -131,13 +136,15 @@ async fn run() -> Result< (), gl::WebGPUError >
     &device,
     // Sets the visibility `FRAGMENT` to all entries
     // And auto computes binding value for each entry
+    // Fix(BUG-051): see the identical note above `uniform_bind_group_layout` — each
+    // `.entry_from_ty(..)` in this chain now returns `Result<Self, WebGPUError>`.
     &gl::layout::bind_group::desc()
     .fragment()
     .auto_bindings()
-    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )
-    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )
-    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )
-    .entry_from_ty( gl::binding_type::texture_type().sample_depth() )
+    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )?
+    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )?
+    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )?
+    .entry_from_ty( gl::binding_type::texture_type().sample_depth() )?
     .to_web()
   )?;
 
@@ -237,7 +244,6 @@ async fn run() -> Result< (), gl::WebGPUError >
   .entry_from_resource( &gl::BufferBinding::new( &light_state.buffer ) )
   .create( &device );
 
-
   // Light visualization
   let light_vis_bind_group = gl::bind_group::desc
   (
@@ -281,7 +287,7 @@ async fn run() -> Result< (), gl::WebGPUError >
         projection_matrix,
         camera_pos : eye,
         time : t,
-        elapsed_time : elapsed_time
+        elapsed_time
       };
 
       uniform_state.update( &queue ).unwrap();

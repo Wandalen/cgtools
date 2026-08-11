@@ -46,14 +46,13 @@ mod private
   {
     type AnimatableType = Quat< E >;
 
-    #[ allow( clippy::used_underscore_binding ) ]
     fn apply( &self, start : Quat< E >, end : Quat< E >, time : f64 ) -> Quat< E >
     {
-      let _time = E::from( time ).unwrap();
+      let time_e = E::from( time ).unwrap();
       let b_start = start.slerp( &self.out_tangent, E::from( 1.0 / 3.0 ).unwrap() );
       let b_end = end.slerp( &self.in_tangent, E::from( 1.0 / 3.0 ).unwrap() );
-      let slerp1 = start.slerp( &end, _time );
-      let slerp2 = b_start.slerp( &b_end, _time );
+      let slerp1 = start.slerp( &end, time_e );
+      let slerp2 = b_start.slerp( &b_end, time_e );
 
       slerp1.slerp( &slerp2, E::from( 2.0 * time * ( 1.0 - time ) ).unwrap() )
     }

@@ -1,7 +1,7 @@
 use super::*;
 
 use ndarray_cg::{ IndexingRef, QuatF64, approx };
-use approx::{ assert_abs_diff_eq, assert_relative_eq };
+use approx::assert_abs_diff_eq;
 use the_module::
 {
   Ix2,
@@ -15,6 +15,9 @@ use the_module::
   mat
 };
 
+// `determinant` on these small-integer-valued matrices only sums/subtracts products of
+// exactly-representable integers — no rounding is possible, so exact equality is correct.
+#[ allow( clippy::float_cmp ) ]
 fn test_determinant_generic< Descriptor : mat::Descriptor >()
 where
   Mat4< f32, Descriptor > :
@@ -189,9 +192,9 @@ fn test_truncate_column_major()
 }
 
 
-fn test_from_scale_rotation_translation_generic< Descriptor : mat::Descriptor >()
+fn test_from_scale_rotation_translation_generic< Descriptor >()
 where
-  Descriptor : PartialEq,
+  Descriptor : mat::Descriptor + PartialEq,
   Mat4< f64, Descriptor > :
       ScalarMut< Scalar = f64 > +
       RawSliceMut< Scalar = f64 > +
@@ -219,9 +222,9 @@ where
   let got = Mat4::< f64, Descriptor >::from_scale_rotation_translation( s, r, t );
   let exp = Mat4::< f64, Descriptor >::from_column_major
   ([
-    0.7605633802816901, -0.14084507042253522, -0.6338028169014085, 0.0,
-    -0.4225352112676056, 0.6338028169014085, -0.6478873239436619, 0.0,
-    0.49295774647887325, 0.7605633802816901, 0.4225352112676056, 0.0,
+    0.760_563_380_281_690_1, -0.140_845_070_422_535_22, -0.633_802_816_901_408_5, 0.0,
+    -0.422_535_211_267_605_6, 0.633_802_816_901_408_5, -0.647_887_323_943_661_9, 0.0,
+    0.492_957_746_478_873_25, 0.760_563_380_281_690_1, 0.422_535_211_267_605_6, 0.0,
     0.0, 0.0, 0.0, 1.0
   ]);
 
@@ -249,9 +252,9 @@ where
   let got = Mat4::< f64, Descriptor >::from_scale_rotation_translation( s, r, t );
   let exp = Mat4::< f64, Descriptor >::from_column_major
   ([
-    0.7605633802816901, -0.14084507042253522, -0.6338028169014085, 0.0,
-    -0.8450704225352113, 1.2676056338028168, -1.2957746478873242,
-    0.0, 1.4788732394366197, 2.281690140845071, 1.2676056338028165, 0.0,
+    0.760_563_380_281_690_1, -0.140_845_070_422_535_22, -0.633_802_816_901_408_5, 0.0,
+    -0.845_070_422_535_211_3, 1.267_605_633_802_816_8, -1.295_774_647_887_324_2,
+    0.0, 1.478_873_239_436_619_7, 2.281_690_140_845_071, 1.267_605_633_802_816_5, 0.0,
     1.0, -10.0, 30.0, 1.0
   ]);
 

@@ -28,7 +28,7 @@ blur::Blur< T > : Filter
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
     filter_renderer_clone.borrow_mut().restore_previous_texture();
-    *current_filter_clone.borrow_mut() = card_id_str.clone();
+    ( *current_filter_clone.borrow_mut() ).clone_from( &card_id_str );
     filter_renderer_clone.borrow_mut().save_previous_texture();
 
     controls::clear_controls();
@@ -79,7 +79,7 @@ resize::Resize< T > : Filter
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
     filter_renderer_clone.borrow_mut().restore_previous_texture();
-    *current_filter_clone.borrow_mut() = card_id_str.clone();
+    ( *current_filter_clone.borrow_mut() ).clone_from( &card_id_str );
     filter_renderer_clone.borrow_mut().save_previous_texture();
 
     controls::clear_controls();
@@ -110,6 +110,14 @@ resize::Resize< T > : Filter
   onclick.forget();
 }
 
+/// Shared min/max/step bounds for the brightness and contrast sliders.
+pub struct SliderRange
+{
+  pub min : f64,
+  pub max : f64,
+  pub step : f64
+}
+
 /// Helper for brightness/contrast filters (they have generic type parameters)
 pub fn setup_brightness_contrast_filter< T : 'static + Clone >
 (
@@ -118,9 +126,7 @@ pub fn setup_brightness_contrast_filter< T : 'static + Clone >
   card_id : &str,
   _label : &str,
   bc_type : T,
-  min : f64,
-  max : f64,
-  step : f64
+  range : SliderRange
 )
 where
 brightness_contrast::BrightnessContrast< T > : Filter
@@ -133,12 +139,12 @@ brightness_contrast::BrightnessContrast< T > : Filter
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
     filter_renderer_clone.borrow_mut().restore_previous_texture();
-    *current_filter_clone.borrow_mut() = card_id_str.clone();
+    ( *current_filter_clone.borrow_mut() ).clone_from( &card_id_str );
     filter_renderer_clone.borrow_mut().save_previous_texture();
 
     controls::clear_controls();
-    controls::add_slider( "Brightness", "brightness", 0.0, min, max, step );
-    controls::add_slider( "Contrast", "contrast", 0.0, min, max, step );
+    controls::add_slider( "Brightness", "brightness", 0.0, range.min, range.max, range.step );
+    controls::add_slider( "Contrast", "contrast", 0.0, range.min, range.max, range.step );
 
     let initial = brightness_contrast::BrightnessContrast::new( 0.0, 0.0, bc_type_init.clone() );
     filter_renderer_clone.borrow_mut().apply_filter( &initial );
