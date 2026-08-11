@@ -5,36 +5,47 @@
 | life | yes | yes | yes | yes | | | |
 | 2d_line | no | yes | yes | no | | | |
 | 3d_line | yes | yes | yes | yes | | | |
+| animation_amplitude_change | no | yes | yes | yes | | | |
 | animation_surface_rendering | yes | yes | yes | yes | | | |
 | area_light | yes | yes | yes | yes | | | |
 | attributes_instanced | yes | yes | yes | yes | | | |
 | attributes_matrix | yes | yes | yes | yes | | | |
 | attributes_vao | yes | yes | yes | yes | | | |
+| character_control | no | yes | yes | yes | | | |
 | color_space_conversions | yes | yes | yes | yes | | | |
 | curve_surface_rendering | yes | yes | yes | yes | | | |
 | deferred_shading | yes | yes | yes | yes | | | |
-| derive_tools_issue | no | yes | yes | no | | | |
 | diamond | yes | yes | yes | yes | | | |
 | filter | yes | yes | yes | yes | | | |
 | filters | yes | yes | yes | yes | | | |
 | gltf_viewer | yes | yes | yes | yes | | | |
 | hexagonal_grid | yes | yes | yes | yes | | | |
 | hexagonal_map | yes | yes | yes | yes | | | |
+| jewelry_site | no | yes | yes | yes | | | |
+| lottie_surface_rendering | no | yes | yes | yes | | | |
 | make_cube_map | yes | yes | yes | yes | | | |
 | mapgen_tiles_rendering | yes | yes | yes | yes | | | |
 | minimize_wasm | yes | yes | yes | yes | | | |
+| morph_targets | no | yes | yes | yes | | | |
 | narrow_outline | yes | yes | yes | yes | | | |
 | obj_load | yes | yes | yes | yes | | | |
 | obj_viewer | yes | yes | yes | yes | | | |
 | object_picking | yes | yes | yes | yes | | | |
 | outline | yes | yes | yes | yes | | | |
+| pbr_lighting | no | yes | yes | yes | | | |
+| postprocessing | no | yes | yes | yes | | | |
 | raycaster | yes | yes | yes | yes | | | |
 | renderer_with_outlines | yes | yes | yes | yes | | | |
+| shadowmap | no | yes | yes | no | | | |
 | simple_pbr | yes | yes | yes | yes | | | |
+| skeletal_animation | no | yes | yes | yes | | | |
+| space_partition | no | yes | yes | yes | | | |
 | spinning_cube_size_opt | yes | yes | yes | yes | | | |
 | sprite_animation | yes | yes | yes | yes | | | |
+| sun_grid_lines (webgl) | no | yes | yes | yes | | | |
 | text_msdf | yes | yes | yes | yes | | | |
 | text_rendering | yes | yes | yes | yes | | | |
+| touch_input_test | no | yes | yes | no | | | |
 | trivial | yes | yes | yes | yes | | | |
 | uniforms_animation | yes | yes | yes | yes | | | |
 | uniforms_ubo | yes | yes | yes | yes | | | |
@@ -42,5 +53,24 @@
 | wfc | yes | yes | yes | yes | | | |
 | deffered_rendering | yes | yes | yes | yes | | | |
 | hello_triangle (webgpu) | yes | yes | yes | yes | | | |
+| hello_triangle_quickstart (webgpu) | yes | yes | yes | yes | | | |
+| renderer_pbr_scene (webgpu) | no | yes | yes | no | | | |
+| sun_grid_lines (webgpu) | no | yes | yes | no | | | |
 | grid_render | yes | yes | yes | yes | | | |
 | hello_triangle (wgpu) | yes | yes | yes | yes | | | |
+| sun_grid_lines (wgpu) | no | yes | yes | yes | | | |
+| sun_grid_lines_vulkan (wgpu) | no | yes | yes | yes | | | |
+| f32x2_vector_arithmetic | no | yes | yes | no | | | |
+| pingpong_animation | no | yes | yes | no | | | |
+| advanced_pathfinding_demo | no | yes | yes | no | | | |
+| beginner_tutorial | no | yes | yes | no | | | |
+| debug_demo | no | yes | yes | no | | | |
+| ecs_collision_demo | no | yes | yes | no | | | |
+| event_system_demo | no | yes | yes | no | | | |
+| field_of_view_demo | no | yes | yes | no | | | |
+| game_of_life | no | yes | yes | no | | | |
+| game_systems_demo | no | yes | yes | no | | | |
+| serialization_demo | no | yes | yes | no | | | |
+| simple_collision_demo | no | yes | yes | no | | | |
+| stealth_game | no | yes | yes | no | | | |
+| tactical_rpg | no | yes | yes | no | | | |

@@ -51,6 +51,7 @@ mod private
   /// [`std::panic::set_hook`](https://doc.rust-lang.org/nightly/std/panic/fn.set_hook.html).
   /// It logs panic messages to `console.error` in WebAssembly environments.
   /// For non-WASM targets, it outputs the panic to standard error.
+  #[ inline ]
   pub fn hook( info : &panic::PanicHookInfo< '_ >, config : &Config )
   {
     hook_impl( info, config );
@@ -58,6 +59,7 @@ mod private
 
   /// Configures the panic hook to use `console.error` for logging. This function
   /// ensures the hook is set only once, regardless of how many times it is called.
+  #[ inline ]
   pub fn setup( config : Config )
   {
     use std::sync::Once;
@@ -69,19 +71,27 @@ mod private
   }
 
   /// Specify how to handle panic.
+  ///
+  /// The two flags gate message sections on the wasm32 target only, where the
+  /// hook assembles the `console.error` payload; the native fallback prints the
+  /// panic info as-is and ignores them. Defaults and field contract are pinned
+  /// by `tests/panic_hook_test.rs`.
+  // Both fields are plain flags with no invariant between them — direct struct-literal
+  // construction is the deliberate public contract (pinned by `tests/panic_hook_test.rs`'s
+  // `config_fields_construct_independently`), so `#[non_exhaustive]` would break that contract.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct Config
   {
-    // qqq : cover by test
     /// Print location.
     pub with_location : bool,
-    // qqq : cover by test
     /// Print stack trace.
     pub with_stack_trace : bool,
   }
 
   impl Default for Config
   {
+    #[ inline ]
     fn default() -> Self
     {
       Self

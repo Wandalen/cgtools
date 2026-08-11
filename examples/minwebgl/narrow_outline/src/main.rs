@@ -3,36 +3,6 @@
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Renders outlines for 3D objects" ) ]
 
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::doc_overindented_list_items ) ]
-#![ allow( clippy::unnecessary_cast ) ]
-#![ allow( clippy::unused_async ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::map_flatten ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::needless_for_each ) ]
-#![ allow( clippy::let_and_return ) ]
-#![ allow( clippy::useless_conversion ) ]
-#![ allow( clippy::manual_memcpy ) ]
-#![ allow( clippy::needless_range_loop ) ]
-#![ allow( clippy::match_wildcard_for_single_variants ) ]
-#![ allow( clippy::single_match ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::missing_errors_doc ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::missing_panics_doc ) ]
-#![ allow( clippy::module_name_repetitions ) ]
-
 use mingl::
 {
   AsBytes,
@@ -247,6 +217,7 @@ fn upload_framebuffer(
 /// * `target` - The target buffer type ( e.g., `GL::ARRAY_BUFFER` ).
 /// * `offset` - The offset in bytes within the buffer to start uploading data.
 /// * `data` - The `Vec<u8>` containing the data to upload.
+#[ inline ]
 pub fn upload_buffer_data
 (
   gl : &gl::WebGl2RenderingContext,
@@ -271,6 +242,7 @@ pub fn upload_buffer_data
 }
 
 /// Simplifies new buffer initialization
+#[ inline ]
 pub fn add_buffer
 (
   gl : &gl::WebGl2RenderingContext,
@@ -286,6 +258,7 @@ pub fn add_buffer
 
 /// Adds additional attributes and their data into [`GLTF`] and
 /// returns object_id data for updating data for per object attributes
+#[ inline ]
 pub fn add_attributes
 (
   gl : &gl::WebGl2RenderingContext,
@@ -294,9 +267,8 @@ pub fn add_attributes
 {
   let mut object_id_data : Vec< i32 > = vec![];
 
-  let mut object_id = 1;
   let mut object_vertex_count = 0;
-  for mesh in &gltf.meshes
+  for ( object_id, mesh ) in ( 1.. ).zip( gltf.meshes.iter() )
   {
     for primitive in &mesh.borrow().primitives
     {
@@ -307,8 +279,6 @@ pub fn add_attributes
     }
 
     object_id_data.extend( vec![ object_id; object_vertex_count ] );
-
-    object_id += 1;
   }
 
   let object_id_bytes = object_id_data.iter().map( | i | i.to_be_bytes() ).flatten().collect::< Vec< _ > >();
@@ -400,6 +370,7 @@ fn make_buffer_attribute_info
 /// * `object_ids` - A mutable vector to accumulate object ID data for each vertex.
 /// * `indices` - A mutable vector to accumulate index data.
 /// * `vertex_offset` - A mutable reference to the current vertex offset, which is updated.
+#[ inline ]
 pub fn add_primitive
 (
   primitive : ProcedureMesh,

@@ -17,13 +17,13 @@ mod private
   use crate::webgl::Node;
 
   /// Prefix used for getting [`Node`] translation
-  pub const TRANSLATION_PREFIX : &'static str = ".translation";
+  pub const TRANSLATION_PREFIX : &str = ".translation";
   /// Prefix used for getting [`Node`] rotation
-  pub const ROTATION_PREFIX : &'static str = ".rotation";
+  pub const ROTATION_PREFIX : &str = ".rotation";
   /// Prefix used for getting [`Node`] scale
-  pub const SCALE_PREFIX : &'static str = ".scale";
+  pub const SCALE_PREFIX : &str = ".scale";
   /// Prefix used for getting morph target weights
-  pub const MORPH_TARGET_PREFIX : &'static str = ".morph_target";
+  pub const MORPH_TARGET_PREFIX : &str = ".morph_target";
 
   /// Gives opportunity to change [`Node`]'s transforms in any way
   /// Interface used in [`Animation`] for using complex animation behaviours
@@ -71,7 +71,7 @@ mod private
       {
         if let Some( translation ) = self.get::< Sequence< Tween< F64x3 > > >
         (
-          &format!( "{}{}", name, TRANSLATION_PREFIX )
+          &format!( "{name}{TRANSLATION_PREFIX}" )
         )
         {
           if let Some( translation ) = translation.current_get()
@@ -83,7 +83,7 @@ mod private
 
         if let Some( rotation ) = self.get::< Sequence< Tween< QuatF64 > > >
         (
-          &format!( "{}{}", name, ROTATION_PREFIX )
+          &format!( "{name}{ROTATION_PREFIX}" )
         )
         {
           if let Some( rotation ) = rotation.current_get()
@@ -95,7 +95,7 @@ mod private
 
         if let Some( scale ) = self.get::< Sequence< Tween< F64x3 > > >
         (
-          &format!( "{}{}", name, SCALE_PREFIX )
+          &format!( "{name}{SCALE_PREFIX}" )
         )
         {
           if let Some( scale ) = scale.current_get()
@@ -107,7 +107,7 @@ mod private
 
         if let Some( weights ) = self.get::< Sequence< Tween< Vec< f64 > > > >
         (
-          &format!( "{}{}", name, MORPH_TARGET_PREFIX )
+          &format!( "{name}{MORPH_TARGET_PREFIX}" )
         )
         {
           if let Some( weights ) = weights.current_get()
@@ -163,6 +163,7 @@ mod private
   impl Animation
   {
     /// New [`Animation`] instance
+    #[ must_use ]
     pub fn new
     (
       name : Option< Box< str > >,
@@ -182,7 +183,7 @@ mod private
     /// Updates underlying [`AnimatableComposition`] for current [`Animation`]
     pub fn update( &mut self, delta_time : f64 )
     {
-      self.animation.update( delta_time.into() );
+      self.animation.update( delta_time );
     }
 
     /// Sets all simple 3D transformations for every
@@ -193,6 +194,7 @@ mod private
     }
 
     /// Get reference to inner [`AnimatableComposition`]
+    #[ must_use ]
     pub fn inner_get< T >( &self ) -> Option< &T >
     where T : 'static
     {

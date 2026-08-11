@@ -848,7 +848,18 @@ mod private
 
             ( tex, *width, *height )
           }
-          crate::assets::ImageSource::Encoded( _ ) => { continue; } // qqq: decode
+          crate::assets::ImageSource::Encoded( _ ) =>
+          {
+            // Encoded bytes are not decoded on this backend yet (the SVG
+            // backend decodes them via the `image` crate; here a decoder or a
+            // browser-side `createImageBitmap` path is roadmap work). Skip
+            // loudly rather than silently — the texture will be missing.
+            web_sys::console::warn_1
+            (
+              &format!( "WebGlBackend: ImageSource::Encoded is not implemented; image {:?} will be skipped", img.id ).into()
+            );
+            continue;
+          }
           crate::assets::ImageSource::Path( path ) =>
           {
             let path = path.as_path().to_str()
@@ -1131,7 +1142,8 @@ mod private
       self.load_images( &assets.images )?;
       self.load_sprites( &assets.sprites );
       self.load_geometries( &assets.geometries )?;
-      // qqq: gradients, patterns, clip masks, fonts
+      // Gradients, patterns, clip masks, and fonts are not loaded — the
+      // matching `capabilities()` flags are false; roadmap.md owns the plan.
       Ok( () )
     }
 
@@ -1173,7 +1185,7 @@ mod private
           RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db, &viewport )?,
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
 
-          // Path — skip (qqq). Warn on the opener only (not MoveTo/LineTo/etc.)
+          // Path — skip (unimplemented; see capabilities().paths). Warn on the opener only (not MoveTo/LineTo/etc.)
           // so a 1000-segment path produces one message, not 1000. `capabilities()`
           // already advertises `paths: false`; this is a DX nudge for callers who
           // submitted anyway.
@@ -1189,7 +1201,7 @@ mod private
           | RenderCommand::ClosePath( _ )
           | RenderCommand::EndPath( _ ) => {}
 
-          // Text — skip (qqq). See note above re: opener-only warning.
+          // Text — skip (unimplemented; see capabilities().text). See note above re: opener-only warning.
           RenderCommand::BeginText( _ ) => web_sys::console::warn_1
           (
             &"WebGlBackend: text commands are not implemented; BeginText..EndText will be ignored (see capabilities().text)".into()
@@ -1197,7 +1209,7 @@ mod private
           RenderCommand::Char( _ )
           | RenderCommand::EndText( _ ) => {}
 
-          // Grouping — skip (qqq).
+          // Grouping — skip (unimplemented; see capabilities().effects).
           RenderCommand::BeginGroup( _ ) => web_sys::console::warn_1
           (
             &"WebGlBackend: group commands are not implemented; BeginGroup..EndGroup will be ignored (see capabilities().effects)".into()
@@ -1225,15 +1237,15 @@ mod private
     {
       Capabilities
       {
-        paths : false,       // qqq: tessellation / GPU curves
-        text : false,        // qqq: glyph atlas / SDF fonts
+        paths : false,       // needs tessellation / GPU curves
+        text : false,        // needs a glyph atlas / SDF fonts
         meshes : true,
         sprites : true,
         batches : true,
-        gradients : false,   // qqq: not yet loaded or rendered
-        patterns : false,    // qqq: not yet loaded or rendered
-        clip_masks : false,  // qqq: not yet loaded or rendered
-        effects : false,     // qqq: requires FBO post-processing
+        gradients : false,   // not yet loaded or rendered
+        patterns : false,    // not yet loaded or rendered
+        clip_masks : false,  // not yet loaded or rendered
+        effects : false,     // needs FBO post-processing
         // `blend_modes` means "all variants correct"; Overlay silently falls back
         // to Normal in `apply_blend` (needs FBO / custom shader), so this is false.
         // Callers needing per-mode info should check `supported_blend_modes`.

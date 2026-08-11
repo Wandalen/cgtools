@@ -1,3 +1,4 @@
+
 //! Visual debugging tools and utilities for tile-based game development.
 //!
 //! This module provides comprehensive debugging capabilities including grid visualization,
@@ -48,7 +49,6 @@ use std::time::{Instant, Duration};
 use std::fs::{File, create_dir_all};
 use std::io::{Write, BufWriter};
 use std::path::Path;
-use crate::coordinates::{Distance, Neighbors};
 
 /// Visual debugging renderer for coordinate grids.
 pub struct GridRenderer
@@ -154,6 +154,7 @@ pub enum DebugColor {
 impl GridRenderer
 {
   /// Creates a new grid renderer.
+  #[must_use]
   pub fn new() -> Self
   {
     Self
@@ -168,6 +169,7 @@ impl GridRenderer
   }
 
   /// Sets the grid size.
+  #[must_use]
   pub fn with_size(mut self, width: usize, height: usize) -> Self {
     self.width = width;
     self.height = height;
@@ -175,6 +177,7 @@ impl GridRenderer
   }
 
   /// Sets the grid style.
+  #[must_use]
   pub fn with_style(mut self, style: GridStyle) -> Self {
     self.style = style;
     self
@@ -220,7 +223,7 @@ impl GridRenderer
   where
     C: Into<(i32, i32)>,
   {
-    let coordinates = path.into_iter().map(|c| c.into()).collect();
+    let coordinates = path.into_iter().map(ndarray_cg::Into::into).collect();
     self.highlights.push(DebugHighlight {
       coordinates,
       style: HighlightStyle::Outline,
@@ -234,7 +237,7 @@ impl GridRenderer
   where
     C: Into<(i32, i32)>,
   {
-    let coordinates = area.into_iter().map(|c| c.into()).collect();
+    let coordinates = area.into_iter().map(ndarray_cg::Into::into).collect();
     self.highlights.push(DebugHighlight {
       coordinates,
       style,
@@ -258,6 +261,7 @@ impl GridRenderer
   }
 
   /// Renders the grid as ASCII art.
+  #[must_use]
   pub fn render_ascii(&self) -> String {
     let mut output = String::new();
     
@@ -393,6 +397,9 @@ impl GridRenderer
   }
 
   /// Exports the grid as SVG.
+  ///
+  /// # Errors
+  /// Returns an error when the output directory or file cannot be written.
   pub fn export_svg<P: AsRef<Path>>(&self, path: P) -> Result<(), std::io::Error> {
     if let Some(parent) = path.as_ref().parent() {
       create_dir_all(parent)?;
@@ -407,8 +414,7 @@ impl GridRenderer
 
     // SVG header
     writeln!(writer, r#"<?xml version="1.0" encoding="UTF-8"?>"#)?;
-    writeln!(writer, r#"<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg">"#, 
-      svg_width, svg_height)?;
+    writeln!(writer, r#"<svg width="{svg_width}" height="{svg_height}" xmlns="http://www.w3.org/2000/svg">"#)?;
 
     // Background
     writeln!(writer, r#"<rect width="100%" height="100%" fill="white"/>"#)?;
@@ -482,7 +488,7 @@ impl GridRenderer
     let offset = 50;
     
     for highlight in &self.highlights {
-      let color = self.color_to_svg(highlight.color);
+      let color = Self::color_to_svg(highlight.color);
       
       for &(x, y) in &highlight.coordinates {
         if x >= 0 && x < self.width as i32 && y >= 0 && y < self.height as i32 {
@@ -491,20 +497,16 @@ impl GridRenderer
           
           match highlight.style {
             HighlightStyle::Fill => {
-              writeln!(writer, r#"<rect x="{}" y="{}" width="{}" height="{}" fill="{}" opacity="0.3"/>"#,
-                x_pos, y_pos, cell_size, cell_size, color)?;
+              writeln!(writer, r#"<rect x="{x_pos}" y="{y_pos}" width="{cell_size}" height="{cell_size}" fill="{color}" opacity="0.3"/>"#)?;
             },
             HighlightStyle::Outline => {
-              writeln!(writer, r#"<rect x="{}" y="{}" width="{}" height="{}" fill="none" stroke="{}" stroke-width="2"/>"#,
-                x_pos, y_pos, cell_size, cell_size, color)?;
+              writeln!(writer, r#"<rect x="{x_pos}" y="{y_pos}" width="{cell_size}" height="{cell_size}" fill="none" stroke="{color}" stroke-width="2"/>"#)?;
             },
             HighlightStyle::Dotted => {
-              writeln!(writer, r#"<rect x="{}" y="{}" width="{}" height="{}" fill="none" stroke="{}" stroke-width="2" stroke-dasharray="5,5"/>"#,
-                x_pos, y_pos, cell_size, cell_size, color)?;
+              writeln!(writer, r#"<rect x="{x_pos}" y="{y_pos}" width="{cell_size}" height="{cell_size}" fill="none" stroke="{color}" stroke-width="2" stroke-dasharray="5,5"/>"#)?;
             },
             HighlightStyle::Animated => {
-              writeln!(writer, r#"<rect x="{}" y="{}" width="{}" height="{}" fill="{}" opacity="0.5"><animate attributeName="opacity" values="0.2;0.8;0.2" dur="2s" repeatCount="indefinite"/></rect>"#,
-                x_pos, y_pos, cell_size, cell_size, color)?;
+              writeln!(writer, r#"<rect x="{x_pos}" y="{y_pos}" width="{cell_size}" height="{cell_size}" fill="{color}" opacity="0.5"><animate attributeName="opacity" values="0.2;0.8;0.2" dur="2s" repeatCount="indefinite"/></rect>"#)?;
             },
           }
         }
@@ -521,13 +523,13 @@ impl GridRenderer
       if x >= 0 && x < self.width as i32 && y >= 0 && y < self.height as i32 {
         let x_pos = offset + x as usize * cell_size + cell_size / 2;
         let y_pos = offset + y as usize * cell_size + cell_size / 2 + 5; // Offset for text baseline
-        let color = self.color_to_svg(marker.color);
+        let color = Self::color_to_svg(marker.color);
         
         writeln!(writer, r#"<text x="{}" y="{}" text-anchor="middle" fill="{}" font-family="monospace" font-size="16" font-weight="bold">{}</text>"#,
           x_pos, y_pos, color, marker.symbol)?;
         
         // Add tooltip
-        writeln!(writer, r#"<title>{}</title>"#, marker.description)?;
+        writeln!(writer, r"<title>{}</title>", marker.description)?;
       }
     }
 
@@ -542,7 +544,7 @@ impl GridRenderer
       if x >= 0 && x < self.width as i32 && y >= 0 && y < self.height as i32 {
         let x_pos = offset + x as usize * cell_size + cell_size / 2 + annotation.offset.0 as usize;
         let y_pos = offset + y as usize * cell_size + cell_size / 4 + annotation.offset.1 as usize;
-        let color = self.color_to_svg(annotation.color);
+        let color = Self::color_to_svg(annotation.color);
         
         writeln!(writer, r#"<text x="{}" y="{}" fill="{}" font-family="sans-serif" font-size="12">{}</text>"#,
           x_pos, y_pos, color, annotation.text)?;
@@ -552,7 +554,7 @@ impl GridRenderer
     Ok(())
   }
 
-  fn color_to_svg(&self, color: DebugColor) -> &'static str {
+  fn color_to_svg(color: DebugColor) -> &'static str {
     match color {
       DebugColor::Default => "black",
       DebugColor::Red => "red",
@@ -590,6 +592,7 @@ pub struct PathfindingDebugger {
 
 impl PathfindingDebugger {
   /// Creates a new pathfinding debugger.
+  #[must_use]
   pub fn new(width: usize, height: usize) -> Self {
     Self {
       grid_renderer: GridRenderer::new().with_size(width, height),
@@ -633,7 +636,7 @@ impl PathfindingDebugger {
   where
     C: Into<(i32, i32)>,
   {
-    let path_coords: Vec<(i32, i32)> = path.into_iter().map(|c| c.into()).collect();
+    let path_coords: Vec<(i32, i32)> = path.into_iter().map(ndarray_cg::Into::into).collect();
     
     // Add path markers
     for (i, &coord) in path_coords.iter().enumerate() {
@@ -650,7 +653,7 @@ impl PathfindingDebugger {
   where
     C: Into<(i32, i32)>,
   {
-    self.visited_nodes = nodes.into_iter().map(|c| c.into()).collect();
+    self.visited_nodes = nodes.into_iter().map(ndarray_cg::Into::into).collect();
     self.grid_renderer.add_area(self.visited_nodes.clone(), "Visited", DebugColor::Gray, HighlightStyle::Fill);
   }
 
@@ -659,7 +662,7 @@ impl PathfindingDebugger {
   where
     C: Into<(i32, i32)>,
   {
-    self.open_nodes = nodes.into_iter().map(|c| c.into()).collect();
+    self.open_nodes = nodes.into_iter().map(ndarray_cg::Into::into).collect();
     self.grid_renderer.add_area(self.open_nodes.clone(), "Open", DebugColor::Orange, HighlightStyle::Dotted);
   }
 
@@ -676,11 +679,15 @@ impl PathfindingDebugger {
   }
 
   /// Renders the pathfinding debug view as ASCII.
+  #[must_use]
   pub fn render_ascii(&self) -> String {
     self.grid_renderer.render_ascii()
   }
 
   /// Exports the pathfinding debug view as SVG.
+  ///
+  /// # Errors
+  /// Returns an error when the underlying grid export fails.
   pub fn export_svg<P: AsRef<Path>>(&self, path: P) -> Result<(), std::io::Error> {
     self.grid_renderer.export_svg(path)
   }
@@ -708,6 +715,7 @@ pub struct EntityDebugInfo {
 
 impl ECSInspector {
   /// Creates a new ECS inspector.
+  #[must_use]
   pub fn new() -> Self {
     Self {
       entity_data: HashMap::new(),
@@ -730,21 +738,25 @@ impl ECSInspector {
   }
 
   /// Gets the number of entities currently tracked.
+  #[must_use]
   pub fn entity_count(&self) -> usize {
     self.entity_data.len()
   }
 
   /// Gets entity information by ID.
+  #[must_use]
   pub fn get_entity(&self, id: u32) -> Option<&EntityDebugInfo> {
     self.entity_data.get(&id)
   }
 
   /// Gets all entity IDs.
+  #[must_use]
   pub fn entity_ids(&self) -> Vec<u32> {
     self.entity_data.keys().copied().collect()
   }
 
   /// Generates a debug report.
+  #[must_use]
   pub fn generate_report(&self) -> String {
     let mut report = String::new();
     
@@ -759,7 +771,7 @@ impl ECSInspector {
     let mut components: Vec<_> = self.component_counts.iter().collect();
     components.sort_by_key(|(_, count)| *count);
     for (component, count) in components.iter().rev() {
-      report.push_str(&format!("  {}: {} entities\n", component, count));
+      report.push_str(&format!("  {component}: {count} entities\n"));
     }
 
     // System timings
@@ -784,7 +796,7 @@ impl ECSInspector {
         report.push_str(&format!("  Position: ({}, {})\n", pos.0, pos.1));
       }
       for (key, value) in &entity.data {
-        report.push_str(&format!("  {}: {}\n", key, value));
+        report.push_str(&format!("  {key}: {value}\n"));
       }
     }
 
@@ -796,6 +808,7 @@ impl ECSInspector {
   }
 
   /// Exports entity data as JSON.
+  #[must_use]
   pub fn export_json(&self) -> String {
     // Simplified JSON export (in real implementation would use serde_json)
     let mut json = String::from("{\n");
@@ -803,7 +816,7 @@ impl ECSInspector {
     
     json.push_str("  \"component_counts\": {\n");
     let component_entries: Vec<String> = self.component_counts.iter()
-      .map(|(name, count)| format!("    \"{}\": {}", name, count))
+      .map(|(name, count)| format!("    \"{name}\": {count}"))
       .collect();
     json.push_str(&component_entries.join(",\n"));
     json.push_str("\n  },\n");
@@ -848,6 +861,7 @@ pub struct MemorySample {
 
 impl PerformanceProfiler {
   /// Creates a new performance profiler.
+  #[must_use]
   pub fn new() -> Self {
     Self {
       frame_times: VecDeque::with_capacity(1000),
@@ -890,11 +904,12 @@ impl PerformanceProfiler {
   }
 
   /// Gets current performance statistics.
+  #[must_use]
   pub fn get_stats(&self) -> PerformanceStats {
-    let avg_frame_time = if !self.frame_times.is_empty() {
-      self.frame_times.iter().sum::<Duration>() / self.frame_times.len() as u32
-    } else {
+    let avg_frame_time = if self.frame_times.is_empty() {
       Duration::ZERO
+    } else {
+      self.frame_times.iter().sum::<Duration>() / self.frame_times.len() as u32
     };
 
     let min_frame_time = self.frame_times.iter().min().copied().unwrap_or(Duration::ZERO);
@@ -906,8 +921,8 @@ impl PerformanceProfiler {
       0.0
     };
 
-    let current_memory = self.memory_samples.back().map(|s| s.memory_usage).unwrap_or(0);
-    let current_entities = self.memory_samples.back().map(|s| s.entity_count).unwrap_or(0);
+    let current_memory = self.memory_samples.back().map_or(0, |s| s.memory_usage);
+    let current_entities = self.memory_samples.back().map_or(0, |s| s.entity_count);
 
     PerformanceStats {
       avg_frame_time,
@@ -922,6 +937,7 @@ impl PerformanceProfiler {
   }
 
   /// Generates a performance report.
+  #[must_use]
   pub fn generate_report(&self) -> String {
     let stats = self.get_stats();
     let mut report = String::new();
@@ -958,6 +974,9 @@ impl PerformanceProfiler {
   }
 
   /// Exports performance data as CSV for analysis.
+  ///
+  /// # Errors
+  /// Returns an error when the CSV file cannot be created or written.
   pub fn export_csv<P: AsRef<Path>>(&self, path: P) -> Result<(), std::io::Error> {
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
@@ -1040,9 +1059,10 @@ impl IntoDebugCoord for (usize, usize) {
 
 /// Utility functions for debugging.
 pub mod utils {
-  use super::*;
+  use super::Duration;
 
   /// Creates a simple ASCII art representation of a 2D boolean array.
+  #[must_use]
   pub fn render_bool_grid(grid: &[Vec<bool>], true_char: char, false_char: char) -> String {
     let mut output = String::new();
     for row in grid {
@@ -1056,10 +1076,11 @@ pub mod utils {
   }
 
   /// Formats a duration for human-readable display.
+  #[must_use]
   pub fn format_duration(duration: Duration) -> String {
     let micros = duration.as_micros();
     if micros < 1000 {
-      format!("{}μs", micros)
+      format!("{micros}μs")
     } else if micros < 1_000_000 {
       format!("{:.1}ms", duration.as_secs_f64() * 1000.0)
     } else {
@@ -1068,6 +1089,7 @@ pub mod utils {
   }
 
   /// Formats memory usage for human-readable display.
+  #[must_use]
   pub fn format_memory(bytes: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = KB * 1024;
@@ -1080,22 +1102,29 @@ pub mod utils {
     } else if bytes >= KB {
       format!("{:.1} KB", bytes as f64 / KB as f64)
     } else {
-      format!("{} B", bytes)
+      format!("{bytes} B")
     }
   }
 }
 
-#[cfg(test)]
+// Exception ( task 072 ) : the two tests below stay inline because they pin
+// `GridRenderer`'s private builder state -- `width`/`height`/`style` accumulation
+// and `markers` storage -- for which no public accessor exists. Rendering output
+// is the only public observable, and inferring storage from rendered ASCII would
+// test a different behavior ( a marker can be stored yet not rendered ). Rejected
+// alternative : exposing the fields or adding getters widens the API solely for
+// test placement ( zero external callers ). All other debug tests were relocated
+// to `tests/debug_test.rs` ( task 072 ).
+#[ cfg( test ) ]
 mod tests {
   use super::*;
-  use std::time::Duration;
 
   #[test]
   fn test_grid_renderer_creation() {
     let renderer = GridRenderer::new()
       .with_size(10, 8)
       .with_style(GridStyle::Hexagonal);
-    
+
     assert_eq!(renderer.width, 10);
     assert_eq!(renderer.height, 8);
     assert!(matches!(renderer.style, GridStyle::Hexagonal));
@@ -1106,91 +1135,9 @@ mod tests {
     let mut renderer = GridRenderer::new();
     renderer.add_marker((5, 3), "S", "Start position");
     renderer.add_colored_marker((8, 6), "G", "Goal", DebugColor::Blue, 10);
-    
+
     assert_eq!(renderer.markers.len(), 2);
     assert!(renderer.markers.contains_key(&(5, 3)));
     assert!(renderer.markers.contains_key(&(8, 6)));
-  }
-
-  #[test]
-  fn test_pathfinding_debugger() {
-    let mut debugger = PathfindingDebugger::new(10, 10);
-    
-    debugger.set_start((0, 0));
-    debugger.set_goal((9, 9));
-    debugger.add_obstacle((5, 5));
-    debugger.add_path(vec![(0, 0), (1, 1), (2, 2), (3, 3)], "Test Path");
-    
-    let output = debugger.render_ascii();
-    assert!(output.contains("Start"));
-    assert!(output.contains("Goal"));
-    assert!(output.contains("Obstacle"));
-  }
-
-  #[test]
-  fn test_ecs_inspector() {
-    let mut inspector = ECSInspector::new();
-    
-    let entity = EntityDebugInfo {
-      id: 42,
-      components: vec!["Position".to_string(), "Health".to_string()],
-      position: Some((10, 20)),
-      data: vec![("level".to_string(), "5".to_string())].into_iter().collect(),
-    };
-    
-    inspector.record_entity(entity);
-    inspector.record_system_timing("MovementSystem".to_string(), Duration::from_millis(5));
-    
-    let report = inspector.generate_report();
-    assert!(report.contains("Entity 42"));
-    assert!(report.contains("Position"));
-    assert!(report.contains("MovementSystem"));
-  }
-
-  #[test]
-  fn test_performance_profiler() {
-    let mut profiler = PerformanceProfiler::new();
-    
-    profiler.record_frame_time(Duration::from_millis(16));
-    profiler.record_frame_time(Duration::from_millis(18));
-    profiler.record_system_time("RenderSystem".to_string(), Duration::from_millis(8));
-    profiler.record_memory_sample(1024 * 1024, 100); // 1MB, 100 entities
-    
-    let stats = profiler.get_stats();
-    assert_eq!(stats.frame_count, 2);
-    assert!(stats.fps > 0.0);
-    assert_eq!(stats.current_memory, 1024 * 1024);
-    assert_eq!(stats.current_entities, 100);
-  }
-
-  #[test]
-  fn test_debug_utilities() {
-    let grid = vec![
-      vec![true, false, true],
-      vec![false, true, false],
-      vec![true, true, false],
-    ];
-    
-    let output = utils::render_bool_grid(&grid, '#', '.');
-    assert!(output.contains('#'));
-    assert!(output.contains('.'));
-    
-    let duration = Duration::from_micros(1500);
-    let formatted = utils::format_duration(duration);
-    assert!(formatted.contains("1.5ms"));
-    
-    let memory = utils::format_memory(1536 * 1024); // 1.5 MB
-    assert!(memory.contains("1.5") && memory.contains("MB"));
-  }
-
-  #[test]
-  fn test_coordinate_conversion() {
-    let int_coord = (5, 10);
-    let float_coord = (5.7, 10.3);
-    let usize_coord = (5usize, 10usize);
-    
-    assert_eq!(int_coord.into_debug_coord(), (5, 10));
-    assert_eq!(float_coord.into_debug_coord(), (5, 10));
-    assert_eq!(usize_coord.into_debug_coord(), (5, 10));
   }
 }

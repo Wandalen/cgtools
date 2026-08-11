@@ -1,4 +1,4 @@
-use super::*;
+use super::{Collection, ConstLength, IntoArray, ArrayRef, ArrayMut, VectorIter, VectorIteratorRef, VectorIterMut, VectorIterator};
 
 // = 0
 
@@ -51,7 +51,7 @@ impl ArrayMut< usize, 0 > for ()
 struct Tuple0Iter< 'tuple_ref >
 {
   // PhantomData is used to make the struct generic over 'tuple_ref without storing any data.
-  _phantom : std::marker::PhantomData< &'tuple_ref () >,
+  _phantom : core::marker::PhantomData< &'tuple_ref () >,
 }
 
 impl< 'tuple_ref > Iterator for Tuple0Iter< 'tuple_ref >
@@ -72,10 +72,10 @@ impl< 'tuple_ref > Iterator for Tuple0Iter< 'tuple_ref >
 }
 
 // Implement ExactSizeIterator as we always know the exact number of iterations (0).
-impl< 'tuple_ref > ExactSizeIterator for Tuple0Iter< 'tuple_ref > {}
+impl ExactSizeIterator for Tuple0Iter< '_ > {}
 
 // Implement DoubleEndedIterator as we can iterate from both ends (although it's always empty).
-impl< 'tuple_ref > DoubleEndedIterator for Tuple0Iter< 'tuple_ref >
+impl DoubleEndedIterator for Tuple0Iter< '_ >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
@@ -89,7 +89,7 @@ impl< 'tuple_ref > DoubleEndedIterator for Tuple0Iter< 'tuple_ref >
 struct Tuple0IterMut< 'tuple_ref >
 {
   // PhantomData is used to make the struct generic over 'tuple_ref without storing any data.
-  _phantom : std::marker::PhantomData< &'tuple_ref mut () >,
+  _phantom : core::marker::PhantomData< &'tuple_ref mut () >,
 }
 
 impl< 'tuple_ref > Iterator for Tuple0IterMut< 'tuple_ref >
@@ -110,10 +110,10 @@ impl< 'tuple_ref > Iterator for Tuple0IterMut< 'tuple_ref >
 }
 
 // Implement ExactSizeIterator as we always know the exact number of iterations (0).
-impl< 'tuple_ref > ExactSizeIterator for Tuple0IterMut< 'tuple_ref > {}
+impl ExactSizeIterator for Tuple0IterMut< '_ > {}
 
 // Implement DoubleEndedIterator as we can iterate from both ends (although it's always empty).
-impl< 'tuple_ref > DoubleEndedIterator for Tuple0IterMut< 'tuple_ref >
+impl DoubleEndedIterator for Tuple0IterMut< '_ >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
@@ -124,6 +124,7 @@ impl< 'tuple_ref > DoubleEndedIterator for Tuple0IterMut< 'tuple_ref >
 
 impl VectorIter< usize, 0 > for ()
 {
+  #[ inline ]
   fn vector_iter< 'tuple_ref >( &'tuple_ref self ) -> impl VectorIteratorRef< 'tuple_ref, &'tuple_ref usize >
   where
     usize: 'tuple_ref,
@@ -131,13 +132,14 @@ impl VectorIter< usize, 0 > for ()
     // Return an empty iterator
     Tuple0Iter
     {
-      _phantom : std::marker::PhantomData,
+      _phantom : core::marker::PhantomData,
     }
   }
 }
 
 impl VectorIterMut< usize, 0 > for ()
 {
+  #[ inline ]
   fn vector_iter_mut< 'tuple_ref >( &'tuple_ref mut self ) -> impl VectorIterator< 'tuple_ref, &'tuple_ref mut usize >
   where
     usize: 'tuple_ref,
@@ -145,7 +147,7 @@ impl VectorIterMut< usize, 0 > for ()
     // Return an empty mutable iterator
     Tuple0IterMut
     {
-      _phantom : std::marker::PhantomData,
+      _phantom : core::marker::PhantomData,
     }
   }
 }

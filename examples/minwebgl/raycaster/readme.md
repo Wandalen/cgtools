@@ -8,7 +8,7 @@ Ray casting is fundamental for 3D user interfaces and game mechanics. This examp
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

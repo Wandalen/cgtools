@@ -48,7 +48,7 @@ mod private
       let status = gl.check_framebuffer_status( gl::FRAMEBUFFER );
       if status != gl::FRAMEBUFFER_COMPLETE
       {
-        gl::browser::error!( "Framebuffer incomplete: {:?}", status );
+        gl::browser::error!( "Framebuffer incomplete: {status:?}" );
       }
 
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
@@ -206,7 +206,7 @@ mod private
       let status = self.gl.check_framebuffer_status( gl::FRAMEBUFFER );
       if status != gl::FRAMEBUFFER_COMPLETE
       {
-        gl::browser::error!( "Shadow baker framebuffer incomplete: {:?}", status );
+        gl::browser::error!( "Shadow baker framebuffer incomplete: {status:?}" );
       }
     }
 
@@ -245,7 +245,7 @@ mod private
       let light_pos = light.position();
       self.program.uniform_upload( "u_light_position", light_pos.as_slice() );
 
-      let is_ortho = light.is_orthographic() as i32;
+      let is_ortho = i32::from(light.is_orthographic());
       self.program.uniform_upload( "u_is_orthographic", &is_ortho );
 
       let light_size = light.size();
@@ -304,6 +304,7 @@ mod private
   impl Light
   {
     /// Creates light with position, direction, projection, and size
+    #[ must_use ]
     pub fn new
     (
       position : gl::F32x3,
@@ -323,12 +324,14 @@ mod private
     }
 
     /// Returns light size (controls shadow softness)
+    #[ must_use ]
     pub fn size( &self ) -> f32
     {
       self.size
     }
 
     /// Extracts near and far planes from projection matrix
+    #[ must_use ]
     pub fn near_far_planes( &self ) -> ( f32, f32 )
     {
       let m = self.projection.raw_slice();
@@ -362,24 +365,28 @@ mod private
     }
 
     /// Returns light position
+    #[ must_use ]
     pub fn position( &self ) -> gl::F32x3
     {
       self.position
     }
 
     /// Returns light direction
+    #[ must_use ]
     pub fn direction( &self ) -> gl::F32x3
     {
       self.direction
     }
 
     /// Returns projection matrix
+    #[ must_use ]
     pub fn projection( &self ) -> gl::F32x4x4
     {
       self.projection
     }
 
     /// Returns true if using orthographic projection (checks matrix[3][3] == 1.0)
+    #[ must_use ]
     pub fn is_orthographic( &self ) -> bool
     {
       let m = self.projection.raw_slice();

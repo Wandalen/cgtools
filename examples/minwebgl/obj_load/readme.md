@@ -8,7 +8,7 @@ This example shows complete OBJ parsing including vertices, normals, texture coo
 
 ![](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

@@ -112,8 +112,9 @@ let value = f.apply( 0.0, 1.0, 0.5 );
 
 | Component | Purpose | Key Methods |
 |-----------|---------|-------------|
-| `Sequencer` | Complex values player | `new()`, `add()`, `update()`, `get_value()` |
-| `Tween` | One value interpolation player | `new()`, `update()`, `get_value()`, `progress()` |
+| `Sequencer` | Named, heterogeneous player collection running in parallel | `new()`, `insert()`, `get()`, `update()`, `progress()` |
+| `Sequence` | Ordered, homogeneous player chain running one at a time | `new()`, `current_get()`, `update()`, `progress()` |
+| `Tween` | One value interpolation player | `new()`, `update()`, `value_get()`, `progress()` |
 | `EasingFunction` | Easing function trait | `apply()` |
 
 ## 🎯 Use Cases

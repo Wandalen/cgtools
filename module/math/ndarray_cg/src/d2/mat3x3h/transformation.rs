@@ -1,5 +1,5 @@
-use crate::*;
-use mdmath_core::vector::arithmetics::*;
+use crate::{MatEl, nd, Mat4, mat, RawSliceMut, VectorIterMut, ArrayRef, MatNum, VectorIter, Collection};
+use mdmath_core::vector::arithmetics::{normalized, cross, dot, sub};
 
 // #[ derive( Copy, Clone, Debug, PartialEq, Default ) ]
 // pub struct Decomposed< E, Vec, Rot, const N : usize >
@@ -17,6 +17,7 @@ use mdmath_core::vector::arithmetics::*;
 ///
 /// Similiar functions:
 /// orthographic_rg - return the same matrix, but with z in range [ 0.0, 1.0 ]
+#[ inline ]
 pub fn orthographic_rh_gl< E >
 (
   left : E,
@@ -51,6 +52,7 @@ where
 }
 
 /// Creates right-handed orthographic projection transformation with z in range [ 0.0, 1.0 ].
+#[ inline ]
 pub fn orthographic_rh< E >
 (
   left : E,
@@ -90,6 +92,12 @@ where
 ///
 /// Similiar functions:
 /// perspective_rh - return the same matrix, but with z in range [ 0.0, 1.0 ]
+///
+/// # Panics
+///
+/// Panics if `E::from( 2.0 )` fails, i.e. if `E` cannot represent that literal
+/// ( not expected for the standard float types this is used with ).
+#[ inline ]
 pub fn perspective_rh_gl< E >
 (
   fovy : E,
@@ -124,6 +132,12 @@ where
 ///
 /// Similiar functions:
 /// perspective_rh_gl - return the same matrix, but with z in range [ -1.0, 1.0 ]
+///
+/// # Panics
+///
+/// Panics if `E::from( 2.0 )` fails, i.e. if `E` cannot represent that literal
+/// ( not expected for the standard float types this is used with ).
+#[ inline ]
 pub fn perspective_rh< E >
 (
   fovy : E,
@@ -161,6 +175,11 @@ where
 ///
 /// Similiar functions:
 /// look_at_rh - returns the same matrix, but takes camera's view center, instead of direction
+// `eye`/`dir`/`up` are taken by value to preserve this public function's existing calling
+// convention, used with owned vectors across the workspace (including `module/helper/renderer`,
+// out of scope for this change); switching to by-reference would be a breaking API change.
+#[ inline ]
+#[ allow( clippy::needless_pass_by_value ) ]
 pub fn look_to_rh< E, Vec3 >
 (
   eye : Vec3,
@@ -202,6 +221,10 @@ where
 ///
 /// Similiar functions:
 /// look_to_rh - returns the same matrix, but takes camera's view direction
+// `center` is taken by value to preserve this public function's existing calling convention
+// ( see `look_to_rh` above for the full rationale ).
+#[ inline ]
+#[ allow( clippy::needless_pass_by_value ) ]
 pub fn look_at_rh< E, Vec3 >
 (
   eye : Vec3,
@@ -264,6 +287,10 @@ where
 ///
 /// # Returns
 /// - A 4x4 translation matrix.
+///
+/// # Panics
+///
+/// Panics if `translation`'s iterator yields fewer than 3 elements.
 #[ inline ]
 pub fn translation< E, Translation >( translation : Translation ) -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where
@@ -294,6 +321,10 @@ where
 ///
 /// # Returns
 /// - A 4x4 scaling matrix.
+///
+/// # Panics
+///
+/// Panics if `scaling`'s iterator yields fewer than 3 elements.
 #[ inline ]
 pub fn scale< E, Scaling >( scaling : Scaling ) -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where

@@ -27,8 +27,6 @@
 mod private
 {
   use crate::traits::{ Animatable, AnimatablePlayer };
-  #[ allow( unused_imports ) ]
-  use crate::easing::base::EasingBuilder;
   use crate::easing::base::EasingFunction;
   use minwebgl as gl;
   use gl::
@@ -90,15 +88,15 @@ mod private
       {
         start_value : self.start_value.clone(),
         end_value : self.end_value.clone(),
-        duration : self.duration.clone(),
-        elapsed : self.elapsed.clone(),
+        duration : self.duration,
+        elapsed : self.elapsed,
         easing : clone_dyn_types::clone_into_box( &*self.easing ),
-        state : self.state.clone(),
-        delay : self.delay.clone(),
-        remain : self.remain.clone(),
-        repeat_count : self.repeat_count.clone(),
-        current_repeat : self.current_repeat.clone(),
-        yoyo : self.yoyo.clone()
+        state : self.state,
+        delay : self.delay,
+        remain : self.remain,
+        repeat_count : self.repeat_count,
+        current_repeat : self.current_repeat,
+        yoyo : self.yoyo
       }
     }
   }
@@ -132,6 +130,7 @@ mod private
     }
 
     /// Sets a delay before the animation starts.
+    #[ must_use ]
     pub fn with_delay( mut self, delay : f64 ) -> Self
     {
       self.delay = delay.max( 0.0 );
@@ -140,6 +139,7 @@ mod private
     }
 
     /// Sets an animation duration
+    #[ must_use ]
     pub fn with_duration( mut self, duration : f64 ) -> Self
     {
       self.duration = duration.max( 0.0 );
@@ -147,6 +147,7 @@ mod private
     }
 
     /// Sets the number of times to repeat the animation.
+    #[ must_use ]
     pub fn with_repeat( mut self, count : i32 ) -> Self
     {
       self.repeat_count = count;
@@ -154,6 +155,7 @@ mod private
     }
 
     /// Enables yoyo mode ( reverse direction on repeat ).
+    #[ must_use ]
     pub fn with_yoyo( mut self, yoyo : bool ) -> Self
     {
       self.yoyo = yoyo;
@@ -242,21 +244,39 @@ mod private
     }
 
     /// Handles animation repeat logic.
+    // Fix(TASK-015): the post-wrap elapsed time was clamped with .min(0.0), but
+    // `elapsed - duration * floor(elapsed/duration)` is the floor-division remainder, which is
+    // mathematically always >= 0.0 — so .min(0.0) forced elapsed back to exactly 0.0 on every
+    // repeat instead of preserving the real leftover time, dropping the fractional progress made
+    // into the new loop.
+    // Root cause: `.min(0.0)` written where `.max(0.0)` was intended (guarding against
+    // floating-point drift producing a tiny negative remainder), inverting the clamp direction.
+    // Pitfall: existing tests only drive `update()` with deltas that are exact multiples of
+    // `duration`, where the remainder is exactly 0.0 either way — the bug is invisible unless the
+    // elapsed time crosses a repeat boundary mid-frame.
     fn repeat_handle( &mut self )
     {
       let elapsed_repeats = ( self.elapsed / self.duration ).floor();
       if self.repeat_count == -1
       {
         // Infinite repeat
-        self.current_repeat += elapsed_repeats as i32;
-        self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).min( 0.0 );
+        // `elapsed_repeats` counts whole durations crossed within one frame's delta time —
+        // bounded in practice by plausible delta_time magnitudes; reaching i32::MAX would need
+        // thousands of repeats to elapse within a single `update()` call.
+        #[ allow( clippy::cast_possible_truncation ) ]
+        let repeats : i32 = elapsed_repeats as i32;
+        self.current_repeat += repeats;
+        self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).max( 0.0 );
         self.state = AnimationState::Running;
       }
       else if self.repeat_count > 0 && self.current_repeat < self.repeat_count
       {
         // Finite repeat
-        self.current_repeat += elapsed_repeats as i32;
-        self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).min( 0.0 );
+        // See the infinite-repeat branch above for why this narrowing is bounded in practice.
+        #[ allow( clippy::cast_possible_truncation ) ]
+        let repeats : i32 = elapsed_repeats as i32;
+        self.current_repeat += repeats;
+        self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).max( 0.0 );
         self.state = AnimationState::Running;
       }
       else
@@ -394,12 +414,20 @@ mod private
       for tween in self.iter_mut() { tween.reset(); }
     }
 
+    // Fix(TASK-015): duration_get computed min_start via .max() (seeded 0.0), returning the
+    // latest delay instead of the earliest, and delay_get seeded its .min() reduction at 0.0
+    // instead of f64::MAX, so it always returned 0.0 whenever every real delay was positive.
+    // Root cause: min-reduction pattern copy-pasted from a max-reduction without adjusting the
+    // seed value or comparison direction.
+    // Pitfall: a min-reduction seeded at a real domain value like 0.0 silently returns that seed
+    // whenever every element is >= it, so arrays containing a zero-delay tween mask the bug —
+    // it only surfaces once every element is strictly positive.
     fn duration_get( &self ) -> f64
     {
-      let mut min_start = 0.0;
+      let mut min_start = f64::MAX;
       for tween in self
       {
-        min_start = tween.delay.max( min_start );
+        min_start = tween.delay.min( min_start );
       }
 
       let mut max_end = 0.0;
@@ -413,7 +441,7 @@ mod private
 
     fn delay_get( &self ) -> f64
     {
-      let mut min_delay = 0.0;
+      let mut min_delay = f64::MAX;
       for tween in self
       {
         min_delay = tween.delay.min( min_delay );
@@ -451,7 +479,11 @@ mod private
   {
     fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
-      self + ( other - self ) * time as f32
+      // `time` is the normalized [0, 1] interpolation factor; narrowing to f32 loses precision
+      // but stays representable and visually indistinguishable at animation-frame granularity.
+      #[ allow( clippy::cast_possible_truncation ) ]
+      let time = time as f32;
+      self + ( other - self ) * time
     }
   }
 
@@ -467,7 +499,11 @@ mod private
   {
     fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
-      ( f64::from( *self ) + ( f64::from( *other ) - f64::from( *self ) ) * time ) as i32
+      // Intentionally truncates the fractional part of the blended value to sample a discrete
+      // integer; magnitude stays bounded by `self`/`other` for `time` within the intended [0, 1].
+      #[ allow( clippy::cast_possible_truncation ) ]
+      let result = ( f64::from( *self ) + ( f64::from( *other ) - f64::from( *self ) ) * time ) as i32;
+      result
     }
   }
 
@@ -511,7 +547,7 @@ mod private
     {
       let mut copy = *self;
       copy.iter_mut().zip( other.iter() )
-      .for_each( | ( a, b ) | *a = a.interpolate( b, time ) );
+      .for_each( | ( elem, other_elem ) | *elem = elem.interpolate( other_elem, time ) );
 
       copy
     }
@@ -525,8 +561,8 @@ mod private
       self.iter().zip( other.iter() )
       .map
       (
-        | ( a, b ) |
-        a.interpolate( b, time )
+        | ( elem, other_elem ) |
+        elem.interpolate( other_elem, time )
       )
       .collect::< Vec< _ > >()
     }

@@ -1,5 +1,3 @@
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::field_reassign_with_default ) ]
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -10,7 +8,6 @@ use gl::wasm_bindgen::prelude::*;
 
 use crate::lil_gui::{add_slider, new_gui, on_change, show};
 
-
 #[ derive( Default, Serialize, Deserialize ) ]
 pub struct Settings
 {
@@ -20,7 +17,6 @@ pub struct Settings
   bloom_strength : f32,
   exposure : f32
 }
-
 
 pub fn setup( renderer : Rc< RefCell< Renderer > > )
 {

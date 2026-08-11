@@ -1,4 +1,3 @@
-#![ allow( clippy::needless_borrow ) ]
 
 use std::collections::HashSet;
 

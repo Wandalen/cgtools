@@ -3,8 +3,8 @@ mod private
   /// Trait for types that can be animated ( interpolated ).
   pub trait Animatable : Clone + core::fmt::Debug
   {
-    /// Interpolates between two values at time t ( 0.0 to 1.0 ).
-    fn interpolate( &self, other : &Self, t : f64 ) -> Self;
+    /// Interpolates between two values at the given time ( 0.0 to 1.0 ).
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self;
   }
 
   /// Trait for type-erased animatable values in Sequencer.

@@ -1,4 +1,3 @@
-#![ allow( clippy::upper_case_acronyms ) ]
 
 use super::*;
 use serde::{ Serialize, Deserialize };

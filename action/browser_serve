@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Shared trunk-serve + browsee-launch logic for every browser-kind example's
+# `verb/run`. Run from a crate root (a dir with its own Cargo.toml + index.html).
+#
+# The browsee `features::` capability flags (webgpu, software_gl) are derived
+# from this crate's own `[package.metadata.action] tags` in Cargo.toml —
+# `api:webgpu` -> features::webgpu, `api:webgl` -> features::software_gl —
+# instead of being hardcoded per call site. Every example already declares
+# these tags for `action run`'s tag-filtering, so this reuses that single
+# source of truth rather than encoding the same fact twice. Explicitly
+# requesting the capability matters because leaving it to browser defaults is
+# unreliable: a fresh Firefox profile can fail WebGPU's blocklist probe, and
+# Chromium hard-fails WebGL2 without software rendering enabled (see
+# docs/pitfall/003_adapter_without_presentation.md and
+# docs/pitfall/004_webgl2_blocklist_fatal.md in the browsee module).
+set -euo pipefail
+
+_tags_raw="$( sed -n -E 's/^tags = \[(.*)\]$/\1/p' Cargo.toml | tr -d '"' )"
+_features=""
+while IFS= read -r _t
+do
+  _t="$( printf '%s' "$_t" | sed -E 's/^ +| +$//g' )"
+  case "$_t" in
+    api:webgpu) _features="${_features:+$_features,}webgpu" ;;
+    api:webgl) _features="${_features:+$_features,}software_gl" ;;
+  esac
+done < <( printf '%s\n' "$_tags_raw" | tr ',' '\n' )
+
+_port="$( python3 -c 'import socket; s = socket.socket(); s.bind( ( "127.0.0.1", 0 ) ); print( s.getsockname()[ 1 ] ); s.close()' )"
+_url="http://127.0.0.1:$_port/"
+_session="$( basename "$( dirname "$PWD" )" )_$( basename "$PWD" )"
+
+trunk serve --release --port "$_port" &
+_trunk_pid=$!
+
+if command -v browsee > /dev/null 2>&1
+then
+  _ready=0
+  for _ in $( seq 240 )
+  do
+    curl -sf -o /dev/null "$_url" && { _ready=1; break; }
+    sleep 0.5
+  done
+  if (( _ready ))
+  then
+    _feature_args=()
+    if [[ -n "$_features" ]]
+    then
+      _feature_args=( features::"$_features" )
+    fi
+    timeout 90 browsee .launch session::"$_session" url::"$_url" "${_feature_args[@]}" > /dev/null 2>&1 \
+      || printf 'note: browsee could not open a browser tab — open %s manually\n' "$_url" >&2
+  else
+    printf 'note: dev server not ready in time — skipping browser auto-open (open %s manually once ready)\n' "$_url" >&2
+  fi
+else
+  printf 'note: browsee not found on PATH — skipping browser auto-open (open %s manually)\n' "$_url" >&2
+fi
+
+wait "$_trunk_pid"

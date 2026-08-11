@@ -412,12 +412,14 @@
             <button class="filter-btn" data-filter="webgl">WebGL</button>
             <button class="filter-btn" data-filter="webgpu">WebGPU</button>
             <button class="filter-btn" data-filter="wgpu">WGPU</button>
+            <button class="filter-btn" data-filter="scene_script">Scripting</button>
+            <button class="filter-btn" data-filter="tiles_tools">Tiles Tools</button>
         </div>
     </div>
 
     <div class="stats">
         <div class="stat-card" aria-live="polite" aria-atomic="true">
-            <div class="stat-number" id="totalDemos">52</div>
+            <div class="stat-number" id="totalDemos">72</div>
             <div class="stat-label">Total Demos</div>
         </div>
         <div class="stat-card">
@@ -461,7 +463,7 @@
         <section class="category-section" data-category="webgl">
             <div class="category-header">
                 <h2>WebGL Examples</h2>
-                <span class="category-badge">47 demos</span>
+                <span class="category-badge">48 demos</span>
             </div>
             <div class="demo-grid">
                 <article class="demo-card" role="article" data-name="2d line">
@@ -1050,6 +1052,45 @@
                         </div>
                     </div>
                 </article>
+
+                <article class="demo-card" role="article" data-name="jewelry site">
+                    <div class="demo-image">
+                        <img src="./minwebgl/jewelry_site/showcase.webp" alt="Jewelry Site" loading="lazy" width="350" height="250">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Jewelry Site</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/jewelry_site/readme.md" class="demo-link" aria-label="View Jewelry Site demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="sun grid lines webgl">
+                    <div class="demo-image">
+                        <img src="./minwebgl/sun_grid_lines/showcase.webp" alt="Sun Grid Lines" loading="lazy" width="350" height="250">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Sun Grid Lines</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/sun_grid_lines/readme.md" class="demo-link" aria-label="View Sun Grid Lines demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="touch input test">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Touch Input Test</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/touch_input_test/readme.md" class="demo-link" aria-label="View Touch Input Test demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
             </div>
         </section>
 
@@ -1057,7 +1098,7 @@
         <section class="category-section" data-category="webgpu">
             <div class="category-header">
                 <h2>WebGPU Examples</h2>
-                <span class="category-badge">2 demos</span>
+                <span class="category-badge">5 demos</span>
             </div>
             <div class="demo-grid">
                 <article class="demo-card" role="article" data-name="deferred rendering">
@@ -1085,6 +1126,45 @@
                         </div>
                     </div>
                 </article>
+
+                <article class="demo-card" role="article" data-name="hello triangle quickstart webgpu">
+                    <div class="demo-image">
+                        <img src="./minwebgpu/hello_triangle_quickstart/showcase.webp" alt="Hello triangle quickstart" loading="lazy" width="350" height="250">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Hello Triangle Quickstart</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgpu/hello_triangle_quickstart/readme.md" class="demo-link" aria-label="View Hello Triangle Quickstart demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="renderer pbr scene">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Renderer PBR Scene</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgpu/renderer_pbr_scene/readme.md" class="demo-link" aria-label="View Renderer PBR Scene demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="sun grid lines webgpu">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Sun Grid Lines</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgpu/sun_grid_lines/readme.md" class="demo-link" aria-label="View Sun Grid Lines demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
             </div>
         </section>
 
@@ -1092,7 +1172,7 @@
         <section class="category-section" data-category="wgpu">
             <div class="category-header">
                 <h2>WGPU Examples</h2>
-                <span class="category-badge">2 demos</span>
+                <span class="category-badge">4 demos</span>
             </div>
             <div class="demo-grid">
                 <article class="demo-card" role="article" data-name="grid renderer">
@@ -1117,6 +1197,232 @@
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
                             <a href="./minwgpu/hello_triangle/readme.md" class="demo-link" aria-label="View Hello Triangle demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="sun grid lines wgpu">
+                    <div class="demo-image">
+                        <img src="./minwgpu/sun_grid_lines/showcase.webp" alt="Sun Grid Lines" loading="lazy" width="350" height="250">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Sun Grid Lines</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwgpu/sun_grid_lines/readme.md" class="demo-link" aria-label="View Sun Grid Lines demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="sun grid lines vulkan wgpu">
+                    <div class="demo-image">
+                        <img src="./minwgpu/sun_grid_lines_vulkan/showcase.webp" alt="Sun Grid Lines (Vulkan)" loading="lazy" width="350" height="250">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Sun Grid Lines (Vulkan)</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwgpu/sun_grid_lines_vulkan/readme.md" class="demo-link" aria-label="View Sun Grid Lines (Vulkan) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- Scripting Examples -->
+        <section class="category-section" data-category="scene_script">
+            <div class="category-header">
+                <h2>Scripting Examples</h2>
+                <span class="category-badge">2 demos</span>
+            </div>
+            <div class="demo-grid">
+                <article class="demo-card" role="article" data-name="f32x2 vector arithmetic">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">F32x2 Vector Arithmetic</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./scene_script/f32x2_vector_arithmetic/readme.md" class="demo-link" aria-label="View F32x2 Vector Arithmetic demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="pingpong animation">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Pingpong Animation</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./scene_script/pingpong_animation/readme.md" class="demo-link" aria-label="View Pingpong Animation demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- Tiles Tools Examples -->
+        <section class="category-section" data-category="tiles_tools">
+            <div class="category-header">
+                <h2>Tiles Tools Examples</h2>
+                <span class="category-badge">12 demos</span>
+            </div>
+            <div class="demo-grid">
+                <article class="demo-card" role="article" data-name="advanced pathfinding demo">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Advanced Pathfinding Demo</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./tiles_tools/advanced_pathfinding_demo/readme.md" class="demo-link" aria-label="View Advanced Pathfinding Demo demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="beginner tutorial">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Beginner Tutorial</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./tiles_tools/beginner_tutorial/readme.md" class="demo-link" aria-label="View Beginner Tutorial demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="debug demo">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Debug Demo</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./tiles_tools/debug_demo/readme.md" class="demo-link" aria-label="View Debug Demo demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="ecs collision demo">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">ECS Collision Demo</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./tiles_tools/ecs_collision_demo/readme.md" class="demo-link" aria-label="View ECS Collision Demo demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="event system demo">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Event System Demo</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./tiles_tools/event_system_demo/readme.md" class="demo-link" aria-label="View Event System Demo demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="field of view demo">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Field of View Demo</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./tiles_tools/field_of_view_demo/readme.md" class="demo-link" aria-label="View Field of View Demo demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="game of life tiles tools">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Game of Life (tiles_tools)</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./tiles_tools/game_of_life/readme.md" class="demo-link" aria-label="View Game of Life demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="game systems demo">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Game Systems Demo</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./tiles_tools/game_systems_demo/readme.md" class="demo-link" aria-label="View Game Systems Demo demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="serialization demo">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Serialization Demo</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./tiles_tools/serialization_demo/readme.md" class="demo-link" aria-label="View Serialization Demo demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="simple collision demo">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Simple Collision Demo</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./tiles_tools/simple_collision_demo/readme.md" class="demo-link" aria-label="View Simple Collision Demo demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="stealth game">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Stealth Game</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./tiles_tools/stealth_game/readme.md" class="demo-link" aria-label="View Stealth Game demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="tactical rpg">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Tactical RPG</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./tiles_tools/tactical_rpg/readme.md" class="demo-link" aria-label="View Tactical RPG demo">View Details</a>
                         </div>
                     </div>
                 </article>

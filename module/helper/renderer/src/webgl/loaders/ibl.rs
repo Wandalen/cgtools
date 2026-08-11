@@ -25,14 +25,14 @@ mod private
     // Asynchronously loads an HDR image and uploads it to a single mipmap level of a WebGL cube map texture.
     let load_cube = async | name, mip_level, texture : Option< &gl::web_sys::WebGlTexture > |
     {
-      let file_path = format!( "{}/{}.hdr", path, name );
+      let file_path = format!( "{path}/{name}.hdr" );
       hdr_texture::load_to_mip_cube( gl, texture, mip_level, &file_path ).await;
     };
 
     // Asynchronously loads an HDR image and uploads it to a single mipmap level of a WebGL 2D texture.
     let load_d2 = async | name, mip_level, texture : Option< &gl::web_sys::WebGlTexture > |
     {
-      let file_path = format!( "{}/{}.hdr", path, name );
+      let file_path = format!( "{path}/{name}.hdr" );
       hdr_texture::load_to_mip_d2( gl, texture, mip_level, &file_path ).await;
     };
 

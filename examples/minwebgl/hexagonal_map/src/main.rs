@@ -2,38 +2,6 @@
 //! It allows users to edit tiles, rivers, and player colors on a hexagonal grid.
 //! The map can be saved and loaded in JSON format.
 
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::assign_op_pattern ) ]
-#![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::redundant_field_names ) ]
-#![ allow( clippy::useless_format ) ]
-#![ allow( clippy::let_unit_value ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::needless_continue ) ]
-#![ allow( clippy::else_if_without_else ) ]
-#![ allow( clippy::unreadable_literal ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::collapsible_if ) ]
-#![ allow( clippy::unused_async ) ]
-#![ allow( clippy::needless_borrows_for_generic_args ) ]
-#![ allow( clippy::wrong_self_convention ) ]
-#![ allow( clippy::neg_multiply ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::excessive_precision ) ]
-
 mod helper;
 mod triaxial;
 mod core_game;
@@ -122,7 +90,7 @@ async fn run() -> Result< (), gl::WebglError >
   let height = ( fheight * dpr ) as u32;
   canvas.set_width( width );
   canvas.set_height( height );
-  browser_input::prevent_rightclick( canvas.clone().dyn_into().unwrap() );
+  browser_input::prevent_rightclick( &canvas.clone().dyn_into().unwrap() );
 
   // ---- Backend setup ----
 
@@ -256,7 +224,11 @@ async fn run() -> Result< (), gl::WebglError >
     Some( canvas.clone().dyn_into().unwrap() ),
     move | e |
     {
-      let coord = gl::F64x2::new( e.client_x(), e.client_y() ) * dpr;
+      // Fix(BUG-053): `client_x`/`client_y` return `i32` or `f64` depending on whether
+      // `web_sys_unstable_apis` is active (see minwebgl/src/texture/d2.rs); `.into()` targets
+      // `f64` correctly in both cases (`i32: Into<f64>` widens, `f64: Into<f64>` is identity).
+      #[ allow( clippy::useless_conversion ) ]
+      let coord = gl::F64x2::new( e.client_x().into(), e.client_y().into() ) * dpr;
       I32x2::from_array( [ coord.x() as i32, coord.y() as i32 ] )
     },
   ).expect( "Failed to initialize input" );

@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ web_sys, GpuBlendFactor, GpuBlendOperation, Into };
 
   /// A builder for creating a `web_sys::GpuBlendComponent`.
   #[ derive( Default, Clone ) ]
@@ -33,12 +33,16 @@ mod private
   impl BlendComponent
   {
     /// Creates a new `BlendComponent` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
     }
 
     /// Sets the source blend factor.
+    #[ inline ]
+    #[ must_use ]
     pub fn src_factor( mut self, factor : GpuBlendFactor ) -> Self
     {
       self.src_factor = Some( factor );
@@ -46,6 +50,8 @@ mod private
     }
 
     /// Sets the destination blend factor.
+    #[ inline ]
+    #[ must_use ]
     pub fn dst_factor( mut self, factor : GpuBlendFactor ) -> Self
     {
       self.dst_factor = Some( factor );
@@ -53,6 +59,8 @@ mod private
     }
 
     /// Sets the blend operation.
+    #[ inline ]
+    #[ must_use ]
     pub fn operation( mut self, operation : GpuBlendOperation ) -> Self
     {
       self.operation = Some( operation );
@@ -62,6 +70,7 @@ mod private
 
   impl From< BlendComponent > for web_sys::GpuBlendComponent
   {
+    #[ inline ]
     fn from( value: BlendComponent ) -> Self 
     {
       let c = web_sys::GpuBlendComponent::new();    
@@ -87,12 +96,16 @@ mod private
   impl BlendState 
   {
     /// Creates a new `BlendState` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
     }    
 
     /// Sets the blending configuration for the alpha channel.
+    #[ inline ]
+    #[ must_use ]
     pub fn alpha( mut self, alpha : BlendComponent ) -> Self
     {
       self.alpha = alpha;
@@ -100,6 +113,8 @@ mod private
     }
 
     /// Sets the blending configuration for the color channels.
+    #[ inline ]
+    #[ must_use ]
     pub fn color( mut self, color : BlendComponent ) -> Self
     {
       self.color = color;
@@ -109,15 +124,14 @@ mod private
 
   impl From< BlendState > for web_sys::GpuBlendState
   {
+    #[ inline ]
     fn from( value: BlendState ) -> Self 
     {
-      let state = web_sys::GpuBlendState::new
-      ( 
-        &value.alpha.into(), 
+      web_sys::GpuBlendState::new
+      (
+        &value.alpha.into(),
         &value.color.into()
-      );    
-
-      state
+      )
     }
   }
 }

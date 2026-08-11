@@ -311,12 +311,14 @@ where
   C : Clone + Hash + Eq,
 {
   /// Creates a new pathfinding configuration.
+  #[ must_use ]
   pub fn new() -> Self
   {
     Self::default()
   }
 
   /// Sets the maximum search distance.
+  #[ must_use ]
   pub fn with_max_distance( mut self, max_distance : u32 ) -> Self
   {
     self.max_distance = Some( max_distance );
@@ -324,6 +326,7 @@ where
   }
 
   /// Adds an obstacle at the specified coordinate.
+  #[ must_use ]
   pub fn with_obstacle( mut self, coord : C ) -> Self
   {
     self.obstacles.insert( coord );
@@ -331,6 +334,7 @@ where
   }
 
   /// Adds multiple obstacles.
+  #[ must_use ]
   pub fn with_obstacles< I >( mut self, obstacles : I ) -> Self
   where
     I : IntoIterator< Item = C >,
@@ -340,6 +344,7 @@ where
   }
 
   /// Sets terrain cost for a specific coordinate.
+  #[ must_use ]
   pub fn with_terrain_cost( mut self, coord : C, cost : u32 ) -> Self
   {
     self.terrain_costs.insert( coord, cost );
@@ -347,6 +352,7 @@ where
   }
 
   /// Adds a blocking entity at the specified position.
+  #[ must_use ]
   pub fn with_blocking_entity( mut self, coord : C, entity_id : u32 ) -> Self
   {
     self.blocking_entities.insert( coord, entity_id );
@@ -354,6 +360,7 @@ where
   }
 
   /// Sets the base movement cost.
+  #[ must_use ]
   pub fn with_base_cost( mut self, cost : u32 ) -> Self
   {
     self.base_cost = cost;
@@ -361,6 +368,7 @@ where
   }
 
   /// Disables diagonal movement.
+  #[ must_use ]
   pub fn without_diagonal( mut self ) -> Self
   {
     self.allow_diagonal = false;

@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::web_sys;
 
   /// A builder for creating a `web_sys::GpuMultisampleState`.
   #[ derive( Default, Clone ) ]
@@ -32,12 +32,16 @@ mod private
   impl MultiSampleState 
   {
     /// Creates a new `MultiSampleState` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
     }
 
     /// Sets the sample mask.
+    #[ inline ]
+    #[ must_use ]
     pub fn mask( mut self, mask : u32 ) -> Self
     {
       self.mask = Some( mask );
@@ -45,6 +49,8 @@ mod private
     }
 
     /// Sets the number of samples per pixel.
+    #[ inline ]
+    #[ must_use ]
     pub fn count( mut self, count : u32 ) -> Self
     {
       self.count = Some( count );
@@ -52,6 +58,8 @@ mod private
     }
 
     /// Enables alpha-to-coverage.
+    #[ inline ]
+    #[ must_use ]
     pub fn enable_alpha_to_coverage( mut self ) -> Self
     {
       self.alpha_to_coverage_enabled = Some( true );
@@ -61,6 +69,7 @@ mod private
 
   impl From< MultiSampleState > for web_sys::GpuMultisampleState 
   {
+    #[ inline ]
     fn from ( value: MultiSampleState ) -> Self 
     {
       let state = web_sys::GpuMultisampleState::new();

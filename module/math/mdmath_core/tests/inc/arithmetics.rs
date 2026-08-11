@@ -1,10 +1,10 @@
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::float_cmp ) ]
-#![ allow( clippy::clone_on_copy ) ]
 
 use super::*;
 
+// All inputs are small integer-valued floats and `dot` only sums products of them, so the
+// results are exactly representable with no rounding error — exact equality is correct here.
 #[ test ]
+#[ allow( clippy::float_cmp ) ]
 fn test_dot_product()
 {
   use the_module::vector;
@@ -90,7 +90,7 @@ fn test_normalize()
 
   // Test with a typical vector
   let vec_a = [ 3.0, 4.0 ];
-  let mut result = vec_a.clone();
+  let mut result = vec_a;
   vector::normalize( &mut result, &vec_a );
   let expected = [ 0.6, 0.8 ];
   for ( a, b ) in result.iter().zip( expected.iter() )
@@ -100,9 +100,9 @@ fn test_normalize()
 
   // Test with a zero vector
   let vec_zero = [ 0.0, 0.0 ];
-  let mut got = vec_zero.clone();
+  let mut got = vec_zero;
   vector::normalize( &mut got, &vec_zero );
-  assert!( got.iter().is_nan().all_true(), "Expected NaN, got {:?}", got );
+  assert!( got.iter().map_is_nan().all_true(), "Expected NaN, got {got:?}" );
 
   for value in &got
   {
@@ -152,10 +152,7 @@ fn test_normalize_to()
   let mut vec_a = [ 3.0, 4.0 ];
   vector::normalize_to( &mut vec_a, 10.0 );
   let expected = [ 6.0, 8.0 ];
-  for ( a, b ) in vec_a.iter().zip( expected.iter() )
-  {
-    assert_ulps_eq!( a, b );
-  }
+  assert_ulps_eq!( vec_a[ .. ], expected[ .. ] );
 
   let mut got = [ 0.0, 0.0 ];
   vector::normalize_to( &mut got, 10.0 );
@@ -180,10 +177,7 @@ fn test_normalized_to()
   let vec_a = [ 3.0, 4.0 ];
   let result = vector::normalized_to( &vec_a, 10.0 );
   let expected = [ 6.0, 8.0 ];
-  for ( a, b ) in result.iter().zip( expected.iter() )
-  {
-    assert_ulps_eq!( a, b );
-  }
+  assert_ulps_eq!( result[ .. ], expected[ .. ] );
 
   let vec_zero = [ 0.0, 0.0 ];
   let got = vector::normalized_to( &vec_zero, 10.0 );
@@ -207,15 +201,16 @@ fn test_project_on()
   let vec_b = [ 4.0, 5.0, 6.0 ];
   vector::project_on( &mut vec_a, &vec_b );
   let expected = [ 1.662_337_662_337_662_4, 2.077_922_077_922_078, 2.493_506_493_506_493_4 ];
-  for ( a, b ) in vec_a.iter().zip( expected.iter() )
-  {
-    assert_ulps_eq!( a, b );
-    // qqq : xxx : make that working : assert_ulps_eq!( vec_a, expected );
-  }
+  // approx has no fixed-size array impls, so whole-vector comparison goes through the
+  // slice impl ( `UlpsEq< [ B ] > for [ A ]` ) via `[ .. ]`.
+  assert_ulps_eq!( vec_a[ .. ], expected[ .. ] );
 
   let mut vec_zero = [ 0.0, 0.0, 0.0 ];
   vector::project_on( &mut vec_zero, &vec_b );
-  assert_eq!( vec_zero, [ 0.0, 0.0, 0.0 ], "Projection failed for zero vector" );
+  // Projecting the zero vector yields exactly 0.0 (0 / anything = 0, 0 * anything = 0 in
+  // IEEE-754) — no rounding is possible, so exact equality is correct here.
+  #[ allow( clippy::float_cmp ) ]
+  { assert_eq!( vec_zero, [ 0.0, 0.0, 0.0 ], "Projection failed for zero vector" ); }
 }
 
 #[ test ]
@@ -232,15 +227,14 @@ fn test_projected_on()
   let vec_b = [ 4.0, 5.0, 6.0 ];
   let result = vector::projected_on( &vec_a, &vec_b );
   let expected = [ 1.662_337_662_337_662_4, 2.077_922_077_922_078, 2.493_506_493_506_493_4 ];
-  // xxx : rid of cylce here
-  for ( a, b ) in result.iter().zip( expected.iter() )
-  {
-    assert_ulps_eq!( a, b, max_ulps = 10000 );
-  }
+  assert_ulps_eq!( result[ .. ], expected[ .. ], max_ulps = 10000 );
 
   let vec_zero = [ 0.0, 0.0, 0.0 ];
   let got = vector::projected_on( &vec_zero, &vec_b );
-  assert_eq!( got, [ 0.0, 0.0, 0.0 ], "Projected on function failed for zero vector" );
+  // Projecting the zero vector yields exactly 0.0 (0 / anything = 0, 0 * anything = 0 in
+  // IEEE-754) — no rounding is possible, so exact equality is correct here.
+  #[ allow( clippy::float_cmp ) ]
+  { assert_eq!( got, [ 0.0, 0.0, 0.0 ], "Projected on function failed for zero vector" ); }
 }
 
 #[ test ]
@@ -267,11 +261,7 @@ fn test_angle()
 fn test_is_orthogonal()
 {
   use the_module::
-  {
-    assert_ulps_eq,
-    vector,
-    // Float,
-  };
+  vector;
 
   // Test with orthogonal vectors
   let vec_a = [ 1.0, 0.0 ];

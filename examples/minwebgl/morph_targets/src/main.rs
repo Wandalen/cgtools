@@ -3,17 +3,6 @@
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Renders skeletal animations with morph targets" ) ]
 
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::no_effect_underscore_binding ) ]
-
 use std::{ cell::RefCell, rc::Rc };
 use mingl::F32x3;
 use minwebgl as gl;
@@ -113,15 +102,12 @@ async fn run() -> Result< (), gl::WebglError >
   camera.get_controls().borrow_mut().center.0[ 2 ] += -2.0;
 
   let weights = gltf.meshes.iter()
-  .filter_map
+  .find_map
   (
     | m |
     {
-      let Some( ref s ) = m.borrow().skeleton
-      else
-      {
-        return None;
-      };
+      let m_ref = m.borrow();
+      let s = m_ref.skeleton.as_ref()?;
       let s_ref = s.borrow();
       let Some( d ) = s_ref.displacements_as_ref()
       else
@@ -129,11 +115,10 @@ async fn run() -> Result< (), gl::WebglError >
         return None;
       };
       let weights = d.get_morph_weights();
-      *weights.borrow_mut() = d.default_weights.clone();
+      ( *weights.borrow_mut() ).clone_from( &d.default_weights );
       Some( weights )
     }
   )
-  .next()
   .unwrap();
 
   for mesh in &gltf.meshes

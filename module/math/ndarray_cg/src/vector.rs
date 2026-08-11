@@ -3,9 +3,13 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::MatEl;
 
   /// A vector structure.
+  // `#[ non_exhaustive ]` would break external tuple-construction/destructuring call sites
+  // across the workspace (e.g. `tiles_tools`, `examples/minwebgl/hexagonal_map`, and this
+  // crate's own `tests/`), which build and match `Vector( [ ... ] )` directly.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Clone, Copy, PartialEq, Hash, Debug ) ]
   pub struct Vector< E, const LEN : usize >( pub [ E; LEN ] )
   where E : MatEl;

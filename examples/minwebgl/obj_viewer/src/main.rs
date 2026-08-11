@@ -1,10 +1,5 @@
 //! Just draw a large point in the middle of the screen.
 
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::arc_with_non_send_sync ) ]
-#![ allow( clippy::unnecessary_unwrap ) ]
-#![ allow( clippy::single_match ) ]
-
 use std::
 {
   collections::{ HashMap, HashSet },
@@ -50,12 +45,15 @@ async fn run() -> Result< (), gl::WebglError >
     10000.0
   );
 
-  let mut camera = CameraOrbitControls::default();
-  camera.eye = eye;
-  camera.up = up;
-  camera.center = center;
-  camera.fov = fov;
-  camera.window_size = [ width, height ].into();
+  let camera = CameraOrbitControls
+  {
+    eye,
+    up,
+    center,
+    fov,
+    window_size : [ width, height ].into(),
+    ..Default::default()
+  };
 
   let camera = Rc::new( RefCell::new( camera ) );
 

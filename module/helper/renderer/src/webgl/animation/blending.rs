@@ -35,7 +35,7 @@ mod private
     if sum > 0.0
     {
       let scale_factor = 1.0 / sum;
-      values.iter_mut().for_each( | ( _, w ) | { *w *= scale_factor; } );
+      for ( _, w ) in values.iter_mut() { *w *= scale_factor; }
     }
   }
 
@@ -53,9 +53,18 @@ mod private
     pub normalize : bool
   }
 
+  impl Default for Blender
+  {
+    fn default() -> Self
+    {
+      Self::new()
+    }
+  }
+
   impl Blender
   {
     /// Create new [`Blender`]
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self
@@ -82,42 +91,45 @@ mod private
     }
 
     /// Get mutable reference to weights of weighted [`Sequencer`] by name
-    pub fn weights_get_mut( &mut self, name : Box< str > ) -> Option< &mut F64x3 >
+    pub fn weights_get_mut( &mut self, name : &str ) -> Option< &mut F64x3 >
     {
-      self.weighted_animations.get_mut( &name )
+      self.weighted_animations.get_mut( name )
       .map( | ( _, w ) | w )
     }
 
     /// Get weights of weighted [`Sequencer`] by name
-    pub fn weights_get( &self, name : Box< str > ) -> Option< F64x3 >
+    #[ must_use ]
+    pub fn weights_get( &self, name : &str ) -> Option< F64x3 >
     {
-      self.weighted_animations.get( &name )
+      self.weighted_animations.get( name )
       .map( | ( _, w ) | w )
-      .cloned()
+      .copied()
     }
 
     /// Get reference to weighted [`Sequencer`] by name
-    pub fn animation_get( &self, name : Box< str > ) -> Option< &Sequencer >
+    #[ must_use ]
+    pub fn animation_get( &self, name : &str ) -> Option< &Sequencer >
     {
-      self.weighted_animations.get( &name )
+      self.weighted_animations.get( name )
       .map( | ( a, _ ) | a )
     }
 
     /// Get mutable weighted [`Sequencer`] by name
-    pub fn animation_get_mut( &mut self, name : Box< str > ) -> Option< &mut Sequencer >
+    pub fn animation_get_mut( &mut self, name : &str ) -> Option< &mut Sequencer >
     {
-      self.weighted_animations.get_mut( &name )
+      self.weighted_animations.get_mut( name )
       .map( | ( a, _ ) | a )
     }
 
     /// Remove weighted [`Sequence`]
-    pub fn remove( &mut self, name : Box< str > )
+    pub fn remove( &mut self, name : &str )
     {
-      self.weighted_animations.remove( &name );
+      self.weighted_animations.remove( name );
     }
 
     /// Check if blended animation is completed ( checks if all animations are completed )
     /// Better use before update
+    #[ must_use ]
     pub fn is_completed( &self ) -> bool
     {
       let mut animations = self.weighted_animations.values()
@@ -166,7 +178,7 @@ mod private
       {
         if let Some( translation ) = animation.get::< Sequence< Tween< F64x3 > > >
         (
-          &format!( "{}{}", name, TRANSLATION_PREFIX )
+          &format!( "{name}{TRANSLATION_PREFIX}" )
         )
         {
           if let Some( translation ) = translation.current_get()
@@ -205,7 +217,7 @@ mod private
       {
         if let Some( rotation ) = animation.get::< Sequence< Tween< QuatF64 > > >
         (
-          &format!( "{}{}", name, ROTATION_PREFIX )
+          &format!( "{name}{ROTATION_PREFIX}" )
         )
         {
           if let Some( rotation ) = rotation.current_get()
@@ -245,7 +257,7 @@ mod private
       {
         if let Some( scale ) = animation.get::< Sequence< Tween< F64x3 > > >
         (
-          &format!( "{}{}", name, SCALE_PREFIX )
+          &format!( "{name}{SCALE_PREFIX}" )
         )
         {
           if let Some( scale ) = scale.current_get()
@@ -281,7 +293,7 @@ mod private
     /// Updates all underlying [`animation::AnimatablePlayer`]'s
     fn update( &mut self, delta_time : f64 )
     {
-      for ( _, ( animation, _ ) ) in self.weighted_animations.iter_mut()
+      for ( animation, _ ) in self.weighted_animations.values_mut()
       {
         animation.update( delta_time );
         if animation.is_completed()

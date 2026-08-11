@@ -17,6 +17,12 @@ fn test_vector_ref_slice()
   assert_eq!( array_ref, &[ 1, 2, 3 ] );
 }
 
+// test_kind: bug_reproducer(BUG-054)
+/// Under Miri Stacked Borrows (`cargo +nightly miri test -p mdmath_core
+/// --all-features`), this already-existing functional test is the exact
+/// sequence that exposes BUG-054: `ArrayMut<E,N>::vector_mut` for `[E]`
+/// cast `self.as_ptr()` (`SharedReadOnly` provenance) to `*mut [E;N]` instead
+/// of `self.as_mut_ptr()` (`Unique` provenance) before writing through it.
 #[ test ]
 fn test_vector_mut_slice()
 {

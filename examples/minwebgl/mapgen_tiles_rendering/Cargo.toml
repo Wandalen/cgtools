@@ -18,3 +18,5 @@ web-sys = { workspace = true, features = [
   'HtmlImageElement',
   'DomRect',
 ] }
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

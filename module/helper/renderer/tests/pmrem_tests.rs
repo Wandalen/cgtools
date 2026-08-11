@@ -10,6 +10,9 @@
 mod tests
 {
   use wasm_bindgen_test::wasm_bindgen_test;
+
+  // Browser, not Node: every test here needs a real WebGL2 context.
+  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
   use gl::GL;
   use renderer::webgl::loaders::pmrem;

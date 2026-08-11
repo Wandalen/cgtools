@@ -8,7 +8,7 @@ WFC produces varied yet consistent results from small rule sets. This example sh
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

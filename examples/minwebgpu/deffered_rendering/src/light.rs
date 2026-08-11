@@ -29,8 +29,7 @@ impl Light
       power : self.power,
       color : self.color.to_array(),
       position : self.position.to_array(),
-      direction : self.direction,
-      ..Default::default()
+      direction : self.direction
     }
   }
 }
@@ -45,7 +44,7 @@ impl LightState
   pub fn new( device : &web_sys::GpuDevice ) -> Result< Self, WebGPUError >
   {
     let lights = generate_lights();
-    let lights_raw = lights.iter().map( | l | l.as_raw() ).collect::< Vec< LightRaw> >();
+    let lights_raw = lights.iter().map( Light::as_raw ).collect::< Vec< LightRaw> >();
 
     let buffer = gl::BufferInitDescriptor::new
     (
@@ -141,8 +140,8 @@ fn generate_lights() -> Vec< Light >
 
     let light = Light
     {
-      power,
       color,
+      power,
       position,
       direction
     };

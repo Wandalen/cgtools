@@ -81,6 +81,7 @@ impl< Connectivity > Coordinate< Connectivity >
   /// assert_eq!( coord.x, 3 );
   /// assert_eq!( coord.y, 4 );
   /// ```
+  #[ must_use ]
   pub const fn new( x : i32, y : i32 ) -> Self
   {
     Self
@@ -110,12 +111,12 @@ impl< Connectivity > From< [ i32; 2 ] > for Coordinate< Connectivity >
   }
 }
 
-impl< Connectivity > Into< ( i32, i32 ) > for Coordinate< Connectivity >
+impl< Connectivity > From< Coordinate< Connectivity > > for ( i32, i32 )
 {
   /// Converts the coordinate into a tuple (x, y)
-  fn into( self ) -> ( i32, i32 )
+  fn from( val: Coordinate< Connectivity > ) -> Self
   {
-    ( self.x, self.y )
+    ( val.x, val.y )
   }
 }
 

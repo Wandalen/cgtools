@@ -1,5 +1,5 @@
 [package]
-name = "wfc"
+name = "wfc_example"
 version = "0.1.0"
 edition = "2021"
 authors = [ 
@@ -11,7 +11,7 @@ license = "MIT"
 [dependencies]
 image = { version = "0.24", features = ["rayon"] }
 RustyXML = "0.3.0"
-wfc = { workspace = true }
+wfc_algo = { package = "wfc", version = "0.10", features = [ "js" ] }
 wfc_image = { workspace = true, features = ["parallel"] }
 minwebgl = { workspace = true }
 getrandom = { version = "0.2", features = [ "js" ] }
@@ -38,3 +38,6 @@ features = [
   'FileList',
   'FileReader',
 ]
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

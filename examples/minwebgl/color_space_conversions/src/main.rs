@@ -1,8 +1,6 @@
 #![ doc( html_root_url = "https://docs.rs/color_space_convertion/latest/color_space_convertion/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Converts colors from RGBA into another color spaces" ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::implicit_return ) ]
 
 use minwebgl as gl;
 use gl::{
@@ -77,6 +75,8 @@ fn get_element( document: &web_sys::Document, id: &str ) -> Result< HtmlElement,
   )
 }
 
+// 185 lines : one linear event-handler setup ending in a flat match over 14 color-space
+// conversion arms; splitting the match would only relocate the repetition, not reduce it.
 #[ allow( clippy::too_many_lines ) ]
 fn run() -> Result< (), gl::WebglError >
 {
@@ -118,8 +118,10 @@ fn run() -> Result< (), gl::WebglError >
     .expect( "Failed to set style" );
   };
 
-  #[ allow( clippy::min_ident_chars, clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
-  let ftou = | component : f32 | return ( f32::from(u8::MAX) * component.clamp( 0.0, 1.0 ) ).round() as u8;
+  // `component` is clamped to [0.0, 1.0] before scaling by `u8::MAX`, so the rounded
+  // result is always exactly representable in `u8` — no truncation or sign loss is possible.
+  #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
+  let ftou = | component : f32 | ( f32::from(u8::MAX) * component.clamp( 0.0, 1.0 ) ).round() as u8;
 
   let update_rectangles = Closure::< dyn FnMut( Event ) >::new
   (

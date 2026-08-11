@@ -1,6 +1,3 @@
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::cast_sign_loss ) ]
 
 mod controls;
 
@@ -49,8 +46,11 @@ fn run()
   let slice         = include_str!( "shaders/slice.vert" );
   let fragment      = include_str!( "shaders/main.frag" );
 
-  // qqq : purpose of each shader? what is drawn by what?
-  // qqq : more documentatiion overall please
+  // All three share the same flat-color fragment shader and differ only in
+  // vertex layout/topology, matching what each draws below: point_shader
+  // draws the minimap tile dots and player dot (GL::POINTS), line_shader
+  // draws each ray on the minimap (GL::LINES), slice_shader draws the
+  // pseudo-3D wall column per ray — the actual raycast view (GL::TRIANGLE_STRIP).
 
   // shader for drawing points
   let point_shader  = gl::ProgramFromSources::new( point, fragment ).compile_and_link( &gl ).unwrap();
@@ -238,7 +238,11 @@ fn map_vao( gl : &GL ) -> gl::WebGlVertexArrayObject
   }
 
   let buf = gl::buffer::create( gl ).unwrap();
-  gl::upload( gl, &buf, data.as_slice(), GL::STATIC_DRAW );
+  // Fully qualified because `minwebgl`'s `buffer` and `index` layers both
+  // expose an `upload` fn, making the crate-root glob-imported `gl::upload`
+  // ambiguous (E0659). This buffer is used as a vertex attribute source via
+  // `attribute_pointer` below, so `buffer::upload` (ARRAY_BUFFER) is correct.
+  gl::buffer::upload( gl, &buf, data.as_slice(), GL::STATIC_DRAW );
 
   let vao = gl::vao::create( gl ).unwrap();
   gl.bind_vertex_array( Some( &vao ) );

@@ -8,7 +8,7 @@ glTF is the standard format for 3D content on the web. This example provides a p
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

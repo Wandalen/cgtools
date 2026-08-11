@@ -5,9 +5,6 @@
 //!
 //! The process involves several rendering passes:
 
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::single_match ) ]
-#![ allow( clippy::doc_overindented_list_items ) ]
 //! 1. **Object Pass:** Render the 3D object to a texture ( framebuffer ) to get a silhouette.
 //!    Object pixels are marked ( e.g., white ), background is clear.
 //! 2. **JFA Initialization Pass:** Initialize a JFA texture. Pixels corresponding
@@ -432,7 +429,7 @@ impl Renderer
     };
 
     // Traverse the scene and draw all opaque objects.
-    let _ = scene.borrow().traverse( &mut draw_node )?;
+    scene.borrow().traverse( &mut draw_node )?;
 
     gl.use_program( None );
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );

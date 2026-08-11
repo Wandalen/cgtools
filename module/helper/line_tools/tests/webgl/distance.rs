@@ -1,4 +1,7 @@
 
+// Exact float comparisons are intentional: these assertions check deterministic
+// cumulative-distance arithmetic against exact literal expected values.
+
 use super::*;
 use line_tools::d3;
 
@@ -33,10 +36,10 @@ fn test_distance_diagonal_segments()
   line.point_add_back( &[ 1.0, 1.0, 1.0 ] );
   line.point_add_back( &[ 2.0, 2.0, 2.0 ] );
 
-  let d = ( 3.0_f32 ).sqrt();
-  let expected = [ 0.0, d, d * 2.0 ];
+  let dist = ( 3.0_f32 ).sqrt();
+  let expected = [ 0.0, dist, dist * 2.0 ];
   assert_eq!( expected, line.distances_get() );
-  assert_eq!( d * 2.0, line.total_distance_get() );
+  assert_eq!( dist * 2.0, line.total_distance_get() );
 }
 
 #[ test ]
@@ -385,20 +388,19 @@ fn test_distance_point_remove_back()
   assert_eq!( expected, line.distances_get() );
 }
 
-
 /// # Bug History
 ///
 /// ## Root Cause
-/// `point_remove_front()` did not update the total_distance
+/// `point_remove_front()` did not update the `total_distance`
 ///
 /// ## Why Not Caught Initially
-/// Original tests didn't verify total_distance after removal operations.
+/// Original tests didn't verify `total_distance` after removal operations.
 ///
 /// ## Fix Applied
-/// Now correctly sets total_distance to the new last element in distances array.
+/// Now correctly sets `total_distance` to the new last element in distances array.
 ///
 /// ## Prevention
-/// This test verifies total_distance equals the last cumulative distance after removal.
+/// This test verifies `total_distance` equals the last cumulative distance after removal.
 ///
 /// ## Pitfall to Avoid
 /// Total distance needs to be updated when the distance array is changed.
@@ -764,16 +766,16 @@ fn test_distance_remove_front_and_back_then_rebuild()
 ///
 /// ## Root Cause
 /// `point_remove_front()` subtracted the cumulative distance from itself,
-/// resulting in total_distance = 0 instead of the new total.
+/// resulting in `total_distance` = 0 instead of the new total.
 ///
 /// ## Why Not Caught Initially
-/// Original tests didn't verify total_distance after removal operations.
+/// Original tests didn't verify `total_distance` after removal operations.
 ///
 /// ## Fix Applied
-/// Now correctly sets total_distance to the new last element in distances array.
+/// Now correctly sets `total_distance` to the new last element in distances array.
 ///
 /// ## Prevention
-/// This test verifies total_distance equals the last cumulative distance after removal.
+/// This test verifies `total_distance` equals the last cumulative distance after removal.
 ///
 /// ## Pitfall to Avoid
 /// Cumulative distance arrays store running totals [0, d1, d1+d2], not deltas.

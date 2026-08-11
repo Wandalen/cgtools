@@ -48,6 +48,7 @@ mod private
   // Implement ToRef for immutable references
   impl< T : ?Sized > ToRef< T > for &T
   {
+    #[ inline ]
     fn to_ref( &self ) -> &T
     {
       self
@@ -57,6 +58,7 @@ mod private
   // Implement ToRef for mutable references
   impl< T : ?Sized > ToRef< T > for &mut T
   {
+    #[ inline ]
     fn to_ref( &self ) -> &T
     {
       self
@@ -66,6 +68,7 @@ mod private
   // Implement ToRef for owned values
   impl< T : ?Sized > ToRef< T > for T
   {
+    #[ inline ]
     fn to_ref( &self ) -> &T
     {
       self
@@ -115,10 +118,11 @@ mod private
   }
 
   // Implement ToValue for immutable references
-  impl< T : ?Sized > ToValue< T > for &T
+  impl< T > ToValue< T > for &T
   where
     T : Clone,
   {
+    #[ inline ]
     fn to_value( self ) -> T
     {
       < T as Clone >::clone( self )
@@ -126,10 +130,11 @@ mod private
   }
 
   // Implement ToValue for mutable references
-  impl< T : ?Sized > ToValue< T > for &mut T
+  impl< T > ToValue< T > for &mut T
   where
     T : Clone,
   {
+    #[ inline ]
     fn to_value( self ) -> T
     {
       < T as Clone >::clone( self )
@@ -139,6 +144,7 @@ mod private
   // Implement ToValue for owned values
   impl< T > ToValue< T > for T
   {
+    #[ inline ]
     fn to_value( self ) -> T
     {
       self

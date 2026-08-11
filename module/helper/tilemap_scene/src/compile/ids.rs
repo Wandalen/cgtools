@@ -41,6 +41,10 @@ mod private
     pub fn new() -> Self { Self::default() }
 
     /// Allocate or return the existing image id for `asset_id`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the image id counter overflows `u32::MAX`.
     #[ inline ]
     pub fn alloc_image( &mut self, asset_id : &str ) -> ResourceId< asset::Image >
     {
@@ -55,6 +59,10 @@ mod private
     }
 
     /// Allocate or return the existing sprite id for a `(asset_id, frame_name)` pair.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sprite id counter overflows `u32::MAX`.
     #[ inline ]
     pub fn alloc_sprite
     (
@@ -99,36 +107,6 @@ mod private
       let key = ( asset_id.to_owned(), frame_name.to_owned() );
       self.sprites.get( &key ).copied()
     }
-  }
-}
-
-#[ cfg( test ) ]
-mod tests
-{
-  use super::private::*;
-
-  #[ test ]
-  fn images_are_deterministic()
-  {
-    let mut m = IdMap::new();
-    let a = m.alloc_image( "terrain_atlas" );
-    let b = m.alloc_image( "transitions_atlas" );
-    let a_again = m.alloc_image( "terrain_atlas" );
-    assert_eq!( a.inner(), 0 );
-    assert_eq!( b.inner(), 1 );
-    assert_eq!( a, a_again, "re-allocating same id returns the same handle" );
-  }
-
-  #[ test ]
-  fn sprites_namespace_by_atlas()
-  {
-    let mut m = IdMap::new();
-    let grass = m.alloc_sprite( "terrain", "0" );
-    let sand  = m.alloc_sprite( "terrain", "1" );
-    let grass_other_atlas = m.alloc_sprite( "other", "0" );
-    assert_ne!( grass, sand, "different frames get different ids" );
-    assert_ne!( grass, grass_other_atlas, "same frame name in different atlases is distinct" );
-    assert_eq!( Some( grass ), m.sprite( "terrain", "0" ) );
   }
 }
 

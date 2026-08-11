@@ -12,6 +12,10 @@ mod private
 
   // Defines the number of mipmap levels to use for the blur effect.
   const MIPS : usize = 5;
+  // Bloom intensity factors per mip level, brightest first.
+  const BLOOM_FACTORS : [ f32; 5 ] = [ 1.0, 0.8, 0.6, 0.4, 0.2 ];
+  // Per-mip RGB tint colors, all white ( no tint ).
+  const BLOOM_TINT : [ f32; 15 ] = [ 1.0; 15 ];
 
   // A Gaussian filter shader
   //
@@ -140,16 +144,16 @@ mod private
       let mut blur_materials = Vec::new();
 
       // Compile and configure a Gaussian blur shader for each mip level.
-      for i in 0..MIPS
+      for radius in kernel_radius
       {
         // Dynamically inject the KERNEL_RADIUS define into the shader for the current mip.
-        let fs_shader = format!( "#version 300 es\n#define KERNEL_RADIUS {}\n{}", kernel_radius[ i ], fs_shader );
+        let fs_shader = format!( "#version 300 es\n#define KERNEL_RADIUS {radius}\n{fs_shader}" );
         let blur_material = gl::ProgramFromSources::new( VS_TRIANGLE, &fs_shader ).compile_and_link( gl )?;
         let blur_material = GaussianFilterShader::new( gl, &blur_material );
 
         let locations = blur_material.locations();
         // Calculate Gaussian coefficients based on the kernel radius.
-        let coefficients = get_gaussian_coefficients( kernel_radius[ i ] );
+        let coefficients = get_gaussian_coefficients( radius );
         let inv_size = [ 1.0 / size[ 0 ] as f32, 1.0 / size[ 1 ] as f32 ];
         blur_material.bind( gl );
         gl.uniform1fv_with_f32_array( locations.get( "kernel" ).unwrap().as_ref(), coefficients.as_slice() );
@@ -165,18 +169,15 @@ mod private
       // --- Setup Composite Material ---
       let fs_shader = include_str!( "../shaders/post_processing/unreal_bloom.frag" );
       // Dynamically inject the NUM_MIPS define into the bloom composite shader.
-      let fs_shader = format!( "#version 300 es\n#define NUM_MIPS {}\n{}", MIPS, fs_shader );
+      let fs_shader = format!( "#version 300 es\n#define NUM_MIPS {MIPS}\n{fs_shader}" );
       let composite_material = gl::ProgramFromSources::new( VS_TRIANGLE, &fs_shader ).compile_and_link( gl )?;
       let composite_material = UnrealBloomShader::new( gl, &composite_material );
 
-      // Define bloom factors and tint colors for each mip level.
-      const BLOOM_FACTORS : [ f32; 5 ] = [ 1.0, 0.8, 0.6, 0.4, 0.2 ];
-      const BLOOM_TINT : [ [ f32; 3 ]; 5 ] = [ [ 1.0; 3 ]; 5 ];
       let locations = composite_material.locations();
       composite_material.bind( gl );
 
       gl.uniform1fv_with_f32_array( locations.get( "bloomFactors" ).unwrap().as_ref(), &BLOOM_FACTORS[ .. ] );
-      gl.uniform3fv_with_f32_array( locations.get( "bloomTintColors" ).unwrap().as_ref(), BLOOM_TINT.as_flattened() );
+      gl.uniform3fv_with_f32_array( locations.get( "bloomTintColors" ).unwrap().as_ref(), &BLOOM_TINT[ .. ] );
       // Assign texture units to the blur textures.
       gl.uniform1i( locations.get( "blurTexture0" ).unwrap().clone().as_ref() , 0 );
       gl.uniform1i( locations.get( "blurTexture1" ).unwrap().clone().as_ref() , 1 );
@@ -210,6 +211,7 @@ mod private
     }
 
     /// Returns the current bloom radius.
+    #[ must_use ]
     pub fn bloom_radius( &self ) -> f32
     {
       self.bloom_radius
@@ -222,6 +224,7 @@ mod private
     }
 
     /// Returns the current bloom strength.
+    #[ must_use ]
     pub fn bloom_strength( &self ) -> f32
     {
       self.bloom_strength

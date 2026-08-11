@@ -8,4 +8,4 @@ Uniform animation is efficient for procedural effects like pulsing colors, movin
 
 ![](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**

@@ -1,4 +1,4 @@
-use ndarray_cg::{ F64x3, QuatF64, approx::assert_abs_diff_eq, relative_eq };
+use ndarray_cg::{ F64x3, approx::assert_abs_diff_eq };
 
 use super::*;
 
@@ -42,13 +42,13 @@ fn test_devide()
   let q1 = QuatF64::from( [ 1.0, 2.0, 3.0, 4.0 ] ).normalize();
   let q2 = QuatF64::from( [ -5.0, 1.0, 3.0, 10.0 ] ).normalize();
 
-  let exp = QuatF64::from( [ 0.4242640687119285, 0.5342584568965025, 0.10999438818457405, 0.7228202652129152 ] );
+  let exp = QuatF64::from( [ 0.424_264_068_711_928_5, 0.534_258_456_896_502_5, 0.109_994_388_184_574_05, 0.722_820_265_212_915_2 ] );
   assert_abs_diff_eq!( q1 / q2, exp, );
 
   let q1 = QuatF64::from( [ 1.0, 2.0, 3.0, 4.0 ] ).normalize();
   let q2 = QuatF64::from( [ 0.9, 2.0, 3.0, 4.0 ] ).normalize();
 
-  let exp = QuatF64::from( [ 0.013375757175498215, 0.010031817881623634, -0.006687878587749038, 0.999837848868489 ] );
+  let exp = QuatF64::from( [ 0.013_375_757_175_498_215, 0.010_031_817_881_623_634, -0.006_687_878_587_749_038, 0.999_837_848_868_489 ] );
   assert_abs_diff_eq!( q1 / q2, exp, );
 }
 
@@ -61,15 +61,15 @@ fn test_from_angle_x()
   };
 
   let q = QuatF64::from_angle_x( 1.0 );
-  let exp = QuatF64::from( [ 0.479425538604203, 0.0, 0.0, 0.8775825618903728 ] );
+  let exp = QuatF64::from( [ 0.479_425_538_604_203, 0.0, 0.0, 0.877_582_561_890_372_8 ] );
   assert_abs_diff_eq!( q, exp );
 
   let q = QuatF64::from_angle_x( -1.0 );
-  let exp = QuatF64::from( [ -0.479425538604203, 0.0, 0.0, 0.8775825618903728 ] );
+  let exp = QuatF64::from( [ -0.479_425_538_604_203, 0.0, 0.0, 0.877_582_561_890_372_8 ] );
   assert_abs_diff_eq!( q, exp );
 
   let q = QuatF64::from_angle_x( 256.0 );
-  let exp = QuatF64::from( [ 0.7210377105017316, -0.0, 0.0, -0.6928958219201651 ] );
+  let exp = QuatF64::from( [ 0.721_037_710_501_731_6, -0.0, 0.0, -0.692_895_821_920_165_1 ] );
   assert_abs_diff_eq!( q, exp );
 }
 
@@ -82,15 +82,15 @@ fn test_from_angle_y()
   };
 
   let q = QuatF64::from_angle_y( 1.0 );
-  let exp = QuatF64::from( [ 0.0, 0.479425538604203, 0.0, 0.8775825618903728 ] );
+  let exp = QuatF64::from( [ 0.0, 0.479_425_538_604_203, 0.0, 0.877_582_561_890_372_8 ] );
   assert_abs_diff_eq!( q, exp );
 
   let q = QuatF64::from_angle_y( -1.0 );
-  let exp = QuatF64::from( [ 0.0, -0.479425538604203, 0.0, 0.8775825618903728 ] );
+  let exp = QuatF64::from( [ 0.0, -0.479_425_538_604_203, 0.0, 0.877_582_561_890_372_8 ] );
   assert_abs_diff_eq!( q, exp );
 
   let q = QuatF64::from_angle_y( 256.0 );
-  let exp = QuatF64::from( [ 0.0, 0.7210377105017316, 0.0, -0.6928958219201651 ] );
+  let exp = QuatF64::from( [ 0.0, 0.721_037_710_501_731_6, 0.0, -0.692_895_821_920_165_1 ] );
   assert_abs_diff_eq!( q, exp );
 }
 
@@ -103,15 +103,15 @@ fn test_from_angle_z()
   };
 
   let q = QuatF64::from_angle_z( 1.0 );
-  let exp = QuatF64::from( [ 0.0, 0.0, 0.479425538604203, 0.8775825618903728 ] );
+  let exp = QuatF64::from( [ 0.0, 0.0, 0.479_425_538_604_203, 0.877_582_561_890_372_8 ] );
   assert_abs_diff_eq!( q, exp );
 
   let q = QuatF64::from_angle_z( -1.0 );
-  let exp = QuatF64::from( [ 0.0, 0.0, -0.479425538604203, 0.8775825618903728 ] );
+  let exp = QuatF64::from( [ 0.0, 0.0, -0.479_425_538_604_203, 0.877_582_561_890_372_8 ] );
   assert_abs_diff_eq!( q, exp );
 
   let q = QuatF64::from_angle_z( 256.0 );
-  let exp = QuatF64::from( [ 0.0, 0.0, 0.7210377105017316, -0.6928958219201651 ] );
+  let exp = QuatF64::from( [ 0.0, 0.0, 0.721_037_710_501_731_6, -0.692_895_821_920_165_1 ] );
   assert_abs_diff_eq!( q, exp );
 }
 
@@ -124,7 +124,7 @@ fn test_from_euler_xyz()
   };
 
   let q = QuatF64::from_euler_xyz( [ 1.0, 2.0, 3.0 ] );
-  let exp = QuatF64::from( [ 0.7549338012644525, -0.2061492260268777, 0.5015090964037221, -0.3688713577132898 ] );
+  let exp = QuatF64::from( [ 0.754_933_801_264_452_5, -0.206_149_226_026_877_7, 0.501_509_096_403_722_1, -0.368_871_357_713_289_8 ] );
   assert_abs_diff_eq!( q, exp );
 
   let q = QuatF64::from_euler_xyz( [ 0.0, 0.0, 0.0 ] );
@@ -132,7 +132,7 @@ fn test_from_euler_xyz()
   assert_abs_diff_eq!( q, exp );
 
   let q = QuatF64::from_euler_xyz( [ -23.0, 123.0, 0.53 ] );
-  let exp = QuatF64::from( [ 0.0769801414111575, -0.5074489930731315, -0.7909288495020033, 0.3331683242489008 ] );
+  let exp = QuatF64::from( [ 0.076_980_141_411_157_5, -0.507_448_993_073_131_5, -0.790_928_849_502_003_3, 0.333_168_324_248_900_8 ] );
   assert_abs_diff_eq!( q, exp );
 }
 

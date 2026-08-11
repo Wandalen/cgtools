@@ -23,8 +23,7 @@ impl Instance
   {
     InstanceRaw
     {
-      position : self.position.to_array(),
-      ..Default::default()
+      position : self.position.to_array()
     }
   }
 }
@@ -58,7 +57,7 @@ impl ModelState
     let index_length = mesh.indices.len() as u32;
 
     let instances = generate_instances();
-    let instances_raw = instances.iter().map( | i | i.as_raw() ).collect::< Vec< InstanceRaw > >();
+    let instances_raw = instances.iter().map( Instance::as_raw ).collect::< Vec< InstanceRaw > >();
     let instance_buffer = gl::BufferInitDescriptor::new( &instances_raw, gl::BufferUsage::VERTEX ).create( device )?;
 
     Ok
@@ -128,8 +127,8 @@ fn generate_instances() -> Vec< Instance >
   let rows = ( NUM_MODELS as f32 ).sqrt().ceil() as usize;
   let cols = NUM_MODELS.div_ceil( rows );
 
-  let mid_c = if cols % 2 == 0 { cols / 2 - 1 } else { cols / 2 };
-  let mid_r = if rows % 2 == 0 { rows / 2 - 1 } else { rows / 2 };
+  let mid_c = if cols.is_multiple_of( 2 ) { cols / 2 - 1 } else { cols / 2 };
+  let mid_r = if rows.is_multiple_of( 2 ) { rows / 2 - 1 } else { rows / 2 };
 
   let start_pos = gl::F32x3::from( [ -( mid_r as f32 ) * spacing, 0.0, -( mid_c as f32 ) * spacing ] );
   for r in 0..rows

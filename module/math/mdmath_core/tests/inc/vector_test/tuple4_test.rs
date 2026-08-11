@@ -112,3 +112,47 @@ fn test_vector_iter_mut_rev_tuple4()
   }
   assert_eq!( tuple, ( 100, 200, 300, 400 ) );
 }
+
+// test_kind: bug_reproducer(BUG-050)
+/// ## Root Cause
+/// `Tuple4IterMut::next()`/`next_back()` (`vector/tuple4.rs`) shared a single monotonically
+/// increasing `index` field with per-value match arms hardcoded for one iteration direction —
+/// alternating `.next()`/`.next_back()` calls on the same (non-`.rev()`) iterator re-yielded
+/// two already-returned elements (`tuple.0` and `tuple.2`) as second, simultaneously-live
+/// `&mut E` references while `tuple.1` and `tuple.3` were never reached, violating Rust's
+/// unique-mutable-reference aliasing guarantee (confirmed under Miri's Stacked Borrows checker).
+/// ## Why Not Caught
+/// Every existing `vector_iter_mut` test called only `.next()` repeatedly, or only `.rev()`
+/// then `.next()` repeatedly (fully reversed) — never mixed `.next()`/`.next_back()` calls on
+/// the same unwrapped iterator, the exact trigger condition for the double-yield.
+/// ## Fix Applied
+/// Replaced the shared `index` field with independent `front`/`back` cursors (mirrors
+/// `core::slice::IterMut`'s own two-cursor design), so they converge but provably never cross.
+/// ## Prevention
+/// Any hand-rolled `DoubleEndedIterator` yielding `&mut` references must be tested with at
+/// least one mixed-direction sequence (alternating `.next()`/`.next_back()`) asserting the
+/// final values match what a correct front/back traversal would produce.
+/// ## Pitfall
+/// A `DoubleEndedIterator` backed by one shared index counter is sound only under
+/// single-direction iteration — mixing directions silently double-yields already-returned
+/// elements as live aliased `&mut` references while leaving others unreached.
+#[ test ]
+fn test_vector_iter_mut_next_and_next_back_disjoint_tuple4()
+{
+  use the_module::VectorIterMut;
+  let mut tuple : ( i32, i32, i32, i32 ) = ( 42, 43, 44, 45 );
+  {
+    let mut iter = tuple.vector_iter_mut();
+    let a = iter.next().unwrap();
+    let b = iter.next_back().unwrap();
+    let c = iter.next().unwrap();
+    let d = iter.next_back().unwrap();
+    *a = 100;
+    *b = 200;
+    *c = 300;
+    *d = 400;
+    assert_eq!( iter.next(), None );
+    assert_eq!( iter.next_back(), None );
+  }
+  assert_eq!( tuple, ( 100, 300, 400, 200 ), "next() and next_back() must yield disjoint elements, not alias the same slot" );
+}

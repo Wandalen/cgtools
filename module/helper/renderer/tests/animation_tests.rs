@@ -1,10 +1,14 @@
 //! Integration tests related to animations
+#![ cfg( feature = "animation" ) ]
 
 #[ cfg( target_arch = "wasm32" ) ]
 #[ cfg( test ) ]
 mod tests
 {
   use wasm_bindgen_test::wasm_bindgen_test;
+
+  // Browser, not Node: every test here needs a real WebGL2 context.
+  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
   use animation::{ Sequence, Tween, Sequencer, AnimatablePlayer };
   use renderer::webgl::
@@ -72,12 +76,18 @@ mod tests
     );
 
     let morph_target_key = keys.iter().find( | v | v.ends_with( MORPH_TARGET_PREFIX ) ).unwrap();
-    let morph_target_seq = sequencer.get::< Sequence< Vec< f64 > > >( morph_target_key.into() ).unwrap();
+    // The loader stores morph weights as `Sequence< Tween< Vec< f64 > > >`
+    // (`weights_sequence` in `webgl/animation/loaders/gltf.rs`) — the tween
+    // layer is part of the stored type, not an implementation detail.
+    let morph_target_seq = sequencer.get::< Sequence< Tween< Vec< f64 > > > >( morph_target_key ).unwrap();
 
-    assert!( morph_target_seq.players_get().len() > 0 );
+    assert!( !morph_target_seq.players().is_empty() );
 
     let morph_target_player = morph_target_seq.current_get().unwrap();
 
-    assert_eq!( morph_target_player.value_get().len(), 52 );
+    // zophrac.glb ground truth: mesh 0 declares 53 morph targets and its
+    // weights channel outputs 53 values per keyframe (5194 outputs across 98
+    // keyframes) — checkable by parsing the glb's JSON chunk.
+    assert_eq!( morph_target_player.value_get().len(), 53 );
   }
 }

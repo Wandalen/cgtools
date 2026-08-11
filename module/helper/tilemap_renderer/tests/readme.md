@@ -12,11 +12,12 @@ and what the expected outcome is.
 ```
 tests/
   helpers/
-    mod.rs          — shared fixtures (empty_assets, …)
-  assets_test.rs    — Assets validation domain
-  backend_test.rs   — Backend trait contract, RenderError, Capabilities
-  commands_test.rs  — RenderCommand Copy invariant, size, stream construction
-  types_test.rs     — Transform, ResourceId, RenderConfig
+    mod.rs              — shared fixtures (empty_assets, …)
+  assets_test.rs        — Assets validation domain
+  backend_test.rs       — Backend trait contract, RenderError, Capabilities
+  commands_test.rs      — RenderCommand Copy invariant, size, stream construction
+  svg_backend_test.rs   — SvgBackend adapter behavior via public surface (feature adapter-svg)
+  types_test.rs         — Transform, ResourceId, RenderConfig
 ```
 
 ## Domain map
@@ -27,6 +28,7 @@ tests/
 | `commands_test.rs` | Command types | `Copy` invariant (compile-time), enum size bound, stream construction, batch params |
 | `assets_test.rs` | Asset validation | Empty set, no-duplicate ok, per-type duplicate errors, cross-type id independence |
 | `backend_test.rs` | Backend trait | `load_assets`, `submit`, `output`, `resize`, `Capabilities::default`, all `RenderError` variants |
+| `svg_backend_test.rs` | SvgBackend adapter (relocated from inline by task 071) | Clear/viewport wrapper, paths, gradients, patterns, clip masks, sprite tint/batches, mesh topologies, effects, blend modes, groups, disk/encoded/bitmap image loading, text flow/anchors/on-path — all via the public surface; private-helper tests remain inline in `src/adapters/svg.rs` as a documented exception |
 
 ## Adding new tests
 

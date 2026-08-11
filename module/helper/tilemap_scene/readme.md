@@ -6,8 +6,8 @@ Compositional declarative scene format for 2D tile-based games.
 (asset / object / pipeline declarations) and a retained-mode `Scene` (which
 instances sit where on a grid, plus camera / seed / metadata) and a
 `Renderer` that walks the scene each frame and emits a flat stream of
-[`tilemap_renderer`]'s `RenderCommand`s. The format itself is normative in
-`spec.md`; this crate is the reference implementation.
+[`tilemap_renderer`]'s `RenderCommand`s. The format is documented in
+[`docs/`](docs/definition/readme.md); this crate is the reference implementation.
 
 The runtime architecture is **Path A** — `Scene` owns the retained
 render-world (mutated through typed `InstanceHandle`s), `Renderer` is a
@@ -36,11 +36,11 @@ crosstalk.
 | `src/coords.rs` | Public coordinate types and helpers used by the format (axial / cube / world-pixel pairs). |
 | `src/hash.rs` | `hash_coord` / `hash_str` — normative hash primitives (SPEC §13) used for `HashCoord` variant selection and animation phase offsets. |
 | `src/load.rs` | `RenderSpec::load` / `SceneSnapshot::load` and `from_ron_str` counterparts. |
-| `src/validate.rs` | `Validate` trait + skeleton impls for `RenderSpec` and `SceneSnapshot`. SPEC §16 rules are not yet enforced — see the trait-level note. |
+| `src/validate.rs` | `Validate` trait + partial impls for `RenderSpec` and `SceneSnapshot` — see [`docs/invariant/001_renderspec_referential_integrity.md`](docs/invariant/001_renderspec_referential_integrity.md) for exactly which rules are enforced today. |
 | `src/error.rs` | `LoadError`, `ValidationError`, `SnapshotLoadError`. |
 | `src/compile/` | Internal lowering passes called by `Renderer`. See sub-table. |
 | `tests/` | Integration tests — `scene_state_test`, `scene_events_test`, `renderer_test`, `renderer_cache_test`, `scene_model_compile_test`, `scene_model_test`. `tests/common/mod.rs` carries the shared `flatten_to_sprites` / `BatchFlattener` helpers used to project batch streams back to pre-batch `Sprite` commands for assertions. |
-| `spec.md` | Normative format specification (v0.2.0). |
+| `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
 | `roadmap.md` | Open work and design sketches. |
 
 ### `src/compile/` sub-layer
@@ -129,7 +129,7 @@ for event in scene.tick( dt )
 
 ## related documents
 
-- `spec.md` — normative format specification, including the SPEC §16 validation rule set.
+- [`docs/definition/readme.md`](docs/definition/readme.md) — format specification and runtime API, as typed doc definitions.
 - `roadmap.md` — open work, design sketches, and known gaps.
 - repo-root `rulebook.md` — workspace-wide lint / style / test policy.
 - `tilemap_renderer/readme.md` — the renderer this crate compiles into; co-evolves with this format.

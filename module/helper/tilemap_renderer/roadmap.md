@@ -14,7 +14,7 @@ The core library and SVG adapter are functional; the WebGL2 adapter is partially
 - **Command system** — all POD commands: Clear, Path (moveto/lineto/quad/cubic/arc/close), Text, Mesh, Sprite, Batch lifecycle, Groups with effects
 - **Asset system** — images (bitmap/encoded/path), sprites, geometries, gradients, patterns, clip masks, paths, validation
 - **Backend trait** — `load_assets`, `submit`, `output`, `resize`, `capabilities`
-- **SVG adapter** — full implementation: paths, text, sprites, meshes, batches, groups, effects, gradients, patterns, blend modes, bitmap PNG encoding, viewport pan/zoom wrapper
+- **SVG adapter** — implemented across every command and asset family: paths, text, sprites, meshes, batches, groups, effects, gradients, patterns, blend modes, bitmap PNG encoding, viewport pan/zoom wrapper, `Source::Path` geometry loading via blocking `std::fs` (loud skip with stderr warning + diagnostic comment on read failure, incl. on wasm32 where no filesystem exists). Not complete, though — see "svg adapter gaps" below (font selection unimplemented, image Y-flip, no `Transform::depth` ordering)
 - **WebGL2 adapter (partial)** — hardware-accelerated sprites, meshes, and instanced batches on wasm32:
   - Split across `adapters/webgl.rs` (backend + renderers + async image loader) and
     `adapters/webgl/webgl_helpers.rs` (self-contained helpers wired via `mod_interface::layer`)
@@ -51,12 +51,12 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 │       ├── webgl.rs        # WebGL2 backend entry point (WebGlBackend + renderers)
 │       ├── webgl/          # WebGL submodule layer
 │       │   └── webgl_helpers.rs  # ArrayBuffer, GPU handles, GL mappers, batch types
-│       ├── terminal.rs     # Terminal backend
+│       ├── terminal.rs     # Terminal backend (stub — no implementation yet)
 │       └── shaders/        # GLSL shaders for WebGL
 ├── Cargo.toml
 ├── readme.md
-├── spec.md
-└── roadmap.md
+├── roadmap.md
+└── docs/                   # Design documentation (typed doc definitions)
 ```
 
 ## remaining work
@@ -66,20 +66,25 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 - Path rendering (tessellation or GPU-based curves) — path commands are currently silent no-ops
 - Text rendering (glyph atlas or SDF fonts) — text commands are currently silent no-ops
 - Group commands (`BeginGroup`/`EndGroup`) — currently ignored
-- `ImageSource::Encoded` decoding — skipped with TODO
+- `ImageSource::Encoded` decoding — skipped with a console warning; needs a decoder (the `image` crate, or a browser-side `createImageBitmap` path)
 - Gradient/pattern/clip-mask asset loading — not loaded into GPU resources
 - Effects (blur, drop shadow — requires FBO post-processing)
-- `BlendMode::Overlay` — Photoshop-style (Multiply where dst<0.5, Screen where dst>0.5) cannot be expressed as a single `blend_func` call; currently falls back to Normal; requires a custom shader or separate FBO read-back pass
+- `BlendMode::Overlay` — Photoshop-style (Multiply where dst<0.5, Screen where dst>0.5) cannot be expressed as a single `blend_func` call; currently falls back to Normal; requires a custom shader or separate FBO read-back pass. The Multiply/Screen approximations likewise diverge from the reference formulas when `src_alpha < 1` (see the `BlendMode::Multiply` doc); the same FBO / custom-shader pass would make them exact
 - WebGL context loss handling (`webglcontextlost` / `webglcontextrestored` events)
 
 ### svg adapter gaps
 
 - Font loading and rendering (currently no font resolution)
-- `Source::Path` geometries silently skipped — no file loader; callers must supply `Source::Bytes` (future: `std::fs` on native, `fetch()` on wasm32)
+- `Source::Path` geometry loading is blocking `std::fs` only — works natively; on wasm32 the read fails at runtime and the geometry is skipped loudly (stderr warning + diagnostic SVG comment). An async `fetch()` path would need a redesign of the sync `load_assets` contract
+- `Transform::depth` ordering — the adapter emits in submission order and ignores `depth`; callers must pre-sort (future: stable sort by `depth` before emission)
 - Image Y-flip: SVG `<image>` elements are Y-down natively; sprites rendered from them may appear flipped
 
 ### terminal adapter gaps
 
+The adapter is a stub — no `Backend` implementation or type exists yet, so everything is
+pending, starting with the basics:
+
+- `Backend` implementation with path and text output (ASCII/Unicode cells)
 - Sprite/mesh/batch support
 - Effect support
 - Gradient approximation

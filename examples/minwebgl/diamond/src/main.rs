@@ -1,8 +1,5 @@
 //! Draws diamond figure that reflects cube map texture
 
-#![ allow( clippy::needless_range_loop ) ]
-#![ allow( clippy::needless_borrow ) ]
-
 use minwebgl as gl;
 use gl::
 {
@@ -61,7 +58,6 @@ fn upload_cube_texture( gl : &GL, faces : &[ image::RgbaImage ], location: u32 )
   gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
   gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_R, gl::CLAMP_TO_EDGE as i32 );
 }
-
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -165,7 +161,6 @@ async fn run() -> Result< (), gl::WebglError >
     gl::F32x3::ZERO
   );
 
-
   // Update uniform values
   gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_array(), true ).unwrap();
 
@@ -195,7 +190,6 @@ async fn run() -> Result< (), gl::WebglError >
       let time = t as f32 / 1000.0;
       let rotation = gl::math::mat3x3::from_angle_y( time );
       let eye = rotation * eye;
-
 
       let view_matrix = gl::math::mat3x3h::look_at_rh( eye, gl::F32x3::ZERO, up );
       let inverse_model_matrix = model_matrix.inverse().unwrap();

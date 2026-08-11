@@ -1,10 +1,4 @@
 
-#![ allow( dead_code ) ]
-#![ allow( clippy::large_enum_variant ) ]
-#![ allow( clippy::type_complexity ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::used_underscore_binding ) ]
-#![ allow( clippy::default_trait_access ) ]
 
 mod private
 {
@@ -118,6 +112,7 @@ mod private
   /// Converts a `Transform` into an `interpoli::animated::Transform`.
   impl From< Transform > for interpoli::animated::Transform
   {
+    #[ inline ]
     fn from( val: Transform ) -> Self
     {
       let Transform
@@ -178,6 +173,7 @@ mod private
   /// Converts a `Repeater` into an `interpoli::animated::Repeater`.
   impl From< Repeater > for interpoli::animated::Repeater
   {
+    #[ inline ]
     fn from( val : Repeater ) -> Self
     {
       interpoli::animated::Repeater
@@ -195,7 +191,6 @@ mod private
   }
 
   /// Represents a color, which can be either fixed or animated.
-  #[ allow( dead_code ) ]
   #[ derive( Debug, Clone ) ]
   pub enum Color
   {
@@ -206,7 +201,6 @@ mod private
   }
 
   /// Represents a shape, which can be a stroke, color, geometry, spline, or repeater.
-  #[ allow( dead_code ) ]
   #[ derive( Debug, Clone ) ]
   pub enum Shape
   {
@@ -369,6 +363,7 @@ mod private
   /// Converts a `Layer` into an `interpoli::Layer`.
   impl From< Layer > for interpoli::Layer
   {
+    #[ inline ]
     fn from( val : Layer ) -> Self
     {
       let parent = if val.parent == -1
@@ -422,6 +417,7 @@ mod private
   /// Converts a `Model` into an `interpoli::Composition`.
   impl From< Model > for Composition
   {
+    #[ inline ]
     fn from( val : Model ) -> Self
     {
       Composition

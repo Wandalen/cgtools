@@ -16,6 +16,11 @@ mod private
 
   /// Collection of all resources needed for rendering.
   /// Loaded into a backend once before submitting commands.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:32` and
+  // `tilemap_scene/src/compile/assets.rs:115`, so `#[non_exhaustive]` would
+  // break those call sites.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct Assets
   {
@@ -43,6 +48,7 @@ mod private
 
   /// Error found during asset validation.
   #[ derive( Debug, error_tools::Error ) ]
+  #[ non_exhaustive ]
   pub enum ValidationError
   {
     /// Two assets of the same type share the same [`ResourceId`].
@@ -162,6 +168,7 @@ mod private
 
   /// A font loaded from a file path.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub struct FontAsset
   {
     /// Unique resource identifier.
@@ -171,6 +178,10 @@ mod private
   }
 
   /// An image asset with source and sampling configuration.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:35`, so `#[non_exhaustive]` would
+  // break that call site.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct ImageAsset
   {
@@ -194,6 +205,10 @@ mod private
   /// A rectangular region within a loaded image (sprite sheet support).
   /// SVG: `<symbol viewBox="x y w h"><use href="#sheet" .../></symbol>`.
   /// GPU: UV coordinates mapped to the sub-rectangle within the texture atlas.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_scene/src/compile/assets.rs:318`, so `#[non_exhaustive]` would
+  // break that call site.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct SpriteAsset
   {
@@ -206,6 +221,10 @@ mod private
   }
 
   /// Mesh geometry with positions, UVs, and indices.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:71`, so `#[non_exhaustive]` would
+  // break that call site.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct GeometryAsset
   {
@@ -229,6 +248,10 @@ mod private
   /// Gradient definition.
   /// SVG: `<linearGradient>` / `<radialGradient>` in `<defs>`.
   /// GPU: uploaded as a 1D texture or evaluated analytically in shader.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:128`, so `#[non_exhaustive]` would
+  // break that call site.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct GradientAsset
   {
@@ -241,6 +264,11 @@ mod private
   }
 
   /// A single color stop in a gradient.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:124` and
+  // `tilemap_renderer/tests/svg_backend_test.rs:207`, so `#[non_exhaustive]`
+  // would break those call sites.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct GradientStop
   {
@@ -256,6 +284,7 @@ mod private
   ///
   /// All coordinates are in **world / user space** (the same coordinate system
   /// as [`Transform`] and path commands), not 0..1 bounding-box fractions.
+  #[ non_exhaustive ]
   pub enum GradientKind
   {
     /// Linear gradient between two points.
@@ -281,6 +310,10 @@ mod private
   /// A repeating tile pattern.
   /// SVG: `<pattern>` in `<defs>` containing an `<image>` or shape.
   /// GPU: texture with `AddressMode::Repeat` sampler.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:287`, so `#[non_exhaustive]`
+  // would break that call site.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct PatternAsset
   {
@@ -297,6 +330,10 @@ mod private
   /// A clip mask — a shape that limits rendering to its interior.
   /// SVG: `<clipPath>` in `<defs>`, elements use `clip-path="url(#...)"`.
   /// GPU: draw clip shape into stencil buffer, enable stencil test for content.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:144`, so `#[non_exhaustive]` would
+  // break that call site.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct ClipMaskAsset
   {
@@ -307,6 +344,10 @@ mod private
   }
 
   /// Stored path (e.g. for text-on-path references).
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:160`, so `#[non_exhaustive]` would
+  // break that call site.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct PathAsset
   {
@@ -318,6 +359,7 @@ mod private
 
   /// Path segment for use in Assets.
   #[ derive( Debug, Clone, Copy ) ]
+  #[ non_exhaustive ]
   pub enum PathSegment
   {
     /// Move pen to position (x, y).
@@ -380,6 +422,7 @@ mod private
 
   /// Image data source.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub enum ImageSource
   {
     /// Path to image file — backend decodes (PNG, JPEG, etc.).
@@ -416,9 +459,9 @@ mod private
     /// embedded SVG document. Callers passing SVG bytes are responsible for
     /// trusting or sanitizing their source.
     ///
-    /// **WebGL backend:** not yet implemented — this variant is silently
-    /// skipped during `load_assets`. Use `Bitmap` (pre-decoded) or `Path`
-    /// instead.
+    /// **WebGL backend:** not yet implemented — this variant is skipped
+    /// during `load_assets` with a console warning. Use `Bitmap`
+    /// (pre-decoded) or `Path` instead.
     Encoded( Vec< u8 > ),
     /// Raw pixel data — ready to upload directly.
     Bitmap
@@ -436,6 +479,7 @@ mod private
 
   /// Pixel format for raw bitmap data.
   #[ derive( Debug, Clone, Copy ) ]
+  #[ non_exhaustive ]
   pub enum PixelFormat
   {
     /// 4 bytes per pixel: red, green, blue, alpha.
@@ -450,9 +494,15 @@ mod private
 
   /// Generic data source for geometry buffers.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub enum Source
   {
     /// File path to load data from.
+    ///
+    /// **SVG backend:** read via blocking `std::fs` at `load_assets` time; a
+    /// failed read (missing file, or wasm32 where no filesystem exists) skips
+    /// the whole geometry with a stderr warning and a diagnostic comment in
+    /// the output. **WebGL backend:** fetched asynchronously.
     Path( PathBuf ),
     /// Raw byte data in memory.
     Bytes( Vec< u8 > ),
@@ -464,6 +514,7 @@ mod private
   /// only `U8`, `U16`, and `U32` are valid. `F32` is rejected by the WebGL
   /// backend with `RenderError::BackendError` during `load_assets`.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub enum DataType
   {
     /// Unsigned 8-bit integer. Valid as an index type (`UNSIGNED_BYTE`).

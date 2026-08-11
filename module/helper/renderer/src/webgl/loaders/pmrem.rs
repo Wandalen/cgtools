@@ -184,7 +184,7 @@ mod private
     let status = gl.check_framebuffer_status( gl::FRAMEBUFFER );
     if status != gl::FRAMEBUFFER_COMPLETE
     {
-      gl::browser::error!( "PMREM framebuffer incomplete: {:?}", status );
+      gl::browser::error!( "PMREM framebuffer incomplete: {status:?}" );
       return Err( gl::WebglError::Other( "PMREM framebuffer incomplete" ) );
     }
     Ok( () )

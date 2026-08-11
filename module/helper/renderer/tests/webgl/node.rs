@@ -105,7 +105,7 @@ fn test_scene_update_world_matrix_after_set_local_matrix3()
   let mat1 = math::mat3x3h::scale( [ 5.0; 3 ] );
   let mat2 = math::mat3x3h::translation( [ 1.0; 3 ] );
 
-  let mat12 = mat1 * mat2;
+  let mat1_mul_mat2 = mat1 * mat2;
 
   node11.borrow_mut().set_local_matrix( mat2 );
   node2.borrow_mut().set_local_matrix( mat2 );
@@ -115,8 +115,8 @@ fn test_scene_update_world_matrix_after_set_local_matrix3()
 
   assert_abs_diff_eq!( node_root.borrow().get_world_matrix(), mat1 );
   assert_abs_diff_eq!( node1.borrow().get_world_matrix(), mat1 );
-  assert_abs_diff_eq!( node2.borrow().get_world_matrix(), mat12 );
-  assert_abs_diff_eq!( node11.borrow().get_world_matrix(), mat12 );
+  assert_abs_diff_eq!( node2.borrow().get_world_matrix(), mat1_mul_mat2 );
+  assert_abs_diff_eq!( node11.borrow().get_world_matrix(), mat1_mul_mat2 );
 }
 
 #[ test ]

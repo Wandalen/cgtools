@@ -40,6 +40,7 @@ mod private
   impl Transition
   {
     /// Create new [`Transition`]
+    #[ must_use ]
     pub fn new
     (
       start : Sequencer,
@@ -57,6 +58,7 @@ mod private
     }
 
     /// Get reference to underlying start [`Sequencer`]
+    #[ must_use ]
     pub fn start_ref( &self ) -> &Sequencer
     {
       &self.start
@@ -69,6 +71,7 @@ mod private
     }
 
     /// Get reference to underlying end [`Sequencer`]
+    #[ must_use ]
     pub fn end_ref( &self ) -> &Sequencer
     {
       &self.end
@@ -81,6 +84,7 @@ mod private
     }
 
     /// Get reference to underlying [`Tween< f64 >`]
+    #[ must_use ]
     pub fn tween( &self ) -> &Tween< f64 >
     {
       &self.tween
@@ -135,6 +139,9 @@ mod private
 
     /// Sets all simple 3D transformations for every
     /// [`Node`] related to this [`AnimatableComposition`]
+    // 115 lines : one symmetric walk over translation/rotation/scale channels for
+    // both transition endpoints; splitting would duplicate the pair scaffolding.
+    #[ allow( clippy::too_many_lines ) ]
     fn set( &self, nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > > )
     {
       let t = self.tween.value_get();
@@ -144,7 +151,7 @@ mod private
         let ( mut a, mut b ) = ( None, None );
         if let Some( translation ) = self.start.get::< Sequence< Tween< F64x3 > > >
         (
-          &format!( "{}{}", name, TRANSLATION_PREFIX )
+          &format!( "{name}{TRANSLATION_PREFIX}" )
         )
         {
           if let Some( translation ) = translation.current_get()
@@ -156,7 +163,7 @@ mod private
 
         if let Some( translation ) = self.end.get::< Sequence< Tween< F64x3 > > >
         (
-          &format!( "{}{}", name, TRANSLATION_PREFIX )
+          &format!( "{name}{TRANSLATION_PREFIX}" )
         )
         {
           if let Some( translation ) = translation.current_get()
@@ -184,7 +191,7 @@ mod private
         let ( mut a, mut b ) = ( None, None );
         if let Some( rotation ) = self.start.get::< Sequence< Tween< QuatF64 > > >
         (
-          &format!( "{}{}", name, ROTATION_PREFIX )
+          &format!( "{name}{ROTATION_PREFIX}" )
         )
         {
           if let Some( rotation ) = rotation.current_get()
@@ -196,7 +203,7 @@ mod private
 
         if let Some( rotation ) = self.end.get::< Sequence< Tween< QuatF64 > > >
         (
-          &format!( "{}{}", name, ROTATION_PREFIX )
+          &format!( "{name}{ROTATION_PREFIX}" )
         )
         {
           if let Some( rotation ) = rotation.current_get()
@@ -225,7 +232,7 @@ mod private
         let ( mut a, mut b ) = ( None, None );
         if let Some( scale ) = self.start.get::< Sequence< Tween< F64x3 > > >
         (
-          &format!( "{}{}", name, SCALE_PREFIX )
+          &format!( "{name}{SCALE_PREFIX}" )
         )
         {
           if let Some( scale ) = scale.current_get()
@@ -237,7 +244,7 @@ mod private
 
         if let Some( scale ) = self.end.get::< Sequence< Tween< F64x3 > > >
         (
-          &format!( "{}{}", name, SCALE_PREFIX )
+          &format!( "{name}{SCALE_PREFIX}" )
         )
         {
           if let Some( scale ) = scale.current_get()

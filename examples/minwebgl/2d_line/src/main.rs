@@ -1,17 +1,4 @@
 //! 2d line demo
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::assign_op_pattern ) ]
-#![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::needless_range_loop ) ]
-#![ allow( clippy::uninlined_format_args ) ]
 
 use minwebgl as gl;
 use std::
@@ -54,7 +41,6 @@ fn run() -> Result< (), gl::WebglError >
   let view_matrix = gl::math::mat3x3::identity();
   let projection_matrix = gl::math::mat3x3h::orthographic_rh_gl( -width / 2.0, width / 2.0, -height / 2.0, height / 2.0, 0.0, 1.0 );
   let line_width = 50.0;
-
 
   let mut line = line_tools::d2::Line::default();
   line.cap_set( line_tools::Cap::Butt );

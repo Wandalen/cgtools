@@ -1,9 +1,3 @@
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::needless_range_loop ) ]
-#![ allow( clippy::unnecessary_wraps ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::too_many_lines ) ]
 
 mod private
 {
@@ -201,21 +195,15 @@ mod private
       let mut flat_positions: Vec< f64 > = Vec::new();
       let mut hole_indices: Vec< usize > = Vec::new();
 
-      if let Some( outer_contour ) = contours.first()
-      {
-        if outer_contour.is_empty()
-        {
-          return None;
-        }
-        for &[ x, y ] in outer_contour
-        {
-          flat_positions.push( x as f64 );
-          flat_positions.push( y as f64 );
-        }
-      }
-      else
+      let outer_contour = contours.first()?;
+      if outer_contour.is_empty()
       {
         return None;
+      }
+      for &[ x, y ] in outer_contour
+      {
+        flat_positions.push( x as f64 );
+        flat_positions.push( y as f64 );
       }
 
       // Process holes (remaining contours)

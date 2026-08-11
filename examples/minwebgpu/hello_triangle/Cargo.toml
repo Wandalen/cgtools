@@ -19,3 +19,6 @@ features = [
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # No minwebgpu dependency for native targets
 
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgpu"]

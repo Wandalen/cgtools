@@ -1,5 +1,3 @@
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::too_many_lines ) ]
 
 mod private
 {

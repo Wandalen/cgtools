@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::web_sys;
 
   /// A builder-style struct for creating a `GpuShaderModule`.
   pub struct ShaderModule< 'a >
@@ -15,6 +15,8 @@ mod private
   impl< 'a > ShaderModule< 'a > 
   {
     /// Creates a new `ShaderModule` instance with a given shader source code.
+    #[ inline ]
+    #[ must_use ]
     pub fn new( code : &'a str ) -> Self
     {
       let label = None;
@@ -27,6 +29,8 @@ mod private
     } 
 
     /// Sets an optional label for the shader module.
+    #[ inline ]
+    #[ must_use ]
     pub fn label( mut self, label : &'a str ) -> Self
     {
       self.label = Some( label );
@@ -34,18 +38,21 @@ mod private
     }
 
     /// Creates the `GpuShaderModule` using the configured properties.
+    #[ inline ]
+    #[ must_use ]
     pub fn create( self, device : &web_sys::GpuDevice ) -> web_sys::GpuShaderModule
     {
-      let desc = web_sys::GpuShaderModuleDescriptor::new( &self.code );
+      let desc = web_sys::GpuShaderModuleDescriptor::new( self.code );
 
       if let Some( v ) = self.label { desc.set_label( v ); }
 
-      let shader = device.create_shader_module( &desc );
-      shader
+      device.create_shader_module( &desc )
     }
   }
 
   /// A convenience function to create a `GpuShaderModule` with just the code.
+  #[ inline ]
+  #[ must_use ]
   pub fn create( device : &web_sys::GpuDevice, code : &str ) -> web_sys::GpuShaderModule
   {
     ShaderModule::new( code ).create( device )

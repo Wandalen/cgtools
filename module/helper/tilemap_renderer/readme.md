@@ -2,7 +2,7 @@
 
 Backend-agnostic 2D rendering engine with adapter support.
 
-Define rendering commands once, render to any backend — SVG, WebGL2, or terminal.
+Define rendering commands once, render to any backend — SVG and WebGL2 today; terminal planned.
 
 ## coordinate system
 
@@ -17,7 +17,7 @@ All backends use a **Y-up** convention:
 The crate follows **Ports & Adapters** (hexagonal) architecture:
 
 - **Core** (`types`, `commands`, `assets`, `backend`) — platform-independent, no graphics dependencies
-- **Adapters** (`adapters::SvgBackend`, `adapters::WebGlBackend`, `adapters::TerminalBackend`) — feature-gated backend implementations
+- **Adapters** (`adapters::SvgBackend`, `adapters::WebGlBackend`) — feature-gated backend implementations; the `adapter-terminal` feature gate exists but is a stub with no backend type yet
 
 All rendering commands are **POD** (`Copy`, `Clone`) — no allocations, no lifetimes. Commands form a flat sequential stream processed by backends.
 
@@ -32,16 +32,16 @@ tilemap_renderer/
     ├── webgl.rs    # WebGL2 hardware-accelerated rendering (wasm32)
     ├── webgl/
     │   └── webgl_helpers.rs  # Self-contained WebGL types (ArrayBuffer, GPU handles, GL mappers)
-    └── terminal.rs # ASCII/Unicode terminal output
+    └── terminal.rs # stub — no implementation yet (planned: ASCII/Unicode output)
 ```
 
 ## features
 
 | Feature | Status | Description |
 |---------|--------|-------------|
-| `adapter-svg` | complete | SVG backend — generates SVG 1.1 documents |
+| `adapter-svg` | partial | SVG backend — generates SVG 1.1 documents; every command/asset family implemented, but font selection is not (`Assets.fonts` ignored — viewer default font) |
 | `adapter-webgl` | partial | WebGL2 backend — sprites, meshes, instanced batches (wasm32); paths/text/effects pending |
-| `adapter-terminal` | stub | Terminal backend — ASCII art output |
+| `adapter-terminal` | stub | Terminal backend — feature gate compiles; no `Backend` implementation exists yet |
 
 Default: no features enabled (core only, zero backend dependencies).
 
@@ -80,21 +80,27 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 
 | Feature | SVG | WebGL | Terminal |
 |---------|-----|-------|----------|
-| Paths | yes | — | yes |
-| Text | yes | — | yes |
-| Sprites | yes | stub | — |
-| Meshes | yes | stub | — |
-| Batches | yes | stub | — |
+| Paths | yes | — | — |
+| Text | yes¹ | — | — |
+| Sprites | yes | yes | — |
+| Meshes | yes | yes | — |
+| Batches | yes | yes | — |
 | Gradients | yes | — | — |
 | Effects | yes | — | — |
-| Blend modes | yes | partial¹ | — |
+| Blend modes | yes | partial² | — |
 | Viewport pan/zoom | yes | partial | — |
 
-> **Terminal** adapter is currently a stub implementation (deferred to a follow-up PR).
+> **Terminal** column is all-empty because the adapter is a stub — the `adapter-terminal`
+> feature gate compiles an empty module; no `Backend` implementation or type exists yet.
 > **WebGL** adapter is partially implemented: sprites, meshes, and instanced batches work;
 > paths, text, groups, gradients, patterns, and effects are not yet rendered.
 >
-> ¹ WebGL blend modes: Normal, Add, Multiply, Screen are hardware-accelerated.
+> ¹ SVG text renders, but font selection is not implemented: `Assets.fonts` is accepted
+> by `load_assets` and then ignored — no `@font-face` is emitted and `<text>` elements
+> carry no `font-family`, so text appears in the viewer's default font. This is why
+> `adapter-svg` is tracked as partial. See `docs/feature/001_svg_backend_adapter.md`.
+>
+> ² WebGL blend modes: Normal, Add, Multiply, Screen are hardware-accelerated.
 > `BlendMode::Overlay` (Photoshop-style) cannot be expressed as a single `blend_func` call
 > and currently falls back to Normal; a custom shader or FBO pass is required. Because
 > not all variants render correctly, `Capabilities::blend_modes` is `false` on this
@@ -107,8 +113,8 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > GPU clip values outside the range. In batches the **sum** `parent_depth + instance_depth`
 > must stay within the range — out-of-range sums are clipped. Correct only for fully
 > opaque draws — submit translucent content back-to-front as you would for a
-> painter's-algorithm renderer. SVG and terminal adapters still emit in submission order
-> and ignore `depth` / `max_depth`.
+> painter's-algorithm renderer. The SVG adapter still emits in submission order
+> and ignores `depth` / `max_depth`.
 
 ## known issues / TODO
 
@@ -118,9 +124,10 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 screen-space coordinates, bypassing world-to-screen projection. WebGL and
 SVG implement this command end-to-end — both dispatch through their
 existing `cmd_sprite` path since the compile layer already emits
-screen-space coordinates. The terminal adapter is still a no-op for this
-variant; wire it up when a terminal use-case needs HUD / overlay
-rendering.
+screen-space coordinates. The terminal adapter has no implementation at
+all yet (see the features table), so this variant — like every other
+command — is not rendered there; cover it when the terminal backend is
+actually built and a use-case needs HUD / overlay rendering.
 
 ### WebGL texture upload Y-flip asymmetry
 
@@ -148,6 +155,16 @@ also set `UNPACK_FLIP_Y_WEBGL=1` in the sync `Bitmap` branch in
 authoring UVs in GL convention (e.g. `examples/minwebgl/hexagonal_map`)
 needs its UVs re-authored in image convention, and the sprite shader's
 outer `1 - ...` can be removed.
+
+## Directory Layout
+
+| Path | Responsibility |
+|------|----------------|
+| `src/` | Crate source — core types/commands/assets/backend trait, feature-gated backend adapters |
+| `tests/` | Integration tests (core types, commands, assets, `Backend` trait contract) |
+| `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
+| `roadmap.md` | Future work and per-adapter gaps |
+| `readme.md` | This file — user-facing entry point |
 
 ## license
 

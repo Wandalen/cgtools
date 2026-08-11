@@ -1,19 +1,5 @@
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::must_use_candidate ) ]
-#![ allow( clippy::needless_for_each ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::unnecessary_wraps ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::too_many_lines ) ]
-
 use core::cell::RefCell;
 use minwebgl as gl;
 use gl::
@@ -632,7 +618,7 @@ async fn run() -> Result< (), gl::WebglError >
     &canvas_sphere,
     | m |
     {
-      let uv_position = m.base_color_texture().map( | t | t.uv_position ).unwrap_or( 0 );
+      let uv_position = m.base_color_texture().map_or( 0, | t | t.uv_position );
       let texture = Texture::former().source( canvas_texture.clone() ).form();
       let texture_info = TextureInfo { texture : Rc::new( RefCell::new( texture ) ), uv_position };
       m.set_base_color_texture( Some( texture_info ) );

@@ -1,0 +1,44 @@
+[package]
+name = "scene_script"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75.0"
+license = "MIT"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/scene_script"
+documentation = "https://docs.rs/scene_script"
+description = "Rhai scripting glue for describing and animating 2D scenes."
+readme = "readme.md"
+keywords = ["scripting", "rhai", "animation", "2d"]
+categories = ["game-development", "wasm"]
+include = [
+  "src/**/*",
+  "tests/**/*",
+  "Cargo.toml",
+  "readme.md",
+  "license*",
+  "changelog*",
+]
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+[dependencies]
+mod_interface = { workspace = true }
+ndarray_cg = { workspace = true }
+animation = { workspace = true }
+rhai = { workspace = true, features = ["internals"] }
+
+# `rhai` pulls in `getrandom` v0.3 (via `ahash`); on wasm32 that version needs
+# its own `wasm_js` feature in addition to the workspace's `--cfg
+# getrandom_backend="wasm_js"` RUSTFLAGS — the RUSTFLAGS alone is not enough.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { workspace = true, features = ["wasm_js"] }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "wasm32-unknown-unknown"

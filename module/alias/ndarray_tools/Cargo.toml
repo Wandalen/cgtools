@@ -42,6 +42,9 @@ ndarray_cg = { workspace = true, optional = true }
 
 [dev-dependencies]
 test_tools = { workspace = true }
+# Included test suite (tests/inc from ndarray_cg) references ndarray_cg:: and ::num_traits directly
+ndarray_cg = { workspace = true, features = [ "enabled" ] }
+num-traits = { workspace = true }
 
 # Metadata for crates.io
 [package.metadata.docs.rs]

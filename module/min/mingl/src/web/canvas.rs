@@ -1,8 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
-  use crate::web::*;
+  use crate::web::{ dom, web_sys };
   pub use web_sys::
   {
     Element,
@@ -23,6 +22,12 @@ mod private
   /// Trying to find a canvas with id "canvas",
   /// if fails to find it's looking for canvas with class "canvas",
   /// if fails to find it return error.
+  ///
+  /// # Errors
+  /// Returns an error if the window/document cannot be accessed, or if an element
+  /// matching id/class `canvas` exists but is not an `HtmlCanvasElement`, or if no
+  /// matching element is found at all.
+  #[ inline ]
   pub fn retrieve() -> Result< HtmlCanvasElement, Error >
   {
     let window = web_sys::window().ok_or( Error::CanvasRetrievingError( "Failed to get window" ) )?;
@@ -40,10 +45,15 @@ mod private
       return canvas.dyn_into::< HtmlCanvasElement >().map_err( |_| Error::CanvasRetrievingError( "DOM Element with class `canvas` exist, but it's not canvas" ) );
     }
 
-    return Err( Error::CanvasRetrievingError( "Canvas was not found" ) )
+    Err( Error::CanvasRetrievingError( "Canvas was not found" ) )
   }
 
   /// Add canvas to document body and stretch it to fill whole screen. Also bind resize handler on parent.
+  ///
+  /// # Errors
+  /// Returns an error if the window/document/body cannot be accessed, or if the new
+  /// canvas element cannot be created, classed, appended, or styled.
+  #[ inline ]
   pub fn make() -> Result< HtmlCanvasElement, Error >
   {
     let window = web_sys::window().ok_or( Error::CanvasRetrievingError( "Failed to get window" ) )?;
@@ -72,16 +82,16 @@ mod private
       resize_canvas( &canvas, &parent );
 
       // Create a closure to handle window resizing
-      let _canvas = canvas.clone();
+      let canvas_clone = canvas.clone();
       let closure = Closure::wrap( Box::new( move ||
       {
-        resize_canvas( &_canvas, &parent );
+        resize_canvas( &canvas_clone, &parent );
       }) as Box< dyn Fn() > );
 
       // Add the closure as a listener to the resize event
       window
       .add_event_listener_with_callback( "resize", closure.as_ref().unchecked_ref() )
-      .map_err( | e | Error::BindgenError( "Cant bind resize", format!( "{:?}", e ) ) )?;
+      .map_err( | e | Error::BindgenError( "Cant bind resize", format!( "{e:?}" ) ) )?;
 
       // Keep the closure alive for the duration of the app
       closure.forget();
@@ -98,6 +108,11 @@ mod private
   /// Trying to find a canvas with id "canvas",
   /// if fails to find it's looking for canvas with class "canvas",
   /// if fails to find it create a canvas, add it to document body and stretch it to fill whole screen. Also bind resize handler on parent.
+  ///
+  /// # Errors
+  /// Returns an error under the same conditions as [`make`], since it is called
+  /// as a fallback when [`retrieve`] does not find an existing canvas.
+  #[ inline ]
   pub fn retrieve_or_make() -> Result< HtmlCanvasElement, Error >
   {
     if let Ok( canvas ) = retrieve()
@@ -110,8 +125,12 @@ mod private
   // Function to resize the canvas
   fn resize_canvas( canvas: &HtmlCanvasElement, parent: &Element )
   {
-    // Set the canvas dimensions to match the parent element's size
+    // Set the canvas dimensions to match the parent element's size.
+    // `client_width`/`client_height` return `i32` for historical WebIDL reasons, but the
+    // DOM spec guarantees both are always non-negative for a connected element.
+    #[ allow( clippy::cast_sign_loss ) ]
     let width = parent.client_width() as u32;
+    #[ allow( clippy::cast_sign_loss ) ]
     let height = parent.client_height() as u32;
 
     // log::info!( "resize : {width}x{height}" );
@@ -122,13 +141,18 @@ mod private
 
   /// Sets canvas width and height in CSS style as width / dpr and height / dpr. This removes scaling of operating system.
   /// If you resize the canvas after calling this funciton, don't forget to update CSS width and height.
+  ///
+  /// # Panics
+  /// Panics if the global `window` object is unavailable, or if setting the `width`/`height`
+  /// CSS properties on the canvas style fails.
+  #[ inline ]
   pub fn remove_dpr_scaling( canvas: &HtmlCanvasElement )
   {
     let width = canvas.width();
     let height = canvas.height();
     let dpr = web_sys::window().expect( "Should have a window" ).device_pixel_ratio();
-    let css_width = format!( "{}px", width as f64 / dpr );
-    let css_height = format!( "{}px", height as f64 / dpr );
+    let css_width = format!( "{}px", f64::from( width ) / dpr );
+    let css_height = format!( "{}px", f64::from( height ) / dpr );
     canvas.style().set_property( "width", &css_width ).unwrap();
     canvas.style().set_property( "height", &css_height ).unwrap();
   }

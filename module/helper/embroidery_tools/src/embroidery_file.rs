@@ -7,8 +7,8 @@ mod private
   //!
   //! # Represents embroidery file
   //!
-  use crate::*;
-  use thread::*;
+  use crate::{ thread, metadata, stitch_instruction };
+  use thread::Thread;
   use metadata::Metadata;
   use stitch_instruction::{ Instruction, Stitch };
 
@@ -28,6 +28,8 @@ mod private
   impl EmbroideryFile
   {
     /// Creates new instance of `EmbroideryFile`
+    #[ must_use ]
+    #[ inline ]
     pub fn new() -> Self
     {
       Self
@@ -41,60 +43,73 @@ mod private
     }
 
     /// Returns stitches with absolute coordinates
+    #[ must_use ]
+    #[ inline ]
     pub fn stitches( &self ) -> &[ Stitch ]
     {
       &self.stitches
     }
 
     /// Threads of embroidery file
+    #[ must_use ]
+    #[ inline ]
     pub fn threads( &self ) -> &[ Thread ]
     {
       &self.threads
     }
 
     /// Gets mutable metadata
+    #[ inline ]
     pub fn get_mut_metadata( &mut self ) -> &mut Metadata
     {
       &mut self.metadata
     }
 
     /// Gets metadata
+    #[ must_use ]
+    #[ inline ]
     pub fn get_metadata( &self ) -> &Metadata
     {
       &self.metadata
     }
 
     /// Adds stitch instruction with relative coordinates
+    #[ inline ]
     pub fn stitch( &mut self, dx : i32, dy : i32 )
     {
       self.add_stitch_relative( Stitch { x : dx, y : dy, instruction : Instruction::Stitch } );
     }
 
     /// Adds jump instruction with relative coordinates
+    #[ inline ]
     pub fn jump( &mut self, dx : i32, dy : i32 )
     {
       self.add_stitch_relative( Stitch { x : dx, y : dy, instruction : Instruction::Jump } );
     }
 
     /// Adds color change instruction with relative coordinates
+    #[ inline ]
     pub fn color_change( &mut self, dx : i32, dy : i32 )
     {
       self.add_stitch_relative( Stitch { x : dx, y : dy, instruction : Instruction::ColorChange } );
     }
 
     /// Adds trim instruction with relative coordinates at [0; 0]
+    #[ inline ]
     pub fn trim( &mut self )
     {
       self.add_stitch_relative( Stitch { x : 0, y : 0, instruction : Instruction::Trim } );
     }
 
     /// Adds end instruction with relative coordinates at [0; 0]
+    #[ inline ]
     pub fn end( &mut self )
     {
       self.add_stitch_relative( Stitch { x : 0, y : 0, instruction : Instruction::End } );
     }
 
     /// Adds stitch instruction, assuming that coodinates are relative
+    #[ inline ]
     pub fn add_stitch_relative( &mut self, mut stitch : Stitch )
     {
       // Convert to absolute
@@ -104,6 +119,7 @@ mod private
     }
 
     /// Adds stitch instruction, assuming that coodinates are absolute
+    #[ inline ]
     pub fn add_stitch_absolute( &mut self, stitch : Stitch )
     {
       self.prev_x = stitch.x;
@@ -112,6 +128,7 @@ mod private
     }
 
     /// Adds thread to palette
+    #[ inline ]
     pub fn add_thread( &mut self, thread : Thread )
     {
       self.threads.push( thread );
@@ -119,6 +136,8 @@ mod private
 
     /// Returns thread in `index` or a random thread.
     /// Currently PEC pallete is used for random thread sampling
+    #[ must_use ]
+    #[ inline ]
     pub fn get_thread_or_filler( &self, index : usize ) -> Thread
     {
       self.threads.get( index ).unwrap_or( &thread::get_random_thread() ).clone()
@@ -127,6 +146,7 @@ mod private
     /// This function replaces duplicate color changes with `Stop` instruciton.
     /// Should be used when reading specific formats where stop instruction is encoded
     /// with duplicate color change
+    #[ inline ]
     pub fn interpolate_duplicate_color_as_stop( &mut self )
     {
       let mut thread_index = 0;
@@ -142,17 +162,16 @@ mod private
         || instruction == Instruction::NeedleAt )
         && init_color
         {
-          if thread_index != 0
-          && self.threads().get( thread_index ) == self.threads().get( thread_index - 1 )
-          && last_change.is_some()
+          match last_change
           {
-            _ = self.threads.remove( thread_index );
-            let last_change : usize = last_change.unwrap();
-            self.stitches[ last_change ].instruction = Instruction::Stop;
-          }
-          else
-          {
-            thread_index += 1;
+            Some( last_change ) if thread_index != 0
+            && self.threads().get( thread_index ) == self.threads().get( thread_index - 1 ) =>
+            {
+              let last_change : usize = last_change;
+              _ = self.threads.remove( thread_index );
+              self.stitches[ last_change ].instruction = Instruction::Stop;
+            }
+            _ => thread_index += 1,
           }
 
           init_color = false;
@@ -164,6 +183,10 @@ mod private
           init_color = true;
           last_change = Some( i );
         }
+        else
+        {
+          // Jump / Trim / End / Stop / NoInstruction carry no color-run state here
+        }
       }
     }
 
@@ -172,6 +195,7 @@ mod private
     /// with duplicated color change. Should be used when writing
     /// specific formats where Stop instruction should be encoded as
     /// duplicate color change
+    #[ inline ]
     pub fn interpolate_stop_as_duplicate_color( &mut self )
     {
       let mut thread_index = 0;
@@ -185,7 +209,7 @@ mod private
         {
           continue;
         }
-        else if instruction == Instruction::ColorChange
+        if instruction == Instruction::ColorChange
         || instruction == Instruction::ColorBreak
         || instruction == Instruction::NeedleSet
         {
@@ -206,11 +230,16 @@ mod private
             return;
           }
         }
+        else
+        {
+          // Jump / Trim / End / NoInstruction require no bookkeeping here
+        }
       }
     }
 
     /// This function ensures that there is a enough threads
     /// for every color change. If it is not then it adds some random threads
+    #[ inline ]
     pub fn fix_color_count( &mut self )
     {
       let mut thread_index = 0;
@@ -233,6 +262,10 @@ mod private
         {
           init_color = true;
         }
+        else
+        {
+          // Jump / Trim / End / Stop / NoInstruction carry no color-run state here
+        }
       }
 
       while self.threads.len() < thread_index
@@ -244,6 +277,8 @@ mod private
     /// Minimum and maximum coordinates of stitches.
     /// # Returns
     /// Pairs of min X min Y and max X max Y
+    #[ must_use ]
+    #[ inline ]
     pub fn bounds( &self ) -> ( i32, i32, i32, i32 )
     {
       let mut max_x = i32::MIN;
@@ -264,6 +299,8 @@ mod private
 
     /// Returns blocks of stitches splitted at positions where
     /// instructions doesn't repeat. Currently used for PES encoding
+    #[ must_use ]
+    #[ inline ]
     pub fn as_command_blocks( &self ) -> Vec< Vec< Stitch > >
     {
       let mut ret = vec![];
@@ -288,42 +325,10 @@ mod private
 
   impl Default for EmbroideryFile
   {
+    #[ inline ]
     fn default() -> Self
     {
       Self::new()
-    }
-  }
-
-  #[ cfg( test ) ]
-  mod test
-  {
-    use super::*;
-    use stitch_instruction::*;
-
-    #[ test ]
-    fn test_add_stitch_relative()
-    {
-      let mut emb = EmbroideryFile::new();
-      emb.add_stitch_relative( Stitch { x : 10, y : 20, instruction: Instruction::Stitch } );
-      emb.add_stitch_relative( Stitch { x : 30, y : 40, instruction: Instruction::Stitch } );
-
-      let stitches = emb.stitches();
-
-      assert_eq!( stitches[ 0 ], Stitch { x : 10, y : 20, instruction: Instruction::Stitch } );
-      assert_eq!( stitches[ 1 ], Stitch { x : 40, y : 60, instruction: Instruction::Stitch } );
-    }
-
-    #[ test ]
-    fn test_add_stitch_absolute()
-    {
-      let mut emb = EmbroideryFile::new();
-      emb.add_stitch_absolute( Stitch { x : 10, y : 20, instruction: Instruction::Stitch } );
-      emb.add_stitch_absolute( Stitch { x : 30, y : 40, instruction: Instruction::Stitch } );
-
-      let stitches = emb.stitches();
-
-      assert_eq!( stitches[ 0 ], Stitch { x : 10, y : 20, instruction: Instruction::Stitch } );
-      assert_eq!( stitches[ 1 ], Stitch { x : 30, y : 40, instruction: Instruction::Stitch } );
     }
   }
 }

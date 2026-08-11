@@ -3,7 +3,7 @@ mod private
   use mdmath_core::vector::mul_scalar;
   use mdmath_core::vector::mul;
 
-  use crate::*;
+  use crate::{MulAssign, Mat, Vector, mat, MatNum, Indexable, Ix2, IndexingRef, Mul};
 
   // Vector * Matrix
   impl< E, const ROWS : usize, const COLS : usize, Descriptor > MulAssign< Mat< ROWS, COLS, E, Descriptor > >
@@ -13,6 +13,7 @@ mod private
     E : MatNum,
     Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   {
+    #[ inline ]
     fn mul_assign( &mut self, rhs : Mat< ROWS, COLS, E, Descriptor > )
     {
       *self = rhs * *self;
@@ -29,6 +30,7 @@ mod private
     /// # Overflow
     /// For integer `E` the element-wise multiplication is not overflow-checked:
     /// it panics in debug / wraps in release once a product leaves `E`'s range.
+    #[ inline ]
     fn mul( self, rhs : Self ) -> Self::Output
     {
       mul( &self, &rhs )
@@ -45,6 +47,7 @@ mod private
     /// # Overflow
     /// For integer `E` the element-wise multiplication is not overflow-checked:
     /// it panics in debug / wraps in release once a product leaves `E`'s range.
+    #[ inline ]
     fn mul( self, rhs : E ) -> Self::Output
     {
       mul_scalar( &self, rhs )
@@ -59,6 +62,7 @@ mod private
     /// # Overflow
     /// For integer `E` the element-wise multiplication is not overflow-checked:
     /// it panics in debug / wraps in release once a product leaves `E`'s range.
+    #[ inline ]
     fn mul_assign( &mut self, rhs : E )
     {
       *self = *self * rhs;
@@ -70,6 +74,7 @@ mod private
   {
     type Output = Vector< f32, LEN >;
 
+    #[ inline ]
     fn mul( self, rhs : Vector< f32, LEN > ) -> Self::Output
     {
       mul_scalar( &rhs, self )
@@ -81,7 +86,68 @@ mod private
   {
     type Output = Vector< f64, LEN >;
 
+    #[ inline ]
     fn mul( self, rhs : Vector< f64, LEN > ) -> Self::Output
+    {
+      mul_scalar( &rhs, self )
+    }
+  }
+
+  // Scalar * Vector
+  impl< const LEN : usize > Mul< Vector< i32, LEN > > for i32
+  {
+    type Output = Vector< i32, LEN >;
+
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
+    #[ inline ]
+    fn mul( self, rhs : Vector< i32, LEN > ) -> Self::Output
+    {
+      mul_scalar( &rhs, self )
+    }
+  }
+
+  // Scalar * Vector
+  impl< const LEN : usize > Mul< Vector< i64, LEN > > for i64
+  {
+    type Output = Vector< i64, LEN >;
+
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
+    #[ inline ]
+    fn mul( self, rhs : Vector< i64, LEN > ) -> Self::Output
+    {
+      mul_scalar( &rhs, self )
+    }
+  }
+
+  // Scalar * Vector
+  impl< const LEN : usize > Mul< Vector< u32, LEN > > for u32
+  {
+    type Output = Vector< u32, LEN >;
+
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
+    #[ inline ]
+    fn mul( self, rhs : Vector< u32, LEN > ) -> Self::Output
+    {
+      mul_scalar( &rhs, self )
+    }
+  }
+
+  // Scalar * Vector
+  impl< const LEN : usize > Mul< Vector< u64, LEN > > for u64
+  {
+    type Output = Vector< u64, LEN >;
+
+    /// # Overflow
+    /// For integer `E` the element-wise multiplication is not overflow-checked:
+    /// it panics in debug / wraps in release once a product leaves `E`'s range.
+    #[ inline ]
+    fn mul( self, rhs : Vector< u64, LEN > ) -> Self::Output
     {
       mul_scalar( &rhs, self )
     }

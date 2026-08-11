@@ -1,8 +1,5 @@
 //! Just draw a large point in the middle of the screen.
 
-#![ allow( clippy::needless_range_loop ) ]
-#![ allow( clippy::unnecessary_cast ) ]
-
 use minwebgl as gl;
 use gl::GL;
 
@@ -70,7 +67,6 @@ fn make_cube_camera() -> [ gl::F32x4x4; 6 ]
   [ px, nx, py, ny, pz, nz ]
 }
 
-
 fn gen_cube_texture( gl : &GL, width: i32, height: i32 ) -> Option< gl::web_sys::WebGlTexture >
 {
   let texture = gl.create_texture();
@@ -100,7 +96,6 @@ fn gen_cube_texture( gl : &GL, width: i32, height: i32 ) -> Option< gl::web_sys:
 
   texture
 }
-
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -165,7 +160,6 @@ async fn run() -> Result< (), gl::WebglError >
   let normal_matrix_location = gl.get_uniform_location( &program, "normalMatrix" );
 
   let max_distance_location = gl.get_uniform_location( &program, "max_distance" );
-
 
   // Camera setup
   let cube_camera = make_cube_camera();

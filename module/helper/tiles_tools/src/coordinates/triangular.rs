@@ -5,9 +5,11 @@ use coordinates::{ ToDual, Neighbors, Distance, hexagonal, pixel::Pixel };
 
 const SQRT_3 : f32 = 1.732_050_8;
 
+/// Marker type for the flat-topped triangular grid orientation.
 #[ derive( Debug ) ]
 pub struct FlatTopped;
 
+/// Marker type for the flat-sided triangular grid orientation.
 #[ derive( Debug ) ]
 pub struct FlatSided;
 
@@ -50,7 +52,7 @@ impl< 'de, Orientation > serde::Deserialize< 'de > for Coordinate< Orientation >
       (
         serde::de::Error::custom
         (
-          format!( "Invalid coordinate: a + b + c must equal 1 or 2 (got {})", sum )
+          format!( "Invalid coordinate: a + b + c must equal 1 or 2 (got {sum})" )
         )
       );
     }
@@ -77,7 +79,7 @@ impl< Orientation > Default for Coordinate< Orientation >
 {
   fn default() -> Self
   {
-    Self { a : Default::default(), b : Default::default(), c : Default::default(), _marker : Default::default() }
+    Self { a : Default::default(), b : Default::default(), c : Default::default(), _marker : PhantomData }
   }
 }
 
@@ -85,7 +87,7 @@ impl< Orientation > Clone for Coordinate< Orientation >
 {
   fn clone( &self ) -> Self
   {
-    Self::new_unchecked( self.a, self.b, self.c )
+    *self
   }
 }
 
@@ -120,7 +122,7 @@ impl< Orientation > Coordinate< Orientation >
   #[ must_use ]
   pub fn new( a : i32, b : i32, c : i32 ) -> Option< Self >
   {
-    let sum = a as i64 + b as i64 + c as i64;
+    let sum = i64::from(a) + i64::from(b) + i64::from(c);
     if ( 1..=2 ).contains( &sum )
     {
       Some( Self { a, b, c, _marker : PhantomData } )
@@ -157,10 +159,14 @@ impl< Orientation > Coordinate< Orientation >
     ]
   }
 
+  /// Returns `true` if this coordinate identifies an up- or right-pointing triangle (`a + b + c == 2`).
   #[ inline ]
+  #[ must_use ]
   pub const fn is_up_or_right( &self ) -> bool { self.a as i64 + self.b as i64 + self.c as i64 == 2 }
 
+  /// Returns `true` if this coordinate identifies a down- or left-pointing triangle (`a + b + c == 1`).
   #[ inline ]
+  #[ must_use ]
   pub const fn is_down_or_left( &self ) -> bool { self.a as i64 + self.b as i64 + self.c as i64 == 1 }
 }
 
@@ -190,8 +196,8 @@ impl< Orientation > Neighbors for Coordinate< Orientation >
   {
     let Self { a, b, c, .. } = *self;
 
-    let is_right = self.is_up_or_right() as i32;
-    let is_left = self.is_down_or_left() as i32;
+    let is_right = i32::from(self.is_up_or_right());
+    let is_left = i32::from(self.is_down_or_left());
     let offset = -is_right + is_left;
 
     [
@@ -208,9 +214,9 @@ impl< Orientation > Distance for Coordinate< Orientation >
   fn distance( &self, other : &Self ) -> u32
   {
     (
-      ( self.a as i64 - other.a as i64 ).abs()
-      + ( self.b as i64 - other.b as i64 ).abs()
-      + ( self.c as i64 - other.c as i64 ).abs()
+      ( i64::from(self.a) - i64::from(other.a) ).abs()
+      + ( i64::from(self.b) - i64::from(other.b) ).abs()
+      + ( i64::from(self.c) - i64::from(other.c) ).abs()
     ) as u32
   }
 }
@@ -220,7 +226,7 @@ impl Coordinate< FlatSided >
   /// Converts a 2D point (e.g., from a mouse click) to the nearest `TriAxial` coordinate.
   #[ inline ]
   #[ must_use ]
-  #[ allow( clippy::cast_possible_truncation ) ]
+  #[ allow( clippy::cast_possible_truncation ) ] // Pixel-space floor/ceil results are game-scale, far below `i32` limits.
   pub fn from_pixel_with_edge_len( Pixel { data : [ x, y ]  } : Pixel, edge_length : f32 ) -> Self
   {
     let cell_size : [ f32; 2 ] = [ edge_length * SQRT_3 / 2.0, edge_length ];
@@ -257,7 +263,7 @@ impl Coordinate< FlatTopped >
   /// Converts a 2D point (e.g., from a mouse click) to the nearest `TriAxial` coordinate.
   #[ inline ]
   #[ must_use ]
-  #[ allow( clippy::cast_possible_truncation ) ]
+  #[ allow( clippy::cast_possible_truncation ) ] // Pixel-space floor/ceil results are game-scale, far below `i32` limits.
   pub fn from_pixel_with_edge_len( Pixel { data : [ x, y ]  } : Pixel, edge_length : f32 ) -> Self
   {
     Self::new_unchecked
@@ -302,18 +308,18 @@ impl< Orientation > TryFrom< ( i32, i32, i32 ) > for Coordinate< Orientation >
   }
 }
 
-impl< Orientation > Into< [ i32; 3 ] > for Coordinate< Orientation >
+impl< Orientation > From< Coordinate< Orientation > > for [ i32; 3 ]
 {
-  fn into( self ) -> [ i32; 3 ]
+  fn from( val: Coordinate< Orientation > ) -> Self
   {
-    [ self.a, self.b, self.c ]
+    [ val.a, val.b, val.c ]
   }
 }
 
-impl< Orientation > Into< ( i32, i32, i32 ) > for Coordinate< Orientation >
+impl< Orientation > From< Coordinate< Orientation > > for ( i32, i32, i32 )
 {
-  fn into( self ) -> ( i32, i32, i32 )
+  fn from( val: Coordinate< Orientation > ) -> Self
   {
-    ( self.a, self.b, self.c )
+    ( val.a, val.b, val.c )
   }
 }

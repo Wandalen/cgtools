@@ -8,7 +8,7 @@ Object picking typically uses color-coded rendering or ray casting. This example
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

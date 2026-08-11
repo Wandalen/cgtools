@@ -1,4 +1,7 @@
 
+// Exact float comparisons are intentional: these assertions check deterministic
+// arithmetic against exact literal expected values.
+
 use super::*;
 use line_tools::d3;
 
@@ -10,7 +13,7 @@ fn test_dash_pattern_default()
   let pattern = d3::DashPattern::default();
   match pattern
   {
-    d3::DashPattern::V1( v ) => assert_eq!( v, 0.5 ),
+    d3::DashPattern::V1( val ) => assert_eq!( val, 0.5 ),
     _ => panic!( "Default DashPattern should be V1" ),
   }
 }
@@ -220,10 +223,10 @@ fn test_get_defines_dash_use_includes_default_pattern_v1()
 fn test_dash_pattern_clone()
 {
   let pattern = d3::DashPattern::V2( [ 0.3, 0.7 ] );
-  let cloned = pattern.clone();
+  let cloned = pattern;
   match cloned
   {
-    d3::DashPattern::V2( v ) => assert_eq!( v, [ 0.3, 0.7 ] ),
+    d3::DashPattern::V2( val ) => assert_eq!( val, [ 0.3, 0.7 ] ),
     _ => panic!( "Cloned pattern should be V2" ),
   }
 }
@@ -236,7 +239,7 @@ fn test_dash_pattern_copy()
   // pattern is still usable because DashPattern is Copy
   match ( pattern, copied )
   {
-    ( d3::DashPattern::V4( a ), d3::DashPattern::V4( b ) ) => assert_eq!( a, b ),
+    ( d3::DashPattern::V4( lhs ), d3::DashPattern::V4( rhs ) ) => assert_eq!( lhs, rhs ),
     _ => panic!( "Both should be V4" ),
   }
 }

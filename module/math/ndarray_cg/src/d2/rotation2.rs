@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{Rotation, Collection};
 
   /// Trait for representing and manipulating rotations in 2D.
   pub trait Rotation2

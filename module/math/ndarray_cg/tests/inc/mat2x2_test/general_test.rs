@@ -12,12 +12,15 @@ use the_module::
   mat
 };
 
+// `determinant` on these small-integer-valued matrices only sums/subtracts products of
+// exactly-representable integers — no rounding is possible, so exact equality is correct.
+#[ allow( clippy::float_cmp ) ]
 fn test_determinant_generic< Descriptor : mat::Descriptor >()
-where 
-  Mat2< f32, Descriptor > : 
+where
+  Mat2< f32, Descriptor > :
       RawSliceMut< Scalar = f32 > +
-      ScalarMut< Scalar = f32, Index = Ix2 > + 
-      ConstLayout< Index = Ix2 > + 
+      ScalarMut< Scalar = f32, Index = Ix2 > +
+      ConstLayout< Index = Ix2 > +
       IndexingMut< Scalar = f32, Index = Ix2 >
 {
   let mat = Mat2::< f32, Descriptor >::from_row_major( [ 1.0, 2.0, 3.0, 4.0 ] );
@@ -107,11 +110,14 @@ fn test_identity_column_major()
   test_identity_generic::< mat::DescriptorOrderColumnMajor >();
 }
 
+// `to_homogenous` only copies existing elements and inserts exact 0.0/1.0 padding — no
+// arithmetic, so the result is bit-identical to the literal arrays compared against.
+#[ allow( clippy::float_cmp ) ]
 fn test_to_homogenous_generic< Descriptor : mat::Descriptor >()
 where
   Mat3< f32, Descriptor > :
     RawSliceMut< Scalar = f32 >,
-  Mat2< f32, Descriptor > : 
+  Mat2< f32, Descriptor > :
     RawSlice< Scalar = f32 > +
     RawSliceMut< Scalar = f32 >
 {

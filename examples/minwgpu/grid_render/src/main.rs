@@ -1,7 +1,4 @@
 #![ doc = "../readme.md" ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::too_many_lines ) ]
 
 use tiles_tools::coordinates::{ hexagonal, pixel::Pixel, Neighbors as _ };
 use hexagonal::{ Axial, Coordinate, Flat };
@@ -272,7 +269,7 @@ fn run() -> Result< (), minwgpu::Error >
   context.get_device().poll( wgpu::PollType::Wait{ submission_index : None, timeout : None } ).expect( "Failed to render an image" );
 
   let data = buffer_slice.get_mapped_range();
-  image::save_buffer( "hexagons.png", &data, width, height, image::ColorType::Rgba8 )
+  image::save_buffer( "-hexagons.png", &data, width, height, image::ColorType::Rgba8 )
   .expect( "Failed to save image" );
 
   Ok( () )

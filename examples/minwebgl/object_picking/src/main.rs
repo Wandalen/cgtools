@@ -1,5 +1,3 @@
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::useless_asref ) ]
 
 mod shaders;
 
@@ -113,8 +111,14 @@ async fn run() -> Result< (), gl::WebglError >
       let rect = canvas.get_bounding_client_rect();
       let canvas_x = rect.left();
       let canvas_y = rect.top();
-      let x = e.client_x();
-      let y = e.client_y();
+      // Fix(BUG-053): `client_x`/`client_y` return `i32` or `f64` depending on whether
+      // `web_sys_unstable_apis` is active (see minwebgl/src/texture/d2.rs); the explicit `f64`
+      // annotation makes `.into()` resolve correctly in both cases (`i32: Into<f64>` widens,
+      // `f64: Into<f64>` is identity), matching `canvas_x`/`canvas_y` (`rect.left()`/`.top()`).
+      #[ allow( clippy::useless_conversion ) ]
+      let x : f64 = e.client_x().into();
+      #[ allow( clippy::useless_conversion ) ]
+      let y : f64 = e.client_y().into();
 
       let x = x - canvas_x;
       let y = y - canvas_y;

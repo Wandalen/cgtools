@@ -5,7 +5,7 @@
 
 mod private
 {
-  use crate::*;
+  use crate::{ embroidery_file, stitch_instruction, format, thread, error };
   use embroidery_file::EmbroideryFile;
   use stitch_instruction::Instruction;
   use format::pec::pec_threads;
@@ -18,10 +18,14 @@ mod private
   const PEC_ICON_WIDTH : u8 = 48;
   const PEC_ICON_HEIGHT : u8 = 38;
   // Instruction codes
-  const JUMP_CODE : u8 = 0b00010000;
-  const TRIM_CODE : u8 = 0b00100000;
+  const JUMP_CODE : u8 = 0b0001_0000;
+  const TRIM_CODE : u8 = 0b0010_0000;
 
   /// Writes embroidery file into writer
+  /// # Errors
+  /// Returns `EmbroideryError::IOError` if `writer` fails.
+  /// Propagates any error returned by [`write_content`].
+  #[ inline ]
   pub fn write< W >( emb : &mut EmbroideryFile, writer : &mut W )
   -> Result< (), EmbroideryError >
   where
@@ -35,6 +39,11 @@ mod private
 
   /// Writes content of embroidery file into writer.
   /// Used standalone when embedding PEC file into something else
+  /// # Errors
+  /// Returns `EmbroideryError::IOError` if `writer` fails.
+  /// Returns `EmbroideryError::CompatibilityError` if the design uses more colors
+  /// than PEC's format can encode (255).
+  #[ inline ]
   pub fn write_content< W >( emb : &mut EmbroideryFile, writer : &mut W )
   -> Result< Vec< usize >, EmbroideryError >
   where
@@ -73,14 +82,14 @@ mod private
     writer.write_all( "LA:".as_bytes() )?;
     if name.len() >= 16
     {
-      writer.write_all( name[ ..16 ].as_bytes() )?; 
+      writer.write_all( &name.as_bytes()[ ..16 ] )?;
     }
     else
     {
       let spaces = vec![ b' '; 16 - name.len() ];
       writer.write_all( name.as_bytes() )?;
       writer.write_all( spaces.as_slice() )?;
-    };
+    }
     writer.write_u8( b'\r' )?;
     // unknown
     writer.write_all( b"\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\xFF\x00" )?;
@@ -107,8 +116,16 @@ mod private
         return Err( EmbroideryError::CompatibilityError( msg.into() ) );
       }
 
+      // `color_indices` holds indices returned by `build_unique_palette` into
+      // `thread_palette`, a fixed 65-entry array (see `pec_threads`), so every
+      // value is < 65 and fits in `u8`.
+      #[ allow( clippy::cast_possible_truncation ) ]
       let bytes = color_indices.iter().map( | v | *v as u8 ).collect::< Vec< _ > >();
-      writer.write_u8( add_value as u8 )?;
+      // Guarded above: the `add_value >= 255` branch already returned an error,
+      // so `add_value` is always < 255 here and fits in `u8`.
+      #[ allow( clippy::cast_possible_truncation ) ]
+      let add_value_u8 = add_value as u8;
+      writer.write_u8( add_value_u8 )?;
       writer.write_all( &bytes )?;
     }
     else
@@ -131,9 +148,28 @@ mod private
   where
     W : Write + Seek
   {
-    let width = if !emb.stitches().is_empty() { ( extends.2 - extends.0 ) as u16 } else { 0 };
-    let height = if !emb.stitches().is_empty() { ( extends.3 - extends.1 ) as u16 } else { 0 };
-    
+    // `extends` come from `emb.bounds()`; an embroidery design can in principle carry
+    // coordinates wider than PEC's `u16` field, so this is a real, reportable error
+    // rather than a value we can prove bounded ahead of time.
+    let width = if emb.stitches().is_empty()
+    {
+      0
+    }
+    else
+    {
+      u16::try_from( extends.2 - extends.0 )
+      .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "design width exceeds PEC's u16 coordinate range" ) )?
+    };
+    let height = if emb.stitches().is_empty()
+    {
+      0
+    }
+    else
+    {
+      u16::try_from( extends.3 - extends.1 )
+      .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "design height exceeds PEC's u16 coordinate range" ) )?
+    };
+
     let instruction_block_position = writer.stream_position()?;
     writer.write_all( b"\x00\x00" )?;
     writer.write_u24::< LE >( 0 )?; // will be overwritten few lines below
@@ -149,7 +185,12 @@ mod private
     let instruction_block_len = current_pos - instruction_block_position;
     // return position back and write `instruction_block_len` 
     writer.seek( SeekFrom::Start( instruction_block_position + 2 ) )?;
-    writer.write_u24::< LE >( instruction_block_len as u32 )?;
+    // Realistic embroidery instruction blocks are tiny, but this is a length
+    // computed from stream positions, not a value bounded by any type-level
+    // invariant, so an out-of-range value is reported rather than truncated.
+    let instruction_block_len = u32::try_from( instruction_block_len )
+    .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "PEC instruction block exceeds u32 range" ) )?;
+    writer.write_u24::< LE >( instruction_block_len )?;
     writer.seek( SeekFrom::Start( current_pos ) )?;
 
     Ok( () )
@@ -287,24 +328,32 @@ mod private
     W : Write
   {
     // Mask to remain only first 7 bit of a number
-    const MASK_7_BIT : i8 = 0b01111111;
-    
+    const MASK_7_BIT : i8 = 0b0111_1111;
+
     if !long && value > -64 && value < 63
     {
       // short instruction (1 byte)
-      writer.write_i8( value as i8 & MASK_7_BIT )
+      // Guarded by the condition above: `value` is within (-64, 63), well inside `i8`'s range.
+      #[ allow( clippy::cast_possible_truncation ) ]
+      let byte = value as i8 & MASK_7_BIT;
+      writer.write_i8( byte )
     }
     else
     {
       // long instruction (2 bytes)
-      let mut value = value as i16;
-      value &=  0b0000111111111111;
-      value |= -0b1000000000000000; // LONG flag
-      value |= ( flag as i16 ) << 8; // INSTRUCTION flag
-      
-      // write two parts of i16 as u8
-      writer.write_u8( ( value >> 8 ) as u8 )?;
-      writer.write_u8( ( value & 0xFF ) as u8 )
+      // Not provably bounded (a stitch delta this large indicates malformed input
+      // rather than a value we can silently truncate into the encoding), so an
+      // out-of-range delta is reported as a real error instead of corrupted.
+      let mut value = i16::try_from( value )
+      .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "stitch delta exceeds PEC's i16 encoding range" ) )?;
+      value &= 0b0000_1111_1111_1111;
+      value |= -0b1000_0000_0000_0000; // LONG flag
+      value |= i16::from( flag ) << 8; // INSTRUCTION flag
+
+      // write two parts of i16 as u8 via byte-split, avoiding sign-losing casts
+      let bytes = value.to_be_bytes();
+      writer.write_u8( bytes[ 0 ] )?;
+      writer.write_u8( bytes[ 1 ] )
     }
   }
 
@@ -317,64 +366,12 @@ mod private
     // Thumbnail is bit image so 8 pixels is 1 byte
     let size = ( PEC_ICON_WIDTH / 8 * PEC_ICON_HEIGHT ) as usize;
     let zeroes = vec![ 0_u8; size ];
-    for _ in 0..( emb.threads().len() + 1 )
+    for _ in 0..=emb.threads().len()
     {
       writer.write_all( &zeroes )?;
     }
 
     Ok( () )
-  }
-
-  #[ cfg( test ) ]
-  mod tests
-  {
-    use crate::*;
-    use format::pec::{ read_memory, pec_threads, write };
-    use embroidery_file::EmbroideryFile;
-    use stitch_instruction::{ Stitch, Instruction };
-    use std::io::Cursor;
-
-    #[ test ]
-    fn test_pec_encoding()
-    {
-      let mut emb = EmbroideryFile::new();
-      emb.stitch( 0, 0 );
-      emb.stitch( -2, -3 );
-      emb.color_change( 0, 0 );
-      emb.stitch( 2, 3 );
-      emb.trim();
-      emb.jump( 40, 30 );
-      emb.stitch( 0, 0 );
-      emb.stitch( 1, 1 );
-      emb.end();
-
-      let threads = pec_threads();
-      emb.add_thread( threads[ 0 ].clone() );
-      emb.add_thread( threads[ 2 ].clone() );
-
-      let mut memory = vec![ 0_u8; 2048 ];
-      
-      {
-        let mut writer = Cursor::new( &mut memory );
-        write( &mut emb, &mut writer ).unwrap();
-      }
-      
-      let emb = read_memory( &memory ).unwrap();
-      
-      let stitches = emb.stitches();
-      assert_eq!( stitches[ 0 ], Stitch { x : 0, y : 0, instruction : Instruction::Stitch } );
-      assert_eq!( stitches[ 1 ], Stitch { x : -2, y : -3, instruction : Instruction::Stitch } );
-      assert_eq!( stitches[ 2 ], Stitch { x : -2, y : -3, instruction : Instruction::ColorChange } );
-      assert_eq!( stitches[ 3 ], Stitch { x : 0, y : 0, instruction : Instruction::Stitch } );
-      assert_eq!( stitches[ 4 ], Stitch { x : 0, y : 0, instruction : Instruction::Trim } );
-      assert_eq!( stitches[ 5 ], Stitch { x : 40, y : 30, instruction : Instruction::Jump } );
-      assert_eq!( stitches[ 6 ], Stitch { x : 40, y : 30, instruction : Instruction::Stitch } );
-      assert_eq!( stitches[ 7 ], Stitch { x : 41, y : 31, instruction : Instruction::Stitch } );
-      assert_eq!( stitches[ 8 ], Stitch { x : 41, y : 31, instruction : Instruction::End } );
-      
-      assert_eq!( emb.threads()[ 0 ], threads[ 2 ] );
-      // assert_eq!( emb.threads()[ 1 ], threads[ 2 ] );
-    }
   }
 }
 

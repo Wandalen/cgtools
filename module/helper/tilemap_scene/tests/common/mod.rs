@@ -11,9 +11,6 @@
 //! own — it only compiles into the test crates that explicitly `mod`
 //! it in.
 
-#![ allow( dead_code ) ]
-#![ allow( clippy::min_ident_chars ) ]
-
 use rustc_hash::FxHashMap as HashMap;
 use tilemap_renderer::commands::
 {
@@ -154,6 +151,9 @@ pub fn flatten_to_sprites( cmds : &[ RenderCommand ] ) -> Vec< RenderCommand >
 /// Count `RenderCommand::Sprite` entries after a single-shot flatten.
 /// For multi-render tests, route through [`BatchFlattener`] and count
 /// the per-call output.
+// `tests/common` is recompiled per integration-test binary; not every test file
+// that does `mod common;` calls this helper (only renderer_cache_test.rs /
+// renderer_test.rs do), so it reads as dead in the others.
 #[ allow( dead_code ) ]
 pub fn flat_sprite_count( cmds : &[ RenderCommand ] ) -> usize
 {
@@ -165,6 +165,9 @@ pub fn flat_sprite_count( cmds : &[ RenderCommand ] ) -> usize
 
 /// Extract just the `Sprite` payloads (world-space) from a single-shot
 /// flatten.
+// `tests/common` is recompiled per integration-test binary; not every test file
+// that does `mod common;` calls this helper (only sorted_batching_test.rs /
+// renderer_test.rs do), so it reads as dead in the others.
 #[ allow( dead_code ) ]
 pub fn flat_sprites( cmds : &[ RenderCommand ] ) -> Vec< Sprite >
 {

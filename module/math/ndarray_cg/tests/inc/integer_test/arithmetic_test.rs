@@ -33,6 +33,16 @@ where
   assert_eq!( halved, v );
 }
 
+// `op_ref` is allowed at function level (not per-assertion) because
+// `#[allow]` on a macro-invocation statement like `assert_eq!( .. )` is
+// silently ignored by rustc ("unused attribute", since the attribute cannot
+// attach to the macro's expansion) and itself becomes an error under
+// `-D warnings`. The reference-form assertions below intentionally exercise
+// `impl Rem for &Vector< E, LEN >` and `impl Rem< E > for &Vector< E, LEN >`
+// (src/vector/operator.rs) — distinct impls from the owned-value forms
+// already covered earlier in this function. Applying clippy's "remove the &"
+// suggestion would silently drop coverage of those reference-operand impls.
+#[ allow( clippy::op_ref ) ]
 fn vector_rem_generic< E >()
 where
   E : the_module::MatNum + From< u8 > + PartialEq + core::fmt::Debug,
@@ -46,9 +56,9 @@ where
   // vector % scalar
   assert_eq!( a % E::from( 3 ), Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 1 ), E::from( 0 ) ] ) );
 
-  // &vector % &vector  (reference form)
+  // &vector % &vector  (reference form; see function-level #[allow] above)
   assert_eq!( &a % &b, Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 2 ), E::from( 3 ) ] ) );
-  // &vector % scalar  (reference form)
+  // &vector % scalar  (reference form; see function-level #[allow] above)
   assert_eq!( &a % E::from( 3 ), Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 1 ), E::from( 0 ) ] ) );
 
   // %= vector
@@ -84,6 +94,27 @@ where
   let mut d = a;
   d /= E::from( 3 );
   assert_eq!( d, Vector::< E, 3 >::from_array( [ -E::from( 2 ), -E::from( 3 ), -E::from( 5 ) ] ) );
+}
+
+fn vector_min_max_generic< E >()
+where
+  E : the_module::MatNum + PartialOrd + From< u8 > + PartialEq + core::fmt::Debug,
+{
+  use the_module::Vector;
+  let a = Vector::< E, 3 >::from_array( [ E::from( 3 ), E::from( 1 ), E::from( 2 ) ] );
+  let b = Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 5 ), E::from( 0 ) ] );
+  assert_eq!( a.min( b ), Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 1 ), E::from( 0 ) ] ) );
+  assert_eq!( a.max( b ), Vector::< E, 3 >::from_array( [ E::from( 3 ), E::from( 5 ), E::from( 2 ) ] ) );
+}
+
+fn vector_scalar_mul_commutative_generic< E >()
+where
+  E : the_module::MatNum + From< u8 > + PartialEq + core::fmt::Debug
+    + core::ops::Mul< the_module::Vector< E, 3 >, Output = the_module::Vector< E, 3 > >,
+{
+  use the_module::Vector;
+  let v = Vector::< E, 3 >::from_array( [ E::from( 1 ), E::from( 2 ), E::from( 3 ) ] );
+  assert_eq!( E::from( 3 ) * v, v * E::from( 3 ) );
 }
 
 fn vector_dot_generic< E >()
@@ -357,6 +388,12 @@ macro_rules! integer_arithmetic_tests
         fn vector_dot_and_mag2() { vector_dot_generic::< $ty >(); }
 
         #[ test ]
+        fn vector_min_max() { vector_min_max_generic::< $ty >(); }
+
+        #[ test ]
+        fn vector_scalar_mul_commutative() { vector_scalar_mul_commutative_generic::< $ty >(); }
+
+        #[ test ]
         fn mat_add_sub_row_major()
         {
           mat_add_sub_generic::< $ty, the_module::mat::DescriptorOrderRowMajor >();
@@ -456,7 +493,7 @@ fn mat_div_scalar_signed_i64()
 // Zero-divisor panic tests — verify that the documented panic fires at runtime.
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "attempt to divide by zero" ) ]
 fn vector_div_zero_component_panics()
 {
   use the_module::Vector;
@@ -466,7 +503,7 @@ fn vector_div_zero_component_panics()
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "attempt to divide by zero" ) ]
 fn vector_div_zero_scalar_panics()
 {
   use the_module::Vector;
@@ -475,7 +512,7 @@ fn vector_div_zero_scalar_panics()
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "attempt to calculate the remainder with a divisor of zero" ) ]
 fn vector_rem_zero_scalar_panics()
 {
   use the_module::Vector;
@@ -484,7 +521,7 @@ fn vector_rem_zero_scalar_panics()
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "attempt to calculate the remainder with a divisor of zero" ) ]
 fn vector_rem_zero_component_panics()
 {
   use the_module::Vector;

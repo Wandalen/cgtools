@@ -1,10 +1,11 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use error_tools::{ thiserror, error };
 
-  #[ allow( missing_docs ) ]
+  /// The top-level error type unifying every WebGPU operation failure exposed by this crate.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum WebGPUError
   {
     /// This indicates an error with the web browser's Document Object Model.
@@ -25,10 +26,17 @@ mod private
     /// An error related to WebGPU buffers.
     #[ error( "Buffer error :: {0}" ) ]
     BufferError( #[ from ] BufferError ),
+    /// An error related to WebGPU bind group layout entries.
+    #[ error( "BindGroup error :: {0}" ) ]
+    BindGroupError( #[ from ] BindGroupError ),
+    /// An error related to WebGPU render passes.
+    #[ error( "RenderPass error :: {0}" ) ]
+    RenderPassError( #[ from ] RenderPassError ),
   }
 
-  #[ allow( missing_docs ) ]
+  /// Errors that can occur while configuring a WebGPU canvas context.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum CanvasError
   {
     /// Indicates a failure to configure the canvas for WebGPU.
@@ -36,8 +44,9 @@ mod private
     ConfigurationError( String )
   }
 
-  #[ allow( missing_docs ) ]
+  /// Errors that can occur while retrieving state from an already-configured WebGPU canvas context.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum ContextError
   {
     /// Indicates a failure to get the current texture from the context.
@@ -45,8 +54,9 @@ mod private
     FailedToGetCurrentTextureError( String )
   }
 
-  #[ allow( missing_docs ) ]
+  /// Errors that can occur while creating a view of a WebGPU texture.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum TextureError
   {
     /// Indicates a failure to create a view for a texture.
@@ -54,8 +64,9 @@ mod private
     FailedToCreateView( String )
   }
 
-  #[ allow( missing_docs ) ]
+  /// Errors that can occur while mapping or writing to a WebGPU buffer.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum BufferError
   {
     /// Indicates a failure to get a mapped range of a buffer.
@@ -66,8 +77,9 @@ mod private
     FailedWriteToBuffer( String ),
   }
 
-  #[ allow( missing_docs ) ]
+  /// Errors that can occur while asking a WebGPU device to create a GPU resource.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum DeviceError
   {
     /// Indicates a failure to create a `BindGroupLayout`.
@@ -87,6 +99,36 @@ mod private
     FailedToCreateBuffer( String )
   }
 
+  // Fix(BUG-051): new variant carrying the case that used to panic in
+  // `BindGroupLayoutEntry`'s `web_sys` conversion (`descriptor/bind_group_layout_entry.rs`)
+  // instead of returning an error.
+  // Root cause: no existing `WebGPUError` variant represented "binding type never set" —
+  // the conversion had to panic because there was nowhere to route a proper error.
+  // Pitfall: an umbrella error enum with only browser/FFI-failure variants (all carrying a
+  // JS-originated `String`) has no natural home for a caller-side "you forgot to configure
+  // this" error — don't force such cases to panic for lack of a matching variant, add one.
+  /// Errors that can occur while building a WebGPU bind group layout entry.
+  #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
+  pub enum BindGroupError
+  {
+    /// Indicates a `BindGroupLayoutEntry` was converted to its `web_sys` representation
+    /// without ever calling `.ty(..)` to set its binding type — it is still the default,
+    /// unset `BindingType::Other` placeholder.
+    #[ error( "BindGroupLayoutEntry at binding {0} has no type set: call `.ty(..)` before conversion" )]
+    TypeNotSet( u32 )
+  }
+
+  /// Errors that can occur while beginning a WebGPU render pass.
+  #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
+  pub enum RenderPassError
+  {
+    /// Indicates a failure to begin a render pass on a command encoder.
+    #[ error( "Failed to begin render pass: {0}" )]
+    FailedToBegin( String )
+  }
+
 }
 
 crate::mod_interface!
@@ -104,7 +146,9 @@ crate::mod_interface!
     DeviceError,
     ContextError,
     TextureError,
-    BufferError
+    BufferError,
+    BindGroupError,
+    RenderPassError
   };
 }
 
