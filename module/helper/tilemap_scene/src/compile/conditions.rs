@@ -1,4 +1,4 @@
-//! Evaluation of [`Condition`] against a single neighbour.
+//! Evaluation of [`Condition`](crate::source::Condition) against a single neighbour.
 //!
 //! Used by `NeighborCondition` sprite sources (skirts, Wesnoth edge blends)
 //! to decide whether to emit a sprite for a given side of the current tile.

@@ -277,7 +277,7 @@ mod private
   /// Gradient geometry.
   ///
   /// All coordinates are in **world / user space** (the same coordinate system
-  /// as [`Transform`] and path commands), not 0..1 bounding-box fractions.
+  /// as [`Transform`](crate::types::Transform) and path commands), not 0..1 bounding-box fractions.
   #[ non_exhaustive ]
   pub enum GradientKind
   {

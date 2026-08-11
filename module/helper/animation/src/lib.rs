@@ -24,7 +24,7 @@ macro_rules! impl_easing_function
 {
   ( $builder_ty:ident, $function_ty:ty, $value:expr ) =>
   {
-    /// A builder for the `EasingFunction` of type [`$function_ty`].
+    #[ doc = concat!( "A builder for the `EasingFunction` of type `", stringify!( $function_ty ), "`." ) ]
     ///
     /// This struct provides a way to create a boxed instance of the
     /// associated easing function.

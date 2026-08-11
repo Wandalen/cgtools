@@ -4,23 +4,24 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-11 18:25:50
-- **expires_at:** 2026-08-11 20:25:50
+- **actor:** null
+- **started_at:** null
+- **expires_at:** null
 - **round:** 1
-- **state:** 🔬 (Verifying)
+- **state:** ✅ (Completed)
 - **closes:** null
 - **repo_identity:** self
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/min/minwebgl
-- **verified_by:** null
-- **verification_date:** null
+- **verified_by:** self (Tier 2 Dual-Role Self-Check, acceptance verification)
+- **verification_date:** 2026-08-11
 - **blocked_by:** null
 - **unverified_at:** 2026-08-11 18:25:30
 - **unverified_by:** unknown
-- **in_motion:** true
+- **in_motion:** false
 - **verifying_at:** 2026-08-11 18:25:50
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **priority:** 0
 
 ## Goal
 
@@ -106,35 +107,35 @@ independent verifier performs the walk after the task reaches 🔎 Accepting.
 ### Checklist
 
 **Dead-import deletion**
-- [ ] C1 — Is `geometry.rs`'s `use` statement free of `AsBytes`?
-- [ ] C2 — Is `buffer.rs`'s `use` statement free of bare `AsBytes`?
-- [ ] C3 — Is `ubo.rs`'s `use` statement free of `AsBytes`, `VariantIterator`, and
+- [x] C1 — Is `geometry.rs`'s `use` statement free of `AsBytes`?
+- [x] C2 — Is `buffer.rs`'s `use` statement free of bare `AsBytes`?
+- [x] C3 — Is `ubo.rs`'s `use` statement free of `AsBytes`, `VariantIterator`, and
       `IntoEnumIterator`?
 
 **Out of Scope confirmation**
-- [ ] C4 — Are the 2 legitimate fully-qualified `mem::AsBytes` uses (`buffer.rs:43`, `ubo.rs:16`)
+- [x] C4 — Are the 2 legitimate fully-qualified `mem::AsBytes` uses (`buffer.rs:43`, `ubo.rs:16`)
       still present and does the crate still compile?
-- [ ] C5 — Does `git diff --stat -- module/min/minwebgl/` touch only the 3 named files?
+- [x] C5 — Does `git diff --stat -- module/min/minwebgl/` touch only the 3 named files?
 
 ### Measurements
 
-- [ ] M1 — `grep -n 'AsBytes\|VariantIterator\|IntoEnumIterator' module/min/minwebgl/src/geometry.rs
+- [x] M1 — `grep -n 'AsBytes\|VariantIterator\|IntoEnumIterator' module/min/minwebgl/src/geometry.rs
       module/min/minwebgl/src/buffer.rs module/min/minwebgl/src/ubo.rs` → exactly 2 hits, both the
       legitimate fully-qualified `mem::AsBytes` uses (was: 5 dead-import warnings per this task's own
       Goal)
 
 ### Invariants
 
-- [ ] I1 — `cargo clippy -p minwebgl --no-deps --all-targets --all-features -- -D warnings` → exit 0
-- [ ] I2 — `git diff --stat -- module/min/minwebgl/` (against the commit that introduced the fix)
+- [x] I1 — `cargo clippy -p minwebgl --no-deps --all-targets --all-features -- -D warnings` → exit 0
+- [x] I2 — `git diff --stat -- module/min/minwebgl/` (against the commit that introduced the fix)
       shows a real, non-empty diff touching only the 3 named files
 
 ### Anti-faking checks
 
-- [ ] AF1 — The fix isn't achieved by suppressing the lint (`#[allow(unused_imports)]`) instead of
+- [x] AF1 — The fix isn't achieved by suppressing the lint (`#[allow(unused_imports)]`) instead of
       actually deleting the dead imports — grep for `allow(unused_imports)` near the 3 sites must
       show none newly added
-- [ ] AF2 — Task 062's own AF1 re-check contract (`grep -n AsBytes
+- [x] AF2 — Task 062's own AF1 re-check contract (`grep -n AsBytes
       module/min/minwebgl/src/geometry.rs` must show more than 1 hit before that finding counts as
       resolved) is satisfied by the stricter "resolved by deletion" outcome — actual result is
       exactly 0 hits
@@ -176,6 +177,34 @@ independent verifier performs the walk after the task reaches 🔎 Accepting.
   files (`task/unverified/-00NN_longrun.log`). Folded into this one task rather than filed
   separately: same crate, same defect class (dead imports), same trivial fix shape.
 | 2026-08-11 18:25:50 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+- **[2026-08-11]** `ACCEPTED` — Independent acceptance-verification pass (self, Tier 2 Dual-Role
+  Self-Check — distinct from and subsequent to the readiness-gate self-check recorded in
+  `## Verification Record` below) walked every Checklist/Measurement/Invariant/Anti-faking item
+  against direct, fresh inspection of the live files, a fresh clippy re-run, and the fix commit.
+  Verdict: **ACCEPT**.
+  **C1-C3:** confirmed via direct read — `geometry.rs`'s `use` statement (line 4) carries no
+  `AsBytes`; `buffer.rs`'s `use` statement (line 4) carries no bare `AsBytes` (qualified
+  `mem::AsBytes` at line 43 untouched); `ubo.rs`'s `use` statement (line 3) carries none of
+  `AsBytes`/`VariantIterator`/`IntoEnumIterator` (qualified `mem::AsBytes` at line 16 untouched).
+  **C4:** both legitimate qualified uses present.
+  **C5/I1/I2:** fresh `cargo clippy -p minwebgl --no-deps --all-targets --all-features -- -D
+  warnings` → **exit 0** (`-0296_longrun.log`, 53s combined run alongside the previously-excluded
+  058-sweep cone recheck); `git show --stat 96bb2aef -- module/min/minwebgl/src/geometry.rs
+  module/min/minwebgl/src/buffer.rs module/min/minwebgl/src/ubo.rs` → exactly 3 files, 4
+  insertions/6 deletions, no other file. Same batched-commit path-scoping interpretive note as task
+  082's own I1/I2 (`96bb2aef` is a large multi-purpose consolidation commit; "touches only these 3
+  files" is evaluated path-scoped to `module/min/minwebgl/src/`, not the commit's full unscoped
+  diff).
+  **M1:** fresh `grep -n 'AsBytes\|VariantIterator\|IntoEnumIterator' geometry.rs buffer.rs ubo.rs`
+  → exactly 2 hits, both the legitimate fully-qualified `mem::AsBytes` uses (`buffer.rs:43`,
+  `ubo.rs:16`) — matches the task's own MET bar exactly.
+  **AF1:** `grep -rn 'allow(unused_imports)'` near the 3 sites → no hits, confirms the fix is
+  genuine deletion, not lint suppression.
+  **AF2:** task 062's own AF1 re-check contract ("`grep -n AsBytes geometry.rs` must show more than
+  1 hit before resolved") is satisfied by the stricter actual outcome — 0 hits, resolved via
+  deletion rather than by adding a new use, a valid (stricter) resolution of the same underlying
+  drift.
+  No blocking findings.
 
 ## Verification Record
 

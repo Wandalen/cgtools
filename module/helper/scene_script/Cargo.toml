@@ -2,7 +2,7 @@
 name = "scene_script"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.75.0"
+rust-version = "1.81.0"
 license = "MIT"
 repository = "https://github.com/Wandalen/cgtools"
 homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/scene_script"

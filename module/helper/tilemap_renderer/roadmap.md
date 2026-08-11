@@ -66,7 +66,7 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 - Path rendering (tessellation or GPU-based curves) — path commands are currently silent no-ops
 - Text rendering (glyph atlas or SDF fonts) — text commands are currently silent no-ops
 - Group commands (`BeginGroup`/`EndGroup`) — currently ignored
-- `ImageSource::Encoded` decoding — skipped with a console warning; decision made (`task/decisions.md` Q-02) to decode via browser-native Blob/object-URL mechanisms rather than a bundled Rust decoder, tracked as `task/accepting/092_tilemap_renderer_webgl_encoded_image_decode.md`
+- `ImageSource::Encoded` decoding — skipped with a console warning; decision made (`task/decisions.md` Q-02) to decode via browser-native Blob/object-URL mechanisms rather than a bundled Rust decoder, tracked as `task/completed/092_tilemap_renderer_webgl_encoded_image_decode.md`
 - Gradient/pattern/clip-mask asset loading — not loaded into GPU resources
 - Effects (blur, drop shadow — requires FBO post-processing)
 - `BlendMode::Overlay` — Photoshop-style (Multiply where dst<0.5, Screen where dst>0.5) cannot be expressed as a single `blend_func` call; currently falls back to Normal; requires a custom shader or separate FBO read-back pass. The Multiply/Screen approximations likewise diverge from the reference formulas when `src_alpha < 1` (see the `BlendMode::Multiply` doc); the same FBO / custom-shader pass would make them exact

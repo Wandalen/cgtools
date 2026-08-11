@@ -166,7 +166,7 @@ This crate is designed for WebAssembly environments and supports:
 
 ## License
 
-Licensed under the MIT License. See [LICENSE](license) file for details.
+Licensed under the MIT License. See [LICENSE](./license) file for details.
 
 ## Contributing
 

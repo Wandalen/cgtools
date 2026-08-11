@@ -151,7 +151,7 @@ mod private
     ///
     /// **Each call replaces all previously loaded assets.** Backends must
     /// clear and reload all GPU/SVG state — including any active batches.
-    /// After `load_assets` returns, all [`ResourceId`]s from the previous
+    /// After `load_assets` returns, all [`ResourceId`](crate::types::ResourceId)s from the previous
     /// call are invalid; any batches created before this call are destroyed.
     ///
     /// - SVG: regenerates `<defs>` (symbols, gradients, patterns, clipPaths)

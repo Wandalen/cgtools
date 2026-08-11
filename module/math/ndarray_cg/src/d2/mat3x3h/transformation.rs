@@ -13,7 +13,7 @@ use mdmath_core::vector::arithmetics::{normalized, cross, dot, sub};
 
 /// Creates right-handed orthographic projection transformation with z in range [ -1.0, 1.0 ].
 /// This transformation corresponds to the transformation used in OpenGL:
-/// https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml
+/// <https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml>
 ///
 /// Similiar functions:
 /// orthographic_rg - return the same matrix, but with z in range [ 0.0, 1.0 ]
@@ -88,7 +88,7 @@ where
 
 /// Creates right-handed perspective transformation with z in range [ -1.0, 1.0 ].
 /// This transformation corresponds to the transformation used in OpenGL:
-/// https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/gluPerspective.xml
+/// <https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/gluPerspective.xml>
 ///
 /// Similiar functions:
 /// perspective_rh - return the same matrix, but with z in range [ 0.0, 1.0 ]

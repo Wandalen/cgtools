@@ -41,7 +41,7 @@ mod private
     }
   }
 
-  /// Source: https://www.johndcook.com/blog/2025/05/07/quaternions-and-rotation-matrices/
+  /// Source: <https://www.johndcook.com/blog/2025/05/07/quaternions-and-rotation-matrices/>
   impl< E, Descriptor > From< Mat3< E, Descriptor > > for Quat< E >
   where
   E : MatEl + nd::NdFloat,

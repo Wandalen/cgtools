@@ -13,7 +13,7 @@ use strum::EnumCount;
 /// - 3: Fourth button (usually "Browser Back")
 /// - 4: Fifth button (usually "Browser Forward")
 ///
-/// See: https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button
+/// See: <https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button>
 #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, EnumCount ) ]
 #[ non_exhaustive ]
 pub enum MouseButton

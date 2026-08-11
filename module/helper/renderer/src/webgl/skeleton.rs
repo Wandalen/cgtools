@@ -687,27 +687,27 @@ mod private
       }
     }
 
-    /// Get [`Self::transforms`] as reference
+    /// Get `Self::transforms` as reference
     #[ must_use ]
     pub fn transforms_as_ref( &self ) -> &Option< TransformsData >
     {
       &self.transforms
     }
 
-    /// Get [`Self::transforms`] as mutable reference
+    /// Get `Self::transforms` as mutable reference
     pub fn transforms_as_mut( &mut self ) -> &mut Option< TransformsData >
     {
       &mut self.transforms
     }
 
-    /// Get [`Self::displacements`] as reference
+    /// Get `Self::displacements` as reference
     #[ must_use ]
     pub fn displacements_as_ref( &self ) -> &Option< DisplacementsData >
     {
       &self.displacements
     }
 
-    /// Get [`Self::displacements`] as mutable reference
+    /// Get `Self::displacements` as mutable reference
     pub fn displacements_as_mut( &mut self ) -> &mut Option< DisplacementsData >
     {
       &mut self.displacements

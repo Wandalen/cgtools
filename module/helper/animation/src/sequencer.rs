@@ -249,7 +249,7 @@ mod private
       }
     }
 
-    /// Gets the longest duration among [`Self::players`], used as the Sequencer's overall
+    /// Gets the longest duration among `Self::players`, used as the Sequencer's overall
     /// animation duration in [`Self::progress`].
     #[must_use]
     pub fn duration_get( &self ) -> f64
@@ -272,7 +272,7 @@ mod private
     // min-reduction's seed.
     // Pitfall: the return type and correct seed value are easy to eyeball as right; only the
     // comparison direction is wrong, so a glance at the seed alone gives false confidence.
-    /// Get smallest delay of [`Self::players`]
+    /// Get smallest delay of `Self::players`
     #[must_use]
     pub fn delay_get( &self ) -> f64
     {

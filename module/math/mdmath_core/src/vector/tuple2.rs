@@ -38,7 +38,7 @@ impl< E > ArrayRef< E, 2 > for ( E, E )
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
     #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &[ E; 2 ] = unsafe { &*( ( self as *const ( E, E ) ).cast::< [ E; 2 ] >() ) };
+    let result : &[ E; 2 ] = unsafe { &*( std::ptr::from_ref::< ( E, E ) >( self ).cast::< [ E; 2 ] >() ) };
 
     // Check size and alignment of the whole collection
     debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
@@ -77,7 +77,7 @@ impl< E > ArrayMut< E, 2 > for ( E, E )
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
     #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &mut [ E; 2 ] = unsafe { &mut *( ( self as *mut ( E, E ) ).cast::< [ E; 2 ] >() ) };
+    let result : &mut [ E; 2 ] = unsafe { &mut *( std::ptr::from_mut::< ( E, E ) >( self ).cast::< [ E; 2 ] >() ) };
 
     // Perform checks under debug conditions
     #[ cfg( debug_assertions ) ]

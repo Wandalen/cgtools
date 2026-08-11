@@ -5,8 +5,8 @@ mod private
   /// Holds three precomputed textures used for Image-Based Lighting (IBL) calculations.
   ///
   /// According to:
-  /// - https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
-  /// - https://learnopengl.com/PBR/IBL/Diffuse-irradiance
+  /// - <https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf>
+  /// - <https://learnopengl.com/PBR/IBL/Diffuse-irradiance>
   #[ derive( Default, Clone ) ]
   pub struct IBL
   {

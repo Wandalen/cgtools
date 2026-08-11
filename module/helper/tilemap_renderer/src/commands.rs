@@ -371,7 +371,7 @@ mod private
   ///   issuing `DrawBatch` or a second `BindBatch`.
   ///
   /// **Correct lifecycle:**
-  /// ```ignore
+  /// ```text
   /// BindBatch(id)
   /// Add/Set/RemoveInstance …
   /// UnbindBatch          // commits VAO state; safe to draw after this

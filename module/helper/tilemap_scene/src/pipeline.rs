@@ -113,8 +113,8 @@ mod private
     /// `Square4` / `Square8` are accepted without panic (stride
     /// defaults to `(w, h)`) but are not yet implemented. Load-time
     /// rejection of unsupported tilings is a tracked TODO in
-    /// [`crate::validate`] (SPEC §16), so [`crate::load::load`]
-    /// currently returns `Ok( () )` for square specs; compilation
+    /// [`crate::validate`] (SPEC §16), so [`crate::spec::RenderSpec::load`]
+    /// currently succeeds for square specs; compilation
     /// later fails at render time with
     /// [`crate::compile::CompileError::UnsupportedAnchor`].
     #[ inline ]
@@ -141,7 +141,7 @@ mod private
   /// reserved. Load-time validation of [`TilingStrategy`] is a tracked TODO
   /// in [`crate::validate`] (SPEC §16) — [`crate::error::ValidationError::UnsupportedTiling`]
   /// is declared for that future check but is not yet constructed.
-  /// Square specs therefore pass [`crate::load::load`] today and fail at
+  /// Square specs therefore pass [`crate::spec::RenderSpec::load`] today and fail at
   /// render time with [`crate::compile::CompileError::UnsupportedAnchor`].
   #[ derive( Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize ) ]
   #[ non_exhaustive ]

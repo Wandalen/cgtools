@@ -8,13 +8,16 @@
 - **started_at:** null
 - **expires_at:** null
 - **round:** 1
-- **state:** 📝 (Draft)
+- **state:** 🚫 (Cancelled)
 - **closes:** null
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/renderer
 - **verified_by:** null
 - **verification_date:** null
 - **blocked_by:** null
+- **priority:** 0
+- **cancelled_at:** 2026-08-11 23:43:14
+- **cancelled_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/
 
 ## Goal
 
@@ -49,8 +52,21 @@ task's own § Verification C10 first discovered and documented this regression b
 it unfixed as out of scope for that task's own file list ("Flagged for awareness; out of scope to
 fix here").
 
+## Journal
+
+| Timestamp           | Actor                | Event | Note         |
+|---------------------|----------------------|-------|--------------|
+| 2026-08-11 23:43:14 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | CANCEL | task cancelled |
+
 ## History
 
+- **[2026-08-11]** `CLOSED` — **User chose resolution path (a): close as invalid.** Presented both
+  paths from the `INVALIDATED` entry below; user authorized (a) directly rather than (b). Note:
+  task 058's own MSRV decision (raising 16 workspace crates including `renderer` from
+  `rust-version = "1.75.0"` to `"1.81.0"`, resolved the same session) does not reopen path (b) —
+  1.81 is still short of the 1.87 `u32::is_multiple_of` needs, so `% 2 == 0` remains the only
+  MSRV-valid form here and the two decisions are independent, not in tension. Closing via
+  `tsk .cancel 081`.
 - **[2026-08-11]** `INVALIDATED` — **Execution attempted; the crate's own lint gate rejects the
   requested conversion, and the evidence overturns this task's premise.** Applied both edits
   exactly as specified (`i.is_multiple_of( 2 )` at 374, `self.num_passes.is_multiple_of( 2 )` at

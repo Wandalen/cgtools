@@ -274,7 +274,11 @@ fn init()
   let _ = body_style.set_property( "overflow", "hidden" );
   let _ = body_style.set_property( "height", "100%" );
 
-  let load = move | _img : &web_sys::HtmlImageElement | {};
+  let app_state_for_load = Rc::clone( &app_state );
+  let load = move | _img : &web_sys::HtmlImageElement |
+  {
+    gl::spawn_local( load_default_pattern( Rc::clone( &app_state_for_load ) ) );
+  };
 
   let _ = load_image( "static/tileset.png", Box::new( load ) );
 }
@@ -541,6 +545,38 @@ fn set_pattern( tmx_content : &str, app_state : &mut ApplicationState )
   let pattern_img = DynamicImage::ImageLuma8( pattern_buf );
 
   app_state.pattern_image = Some( pattern_img );
+}
+
+/// Fetches the bundled default TMX pattern, sets it as the reference pattern,
+/// and generates the first tile map so the demo works without requiring an upload.
+/// Called from `tileset.png`'s load callback so the texture is guaranteed ready
+/// by the time `render_tile_map` needs it.
+async fn load_default_pattern( app_state : Rc< RefCell< ApplicationState > > )
+{
+  let Ok( bytes ) = gl::file::load( "static/island_pattern.tmx" ).await
+  else
+  {
+    gl::warn!( "Failed to load default pattern" );
+    return;
+  };
+
+  let Ok( tmx_content ) = String::from_utf8( bytes )
+  else
+  {
+    gl::warn!( "Default pattern is not valid UTF-8" );
+    return;
+  };
+
+  let mut state = app_state.borrow_mut();
+  if state.pattern_image.is_some()
+  {
+    // A user upload already set the pattern before this fetch resolved — the
+    // default must never clobber an explicit choice.
+    return;
+  }
+  set_pattern( &tmx_content, &mut state );
+  generate_map_wfc_image( &mut state );
+  render_tile_map( &state );
 }
 
 /// Generates a new tile map using the WFC algorithm with the loaded pattern image.

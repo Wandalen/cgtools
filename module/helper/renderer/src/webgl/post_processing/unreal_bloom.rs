@@ -51,7 +51,7 @@ mod private
   );
 
   /// Implements an Unreal Bloom post-processing effect from here:
-  /// https://github.com/mrdoob/three.js/blob/master/examples/jsm/postprocessing/UnrealBloomPass.js
+  /// <https://github.com/mrdoob/three.js/blob/master/examples/jsm/postprocessing/UnrealBloomPass.js>
   ///
   /// This pass blurs the image it takes as input
   pub struct UnrealBloomPass

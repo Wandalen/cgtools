@@ -75,8 +75,10 @@ fn run()
         // `as f64` before subtracting `rect.left()`/`.top()` (always `f64`) compiles in both
         // cases (`i32 as f64` widens, `f64 as f64` is an identity cast).
         #[ allow( clippy::unnecessary_cast, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is an identity only under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled in the default i32 build" ) ]
+        #[ allow( clippy::cast_lossless, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is a lossless i32→f64 widening only in the default i32 build; the f64::from alternative would be a useless_conversion under the web_sys_unstable_apis f64 signature, so the cast is the only form valid in both worlds" ) ]
         let x = ( e.client_x() as f64 - rect.left() ) as f32;
         #[ allow( clippy::unnecessary_cast, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is an identity only under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled in the default i32 build" ) ]
+        #[ allow( clippy::cast_lossless, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is a lossless i32→f64 widening only in the default i32 build; the f64::from alternative would be a useless_conversion under the web_sys_unstable_apis f64 signature, so the cast is the only form valid in both worlds" ) ]
         let y = ( e.client_y() as f64 - rect.top() ) as f32;
         let y = canvas.height() as f32 - y;
         gl::uniform::upload( &gl, cursor_pos_location.clone(), [ x, y ].as_slice() ).unwrap();

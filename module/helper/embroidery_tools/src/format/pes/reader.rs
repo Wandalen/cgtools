@@ -1,6 +1,6 @@
 //! 
 //! # PES format reader.
-//! Original implementation refers to https://github.com/EmbroidePy/pyembroidery/blob/main/pyembroidery/PesReader.py
+//! Original implementation refers to <https://github.com/EmbroidePy/pyembroidery/blob/main/pyembroidery/PesReader.py>
 //! 
 
 mod private

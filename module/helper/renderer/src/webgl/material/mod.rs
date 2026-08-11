@@ -126,7 +126,7 @@ mod private
     }
 
     /// Returns `true` if the material's uniform data has changed and needs
-    /// to be re-uploaded to the GPU via [`upload_on_state_change`].
+    /// to be re-uploaded to the GPU via [`Self::upload_on_state_change`].
     fn needs_update( &self ) -> bool;
 
     /// Sets or clears the dirty flag for material uniforms.
@@ -154,7 +154,7 @@ mod private
       None
     }
 
-    /// Returns reference to [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
+    /// Returns reference to [`ProgramInfo`](crate::webgl::ProgramInfo) with shader locations and used [`ShaderProgram`]
     fn make_shader_program( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >;
 
     /// Returns the material type identifier (e.g., "PBR", "Unlit", "Custom").
@@ -246,7 +246,7 @@ mod private
     /// Activates and binds all material textures to their assigned texture units,
     /// and uploads sampler parameters (filtering, wrapping).
     ///
-    /// Each texture must be bound to the same unit that was assigned in [`configure`].
+    /// Each texture must be bound to the same unit that was assigned in [`Self::configure`].
     /// Implementations **must** call `gl.active_texture( gl::TEXTURE0 + unit )` before
     /// binding each texture to ensure correct unit targeting.
     ///

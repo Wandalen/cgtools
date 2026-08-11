@@ -1,7 +1,7 @@
 //! Native GPU backend over `gpu_hal`'s offscreen `wgpu` surface.
 //!
 //! Renders into an off-screen texture and returns pixel bytes via
-//! [`Backend::output`] -- there is no on-screen presentation. Draws
+//! [`Backend::output`](crate::backend::Backend::output) -- there is no on-screen presentation. Draws
 //! `RenderCommand::Clear` and `RenderCommand::Sprite` only, the same
 //! minimal command family the WebGPU adapter translates; every other
 //! command family returns `RenderError::Unsupported` so `capabilities()`

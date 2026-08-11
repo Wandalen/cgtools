@@ -111,7 +111,7 @@ This crate supports multiple platforms:
 
 ## License
 
-Licensed under the MIT License. See [LICENSE](license) file for details.
+Licensed under the MIT License. See [LICENSE](./license) file for details.
 
 ## Contributing
 

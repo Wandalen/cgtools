@@ -401,7 +401,7 @@ mod private
       self.projection
     }
 
-    /// Returns true if using orthographic projection (checks matrix[3][3] == 1.0)
+    /// Returns true if using orthographic projection (checks `matrix[3][3] == 1.0`)
     #[ must_use ]
     pub fn is_orthographic( &self ) -> bool
     {

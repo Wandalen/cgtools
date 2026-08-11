@@ -4,23 +4,24 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/
-- **started_at:** 2026-08-11 17:37:12
-- **expires_at:** 2026-08-11 19:37:12
+- **actor:** null
+- **started_at:** null
+- **expires_at:** null
 - **round:** 1
-- **state:** 🔬 (Verifying)
+- **state:** ✅ (Completed)
 - **closes:** null
 - **repo_identity:** self
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/tiles_tools
-- **verified_by:** null
-- **verification_date:** null
+- **verified_by:** self (Tier 2 Dual-Role Self-Check, acceptance verification)
+- **verification_date:** 2026-08-11
 - **blocked_by:** null
 - **unverified_at:** 2026-08-11 17:35:44
 - **unverified_by:** unknown
-- **in_motion:** true
+- **in_motion:** false
 - **verifying_at:** 2026-08-11 17:37:12
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/
+- **priority:** 0
 
 ## Goal
 
@@ -114,41 +115,41 @@ independent verifier performs the walk after the task reaches 🔎 Accepting.
 ### Checklist
 
 **roadmap.md content**
-- [ ] C1 — Is line 5's Status line free of any ECS-movement/`pitfall/002` gap count?
-- [ ] C2 — Does line 19's Current Priority name only Flow Fields as the functional gap?
-- [ ] C3 — Does line 24's Ready-to-Code item 3 name only Flow Fields?
-- [ ] C4 — Is the "Close `docs/pitfall/002`" Next Priority Actions item absent?
-- [ ] C5 — Does the Known Gaps section say "Three functional gaps"?
-- [ ] C6 — Does the component-status table's ECS Integration row read unqualified "✅ Complete"
+- [x] C1 — Is line 5's Status line free of any ECS-movement/`pitfall/002` gap count?
+- [x] C2 — Does line 19's Current Priority name only Flow Fields as the functional gap?
+- [x] C3 — Does line 24's Ready-to-Code item 3 name only Flow Fields?
+- [x] C4 — Is the "Close `docs/pitfall/002`" Next Priority Actions item absent?
+- [x] C5 — Does the Known Gaps section say "Three functional gaps"?
+- [x] C6 — Does the component-status table's ECS Integration row read unqualified "✅ Complete"
       with no `pitfall/002` link?
 
 **Out of Scope confirmation**
-- [ ] C7 — Is `docs/pitfall/002` itself still absent from `docs/pitfall/` (untouched by this task)?
-- [ ] C8 — Does `git diff --stat -- module/helper/tiles_tools/` touch only `roadmap.md`?
-- [ ] C9 — Are the deliberately-unchanged legitimate mentions (Phase 3 retrospective, Phase 6
+- [x] C7 — Is `docs/pitfall/002` itself still absent from `docs/pitfall/` (untouched by this task)?
+- [x] C8 — Does `git diff --stat -- module/helper/tiles_tools/` touch only `roadmap.md`?
+- [x] C9 — Are the deliberately-unchanged legitimate mentions (Phase 3 retrospective, Phase 6
       header, Revision History entry, Phase 4's own partial-status line, the Target statement)
       still present and unreworded — confirming this task didn't over-correct into deleting
       accurate content?
 
 ### Measurements
 
-- [ ] M1 — `grep -n 'pitfall/002\|ECS movement\|two documented\|Four functional\|[Ss]ubstantially
+- [x] M1 — `grep -n 'pitfall/002\|ECS movement\|two documented\|Four functional\|[Ss]ubstantially
       [Cc]omplete' module/helper/tiles_tools/roadmap.md` — every returned line is independently
       confirmed non-contradictory (was: 4+ lines described ECS movement/`pitfall/002` as an open
       gap; matches remaining after the fix are all legitimate — cite each by line number and why)
 
 ### Invariants
 
-- [ ] I1 — `git diff --stat -- module/helper/tiles_tools/roadmap.md` (against the commit that
+- [x] I1 — `git diff --stat -- module/helper/tiles_tools/roadmap.md` (against the commit that
       introduced the fix) shows a real, non-empty diff touching only this file
-- [ ] I2 — No other file under `module/helper/tiles_tools/` is touched by that same diff
+- [x] I2 — No other file under `module/helper/tiles_tools/` is touched by that same diff
 
 ### Anti-faking checks
 
-- [ ] AF1 — The fix isn't achieved by deleting the Known Gaps table or Phase 3 paragraph outright
+- [x] AF1 — The fix isn't achieved by deleting the Known Gaps table or Phase 3 paragraph outright
       (which would trivially stop them "contradicting" anything) — both sections must still exist
       and still correctly describe Flow Fields as the one remaining Phase-4-adjacent functional gap
-- [ ] AF2 — M1's remaining grep matches are individually justified in the Measurement's own citation,
+- [x] AF2 — M1's remaining grep matches are individually justified in the Measurement's own citation,
       not waved off with a bare "false positives" claim
 
 ## Journal
@@ -189,6 +190,38 @@ independent verifier performs the walk after the task reaches 🔎 Accepting.
   `**Related Tasks:**`. Confirmed via `grep -rl "roadmap.md" task/draft/ task/bug/` that no other
   tracker already covers this.
 | 2026-08-11 17:37:12 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | CLAIM_VERIFY | verification claimed |
+- **[2026-08-11]** `ACCEPTED` — Independent acceptance-verification pass (self, Tier 2 Dual-Role
+  Self-Check — distinct from and subsequent to the readiness-gate self-check recorded in
+  `## Verification Record` below) walked every Checklist/Measurement/Invariant/Anti-faking item
+  against direct, fresh inspection of the live file and the fix commit, not the task's own prior
+  claims alone. Verdict: **ACCEPT**.
+  **C1-C6 (roadmap.md content):** confirmed via direct read — line 5 Status carries no ECS-movement
+  gap count ("Phases 1, 2, 3, 6 complete · Phase 4 partially complete (1 known gap...)"); line 19
+  names only Flow Fields; line 24 Ready-to-Code item 3 names only Flow Fields; Next Priority Actions
+  (4 items) contains no "Close `docs/pitfall/002`"; Known Gaps states "Three functional gaps"; ECS
+  Integration row reads unqualified "✅ Complete" with `docs/api/001`/`docs/type/002` links, no
+  `pitfall/002`.
+  **C7:** `docs/pitfall/002` remains absent from `docs/pitfall/`.
+  **C8/I1/I2:** scoped to the fix commit (`git show --stat 96bb2aef --
+  module/helper/tiles_tools/roadmap.md`) — exactly 1 file, 10 insertions/11 deletions, no other
+  `tiles_tools` file touched. Interpretive note: `96bb2aef` is a large multi-purpose batched
+  consolidation commit spanning many unrelated files workspace-wide (GPU HAL, examples, test infra
+  per its own message), so "touches only this file"/"no other file touched" is evaluated path-scoped
+  to `module/helper/tiles_tools/` (matching the Acceptance Criteria's own
+  `-- module/helper/tiles_tools/` pathspec), not against the commit's full unscoped diff.
+  **C9:** deliberately-unchanged legitimate mentions all still present and unreworded — line 208
+  (Phase 3 retrospective, "tracked as `pitfall/002` until retired"), line 234 (Phase 6 header,
+  unrelated phase), line 295 (dated 2026-08-10 Revision History entry), line 300 (Current State
+  summary), line 302 (forward-looking Target statement, "functional ECS movement").
+  **M1:** fresh `grep -n 'pitfall/002\|ECS movement\|two documented\|Four functional\|[Ss]ubstantially
+  [Cc]omplete' roadmap.md` returns exactly 5 matches (208, 234, 295, 300, 302) — each individually
+  justified above under C9, none contradictory. (First-pass grep transiently under-returned 4 of the
+  5; re-verified with a targeted follow-up before finalizing, per `governance/maav.rulebook.md`'s
+  Stale Evidence Trust guard — never trusted the first, incomplete reading.)
+  **AF1:** Known Gaps table and Phase 3 paragraph both still exist, still correctly describe Flow
+  Fields as the one remaining gap — not deleted to dodge the contradiction.
+  **AF2:** M1's matches justified individually above, not waved off.
+  No blocking findings.
 
 ## Verification Record
 

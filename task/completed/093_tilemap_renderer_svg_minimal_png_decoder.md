@@ -13,7 +13,7 @@
 - **repo_identity:** self
 - **unit_type:** module
 - **unit:** module/helper/tilemap_renderer
-- **verified_by:** task
+- **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 - **verification_date:** 2026-08-11 20:40:20
 - **blocked_by:** null
 - **executing_at:** 2026-08-11 20:13:24
@@ -23,7 +23,7 @@
 - **accepting_at:** 2026-08-11 20:29:27
 - **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 - **completed_at:** 2026-08-11 20:40:20
-- **completed_by:** task
+- **completed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## Goal
 
@@ -89,7 +89,7 @@ adapter-svg,adapter-terminal,cli,scene-model` stays green (including all 5 exist
 ## Out of Scope
 
 - **`detect_image_mime`** — zero `image`-crate dependency already; untouched by this task regardless
-  of whether `task/accepting/092_tilemap_renderer_webgl_encoded_image_decode.md` has relocated it to
+  of whether `task/completed/092_tilemap_renderer_webgl_encoded_image_decode.md` has relocated it to
   `assets.rs` yet
 - **The test-only hand-rolled `png_dimensions` IHDR reader** (`svg.rs:567-575`) — already PNG-only,
   `#[cfg(test)]`-gated, unaffected
@@ -131,7 +131,7 @@ section.
 | T01 | `cargo nextest run -p tilemap_renderer --features adapter-svg,adapter-terminal,cli,scene-model` after the `png`-crate rewrite | native, full non-webgl feature set | 0 failures — all 5 existing `bitmap_to_png_*` tests (all 4 `PixelFormat` variants + dimension-mismatch) and existing dimension/MIME tests stay green |
 | T02 | `cargo tree -p tilemap_renderer --features adapter-svg -e normal \| grep -c '^image '` | native, `adapter-svg` only | `0` — confirms the `image` crate is no longer linked |
 | T03 | `cargo check -p tilemap_renderer --no-default-features --features adapter-terminal` | native, `adapter-terminal` only | Exit 0 — regression: terminal-only builds unaffected by the shared `PixelFormat` enum's encoder-side change |
-| T04 | `git diff --stat -- src/adapters/webgl.rs` after the change | — | This task adds zero further hunks to `webgl.rs` beyond whatever task 092 already left uncommitted (this repo has no per-task commits, so the raw diff-from-HEAD is not itself empty — it must match exactly task 092's own already-isolated contribution, documented in `task/accepting/092_tilemap_renderer_webgl_encoded_image_decode.md`'s `## Outcomes` C1/C2/C5-C7/C9 line references) — confirms no encroachment into task 092's domain |
+| T04 | `git diff --stat -- src/adapters/webgl.rs` after the change | — | This task adds zero further hunks to `webgl.rs` beyond whatever task 092 already left uncommitted (this repo has no per-task commits, so the raw diff-from-HEAD is not itself empty — it must match exactly task 092's own already-isolated contribution, documented in `task/completed/092_tilemap_renderer_webgl_encoded_image_decode.md`'s `## Outcomes` C1/C2/C5-C7/C9 line references) — confirms no encroachment into task 092's domain |
 | T05 | New test: encode a non-trivial `Rgba8`/`Rgb8`/`Gray8`/`GrayAlpha8` buffer via `bitmap_to_png`, decode it back via `png::Decoder`, compare pixels | native, `adapter-svg` | Decoded pixels equal the original input exactly, for all 4 `PixelFormat` variants — the honest correctness bar the existing magic-byte/`is_some()` checks don't cover |
 
 ## Acceptance Criteria
@@ -237,7 +237,7 @@ independent verifier performs the walk after the task reaches 🔎 Accepting.
   extraction)
 - `module/helper/tilemap_renderer/src/adapters/svg.rs:2198-2241` (existing `bitmap_to_png_*` test
   block — regression bar for the encoder rewrite)
-- `task/accepting/092_tilemap_renderer_webgl_encoded_image_decode.md` — sibling task implementing the
+- `task/completed/092_tilemap_renderer_webgl_encoded_image_decode.md` — sibling task implementing the
   web half of the same Q-02 decision
 
 ## Journal
@@ -331,7 +331,7 @@ independent verifier performs the walk after the task reaches 🔎 Accepting.
       task? — YES: `detect_image_mime`'s 6-branch magic-byte logic is byte-for-byte identical
       before/after — it was relocated from a `SvgBackend::`-scoped private method in `svg.rs` to a
       `pub(crate) fn` in `assets.rs:557-565` by sibling task 092 (cross-checked against task 092's own
-      Checklist C3/C4 evidence, `task/accepting/092_..._webgl_encoded_image_decode.md` lines 273-274);
+      Checklist C3/C4 evidence, `task/completed/092_..._webgl_encoded_image_decode.md` lines 273-274);
       the removed body in the `svg.rs` diff and the added body in the `assets.rs` diff match exactly,
       confirming a pure relocation with no logic change. `png_dimensions` (`svg.rs:555-563`,
       `#[cfg(test)]`-gated) appears in the diff only as unmodified surrounding context — zero edits to

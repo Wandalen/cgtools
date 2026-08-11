@@ -1,6 +1,6 @@
 //! 
 //! # PEC format reader
-//! Original implementation refers to https://github.com/EmbroidePy/pyembroidery/blob/main/pyembroidery/PecReader.py
+//! Original implementation refers to <https://github.com/EmbroidePy/pyembroidery/blob/main/pyembroidery/PecReader.py>
 //! 
 
 mod private

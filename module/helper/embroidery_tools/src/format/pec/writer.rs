@@ -1,6 +1,6 @@
 //! 
 //! # PEC format writer.
-//! Original implementation refers to https://github.com/EmbroidePy/pyembroidery/blob/main/pyembroidery/PecWriter.py
+//! Original implementation refers to <https://github.com/EmbroidePy/pyembroidery/blob/main/pyembroidery/PecWriter.py>
 //! 
 
 mod private

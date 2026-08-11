@@ -4,7 +4,7 @@
 
 //! Time-based animation frame sampling.
 //!
-//! Given an [`Animation`] resource, the current global time, and the tile
+//! Given an [`Animation`](crate::resource::Animation) resource, the current global time, and the tile
 //! position (for `HashCoord` phase offsets), [`resolve_animation_frame`]
 //! returns the concrete `( asset, frame )` pair to draw this instant.
 //!

@@ -262,7 +262,7 @@ IndexingRef< Scalar = E, Index = Ix2 >
 {
   /// Decompose a transformation matrix to scale, rotation and translation
   ///
-  /// Source: https://github.com/mrdoob/three.js/blob/27151c8325d1dba520d4abfb5a2e1077dd59de22/src/math/Matrix4.js#L1050
+  /// Source: <https://github.com/mrdoob/three.js/blob/27151c8325d1dba520d4abfb5a2e1077dd59de22/src/math/Matrix4.js#L1050>
   #[ inline ]
   pub fn decompose( &self ) -> Option< ( Vector< E, 3 >, Quat< E >, Vector< E, 3 > ) >
   {

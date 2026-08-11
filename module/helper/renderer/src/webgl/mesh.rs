@@ -11,7 +11,7 @@ mod private
   {
     /// A vector holding the primitives that constitute the mesh. Each primitive is shared and mutable.
     pub primitives : Vec< Rc< RefCell< Primitive > > >,
-    /// Stores matrices for every [`Node`] for skinning [`Mesh`]
+    /// Stores matrices for every [`Node`](crate::webgl::Node) for skinning [`Mesh`]
     pub skeleton : Option< Rc< RefCell< Skeleton > > >,
     /// Whether this node casts shadows
     pub is_shadow_caster : bool,

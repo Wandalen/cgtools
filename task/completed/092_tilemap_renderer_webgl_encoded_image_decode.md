@@ -4,25 +4,27 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-11 19:26:08
-- **expires_at:** 2026-08-11 21:26:08
+- **actor:** null
+- **started_at:** null
+- **expires_at:** null
 - **round:** 1
-- **state:** 🔎 (Accepting)
+- **state:** ✅ (Completed)
 - **closes:** Q-02
 - **repo_identity:** self
 - **unit_type:** module
 - **unit:** module/helper/tilemap_renderer
-- **verified_by:** /home/user1/pro/lib/yrd_gamedev/cgtools/task
-- **verification_date:** null
+- **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **verification_date:** 2026-08-11 23:26:34
 - **blocked_by:** null
 - **executing_at:** 2026-08-11 18:59:38
 - **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **priority:** 1
+- **priority:** 0
 - **verified_at:** 2026-08-11 18:59:33
-- **in_motion:** true
+- **in_motion:** false
 - **accepting_at:** 2026-08-11 19:26:08
 - **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **completed_at:** 2026-08-11 23:26:34
+- **completed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## Goal
 
@@ -297,3 +299,4 @@ independent verifier performs the walk after the task reaches 🔎 Accepting.
 **Additional corroborating evidence:** Test Matrix rows T02 (`cargo check --no-default-features --features adapter-svg` → exit 0, `-0035_longrun.log`), T03 (`cargo check --no-default-features --features adapter-terminal` → exit 0, `-0036_longrun.log`), and T05 (`cargo doc --target wasm32-unknown-unknown --no-deps --features adapter-webgl` → exit 0, `-0041_longrun.log`; rendered doc text independently confirmed via the C12 evidence above) were also executed directly and all passed, fully confirming the Acceptance Criteria bullet "Every row T01–T05 passes" beyond the layers that reference them by ID.
 
 **Non-blocking observation (not a Verification-layer item, does not affect verdict):** `roadmap.md`'s updated `ImageSource::Encoded` bullet references `` `task/verified/092_tilemap_renderer_webgl_encoded_image_decode.md` `` as this task's tracking path. Per `§ Acceptance Verification : Step 8`, a PASS verdict moves this file to `task/completed/`, not `task/verified/` (`task/verified/` is where a task lands on VERIFY_FAIL, per the Fail-Fix-Reverify Loop). The reference should read `task/completed/092_...`. This is a minor documentation-accuracy slip, not tied to any AC bullet or Checklist item, and does not change the verdict.
+| 2026-08-11 23:26:34 | task | ACCEPTANCE_PASS | acceptance passed |
