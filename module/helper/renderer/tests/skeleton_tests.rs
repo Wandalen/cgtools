@@ -80,7 +80,7 @@ mod tests
       .set_displacement
       (
         Some( [ [ 0.0; 3 ]; 2 ].to_vec() ),
-        gltf::Semantic::Tangents,
+        &gltf::Semantic::Tangents,
         2
       )
     );
@@ -153,7 +153,7 @@ mod pure_tests
     displacements.set_displacement
     (
       Some( [ [ 1.0, 1.0, 1.0 ]; 16 ].to_vec() ),
-      gltf::Semantic::Positions,
+      &gltf::Semantic::Positions,
       16
     );
 
@@ -166,7 +166,7 @@ mod pure_tests
     displacements.set_displacement
     (
       Some( [ [ 2.0, 2.0, 2.0 ]; 16 ].to_vec() ),
-      gltf::Semantic::Normals,
+      &gltf::Semantic::Normals,
       16
     );
 
@@ -179,7 +179,7 @@ mod pure_tests
     displacements.set_displacement
     (
       Some( [ [ 3.0, 3.0, 3.0 ]; 16 ].to_vec() ),
-      gltf::Semantic::Tangents,
+      &gltf::Semantic::Tangents,
       16
     );
 
@@ -189,7 +189,7 @@ mod pure_tests
     assert_eq!( data.len(), 16 * 4 * 3 );
     assert_eq!( data.get( 0..12 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 3.0, 3.0, 3.0, 1.0 ] );
 
-    displacements.set_displacement( None, gltf::Semantic::Normals, 16 );
+    displacements.set_displacement( None, &gltf::Semantic::Normals, 16 );
 
     let data = displacements.pack_displacements_data();
 

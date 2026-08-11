@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ web_sys, VertexAttribute, Into, VertexBufferLayout, BindGroupDescriptor, RenderPassDescriptor, RenderPipelineDescriptor, SamplerDescriptor, TextureDescriptor, BindGroupLayoutDescriptor, PipelineLayoutDescriptor, BufferDescriptor, BindGroupEntry, BufferBinding, VertexState, FragmentState, DepthStencilState, StencilFaceState, MultiSampleState, PrimitiveState, ColorTargetState, BlendComponent, BlendState, ColorAttachment, DepthStencilAttachment };
 
   /// A generic trait for converting a type into its WebGPU equivalent.
   pub trait AsWeb< T >
@@ -16,6 +16,7 @@ mod private
     {
         impl AsWeb< web_sys::$web > for $local
         {
+            #[ inline ]
             fn to_web( self ) -> web_sys::$web
             {
                 self.into()

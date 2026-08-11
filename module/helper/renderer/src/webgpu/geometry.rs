@@ -33,21 +33,25 @@ mod private
     /// Uploads raw attribute data. `positions` and `normals` are xyz triples,
     /// `uvs` are uv pairs, `colors` are rgba quadruples — all per vertex, with
     /// the same vertex count.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when any vertex or index buffer allocation fails on the device.
     pub fn new
     (
       device : &Device,
-      positions : Vec< f32 >,
-      normals : Vec< f32 >,
-      uvs : Vec< f32 >,
-      colors : Vec< f32 >,
+      positions : &[ f32 ],
+      normals : &[ f32 ],
+      uvs : &[ f32 ],
+      colors : &[ f32 ],
       indices : Option< Vec< u32 > >
     ) -> Result< Self, Error >
     {
       let vertex_count = ( positions.len() / 3 ) as u32;
-      let position_buffer = device.create_buffer_init( bytemuck::cast_slice( &positions ), BufferUsage::VERTEX )?;
-      let normal_buffer = device.create_buffer_init( bytemuck::cast_slice( &normals ), BufferUsage::VERTEX )?;
-      let uv_buffer = device.create_buffer_init( bytemuck::cast_slice( &uvs ), BufferUsage::VERTEX )?;
-      let color_buffer = device.create_buffer_init( bytemuck::cast_slice( &colors ), BufferUsage::VERTEX )?;
+      let position_buffer = device.create_buffer_init( bytemuck::cast_slice( positions ), BufferUsage::VERTEX )?;
+      let normal_buffer = device.create_buffer_init( bytemuck::cast_slice( normals ), BufferUsage::VERTEX )?;
+      let uv_buffer = device.create_buffer_init( bytemuck::cast_slice( uvs ), BufferUsage::VERTEX )?;
+      let color_buffer = device.create_buffer_init( bytemuck::cast_slice( colors ), BufferUsage::VERTEX )?;
 
       let mut index_count = 0;
       let index_buffer = match indices
@@ -74,6 +78,7 @@ mod private
 
     /// Vertex buffer layouts matching the canonical opaque shader's inputs,
     /// in attribute-slot order.
+    #[ must_use ]
     pub fn vertex_layouts() -> [ VertexBufferLayout; 4 ]
     {
       [

@@ -19,9 +19,6 @@ mod private
   };
   use error_tools::error;
 
-  #[ allow( unused_imports ) ]
-  use crate::Tween;
-
   /// Sequencer for managing multiple animations with sequencing and grouping.
   // #[ derive( Debug ) ]
   pub struct Sequencer
@@ -326,8 +323,14 @@ mod private
   where T : AnimatablePlayer + 'static
   {
     /// [`Sequence`] constructor
-    #[ allow( clippy::missing_errors_doc ) ]
-    #[ allow( clippy::missing_panics_doc ) ]
+    ///
+    /// # Errors
+    /// Returns [`SequenceError::NotEnough`] if fewer than two players are provided, or
+    /// [`SequenceError::Unsorted`] if the players aren't ordered by non-decreasing `delay_get()`.
+    ///
+    /// # Panics
+    /// Never panics in practice: the length check above guarantees at least two players, so the
+    /// `players.first()`/`players.last()` unwraps below always succeed.
     pub fn new( mut players : Vec< T > ) -> Result< Self, SequenceError >
     {
       if players.len() < 2
@@ -433,26 +436,35 @@ mod private
         current_id = self.players.len().saturating_sub( 1 );
       }
 
-      #[ allow( clippy::else_if_without_else ) ]
-      if self.current == current_id
+      match self.current.cmp( &current_id )
       {
-        let Some( current ) = self.players.get_mut( self.current )
-        else
+        core::cmp::Ordering::Equal =>
         {
-          return;
-        };
-        let old_elapsed = current.delay_get() + ( current.progress() * current.duration_get() );
-        current.update( old_elapsed + delta_time );
-      }
-      else if self.current < current_id
-      {
-        self.current = current_id;
-        let Some( current ) = self.players.get_mut( self.current )
-        else
+          let Some( current ) = self.players.get_mut( self.current )
+          else
+          {
+            return;
+          };
+          let old_elapsed = current.delay_get() + ( current.progress() * current.duration_get() );
+          current.update( old_elapsed + delta_time );
+        },
+        core::cmp::Ordering::Less =>
         {
-          return;
-        };
-        current.update( self.elapsed );
+          self.current = current_id;
+          let Some( current ) = self.players.get_mut( self.current )
+          else
+          {
+            return;
+          };
+          current.update( self.elapsed );
+        },
+        core::cmp::Ordering::Greater =>
+        {
+          // Only arises from a negative `delta_time` (elapsed time moving backward past the
+          // active player) — not a case this frame-forward sequencer supports. No switch or
+          // update happens; a subsequent forward-moving frame naturally re-synchronizes
+          // `current_id` upward and normal playback resumes.
+        }
       }
 
       let Some( current ) = self.players.get_mut( self.current )

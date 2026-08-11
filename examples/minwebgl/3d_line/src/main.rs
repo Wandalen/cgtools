@@ -4,17 +4,6 @@
 //! Each body leaves a colored trail drawn as a 3D line with configurable dash patterns,
 //! width units (screen-space or world-space), and alpha-to-coverage anti-aliasing.
 //! A lil-gui panel exposes all settings at runtime.
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::match_wildcard_for_single_variants ) ]
-#![ allow( clippy::single_match ) ]
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::redundant_field_names ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::needless_range_loop ) ]
 
 use mingl::
 {
@@ -47,6 +36,7 @@ fn run() -> Result< (), gl::WebglError >
   #[ allow( clippy::cast_sign_loss ) ]
   fastrand::seed( js_sys::Date::now() as u64 );
 
+  // Canvas dimensions are always far below 2^24, so the f32 conversion is always exact.
   #[ allow( clippy::cast_precision_loss ) ]
   let width = canvas.width() as f32;
   #[ allow( clippy::cast_precision_loss ) ]
@@ -124,7 +114,6 @@ fn run() -> Result< (), gl::WebglError >
   // so the render loop can read live UI values each frame.
   let _ = settings::bind_to_ui( &gl, settings.clone(), lines.clone() );
 
-
   gl.enable( gl::DEPTH_TEST );
   gl.depth_func( gl::LEQUAL );
 
@@ -136,7 +125,6 @@ fn run() -> Result< (), gl::WebglError >
   // Define the update and draw logic
   let update_and_draw =
   {
-    #[ allow( clippy::min_ident_chars ) ]
     move | _ : f64 |
     {
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT );

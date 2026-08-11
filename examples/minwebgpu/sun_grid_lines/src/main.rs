@@ -9,8 +9,6 @@
 //! This example only works on WebAssembly (wasm32) targets where WebGPU
 //! APIs are available.
 
-#![ allow( clippy::cast_possible_truncation ) ]
-
 // Compiled under `cargo test` (any target, so its own unit test runs
 // natively) or when actually targeting wasm32 (where `run()` uses it). A
 // plain native build/check/clippy has no consumer for it — the native path

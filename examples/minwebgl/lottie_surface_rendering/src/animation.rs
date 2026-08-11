@@ -115,7 +115,6 @@ pub struct Animation
   composition : Composition
 }
 
-#[ allow( dead_code ) ]
 impl Animation
 {
   /// Creates a new `Animation` from a `Composition` object. This function processes the composition's layers and shapes to build a GLTF scene and a map of animation behaviors.
@@ -374,12 +373,6 @@ impl Animation
       behaviors,
       composition
     }
-  }
-
-  /// Returns a reference to the internal GLTF scene.
-  pub fn get_inner_gltf( &self ) -> &GLTF
-  {
-    &self.gltf
   }
 
   /// Traverses and updates the scene's nodes based on the animation behaviors for a given frame.

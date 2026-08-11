@@ -59,6 +59,10 @@ mod private
   }
 
   /// Raw pixel data.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/backend_test.rs`'s GPU-readback assertions, so
+  // `#[non_exhaustive]` would break those call sites.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct Bitmap
   {

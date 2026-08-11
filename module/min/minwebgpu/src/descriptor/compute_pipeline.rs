@@ -2,7 +2,7 @@
 mod private
 {
   
-  use crate::*;
+  use crate::{ web_sys, Into, compute_pipeline, WebGPUError };
 
   /// Describes the configuration for creating a WebGPU compute pipeline.
   #[ derive( Clone ) ]
@@ -28,6 +28,7 @@ mod private
   impl< 'a > ComputePipelineDescriptor< 'a >
   {
     /// Creates a new `ComputePipelineDescriptor` with a given compute stage.
+    #[ inline ]
     pub fn new< T : Into< web_sys::GpuProgrammableStage > >( compute : T ) -> Self
     {
       let label = None;
@@ -43,6 +44,8 @@ mod private
     }
 
     /// Sets an optional label for the compute pipeline.
+    #[ inline ]
+    #[ must_use ]
     pub fn label( mut self, label : &'a str ) -> Self
     {
       self.label = Some( label );
@@ -50,6 +53,8 @@ mod private
     }
 
     /// Sets the `GpuPipelineLayout` for the compute pipeline.
+    #[ inline ]
+    #[ must_use ]
     pub fn layout( mut self, layout : &'a web_sys::GpuPipelineLayout ) -> Self
     {
       self.layout = Some( layout );
@@ -57,12 +62,19 @@ mod private
     }
 
     /// Creates a `web_sys::GpuComputePipeline` synchronously.
+    #[ inline ]
+    #[ must_use ]
     pub fn create( self, device : &web_sys::GpuDevice ) -> web_sys::GpuComputePipeline
     {
       compute_pipeline::create( device, &self.into() )
     }
 
     /// Creates a `web_sys::GpuComputePipeline` asynchronously.
+    ///
+    /// # Errors
+    /// Returns `error::DeviceError::FailedToCreateRenderPipeline` if the underlying
+    /// `GPUDevice.createComputePipelineAsync` call rejects (see [`compute_pipeline::create_async`]).
+    #[ inline ]
     pub async fn create_async( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuComputePipeline, WebGPUError >
     {
       compute_pipeline::create_async( device, &self.into() ).await
@@ -71,6 +83,7 @@ mod private
 
   impl From< ComputePipelineDescriptor< '_ > > for web_sys::GpuComputePipelineDescriptor 
   {
+    #[ inline ]
     fn from( value: ComputePipelineDescriptor< '_ > ) -> Self 
     {
       let desc =

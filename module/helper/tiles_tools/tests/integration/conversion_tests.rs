@@ -294,7 +294,7 @@ fn test_roundtrip_conversion_utility()
   let square = SquareCoord::<SquareFour>::new(5, -3);
 
   // Test exact roundtrip conversion
-  assert!(test_roundtrip_conversion::<_, IsoCoord<Diamond>, SquareCoord<SquareFour>>(square));
+  assert!(test_roundtrip_conversion::<_, IsoCoord<Diamond>, SquareCoord<SquareFour>>(&square));
 
   // Test with different coordinates
   let coords = vec![
@@ -304,7 +304,7 @@ fn test_roundtrip_conversion_utility()
   ];
 
   for coord in coords {
-    assert!(test_roundtrip_conversion::<_, IsoCoord<Diamond>, SquareCoord<SquareFour>>(coord),
+    assert!(test_roundtrip_conversion::<_, IsoCoord<Diamond>, SquareCoord<SquareFour>>(&coord),
             "Roundtrip test failed for {coord:?}");
   }
 }

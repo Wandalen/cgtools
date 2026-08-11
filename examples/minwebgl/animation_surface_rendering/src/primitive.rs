@@ -1,9 +1,3 @@
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::needless_range_loop ) ]
-#![ allow( clippy::unnecessary_wraps ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::too_many_lines ) ]
 
 mod private
 {

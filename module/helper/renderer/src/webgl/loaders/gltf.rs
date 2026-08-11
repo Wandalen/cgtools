@@ -78,6 +78,7 @@ mod private
   impl GLTF
   {
     /// Casts the trait object to a specific `PbrMaterial`
+    #[ must_use ]
     pub fn material_get( &self, id : usize ) -> std::cell::Ref< '_, PbrMaterial >
     {
       let material = self.materials[ id ].borrow();
@@ -85,9 +86,12 @@ mod private
     }
   }
 
+  /// A material shared between primitives, mutable behind `Rc< RefCell< _ > >`.
+  type SharedMaterial = Rc< RefCell< Box< dyn Material > > >;
+
   fn load_skeleton_transforms_data
   (
-    skin : gltf::Skin< '_ >,
+    skin : &gltf::Skin< '_ >,
     nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
     buffers : &[ Vec< u8 > ]
   )
@@ -105,19 +109,12 @@ mod private
     (
       | m |
       {
-        F32x4x4::from_column_major
-        (
-          m.iter()
-          .cloned()
-          .flatten()
-          .collect::< Vec< f32 > >()
-          .as_chunks::< 16 >()
-          .0
-          .iter()
-          .cloned()
-          .next()
-          .unwrap()
-        )
+        let mut matrix = [ 0.0_f32; 16 ];
+        for ( dst, src ) in matrix.iter_mut().zip( m.iter().flatten() )
+        {
+          *dst = *src;
+        }
+        F32x4x4::from_column_major( matrix )
       }
     )
     .collect::< Vec< _ > >();
@@ -146,19 +143,9 @@ mod private
   )
   -> Option< skeleton::DisplacementsData >
   {
-    let get_target_array = | acc : gltf::Accessor< '_ > |
-    {
-      gltf::mesh::util::ReadPositionDisplacements::new
-      (
-        acc,
-        | buffer | buffers.get( buffer.index() ).map( | x | x.as_slice() )
-      )
-      .map( | iter | iter.collect::< Vec< _ > >() )
-    };
-
     fn pack_targets
     (
-      targets_array : Vec< Vec< [ f32; 3 ] > >
+      targets_array : &[ Vec< [ f32; 3 ] > ]
     )
     -> Vec< [ f32; 3 ] >
     {
@@ -177,6 +164,16 @@ mod private
 
       packed_array
     }
+
+    let get_target_array = | acc : gltf::Accessor< '_ > |
+    {
+      gltf::mesh::util::ReadPositionDisplacements::new
+      (
+        acc,
+        | buffer | buffers.get( buffer.index() ).map( std::vec::Vec::as_slice )
+      )
+      .map( std::iter::Iterator::collect::< Vec< _ > > )
+    };
 
     let skin_vertices_count = primitives_vertices_count.iter().sum::< usize >();
     let ( positions, normals, tangents ) =
@@ -197,8 +194,7 @@ mod private
         for morph_target in morph_targets.clone()
         {
           if let Some( positions ) = morph_target.positions()
-          .map( get_target_array )
-          .flatten()
+          .and_then(get_target_array)
           {
             targets_positions.push( positions );
           }
@@ -208,8 +204,7 @@ mod private
           }
 
           if let Some( normals ) = morph_target.normals()
-          .map( get_target_array )
-          .flatten()
+          .and_then(get_target_array)
           {
             targets_normals.push( normals );
           }
@@ -219,8 +214,7 @@ mod private
           }
 
           if let Some( tangents ) = morph_target.tangents()
-          .map( get_target_array )
-          .flatten()
+          .and_then(get_target_array)
           {
             targets_tangents.push( tangents );
           }
@@ -230,9 +224,9 @@ mod private
           }
         }
 
-        let primitive_positions = pack_targets( targets_positions );
-        let primitive_normals = pack_targets( targets_normals );
-        let primitive_tangents = pack_targets( targets_tangents );
+        let primitive_positions = pack_targets( &targets_positions );
+        let primitive_normals = pack_targets( &targets_normals );
+        let primitive_tangents = pack_targets( &targets_tangents );
 
         skin_positions.extend( primitive_positions );
         skin_normals.extend( primitive_normals );
@@ -248,9 +242,9 @@ mod private
 
     let mut displacements = skeleton::DisplacementsData::new();
 
-    let _ = displacements.set_displacement( positions, gltf::Semantic::Positions, skin_vertices_count );
-    let _ = displacements.set_displacement( normals, gltf::Semantic::Normals, skin_vertices_count );
-    let _ = displacements.set_displacement( tangents, gltf::Semantic::Tangents, skin_vertices_count );
+    let _ = displacements.set_displacement( positions, &gltf::Semantic::Positions, skin_vertices_count );
+    let _ = displacements.set_displacement( normals, &gltf::Semantic::Normals, skin_vertices_count );
+    let _ = displacements.set_displacement( tangents, &gltf::Semantic::Tangents, skin_vertices_count );
     if let Some( weights ) = weights
     {
       let weights_rc = displacements.get_morph_weights();
@@ -275,7 +269,7 @@ mod private
     let mut skeleton = Skeleton::new();
 
     *skeleton.transforms_as_mut() = skin
-    .map( | s | load_skeleton_transforms_data( s, nodes, buffers ) ).flatten();
+    .and_then(| s | load_skeleton_transforms_data( &s, nodes, buffers ));
     *skeleton.displacements_as_mut() = load_skeleton_displacements_data
     (
       primitives_morph_targets,
@@ -368,7 +362,7 @@ mod private
     .get( "light" )?
     .as_u64()?;
 
-    lights.get( &( light_id as usize ) ).cloned()
+    lights.get( &( light_id as usize ) ).copied()
     .map
     (
       | light |
@@ -430,11 +424,14 @@ mod private
     }
     else
     {
-      format!( "{}/{}", folder_path, uri )
+      format!( "{folder_path}/{uri}" )
     }
   }
 
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
+  // 550 lines : the glTF ingest walks images/buffers/textures/materials/meshes in one
+  // dependency-ordered pass; splitting would thread a dozen lookup tables through helpers.
+  #[ allow( clippy::too_many_lines ) ]
   pub async fn load
   (
     document : &gl::web_sys::Document,
@@ -446,7 +443,7 @@ mod private
 
     let path = std::path::Path::new( gltf_path );
     let folder_path = path.parent().map_or( "", | p | p.to_str().expect( "Path is not UTF-8 encoded" ) );
-    gl::debug!( "Folder: {}\nFile: {}", folder_path, gltf_path );
+    gl::debug!( "Folder: {folder_path}\nFile: {gltf_path}" );
 
     // let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
     // .await.expect( "Failed to load gltf file" );
@@ -483,34 +480,29 @@ mod private
 
     for gltf_buffer in gltf_file.buffers()
     {
-      match gltf_buffer.source()
-      {
-        gltf::buffer::Source::Uri( uri ) =>
+      if let gltf::buffer::Source::Uri( uri ) = gltf_buffer.source() {
+        let path = resolve_asset_uri( folder_path, uri );
+        let buffer = gl::file::load( &path ).await
+        .map_err( | e |
         {
-          let path = resolve_asset_uri( folder_path, uri );
-          let buffer = gl::file::load( &path ).await
-          .map_err( | e |
-          {
-            gl::browser::error!( "Failed to load gltf buffer '{path}': {e:?}" );
-            gl::WebglError::Other( "Failed to load a buffer" )
-          } )?;
+          gl::browser::error!( "Failed to load gltf buffer '{path}': {e:?}" );
+          gl::WebglError::Other( "Failed to load a buffer" )
+        } )?;
 
-          gl::debug!
-          (
-            "Buffer path: {}\n
-            \tBuffer length: {}",
-            path,
-            buffer.len()
-          );
+        gl::debug!
+        (
+          "Buffer path: {}\n
+          \tBuffer length: {}",
+          path,
+          buffer.len()
+        );
 
-          buffers.push( buffer.as_slice().into() );
-        },
-        _ => {}
+        buffers.push( buffer.as_slice().into() );
       }
     }
 
     let bin_buffers = buffers.iter()
-    .map( | b | b.to_vec() )
+    .map( minwebgl::js_sys::Uint8Array::to_vec )
     .collect::< Vec< _ > >();
 
     gl::debug!( "Buffers: {}", buffers.len() );
@@ -626,8 +618,7 @@ mod private
             let options = gl::web_sys::BlobPropertyBag::new();
             options.set_type( mime_type );
 
-            let mut blob_parts = Vec::new();
-            blob_parts.push( buffer );
+            let blob_parts = vec![ buffer ];
 
             gl::web_sys::Blob::new_with_u8_slice_sequence_and_options( &( blob_parts.into() ), &options )
           }.expect( "Failed to create a Blob" );
@@ -646,7 +637,7 @@ mod private
     // This scenario should be checked
     for view in gltf_file.views()
     {
-      let buffer = gl::buffer::create( &gl )?;
+      let buffer = gl::buffer::create( gl )?;
 
       let target =  if let Some( target ) = view.target()
       {
@@ -718,15 +709,15 @@ mod private
       })
     };
 
-    let mut materials : Vec< Rc< RefCell< Box< dyn Material > > > > = Vec::new();
-    let mut material_variation_map : FxHashMap< uuid::Uuid, Vec< Rc< RefCell< Box< dyn Material > > > > > = FxHashMap::default();
-    let mut used_materials : Vec< Rc< RefCell< Box< dyn Material > > > > = Vec::new();
+    let mut materials : Vec< SharedMaterial > = Vec::new();
+    let mut material_variation_map : FxHashMap< uuid::Uuid, Vec< SharedMaterial > > = FxHashMap::default();
+    let mut used_materials : Vec< SharedMaterial > = Vec::new();
 
     for gltf_m in gltf_file.materials()
     {
       let pbr = gltf_m.pbr_metallic_roughness();
 
-      let mut material = PbrMaterial::new( &gl );
+      let mut material = PbrMaterial::new( gl );
       material.set_alpha_mode( match gltf_m.alpha_mode()
       {
         gltf::material::AlphaMode::Blend => AlphaMode::Blend,
@@ -777,7 +768,7 @@ mod private
       materials.push( Rc::new( RefCell::new( Box::new( material ) ) ) );
     }
 
-    let fallback = PbrMaterial::new( &gl );
+    let fallback = PbrMaterial::new( gl );
     material_variation_map.insert( fallback.id(), Vec::new() );
     materials.push( Rc::new( RefCell::new( Box::new( fallback ) ) ) );
 
@@ -805,7 +796,7 @@ mod private
         slot,
         buffer : gl_buffers[ acc.view().unwrap().index() ].clone(),
         descriptor,
-        bounding_box : Default::default()
+        bounding_box : gl::geometry::BoundingBox::default()
       }
     };
     let mut meshes = Vec::new();
@@ -819,7 +810,7 @@ mod private
         geometry.draw_mode = gltf_primitive.mode().as_gl_enum();
 
         let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
-        let mut dummy_material = PbrMaterial::new( &gl );
+        let mut dummy_material = PbrMaterial::new( gl );
         let gltf_material = materials[ material_id ].clone();
 
         let mut add_define = | name : &str |
@@ -896,7 +887,7 @@ mod private
             },
             gltf::Semantic::Joints( i ) =>
             {
-              let name = format!( "joints_{}", i );
+              let name = format!( "joints_{i}" );
               add_define( &name );
               geometry.add_attribute
               (
@@ -907,7 +898,7 @@ mod private
             },
             gltf::Semantic::Weights( i ) =>
             {
-              let name = format!( "weights_{}", i );
+              let name = format!( "weights_{i}" );
               add_define( &name );
               geometry.add_attribute
               (
@@ -917,19 +908,15 @@ mod private
               )?;
             },
             //a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
-          };
+          }
         }
 
         // Amongst different materials with the same uuid, find the one that has the same vertex defines
         let new_material = if let Some( material ) = material_variation_map
         .get( &gltf_material.borrow().id() )
-        .map
-        (
-          | m |
+        .and_then(| m |
           m.iter()
-          .find( | m | m.borrow().vertex_defines_str() == dummy_material.vertex_defines_str() )
-        )
-        .flatten()
+          .find( | m | m.borrow().vertex_defines_str() == dummy_material.vertex_defines_str() ))
         {
           material.clone()
         }
@@ -1003,7 +990,7 @@ mod private
       {
         (
           Some( mesh.primitives().map( | p | p.morph_targets() ).collect::< Vec< _ > >() ),
-          mesh.weights().map( | v | v.to_vec() )
+          mesh.weights().map( <[f32]>::to_vec )
         )
       }
       else
@@ -1085,7 +1072,7 @@ mod private
     }
 
     #[ cfg( feature = "animation" ) ]
-    let animations = crate::webgl::animation::loaders::gltf::load( &gl, &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;
+    let animations = crate::webgl::animation::loaders::gltf::load( gl, &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;
 
     #[ cfg( feature = "animation" ) ]
     gl::debug!( "Animations: {}", animations.len() );

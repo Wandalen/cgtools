@@ -7,13 +7,12 @@ where
   use the_module::
   {
     Mat,
-    RawSlice,
     RawSliceMut,
   };
   let mat = Mat::< 2, 2, f32, D >::default().raw_set( [ 1.0, 2.0, 3.0, 4.0 ] );
   let slice = mat.raw_slice();
   let exp = &[ 1.0, 2.0, 3.0, 4.0 ];
-  assert_eq!( slice, exp, "Raw slice mismatch. Expected {:?}, got {:?}", exp, slice );
+  assert_eq!( slice, exp, "Raw slice mismatch. Expected {exp:?}, got {slice:?}" );
 }
 
 #[ test ]
@@ -37,7 +36,6 @@ where
   use the_module::
   {
     Mat,
-    RawSlice,
     RawSliceMut,
   };
   let mut mat = Mat::< 2, 2, f32, D >::default();
@@ -70,7 +68,6 @@ where
   use the_module::
   {
     Mat,
-    RawSlice,
     RawSliceMut,
   };
   let mut mat = Mat::< 2, 2, f32, D >::default();
@@ -100,7 +97,6 @@ where
   use the_module::
   {
     Mat,
-    RawSlice,
     RawSliceMut,
   };
   let mat = Mat::< 2, 2, f32, D >::default().raw_set( [ 13.0, 14.0, 15.0, 16.0 ] );
@@ -166,7 +162,7 @@ where
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "Size should be equal" ) ]
 fn test_set_column_major_size_mismatch_row_major()
 {
   // Exercises `with_column_major` for `DescriptorOrderRowMajor`, whose implementation
@@ -176,7 +172,7 @@ fn test_set_column_major_size_mismatch_row_major()
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "copy_from_slice: source slice length" ) ]
 fn test_set_column_major_size_mismatch_column_major()
 {
   // For `DescriptorOrderColumnMajor`, `with_column_major` delegates to `raw_set_slice`,
@@ -223,7 +219,7 @@ where
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "copy_from_slice: source slice length" ) ]
 fn test_set_row_major_size_mismatch_row_major()
 {
   // For `DescriptorOrderRowMajor`, `with_row_major` delegates to `raw_set_slice`, whose
@@ -234,7 +230,7 @@ fn test_set_row_major_size_mismatch_row_major()
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "Size should be equal" ) ]
 fn test_set_row_major_size_mismatch_column_major()
 {
   // Exercises `with_row_major` for `DescriptorOrderColumnMajor`, whose implementation

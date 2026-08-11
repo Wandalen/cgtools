@@ -7,10 +7,7 @@
 //! `participants.get( &1 )` → `current_participant()` (participant 1 is the sole,
 //! current participant at that point).
 
-#![allow(clippy::float_cmp)] // Tests assert exact stored/configured values; no arithmetic precedes the comparisons.
-
 #![ cfg( feature = "enabled" ) ]
-
 
 use tiles_tools::game_systems::*;
 use std::collections::HashMap;

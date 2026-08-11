@@ -212,6 +212,12 @@ mod tests
   /// `main.rs`'s wasm32-gated `run()` is the only caller of `to_array()` on
   /// the wasm32 target; on native, this test is what keeps it from being
   /// dead code, and isolates the conversion itself from schema parsing.
+  ///
+  /// `to_array()`'s `as f32` narrowing is an IEEE-754 basic conversion operation —
+  /// specified as correctly-rounded on every target, including wasm32's `f32.demote_f64`
+  /// (unlike a libm transcendental call, whose rounding is implementation-defined). Verified
+  /// empirically that `0.1_f64/0.2_f64/0.3_f64 as f32` land on the exact same bit pattern as
+  /// the `f32` literals compared against, so no double-rounding hazard applies here.
   #[ allow( clippy::float_cmp ) ]
   #[ test ]
   fn color_to_array_appends_opaque_alpha()

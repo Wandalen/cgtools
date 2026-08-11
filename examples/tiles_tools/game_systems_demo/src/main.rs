@@ -1,30 +1,5 @@
 //! Game systems demonstration showing integrated turn-based gameplay.
 
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::items_after_statements ) ]
-#![ allow( clippy::unnecessary_cast ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::format_in_format_args ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::duplicated_attributes ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::trivially_copy_pass_by_ref ) ]
-#![ allow( clippy::missing_inline_in_public_items ) ]
-#![ allow( clippy::useless_vec ) ]
-#![ allow( clippy::unnested_or_patterns ) ]
-#![ allow( clippy::else_if_without_else ) ]
-#![ allow( clippy::unreadable_literal ) ]
-#![ allow( clippy::redundant_else ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::if_not_else ) ]
 //!
 //! This example demonstrates the comprehensive game systems integration including:
 //! - Turn-based game management with initiative and action points
@@ -34,7 +9,7 @@
 //! - Status effects and game mechanics
 //! - System integration and event coordination
 
-use tiles_tools::game_systems::*;
+use tiles_tools::game_systems::{TurnBasedGame, StatusEffect, EffectCategory, GameStateMachine, GameState, GameStateEvent, ResourceManager, QuestManager, Quest, QuestStatus, QuestObjective, ObjectiveType, QuestReward, TurnStartedEvent, ResourceChangedEvent, QuestCompletedEvent};
 use tiles_tools::events::{ EventBus, EventResult };
 use tiles_tools::debug::{ GridRenderer, GridStyle, DebugColor };
 use std::collections::HashMap;
@@ -85,7 +60,7 @@ fn main()
   println!("• Event-driven architecture for system coordination");
 }
 
-fn demonstrate_turn_based_combat()
+fn setup_combat_participants() -> TurnBasedGame
 {
   let mut game = TurnBasedGame::new();
 
@@ -93,7 +68,7 @@ fn demonstrate_turn_based_combat()
 
   // Add combat participants
   game.add_participant(1, 95);  // Player - high initiative
-  game.add_participant(2, 80);  // Enemy Knight - medium initiative  
+  game.add_participant(2, 80);  // Enemy Knight - medium initiative
   game.add_participant(3, 110); // Enemy Archer - highest initiative
   game.add_participant(4, 65);  // Player Ally - low initiative
 
@@ -102,20 +77,25 @@ fn demonstrate_turn_based_combat()
   for (i, participant) in participants.iter().enumerate() {
   let entity_type = match participant.entity_id {
     1 => "Player",
-    2 => "Enemy Knight", 
+    2 => "Enemy Knight",
     3 => "Enemy Archer",
     4 => "Player Ally",
     _ => "Unknown"
   };
-  println!("  {}. {} (ID: {}, Initiative: {})", 
+  println!("  {}. {} (ID: {}, Initiative: {})",
     i + 1, entity_type, participant.entity_id, participant.initiative);
   }
 
+  game
+}
+
+fn simulate_combat_rounds(game: &mut TurnBasedGame)
+{
   println!("\nSimulating 2 rounds of combat:");
 
   for round in 1..=2 {
-  println!("\n--- Round {} ---", round);
-  
+  println!("\n--- Round {round} ---");
+
   let mut turns_in_round = 0;
   let start_round = game.round_number();
 
@@ -124,14 +104,14 @@ fn demonstrate_turn_based_combat()
       let entity_name = match current_entity {
         1 => "Player",
         2 => "Enemy Knight",
-        3 => "Enemy Archer", 
+        3 => "Enemy Archer",
         4 => "Player Ally",
         _ => "Unknown"
       };
 
       if let Some(participant) = game.current_participant() {
         println!("  {}'s turn (AP: {})", entity_name, participant.action_points);
-        
+
         // Simulate different actions based on entity type
         match current_entity {
           1 => { // Player
@@ -171,13 +151,16 @@ fn demonstrate_turn_based_combat()
   }
 
   println!("\nCombat round completed! Final round: {}", game.round_number());
+}
 
+fn demonstrate_status_effects(game: &mut TurnBasedGame)
+{
   // Demonstrate status effects
   println!("\nApplying status effects...");
-  
+
   let poison = StatusEffect {
   id: "poison".to_string(),
-  name: "Poison".to_string(), 
+  name: "Poison".to_string(),
   description: "Takes 5 damage per turn".to_string(),
   duration: 3,
   magnitude: 5.0,
@@ -188,7 +171,7 @@ fn demonstrate_turn_based_combat()
   let blessing = StatusEffect {
   id: "blessing".to_string(),
   name: "Divine Blessing".to_string(),
-  description: "+2 attack power".to_string(), 
+  description: "+2 attack power".to_string(),
   duration: 5,
   magnitude: 2.0,
   is_beneficial: true,
@@ -205,10 +188,17 @@ fn demonstrate_turn_based_combat()
   if let Some(player) = game.participants_in_order().iter().find(|p| p.entity_id == 1) {
   println!("\nPlayer status effects: {}", player.status_effects.len());
   for effect in &player.status_effects {
-    println!("  • {} ({}): {} turns remaining", 
+    println!("  • {} ({}): {} turns remaining",
       effect.name, if effect.is_beneficial { "Buff" } else { "Debuff" }, effect.duration);
   }
   }
+}
+
+fn demonstrate_turn_based_combat()
+{
+  let mut game = setup_combat_participants();
+  simulate_combat_rounds(&mut game);
+  demonstrate_status_effects(&mut game);
 }
 
 fn demonstrate_game_state_machine()
@@ -233,13 +223,10 @@ fn demonstrate_game_state_machine()
 
   for (event, description) in state_transitions {
   if state_machine.process_event(event) {
-    println!("  {} → {:?} ({})", 
-      format!("{:?}", event), 
-      state_machine.current_state(), 
-      description);
+    println!("  {event:?} → {:?} ({description})",
+      state_machine.current_state());
   } else {
-    println!("  {} → Failed (invalid transition from {:?})", 
-      format!("{:?}", event),
+    println!("  {event:?} → Failed (invalid transition from {:?})",
       state_machine.current_state());
   }
   }
@@ -250,10 +237,10 @@ fn demonstrate_game_state_machine()
   
   println!("\nState data:");
   if let Some(name) = state_machine.get_state_data("player_name") {
-  println!("  Player name: {}", name);
+  println!("  Player name: {name}");
   }
   if let Some(level) = state_machine.get_state_data("level") {
-  println!("  Current level: {}", level);
+  println!("  Current level: {level}");
   }
 
   println!("Final state: {:?}", state_machine.current_state());
@@ -352,21 +339,16 @@ fn demonstrate_resource_management()
 
   // Check for defeated entities
   let defeated = resource_manager.get_defeated_entities();
-  if !defeated.is_empty() {
-  println!("\nDefeated entities: {:?}", defeated);
-  } else {
+  if defeated.is_empty() {
   println!("\nNo entities defeated");
+  } else {
+  println!("\nDefeated entities: {defeated:?}");
   }
 }
 
-fn demonstrate_quest_system()
+fn build_main_quest() -> Quest
 {
-  let mut quest_manager = QuestManager::new();
-
-  println!("Setting up quest system...");
-
-  // Create a main quest
-  let main_quest = Quest {
+  Quest {
   id: "save_village".to_string(),
   name: "Save the Village".to_string(),
   description: "The village is under attack by orcs. Eliminate the threat!".to_string(),
@@ -411,10 +393,12 @@ fn demonstrate_quest_system()
     QuestReward::Items("healing_potion".to_string(), 3),
   ],
   data: HashMap::new(),
-  };
+  }
+}
 
-  // Create a side quest
-  let side_quest = Quest {
+fn build_side_quest() -> Quest
+{
+  Quest {
   id: "gather_herbs".to_string(),
   name: "Herb Gathering".to_string(),
   description: "Collect medicinal herbs for the village healer".to_string(),
@@ -438,10 +422,59 @@ fn demonstrate_quest_system()
     QuestReward::Currency(25),
   ],
   data: HashMap::new(),
-  };
+  }
+}
 
-  quest_manager.add_quest(main_quest);
-  quest_manager.add_quest(side_quest);
+fn simulate_quest_progress(quest_manager: &mut QuestManager)
+{
+  println!("\nSimulating quest progress...");
+
+  // Progress herb collection
+  quest_manager.update_objective("gather_herbs", "collect_herbs", 4);
+  println!("  Collected 4 herbs...");
+
+  quest_manager.update_objective("gather_herbs", "collect_herbs", 6);
+  println!("  Collected 6 more herbs (10/10 complete)");
+
+  // Progress orc elimination
+  quest_manager.update_objective("save_village", "kill_orcs", 3);
+  println!("  Defeated 3 orcs...");
+
+  quest_manager.update_objective("save_village", "kill_orcs", 2);
+  println!("  Defeated 2 more orcs (5/5 complete)");
+
+  // Complete chieftain objective
+  quest_manager.update_objective("save_village", "find_chief", 1);
+  println!("  Defeated orc chieftain!");
+}
+
+fn print_quest_completion(quest_manager: &QuestManager)
+{
+  println!("\nQuest completion status:");
+  println!("  Completed quests: {}", quest_manager.completed_quest_count());
+  for quest in quest_manager.completed_quests() {
+  println!("    ✓ {} - Completed!", quest.name);
+  println!("      Rewards:");
+  for reward in &quest.rewards {
+    match reward {
+      QuestReward::Experience(exp) => println!("        • {exp} Experience"),
+      QuestReward::Currency(gold) => println!("        • {gold} Gold"),
+      QuestReward::Items(item, count) => println!("        • {item} x{count}"),
+      QuestReward::UnlockQuest(quest_id) => println!("        • Unlock Quest: {quest_id}"),
+      QuestReward::SetFlag(flag) => println!("        • Set Flag: {flag}"),
+    }
+  }
+  }
+}
+
+fn demonstrate_quest_system()
+{
+  let mut quest_manager = QuestManager::new();
+
+  println!("Setting up quest system...");
+
+  quest_manager.add_quest(build_main_quest());
+  quest_manager.add_quest(build_side_quest());
 
   // Start both quests
   println!("\nStarting quests...");
@@ -458,75 +491,20 @@ fn demonstrate_quest_system()
   }
   }
 
-  println!("\nSimulating quest progress...");
-
-  // Progress herb collection
-  quest_manager.update_objective("gather_herbs", "collect_herbs", 4);
-  println!("  Collected 4 herbs...");
-  
-  quest_manager.update_objective("gather_herbs", "collect_herbs", 6);
-  println!("  Collected 6 more herbs (10/10 complete)");
-
-  // Progress orc elimination
-  quest_manager.update_objective("save_village", "kill_orcs", 3);
-  println!("  Defeated 3 orcs...");
-
-  quest_manager.update_objective("save_village", "kill_orcs", 2);
-  println!("  Defeated 2 more orcs (5/5 complete)");
-
-  // Complete chieftain objective
-  quest_manager.update_objective("save_village", "find_chief", 1);
-  println!("  Defeated orc chieftain!");
-
-  println!("\nQuest completion status:");
-  println!("  Completed quests: {}", quest_manager.completed_quest_count());
-  for quest in quest_manager.completed_quests() {
-  println!("    ✓ {} - Completed!", quest.name);
-  println!("      Rewards:");
-  for reward in &quest.rewards {
-    match reward {
-      QuestReward::Experience(exp) => println!("        • {} Experience", exp),
-      QuestReward::Currency(gold) => println!("        • {} Gold", gold),
-      QuestReward::Items(item, count) => println!("        • {} x{}", item, count),
-      QuestReward::UnlockQuest(quest_id) => println!("        • Unlock Quest: {}", quest_id),
-      QuestReward::SetFlag(flag) => println!("        • Set Flag: {}", flag),
-    }
-  }
-  }
+  simulate_quest_progress(&mut quest_manager);
+  print_quest_completion(&quest_manager);
 
   // Demonstrate flags
   quest_manager.set_flag("village_saved".to_string(), true);
   quest_manager.set_flag("hero_reputation".to_string(), true);
-  
+
   println!("\nGlobal flags set:");
   println!("  village_saved: {}", quest_manager.get_flag("village_saved"));
   println!("  hero_reputation: {}", quest_manager.get_flag("hero_reputation"));
 }
 
-fn demonstrate_integrated_gameplay()
+fn setup_battle(turn_game: &mut TurnBasedGame, resources: &mut ResourceManager, quest_manager: &mut QuestManager)
 {
-  println!("Setting up integrated tactical RPG session...");
-
-  // Initialize all systems
-  let mut turn_game = TurnBasedGame::new();
-  let mut resources = ResourceManager::new();
-  let mut state_machine = GameStateMachine::new(GameState::Playing);
-  let mut quest_manager = QuestManager::new();
-  let mut event_bus = EventBus::new();
-
-  // Set up event listeners for system integration
-  event_bus.subscribe(|event: &TurnStartedEvent| {
-  println!("🎯 Turn started for entity {} (Round {})", event.entity_id, event.round_number);
-  EventResult::Continue
-  });
-
-  event_bus.subscribe(|event: &ResourceChangedEvent| {
-  if event.resource_type == "health" && event.new_value <= 0.0 {
-    println!("💀 Entity {} has fallen!", event.entity_id);
-  }
-  EventResult::Continue
-  });
-
   // Create a tactical scenario
   println!("\n🗺️ Tactical Battle Setup");
   println!("Party vs Orc Raiders");
@@ -536,7 +514,7 @@ fn demonstrate_integrated_gameplay()
   turn_game.add_participant(2, 95);   // Player Mage
   turn_game.add_participant(3, 75);   // Player Cleric
 
-  // Add enemies  
+  // Add enemies
   turn_game.add_participant(11, 80);  // Orc Warrior 1
   turn_game.add_participant(12, 70);  // Orc Warrior 2
   turn_game.add_participant(13, 90);  // Orc Shaman
@@ -547,7 +525,7 @@ fn demonstrate_integrated_gameplay()
   resources.add_entity(3, 90.0, 80.0);    // Cleric: Medium HP, High MP
 
   resources.add_entity(11, 85.0, 10.0);   // Orc Warrior 1
-  resources.add_entity(12, 85.0, 10.0);   // Orc Warrior 2  
+  resources.add_entity(12, 85.0, 10.0);   // Orc Warrior 2
   resources.add_entity(13, 65.0, 60.0);   // Orc Shaman
 
   // Create quest for this battle
@@ -575,7 +553,10 @@ fn demonstrate_integrated_gameplay()
   };
 
   quest_manager.add_quest(battle_quest);
+}
 
+fn print_battlefield()
+{
   // Create a visual representation
   let mut battle_grid = GridRenderer::new()
   .with_size(12, 8)
@@ -597,9 +578,10 @@ fn demonstrate_integrated_gameplay()
 
   println!("\nBattlefield:");
   println!("{}", battle_grid.render_ascii());
+}
 
-  println!("Combat begins!");
-
+fn simulate_combat_round(turn_game: &mut TurnBasedGame, resources: &mut ResourceManager, event_bus: &mut EventBus)
+{
   // Simulate one round of combat
   let mut actions_this_round = 0;
   let start_round = turn_game.round_number();
@@ -608,7 +590,7 @@ fn demonstrate_integrated_gameplay()
   if let Some(current_entity) = turn_game.current_turn() {
     let entity_name = match current_entity {
       1 => "Fighter",
-      2 => "Mage", 
+      2 => "Mage",
       3 => "Cleric",
       11 => "Orc Warrior 1",
       12 => "Orc Warrior 2",
@@ -626,10 +608,10 @@ fn demonstrate_integrated_gameplay()
     // Simulate actions based on entity type and AI
     match current_entity {
       1 => { // Fighter
-        println!("  {} attacks Orc Warrior 1 with sword!", entity_name);
+        println!("  {entity_name} attacks Orc Warrior 1 with sword!");
         resources.modify_health(11, -25.0);
         turn_game.spend_action_points(2);
-        
+
         event_bus.publish(ResourceChangedEvent {
           entity_id: 11,
           resource_type: "health".to_string(),
@@ -638,31 +620,31 @@ fn demonstrate_integrated_gameplay()
         });
       },
       2 => { // Mage
-        println!("  {} casts fireball at Orc Shaman!", entity_name);
+        println!("  {entity_name} casts fireball at Orc Shaman!");
         resources.modify_health(13, -35.0);
         resources.modify_mana(2, -20.0);
         turn_game.spend_action_points(3);
       },
-      3 => { // Cleric  
-        println!("  {} heals Fighter!", entity_name);
+      3 => { // Cleric
+        println!("  {entity_name} heals Fighter!");
         resources.modify_health(1, 15.0);
         resources.modify_mana(3, -15.0);
         turn_game.spend_action_points(2);
       },
       11 => { // Orc Warrior 1
         if resources.get_resources(11).unwrap().health.current > 0.0 {
-          println!("  {} attacks Fighter with axe!", entity_name);
+          println!("  {entity_name} attacks Fighter with axe!");
           resources.modify_health(1, -20.0);
           turn_game.spend_action_points(2);
         }
       },
       12 => { // Orc Warrior 2
-        println!("  {} charges at Mage!", entity_name);
+        println!("  {entity_name} charges at Mage!");
         resources.modify_health(2, -18.0);
         turn_game.spend_action_points(3);
       },
       13 if resources.get_resources(13).unwrap().health.current > 0.0 => { // Orc Shaman
-        println!("  {} casts dark bolt at Cleric!", entity_name);
+        println!("  {entity_name} casts dark bolt at Cleric!");
         resources.modify_health(3, -15.0);
         resources.modify_mana(13, -10.0);
         turn_game.spend_action_points(2);
@@ -676,20 +658,23 @@ fn demonstrate_integrated_gameplay()
 
   event_bus.process_events();
   }
+}
 
+fn resolve_battle_outcome(resources: &ResourceManager, quest_manager: &mut QuestManager, state_machine: &mut GameStateMachine, event_bus: &mut EventBus)
+{
   println!("\n📊 End of Round Status:");
   for entity_id in [1, 2, 3, 11, 12, 13] {
   if let Some(res) = resources.get_resources(entity_id) {
     let name = match entity_id {
       1 => "Fighter",
       2 => "Mage",
-      3 => "Cleric", 
+      3 => "Cleric",
       11 => "Orc Warrior 1",
       12 => "Orc Warrior 2",
       13 => "Orc Shaman",
       _ => "Unknown"
     };
-    
+
     let status = if res.health.current <= 0.0 { " [DEFEATED]" } else { "" };
     println!("  {}: {:.0}/{:.0} HP, {:.0}/{:.0} MP{}",
       name, res.health.current, res.health.maximum,
@@ -709,14 +694,14 @@ fn demonstrate_integrated_gameplay()
 
   if orcs_defeated > 0 {
   quest_manager.update_objective("orc_encounter", "defeat_orcs", orcs_defeated);
-  println!("\n📜 Quest Progress: {} orcs defeated", orcs_defeated);
+  println!("\n📜 Quest Progress: {orcs_defeated} orcs defeated");
   }
 
   // Check if battle is won
   let party_alive = [1, 2, 3].iter().any(|&id| {
   resources.get_resources(id).unwrap().health.current > 0.0
   });
-  
+
   let enemies_alive = [11, 12, 13].iter().any(|&id| {
   resources.get_resources(id).unwrap().health.current > 0.0
   });
@@ -724,7 +709,7 @@ fn demonstrate_integrated_gameplay()
   if !enemies_alive && party_alive {
   println!("\n🎉 Victory! All orcs defeated!");
   state_machine.process_event(GameStateEvent::VictoryAchieved);
-  
+
   if quest_manager.is_quest_completed("orc_encounter") {
     event_bus.publish(QuestCompletedEvent {
       quest_id: "orc_encounter".to_string(),
@@ -739,7 +724,7 @@ fn demonstrate_integrated_gameplay()
   }
 
   println!("Final game state: {:?}", state_machine.current_state());
-  
+
   event_bus.process_events();
 
   println!("\n🎯 Integration Summary:");
@@ -750,4 +735,37 @@ fn demonstrate_integrated_gameplay()
   println!("• Event system coordinated between systems");
   println!("• State machine tracked overall game flow");
   println!("• Debug visualization showed tactical positions");
+}
+
+fn demonstrate_integrated_gameplay()
+{
+  println!("Setting up integrated tactical RPG session...");
+
+  // Initialize all systems
+  let mut turn_game = TurnBasedGame::new();
+  let mut resources = ResourceManager::new();
+  let mut state_machine = GameStateMachine::new(GameState::Playing);
+  let mut quest_manager = QuestManager::new();
+  let mut event_bus = EventBus::new();
+
+  // Set up event listeners for system integration
+  event_bus.subscribe(|event: &TurnStartedEvent| {
+  println!("🎯 Turn started for entity {} (Round {})", event.entity_id, event.round_number);
+  EventResult::Continue
+  });
+
+  event_bus.subscribe(|event: &ResourceChangedEvent| {
+  if event.resource_type == "health" && event.new_value <= 0.0 {
+    println!("💀 Entity {} has fallen!", event.entity_id);
+  }
+  EventResult::Continue
+  });
+
+  setup_battle(&mut turn_game, &mut resources, &mut quest_manager);
+  print_battlefield();
+
+  println!("Combat begins!");
+  simulate_combat_round(&mut turn_game, &mut resources, &mut event_bus);
+
+  resolve_battle_outcome(&resources, &mut quest_manager, &mut state_machine, &mut event_bus);
 }

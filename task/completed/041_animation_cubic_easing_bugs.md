@@ -53,6 +53,30 @@ Fix 2 confirmed logic bugs found during the `animation` crate audit (2026-08-09)
 `cargo nextest run -p animation --all-features` confirms all tests pass (29/29), including the 3 new
 reproducer tests above.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Does `CubicBezier::new` default `iterations` to `8` (not `0`)? `bezier.rs:70` — `iterations : 8,`.
+- [x] C2 — Do all 24 named curve constructors chain `.with_iterations( 8 )` explicitly? `grep -c "with_iterations( 8 )" bezier.rs` → `24`.
+- [x] C3 — Does `CubicHermite` panic loudly (via `assert_eq!`) on mismatched lengths in both `new()` and `apply()`, instead of silently truncating? `hermite.rs` has 3× `assert_eq!` guards and 2× `# Panics` doc sections.
+- [x] C4 — Do dedicated reproducer tests exist for both bugs? `tests/easing_test.rs` — `test_cubic_mid_curve_accuracy` (line 153), `test_cubic_hermite_new_panics_on_mismatched_tangent_lengths` (line 180), `test_cubic_hermite_apply_panics_on_mismatched_value_lengths` (line 203).
+- [x] C5 — Was the pre-existing `test_sequencer_ease_in` assertion (which had baked in the old buggy `iterations=0` value) corrected to the real fixed-behavior value? `tests/sequencer_test.rs:195` — `assert_f_eq( f64::from( value.value_get() ), 3.00338, 0.001 );`, with a `Fix(TASK-041)` comment (lines 190-194) explaining the old `1.25` value's provenance.
+- [x] C6 — Is each fix source-documented per the project's 3-field fix-comment convention? `grep -c "Fix(TASK-041)"` → `1` in `bezier.rs`, `2` in `hermite.rs`.
+
+### Measurements
+
+- [x] M1 — `animation` crate test count: `cargo nextest run -p animation --all-features` → `29 tests run: 29 passed, 0 skipped` (was: 26 tests pre-fix, before the 3 reproducer tests in C4 were added).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p animation --all-features` → exit 0, 29/29 passed.
+- [x] I2 — Compiler/lints clean: `cargo clippy -p animation --all-targets --all-features -- -D warnings` → exit 0, zero warnings.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the boundary-only-test blind spot recurring: `test_cubic_mid_curve_accuracy` (C4) asserts a **mid**-curve value specifically because `apply`'s `t = 0.0`/`1.0` early-return guards bypass the Newton-Raphson solve loop at both boundaries regardless of `iterations` — a boundary-only regression test would pass even if `iterations` silently reverted to `0`. Re-running `cargo nextest run -p animation --all-features` after any future edit to `bezier.rs`'s solve loop must still show this test passing, not merely present.
+
 ## History
 
 - **[2026-08-09]** `FILED` — Filed from the same 2026-08-09 workspace audit re-verification pass as

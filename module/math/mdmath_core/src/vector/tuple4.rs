@@ -1,7 +1,7 @@
 #[ cfg( debug_assertions ) ]
-use std::mem::{ align_of_val, size_of_val };
+use core::mem::{ align_of_val, size_of_val };
 
-use super::*;
+use super::{Collection, ConstLength, IntoArray, ArrayRef, ArrayMut, VectorIter, VectorIteratorRef, VectorIterMut, VectorIterator};
 
 // = 4
 
@@ -29,9 +29,7 @@ impl< E > ArrayRef< E, 4 > for ( E, E, E, E )
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ E ; 4 ]
   {
-    use std::mem::transmute;
-
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `(E, E, E, E)`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `(E, E, E, E)`
     // into a reference to an array `[E; 4]`. This is safe because:
     // 1. The tuple `(E, E, E, E)` and the array `[E; 4]` have the same memory layout.
     //    - Both contain 4 elements of type `E`.
@@ -39,9 +37,8 @@ impl< E > ArrayRef< E, 4 > for ( E, E, E, E )
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-
     #[ allow( unsafe_code ) ]
-    let result : &[ E; 4 ] = unsafe { transmute( self ) };
+    let result : &[ E; 4 ] = unsafe { &*( ( self as *const ( E, E, E, E ) ).cast::< [ E; 4 ] >() ) };
 
     // Check size and alignment of the whole collection
     debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
@@ -61,8 +58,6 @@ impl< E > ArrayMut< E, 4 > for ( E, E, E, E )
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ E ; 4 ]
   {
-    use std::mem::transmute;
-
     // Store layout information in temporary variables
     #[ cfg( debug_assertions ) ]
     let size_self = size_of_val( self );
@@ -73,7 +68,7 @@ impl< E > ArrayMut< E, 4 > for ( E, E, E, E )
     #[ cfg( debug_assertions ) ]
     let align_component = align_of_val( &self.1 );
 
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `(E, E, E, E)`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `(E, E, E, E)`
     // into a reference to an array `[E; 4]`. This is safe because:
     // 1. The tuple `(E, E, E, E)` and the array `[E; 4]` have the same memory layout.
     //    - Both contain 4 elements of type `E`.
@@ -82,7 +77,7 @@ impl< E > ArrayMut< E, 4 > for ( E, E, E, E )
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
     #[ allow( unsafe_code ) ]
-    let result : &mut [ E; 4 ] = unsafe { transmute( self ) };
+    let result : &mut [ E; 4 ] = unsafe { &mut *( ( self as *mut ( E, E, E, E ) ).cast::< [ E; 4 ] >() ) };
 
     // Perform checks under debug conditions
     #[ cfg( debug_assertions ) ]
@@ -141,9 +136,9 @@ impl< 'tuple_ref, E > Iterator for Tuple4Iter< 'tuple_ref, E >
   }
 }
 
-impl< 'tuple_ref, E > ExactSizeIterator for Tuple4Iter< 'tuple_ref, E > {}
+impl< E > ExactSizeIterator for Tuple4Iter< '_, E > {}
 
-impl< 'tuple_ref, E > DoubleEndedIterator for Tuple4Iter< 'tuple_ref, E >
+impl< E > DoubleEndedIterator for Tuple4Iter< '_, E >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
@@ -209,25 +204,25 @@ impl< 'tuple_ref, E > Iterator for Tuple4IterMut< 'tuple_ref, E >
         // front, or in `next_back`, from the back, but never both — so this can never
         // alias a mutable reference already handed out by a previous call.
         #[ allow( unsafe_code ) ]
-        unsafe { Some( &mut *( &mut self.tuple.0 as *mut E ) ) }
+        unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.0) ) }
       },
       1 =>
       {
         // SAFETY: see the arm above.
         #[ allow( unsafe_code ) ]
-        unsafe { Some( &mut *( &mut self.tuple.1 as *mut E ) ) }
+        unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.1) ) }
       },
       2 =>
       {
         // SAFETY: see the arm above.
         #[ allow( unsafe_code ) ]
-        unsafe { Some( &mut *( &mut self.tuple.2 as *mut E ) ) }
+        unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.2) ) }
       },
       3 =>
       {
         // SAFETY: see the arm above.
         #[ allow( unsafe_code ) ]
-        unsafe { Some( &mut *( &mut self.tuple.3 as *mut E ) ) }
+        unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.3) ) }
       },
       _ => unreachable!(),
     }
@@ -240,9 +235,9 @@ impl< 'tuple_ref, E > Iterator for Tuple4IterMut< 'tuple_ref, E >
   }
 }
 
-impl< 'tuple_ref, E > ExactSizeIterator for Tuple4IterMut< 'tuple_ref, E > {}
+impl< E > ExactSizeIterator for Tuple4IterMut< '_, E > {}
 
-impl< 'tuple_ref, E > DoubleEndedIterator for Tuple4IterMut< 'tuple_ref, E >
+impl< E > DoubleEndedIterator for Tuple4IterMut< '_, E >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
@@ -260,25 +255,25 @@ impl< 'tuple_ref, E > DoubleEndedIterator for Tuple4IterMut< 'tuple_ref, E >
         // SAFETY: see `next` — `front`/`back` never cross, so each field is reborrowed
         // at most once across the whole iteration.
         #[ allow( unsafe_code ) ]
-        unsafe { Some( &mut *( &mut self.tuple.0 as *mut E ) ) }
+        unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.0) ) }
       },
       1 =>
       {
         // SAFETY: see the arm above.
         #[ allow( unsafe_code ) ]
-        unsafe { Some( &mut *( &mut self.tuple.1 as *mut E ) ) }
+        unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.1) ) }
       },
       2 =>
       {
         // SAFETY: see the arm above.
         #[ allow( unsafe_code ) ]
-        unsafe { Some( &mut *( &mut self.tuple.2 as *mut E ) ) }
+        unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.2) ) }
       },
       3 =>
       {
         // SAFETY: see the arm above.
         #[ allow( unsafe_code ) ]
-        unsafe { Some( &mut *( &mut self.tuple.3 as *mut E ) ) }
+        unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.3) ) }
       },
       _ => unreachable!(),
     }
@@ -287,6 +282,7 @@ impl< 'tuple_ref, E > DoubleEndedIterator for Tuple4IterMut< 'tuple_ref, E >
 
 impl< E: Clone > VectorIter< E, 4 > for ( E, E, E, E )
 {
+  #[ inline ]
   fn vector_iter< 'tuple_ref >( &'tuple_ref self ) -> impl VectorIteratorRef< 'tuple_ref, &'tuple_ref E >
   where
     E : 'tuple_ref,
@@ -301,6 +297,7 @@ impl< E: Clone > VectorIter< E, 4 > for ( E, E, E, E )
 
 impl< E: Clone > VectorIterMut< E, 4 > for ( E, E, E, E )
 {
+  #[ inline ]
   fn vector_iter_mut< 'tuple_ref >( &'tuple_ref mut self ) -> impl VectorIterator< 'tuple_ref, &'tuple_ref mut E >
   where
     E : 'tuple_ref,

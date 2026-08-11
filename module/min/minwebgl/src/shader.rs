@@ -1,4 +1,3 @@
-#![ allow( missing_docs ) ]
 
 /// Internal namespace.
 mod private

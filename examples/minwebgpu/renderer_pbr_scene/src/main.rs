@@ -9,9 +9,6 @@
 //!
 //! This example only works on WebAssembly ( wasm32 ) targets.
 
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-
 #[ cfg( target_arch = "wasm32" ) ]
 use minwebgpu as gl;
 
@@ -102,7 +99,7 @@ mod app
       for i in 0 .. 5
       {
         let mesh = sphere_mesh( 0.6, 32, 16 );
-        let geometry = Geometry::new( &context.device, mesh.positions, mesh.normals, mesh.uvs, mesh.colors, Some( mesh.indices ) )?;
+        let geometry = Geometry::new( &context.device, &mesh.positions, &mesh.normals, &mesh.uvs, &mesh.colors, Some( mesh.indices ) )?;
         let material = PbrMaterial
         {
           base_color_factor : base_color,
@@ -118,7 +115,7 @@ mod app
     }
 
     let mesh = plane_mesh( 9.0 );
-    let geometry = Geometry::new( &context.device, mesh.positions, mesh.normals, mesh.uvs, mesh.colors, Some( mesh.indices ) )?;
+    let geometry = Geometry::new( &context.device, &mesh.positions, &mesh.normals, &mesh.uvs, &mesh.colors, Some( mesh.indices ) )?;
     let material = PbrMaterial
     {
       base_color_factor : [ 0.55, 0.57, 0.6, 1.0 ],

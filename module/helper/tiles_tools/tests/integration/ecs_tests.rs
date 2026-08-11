@@ -17,8 +17,6 @@
 //! | EC5.1   | AI       | System | Decision  | Made     |
 //! | EC6.1   | Query    | World  | Multiple  | Found    |
 
-#![allow(clippy::float_cmp)] // Tests assert exact stored/configured values; no arithmetic precedes the comparisons.
-
 use tiles_tools::ecs::{
   World, Position, Health, Movable, Stats, Team, AI, PlayerControlled,
   EntityBuilder, Animation, Sprite, Size, GameEvent, MovementSystem, MovementResult

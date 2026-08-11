@@ -1,29 +1,5 @@
 //! Debug system demonstration showing visual debugging and profiling tools.
 
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::items_after_statements ) ]
-#![ allow( clippy::unnecessary_cast ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::format_in_format_args ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::duplicated_attributes ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::trivially_copy_pass_by_ref ) ]
-#![ allow( clippy::missing_inline_in_public_items ) ]
-#![ allow( clippy::useless_vec ) ]
-#![ allow( clippy::unnested_or_patterns ) ]
-#![ allow( clippy::else_if_without_else ) ]
-#![ allow( clippy::unreadable_literal ) ]
-#![ allow( clippy::redundant_else ) ]
-#![ allow( clippy::cast_lossless ) ]
 //!
 //! This example demonstrates the comprehensive debug system including:
 //! - Grid visualization with multiple styles and coordinate systems
@@ -33,7 +9,7 @@
 //! - ASCII art rendering and SVG export capabilities
 //! - Memory usage monitoring and system performance metrics
 
-use tiles_tools::debug::*;
+use tiles_tools::debug::{GridRenderer, GridStyle, DebugColor, HighlightStyle, PathfindingDebugger, ECSInspector, EntityDebugInfo, PerformanceProfiler};
 use tiles_tools::debug::utils;
 use std::time::{ Duration, Instant };
 use std::collections::HashMap;
@@ -287,22 +263,22 @@ fn demonstrate_performance_profiler()
       // Regular minor spike
       Duration::from_millis(2)
     } else {
-      Duration::from_micros(((frame * 37) % 1000) as u64) // Random variance
+      Duration::from_micros(u64::from((frame * 37) % 1000)) // Random variance
     };
 
     let frame_time = base_frame_time + variance;
     profiler.record_frame_time(frame_time);
 
     // Record system times for this frame
-    profiler.record_system_time("MovementSystem".to_string(), Duration::from_micros(1000 + (frame % 500) as u64));
-    profiler.record_system_time("RenderSystem".to_string(), Duration::from_micros(8000 + (frame % 2000) as u64));
-    profiler.record_system_time("AISystem".to_string(), Duration::from_micros(2000 + (frame % 800) as u64));
-    profiler.record_system_time("PhysicsSystem".to_string(), Duration::from_micros(3000 + (frame % 1200) as u64));
+    profiler.record_system_time("MovementSystem".to_string(), Duration::from_micros(1000 + u64::from(frame % 500)));
+    profiler.record_system_time("RenderSystem".to_string(), Duration::from_micros(8000 + u64::from(frame % 2000)));
+    profiler.record_system_time("AISystem".to_string(), Duration::from_micros(2000 + u64::from(frame % 800)));
+    profiler.record_system_time("PhysicsSystem".to_string(), Duration::from_micros(3000 + u64::from(frame % 1200)));
 
     // Record memory samples every 10 frames
     if frame % 10 == 0 {
       let base_memory = 50 * 1024 * 1024; // 50MB base
-      let memory_growth = frame as u64 * 1024 * 10; // 10KB per frame
+      let memory_growth = u64::from(frame) * 1024 * 10; // 10KB per frame
       let entity_count = 100 + (frame / 10) * 5; // Growing entity count
       
       profiler.record_memory_sample(base_memory + memory_growth, entity_count);

@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ BindingType, web_sys, Into, WebGPUError };
 
   /// Represents a single entry in a WebGPU bind group layout.
   #[ derive( Clone ) ]
@@ -28,9 +28,20 @@ mod private
     ty : BindingType
   }
 
+  impl Default for BindGroupLayoutEntry
+  {
+    #[ inline ]
+    fn default() -> Self
+    {
+      Self::new()
+    }
+  }
+
   impl BindGroupLayoutEntry
   {
     /// Creates a new `BindGroupLayoutEntry` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       let binding = 0;
@@ -46,12 +57,16 @@ mod private
     }
 
     /// Sets the `visibility` to `All`
+    #[ inline ]
+    #[ must_use ]
     pub fn all( self ) -> Self
     {
       self.fragment().compute().vertex()
     }
 
     /// Sets the visibility of the entry to VERTEX
+    #[ inline ]
+    #[ must_use ]
     pub fn vertex( mut self ) -> Self
     {
       self.visibility |= web_sys::gpu_shader_stage::VERTEX;
@@ -59,6 +74,8 @@ mod private
     }
 
     /// Sets the visibility of the entry to FRAGMENT
+    #[ inline ]
+    #[ must_use ]
     pub fn fragment( mut self ) -> Self
     {
       self.visibility |= web_sys::gpu_shader_stage::FRAGMENT;
@@ -66,6 +83,8 @@ mod private
     }
 
     /// Sets the visibility of the entry to COMPUTE
+    #[ inline ]
+    #[ must_use ]
     pub fn compute( mut self ) -> Self
     {
       self.visibility |= web_sys::gpu_shader_stage::COMPUTE;
@@ -73,6 +92,8 @@ mod private
     }
     
     /// Sets the binding value of the entry
+    #[ inline ]
+    #[ must_use ]
     pub fn binding( mut self, binding : u32 ) -> Self
     {
       self.binding = binding;
@@ -80,6 +101,8 @@ mod private
     }
     
     /// Sets the type of the entry
+    #[ inline ]
+    #[ must_use ]
     pub fn ty( mut self, ty : impl Into< BindingType > ) -> Self
     {
       self.ty = ty.into();
@@ -103,18 +126,19 @@ mod private
   {
     type Error = WebGPUError;
 
+    #[ inline ]
     fn try_from( value: BindGroupLayoutEntry ) -> Result< Self, Self::Error >
     {
       let layout = web_sys::GpuBindGroupLayoutEntry::new( value.binding, value.visibility );
 
       match &value.ty
       {
-        BindingType::Buffer( buffer ) => layout.set_buffer( &buffer ),
-        BindingType::Sampler( sampler ) => layout.set_sampler( &sampler ),
-        BindingType::Texture( texture ) => layout.set_texture( &texture ),
-        BindingType::StorageTexture( texture ) => layout.set_storage_texture( &texture ),
-        BindingType::ExternalTexture( texture ) => layout.set_external_texture( &texture ),
-        BindingType::Other => return Err( error::BindGroupError::TypeNotSet( value.binding ).into() )
+        BindingType::Buffer( buffer ) => layout.set_buffer( buffer ),
+        BindingType::Sampler( sampler ) => layout.set_sampler( sampler ),
+        BindingType::Texture( texture ) => layout.set_texture( texture ),
+        BindingType::StorageTexture( texture ) => layout.set_storage_texture( texture ),
+        BindingType::ExternalTexture( texture ) => layout.set_external_texture( texture ),
+        BindingType::Other => return Err( crate::error::BindGroupError::TypeNotSet( value.binding ).into() )
       }
 
       Ok( layout )

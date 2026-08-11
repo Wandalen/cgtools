@@ -40,22 +40,46 @@ in a symmetric way — neither claim was simply "false" or simply "legitimate as
   `mdmath_core::vector::{min, max}` genuinely are bound to `NdFloat` (float-only) despite being pure
   ordering comparisons with no float-specific requirement, and `ndarray_cg`'s commutative
   scalar×vector `Mul` is only implemented for `f32`/`f64`, not `i32`/`i64`/`u32`/`u64`. Filed as
-  [044](../verified/044_mdmath_core_min_max_integer_bound.md) (`mdmath_core`) and
-  [048](../verified/048_ndarray_cg_integer_min_max_and_scalar_mul.md) (`ndarray_cg`, `blocked_by: 044`),
+  [044](../completed/044_mdmath_core_min_max_integer_bound.md) (`mdmath_core`) and
+  [048](../completed/048_ndarray_cg_integer_min_max_and_scalar_mul.md) (`ndarray_cg`, `blocked_by: 044`),
   both 🎯 Verified. Also surfaced, as an unrelated byproduct of the same read-through:
-  [BUG-043](../bug/verified/043_vector_w_wrong_index.md) (`Vector<E,4>::w()` returns `z`'s value).
+  [BUG-043](../bug/completed/043_vector_w_wrong_index.md) (`Vector<E,4>::w()` returns `z`'s value).
 - **GLTF loader claim:** not simply legitimate as this task originally assumed. Per-node world
   matrices and per-node own-mesh bounding boxes are already eagerly computed and already
   automatically invoked at the end of `load()` (`gltf.rs:1102`'s `scene.update_world_matrix()` call
   cascades through the whole node tree) — but the *scene-level hierarchical* bounding box is never
   cached or invoked at load time (`Scene.bounding_box` is dead state), and zero tests anywhere in the
   crate assert on any bounding-box value. Filed as
-  [047](../verified/047_renderer_scene_bounding_box_cache_and_tests.md) (`renderer`), 🎯 Verified. Also
+  [047](../completed/047_renderer_scene_bounding_box_cache_and_tests.md) (`renderer`), 🎯 Verified. Also
   surfaced, as an unrelated byproduct of the same read-through:
-  [BUG-046](../bug/verified/046_skeleton_test_compile_errors.md) (`skeleton_tests.rs` fails to compile).
+  [BUG-046](../bug/completed/046_skeleton_test_compile_errors.md) (`skeleton_tests.rs` fails to compile).
 
 `todo.md` has been deleted — both claims are now fully and more precisely accounted for by the four
 task/bug files above, which supersede its content entirely.
+
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `todo.md` absent from the repository root (deleted, not merely emptied)? `find /home/user1/pro/lib/yrd_gamedev/cgtools -maxdepth 1 -name todo.md` → no match.
+- [x] C2 — Does the relocated i32/u32 `mdmath_core` task file exist at its claimed path? `task/completed/044_mdmath_core_min_max_integer_bound.md` present.
+- [x] C3 — Does the relocated i32/u32 `ndarray_cg` task file exist at its claimed path? `task/completed/048_ndarray_cg_integer_min_max_and_scalar_mul.md` present.
+- [x] C4 — Does the relocated GLTF scene-bounding-box `renderer` task file exist at its claimed path? `task/completed/047_renderer_scene_bounding_box_cache_and_tests.md` present.
+- [x] C5 — Does the byproduct `BUG-043` (Vector w() wrong index) file exist at its claimed path? `task/bug/completed/043_vector_w_wrong_index.md` present.
+- [x] C6 — Does the byproduct `BUG-046` (skeleton_tests compile errors) file exist at its claimed path? `task/bug/completed/046_skeleton_test_compile_errors.md` present.
+
+### Measurements
+
+- [x] M1 — count of links in this file's own Outcome prose pointing at a superseded state directory (task- or bug-scoped) instead of the files' current location: `grep -c -E '\.\./(bug/)?verified/' task/completed/033_root_todo_cleanup.md` → `0` (was: `5` — links for 044/047/048 plus BUG-043/BUG-046 all pointed at the directory those files occupied before their later relocation).
+
+### Invariants
+
+- [x] I1 — Doc-only task (no source/test changes of its own): repository-wide test suite invariant is inherited from the 4 task/bug files this task spawned (044, 047, 048, BUG-043, BUG-046), each independently verified at their own completion; not re-run here per the non-code-task Test Matrix exemption.
+- [x] I2 — All 4 outbound links in this file's Outcome section resolve to existing files: `044`, `047`, `048`, `BUG-043`, `BUG-046` — confirmed present at their corrected `completed/`/`bug/completed/` paths (see C2–C6).
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the stale-link shortcut recurring: re-running M1's grep after any future task/bug relocation must still return `0`; a nonzero result means an Outcome link was left pointing at a superseded directory instead of being updated alongside the move.
 
 ## History
 

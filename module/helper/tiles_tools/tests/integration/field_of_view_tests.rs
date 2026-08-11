@@ -14,9 +14,6 @@
 //! | FOV3.1  | Multi     | Line of Sight | Boolean Result |
 //! | FOV4.1  | Lighting  | Multi-Source  | Combined Light |
 
-
-#![allow(clippy::float_cmp)] // Tests assert exact stored/configured values; no arithmetic precedes the comparisons.
-
 use tiles_tools::field_of_view::{FieldOfView, FOVAlgorithm, VisibilityState, LightSource, LightingCalculator};
 use tiles_tools::coordinates::{
   square::{Coordinate as SquareCoord, EightConnected},

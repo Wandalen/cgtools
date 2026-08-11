@@ -22,36 +22,45 @@ mod private
   impl Metadata
   {
     /// Creates new `Metadata` instance
+    #[ must_use ]
+    #[ inline ]
     pub fn new() -> Self
     {
       Self { name : None, text : HashMap::new(), graphics : HashMap::new() }
     }
 
     /// Returns design name
+    #[ must_use ]
+    #[ inline ]
     pub fn get_name( &self ) -> Option< &str >
     {
       self.name.as_deref()
     }
 
     /// Sets design name
+    #[ inline ]
     pub fn set_name( &mut self, name : Option< String > )
     {
       self.name = name;
     }
 
     /// Returns text data stored by `key`
+    #[ must_use ]
+    #[ inline ]
     pub fn get_text( &self, key : &str ) -> Option< &str >
     {
-      self.text.get( key ).map( | v | v.as_str() )
+      self.text.get( key ).map( String::as_str )
     }
 
     /// Inserts text data by `key`
+    #[ inline ]
     pub fn insert_text( &mut self, key : &str, value : String )
     {
       _ = self.text.insert( key.into(), value );
     }
 
     /// Inserts graphics data by `key`
+    #[ inline ]
     pub fn insert_graphics( &mut self, key : &str, graphics : Graphics )
     {
       _ = self.graphics.insert( key.into(), graphics );
@@ -60,6 +69,7 @@ mod private
 
   impl Default for Metadata
   {
+    #[ inline ]
     fn default() -> Self
     {
       Self::new()

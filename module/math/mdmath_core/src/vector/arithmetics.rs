@@ -130,6 +130,9 @@ mod private
   }
 
   /// Projects vector `a` onto vector `b`.
+  ///
+  /// # Panics
+  /// Panics if `r` or `b`'s iterator yields fewer than `SIZE` elements.
   #[ inline ]
   pub fn project_on< E, R, B, const SIZE : usize >( r : &mut R, b : &B )
   where
@@ -189,6 +192,9 @@ mod private
   /// For integer scalars the per-component multiplications and subtractions are
   /// not overflow-checked: they panic in debug / wrap in release once any
   /// intermediate value leaves `E`'s range.
+  ///
+  /// # Panics
+  /// Panics if `r` or `b`'s iterator yields fewer than 3 elements.
   #[ inline ]
   pub fn cross_mut< E, R, B >( r : &mut R, b : &B )
   where

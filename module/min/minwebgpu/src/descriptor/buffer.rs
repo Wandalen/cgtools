@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ web_sys, WebGPUError, buffer, Into };
 
   /// Describes the configuration for creating a WebGPU buffer.
   pub struct BufferDescriptor< 'a >
@@ -25,6 +25,8 @@ mod private
   impl< 'a > BufferDescriptor< 'a >
   {
     /// Creates a new `BufferDescriptor` with a specified usage.
+    #[ inline ]
+    #[ must_use ]
     pub fn new( usage : u32 ) -> Self
     {
       let label = None;
@@ -34,27 +36,41 @@ mod private
       BufferDescriptor
       {
         usage,
-        label,
         size,
-        mapped_at_creation
+        mapped_at_creation,
+        label
       }
     }
 
     /// Set size from the provided type
+    #[ inline ]
+    #[ must_use ]
     pub fn size< T >( mut self ) -> Self
     {
-      self.size = std::mem::size_of::< T >() as f64;
+      // `size_of::<T>()` reflects a single Rust type's compile-time byte size, which will
+      // never approach f64's 2^52 exact-integer limit — the precision loss is unreachable.
+      #[ allow( clippy::cast_precision_loss ) ]
+      let size = std::mem::size_of::< T >() as f64;
+      self.size = size;
       self
     }
 
     /// Set size from the provided variable, i.e. use std::mem::size_of_val
+    #[ inline ]
+    #[ must_use ]
     pub fn size_from_var< T : ?Sized >( mut self, var : &T ) -> Self
     {
-      self.size = std::mem::size_of_val( var ) as f64;
+      // `size_of_val` reflects a single in-memory value's byte size, which will never
+      // approach f64's 2^52 exact-integer limit — the precision loss is unreachable.
+      #[ allow( clippy::cast_precision_loss ) ]
+      let size = std::mem::size_of_val( var ) as f64;
+      self.size = size;
       self
     }
 
     /// Set size from the provided value
+    #[ inline ]
+    #[ must_use ]
     pub fn size_from_value( mut self, val : f64 ) -> Self
     {
       self.size = val;
@@ -62,6 +78,8 @@ mod private
     }
 
     /// Sets an optional label for the buffer.
+    #[ inline ]
+    #[ must_use ]
     pub fn label( mut self, label : &'a str ) -> Self
     {
       self.label = Some( label );
@@ -69,6 +87,8 @@ mod private
     }
 
     /// Sets the `mapped_at_creation` property to `true`.
+    #[ inline ]
+    #[ must_use ]
     pub fn mapped( mut self ) -> Self
     {
       self.mapped_at_creation = Some( true );
@@ -76,6 +96,11 @@ mod private
     }
 
     /// Creates a `web_sys::GpuBuffer` from this descriptor.
+    ///
+    /// # Errors
+    /// Returns `error::DeviceError::FailedToCreateBuffer` if the underlying
+    /// `GPUDevice.createBuffer` call throws (see [`buffer::create`]).
+    #[ inline ]
     pub fn create( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuBuffer, WebGPUError >
     {
       buffer::create( device, &self.into() )
@@ -84,6 +109,7 @@ mod private
 
   impl From< BufferDescriptor< '_ > > for web_sys::GpuBufferDescriptor 
   {
+    #[ inline ]
     fn from( value: BufferDescriptor< '_ > ) -> Self 
     {
       let desc = web_sys::GpuBufferDescriptor::new_with_f64( value.size, value.usage );

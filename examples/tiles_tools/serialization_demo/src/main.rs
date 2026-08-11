@@ -1,30 +1,5 @@
 //! Serialization system demonstration showing save/load functionality.
 
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::items_after_statements ) ]
-#![ allow( clippy::unnecessary_cast ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::format_in_format_args ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::duplicated_attributes ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::trivially_copy_pass_by_ref ) ]
-#![ allow( clippy::missing_inline_in_public_items ) ]
-#![ allow( clippy::useless_vec ) ]
-#![ allow( clippy::unnested_or_patterns ) ]
-#![ allow( clippy::else_if_without_else ) ]
-#![ allow( clippy::unreadable_literal ) ]
-#![ allow( clippy::redundant_else ) ]
-#![ allow( clippy::field_reassign_with_default ) ]
-#![ allow( clippy::min_ident_chars ) ]
 //!
 //! This example demonstrates the comprehensive serialization system including:
 //! - Game state serialization and deserialization
@@ -34,33 +9,30 @@
 //! - Version compatibility checking
 //! - Compression support
 
-use tiles_tools::serialization::*;
+use tiles_tools::serialization::{GameStateSerializer, Achievement, SerializationFormat, SaveManager, SaveVersion, ConfigManager, GameConfig, PlayerProgress, SerializableGameState};
 
-fn main()
+fn build_basic_game_state() -> SerializableGameState
 {
-  println!("💾 Serialization System Demonstration");
-  println!("=====================================");
-
   // === BASIC SERIALIZATION ===
   println!("\n📄 Basic Game State Serialization");
   println!("----------------------------------");
 
   // Create a basic game state
   let mut game_state = GameStateSerializer::create_basic_game_state("My First Save".to_string());
-  
+
   // Add some custom data
   game_state.progress.level = 5;
   game_state.progress.experience = 2500;
   game_state.progress.playtime_seconds = 3600; // 1 hour
   game_state.progress.levels_completed.push("tutorial".to_string());
   game_state.progress.levels_completed.push("forest_1".to_string());
-  
+
   // Add an achievement
   game_state.progress.achievements.push(Achievement {
   id: "first_level".to_string(),
   name: "First Steps".to_string(),
   description: "Complete your first level".to_string(),
-  unlocked_at: 1234567890,
+  unlocked_at: 1_234_567_890,
   points: 50,
   });
 
@@ -79,12 +51,17 @@ fn main()
   println!("Created game state:");
   println!("  Player Level: {}", game_state.progress.level);
   println!("  Experience: {}", game_state.progress.experience);
-  println!("  Playtime: {}h {}m", 
-  game_state.progress.playtime_seconds / 3600, 
+  println!("  Playtime: {}h {}m",
+  game_state.progress.playtime_seconds / 3600,
   (game_state.progress.playtime_seconds % 3600) / 60);
   println!("  Achievements: {}", game_state.progress.achievements.len());
   println!("  Levels Completed: {}", game_state.progress.levels_completed.len());
 
+  game_state
+}
+
+fn demonstrate_serialization_formats(game_state: &SerializableGameState)
+{
   // === MULTIPLE FORMATS DEMONSTRATION ===
   println!("\n🔄 Multiple Serialization Formats");
   println!("----------------------------------");
@@ -93,7 +70,7 @@ fn main()
   let json_serializer = GameStateSerializer::new()
   .with_format(SerializationFormat::Json);
 
-  let json_data = json_serializer.serialize_game_state(&game_state)
+  let json_data = json_serializer.serialize_game_state(game_state)
   .expect("Failed to serialize to JSON");
   println!("JSON serialization: {} bytes", json_data.len());
 
@@ -101,7 +78,7 @@ fn main()
   let binary_serializer = GameStateSerializer::new()
   .with_format(SerializationFormat::Binary);
 
-  let binary_data = binary_serializer.serialize_game_state(&game_state)
+  let binary_data = binary_serializer.serialize_game_state(game_state)
   .expect("Failed to serialize to binary");
   println!("Binary serialization: {} bytes", binary_data.len());
 
@@ -109,7 +86,7 @@ fn main()
   let ron_serializer = GameStateSerializer::new()
   .with_format(SerializationFormat::Ron);
 
-  let ron_data = ron_serializer.serialize_game_state(&game_state)
+  let ron_data = ron_serializer.serialize_game_state(game_state)
   .expect("Failed to serialize to RON");
   println!("RON serialization: {} bytes", ron_data.len());
 
@@ -125,7 +102,10 @@ fn main()
   println!("  JSON player level: {}", json_restored.progress.level);
   println!("  Binary player level: {}", binary_restored.progress.level);
   println!("  RON player level: {}", ron_restored.progress.level);
+}
 
+fn demonstrate_compression(game_state: &SerializableGameState)
+{
   // === COMPRESSION DEMONSTRATION ===
   println!("\n🗜️ Compression");
   println!("--------------");
@@ -135,40 +115,43 @@ fn main()
   let compressed_serializer = GameStateSerializer::new()
   .with_compression(true);
 
-  let uncompressed = uncompressed_serializer.serialize_game_state(&game_state)
+  let uncompressed = uncompressed_serializer.serialize_game_state(game_state)
   .expect("Failed to serialize uncompressed");
-  let compressed = compressed_serializer.serialize_game_state(&game_state)
+  let compressed = compressed_serializer.serialize_game_state(game_state)
   .expect("Failed to serialize compressed");
 
   println!("Uncompressed size: {} bytes", uncompressed.len());
   println!("Compressed size: {} bytes", compressed.len());
   let ratio = if compressed.len() < uncompressed.len() {
-  ((uncompressed.len() - compressed.len()) as f64 / uncompressed.len() as f64) * 100.0
+  let saved = u32::try_from(uncompressed.len() - compressed.len()).unwrap_or(u32::MAX);
+  let total = u32::try_from(uncompressed.len()).unwrap_or(u32::MAX);
+  f64::from(saved) / f64::from(total) * 100.0
   } else {
   // No compression achieved (mock compression adds overhead)
-  -((compressed.len() - uncompressed.len()) as f64 / uncompressed.len() as f64) * 100.0
+  let overhead = u32::try_from(compressed.len() - uncompressed.len()).unwrap_or(u32::MAX);
+  let total = u32::try_from(uncompressed.len()).unwrap_or(u32::MAX);
+  -(f64::from(overhead) / f64::from(total) * 100.0)
   };
-  println!("Compression ratio: {:.1}%", ratio);
+  println!("Compression ratio: {ratio:.1}%");
 
   // Verify compressed data can be decompressed
   let decompressed = compressed_serializer.deserialize_game_state(&compressed)
   .expect("Failed to decompress data");
   println!("✅ Compression/decompression successful");
   println!("  Restored player level: {}", decompressed.progress.level);
+}
 
+fn demonstrate_save_manager(game_state: &SerializableGameState, temp_dir: &std::path::Path) -> SaveManager
+{
   // === SAVE MANAGER DEMONSTRATION ===
   println!("\n💾 Save Manager");
   println!("---------------");
 
-  // Create a temporary directory for saves (in real usage, this would be a persistent directory)
-  let temp_dir = std::env::temp_dir().join("tiles_tools_demo_saves");
-  std::fs::create_dir_all(&temp_dir).expect("Failed to create saves directory");
-
-  let save_manager = SaveManager::new(&temp_dir)
+  let save_manager = SaveManager::new(temp_dir)
   .with_serializer(GameStateSerializer::new().with_compression(true));
 
   // Save the game state
-  save_manager.save_game_state("demo_save", &game_state)
+  save_manager.save_game_state("demo_save", game_state)
   .expect("Failed to save game state");
   println!("✅ Game saved as 'demo_save'");
 
@@ -177,7 +160,7 @@ fn main()
   quick_save.metadata.description = "Quick Save - Before Boss Fight".to_string();
   quick_save.progress.level = 6;
   quick_save.progress.experience = 3000;
-  
+
   save_manager.save_game_state("quick_save", &quick_save)
   .expect("Failed to save quick save");
 
@@ -195,17 +178,17 @@ fn main()
   let saves = save_manager.list_saves()
   .expect("Failed to list saves");
   for save_name in &saves {
-  println!("  - {}", save_name);
+  println!("  - {save_name}");
   }
 
   // Get detailed save information
   println!("\n📊 Save Information:");
   let saves_info = save_manager.get_saves_info()
   .expect("Failed to get saves info");
-  
+
   for (name, metadata) in &saves_info {
   let _created_time = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(metadata.created_at);
-  println!("  Save: {}", name);
+  println!("  Save: {name}");
   println!("    Description: {}", metadata.description);
   println!("    Size: {} bytes", metadata.size_bytes);
   println!("    Version: {}.{}.{}", metadata.version.major, metadata.version.minor, metadata.version.patch);
@@ -221,13 +204,18 @@ fn main()
   println!("🔄 Loading save 'demo_save'...");
   let loaded_state = save_manager.load_game_state("demo_save")
   .expect("Failed to load save");
-  
+
   println!("✅ Save loaded successfully:");
   println!("  Player Level: {}", loaded_state.progress.level);
   println!("  Experience: {}", loaded_state.progress.experience);
   println!("  Description: {}", loaded_state.metadata.description);
   println!("  Achievements: {}", loaded_state.progress.achievements.len());
 
+  save_manager
+}
+
+fn demonstrate_version_compatibility()
+{
   // === VERSION COMPATIBILITY ===
   println!("\n🔄 Version Compatibility");
   println!("------------------------");
@@ -241,7 +229,10 @@ fn main()
   println!("Older version compatibility: {}", current_version.is_compatible_with(&older_version));
   println!("Newer version compatibility: {}", older_version.is_compatible_with(&newer_version));
   println!("Incompatible version compatibility: {}", current_version.is_compatible_with(&incompatible_version));
+}
 
+fn demonstrate_configuration(temp_dir: &std::path::Path)
+{
   // === CONFIGURATION MANAGEMENT ===
   println!("\n⚙️ Configuration Management");
   println!("---------------------------");
@@ -257,7 +248,7 @@ fn main()
   custom_config.graphics.quality_level = 3;
   custom_config.audio.master_volume = 0.8;
   custom_config.gameplay.auto_save_interval = 600; // 10 minutes
-  
+
   // Add custom keybindings
   custom_config.controls.key_bindings.insert("sprint".to_string(), "Shift".to_string());
   custom_config.controls.key_bindings.insert("inventory".to_string(), "Tab".to_string());
@@ -276,18 +267,21 @@ fn main()
   println!("  Master Volume: {}", loaded_config.audio.master_volume);
   println!("  Auto-save Interval: {}s", loaded_config.gameplay.auto_save_interval);
   println!("  Key bindings: {}", loaded_config.controls.key_bindings.len());
+}
 
+fn demonstrate_player_progress()
+{
   // === PLAYER PROGRESS TRACKING ===
   println!("\n👤 Player Progress Tracking");
   println!("---------------------------");
 
   let mut progress = PlayerProgress::default();
-  
+
   // Simulate some gameplay progress
   progress.level = 8;
   progress.experience = 5500;
   progress.playtime_seconds = 7200; // 2 hours
-  
+
   // Add completed levels
   progress.levels_completed.extend([
   "tutorial".to_string(),
@@ -302,14 +296,14 @@ fn main()
     id: "level_5".to_string(),
     name: "Experienced".to_string(),
     description: "Reach level 5".to_string(),
-    unlocked_at: 1234567890,
+    unlocked_at: 1_234_567_890,
     points: 100,
   },
   Achievement {
     id: "cave_explorer".to_string(),
     name: "Cave Explorer".to_string(),
     description: "Complete the cave levels".to_string(),
-    unlocked_at: 1234568000,
+    unlocked_at: 1_234_568_000,
     points: 150,
   },
   ]);
@@ -325,13 +319,13 @@ fn main()
   // Serialize progress
   let _progress_json = serde_json::to_string_pretty(&progress)
   .expect("Failed to serialize progress");
-  
+
   println!("Player Progress Summary:");
   println!("  Level: {}", progress.level);
   println!("  Experience: {}", progress.experience);
   println!("  Playtime: {}h {}m", progress.playtime_seconds / 3600, (progress.playtime_seconds % 3600) / 60);
   println!("  Levels Completed: {}", progress.levels_completed.len());
-  println!("  Achievements: {} (total {} points)", 
+  println!("  Achievements: {} (total {} points)",
   progress.achievements.len(),
   progress.achievements.iter().map(|a| a.points).sum::<u32>());
   println!("  Statistics:");
@@ -340,7 +334,10 @@ fn main()
   println!("    Items Collected: {}", progress.statistics.items_collected);
   println!("    Spells Cast: {}", progress.statistics.spells_cast);
   println!("    Deaths: {}", progress.statistics.deaths);
+}
 
+fn demonstrate_cleanup(save_manager: &SaveManager, temp_dir: &std::path::Path)
+{
   // === CLEANUP DEMONSTRATION ===
   println!("\n🧹 Cleanup");
   println!("----------");
@@ -352,22 +349,25 @@ fn main()
 
   let remaining_saves = save_manager.list_saves()
   .expect("Failed to list remaining saves");
-  println!("Remaining saves: {:?}", remaining_saves);
+  println!("Remaining saves: {remaining_saves:?}");
 
   // Clean up temporary directory
-  std::fs::remove_dir_all(&temp_dir).ok();
+  std::fs::remove_dir_all(temp_dir).ok();
   println!("✅ Cleaned up temporary files");
+}
 
+fn demonstrate_performance(game_state: &SerializableGameState)
+{
   // === PERFORMANCE DEMONSTRATION ===
   println!("\n⚡ Performance Test");
   println!("------------------");
 
   let mut large_state = game_state.clone();
-  
+
   // Add lots of custom data to simulate a large game state
   for i in 0..100 {
   large_state.custom_data.insert(
-    format!("large_data_{}", i),
+    format!("large_data_{i}"),
     vec![0u8; 1024] // 1KB per entry
   );
   }
@@ -390,6 +390,29 @@ fn main()
   println!("  Size: {} KB", serialized_large.len() / 1024);
   println!("  Serialize time: {:.2}ms", serialize_duration.as_secs_f64() * 1000.0);
   println!("  Deserialize time: {:.2}ms", deserialize_duration.as_secs_f64() * 1000.0);
+}
+
+fn main()
+{
+  println!("💾 Serialization System Demonstration");
+  println!("=====================================");
+
+  let game_state = build_basic_game_state();
+
+  demonstrate_serialization_formats(&game_state);
+  demonstrate_compression(&game_state);
+
+  // Create a temporary directory for saves (in real usage, this would be a persistent directory)
+  let temp_dir = std::env::temp_dir().join("tiles_tools_demo_saves");
+  std::fs::create_dir_all(&temp_dir).expect("Failed to create saves directory");
+
+  let save_manager = demonstrate_save_manager(&game_state, &temp_dir);
+
+  demonstrate_version_compatibility();
+  demonstrate_configuration(&temp_dir);
+  demonstrate_player_progress();
+  demonstrate_cleanup(&save_manager, &temp_dir);
+  demonstrate_performance(&game_state);
 
   println!("\n✨ Serialization Demo Complete!");
   println!("\nKey features demonstrated:");

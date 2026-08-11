@@ -316,18 +316,20 @@ where
 /// };
 ///
 /// let square = SquareCoord::<FourConnected>::new(5, 3);
-/// assert!(test_roundtrip_conversion::<_, IsoCoord<Diamond>, SquareCoord<FourConnected>>(square));
+/// assert!(test_roundtrip_conversion::<_, IsoCoord<Diamond>, SquareCoord<FourConnected>>(&square));
 /// ```
-#[allow(clippy::needless_pass_by_value)] // Public API: by-value is the deliberate contract for Copy coordinate types.
-pub fn test_roundtrip_conversion<T, U, V>(original: T) -> bool
+pub fn test_roundtrip_conversion<T, U, V>(original: &T) -> bool
 where
   T: Convert<U> + PartialEq + Clone,
   U: Convert<V>,
   V: PartialEq<T>,
 {
-  let converted: U = original.clone().convert();
+  // `.clone()` on a `&T` receiver resolves to the reference's own blanket `Clone` impl
+  // (returning `&T`), not `T`'s — an explicit deref is required to clone the pointee, since
+  // `Convert::convert` consumes an owned `T`.
+  let converted: U = ( *original ).clone().convert();
   let roundtrip: V = converted.convert();
-  roundtrip == original
+  roundtrip == *original
 }
 
 /// Measures the conversion error for approximate conversions.

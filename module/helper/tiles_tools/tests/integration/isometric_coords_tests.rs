@@ -35,9 +35,6 @@
 //! | IC9.1   | Serde    | serialize | coord | json     | ✅ |
 //! | IC9.2   | Serde    | deserial  | json  | coord    | ✅ |
 
-
-#![allow(clippy::cast_precision_loss)] // Expected-value math on single-digit coordinates; well within f32's exact-integer range.
-
 use tiles_tools::coordinates::isometric::{Coordinate, Diamond, IsometricCoord};
 use tiles_tools::coordinates::{Distance, Neighbors, pixel::Pixel};
 use std::collections::HashSet;

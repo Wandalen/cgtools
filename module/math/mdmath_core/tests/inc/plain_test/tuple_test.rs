@@ -1,6 +1,4 @@
-#![ allow( clippy::uninlined_format_args ) ]
 
-// #[ allow( unused_imports ) ]
 use super::*;
 
 #[ test ]

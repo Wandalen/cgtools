@@ -1,30 +1,34 @@
 mod private
 {
-  use crate::*;
+  use crate::{Quat, MatEl, AbsDiffEq, Vector, RelativeEq, UlpsEq};
 
   impl< E > Quat< E >
   where
     E : MatEl
   {
     /// The `x` component of `Quaternion`
+    #[ inline ]
     pub fn x( &self ) -> E
     {
       self.0[ 0 ]
     }
 
     /// The `y` component of `Quaternion`
+    #[ inline ]
     pub fn y( &self ) -> E
     {
       self.0[ 1 ]
     }
 
     /// The `z` component of `Quaternion`
+    #[ inline ]
     pub fn z( &self ) -> E
     {
       self.0[ 2 ]
     }
 
     /// The `w` component of `Quaternion`
+    #[ inline ]
     pub fn w( &self ) -> E
     {
       self.0[ 3 ]
@@ -38,11 +42,13 @@ mod private
   {
     type Epsilon = < Vector< E, 4 > as AbsDiffEq< Vector< E, 4 > > >::Epsilon;
 
+    #[ inline ]
     fn default_epsilon() -> Self::Epsilon
     {
       E::default_epsilon()
     }
 
+    #[ inline ]
     fn abs_diff_eq( &self, other: &Self, epsilon: Self::Epsilon ) -> bool
     {
       < Vector< E, 4 > as AbsDiffEq< Vector< E, 4 > > >::abs_diff_eq( &self.0, &other.0, epsilon )
@@ -54,11 +60,13 @@ mod private
     E : RelativeEq + MatEl,
     E::Epsilon : Copy,
   {
+    #[ inline ]
     fn default_max_relative() -> Self::Epsilon
     {
       E::default_max_relative()
     }
 
+    #[ inline ]
     fn relative_eq( &self, other: &Self, epsilon: Self::Epsilon, max_relative: Self::Epsilon ) -> bool
     {
       < Vector< E, 4 > as RelativeEq< Vector< E, 4 > > >::relative_eq( &self.0, &other.0, epsilon, max_relative )
@@ -70,11 +78,13 @@ mod private
     E : UlpsEq + MatEl,
     E::Epsilon : Copy,
   {
+    #[ inline ]
     fn default_max_ulps() -> u32
     {
       E::default_max_ulps()
     }
 
+    #[ inline ]
     fn ulps_eq( &self, other: &Self, epsilon: Self::Epsilon, max_ulps: u32 ) -> bool
     {
       < Vector< E, 4 > as UlpsEq< Vector< E, 4 > > >::ulps_eq( &self.0, &other.0, epsilon, max_ulps )

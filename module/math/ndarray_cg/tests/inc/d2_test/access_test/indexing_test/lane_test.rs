@@ -18,19 +18,22 @@ fn assumptions()
 
   assert_eq!( [ 2, 3 ], data.shape() );
   assert_eq!( [ 3, 1 ], data.strides() );
-  assert_eq!( 6., data[ [ 1, 2 ] ] );
+  // `data[ [ 1, 2 ] ]` only retrieves an element stored verbatim from the `array!` literal —
+  // no arithmetic occurs, so the result is bit-identical to the literal `6.`.
+  #[ allow( clippy::float_cmp ) ]
+  { assert_eq!( 6., data[ [ 1, 2 ] ] ); }
 }
 
 fn test_valid_row_iteration_1x2_generic< D : the_module::mat::Descriptor >()
 where
   the_module::Mat< 1, 2, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingRef< Scalar = f32 >,
 {
-  use the_module::{ Mat, IndexingRef, RawSliceMut };
+  use the_module::{ Mat, RawSliceMut };
   // 1x2 matrix
   let mat = Mat::< 1, 2, f32, D >::default().set( [ 1.0, 2.0 ] );
   let row_iter : Vec< f32 > = mat.lane_iter( 0, 0 ).copied().collect(); // Convert references to values
   let exp = vec![ 1.0, 2.0 ];
-  assert_eq!( row_iter, exp, "Expected {:?}, got {:?}", exp, row_iter );
+  assert_eq!( row_iter, exp, "Expected {exp:?}, got {row_iter:?}" );
 }
 
 #[ test ]
@@ -51,15 +54,15 @@ fn test_valid_column_iteration_1x2_generic< D : the_module::mat::Descriptor >()
 where
   the_module::Mat< 1, 2, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingRef< Scalar = f32 >,
 {
-  use the_module::{ Mat, IndexingRef, RawSliceMut };
+  use the_module::{ Mat, RawSliceMut };
   // 1x2 matrix
   let mat = Mat::< 1, 2, f32, D >::default().set( [ 1.0, 2.0 ] );
   let col_iter : Vec< f32 > = mat.lane_iter( 1, 0 ).copied().collect();
   let exp = vec![ 1.0 ];
-  assert_eq!( col_iter, exp, "Expected {:?}, got {:?}", exp, col_iter );
+  assert_eq!( col_iter, exp, "Expected {exp:?}, got {col_iter:?}" );
   let col_iter : Vec< f32 > = mat.lane_iter( 1, 1 ).copied().collect();
   let exp = vec![ 2.0 ];
-  assert_eq!( col_iter, exp, "Expected {:?}, got {:?}", exp, col_iter );
+  assert_eq!( col_iter, exp, "Expected {exp:?}, got {col_iter:?}" );
 }
 
 #[ test ]
@@ -80,15 +83,15 @@ fn test_valid_row_iteration_2x1_generic< D : the_module::mat::Descriptor >()
 where
   the_module::Mat< 2, 1, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingRef< Scalar = f32 >,
 {
-  use the_module::{ Mat, IndexingRef, RawSliceMut };
+  use the_module::{ Mat, RawSliceMut };
   // 2x1 matrix
   let mat = Mat::< 2, 1, f32, D >::default().set( [ 1.0, 2.0 ] );
   let row_iter : Vec< f32 > = mat.lane_iter( 0, 0 ).copied().collect();
   let exp = vec![ 1.0 ];
-  assert_eq!( row_iter, exp, "Expected {:?}, got {:?}", exp, row_iter );
+  assert_eq!( row_iter, exp, "Expected {exp:?}, got {row_iter:?}" );
   let row_iter : Vec< f32 > = mat.lane_iter( 0, 1 ).copied().collect();
   let exp = vec![ 2.0 ];
-  assert_eq!( row_iter, exp, "Expected {:?}, got {:?}", exp, row_iter );
+  assert_eq!( row_iter, exp, "Expected {exp:?}, got {row_iter:?}" );
 }
 
 #[ test ]
@@ -109,12 +112,12 @@ fn test_valid_column_iteration_2x1_generic< D : the_module::mat::Descriptor >()
 where
   the_module::Mat< 2, 1, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingRef< Scalar = f32 >,
 {
-  use the_module::{ Mat, IndexingRef, RawSliceMut };
+  use the_module::{ Mat, RawSliceMut };
   // 2x1 matrix
   let mat = Mat::< 2, 1, f32, D >::default().set( [ 1.0, 2.0 ] );
   let col_iter : Vec< f32 > = mat.lane_iter( 1, 0 ).copied().collect();
   let exp = vec![ 1.0, 2.0 ];
-  assert_eq!( col_iter, exp, "Expected {:?}, got {:?}", exp, col_iter );
+  assert_eq!( col_iter, exp, "Expected {exp:?}, got {col_iter:?}" );
 }
 
 #[ test ]
@@ -138,36 +141,36 @@ where
   the_module::Mat< 2, 2, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingRef< Scalar = f32 >,
   the_module::Mat< 3, 3, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingRef< Scalar = f32 >,
 {
-  use the_module::{ Mat, IndexingRef, RawSliceMut };
+  use the_module::{ Mat, RawSliceMut };
   // 0x0 matrix
   let mat = Mat::< 0, 0, f32, D >::default();
   let row_iter : Vec< f32 > = mat.lane_iter( 0, 0 ).copied().collect();
   let exp : Vec< f32 > = vec![];
-  assert_eq!( row_iter, exp, "Expected {:?}, got {:?}", exp, row_iter );
+  assert_eq!( row_iter, exp, "Expected {exp:?}, got {row_iter:?}" );
   // 1x1 matrix
   let mat = Mat::< 1, 1, f32, D >::default().set( [ 1.0 ] );
   let row_iter : Vec< f32 > = mat.lane_iter( 0, 0 ).copied().collect();
   let exp = vec![ 1.0 ];
-  assert_eq!( row_iter, exp, "Expected {:?}, got {:?}", exp, row_iter );
+  assert_eq!( row_iter, exp, "Expected {exp:?}, got {row_iter:?}" );
   // 2x2 matrix
   let mat = Mat::< 2, 2, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0 ] );
   let row_iter : Vec< f32 > = mat.lane_iter( 0, 0 ).copied().collect();
   let exp = vec![ 1.0, 2.0 ];
-  assert_eq!( row_iter, exp, "Expected {:?}, got {:?}", exp, row_iter );
+  assert_eq!( row_iter, exp, "Expected {exp:?}, got {row_iter:?}" );
   let row_iter : Vec< f32 > = mat.lane_iter( 0, 1 ).copied().collect();
   let exp = vec![ 3.0, 4.0 ];
-  assert_eq!( row_iter, exp, "Expected {:?}, got {:?}", exp, row_iter );
+  assert_eq!( row_iter, exp, "Expected {exp:?}, got {row_iter:?}" );
   // 3x3 matrix
   let mat = Mat::< 3, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ] );
   let row_iter : Vec< f32 > = mat.lane_iter( 0, 0 ).copied().collect();
   let exp = vec![ 1.0, 2.0, 3.0 ];
-  assert_eq!( row_iter, exp, "Expected {:?}, got {:?}", exp, row_iter );
+  assert_eq!( row_iter, exp, "Expected {exp:?}, got {row_iter:?}" );
   let row_iter : Vec< f32 > = mat.lane_iter( 0, 1 ).copied().collect();
   let exp = vec![ 4.0, 5.0, 6.0 ];
-  assert_eq!( row_iter, exp, "Expected {:?}, got {:?}", exp, row_iter );
+  assert_eq!( row_iter, exp, "Expected {exp:?}, got {row_iter:?}" );
   let row_iter : Vec< f32 > = mat.lane_iter( 0, 2 ).copied().collect();
   let exp = vec![ 7.0, 8.0, 9.0 ];
-  assert_eq!( row_iter, exp, "Expected {:?}, got {:?}", exp, row_iter );
+  assert_eq!( row_iter, exp, "Expected {exp:?}, got {row_iter:?}" );
 }
 
 #[ test ]
@@ -191,36 +194,36 @@ where
   the_module::Mat< 2, 2, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingRef< Scalar = f32 >,
   the_module::Mat< 3, 3, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingRef< Scalar = f32 >,
 {
-  use the_module::{ Mat, IndexingRef, RawSliceMut };
+  use the_module::{ Mat, RawSliceMut };
   // 0x0 matrix
   let mat = Mat::< 0, 0, f32, D >::default();
   let col_iter : Vec< f32 > = mat.lane_iter( 1, 0 ).copied().collect();
   let exp : Vec< f32 > = vec![];
-  assert_eq!( col_iter, exp, "Expected {:?}, got {:?}", exp, col_iter );
+  assert_eq!( col_iter, exp, "Expected {exp:?}, got {col_iter:?}" );
   // 1x1 matrix
   let mat = Mat::< 1, 1, f32, D >::default().set( [ 1.0 ] );
   let col_iter : Vec< f32 > = mat.lane_iter( 1, 0 ).copied().collect();
   let exp = vec![ 1.0 ];
-  assert_eq!( col_iter, exp, "Expected {:?}, got {:?}", exp, col_iter );
+  assert_eq!( col_iter, exp, "Expected {exp:?}, got {col_iter:?}" );
   // 2x2 matrix
   let mat = Mat::< 2, 2, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0 ] );
   let col_iter : Vec< f32 > = mat.lane_iter( 1, 0 ).copied().collect();
   let exp = vec![ 1.0, 3.0 ];
-  assert_eq!( col_iter, exp, "Expected {:?}, got {:?}", exp, col_iter );
+  assert_eq!( col_iter, exp, "Expected {exp:?}, got {col_iter:?}" );
   let col_iter : Vec< f32 > = mat.lane_iter( 1, 1 ).copied().collect();
   let exp = vec![ 2.0, 4.0 ];
-  assert_eq!( col_iter, exp, "Expected {:?}, got {:?}", exp, col_iter );
+  assert_eq!( col_iter, exp, "Expected {exp:?}, got {col_iter:?}" );
   // 3x3 matrix
   let mat = Mat::< 3, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ] );
   let col_iter : Vec< f32 > = mat.lane_iter( 1, 0 ).copied().collect();
   let exp = vec![ 1.0, 4.0, 7.0 ];
-  assert_eq!( col_iter, exp, "Expected {:?}, got {:?}", exp, col_iter );
+  assert_eq!( col_iter, exp, "Expected {exp:?}, got {col_iter:?}" );
   let col_iter : Vec< f32 > = mat.lane_iter( 1, 1 ).copied().collect();
   let exp = vec![ 2.0, 5.0, 8.0 ];
-  assert_eq!( col_iter, exp, "Expected {:?}, got {:?}", exp, col_iter );
+  assert_eq!( col_iter, exp, "Expected {exp:?}, got {col_iter:?}" );
   let col_iter : Vec< f32 > = mat.lane_iter( 1, 2 ).copied().collect();
   let exp = vec![ 3.0, 6.0, 9.0 ];
-  assert_eq!( col_iter, exp, "Expected {:?}, got {:?}", exp, col_iter );
+  assert_eq!( col_iter, exp, "Expected {exp:?}, got {col_iter:?}" );
 }
 
 #[ test ]
@@ -242,7 +245,7 @@ where
   the_module::Mat<2, 2, f32, D>: Default + the_module::RawSliceMut<Scalar = f32> + the_module::IndexingRef<Scalar = f32>,
 {
   use std::panic;
-  use the_module::{ Mat, IndexingRef, RawSliceMut };
+  use the_module::{ Mat, RawSliceMut };
 
   let mat = Mat::<2, 2, f32, D>::default().set([ 1.0, 2.0, 3.0, 4.0 ]);
   let result = panic::catch_unwind( ||
@@ -271,14 +274,14 @@ fn test_negative_lane_index_generic<D: the_module::mat::Descriptor>()
 where
   the_module::Mat<2, 2, f32, D>: Default + the_module::RawSliceMut<Scalar = f32> + the_module::IndexingRef<Scalar = f32>,
 {
-  use the_module::{ Mat, IndexingRef, RawSliceMut };
+  use the_module::{ Mat, RawSliceMut };
 
   let mat = Mat::<2, 2, f32, D>::default().set([ 1.0, 2.0, 3.0, 4.0 ]);
   let _collected: Vec<_> = mat.lane_iter( 0, usize::MAX ).collect();
 }
 
 #[test]
-#[should_panic]
+#[should_panic( expected = "lane:" )]
 fn test_negative_lane_index_row_major()
 {
   use the_module::mat::DescriptorOrderRowMajor;
@@ -286,7 +289,7 @@ fn test_negative_lane_index_row_major()
 }
 
 #[test]
-#[should_panic]
+#[should_panic( expected = "assertion failed: lane < ROWS" )]
 fn test_negative_lane_index_column_major()
 {
   use the_module::mat::DescriptorOrderColumnMajor;
@@ -297,7 +300,7 @@ fn test_out_of_bounds_lane_index_generic<D: the_module::mat::Descriptor>()
 where
   the_module::Mat<2, 2, f32, D>: Default + the_module::RawSliceMut<Scalar = f32> + the_module::IndexingRef<Scalar = f32>,
 {
-  use the_module::{ Mat, IndexingRef, RawSliceMut };
+  use the_module::{ Mat, RawSliceMut };
 
   let mat = Mat::<2, 2, f32, D>::default().set([ 1.0, 2.0, 3.0, 4.0 ]);
   let collected: Vec<_> = mat.lane_iter( 0, 2 ).collect();
@@ -305,7 +308,7 @@ where
 }
 
 #[test]
-#[should_panic]
+#[should_panic( expected = "lane:" )]
 fn test_out_of_bounds_lane_index_row_major()
 {
   use the_module::mat::DescriptorOrderRowMajor;
@@ -313,7 +316,7 @@ fn test_out_of_bounds_lane_index_row_major()
 }
 
 #[test]
-#[should_panic]
+#[should_panic( expected = "assertion failed: lane < ROWS" )]
 fn test_out_of_bounds_lane_index_column_major()
 {
   use the_module::mat::DescriptorOrderColumnMajor;
@@ -347,7 +350,7 @@ fn test_out_of_bounds_column_lane_index_generic<D: the_module::mat::Descriptor>(
 where
   the_module::Mat<2, 2, f32, D>: Default + the_module::RawSliceMut<Scalar = f32> + the_module::IndexingRef<Scalar = f32>,
 {
-  use the_module::{ Mat, IndexingRef, RawSliceMut };
+  use the_module::{ Mat, RawSliceMut };
 
   let mat = Mat::<2, 2, f32, D>::default().set([ 1.0, 2.0, 3.0, 4.0 ]);
   let collected: Vec<_> = mat.lane_iter( 1, 2 ).collect();
@@ -355,7 +358,7 @@ where
 }
 
 #[test]
-#[should_panic]
+#[should_panic( expected = "assertion failed: lane < COLS" )]
 fn test_out_of_bounds_column_lane_index_row_major()
 {
   use the_module::mat::DescriptorOrderRowMajor;
@@ -363,7 +366,7 @@ fn test_out_of_bounds_column_lane_index_row_major()
 }
 
 #[test]
-#[should_panic]
+#[should_panic( expected = "lane:" )]
 fn test_out_of_bounds_column_lane_index_column_major()
 {
   use the_module::mat::DescriptorOrderColumnMajor;
@@ -374,7 +377,7 @@ fn test_lane_iter_mut_generic<D: the_module::mat::Descriptor>()
 where
   the_module::Mat<3, 3, f32, D>: Default + the_module::RawSliceMut<Scalar = f32> + the_module::IndexingMut<Scalar = f32>,
 {
-  use the_module::{ Mat, RawSliceMut, IndexingMut };
+  use the_module::{ Mat, RawSliceMut };
 
   let mut mat = Mat::<3, 3, f32, D>::default().set([ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ]);
 
@@ -428,7 +431,7 @@ fn test_lane_iter_mut_out_of_bounds_row_generic<D: the_module::mat::Descriptor>(
 where
   the_module::Mat<2, 2, f32, D>: Default + the_module::RawSliceMut<Scalar = f32> + the_module::IndexingMut<Scalar = f32>,
 {
-  use the_module::{ Mat, IndexingMut, RawSliceMut };
+  use the_module::{ Mat, RawSliceMut };
 
   let mut mat = Mat::<2, 2, f32, D>::default().set([ 1.0, 2.0, 3.0, 4.0 ]);
   let collected: Vec<_> = mat.lane_iter_mut( 0, 2 ).collect();
@@ -436,7 +439,7 @@ where
 }
 
 #[test]
-#[should_panic]
+#[should_panic( expected = "lane:" )]
 fn test_lane_iter_mut_out_of_bounds_row_row_major()
 {
   use the_module::mat::DescriptorOrderRowMajor;
@@ -444,7 +447,7 @@ fn test_lane_iter_mut_out_of_bounds_row_row_major()
 }
 
 #[test]
-#[should_panic]
+#[should_panic( expected = "assertion failed: lane < ROWS" )]
 fn test_lane_iter_mut_out_of_bounds_row_column_major()
 {
   use the_module::mat::DescriptorOrderColumnMajor;
@@ -473,7 +476,7 @@ fn test_lane_iter_mut_out_of_bounds_column_generic<D: the_module::mat::Descripto
 where
   the_module::Mat<2, 2, f32, D>: Default + the_module::RawSliceMut<Scalar = f32> + the_module::IndexingMut<Scalar = f32>,
 {
-  use the_module::{ Mat, IndexingMut, RawSliceMut };
+  use the_module::{ Mat, RawSliceMut };
 
   let mut mat = Mat::<2, 2, f32, D>::default().set([ 1.0, 2.0, 3.0, 4.0 ]);
   let collected: Vec<_> = mat.lane_iter_mut( 1, 2 ).collect();
@@ -481,7 +484,7 @@ where
 }
 
 #[test]
-#[should_panic]
+#[should_panic( expected = "assertion failed: lane < COLS" )]
 fn test_lane_iter_mut_out_of_bounds_column_row_major()
 {
   use the_module::mat::DescriptorOrderRowMajor;
@@ -489,7 +492,7 @@ fn test_lane_iter_mut_out_of_bounds_column_row_major()
 }
 
 #[test]
-#[should_panic]
+#[should_panic( expected = "lane:" )]
 fn test_lane_iter_mut_out_of_bounds_column_column_major()
 {
   use the_module::mat::DescriptorOrderColumnMajor;

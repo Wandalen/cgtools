@@ -1,7 +1,7 @@
 #[ cfg( debug_assertions ) ]
-use std::mem::{ align_of_val, size_of_val };
+use core::mem::{ align_of_val, size_of_val };
 
-use super::*;
+use super::{Collection, ConstLength, IntoArray, ArrayRef, ArrayMut, VectorIter, VectorIteratorRef, VectorIterMut, VectorIterator};
 
 // = 1
 
@@ -29,9 +29,7 @@ impl< E > ArrayRef< E, 1 > for ( E, )
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ E ; 1 ]
   {
-    use std::mem::transmute;
-
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `(E,)`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `(E,)`
     // into a reference to an array `[E; 1]`. This is safe because:
     // 1. The tuple `(E,)` and the array `[E; 1]` have the same memory layout.
     //    - Both contain a single element of type `E`.
@@ -39,9 +37,8 @@ impl< E > ArrayRef< E, 1 > for ( E, )
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-
     #[ allow( unsafe_code ) ]
-    let result : &[ E; 1 ] = unsafe { transmute( self ) };
+    let result : &[ E; 1 ] = unsafe { &*( ( self as *const ( E, ) ).cast::< [ E; 1 ] >() ) };
 
     // Check size and alignment of the whole collection
     debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
@@ -61,8 +58,6 @@ impl< E > ArrayMut< E, 1 > for ( E, )
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ E ; 1 ]
   {
-    use std::mem::transmute;
-
     // Store layout information in temporary variables
     #[ cfg( debug_assertions ) ]
     let size_self = size_of_val( self );
@@ -73,7 +68,7 @@ impl< E > ArrayMut< E, 1 > for ( E, )
     #[ cfg( debug_assertions ) ]
     let align_component = align_of_val( &self.0 );
 
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `(E,)`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `(E,)`
     // into a reference to an array `[E; 1]`. This is safe because:
     // 1. The tuple `(E,)` and the array `[E; 1]` have the same memory layout.
     //    - Both contain a single element of type `E`.
@@ -82,7 +77,7 @@ impl< E > ArrayMut< E, 1 > for ( E, )
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
     #[ allow( unsafe_code ) ]
-    let result : &mut [ E; 1 ] = unsafe { transmute( self ) };
+    let result : &mut [ E; 1 ] = unsafe { &mut *( ( self as *mut ( E, ) ).cast::< [ E; 1 ] >() ) };
 
     // Perform checks under debug conditions
     #[ cfg( debug_assertions ) ]
@@ -101,20 +96,22 @@ impl< E > ArrayMut< E, 1 > for ( E, )
 
 impl< E: Clone > VectorIter< E, 1 > for ( E, )
 {
+  #[ inline ]
   fn vector_iter< 'tuple_ref >( &'tuple_ref self ) -> impl VectorIteratorRef< 'tuple_ref, &'tuple_ref E >
   where
     E : 'tuple_ref,
   {
-    std::iter::once( &self.0 )
+    core::iter::once( &self.0 )
   }
 }
 
 impl< E: Clone > VectorIterMut< E, 1 > for ( E, )
 {
+  #[ inline ]
   fn vector_iter_mut< 'tuple_ref >( &'tuple_ref mut self ) -> impl VectorIterator< 'tuple_ref, &'tuple_ref mut E >
   where
     E : 'tuple_ref,
   {
-    std::iter::once( &mut self.0 )
+    core::iter::once( &mut self.0 )
   }
 }

@@ -1,7 +1,6 @@
 
 // Exact float comparisons are intentional: these assertions check deterministic
 // arithmetic against exact literal expected values.
-#![ allow( clippy::float_cmp ) ]
 
 use super::*;
 use line_tools::d3;

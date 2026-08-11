@@ -73,6 +73,15 @@ mod private
     ///
     /// On the WebGL backend the canvas backbuffer accepts no depth
     /// attachment, and attachments must be texture views of matching size.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WebGpu`] if the underlying WebGPU pass-creation
+    /// call fails. On the WebGL backend, returns [`Error::Unsupported`] if
+    /// a depth attachment is paired with the canvas backbuffer (as the
+    /// color target or as the depth view itself), or [`Error::WebGl`] if
+    /// the backing framebuffer fails to allocate. The native backend
+    /// never fails this call.
     pub fn begin_render_pass
     (
       &mut self,
@@ -206,6 +215,7 @@ mod private
     // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[ allow( clippy::unnecessary_wraps ) ]
+    #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::CommandEncoder >
     {
       match self
@@ -526,6 +536,7 @@ mod private
     // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[ allow( clippy::unnecessary_wraps ) ]
+    #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::RenderPass< 'static > >
     {
       match self

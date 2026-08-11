@@ -1,7 +1,5 @@
 //! Integration tests related to Tween struct and trait Animatable
 
-#![ allow( clippy::float_cmp ) ]
-
 #[ cfg( test ) ]
 mod tests
 {

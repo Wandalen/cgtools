@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ web_sys, Into, js_sys, IntoIterator };
 
   /// Describes the configuration for creating a WebGPU pipeline layout.
   #[ derive( Default, Clone ) ]
@@ -18,12 +18,16 @@ mod private
   impl< 'a > PipelineLayoutDescriptor< 'a >  
   {
     /// Creates a new, empty `PipelineLayoutDescriptor` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
     }
 
     /// Sets an optional label for the pipeline layout.
+    #[ inline ]
+    #[ must_use ]
     pub fn label( mut self, label : &'a str ) -> Self
     {
       self.label = Some( label );
@@ -31,6 +35,8 @@ mod private
     }
 
     /// Adds a `GpuBindGroupLayout` to the pipeline layout.
+    #[ inline ]
+    #[ must_use ]
     pub fn bind_group
     ( 
       mut self, 
@@ -42,6 +48,8 @@ mod private
     }
 
     /// Creates a `web_sys::GpuPipelineLayout` from this descriptor.
+    #[ inline ]
+    #[ must_use ]
     pub fn create( self, device : &web_sys::GpuDevice ) -> web_sys::GpuPipelineLayout
     {
       device.create_pipeline_layout( &self.into() )
@@ -50,6 +58,7 @@ mod private
 
   impl From< PipelineLayoutDescriptor< '_ > > for web_sys::GpuPipelineLayoutDescriptor 
   {
+    #[ inline ]
     fn from( value: PipelineLayoutDescriptor< '_ > ) -> Self 
     {
       let bind_group_layouts : Vec< js_sys::JsNullable< web_sys::GpuBindGroupLayout > > =

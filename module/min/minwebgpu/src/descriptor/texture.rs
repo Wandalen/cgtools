@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use  crate::*;
+  use  crate::{ GpuTextureFormat, GpuTextureDimension, web_sys, WebGPUError, texture, Into, js_sys, IntoIterator, JsCast, wasm_bindgen };
 
   #[ derive( Clone ) ]
   /// Builder struct for the GpuTextureDescriptor.
@@ -25,9 +25,20 @@ mod private
     view_formats : Vec< GpuTextureFormat >
   }
 
-  impl< 'a > TextureDescriptor< 'a > 
+  impl< 'a > Default for TextureDescriptor< 'a >
+  {
+    #[ inline ]
+    fn default() -> Self
+    {
+      Self::new()
+    }
+  }
+
+  impl< 'a > TextureDescriptor< 'a >
   {
     /// Creates a new `TextureDescriptor` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       let format = web_sys::GpuTextureFormat::Rgba8unormSrgb;
@@ -44,15 +55,17 @@ mod private
         usage,
         size,
         format,
+        label,
+        dimension,
         mip_level,
         sample_count,
-        view_formats,
-        dimension,
-        label
+        view_formats
       }
     }
 
     /// Sets the size of the texture
+    #[ inline ]
+    #[ must_use ]
     pub fn size( mut self, size : [ u32; 3 ] ) -> Self
     {
       self.size = size;
@@ -60,6 +73,8 @@ mod private
     }
 
     /// Sets the format of the texture
+    #[ inline ]
+    #[ must_use ]
     pub fn format( mut self, format : GpuTextureFormat ) -> Self
     {
       self.format = format;
@@ -67,6 +82,8 @@ mod private
     }
 
     /// Sets the label for the texture
+    #[ inline ]
+    #[ must_use ]
     pub fn label( mut self, label : &'a str ) -> Self
     {
       self.label = Some( label );
@@ -74,6 +91,8 @@ mod private
     }
 
     /// Sets the mip map level
+    #[ inline ]
+    #[ must_use ]
     pub fn mip_level( mut self, mip_level : u32 ) -> Self
     {
       self.mip_level = Some( mip_level );
@@ -81,6 +100,8 @@ mod private
     }
 
     /// Sets the sample count
+    #[ inline ]
+    #[ must_use ]
     pub fn sample_count( mut self, sample_count : u32 ) -> Self
     {
       self.sample_count = Some( sample_count );
@@ -88,6 +109,8 @@ mod private
     }
 
     /// Sets the dimension of the texture
+    #[ inline ]
+    #[ must_use ]
     pub fn dimension( mut self, dimension : GpuTextureDimension ) -> Self
     {
       self.dimension = Some( dimension );
@@ -95,13 +118,17 @@ mod private
     }
 
     /// Adds view formats
+    #[ inline ]
+    #[ must_use ]
     pub fn view_formats( mut self, formats : &[ web_sys::GpuTextureFormat ] ) -> Self
     {
-      self.view_formats.extend_from_slice( &formats );
+      self.view_formats.extend_from_slice( formats );
       self
     }
 
     /// Sets the usage flag to COPY_DST
+    #[ inline ]
+    #[ must_use ]
     pub fn copy_dst( mut self ) -> Self
     {
       self.usage |= web_sys::gpu_texture_usage::COPY_DST;
@@ -109,6 +136,8 @@ mod private
     }
 
     /// Sets the usage flag to COPY_SRC
+    #[ inline ]
+    #[ must_use ]
     pub fn copy_src( mut self ) -> Self
     {
       self.usage |= web_sys::gpu_texture_usage::COPY_SRC;
@@ -116,6 +145,8 @@ mod private
     }
 
     /// Sets the usage flag to RENDER_ATTACHMENT
+    #[ inline ]
+    #[ must_use ]
     pub fn render_attachment( mut self ) -> Self
     {
       self.usage |= web_sys::gpu_texture_usage::RENDER_ATTACHMENT;
@@ -123,6 +154,8 @@ mod private
     }
 
     /// Sets the usage flag to STORAGE_BINDING
+    #[ inline ]
+    #[ must_use ]
     pub fn storage_binding( mut self ) -> Self
     {
       self.usage |= web_sys::gpu_texture_usage::STORAGE_BINDING;
@@ -130,6 +163,8 @@ mod private
     }
 
     /// Sets the usage flag to TEXTURE_BINDING
+    #[ inline ]
+    #[ must_use ]
     pub fn texture_binding( mut self ) -> Self
     {
       self.usage |= web_sys::gpu_texture_usage::TEXTURE_BINDING;
@@ -137,6 +172,11 @@ mod private
     } 
 
     /// Creates a synchronous texture on the GPU.
+    ///
+    /// # Errors
+    /// Returns `error::DeviceError::FailedToCreateTexture` if the underlying
+    /// `GPUDevice.createTexture` call throws (see [`texture::create`]).
+    #[ inline ]
     pub fn create
     ( 
       self,
@@ -150,6 +190,7 @@ mod private
 
   impl From< TextureDescriptor< '_ > > for web_sys::GpuTextureDescriptor 
   {
+    #[ inline ]
     fn from( value: TextureDescriptor< '_ > ) -> Self 
     {
       let size : Vec< js_sys::Number > = value.size.into_iter().map( js_sys::Number::from ).collect();
@@ -165,7 +206,7 @@ mod private
       if let Some( v ) = value.dimension { desc.set_dimension( v ); }
       if let Some( v ) = value.label { desc.set_label( v ); }
 
-      if value.view_formats.len() > 0
+      if !value.view_formats.is_empty()
       {
         let view_formats : Vec< js_sys::JsString > = value.view_formats.into_iter()
         .map( | f | wasm_bindgen::JsValue::from( f ).unchecked_into() )

@@ -83,6 +83,10 @@ mod private
   /// using [`tile_terrain_id`] for each corner. Corners outside the scene
   /// resolve to [`VOID_ID`].
   #[ must_use ]
+  // `tile_lookup` is always this crate's `FxHashMap` alias (every caller builds
+  // it via `tile_lookup()` in `neighbors.rs`); there is no existing or planned
+  // caller passing a different hasher, so generalizing over `BuildHasher` would
+  // add API surface for no current need.
   #[ allow( clippy::implicit_hasher ) ]
   pub fn resolve_corners
   (
@@ -106,8 +110,7 @@ mod private
   /// and a `rotation` u8 in `0..3` capturing which original slot landed in
   /// slot 0 of the canonical form (for `{rot}` sprite substitution).
   #[ must_use ]
-  #[ allow( clippy::needless_pass_by_value ) ]
-  pub fn canonicalize( raw : [ String; 3 ] ) -> ( [ String; 3 ], u8 )
+  pub fn canonicalize( raw : &[ String; 3 ] ) -> ( [ String; 3 ], u8 )
   {
     // Pair each value with its original index, sort, then record the
     // permutation by reading out original indices in sorted order.

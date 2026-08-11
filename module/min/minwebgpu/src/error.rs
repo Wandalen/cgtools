@@ -1,10 +1,11 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use error_tools::{ thiserror, error };
 
-  #[ allow( missing_docs ) ]
+  /// The top-level error type unifying every WebGPU operation failure exposed by this crate.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum WebGPUError
   {
     /// This indicates an error with the web browser's Document Object Model.
@@ -33,8 +34,9 @@ mod private
     RenderPassError( #[ from ] RenderPassError ),
   }
 
-  #[ allow( missing_docs ) ]
+  /// Errors that can occur while configuring a WebGPU canvas context.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum CanvasError
   {
     /// Indicates a failure to configure the canvas for WebGPU.
@@ -42,8 +44,9 @@ mod private
     ConfigurationError( String )
   }
 
-  #[ allow( missing_docs ) ]
+  /// Errors that can occur while retrieving state from an already-configured WebGPU canvas context.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum ContextError
   {
     /// Indicates a failure to get the current texture from the context.
@@ -51,8 +54,9 @@ mod private
     FailedToGetCurrentTextureError( String )
   }
 
-  #[ allow( missing_docs ) ]
+  /// Errors that can occur while creating a view of a WebGPU texture.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum TextureError
   {
     /// Indicates a failure to create a view for a texture.
@@ -60,8 +64,9 @@ mod private
     FailedToCreateView( String )
   }
 
-  #[ allow( missing_docs ) ]
+  /// Errors that can occur while mapping or writing to a WebGPU buffer.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum BufferError
   {
     /// Indicates a failure to get a mapped range of a buffer.
@@ -72,8 +77,9 @@ mod private
     FailedWriteToBuffer( String ),
   }
 
-  #[ allow( missing_docs ) ]
+  /// Errors that can occur while asking a WebGPU device to create a GPU resource.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum DeviceError
   {
     /// Indicates a failure to create a `BindGroupLayout`.
@@ -101,8 +107,9 @@ mod private
   // Pitfall: an umbrella error enum with only browser/FFI-failure variants (all carrying a
   // JS-originated `String`) has no natural home for a caller-side "you forgot to configure
   // this" error — don't force such cases to panic for lack of a matching variant, add one.
-  #[ allow( missing_docs ) ]
+  /// Errors that can occur while building a WebGPU bind group layout entry.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum BindGroupError
   {
     /// Indicates a `BindGroupLayoutEntry` was converted to its `web_sys` representation
@@ -112,8 +119,9 @@ mod private
     TypeNotSet( u32 )
   }
 
-  #[ allow( missing_docs ) ]
+  /// Errors that can occur while beginning a WebGPU render pass.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum RenderPassError
   {
     /// Indicates a failure to begin a render pass on a command encoder.

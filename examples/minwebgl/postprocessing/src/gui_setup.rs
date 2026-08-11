@@ -1,6 +1,3 @@
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::field_reassign_with_default ) ]
-#![ allow( clippy::too_many_lines ) ]
 
 use minwebgl as gl;
 use std::rc::Rc;
@@ -32,7 +29,6 @@ pub struct ColorGradingSettings
   vibrance : f32,
   saturation : f32,
 }
-
 
 pub fn setup( renderer : Rc< RefCell< Renderer > >, color_grading : Rc< RefCell< ColorGradingPass > > )
 {

@@ -1,15 +1,3 @@
-#![ allow( clippy::exhaustive_structs ) ]
-#![ allow( clippy::exhaustive_enums ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::missing_inline_in_public_items ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::too_many_arguments ) ]
-#![ allow( clippy::module_name_repetitions ) ]
 
 //! Compositional declarative scene format for 2D tile-based games.
 //!

@@ -1,5 +1,5 @@
 <!-- task_system_metadata
-highest_id: 078
+highest_id: 079
 -->
 
 # task
@@ -13,7 +13,7 @@ Task tracking for cgtools workspace. This `readme.md` carries no `type: root`/`t
 | Order | ID | Advisability | Value | Easiness | Safety | Priority | State | Executor | UnitType | Unit | Task | Purpose |
 |-------|-----|--------------|-------|----------|--------|----------|-------|----------|----------|------|------|---------|
 | 1 | [058](draft/058_workspace_allow_sweep_per_crate.md) | 96 | 3 | 4 | 8 | 1 | 📝 | any | workspace | lib/yrd_gamedev/cgtools | Per-crate #[allow] justification sweep | Decomposed from 036: ~1897 remaining sites, per-crate procedure proven on ufo.rs; census + inheritance map embedded; module/ crates first, examples tranche collapses to one template decision |
-| 2 | [065](draft/065_examples_marker_triage.md) | 96 | 3 | 3 | 8 | 1 | 📝 | human | workspace | examples | Triage examples tree's 13 markers (human decisions) | Decomposed from 038, stated D6 deviation: 6 of 13 markers addressed to named people incl. 2 crate-deletion calls (diamond, make_cube_map); Executor human for decisions, code follow-ups filed per-crate after |
+| 2 | [065](draft/065_examples_marker_triage.md) | 72 | 3 | 3 | 8 | 1 | 📝 | human | workspace | examples | Triage examples tree's 13 markers (human decisions) | Decomposed from 038, stated D6 deviation: 6 of 13 markers addressed to named people incl. 2 crate-deletion calls (diamond, make_cube_map); Executor human for decisions, code follow-ups filed per-crate after |
 | 3 | [056](draft/056_vectorizer_revival_watch_item.md) | 48 | 3 | 2 | 8 | 1 | 📝 | any | module | lib/yrd_gamedev/cgtools/module/helper/vectorizer | Reconsider a properly-architected vectorizer if a real consumer emerges | Placeholder linked to 023 (DELETE decision, terminal); no action until a real consumer need exists |
 | 4 | [008](completed/008_fix_csgrs_core2_yanked_dependency.md) | 0 | 10 | 9 | 9 | 0 | ✅ | any | workspace | lib/yrd_gamedev/cgtools | Fix BUG-007 - csgrs core2 yanked dependency | Confirm and close BUG-007: the core2 patch already resolves workspace-wide cargo resolution failures |
 | 5 | [009](completed/009_mdmath_core_itermut_aliasing_ub.md) | 0 | 9 | 6 | 7 | 0 | ✅ | any | module | lib/yrd_gamedev/cgtools/module/math/mdmath_core | Fix mdmath_core IterMut aliasing UB | Fixed shared-cursor aliasing in Tuple{2,3,4}IterMut; formally tracked as BUG-050. Gate-checked and completed 2026-08-10 (P1) |

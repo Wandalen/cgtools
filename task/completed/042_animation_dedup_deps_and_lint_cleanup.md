@@ -53,6 +53,29 @@ full `cargo clean -p animation` (rules out stale incremental-compilation state h
 `cargo nextest run -p animation --all-features` confirms all tests pass (29/29) — no test depended on
 the deleted `Sequencer::value_get` or the removed `web-sys` dependency.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `Sequencer::value_get` fully deleted (not merely renamed)? `grep -c "fn value_get" src/sequencer.rs` → `0`.
+- [x] C2 — Is the dead `web-sys` dependency absent from both the manifest and the source tree? `Cargo.toml` → `0` case-insensitive hits; `src/` → `0` hits for `web_sys`.
+- [x] C3 — Are exactly the 5 claimed-justified `#![allow(clippy::...)]` attributes still present in `lib.rs`? `return_self_not_must_use`, `must_use_candidate`, `missing_inline_in_public_items`, `cast_possible_truncation`, `new_ret_no_self` — all 5 present at lines 23/26/29/32/36, each with an adjacent one-line comment citing a verified nonzero hit count (5/18/116/4/1 respectively).
+- [x] C4 — Are the 3 claimed-vestigial allows (`clippy::implicit_return`, `clippy::cast_precision_loss`, `dead_code`) genuinely absent as live attributes, not merely moved? Anchored `^#!\[ *allow(...)` search → `0` matches for all 3; they remain only inside the explanatory prose comment (lines 6-19) documenting why they were removed.
+
+### Measurements
+
+- [x] M1 — Live `#![allow(clippy::...)]` attribute count in `lib.rs`: `5` (was: `8` pre-fix — 3 vestigial allows removed per C4).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p animation --all-features` → exit 0, 29/29 passed.
+- [x] I2 — Compiler/lints clean: `cargo clippy -p animation --all-targets --all-features -- -D warnings` → exit 0, zero warnings.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against an allow being re-added without the same removal-standard investigation: the prose comment (lib.rs:6-19) records the exact method used to distinguish a vestigial allow from a real one (temporarily remove it, `cargo clean -p animation`, re-run clippy with `-D warnings`, count real hits) — a future allow addition with no comparable hit-count justification is the same anti-pattern this task fixed, not a new one.
+- [x] AF2 — Guards against the deleted `Sequencer::value_get` silently reappearing as a copy-paste of `Tween::value_get`: re-running C1's `grep -c "fn value_get" src/sequencer.rs` after any future `Sequencer` edit must still return `0`.
+
 ## History
 
 - **[2026-08-09]** `FILED` — Filed from the same 2026-08-09 workspace audit re-verification pass as

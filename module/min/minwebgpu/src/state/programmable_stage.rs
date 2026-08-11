@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::web_sys;
 
   /// A builder for creating a `web_sys::GpuProgrammableStage`.
   #[ derive( Clone ) ]
@@ -23,6 +23,8 @@ mod private
   impl< 'a > ProgrammableStage< 'a > 
   {
     /// Creates a new `ProgrammableStage` builder with a required shader module.
+    #[ inline ]
+    #[ must_use ]
     pub fn new( module : &'a web_sys::GpuShaderModule ) -> Self
     {
       let entry_point = None;
@@ -35,6 +37,8 @@ mod private
     }
 
     /// Sets the entry point function name for the shader stage.
+    #[ inline ]
+    #[ must_use ]
     pub fn entry_point( mut self, entry : &'a str ) -> Self
     {
       self.entry_point = Some( entry );
@@ -44,9 +48,10 @@ mod private
 
   impl From< ProgrammableStage< '_ > > for web_sys::GpuProgrammableStage
   {
+    #[ inline ]
     fn from( value: ProgrammableStage< '_ > ) -> Self 
     {
-      let state = web_sys::GpuProgrammableStage::new( &value.module );
+      let state = web_sys::GpuProgrammableStage::new( value.module );
 
       if let Some( v ) = value.entry_point { state.set_entry_point( v ); }
 

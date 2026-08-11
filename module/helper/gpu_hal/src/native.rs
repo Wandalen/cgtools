@@ -21,6 +21,7 @@ mod private
   impl BufferUsage
   {
     /// The equivalent raw wgpu usage flags.
+    #[must_use]
     pub fn to_wgpu( self ) -> wgpu::BufferUsages
     {
       wgpu::BufferUsages::from_bits_truncate( self.bits() )
@@ -30,6 +31,7 @@ mod private
   impl TextureUsage
   {
     /// The equivalent raw wgpu usage flags.
+    #[must_use]
     pub fn to_wgpu( self ) -> wgpu::TextureUsages
     {
       wgpu::TextureUsages::from_bits_truncate( self.bits() )
@@ -39,6 +41,7 @@ mod private
   impl ShaderStages
   {
     /// The equivalent raw wgpu stage flags.
+    #[must_use]
     pub fn to_wgpu( self ) -> wgpu::ShaderStages
     {
       wgpu::ShaderStages::from_bits_truncate( self.bits() )
@@ -48,6 +51,7 @@ mod private
   impl TextureFormat
   {
     /// The equivalent raw wgpu format.
+    #[must_use]
     pub fn to_wgpu( self ) -> wgpu::TextureFormat
     {
       match self
@@ -64,6 +68,7 @@ mod private
   impl VertexFormat
   {
     /// The equivalent raw wgpu format.
+    #[must_use]
     pub fn to_wgpu( self ) -> wgpu::VertexFormat
     {
       match self
@@ -78,6 +83,7 @@ mod private
   impl IndexFormat
   {
     /// The equivalent raw wgpu format.
+    #[must_use]
     pub fn to_wgpu( self ) -> wgpu::IndexFormat
     {
       match self
@@ -91,6 +97,7 @@ mod private
   {
     /// The equivalent raw wgpu binding type — the v0 fixed set: uniform
     /// buffers, filterable 2d float textures, filtering samplers.
+    #[must_use]
     pub fn to_wgpu( self ) -> wgpu::BindingType
     {
       match self
@@ -115,6 +122,7 @@ mod private
   impl FilterMode
   {
     /// The equivalent raw wgpu filter mode.
+    #[must_use]
     pub fn to_wgpu( self ) -> wgpu::FilterMode
     {
       match self
@@ -128,6 +136,7 @@ mod private
   impl AddressMode
   {
     /// The equivalent raw wgpu address mode.
+    #[must_use]
     pub fn to_wgpu( self ) -> wgpu::AddressMode
     {
       match self
@@ -143,6 +152,12 @@ mod private
   ///
   /// Synchronous : submits the copy and blocks on the map via device poll —
   /// readback is a verification path, not a frame path.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`Error::Unsupported`] if `texture`'s format is not
+  /// `Rgba8Unorm`. Returns [`Error::Native`] if the device poll, the
+  /// readback map callback, or the GPU-side buffer mapping fails.
   pub fn read_texture_rgba8
   (
     device : &wgpu::Device,

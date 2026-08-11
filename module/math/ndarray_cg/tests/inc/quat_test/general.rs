@@ -1,4 +1,4 @@
-use ndarray_cg::approx::{ assert_abs_diff_eq, assert_relative_eq };
+use ndarray_cg::approx::assert_abs_diff_eq;
 
 use super::*;
 
@@ -19,27 +19,27 @@ fn test_slerp()
   let exp =  QuatF64::from( [ -5.0, 6.0, 1.0, 3.0 ] ).normalize();
   assert_abs_diff_eq!( q1.slerp( &q2, 1.0 ), exp );
 
-  let exp = QuatF64::from( [ -0.07189765816207114, 0.5401439887921695, 0.46824633063009835, 0.6955721184564136 ] );
+  let exp = QuatF64::from( [ -0.071_897_658_162_071_14, 0.540_143_988_792_169_5, 0.468_246_330_630_098_35, 0.695_572_118_456_413_6 ] );
   assert_abs_diff_eq!( q1.slerp( &q2, 0.3 ), exp );
 
-  let exp = QuatF64::from( [ -0.23905007006563106, 0.626821944003501, 0.38777187393787, 0.6321252156811978 ] );
+  let exp = QuatF64::from( [ -0.239_050_070_065_631_06, 0.626_821_944_003_501, 0.387_771_873_937_87, 0.632_125_215_681_197_8 ] );
   assert_abs_diff_eq!( q1.slerp( &q2, 0.5 ), exp );
 
-  let exp = QuatF64::from( [ -0.5332219143045811, 0.7111022022191557, 0.17788028791457453, 0.4223347620973825 ] );
+  let exp = QuatF64::from( [ -0.533_221_914_304_581_1, 0.711_102_202_219_155_7, 0.177_880_287_914_574_53, 0.422_334_762_097_382_5 ] );
   assert_abs_diff_eq!( q1.slerp( &q2, 0.9 ), exp );
 
 
   let q1 = QuatF64::from( [ 1.0, 2.0, 3.0, 4.0 ] ).normalize();
   let q2 = QuatF64::from( [ 0.9, 2.0, 3.0, 4.0 ] ).normalize();
 
-  let exp = QuatF64::from( [ 0.18080329575292692, 0.3652698894950247, 0.5479048342425371, 0.7305397789900494 ] );
+  let exp = QuatF64::from( [ 0.180_803_295_752_926_92, 0.365_269_889_495_024_7, 0.547_904_834_242_537_1, 0.730_539_778_990_049_4 ] );
 
   assert_abs_diff_eq!( q1.slerp( &q2, 0.1 ), exp );
 
-  let exp = QuatF64::from( [ 0.17371392923604712, 0.36574411080923475, 0.548616166213852, 0.7314882216184695 ] );
+  let exp = QuatF64::from( [ 0.173_713_929_236_047_12, 0.365_744_110_809_234_75, 0.548_616_166_213_852, 0.731_488_221_618_469_5 ] );
   assert_abs_diff_eq!( q1.slerp( &q2, 0.5 ), exp );
 
-  let exp = QuatF64::from( [ 0.1657276357739934, 0.3662549236088048, 0.549382385413207, 0.7325098472176096 ] );
+  let exp = QuatF64::from( [ 0.165_727_635_773_993_4, 0.366_254_923_608_804_8, 0.549_382_385_413_207, 0.732_509_847_217_609_6 ] );
   assert_abs_diff_eq!( q1.slerp( &q2, 0.95 ), exp );
 
 }
@@ -102,7 +102,7 @@ fn test_quat_from_slice_valid()
 /// Removing a redundant debug-only check must not silently remove the *only* check —
 /// this test confirms the always-on `try_into().unwrap()` still guards the invariant.
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "called `Result::unwrap()` on an `Err` value" ) ]
 fn test_quat_from_slice_wrong_length()
 {
   use the_module::QuatF64;

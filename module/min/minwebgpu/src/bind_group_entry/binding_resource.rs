@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ JsValue, web_sys, Into, BufferBinding };
 
   /// A trait for types that can be used as a WebGPU binding resource.
   pub trait BindingResource
@@ -12,6 +12,7 @@ mod private
 
   impl BindingResource for web_sys::GpuBufferBinding 
   {
+    #[ inline ]
     fn as_resource( &self ) -> JsValue 
     {
       self.into()
@@ -20,6 +21,7 @@ mod private
 
   impl BindingResource for web_sys::GpuTextureView 
   {
+    #[ inline ]
     fn as_resource( &self ) -> JsValue 
     {
       self.into()
@@ -28,6 +30,7 @@ mod private
 
   impl BindingResource for web_sys::GpuSampler 
   {
+    #[ inline ]
     fn as_resource( &self ) -> JsValue 
     {
       self.into()
@@ -36,6 +39,7 @@ mod private
 
   impl BindingResource for web_sys::GpuExternalTexture 
   {
+    #[ inline ]
     fn as_resource( &self ) -> JsValue 
     {
       self.into()
@@ -44,6 +48,7 @@ mod private
 
   impl BindingResource for BufferBinding< '_ > 
   {
+    #[ inline ]
     fn as_resource( &self ) -> JsValue {
       Into::< web_sys::GpuBufferBinding >::into( self ).into()
     }    

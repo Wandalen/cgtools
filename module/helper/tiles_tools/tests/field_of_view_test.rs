@@ -8,10 +8,7 @@
 //! the integration suite; one builder-state test remains inline as a documented
 //! exception (private fields, no public accessor).
 
-#![allow(clippy::float_cmp)] // Tests assert exact stored/configured values; no arithmetic precedes the comparisons.
-
 #![ cfg( feature = "enabled" ) ]
-
 
 use tiles_tools::field_of_view::{ VisibilityMap, VisibilityState };
 use tiles_tools::coordinates::square::{ Coordinate as SquareCoord, EightConnected };
@@ -19,8 +16,7 @@ use tiles_tools::coordinates::square::{ Coordinate as SquareCoord, EightConnecte
 #[ test ]
 fn test_visibility_map_basic()
 {
-  let viewer = SquareCoord::< EightConnected >::new( 0, 0 );
-  let mut visibility_map = VisibilityMap::new( viewer, 10 );
+  let mut visibility_map = VisibilityMap::< SquareCoord< EightConnected > >::new();
 
   let target = SquareCoord::< EightConnected >::new( 3, 3 );
   visibility_map.set_visibility( &target, VisibilityState::new( true, 5, 0.7 ) );

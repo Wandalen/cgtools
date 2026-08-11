@@ -1,11 +1,12 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
-  use binding_type::*;
+  use crate::{ binding_type, web_sys, Into };
+  use binding_type::{ BufferBindingLayout, SamplerBindingLayout, TextureBindingLayout, StorageTextureBindingLayout, ExternalTextureBindingLayout };
 
   /// A custom enum to represent the different types of binding resources in WebGPU.
   #[ derive( Clone ) ]
+  #[ non_exhaustive ]
   pub enum BindingType
   {
     /// Represents a buffer binding, used for uniform, storage, or read-only storage buffers.
@@ -41,7 +42,8 @@ mod private
     {
       impl From< $s_name > for BindingType
       {
-        fn from( value: $s_name ) -> Self 
+        #[ inline ]
+        fn from( value: $s_name ) -> Self
         {
             BindingType::$t_name( value.into() )
         }   
@@ -66,30 +68,40 @@ mod private
 
 
   /// Creates a default `BufferBindingLayout`.
+  #[ inline ]
+  #[ must_use ]
   pub fn buffer_type() -> BufferBindingLayout
   {
     BufferBindingLayout::new()
   }
 
   /// Creates a default `TextureBindingLayout`.
+  #[ inline ]
+  #[ must_use ]
   pub fn texture_type() -> TextureBindingLayout
   {
     TextureBindingLayout::new()
   }
 
   /// Creates a default `SamplerBindingLayout`.
+  #[ inline ]
+  #[ must_use ]
   pub fn sampler_type() -> SamplerBindingLayout
   {
     SamplerBindingLayout::new()
   }
   
   /// Creates a default `StorageTextureBindingLayout`.
+  #[ inline ]
+  #[ must_use ]
   pub fn storage_texture_type() -> StorageTextureBindingLayout
   {
     StorageTextureBindingLayout::new()
   }
 
   /// Creates a default `ExternalTextureBindingLayout`.
+  #[ inline ]
+  #[ must_use ]
   pub fn external_texture_type() -> ExternalTextureBindingLayout
   {
     ExternalTextureBindingLayout

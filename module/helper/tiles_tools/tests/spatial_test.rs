@@ -3,10 +3,7 @@
 //!
 //! Relocated from `src/spatial.rs` by task 072 (bodies verbatim, re-indented).
 
-#![allow(clippy::cast_possible_wrap)] // Loop indices scaled by small constants; far below i32::MAX.
-
 #![ cfg( feature = "enabled" ) ]
-
 
 use tiles_tools::spatial::*;
 use tiles_tools::coordinates::square::{Coordinate as SquareCoord, FourConnected};

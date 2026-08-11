@@ -31,9 +31,14 @@ fn accessor_test()
   assert_ne!( v.w(), v.z() );
 
   let v = F32x4::new( 1.0, 2.0, 3.0, 4.0 );
-  assert_eq!( v.x(), 1.0 );
-  assert_eq!( v.y(), 2.0 );
-  assert_eq!( v.z(), 3.0 );
-  assert_eq!( v.w(), 4.0 );
-  assert_ne!( v.w(), v.z() );
+  // `v` is constructed from the same literals compared against — no arithmetic occurs, so
+  // the stored components are bit-identical to the literals.
+  #[ allow( clippy::float_cmp ) ]
+  {
+    assert_eq!( v.x(), 1.0 );
+    assert_eq!( v.y(), 2.0 );
+    assert_eq!( v.z(), 3.0 );
+    assert_eq!( v.w(), 4.0 );
+    assert_ne!( v.w(), v.z() );
+  }
 }

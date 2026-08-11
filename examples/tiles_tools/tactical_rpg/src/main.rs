@@ -1,33 +1,3 @@
-#![allow(dead_code ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::items_after_statements ) ]
-#![ allow( clippy::unnecessary_cast ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::format_in_format_args ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::duplicated_attributes ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::trivially_copy_pass_by_ref ) ]
-#![ allow( clippy::missing_inline_in_public_items ) ]
-#![ allow( clippy::useless_vec ) ]
-#![ allow( clippy::unnested_or_patterns ) ]
-#![ allow( clippy::else_if_without_else ) ]
-#![ allow( clippy::unreadable_literal ) ]
-#![ allow( clippy::redundant_else ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::map_unwrap_or ) ]
-#![ allow( clippy::unused_self ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::struct_field_names ) ]
 //! Tactical RPG example demonstrating advanced ECS gameplay mechanics.
 //!
 //! This example showcases a turn-based tactical RPG combat system using
@@ -99,27 +69,14 @@ impl Experience {
 #[derive(Debug, Clone, Copy ) ]
 struct Initiative
 {
-  base_initiative: u32,
-  current_initiative: u32,
-  has_acted: bool,
+  value: u32,
 }
 
 impl Initiative {
   pub fn new(base: u32) -> Self {
   Self {
-    base_initiative: base,
-    current_initiative: base,
-    has_acted: false,
+    value: base,
   }
-  }
-  
-  pub fn reset_turn(&mut self) {
-  self.current_initiative = self.base_initiative;
-  self.has_acted = false;
-  }
-  
-  pub fn act(&mut self) {
-  self.has_acted = true;
   }
 }
 
@@ -128,9 +85,6 @@ impl Initiative {
 struct Equipment
 {
   weapon: Option<Weapon>,
-  armor: Option<Armor>,
-  accessories: Vec<Accessory>,
-  inventory_slots: u32,
 }
 
 #[derive(Debug, Clone ) ]
@@ -138,104 +92,6 @@ struct Weapon
 {
   name: String,
   attack_bonus: u32,
-  range: u32,
-  damage_type: DamageType,
-}
-
-#[derive(Debug, Clone ) ]
-struct Armor
-{
-  name: String,
-  defense_bonus: u32,
-  resistances: Vec<DamageType>,
-}
-
-#[derive(Debug, Clone ) ]
-struct Accessory
-{
-  name: String,
-  effect: AccessoryEffect,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq ) ]
-enum DamageType
-{
-  Physical,
-  Fire,
-  Ice,
-  Lightning,
-  Healing,
-}
-
-#[derive(Debug, Clone ) ]
-enum AccessoryEffect
-{
-  StatBonus(StatType, u32),
-  Resistance(DamageType),
-  ExtraMovement(u32),
-}
-
-#[derive(Debug, Clone, Copy ) ]
-enum StatType
-{
-  Attack,
-  Defense,
-  Speed,
-}
-
-/// Ability component for special attacks and spells
-#[derive(Debug, Clone ) ]
-struct Abilities
-{
-  abilities: Vec<Ability>,
-  mana: u32,
-  max_mana: u32,
-}
-
-#[derive(Debug, Clone ) ]
-struct Ability
-{
-  name: String,
-  mana_cost: u32,
-  range: u32,
-  area_of_effect: u32,
-  damage: u32,
-  damage_type: DamageType,
-  cooldown: u32,
-  current_cooldown: u32,
-}
-
-impl Abilities {
-  pub fn new(max_mana: u32) -> Self {
-  Self {
-    abilities: Vec::new(),
-    mana: max_mana,
-    max_mana,
-  }
-  }
-  
-  pub fn add_ability(&mut self, ability: Ability) {
-  self.abilities.push(ability);
-  }
-  
-  pub fn can_use_ability(&self, ability_index: usize) -> bool {
-  if let Some(ability) = self.abilities.get(ability_index) {
-    self.mana >= ability.mana_cost && ability.current_cooldown == 0
-  } else {
-    false
-  }
-  }
-  
-  pub fn use_ability(&mut self, ability_index: usize) -> Option<&Ability> {
-  if self.can_use_ability(ability_index) {
-    let ability = &mut self.abilities[ability_index];
-    self.mana -= ability.mana_cost;
-    ability.current_cooldown = ability.cooldown;
-    Some(&*ability)
-  } else {
-    None
-  }
-  }
 }
 
 // =============================================================================
@@ -258,24 +114,17 @@ struct TacticalRPG
 enum GamePhase
 {
   Planning,    // Player selects actions
-  Execution,   // Actions are executed
   AI,          // AI makes decisions
   Resolution,  // Effects are resolved
 }
 
 impl TacticalRPG {
-  /// Creates a new tactical RPG game
-  pub fn new() -> Self {
-  let mut world = World::new();
-  let player_team = Team::new(0);
-  let enemy_team = Team::hostile(1);
-  
-  // Spawn player units
-  let player_warrior = world.spawn((
+  fn spawn_player_warrior(world: &mut World, team: Team) -> hecs::Entity {
+  world.spawn((
     Position::new(HexCoord::<Axial, Pointy>::new(-2, 1)),
     Health::new(120),
     Stats::new(18, 12, 10, 1),
-    player_team,
+    team,
     Movable::new(3),
     Experience::new(1),
     Initiative::new(15),
@@ -283,25 +132,18 @@ impl TacticalRPG {
       weapon: Some(Weapon {
         name: "Iron Sword".to_string(),
         attack_bonus: 5,
-        range: 1,
-        damage_type: DamageType::Physical,
       }),
-      armor: Some(Armor {
-        name: "Chain Mail".to_string(),
-        defense_bonus: 3,
-        resistances: vec![DamageType::Physical],
-      }),
-      accessories: Vec::new(),
-      inventory_slots: 10,
     },
     Size::single(),
-  ));
-  
-  let player_mage = world.spawn((
+  ))
+  }
+
+  fn spawn_player_mage(world: &mut World, team: Team) -> hecs::Entity {
+  world.spawn((
     Position::new(HexCoord::<Axial, Pointy>::new(-1, 0)),
     Health::new(80),
     Stats::new(12, 8, 14, 1),
-    player_team,
+    team,
     Movable::new(2),
     Experience::new(1),
     Initiative::new(12),
@@ -309,49 +151,18 @@ impl TacticalRPG {
       weapon: Some(Weapon {
         name: "Fire Staff".to_string(),
         attack_bonus: 2,
-        range: 3,
-        damage_type: DamageType::Fire,
       }),
-      armor: None,
-      accessories: vec![Accessory {
-        name: "Mana Crystal".to_string(),
-        effect: AccessoryEffect::StatBonus(StatType::Speed, 2),
-      }],
-      inventory_slots: 8,
-    },
-    {
-      let mut abilities = Abilities::new(50);
-      abilities.add_ability(Ability {
-        name: "Fireball".to_string(),
-        mana_cost: 10,
-        range: 4,
-        area_of_effect: 1,
-        damage: 25,
-        damage_type: DamageType::Fire,
-        cooldown: 2,
-        current_cooldown: 0,
-      });
-      abilities.add_ability(Ability {
-        name: "Heal".to_string(),
-        mana_cost: 8,
-        range: 2,
-        area_of_effect: 0,
-        damage: 0, // Actually healing
-        damage_type: DamageType::Healing,
-        cooldown: 1,
-        current_cooldown: 0,
-      });
-      abilities
     },
     Size::single(),
-  ));
-  
-  // Spawn enemy units
-  let enemy_goblin = world.spawn((
+  ))
+  }
+
+  fn spawn_enemy_goblin(world: &mut World, team: Team) -> hecs::Entity {
+  world.spawn((
     Position::new(HexCoord::<Axial, Pointy>::new(2, -1)),
     Health::new(60),
     Stats::new(12, 6, 12, 1),
-    enemy_team,
+    team,
     Movable::new(4),
     AI::new(1.0),
     Initiative::new(14),
@@ -359,21 +170,18 @@ impl TacticalRPG {
       weapon: Some(Weapon {
         name: "Rusty Dagger".to_string(),
         attack_bonus: 2,
-        range: 1,
-        damage_type: DamageType::Physical,
       }),
-      armor: None,
-      accessories: Vec::new(),
-      inventory_slots: 5,
     },
     Size::single(),
-  ));
-  
-  let enemy_orc = world.spawn((
+  ))
+  }
+
+  fn spawn_enemy_orc(world: &mut World, team: Team) -> hecs::Entity {
+  world.spawn((
     Position::new(HexCoord::<Axial, Pointy>::new(3, -2)),
     Health::new(100),
     Stats::new(16, 10, 8, 1),
-    enemy_team,
+    team,
     Movable::new(2),
     AI::new(1.5),
     Initiative::new(10),
@@ -381,23 +189,26 @@ impl TacticalRPG {
       weapon: Some(Weapon {
         name: "War Axe".to_string(),
         attack_bonus: 6,
-        range: 1,
-        damage_type: DamageType::Physical,
       }),
-      armor: Some(Armor {
-        name: "Hide Armor".to_string(),
-        defense_bonus: 2,
-        resistances: Vec::new(),
-      }),
-      accessories: Vec::new(),
-      inventory_slots: 6,
     },
     Size::single(),
-  ));
-  
+  ))
+  }
+
+  /// Creates a new tactical RPG game
+  pub fn new() -> Self {
+  let mut world = World::new();
+  let player_team = Team::new(0);
+  let enemy_team = Team::hostile(1);
+
+  let player_warrior = Self::spawn_player_warrior(&mut world, player_team);
+  let player_mage = Self::spawn_player_mage(&mut world, player_team);
+  let enemy_goblin = Self::spawn_enemy_goblin(&mut world, enemy_team);
+  let enemy_orc = Self::spawn_enemy_orc(&mut world, enemy_team);
+
   let mut turn_queue = VecDeque::new();
   turn_queue.extend([player_warrior, player_mage, enemy_goblin, enemy_orc]);
-  
+
   Self {
     world,
     turn_queue,
@@ -467,7 +278,7 @@ impl TacticalRPG {
     if pos.distance_to(&target.1) <= 2 {
       self.execute_attack(entity, target.0);
     } else {
-      self.execute_move_toward(entity, &target.1.coord);
+      self.execute_move_toward(entity, target.1.coord);
     }
   }
   
@@ -494,14 +305,14 @@ impl TacticalRPG {
   if let Some(target) = target {
     let pos = Position::new(pos_coord);
     let distance = pos.distance_to(&target.1);
-    println!("AI targeting player at distance {}", distance);
+    println!("AI targeting player at distance {distance}");
     
     if distance <= 1 {
       // Attack if adjacent
       self.execute_attack(entity, target.0);
     } else if distance <= 4 {
       // Move closer if within reasonable range
-      self.execute_move_toward(entity, &target.1.coord);
+      self.execute_move_toward(entity, target.1.coord);
     } else {
       // Hold position if target too far
       println!("AI unit holding position");
@@ -556,19 +367,20 @@ impl TacticalRPG {
   }
   
   /// Executes movement toward a target position
-  fn execute_move_toward(&mut self, entity: hecs::Entity, target: &HexCoord<Axial, Pointy>) {
+  fn execute_move_toward(&mut self, entity: hecs::Entity, target: HexCoord<Axial, Pointy>) {
   if let Ok(pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
     if let Ok(movable) = self.world.get::<Movable>(entity) {
       // Use pathfinding to find route
       let path_result = astar(
         &pos.coord,
-        target,
-        |coord| self.is_position_passable(coord),
+        &target,
+        |&coord| Self::is_position_passable(coord),
         |_| 1,
       );
-      
+
       if let Some((path, _cost)) = path_result {
-        let move_distance = movable.range.min(path.len() as u32 - 1);
+        let path_len = u32::try_from(path.len()).unwrap_or(u32::MAX);
+        let move_distance = movable.range.min(path_len - 1);
         if move_distance > 0 {
           let new_pos = path[move_distance as usize];
           
@@ -622,7 +434,7 @@ impl TacticalRPG {
   }
   
   /// Checks if a position is passable (no other units)
-  fn is_position_passable(&self, _coord: &HexCoord<Axial, Pointy>) -> bool {
+  fn is_position_passable(_coord: HexCoord<Axial, Pointy>) -> bool {
   // In a real implementation, would check for other units and obstacles
   true
   }
@@ -632,9 +444,9 @@ impl TacticalRPG {
   // Collect all living units sorted by initiative
   let mut units_by_initiative = Vec::new();
   
-  for (entity, (init, health)) in self.world.query::<(&Initiative, &Health)>().iter() {
+  for (entity, (init, health)) in &mut self.world.query::<(&Initiative, &Health)>() {
     if health.is_alive() {
-      units_by_initiative.push((entity, init.current_initiative));
+      units_by_initiative.push((entity, init.value));
     }
   }
   
@@ -677,7 +489,7 @@ impl TacticalRPG {
   
   // Find all living units
   let mut units = Vec::new();
-  for (_entity, (pos, health, team)) in self.world.query::<(&Position<HexCoord<Axial, Pointy>>, &Health, &Team)>().iter() {
+  for (_entity, (pos, health, team)) in &mut self.world.query::<(&Position<HexCoord<Axial, Pointy>>, &Health, &Team)>() {
     if health.is_alive() {
       let symbol = if team.id == self.player_team.id { "🟢" } else { "🔴" };
       units.push((pos.coord.q, pos.coord.r, symbol));
@@ -705,9 +517,8 @@ impl TacticalRPG {
     for q in min_q..=max_q {
       let symbol = units.iter()
         .find(|(unit_q, unit_r, _)| *unit_q == q && *unit_r == r)
-        .map(|(_, _, symbol)| *symbol)
-        .unwrap_or("⬡");
-      print!("{} ", symbol);
+        .map_or("⬡", |(_, _, symbol)| *symbol);
+      print!("{symbol} ");
     }
     println!();
   }
@@ -732,6 +543,10 @@ impl TacticalRPG {
     let player_units_alive = self.count_living_units(self.player_team.id);
     let enemy_units_alive = self.count_living_units(self.enemy_team.id);
     
+    // Both branches diverge (`break`), so a trailing `else` would be flagged
+    // `redundant_else`, but omitting it triggers `else_if_without_else` — the two
+    // pedantic lints contradict for this pattern; redundant_else's guidance is followed.
+    #[allow(clippy::else_if_without_else)]
     if player_units_alive == 0 {
       println!("💀 Defeat! All player units have fallen.");
       break;
@@ -739,7 +554,8 @@ impl TacticalRPG {
       println!("🏆 Victory! All enemies defeated.");
       break;
     }
-    
+    // Neither side has been eliminated yet; continue to the next turn.
+
     if turn >= 10 {
       println!("⏰ Battle continues...");
       break;
@@ -752,7 +568,7 @@ impl TacticalRPG {
   /// Counts living units for a team
   fn count_living_units(&self, team_id: u32) -> usize {
   let mut count = 0;
-  for (_entity, (health, team)) in self.world.query::<(&Health, &Team)>().iter() {
+  for (_entity, (health, team)) in &mut self.world.query::<(&Health, &Team)>() {
     if health.is_alive() && team.id == team_id {
       count += 1;
     }

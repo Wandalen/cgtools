@@ -262,6 +262,7 @@ mod private
   where
     T : VectorIter< E, N >,
   {
+    #[ inline ]
     fn vector_iter< 'lifetime >( &'lifetime self ) -> impl VectorIteratorRef< 'lifetime, &'lifetime E >
     where E : 'lifetime
     {
@@ -274,6 +275,7 @@ mod private
   where
     T : VectorIter< E, N >,
   {
+    #[ inline ]
     fn vector_iter< 'lifetime >( &'lifetime self ) -> impl VectorIteratorRef< 'lifetime, &'lifetime E >
     where E : 'lifetime
     {
@@ -297,6 +299,7 @@ mod private
   where
     T : VectorIterMut< E, N > + VectorIter< E, N >,
   {
+    #[ inline ]
     fn vector_iter_mut< 'lifetime >( &'lifetime mut self ) -> impl VectorIterator< 'lifetime, &'lifetime mut E >
     where E : 'lifetime
     {

@@ -21,12 +21,14 @@ mod private
     pub const UNIFORM : Self = Self( 64 );
 
     /// The raw WebGPU bit value.
+    #[must_use]
     pub fn bits( self ) -> u32
     {
       self.0
     }
 
     /// Whether every bit of `other` is set in `self`.
+    #[must_use]
     pub fn contains( self, other : Self ) -> bool
     {
       self.0 & other.0 == other.0
@@ -56,12 +58,14 @@ mod private
     pub const RENDER_ATTACHMENT : Self = Self( 16 );
 
     /// The raw WebGPU bit value.
+    #[must_use]
     pub fn bits( self ) -> u32
     {
       self.0
     }
 
     /// Whether every bit of `other` is set in `self`.
+    #[must_use]
     pub fn contains( self, other : Self ) -> bool
     {
       self.0 & other.0 == other.0
@@ -184,12 +188,14 @@ mod private
     pub const FRAGMENT : Self = Self( 2 );
 
     /// The raw WebGPU bit value.
+    #[must_use]
     pub fn bits( self ) -> u32
     {
       self.0
     }
 
     /// Whether every bit of `other` is set in `self`.
+    #[must_use]
     pub fn contains( self, other : Self ) -> bool
     {
       self.0 & other.0 == other.0

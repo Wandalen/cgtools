@@ -3,17 +3,6 @@
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Renders GLTF files using postprocess effects" ) ]
 
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::no_effect_underscore_binding ) ]
-
 use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
 
@@ -31,10 +20,12 @@ fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
   let dpr = window.device_pixel_ratio();
   let css_w = f64::from( canvas.client_width() );
   let css_h = f64::from( canvas.client_height() );
-  // Canvas dimensions are always non-negative, so casting to u32 cannot lose sign here.
-  #[ allow( clippy::cast_sign_loss ) ]
+  // Canvas dimensions are always non-negative and far below `u32::MAX`, so casting to `u32`
+  // cannot lose sign; the fractional part is intentionally floored to get an integer
+  // backing-store pixel count.
+  #[ allow( clippy::cast_sign_loss, clippy::cast_possible_truncation ) ]
   let w = ( css_w * dpr ) as u32;
-  #[ allow( clippy::cast_sign_loss ) ]
+  #[ allow( clippy::cast_sign_loss, clippy::cast_possible_truncation ) ]
   let h = ( css_h * dpr ) as u32;
   ( w.max( 1 ), h.max( 1 ) )
 }

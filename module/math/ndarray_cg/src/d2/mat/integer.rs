@@ -6,7 +6,7 @@
 
 mod private
 {
-  use crate::*;
+  use crate::{Mat, mat, MatEl, RawSlice, RawSliceMut};
   use ::num_traits::
   {
     Saturating,
@@ -21,7 +21,8 @@ mod private
   {
     /// Component-wise saturating addition.
     #[ inline ]
-    pub fn saturating_add( self, rhs : Self ) -> Self
+    #[ must_use ]
+    pub fn saturating_add( self, rhs : &Self ) -> Self
     {
       let mut out = self;
       let rs = rhs.raw_slice();
@@ -34,7 +35,8 @@ mod private
 
     /// Component-wise saturating subtraction.
     #[ inline ]
-    pub fn saturating_sub( self, rhs : Self ) -> Self
+    #[ must_use ]
+    pub fn saturating_sub( self, rhs : &Self ) -> Self
     {
       let mut out = self;
       let rs = rhs.raw_slice();
@@ -53,7 +55,8 @@ mod private
   {
     /// Component-wise wrapping addition.
     #[ inline ]
-    pub fn wrapping_add( self, rhs : Self ) -> Self
+    #[ must_use ]
+    pub fn wrapping_add( self, rhs : &Self ) -> Self
     {
       let mut out = self;
       let rs = rhs.raw_slice();
@@ -72,7 +75,8 @@ mod private
   {
     /// Component-wise wrapping subtraction.
     #[ inline ]
-    pub fn wrapping_sub( self, rhs : Self ) -> Self
+    #[ must_use ]
+    pub fn wrapping_sub( self, rhs : &Self ) -> Self
     {
       let mut out = self;
       let rs = rhs.raw_slice();
@@ -91,7 +95,8 @@ mod private
   {
     /// Component-wise wrapping multiplication.
     #[ inline ]
-    pub fn wrapping_mul( self, rhs : Self ) -> Self
+    #[ must_use ]
+    pub fn wrapping_mul( self, rhs : &Self ) -> Self
     {
       let mut out = self;
       let rs = rhs.raw_slice();
@@ -111,7 +116,7 @@ mod private
     /// Component-wise checked addition. Returns `None` if any component
     /// would overflow.
     #[ inline ]
-    pub fn checked_add( self, rhs : Self ) -> Option< Self >
+    pub fn checked_add( self, rhs : &Self ) -> Option< Self >
     {
       let mut out = self;
       let rs = rhs.raw_slice();
@@ -131,7 +136,7 @@ mod private
     /// Component-wise checked subtraction. Returns `None` if any component
     /// would overflow.
     #[ inline ]
-    pub fn checked_sub( self, rhs : Self ) -> Option< Self >
+    pub fn checked_sub( self, rhs : &Self ) -> Option< Self >
     {
       let mut out = self;
       let rs = rhs.raw_slice();
@@ -151,7 +156,7 @@ mod private
     /// Component-wise checked multiplication. Returns `None` if any
     /// component would overflow.
     #[ inline ]
-    pub fn checked_mul( self, rhs : Self ) -> Option< Self >
+    pub fn checked_mul( self, rhs : &Self ) -> Option< Self >
     {
       let mut out = self;
       let rs = rhs.raw_slice();

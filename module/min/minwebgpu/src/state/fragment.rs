@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ web_sys, ColorTargetState, js_sys, IntoIterator, Into };
 
   /// A builder for creating a `web_sys::GpuFragmentState`.
   #[ derive( Clone ) ]
@@ -28,6 +28,8 @@ mod private
   impl< 'a > FragmentState< 'a > 
   {
     /// Creates a new `FragmentState` builder with a required shader module.
+    #[ inline ]
+    #[ must_use ]
     pub fn new( module :  &'a web_sys::GpuShaderModule ) -> Self
     {
       let entry_point = None;
@@ -42,6 +44,8 @@ mod private
     }
 
     /// Sets the entry point function name for the fragment shader.
+    #[ inline ]
+    #[ must_use ]
     pub fn entry_point( mut self, entry : &'a str ) -> Self
     {
       self.entry_point = Some( entry );
@@ -49,6 +53,8 @@ mod private
     }
 
     /// Adds a color target to the list of targets.
+    #[ inline ]
+    #[ must_use ]
     pub fn target( mut self, target : ColorTargetState ) -> Self
     {
       self.targets.push( target );
@@ -58,11 +64,12 @@ mod private
 
   impl From< FragmentState< '_ > > for web_sys::GpuFragmentState 
   {
+    #[ inline ]
     fn from( value: FragmentState< '_ > ) -> Self 
     {
       let targets : Vec< js_sys::JsNullable< web_sys::GpuColorTargetState > > =
       value.targets.into_iter().map( | t | js_sys::JsNullable::wrap( t.into() ) ).collect();
-      let state = web_sys::GpuFragmentState::new( &value.module, &targets );
+      let state = web_sys::GpuFragmentState::new( value.module, &targets );
 
       if let Some( v ) = value.entry_point { state.set_entry_point( v ); }
 

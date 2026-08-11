@@ -5,14 +5,6 @@
 //! to the emitted `RenderCommand`s, and `Scene::from_snapshot` materialises
 //! to a render result byte-equal with the snapshot-driven baseline.
 
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow
-(
-  clippy::default_trait_access,
-  clippy::too_many_lines,
-  clippy::float_cmp,
-) ]
-
 extern crate alloc;
 use alloc::sync::Arc;
 use rustc_hash::FxHashMap as HashMap;

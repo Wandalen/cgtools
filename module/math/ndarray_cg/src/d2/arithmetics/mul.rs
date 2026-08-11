@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{MatNum, Indexable, Ix2, ScalarMut, IndexingRef, nd, VectorIterMut, VectorIter, Mul, Mat, mat, IndexingMut, Vector};
 
 /// Multiplies two matrices.
 ///
@@ -6,6 +6,11 @@ use crate::*;
 /// For integer `E` the inner-product accumulation is not overflow-checked: it
 /// panics in debug / wraps in release once a product or partial sum leaves
 /// `E`'s range.
+///
+/// # Panics
+/// Panics if the inner dimensions of `a`/`b` or the shape of `r` are
+/// incompatible with matrix multiplication.
+#[ inline ]
 pub fn mul< E, A, B, R >( r : &mut R, a : &A, b : &B )
 where
   E : MatNum,
@@ -27,14 +32,11 @@ where
     let rdim = r.dim();
 
     // Check if dimensions are compatible for multiplication
-    if adim[ 1 ] != bdim[ 0 ] || rdim[ 0 ] != adim[ 0 ] || rdim[ 1 ] != bdim[ 1 ]
-    {
-      panic!
-      (
-        "Incompatible dimensions for matrix multiplication : a : {:?}, b : {:?}, r : {:?}",
-        adim, bdim, rdim
-      );
-    }
+    assert!
+    (
+      adim[ 1 ] == bdim[ 0 ] && rdim[ 0 ] == adim[ 0 ] && rdim[ 1 ] == bdim[ 1 ],
+      "Incompatible dimensions for matrix multiplication : a : {adim:?}, b : {bdim:?}, r : {rdim:?}"
+    );
   }
 
   for row in 0..adim[ 0 ]
@@ -55,6 +57,10 @@ where
 /// For integer `E` the inner-product accumulation is not overflow-checked: it
 /// panics in debug / wraps in release once a product or partial sum leaves
 /// `E`'s range.
+///
+/// # Panics
+/// Panics if `a`'s column count does not equal `ROWS`.
+#[ inline ]
 pub fn mul_mat_vec< E, A, B, R, const ROWS : usize >( r : &mut R, a : &A, b : &B )
 where
   E : MatNum,
@@ -75,14 +81,11 @@ where
     let adim = a.dim();
 
     // Check if dimensions are compatible for multiplication
-    if adim[ 1 ] != ROWS
-    {
-      panic!
-      (
-        "Incompatible dimensions for matrix-vector multiplication : a : {:?}, b : {:?}, r : {:?}",
-        adim, ROWS, ROWS
-      );
-    }
+    assert!
+    (
+      adim[ 1 ] == ROWS,
+      "Incompatible dimensions for matrix-vector multiplication : a : {adim:?}, b : {ROWS:?}, r : {ROWS:?}"
+    );
   }
 
   for ( row, e ) in r.vector_iter_mut().enumerate()

@@ -1,7 +1,4 @@
 #![ doc = "../readme.md" ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::too_many_lines ) ]
 
 use tiles_tools::coordinates::{ hexagonal, pixel::Pixel, Neighbors as _ };
 use hexagonal::{ Axial, Coordinate, Flat };

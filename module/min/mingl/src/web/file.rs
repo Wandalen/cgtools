@@ -2,10 +2,17 @@
 mod private
 {
   use wasm_bindgen::JsCast;
-  use crate::web::*;
-  use crate::*;
+  use crate::error;
+  // The `error::typed::Error` derive resolves to `thiserror::Error` through several
+  // re-export layers (see `error_tools::error::typed`). Its generated `Display` impl
+  // contains its own internal `use thiserror::__private::AsDisplay as _;`, which needs
+  // the bare name `thiserror` resolvable here — `mingl` depends on `error_tools`, not
+  // `thiserror` directly, so it isn't in the extern prelude without this import.
+  use error::thiserror;
+  use crate::web::{ JsFuture, JsValue };
 
   /// Error returned by `load` when fetching or decoding a file fails.
+  #[ non_exhaustive ]
   #[ derive( Debug, error::typed::Error ) ]
   pub enum Error
   {
@@ -19,6 +26,7 @@ mod private
 
   impl From< JsValue > for Error
   {
+    #[ inline ]
     fn from( value : JsValue ) -> Self
     {
       Error::Js( value )
@@ -30,6 +38,7 @@ mod private
   // object where one exists.
   impl From< Error > for JsValue
   {
+    #[ inline ]
     fn from( error : Error ) -> Self
     {
       match error
@@ -56,11 +65,11 @@ mod private
     }
     else if file_name.starts_with( '/' )
     {
-      format!( "{}{}", origin, file_name )
+      format!( "{origin}{file_name}" )
     }
     else
     {
-      format!( "{}/{}", origin, file_name )
+      format!( "{origin}/{file_name}" )
     }
   }
 
@@ -76,6 +85,8 @@ mod private
   /// Note that origin-absolute paths (a leading `/`) are deliberately *not* covered
   /// here: they carry no scheme and the caller still has to join them to an origin
   /// or pass them through, depending on context.
+  #[ inline ]
+  #[ must_use ]
   pub fn is_self_contained_url( url : &str ) -> bool
   {
     url.starts_with( "http://" )
@@ -143,6 +154,7 @@ mod private
   /// # Panics
   /// Panics only if the browser `window` object is unavailable (i.e. not running in
   /// a browsing context).
+  #[ inline ]
   pub async fn load( file_name : &str ) -> Result< Vec< u8 >, Error >
   {
     let window = web_sys::window().unwrap();

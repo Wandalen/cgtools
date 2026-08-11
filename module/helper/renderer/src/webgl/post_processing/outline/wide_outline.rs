@@ -92,7 +92,7 @@ mod private
   )
   {
     gl.active_texture( slot );
-    gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
+    gl.bind_texture( GL::TEXTURE_2D, Some( texture ) );
     // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
     gl.uniform1i( Some( location ), ( slot - GL::TEXTURE0 ) as i32 );
   }
@@ -148,12 +148,12 @@ mod private
   (
     gl : &gl::WebGl2RenderingContext,
     framebuffer : &WebGlFramebuffer,
-    color_texture : Option< WebGlTexture >
+    color_texture : Option< &WebGlTexture >
   )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, Some( framebuffer ) );
     // Attach the texture to the framebuffer's color attachment point
-    gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, color_texture.as_ref(), 0 );
+    gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, color_texture, 0 );
     gl.bind_framebuffer( gl::FRAMEBUFFER, None );
   }
 
@@ -340,8 +340,6 @@ mod private
     /// # Arguments
     ///
     /// * `i` - The current JFA step index ( 0, 1, 2, ... ).
-    /// * `last` - A boolean flag. If true, the result of this step is rendered
-    ///            directly to the default framebuffer ( screen ) for debugging.
     fn jfa_step_pass( &self, gl : &gl::WebGl2RenderingContext, i : u32 )
     {
       let jfa_step = &self.shader_programs.jfa_step;
@@ -365,10 +363,10 @@ mod private
         upload_framebuffer( gl, jfa_step_fb_0, self.width as i32, self.height as i32 ); // Render to FB 0
         upload_texture( gl, jfa_init_fb_color, &jfa_init_loc, GL::TEXTURE0 ); // Input is JFA init texture
       }
-      else if i.is_multiple_of( 2 ) // Even steps ( 2, 4, ... ) read from FB 1, render to FB 0
+      else if i % 2 == 0 // Even steps ( 2, 4, ... ) read from FB 1, render to FB 0
       {
         upload_framebuffer( gl, jfa_step_fb_0, self.width as i32, self.height as i32 ); // Render to FB 0
-        upload_texture( gl, &jfa_step_fb_color_1, &jfa_init_loc, GL::TEXTURE0 ); // Input is texture from FB 1
+        upload_texture( gl, jfa_step_fb_color_1, &jfa_init_loc, GL::TEXTURE0 ); // Input is texture from FB 1
       }
       else // Odd steps ( 1, 3, ... ) read from FB 0, render to FB 1
       {
@@ -396,16 +394,14 @@ mod private
     ///
     /// # Arguments
     ///
-    /// * `t` - The current time in milliseconds ( used for animating outline thickness ).
-    /// * `num_passes` - The total number of JFA step passes performed. Used to determine
-    ///                which of the ping-pong textures ( `jfa_step_fb_color_0` or `jfa_step_fb_color_1` )
-    ///                holds the final JFA result.
+    /// * `input_texture` - The rendered scene texture to draw outlines over.
+    /// * `output_texture` - The color texture to attach to the outline framebuffer.
     fn outline_pass
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
       input_texture : Option< minwebgl::web_sys::WebGlTexture >,
-      output_texture : Option< minwebgl::web_sys::WebGlTexture >
+      output_texture : Option< &minwebgl::web_sys::WebGlTexture >
     )
     {
       let outline = &self.shader_programs.outline;
@@ -422,7 +418,7 @@ mod private
       let jfa_step_loc = outline_locs.get( "jfaTexture" ).unwrap().clone().unwrap();
       let resolution = outline_locs.get( "resolution" ).unwrap().clone().unwrap();
 
-      set_framebuffer_color( gl, &outline_fb, Some( output_texture.unwrap() ) );
+      set_framebuffer_color( gl, outline_fb, output_texture );
 
       outline.bind( gl );
 
@@ -434,7 +430,7 @@ mod private
       upload_texture( gl, &source, &source_loc, GL::TEXTURE0 );
       upload_texture( gl, object_color, &object_color_loc, GL::TEXTURE1 );
       // The final JFA result is in jfa_step_fb_color_0 if num_passes is even, otherwise in jfa_step_fb_color_1
-      if self.num_passes.is_multiple_of( 2 )
+      if self.num_passes % 2 == 0
       {
         upload_texture( gl, jfa_step_fb_color_0, &jfa_step_loc, GL::TEXTURE2 );
       }
@@ -477,7 +473,7 @@ mod private
       }
 
       // 4. Outline Pass: Generate and render the final scene with the outline
-      self.outline_pass( gl, input_texture, output_texture.clone() );
+      self.outline_pass( gl, input_texture, output_texture.as_ref() );
 
       Ok
       (

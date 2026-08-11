@@ -1,4 +1,3 @@
-#[ allow( clippy::question_mark ) ]
 mod private
 {
   use rustc_hash::FxHashMap;
@@ -48,7 +47,7 @@ mod private
 
   fn decode_channel< 'a >
   (
-    channel : Channel< '_ >,
+    channel : &Channel< '_ >,
     buffers : &'a [ Vec< u8 > ],
   ) -> Option< ( usize, Vec< f64 >, ReadOutputs< 'a > ) >
   {
@@ -75,7 +74,7 @@ mod private
     (
       (
         components,
-        times.map( | t | t as f64 ).collect::< Vec< _ > >(),
+        times.map( f64::from ).collect::< Vec< _ > >(),
         values
       )
     )
@@ -83,11 +82,11 @@ mod private
 
   fn quat_sequence
   (
-    channel : Channel< '_ >,
+    channel : &Channel< '_ >,
     buffers : &[ Vec< u8 > ],
   ) -> Option< Sequence< Tween< QuatF64 > > >
   {
-    let ( components, times, values ) = decode_channel( channel.clone(), buffers )?;
+    let ( components, times, values ) = decode_channel( channel, buffers )?;
 
     let ReadOutputs::Rotations( rotations ) = values
     else
@@ -110,15 +109,15 @@ mod private
       let mut in_tangent = None;
       if channel.sampler().interpolation() == Interpolation::CubicSpline
       {
-        let Some( _in_tangent ) = items_iter.next().cloned()
+        let Some( in_tangent_raw ) = items_iter.next().copied()
         else
         {
           continue;
         };
-        in_tangent = Some( _in_tangent.map( | v | v as f64 ) );
+        in_tangent = Some( in_tangent_raw.map( f64::from ) );
       }
 
-      let Some( value ) = items_iter.next().cloned()
+      let Some( value ) = items_iter.next().copied()
       else
       {
         continue;
@@ -127,15 +126,15 @@ mod private
       let mut out_tangent = None;
       if channel.sampler().interpolation() == Interpolation::CubicSpline
       {
-        let Some( _out_tangent ) = items_iter.next().cloned()
+        let Some( out_tangent_raw ) = items_iter.next().copied()
         else
         {
           continue;
         };
-        out_tangent = Some( _out_tangent.map( | v | v as f64 ) );
+        out_tangent = Some( out_tangent_raw.map( f64::from ) );
       }
 
-      let r2 = QuatF64::from( value.map( | v | v as f64 ) );
+      let r2 = QuatF64::from( value.map( f64::from ) );
 
       let r1 = last_value.unwrap_or( r2 );
       let t1 = last_time.unwrap_or( t2 );
@@ -167,11 +166,11 @@ mod private
 
   fn vec3_sequence
   (
-    channel : Channel< '_ >,
+    channel : &Channel< '_ >,
     buffers : &[ Vec< u8 > ],
   ) -> Option< Sequence< Tween< F64x3 > > >
   {
-    let ( components, times, values ) = decode_channel( channel.clone(), buffers )?;
+    let ( components, times, values ) = decode_channel( channel, buffers )?;
 
     let values = match values
     {
@@ -197,15 +196,15 @@ mod private
       let mut m1 = None;
       if channel.sampler().interpolation() == Interpolation::CubicSpline
       {
-        let Some( _m1 ) = items_iter.next().cloned()
+        let Some( m1_raw ) = items_iter.next().copied()
         else
         {
           continue;
         };
-        m1 = Some( _m1.map( | v | v as f64 ) );
+        m1 = Some( m1_raw.map( f64::from ) );
       }
 
-      let Some( v2 ) = items_iter.next().cloned()
+      let Some( v2 ) = items_iter.next().copied()
       else
       {
         continue;
@@ -214,15 +213,15 @@ mod private
       let mut m2 = None;
       if channel.sampler().interpolation() == Interpolation::CubicSpline
       {
-        let Some( _m2 ) = items_iter.next().cloned()
+        let Some( m2_raw ) = items_iter.next().copied()
         else
         {
           continue;
         };
-        m2 = Some( _m2.map( | v | v as f64 ) );
+        m2 = Some( m2_raw.map( f64::from ) );
       }
 
-      let v2 = F64x3::from_array( v2.map( | v | v as f64 ) );
+      let v2 = F64x3::from_array( v2.map( f64::from ) );
       let t1 = last_time.unwrap_or( t2 );
       let v1 = last_value
       .unwrap_or( v2 );
@@ -253,21 +252,13 @@ mod private
 
   fn weights_sequence
   (
-    channel : Channel< '_ >,
+    channel : &Channel< '_ >,
     buffers : &[ Vec< u8 > ],
     targets : usize
   )
   -> Option< Sequence< Tween< Vec< f64 > > > >
   {
-    let Some
-    (
-      ( components, times, values )
-    )
-    = decode_channel( channel.clone(), buffers )
-    else
-    {
-      return None;
-    };
+    let ( components, times, values ) = decode_channel( channel, buffers )?;
 
     let ReadOutputs::MorphTargetWeights( weights ) = values
     else
@@ -291,13 +282,13 @@ mod private
       let mut m1 = None;
       if channel.sampler().interpolation() == Interpolation::CubicSpline
       {
-        let Some( _m1 ) = items_iter.next()
+        let Some( m1_raw ) = items_iter.next()
         else
         {
           continue;
         };
 
-        m1 = Some( _m1.iter().map( | &x | x as f64 ).collect::< Vec< _ > >() );
+        m1 = Some( m1_raw.iter().map( | &x | f64::from(x) ).collect::< Vec< _ > >() );
       }
 
       let Some( v2 ) = items_iter.next()
@@ -305,17 +296,17 @@ mod private
       {
         continue;
       };
-      let v2 = v2.iter().map( | v | *v as f64 ).collect::< Vec< _ > >();
+      let v2 = v2.iter().map( | v | f64::from(*v) ).collect::< Vec< _ > >();
 
       let mut m2 = None;
       if channel.sampler().interpolation() == Interpolation::CubicSpline
       {
-        let Some( _m2 ) = items_iter.next()
+        let Some( m2_raw ) = items_iter.next()
         else
         {
           continue
         };
-        m2 = Some( _m2.iter().map( | &x | x as f64 ).collect::< Vec< _ > >() );
+        m2 = Some( m2_raw.iter().map( | &x | f64::from(x) ).collect::< Vec< _ > >() );
       }
 
       let v1 = last_value.clone().unwrap_or_else( || v2.clone() );
@@ -356,8 +347,7 @@ mod private
   {
     let max_components = gl.get_parameter( minwebgl::MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS )
     .ok()
-    .map( | v | v.as_f64() )
-    .flatten()
+    .and_then(| v | v.as_f64())
     .unwrap_or( 0.0 ) as usize;
     if max_components < crate::webgl::skeleton::MAX_MORPH_TARGETS
     {
@@ -385,30 +375,30 @@ mod private
         {
           Property::Translation =>
           {
-            let Some( sequence ) = vec3_sequence( channel, buffers )
+            let Some( sequence ) = vec3_sequence( &channel, buffers )
             else
             {
               continue;
             };
-            sequencer.insert( &format!( "{}{}", name, TRANSLATION_PREFIX ), sequence );
+            sequencer.insert( &format!( "{name}{TRANSLATION_PREFIX}" ), sequence );
           },
           Property::Scale =>
           {
-            let Some( sequence ) = vec3_sequence( channel, buffers )
+            let Some( sequence ) = vec3_sequence( &channel, buffers )
             else
             {
               continue;
             };
-            sequencer.insert( &format!( "{}{}", name, SCALE_PREFIX ), sequence );
+            sequencer.insert( &format!( "{name}{SCALE_PREFIX}" ), sequence );
           }
           Property::Rotation =>
           {
-            let Some( sequence ) = quat_sequence( channel, buffers )
+            let Some( sequence ) = quat_sequence( &channel, buffers )
             else
             {
               continue;
             };
-            sequencer.insert( &format!( "{}{}", name, ROTATION_PREFIX ), sequence );
+            sequencer.insert( &format!( "{name}{ROTATION_PREFIX}" ), sequence );
           },
           Property::MorphTargetWeights =>
           {
@@ -430,19 +420,19 @@ mod private
             };
             let weights = displacements.get_morph_weights();
             let targets = weights.borrow().len();
-            let Some( sequence ) = weights_sequence( channel, buffers, targets )
+            let Some( sequence ) = weights_sequence( &channel, buffers, targets )
             else
             {
               continue;
             };
-            sequencer.insert( &format!( "{}{}", name, MORPH_TARGET_PREFIX ), sequence );
+            sequencer.insert( &format!( "{name}{MORPH_TARGET_PREFIX}" ), sequence );
           }
-        };
+        }
       }
 
       let animation = Animation::new
       (
-        animation.name().map( | s | s.into() ),
+        animation.name().map( minwebgl::Into::into ),
         Box::new( sequencer ),
         animated_nodes
       );

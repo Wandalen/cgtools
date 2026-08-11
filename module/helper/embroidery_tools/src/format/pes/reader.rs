@@ -5,7 +5,7 @@
 
 mod private
 {
-  use crate::*;
+  use crate::{ embroidery_file, format, thread, error };
   use embroidery_file::EmbroideryFile;
   use error::EmbroideryError;
   use format::pec;
@@ -15,6 +15,10 @@ mod private
   use byteorder::{ ReadBytesExt as _, LE };
 
   /// Reads PES file at `path`
+  /// # Errors
+  /// Returns `EmbroideryError::IOError` if the file cannot be opened or read.
+  /// Propagates any error returned by [`read`].
+  #[ inline ]
   pub fn read_file< P >( path : P ) -> Result< EmbroideryFile, EmbroideryError >
   where
     P : AsRef< Path >
@@ -25,6 +29,9 @@ mod private
   }
 
   /// Reads PES file from byte slice
+  /// # Errors
+  /// Propagates any error returned by [`read`].
+  #[ inline ]
   pub fn read_memory( mem : &[ u8 ] ) -> Result< EmbroideryFile, EmbroideryError >
   {
     let mut reader = Cursor::new( mem );
@@ -32,6 +39,12 @@ mod private
   }
 
   /// Read PES file. Currently supported versions: 1, 6
+  /// # Errors
+  /// Returns `EmbroideryError::IOError` if `reader` fails.
+  /// Returns `EmbroideryError::UnsupportedFormatError` if the header is not a
+  /// recognized PES/PEC version.
+  /// Propagates any error from decoding the embedded PEC section.
+  #[ inline ]
   pub fn read< R >( reader : &mut R ) -> Result< EmbroideryFile, EmbroideryError >
   where
     R : Read + Seek
@@ -68,7 +81,7 @@ mod private
       return Err( EmbroideryError::UnsupportedFormatError( msg.into() ) );
     }
     // Read PEC
-    reader.seek( SeekFrom::Start( pec_block_position as u64 ) )?;
+    reader.seek( SeekFrom::Start( u64::from( pec_block_position ) ) )?;
     pec::read_content( &mut emb, reader, &threads )?;
 
     Ok( emb )
@@ -149,7 +162,7 @@ mod private
   {
     let mut thread = Thread
     {
-      catalog_number : read_pes_string( reader )?.map_or( "0".into(), | v | v.into() ),
+      catalog_number : read_pes_string( reader )?.map_or( "0".into(), std::convert::Into::into ),
       ..Default::default()
     };
 
@@ -158,9 +171,9 @@ mod private
     let b = reader.read_u8()?;
     thread.color = Color { r, g, b };
     reader.seek( SeekFrom::Current( 5 ) )?; // Some offset
-    thread.description = read_pes_string( reader )?.map_or( "Unknown".into(), | v | v.into() );
-    thread.brand = read_pes_string( reader )?.map_or( Default::default(), | v | v.into() );
-    thread.chart = read_pes_string( reader )?.map_or( Default::default(), | v | v.into() );
+    thread.description = read_pes_string( reader )?.map_or( "Unknown".into(), std::convert::Into::into );
+    thread.brand = read_pes_string( reader )?.map_or( std::borrow::Cow::default(), std::convert::Into::into );
+    thread.chart = read_pes_string( reader )?.map_or( std::borrow::Cow::default(), std::convert::Into::into );
     
     Ok( thread )
   }

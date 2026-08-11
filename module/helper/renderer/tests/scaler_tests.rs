@@ -65,7 +65,7 @@ fn test_scaler_remove_group()
   scaler.add( "group1", vec![ "node1".into() ], F64x4::splat( 0.5 ) );
   assert!( scaler.group_get( "group1" ).is_some(), "Group should exist" );
 
-  scaler.remove( "group1".into() );
+  scaler.remove( "group1" );
   assert!( scaler.group_get( "group1" ).is_none(), "Group should be removed" );
 }
 

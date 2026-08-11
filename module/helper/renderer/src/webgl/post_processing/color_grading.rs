@@ -148,6 +148,7 @@ mod private
     }
 
     /// Gets a reference to the current color grading parameters.
+    #[ must_use ]
     pub fn get_params( &self ) -> &ColorGradingParams
     {
       &self.params

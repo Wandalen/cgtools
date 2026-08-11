@@ -120,6 +120,14 @@ mod private
   {
     /// Builds pipelines and frame targets sized to the context's current
     /// surface size.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when shader compilation, pipeline creation, or GPU
+    /// resource allocation fails on the device.
+    // One linear chain of layout/buffer/texture/pipeline creation; each step feeds
+    // the next, so splitting would only scatter the wiring.
+    #[ allow( clippy::too_many_lines ) ]
     pub fn new( context : &GpuContext ) -> Result< Self, Error >
     {
       let device = &context.device;
@@ -301,6 +309,11 @@ mod private
     ///
     /// Absent textures are bound to a 1x1 dummy; the shader samples a slot
     /// only when the corresponding flag bit is set.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when buffer allocation, the uniform upload, or bind-group
+    /// creation fails.
     pub fn create_material_binding
     (
       &self,
@@ -336,6 +349,10 @@ mod private
     /// Wraps a geometry + material into a draw item with its own model
     /// uniform. The model uniform is rewritten from `world_matrix` on every
     /// `render` call.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the model uniform buffer or its bind group cannot be created.
     pub fn create_item
     (
       &self,
@@ -392,6 +409,11 @@ mod private
     /// Renders `items`: the opaque pass into the HDR target, then the tone
     /// mapping pass onto the surface's current texture ( the canvas in the
     /// browser, the offscreen readback target natively ).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a uniform upload fails, the surface's current texture
+    /// cannot be acquired, or a render pass cannot be started.
     pub fn render
     (
       &self,

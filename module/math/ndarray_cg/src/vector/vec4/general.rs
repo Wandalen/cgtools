@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate::{Vector, MatEl, VectorIter};
   //use vector::arithmetics::inner_product::*;
 
   impl< E > Vector< E, 4 >
@@ -60,6 +60,7 @@ mod private
   Vec2 : VectorIter< E, 2 >,
   E : MatEl
   {
+    #[ inline ]
     fn from( value: ( Vec2, Vec2 ) ) -> Self
     {
       let mut iter1 = value.0.vector_iter();

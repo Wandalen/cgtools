@@ -1,5 +1,3 @@
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::field_reassign_with_default ) ]
 
 use minwebgl as gl;
 use renderer::webgl::{ PointLight, DirectLight, Light, Node, Object3D, Renderer };
@@ -444,9 +442,9 @@ pub fn setup
             {
               point.position = settings.borrow().get_controllable_light_position();
             },
-            Light::Spot( _spot ) =>
+            Light::Spot( spot ) =>
             {
-              // TODO: add later
+              spot.position = settings.borrow().get_controllable_light_position();
             },
           }
         }
@@ -478,9 +476,9 @@ pub fn setup
             {
               point.position = settings.borrow().get_controllable_light_position();
             },
-            Light::Spot( _spot ) =>
+            Light::Spot( spot ) =>
             {
-              // TODO: add later
+              spot.position = settings.borrow().get_controllable_light_position();
             }
           }
         }

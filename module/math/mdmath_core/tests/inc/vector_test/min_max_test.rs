@@ -1,4 +1,3 @@
-#![ allow( clippy::float_cmp ) ]
 
 use super::*;
 
@@ -37,7 +36,10 @@ fn integer_u64()
 }
 
 // T04 — regression: existing float path unchanged
+// `min`/`max` only select one of the two exact input values (no arithmetic), so the result
+// is always bit-identical to one of the literals — exact equality is correct here.
 #[ test ]
+#[ allow( clippy::float_cmp ) ]
 fn float_regression()
 {
   assert_eq!( min( &[ 3.0f32, 1.0, 2.0 ], &[ 1.0f32, 5.0, 0.0 ] ), [ 1.0, 1.0, 0.0 ] );
@@ -46,7 +48,10 @@ fn float_regression()
 
 // T05 — NaN tie-break: r (the accumulator, seeded from `a`) always wins over an unordered
 // comparison, so NaN in `a` propagates through and NaN in `b` is ignored.
+// `min`/`max` only select one of the two exact input values (no arithmetic), so the result
+// is always bit-identical to one of the literals — exact equality is correct here.
 #[ test ]
+#[ allow( clippy::float_cmp ) ]
 fn float_nan_tie_break()
 {
   let r = min( &[ 1.0f32, f32::NAN ], &[ 2.0f32, 3.0 ] );

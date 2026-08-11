@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{RawSlice, Mat, mat, MatEl, ScalarRef, ConstLayout, Indexable, ScalarMut, RawSliceMut, ArrayRef};
 
 impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > RawSlice
 for Mat< ROWS, COLS, E, Descriptor >
@@ -13,7 +13,7 @@ where
     // SAFETY: This is safe because the memory layout of [ [ E ; COLS ] ; ROWS ]
     // is contiguous and can be reinterpreted as a flat slice of E.
     #[ allow( unsafe_code ) ]
-    unsafe { std::slice::from_raw_parts( self.as_ptr() as *const Self::Scalar, ROWS * COLS ) }
+    unsafe { std::slice::from_raw_parts( self.as_ptr(), ROWS * COLS ) }
   }
 
 }
@@ -79,6 +79,11 @@ where
   Self : RawSliceMut< Scalar = E >,
 {
   /// Creates a matrix assuming the input to be in row major order
+  ///
+  /// # Panics
+  ///
+  /// Panics if `scalars`'s length does not equal `ROWS * COLS`.
+  #[ inline ]
   pub fn from_row_major< const N : usize >( scalars: impl ArrayRef< E, N > ) -> Self {
     // Fix(TASK-014): changed `debug_assert_eq!` to `assert_eq!` so this size check runs
     // unconditionally instead of only in debug builds.
@@ -95,6 +100,11 @@ where
   }
 
   /// Creates a matrix assuming the input to be in column major order
+  ///
+  /// # Panics
+  ///
+  /// Panics if `scalars`'s length does not equal `ROWS * COLS`.
+  #[ inline ]
   pub fn from_column_major< const N : usize >( scalars: impl ArrayRef< E, N > ) -> Self {
     // Fix(TASK-014): changed `debug_assert_eq!` to `assert_eq!` so this size check runs
     // unconditionally instead of only in debug builds.

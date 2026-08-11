@@ -3,7 +3,6 @@
 // the bits produced, but the literal form matches the normative pseudocode in
 // SPEC §13 and makes byte-for-byte comparison with reference implementations
 // trivial.
-#![ allow( clippy::cast_sign_loss ) ]
 
 //! Normative hash functions.
 //!

@@ -189,6 +189,11 @@ mod private
     ///
     /// Synchronous : `minwgpu` blocks on the async requests internally,
     /// which is the natural shape off the browser event loop.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Native`] if requesting a wgpu adapter or finishing
+    /// the device context fails.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     pub fn new_native( width : u32, height : u32 ) -> Result< ( Device, Queue, Surface ), Error >
     {
@@ -220,6 +225,7 @@ mod private
     }
 
     /// Clip-space depth range the backend's projection matrices must target.
+    #[must_use]
     pub fn depth_range( &self ) -> DepthRange
     {
       match self
@@ -234,6 +240,12 @@ mod private
     }
 
     /// Creates an uninitialized buffer of `size` bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WebGpu`] if the underlying WebGPU buffer-creation
+    /// call fails, or [`Error::WebGl`] if the WebGL context fails to
+    /// allocate the buffer. The native backend never fails this call.
     pub fn create_buffer( &self, size : u64, usage : BufferUsage ) -> Result< Buffer, Error >
     {
       // Browser buffer allocations sit far below f64's exact integer
@@ -276,6 +288,12 @@ mod private
     }
 
     /// Creates a buffer initialized with `data`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WebGpu`] if the underlying WebGPU buffer-creation
+    /// call fails, or [`Error::WebGl`] if the WebGL context fails to
+    /// allocate the buffer. The native backend never fails this call.
     pub fn create_buffer_init( &self, data : &[ u8 ], usage : BufferUsage ) -> Result< Buffer, Error >
     {
       match self
@@ -315,6 +333,13 @@ mod private
     }
 
     /// Creates a 2d texture ( one mip, one sample ).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WebGpu`] if the underlying WebGPU texture-creation
+    /// call fails. Returns [`Error::WebGl`] if `desc.format` has no WebGL
+    /// internal-format mapping, or if the WebGL context fails to allocate
+    /// the texture. The native backend never fails this call.
     pub fn create_texture( &self, desc : &TextureDesc ) -> Result< Texture, Error >
     {
       match self
@@ -389,6 +414,11 @@ mod private
     }
 
     /// Creates a sampler.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WebGl`] if the WebGL context fails to allocate the
+    /// sampler. The WebGPU and native backends never fail this call.
     // A single-backend build can make the surviving arm infallible; the
     // other backend's arm fails for real, so the signature stays fallible.
     #[ allow( clippy::unnecessary_wraps ) ]
@@ -452,6 +482,12 @@ mod private
     /// the canonical WGSL and ignores the GLSL override slots; the WebGL
     /// backend requires both GLSL overrides and defers compilation to
     /// pipeline creation, where GL links per program.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] on the WebGL backend if `source` is
+    /// missing either GLSL override slot. The WebGPU and native backends
+    /// never fail this call.
     // Infallibility of the webgpu-only build is incidental : the WebGL arm
     // fails for real, so the signature stays fallible.
     #[ allow( clippy::unnecessary_wraps ) ]
@@ -494,6 +530,12 @@ mod private
     }
 
     /// Creates a bind group layout; binding indices follow entry order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WebGpu`] if the underlying WebGPU layout-entry or
+    /// layout-creation call fails. The WebGL and native backends never
+    /// fail this call.
     // A single-backend build can make the surviving arm infallible; the
     // other backend's arm fails for real, so the signature stays fallible.
     #[ allow( clippy::unnecessary_wraps ) ]
@@ -571,6 +613,13 @@ mod private
     }
 
     /// Creates a bind group; `resources` follow the layout's entry order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] on the WebGL backend if `resources`
+    /// includes the canvas backbuffer as a sampled texture view — the
+    /// backbuffer cannot be sampled. The WebGPU and native backends never
+    /// fail this call.
     // A single-backend build can make the surviving arm infallible; the
     // other backend's arm fails for real, so the signature stays fallible.
     #[ allow( clippy::unnecessary_wraps ) ]
@@ -682,6 +731,13 @@ mod private
     }
 
     /// Creates a render pipeline.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WebGpu`] if the underlying WebGPU pipeline-creation
+    /// call fails, or [`Error::WebGl`] if the vertex/fragment shader pair
+    /// fails to compile and link. The native backend never fails this
+    /// call.
     pub fn create_render_pipeline( &self, desc : &RenderPipelineDesc< '_ > ) -> Result< RenderPipeline, Error >
     {
       match self
@@ -761,6 +817,7 @@ mod private
     }
 
     /// Creates a command encoder for one frame's passes.
+    #[must_use]
     pub fn create_command_encoder( &self ) -> CommandEncoder
     {
       match self
@@ -810,6 +867,7 @@ mod private
     // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[ allow( clippy::unnecessary_wraps ) ]
+    #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::Device >
     {
       match self
@@ -831,6 +889,11 @@ mod private
   impl Queue
   {
     /// Writes `data` into `buffer` at offset zero.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WebGpu`] if the underlying WebGPU write call
+    /// fails. The WebGL and native backends never fail this call.
     // A single-backend build can make the surviving arm infallible; the
     // other backend's arm fails for real, so the signature stays fallible.
     #[ allow( clippy::unnecessary_wraps ) ]
@@ -928,6 +991,7 @@ mod private
     // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[ allow( clippy::unnecessary_wraps ) ]
+    #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::Queue >
     {
       match self
@@ -949,6 +1013,7 @@ mod private
   impl Surface
   {
     /// Format the surface is configured with.
+    #[must_use]
     pub fn format( &self ) -> TextureFormat
     {
       match self
@@ -967,6 +1032,12 @@ mod private
     /// A view of the texture the canvas presents next.
     ///
     /// Valid for the current frame only — request a fresh view every frame.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WebGpu`] if retrieving the current WebGPU canvas
+    /// texture or creating its view fails. The WebGL and native backends
+    /// never fail this call.
     // A single-backend build can make the surviving arm infallible; the
     // other backend's arm fails for real, so the signature stays fallible.
     #[ allow( clippy::unnecessary_wraps ) ]
@@ -1021,6 +1092,15 @@ mod private
     ///
     /// The browser surfaces present to their canvas instead and return
     /// `Unsupported` — read the canvas from the embedding page there.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] on the WebGPU and WebGL backends —
+    /// browser surfaces present to their canvas and cannot be read back
+    /// through this call. On the native backend, propagates
+    /// `read_texture_rgba8`'s errors: [`Error::Unsupported`] if the
+    /// surface's texture format is not `Rgba8Unorm`, or [`Error::Native`]
+    /// if the GPU readback fails.
     pub fn read_pixels( &self, device : &Device, queue : &Queue ) -> Result< Vec< u8 >, Error >
     {
       match self
@@ -1058,6 +1138,7 @@ mod private
     // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[ allow( clippy::unnecessary_wraps ) ]
+    #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::Texture >
     {
       match self

@@ -1,7 +1,6 @@
 // Time-calc casts (f32 → u32 / usize) are acceptable: time values are
 // non-negative by construction (clamped/rem_euclid upstream) and small
 // enough that integer range isn't a real risk.
-#![ allow( clippy::cast_sign_loss, clippy::cast_possible_truncation ) ]
 
 //! Time-based animation frame sampling.
 //!

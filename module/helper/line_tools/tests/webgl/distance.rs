@@ -1,7 +1,6 @@
 
 // Exact float comparisons are intentional: these assertions check deterministic
 // cumulative-distance arithmetic against exact literal expected values.
-#![ allow( clippy::float_cmp ) ]
 
 use super::*;
 use line_tools::d3;
@@ -388,7 +387,6 @@ fn test_distance_point_remove_back()
 
   assert_eq!( expected, line.distances_get() );
 }
-
 
 /// # Bug History
 ///

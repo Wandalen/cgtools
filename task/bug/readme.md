@@ -27,7 +27,9 @@ Bug reports for the cgtools workspace. IDs share the tsk Unified ID namespace tr
 
 ## Open Bugs
 
-_None currently open._
+| ID | Title | Severity | Component | Filed | State |
+|----|-------|----------|-----------|-------|-------|
+| BUG-079 | [`getrandom` resolves to two incompatible major versions on `wasm32-unknown-unknown`, breaking every `--all-targets` build that pulls in `test_tools` or the `derive_tools`→`strum`→`phf` proc-macro chain](./draft/079_getrandom_wasm32_backend_version_split.md) | Medium | workspace root Cargo.lock + .cargo/config.toml | 2026-08-11 | 📝 Draft — fix is a workspace-wide dependency-resolution change, options recorded, none applied |
 
 ## Closed Bugs
 

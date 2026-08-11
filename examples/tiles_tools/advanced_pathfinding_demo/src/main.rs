@@ -1,9 +1,5 @@
 //! Simplified advanced pathfinding demonstration to avoid clippy issues.
 
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::redundant_else ) ]
-
 use tiles_tools::
 {
   pathfind::{ astar, astar_multi_goal, astar_with_edge_costs, PathfindingConfig, astar_advanced },
@@ -55,8 +51,8 @@ fn demonstrate_basic_pathfinding()
     if let Some((path, cost)) = astar(
         &start,
         &goal,
-        |coord| return !obstacles.contains(coord),
-        |_coord| return 1,
+        |coord| !obstacles.contains(coord),
+        |_coord| 1,
     ) {
         println!("Basic path found: {} steps, cost: {}", path.len(), cost);
         println!("Path: {path:?}");
@@ -99,8 +95,8 @@ fn demonstrate_multi_goal_pathfinding()
     if let Some((path, cost, chosen_target)) = astar_multi_goal(
         &ai_position,
         &possible_targets,
-        |_coord| return true,
-        |_coord| return 1,
+        |_coord| true,
+        |_coord| 1,
     ) {
         println!("AI chose target: {chosen_target:?}");
         println!("Best path found: {} steps, cost: {}", path.len(), cost);
@@ -119,14 +115,14 @@ fn demonstrate_edge_cost_pathfinding()
     if let Some((path, cost)) = astar_with_edge_costs(
         &start_8,
         &goal_8,
-        |_coord| return true,
+        |_coord| true,
         |from, to| {
             let dx = (to.x - from.x).abs();
             let dy = (to.y - from.y).abs();
             if dx == 1 && dy == 1 {
-                return 14; // ~1.414 * 10 for diagonal
+                14// ~1.414 * 10 for diagonal
             } else {
-                return 10; // Standard orthogonal movement
+                10// Standard orthogonal movement
             }
         },
     ) {
@@ -146,8 +142,8 @@ fn demonstrate_hexagonal_pathfinding()
     if let Some((path, cost)) = astar(
         &hex_start,
         &hex_goal,
-        |_coord| return true,
-        |_coord| return 1,
+        |_coord| true,
+        |_coord| 1,
     ) {
         println!("Hexagonal path found: {} steps, cost: {}", path.len(), cost);
         println!("Path: {path:?}");
@@ -165,8 +161,8 @@ fn demonstrate_triangular_pathfinding()
     if let Some((path, cost)) = astar(
         &tri_start,
         &tri_goal,
-        |_coord| return true,
-        |_coord| return 1,
+        |_coord| true,
+        |_coord| 1,
     ) {
         println!("Triangular path found: {} steps, cost: {}", path.len(), cost);
         println!("Path: {path:?}");
@@ -184,8 +180,8 @@ fn demonstrate_isometric_pathfinding()
     if let Some((path, cost)) = astar(
         &iso_start,
         &iso_goal,
-        |_coord| return true,
-        |_coord| return 1,
+        |_coord| true,
+        |_coord| 1,
     ) {
         println!("Isometric path found: {} steps, cost: {}", path.len(), cost);
         println!("Path: {path:?}");

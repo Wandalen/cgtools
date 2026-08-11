@@ -51,13 +51,14 @@ mod private
     /// * `gl` - A reference to the WebGl2RenderingContext.
     /// * `width` - The width of the textures and framebuffer.
     /// * `height` - The height of the textures and framebuffer.
+    #[ must_use ]
     pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32 ) -> Self
     {
       // Create and configure the framebuffer.
       let framebuffer = gl.create_framebuffer();
       gl.bind_framebuffer( gl::FRAMEBUFFER, framebuffer.as_ref() );
       // Specify that only COLOR_ATTACHMENT0 is used for drawing.
-      gl::drawbuffers::drawbuffers( &gl, &[ 0 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
       // Unbind renderbuffer and framebuffer to clean up global state.
       gl.bind_renderbuffer( gl::RENDERBUFFER, None );
@@ -128,12 +129,14 @@ mod private
 
 
     /// Returns the current `input_texture`.
+    #[ must_use ]
     pub fn get_input( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.input_texture.clone()
     }
 
     /// Returns the current `output_texture`.
+    #[ must_use ]
     pub fn get_output( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.output_texture.clone()

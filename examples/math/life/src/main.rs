@@ -1,5 +1,3 @@
-#![allow(clippy::reversed_empty_ranges)] // False positive: ndarray negative indexing syntax
-#![allow(clippy::uninlined_format_args)] // Domain-specific: prefers explicit format args for clarity
 
 // Import the ndarray_cg crate's prelude for array manipulation
 use ndarray_cg::prelude::*;
@@ -39,6 +37,11 @@ impl AddAssign for Cell
 }
 
 // Function to parse the input file into a 2D grid (Board)
+// `s![ 1..-1, .. ]` uses ndarray's slicing DSL, where a negative endpoint counts back from the
+// far end (Python-style) — `1..-1` selects "all but the first and last", not a literal empty
+// range; clippy's `reversed_empty_ranges` evaluates the endpoints as plain integers and can't
+// see the macro's own reinterpretation, so it misfires here.
+#[ allow( clippy::reversed_empty_ranges ) ]
 fn parse( x : &[u8] ) -> Board
 {
   // Create a grid with a border of `Cell(0)` (dead cells)
@@ -63,6 +66,9 @@ fn parse( x : &[u8] ) -> Board
 }
 
 // Function to apply the rules of the Game of Life to the grid
+// See `parse`'s `#[ allow ]` above: the `0..-2`/`1..-1` endpoints below are ndarray `s![]`
+// negative-index slices, not literal empty ranges.
+#[ allow( clippy::reversed_empty_ranges ) ]
 fn iterate( z : &mut Board, scratch : &mut Board )
 {
   // Create a mutable view of the scratch array to store neighbor counts

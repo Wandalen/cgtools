@@ -14,6 +14,9 @@ fn assumptions()
   assert_eq!( size1, size2, "Same size" );
 }
 
+// `scalar_ref` only retrieves an element that was stored verbatim via `set_row_major` —
+// no arithmetic occurs, so the result is bit-identical to the original literal.
+#[ allow( clippy::float_cmp ) ]
 fn test_scalar_ref_generic< D : the_module::mat::Descriptor >()
 where
   the_module::Mat< 2, 2, f32, D > : the_module::ScalarRef< Scalar = f32 >,
@@ -22,7 +25,7 @@ where
   the_module::Mat< 2, 2, f32, D > : the_module::ConstLayout,
   the_module::Mat< 2, 2, f32, D > : the_module::RawSliceMut< Scalar = f32 >,
 {
-  use the_module::{ Mat, Ix2, ScalarRef };
+  use the_module::{ Mat, Ix2 };
 
   // Use set_row_major for consistent logical layout regardless of internal storage
   let mat = Mat::< 2, 2, f32, D >::default().set_row_major( &[ 1.0, 2.0, 3.0, 4.0 ] );
@@ -30,19 +33,19 @@ where
   // Test scalar_ref for each element - these should work consistently now
   let scalar = mat.scalar_ref( Ix2( 0, 0 ) );
   let exp = &1.0;
-  assert_eq!( scalar, exp, "Expected {:?}, got {:?}", exp, scalar );
+  assert_eq!( scalar, exp, "Expected {exp:?}, got {scalar:?}" );
 
   let scalar = mat.scalar_ref( Ix2( 0, 1 ) );
   let exp = &2.0;
-  assert_eq!( scalar, exp, "Expected {:?}, got {:?}", exp, scalar );
+  assert_eq!( scalar, exp, "Expected {exp:?}, got {scalar:?}" );
 
   let scalar = mat.scalar_ref( Ix2( 1, 0 ) );
   let exp = &3.0;
-  assert_eq!( scalar, exp, "Expected {:?}, got {:?}", exp, scalar );
+  assert_eq!( scalar, exp, "Expected {exp:?}, got {scalar:?}" );
 
   let scalar = mat.scalar_ref( Ix2( 1, 1 ) );
   let exp = &4.0;
-  assert_eq!( scalar, exp, "Expected {:?}, got {:?}", exp, scalar );
+  assert_eq!( scalar, exp, "Expected {exp:?}, got {scalar:?}" );
 }
 
 #[ test ]
@@ -67,7 +70,7 @@ where
   the_module::Mat< 3, 3, f32, D > : the_module::ConstLayout,
   the_module::Mat< 3, 3, f32, D > : the_module::RawSliceMut< Scalar = f32 >,
 {
-  use the_module::{ Mat, Ix2, ScalarMut, RawSliceMut };
+  use the_module::{ Mat, Ix2 };
 
   let mut mat = Mat::< 3, 3, f32, D >::default().set_raw( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ] );
 

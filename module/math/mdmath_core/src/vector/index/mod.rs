@@ -1,5 +1,5 @@
 #[ cfg( debug_assertions ) ]
-use std::mem::{ align_of_val, size_of_val };
+use core::mem::{ align_of_val, size_of_val };
 
 use crate::{ Collection, ConstLength, IntoArray, ArrayRef, ArrayMut, Ix };
 use ::ndarray::{ Ix0, Ix1, Ix2, Ix3, Ix4 };
@@ -69,9 +69,7 @@ impl ArrayRef< usize, 1 > for Ix1
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ usize ; 1 ]
   {
-    use std::mem::transmute;
-
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `([ usize; N ])`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
     // into a reference to an array `[usize; N]`. This is safe because:
     // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
     //    - Both contain N elements of type `E`.
@@ -79,9 +77,8 @@ impl ArrayRef< usize, 1 > for Ix1
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-
     #[ allow( unsafe_code ) ]
-    let result : &[ Ix ; 1 ] = unsafe { transmute( self ) };
+    let result : &[ Ix ; 1 ] = unsafe { &*( ( self as *const Ix1 ).cast::< [ Ix ; 1 ] >() ) };
 
     // Check size and alignment of the whole collection
     debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
@@ -101,15 +98,13 @@ impl ArrayMut< usize, 1 > for Ix1
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 1 ]
   {
-    use std::mem::transmute;
-
     // Store layout information in temporary variables
     #[ cfg( debug_assertions ) ]
     let size_self = size_of_val( self );
     #[ cfg( debug_assertions ) ]
     let align_self = align_of_val( self );
 
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `([ usize; N ])`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
     // into a reference to an array `[usize; N]`. This is safe because:
     // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
     //    - Both contain N elements of type `E`.
@@ -118,7 +113,7 @@ impl ArrayMut< usize, 1 > for Ix1
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
     #[ allow( unsafe_code ) ]
-    let result : &mut [ Ix ; 1 ] = unsafe { transmute( self ) };
+    let result : &mut [ Ix ; 1 ] = unsafe { &mut *( ( self as *mut Ix1 ).cast::< [ Ix ; 1 ] >() ) };
 
     // Perform checks under debug conditions
     #[ cfg( debug_assertions ) ]
@@ -157,9 +152,7 @@ impl ArrayRef< usize, 2 > for Ix2
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ usize ; 2 ]
   {
-    use std::mem::transmute;
-
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `([ usize; N ])`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
     // into a reference to an array `[usize; N]`. This is safe because:
     // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
     //    - Both contain N elements of type `E`.
@@ -167,9 +160,8 @@ impl ArrayRef< usize, 2 > for Ix2
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-
     #[ allow( unsafe_code ) ]
-    let result : &[ Ix ; 2 ] = unsafe { transmute( self ) };
+    let result : &[ Ix ; 2 ] = unsafe { &*( ( self as *const Ix2 ).cast::< [ Ix ; 2 ] >() ) };
 
     // Check size and alignment of the whole collection
     debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
@@ -189,15 +181,13 @@ impl ArrayMut< usize, 2 > for Ix2
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 2 ]
   {
-    use std::mem::transmute;
-
     // Store layout information in temporary variables
     #[ cfg( debug_assertions ) ]
     let size_self = size_of_val( self );
     #[ cfg( debug_assertions ) ]
     let align_self = align_of_val( self );
 
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `([ usize; N ])`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
     // into a reference to an array `[usize; N]`. This is safe because:
     // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
     //    - Both contain N elements of type `E`.
@@ -206,7 +196,7 @@ impl ArrayMut< usize, 2 > for Ix2
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
     #[ allow( unsafe_code ) ]
-    let result : &mut [ Ix ; 2 ] = unsafe { transmute( self ) };
+    let result : &mut [ Ix ; 2 ] = unsafe { &mut *( ( self as *mut Ix2 ).cast::< [ Ix ; 2 ] >() ) };
 
     // Perform checks under debug conditions
     #[ cfg( debug_assertions ) ]
@@ -245,9 +235,7 @@ impl ArrayRef< usize, 3 > for Ix3
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ usize ; 3 ]
   {
-    use std::mem::transmute;
-
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `([ usize; N ])`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
     // into a reference to an array `[usize; N]`. This is safe because:
     // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
     //    - Both contain N elements of type `E`.
@@ -255,9 +243,8 @@ impl ArrayRef< usize, 3 > for Ix3
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-
     #[ allow( unsafe_code ) ]
-    let result : &[ Ix ; 3 ] = unsafe { transmute( self ) };
+    let result : &[ Ix ; 3 ] = unsafe { &*( ( self as *const Ix3 ).cast::< [ Ix ; 3 ] >() ) };
 
     // Check size and alignment of the whole collection
     debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
@@ -277,15 +264,13 @@ impl ArrayMut< usize, 3 > for Ix3
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 3 ]
   {
-    use std::mem::transmute;
-
     // Store layout information in temporary variables
     #[ cfg( debug_assertions ) ]
     let size_self = size_of_val( self );
     #[ cfg( debug_assertions ) ]
     let align_self = align_of_val( self );
 
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `([ usize; N ])`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
     // into a reference to an array `[usize; N]`. This is safe because:
     // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
     //    - Both contain N elements of type `E`.
@@ -294,7 +279,7 @@ impl ArrayMut< usize, 3 > for Ix3
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
     #[ allow( unsafe_code ) ]
-    let result : &mut [ Ix ; 3 ] = unsafe { transmute( self ) };
+    let result : &mut [ Ix ; 3 ] = unsafe { &mut *( ( self as *mut Ix3 ).cast::< [ Ix ; 3 ] >() ) };
 
     // Perform checks under debug conditions
     #[ cfg( debug_assertions ) ]
@@ -333,9 +318,7 @@ impl ArrayRef< usize, 4 > for Ix4
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ usize ; 4 ]
   {
-    use std::mem::transmute;
-
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `([ usize; N ])`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
     // into a reference to an array `[usize; N]`. This is safe because:
     // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
     //    - Both contain N elements of type `E`.
@@ -343,9 +326,8 @@ impl ArrayRef< usize, 4 > for Ix4
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-
     #[ allow( unsafe_code ) ]
-    let result : &[ Ix ; 4 ] = unsafe { transmute( self ) };
+    let result : &[ Ix ; 4 ] = unsafe { &*( ( self as *const Ix4 ).cast::< [ Ix ; 4 ] >() ) };
 
     // Check size and alignment of the whole collection
     debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
@@ -361,15 +343,13 @@ impl ArrayMut< usize, 4 > for Ix4
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 4 ]
   {
-    use std::mem::transmute;
-
     // Store layout information in temporary variables
     #[ cfg( debug_assertions ) ]
     let size_self = size_of_val( self );
     #[ cfg( debug_assertions ) ]
     let align_self = align_of_val( self );
 
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `([ usize; N ])`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `([ usize; N ])`
     // into a reference to an array `[usize; N]`. This is safe because:
     // 1. The tuple `([usize; N])` and the array `[ usize; N ]` have the same memory layout.
     //    - Both contain N elements of type `E`.
@@ -378,7 +358,7 @@ impl ArrayMut< usize, 4 > for Ix4
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
     #[ allow( unsafe_code ) ]
-    let result : &mut [ Ix ; 4 ] = unsafe { transmute( self ) };
+    let result : &mut [ Ix ; 4 ] = unsafe { &mut *( ( self as *mut Ix4 ).cast::< [ Ix ; 4 ] >() ) };
 
     // Perform checks under debug conditions
     #[ cfg( debug_assertions ) ]

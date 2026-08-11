@@ -439,7 +439,7 @@ impl GameStateSerializer {
     };
 
     if self.compress {
-      Ok(self.compress_data(data))
+      Ok(Self::compress_data(data))
     } else {
       Ok(data)
     }
@@ -451,7 +451,7 @@ impl GameStateSerializer {
   /// Returns an error when decompression fails or the bytes are not valid for the selected format.
   pub fn deserialize_game_state(&self, data: &[u8]) -> Result<SerializableGameState, SerializationError> {
     let data = if self.compress {
-      self.decompress_data(data)?
+      Self::decompress_data(data)?
     } else {
       data.to_vec()
     };
@@ -484,8 +484,7 @@ impl GameStateSerializer {
   }
 
   // Private compression methods (stubbed for now - would use flate2 or similar)
-  #[allow(clippy::unused_self)] // Stub body; a real codec will read `self` settings.
-  fn compress_data(&self, data: Vec<u8>) -> Vec<u8> {
+  fn compress_data(data: Vec<u8>) -> Vec<u8> {
     // In a real implementation, this would use flate2 or similar
     // For now, just return the data unchanged with a marker
     let mut compressed = vec![0xC0, 0x4D, 0x50]; // "CMP" marker
@@ -494,8 +493,7 @@ impl GameStateSerializer {
     compressed
   }
 
-  #[allow(clippy::unused_self)] // Stub body; a real codec will read `self` settings.
-  fn decompress_data(&self, data: &[u8]) -> Result<Vec<u8>, SerializationError> {
+  fn decompress_data(data: &[u8]) -> Result<Vec<u8>, SerializationError> {
     // Check for compression marker
     if data.len() < 7 || data[0..3] != [0xC0, 0x4D, 0x50] {
       return Err(SerializationError::InvalidCompressionFormat);

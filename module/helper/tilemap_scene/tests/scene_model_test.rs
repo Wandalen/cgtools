@@ -1,9 +1,6 @@
 //! Integration tests for the `scene-model` feature: parsing, serde round-trip,
 //! and loader API surface.
 
-
-#![ allow( clippy::min_ident_chars ) ]   // short locals like `o` / `s` are idiomatic inside closures and one-shot assertions
-
 use rustc_hash::FxHashMap as HashMap;
 
 use tilemap_scene::

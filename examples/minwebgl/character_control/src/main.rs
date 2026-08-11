@@ -9,17 +9,6 @@
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Renders animated character that can be controlled with WASD + mouse" ) ]
 
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::no_effect_underscore_binding ) ]
-
 use core::f32;
 use animation::easing::{ EasingBuilder, Linear };
 // use renderer::webgl::cast_unchecked_material_to_ref_mut;

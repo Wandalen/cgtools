@@ -8,14 +8,6 @@
 //! without re-walking the scene. Any change to revision (mutation), clock
 //! (tick), or camera invalidates the cache and forces a fresh emission.
 
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow
-(
-  clippy::default_trait_access,
-  clippy::too_many_lines,
-  clippy::float_cmp,
-) ]
-
 extern crate alloc;
 use alloc::sync::Arc;
 use rustc_hash::FxHashMap as HashMap;

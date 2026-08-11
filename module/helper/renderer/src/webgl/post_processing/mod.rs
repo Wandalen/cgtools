@@ -2,12 +2,12 @@
 mod private
 {
   /// A constant string containing the source code for the "big triangle" vertex shader.
-  pub const VS_TRIANGLE : &'static str = include_str!( "../shaders/big_triangle.vert" );
+  pub const VS_TRIANGLE : &str = include_str!( "../shaders/big_triangle.vert" );
 }
 
 crate::mod_interface!
 {
-  #[ allow( missing_docs ) ]
+  /// G-buffer attachment set and framebuffer plumbing for deferred-style passes
   layer gbuffer;
   /// Unreal bloom post-processing
   layer unreal_bloom;

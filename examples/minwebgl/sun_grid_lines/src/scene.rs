@@ -129,7 +129,6 @@ mod tests
   // Exact comparison is intentional: every value here is a literal parsed
   // straight out of scene.rhai with no arithmetic in between, so bit-exact
   // round-trip fidelity is exactly what this test means to check.
-  #[ allow( clippy::float_cmp ) ]
   #[ test ]
   fn scene_rhai_parses_and_matches_known_values()
   {

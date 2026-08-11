@@ -122,7 +122,7 @@ fn test_blender_weights_get_mut()
 
   blender.add( "anim1".into(), sequencer, F64x3::new( 0.5, 0.5, 0.5 ) );
 
-  let weights = blender.weights_get_mut( "anim1".into() ).unwrap();
+  let weights = blender.weights_get_mut( "anim1" ).unwrap();
   *weights = F64x3::new( 1.0, 1.0, 1.0 );
 
   let mut nodes = FxHashMap::default();
@@ -131,7 +131,7 @@ fn test_blender_weights_get_mut()
   nodes.insert( "node1".to_string().into_boxed_str(), node );
   blender.set( &nodes );
 
-  let new_weights = blender.weights_get( "anim1".into() ).unwrap();
+  let new_weights = blender.weights_get( "anim1" ).unwrap();
   assert_eq!( new_weights.x(), 1.0 );
   assert_eq!( new_weights.y(), 1.0 );
   assert_eq!( new_weights.z(), 1.0 );
@@ -145,7 +145,7 @@ fn test_blender_animation_get()
 
   blender.add( "anim1".into(), sequencer, F64x3::splat( 0.5 ) );
 
-  let anim = blender.animation_get( "anim1".into() );
+  let anim = blender.animation_get( "anim1" );
   assert!( anim.is_some(), "Should be able to retrieve animation" );
 }
 
@@ -180,8 +180,8 @@ fn test_blender_multiple_animations_with_different_weights()
   nodes.insert( "node1".to_string().into_boxed_str(), node );
   blender.set( &nodes );
 
-  let weights1 = blender.weights_get( "anim1".into() ).unwrap();
-  let weights2 = blender.weights_get( "anim2".into() ).unwrap();
+  let weights1 = blender.weights_get( "anim1" ).unwrap();
+  let weights2 = blender.weights_get( "anim2" ).unwrap();
 
   assert_eq!( weights1.x(), 0.7, "First animation should have weight 0.7" );
   assert_eq!( weights2.x(), 0.3, "Second animation should have weight 0.3" );
@@ -260,7 +260,7 @@ fn test_blender_independent_transform_blend()
   nodes.insert( "node1".to_string().into_boxed_str(), node );
   blender.set( &nodes );
 
-  let retrieved_weights = blender.weights_get( "anim1".into() ).unwrap();
+  let retrieved_weights = blender.weights_get( "anim1" ).unwrap();
   assert_eq!( retrieved_weights.x(), 0.5, "Translation weight should be 0.5" );
   assert_eq!( retrieved_weights.y(), 0.7, "Rotation weight should be 0.7" );
   assert_eq!( retrieved_weights.z(), 0.3, "Scale weight should be 0.3" );
@@ -297,8 +297,8 @@ fn test_blender_scale_blend_independence()
   nodes.insert( "node1".to_string().into_boxed_str(), node );
   blender.set( &nodes );
 
-  let weights1 = blender.weights_get( "anim1".into() ).unwrap();
-  let weights2 = blender.weights_get( "anim2".into() ).unwrap();
+  let weights1 = blender.weights_get( "anim1" ).unwrap();
+  let weights2 = blender.weights_get( "anim2" ).unwrap();
 
   assert_eq!( weights1.z(), 0.6, "First animation scale weight should be 0.6" );
   assert_eq!( weights2.z(), 0.4, "Second animation scale weight should be 0.4" );

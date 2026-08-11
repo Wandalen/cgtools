@@ -1,11 +1,3 @@
-#![ allow( unused ) ]
-#![ allow( clippy::question_mark ) ]
-#![ allow( clippy::manual_map ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::used_underscore_binding ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::let_and_return ) ]
-#![ allow( clippy::too_many_lines ) ]
 
 mod private
 {

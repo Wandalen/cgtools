@@ -2,11 +2,6 @@
 //!
 //! This example only works on WebAssembly (wasm32) targets where WebGPU APIs are available.
 
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::cast_sign_loss)]
-
 #[cfg(target_arch = "wasm32")]
 use light::{LightState, LightVisualizationState, NUM_LIGHTS};
 
@@ -248,7 +243,6 @@ async fn run() -> Result< (), gl::WebGPUError >
   .entry_from_resource( &gl::BufferBinding::new( &uniform_state.buffer ) )
   .entry_from_resource( &gl::BufferBinding::new( &light_state.buffer ) )
   .create( &device );
-
 
   // Light visualization
   let light_vis_bind_group = gl::bind_group::desc

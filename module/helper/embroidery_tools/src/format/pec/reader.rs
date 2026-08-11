@@ -5,7 +5,7 @@
 
 mod private
 {
-  use crate::*;
+  use crate::{ embroidery_file, format, metadata, thread, error };
   use error::EmbroideryError;
   use format::pec::pec_threads;
   use metadata::Graphics;
@@ -21,6 +21,10 @@ mod private
   const FLAG_LONG : u8 = 0x80;
 
   /// Reads PEC file at `path`
+  /// # Errors
+  /// Returns `EmbroideryError::IOError` if the file cannot be opened or read.
+  /// Propagates any error returned by [`read`].
+  #[ inline ]
   pub fn read_file< P >( path : P ) -> Result< EmbroideryFile, EmbroideryError >
   where
     P : AsRef< Path >
@@ -31,6 +35,9 @@ mod private
   }
 
   /// Reads PEC file from byte slice
+  /// # Errors
+  /// Propagates any error returned by [`read`].
+  #[ inline ]
   pub fn read_memory( mem : &[ u8 ] ) -> Result< EmbroideryFile, EmbroideryError >
   {
     let mut reader = Cursor::new( mem );
@@ -38,6 +45,11 @@ mod private
   }
 
   /// Reads PEC file from `reader`
+  /// # Errors
+  /// Returns `EmbroideryError::IOError` if `reader` fails to produce the header bytes.
+  /// Returns `EmbroideryError::DecodingError` if the header does not match `"#PEC0001"`.
+  /// Propagates any error returned by [`read_content`].
+  #[ inline ]
   pub fn read< R >( reader : &mut R ) -> Result< EmbroideryFile, EmbroideryError >
   where
     R : Read + Seek
@@ -64,6 +76,9 @@ mod private
   /// - `reader`: Read object positioned at the beginning of PEC file
   ///
   /// - `pes_chart`: Thread chart from PES file. Can be empty
+  /// # Errors
+  /// Returns `EmbroideryError::IOError` if any read or seek operation on `reader` fails.
+  #[ inline ]
   pub fn read_content< R >( emb : &mut EmbroideryFile, reader : &mut R, pes_chart : &[ Thread ] )
   ->
   Result< (), EmbroideryError >
@@ -102,8 +117,8 @@ mod private
 
     map_pec_colors( emb, &color_bytes, pes_chart, &mut threads );
 
-    reader.seek( SeekFrom::Current( ( 0x1D0 - color_changes as u16 ) as i64 ) )?;
-    let stitch_block_len = reader.read_u24::< LE >()? as u64;
+    reader.seek( SeekFrom::Current( i64::from( 0x1D0 - u16::from( color_changes ) ) ) )?;
+    let stitch_block_len = u64::from( reader.read_u24::< LE >()? );
     let stitch_block_end = stitch_block_len - 5 + reader.stream_position()?;
 
     reader.seek( SeekFrom::Current( 0x0B ) )?;
@@ -188,25 +203,22 @@ mod private
       let color_index = *byte as usize % max_value;
       let thread_value = thread_map.get( &color_index );
       
-      match thread_value
+      if let Some( thread ) = thread_value
       {
-        Some( thread ) =>
+        emb.add_thread( thread.clone() );
+        values.push( thread.clone() );
+      }
+      else
+      {
+        let thread = if chart.is_empty()
         {
-          emb.add_thread( thread.clone() );
-          values.push( thread.clone() );
+          threads[ color_index ].clone()
         }
-        None =>
+        else
         {
-          let thread = if chart.len() > 0
-          {
-            chart.remove( 0 )
-          }
-          else 
-          {
-            threads[ color_index ].clone()
-          };
-          thread_map.insert( color_index, thread );
-        }    
+          chart.remove( 0 )
+        };
+        thread_map.insert( color_index, thread );
       }
     }
   }
@@ -262,8 +274,8 @@ mod private
         trim = ( val1 & TRIM_CODE ) != 0;
         jump = ( val1 & JUMP_CODE ) != 0;
         // convert val1 and val2 into 2-byte instruction
-        let code = ( ( val1 as u16 ) << 8 ) | val2 as u16;
-        
+        let code = ( u16::from( val1 ) << 8 ) | u16::from( val2 );
+
         // value 2 became part of the `code` so we need to read it again
         val2 = read_val!();
 
@@ -279,7 +291,7 @@ mod private
         trim = ( val2 & TRIM_CODE ) != 0;
         jump = ( val2 & JUMP_CODE ) != 0;
         let val3 = read_val!();
-        let code = ( ( val2 as u16 ) << 8 ) | val3 as u16;
+        let code = ( u16::from( val2 ) << 8 ) | u16::from( val3 );
 
         signed12( code )
       }
@@ -314,24 +326,24 @@ mod private
     
     if b > 0x7FF
     {
-      -0x1000 + b as i32
+      -0x1000 + i32::from( b )
     }
     else
     {
-      b as i32
+      i32::from( b )
     }
   }
-  
+
   /// Extracts 7-byte signed integer stored in `u8` into `i32`
   fn signed7( b : u8 ) -> i32
   {
     if b > 63
     {
-      -128 + b as i32
+      -128 + i32::from( b )
     }
     else
     {
-      b as i32
+      i32::from( b )
     }
   }
 
@@ -359,15 +371,11 @@ mod private
     {
       let mut image = vec![ 0; size ];
       let res = reader.read_exact( &mut image );
-      match res
+      if let Ok( () ) = res
       {
-        Ok( _ ) =>
-        {
-          let name = "pec_graphic_".to_string() + &i.to_string();
-          let graphics = Graphics::PecGraphics { image, stride, thread };
-          emb.get_mut_metadata().insert_graphics( &name, graphics );
-        }
-        Err( _ ) => {}
+        let name = "pec_graphic_".to_string() + &i.to_string();
+        let graphics = Graphics::PecGraphics { image, stride, thread };
+        emb.get_mut_metadata().insert_graphics( &name, graphics );
       }
     }
   }

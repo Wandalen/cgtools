@@ -27,8 +27,6 @@
 mod private
 {
   use crate::traits::{ Animatable, AnimatablePlayer };
-  #[ allow( unused_imports ) ]
-  use crate::easing::base::EasingBuilder;
   use crate::easing::base::EasingFunction;
   use minwebgl as gl;
   use gl::
@@ -132,6 +130,7 @@ mod private
     }
 
     /// Sets a delay before the animation starts.
+    #[ must_use ]
     pub fn with_delay( mut self, delay : f64 ) -> Self
     {
       self.delay = delay.max( 0.0 );
@@ -140,6 +139,7 @@ mod private
     }
 
     /// Sets an animation duration
+    #[ must_use ]
     pub fn with_duration( mut self, duration : f64 ) -> Self
     {
       self.duration = duration.max( 0.0 );
@@ -147,6 +147,7 @@ mod private
     }
 
     /// Sets the number of times to repeat the animation.
+    #[ must_use ]
     pub fn with_repeat( mut self, count : i32 ) -> Self
     {
       self.repeat_count = count;
@@ -154,6 +155,7 @@ mod private
     }
 
     /// Enables yoyo mode ( reverse direction on repeat ).
+    #[ must_use ]
     pub fn with_yoyo( mut self, yoyo : bool ) -> Self
     {
       self.yoyo = yoyo;
@@ -258,14 +260,22 @@ mod private
       if self.repeat_count == -1
       {
         // Infinite repeat
-        self.current_repeat += elapsed_repeats as i32;
+        // `elapsed_repeats` counts whole durations crossed within one frame's delta time —
+        // bounded in practice by plausible delta_time magnitudes; reaching i32::MAX would need
+        // thousands of repeats to elapse within a single `update()` call.
+        #[ allow( clippy::cast_possible_truncation ) ]
+        let repeats : i32 = elapsed_repeats as i32;
+        self.current_repeat += repeats;
         self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).max( 0.0 );
         self.state = AnimationState::Running;
       }
       else if self.repeat_count > 0 && self.current_repeat < self.repeat_count
       {
         // Finite repeat
-        self.current_repeat += elapsed_repeats as i32;
+        // See the infinite-repeat branch above for why this narrowing is bounded in practice.
+        #[ allow( clippy::cast_possible_truncation ) ]
+        let repeats : i32 = elapsed_repeats as i32;
+        self.current_repeat += repeats;
         self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).max( 0.0 );
         self.state = AnimationState::Running;
       }
@@ -469,7 +479,11 @@ mod private
   {
     fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
-      self + ( other - self ) * time as f32
+      // `time` is the normalized [0, 1] interpolation factor; narrowing to f32 loses precision
+      // but stays representable and visually indistinguishable at animation-frame granularity.
+      #[ allow( clippy::cast_possible_truncation ) ]
+      let time = time as f32;
+      self + ( other - self ) * time
     }
   }
 
@@ -485,7 +499,11 @@ mod private
   {
     fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
-      ( f64::from( *self ) + ( f64::from( *other ) - f64::from( *self ) ) * time ) as i32
+      // Intentionally truncates the fractional part of the blended value to sample a discrete
+      // integer; magnitude stays bounded by `self`/`other` for `time` within the intended [0, 1].
+      #[ allow( clippy::cast_possible_truncation ) ]
+      let result = ( f64::from( *self ) + ( f64::from( *other ) - f64::from( *self ) ) * time ) as i32;
+      result
     }
   }
 

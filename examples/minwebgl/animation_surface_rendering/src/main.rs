@@ -1,19 +1,5 @@
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::must_use_candidate ) ]
-#![ allow( clippy::needless_for_each ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::unnecessary_wraps ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::too_many_lines ) ]
-
 use core::cell::RefCell;
 use minwebgl as gl;
 use gl::

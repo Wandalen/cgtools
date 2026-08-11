@@ -2,7 +2,7 @@
 mod private
 {
 
-  use crate::*;
+  use crate::{ web_sys, BindGroupLayoutEntry, WebGPUError, TryInto, Into, BindingType, layout };
 
   /// Describes the layout for a WebGPU bind group.
   #[ derive( Clone ) ]
@@ -16,9 +16,20 @@ mod private
     entries: Vec< web_sys::GpuBindGroupLayoutEntry >
   }
 
+  impl Default for BindGroupLayoutDescriptor
+  {
+    #[ inline ]
+    fn default() -> Self
+    {
+      Self::new()
+    }
+  }
+
   impl BindGroupLayoutDescriptor
   {
     /// Creates a new `BindGroupLayoutDescriptor` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       let auto_bindings = false;
@@ -33,6 +44,8 @@ mod private
     }
 
     /// Set the `auto_bindings` property to `true`
+    #[ inline ]
+    #[ must_use ]
     pub fn auto_bindings( mut self ) -> Self
     {
       self.auto_bindings = true;
@@ -40,12 +53,16 @@ mod private
     }
 
     /// Sets the `visibility` to `All`
+    #[ inline ]
+    #[ must_use ]
     pub fn all( self ) -> Self
     {
       self.fragment().compute().vertex()
     }
 
     /// Add `FRAGMENT` stage to the `visibility`
+    #[ inline ]
+    #[ must_use ]
     pub fn fragment( mut self ) -> Self
     {
       self.visibility |= web_sys::gpu_shader_stage::FRAGMENT;
@@ -53,6 +70,8 @@ mod private
     }
 
     /// Add `VERTEX` stage to the `visibility`
+    #[ inline ]
+    #[ must_use ]
     pub fn vertex( mut self ) -> Self
     {
       self.visibility |= web_sys::gpu_shader_stage::VERTEX;
@@ -60,6 +79,8 @@ mod private
     }
 
     /// Add `COMPUTE` stage to the `visibility`
+    #[ inline ]
+    #[ must_use ]
     pub fn compute( mut self ) -> Self
     {
       self.visibility |= web_sys::gpu_shader_stage::COMPUTE;
@@ -79,6 +100,7 @@ mod private
     /// # Errors
     /// Returns `error::BindGroupError::TypeNotSet` if `entry`'s binding type was never set
     /// via `BindGroupLayoutEntry::ty`.
+    #[ inline ]
     pub fn entry( mut self, entry : BindGroupLayoutEntry ) -> Result< Self, WebGPUError >
     {
       self.entries.push( entry.try_into()? );
@@ -90,6 +112,7 @@ mod private
     /// # Errors
     /// Returns `error::BindGroupError::TypeNotSet` if `ty`'s conversion yields no usable
     /// binding type (see `entry`).
+    #[ inline ]
     pub fn entry_from_ty( self, ty : impl Into< BindingType > ) -> Result< Self, WebGPUError >
     {
       let entry = BindGroupLayoutEntry::new().ty( ty );
@@ -97,6 +120,11 @@ mod private
     }
 
     /// Creates a `web_sys::GpuBindGroupLayout` from this descriptor.
+    ///
+    /// # Errors
+    /// Returns `error::DeviceError::FailedToCreateBindGroupLayout` if the underlying
+    /// `GPUDevice.createBindGroupLayout` call throws (see [`layout::bind_group::create`]).
+    #[ inline ]
     pub fn create( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuBindGroupLayout, WebGPUError >
     {
       layout::bind_group::create( device, &self.into() )
@@ -105,10 +133,11 @@ mod private
 
   impl From< BindGroupLayoutDescriptor > for web_sys::GpuBindGroupLayoutDescriptor 
   {
+    #[ inline ]
     fn from( mut value: BindGroupLayoutDescriptor ) -> Self 
     {
       let mut binding : u32 = 0;
-      for entry in value.entries.iter_mut()
+      for entry in &mut value.entries
       {
         if value.auto_bindings 
         { 
@@ -119,9 +148,8 @@ mod private
         entry.set_visibility( entry.get_visibility() | value.visibility );
       }
 
-      let layout = web_sys::GpuBindGroupLayoutDescriptor::new( &value.entries );
-      layout
-    }    
+      web_sys::GpuBindGroupLayoutDescriptor::new( &value.entries )
+    }
   }
 
 }

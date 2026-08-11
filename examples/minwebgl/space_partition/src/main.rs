@@ -44,6 +44,9 @@ fn apply_aspect_ratio( x : f32, aspect : f32 ) -> f32
   f32::midpoint( x, 1.0 )
 }
 
+// 240 lines : one linear WebGL/KD-tree setup followed by the frame-loop closure sharing
+// captured state ( gl, trees, lines, colors ); splitting would scatter tightly-coupled
+// locals across artificial helper parameters.
 #[ allow( clippy::too_many_lines ) ]
 fn run() -> Result< (), gl::WebglError >
 {

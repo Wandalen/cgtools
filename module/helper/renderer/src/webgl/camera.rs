@@ -10,12 +10,9 @@ mod private
   };
 
   /// A struct representing a 3D camera with orbit controls.
-  #[ allow( dead_code ) ]
   pub struct Camera
   {
     controls : Rc< RefCell< CameraOrbitControls > >,
-    aspect_ratio : f32,
-    fov : f32,
     near : f32,
     far : f32,
     projection_matrix : gl::F32x4x4,
@@ -33,6 +30,7 @@ mod private
     /// * `fov` - The field of view in degrees.
     /// * `near` - The distance to the near clipping plane.
     /// * `far` - The distance to the far clipping plane.
+    #[ must_use ]
     pub fn new
     (
       eye : gl::F32x3,
@@ -66,8 +64,6 @@ mod private
         controls,
         near,
         far,
-        aspect_ratio,
-        fov,
         projection_matrix
       }
     }
@@ -105,7 +101,7 @@ mod private
       {
         gl::uniform::upload
         (
-          &gl,
+          gl,
           loc.clone(),
           &eye[ .. ]
         ).unwrap();
@@ -113,7 +109,7 @@ mod private
 
       gl::uniform::matrix_upload
       (
-        &gl,
+        gl,
         locations.get( "viewMatrix" ).unwrap().clone(),
         &view_matrix[ .. ],
         true
@@ -121,7 +117,7 @@ mod private
 
       gl::uniform::matrix_upload
       (
-        &gl,
+        gl,
         locations.get( "projectionMatrix" ).unwrap().clone(),
         projection_matrix.to_array().as_slice(),
         true
@@ -147,30 +143,35 @@ mod private
     }
 
     /// Returns a clone of the `Rc` to the camera controls.
+    #[ must_use ]
     pub fn get_controls( &self ) -> Rc< RefCell< CameraOrbitControls > >
     {
       self.controls.clone()
     }
 
     /// Returns the current position of the camera's eye.
+    #[ must_use ]
     pub fn get_eye( &self ) -> gl::F32x3
     {
       self.controls.borrow().eye
     }
 
     /// Returns the camera's view matrix.
+    #[ must_use ]
     pub fn get_view_matrix( &self ) -> gl::F32x4x4
     {
       self.controls.borrow().view()
     }
 
     /// Returns the camera's projection matrix.
+    #[ must_use ]
     pub fn get_projection_matrix( &self ) -> gl::F32x4x4
     {
       self.projection_matrix
     }
 
     /// Returns a `gl::F32x2` containing the near and far clipping plane distances.
+    #[ must_use ]
     pub fn get_near_far( &self ) -> gl::F32x2
     {
       gl::F32x2::new( self.near, self.far )

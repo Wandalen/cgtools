@@ -4,10 +4,6 @@
 //! Pinch with two fingers to zoom in/out.
 //! On desktop: left-click drag to pan, scroll wheel to zoom.
 
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::implicit_return ) ]
-
 use minwebgl as gl;
 use gl::GL;
 use browser_input::{ EventType, Input, CLIENT };

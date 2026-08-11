@@ -1,16 +1,6 @@
 //! Beginner Tutorial: Building Your First Tile-Based Game
 
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::items_after_statements ) ]
-#![ allow( clippy::unnecessary_cast ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::format_in_format_args ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-//! 
+//!
 //! This tutorial walks you through creating a simple tile-based game using tiles_tools.
 //! We'll build a basic dungeon explorer where a player moves around a grid, collects
 //! items, and encounters enemies. This demonstrates the core concepts and systems
@@ -92,7 +82,7 @@ fn tutorial_step_1_coordinates()
     
     // Calculate distance
     let distance = start.distance(&destination);
-    println!("Manhattan distance: {}", distance);
+    println!("Manhattan distance: {distance}");
     
     // Get neighbors (4-connected square grid)
     let neighbors = start.neighbors();
@@ -135,8 +125,9 @@ fn tutorial_step_2_map_creation()
     
     // Helper function to check if a coordinate is walkable
     let is_walkable = |coord: &SquareCoord<FourConnected>| -> bool {
-        let x = coord.x as usize;
-        let y = coord.y as usize;
+        let (Ok(x), Ok(y)) = (usize::try_from(coord.x), usize::try_from(coord.y)) else {
+            return false;
+        };
         if y >= dungeon_map.len() || x >= dungeon_map[0].len() {
             return false;
         }
@@ -173,10 +164,10 @@ fn tutorial_step_3_player_basics()
     let player_health = Health::new(100);
     
     let player = world.spawn((player_position, player_health));
-    println!("Created player entity with ID: {:?}", player);
+    println!("Created player entity with ID: {player:?}");
     
     // Query the player's data
-    for (entity, (pos, health)) in world.query::<(&Position<SquareCoord<FourConnected>>, &Health)>().iter() {
+    for (entity, (pos, health)) in &mut world.query::<(&Position<SquareCoord<FourConnected>>, &Health)>() {
         if entity == player {
             println!("Player stats:");
             println!("  Position: ({}, {})", pos.coord.x, pos.coord.y);
@@ -211,7 +202,7 @@ fn tutorial_step_4_movement()
     let goal = SquareCoord::<FourConnected>::new(6, 3);
     
     println!("Finding path from ({}, {}) to ({}, {})", start.x, start.y, goal.x, goal.y);
-    println!("Obstacles at: {:?}", obstacles);
+    println!("Obstacles at: {obstacles:?}");
     
     // Use A* pathfinding to find the route
     let path_result = astar(
@@ -234,9 +225,8 @@ fn tutorial_step_4_movement()
                 let from = &path[i-1];
                 let to = &path[i];
                 let is_valid = from.distance(to) == 1; // Adjacent squares only
-                println!("  {} -> {}: {}", 
-                    format!("({}, {})", from.x, from.y),
-                    format!("({}, {})", to.x, to.y),
+                println!("  ({}, {}) -> ({}, {}): {}",
+                    from.x, from.y, to.x, to.y,
                     if is_valid { "valid" } else { "invalid" });
             }
         },
@@ -281,17 +271,17 @@ fn tutorial_step_5_entities()
     ));
     
     println!("Created entities:");
-    println!("  Player: {:?}", player);
-    println!("  Goblin: {:?}", goblin);
-    println!("  Orc: {:?}", orc);  
-    println!("  Treasure: {:?}", treasure);
+    println!("  Player: {player:?}");
+    println!("  Goblin: {goblin:?}");
+    println!("  Orc: {orc:?}");  
+    println!("  Treasure: {treasure:?}");
     
     // Count entities by type
     let mut entity_count = 0;
     let mut entities_with_health = 0;
     
     // Query all entities with positions
-    for (entity, (pos, health)) in world.query::<(&Position<SquareCoord<FourConnected>>, Option<&Health>)>().iter() {
+    for (entity, (pos, health)) in &mut world.query::<(&Position<SquareCoord<FourConnected>>, Option<&Health>)>() {
         entity_count += 1;
         if health.is_some() {
             entities_with_health += 1;
@@ -319,8 +309,8 @@ fn tutorial_step_5_entities()
     }
     
     println!("\nEntity summary:");
-    println!("  Total entities: {}", entity_count);
-    println!("  Living entities: {}", entities_with_health);
+    println!("  Total entities: {entity_count}");
+    println!("  Living entities: {entities_with_health}");
     
     println!("✅ Different entity types add variety to your game world!\n");
 }
@@ -347,8 +337,8 @@ fn tutorial_step_6_combat()
     ));
     
     // Add to resource manager for easier health management
-    resource_manager.add_entity(player.id() as u32, 100.0, 50.0);
-    resource_manager.add_entity(goblin.id() as u32, 30.0, 0.0);
+    resource_manager.add_entity(player.id(), 100.0, 50.0);
+    resource_manager.add_entity(goblin.id(), 30.0, 0.0);
     
     println!("Combat scenario: Player vs Goblin");
     println!("Player at (2,2) - Goblin at (3,2)");
@@ -357,7 +347,7 @@ fn tutorial_step_6_combat()
     let mut player_pos = None;
     let mut goblin_pos = None;
     
-    for (entity, pos) in world.query::<&Position<SquareCoord<FourConnected>>>().iter() {
+    for (entity, pos) in &mut world.query::<&Position<SquareCoord<FourConnected>>>() {
         if entity == player {
             player_pos = Some(pos.coord);
         } else if entity == goblin {
@@ -369,21 +359,21 @@ fn tutorial_step_6_combat()
     
     if let (Some(player_coord), Some(goblin_coord)) = (player_pos, goblin_pos) {
         let distance = player_coord.distance(&goblin_coord);
-        println!("Distance between combatants: {}", distance);
+        println!("Distance between combatants: {distance}");
         
         if distance == 1 {
             println!("Combatants are adjacent - combat can begin!");
             
             // Simulate a few rounds of combat
             for round in 1..=3 {
-                println!("\n--- Round {} ---", round);
+                println!("\n--- Round {round} ---");
                 
                 // Player attacks goblin
-                let player_damage = 15;
-                resource_manager.modify_health(goblin.id() as u32, -(player_damage as f32));
+                let player_damage = 15.0_f32;
+                resource_manager.modify_health(goblin.id(), -player_damage);
                 
-                if let Some(goblin_resources) = resource_manager.get_resources(goblin.id() as u32) {
-                    println!("Player attacks for {} damage!", player_damage);
+                if let Some(goblin_resources) = resource_manager.get_resources(goblin.id()) {
+                    println!("Player attacks for {player_damage} damage!");
                     println!("Goblin health: {}/{}", 
                         goblin_resources.health.current, 
                         goblin_resources.health.maximum);
@@ -395,13 +385,13 @@ fn tutorial_step_6_combat()
                 }
                 
                 // Goblin attacks back (if alive)
-                if let Some(goblin_resources) = resource_manager.get_resources(goblin.id() as u32) {
+                if let Some(goblin_resources) = resource_manager.get_resources(goblin.id()) {
                     if goblin_resources.health.current > 0.0 {
-                        let goblin_damage = 8;
-                        resource_manager.modify_health(player.id() as u32, -(goblin_damage as f32));
+                        let goblin_damage = 8.0_f32;
+                        resource_manager.modify_health(player.id(), -goblin_damage);
                         
-                        if let Some(player_resources) = resource_manager.get_resources(player.id() as u32) {
-                            println!("Goblin attacks for {} damage!", goblin_damage);
+                        if let Some(player_resources) = resource_manager.get_resources(player.id()) {
+                            println!("Goblin attacks for {goblin_damage} damage!");
                             println!("Player health: {}/{}", 
                                 player_resources.health.current, 
                                 player_resources.health.maximum);
@@ -467,41 +457,39 @@ fn tutorial_step_7_debugging()
     println!("✅ Visual debugging is crucial for understanding complex game states!\n");
 }
 
+// Game events for step 8's mini-game (automatically implement Event trait via blanket impl)
+#[derive(Debug, Clone ) ]
+struct PlayerMoved {
+    from: (i32, i32),
+    to: (i32, i32),
+}
+
+#[derive(Debug, Clone)]
+struct EnemyDefeated {
+    enemy_type: String,
+    position: (i32, i32),
+}
+
+#[derive(Debug, Clone ) ]
+struct TreasureFound {
+    position: (i32, i32),
+    value: u32,
+}
+
 // Step 8: Putting it all together in a complete mini-game
 fn tutorial_step_8_complete_game()
 {
     println!("🎯 Step 8: Complete Mini-Game");
     println!("-----------------------------");
     println!("Let's put everything together into a working game!");
-    
+
     // Game components
     let mut world = World::new();
     let mut turn_game = TurnBasedGame::new();
     let mut resource_manager = ResourceManager::new();
     let mut event_bus = EventBus::new();
     let mut state_machine = GameStateMachine::new(GameState::Playing);
-    
-    // Game events
-    #[derive(Debug, Clone ) ]
-    struct PlayerMoved {
-        from: (i32, i32),
-        to: (i32, i32),
-    }
-    
-    #[derive(Debug, Clone)] 
-    struct EnemyDefeated {
-        enemy_type: String,
-        position: (i32, i32),
-    }
-    
-    #[derive(Debug, Clone ) ]
-    struct TreasureFound {
-        position: (i32, i32),
-        value: u32,
-    }
-    
-    // Events automatically implement Event trait via blanket impl
-    
+
     // Set up event listeners
     event_bus.subscribe(|event: &PlayerMoved| {
         println!("📍 Player moved from ({}, {}) to ({}, {})", 
@@ -537,11 +525,11 @@ fn tutorial_step_8_complete_game()
     ));
     
     // Add to game systems
-    turn_game.add_participant(player.id() as u32, 100); // Player goes first
-    turn_game.add_participant(goblin.id() as u32, 80);  // Goblin second
+    turn_game.add_participant(player.id(), 100); // Player goes first
+    turn_game.add_participant(goblin.id(), 80);  // Goblin second
     
-    resource_manager.add_entity(player.id() as u32, 100.0, 30.0);
-    resource_manager.add_entity(goblin.id() as u32, 25.0, 0.0);
+    resource_manager.add_entity(player.id(), 100.0, 30.0);
+    resource_manager.add_entity(goblin.id(), 25.0, 0.0);
     
     println!("🎮 Mini Dungeon Explorer Started!");
     println!("Player Goal: Defeat the goblin and find the treasure");
@@ -564,7 +552,7 @@ fn tutorial_step_8_complete_game()
     
     // Combat occurs
     println!("⚔️ Player attacks goblin!");
-    resource_manager.modify_health(goblin.id() as u32, -25.0); // Defeat goblin
+    resource_manager.modify_health(goblin.id(), -25.0); // Defeat goblin
     
     event_bus.publish(EnemyDefeated {
         enemy_type: "Goblin".to_string(),
@@ -589,8 +577,8 @@ fn tutorial_step_8_complete_game()
     // Final game summary
     println!("\n📋 Game Summary:");
     println!("   Final State: {:?}", state_machine.current_state());
-    println!("   Player Gold: {}", player_gold);
-    println!("   Enemies Defeated: {}", enemies_defeated);
+    println!("   Player Gold: {player_gold}");
+    println!("   Enemies Defeated: {enemies_defeated}");
     
     if state_machine.current_state() == GameState::Victory {
         println!("🏆 Congratulations! You've mastered the basics of tiles_tools!");

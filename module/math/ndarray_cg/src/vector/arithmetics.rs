@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{vector, Vector, MatNum, MatEl, NdFloat};
   // use vector::arithmetics::inner_product::*;
   // use vector::arithmetics::{ normalized, mag };
   use vector::{ normalized, mag, mag2, min, max, dot };
@@ -15,6 +15,7 @@ mod private
     /// overflow-checked: they panic in debug / wrap in release once the sum of
     /// squares exceeds `E::MAX`. Widen the element type or use a float scalar
     /// when that is possible.
+    #[ inline ]
     pub fn mag2( &self ) -> E
     {
       mag2( self )
@@ -25,6 +26,7 @@ mod private
     /// they panic in debug / wrap in release once any intermediate value
     /// exceeds `E::MAX`. Widen the element type or use a float scalar when that
     /// is possible.
+    #[ inline ]
     pub fn dot( &self, rhs : &Self ) -> E
     {
       dot( self, rhs )
@@ -52,6 +54,7 @@ mod private
     /// there is no fully overflow-safe integer form at the same width. For
     /// inputs whose squared distance can exceed `E::MAX`, widen first
     /// (e.g. `cast::<i64>()`) or use a floating-point scalar.
+    #[ inline ]
     pub fn distance_squared( &self, rhs : &Self ) -> E
     {
       mag2( &( *self - *rhs ) )
@@ -62,12 +65,15 @@ mod private
   {
 
     /// Normalize the vector. Requires float scalar (uses `sqrt`).
+    #[ must_use ]
+    #[ inline ]
     pub fn normalize( self ) -> Self
     {
       normalized( &self )
     }
 
     /// Compute the length of the vector. Requires float scalar (uses `sqrt`).
+    #[ inline ]
     pub fn mag( &self ) -> E
     {
       mag( self )
@@ -75,6 +81,7 @@ mod private
 
     /// Compute length of the vector between two points in space. Requires
     /// float scalar (uses `sqrt`).
+    #[ inline ]
     pub fn distance( &self, rhs : &Self ) -> E
     {
       ( rhs - self ).mag()
@@ -87,6 +94,8 @@ mod private
     /// `r[ i ] = a[ i ].min( b[ i ] )`. Satisfied by all integer primitives and
     /// floats alike — see `mdmath_core::vector::min_mut` for the float NaN
     /// tie-break behavior.
+    #[ must_use ]
+    #[ inline ]
     pub fn min( self, rhs : Self ) -> Self
     {
       min( &self, &rhs )
@@ -96,6 +105,8 @@ mod private
     /// `r[ i ] = a[ i ].max( b[ i ] )`. Satisfied by all integer primitives and
     /// floats alike — see `mdmath_core::vector::max_mut` for the float NaN
     /// tie-break behavior.
+    #[ must_use ]
+    #[ inline ]
     pub fn max( self, rhs : Self ) -> Self
     {
       max( &self, &rhs )

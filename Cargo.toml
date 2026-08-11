@@ -72,10 +72,17 @@ unsafe-code = "warn"
 # Individual restriction lints (not as a group per clippy recommendations)
 # Common useful restriction lints
 wildcard_imports = "warn"
-missing_inline_in_public_items = "warn"
-exhaustive_enums = "warn"
-exhaustive_structs = "warn"
 else_if_without_else = "warn"
+# Inlining is left to LLVM/wasm-opt; per-item #[inline] on hundreds of small accessors is noise.
+missing_inline_in_public_items = "allow"
+# Data-bag structs/enums constructed and matched literally are the API contract here.
+exhaustive_enums = "allow"
+exhaustive_structs = "allow"
+# GPU/game interop crosses u32/i32/f32/usize at every GL/WGPU/grid boundary; per-site annotation drowns the code.
+cast_precision_loss = "allow"
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_sign_loss = "allow"
 # Allows short/single-character identifiers (e.g. loop indices, math variables).
 min_ident_chars = "allow"
 # Enforces strict coding styles.
@@ -106,8 +113,8 @@ mod_module_files = "allow"
 self_named_module_files = "allow"
 # Allows allow attributes (needed for targeted allows)
 allow_attributes = "allow"
-# Allows allow attributes without reasons (for brevity)
-allow_attributes_without_reason = "allow"
+# Every remaining allow/expect must carry reason = "..." — suppressions are exceptional and self-documenting.
+allow_attributes_without_reason = "warn"
 # Allows arbitrary source item ordering
 arbitrary_source_item_ordering = "allow"
 # Allows missing docs in private items (not required for private)

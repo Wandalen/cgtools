@@ -1,10 +1,13 @@
-use crate::*;
+use crate::{MatNum, Indexable, Ix2, IndexingMut, IndexingRef, Add, Mat, mat};
 
 /// Adds two matrices.
 ///
 /// # Overflow
 /// For integer `E` the element-wise addition is not overflow-checked: it
 /// panics in debug / wraps in release once a sum leaves `E`'s range.
+///
+/// # Panics
+/// Panics if `a`, `b`, and `r` do not all share the same dimensions.
 #[ inline ]
 pub fn add< E, A, B, R >( r : &mut R, a : &A, b : &B )
 where
@@ -26,14 +29,11 @@ where
     let bdim = b.dim();
 
     // Check if dimensions are compatible for addition
-    if adim != bdim || rdim != adim
-    {
-      panic!
-      (
-        "Incompatible dimensions for matrix addition: a: {:?}, b: {:?}, r: {:?}",
-        adim, bdim, rdim
-      );
-    }
+    assert!
+    (
+      adim == bdim && rdim == adim,
+      "Incompatible dimensions for matrix addition: a: {adim:?}, b: {bdim:?}, r: {rdim:?}"
+    );
   }
 
   for ( ( r_val, a_val ), b_val ) in r.iter_lsfirst_mut().zip( a.iter_lsfirst() ).zip( b.iter_lsfirst() )
@@ -86,6 +86,7 @@ where
   /// # Overflow
   /// For integer `E` the element-wise addition is not overflow-checked: it
   /// panics in debug / wraps in release once a sum leaves `E`'s range.
+  #[ inline ]
   fn add( self, rhs : &Mat< ROWS, COLS, E, Descriptor > ) -> Self::Output
   {
     let mut result = Self::Output::default();

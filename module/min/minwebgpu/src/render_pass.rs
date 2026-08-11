@@ -1,9 +1,11 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ RenderPassDescriptor, web_sys, WebGPUError, Into, ColorAttachment, RenderPassError };
 
   /// Returns a new `RenderPassDescriptor` with default settings.
+  #[ inline ]
+  #[ must_use ]
   pub fn desc< 'a >() -> RenderPassDescriptor< 'a >
   {
     RenderPassDescriptor::new()
@@ -22,6 +24,11 @@ mod private
   /// For multiple color attachments, a depth-stencil attachment, or several
   /// passes per submit, build the `RenderPassDescriptor` and command encoder
   /// by hand instead.
+  ///
+  /// # Errors
+  /// Returns `error::RenderPassError::FailedToBegin` if the underlying
+  /// `GPUCommandEncoder.beginRenderPass` call throws.
+  #[ inline ]
   pub fn draw_to
   (
     device : &web_sys::GpuDevice,
@@ -32,7 +39,7 @@ mod private
   {
     let encoder = device.create_command_encoder();
     let pass = encoder.begin_render_pass( &desc().color_attachment( ColorAttachment::new( view ) ).into() )
-    .map_err( | e | RenderPassError::FailedToBegin( format!( "{:?}", e ) ) )?;
+    .map_err( | e | RenderPassError::FailedToBegin( format!( "{e:?}" ) ) )?;
 
     draw( &pass );
     pass.end();

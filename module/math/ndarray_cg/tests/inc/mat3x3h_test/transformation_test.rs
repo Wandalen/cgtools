@@ -1,6 +1,12 @@
-use ndarray_cg::*;
+use ndarray_cg::{ *, approx };
+use approx::assert_abs_diff_eq;
 use mat3x3h::{rot, scale, translation};
 
+// The translation matrix's row `i` is `[ 0, .., 1 ( at i ), .., 0, t_i ]`; dotted with the
+// homogeneous origin `[ 0, 0, 0, 1 ]` this reduces to `t_i * 1 + 0 * 0 + .. `, i.e. multiplying
+// by exactly 1.0 and adding exact zeros — both exact under IEEE-754 on every target, so the
+// result is always bit-identical to the input translation component.
+#[ allow( clippy::float_cmp ) ]
 #[ test ]
 fn test_translation()
 {
@@ -19,22 +25,31 @@ fn test_rotation()
   let x = Vector( [ 1.0_f32, 0.0, 0.0, 1.0 ] );
   let y = Vector( [ 0.0_f32, 1.0, 0.0, 1.0 ] );
   let z = Vector( [ 0.0_f32, 0.0, 1.0, 1.0 ] );
-  
+
   let angle = std::f32::consts::FRAC_PI_2;
-  
+
   let rotation_x = rot( angle, 0.0, 0.0 );
   let rotation_y = rot( 0.0, angle, 0.0 );
   let rotation_z = rot( 0.0, 0.0, angle );
-  
+
   let rotated_x = rotation_z * x;
   let rotated_y = rotation_x * y;
   let rotated_z = rotation_y * z;
 
-  assert_eq!( rotated_x.y(), 1.0 );
-  assert_eq!( rotated_y.z(), 1.0 );
-  assert_eq!( rotated_z.x(), 1.0 );
+  // Trig output (`sin`/`cos` of `FRAC_PI_2`) is not guaranteed bit-exact across targets —
+  // this crate also builds for wasm32, whose libm can round the last bit differently than the
+  // host's. Approximate comparison matches the pattern already used for rotation-derived
+  // values in mat3x3_test/mat4x4_test's `from_quat`/`from_scale_rotation_translation` tests.
+  assert_abs_diff_eq!( rotated_x.y(), 1.0 );
+  assert_abs_diff_eq!( rotated_y.z(), 1.0 );
+  assert_abs_diff_eq!( rotated_z.x(), 1.0 );
 }
 
+// The scale matrix's row `i` is `[ 0, .., s_i ( at i ), .., 0 ]`; dotted with the all-ones
+// vector this reduces to `s_i * 1 + 0 * 1 + ..`, i.e. multiplying by exactly 1.0 and adding
+// exact zeros — both exact under IEEE-754 on every target, so the result is always
+// bit-identical to the input scale component.
+#[ allow( clippy::float_cmp ) ]
 #[ test ]
 fn test_scale()
 {

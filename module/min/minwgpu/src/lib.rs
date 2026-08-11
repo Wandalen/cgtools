@@ -1,4 +1,3 @@
-#![ allow( clippy::implicit_return ) ]
 
 //!
 //! # `minwgpu`

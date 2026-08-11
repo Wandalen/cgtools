@@ -4,8 +4,6 @@
 /// Internal namespace for implementation details.
 mod private
 {
-  // use crate::*;
-
   use web_sys::
   {
     wasm_bindgen::
@@ -24,6 +22,11 @@ mod private
   /// # Arguments
   /// * `update_and_draw` - A closure that takes a `f64` timestamp and performs all per-frame logic.
   ///   It should return `true` to continue the loop or `false` to stop it.
+  ///
+  /// # Panics
+  /// Panics under the same conditions as [`request_animation_frame`], which this function
+  /// calls both to start the loop and to schedule each subsequent frame.
+  #[ inline ]
   pub fn run< F >( mut update_and_draw : F )
   where
     F : 'static + FnMut( f64 ) -> bool,
@@ -54,6 +57,7 @@ mod private
   /// # Panics
   /// Panics if it cannot access the browser's `window` object or if the
   /// `request_animation_frame` call itself fails.
+  #[ inline ]
   pub fn request_animation_frame( f : &Closure< dyn FnMut( f64 ) > )
   {
     use wasm_bindgen::JsCast;

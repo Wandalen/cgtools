@@ -92,6 +92,7 @@ mod private
   impl Lights
   {
     /// An empty light list.
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
@@ -147,6 +148,9 @@ mod private
     /// light; normalized internally. Cone angles are radians from the axis,
     /// `inner_cone_angle <= outer_cone_angle`. Returns `false` — dropping the
     /// light — when the array is full.
+    // Seven physical parameters : a spot light irreducibly needs position, axis, color,
+    // strength, range, and both cone angles; a params struct would only rename them.
+    #[ allow( clippy::too_many_arguments ) ]
     #[ must_use ]
     pub fn push_spot
     (
@@ -178,6 +182,7 @@ mod private
     }
 
     /// The packed uniform contents.
+    #[ must_use ]
     pub fn as_raw( &self ) -> LightsRaw
     {
       self.raw

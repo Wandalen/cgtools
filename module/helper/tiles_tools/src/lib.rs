@@ -109,17 +109,6 @@
 //! - **Type Safety**: Prevent coordinate system mixing errors at compile time
 //! - **Memory Efficiency**: Cache-friendly data structures and algorithms
 
-#![ cfg_attr( not( feature = "enabled" ), allow( unused ) ) ]
-
-// Crate-wide policy allows. Each entry is a deliberate API/domain decision, not noise suppression.
-#![ allow( clippy::missing_inline_in_public_items ) ] // 450+ public items; inlining is deferred to profile-guided passes.
-#![ allow( clippy::exhaustive_structs ) ] // Literal construction of coordinate/config structs is the public API contract.
-#![ allow( clippy::exhaustive_enums ) ] // Matching all variants exhaustively is intended for grid/game enums.
-#![ allow( clippy::cast_precision_loss ) ] // Grid indices are game-scale; i32→f32 pixel math never nears 2^24.
-#![ allow( clippy::cast_possible_truncation ) ] // Pixel→grid floor/round results are game-scale, far below i32 limits.
-#![ allow( clippy::cast_possible_wrap ) ] // Grid dimensions are game-scale; usize→i32 never nears i32::MAX.
-#![ allow( clippy::cast_sign_loss ) ] // Casts follow explicit non-negativity checks or clamps in grid math.
-
 pub mod coordinates;
 
 #[ cfg( feature = "enabled" ) ]

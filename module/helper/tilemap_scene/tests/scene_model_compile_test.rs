@@ -1,23 +1,11 @@
 //! Integration tests for the Slice-1 compile layer
 //! (`tilemap_scene::compile::compile_assets` + `compile_frame`).
 
-
-#![ allow( clippy::min_ident_chars ) ]
 // Test-only idioms: exact array comparisons and ref-in-closure patterns are
 // intentional; `Default::default()` reads fine at fixture build sites;
 // fixture builders sometimes exceed the 100-line heuristic. `compiled` is
 // declared eagerly in every test for ergonomic id lookup
 // (`compiled.ids.sprite(...)` assertions) — many tests don't reference it.
-#![ allow
-(
-  unused_variables,
-  clippy::float_cmp,
-  clippy::default_trait_access,
-  clippy::redundant_closure_for_method_calls,
-  clippy::needless_borrow,
-  clippy::too_many_lines,
-  clippy::doc_markdown,
-) ]
 
 use rustc_hash::FxHashMap as HashMap;
 

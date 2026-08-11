@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{Collection, VectorSpace};
 
   /// Trait for representing and manipulating rotations.
   ///
@@ -56,6 +56,7 @@ mod private
     ///
     /// # Returns
     /// - The inverse of this rotation.
+    #[ must_use ]
     fn invert( &self ) -> Self;
   }
 

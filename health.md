@@ -43,7 +43,7 @@ re-run the command to refresh a number instead of trusting the table. Live work 
 | helper/gpu_hal | 1 / 2 | 0 | — | 0 | 28 | HAL v0; buy-vs-build ADR closed |
 | helper/line_tools | 5 / 88 | 0 | yes | 0 | 32 | |
 | helper/primitive_generation | 2 / 5 | 0 | — | 0 | 41 | ufo.rs allows justified/fixed by task 036 |
-| helper/renderer | 16 / 75 | 6 | yes | 0 | 87 | Native backend work in progress (uncommitted working tree — counts reflect it) · 6 inline tests kept as one documented exception by task 075 (private resolve_asset_uri URI helper of the browser-bound glTF loader; run natively) |
+| helper/renderer | 16 / 75 | 6 | yes | 0 | 42 | 6 inline tests kept as one documented exception by task 075 (private resolve_asset_uri URI helper of the browser-bound glTF loader; run natively) · Allow sweep by draft 058 increment: 87 → 42 (57-line lib.rs blanket wall stripped, ~60 mechanical fixes across 25 files, 8 # Errors + 12 gbuffer docs written; 9 crate-policy + 33 scoped justified attrs remain, each with a reason; user directive applied mid-increment — fix over allow wherever mechanical, 9 first-pass allows converted to real fixes incl. 2 dead Camera fields deleted) |
 | helper/scene_script | 2 / 16 | 0 | yes | 0 | — | |
 | helper/tilemap_renderer | 6 / 100 | 29 | yes | 0 | 23 | Markers resolved by task 064 (Source::Path geometry loading implemented, pitfall/003 retired) · 54 tests relocated to tests/ by task 071 (29 inline kept as documented exceptions pinning private helpers) |
 | helper/tilemap_scene | 12 / 171 | 0 | yes | 0 | 39 | All 38 inline tests relocated to 2 new domain files by task 073 (hash_test.rs + compile_units_test.rs; zero exceptions — mod_interface root re-exports reach everything); tests/readme.md added |

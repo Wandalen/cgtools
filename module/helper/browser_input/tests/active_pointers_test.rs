@@ -1,11 +1,14 @@
-#![ allow( missing_docs ) ]
+//! Unit pins for [`browser_input::apply_events_to_state`]'s `active_pointers` bookkeeping —
+//! press/release/move/cancel sequences across single and multiple simultaneous pointer
+//! contacts, including the idempotent-duplicate-press guard.
+
 use browser_input::*;
 use browser_input::mouse::MouseButton;
 use ndarray_cg::I32x2;
 
 fn ev( event_type : EventType ) -> Event
 {
-  Event { event_type, alt : false, ctrl : false, shift : false }
+  Event::new( event_type, false, false, false )
 }
 
 fn point( x : i32, y : i32 ) -> I32x2

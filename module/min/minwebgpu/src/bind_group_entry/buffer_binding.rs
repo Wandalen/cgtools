@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ web_sys, Into };
 
   /// Represents a binding to a WebGPU buffer.
   pub struct BufferBinding< 'a >
@@ -17,6 +17,8 @@ mod private
   impl< 'a > BufferBinding< 'a >  
   {
      /// Creates a new `BufferBinding` with a given buffer and default offset and size.
+    #[ inline ]
+    #[ must_use ]
     pub fn new( buffer : &'a web_sys::GpuBuffer ) -> Self
     {
       let offset = None;
@@ -31,6 +33,8 @@ mod private
     }
 
     /// Sets the offset for the buffer binding.
+    #[ inline ]
+    #[ must_use ]
     pub fn offset( mut self, offset : f64 ) -> Self
     {
       self.offset = Some( offset );
@@ -38,6 +42,8 @@ mod private
     }    
 
     /// Sets the size of the buffer binding.
+    #[ inline ]
+    #[ must_use ]
     pub fn size( mut self, size : f64 ) -> Self
     {
       self.size = Some( size );
@@ -47,6 +53,7 @@ mod private
 
   impl From< &BufferBinding< '_ > > for web_sys::GpuBufferBinding 
   {
+    #[ inline ]
     fn from( value: &BufferBinding< '_ > ) -> Self {
       let binding = web_sys::GpuBufferBinding::new( value.buffer );
 
@@ -59,6 +66,7 @@ mod private
 
   impl From< BufferBinding< '_ > > for web_sys::GpuBufferBinding 
   {
+    #[ inline ]
     fn from( value: BufferBinding< '_ > ) -> Self {
       ( &value ).into()
     }

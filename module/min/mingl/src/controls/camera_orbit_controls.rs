@@ -16,7 +16,7 @@ mod private
   }
 
   #[ cfg( feature = "web" ) ]
-  use web_imports::*;
+  use web_imports::{ Closure, HashMap, JsCast, RefCell, Rc, web_sys };
 
   /// State of the camera that controls its rotation
   pub struct CameraRotationState
@@ -190,6 +190,10 @@ mod private
   /// camera.zoom.min_distance_set(2.0);
   /// camera.zoom.max_distance_set(10.0);
   /// ```
+  // Struct-literal construction with `..Default::default()` is the established public
+  // contract, exercised extensively by `tests/tests/camera_orbit_controls.rs` (23+ cases)
+  // and by downstream examples — `#[non_exhaustive]` would break that contract.
+  #[ allow( clippy::exhaustive_structs ) ]
   pub struct CameraOrbitControls
   {
     /// The position of the camera in 3D space.
@@ -213,30 +217,39 @@ mod private
   impl CameraOrbitControls
   {
     /// Returns the current position of the camera (`eye`).
+    #[ inline ]
+    #[ must_use ]
     pub fn eye( &self ) -> F32x3
     {
       self.eye
     }
 
     /// Returns the current "up" vector of the camera.
+    #[ inline ]
+    #[ must_use ]
     pub fn up( &self ) -> F32x3
     {
       self.up
     }
 
     /// Returns the point the camera is centered on.
+    #[ inline ]
+    #[ must_use ]
     pub fn center( &self ) -> F32x3
     {
       self.center
     }
 
     /// Calculates and returns a right-handed view matrix based on the camera's current state.
+    #[ inline ]
+    #[ must_use ]
     pub fn view( &self ) -> math::F32x4x4
     {
       math::mat3x3h::look_at_rh( self.eye, self.center, self.up )
     }
 
     /// Updates the camera's knowledge of the window or viewport size.
+    #[ inline ]
     pub fn set_size( &mut self, size : [ f32; 2 ] )
     {
       self.window_size = F32x2::from( size );
@@ -255,6 +268,7 @@ mod private
     /// - `up` must not be parallel to the view direction
     ///
     /// Violating these conditions results in undefined behavior (NaN or panic).
+    #[ inline ]
     pub fn rotate
     (
       &mut self,
@@ -377,6 +391,7 @@ mod private
     /// * `screen_d` - The change in screen coordinates `[dx, dy]` from a mouse movement event.
     ///   Positive dx corresponds to rightward screen movement; positive dy to downward
     ///   screen movement (`new_pos - prev_pos` convention).
+    #[ inline ]
     pub fn pan
     (
       &mut self,
@@ -416,6 +431,7 @@ mod private
     /// # Arguments
     /// * `delta_y` - The scroll amount, typically from a mouse wheel event.
     ///   A negative value zooms in, and a positive value zooms out.
+    #[ inline ]
     pub fn zoom
     (
       &mut self,
@@ -461,19 +477,25 @@ mod private
     }
 
     /// Updates the state of the controls
+    #[ inline ]
     pub fn update
     (
       &mut self,
       delta_time : f64
     )
     {
+      // `delta_time` is a per-frame delta in seconds — always minuscule relative to
+      // f32's precision limits, so narrowing it once here cannot lose meaningful precision.
+      #[ allow( clippy::cast_possible_truncation ) ]
+      let delta_time = delta_time as f32;
+
       // Decays self.movement_decay% every 10 milliseconds
-      let mut decay_percentage = self.rotation.movement_decay * delta_time as f32 / 10.0;
+      let mut decay_percentage = self.rotation.movement_decay * delta_time / 10.0;
       decay_percentage = decay_percentage.min( 1.0 );
 
       if self.rotation.movement_smoothing_enabled
       {
-        self.rotation.current_rotation_angle = self.rotation.current_angular_speed * delta_time as f32 / 1000.0;
+        self.rotation.current_rotation_angle = self.rotation.current_angular_speed * delta_time / 1000.0;
         self.apply_rotation();
         self.rotation.current_angular_speed *= 1.0 - decay_percentage;
       }
@@ -483,6 +505,7 @@ mod private
   impl Default for CameraOrbitControls
   {
     /// Creates a new `CameraOrbitControls` with a set of sensible default values.
+    #[ inline ]
     fn default() -> Self
     {
       CameraOrbitControls
@@ -535,6 +558,218 @@ mod private
     Pinch,
   }
 
+  /// Creates the `pointerdown` closure that begins tracking a new active pointer
+  /// and selects the resulting camera interaction state.
+  #[ cfg( feature = "web" ) ]
+  #[ inline ]
+  fn make_pointer_down_closure
+  (
+    canvas : &web_sys::HtmlCanvasElement,
+    state : &Rc< RefCell< CameraState > >,
+    prev_screen_pos : &Rc< RefCell< [ f32; 2 ] > >,
+    active_pointers : &Rc< RefCell< HashMap< i32, [ f32; 2 ] > > >
+  ) -> Closure< dyn Fn( web_sys::PointerEvent ) >
+  {
+    let state = state.clone();
+    let prev_screen_pos = prev_screen_pos.clone();
+    let active_pointers = active_pointers.clone();
+    let canvas = canvas.clone();
+    Closure::new
+    (
+      move | e : web_sys::PointerEvent |
+      {
+        // screen_x/y return f64 under web_sys_unstable_apis (web-sys ≥ 0.3.94); f64→f32 cast is intentional
+        #[ allow( clippy::cast_possible_truncation ) ]
+        let pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
+        active_pointers.borrow_mut().insert( e.pointer_id(), pos );
+        let count = active_pointers.borrow().len();
+        match count
+        {
+          1 =>
+          {
+            *prev_screen_pos.borrow_mut() = pos;
+            match e.button()
+            {
+              0 => *state.borrow_mut() = CameraState::Rotate,
+              2 => *state.borrow_mut() = CameraState::Pan,
+              _ => {}
+            }
+          }
+          _ =>
+          {
+            // 3+ fingers: enters Pinch, but the "other" anchor is chosen by
+            // non-deterministic HashMap iteration order, so zoom may be jittery.
+            *state.borrow_mut() = CameraState::Pinch;
+          }
+        }
+        // Keep receiving pointermove even when the finger moves outside the canvas.
+        let _ = canvas.set_pointer_capture( e.pointer_id() );
+      }
+    )
+  }
+
+  /// Creates the `pointermove` closure that rotates, pans, or pinch-zooms the
+  /// camera depending on the current interaction state.
+  #[ cfg( feature = "web" ) ]
+  #[ inline ]
+  fn make_pointer_move_closure
+  (
+    camera : &Rc< RefCell< CameraOrbitControls > >,
+    state : &Rc< RefCell< CameraState > >,
+    prev_screen_pos : &Rc< RefCell< [ f32; 2 ] > >,
+    active_pointers : &Rc< RefCell< HashMap< i32, [ f32; 2 ] > > >
+  ) -> Closure< dyn Fn( web_sys::PointerEvent ) >
+  {
+    let state = state.clone();
+    let camera = camera.clone();
+    let prev_screen_pos = prev_screen_pos.clone();
+    let active_pointers = active_pointers.clone();
+    Closure::new
+    (
+      move | e : web_sys::PointerEvent |
+      {
+        let pointer_id = e.pointer_id();
+        // screen_x/y return f64 under web_sys_unstable_apis (web-sys ≥ 0.3.94); f64→f32 cast is intentional
+        #[ allow( clippy::cast_possible_truncation ) ]
+        let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
+
+        let current_state = state.borrow().clone();
+
+        // Snapshot the moved pointer's previous position before updating;
+        // the Pinch arm needs it to compute the old inter-finger distance.
+        let old_pos = active_pointers.borrow().get( &pointer_id ).copied();
+
+        // Compute movement delta from the single-pointer reference position.
+        let prev_pos = *prev_screen_pos.borrow();
+        let mut delta = [ new_pos[ 0 ] - prev_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
+
+        // Update tracking state for all active states.
+        *prev_screen_pos.borrow_mut() = new_pos;
+        active_pointers.borrow_mut().insert( pointer_id, new_pos );
+
+        match current_state
+        {
+          CameraState::Pinch =>
+          {
+            if let Some( old ) = old_pos
+            {
+              let other_pos = active_pointers
+                .borrow()
+                .iter()
+                .find( |( &id, _ )| id != pointer_id )
+                .map( |( _, &pos )| pos );
+              if let Some( other ) = other_pos
+              {
+                let old_dist =
+                {
+                  let dx = old[ 0 ] - other[ 0 ];
+                  let dy = old[ 1 ] - other[ 1 ];
+                  ( dx * dx + dy * dy ).sqrt()
+                };
+                let new_dist =
+                {
+                  let dx = new_pos[ 0 ] - other[ 0 ];
+                  let dy = new_pos[ 1 ] - other[ 1 ];
+                  ( dx * dx + dy * dy ).sqrt()
+                };
+                camera.borrow_mut().zoom( old_dist - new_dist );
+              }
+            }
+          }
+          CameraState::Rotate =>
+          {
+            // Fix(BUG-004): Standardized mouse delta to new-prev convention for both axes; negate X only in rotate arm
+            // Root cause: Inconsistent delta sign (prev-new for X, new-prev for Y) inverted pan X-axis direction
+            // Pitfall: pan() internally negates X via `- x * dx`; rotate() needs explicit negation for opposite convention
+            delta[ 0 ] = -delta[ 0 ];
+            camera.borrow_mut().rotate( delta );
+          },
+          CameraState::Pan => camera.borrow_mut().pan( delta ),
+          CameraState::None => {}
+        }
+      }
+    )
+  }
+
+  /// Creates the `wheel` closure that zooms the camera when no pointer gesture is active.
+  #[ cfg( feature = "web" ) ]
+  #[ inline ]
+  fn make_wheel_closure
+  (
+    camera : &Rc< RefCell< CameraOrbitControls > >,
+    state : &Rc< RefCell< CameraState > >
+  ) -> Closure< dyn Fn( web_sys::WheelEvent ) >
+  {
+    let state = state.clone();
+    let camera = camera.clone();
+    Closure::new
+    (
+      move | e : web_sys::WheelEvent |
+      {
+        if let CameraState::None = *state.borrow()
+        {
+          // delta_y is a scroll increment (typically tens to low thousands); f64→f32 cast is intentional
+          #[ allow( clippy::cast_possible_truncation ) ]
+          let delta_y = e.delta_y() as f32;
+          camera.borrow_mut().zoom( delta_y );
+        }
+      }
+    )
+  }
+
+  /// Creates the shared closure for `pointerup`, `pointerout`, and `pointercancel`,
+  /// which all remove the pointer and transition state identically.
+  #[ cfg( feature = "web" ) ]
+  #[ inline ]
+  fn make_pointer_release_closure
+  (
+    state : &Rc< RefCell< CameraState > >,
+    prev_screen_pos : &Rc< RefCell< [ f32; 2 ] > >,
+    active_pointers : &Rc< RefCell< HashMap< i32, [ f32; 2 ] > > >
+  ) -> Closure< dyn Fn( web_sys::PointerEvent ) >
+  {
+    let state = state.clone();
+    let active_pointers = active_pointers.clone();
+    let prev_screen_pos = prev_screen_pos.clone();
+    Closure::new
+    (
+      move | e : web_sys::PointerEvent |
+      {
+        active_pointers.borrow_mut().remove( &e.pointer_id() );
+        let count = active_pointers.borrow().len();
+        match count
+        {
+          0 => *state.borrow_mut() = CameraState::None,
+          1 =>
+          {
+            // One finger remains: resume rotation from its current position.
+            let remaining = active_pointers.borrow().values().next().copied();
+            if let Some( pos ) = remaining
+            {
+              *prev_screen_pos.borrow_mut() = pos;
+            }
+            *state.borrow_mut() = CameraState::Rotate;
+          }
+          _ => {}
+        }
+      }
+    )
+  }
+
+  /// Creates the `contextmenu` closure that suppresses the browser's context menu.
+  #[ cfg( feature = "web" ) ]
+  #[ inline ]
+  fn make_context_menu_closure() -> Closure< dyn Fn( web_sys::PointerEvent ) >
+  {
+    Closure::new
+    (
+      move | e : web_sys::PointerEvent |
+      {
+        e.prevent_default();
+      }
+    )
+  }
+
   /// Binds pointer events to the camera controls for interaction.
   ///
   /// Sets up event listeners on an `HtmlCanvasElement` to handle camera rotation,
@@ -554,6 +789,7 @@ mod private
   /// * `camera` - A reference-counted, mutable reference to the `CameraOrbitControls`
   ///   instance that will be manipulated by the user input.
   #[ cfg( feature = "web" ) ]
+  #[ inline ]
   pub fn bind_controls_to_input
   (
     canvas : &web_sys::HtmlCanvasElement,
@@ -569,171 +805,11 @@ mod private
     // Prevent the browser from handling touch gestures (pinch-to-zoom, scroll) on the canvas.
     let _ = canvas.style().set_property( "touch-action", "none" );
 
-    let on_pointer_down : Closure< dyn Fn( _ ) > = Closure::new
-    (
-      {
-        let state = state.clone();
-        let prev_screen_pos = prev_screen_pos.clone();
-        let active_pointers = active_pointers.clone();
-        let canvas = canvas.clone();
-        move | e : web_sys::PointerEvent |
-        {
-          // screen_x/y return f64 under web_sys_unstable_apis (web-sys ≥ 0.3.94); f64→f32 cast is intentional
-          let pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
-          active_pointers.borrow_mut().insert( e.pointer_id(), pos );
-          let count = active_pointers.borrow().len();
-          match count
-          {
-            1 =>
-            {
-              *prev_screen_pos.borrow_mut() = pos;
-              match e.button()
-              {
-                0 => *state.borrow_mut() = CameraState::Rotate,
-                2 => *state.borrow_mut() = CameraState::Pan,
-                _ => {}
-              }
-            }
-            _ =>
-            {
-              // 3+ fingers: enters Pinch, but the "other" anchor is chosen by
-              // non-deterministic HashMap iteration order, so zoom may be jittery.
-              *state.borrow_mut() = CameraState::Pinch;
-            }
-          }
-          // Keep receiving pointermove even when the finger moves outside the canvas.
-          let _ = canvas.set_pointer_capture( e.pointer_id() );
-        }
-      }
-    );
-
-    let on_pointer_move : Closure< dyn Fn( _ ) > = Closure::new
-    (
-      {
-        let state = state.clone();
-        let camera = camera.clone();
-        let prev_screen_pos = prev_screen_pos.clone();
-        let active_pointers = active_pointers.clone();
-        move | e : web_sys::PointerEvent |
-        {
-          let pointer_id = e.pointer_id();
-          // screen_x/y return f64 under web_sys_unstable_apis (web-sys ≥ 0.3.94); f64→f32 cast is intentional
-          let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
-
-          let current_state = state.borrow().clone();
-
-          // Snapshot the moved pointer's previous position before updating;
-          // the Pinch arm needs it to compute the old inter-finger distance.
-          let old_pos = active_pointers.borrow().get( &pointer_id ).copied();
-
-          // Compute movement delta from the single-pointer reference position.
-          let prev_pos = *prev_screen_pos.borrow();
-          let mut delta = [ new_pos[ 0 ] - prev_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
-
-          // Update tracking state for all active states.
-          *prev_screen_pos.borrow_mut() = new_pos;
-          active_pointers.borrow_mut().insert( pointer_id, new_pos );
-
-          match current_state
-          {
-            CameraState::Pinch =>
-            {
-              if let Some( old ) = old_pos
-              {
-                let other_pos = active_pointers
-                  .borrow()
-                  .iter()
-                  .find( |( &id, _ )| id != pointer_id )
-                  .map( |( _, &pos )| pos );
-                if let Some( other ) = other_pos
-                {
-                  let old_dist =
-                  {
-                    let dx = old[ 0 ] - other[ 0 ];
-                    let dy = old[ 1 ] - other[ 1 ];
-                    ( dx * dx + dy * dy ).sqrt()
-                  };
-                  let new_dist =
-                  {
-                    let dx = new_pos[ 0 ] - other[ 0 ];
-                    let dy = new_pos[ 1 ] - other[ 1 ];
-                    ( dx * dx + dy * dy ).sqrt()
-                  };
-                  camera.borrow_mut().zoom( old_dist - new_dist );
-                }
-              }
-            }
-            CameraState::Rotate =>
-            {
-              // Fix(BUG-004): Standardized mouse delta to new-prev convention for both axes; negate X only in rotate arm
-              // Root cause: Inconsistent delta sign (prev-new for X, new-prev for Y) inverted pan X-axis direction
-              // Pitfall: pan() internally negates X via `- x * dx`; rotate() needs explicit negation for opposite convention
-              delta[ 0 ] = -delta[ 0 ];
-              camera.borrow_mut().rotate( delta );
-            },
-            CameraState::Pan => camera.borrow_mut().pan( delta ),
-            CameraState::None => {}
-          }
-        }
-      }
-    );
-
-    let on_wheel : Closure< dyn Fn( _ ) > = Closure::new
-    (
-      {
-        let state = state.clone();
-        let camera = camera.clone();
-        move | e : web_sys::WheelEvent |
-        {
-          if let CameraState::None = *state.borrow()
-          {
-            let delta_y = e.delta_y() as f32;
-            camera.borrow_mut().zoom( delta_y );
-          }
-        }
-      }
-    );
-
-    // Shared handler for pointerup, pointerout, and pointercancel.
-    // All three remove the pointer and transition state identically.
-    let on_pointer_release : Closure< dyn Fn( _ ) > = Closure::new
-    (
-      {
-        let state = state.clone();
-        let active_pointers = active_pointers.clone();
-        let prev_screen_pos = prev_screen_pos.clone();
-        move | e : web_sys::PointerEvent |
-        {
-          active_pointers.borrow_mut().remove( &e.pointer_id() );
-          let count = active_pointers.borrow().len();
-          match count
-          {
-            0 => *state.borrow_mut() = CameraState::None,
-            1 =>
-            {
-              // One finger remains: resume rotation from its current position.
-              let remaining = active_pointers.borrow().values().next().copied();
-              if let Some( pos ) = remaining
-              {
-                *prev_screen_pos.borrow_mut() = pos;
-              }
-              *state.borrow_mut() = CameraState::Rotate;
-            }
-            _ => {}
-          }
-        }
-      }
-    );
-
-    let on_context_menu : Closure< dyn Fn( _ ) > = Closure::new
-    (
-      {
-        move | e : web_sys::PointerEvent |
-        {
-          e.prevent_default();
-        }
-      }
-    );
+    let on_pointer_down = make_pointer_down_closure( canvas, &state, &prev_screen_pos, &active_pointers );
+    let on_pointer_move = make_pointer_move_closure( camera, &state, &prev_screen_pos, &active_pointers );
+    let on_wheel = make_wheel_closure( camera, &state );
+    let on_pointer_release = make_pointer_release_closure( &state, &prev_screen_pos, &active_pointers );
+    let on_context_menu = make_context_menu_closure();
 
     canvas.set_oncontextmenu( Some( on_context_menu.as_ref().unchecked_ref() ) );
     on_context_menu.forget();

@@ -1,10 +1,4 @@
 
-#![ allow( dead_code ) ]
-#![ allow( clippy::large_enum_variant ) ]
-#![ allow( clippy::type_complexity ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::used_underscore_binding ) ]
-#![ allow( clippy::default_trait_access ) ]
 
 mod private
 {
@@ -197,7 +191,6 @@ mod private
   }
 
   /// Represents a color, which can be either fixed or animated.
-  #[ allow( dead_code ) ]
   #[ derive( Debug, Clone ) ]
   pub enum Color
   {
@@ -208,7 +201,6 @@ mod private
   }
 
   /// Represents a shape, which can be a stroke, color, geometry, spline, or repeater.
-  #[ allow( dead_code ) ]
   #[ derive( Debug, Clone ) ]
   pub enum Shape
   {

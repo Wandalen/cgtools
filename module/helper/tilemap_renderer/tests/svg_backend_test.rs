@@ -1,5 +1,4 @@
 #![ cfg( feature = "adapter-svg" ) ]
-#![ allow( clippy::min_ident_chars ) ] // Short names like b, d, s are idiomatic for rendered-output bindings here
 
 //! `SvgBackend` adapter behavior tests, relocated from inline `src/adapters/svg.rs` by
 //! task 071. Every test drives the backend purely through its public surface --

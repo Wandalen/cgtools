@@ -1,30 +1,5 @@
 //! Event system demonstration showing decoupled game logic communication.
 
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::items_after_statements ) ]
-#![ allow( clippy::unnecessary_cast ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::format_in_format_args ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::duplicated_attributes ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::trivially_copy_pass_by_ref ) ]
-#![ allow( clippy::missing_inline_in_public_items ) ]
-#![ allow( clippy::useless_vec ) ]
-#![ allow( clippy::unnested_or_patterns ) ]
-#![ allow( clippy::else_if_without_else ) ]
-#![ allow( clippy::unreadable_literal ) ]
-#![ allow( clippy::redundant_else ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
 //!
 //! This example demonstrates the comprehensive event system including:
 //! - Publishing and subscribing to events
@@ -34,41 +9,33 @@
 //! - Auto-unsubscribing listeners
 
 use tiles_tools::{
-  events::*,
-  events::common_events::*,
+  events::{EventBus, EventResult, EventPriority},
+  events::common_events::{EntityMoved, MovementType, HealthChanged, EntitiesCollided, SpellCast, CollisionType, HealthChangeCause, HealingSource, GameStateChanged, GameState},
   coordinates::square::{Coordinate as SquareCoord, FourConnected},
 };
 use std::sync::{ Arc, Mutex };
 
-fn main()
-{
-  println!("🎯 Event System Demonstration");
-  println!("=============================");
-
-  // Create an event bus
-  let mut event_bus = EventBus::new();
-  
-  // Define custom events for this demo
-  #[derive(Debug, Clone ) ]
-  struct GameStarted {
+#[derive(Debug, Clone)]
+struct GameStarted {
   level_id: String,
   difficulty: u32,
-  }
+}
 
-  #[derive(Debug, Clone ) ]
-  struct PlayerDied {
+#[derive(Debug, Clone)]
+struct PlayerDied {
   player_id: u32,
   cause: String,
-  #[allow(dead_code ) ]
   position: SquareCoord<FourConnected>,
-  }
+}
 
-  #[derive(Debug, Clone ) ]
-  struct AchievementUnlocked {
+#[derive(Debug, Clone)]
+struct AchievementUnlocked {
   achievement_id: String,
   points: u32,
-  }
+}
 
+fn demonstrate_basic_events(event_bus: &mut EventBus)
+{
   // === BASIC SUBSCRIPTION DEMONSTRATION ===
   println!("\n📡 Basic Event Subscription");
   println!("----------------------------");
@@ -144,10 +111,13 @@ fn main()
   let log_entries = game_log.lock().unwrap();
   println!("📝 Game log entries: {}", log_entries.len());
   for entry in log_entries.iter() {
-  println!("  - {}", entry);
+  println!("  - {entry}");
   }
   drop(log_entries); // Release lock
+}
 
+fn demonstrate_combat_events(event_bus: &mut EventBus)
+{
   // === HEALTH AND COMBAT EVENTS ===
   println!("\n⚔️ Combat Event System");
   println!("----------------------");
@@ -160,8 +130,8 @@ fn main()
   let change = event.new_health - event.old_health;
   let change_text = if change > 0 { "gained" } else { "lost" };
   health_logger.lock().unwrap().push(
-    format!("Entity {} {} {} health ({} -> {})", 
-      event.entity_id, change_text, change.abs(), 
+    format!("Entity {} {} {} health ({} -> {})",
+      event.entity_id, change_text, change.abs(),
       event.old_health, event.new_health)
   );
   EventResult::Continue
@@ -172,7 +142,7 @@ fn main()
   event_bus.subscribe(move |event: &EntitiesCollided<SquareCoord<FourConnected>>| {
   collision_logger.lock().unwrap().push(
     format!("Collision between entities {} and {} at ({}, {})",
-      event.entity1, event.entity2, 
+      event.entity1, event.entity2,
       event.position.x, event.position.y)
   );
   EventResult::Continue
@@ -221,8 +191,8 @@ fn main()
   entity_id: 2,
   old_health: 70,
   new_health: 85,
-  cause: HealthChangeCause::Healing { 
-    source: HealingSource::Item { item_id: 201 } 
+  cause: HealthChangeCause::Healing {
+    source: HealingSource::Item { item_id: 201 }
   },
   });
 
@@ -232,10 +202,13 @@ fn main()
   println!("\n📜 Combat Log:");
   let combat_entries = combat_log.lock().unwrap();
   for entry in combat_entries.iter() {
-  println!("  • {}", entry);
+  println!("  • {entry}");
   }
   drop(combat_entries);
+}
 
+fn demonstrate_event_consumption(event_bus: &mut EventBus)
+{
   // === EVENT CONSUMPTION DEMONSTRATION ===
   println!("\n🔄 Event Consumption");
   println!("--------------------");
@@ -247,8 +220,8 @@ fn main()
   event_bus.subscribe(move |event: &PlayerDied| {
   let mut count = counter1.lock().unwrap();
   *count += 1;
-  println!("🔥 Player {} died: {} (event #{})", event.player_id, event.cause, *count);
-  
+  println!("🔥 Player {} died at ({}, {}): {} (event #{})", event.player_id, event.position.x, event.position.y, event.cause, *count);
+
   if (*count).is_multiple_of(3) {
     println!("💀 Consumed death event #{}!", *count);
     EventResult::Consume
@@ -268,10 +241,11 @@ fn main()
 
   // Publish several player death events
   for i in 1..=7 {
+  let coord = i32::try_from(i).unwrap_or(i32::MAX);
   event_bus.publish(PlayerDied {
     player_id: i,
-    cause: format!("Defeated by enemy #{}", i),
-    position: SquareCoord::<FourConnected>::new(i as i32, i as i32),
+    cause: format!("Defeated by enemy #{i}"),
+    position: SquareCoord::<FourConnected>::new(coord, coord),
   });
   }
 
@@ -279,7 +253,10 @@ fn main()
 
   println!("📊 Death events processed: {}", *consume_count.lock().unwrap());
   println!("📊 Respawn events processed: {}", *respawn_count.lock().unwrap());
+}
 
+fn demonstrate_auto_unsubscribe(event_bus: &mut EventBus)
+{
   // === AUTO-UNSUBSCRIBE DEMONSTRATION ===
   println!("\n🔄 Auto-Unsubscribe");
   println!("-------------------");
@@ -292,7 +269,7 @@ fn main()
   let mut count = exec_counter.lock().unwrap();
   *count += 1;
   println!("🎯 Temporary achievement handler #{}: {}", *count, event.achievement_id);
-  
+
   if *count >= 2 {
     println!("✅ Achievement handler unsubscribing itself");
     EventResult::Unsubscribe
@@ -304,15 +281,18 @@ fn main()
   // Publish achievements to test auto-unsubscribe
   for i in 1..=4 {
   event_bus.publish(AchievementUnlocked {
-    achievement_id: format!("temp_achievement_{}", i),
+    achievement_id: format!("temp_achievement_{i}"),
     points: i * 10,
   });
-  
+
   event_bus.process_events();
-  println!("  Active achievement subscribers: {}", 
+  println!("  Active achievement subscribers: {}",
     event_bus.subscriber_count::<AchievementUnlocked>());
   }
+}
 
+fn demonstrate_batch_publishing(event_bus: &mut EventBus)
+{
   // === BATCH PUBLISHING ===
   println!("\n📦 Batch Publishing");
   println!("------------------");
@@ -341,20 +321,23 @@ fn main()
   println!("📤 Publishing batch of {} movement events", batch_events.len());
   event_bus.publish_batch(batch_events);
   event_bus.process_events();
+}
 
+fn demonstrate_game_state_events(event_bus: &mut EventBus)
+{
   // === GAME STATE EVENTS ===
   println!("\n🎮 Game State Management");
   println!("------------------------");
 
   // Subscribe to game state changes
   event_bus.subscribe(move |event: &GameStateChanged| {
-  println!("🔄 Game state: {:?} -> {:?} ({})", 
+  println!("🔄 Game state: {:?} -> {:?} ({})",
     event.old_state, event.new_state, event.reason);
   EventResult::Continue
   });
 
   // Simulate game state transitions
-  let states = vec![
+  let state_transitions = vec![
   (GameState::Initializing, GameState::MainMenu, "Initialization complete"),
   (GameState::MainMenu, GameState::Loading, "Player started new game"),
   (GameState::Loading, GameState::Playing, "Level loaded successfully"),
@@ -363,7 +346,7 @@ fn main()
   (GameState::Playing, GameState::GameOver, "Player health reached zero"),
   ];
 
-  for (old_state, new_state, reason) in states {
+  for (old_state, new_state, reason) in state_transitions {
   event_bus.publish(GameStateChanged {
     old_state,
     new_state,
@@ -372,7 +355,10 @@ fn main()
   }
 
   event_bus.process_events();
+}
 
+fn print_final_statistics(event_bus: &EventBus)
+{
   // === PERFORMANCE STATISTICS ===
   println!("\n📊 Final Statistics");
   println!("-------------------");
@@ -395,4 +381,20 @@ fn main()
   println!("• Common game events (movement, health, collisions)");
   println!("• Performance monitoring and statistics");
   println!("• Type-safe event channels");
+}
+
+fn main()
+{
+  println!("🎯 Event System Demonstration");
+  println!("=============================");
+
+  let mut event_bus = EventBus::new();
+
+  demonstrate_basic_events(&mut event_bus);
+  demonstrate_combat_events(&mut event_bus);
+  demonstrate_event_consumption(&mut event_bus);
+  demonstrate_auto_unsubscribe(&mut event_bus);
+  demonstrate_batch_publishing(&mut event_bus);
+  demonstrate_game_state_events(&mut event_bus);
+  print_final_statistics(&event_bus);
 }

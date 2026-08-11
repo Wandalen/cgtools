@@ -41,6 +41,7 @@ mod private
   {
     /// A material with the glTF defaults: white base color, fully metallic,
     /// fully rough, no textures, no cutoff.
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self
@@ -55,6 +56,7 @@ mod private
     }
 
     /// Packs the factors and derived flag bits into the uniform layout.
+    #[ must_use ]
     pub fn as_raw( &self ) -> MaterialRaw
     {
       let mut flags = 0;

@@ -31,6 +31,11 @@ mod private
   {
     /// Requests an adapter and a device, then configures `canvas` for
     /// presentation in the browser's preferred canvas format.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no suitable adapter or device is available, or the
+    /// canvas cannot be configured for presentation.
     #[ cfg( target_arch = "wasm32" ) ]
     pub async fn new_webgpu( canvas : &web_sys::HtmlCanvasElement ) -> Result< Self, Error >
     {
@@ -53,6 +58,11 @@ mod private
     ///
     /// Projections fed to the renderer must match `device.depth_range()` —
     /// -1..1 here, unlike the WebGPU backend's 0..1.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the canvas has no WebGL2 context or
+    /// `EXT_color_buffer_float` is unavailable.
     #[ cfg( target_arch = "wasm32" ) ]
     pub fn new_webgl( canvas : &web_sys::HtmlCanvasElement ) -> Result< Self, Error >
     {
@@ -73,6 +83,11 @@ mod private
     /// Builds a native context over the machine's Vulkan driver, rendering
     /// into an offscreen `width` x `height` surface whose pixels
     /// `Surface::read_pixels` returns — no browser, no window.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no native GPU adapter or device is available, or the
+    /// offscreen surface cannot be created.
     #[ cfg( not( target_arch = "wasm32" ) ) ]
     pub fn new_native( width : u32, height : u32 ) -> Result< Self, Error >
     {
@@ -92,6 +107,7 @@ mod private
 
     /// Pixel size of the render target — the canvas in the browser, the
     /// offscreen surface natively.
+    #[ must_use ]
     pub fn size( &self ) -> [ u32; 2 ]
     {
       #[ cfg( target_arch = "wasm32" ) ]

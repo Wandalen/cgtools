@@ -19,6 +19,7 @@ mod private
 
   impl Default for Config
   {
+    #[ inline ]
     fn default() -> Self
     {
       Self
@@ -32,6 +33,8 @@ mod private
   impl Config
   {
     /// Specify the maximum level you want to log
+    #[ inline ]
+    #[ must_use ]
     pub fn new( level : Level ) -> Self
     {
       Self
@@ -45,6 +48,8 @@ mod private
     /// only output for `log`s in module that its path starts with
     /// `target_filter`. this logger only supports single prefix. Only
     /// the last call to `target_filter` has effect if you call it multiple times.
+    #[ inline ]
+    #[ must_use ]
     pub fn target_filter( mut self, target_filter : &str ) -> Self
     {
       self.target_filter = Some( target_filter.to_string() );
@@ -140,11 +145,11 @@ mod private
           ),
           Level::Info =>
           {
-            console::info_4( &s, &JsValue::from( &style.lvl_info ), &tgt_style, &args_style )
+            console::info_4( &s, &JsValue::from( &style.lvl_info ), &tgt_style, &args_style );
           }
           Level::Warn =>
           {
-            console::warn_4( &s, &JsValue::from( &style.lvl_warn ), &tgt_style, &args_style )
+            console::warn_4( &s, &JsValue::from( &style.lvl_warn ), &tgt_style, &args_style );
           }
           Level::Error => console::error_4(
             &s,
@@ -170,6 +175,7 @@ mod private
   /// browser_log::log::setup::setup( browser_log::log::setup::Config::default().target_filter( "lib_name" ) );
   ///
   ///
+  #[ inline ]
   pub fn setup( config : Config )
   {
     let max_level = config.level;
@@ -180,7 +186,7 @@ mod private
     };
     match ::log::set_boxed_logger( Box::new( wl ) )
     {
-      Ok( _ ) => log::set_max_level( max_level.to_level_filter() ),
+      Ok( () ) => log::set_max_level( max_level.to_level_filter() ),
       Err( e ) => console::error_1( &JsValue::from( e.to_string() ) ),
     }
   }

@@ -82,16 +82,17 @@ mod private
     is_visible : bool
   }
 
-  #[ allow( clippy::used_underscore_binding ) ]
   impl Node
   {
     /// Creates a new `Node` with default values.
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
     }
 
     /// Clones the node and all of its descendants, creating a new independent scene graph subtree.
+    #[ must_use ]
     pub fn clone_tree( &self ) -> Rc< RefCell< Self > >
     {
       let object = match &self.object
@@ -100,7 +101,7 @@ mod private
         {
           Object3D::Mesh( Rc::new( RefCell::new( mesh.borrow().clone() ) ) )
         },
-        Object3D::Light( light ) => Object3D::Light( light.clone() ),
+        Object3D::Light( light ) => Object3D::Light( *light ),
         Object3D::Other => Object3D::Other
       };
 
@@ -140,6 +141,7 @@ mod private
     }
 
     /// Gets [`Node::is_visible`]
+    #[ must_use ]
     pub fn is_visible( &self ) -> bool
     {
       self.is_visible
@@ -172,12 +174,14 @@ mod private
     }
 
     /// Returns an owned clone of the node's name.
+    #[ must_use ]
     pub fn get_name( &self ) -> Option< Box< str > >
     {
       self.name.clone()
     }
 
     /// Returns a slice of the node's children.
+    #[ must_use ]
     pub fn get_children( &self ) -> &[ Rc< RefCell< Node > > ]
     {
       self.children.as_slice()
@@ -190,6 +194,7 @@ mod private
     }
 
     /// Returns a reference to the node's parent.
+    #[ must_use ]
     pub fn get_parent( &self ) -> &Option< Rc< RefCell< Node > > >
     {
       &self.parent
@@ -211,6 +216,7 @@ mod private
     }
 
     /// Returns the current local scale of the node.
+    #[ must_use ]
     pub fn get_scale( &self ) -> gl::F32x3
     {
       self.scale
@@ -226,6 +232,7 @@ mod private
     }
 
     /// Returns the current local translation of the node.
+    #[ must_use ]
     pub fn get_translation( &self ) -> gl::F32x3
     {
       self.translation
@@ -241,6 +248,7 @@ mod private
     }
 
     /// Returns the current local rotation of the node.
+    #[ must_use ]
     pub fn get_rotation( &self ) -> gl::QuatF32
     {
       self.rotation
@@ -275,12 +283,14 @@ mod private
     }
 
     /// Returns the current world transformation matrix.
+    #[ must_use ]
     pub fn get_world_matrix( &self ) -> F32x4x4
     {
       self.world_matrix
     }
 
     /// Returns the current local transformation matrix.
+    #[ must_use ]
     pub fn get_local_matrix( &self ) -> F32x4x4
     {
       self.matrix
@@ -318,7 +328,7 @@ mod private
         needs_world_matrix_update = true;
       }
 
-      for child in self.children.iter_mut()
+      for child in &mut self.children
       {
         child.borrow_mut().update_world_matrix( self.world_matrix, needs_world_matrix_update );
       }
@@ -368,7 +378,7 @@ mod private
       {
         gl::uniform::matrix_upload
         (
-          &gl,
+          gl,
           world_matrix_loc.clone(),
           self.world_matrix.to_array().as_slice(),
           true
@@ -379,7 +389,7 @@ mod private
       {
         let _ = gl::uniform::matrix_upload
         (
-          &gl,
+          gl,
           inverse_world_matrix_loc.clone(),
           self.world_matrix.inverse().unwrap().to_array().as_slice(),
           true
@@ -390,7 +400,7 @@ mod private
       {
         gl::uniform::matrix_upload
         (
-          &gl,
+          gl,
           normal_matrix_loc.clone(),
           self.normal_matrix.to_array().as_slice(),
           true
@@ -404,7 +414,7 @@ mod private
     pub fn traverse< F >( &self, callback : &mut F ) -> Result< (), gl::WebglError >
     where F : FnMut( Rc< RefCell< Node > > ) -> Result< (), gl::WebglError >
     {
-      for node in self.children.iter()
+      for node in &self.children
       {
         ( *callback )( node.clone() )?;
         node.borrow().traverse( callback )?;
@@ -414,12 +424,14 @@ mod private
     }
 
     /// Returns the pre-computed bounding box of the node in the world space.
+    #[ must_use ]
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.bounding_box
     }
 
     /// Returns the pre-computed bounding box of the node in the local space.
+    #[ must_use ]
     pub fn local_bounding_box( &self ) -> BoundingBox
     {
       self.local_bounding_box
@@ -429,13 +441,8 @@ mod private
     /// Computes the bounding box in the world space for the current node based on its `Object3D` type.
     pub fn compute_bounding_box( &mut self )
     {
-      match self.object
-      {
-        Object3D::Mesh( ref mesh ) =>
-        {
-          self.bounding_box = mesh.borrow().bounding_box().apply_transform( self.world_matrix );
-        },
-        _ => {}
+      if let Object3D::Mesh( ref mesh ) = self.object {
+        self.bounding_box = mesh.borrow().bounding_box().apply_transform( self.world_matrix );
       }
     }
 
@@ -483,11 +490,12 @@ mod private
     /// This function starts with the node's own bounding box and then recursively
     /// combines the hierarchical bounding boxes of all its children. This creates a
     /// single bounding box that encapsulates the entire sub-tree.
+    #[ must_use ]
     pub fn bounding_box_hierarchical( &self ) -> BoundingBox
     {
       let mut bbox = self.bounding_box;
 
-      for child in self.children.iter()
+      for child in &self.children
       {
         bbox.combine_mut( &child.borrow().bounding_box_hierarchical() );
       }
@@ -500,6 +508,7 @@ mod private
     /// This function starts with the node's own bounding box and then recursively
     /// combines the hierarchical bounding boxes of all its children. This creates a
     /// single bounding box that encapsulates the entire sub-tree.
+    #[ must_use ]
     pub fn local_bounding_box_hierarchical( &self ) -> BoundingBox
     {
       let mut bbox = self.bounding_box_hierarchical();
@@ -511,12 +520,14 @@ mod private
     }
 
     /// Returns the center point of the node's pre-computed bounding box in the world space.
+    #[ must_use ]
     pub fn center( &self ) -> F32x3
     {
       self.bounding_box().center()
     }
 
     /// Returns the center point of the node's pre-computed bounding box in the local space.
+    #[ must_use ]
     pub fn local_center( &self ) -> F32x3
     {
       self.local_bounding_box().center()

@@ -15,10 +15,78 @@
 
 mod private
 {
-  use crate::assets::*;
-  use crate::backend::*;
-  use crate::commands::*;
-  use crate::types::*;
+  use crate::assets::
+  {
+    Assets,
+    ClipMaskAsset,
+    DataType,
+    GeometryAsset,
+    GradientAsset,
+    GradientKind,
+    ImageAsset,
+    ImageSource,
+    PathAsset,
+    PathSegment,
+    PatternAsset,
+    PixelFormat,
+    Source,
+    SpriteAsset,
+  };
+  use crate::backend::
+  {
+    Backend,
+    Capabilities,
+    Output,
+    RenderError,
+  };
+  use crate::commands::
+  {
+    AddMeshInstance,
+    AddSpriteInstance,
+    ArcTo,
+    BeginGroup,
+    BeginPath,
+    BeginText,
+    BindBatch,
+    Char,
+    Clear,
+    CreateMeshBatch,
+    CreateSpriteBatch,
+    CubicTo,
+    DeleteBatch,
+    DrawBatch,
+    Effect,
+    LineTo,
+    Mesh,
+    MeshBatchParams,
+    MoveTo,
+    QuadTo,
+    RemoveInstance,
+    RenderCommand,
+    SetMeshBatchParams,
+    SetMeshInstance,
+    SetSpriteBatchParams,
+    SetSpriteInstance,
+    Sprite,
+    SpriteBatchParams,
+  };
+  use crate::types::
+  {
+    Antialias,
+    Batch,
+    BlendMode,
+    DashStyle,
+    FillRef,
+    LineCap,
+    LineJoin,
+    RenderConfig,
+    ResourceId,
+    SamplerFilter,
+    TextAnchor,
+    Topology,
+    Transform,
+    asset,
+  };
   use core::fmt::Write as _;
   use nohash_hasher::IntMap;
   use base64::Engine as _;
@@ -168,13 +236,14 @@ mod private
   impl SvgBackend
   {
     /// Creates a new SVG backend from render config.
+    #[ inline ]
     #[ must_use ]
     pub fn new( config : RenderConfig ) -> Self
     {
       Self
       {
         config,
-        content : SvgContentManager::new( config.width, config.height, Self::shape_rendering_attr( &config.antialias ) ),
+        content : SvgContentManager::new( config.width, config.height, Self::shape_rendering_attr( config.antialias ) ),
         path_data : String::new(),
         path_style : None,
         text_buf : String::new(),
@@ -189,6 +258,7 @@ mod private
     }
 
     /// Returns the current viewport offset `[x, y]`.
+    #[ inline ]
     #[ must_use ]
     pub fn viewport_offset( &self ) -> [ f32; 2 ] { self.viewport_offset }
 
@@ -196,6 +266,7 @@ mod private
     ///
     /// Immediately updates the top-level `<g transform>` wrapper so all already-rendered
     /// elements reflect the new position without re-submission.
+    #[ inline ]
     pub fn set_viewport_offset( &mut self, offset : [ f32; 2 ] )
     {
       self.viewport_offset = offset;
@@ -203,6 +274,7 @@ mod private
     }
 
     /// Returns the current viewport scale (zoom factor).
+    #[ inline ]
     #[ must_use ]
     pub fn viewport_scale( &self ) -> f32 { self.viewport_scale }
 
@@ -210,13 +282,14 @@ mod private
     ///
     /// Immediately updates the top-level `<g transform>` wrapper so all already-rendered
     /// elements reflect the new zoom without re-submission.
+    #[ inline ]
     pub fn set_viewport_scale( &mut self, scale : f32 )
     {
       self.viewport_scale = scale;
       self.content.update_viewport_transform( self.viewport_offset, self.viewport_scale );
     }
 
-    fn shape_rendering_attr( antialias : &Antialias ) -> &'static str
+    fn shape_rendering_attr( antialias : Antialias ) -> &'static str
     {
       match antialias
       {
@@ -283,6 +356,10 @@ mod private
 
       // Y-up (0,0 = bottom-left) → SVG Y-down (0,0 = top-left)
       let pos_x = t.position[ 0 ];
+      // `height` is a viewport/surface dimension in pixels; f32's 23-bit mantissa
+      // only loses precision above 2^24 (16,777,216px) tall, which is not a
+      // representable rendering surface, so the cast is lossless in practice.
+      #[ allow( clippy::cast_precision_loss ) ]
       let pos_y = height as f32 - t.position[ 1 ];
 
       if pos_x != 0.0 || pos_y != 0.0
@@ -357,7 +434,7 @@ mod private
     /// `style="mix-blend-mode:normal"` on every element would add no
     /// information and pollute output. Non-normal modes produce the full
     /// ` style="mix-blend-mode:X"` fragment, including the leading space.
-    fn blend_to_svg( blend : &BlendMode ) -> &'static str
+    fn blend_to_svg( blend : BlendMode ) -> &'static str
     {
       match blend
       {
@@ -369,7 +446,7 @@ mod private
       }
     }
 
-    fn linecap_to_svg( cap : &LineCap ) -> &'static str
+    fn linecap_to_svg( cap : LineCap ) -> &'static str
     {
       match cap
       {
@@ -379,7 +456,7 @@ mod private
       }
     }
 
-    fn linejoin_to_svg( join : &LineJoin ) -> &'static str
+    fn linejoin_to_svg( join : LineJoin ) -> &'static str
     {
       match join
       {
@@ -413,7 +490,7 @@ mod private
       }
     }
 
-    fn anchor_to_svg( anchor : &TextAnchor ) -> ( &'static str, &'static str )
+    fn anchor_to_svg( anchor : TextAnchor ) -> ( &'static str, &'static str )
     {
       let h = match anchor
       {
@@ -432,7 +509,7 @@ mod private
 
     /// Encodes raw pixel bytes into a PNG file in memory.
     /// Returns `None` if the dimensions don't match the byte count.
-    fn bitmap_to_png( bytes : &[ u8 ], width : u32, height : u32, format : &PixelFormat ) -> Option< Vec< u8 > >
+    fn bitmap_to_png( bytes : &[ u8 ], width : u32, height : u32, format : PixelFormat ) -> Option< Vec< u8 > >
     {
       use image::DynamicImage;
 
@@ -630,7 +707,7 @@ mod private
       let transform = self.transform_to_svg( &style.transform );
       let clip = Self::clip_attr( style.clip.as_ref() );
       let dash = Self::dash_to_svg( &style.stroke_dash );
-      let blend = Self::blend_to_svg( &style.blend );
+      let blend = Self::blend_to_svg( style.blend );
 
       let path = format!
       (
@@ -641,8 +718,8 @@ mod private
         stroke,
         stroke_opacity,
         style.stroke_width,
-        Self::linecap_to_svg( &style.stroke_cap ),
-        Self::linejoin_to_svg( &style.stroke_join ),
+        Self::linecap_to_svg( style.stroke_cap ),
+        Self::linejoin_to_svg( style.stroke_join ),
         dash,
         transform,
         clip,
@@ -662,7 +739,7 @@ mod private
 
       let fill = Self::color_to_svg( &style.color );
       let fill_opacity = Self::opacity_attr( "fill-opacity", &style.color );
-      let ( anchor, baseline ) = Self::anchor_to_svg( &style.anchor );
+      let ( anchor, baseline ) = Self::anchor_to_svg( style.anchor );
       let clip = Self::clip_attr( style.clip.as_ref() );
 
       let t = Transform { position : style.position, ..Default::default() };
@@ -898,7 +975,7 @@ mod private
         {
           ImageSource::Bitmap { bytes, width, height, format } =>
           {
-            if let Some( png ) = Self::bitmap_to_png( bytes, *width, *height, format )
+            if let Some( png ) = Self::bitmap_to_png( bytes, *width, *height, *format )
             {
               let encoded = base64::prelude::BASE64_STANDARD.encode( &png );
               let img_def = format!
@@ -1154,12 +1231,12 @@ mod private
       self.path_style = Some( *bp );
     }
 
-    fn cmd_move_to( &mut self, m : &MoveTo )
+    fn cmd_move_to( &mut self, m : MoveTo )
     {
       let _ = write!( self.path_data, "M {} {} ", m.0, m.1 );
     }
 
-    fn cmd_line_to( &mut self, l : &LineTo )
+    fn cmd_line_to( &mut self, l : LineTo )
     {
       let _ = write!( self.path_data, "L {} {} ", l.0, l.1 );
     }
@@ -1195,7 +1272,7 @@ mod private
       self.text_style = Some( *bt );
     }
 
-    fn cmd_char( &mut self, ch : &Char )
+    fn cmd_char( &mut self, ch : Char )
     {
       self.text_buf.push( ch.0 );
     }
@@ -1221,7 +1298,7 @@ mod private
       let transform = self.transform_to_svg( &m.transform );
       let fill = self.texture_or_fill( m.texture, &m.fill );
       let clip = Self::clip_attr( m.clip.as_ref() );
-      let blend = Self::blend_to_svg( &m.blend );
+      let blend = Self::blend_to_svg( m.blend );
 
       // Cache mesh <symbol> defs across calls with different colors, so the
       // caller's color must cascade via the <use>. `stroke=fill` drives line
@@ -1239,7 +1316,7 @@ mod private
     {
       let transform = self.transform_to_svg( &s.transform );
       let clip = Self::clip_attr( s.clip.as_ref() );
-      let blend = Self::blend_to_svg( &s.blend );
+      let blend = Self::blend_to_svg( s.blend );
       let tint = self.tint_filter_attr( &s.tint )?;
       let sprite = format!( "<use href=\"#sprite_{}\"{}{}{}{}/>", s.sprite.inner(), transform, clip, tint, blend );
       self.content.push_body( &sprite );
@@ -1256,7 +1333,7 @@ mod private
       self.resources.store_batch( cb.batch, SvgBatch::Mesh { instances : Vec::new(), params : cb.params } );
     }
 
-    fn cmd_bind_batch( &mut self, bb : &BindBatch )
+    fn cmd_bind_batch( &mut self, bb : BindBatch )
     {
       self.recording_batch = Some( bb.batch );
     }
@@ -1299,7 +1376,7 @@ mod private
           }
     }
 
-    fn cmd_remove_instance( &mut self, ri : &RemoveInstance )
+    fn cmd_remove_instance( &mut self, ri : RemoveInstance )
     {
       if let Some( batch_id ) = self.recording_batch
       {
@@ -1346,7 +1423,7 @@ mod private
       self.recording_batch = None;
     }
 
-    fn cmd_draw_batch( &mut self, db : &DrawBatch ) -> Result< (), RenderError >
+    fn cmd_draw_batch( &mut self, db : DrawBatch ) -> Result< (), RenderError >
     {
       let height = self.config.height;
 
@@ -1371,7 +1448,7 @@ mod private
         {
           let parent_transform = Self::transform_to_svg_static( &params.transform, height );
           let clip = Self::clip_attr( params.clip.as_ref() );
-          let blend = Self::blend_to_svg( &params.blend );
+          let blend = Self::blend_to_svg( params.blend );
 
           content.push_body( &format!( "<g{parent_transform}{clip}>" ) );
           for inst in instances
@@ -1394,7 +1471,7 @@ mod private
           {
             let parent_transform = Self::transform_to_svg_static( &params.transform, height );
             let clip = Self::clip_attr( params.clip.as_ref() );
-            let blend = Self::blend_to_svg( &params.blend );
+            let blend = Self::blend_to_svg( params.blend );
             let fill = Self::texture_or_fill_split( params.texture, &params.fill, resources, content );
 
             content.push_body( &format!( "<g{parent_transform}{clip}>" ) );
@@ -1415,7 +1492,7 @@ mod private
       Ok( () )
     }
 
-    fn cmd_delete_batch( &mut self, db : &DeleteBatch )
+    fn cmd_delete_batch( &mut self, db : DeleteBatch )
     {
       self.resources.batches.remove( &db.batch );
     }
@@ -1499,6 +1576,7 @@ mod private
 
   impl Backend for SvgBackend
   {
+    #[ inline ]
     fn load_assets( &mut self, assets : &Assets ) -> Result< (), RenderError >
     {
       self.content.clear_defs();
@@ -1515,6 +1593,7 @@ mod private
       Ok( () )
     }
 
+    #[ inline ]
     fn submit( &mut self, commands : &[ RenderCommand ] ) -> Result< (), RenderError >
     {
       self.content.clear_frame_defs();
@@ -1537,36 +1616,35 @@ mod private
         {
           RenderCommand::Clear( c ) => self.cmd_clear( c ),
           RenderCommand::BeginPath( bp ) => self.cmd_begin_path( bp ),
-          RenderCommand::MoveTo( m ) => self.cmd_move_to( m ),
-          RenderCommand::LineTo( l ) => self.cmd_line_to( l ),
+          RenderCommand::MoveTo( m ) => self.cmd_move_to( *m ),
+          RenderCommand::LineTo( l ) => self.cmd_line_to( *l ),
           RenderCommand::QuadTo( q ) => self.cmd_quad_to( q ),
           RenderCommand::CubicTo( c ) => self.cmd_cubic_to( c ),
           RenderCommand::ArcTo( a ) => self.cmd_arc_to( a ),
           RenderCommand::ClosePath( _ ) => self.cmd_close_path(),
           RenderCommand::EndPath( _ ) => self.cmd_end_path(),
           RenderCommand::BeginText( bt ) => self.cmd_begin_text( bt ),
-          RenderCommand::Char( ch ) => self.cmd_char( ch ),
+          RenderCommand::Char( ch ) => self.cmd_char( *ch ),
           RenderCommand::EndText( _ ) => self.cmd_end_text(),
           RenderCommand::Mesh( m ) => self.cmd_mesh( m ),
-          RenderCommand::Sprite( s ) => self.cmd_sprite( s )?,
           // `ScreenSpaceSprite` shares the `Sprite` payload — the compile
           // layer already emits screen-space coordinates, so SVG (whose
           // user-space already is screen-space) draws it via the same
           // path as a world-space sprite.
-          RenderCommand::ScreenSpaceSprite( s ) => self.cmd_sprite( s )?,
+          RenderCommand::Sprite( s ) | RenderCommand::ScreenSpaceSprite( s ) => self.cmd_sprite( s )?,
           RenderCommand::CreateSpriteBatch( cb ) => self.cmd_create_sprite_batch( cb ),
           RenderCommand::CreateMeshBatch( cb ) => self.cmd_create_mesh_batch( cb ),
-          RenderCommand::BindBatch( bb ) => self.cmd_bind_batch( bb ),
+          RenderCommand::BindBatch( bb ) => self.cmd_bind_batch( *bb ),
           RenderCommand::AddSpriteInstance( si ) => self.cmd_add_sprite_instance( si ),
           RenderCommand::AddMeshInstance( mi ) => self.cmd_add_mesh_instance( mi ),
           RenderCommand::SetSpriteInstance( si ) => self.cmd_set_sprite_instance( si ),
           RenderCommand::SetMeshInstance( mi ) => self.cmd_set_mesh_instance( mi ),
-          RenderCommand::RemoveInstance( ri ) => self.cmd_remove_instance( ri ),
+          RenderCommand::RemoveInstance( ri ) => self.cmd_remove_instance( *ri ),
           RenderCommand::SetSpriteBatchParams( sp ) => self.cmd_set_sprite_batch_params( sp ),
           RenderCommand::SetMeshBatchParams( mp ) => self.cmd_set_mesh_batch_params( mp ),
           RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
-          RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db )?,
-          RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
+          RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( *db )?,
+          RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( *db ),
           RenderCommand::BeginGroup( bg ) => self.cmd_begin_group( bg )?,
           RenderCommand::EndGroup( _ ) => self.cmd_end_group(),
         }
@@ -1575,18 +1653,21 @@ mod private
       Ok( () )
     }
 
+    #[ inline ]
     fn resize( &mut self, width : u32, height : u32 )
     {
       self.config.width = width;
       self.config.height = height;
-      self.content.update_header( width, height, Self::shape_rendering_attr( &self.config.antialias ) );
+      self.content.update_header( width, height, Self::shape_rendering_attr( self.config.antialias ) );
     }
 
+    #[ inline ]
     fn output( &self ) -> Result< Output, RenderError >
     {
       Ok( Output::String( self.content.buffer().to_string() ) )
     }
 
+    #[ inline ]
     fn capabilities( &self ) -> Capabilities
     {
       // Note: `text: true` reflects that text rendering works, but font assets
@@ -1711,18 +1792,23 @@ mod private
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\" xmlns=\"http://www.w3.org/2000/svg\"{shape_rendering}>\n"
       );
       self.buffer.replace_range( 0..self.defs_start, &header );
-      let diff = header.len() as isize - self.defs_start as isize;
+      let diff = header.len().cast_signed() - self.defs_start.cast_signed();
 
-      #[ allow( clippy::cast_sign_loss ) ]
       if diff != 0
       {
-        self.defs_start          = ( self.defs_start          as isize + diff ) as usize;
-        self.defs_end            = ( self.defs_end            as isize + diff ) as usize;
-        self.frame_defs_start    = ( self.frame_defs_start    as isize + diff ) as usize;
-        self.body_start          = ( self.body_start          as isize + diff ) as usize;
-        self.vp_transform_start  = ( self.vp_transform_start  as isize + diff ) as usize;
-        self.elements_start      = ( self.elements_start      as isize + diff ) as usize;
-        self.body_end            = ( self.body_end            as isize + diff ) as usize;
+        // Every offset below sits at or after the old `defs_start`, so shifting
+        // each by `diff` can never underflow: the smallest resulting value is
+        // `defs_start + diff`, which is exactly `header.len()` (>= 0) by
+        // construction of `diff` above. `checked_add_signed` makes that
+        // invariant an explicit runtime check instead of a silenced cast.
+        const MSG : &str = "SvgContentManager offset shift underflowed despite the header-relative invariant";
+        self.defs_start          = self.defs_start        .checked_add_signed( diff ).expect( MSG );
+        self.defs_end            = self.defs_end          .checked_add_signed( diff ).expect( MSG );
+        self.frame_defs_start    = self.frame_defs_start  .checked_add_signed( diff ).expect( MSG );
+        self.body_start          = self.body_start        .checked_add_signed( diff ).expect( MSG );
+        self.vp_transform_start  = self.vp_transform_start.checked_add_signed( diff ).expect( MSG );
+        self.elements_start      = self.elements_start    .checked_add_signed( diff ).expect( MSG );
+        self.body_end            = self.body_end          .checked_add_signed( diff ).expect( MSG );
       }
     }
 
@@ -1737,12 +1823,16 @@ mod private
 
       self.buffer.replace_range( self.vp_transform_start..old_end, &new_transform );
 
-      #[ allow( clippy::cast_sign_loss ) ]
       {
-        let diff = new_transform.len() as isize - self.vp_transform_len as isize;
+        // `elements_start`/`body_end` both sit at or after the old transform's
+        // end, so shifting by `diff` can never underflow — same reasoning as
+        // `update_header` above. `checked_add_signed` turns that invariant into
+        // an explicit runtime check instead of a silenced cast.
+        const MSG : &str = "SvgContentManager offset shift underflowed despite the transform-relative invariant";
+        let diff = new_transform.len().cast_signed() - self.vp_transform_len.cast_signed();
         self.vp_transform_len = new_transform.len();
-        self.elements_start = ( self.elements_start as isize + diff ) as usize;
-        self.body_end       = ( self.body_end       as isize + diff ) as usize;
+        self.elements_start = self.elements_start.checked_add_signed( diff ).expect( MSG );
+        self.body_end       = self.body_end      .checked_add_signed( diff ).expect( MSG );
       }
     }
 
@@ -1859,6 +1949,7 @@ mod private
   {
     use super::*;
     use crate::backend::{ Backend, Output };
+    use crate::types::{ MipmapMode, WrapMode };
 
     fn svg800x600() -> SvgBackend
     {
@@ -2041,7 +2132,7 @@ mod private
     {
       // Generate a real 3×5 PNG via bitmap_to_png, then extract dimensions from its header.
       let bytes = vec![ 0u8; 3 * 5 * 4 ];
-      let png = SvgBackend::bitmap_to_png( &bytes, 3, 5, &PixelFormat::Rgba8 ).unwrap();
+      let png = SvgBackend::bitmap_to_png( &bytes, 3, 5, PixelFormat::Rgba8 ).unwrap();
       assert_eq!( SvgBackend::png_dimensions( &png ), Some( ( 3, 5 ) ) );
     }
 
@@ -2089,7 +2180,7 @@ mod private
     #[ test ]
     fn image_encoded_png_stores_dimensions()
     {
-      let png = SvgBackend::bitmap_to_png( &[ 0u8; 8 * 4 * 4 ], 8, 4, &PixelFormat::Rgba8 ).unwrap();
+      let png = SvgBackend::bitmap_to_png( &[ 0u8; 8 * 4 * 4 ], 8, 4, PixelFormat::Rgba8 ).unwrap();
       let mut svg = svg800x600();
       let assets = Assets
       {
@@ -2123,7 +2214,7 @@ mod private
     #[ test ]
     fn bitmap_to_png_rgba8_valid()
     {
-      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 128, 255 ], 1, 1, &PixelFormat::Rgba8 );
+      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 128, 255 ], 1, 1, PixelFormat::Rgba8 );
       let bytes = png.expect( "expected Some for valid 1x1 Rgba8" );
       assert!( bytes.starts_with( PNG_MAGIC ), "not PNG: {:?}", &bytes[ ..8.min( bytes.len() ) ] );
     }
@@ -2132,7 +2223,7 @@ mod private
     #[ test ]
     fn bitmap_to_png_rgb8_valid()
     {
-      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 128 ], 1, 1, &PixelFormat::Rgb8 );
+      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 128 ], 1, 1, PixelFormat::Rgb8 );
       assert!( png.is_some(), "expected Some for valid 1x1 Rgb8" );
     }
 
@@ -2140,7 +2231,7 @@ mod private
     #[ test ]
     fn bitmap_to_png_gray8_valid()
     {
-      let png = SvgBackend::bitmap_to_png( &[ 128 ], 1, 1, &PixelFormat::Gray8 );
+      let png = SvgBackend::bitmap_to_png( &[ 128 ], 1, 1, PixelFormat::Gray8 );
       assert!( png.is_some(), "expected Some for valid 1x1 Gray8" );
     }
 
@@ -2148,7 +2239,7 @@ mod private
     #[ test ]
     fn bitmap_to_png_gray_alpha8_valid()
     {
-      let png = SvgBackend::bitmap_to_png( &[ 128, 255 ], 1, 1, &PixelFormat::GrayAlpha8 );
+      let png = SvgBackend::bitmap_to_png( &[ 128, 255 ], 1, 1, PixelFormat::GrayAlpha8 );
       assert!( png.is_some(), "expected Some for valid 1x1 GrayAlpha8" );
     }
 
@@ -2157,7 +2248,7 @@ mod private
     fn bitmap_to_png_dimension_mismatch_returns_none()
     {
       // 2×2 Rgba8 needs 16 bytes; supplying only 4 must return None
-      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 0, 255 ], 2, 2, &PixelFormat::Rgba8 );
+      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 0, 255 ], 2, 2, PixelFormat::Rgba8 );
       assert!( png.is_none(), "expected None for undersized buffer" );
     }
 
@@ -2166,7 +2257,7 @@ mod private
     #[ test ]
     fn anchor_top_left()
     {
-      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::TopLeft );
+      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::TopLeft );
       assert_eq!( h, "start" );
       assert_eq!( v, "hanging" );
     }
@@ -2174,7 +2265,7 @@ mod private
     #[ test ]
     fn anchor_top_center()
     {
-      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::TopCenter );
+      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::TopCenter );
       assert_eq!( h, "middle" );
       assert_eq!( v, "hanging" );
     }
@@ -2182,7 +2273,7 @@ mod private
     #[ test ]
     fn anchor_top_right()
     {
-      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::TopRight );
+      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::TopRight );
       assert_eq!( h, "end" );
       assert_eq!( v, "hanging" );
     }
@@ -2190,7 +2281,7 @@ mod private
     #[ test ]
     fn anchor_center_left()
     {
-      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::CenterLeft );
+      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::CenterLeft );
       assert_eq!( h, "start" );
       assert_eq!( v, "central" );
     }
@@ -2198,7 +2289,7 @@ mod private
     #[ test ]
     fn anchor_center()
     {
-      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::Center );
+      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::Center );
       assert_eq!( h, "middle" );
       assert_eq!( v, "central" );
     }
@@ -2206,7 +2297,7 @@ mod private
     #[ test ]
     fn anchor_center_right()
     {
-      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::CenterRight );
+      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::CenterRight );
       assert_eq!( h, "end" );
       assert_eq!( v, "central" );
     }
@@ -2214,7 +2305,7 @@ mod private
     #[ test ]
     fn anchor_bottom_left()
     {
-      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::BottomLeft );
+      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::BottomLeft );
       assert_eq!( h, "start" );
       assert_eq!( v, "baseline" );
     }
@@ -2222,7 +2313,7 @@ mod private
     #[ test ]
     fn anchor_bottom_center()
     {
-      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::BottomCenter );
+      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::BottomCenter );
       assert_eq!( h, "middle" );
       assert_eq!( v, "baseline" );
     }
@@ -2230,7 +2321,7 @@ mod private
     #[ test ]
     fn anchor_bottom_right()
     {
-      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::BottomRight );
+      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::BottomRight );
       assert_eq!( h, "end" );
       assert_eq!( v, "baseline" );
     }

@@ -33,6 +33,7 @@ mod private
     // untouched (no final `else` case is missing); an added empty `else {}` would in turn
     // trip `clippy::needless_else`, so the narrower `else_if_without_else` check is disabled here.
     #[ allow( clippy::else_if_without_else ) ]
+    #[ must_use ]
     pub fn along_plane( animation : &Sequencer, plane : MirrorPlane ) -> Sequencer
     {
       let mut animation = animation.clone();

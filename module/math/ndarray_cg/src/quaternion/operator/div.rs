@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate::{Div, Quat, MatEl, NdFloat, DivAssign};
 
   impl< E > Div< E > for Quat< E >
   where
@@ -8,6 +8,7 @@ mod private
   {
     type Output = Self;
 
+    #[ inline ]
     fn div( self, rhs : E ) -> Self::Output
     {
       Self( self.0 / rhs )
@@ -20,6 +21,7 @@ mod private
   {
     type Output = Self;
 
+    #[ inline ]
     fn div( self, rhs : Self ) -> Self::Output
     {
       self.devide( &rhs )
@@ -30,9 +32,10 @@ mod private
   where
     E : MatEl + NdFloat
   {
+    #[ inline ]
     fn div_assign( &mut self, rhs : E )
     {
-      ( *self ).0 = ( *self ).0 / rhs;
+      self.0 = self.0 / rhs;
     }
   }
 
@@ -40,7 +43,8 @@ mod private
   where
     E : MatEl + NdFloat
   {
-    fn div_assign( &mut self, rhs : Self ) 
+    #[ inline ]
+    fn div_assign( &mut self, rhs : Self )
     {
       *self = *self / rhs;
     }

@@ -16,7 +16,10 @@ fn test_into_vector_from_tuples_and_arrays()
   assert_eq!( got.to_array(), [ 1, 2, 3 ] );
 
   let got : Vector< f32, 4 > = [ 1.0, 2.0, 3.0, 4.0 ].into_vector();
-  assert_eq!( got.to_array(), [ 1.0, 2.0, 3.0, 4.0 ] );
+  // Pure data round-trip through `into_vector()`/`to_array()` — no arithmetic, so the result
+  // is bit-identical to the literal array converted from.
+  #[ allow( clippy::float_cmp ) ]
+  { assert_eq!( got.to_array(), [ 1.0, 2.0, 3.0, 4.0 ] ); }
 }
 
 #[ test ]
@@ -51,7 +54,7 @@ fn test_try_from_slice_length_mismatch_typed_error()
   let got = Vector::< i32, 2 >::try_from( &data[ .. ] );
   let err = got.unwrap_err();
   assert_eq!( err, VectorLengthMismatch { expected : 2, actual : 3 } );
-  let rendered = format!( "{}", err );
+  let rendered = format!( "{err}" );
   assert!( rendered.contains( '3' ) && rendered.contains( '2' ), "Display must name both lengths, got: {rendered}" );
 
   // The error participates in std error handling ( boxable as dyn Error ).

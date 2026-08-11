@@ -67,13 +67,14 @@ pub struct IntegrationField< System, Orientation >
 #[ derive( Debug, Clone ) ]
 pub struct FlowField< System, Orientation >
 {
-  /// Integration field with costs to goal
-  #[ allow( dead_code ) ] // Construction state retained for the incremental-recalculation pass; not read yet.
-  integration : IntegrationField< System, Orientation >,
   /// Grid dimensions
-  #[ allow( dead_code ) ] // Construction state retained for the incremental-recalculation pass; not read yet.
+  // Exception ( task 072 ) : read only by the inline pinned test in `mod tests`
+  // below, which accesses these private fields directly because they have no
+  // public accessor ( widening the API solely for test placement was rejected ).
+  #[ allow( dead_code ) ]
   width : i32,
-  #[ allow( dead_code ) ] // Construction state retained for the incremental-recalculation pass; not read yet.
+  // Same reason as `width` above -- read by the same inline pinned test.
+  #[ allow( dead_code ) ]
   height : i32,
   /// Phantom marker for system type
   _phantom_system : std::marker::PhantomData< System >,
@@ -133,10 +134,8 @@ impl< System, Orientation > FlowField< System, Orientation >
   pub fn new( width : i32, height : i32 ) -> Self
   {
     // Simplified stub implementation for testing
-    let integration = IntegrationField::new( width, height );
     Self
     {
-      integration,
       width,
       height,
       _phantom_system : std::marker::PhantomData,
@@ -353,9 +352,7 @@ pub struct MultiGoalFlowField< System, Orientation >
   /// Individual flow fields for each goal
   pub goal_fields : Vec< FlowField< System, Orientation > >,
   /// Grid dimensions
-  #[ allow( dead_code ) ] // Construction state retained for the incremental-recalculation pass; not read yet.
   width : i32,
-  #[ allow( dead_code ) ] // Construction state retained for the incremental-recalculation pass; not read yet.
   height : i32,
   /// Phantom marker for system type
   _phantom_system : std::marker::PhantomData< System >,

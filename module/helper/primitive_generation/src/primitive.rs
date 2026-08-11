@@ -1,7 +1,6 @@
 //! This module store functions and structures for creating `PrimitiveData`
 //! of different abstactions like curves.
 
-#[ allow( clippy::too_many_lines ) ]
 mod private
 {
   use minwebgl as gl;

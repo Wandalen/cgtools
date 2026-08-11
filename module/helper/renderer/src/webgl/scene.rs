@@ -78,6 +78,7 @@ mod private
   impl Scene
   {
     /// Creates a new, empty `Scene`.
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
@@ -90,6 +91,7 @@ mod private
     }
 
     /// Returns an owned clone of the scene's name.
+    #[ must_use ]
     pub fn get_name( &self ) -> Option< Box< str > >
     {
       self.name.clone()
@@ -105,6 +107,7 @@ mod private
     }
 
     /// Returns the current local scale of the scene.
+    #[ must_use ]
     pub fn get_scale( &self ) -> gl::F32x3
     {
       self.scale
@@ -120,6 +123,7 @@ mod private
     }
 
     /// Returns the current local translation of the scene.
+    #[ must_use ]
     pub fn get_translation( &self ) -> gl::F32x3
     {
       self.translation
@@ -135,12 +139,14 @@ mod private
     }
 
     /// Returns the current local rotation of the scene.
+    #[ must_use ]
     pub fn get_rotation( &self ) -> gl::QuatF32
     {
       self.rotation
     }
 
     /// Returns a slice of the scene's children.
+    #[ must_use ]
     pub fn get_children( &self ) -> &[ Rc< RefCell< Node > > ]
     {
       self.children.as_slice()
@@ -165,6 +171,7 @@ mod private
     }
 
     /// Returns the current local transformation matrix.
+    #[ must_use ]
     pub fn get_local_matrix( &self ) -> gl::F32x4x4
     {
       self.matrix
@@ -204,7 +211,7 @@ mod private
     pub fn traverse< F >( &self, callback : &mut F ) -> Result< (), gl::WebglError >
     where F : FnMut( Rc< RefCell< Node > > ) -> Result< (), gl::WebglError >
     {
-      for node in self.children.iter()
+      for node in &self.children
       {
         ( *callback )( node.clone() )?;
         node.borrow().traverse( callback )?;
@@ -222,7 +229,7 @@ mod private
       }
 
       // Recursively update the world matrix of each root node and its descendants.
-      for child in self.children.iter_mut()
+      for child in &mut self.children
       {
         child.borrow_mut().update_world_matrix( self.matrix, self.needs_update_child_world_matrix );
       }
@@ -239,7 +246,7 @@ mod private
     {
       let mut bbox = BoundingBox::default();
 
-      for child in self.children.iter()
+      for child in &self.children
       {
         bbox.combine_mut( &child.borrow().bounding_box_hierarchical() );
       }
@@ -248,12 +255,14 @@ mod private
     }
 
     /// Returns the pre-computed bounding box for the entire hierarchy of the scene.
+    #[ must_use ]
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.bounding_box
     }
 
     /// Gets [`Node`]s by `substring`
+    #[ must_use ]
     pub fn get_nodes_by_substring( &self, substring : &str ) -> Vec< Rc< RefCell< Node > > >
     {
       let mut nodes = vec![];
@@ -276,6 +285,7 @@ mod private
     }
 
     /// Gets node by `name`
+    #[ must_use ]
     pub fn get_node( &self, name : &str ) -> Option< Rc< RefCell< Node > > >
     {
       let mut target = None;

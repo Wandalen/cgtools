@@ -1,4 +1,3 @@
-use ndarray_cg::IndexingRef;
 
 use super::*;
 
@@ -11,11 +10,8 @@ where
   the_module::Mat< 2, 3, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingRef< Scalar = f32 >,
 {
   use the_module::
-  {
-    Mat,
-    RawSliceMut,
-  };
-  use std::fmt;
+  Mat;
+  
 
   // 0x0 Matrix
   let mat_0x0 = Mat::< 0, 0, f32, D >::default();
@@ -23,7 +19,7 @@ where
     if < D as the_module::mat::Descriptor >::IS_ROW_MAJOR { "row-major" } else { "column-major" },
     if < D as the_module::mat::Descriptor >::IS_ORDINARY { "ordinary" } else { "homogenous" }
   );
-  let debug_output_0x0 = format!( "{:?}", mat_0x0 );
+  let debug_output_0x0 = format!( "{mat_0x0:?}" );
   assert_eq!( debug_output_0x0, expected_debug_output_0x0, "Debug output mismatch for 0x0 matrix" );
 
   // 1x1 Matrix
@@ -32,7 +28,7 @@ where
     if < D as the_module::mat::Descriptor >::IS_ROW_MAJOR { "row-major" } else { "column-major" },
     if < D as the_module::mat::Descriptor >::IS_ORDINARY { "ordinary" } else { "homogenous" }
   );
-  let debug_output_1x1 = format!( "{:?}", mat_1x1 );
+  let debug_output_1x1 = format!( "{mat_1x1:?}" );
   assert_eq!( debug_output_1x1, expected_debug_output_1x1, "Debug output mismatch for 1x1 matrix" );
 
   // 2x2 Matrix
@@ -41,7 +37,7 @@ where
     if < D as the_module::mat::Descriptor >::IS_ROW_MAJOR { "row-major" } else { "column-major" },
     if < D as the_module::mat::Descriptor >::IS_ORDINARY { "ordinary" } else { "homogenous" }
   );
-  let debug_output_2x2 = format!( "{:?}", mat_2x2 );
+  let debug_output_2x2 = format!( "{mat_2x2:?}" );
   assert_eq!( debug_output_2x2, expected_debug_output_2x2, "Debug output mismatch for 2x2 matrix" );
 
   // 3x3 Matrix
@@ -50,7 +46,7 @@ where
     if < D as the_module::mat::Descriptor >::IS_ROW_MAJOR { "row-major" } else { "column-major" },
     if < D as the_module::mat::Descriptor >::IS_ORDINARY { "ordinary" } else { "homogenous" }
   );
-  let debug_output_3x3 = format!( "{:?}", mat_3x3 );
+  let debug_output_3x3 = format!( "{mat_3x3:?}" );
   assert_eq!( debug_output_3x3, expected_debug_output_3x3, "Debug output mismatch for 3x3 matrix" );
 
   // 2x3 Matrix
@@ -59,7 +55,7 @@ where
     if < D as the_module::mat::Descriptor >::IS_ROW_MAJOR { "row-major" } else { "column-major" },
     if < D as the_module::mat::Descriptor >::IS_ORDINARY { "ordinary" } else { "homogenous" }
   );
-  let debug_output_2x3 = format!( "{:?}", mat_2x3 );
+  let debug_output_2x3 = format!( "{mat_2x3:?}" );
   assert_eq!( debug_output_2x3, expected_debug_output_2x3, "Debug output mismatch for 2x3 matrix" );
 }
 
@@ -92,7 +88,6 @@ where
   {
     Mat,
     RawSliceMut,
-    IndexingRef,
   };
 
   let mat = Mat::< 2, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
@@ -150,7 +145,7 @@ where
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "Matrix size should be equal to the size of the input" ) ]
 fn test_from_row_major_size_mismatch_row_major()
 {
   use the_module::mat::DescriptorOrderRowMajor;
@@ -158,7 +153,7 @@ fn test_from_row_major_size_mismatch_row_major()
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "Matrix size should be equal to the size of the input" ) ]
 fn test_from_row_major_size_mismatch_column_major()
 {
   use the_module::mat::DescriptorOrderColumnMajor;
@@ -194,7 +189,7 @@ where
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "Matrix size should be equal to the size of the input" ) ]
 fn test_from_column_major_size_mismatch_row_major()
 {
   use the_module::mat::DescriptorOrderRowMajor;
@@ -202,7 +197,7 @@ fn test_from_column_major_size_mismatch_row_major()
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "Matrix size should be equal to the size of the input" ) ]
 fn test_from_column_major_size_mismatch_column_major()
 {
   use the_module::mat::DescriptorOrderColumnMajor;

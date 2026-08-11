@@ -1,30 +1,3 @@
-#![allow(dead_code ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::items_after_statements ) ]
-#![ allow( clippy::unnecessary_cast ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::format_in_format_args ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::duplicated_attributes ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::trivially_copy_pass_by_ref ) ]
-#![ allow( clippy::missing_inline_in_public_items ) ]
-#![ allow( clippy::useless_vec ) ]
-#![ allow( clippy::unnested_or_patterns ) ]
-#![ allow( clippy::else_if_without_else ) ]
-#![ allow( clippy::unreadable_literal ) ]
-#![ allow( clippy::redundant_else ) ]
-#![ allow( clippy::match_same_arms ) ]
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::min_ident_chars ) ]
 //! Conway's Game of Life implementation using the tiles_tools ECS system.
 //!
 //! This example demonstrates how to use the tiles_tools library to implement
@@ -63,7 +36,7 @@ impl Cell {
   Self { alive: true, age: 0 }
   }
 
-  pub fn is_alive(&self) -> bool {
+  pub fn is_alive(self) -> bool {
   self.alive
   }
 
@@ -121,7 +94,7 @@ impl SquareGameOfLife {
   // Count neighbors for all positions
   {
     let mut query = self.world.query::<(&Position<SquareCoord<EightConnected>>, &Cell)>();
-    for (_entity, (pos, cell)) in query.iter() {
+    for (_entity, (pos, cell)) in &mut query {
       if cell.is_alive() {
         // Count neighbors for living cells and their neighbors
         for neighbor_coord in pos.neighbors() {
@@ -131,40 +104,67 @@ impl SquareGameOfLife {
     }
   }
 
-  // Apply Game of Life rules
+  // Apply Game of Life rules within the bounded grid
   for (coord, neighbor_count) in neighbors_count {
-    let currently_alive = self.is_cell_alive(&coord);
+    if coord.x < 0 || coord.x >= self.width || coord.y < 0 || coord.y >= self.height {
+      continue;
+    }
+
+    let currently_alive = self.is_cell_alive(coord);
 
     let should_be_alive = match (currently_alive, neighbor_count) {
-      (true, 2 | 3) => true,  // Survival
-      (false, 3) => true,             // Birth
-      _ => false,                     // Death or remain dead
+      (true, 2 | 3) | (false, 3) => true, // Survival or birth
+      _ => false,                         // Death or remain dead
     };
 
     next_generation.insert(coord, should_be_alive);
   }
 
   // Update world state
-  self.update_world_state(next_generation);
+  self.update_world_state(&next_generation);
   self.generation += 1;
   }
 
   /// Checks if a cell at the given coordinate is alive.
-  fn is_cell_alive(&self, coord: &SquareCoord<EightConnected>) -> bool {
-  let _pos_query = Position::new(*coord);
+  fn is_cell_alive(&self, coord: SquareCoord<EightConnected>) -> bool {
+  let _pos_query = Position::new(coord);
   let mut query = self.world.query::<(&Position<SquareCoord<EightConnected>>, &Cell)>();
 
-  for (_entity, (pos, cell)) in query.iter() {
-    if pos.coord == *coord {
+  for (_entity, (pos, cell)) in &mut query {
+    if pos.coord == coord {
       return cell.is_alive();
     }
   }
   false
   }
 
-  /// Updates the world state based on the next generation.
-  fn update_world_state(&mut self, next_generation: HashMap<SquareCoord<EightConnected>, bool>) {
-  // This is a simplified update - in practice would use proper ECS entity management
+  /// Updates the world state based on the next generation, aging surviving
+  /// cells and reviving/killing entities that changed state.
+  fn update_world_state(&mut self, next_generation: &HashMap<SquareCoord<EightConnected>, bool>) {
+  let mut existing = HashMap::new();
+  {
+    let mut query = self.world.query::<&Position<SquareCoord<EightConnected>>>();
+    for (entity, pos) in &mut query {
+      existing.insert(pos.coord, entity);
+    }
+  }
+
+  for (&coord, &should_be_alive) in next_generation {
+    if let Some(&entity) = existing.get(&coord) {
+      if let Ok(mut cell) = self.world.get_mut::<Cell>(entity) {
+        if should_be_alive {
+          if cell.is_alive() { cell.age(); } else { cell.revive(); }
+        } else {
+          cell.kill();
+        }
+      }
+    } else if should_be_alive {
+      self.world.spawn((Position::new(coord), Cell::new()));
+    } else {
+      // Cell doesn't exist and shouldn't be alive — nothing to do.
+    }
+  }
+
   println!("Generation {}: {} living cells",
            self.generation + 1,
            next_generation.values().filter(|&&alive| alive).count());
@@ -183,7 +183,7 @@ impl SquareGameOfLife {
   let mut living_cells = std::collections::HashSet::new();
   let mut query = self.world.query::<(&Position<SquareCoord<EightConnected>>, &Cell)>();
 
-  for (_entity, (pos, cell)) in query.iter() {
+  for (_entity, (pos, cell)) in &mut query {
     if cell.is_alive() {
       living_cells.insert((pos.coord.x, pos.coord.y));
       min_x = min_x.min(pos.coord.x);
@@ -249,7 +249,7 @@ impl HexGameOfLife {
 
   {
     let mut query = self.world.query::<(&Position<HexCoord<Axial, Pointy>>, &Cell)>();
-    for (_entity, (pos, cell)) in query.iter() {
+    for (_entity, (pos, cell)) in &mut query {
       if cell.is_alive() {
         for neighbor_coord in pos.neighbors() {
           *neighbors_count.entry((neighbor_coord.coord.q, neighbor_coord.coord.r)).or_insert(0) += 1;
@@ -275,7 +275,7 @@ impl HexGameOfLife {
     .map(|(_, (pos, _))| (pos.coord.q, pos.coord.r))
     .collect();
 
-  println!("Living cells: {:?}", living_cells);
+  println!("Living cells: {living_cells:?}");
   }
 }
 
@@ -325,7 +325,7 @@ impl TriangularGameOfLife {
     .map(|(_, (pos, _))| (pos.coord.a, pos.coord.b, pos.coord.c,))
     .collect();
 
-  println!("Living triangular cells: {:?}", living_cells);
+  println!("Living triangular cells: {living_cells:?}");
   }
 }
 

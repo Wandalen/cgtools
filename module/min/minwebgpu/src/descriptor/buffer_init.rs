@@ -1,9 +1,10 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ AsBytes, web_sys, WebGPUError, buffer };
 
   /// Describes a buffer to be created and initialized with data.
+  #[ non_exhaustive ]
   pub struct BufferInitDescriptor< 'a, T : AsBytes >
   {
     /// A reference to the data that will be copied into the buffer.
@@ -21,6 +22,7 @@ mod private
   impl< 'a, T : AsBytes > BufferInitDescriptor< 'a, T >
   {
     /// Creates a new `BufferInitDescriptor` with a given data reference and usage.
+    #[ inline ]
     pub fn new( data : &'a T, usage : u32 ) -> Self
     {
       let label = None;
@@ -34,6 +36,8 @@ mod private
     }
 
     /// Sets an optional label for the buffer.
+    #[ inline ]
+    #[ must_use ]
     pub fn label( mut self, label : &'a str ) -> Self
     {
       self.label = Some( label );
@@ -41,9 +45,15 @@ mod private
     }
 
     /// Creates a `web_sys::GpuBuffer` from this descriptor.
+    ///
+    /// # Errors
+    /// Returns `error::DeviceError::FailedToCreateBuffer` if the underlying
+    /// `GPUDevice.createBuffer` call throws, or `error::BufferError::FailedToGetMappedRange`
+    /// if the initial data cannot be copied in (see [`buffer::init`]).
+    #[ inline ]
     pub fn create( &self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuBuffer, WebGPUError >
     {
-      buffer::init( device, &self )
+      buffer::init( device, self )
     }
   }
 }

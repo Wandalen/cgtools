@@ -1,5 +1,4 @@
 #![ doc = "../readme.md" ]
-#![ allow( clippy::too_many_lines ) ]
 
 #[ repr( C ) ]
 #[ derive( Clone, Copy, bytemuck::Pod, bytemuck::Zeroable ) ]
@@ -17,6 +16,49 @@ fn main()
 }
 
 fn run()
+{
+  let ( device, queue ) = create_device_and_queue();
+
+  let width = 512;
+  let height = 512;
+  let ( texture, texture_view, output_buffer, texture_extent ) = create_render_target( &device, width, height );
+
+  let ( bind_group_layout, bind_group ) = create_uniforms( &device );
+  let render_pipeline = create_render_pipeline( &device, &bind_group_layout );
+
+  let mut encoder = device.create_command_encoder( &wgpu::CommandEncoderDescriptor { label : Some( "encoder" ) } );
+  render_scene( &mut encoder, &render_pipeline, &bind_group, &texture_view );
+
+  let bytes_per_pixel = 4;
+  encoder.copy_texture_to_buffer
+  (
+    texture.as_image_copy(),
+    wgpu::TexelCopyBufferInfo
+    {
+      buffer : &output_buffer,
+      layout : wgpu::TexelCopyBufferLayout
+      {
+        offset : 0,
+        bytes_per_row : Some( width * bytes_per_pixel ),
+        rows_per_image : None
+      }
+    },
+    texture_extent
+  );
+
+  queue.submit( Some( encoder.finish() ) );
+
+  let buffer_slice = output_buffer.slice( .. );
+  buffer_slice.map_async( wgpu::MapMode::Read, | _ | {} );
+
+  device.poll( wgpu::PollType::Wait { submission_index : None, timeout : None } ).expect( "Failed to render an image" );
+
+  let data = buffer_slice.get_mapped_range();
+  image::save_buffer( "-sun_grid_lines.png", &data, width, height, image::ColorType::Rgba8 )
+  .expect( "Failed to save image" );
+}
+
+fn create_device_and_queue() -> ( wgpu::Device, wgpu::Queue )
 {
   let instance = wgpu::Instance::new
   (
@@ -37,13 +79,13 @@ fn run()
     }
   ).expect( "Failed to retrieve an adapter" );
 
-  let ( device, queue ) = minwgpu::helper::device::request_device( &adapter, &wgpu::DeviceDescriptor::default() )
-  .expect( "Failed to retrieve a device" );
+  minwgpu::helper::device::request_device( &adapter, &wgpu::DeviceDescriptor::default() )
+  .expect( "Failed to retrieve a device" )
+}
 
-  let shader = device.create_shader_module( wgpu::include_wgsl!( "../shaders/scene.wgsl" ) );
-
-  let width = 512;
-  let height = 512;
+fn create_render_target( device : &wgpu::Device, width : u32, height : u32 )
+-> ( wgpu::Texture, wgpu::TextureView, wgpu::Buffer, wgpu::Extent3d )
+{
   let texture_extent = wgpu::Extent3d
   {
     width,
@@ -73,8 +115,13 @@ fn run()
   let output_buffer = minwgpu::buffer::buffer( wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ )
   .label( "output_buffer" )
   .size_from_value( output_buffer_size )
-  .build( &device );
+  .build( device );
 
+  ( texture, texture_view, output_buffer, texture_extent )
+}
+
+fn create_uniforms( device : &wgpu::Device ) -> ( wgpu::BindGroupLayout, wgpu::BindGroup )
+{
   // Single-shot render, so the uniforms are baked in at buffer creation
   // instead of updated per-frame; node_count = 4 shows off the orbiting-node
   // parameterization that the live WebGL2/WebGPU versions expose via keyboard.
@@ -82,7 +129,7 @@ fn run()
   let uniform_buffer = minwgpu::buffer::buffer( wgpu::BufferUsages::UNIFORM )
   .label( "uniform_buffer" )
   .data( &[ uniforms ] )
-  .build( &device );
+  .build( device );
 
   let bind_group_layout = device.create_bind_group_layout
   (
@@ -124,17 +171,24 @@ fn run()
     }
   );
 
+  ( bind_group_layout, bind_group )
+}
+
+fn create_render_pipeline( device : &wgpu::Device, bind_group_layout : &wgpu::BindGroupLayout ) -> wgpu::RenderPipeline
+{
+  let shader = device.create_shader_module( wgpu::include_wgsl!( "../shaders/scene.wgsl" ) );
+
   let render_pipeline_layout = device.create_pipeline_layout
   (
     &wgpu::PipelineLayoutDescriptor
     {
       label : Some( "sun_grid_lines_pipeline_layout" ),
-      bind_group_layouts : &[ &bind_group_layout ],
+      bind_group_layouts : &[ bind_group_layout ],
       push_constant_ranges : &[]
     }
   );
 
-  let render_pipeline = device.create_render_pipeline
+  device.create_render_pipeline
   (
     &wgpu::RenderPipelineDescriptor
     {
@@ -174,67 +228,39 @@ fn run()
       multiview : None,
       cache : None
     }
-  );
+  )
+}
 
-  let mut encoder = device.create_command_encoder( &wgpu::CommandEncoderDescriptor { label : Some( "encoder" ) } );
-
-  {
-    let mut render_pass = encoder.begin_render_pass
-    (
-      &wgpu::RenderPassDescriptor
-      {
-        label : Some( "render_pass" ),
-        color_attachments :
-        &[
-          Some
-          (
-            wgpu::RenderPassColorAttachment
-            {
-              view : &texture_view,
-              resolve_target : None,
-              ops : wgpu::Operations
-              {
-                load : wgpu::LoadOp::Clear( wgpu::Color { r : 0.0, g : 0.0, b : 0.0, a : 1.0 } ),
-                store : wgpu::StoreOp::Store,
-              },
-              depth_slice : None,
-            }
-          )
-        ],
-        depth_stencil_attachment : None,
-        timestamp_writes : None,
-        occlusion_query_set : None,
-      }
-    );
-    render_pass.set_pipeline( &render_pipeline );
-    render_pass.set_bind_group( 0, &bind_group, &[] );
-    render_pass.draw( 0..3, 0..1 );
-  }
-
-  encoder.copy_texture_to_buffer
+fn render_scene( encoder : &mut wgpu::CommandEncoder, render_pipeline : &wgpu::RenderPipeline, bind_group : &wgpu::BindGroup, texture_view : &wgpu::TextureView )
+{
+  let mut render_pass = encoder.begin_render_pass
   (
-    texture.as_image_copy(),
-    wgpu::TexelCopyBufferInfo
+    &wgpu::RenderPassDescriptor
     {
-      buffer : &output_buffer,
-      layout : wgpu::TexelCopyBufferLayout
-      {
-        offset : 0,
-        bytes_per_row : Some( width * bytes_per_pixel ),
-        rows_per_image : None
-      }
-    },
-    texture_extent
+      label : Some( "render_pass" ),
+      color_attachments :
+      &[
+        Some
+        (
+          wgpu::RenderPassColorAttachment
+          {
+            view : texture_view,
+            resolve_target : None,
+            ops : wgpu::Operations
+            {
+              load : wgpu::LoadOp::Clear( wgpu::Color { r : 0.0, g : 0.0, b : 0.0, a : 1.0 } ),
+              store : wgpu::StoreOp::Store,
+            },
+            depth_slice : None,
+          }
+        )
+      ],
+      depth_stencil_attachment : None,
+      timestamp_writes : None,
+      occlusion_query_set : None,
+    }
   );
-
-  queue.submit( Some( encoder.finish() ) );
-
-  let buffer_slice = output_buffer.slice( .. );
-  buffer_slice.map_async( wgpu::MapMode::Read, | _ | {} );
-
-  device.poll( wgpu::PollType::Wait { submission_index : None, timeout : None } ).expect( "Failed to render an image" );
-
-  let data = buffer_slice.get_mapped_range();
-  image::save_buffer( "-sun_grid_lines.png", &data, width, height, image::ColorType::Rgba8 )
-  .expect( "Failed to save image" );
+  render_pass.set_pipeline( render_pipeline );
+  render_pass.set_bind_group( 0, bind_group, &[] );
+  render_pass.draw( 0..3, 0..1 );
 }

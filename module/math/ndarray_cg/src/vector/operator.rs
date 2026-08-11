@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{Vector, MatNum, MatEl, IntoIterator};
   use std::ops::{ Rem, Neg };
 
   impl< E, const LEN : usize > Neg for Vector< E, LEN >
@@ -57,9 +57,9 @@ mod private
     E : MatNum,
   {
     let mut result = *a;
-    for r in result.0.iter_mut()
+    for r in &mut result.0
     {
-      *r = *r % scalar;
+      *r %= scalar;
     }
     result
   }
@@ -173,6 +173,7 @@ mod private
     /// For integer `E` this panics if any component of `rhs` is zero, in both
     /// debug and release mode. For float `E`, division by zero yields
     /// `INFINITY` or `NAN` instead.
+    #[ inline ]
     fn div( mut self, rhs : Self ) -> Self::Output
     {
       self.iter_mut().zip( rhs.iter() ).for_each
@@ -270,6 +271,25 @@ mod private
     type IntoIter = std::slice::IterMut< 'a, E >;
     #[ inline ]
     fn into_iter( self ) -> Self::IntoIter
+    {
+      self.0.iter_mut()
+    }
+  }
+
+  impl< E, const N : usize > Vector< E, N >
+  where
+    E : MatEl,
+  {
+    /// Returns an iterator over the vector's elements by reference.
+    #[ inline ]
+    pub fn iter( &self ) -> std::slice::Iter< '_, E >
+    {
+      self.0.iter()
+    }
+
+    /// Returns an iterator over the vector's elements by mutable reference.
+    #[ inline ]
+    pub fn iter_mut( &mut self ) -> std::slice::IterMut< '_, E >
     {
       self.0.iter_mut()
     }

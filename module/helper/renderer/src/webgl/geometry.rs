@@ -101,14 +101,7 @@ mod private
     ) -> Result< (), gl::WebglError >
     {
       let name = name.into();
-      if !self.attributes.contains_key( &name )
-      {
-        self.bind( gl );
-        info.upload( gl )?;
-        self.attributes.insert( name, info );
-      }
-      else
-      {
+      if self.attributes.contains_key( &name ) {
         // Fix(task 013): was `panic!( "An attribute {} already exists", name )` — aborted the
         // whole wasm module on a duplicate attribute name instead of returning `Err`.
         // Root cause: the `Result` error branch was authored as a `panic!` afterthought
@@ -118,6 +111,9 @@ mod private
         // `.unwrap()`/`.expect()` inside any fn whose own signature already promises `Result`.
         return Err( gl::WebglError::Other( "An attribute with this name already exists" ) );
       }
+      self.bind( gl );
+      info.upload( gl )?;
+      self.attributes.insert( name, info );
 
       Ok( () )
     }
@@ -162,12 +158,14 @@ mod private
     /// Returns the center point of the geometry's bounding box, assuming a "positions" attribute exists.
     ///
     /// It panics if the "positions" attribute is not found.
+    #[ must_use ]
     pub fn center( &self ) -> gl::F32x3
     {
       self.bounding_box().center()
     }
 
     /// Return the bounding box of the `positions` attribute
+    #[ must_use ]
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.attributes.get( "positions" )
@@ -197,6 +195,7 @@ mod private
     }
 
     /// Returns a reference to the `FxHashMap` containing the attribute information.
+    #[ must_use ]
     pub fn get_attributes( &self ) -> &FxHashMap< Box< str >, AttributeInfo >
     {
       &self.attributes

@@ -82,6 +82,7 @@ mod private
 
   /// Marker type for batch resources.
   #[ derive( Debug, Clone, Copy ) ]
+  #[ non_exhaustive ]
   pub struct Batch;
 
   // ============================================================================
@@ -90,6 +91,12 @@ mod private
 
   /// Shared renderer configuration.
   /// Passed to backend constructors. Backends may ignore fields they don't support.
+  // Constructed via full struct-literal syntax (with `..Default::default()`) from outside
+  // this crate — e.g. `tilemap_renderer/tests/svg_backend_test.rs:21` and
+  // `examples/minwebgl/hexagonal_map/src/main.rs:97` — so `#[non_exhaustive]` would break
+  // those call sites: it forbids all struct-expression construction from other crates,
+  // `..` update syntax included, not just literals naming every field.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct RenderConfig
   {
@@ -142,6 +149,7 @@ mod private
   /// SVG: maps to `shape-rendering` CSS property.
   /// GPU: maps to MSAA sample count.
   #[ derive( Debug, Clone, Copy, Default, PartialEq, Eq ) ]
+  #[ non_exhaustive ]
   pub enum Antialias
   {
     /// No antialiasing. SVG: `crispEdges`. GPU: MSAA 1x. Good for pixel art.
@@ -158,6 +166,11 @@ mod private
   // ============================================================================
 
   /// 2D affine transform.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_scene/src/compile/frame.rs`'s `make_transform()` and
+  // `tilemap_scene/src/compile/viewport.rs`'s `make_transform()` (neither uses `..`),
+  // so `#[non_exhaustive]` would break those call sites.
+  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct Transform
   {
@@ -243,6 +256,7 @@ mod private
 
   /// Line cap style for stroke endpoints.
   #[ derive( Debug, Clone, Copy, Default ) ]
+  #[ non_exhaustive ]
   pub enum LineCap
   {
     /// Flat cap flush with the endpoint.
@@ -256,6 +270,7 @@ mod private
 
   /// Line join style for stroke corners.
   #[ derive( Debug, Clone, Copy, Default ) ]
+  #[ non_exhaustive ]
   pub enum LineJoin
   {
     /// Sharp corner join.
@@ -271,6 +286,7 @@ mod private
   /// Up to 4 dash-gap pairs covers most cases.
   /// SVG: `stroke-dasharray`. GPU: fragment shader or geometry expansion.
   #[ derive( Debug, Clone, Copy ) ]
+  #[ non_exhaustive ]
   pub struct DashStyle
   {
     /// Dash-gap pairs, zero-terminated. e.g. `[5.0, 3.0, 0.0, ...]` = "5 3".
@@ -290,6 +306,7 @@ mod private
 
   /// Anchor point for text placement.
   #[ derive( Debug, Clone, Copy, Default ) ]
+  #[ non_exhaustive ]
   pub enum TextAnchor
   {
     /// Top-left corner.
@@ -315,6 +332,7 @@ mod private
 
   /// Primitive topology for vertex data.
   #[ derive( Debug, Clone, Copy, Default, PartialEq, Eq ) ]
+  #[ non_exhaustive ]
   pub enum Topology
   {
     /// Independent triangles (every 3 vertices).
@@ -334,6 +352,7 @@ mod private
   /// when combined with [`MipmapMode`].
   #[ derive( Debug, Clone, Copy, Default ) ]
   #[ cfg_attr( feature = "scene-model", derive( serde::Serialize, serde::Deserialize ) ) ]
+  #[ non_exhaustive ]
   pub enum SamplerFilter
   {
     /// Nearest-neighbor: sharp pixels, no interpolation. Ideal for pixel art.
@@ -355,6 +374,7 @@ mod private
   /// `mag_filter` is always derived from [`SamplerFilter`] alone (magnification cannot use mips).
   #[ derive( Debug, Clone, Copy, Default ) ]
   #[ cfg_attr( feature = "scene-model", derive( serde::Serialize, serde::Deserialize ) ) ]
+  #[ non_exhaustive ]
   pub enum MipmapMode
   {
     /// No mipmaps. `min_filter` uses `SamplerFilter` directly.
@@ -376,6 +396,7 @@ mod private
   /// still need to honour this; 0.2.0 backends treat unknown modes as `Clamp`.
   #[ derive( Debug, Clone, Copy, Default ) ]
   #[ cfg_attr( feature = "scene-model", derive( serde::Serialize, serde::Deserialize ) ) ]
+  #[ non_exhaustive ]
   pub enum WrapMode
   {
     /// Clamp to the edge pixel — the default, matches `GL_CLAMP_TO_EDGE`.
@@ -392,6 +413,7 @@ mod private
   /// GPU: blend state on the pipeline.
   #[ derive( Debug, Clone, Copy, Default ) ]
   #[ cfg_attr( feature = "scene-model", derive( serde::Serialize, serde::Deserialize ) ) ]
+  #[ non_exhaustive ]
   pub enum BlendMode
   {
     /// Source over (alpha blending).
@@ -429,27 +451,35 @@ mod private
   {
     /// Marker for font assets.
     #[ derive( Debug, Clone, Copy ) ]
+    #[ non_exhaustive ]
     pub struct Font;
     /// Marker for image assets.
     #[ derive( Debug, Clone, Copy ) ]
+    #[ non_exhaustive ]
     pub struct Image;
     /// Marker for sprite assets.
     #[ derive( Debug, Clone, Copy ) ]
+    #[ non_exhaustive ]
     pub struct Sprite;
     /// Marker for geometry assets.
     #[ derive( Debug, Clone, Copy ) ]
+    #[ non_exhaustive ]
     pub struct Geometry;
     /// Marker for gradient assets.
     #[ derive( Debug, Clone, Copy ) ]
+    #[ non_exhaustive ]
     pub struct Gradient;
     /// Marker for pattern assets.
     #[ derive( Debug, Clone, Copy ) ]
+    #[ non_exhaustive ]
     pub struct Pattern;
     /// Marker for clip mask assets.
     #[ derive( Debug, Clone, Copy ) ]
+    #[ non_exhaustive ]
     pub struct ClipMask;
     /// Marker for path assets (e.g. text-on-path).
     #[ derive( Debug, Clone, Copy ) ]
+    #[ non_exhaustive ]
     pub struct Path;
   }
 
@@ -457,6 +487,7 @@ mod private
   /// SVG: solid -> `fill="rgb(...)"`, gradient -> `fill="url(#grad_N)"`, pattern -> `fill="url(#pat_N)"`.
   /// GPU: solid -> uniform color, gradient -> gradient shader, pattern -> texture with repeat sampler.
   #[ derive( Debug, Clone, Copy ) ]
+  #[ non_exhaustive ]
   pub enum FillRef
   {
     /// No fill.

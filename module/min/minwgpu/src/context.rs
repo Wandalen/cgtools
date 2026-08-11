@@ -271,8 +271,13 @@ mod private
     /// # Errors
     ///
     /// Return error in case of `Instance::request_adapter` returns error.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the instance was never set. This cannot happen through the public API: the
+    /// `AdapterBuilder` state is only reachable via `make_instance` or `from_instance`, both of
+    /// which populate `instance` before this method becomes callable.
     #[ inline ]
-    #[ allow( clippy::missing_panics_doc ) ]
     pub async fn request_adapter_async( mut self ) -> Result< ContextBuilder< 'a, 'b, 'l, 's, DeviceBuilder >, crate::Error >
     {
       let adapter = if let Some( adapter_selector ) = &mut self.adapter_selector
@@ -377,8 +382,13 @@ mod private
     /// # Errors
     ///
     /// Returns error in case of `Adapter::request_device` returns error.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the adapter was never set. This cannot happen through the public API: the
+    /// `DeviceBuilder` state is only reachable via `request_adapter`/`request_adapter_async`,
+    /// which populate `adapter` before this method becomes callable.
     #[ inline ]
-    #[ allow( clippy::missing_panics_doc ) ]
     pub async fn finish_context_async( self ) -> Result< Context, crate::Error >
     {
       let ( device, queue ) = self.adapter.as_ref().unwrap().request_device( &self.device_descriptor ).await?;

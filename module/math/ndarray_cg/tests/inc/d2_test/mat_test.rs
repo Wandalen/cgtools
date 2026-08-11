@@ -17,23 +17,23 @@ fn assumptions()
 #[ test ]
 fn default()
 {
-  use the_module::{ Mat, IndexingRef, Zero };
+  use the_module::{ Mat, IndexingRef };
   use the_module::mat::DescriptorOrderRowMajor;
 
   let mat : Mat::< 2, 2, f32, DescriptorOrderRowMajor > = Mat::default();
-  assert!( IndexingRef::iter_unstable( &mat ).all( | e | e.is_zero() ), "Matrix should not be zero after setting non-zero values" );
+  assert!( IndexingRef::iter_unstable( &mat ).all( num_traits::Zero::is_zero ), "Matrix should not be zero after setting non-zero values" );
   // assert!( Default::is_zero( &mat ), "Matrix should be zero after calling set_zero()" );
   let mat = Mat::< 2, 2, f32, DescriptorOrderRowMajor >::default();
   // assert!( mat.is_zero(), "Matrix should be zero after calling set_zero()" );
-  assert!( IndexingRef::iter_unstable( &mat ).all( | e | e.is_zero() ), "Matrix should not be zero after setting non-zero values" );
+  assert!( IndexingRef::iter_unstable( &mat ).all( num_traits::Zero::is_zero ), "Matrix should not be zero after setting non-zero values" );
 
   let mut mat = Mat::< 2, 2, f32, DescriptorOrderRowMajor >::default().set_raw( [ 1.0, 2.0, 3.0, 4.0 ] );
 
-  assert!( !IndexingRef::iter_unstable( &mat ).all( | e | e.is_zero() ), "Matrix should not be zero after setting non-zero values" );
+  assert!( !IndexingRef::iter_unstable( &mat ).all( num_traits::Zero::is_zero ), "Matrix should not be zero after setting non-zero values" );
   // assert!( !mat.is_zero(), "Matrix should not be zero after setting non-zero values" );
   // mat.set_zero();
   mat = Mat::default();
-  assert!( IndexingRef::iter_unstable( &mat ).all( | e | e.is_zero() ), "Matrix should not be zero after setting non-zero values" );
+  assert!( IndexingRef::iter_unstable( &mat ).all( num_traits::Zero::is_zero ), "Matrix should not be zero after setting non-zero values" );
   // assert!( mat.is_zero(), "Matrix should be zero after calling set_zero()" );
 
 }
@@ -41,7 +41,7 @@ fn default()
 #[ test ]
 fn test_has_index_dim()
 {
-  use the_module::{ Mat, Indexable, Ix2 };
+  use the_module::{ Mat, Ix2 };
   use the_module::mat::DescriptorOrderRowMajor;
 
   // Test for 0x0 Matrix

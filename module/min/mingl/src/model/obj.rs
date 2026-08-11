@@ -3,7 +3,6 @@
 /// Internal namespace.
 mod private
 {
-  //use crate::*;
   use std::collections::HashSet ;
   use tobj::Material;
 
@@ -12,6 +11,7 @@ mod private
   /// An AABB is defined by its minimum and maximum corner points,
   /// enclosing a volume aligned with the coordinate axes.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub struct BoundingBox
   {
     /// The minimum corner of the bounding box (lowest x, y, and z coordinates).
@@ -22,6 +22,7 @@ mod private
 
   impl Default for BoundingBox
   {
+    #[ inline ]
     fn default() -> Self
     {
       BoundingBox
@@ -36,13 +37,15 @@ mod private
   {
     /// Computes the bounding box of the model from the provided positions array
     /// Positions should be in the form [ x, y, z, x, y, z, ...]
+    #[ inline ]
+    #[ must_use ]
     pub fn compute( positions : &[ f32 ] ) -> Self
     {
       let mut bounding_box = BoundingBox::default();
 
       for i in 0..positions.len() / 3
       {
-        let x = positions[ i * 3 + 0 ];
+        let x = positions[ i * 3 ];
         let y = positions[ i * 3 + 1 ];
         let z = positions[ i * 3 + 2 ];
 
@@ -61,6 +64,7 @@ mod private
   /// A bounding sphere is a sphere that completely encloses a given object or set of points,
   /// defined by its center and radius. It is often used for fast collision detection.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub struct BoundingSphere
   {
     /// The 3D coordinate of the sphere's center.
@@ -71,6 +75,7 @@ mod private
 
   impl Default for BoundingSphere
   {
+    #[ inline ]
     fn default() -> Self
     {
       BoundingSphere
@@ -86,6 +91,8 @@ mod private
     /// Computes the bounding sphere of the model form the provided positions array.
     /// Positions should be in the form [ x, y, z, x, y, z, ...].
     /// Requires BoundingBox to be computed first.
+    #[ inline ]
+    #[ must_use ]
     pub fn compute( positions : &[ f32 ], bounding_box : &BoundingBox ) -> Self
     {
       let mut bs = BoundingSphere::default();
@@ -93,7 +100,7 @@ mod private
 
       for i in 0..positions.len() / 3
       {
-        let x = positions[ i * 3 + 0 ];
+        let x = positions[ i * 3 ];
         let y = positions[ i * 3 + 1 ];
         let z = positions[ i * 3 + 2 ];
         let p = ndarray_cg::F32x3::new( x, y, z );
@@ -108,6 +115,8 @@ mod private
   }
 
   /// Returns size in bytes the model occupies when loaded in memory
+  #[ inline ]
+  #[ must_use ]
   pub fn compute_size_in_memory( model : &tobj::Model ) -> usize
   {
     let mesh = &model.mesh;
@@ -127,6 +136,7 @@ mod private
 
   /// Containes useful information about the model
   #[ derive( Debug, Default ) ]
+  #[ non_exhaustive ]
   pub struct ReportObjModel< 'model, 'mtl >
   {
     /// The name of the model or object group.
@@ -169,6 +179,8 @@ mod private
     /// # Arguments
     /// * `model`: A reference to the `tobj::Model` to be analyzed.
     /// * `materials`: A slice of `tobj::Material` from which the model's material will be drawn.
+    #[ inline ]
+    #[ must_use ]
     pub fn new( model : &'model tobj::Model, materials : &'mtl [ tobj::Material ] ) -> Self
     {
       let mesh = &model.mesh;
@@ -187,7 +199,7 @@ mod private
       else
       {
         mesh.face_arities.iter().for_each( | &a | { num_of_arities.insert( a ); } );
-      };
+      }
 
       let name = &model.name;
       let size_in_bytes = compute_size_in_memory( model );
@@ -215,16 +227,16 @@ mod private
         size_in_bytes,
         num_vertices,
         num_indices,
-        material,
-        bounding_box,
         num_normals,
         num_texcoords,
-        bounding_sphere,
         num_vertex_colors,
         num_faces,
         num_of_arities,
         num_texcoords_indicies,
-        num_normal_indicies
+        num_normal_indicies,
+        bounding_box,
+        bounding_sphere,
+        material
       }
     }
   }
@@ -237,6 +249,8 @@ mod private
   ///
   /// # Returns
   /// A `Vec` containing a `ReportObjModel` for each model in the input slice.
+  #[ inline ]
+  #[ must_use ]
   pub fn make_reports< 'model, 'mtl >
   (
     models : &'model [ tobj::Model ],
@@ -245,11 +259,11 @@ mod private
   -> Vec< ReportObjModel< 'model, 'mtl > >
   {
     let mut reports = Vec::with_capacity( models.len() );
-    for i in 0..models.len()
+    for model in models
     {
       reports.push
       (
-        ReportObjModel::new( &models[ i ], &materials )
+        ReportObjModel::new( model, materials )
       );
     }
 

@@ -171,7 +171,15 @@ mod private
   /// the canonical hex toward the neighbour hex, "start" is the
   /// CCW-rotation (the vertex on the CCW side), "end" is the CW-rotation.
   #[ must_use ]
+  // `edge_lookup` is always this crate's `FxHashMap` alias (every caller builds
+  // it via `edge_lookup()` above); there is no existing or planned caller
+  // passing a different hasher, so generalizing over `BuildHasher` would add
+  // API surface for no current need.
   #[ allow( clippy::implicit_hasher ) ]
+  // `ccw_idx`/`cw_idx` and `ccw_dir`/`cw_dir` are the CCW/CW halves of the same
+  // SPEC-defined pair (see the doc comment above); the shared prefix is what
+  // makes the pairing legible, so splitting the names further apart would hide
+  // the relationship rather than clarify it.
   #[ allow( clippy::similar_names ) ]
   pub fn compute_edge_connected_bitmask
   (

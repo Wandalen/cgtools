@@ -493,7 +493,7 @@ fn mat_div_scalar_signed_i64()
 // Zero-divisor panic tests — verify that the documented panic fires at runtime.
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "attempt to divide by zero" ) ]
 fn vector_div_zero_component_panics()
 {
   use the_module::Vector;
@@ -503,7 +503,7 @@ fn vector_div_zero_component_panics()
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "attempt to divide by zero" ) ]
 fn vector_div_zero_scalar_panics()
 {
   use the_module::Vector;
@@ -512,7 +512,7 @@ fn vector_div_zero_scalar_panics()
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "attempt to calculate the remainder with a divisor of zero" ) ]
 fn vector_rem_zero_scalar_panics()
 {
   use the_module::Vector;
@@ -521,7 +521,7 @@ fn vector_rem_zero_scalar_panics()
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "attempt to calculate the remainder with a divisor of zero" ) ]
 fn vector_rem_zero_component_panics()
 {
   use the_module::Vector;

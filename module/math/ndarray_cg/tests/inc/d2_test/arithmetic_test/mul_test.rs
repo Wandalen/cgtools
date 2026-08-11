@@ -22,7 +22,6 @@ where
   use the_module::
   {
     Mat,
-    RawSlice,
     d2,
   };
 
@@ -129,7 +128,7 @@ where
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "Incompatible dimensions for matrix multiplication" ) ]
 fn test_multiply_incompatible_dimensions_row_major()
 {
   use the_module::mat::DescriptorOrderRowMajor;
@@ -137,7 +136,7 @@ fn test_multiply_incompatible_dimensions_row_major()
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "Incompatible dimensions for matrix multiplication" ) ]
 fn test_multiply_incompatible_dimensions_column_major()
 {
   use the_module::mat::DescriptorOrderColumnMajor;
@@ -191,7 +190,7 @@ where
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "Incompatible dimensions for matrix-vector multiplication" ) ]
 fn test_multiply_vec_incompatible_dimensions_row_major()
 {
   use the_module::mat::DescriptorOrderRowMajor;
@@ -199,7 +198,7 @@ fn test_multiply_vec_incompatible_dimensions_row_major()
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "Incompatible dimensions for matrix-vector multiplication" ) ]
 fn test_multiply_vec_incompatible_dimensions_column_major()
 {
   use the_module::mat::DescriptorOrderColumnMajor;

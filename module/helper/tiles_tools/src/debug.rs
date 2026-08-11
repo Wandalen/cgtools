@@ -1,4 +1,3 @@
-#![ allow( clippy::format_push_string ) ] // Renderers build large ASCII/SVG bodies; write!-per-fragment obscures the templates.
 
 //! Visual debugging tools and utilities for tile-based game development.
 //!

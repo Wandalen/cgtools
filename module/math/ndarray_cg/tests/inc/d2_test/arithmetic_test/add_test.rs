@@ -70,7 +70,6 @@ where
   use the_module::
   {
     Mat,
-    RawSliceMut,
     d2,
   };
 
@@ -84,7 +83,7 @@ where
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "Incompatible dimensions for matrix addition" ) ]
 fn test_add_incompatible_dimensions_row_major()
 {
   use the_module::mat::DescriptorOrderRowMajor;
@@ -92,7 +91,7 @@ fn test_add_incompatible_dimensions_row_major()
 }
 
 #[ test ]
-#[ should_panic ]
+#[ should_panic( expected = "Incompatible dimensions for matrix addition" ) ]
 fn test_add_incompatible_dimensions_column_major()
 {
   use the_module::mat::DescriptorOrderColumnMajor;

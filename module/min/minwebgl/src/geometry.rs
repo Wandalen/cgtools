@@ -1,10 +1,11 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ GL, WebGlVertexArrayObject, VectorDataType, WebglError, buffer, DataType, vao, BufferDescriptor, AsBytes };
 
   /// Represents the vertices geometry, including its vertex array object (VAO)
   /// and the number of vertices.
+  #[ non_exhaustive ]
   pub struct Positions
   {
     /// Graphical context.
@@ -57,6 +58,12 @@ mod private
     /// - `Ok(Positions)` containing the created VAO and vertex count if successful.
     /// - `Err(WebglError)` if there is an issue creating buffers, VAOs, or uploading the geometry data.
     ///
+    /// # Errors
+    /// Returns `WebglError::NotSupportedForType` if `natoms` is outside `1 ..= 4`, and
+    /// `WebglError::Other` if `positions.len()` does not fit into `i32` ( the vertex count
+    /// a WebGL `vertexAttribPointer` call can address ). Also propagates any `WebglError`
+    /// returned while creating buffers, VAOs, or uploading the geometry data.
+    ///
     /// # Example
     ///
     /// ```
@@ -69,6 +76,7 @@ mod private
     /// # Ok(())
     /// # }
     /// ```
+    #[ inline ]
     pub fn new( gl : GL, positions : &[ f32 ], natoms : i32 ) -> Result< Self, WebglError >
     {
       validate_natoms( natoms )?;
@@ -92,8 +100,10 @@ mod private
       };
       descriptor.attribute_pointer( &gl, 0, &position_buffer )?;
 
-      let nvertices = positions.len() as i32 / natoms;
-      Ok( Positions { vao, typ, nvertices, gl } )
+      let nvertices : i32 = positions.len().try_into()
+      .map_err( | _ | WebglError::Other( "positions length exceeds i32::MAX" ) )?;
+      let nvertices = nvertices / natoms;
+      Ok( Positions { gl, vao, typ, nvertices } )
     }
 
     /// Activates the vertex array object (VAO) associated with this shader program.
@@ -104,6 +114,7 @@ mod private
     ///
     /// # Note
     /// Ensure that the VAO has been properly initialized before calling this method.
+    #[ inline ]
     pub fn activate( &self )
     {
       self.gl.bind_vertex_array( Some( &self.vao ) );
@@ -131,6 +142,7 @@ mod private
       }
     }
 
+    // test_kind: bug_reproducer(BUG-052)
     /// RED state (empirically confirmed): reverting this helper's body to the pre-fix
     /// `panic!( "Unsapported buffer descriptor" )` and marking this test `#[should_panic]`
     /// genuinely panics — verified via a temporary probe before this fix was finalized.

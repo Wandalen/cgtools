@@ -9,11 +9,9 @@
 //! Relocated from inline `#[ cfg( test ) ]` modules across `src/compile/*` by
 //! task 073 ( bodies verbatim; imports crate-qualified ).
 
-#![ allow( clippy::min_ident_chars ) ]
 // The viewport assertions compare against exact literal constants (e.g. `0.0`,
 // known integer-valued results), not derived floating-point computations —
 // exact comparison is the correct check there, not an epsilon tolerance.
-#![ allow( clippy::float_cmp ) ]
 
 use tilemap_scene::
 {
@@ -207,7 +205,7 @@ fn pattern( a : &str, b : &str, c : &str, priority : i32, sprite : &str ) -> Tri
 #[ test ]
 fn canonicalize_sorts_ids()
 {
-  let ( sorted, _rot ) = canonicalize( [ "water".into(), "grass".into(), "sand".into() ] );
+  let ( sorted, _rot ) = canonicalize( &[ "water".into(), "grass".into(), "sand".into() ] );
   assert_eq!( sorted, [ "grass".to_string(), "sand".into(), "water".into() ] );
 }
 

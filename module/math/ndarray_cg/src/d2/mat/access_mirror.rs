@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{Mat, mat, MatEl, RawSlice, Collection, RawSliceMut, IndexingRef, Indexable, IndexingMut, ScalarRef, ScalarMut, ConstLayout};
 
 impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > Mat< ROWS, COLS, E, Descriptor >
 where
@@ -39,7 +39,7 @@ where
   #[ inline( always ) ]
   pub fn set_raw_slice( &mut self, scalars : &[ < Self as Collection >::Scalar ] )
   {
-    < Self as RawSliceMut >::raw_set_slice( self, scalars )
+    < Self as RawSliceMut >::raw_set_slice( self, scalars );
   }
 
   /// Sets the underlying data from an array of scalars.
@@ -47,6 +47,7 @@ where
   /// # Arguments
   /// - `scalars`: An array of scalars to set the data.
   #[ inline( always ) ]
+  #[ must_use ]
   pub fn set_raw< const N : usize >( self, scalars : [ < Self as Collection >::Scalar ; N ] ) -> Self
   {
     < Self as RawSliceMut >::raw_set( self, scalars )
@@ -58,6 +59,7 @@ where
   /// # Arguments
   /// - `scalars`: An array of scalars to set the data.
   #[ inline( always ) ]
+  #[ must_use ]
   pub fn set_data< const N : usize >( self, scalars : [ < Self as Collection >::Scalar ; N ] ) -> Self
   {
     < Self as RawSliceMut >::set( self, scalars )
@@ -69,6 +71,7 @@ where
   /// # Arguments
   /// - `scalars`: An array of scalars to set the data.
   #[ inline( always ) ]
+  #[ must_use ]
   pub fn set_row_major( self, scalars : &[ < Self as Collection >::Scalar ] ) -> Self
   {
     < Self as RawSliceMut >::with_row_major( self, scalars )
@@ -80,6 +83,7 @@ where
   /// /// # Arguments
   /// - `scalars`: An array of scalars to set the data.
   #[ inline( always ) ]
+  #[ must_use ]
   pub fn set_column_major( self, scalars : &[ < Self as Collection >::Scalar ] ) -> Self
   {
     < Self as RawSliceMut >::with_column_major( self, scalars )

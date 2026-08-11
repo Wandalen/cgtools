@@ -14,7 +14,6 @@ mod private
   /// * `texture` - An optional reference to the WebGL texture to bind to.
   /// * `mip_level` - The mipmap level to upload the data to.
   /// * `path` - The file path to the HDR image.
-  #[ allow( unused_variables ) ]
   pub async fn load_to_mip_cube
   (
     gl : &gl::WebGl2RenderingContext,
@@ -27,15 +26,8 @@ mod private
     let image = std::io::Cursor::new( image );
     let mut decoder = zune_hdr::HdrDecoder::new( image );
     let data = decoder.decode()
-    .unwrap_or_else( | _ | panic!( "Failed to decode {}", path ) );
-    let ( width, height ) = decoder.dimensions().expect( "Can't get image dimensions" );
-
-    let image_slice = | i : usize |
-    {
-      let start = width * width * 3 * i;
-      let end = start + width * width * 3;
-      start..end
-    };
+    .unwrap_or_else( | _ | panic!( "Failed to decode {path}" ) );
+    let ( width, _ ) = decoder.dimensions().expect( "Can't get image dimensions" );
 
     let image_data : gl::js_sys::Object = gl::js_sys::Float32Array::from( data.as_slice() ).into();
 
@@ -87,7 +79,6 @@ mod private
   /// * `texture` - An optional reference to the WebGL texture to bind to.
   /// * `mip_level` - The mipmap level to upload the data to.
   /// * `path` - The file path to the HDR image.
-  #[ allow( unused_variables ) ]
   pub async fn load_to_mip_d2
   (
     gl : &gl::WebGl2RenderingContext,
@@ -100,7 +91,7 @@ mod private
     let image = std::io::Cursor::new( image );
     let mut decoder = zune_hdr::HdrDecoder::new( image );
     let data = decoder.decode()
-    .unwrap_or_else( | _ | panic!( "Failed to decode {}", path ) );
+    .unwrap_or_else( | _ | panic!( "Failed to decode {path}" ) );
     let ( width, height ) = decoder.dimensions().expect( "Can't get image dimensions" );
 
     let image_data : gl::js_sys::Object = gl::js_sys::Float32Array::from( data.as_slice() ).into();

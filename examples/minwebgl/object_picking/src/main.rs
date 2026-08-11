@@ -1,5 +1,3 @@
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::useless_asref ) ]
 
 mod shaders;
 

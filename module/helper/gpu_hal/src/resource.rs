@@ -96,6 +96,7 @@ mod private
     // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[ allow( clippy::unnecessary_wraps ) ]
+    #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::Buffer >
     {
       match self
@@ -132,6 +133,11 @@ mod private
   impl Texture
   {
     /// Creates a full default view of the texture.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WebGpu`] if the underlying WebGPU view-creation
+    /// call fails. The WebGL and native backends never fail this call.
     pub fn view( &self ) -> Result< TextureView, Error >
     {
       match self
@@ -183,6 +189,7 @@ mod private
     // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[ allow( clippy::unnecessary_wraps ) ]
+    #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::Texture >
     {
       match self
@@ -263,6 +270,7 @@ mod private
     // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[ allow( clippy::unnecessary_wraps ) ]
+    #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::TextureView >
     {
       match self
@@ -350,6 +358,7 @@ mod private
     // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[ allow( clippy::unnecessary_wraps ) ]
+    #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::Sampler >
     {
       match self
@@ -437,6 +446,7 @@ mod private
     // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[ allow( clippy::unnecessary_wraps ) ]
+    #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::ShaderModule >
     {
       match self
@@ -524,6 +534,7 @@ mod private
     // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[ allow( clippy::unnecessary_wraps ) ]
+    #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::BindGroupLayout >
     {
       match self
@@ -611,6 +622,7 @@ mod private
     // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[ allow( clippy::unnecessary_wraps ) ]
+    #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::BindGroup >
     {
       match self
@@ -699,6 +711,7 @@ mod private
     // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[ allow( clippy::unnecessary_wraps ) ]
+    #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::RenderPipeline >
     {
       match self
