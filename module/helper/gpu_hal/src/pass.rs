@@ -210,11 +210,7 @@ mod private
     }
 
     /// The raw wgpu object, when the handle belongs to the native backend.
-    // The browser variants live on the other side of the target boundary,
-    // so the surviving match is infallible; Option keeps the drill-down
-    // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    #[ allow( clippy::unnecessary_wraps ) ]
     #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::CommandEncoder >
     {
@@ -531,11 +527,7 @@ mod private
     }
 
     /// The raw wgpu object, when the handle belongs to the native backend.
-    // The browser variants live on the other side of the target boundary,
-    // so the surviving match is infallible; Option keeps the drill-down
-    // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    #[ allow( clippy::unnecessary_wraps ) ]
     #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::RenderPass< 'static > >
     {

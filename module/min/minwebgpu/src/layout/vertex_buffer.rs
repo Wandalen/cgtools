@@ -54,7 +54,6 @@ mod private
     {
       // `size_of::<T>()` reflects a single Rust type's compile-time byte size, which will
       // never approach f64's 2^52 exact-integer limit — the precision loss is unreachable.
-      #[ allow( clippy::cast_precision_loss ) ]
       let stride = std::mem::size_of::< T >() as f64;
       self.array_stride = Some( stride );
       self
@@ -123,7 +122,6 @@ mod private
 
         // A single vertex attribute's byte size (a handful of bytes) is nowhere near f64's
         // 2^52 exact-integer limit — the precision loss is unreachable.
-        #[ allow( clippy::cast_precision_loss ) ]
         let size = layout::vertex_attribute::format_to_size( a.get_format() ) as f64;
         offset += size;
       }

@@ -51,6 +51,32 @@ Per-marker outcomes follow task 038's triage contract. Verify with
 `cargo test -p tilemap_renderer --all-features` (via `longrun .launch`); pitfall/003 must stay
 consistent with whatever the SVG path source handling becomes.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Are the 6 `webgl.rs` capability-flag comments (`paths`/`text`/`gradients`/`patterns`/`clip_masks`/`effects`) now plain and `qqq`-free, matching the claimed wording? `grep -n "paths : false\|text : false\|gradients : false\|patterns : false\|clip_masks : false\|effects : false" src/adapters/webgl.rs` → all 6 present with plain comments ("needs tessellation / GPU curves", "needs a glyph atlas / SDF fonts", "not yet loaded or rendered" ×3, "needs FBO post-processing"), no `qqq` prefix. The 3 cross-ref comments (`webgl.rs:1188/1204/1212`) read "(unimplemented; see capabilities().paths/.text/.effects)".
+- [x] C2 — Is `webgl.rs`'s `ImageSource::Encoded` handling a loud skip (console warning), not a silent `continue`? `grep -n "ImageSource::Encoded" -A 5 src/adapters/webgl.rs` → `web_sys::console::warn_1(...)` immediately precedes the `continue`.
+- [x] C3 — Is `svg.rs`'s `Source::Path` silent-skip TODO genuinely implemented (not just reworded)? `grep -n "fn resolve_source\|fn skip_geometry" src/adapters/svg.rs` → both helpers present (`resolve_source` returns `Cow<[u8]>` via `std::fs::read`; `skip_geometry` performs the loud-skip path).
+- [x] C4 — Is `docs/pitfall/003_svg_geometry_path_source_silently_skipped.md` genuinely deleted (not merely unlinked)? Path lookup → does not exist; `docs/pitfall/` now contains only `001_...md` and `002_...md`.
+- [x] C5 — Are the `webgl_helpers.rs` Overlay comment and the `types.rs` depth-ordering doc comment now plain factual statements? Both read as claimed — Overlay (`webgl_helpers.rs:694-708`): "True Overlay (...) cannot be [expressed]... falls back to Normal"; `types.rs:204-205`: "SVG and terminal backends still emit in submission order... callers... must pre-sort" — neither carries a task-marker prefix.
+- [x] C6 — Is the crate genuinely marker-free crate-wide, including the "hidden" patterns the original census missed (`qqq(`, `**qqq (`, bare `(qqq)`)? `grep -rnE "qqq|xxx:|TODO|aaa:" src --include="*.rs"` → `0` hits.
+
+### Measurements
+
+- [x] M1 — Task-marker pattern hits (`qqq`/`TODO:`) across the 4 files this task named: `0` (was: `16` — `webgl.rs` 11, `svg.rs` 1, `webgl_helpers.rs` 2, `types.rs` 2, each counted via `git show 4469eafb^:<path> | grep -c` against the commit immediately preceding this task's own fix; the task's own hand-classified "13 sites" figure counts logical sites rather than raw pattern occurrences, so the two counting methods aren't expected to match digit-for-digit — both independently converge on "many, now zero").
+- [x] M2 — Inline test count in `src/adapters/svg.rs`: `83` at `git show 4469eafb:...svg.rs` (the commit containing this task's own fix) vs `80` at `git show 4469eafb^:...svg.rs` (immediately prior) — the +3 are this task's new `Source::Path` tests (`geometry_path_source_loads_from_disk`, `geometry_on_missing_path_is_skipped_with_comment`, `geometry_on_missing_index_path_is_skipped_whole`), confirmed present in the current `svg.rs`/`tests/svg_backend_test.rs` split (task 071 relocated the bulk of these afterward — see that task's own Verification for the 83→29+54 split).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, all features): `cargo nextest run -p tilemap_renderer --all-features` → exit 0, 122/122 passed — includes the 3 new `Source::Path` tests this task added, confirmed present and passing.
+- [x] I2 — Compiler/lints: `cargo clippy -p tilemap_renderer --all-targets --all-features -- -D warnings` → **exit 101** — genuine current drift, but not from this task's own edits. Two independent, pre-existing causes: (a) the workspace-wide `allow_attributes_without_reason` policy flip (`"allow"`→`"warn"` in the current HEAD commit `5f33be66`, 2026-08-11, dated after this task's 2026-08-10 completion; tracked-but-unexecuted in `task/draft/058_workspace_allow_sweep_per_crate.md`); (b) `webgl.rs` independently carries **20** older, structural lint hits at lines this task never touched — `clippy::wildcard_imports` ×3 (lines 35-37), `clippy::too_many_arguments` ×3, `clippy::trivially_copy_pass_by_ref` ×12, `clippy::too_many_lines` ×1 (`load_geometries`, the WebGL-side GPU geometry loader — a different function from `svg.rs`'s `resolve_source`/`skip_geometry` this task added), plus 1 more `allow_attributes_without_reason` — every one git-blames to April 2026 commits (e.g. `webgl.rs:74`'s `too_many_arguments` → `90ee7fe4`, 2026-04-22; `webgl.rs:923`'s `too_many_lines` → `a2967a0e`, 2026-04-15), roughly 4 months before this task existed. None of this task's own edit sites (the 6 capability-flag comments, the `Encoded`/load-path-gap comments, the 3 cross-refs, the Overlay/`types.rs` doc comments) appear in the failing log. Scoped confirmation for the rest of the crate (`--features enabled,adapter-svg,adapter-terminal,cli,scene-model -- -D warnings -A clippy::allow_attributes_without_reason`) → exit 0.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a marker silently reappearing under one of the "hidden" patterns the original census missed: re-run C6's widened `grep -rnE "qqq|xxx:|TODO|aaa:"` after any future edit to `webgl.rs`/`svg.rs`/`webgl_helpers.rs`/`types.rs` — must stay `0`.
+- [x] AF2 — Guards against the new `resolve_source`/`skip_geometry` helpers regressing back to a silent skip: `svg.rs`'s loud-skip path must keep emitting its stderr warning + diagnostic HTML comment on read failure — a future refactor that drops the warning reintroduces the exact defect the now-deleted `docs/pitfall/003` used to document, with nothing left to catch the regression.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 038's workspace marker census (80 lines →

@@ -148,9 +148,7 @@ mod private
     /// light; normalized internally. Cone angles are radians from the axis,
     /// `inner_cone_angle <= outer_cone_angle`. Returns `false` — dropping the
     /// light — when the array is full.
-    // Seven physical parameters : a spot light irreducibly needs position, axis, color,
-    // strength, range, and both cone angles; a params struct would only rename them.
-    #[ allow( clippy::too_many_arguments ) ]
+    #[ expect( clippy::too_many_arguments, reason = "a spot light irreducibly needs position, axis, color, strength, range, and both cone angles" ) ]
     #[ must_use ]
     pub fn push_spot
     (

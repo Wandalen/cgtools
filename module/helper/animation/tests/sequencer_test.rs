@@ -1,4 +1,5 @@
 //! Integration tests related to Sequencer struct
+#![ expect( clippy::float_cmp, reason = "assertions check deterministic tween/sequencer arithmetic against exact expected values" ) ]
 
 #[ cfg( test ) ]
 mod tests
@@ -31,7 +32,7 @@ mod tests
     assert_eq!( sequencer.state(), AnimationState::Pending );
     assert_eq!( sequencer.animation_count(), 0 );
 
-    let float_tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
+    let float_tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() );
     sequencer.insert( "test", float_tween );
 
     assert_eq!( sequencer.state(), AnimationState::Running );
@@ -57,8 +58,8 @@ mod tests
   {
     let mut sequencer = Sequencer::new();
 
-    let tween1 = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
-    let tween2 = Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::new() );
+    let tween1 = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() );
+    let tween2 = Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::build() );
     sequencer.insert( "short_tween", tween1 );
     sequencer.insert( "long_tween", tween2 );
 
@@ -82,7 +83,7 @@ mod tests
     sequencer.insert
     (
       "test",
-      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() )
     );
 
     sequencer.update( 0.5 );
@@ -111,7 +112,7 @@ mod tests
     sequencer.insert
     (
       "test",
-      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() )
     );
 
     sequencer.update( 0.5 );
@@ -137,12 +138,12 @@ mod tests
     sequencer.insert
     (
       "tween1",
-      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() )
+      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::build() )
     );
     sequencer.insert
     (
       "tween2",
-      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() )
+      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::build() )
     );
     assert_eq!( sequencer.animation_count(), 2 );
 
@@ -163,7 +164,7 @@ mod tests
     sequencer.insert
     (
       "float_tween",
-      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() )
     );
 
     assert!( sequencer.get::< Tween< i32 > >( "float_tween" ).is_none() );
@@ -179,7 +180,7 @@ mod tests
     sequencer.insert
     (
       "ease_in_tween",
-      Tween::new( 0.0_f32, 10.0_f32, 1.0, EaseInSine::new() )
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, EaseInSine::build() )
     );
 
     sequencer.update( 0.5 );
@@ -222,7 +223,7 @@ mod tests
     sequencer.insert
     (
       "tween",
-      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() ).with_delay( 0.5 )
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_delay( 0.5 )
     );
 
     assert_eq!( sequencer.delay_get(), 0.5 );
@@ -255,8 +256,8 @@ mod tests
   {
     let players = vec!
     [
-      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() ).with_delay( 2.0 ),
-      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() ).with_delay( 1.0 ),
+      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::build() ).with_delay( 2.0 ),
+      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::build() ).with_delay( 1.0 ),
     ];
 
     let result = Sequence::new( players );

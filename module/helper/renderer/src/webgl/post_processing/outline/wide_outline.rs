@@ -243,7 +243,15 @@ mod private
 
   impl WideOutlinePass
   {
-    /// Creates a new `NarrowOutlinePass` instance.
+    /// Creates a new `WideOutlinePass` instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the JFA/outline shaders fail to compile or link.
+    ///
+    /// # Panics
+    ///
+    /// Panics if creating the JFA framebuffers fails.
     pub fn new(
       gl : &gl::WebGl2RenderingContext,
       object_color_texture : WebGlTexture,

@@ -16,6 +16,8 @@ mod private
   ///
   /// `drawbuffers( &gl, &[ 0, 1, 3 ] );`
   ///
+  /// # Panics
+  /// Panics if an attachment index overflows a valid color attachment constant.
   pub fn drawbuffers( gl : &GL, attachments : &[ u32 ] )
   {
     let mut buffers = [ gl::NONE; MAX_COLOR_ATTACHMENTS ];
@@ -24,15 +26,12 @@ mod private
       let index = *attachment as usize;
       let attachment = attachment
       .checked_add( gl::COLOR_ATTACHMENT0 )
-      .expect( &format!( "Invalid color attachment {}", *attachment ) );
+      .unwrap_or_else( || panic!( "Invalid color attachment {}", *attachment ) );
       buffers[ index ] = attachment;
     }
 
     let last = buffers.iter().rposition( | item | *item != gl::NONE ).map_or( 1, | i | i + 1 );
-    let array = js_sys::Array::from_iter
-    (
-      buffers[ .. last ].iter().map( | item | JsValue::from_f64( *item as f64 ) )
-    );
+    let array : js_sys::Array = buffers[ .. last ].iter().map( | item | JsValue::from_f64( f64::from( *item ) ) ).collect();
 
     gl.draw_buffers( &array );
   }

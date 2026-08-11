@@ -368,7 +368,7 @@ pub struct CollisionSystem;
 
 impl CollisionSystem {
   /// Detects collisions between all entities with collision components.
-  #[allow(clippy::similar_names)] // Pairwise collision loop — numbered pair bindings are the clearest naming.
+  #[ expect( clippy::similar_names, reason = "pairwise collision loop; numbered pair bindings are the clearest naming" ) ]
   pub fn detect_collisions<C>(
     world: &hecs::World,
   ) -> Vec<CollisionEvent<C>>

@@ -543,10 +543,7 @@ impl TacticalRPG {
     let player_units_alive = self.count_living_units(self.player_team.id);
     let enemy_units_alive = self.count_living_units(self.enemy_team.id);
     
-    // Both branches diverge (`break`), so a trailing `else` would be flagged
-    // `redundant_else`, but omitting it triggers `else_if_without_else` — the two
-    // pedantic lints contradict for this pattern; redundant_else's guidance is followed.
-    #[allow(clippy::else_if_without_else)]
+    #[allow(clippy::else_if_without_else, reason = "both branches diverge (`break`), so a trailing `else` would be flagged `redundant_else`, but omitting it triggers `else_if_without_else` — the two pedantic lints contradict for this pattern; redundant_else's guidance is followed")]
     if player_units_alive == 0 {
       println!("💀 Defeat! All player units have fallen.");
       break;

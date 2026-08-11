@@ -125,6 +125,10 @@ mod private
     /// # Arguments
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the color-grading shader fails to compile or link.
     pub fn new( gl : &gl::WebGl2RenderingContext ) -> Result< Self, gl::WebglError >
     {
       let fs_shader = include_str!( "../shaders/post_processing/color_grading.frag" );

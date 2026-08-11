@@ -38,6 +38,31 @@ Cross-crate coupling: `alias/browser_tools` includes this crate's `tests/basic_t
 keep the include green (`cargo test -p browser_tools` must stay exit 0 alongside
 `cargo test -p browser_log`, both via `longrun .launch`).
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Does `tests/panic_hook_test.rs` exist with exactly the 3 claimed tests (field defaults, independent field construction, real-panic native-hook run)? Confirmed by file content and by the nextest run itself: `config_default_enables_location_and_stack_trace`, `config_fields_construct_independently`, `native_hook_runs_on_real_panic` — all 3 present and passing.
+- [x] C2 — Are both `qqq` markers gone from `src/panic.rs` (originally at lines 75, 78)? `grep -c qqq src/panic.rs` → `0` (was `2` at the pre-fix baseline, `git show 25ceae76:module/helper/browser_log/src/panic.rs`).
+- [x] C3 — Was `tests/basic_test.rs` left byte-identical, protecting `browser_tools`'s path-include? `git diff 25ceae76 -- module/helper/browser_log/tests/basic_test.rs` → empty diff (byte-identical to the pre-077 baseline).
+- [x] C4 — Does the cross-crate coupling (`browser_tools` including this crate's `basic_test.rs` by path) still hold? `module/alias/browser_tools/tests/basic_test.rs:3` still reads `#[ path = "../../../helper/browser_log/tests/basic_test.rs" ]`.
+- [x] C5 — Does `panic::Config`'s struct doc record the wasm-only gating semantics and point at the pinning test file, as claimed? Confirmed at `src/panic.rs:73-81`: doc comment states the two flags "gate message sections on the wasm32 target only" and "Defaults and field contract are pinned by `tests/panic_hook_test.rs`".
+
+### Measurements
+
+- [x] M1 — Test count in `browser_log/tests/`: `2` files / `5` tests (`basic_test.rs`: 2, `panic_hook_test.rs`: 3) (was: `1` file / `2` tests — `git show 25ceae76:module/helper/browser_log/tests/basic_test.rs`, the only file present pre-fix, containing 2 `#[ test ]`s).
+- [x] M2 — `qqq` marker count in `src/panic.rs`: `0` (was: `2`, same baseline as C2).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, includes the doctested readme): `cargo nextest run -p browser_log --all-features && cargo test -p browser_log --doc --all-features` → exit 0; nextest 5/5 passed (`browser_log::basic_test` 2/2, `browser_log::panic_hook_test` 3/3), doc-tests 10/10 passed.
+- [ ] I2 — Compiler/lints clean: `cargo clippy -p browser_log --all-targets --all-features -- -D warnings` → **exit 101, FAILS** — identical finding to sibling task 029 (same crate, same run, reused per this batch's crate-scoped reuse rule): `src/panic.rs:82`'s `#[ allow( clippy::exhaustive_structs ) ]` lacks `reason = "..."`. Confirmed via `git show 4469eafb:module/helper/browser_log/src/panic.rs` that this attribute did not exist in the squash commit containing task 077's own changes — it was added afterward by unrelated commit `5f33be66`. Not a regression caused by this task.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a `qqq` marker (or an untested wasm-only branch) being silently reintroduced without matching coverage: re-running C2's `grep -c qqq src/panic.rs` must keep returning `0`; any new wasm-only gated behavior needs the same testability-first triage this task documented (native vs. wasm-only split) before being marked done.
+- [x] AF2 — Guards against the panic-hook process-global race this task deliberately avoided: `native_hook_runs_on_real_panic` must remain in its own file (`tests/panic_hook_test.rs`, a separate test binary from `tests/basic_test.rs`) — confirmed still the case; merging it into `basic_test.rs` would reintroduce the hook-swap race the task's History explicitly called out.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 035's workspace test-coverage census per Crate

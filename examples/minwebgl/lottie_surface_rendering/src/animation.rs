@@ -359,13 +359,10 @@ impl Animation
     )
     .collect::< HashMap< _, _ > >();
 
-    let gltf = primitives_data_to_gltf
-    (
-      gl,
-      primitives_data.into_iter()
-      .map( | ( p, _ ) | p )
-      .collect::< Vec< _ > >()
-    );
+    let primitives = primitives_data.into_iter()
+    .map( | ( p, _ ) | p )
+    .collect::< Vec< _ > >();
+    let gltf = primitives_data_to_gltf( gl, &primitives );
 
     Self
     {

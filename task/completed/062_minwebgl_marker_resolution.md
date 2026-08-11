@@ -38,6 +38,34 @@ stays, or delete if stale/unactionable. Verify with `cargo check -p minwebgl --a
 the crate's test suite via `longrun .launch` (never set bare `RUSTFLAGS` on wasm32 builds — it
 clobbers `.cargo/config.toml`'s `--cfg web_sys_unstable_apis`).
 
+## Verification
+
+### Checklist
+
+- [x] C1 — `Cargo.toml`: zero `bytemuck`/`xxx` hits? `grep -in "bytemuck\|xxx" module/min/minwebgl/Cargo.toml` → `0` hits.
+- [x] C2 — `geometry.rs`: is the natoms-to-compile-time-type switch genuinely deleted (not merely extracted, as the in-loop adversarial finding D4 required)? Direct read confirms `BufferDescriptor` is now built via a plain struct literal (`geometry.rs:93-101`) driven by the runtime `typ : VectorDataType`, not a `match typ.natoms { 2 => BufferDescriptor::new::<[f32;2]>() ... }` dispatch.
+- [x] C3 — Is `validate_natoms` genuinely widened to `1..=4` (not still `2`-only)? Direct read confirms `1 ..= 4 => Ok( () )` (`geometry.rs:41`); git-verified boundary: `9b71cf39` (this file's prior state) had `2 =>` only, `4469eafb` (this task's own commit) introduced `1 ..= 4 =>`.
+- [x] C4 — `browser.rs`: is `// xxx : investigate` genuinely deleted, not moved? Direct read + `grep -c xxx module/min/minwebgl/src/browser.rs` → `0`; git-verified present at `dea7a008`, absent at `4469eafb`/current, with the rest of the file (`reuse ::browser_log;` + `JsCast` re-export) otherwise unchanged.
+- [x] C5 — Full workspace-marker census: zero `xxx :`/`qqq :`/`aaa :` hits anywhere under `module/min/minwebgl/`? `grep -rn "xxx *:\|qqq *:\|aaa *:" module/min/minwebgl/src/ module/min/minwebgl/Cargo.toml` → `0` hits, matching this task's own "census grep returns zero hits" claim.
+- [x] C6 — Was BUG-052's reproducer test genuinely updated (not silently vacated) to match the widened range, per this task's own in-loop adversarial catch B3? Direct read of `validate_natoms_rejects_unsupported_value` confirms its probes are `[ 0, 5, -1 ]` (outside `1..=4`), not the original `3` (now supported), with a doc comment explaining the move.
+
+### Measurements
+
+- [x] M1 — `validate_natoms`'s accepted range: now `1..=4` (4 values) (was: `2` only, 1 value — cite `git show 9b71cf39:module/min/minwebgl/src/geometry.rs`).
+- [x] M2 — Live task-marker (`xxx`/`qqq`/`aaa`) count in `module/min/minwebgl/`: now `0` (was: `3` — `Cargo.toml:77`, `geometry.rs:79`, `browser.rs:10` — per this task's own Goal census).
+
+### Invariants
+
+- [x] I1 — Crate-scoped native test suite: `cargo test -p minwebgl --all-features` → exit `0`; both `validate_natoms_accepts_supported_values` and `validate_natoms_rejects_unsupported_value` report `ok` under the widened range.
+- [ ] I2 — Lint cleanliness, literal historically-cited command: `cargo clippy -p minwebgl --all-targets --all-features -- -D warnings` → exit `101` today, blocked at the unrelated `browser_log` dependency — same root cause as task 011's I2, unrelated to this task's own 3 files.
+- [ ] I3 — Lint cleanliness, isolated to this task's own change: `cargo clippy -p minwebgl --no-deps --all-targets --all-features -- -D warnings` surfaces **one finding genuinely attributable to this task**: `geometry.rs:4`'s `use crate::{ ..., AsBytes };` import is now unused (`error: unused import: AsBytes`) — the deleted switch (C2) was `AsBytes`'s only consumer (`grep -n AsBytes module/min/minwebgl/src/geometry.rs` → only the import line itself, `0` other uses) and the import was not removed alongside it. This is genuine, currently-real, unresolved drift caused by this task's own change; it is reported here, not fixed (outside this verification pass's edit scope).
+- [x] I4 — Sole external caller (`hexagonal_grid`, 3× `Positions::new( _, _, 2 )`): `cargo check -p hexagonal_grid --all-features` → exit `0`.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the `AsBytes` dead import (I3) silently persisting or reappearing unnoticed after a fix: `grep -n AsBytes module/min/minwebgl/src/geometry.rs` must show more than 1 hit (an actual use, not just the import line) before this finding can be marked resolved — re-run this check after any future edit to confirm.
+- [x] AF2 — Guards against the `natoms` range narrowing back to `2`-only and silently dropping 3D/4D support: re-run `validate_natoms_accepts_supported_values`'s `1..=4` loop — any future narrowing must fail that test loudly, not silently.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 038's workspace marker census (80 lines →

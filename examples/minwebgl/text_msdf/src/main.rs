@@ -9,7 +9,7 @@ mod json;
 
 async fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
 
   let canvas = gl::canvas::retrieve_or_make()?;
   let gl = gl::context::from_canvas( &canvas )?;
@@ -89,28 +89,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl::uniform::upload( &gl, tex_size_location, &font.scale[ .. ] )?;
   gl::uniform::upload( &gl, bounding_box_location, &fortmatted_text.bounding_box.to_array()[ .. ] )?;
 
-  // Load an image and upload it to the texture when it's loaded
-  let img = gl::dom::create_image_element( "static/font/Alike-Regular.png" ).unwrap();
-  img.style().set_property( "display", "none" ).unwrap();
-
-  let texture = gl.create_texture();
-  let load_texture : Closure< dyn Fn() > = Closure::new
-  (
-    {
-      let texture = texture.clone();
-      let gl = gl.clone();
-      let img = img.clone();
-      move ||
-      {
-        gl::texture::d2::upload_no_flip( &gl, texture.as_ref(), &img );
-        gl::texture::d2::default_parameters( &gl );
-        img.remove();
-      }
-    }
-  );
-
-  img.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
-  load_texture.forget();
+  load_font_texture( &gl );
 
   gl.enable( gl::DEPTH_TEST );
   gl.enable( gl::BLEND );
@@ -146,6 +125,32 @@ async fn run() -> Result< (), gl::WebglError >
   // Run the render loop
   gl::exec_loop::run( update_and_draw );
   Ok( () )
+}
+
+/// Loads the MSDF font atlas image and uploads it into a texture once the image is ready.
+fn load_font_texture( gl : &gl::WebGl2RenderingContext )
+{
+  let img = gl::dom::create_image_element( "static/font/Alike-Regular.png" ).unwrap();
+  img.style().set_property( "display", "none" ).unwrap();
+
+  let texture = gl.create_texture();
+  let load_texture : Closure< dyn Fn() > = Closure::new
+  (
+    {
+      let texture = texture.clone();
+      let gl = gl.clone();
+      let img = img.clone();
+      move ||
+      {
+        gl::texture::d2::upload_no_flip( &gl, texture.as_ref(), &img );
+        gl::texture::d2::default_parameters( &gl );
+        img.remove();
+      }
+    }
+  );
+
+  img.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+  load_texture.forget();
 }
 
 fn main()

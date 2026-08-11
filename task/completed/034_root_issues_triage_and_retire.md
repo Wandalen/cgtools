@@ -28,6 +28,32 @@ entirely once its content has a traceable destination (this task itself is a Con
 spirit — every one of the 8 existing entries needs an accounted-for outcome before the file is removed,
 not a silent drop).
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is root `issues.md` still absent from the working tree? `test -f issues.md` → absent, confirmed.
+- [x] C2 — Is the deletion still correctly attributed to the prior, unrelated commit (not this task)? `git log --oneline -- issues.md` → single entry, `9b71cf39` ("feat: add scene script support and comprehensive testing across examples"; commit body explicitly states "Remove legacy issues.md and todo.md in favor of task system").
+- [x] C3 — Does the recovered pre-deletion content still contain exactly 16 catalogued items (not the Goal text's stale "8")? `git show 9b71cf39^:issues.md | grep -c "^## Issue:"` → `16`.
+- [x] C4 — Are all 8 claimed-resolved items (1-8) still resolved today? Re-ran each item's original grep fresh this session (not reused from the file): markers 1, 2, 4, 5 gone; the `hset` import (3) gone entirely from `iter_test.rs`; `fn draw` (7, 8) — zero matches in `shader.rs`. Item 6's marker is gone as a live comment; it now exists solely as a *quoted* citation inside a `///` fix-doc comment at `mul_test.rs:79,88` ("previously commented out (`qqq : implement try build test throwing error`)..." / "This test replaces the old commented-out attempt...") — matching the file's own description exactly.
+- [x] C5 — Are the 8 claimed-still-live items (9-16) still traceable to a real, non-dead-end destination? **Drift found, reported honestly:** as of today all 8 are themselves fully resolved, not merely traceable — re-grepping each of the 6 files (`mingl/{Cargo.toml,src/data_type.rs,src/derive.rs}`, `minwebgl/{Cargo.toml,src/browser.rs,src/geometry.rs}`) for the original marker text returns 0 hits on all 8. Traced the chain: this task named task 038 as the disposition → task 038 (now ✅ Completed) filed the 8 items into per-crate drafts **061** `mingl_marker_resolution` (5 items) and **062** `minwebgl_marker_resolution` (3 items) rather than resolving them itself → **061** and **062** are both now ✅ Completed and have since resolved all 8. This confirms this task's disposition call was correct and has since been fulfilled exactly as anticipated — expected forward progress, not a defect in this task's own 2026-08-10-dated claims.
+- [x] C6 — Is task 038 (this task's named destination) still a real, non-cancelled task? At this task's own gate check it was 📝 Draft; per C5 it is now ✅ Completed — never a dead end at any point in between.
+
+### Measurements
+
+- [x] M1 — Catalogued items in the recovered pre-deletion snapshot: `16` (was: `8`, per this task's own Goal-text citation — which this task's History entry itself already identified as stale at filing time).
+- [x] M2 — Of the original 16 items, currently-still-live markers: `0` (was: `8` live at this task's 2026-08-10 investigation) — all 8 resolved since, via the chain traced in C5 (034 → 038 → 061/062, all now ✅ Completed).
+
+### Invariants
+
+- [x] I1 — Re-derivation of issues.md's pre-deletion content and item count: `git show 9b71cf39^:issues.md | grep -c "^## Issue:"` → `16`.
+- [x] I2 — Chain-of-custody re-check for the 8 still-live-at-filing items' disposition: `grep -H "state:" task/completed/038_workspace_marker_backlog_cleanup.md task/completed/061_mingl_marker_resolution.md task/completed/062_minwebgl_marker_resolution.md` → all 3 show `✅ (Completed)`.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a future `issues.md` reappearing with new, unaccounted content being waved through as already-triaged: re-running C1 (`test -f issues.md`) is the trigger — if it ever returns present, this task's "content-preserving obligation discharged" claim no longer covers the new content and a fresh triage is required.
+- [x] AF2 — Guards against citing a destination task that turns out to be cancelled/dead with no successor: re-running C5/C6's `state:` grep on the cited destination(s) must never show a cancelled/superseded state with no further successor named — the live chain (038 → 061/062) must always terminate in either an open task or a genuinely resolved one.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P6 (retire

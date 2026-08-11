@@ -9,7 +9,7 @@ mod private
   use serde::{ Deserialize, Serialize };
   use rustc_hash::FxHashMap as HashMap;
   pub use tilemap_renderer::types::BlendMode;
-  use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
+  pub use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
 
   // ============================================================================
   // Reference wrappers
@@ -454,6 +454,9 @@ mod_interface::mod_interface!
   exposed use SheetLayout;
   exposed use Tint;
   exposed use BlendMode;
+  exposed use SamplerFilter;
+  exposed use MipmapMode;
+  exposed use WrapMode;
   exposed use Animation;
   exposed use AnimationTiming;
   exposed use TimedFrame;

@@ -22,8 +22,8 @@ fn create_translation_sequence( start : F64x3, end : F64x3, duration : f64 ) -> 
 {
   let tweens =
   vec![
-    Tween::new( start, end, duration / 2.0, Linear::new() ),
-    Tween::new( end, start, duration / 2.0, Linear::new() )
+    Tween::new( start, end, duration / 2.0, Linear::build() ),
+    Tween::new( end, start, duration / 2.0, Linear::build() )
   ];
   Sequence::new( tweens ).unwrap()
 }
@@ -33,8 +33,8 @@ fn create_rotation_sequence( start : QuatF64, end : QuatF64, duration : f64 ) ->
 {
   let tweens =
   vec![
-    Tween::new( start, end, duration / 2.0, Linear::new() ),
-    Tween::new( end, start, duration / 2.0, Linear::new() )
+    Tween::new( start, end, duration / 2.0, Linear::build() ),
+    Tween::new( end, start, duration / 2.0, Linear::build() )
   ];
   Sequence::new( tweens ).unwrap()
 }
@@ -44,8 +44,8 @@ fn create_scale_sequence( start : F64x3, end : F64x3, duration : f64 ) -> Sequen
 {
   let tweens =
   vec![
-    Tween::new( start, end, duration / 2.0, Linear::new() ),
-    Tween::new( end, start, duration / 2.0, Linear::new() )
+    Tween::new( start, end, duration / 2.0, Linear::build() ),
+    Tween::new( end, start, duration / 2.0, Linear::build() )
   ];
   Sequence::new( tweens ).unwrap()
 }
@@ -87,9 +87,7 @@ fn test_normalize_weights_unequal()
 }
 
 #[ test ]
-// Weights are never touched by `normalize_weights` when their sum is zero, so the
-// retrieved value is the exact input literal, not a computed/rounded result.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "weights with zero sum are untouched by `normalize_weights`; the retrieved value is the exact input literal" ) ]
 fn test_normalize_weights_zero_sum()
 {
   let mut values = vec!
@@ -107,9 +105,7 @@ fn test_normalize_weights_zero_sum()
 }
 
 #[ test ]
-// These assert the exact weight literal written via `weights_get_mut` round-trips
-// unchanged through `weights_get` (no arithmetic in between), so exact equality is correct.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
 fn test_blender_weights_get_mut()
 {
   let mut blender = Blender::new();
@@ -150,9 +146,7 @@ fn test_blender_animation_get()
 }
 
 #[ test ]
-// These assert the exact weight literal passed to `add` round-trips unchanged through
-// `weights_get` (no arithmetic in between), so exact equality is correct.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
 fn test_blender_multiple_animations_with_different_weights()
 {
   let mut blender = Blender::new();
@@ -221,9 +215,7 @@ fn test_blender_normalization_enabled()
 }
 
 #[ test ]
-// These assert the exact weight literal passed to `add` round-trips unchanged through
-// `weights_get` (no arithmetic in between), so exact equality is correct.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
 fn test_blender_independent_transform_blend()
 {
   let mut blender = Blender::new();
@@ -267,9 +259,7 @@ fn test_blender_independent_transform_blend()
 }
 
 #[ test ]
-// These assert the exact weight literal passed to `add` round-trips unchanged through
-// `weights_get` (no arithmetic in between), so exact equality is correct.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
 fn test_blender_scale_blend_independence()
 {
   let mut blender = Blender::new();

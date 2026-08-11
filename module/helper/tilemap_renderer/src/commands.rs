@@ -32,7 +32,6 @@ mod private
   // `tilemap_scene/src/compile/frame.rs:713` and
   // `tilemap_renderer/tests/backend_test.rs:242`, so `#[non_exhaustive]` would
   // break those call sites.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct Clear
   {
@@ -50,7 +49,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:99`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct BeginPath
   {
@@ -78,7 +76,6 @@ mod private
   // Constructed via tuple-struct syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:111`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct MoveTo( pub f32, pub f32 );
 
@@ -86,7 +83,6 @@ mod private
   // Constructed via tuple-struct syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:112`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct LineTo( pub f32, pub f32 );
 
@@ -94,7 +90,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:146`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct QuadTo
   {
@@ -112,7 +107,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:147`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct CubicTo
   {
@@ -135,7 +129,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:150`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct ArcTo
   {
@@ -159,7 +152,6 @@ mod private
   // Constructed as a unit-struct value from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:113`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct ClosePath;
 
@@ -167,7 +159,6 @@ mod private
   // Constructed as a unit-struct value from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:114`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct EndPath;
 
@@ -180,7 +171,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:1397`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct BeginText
   {
@@ -204,7 +194,6 @@ mod private
   // Constructed via tuple-struct syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:1418`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct Char( pub char );
 
@@ -212,7 +201,6 @@ mod private
   // Constructed as a unit-struct value from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:1420`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct EndText;
 
@@ -226,7 +214,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `examples/minwebgl/hexagonal_map/src/main.rs:401`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct Mesh
   {
@@ -254,7 +241,6 @@ mod private
   // Constructed via full struct-literal syntax (with `..` update syntax) from
   // outside this crate, e.g. `tilemap_renderer/tests/svg_backend_test.rs:500`,
   // so `#[non_exhaustive]` would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct Sprite
   {
@@ -297,7 +283,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_scene/src/renderer.rs:643`, so `#[non_exhaustive]` would break
   // that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct SpriteBatchParams
   {
@@ -320,7 +305,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/commands_test.rs:115`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct MeshBatchParams
   {
@@ -352,7 +336,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_scene/src/renderer.rs:640`, so `#[non_exhaustive]` would break
   // that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct CreateSpriteBatch
   {
@@ -366,7 +349,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:597`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct CreateMeshBatch
   {
@@ -398,7 +380,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_scene/src/renderer.rs:601`, so `#[non_exhaustive]` would break
   // that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct BindBatch
   {
@@ -415,7 +396,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_scene/src/renderer.rs:623`, so `#[non_exhaustive]` would break
   // that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct AddSpriteInstance
   {
@@ -436,7 +416,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:612`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct AddMeshInstance
   {
@@ -459,7 +438,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_scene/src/renderer.rs:605`, so `#[non_exhaustive]` would break
   // that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct SetSpriteInstance
   {
@@ -519,7 +497,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_scene/src/renderer.rs:618`, so `#[non_exhaustive]` would break
   // that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct RemoveInstance
   {
@@ -557,7 +534,6 @@ mod private
   // Constructed as a unit-struct value from outside this crate, e.g.
   // `tilemap_scene/src/renderer.rs:630`, so `#[non_exhaustive]` would break
   // that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct UnbindBatch;
 
@@ -577,7 +553,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_scene/src/renderer.rs:409`, so `#[non_exhaustive]` would break
   // that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct DrawBatch
   {
@@ -595,7 +570,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_scene/src/renderer.rs:313`, so `#[non_exhaustive]` would break
   // that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct DeleteBatch
   {
@@ -647,7 +621,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:816`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct BeginGroup
   {
@@ -663,7 +636,6 @@ mod private
   // Constructed as a unit-struct value from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:724`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct EndGroup;
 

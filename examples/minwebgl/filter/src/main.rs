@@ -1,3 +1,4 @@
+//! Image filter example — applies post-processing filter shaders to a textured quad with WebGL2.
 
 use minwebgl as gl;
 use gl::GL;
@@ -12,7 +13,7 @@ use wasm_bindgen::prelude::*;
 
 fn main()
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   run();
 }
 
@@ -28,7 +29,7 @@ fn run()
     gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
     gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
 
-    gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, true as i32 );
+    gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, i32::from( true ) );
     gl.tex_image_2d_with_u32_and_u32_and_html_image_element
     (
       GL::TEXTURE_2D,
@@ -36,9 +37,9 @@ fn run()
       GL::RGBA as i32,
       GL::RGBA,
       GL::UNSIGNED_BYTE,
-      &img,
+      img,
     ).expect( "Can't load an image" );
-    gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, false as i32 );
+    gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, i32::from( false ) );
     gl.generate_mipmap( GL::TEXTURE_2D );
 
     let canvas = gl.canvas().expect( "Canvas should exist" ).dyn_into::< HtmlCanvasElement >().unwrap();
@@ -73,9 +74,9 @@ fn run()
         // `web_sys_unstable_apis` is active (see minwebgl/src/texture/d2.rs); the explicit
         // `as f64` before subtracting `rect.left()`/`.top()` (always `f64`) compiles in both
         // cases (`i32 as f64` widens, `f64 as f64` is an identity cast).
-        #[ allow( clippy::unnecessary_cast ) ]
+        #[ allow( clippy::unnecessary_cast, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is an identity only under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled in the default i32 build" ) ]
         let x = ( e.client_x() as f64 - rect.left() ) as f32;
-        #[ allow( clippy::unnecessary_cast ) ]
+        #[ allow( clippy::unnecessary_cast, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is an identity only under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled in the default i32 build" ) ]
         let y = ( e.client_y() as f64 - rect.top() ) as f32;
         let y = canvas.height() as f32 - y;
         gl::uniform::upload( &gl, cursor_pos_location.clone(), [ x, y ].as_slice() ).unwrap();
@@ -89,7 +90,7 @@ fn run()
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
   };
 
-  load_image( &image_path, Box::new( load ) );
+  load_image( image_path, Box::new( load ) );
 }
 
 fn load_image( path : &str, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )

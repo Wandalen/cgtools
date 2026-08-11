@@ -28,6 +28,10 @@ mod private
 
   /// Loads data to data texture where every pixel
   /// is 4 float values. Used for packing matrices array
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError` if the texture allocation or upload fails.
   pub fn load_texture_data_4f
   (
     gl : &GL,
@@ -333,6 +337,9 @@ mod private
     /// |  X  | Y (4 bytes) |  Z  |   |       |    |    |       |    |     |       |    |      ...       |
     /// +-----+-------------+-----+---+--...--+----+----+--...--+----+-----+--...--+----+------...-------+
     ///
+    /// # Panics
+    ///
+    /// Does not panic in practice : the `unwrap` runs only on slots pre-filtered to be `Some`.
     pub fn pack_displacements_data( &mut self ) -> Vec< f32 >
     {
       let arrays =
@@ -381,9 +388,6 @@ mod private
     }
 
     /// Uploads morph targets data to uniforms
-    // 111 lines : one GPU-upload sequence ( texture realloc, weight defaults, packing,
-    // size guard, uniform uploads ) over tightly coupled GL state; splitting would scatter it.
-    #[ allow( clippy::too_many_lines ) ]
     fn upload
     (
       &mut self,
@@ -399,84 +403,105 @@ mod private
         .is_none();
       }
 
-      if self.need_update_displacement
+      if self.need_update_displacement && !self.displacements_update( gl )
       {
-        if self.displacements_texture.is_none()
+        return;
+      }
+
+      self.uniforms_upload( gl, locations );
+    }
+
+    /// Repacks displacement data and reallocates the displacement texture.
+    ///
+    /// Returns `false` when the required texture would exceed the WebGL size limit — the update is
+    /// abandoned and `need_update_displacement` stays set, so the next call retries.
+    fn displacements_update( &mut self, gl : &GL ) -> bool
+    {
+      if self.displacements_texture.is_none()
+      {
+        self.displacements_texture = gl.create_texture();
+      }
+
+      let mut data = self.pack_displacements_data();
+
+      let vertex_displacement_len = self.attributes_count() * self.targets_count;
+      if self.morph_weights.borrow().is_empty()
+      {
+        *self.morph_weights.borrow_mut() = if self.default_weights.len() == self.targets_count
         {
-          self.displacements_texture = gl.create_texture();
+          self.default_weights.clone()
+        }
+        else
+        {
+          vec![ 0.0; self.targets_count ]
+        };
+      }
+
+      if vertex_displacement_len != 0
+      {
+        let v = vertex_displacement_len as f32;
+        let i = ( ( data.len() as f32 ).sqrt() / v ).floor();
+        let a = ( v * i ) as u32;
+        let b = ( data.len() as f32 / a as f32 ).ceil() as u32;
+
+        let max_size = gl.get_parameter( gl::MAX_TEXTURE_SIZE )
+        .ok()
+        .and_then(| v | v.as_f64())
+        .unwrap_or( 0.0 ) as u32;
+        if a.max( b ) > max_size
+        {
+          gl::web::error!
+          (
+            "Displacement texture size exceeded max WebGL texture size: {:?} > {:?}",
+            ( a, b ),
+            ( max_size, max_size )
+          );
+          return false;
         }
 
-        let mut data = self.pack_displacements_data();
+        self.disp_texture_size = [ a, b ];
+        data.extend( vec![ 0.0; ( a * b * 4 ) as usize - data.len() ] );
+        let _ = load_texture_data_4f( gl, self.displacements_texture.as_ref().unwrap(), data.as_slice(), [ a, b ] );
+      }
 
-        let vertex_displacement_len = self.attributes_count() * self.targets_count;
-        if self.morph_weights.borrow().is_empty()
+      let mut offset = 0_i32;
+      let offsets =
+      [
+        &self.positions_displacements,
+        &self.normals_displacements,
+        &self.tangents_displacements
+      ]
+      .map
+      (
+        | v |
         {
-          *self.morph_weights.borrow_mut() = if self.default_weights.len() == self.targets_count
+          if v.is_some()
           {
-            self.default_weights.clone()
+            let i = offset;
+            offset += 1;
+            i
           }
           else
           {
-            vec![ 0.0; self.targets_count ]
-          };
-        }
-
-        if vertex_displacement_len != 0
-        {
-          let v = vertex_displacement_len as f32;
-          let i = ( ( data.len() as f32 ).sqrt() / v ).floor();
-          let a = ( v * i ) as u32;
-          let b = ( data.len() as f32 / a as f32 ).ceil() as u32;
-
-          let max_size = gl.get_parameter( gl::MAX_TEXTURE_SIZE )
-          .ok()
-          .and_then(| v | v.as_f64())
-          .unwrap_or( 0.0 ) as u32;
-          if a.max( b ) > max_size
-          {
-            gl::web::error!
-            (
-              "Displacement texture size exceeded max WebGL texture size: {:?} > {:?}",
-              ( a, b ),
-              ( max_size, max_size )
-            );
-            return;
+            -1
           }
-
-          self.disp_texture_size = [ a, b ];
-          data.extend( vec![ 0.0; ( a * b * 4 ) as usize - data.len() ] );
-          let _ = load_texture_data_4f( gl, self.displacements_texture.as_ref().unwrap(), data.as_slice(), [ a, b ] );
         }
+      );
 
-        let mut offset = 0_i32;
-        let offsets =
-        [
-          &self.positions_displacements,
-          &self.normals_displacements,
-          &self.tangents_displacements
-        ]
-        .map
-        (
-          | v |
-          {
-            if v.is_some()
-            {
-              let i = offset;
-              offset += 1;
-              i
-            }
-            else
-            {
-              -1
-            }
-          }
-        );
+      self.disp_offsets = I32x3::from_array( offsets );
 
-        self.disp_offsets = I32x3::from_array( offsets );
+      self.need_update_displacement = false;
+      true
+    }
 
-        self.need_update_displacement = false;
-      }
-
+    /// Uploads the displacement texture and morph-target uniforms to their locations.
+    fn uniforms_upload
+    (
+      &self,
+      gl : &GL,
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+    )
+    {
       if let Some( displacements_texture ) = &self.displacements_texture
       {
         if let Some( displacements_loc ) = locations.get( "morphTargetsDisplacementsTexture" )

@@ -20,5 +20,8 @@ features = [
 # No minwebgpu dependency for native targets
 
 
+[lints]
+workspace = true
+
 [package.metadata.action]
 tags = ["runtime:browser", "api:webgpu"]

@@ -30,6 +30,31 @@ Per-test procedure (uniform across the 035 decomposition):
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p tilemap_scene --all-features` —
    all green before and after each relocation batch.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `src/` still free of inline `#[test]` functions (all 38 relocated, none reintroduced)? `grep -rc "#\[ *test *\]" src/` summed across every file → `0`.
+- [x] C2 — Do `tests/hash_test.rs` and `tests/compile_units_test.rs` still hold exactly `2` and `36` tests respectively (the claimed 38-test split)? `grep -c "#\[ *test *\]"` → `2` and `36` respectively.
+- [x] C3 — Is a relocated item still genuinely reachable via a crate-root import (confirming "zero exceptions needed", i.e. nothing was silently made a documented visibility exception)? `tests/hash_test.rs:8` — `use tilemap_scene::{ hash_coord, hash_str };`; `tests/compile_units_test.rs:16` — same crate-root `use tilemap_scene::` pattern.
+- [x] C4 — Does `tests/readme.md` still exist with the claimed 12-row Responsibility Table and two-level (unit/integration) structure? Confirmed: 44 lines, 12-row table, "Unit level" / "Integration level" split present.
+- [x] C5 — Does the `scene_state_test.rs` 19-vs-17 anomaly still hold exactly as explained (pre-existing `cfg(not(debug_assertions))` split, not a TASK-073 regression)? `grep -c "#\[ *test *\]" tests/scene_state_test.rs` → `19`; `grep -c "cfg( *not( *debug_assertions *) *)"` → `2` (19 − 2 = 17 run in a debug-profile invocation).
+
+### Measurements
+
+- [x] M1 — Inline `#[test]` count in `src/compile/edges.rs`: `0` (was: `2`, per `git show 4469eafb^:module/helper/tilemap_scene/src/compile/edges.rs`) — one of the 9 relocated modules, spot-checked exactly against the filed census.
+- [x] M2 — `tests/compile_units_test.rs`: exists now with `36` tests (was: did not exist — `git show 4469eafb^:module/helper/tilemap_scene/tests/compile_units_test.rs` resolves to no such path).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, `longrun`-launched, same run reused from TASK-028): `cargo nextest run -p tilemap_scene --all-features` → exit `0`, "169 tests run: 169 passed, 0 skipped" (`-0141_longrun.log`) — matches the 169-total this task's own History cites (36 + 2 relocated + all pre-existing suites, unchanged).
+- [ ] I2 — Compiler/lints (crate-scoped, `longrun`-launched, same run reused from TASK-028): `cargo clippy -p tilemap_scene --all-targets --all-features -- -D warnings` → exit `101` (FAIL), root-caused to the same pre-existing `browser_log` / `tilemap_renderer` dependency drift described in TASK-028's I2, plus the same 7 pre-existing `reason=`-less `#[allow(...)]` sites in `tilemap_scene`'s own `src/` — none of which were touched by TASK-073's purely mechanical test relocation (`-0141_longrun.log`).
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a new inline `#[cfg(test)] mod tests` block being silently reintroduced in `src/`, bypassing the crate's now-established all-tests-in-`tests/` convention: re-running C1's `grep -rc "#\[ *test *\]" src/` must stay `0` for every future change, unless a genuinely private-only item forces a fresh, documented exception per `tests/readme.md`'s own "Adding tests" procedure.
+- [x] AF2 — Guards against silent test loss or duplication during any future relocation-style refactor: the `169`-test total (I1) is the trip-wire — any relocation that drops or duplicates a test changes this independently-reproducible number (`cargo nextest run -p tilemap_scene --all-features`), rather than relying on any prose claim of "N relocated."
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 035's workspace test-coverage census per Crate

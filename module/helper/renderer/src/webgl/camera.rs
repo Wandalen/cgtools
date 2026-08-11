@@ -86,6 +86,11 @@ mod private
     /// # Arguments
     /// * `gl` - The WebGL2 rendering context.
     /// * `locations` - A `FxHashMap` containing the uniform locations for the shader program.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `locations` misses any of the camera uniforms
+    /// ( view/projection matrices, position ) or an upload fails.
     pub fn upload
     (
       &self,

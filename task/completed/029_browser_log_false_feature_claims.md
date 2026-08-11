@@ -26,6 +26,31 @@ through this session's context compaction — re-derive by diffing the crate's r
 `src/` at pickup.** Kept as a separate task from task 030 (mingl's own false claims) per Crate Scope
 Unity even though both were found in the same audit pass.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is the false "timestamps" claim gone from `readme.md`'s Formatted Output bullet? `grep -c "timestamp" readme.md` → `0` (was 1 hit pre-fix: "Structured log messages with timestamps and context", `git show 25ceae76:module/helper/browser_log/readme.md`); current wording (readme.md:12) reads "CSS-styled messages with a level badge and `file:line` source context", matching the real format built in `src/log/setup.rs`.
+- [x] C2 — Is the false "Performance Logging" feature bullet replaced with an honest re-export description? `grep -c "Performance Logging" readme.md` → `0` (1 hit pre-fix); readme.md:13 now reads "**Console Re-export** - `browser_log::log::console` re-exports `web_sys::console`..." — `console` is confirmed a plain re-export via `exposed use ::web_sys::console;` in `src/log/mod.rs:42`, not a first-party timing feature.
+- [x] C3 — Is the false "all WebAssembly runtimes" compatibility claim reworded to name the real requirement? `grep -c "all WebAssembly runtimes" readme.md` → `0` (1 hit pre-fix); readme.md:254 now reads "Requires a JavaScript-hosted runtime for console output (browsers, Node.js, Deno) — not WASI runtimes", matching `src/panic.rs`'s `wasm_bindgen` externs (`console.error`, `Error` — both JS-host-only bindings).
+- [x] C4 — Is the redundant/misleading `console_error_panic_hook = "0.1"` wasm-pack recommendation removed? `grep -c 'console_error_panic_hook = "0.1"' readme.md` → `0` (1 hit pre-fix); readme.md:243-244 now states "No separate `console_error_panic_hook` dependency is needed — `browser_log::panic` provides the console panic hook... itself."
+- [x] C5 — Does the API Reference now list the top-level `setup()` function and the `DebugLog` trait that were previously omitted? Both present in the Core Functions table (readme.md:92,95); cross-checked against source — `pub fn setup(config: Config)` exists at `src/lib.rs:24` (combines `panic::setup` + `log::setup::setup`), and `pub trait DebugLog` with `debug_info()`/`debug_trace()`/`debug_warn()`/`debug_error()` exists at `src/log/debug_log.rs:16-52`.
+- [x] C6 — Are the two explicitly-noted-as-NOT-fixed items still genuinely untouched? `changelog.md`'s 0.3.0 entry still reads "Structured logging with configurable output formats" (changelog.md:16, left as historical record, as claimed). The licence/license duplication note is now **stale**: only `license` exists (`licence` is gone) — `git log --diff-filter=D -- module/helper/browser_log/licence` shows it was deleted by a later, unrelated commit `5f33be66` ("feat: consolidate test infrastructure and refactor module architecture"), not by this task. This doesn't contradict task 029's claim (it correctly said "out of scope, not touched", and never did); the pre-existing condition it observed simply no longer exists, resolved by unrelated later work.
+
+### Measurements
+
+- [x] M1 — Fictional-claim phrase count in `readme.md` (4 tracked phrases: "timestamp", "Performance Logging", "all WebAssembly runtimes", `console_error_panic_hook = "0.1"`): `0` (was: `4`/4 present, `git show 25ceae76:module/helper/browser_log/readme.md`).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, includes the doctested readme): `cargo nextest run -p browser_log --all-features && cargo test -p browser_log --doc --all-features` → exit 0; nextest 5/5 passed, doc-tests 10/10 passed (readme.md code blocks compile and run via `#[ cfg_attr( doc, doc = include_str!(...) ) ]` in `src/lib.rs:3`).
+- [ ] I2 — Compiler/lints clean: `cargo clippy -p browser_log --all-targets --all-features -- -D warnings` → **exit 101, FAILS** (confirmed reproducible after `cargo clean -p browser_log`). One error: `src/panic.rs:82` — `#[ allow( clippy::exhaustive_structs ) ]` lacks `reason = "..."`, tripping the workspace's `allow_attributes_without_reason = "warn"` lint under `-D warnings`. **This is unrelated drift, not caused by task 029**: `git show 4469eafb:module/helper/browser_log/src/panic.rs` (the squash commit containing this task's own changes) has no `allow(...)` attribute on that struct at all; it was added afterward by the later, unrelated commit `5f33be66`. Recorded here per this Verification format's mandatory lint-cleanliness check rather than silently passed over.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the timestamps/Performance-Logging overclaims quietly creeping back into a future readme edit: re-running C1/C2's greps (`timestamp`, `Performance Logging`) against `readme.md` must keep returning `0`.
+- [x] AF2 — Guards against the "all WebAssembly runtimes" overclaim reappearing: re-running C3's grep must keep returning `0`; the underlying fact (JS-host-only `wasm_bindgen` console externs in `src/panic.rs`) doesn't change without a source rewrite, so the readme claim and the source must be checked together, not the readme alone.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P5 (doc drift)

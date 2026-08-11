@@ -25,6 +25,10 @@ mod private
     }
 
     /// Creates a new `ToSrgbPass` instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the shader fails to compile or link.
     pub fn new( gl : &gl::WebGl2RenderingContext, render_to_screen : bool ) -> Result< Self, gl::WebglError >
     {
       let fs_shader = include_str!( "../shaders/post_processing/to_srgb.frag" );

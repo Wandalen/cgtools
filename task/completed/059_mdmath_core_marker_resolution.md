@@ -50,6 +50,34 @@ stays (converting it into a tracked deferral with rationale), or delete if inves
 stale. Verify each code change with `cargo test -p mdmath_core --all-features` (via
 `longrun .launch`).
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Are all originally-cited in-code markers (`qqq`/`xxx`/`aaa`) gone from `mdmath_core/src/` and `mdmath_core/tests/`? `grep -rn "qqq\|xxx :\|aaa :" module/math/mdmath_core/src/ module/math/mdmath_core/tests/` → 0 hits.
+- [x] C2 — Is `Tuple1IterMut`'s hand-rolled unsafe iterator gone, replaced by `std::iter::once`? Direct read of current `tuple1.rs` (117 lines, was 230 at the pre-fix parent commit) → `VectorIter`/`VectorIterMut` for `(E,)` now return `core::iter::once(&self.0)` / `core::iter::once(&mut self.0)`; zero `unsafe` blocks remain in the iterator impls (the file's remaining `unsafe` blocks belong to the separate, pre-existing `ArrayRef`/`ArrayMut` transmute-style casts, explicitly out of this task's own marker scope).
+- [x] C3 — Are `VectorWithLength`/`VectorWithLengthMut` fully deleted, with zero remaining consumers workspace-wide? `grep -rn "VectorWithLength" --include="*.rs" --include="*.md" --include="*.toml" .` → 0 hits in any `.rs`/`.toml` file; the only surviving hits are inside this task's own `.md` history prose (expected).
+- [x] C4 — Is the `Ix4` impl block present, mirroring `Ix3`'s 5-impl shape? `module/math/mdmath_core/src/vector/index/mod.rs` → `Collection`/`ConstLength`/`IntoArray`/`ArrayRef`/`ArrayMut` all implemented for `Ix4` (lines 297-370); confirmed absent at the pre-fix parent commit (`git show 9b71cf39^:.../index/mod.rs` has zero `Ix4` hits).
+- [x] C5 — Do the new `into_array_test.rs` and `index_test.rs` exist, are they registered, and do they run? `into_array_test.rs`: 6 test fns; `index_test.rs`: 5 test fns; both registered in `vector_test.rs` (`mod into_array_test;` unconditional, `index_test` behind `#[cfg(feature = "index")]`) — confirmed the pre-fix parent had `mod index_test;` commented out and no `into_array_test` module at all.
+- [x] C6 — Is the `assert_ulps_eq!` array-vs-slice fix applied, with the `max_ulps = 10000` tolerance preserved on the "rid of cylce" line? `tests/inc/arithmetics.rs:155` and `:206` → `assert_ulps_eq!( vec_a[ .. ], expected[ .. ] )` (slice form, `test_normalize_to`/`test_normalized_to`); line 230 → `assert_ulps_eq!( result[ .. ], expected[ .. ], max_ulps = 10000 )` — tolerance preserved as claimed.
+- [x] C7 — Are the 2 Cargo.toml lint markers' current state consistent with this task's own claim ("left for task 058")? Current `Cargo.toml` shows only `[lints]` / `workspace = true` — the entire crate-local `[lints.rust]`/`[lints.clippy]` block that carried the 2 `qqq` markers at the pre-fix parent commit has since been replaced wholesale with full workspace-lint inheritance by later, unrelated work; the markers no longer exist in any form. This supersedes rather than contradicts 059's "left to 058" note — informational drift, not a defect in 059's own scope.
+
+### Measurements
+
+- [x] M1 — `qqq`/`xxx`/`aaa` markers remaining in `mdmath_core/src/`+`tests/`: `0` (was: `9` per this task's own census, independently spot-confirmed present at the pre-fix parent commit `9b71cf39^` across `tuple1.rs`, `index/mod.rs`, `mod.rs` via `git show`).
+- [x] M2 — `tuple1.rs` line count: `117` (was: `230`, `git show 9b71cf39^:module/math/mdmath_core/src/vector/tuple1.rs | wc -l`) — a 113-line reduction, the same order of magnitude as this task's own "~128 lines incl. both unsafe raw-pointer blocks" estimate.
+- [x] M3 — Crate test count: `89`, this session's own fresh run (was: `76` per this task's own History, cross-corroborated by 009/BUG-050/BUG-054's independent History entries all citing the same 76 baseline).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p mdmath_core --all-features` (via `longrun`) → exit 0, 89 tests run: 89 passed, 0 skipped (log `-0014_longrun.log`).
+- [x] I2 — Lints clean: `cargo clippy -p mdmath_core --all-targets --all-features -- -D warnings` (via `longrun`) → exit 0, zero warnings (log `-0018_longrun.log`).
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a marker being silently re-added, or a resolved-but-still-live marker being missed: re-run C1's grep (`qqq`/`xxx :`/`aaa :`) across `src/` and `tests/` — must return 0 hits.
+- [x] AF2 — Guards against the `VectorWithLength`/`VectorWithLengthMut` deletion being reversed without re-justifying consumers: re-run C3's workspace-wide grep — any nonzero `.rs`/`.toml` hit means the original YAGNI rationale (zero consumers, degenerate self-referential bound) must be re-established, not assumed.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 038's workspace marker census (80 lines → per-crate

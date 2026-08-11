@@ -48,6 +48,34 @@ stays, or delete if investigation proves it stale. Verify with
 `cargo test -p mingl --all-features` (via `longrun .launch`); readme claims must stay aligned with
 task 030's verified-claims rewrite.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Are all 7 originally-live task markers (`xxx`/`qqq`) gone from `module/min/mingl`? `git grep -c -E "xxx *:|qqq *:" -- module/min/mingl/src module/min/mingl/Cargo.toml` → no output (0 hits).
+- [x] C2 — Does `data_type.rs` keep `i32` (not `usize`) for `VectorDataType.natoms`/`.nelements`, with the decision rationale documented in place of the deleted marker? Confirmed: `pub natoms : i32` / `pub nelements : i32` at `src/data_type.rs:58,60`; rationale comment at lines 47-50 citing the WebGL `GLint`-boundary argument from the History.
+- [x] C3 — Does `tests/tests/data_type_test.rs` exist with the 4 claimed verifying tests? Confirmed 4 `#[ test ]` fns — `scalar_descriptor_is_flat_single_atom`, `flat_array_descriptor_has_nelements_one`, `nested_array_descriptor_has_row_length_nelements`, `byte_size_matches_scalar_width` — and the file's own module doc explicitly states it replaces "a `verify` marker".
+- [x] C4 — Was the `data_type/f32.rs:29` marker's premise ("nested-array impls exist for f32 only") genuinely false, i.e. do all 6 sibling files also carry a nested-array `IntoVectorDataType` impl? `grep -c "impl< const N : usize, const N2 : usize > IntoVectorDataType for \[ \["` across `src/data_type/{f32,i8,i16,i32,u8,u16,u32}.rs` → `1` in every one of the 7 files.
+- [x] C5 — Is `Cargo.toml` free of the commented-out `bytemuck`/`anyhow`/`slice-of-array` dependency lines? `grep -inE "bytemuck|slice-of-array|anyhow" module/min/mingl/Cargo.toml` → 0 hits.
+- [x] C6 — Does `mem.rs` carry the reduced `asbytes`-reuse skeleton (not the 143-line commented-out bytemuck-era block)? Confirmed: current file is exactly 9 lines; body is `reuse ::asbytes;`.
+- [x] C7 — Is `derive.rs`'s `exposed use ::former;` still present with the rationale comment added after the in-loop minwebgl-breakage catch? Confirmed present, with the "`Former` derive expands to `former::`-prefixed paths..." comment directly above it.
+- [x] C8 — Does `web/file.rs` implement the typed `Error` enum (`DataUrl`/`Js` variants) with `load` returning `Result<Vec<u8>, Error>`, replacing the untyped-error marker? Confirmed: `#[ derive( Debug, error::typed::Error ) ] pub enum Error { DataUrl( &'static str ), Js( JsValue ) }`; `From< JsValue > for Error` and `From< Error > for JsValue` both present; `pub async fn load( .. ) -> Result< Vec< u8 >, Error >`.
+
+### Measurements
+
+- [x] M1 — Live task-marker count in `module/min/mingl` (`src/` + `Cargo.toml`, `xxx`/`qqq`): current `0` (was: `7` — `git grep -c -E "xxx *:|qqq *:" 25ceae76 -- module/min/mingl/src module/min/mingl/Cargo.toml` → `Cargo.toml:1`, `data_type.rs:3`, `data_type/f32.rs:1`, `derive.rs:1`, `web/file.rs:1`).
+- [x] M2 — `mem.rs` line count: current `9` (was: `143`, `git show 25ceae76:module/min/mingl/src/mem.rs | wc -l`).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p mingl --all-features` → exit 0, 51/51 passed.
+- [ ] I2 — Compiler/lints clean (crate-scoped): `cargo clippy -p mingl --all-targets --all-features -- -D warnings` → exit 101, NOT clean. Root cause fully isolated to a different, workspace-local crate: `module/helper/browser_log/src/panic.rs:82`'s `#[ allow( clippy::exhaustive_structs ) ]` lacks a `reason = ".."`, tripping the workspace's `allow_attributes_without_reason = "warn"` lint (escalated to a hard error by `-D warnings`). `browser_log` is pulled in only transitively, via mingl's optional `web_log` feature; the build aborts there before mingl's own source is ever clippy-checked. `git log -1 --format="%h %ad %s" --date=iso -- module/helper/browser_log/src/panic.rs` → commit `5f33be66`, dated 2026-08-11 (today) — lands after this task's 2026-08-10 completion and touches none of the 7 markers' files, so this is pre-existing drift unrelated to this task, not a regression it introduced. (Independently corroborated: a concurrent sibling verification of the unrelated `primitive_generation` crate hit the identical `browser_log:82` failure in the same session.)
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a marker being deleted without genuine resolution rather than fixed/justified: every one of the 7 sites (C2-C8) has a corresponding source-level change or in-place rationale comment, not a bare deletion; re-running M1's `git grep` after any future edit must still return 0 hits, and any newly-added marker must carry the same fix-or-justify discipline before deletion.
+- [x] AF2 — Guards against `exposed use ::former;` (C7) being dropped again via the same reasoning that broke minwebgl in-loop (History: a "zero consumers" audit that only grepped textual `former::` references missed derive-expansion consumers — the `-0022` workspace check caught 17 resulting E0433 errors in minwebgl before completion; the fix was verified by the `-0023` relaunch, exit 0): the rationale comment directly above the line documents why it's load-bearing; any future removal attempt must be checked with a workspace-wide build, not a `-p mingl`-scoped one, before being considered safe.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 038's workspace marker census (80 lines →

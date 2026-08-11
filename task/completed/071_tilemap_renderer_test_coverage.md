@@ -30,6 +30,33 @@ Per-test procedure (uniform across the 035 decomposition):
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p tilemap_renderer --all-features` —
    all green before and after each relocation batch.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Does `src/adapters/svg.rs` now contain exactly the 29 claimed "documented exception" inline tests? `grep -c "#\[ *test *\]" src/adapters/svg.rs` → `29`.
+- [x] C2 — Does `tests/svg_backend_test.rs` exist with exactly the 54 claimed relocated tests, feature-gated on `adapter-svg`? `grep -c "#\[ *test *\]" tests/svg_backend_test.rs` → `54`; file's first line → `#![ cfg( feature = "adapter-svg" ) ]`.
+- [x] C3 — Does the inline-exception rationale comment name all 8 claimed pinned private helpers and cite this task by number? Read `src/adapters/svg.rs:1938-1946` → cites "task 071" and names `transform_to_svg_static`/`transform_to_svg_local`, `anchor_to_svg`, `path_to_href`, `png_dimensions`, `detect_image_mime`, `bitmap_to_png`, `SvgContentManager`, plus `image_encoded_png_stores_dimensions`'s private-encoder dependency — all 8 present.
+- [x] C4 — Are the 4 pre-existing `tests/*.rs` files (the claimed disjoint, untouched 39) still exactly as claimed? `grep -c "#\[ *test *\]"` per file: `assets_test.rs` → `9`, `backend_test.rs` → `17`, `commands_test.rs` → `4`, `types_test.rs` → `9` — sums to `39`.
+- [x] C5 — Is `bytemuck` genuinely present in `[dev-dependencies]` (distinct from the pre-existing optional `[dependencies]` entry)? `Cargo.toml` → `[dev-dependencies]` (line 51) contains `bytemuck.workspace = true` (line 52).
+- [x] C6 — Does `tests/readme.md` reflect the relocation, with the domain map crediting this task by number? Full read → directory-structure block (line 19) lists `svg_backend_test.rs` with its `adapter-svg` feature gate; domain-map row (line 31) explicitly cites "task 071" and describes the public-surface-only / private-helper-exception split.
+
+### Measurements
+
+- [x] M1 — Inline `#[test]` count in `src/adapters/svg.rs`: `29` (was: `80` at `git show 4469eafb^:module/helper/tilemap_renderer/src/adapters/svg.rs`, the commit immediately preceding this task's own fix; the 83-vs-80 gap is task 064's 3 new `Source::Path` tests, added between the original task-035 census and this task's pickup — confirmed via that task's own Verification).
+- [x] M2 — `tests/svg_backend_test.rs` test count: `54` (was: did not exist — `git show 4469eafb^:module/helper/tilemap_renderer/tests/svg_backend_test.rs` resolves to no such path in that tree).
+- [x] M3 — Total preserved test count: `29 + 54 = 83`, matching `83` at `git show 4469eafb:module/helper/tilemap_renderer/src/adapters/svg.rs` (the commit containing this task's own fix, pre-relocation) — confirms zero tests lost.
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, all features): `cargo nextest run -p tilemap_renderer --all-features` → exit 0, 122 tests run, 122 passed, 0 skipped — decomposes as `29` (kept inline) + `54` (`svg_backend_test.rs`) + `39` (pre-existing 4 files) = `122`, matching every count claimed above.
+- [x] I2 — Compiler/lints: `cargo clippy -p tilemap_renderer --all-targets --all-features -- -D warnings` → **exit 101** — genuine current drift, but not from this task's own files. Root cause: the workspace `Cargo.toml`'s `allow_attributes_without_reason` lint was flipped `"allow"` → `"warn"` by the current HEAD commit `5f33be66` (2026-08-11, dated after this task's 2026-08-10 completion; tracked-but-unexecuted in `task/draft/058_workspace_allow_sweep_per_crate.md`, census "1905 sites workspace-wide"), and independently by unrelated pre-existing debt in transitive dependencies pulled in only by the (unrelated) `adapter-webgl` feature (`browser_log`, `minwebgl`). Scoped re-run covering exactly this task's own feature surface — everything except the unrelated `adapter-webgl` chain — (`cargo clippy -p tilemap_renderer --all-targets --no-default-features --features enabled,adapter-svg,adapter-terminal,cli,scene-model -- -D warnings -A clippy::allow_attributes_without_reason`) → exit 0, zero warnings — directly covers `svg.rs` and `tests/svg_backend_test.rs`, this task's only touched files.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a future edit silently losing a test during a merge/relocation instead of moving it: re-run M3's `29 + 54` inline+relocated sum after any future `svg.rs`/`svg_backend_test.rs` edit — must still equal the then-current total with no unexplained drop.
+- [x] AF2 — Guards against a private helper being exposed "solely for test placement," re-widening the public API for no caller (the exact trade-off this task's own Fix Verification gate rejected): any future move of one of the 8 named exception-list helpers (C3) out of the inline module must be justified by a real external caller, not test convenience alone.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 035's workspace test-coverage census per Crate

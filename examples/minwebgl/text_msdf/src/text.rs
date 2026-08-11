@@ -50,50 +50,44 @@ impl MSDFFont
       let mut xadnvace = info.xadvance;
 
       // Newline are not supported
-      match c
+      // Space: advance the cursor position without adding a character
+      if c == 32
       {
-        // Space
-        32 =>
-        {
-          // Advance the cursor position without adding a character
-          cursor_pos += gl::F32x2::new( xadnvace, 0.0 );
-          continue;
-        },
-        _ =>
-        {
-          let size = gl::F32x2::new( info.width, info.height );
-          let uv = gl::F32x2::new( info.x, info.y ) / tex_size;
-          let uv_extent = size / tex_size;
-          let l_offset = gl::F32x2::new( info.xoffset, -info.yoffset );
+        cursor_pos += gl::F32x2::new( xadnvace, 0.0 );
+        continue;
+      }
 
-          // If there is another character afterwards,
-          // adjuct the `advance` offset based on the value in the kerning map
-          if i + 1 < text.len()
+      let size = gl::F32x2::new( info.width, info.height );
+      let uv = gl::F32x2::new( info.x, info.y ) / tex_size;
+      let uv_extent = size / tex_size;
+      let l_offset = gl::F32x2::new( info.xoffset, -info.yoffset );
+
+      // If there is another character afterwards,
+      // adjuct the `advance` offset based on the value in the kerning map
+      if i + 1 < text.len()
+      {
+        if let Some( dst_map ) = self.kernings.get( &c )
+        {
+          let c_next = text[ i + 1 ];
+          if let Some( amount ) = dst_map.get( &c_next )
           {
-            if let Some( dst_map ) = self.kernings.get( &c )
-            { 
-              let c_next = text[ i + 1 ]; 
-              if let Some( amount ) = dst_map.get( &c_next )
-              {
-                xadnvace += amount;
-              }
-            }
+            xadnvace += amount;
           }
-
-          llc = llc.min( cursor_pos - gl::F32x2::new( 0.0, size.y() ) + l_offset );
-          ruc = ruc.max( cursor_pos + gl::F32x2::new( size.x(), 0.0 ) + l_offset );
-
-          buffer.push
-          (
-            CharData
-            {
-              offset : gl::F32x4::from( ( l_offset, cursor_pos ) ).to_array(),
-              uv_info : gl::F32x4::from( ( uv, uv_extent ) ).to_array(),
-              size : size.to_array()
-            }
-          );
         }
       }
+
+      llc = llc.min( cursor_pos - gl::F32x2::new( 0.0, size.y() ) + l_offset );
+      ruc = ruc.max( cursor_pos + gl::F32x2::new( size.x(), 0.0 ) + l_offset );
+
+      buffer.push
+      (
+        CharData
+        {
+          offset : gl::F32x4::from( ( l_offset, cursor_pos ) ).to_array(),
+          uv_info : gl::F32x4::from( ( uv, uv_extent ) ).to_array(),
+          size : size.to_array()
+        }
+      );
 
       cursor_pos += gl::F32x2::new( xadnvace, 0.0 );
     }

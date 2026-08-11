@@ -25,6 +25,57 @@ condition are not re-verified in this filing pass; re-confirm against current
 `module/helper/behaviour_tree/src/` before touching.** A regression test needs a bounded-time assertion
 (e.g. a timeout-wrapped evaluation) to actually catch a hang rather than blocking the test suite itself.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is the previously-unconditional `loop` in `RepeatNode::execute` now bounded by a fixed cap?
+  `grep -n "for _ in 0 \.\. Self::MAX_SYNC_ITERATIONS" src/lib.rs` (crate root) → matches at line 618;
+  pre-fix source (`git show 9b71cf39^:module/helper/behaviour_tree/src/lib.rs`) confirms the equivalent
+  site was an unconditional `loop` with no cap.
+- [x] C2 — Does `RepeatNode::MAX_SYNC_ITERATIONS` still exist and equal `10_000`? `grep -n
+  "MAX_SYNC_ITERATIONS" src/lib.rs` → `569:  const MAX_SYNC_ITERATIONS : u32 = 10_000;`.
+- [x] C3 — Is the 3-field `Fix(TASK-017)` / `Root cause` / `Pitfall` source comment still present
+  directly above `execute`? Confirmed present at src/lib.rs:602-610 (line numbers shifted down from the
+  History's claimed 614-626 by an unrelated later commit, `5f33be66`, that deleted 11 crate-level
+  `#![allow(clippy::...)]` lines above this block — content of the 3-field comment itself is unchanged).
+- [x] C4 — Does the bounded-time regression test still exist and pass? `test_repeat_node_infinite_livelock_guard`
+  was relocated by task 067 from an inline `src/lib.rs` module to `tests/behaviour_tree_test.rs:301`; its
+  `thread::spawn` + `recv_timeout(Duration::from_secs(2))` pattern and full 5-section doc comment are
+  intact; `cargo nextest run -p behaviour_tree --all-features` shows it passing in `0.025s`, well inside
+  the 2s bound.
+
+### Measurements
+
+- [x] M1 — Synchronous-iteration bound on `RepeatNode::execute`: `10_000` (`Self::MAX_SYNC_ITERATIONS`,
+  src/lib.rs:569) (was: unbounded — `git show 9b71cf39^:module/helper/behaviour_tree/src/lib.rs` shows
+  the pre-fix site as a bare `loop { ... }` with no iteration cap).
+- [x] M2 — Crate test count produced by this fix: `14` (was: `13` — confirmed via `git show
+  9b71cf39^:module/helper/behaviour_tree/src/lib.rs | grep -c '#\[ *test *\]'` → `13` and `git show
+  9b71cf39:module/helper/behaviour_tree/src/lib.rs | grep -c '#\[ *test *\]'` → `14`; current crate total
+  is `15` because task 067 later added one further, unrelated test during relocation).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p behaviour_tree --all-features` → exit 0, `15
+  tests run: 15 passed, 0 skipped` (includes `test_repeat_node_infinite_livelock_guard` passing in
+  `0.025s`).
+- [x] I2 — Doc-tests: `cargo test --doc -p behaviour_tree --all-features` → exit 0, `test result: ok. 1
+  passed; 0 failed`.
+- [x] I3 — Compiler/lints clean: `cargo clippy -p behaviour_tree --all-targets --all-features -- -D
+  warnings` → exit 0, zero warnings.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the loop silently reverting to unbounded: `test_repeat_node_infinite_livelock_guard`
+  (now in `tests/behaviour_tree_test.rs`) must keep passing well under its 2-second `recv_timeout` bound —
+  a regression back to a bare `loop` reproduces the pre-fix ~2.00s timeout failure this file's History
+  documents as the RED evidence.
+- [x] AF2 — Guards against `MAX_SYNC_ITERATIONS` being silently retuned without re-checking the livelock
+  scenario: any edit to the constant must be followed by re-running the same test (e.g. `cargo nextest run
+  -p behaviour_tree --all-features -E 'test(test_repeat_node_infinite_livelock_guard)'`) and confirming it
+  still resolves to `BehaviorStatus::Running` inside the 2s window instead of timing out.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P2 (remaining logic

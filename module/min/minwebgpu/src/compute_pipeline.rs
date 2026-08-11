@@ -26,15 +26,20 @@ mod private
   }
 
   /// Creates a GPU compute pipeline asynchronously.
+  ///
+  /// # Errors
+  ///
+  /// Returns `DeviceError::FailedToCreateComputePipeline` if the browser rejects the pipeline —
+  /// e.g. an invalid descriptor, a shader compilation failure, or a lost device.
   #[ inline ]
   pub async fn create_async
-  ( 
+  (
     device : &web_sys::GpuDevice,
     descriptor : &web_sys::GpuComputePipelineDescriptor
   ) -> Result< web_sys::GpuComputePipeline, WebGPUError >
   {
     let pipeline = JsFuture::from( device.create_compute_pipeline_async( descriptor ) ).await
-    .map_err( | e | DeviceError::FailedToCreateRenderPipeline( format!( "{e:?}" ) ))?;
+    .map_err( | e | DeviceError::FailedToCreateComputePipeline( format!( "{e:?}" ) ))?;
 
     Ok( pipeline )
   }

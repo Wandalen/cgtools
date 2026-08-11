@@ -123,7 +123,7 @@ fn upload_texture
 )
 {
   gl.active_texture( slot );
-  gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
+  gl.bind_texture( GL::TEXTURE_2D, Some( texture ) );
   // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
   gl.uniform1i( Some( location ), ( slot - GL::TEXTURE0 ) as i32 );
 }
@@ -226,19 +226,19 @@ impl Programs
   {
     // --- Load and Compile Shaders ---
 
-    let object_vs_src = include_str!( "../resources/shaders/object.vert" );
-    let object_fs_src = include_str!( "../resources/shaders/object.frag" );
-    let fullscreen_vs_src = include_str!( "../resources/shaders/fullscreen.vert" );
-    let jfa_init_fs_src = include_str!( "../resources/shaders/jfa_init.frag" );
-    let jfa_step_fs_src = include_str!( "../resources/shaders/jfa_step.frag" );
-    let outline_vs_src = include_str!( "../resources/shaders/outline.vert" );
-    let outline_fs_src = include_str!( "../resources/shaders/outline.frag" );
+    let object_vert_src = include_str!( "../resources/shaders/object.vert" );
+    let object_frag_src = include_str!( "../resources/shaders/object.frag" );
+    let fullscreen_vert_src = include_str!( "../resources/shaders/fullscreen.vert" );
+    let jfa_init_frag_src = include_str!( "../resources/shaders/jfa_init.frag" );
+    let jfa_step_frag_src = include_str!( "../resources/shaders/jfa_step.frag" );
+    let outline_vert_src = include_str!( "../resources/shaders/outline.vert" );
+    let outline_frag_src = include_str!( "../resources/shaders/outline.frag" );
 
     // Compile and link shader programs and store them
-    let object_program = gl::ProgramFromSources::new( object_vs_src, object_fs_src ).compile_and_link( gl ).unwrap();
-    let jfa_init_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_init_fs_src ).compile_and_link( gl ).unwrap();
-    let jfa_step_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_step_fs_src ).compile_and_link( gl ).unwrap();
-    let outline_program = gl::ProgramFromSources::new( outline_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
+    let object_program = gl::ProgramFromSources::new( object_vert_src, object_frag_src ).compile_and_link( gl ).unwrap();
+    let jfa_init_program = gl::ProgramFromSources::new( fullscreen_vert_src, jfa_init_frag_src ).compile_and_link( gl ).unwrap();
+    let jfa_step_program = gl::ProgramFromSources::new( fullscreen_vert_src, jfa_step_frag_src ).compile_and_link( gl ).unwrap();
+    let outline_program = gl::ProgramFromSources::new( outline_vert_src, outline_frag_src ).compile_and_link( gl ).unwrap();
 
     let object = JfaOutlineObjectShader::new( gl, &object_program );
     let jfa_init = JfaOutlineInitShader::new( gl, &jfa_init_program );
@@ -270,9 +270,9 @@ impl Renderer
 {
   /// Creates a new Renderer instance, initializes WebGL, loads resources,
   /// and prepares the scene for rendering.
-  async fn new() -> Self
+  fn new() -> Self
   {
-    gl::browser::setup( Default::default() );
+    gl::browser::setup( gl::browser::Config::default() );
     let canvas = gl::canvas::make().unwrap();
     let gl = gl::context::from_canvas( &canvas ).unwrap();
 
@@ -349,7 +349,7 @@ impl Renderer
   /// # Arguments
   ///
   /// * `t` - The current time in milliseconds ( used for animation ).
-  fn render( &self, scene : Rc< RefCell< Scene > >, t : f64 )
+  fn render( &self, scene : &Rc< RefCell< Scene > >, t : f64 )
   {
     // 2. Object Rendering Pass: Render the object silhouette to a texture
     let _ = self.object_pass( scene );
@@ -376,7 +376,7 @@ impl Renderer
   /// # Arguments
   ///
   /// * `t` - The current time in milliseconds ( used for rotating the camera/view ).
-  fn object_pass( &self, scene : Rc< RefCell< Scene > > ) -> Result< (), WebglError >
+  fn object_pass( &self, scene : &Rc< RefCell< Scene > > ) -> Result< (), WebglError >
   {
     let gl = &self.gl;
 
@@ -412,7 +412,7 @@ impl Renderer
       if let Object3D::Mesh( ref mesh ) = node.borrow().object
       {
         // Iterate over each primitive in the mesh.
-        for primitive_rc in mesh.borrow().primitives.iter()
+        for primitive_rc in &mesh.borrow().primitives
         {
           let primitive = primitive_rc.borrow();
 
@@ -470,7 +470,7 @@ impl Renderer
   ///
   /// * `i` - The current JFA step index ( 0, 1, 2, ... ).
   /// * `last` - A boolean flag. If true, the result of this step is rendered
-  ///            directly to the default framebuffer ( screen ) for debugging.
+  ///   directly to the default framebuffer ( screen ) for debugging.
   fn jfa_step_pass( &self, i : i32, t : f64 )
   {
     let gl = &self.gl;
@@ -497,7 +497,7 @@ impl Renderer
     else if i % 2 == 0 // Even steps ( 2, 4, ... ) read from FB 1, render to FB 0
     {
       upload_framebuffer( gl, jfa_step_fb_0, self.viewport ); // Render to FB 0
-      upload_texture( gl, &jfa_step_fb_color_1, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is texture from FB 1
+      upload_texture( gl, jfa_step_fb_color_1, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is texture from FB 1
     }
     else // Odd steps ( 1, 3, ... ) read from FB 0, render to FB 1
     {
@@ -527,8 +527,8 @@ impl Renderer
   ///
   /// * `t` - The current time in milliseconds ( used for animating outline thickness ).
   /// * `num_passes` - The total number of JFA step passes performed. Used to determine
-  ///                which of the ping-pong textures ( `jfa_step_fb_color_0` or `jfa_step_fb_color_1` )
-  ///                holds the final JFA result.
+  ///   which of the ping-pong textures ( `jfa_step_fb_color_0` or `jfa_step_fb_color_1` )
+  ///   holds the final JFA result.
   fn outline_pass( &self, num_passes : i32 )
   {
     let gl = &self.gl;
@@ -614,7 +614,7 @@ impl Renderer
 /// A `Result` indicating success or a WebGL error.
 async fn run() -> Result< (), gl::WebglError >
 {
-  let renderer = Renderer::new().await;
+  let renderer = Renderer::new();
 
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -636,7 +636,7 @@ async fn run() -> Result< (), gl::WebglError >
   {
     move | t : f64 |
     {
-      renderer.render( scenes[ 0 ].clone(), t );
+      renderer.render( &scenes[ 0 ], t );
       true
     }
   };

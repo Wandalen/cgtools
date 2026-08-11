@@ -1,7 +1,30 @@
 //! Setup for filters that require UI controls (sliders, dropdowns, etc.)
 
-use crate::*;
-use filters::*;
+use crate::
+{
+  filters,
+  wasm_bindgen,
+  Renderer,
+  controls,
+  utils,
+};
+use filters::
+{
+  blur,
+  binarize,
+  rescale,
+  resize,
+  sharpen,
+  dithering,
+  posterize,
+  gamma,
+  mosaic,
+  brightness_contrast,
+  color_transform,
+  hsl_adjustment,
+  oil,
+  twirl,
+};
 use wasm_bindgen::{ JsCast, JsValue, prelude::Closure };
 use std::{ cell::RefCell, rc::Rc };
 use web_sys::HtmlElement;
@@ -59,18 +82,61 @@ macro_rules! setup_filter_with_sliders {
   }};
 }
 
-/// Sets up all filters that have UI controls
-pub fn setup_filters_with_controls
+/// Sets up blur filters (generic type parameters require manual setup)
+fn setup_blur_filters
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   current_filter : &Rc< RefCell< String > >
 )
 {
-  // Blur filters need manual setup due to generic type parameters
   filter_setup_helpers::setup_blur_filter( filter_renderer, current_filter, "box-blur", "Box Blur", blur::Box, 80.0 );
   filter_setup_helpers::setup_blur_filter( filter_renderer, current_filter, "gaussian-blur", "Gaussian Blur", blur::Gaussian, 50.0 );
   filter_setup_helpers::setup_blur_filter( filter_renderer, current_filter, "stack-blur", "Stack Blur", blur::Stack, 80.0 );
+}
 
+/// Sets up resize filters (generic type parameters require manual setup)
+fn setup_resize_filters
+(
+  filter_renderer : &Rc< RefCell< Renderer > >,
+  current_filter : &Rc< RefCell< String > >
+)
+{
+  filter_setup_helpers::setup_resize_filter( filter_renderer, current_filter, "resize-nn", "Resize (NN)", resize::Nearest );
+  filter_setup_helpers::setup_resize_filter( filter_renderer, current_filter, "resize-bilinear", "Resize (Bilinear)", resize::Bilinear );
+}
+
+/// Sets up brightness/contrast filters (generic type parameters require manual setup)
+fn setup_brightness_contrast_filters
+(
+  filter_renderer : &Rc< RefCell< Renderer > >,
+  current_filter : &Rc< RefCell< String > >
+)
+{
+  filter_setup_helpers::setup_brightness_contrast_filter( filter_renderer, current_filter, "bcgimp", "BC (GIMP)", brightness_contrast::Gimp, filter_setup_helpers::SliderRange { min : -100.0, max : 100.0, step : 1.0 } );
+  filter_setup_helpers::setup_brightness_contrast_filter( filter_renderer, current_filter, "bcph", "BC (PS)", brightness_contrast::Photoshop, filter_setup_helpers::SliderRange { min : -1.0, max : 1.0, step : 0.01 } );
+}
+
+/// Sets up dropdown-controlled filters
+fn setup_dropdown_filters
+(
+  filter_renderer : &Rc< RefCell< Renderer > >,
+  current_filter : &Rc< RefCell< String > >
+)
+{
+  // Channels (dropdown)
+  event_handlers::setup_channels_filter( filter_renderer, current_filter );
+
+  // Flip (dropdown)
+  event_handlers::setup_flip_filter( filter_renderer, current_filter );
+}
+
+/// Sets up filters that use a single slider control
+fn setup_single_slider_filters
+(
+  filter_renderer : &Rc< RefCell< Renderer > >,
+  current_filter : &Rc< RefCell< String > >
+)
+{
   // Binarize
   setup_filter_with_sliders!(
     filter_renderer,
@@ -90,10 +156,6 @@ pub fn setup_filters_with_controls
     rescale::Rescale { scale: 1.0 },
     [ ("Scale", "scale", 0.1, 10.0, 0.01) ]
   );
-
-  // Resize filters need manual setup due to generic type parameters
-  filter_setup_helpers::setup_resize_filter( filter_renderer, current_filter, "resize-nn", "Resize (NN)", resize::Nearest );
-  filter_setup_helpers::setup_resize_filter( filter_renderer, current_filter, "resize-bilinear", "Resize (Bilinear)", resize::Bilinear );
 
   // Sharpen
   setup_filter_with_sliders!(
@@ -144,11 +206,15 @@ pub fn setup_filters_with_controls
     mosaic::Mosaic { scale: 10 },
     [ ("Scale", "scale", 1.0, 100.0, 1.0) ]
   );
+}
 
-  // BrightnessContrast filters need manual setup due to generic type parameters
-  filter_setup_helpers::setup_brightness_contrast_filter( filter_renderer, current_filter, "bcgimp", "BC (GIMP)", brightness_contrast::GIMP, filter_setup_helpers::SliderRange { min : -100.0, max : 100.0, step : 1.0 } );
-  filter_setup_helpers::setup_brightness_contrast_filter( filter_renderer, current_filter, "bcph", "BC (PS)", brightness_contrast::Photoshop, filter_setup_helpers::SliderRange { min : -1.0, max : 1.0, step : 0.01 } );
-
+/// Sets up filters that use multiple slider controls
+fn setup_multi_slider_filters
+(
+  filter_renderer : &Rc< RefCell< Renderer > >,
+  current_filter : &Rc< RefCell< String > >
+)
+{
   // Color Transform
   setup_filter_with_sliders!(
     filter_renderer,
@@ -226,10 +292,19 @@ pub fn setup_filters_with_controls
       ("Strength", "strength", -200.0, 200.0, 1.0)
     ]
   );
+}
 
-  // Channels (dropdown)
-  event_handlers::setup_channels_filter( filter_renderer, current_filter );
-
-  // Flip (dropdown)
-  event_handlers::setup_flip_filter( filter_renderer, current_filter );
+/// Sets up all filters that have UI controls
+pub fn setup_filters_with_controls
+(
+  filter_renderer : &Rc< RefCell< Renderer > >,
+  current_filter : &Rc< RefCell< String > >
+)
+{
+  setup_blur_filters( filter_renderer, current_filter );
+  setup_single_slider_filters( filter_renderer, current_filter );
+  setup_resize_filters( filter_renderer, current_filter );
+  setup_multi_slider_filters( filter_renderer, current_filter );
+  setup_brightness_contrast_filters( filter_renderer, current_filter );
+  setup_dropdown_filters( filter_renderer, current_filter );
 }

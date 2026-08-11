@@ -165,6 +165,7 @@ where
   }
 
   /// Returns all visible coordinates.
+  #[ must_use ]
   pub fn visible_coordinates( &self ) -> Vec< C >
   {
     self.visibility.iter()
@@ -174,6 +175,7 @@ where
   }
 
   /// Returns coordinates within a specific distance range.
+  #[ must_use ]
   pub fn coordinates_in_range( &self, min_dist : u32, max_dist : u32 ) -> Vec< C >
   {
     self.visibility.iter()

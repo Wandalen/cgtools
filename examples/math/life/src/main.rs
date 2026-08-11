@@ -1,3 +1,5 @@
+//! Conway's Game of Life on a bordered ndarray grid : parses `life.txt`,
+//! keeps the four corners alive, runs 50 steps, renders to stdout.
 
 // Import the ndarray_cg crate's prelude for array manipulation
 use ndarray_cg::prelude::*;
@@ -10,7 +12,7 @@ const N : usize = 25;
 
 // Define a struct to represent a cell
 #[derive( Clone, Copy )] // Add `Copy` to allow copying of `Cell` values
-pub struct Cell( u8 );
+struct Cell( u8 );
 
 // Define a type alias for a 2D array of `Cell` values
 type Board = Array2< Cell >;
@@ -37,11 +39,7 @@ impl AddAssign for Cell
 }
 
 // Function to parse the input file into a 2D grid (Board)
-// `s![ 1..-1, .. ]` uses ndarray's slicing DSL, where a negative endpoint counts back from the
-// far end (Python-style) — `1..-1` selects "all but the first and last", not a literal empty
-// range; clippy's `reversed_empty_ranges` evaluates the endpoints as plain integers and can't
-// see the macro's own reinterpretation, so it misfires here.
-#[ allow( clippy::reversed_empty_ranges ) ]
+#[ expect( clippy::reversed_empty_ranges, reason = "`s![ 1..-1, .. ]` endpoints are ndarray negative indices ( count from the far end ), not a literal empty range; clippy evaluates them as plain integers" ) ]
 fn parse( x : &[u8] ) -> Board
 {
   // Create a grid with a border of `Cell(0)` (dead cells)
@@ -66,9 +64,7 @@ fn parse( x : &[u8] ) -> Board
 }
 
 // Function to apply the rules of the Game of Life to the grid
-// See `parse`'s `#[ allow ]` above: the `0..-2`/`1..-1` endpoints below are ndarray `s![]`
-// negative-index slices, not literal empty ranges.
-#[ allow( clippy::reversed_empty_ranges ) ]
+#[ expect( clippy::reversed_empty_ranges, reason = "`0..-2`/`1..-1` in `s![]` are ndarray negative-index slices, not literal empty ranges" ) ]
 fn iterate( z : &mut Board, scratch : &mut Board )
 {
   // Create a mutable view of the scratch array to store neighbor counts
@@ -91,7 +87,7 @@ fn iterate( z : &mut Board, scratch : &mut Board )
   // Apply the Game of Life rules to each cell
   zv.zip_mut_with( &neigh, |y, &n|
   {
-    y.0 = (( n.0 == 3 ) || ( n.0 == 2 && y.0 > 0 )) as u8; // Birth or survival
+    y.0 = u8::from(( n.0 == 3 ) || ( n.0 == 2 && y.0 > 0 )); // Birth or survival
   });
 }
 
@@ -148,5 +144,5 @@ fn main()
 
   // Count the number of live cells in the final grid
   let alive = a.iter().filter( |x| x.0 > 0 ).count(); // Remove extra `&` to avoid moving `Cell`
-  println!( "After {} steps there are {} cells alive", steps, alive ); // Print the result
+  println!( "After {steps} steps there are {alive} cells alive" ); // Print the result
 }

@@ -1,16 +1,16 @@
 # BUG-079: `getrandom` resolves to two incompatible major versions on `wasm32-unknown-unknown`, breaking every `--all-targets` build that pulls in `test_tools` or the `derive_tools`→`strum`→`phf` proc-macro chain
 
 - **Severity:** Medium
-- **state:** 📝 (Draft)
+- **state:** Completed
 - **Affects:** every crate whose `wasm32-unknown-unknown` `--all-targets` build reaches `test_tools` (dev-dependency) or `derive_tools`/`strum`/`phf_generator` (proc-macro chain) — confirmed on `module/min/mingl`, `module/min/minwebgpu`; both dependency paths are workspace-wide (`test_tools` is a near-universal dev-dependency), so the practical blast radius is most of `module/`
 - **Component:** workspace root `Cargo.lock` dependency resolution + `.cargo/config.toml`
 - **repo_identity:** self
 - **Filed:** 2026-08-11
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/bug/
-- **verified_by:** null
-- **verification_date:** null
-- **Fixed:** null
-- **Accepted By:** null
+- **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/bug/
+- **verification_date:** 2026-08-11
+- **Fixed:** 2026-08-11
+- **Accepted By:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ (self — same-session Tier 2 Dual-Role Self-Check, no separate PROC16 acceptance actor)
 
 ## Symptom
 
@@ -146,26 +146,40 @@ build and a genuinely clean one produce an identical "never tested" absence of e
 (`tsk/longrun.rulebook.md § Long-Run Execution : Breadth Selection`), not just breadth-appropriate
 detachment.
 
-## Fix Location (not yet applied — options, not a decision)
+## Fix Applied (2026-08-11)
 
-The fix is a workspace-wide dependency-resolution change, outside a per-crate clippy-cleanup's
-blast radius; recorded here rather than applied unilaterally. Candidate approaches, roughly
-increasing in invasiveness:
+Option 1, in its precise per-crate form — and it turned out the workspace already contained the
+canonical implementation of exactly this fix: `module/helper/renderer/Cargo.toml` carries a
+documented target-gated dev-dependency shim for the identical `test_tools → rand 0.8 →
+getrandom 0.2` path. The fix replicates that established shim verbatim into every crate the
+probe confirmed broken:
 
-1. **Pin `getrandom`'s Cargo-feature explicitly for the old path:** add `getrandom = { version =
-   "0.2", features = ["js"] }` as an explicit workspace dependency. Cargo unifies same-major-version
-   resolutions, so this can make the existing `0.2.17` resolution pick up the `js` feature workspace-
-   wide — cheapest option if it doesn't conflict with anything already pinning `getrandom` 0.2
-   without that feature.
-2. **Upgrade the proc-macro chain:** `phf`/`phf_macros`/`phf_generator`/`strum`/`derive_tools` to
-   versions that depend on `rand 0.9`+ (→ `getrandom 0.3`), if such versions exist and are
-   otherwise compatible — removes the 0.2 resolution at the source instead of accommodating it.
-3. **Drop or replace `test_tools`'s `rand 0.8` dependency** for the dev-dependency edge
-   specifically, if `test_tools` doesn't actually need `rand` for wasm32 test builds.
+```toml
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+getrandom = { version = "0.2", features = [ "js" ] }
+```
 
-Any of these needs a full-workspace `--all-targets` wasm32 re-verification before being considered
-safe (this workspace has ~100+ crates; a `getrandom`/`rand` version bump has wide reach) — that
-verification cost is why this bug is filed rather than fixed inline during a clippy-cleanup pass.
+- **Shimmed (5):** `min/mingl`, `min/minwebgl`, `min/minwebgpu`, `helper/browser_log`,
+  `helper/browser_input` — each with a `Fix(BUG-079)` comment block (root cause + pitfall).
+- **Already shimmed (pre-existing):** `helper/renderer`.
+- **Probed clean, no shim needed:** `helper/tilemap_renderer` (its dev graph never reaches
+  `rand 0.8` on wasm32 — probe ledger `-0259`).
+- **Deliberately version-local, dev-only, target-gated:** not `workspace = true` (the workspace
+  `getrandom` entry is the 0.3 generation), not a `[dependencies]` entry (shippable builds never
+  hit the broken path — only test binaries do), not host-visible (target-gated).
+
+Options 2 and 3 (upgrading the `phf`/`strum`/`derive_tools` chain; changing `test_tools`'s
+`rand` dependency) were not taken — both live in external wTools crates outside this repository.
+
+**Verification:** the Verify Command, run per affected crate
+(`cargo clippy -p <crate> --target wasm32-unknown-unknown --all-features --all-targets -- -D
+warnings`): all 5 shimmed crates now **exit 0 with zero warnings** (ledger `-0261`), where
+`mingl` and `minwebgpu` previously died at `getrandom`'s `compile_error!` (exit 101). These are
+the first successful wasm32 `--all-targets` compiles of these crates' test targets ever — and
+they surfaced no previously-masked findings. No in-suite `bug_reproducer` test exists for this
+bug: the defect is a cross-target dependency-resolution compile error, reproducible only by a
+nested `cargo` invocation with the wasm32 toolchain — the recorded Verify Command is the
+reproducer, exercised before (exit 101) and after (exit 0) the fix.
 
 ## Generalized Version
 
@@ -181,3 +195,4 @@ build failure.
 | Date | Event | Notes |
 |------|-------|-------|
 | 2026-08-11 | filed | Discovered while independently verifying a background agent's `mingl` wasm32 clippy fix; confirmed pre-existing (zero `Cargo.lock` diff this session) and workspace-wide (reproduces identically on the unrelated `minwebgpu` crate). Left in Draft/unfixed state — the fix is a workspace-wide dependency-resolution change outside this session's clippy-cleanup scope, and needs its own full-workspace wasm32 re-verification before landing. |
+| 2026-08-11 | fixed + verified | Applied option 1 as the renderer-established target-gated dev-dependency shim (see `## Fix Applied`) to the 5 crates a 6-crate probe (`-0259`) confirmed broken; `tilemap_renderer` probed clean, `renderer` already carried the shim. All 5 verified exit 0 / zero warnings under the per-crate Verify Command (`-0261`) — the first-ever successful wasm32 `--all-targets` compiles for these crates, with no masked findings surfacing. Closed same-session (Round 0). |

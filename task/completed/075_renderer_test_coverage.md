@@ -30,6 +30,29 @@ Per-test procedure (uniform across the 035 decomposition):
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p renderer --all-features` —
    all green before and after each relocation batch.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Are exactly the claimed 6 inline `#[ test ]` functions still present in `src/webgl/loaders/gltf.rs` (none relocated, none deleted)? `grep -c "#\[ test \]" src/webgl/loaders/gltf.rs` → `6` (lines 1134, 1144, 1154, 1164, 1174, 1184).
+- [x] C2 — Is the private helper `resolve_asset_uri` still un-exported (the documented "keep inline" decision, not silently reversed)? `grep -n "fn resolve_asset_uri" src/webgl/loaders/gltf.rs` → private `fn` at line 416; the crate's `mod_interface!` block (lines 1199-1205) exports only `GLTF` and `load` — `resolve_asset_uri` is absent from it.
+- [x] C3 — Is the documented exception rationale (naming this task) present at the test module? `src/webgl/loaders/gltf.rs:1120` → `// Exception ( task 075 ) : these tests stay inline because they pin the ...`.
+- [x] C4 — Were zero relocations/consolidations performed, matching the "0 relocated + 6 kept + 0 consolidated = 6" claim? Confirmed by C1 (count unchanged at 6) and C2/C3 (no new export, exception comment present) — no test file was added or removed for this task.
+
+### Measurements
+
+- [x] M1 — "task 075" exception-comment occurrences in `gltf.rs`: `1` (was: `0`, cite `git show 4469eafb^:module/helper/renderer/src/webgl/loaders/gltf.rs` → `0` hits; `git show 4469eafb:...` → `1` hit).
+
+### Invariants
+
+- [x] I1 — Native test suite (shared with 013/020/047, package-scoped, `longrun`-detached): `cargo nextest run -p renderer --all-features` → exit 0, `79 tests run: 79 passed, 0 skipped`, including all 6 kept-inline tests (`renderer webgl::loaders::gltf::private::tests::passes_absolute_url_through`, `passes_data_uri_through`, `empty_folder_yields_origin_absolute_uri`, `joins_relative_uri_with_folder`, `passes_blob_uri_through`, `passes_origin_absolute_path_through` — all `PASS`).
+- [x] I2 — Compiler/lints: `cargo clippy -p renderer --all-targets --all-features -- -D warnings` → exit 101, **fails**, same unrelated `browser_log` root cause documented in full under task 013's Verification (commit `5f33be66`, 2026-08-11, postdates this task). Isolated via the `--no-deps` variant → exit 0, clean — `renderer`'s own code, including `gltf.rs`, is unaffected.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against `resolve_asset_uri` being exported later without revisiting this task's decision: re-running C2's `mod_interface!` check must keep finding only `GLTF`/`load` exported — an export appearing there without a fresh task repeats the exact "widen the API solely for test placement" trade-off this task rejected.
+- [x] AF2 — Guards against the 6 inline tests being silently deleted rather than genuinely exercised: I1's PASS list must keep showing all 6 `gltf::private::tests::*` names — a future full run showing fewer than 6 signals silent coverage loss, not a legitimate relocation (which this crate's own convention requires going through the same expose-or-exception decision, not a quiet deletion).
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 035's workspace test-coverage census per Crate

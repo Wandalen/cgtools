@@ -30,6 +30,7 @@ use tiles_tools::coordinates::{
 // Basic World and Entity Tests
 // =============================================================================
 
+#[ expect( clippy::float_cmp, reason = "a fresh world's elapsed time is the exact 0.0 initial value" ) ]
 #[ test ]
 fn test_world_creation()
 {
@@ -105,6 +106,7 @@ fn test_entity_builder_player()
   assert!(world.get::<Size>(player).is_ok());
 }
 
+#[ expect( clippy::float_cmp, reason = "the decision interval read back is the exact construction literal" ) ]
 #[ test ]
 fn test_entity_builder_enemy()
 {
@@ -126,6 +128,7 @@ fn test_entity_builder_enemy()
 // Component Functionality Tests
 // =============================================================================
 
+#[ expect( clippy::float_cmp, reason = "health percentages derive from whole-number ratios with exact float results" ) ]
 #[ test ]
 fn test_health_component()
 {

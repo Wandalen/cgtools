@@ -222,6 +222,10 @@ mod private
   impl GBuffer
   {
     /// Creates a new `GBuffer` instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if shader compilation/linking or G-buffer texture/framebuffer creation fails.
     pub fn new
     (
       gl : &gl::WebGl2RenderingContext,
@@ -330,6 +334,15 @@ mod private
     }
 
     /// Runs the geometry pass over `scene`, filling every attachment texture.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a scene upload or draw call fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the G-buffer shader misses one of its fixed uniforms
+    /// ( `albedoTexture`, `objectId`, `materialId`, `objectColor` ) or an object-id upload fails.
     pub fn render
     (
       &mut self,

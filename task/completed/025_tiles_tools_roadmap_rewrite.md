@@ -27,6 +27,31 @@ source/tests (not the roadmap's own claims, which are the thing being disputed),
 from that ground truth. Do not merely delete the contradictory sections — the milestone structure itself
 may still be useful; the fix is accuracy, not removal.
 
+## Verification
+
+### Checklist
+
+- [ ] C1 — Is `roadmap.md` still internally self-consistent regarding ECS-movement/Flow-Field gap status (the exact defect class this task was filed to fix)? PARTIALLY REGRESSED — `docs/pitfall/002` is genuinely deleted and ECS movement genuinely fixed (task 063; confirmed `ls docs/pitfall/` → only `001`, `003`, `004`, `readme.md`), and roadmap.md's "Known Gaps" table (lines 77-85) and the Phase 3 detail paragraph (line 208) correctly reflect this — but 4 other locations still describe ECS movement/`pitfall/002` as an open gap: the top `Status:` line (5, "Phase 3 substantially complete (1 known gap)"), Quick Start (19, "two documented functional gaps (Flow Fields, ECS movement resolution)"), Ready-to-Code item 3 (24, "[Flow Fields, ECS movement] both already have a documented pitfall"), and Next Priority Actions item 2 (249, "Close `docs/pitfall/002`"). `git show 5f33be66 --stat -- .../roadmap.md` and `git show cd98503d --stat -- .../roadmap.md` both show zero hits for this file — the later architecture refactor never touched it, so the staleness predates it and traces to task 063's own edit not being propagated to every mention it claimed to update.
+- [x] C2 — Does `roadmap.md` still correctly reflect that Flow Fields remain genuinely stubbed (the other open gap this task documented)? `grep -c "stub\|Stub" src/flowfield.rs` → `11` hits — pitfall/001 is still live/accurate; this claim has not drifted.
+- [x] C3 — Is the `layout.rs` dashboard row (added by this task's own adversarial pass) still present? `grep -n "layout.rs" roadmap.md` → line 59, `Rectangular Layout over Hex Grids | ✅ Complete | layout.rs | ⚠️ no docs/ instance yet`.
+- [x] C4 — Are the 2 dead links this task fixed still fixed (`docs/ecs_decision.md` → `docs/architectural_evaluation/001_ecs_library_selection.md`; `src/coordinates/mod.rs` → `src/coordinates.rs`)? `docs/architectural_evaluation/001_ecs_library_selection.md` exists; `docs/ecs_decision.md` and `src/coordinates/mod.rs` both resolve to "No such file or directory"; `roadmap.md:44` cites `src/coordinates.rs`.
+- [x] C5 — Does the reproducible-test-count callout (line 75) still instruct re-running the command instead of trusting a static figure? YES, unchanged — "Current, reproducible test count: 237 tests passing (...) Re-run the command yourself for the live number — do not trust a number written into this file, it will drift." The live number has since moved to 245 (M2), exactly as the callout warned it would.
+
+### Measurements
+
+- [x] M1 — `roadmap.md` line count: `303` (was: `561`, `git show 77cc9b9a:module/helper/tiles_tools/roadmap.md | wc -l` — the commit immediately preceding this task's rewrite in the path-filtered log; this task's own Goal text cites "562", a 1-line discrepancy from `wc -l`'s newline-counting convention). This task's rewrite landed at `304` lines (`git show 25ceae76:...roadmap.md | wc -l`); now `303` — 1 line removed later, consistent with task 063's pitfall/002 reference update — net stable.
+- [x] M2 — Live `cargo nextest run -p tiles_tools --all-features` count: `245` passed (was: `237`, this task's own investigation figure, also recorded at roadmap.md:75). The +8 is accounted for by task 078 (this task's own documented follow-up) reviving 5 previously-dead flowfield integration tests, plus further reorganization from task 072 — not drift in this task's own work.
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, `--all-features`): `cargo nextest run -p tiles_tools --all-features` → exit 0, 245/245 passed (log `-0009_longrun.log`).
+- [ ] I2 — Compiler/lints (crate-scoped, `--all-features`): `cargo clippy -p tiles_tools --all-targets --all-features -- -D warnings` → exit 101 (log `-0015_longrun.log`). FAILS, but root cause is 3 dependency-hops outside this crate: `browser_log/src/panic.rs:82` (`#[allow(clippy::exhaustive_structs)]` missing a `reason=`, violating the workspace's own `allow_attributes_without_reason = "warn"` under `-D warnings`) via `tiles_tools → animation → mingl/minwebgl → browser_log` (confirmed via `cargo tree -p tiles_tools --all-features -i browser_log`). `browser_log` is unmodified relative to HEAD (`git diff` empty); a concurrent, unrelated workspace-wide sweep is mid-flight converting bare `#[allow(...)]` comments into `reason=`-carrying `#[expect(...)]`/`#[allow(..., reason=...)]` elsewhere in this crate (e.g. `ecs/world.rs`, `ecs/systems.rs`, both currently 1-line-uncommitted for exactly this) but has not yet reached `browser_log`. Not attributable to this task's roadmap.md edit.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against roadmap.md silently re-drifting into full self-contradiction the way it did before this task: re-running C1's location sweep (`grep -n "pitfall/002\|movement resolution is a no-op" roadmap.md`) after any future edit to `docs/pitfall/`, `ecs/world.rs`, or `roadmap.md` itself must show either zero hits or hits confined to explicitly-dated historical narrative (`Revision History`/`Revision note`) — a hit inside the Status line, Quick Start, or Next Priority Actions sections is the same defect class this task fixed.
+- [x] AF2 — Guards against the reproducible-test-count callout (line 75) being replaced with a hardcoded number that goes stale again: any future edit removing the "do not trust a number written into this file" sentence while leaving a bare digit is a regression to the pre-fix pattern.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P4 (doc rewrite)

@@ -90,6 +90,22 @@ mod private
     }
   }
 
+  /// Projects a world-space point through the camera, then shifts it by the
+  /// sprite's pivot, producing the final sprite transform.
+  fn project_to_transform
+  (
+    wx : f32,
+    wy : f32,
+    pivot : ( f32, f32 ),
+    sprite_id : tilemap_renderer::types::ResourceId< tilemap_renderer::types::asset::Sprite >,
+    ctx : &FrameContext< '_ >,
+  ) -> Transform
+  {
+    let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
+    let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, pivot, sprite_id, ctx.compiled );
+    make_transform( sx, sy, ctx.camera.zoom )
+  }
+
   /// Multiply the alpha channel of a tint by a per-layer alpha factor.
   #[ inline ]
   fn tinted( [ r, g, b, a ] : [ f32; 4 ], alpha : f32 ) -> [ f32; 4 ]
@@ -234,9 +250,7 @@ mod private
         }
         let wx = sum_x / 3.0;
         let wy = sum_y / 3.0;
-        let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-        let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-        let transform = make_transform( sx, sy, ctx.camera.zoom );
+        let transform = project_to_transform( wx, wy, object.pivot, sprite_id, ctx );
 
         out.push
         ((
@@ -848,9 +862,7 @@ mod private
         })?;
       let ( q, r ) = pos;
       let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
-      let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-      let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-      let transform = make_transform( sx, sy, ctx.camera.zoom );
+      let transform = project_to_transform( wx, wy, object.pivot, sprite_id, ctx );
       return Ok( vec!
       [
         (
@@ -882,9 +894,7 @@ mod private
 
     let ( q, r ) = pos;
     let ( wx, wy ) = hex_world_pixel( q, r, ctx, &object.id )?;
-    let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-    let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-    let transform = make_transform( sx, sy, ctx.camera.zoom );
+    let transform = project_to_transform( wx, wy, object.pivot, sprite_id, ctx );
 
     Ok( vec!
     [
@@ -964,11 +974,11 @@ mod private
 
   /// `emit_neighbor_condition` variant that composes the per-instance
   /// tint into each emitted sprite.
-  #[ allow( clippy::too_many_arguments ) ]
+  #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct input needed to resolve and place a neighbor-conditioned sprite variant with per-instance tint; grouping into a struct would add indirection without reducing call-site complexity" ) ]
   // `raw_sx` / `raw_sy` denote one (x, y) screen-space pair produced together by
   // `ctx.camera.project`; splitting the names further apart would obscure that
   // pairing rather than reduce confusion.
-  #[ allow( clippy::similar_names ) ]
+  #[ allow( clippy::similar_names, reason = "raw_sx/raw_sy denote one (x, y) screen-space pair produced together by ctx.camera.project; the shared prefix reflects that pairing" ) ]
   fn emit_neighbor_condition_with_overrides
   (
     object : &Object,
@@ -1204,9 +1214,7 @@ mod private
               context : format!( "object {:?} free-pos external slot {slot:?}", object.id ),
             })?;
           let ( wx, wy ) = ( x, y );
-          let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-          let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-          let transform = make_transform( sx, sy, ctx.camera.zoom );
+          let transform = project_to_transform( wx, wy, object.pivot, sprite_id, ctx );
           out.push((
             wx, wy,
             Sprite
@@ -1235,9 +1243,7 @@ mod private
           })?;
 
         let ( wx, wy ) = ( x, y );
-        let ( sx, sy ) = ctx.camera.project( ( wx, wy ) );
-        let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
-        let transform = make_transform( sx, sy, ctx.camera.zoom );
+        let transform = project_to_transform( wx, wy, object.pivot, sprite_id, ctx );
 
         out.push
         ((

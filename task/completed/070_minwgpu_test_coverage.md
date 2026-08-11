@@ -31,6 +31,35 @@ Per-test procedure (uniform across the 035 decomposition):
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p minwgpu --all-features` —
    all green before and after each relocation batch.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Are all 21 originally-inline tests still inline (12 in `buffer.rs`, 9 in `context.rs`), each carrying a "documented exception (task 070)" rationale comment? `grep -c "#\[ *test *\]" module/min/minwgpu/src/buffer.rs` → `12`; same for `context.rs` → `9`. Both `mod tests` blocks (`buffer.rs:315`, `context.rs:427`) are immediately preceded by a "Documented exception (task 070) to the all-tests-in-tests/ convention..." comment naming this task and the `pub( super )`-field/no-getter rationale.
+- [x] C2 — Does `tests/` now exist with the 2 claimed integration test files plus a readme? `ls module/min/minwgpu/tests/` → `context_test.rs`, `helper_test.rs`, `readme.md` — all 3 present.
+- [x] C3 — Does `context_test.rs` contain exactly the 3 claimed cases (full type-state chain error, `adapter_selector` invocation+propagation, `from_instance` adapter-stage config)? Read in full — `empty_backends_request_adapter_errors_without_panicking`, `adapter_selector_is_invoked_and_its_error_propagates`, `from_instance_supports_adapter_stage_configuration` — 3/3 present, matching the claimed behavior.
+- [x] C4 — Does `helper_test.rs` contain exactly the 2 claimed cases (`attr` field mapping, sync `request_adapter` shortcut error)? Read in full — `attr_maps_arguments_onto_vertex_attribute_fields`, `request_adapter_shortcut_errors_on_empty_backends` — 2/2 present.
+- [x] C5 — Does `tests/readme.md` carry the Responsibility Table? Read in full — present, 2 rows (`context_test.rs`, `helper_test.rs`), matching the crate's convention.
+- [x] C6 — Is `wgpu` present in `[dev-dependencies]`? `Cargo.toml:14` → `wgpu.workspace = true` under `[dev-dependencies]` (crate does not re-export wgpu from `[dependencies]` alone for test use, per the claim).
+- [x] C7 — Is the claimed import-path fix real — does `Context` live at `minwgpu::context::Context`, not the crate root? `tests/context_test.rs:8` → `use minwgpu::{ context::Context, Error };`; `src/lib.rs`'s `mod_interface!` block declares `layer context;` (not `own`/`exposed` at the root), consistent with `own use` not propagating to the parent module.
+- [x] C8 — Is the claimed `ContextBuilder`-not-`Debug` workaround (let-else destructuring instead of `{result:?}`/`expect_err`) actually present? `tests/context_test.rs` uses `let Err( error ) = result else { panic!(..) }` at all 3 call sites; no `{result:?}` or `.expect_err(..)` appears against the builder's own `Result`.
+
+### Measurements
+
+- [x] M1 — Total test count for `minwgpu`: `26` (`21` inline + `5` integration) (was: `21` inline / `0` integration — `git ls-tree -r 4469eafb^ -- module/min/minwgpu/` lists no `tests/` entries at all, confirming the pre-fix "0 tests/ files" baseline; `4469eafb` is the commit that added `tests/context_test.rs`/`tests/helper_test.rs`).
+
+### Invariants
+
+- [x] I1 — `cargo nextest run -p minwgpu --all-features` → exit `0` — `26 tests run: 26 passed, 0 skipped`, exactly matching M1 (21 inline + 5 integration).
+- [x] I2 — `cargo clippy -p minwgpu --all-targets --all-features -- -D warnings` → exit `0`, clean.
+  (Both I1 and I2 were run under an isolated `CARGO_TARGET_DIR` after two initial attempts in the shared workspace `target/` directory failed with transient `.fingerprint`/dep-info "No such file or directory" errors on unrelated crates — confirmed, via `ps aux`, to be caused by several other concurrently-running sibling sessions building/clippy-ing other packages in the same shared `target/` directory at the same wall-clock time, not a `minwgpu` defect.)
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a future edit silently deleting one of the 21 documented-exception inline tests instead of relocating it: re-run C1's exact counts (`12`/`9`) — a drop below either with no corresponding rationale-comment update is the exact regression this task's own Work Procedure forbade ("Never delete a test to satisfy the rule").
+- [x] AF2 — Guards against the 5 new integration tests becoming vacuous: 3 of the 5 assert the specific `Error::RequestAdapterError` variant via `matches!`, not merely `.is_err()` — a future change to `wgpu`'s empty-backends behavior would surface as a loud, specific test failure, not a silently-passing weaker assertion.
+- [x] AF3 — Guards against total test count drifting unnoticed: re-run I1 and compare its "N tests run" line against this file's own M1 (`26`) — any deviation not explained by a deliberate, documented addition/removal is drift.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 035's workspace test-coverage census per Crate

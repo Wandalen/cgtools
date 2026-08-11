@@ -245,7 +245,7 @@ where
       ( 0..COLS).map( move | col |
       {
         // SAFETY: ptr is ROWS * COLS in length, and col * ROWS + row will always be less than COLS * ROWS,
-        #[ allow( unsafe_code ) ]
+        #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
         unsafe { &mut *ptr.add( col * ROWS + row ) }
       })
     })
@@ -306,7 +306,7 @@ where
   {
     // SAFETY: This is safe because the memory layout of [ [ E ; COLS ] ; ROWS ]
     // is contiguous and can be reinterpreted as a flat slice of E.
-    #[ allow( unsafe_code ) ]
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
     unsafe { std::slice::from_raw_parts_mut( self.as_mut_ptr(), ROWS * COLS ) }
   }
 
@@ -346,7 +346,7 @@ where
       {
         // SAFETY: Thanks to the check above, ptr is ROWS * COLS in length, 
         // so col * ROWS + row will always be less than ROWS * COLS,
-        #[ allow( unsafe_code ) ]
+        #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
         unsafe { *ptr.add( row * COLS + col ) }
       })
     })

@@ -20,8 +20,8 @@ use minwebgl::WebGlVertexArrayObject;
 use std::rc::Rc;
 use std::cell::RefCell;
 use web_sys::{ HtmlInputElement, HtmlButtonElement, FileReader, Event };
-use wfc_algo::*;
-use wfc_image::{ generate_image, wrap::*, retry::* };
+use wfc_algo::{Size, ForbidNothing};
+use wfc_image::{ generate_image, wrap::WrapXY, retry::NumTimes };
 use ndarray_cg::mat3x3h;
 
 /// Tile map size. Length of square map side (a x a).
@@ -79,7 +79,7 @@ fn load_image
   let body = document.body()
   .ok_or_else( || JsValue::from_str( "Failed to get body" ) )?;
   let _ = body.append_child( &image );
-  image.set_id( &format!( "{path}" ) );
+  image.set_id( path );
 
   let style = image.style();
   let _ = style.set_property( "visibility", "hidden" );
@@ -111,8 +111,8 @@ fn load_image
 /// Handles the `change` event on the file input element.
 fn on_input_change
 (
-  event : Event,
-  app_state : Rc< RefCell< ApplicationState > >
+  event : &Event,
+  app_state : &Rc< RefCell< ApplicationState > >
 )
 {
   let Some( target ) = event.target()
@@ -140,12 +140,12 @@ fn on_input_change
   };
 
   let reader = FileReader::new().unwrap();
-  let app_state_clone = Rc::clone( &app_state );
+  let app_state_clone = Rc::clone( app_state );
   let onload_callback = Closure::< dyn FnMut( _ ) >::new
   (
-    move | _event : Event |
+    move | event : Event |
     {
-      let reader = _event.target()
+      let reader = event.target()
       .and_then( | target | target.dyn_into::< FileReader >().ok() );
 
       if let Some( reader ) = reader
@@ -175,7 +175,7 @@ fn on_input_change
 }
 
 /// Initializes the file input element for uploading TMX files.
-fn input_tilemap_init( app_state : Rc< RefCell< ApplicationState > > ) -> Result< (), JsValue >
+fn input_tilemap_init( app_state : &Rc< RefCell< ApplicationState > > ) -> Result< (), JsValue >
 {
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -193,8 +193,8 @@ fn input_tilemap_init( app_state : Rc< RefCell< ApplicationState > > ) -> Result
   let on_change_callback = Closure::< dyn FnMut( _ ) >::new
   (
     {
-      let app_state = Rc::clone( &app_state );
-      move | e : Event | on_input_change( e, Rc::clone( &app_state ) )
+      let app_state = Rc::clone( app_state );
+      move | e : Event | on_input_change( &e, &app_state )
     }
   );
 
@@ -205,7 +205,7 @@ fn input_tilemap_init( app_state : Rc< RefCell< ApplicationState > > ) -> Result
 }
 
 /// Sets up a button with a click event listener.
-fn button_generate_setup( id : &str, top : u32, app_state : Rc< RefCell< ApplicationState > > ) -> Result< (), JsValue >
+fn button_generate_setup( id : &str, top : u32, app_state : &Rc< RefCell< ApplicationState > > )
 {
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -217,13 +217,13 @@ fn button_generate_setup( id : &str, top : u32, app_state : Rc< RefCell< Applica
 
   let button_style = button_element.style();
   let _ = button_style.set_property( "position", "absolute" );
-  let _ = button_style.set_property( "top", format!( "{}px", top ).as_str() );
+  let _ = button_style.set_property( "top", format!( "{top}px" ).as_str() );
   let _ = button_style.set_property( "left", "15px" );
 
   let button_callback = Closure::< dyn FnMut( _ ) >::new
   (
     {
-      let app_state = Rc::clone(&app_state );
+      let app_state = Rc::clone( app_state );
       move | _e : Event |
       {
         let mut state = app_state.borrow_mut();
@@ -240,14 +240,12 @@ fn button_generate_setup( id : &str, top : u32, app_state : Rc< RefCell< Applica
   );
 
   button_callback.forget();
-
-  Ok( () )
 }
 
 /// Initializes the application by setting up the browser environment and UI.
 fn init()
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
 
   let app_state = Rc::new
   (
@@ -261,8 +259,8 @@ fn init()
     )
   );
 
-  let _ = input_tilemap_init( Rc::clone( &app_state ) );
-  let _ = button_generate_setup( "generate-wfc-image", 50, Rc::clone( &app_state ) );
+  let _ = input_tilemap_init( &app_state );
+  button_generate_setup( "generate-wfc-image", 50, &app_state );
 
   let window = web_sys::window()
   .expect( "Should have a window" );
@@ -471,7 +469,7 @@ fn render_tile_map(app_state : &ApplicationState)
   if map.is_empty() || map[ 0 ].is_empty()
   {
     return;
-  };
+  }
 
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -495,17 +493,17 @@ fn render_tile_map(app_state : &ApplicationState)
 
   let size = ( map[ 0 ].len() as i32, map.len() as i32 );
   let data = map.iter()
-  .cloned()
   .flatten()
+  .copied()
   .collect::< Vec< u8 > >();
 
   prepare_texture1u( &data, size, GL::TEXTURE1 );
 
   let tiles_location = gl.get_uniform_location( &program, "tiles_sampler" );
-  let map_location = gl.get_uniform_location( &program, "map_sampler" );
+  let map_sampler_location = gl.get_uniform_location( &program, "map_sampler" );
 
   gl.uniform1i( tiles_location.as_ref(), 0 );
-  gl.uniform1i( map_location.as_ref(), 1 );
+  gl.uniform1i( map_sampler_location.as_ref(), 1 );
 
   let texel_size = [ 1.0 / size.0 as f32, 1.0 / size.1 as f32 ];
   let texel_size_location = gl.get_uniform_location( &program, "texel_size" );
@@ -533,7 +531,7 @@ fn set_pattern( tmx_content : &str, app_state : &mut ApplicationState )
   .find(| ch | ch.attributes.get( &( "encoding".to_string(), None ) ) == Some( &"csv".to_string() ) )
   .unwrap();
 
-  let pattern_raw = data.content_str().split( "," )
+  let pattern_raw = data.content_str().split( ',' )
   .map( | tile | tile.trim().parse::< u8 >().unwrap().saturating_sub( 1 ) )
   .collect::< Vec< _ > >();
 
@@ -571,7 +569,7 @@ fn generate_map_wfc_image( app_state : &mut ApplicationState )
 
   let map_raw : Vec<u8> = map_img.to_luma8().into_raw();
   let map = map_raw.chunks( SIZE )
-  .map( | row | row.to_vec() )
+  .map( <[u8]>::to_vec )
   .collect::< Vec< Vec< _ > > >();
 
   app_state.map = Some( map );
@@ -586,5 +584,5 @@ fn run()
 /// The main entry point of the Rust program.
 fn main()
 {
-  run()
+  run();
 }

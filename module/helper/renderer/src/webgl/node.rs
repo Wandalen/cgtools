@@ -359,6 +359,10 @@ mod private
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations in the shader program.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the world-matrix uniform upload fails.
     pub fn upload
     (
       &self,
@@ -411,6 +415,10 @@ mod private
     /// Traverses the node and its descendants, calling the provided callback function for each node.
     ///
     /// * `callback`: A mutable closure or function that takes an `Rc<RefCell<Node>>` as input and returns a `Result<(), gl::WebglError>`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the callback returns one for any visited node.
     pub fn traverse< F >( &self, callback : &mut F ) -> Result< (), gl::WebglError >
     where F : FnMut( Rc< RefCell< Node > > ) -> Result< (), gl::WebglError >
     {
@@ -508,6 +516,10 @@ mod private
     /// This function starts with the node's own bounding box and then recursively
     /// combines the hierarchical bounding boxes of all its children. This creates a
     /// single bounding box that encapsulates the entire sub-tree.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the node's world matrix is not invertible.
     #[ must_use ]
     pub fn local_bounding_box_hierarchical( &self ) -> BoundingBox
     {

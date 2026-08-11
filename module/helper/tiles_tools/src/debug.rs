@@ -48,6 +48,7 @@ use std::collections::{HashMap, VecDeque};
 use std::time::{Instant, Duration};
 use std::fs::{File, create_dir_all};
 use std::io::{Write, BufWriter};
+use std::fmt::Write as _;
 use std::path::Path;
 
 /// Visual debugging renderer for coordinate grids.
@@ -266,8 +267,8 @@ impl GridRenderer
     let mut output = String::new();
     
     // Add header with grid information
-    output.push_str(&format!("Debug Grid ({} x {}) - Style: {:?}\n", 
-      self.width, self.height, self.style));
+    let _ = writeln!(output, "Debug Grid ({} x {}) - Style: {:?}",
+      self.width, self.height, self.style);
     output.push_str(&"=".repeat(50));
     output.push('\n');
 
@@ -286,8 +287,8 @@ impl GridRenderer
       markers.sort_by_key(|(_, marker)| marker.priority);
       
       for ((x, y), marker) in markers {
-        output.push_str(&format!("  {} ({}, {}) - {}\n", 
-          marker.symbol, x, y, marker.description));
+        let _ = writeln!(output, "  {} ({}, {}) - {}",
+          marker.symbol, x, y, marker.description);
       }
     }
 
@@ -309,7 +310,7 @@ impl GridRenderer
         
         let coord = (x, y);
         if let Some(marker) = self.markers.get(&coord) {
-          output.push_str(&format!(" {} ", marker.symbol));
+          let _ = write!(output, " {} ", marker.symbol);
         } else if self.is_highlighted(coord) {
           output.push_str(" # ");
         } else {
@@ -338,7 +339,7 @@ impl GridRenderer
       for x in 0..self.width as i32 {
         let coord = (x, y);
         if let Some(marker) = self.markers.get(&coord) {
-          output.push_str(&format!("/{}\\ ", marker.symbol));
+          let _ = write!(output, "/{}\\ ", marker.symbol);
         } else if self.is_highlighted(coord) {
           output.push_str("/#\\ ");
         } else {
@@ -357,9 +358,9 @@ impl GridRenderer
         let coord = (x, y);
         if let Some(marker) = self.markers.get(&coord) {
           if (x + y) % 2 == 0 {
-            output.push_str(&format!("▲{} ", marker.symbol));
+            let _ = write!(output, "▲{} ", marker.symbol);
           } else {
-            output.push_str(&format!("▼{} ", marker.symbol));
+            let _ = write!(output, "▼{} ", marker.symbol);
           }
         } else if self.is_highlighted(coord) {
           output.push_str(if (x + y) % 2 == 0 { "▲# " } else { "▼# " });
@@ -381,7 +382,7 @@ impl GridRenderer
       for x in 0..self.width as i32 {
         let coord = (x, y);
         if let Some(marker) = self.markers.get(&coord) {
-          output.push_str(&format!("◊{} ", marker.symbol));
+          let _ = write!(output, "◊{} ", marker.symbol);
         } else if self.is_highlighted(coord) {
           output.push_str("◊# ");
         } else {
@@ -764,14 +765,14 @@ impl ECSInspector {
     report.push_str("===================\n\n");
 
     // Entity summary
-    report.push_str(&format!("Total Entities: {}\n", self.entity_data.len()));
+    let _ = writeln!(report, "Total Entities: {}", self.entity_data.len());
     
     // Component statistics
     report.push_str("\nComponent Statistics:\n");
     let mut components: Vec<_> = self.component_counts.iter().collect();
     components.sort_by_key(|(_, count)| *count);
     for (component, count) in components.iter().rev() {
-      report.push_str(&format!("  {component}: {count} entities\n"));
+      let _ = writeln!(report, "  {component}: {count} entities");
     }
 
     // System timings
@@ -780,7 +781,7 @@ impl ECSInspector {
       let mut timings: Vec<_> = self.system_timings.iter().collect();
       timings.sort_by_key(|(_, duration)| *duration);
       for (system, duration) in timings.iter().rev() {
-        report.push_str(&format!("  {}: {:.2}ms\n", system, duration.as_secs_f64() * 1000.0));
+        let _ = writeln!(report, "  {}: {:.2}ms", system, duration.as_secs_f64() * 1000.0);
       }
     }
 
@@ -790,18 +791,18 @@ impl ECSInspector {
     entities.sort_by_key(|e| e.id);
     
     for entity in entities.iter().take(10) { // Limit to first 10 for readability
-      report.push_str(&format!("\nEntity {}:\n", entity.id));
-      report.push_str(&format!("  Components: {}\n", entity.components.join(", ")));
+      let _ = writeln!(report, "\nEntity {}:", entity.id);
+      let _ = writeln!(report, "  Components: {}", entity.components.join(", "));
       if let Some(pos) = entity.position {
-        report.push_str(&format!("  Position: ({}, {})\n", pos.0, pos.1));
+        let _ = writeln!(report, "  Position: ({}, {})", pos.0, pos.1);
       }
       for (key, value) in &entity.data {
-        report.push_str(&format!("  {key}: {value}\n"));
+        let _ = writeln!(report, "  {key}: {value}");
       }
     }
 
     if self.entity_data.len() > 10 {
-      report.push_str(&format!("\n... and {} more entities\n", self.entity_data.len() - 10));
+      let _ = writeln!(report, "\n... and {} more entities", self.entity_data.len() - 10);
     }
 
     report
@@ -812,7 +813,7 @@ impl ECSInspector {
   pub fn export_json(&self) -> String {
     // Simplified JSON export (in real implementation would use serde_json)
     let mut json = String::from("{\n");
-    json.push_str(&format!("  \"total_entities\": {},\n", self.entity_data.len()));
+    let _ = writeln!(json, "  \"total_entities\": {},", self.entity_data.len());
     
     json.push_str("  \"component_counts\": {\n");
     let component_entries: Vec<String> = self.component_counts.iter()
@@ -945,16 +946,16 @@ impl PerformanceProfiler {
     report.push_str("Performance Profile Report\n");
     report.push_str("=========================\n\n");
 
-    report.push_str(&format!("Uptime: {:.1}s\n", stats.uptime.as_secs_f64()));
-    report.push_str(&format!("Frame Count: {}\n", stats.frame_count));
-    report.push_str(&format!("Average FPS: {:.1}\n", stats.fps));
-    report.push_str(&format!("Frame Time: {:.2}ms (avg), {:.2}ms (min), {:.2}ms (max)\n",
+    let _ = writeln!(report, "Uptime: {:.1}s", stats.uptime.as_secs_f64());
+    let _ = writeln!(report, "Frame Count: {}", stats.frame_count);
+    let _ = writeln!(report, "Average FPS: {:.1}", stats.fps);
+    let _ = writeln!(report, "Frame Time: {:.2}ms (avg), {:.2}ms (min), {:.2}ms (max)",
       stats.avg_frame_time.as_secs_f64() * 1000.0,
       stats.min_frame_time.as_secs_f64() * 1000.0,
-      stats.max_frame_time.as_secs_f64() * 1000.0));
+      stats.max_frame_time.as_secs_f64() * 1000.0);
     
-    report.push_str(&format!("Memory Usage: {} KB\n", stats.current_memory / 1024));
-    report.push_str(&format!("Active Entities: {}\n", stats.current_entities));
+    let _ = writeln!(report, "Memory Usage: {} KB", stats.current_memory / 1024);
+    let _ = writeln!(report, "Active Entities: {}", stats.current_entities);
 
     if !self.system_times.is_empty() {
       report.push_str("\nSystem Performance:\n");
@@ -962,10 +963,10 @@ impl PerformanceProfiler {
         if !times.is_empty() {
           let avg = times.iter().sum::<Duration>() / times.len() as u32;
           let max = times.iter().max().copied().unwrap_or(Duration::ZERO);
-          report.push_str(&format!("  {}: {:.2}ms avg, {:.2}ms max\n",
+          let _ = writeln!(report, "  {}: {:.2}ms avg, {:.2}ms max",
             system, 
             avg.as_secs_f64() * 1000.0,
-            max.as_secs_f64() * 1000.0));
+            max.as_secs_f64() * 1000.0);
         }
       }
     }

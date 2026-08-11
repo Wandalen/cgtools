@@ -303,7 +303,6 @@ mod private
     {
       // f32-to-u8 `as` cast saturates: values < 0.0 clamp to 0, values > 1.0 clamp to 255.
       // No explicit range check is needed; out-of-range input saturates silently.
-      #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
       let ( r, g, b, a ) =
       (
         ( color[ 0 ] * 255.0 ) as u8,
@@ -359,7 +358,6 @@ mod private
       // `height` is a viewport/surface dimension in pixels; f32's 23-bit mantissa
       // only loses precision above 2^24 (16,777,216px) tall, which is not a
       // representable rendering surface, so the cast is lossless in practice.
-      #[ allow( clippy::cast_precision_loss ) ]
       let pos_y = height as f32 - t.position[ 1 ];
 
       if pos_x != 0.0 || pos_y != 0.0
@@ -527,9 +525,7 @@ mod private
 
       let mut png = Vec::new();
       // `core::io` is unstable (feature `core_io`, rust-lang/rust#154046) on this
-      // toolchain's stable channel, so clippy's suggested `core::` swap does not
-      // compile here; `std::io::Cursor` is the only usable path.
-      #[ allow( clippy::std_instead_of_core ) ]
+      // toolchain's stable channel; `std::io::Cursor` is the only usable path.
       dynamic.write_to( &mut std::io::Cursor::new( &mut png ), image::ImageFormat::Png ).ok()?;
       Some( png )
     }
@@ -541,11 +537,7 @@ mod private
     /// dimensions of — PNG, JPEG, GIF, WebP, BMP, TIFF, etc. Returns `None`
     /// when the format is unrecognized or the header is malformed.
     // `core::io` is unstable (feature `core_io`, rust-lang/rust#154046) on this
-    // toolchain's stable channel, so clippy's suggested `core::` swap does not
-    // compile here; `std::io::Cursor` is the only usable path. Attribute is at
-    // function level because the call is this function's tail expression,
-    // where item-level attributes (not statement-level) are required on stable.
-    #[ allow( clippy::std_instead_of_core ) ]
+    // toolchain's stable channel; `std::io::Cursor` is the only usable path.
     fn image_dimensions( bytes : &[ u8 ] ) -> Option< ( u32, u32 ) >
     {
       image::ImageReader::new( std::io::Cursor::new( bytes ) )
@@ -1386,11 +1378,7 @@ mod private
           {
             if ( ri.index as usize ) < instances.len() { instances.swap_remove( ri.index as usize ); }
           }
-          // Collapsing into a match guard (`Some(Mesh{..}) if cond => ..`) would
-          // make this arm's pattern not count toward exhaustiveness (verified:
-          // E0004 "match arms with guards don't count towards exhaustivity"),
-          // since `SvgBatch` has only Sprite/Mesh variants and no wildcard arm.
-          #[ allow( clippy::collapsible_match ) ]
+          #[ expect( clippy::collapsible_match, reason = "collapsing into a match guard ( `Some( Mesh{ .. } ) if cond => ..` ) would stop this arm counting toward exhaustiveness ( E0004 : match arms with guards don't count towards exhaustivity ); `SvgBatch` has only Sprite/Mesh variants and no wildcard arm" ) ]
           Some( SvgBatch::Mesh { instances, .. } ) =>
           {
             if ( ri.index as usize ) < instances.len() { instances.swap_remove( ri.index as usize ); }

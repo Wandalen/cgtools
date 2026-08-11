@@ -22,9 +22,67 @@ struct Settings
   width : f32
 }
 
+fn setup_join_dropdown( gui : &JsValue, object : &JsValue, line : Rc< RefCell< line_tools::d2::Line > > )
+{
+  let prop = lil_gui::add_dropdown( gui, object, "join", &serde_wasm_bindgen::to_value( &[ "miter", "bevel", "round" ] ).unwrap() );
+  let callback = Closure::new
+  (
+    move | value : String |
+    {
+      gl::info!( "{value:?}" );
+      let mut line = line.borrow_mut();
+      match value.as_str()
+      {
+        "miter" => { line.join_set( line_tools::Join::Miter( 7, 7 ) ); },
+        "bevel" => { line.join_set( line_tools::Join::Bevel( 7, 7 ) ); },
+        "round" => { line.join_set( line_tools::Join::Round( 16, 8 ) ); },
+        _ => {}
+      }
+    }
+  );
+  lil_gui::on_change_string( &prop, &callback );
+  callback.forget();
+}
+
+fn setup_cap_dropdown( gui : &JsValue, object : &JsValue, line : Rc< RefCell< line_tools::d2::Line > > )
+{
+  let prop = lil_gui::add_dropdown( gui, object, "cap", &serde_wasm_bindgen::to_value( &[ "butt", "square", "round" ] ).unwrap() );
+  let callback = Closure::new
+  (
+    move | value : String |
+    {
+      gl::info!( "{value:?}" );
+      let mut line = line.borrow_mut();
+      match value.as_str()
+      {
+        "butt" => { line.cap_set( line_tools::Cap::Butt ); },
+        "square" => { line.cap_set( line_tools::Cap::Square ); },
+        "round" => { line.cap_set( line_tools::Cap::Round( 16 ) ); },
+        _ => {}
+      }
+    }
+  );
+  lil_gui::on_change_string( &prop, &callback );
+  callback.forget();
+}
+
+fn setup_width_slider( gui : &JsValue, object : &JsValue, line : Rc< RefCell< line_tools::d2::Line > >, gl : gl::GL )
+{
+  let prop = lil_gui::add_slider( gui, object, "width", 0.0, 500.0, 0.1 );
+  let callback = Closure::new
+  (
+    move | value : f32 |
+    {
+      line.borrow_mut().mesh_get_mut().upload( &gl, "u_width", &value ).unwrap();
+    }
+  );
+  lil_gui::on_change( &prop, &callback );
+  callback.forget();
+}
+
 fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
 
@@ -76,66 +134,9 @@ fn run() -> Result< (), gl::WebglError >
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
   let gui = lil_gui::new_gui();
 
-  // Joins
-  let prop = lil_gui::add_dropdown( &gui, &object, "join", &serde_wasm_bindgen::to_value( &[ "miter", "bevel", "round" ] ).unwrap() );
-  let callback = Closure::new
-  (
-    {
-      let line = line.clone();
-      move | value : String |
-      {
-        gl::info!( "{:?}", value );
-        let mut line = line.borrow_mut();
-        match value.as_str()
-        {
-          "miter" => { line.join_set( line_tools::Join::Miter( 7, 7 ) ); },
-          "bevel" => { line.join_set( line_tools::Join::Bevel( 7, 7 ) ); },
-          "round" => { line.join_set( line_tools::Join::Round( 16, 8 ) ); },
-          _ => {}
-        }
-      }
-    }
-  );
-  lil_gui::on_change_string( &prop, &callback );
-  callback.forget();
-
-  // Caps
-  let prop = lil_gui::add_dropdown( &gui, &object, "cap", &serde_wasm_bindgen::to_value( &[ "butt", "square", "round" ] ).unwrap() );
-  let callback = Closure::new
-  (
-    {
-      let line = line.clone();
-      move | value : String |
-      {
-        gl::info!( "{:?}", value );
-        let mut line = line.borrow_mut();
-        match value.as_str()
-        {
-          "butt" => { line.cap_set( line_tools::Cap::Butt ); },
-          "square" => { line.cap_set( line_tools::Cap::Square ); },
-          "round" => { line.cap_set( line_tools::Cap::Round( 16 ) ); },
-          _ => {}
-        }
-      }
-    }
-  );
-  lil_gui::on_change_string( &prop, &callback );
-  callback.forget();
-
-  let prop = lil_gui::add_slider( &gui, &object, "width", 0.0, 500.0, 0.1 );
-  let callback = Closure::new
-  (
-    {
-      let line = line.clone();
-      let gl = gl.clone();
-      move | value : f32 |
-      {
-        line.borrow_mut().mesh_get_mut().upload( &gl, "u_width", &value ).unwrap();
-      }
-    }
-  );
-  lil_gui::on_change( &prop, &callback );
-  callback.forget();
+  setup_join_dropdown( &gui, &object, line.clone() );
+  setup_cap_dropdown( &gui, &object, line.clone() );
+  setup_width_slider( &gui, &object, line.clone(), gl.clone() );
 
   gl.enable( gl::BLEND );
   gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
@@ -147,7 +148,7 @@ fn run() -> Result< (), gl::WebglError >
     {
       let time = t as f32 / 1000.0;
 
-      update( line.clone(), &canvas, &mut input );
+      update( &line, &canvas, &mut input );
 
       let distance = line.borrow().total_distance_get();
 
@@ -170,5 +171,5 @@ fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  run().unwrap()
+  run().unwrap();
 }

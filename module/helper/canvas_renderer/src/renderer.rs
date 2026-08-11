@@ -162,15 +162,15 @@ mod private
     /// * `width` - Width of the render target in pixels
     /// * `height` - Height of the render target in pixels
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// Returns `Ok(CanvasRenderer)` on success, or `Err(WebglError)` if initialization fails.
+    /// Returns `WebglError` if shader compilation or program linking fails.
     pub fn new( gl : &GL, width : u32, height : u32 ) -> Result< Self, gl::WebglError >
     {
       let vertex_shader_src = include_str!( "../shaders/canvas.vert" );
       let fragment_shader_src = include_str!( "../shaders/canvas.frag" );
       let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src )
-      .compile_and_link( &gl )?;
+      .compile_and_link( gl )?;
 
       let mut uniforms = FxHashMap::default();
       let mut add_location =
@@ -212,7 +212,7 @@ mod private
     {
       gl::uniform::matrix_upload
       (
-        &gl,
+        gl,
         self.uniforms.get( "viewMatrix" ).unwrap().clone(),
         &camera.get_view_matrix().to_array(),
         true
@@ -220,7 +220,7 @@ mod private
 
       gl::uniform::matrix_upload
       (
-        &gl,
+        gl,
         self.uniforms.get( "projectionMatrix" ).unwrap().clone(),
         &camera.get_projection_matrix().to_array(),
         true
@@ -235,6 +235,10 @@ mod private
     ///
     /// * `gl` - The WebGL2 rendering context
     /// * `node` - The scene node whose world matrix will be uploaded
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `worldMatrix` uniform location is missing or the matrix upload fails.
     pub fn upload_node
     (
       &self,
@@ -244,7 +248,7 @@ mod private
     {
       gl::uniform::matrix_upload
       (
-        &gl,
+        gl,
         self.uniforms.get( "worldMatrix" ).unwrap().clone(),
         node.borrow().get_world_matrix().to_array().as_slice(),
         true
@@ -263,9 +267,14 @@ mod private
     /// * `camera` - The camera defining view and projection matrices
     /// * `colors` - Array of colors to apply to scene nodes in order
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// Returns `Ok(())` on successful rendering, or `Err(WebglError)` if rendering fails.
+    /// Returns `WebglError` if a mesh upload or draw step fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a required uniform location was not registered at construction, or if scene
+    /// traversal or a uniform upload fails.
     pub fn render
     (
       &self,
@@ -308,7 +317,7 @@ mod private
         {
           gl::uniform::upload
           (
-            &gl,
+            gl,
             self.uniforms.get( "color" ).unwrap().clone(),
             mesh_colors.get( mesh_i ).unwrap_or( &default_color() ).as_slice()
           ).unwrap();
@@ -316,7 +325,7 @@ mod private
           mesh_i += 1;
 
           // Iterate over each primitive in the mesh.
-          for primitive_rc in mesh.borrow().primitives.iter()
+          for primitive_rc in &mesh.borrow().primitives
           {
             let primitive = primitive_rc.borrow();
 
@@ -369,6 +378,7 @@ mod private
     /// # Returns
     ///
     /// A clone of the WebGlTexture that serves as the color attachment.
+    #[must_use]
     pub fn get_texture( &self ) -> WebGlTexture
     {
       self.output_texture.clone()

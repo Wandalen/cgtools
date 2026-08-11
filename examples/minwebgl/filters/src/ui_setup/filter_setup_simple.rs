@@ -1,8 +1,27 @@
 //! Setup for filters that don't require UI controls
 
-use crate::*;
-use utils::*;
-use filters::*;
+use crate::
+{
+  utils,
+  filters,
+  wasm_bindgen,
+  Renderer,
+  controls,
+};
+use utils::get_element_by_id_unchecked;
+use filters::
+{
+  desaturate,
+  edge,
+  emboss,
+  enrich,
+  gray_scale,
+  invert,
+  sepia,
+  solarize,
+  transpose,
+  Filter,
+};
 use wasm_bindgen::{ JsCast, prelude::Closure };
 use std::{ cell::RefCell, rc::Rc };
 use web_sys::HtmlElement;

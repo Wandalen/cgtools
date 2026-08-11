@@ -37,14 +37,12 @@ mod private
   ///
   /// A `GeometryData` struct containing the 3D vertex positions and triangle indices
   /// that form the rectangular segments of the path. The Z-coordinate is always 0.0.
+  #[ must_use ]
   pub fn curve_to_geometry( curve : &[ [ f32; 2 ] ], width : f32 ) -> Option< PrimitiveData >
   {
-    let Some( mut start_point )  = curve.first()
-    .map( | p | F32x2::from_array( *p ) )
-    else
-    {
-      return None;
-    };
+    let first = *curve.first()?;
+    let last = *curve.last()?;
+    let mut start_point = F32x2::from_array( first );
 
     // Fix(TASK-018): reject a curve containing a zero-length segment (two
     // consecutive points -- including the implicit closing segment back to
@@ -59,6 +57,7 @@ mod private
     // Pitfall: any code that normalizes a difference vector must validate
     // that the two inputs actually differ first -- `normalize()` has no
     // zero-length guard anywhere in the underlying vector math stack.
+    #[ expect( clippy::float_cmp, reason = "coincident-point detection needs exact equality : normalize() yields NaN precisely when two consecutive points are bit-identical; an epsilon test would wrongly reject valid short segments" ) ]
     if curve.windows( 2 ).any( | pair | pair[ 0 ] == pair[ 1 ] ) || curve.first() == curve.last()
     {
       return None;
@@ -88,11 +87,11 @@ mod private
       positions.push( [ p2.x(), p2.y(), 0.0 ] );
       positions.push( [ p3.x(), p3.y(), 0.0 ] );
 
-      indices.push( base_idx + 0 );
+      indices.push( base_idx );
       indices.push( base_idx + 1 );
       indices.push( base_idx + 2 );
 
-      indices.push( base_idx + 0 );
+      indices.push( base_idx );
       indices.push( base_idx + 2 );
       indices.push( base_idx + 3 );
     };
@@ -106,8 +105,8 @@ mod private
       i += 1;
     }
 
-    start_point = ( *curve.last().unwrap() ).into();
-    let end_point = F32x2::from_array( *curve.first().unwrap() );
+    start_point = last.into();
+    let end_point = F32x2::from_array( first );
     add_segment( &end_point, &start_point );
 
     let attributes = AttributesData
@@ -126,6 +125,89 @@ mod private
         transform: Transform::default(),
       }
     )
+  }
+
+  /// Computes the 2D bounding box of one contour's points.
+  #[ cfg( feature = "font-processing" ) ]
+  fn contour_bounding_box( contour : &[ [ f32; 2 ] ] ) -> BoundingBox
+  {
+    BoundingBox::compute2d
+    (
+      contour
+      .iter()
+      .flatten()
+      .copied()
+      .collect::< Vec< _ > >()
+      .as_slice()
+    )
+  }
+
+  /// Returns the index of the contour with the largest bounding-box diagonal.
+  #[ cfg( feature = "font-processing" ) ]
+  fn largest_contour_index( contours : &[ Vec< [ f32; 2 ] > ] ) -> usize
+  {
+    let mut body_id = 0;
+    let mut max_box_diagonal_size = 0.0;
+    for ( i, contour ) in contours.iter().enumerate()
+    {
+      if contour.is_empty()
+      {
+        continue;
+      }
+      let ( mut x1, mut y1, mut x2, mut y2 ) = ( f32::MAX, f32::MAX, f32::MIN, f32::MIN );
+      for [ x, y ] in contour
+      {
+        x1 = x1.min( *x );
+        y1 = y1.min( *y );
+        x2 = x2.max( *x );
+        y2 = y2.max( *y );
+      }
+      let contour_size = ( ( x2 - x1 ).powi( 2 ) + ( y2 - y1 ).powi( 2 ) ).sqrt();
+      if max_box_diagonal_size < contour_size
+      {
+        max_box_diagonal_size = contour_size;
+        body_id = i;
+      }
+    }
+    body_id
+  }
+
+  /// Flattens a body's outer contour and holes into earcut-ready interleaved
+  /// coordinates, returning the flat positions and hole start indices.
+  /// Returns `None` when the outer contour is missing or empty.
+  #[ cfg( feature = "font-processing" ) ]
+  fn flatten_with_holes( body : &[ Vec< [ f32; 2 ] > ] ) -> Option< ( Vec< f64 >, Vec< usize > ) >
+  {
+    let mut flat_positions : Vec< f64 > = Vec::new();
+    let mut hole_indices : Vec< usize > = Vec::new();
+
+    let outer_contour = body.first()?;
+    if outer_contour.is_empty()
+    {
+      return None;
+    }
+    for &[ x, y ] in outer_contour
+    {
+      flat_positions.push( f64::from( x ) );
+      flat_positions.push( f64::from( y ) );
+    }
+
+    // Holes' winding order must be opposite to the outer ( e.g., CW for holes )
+    for hole_contour in body.iter().skip( 1 )
+    {
+      if hole_contour.is_empty()
+      {
+        continue;
+      }
+      hole_indices.push( flat_positions.len() / 2 );
+      for &[ x, y ] in hole_contour
+      {
+        flat_positions.push( f64::from( x ) );
+        flat_positions.push( f64::from( y ) );
+      }
+    }
+
+    Some( ( flat_positions, hole_indices ) )
   }
 
   /// Converts a set of 2D contours into a solid flat 3D primitive suitable for rendering.
@@ -157,6 +239,7 @@ mod private
   // the same feature that activates that dependency -- the `use`/`dep:` line
   // being correctly gated is not enough if the call site itself is not.
   #[ cfg( feature = "font-processing" ) ]
+  #[ must_use ]
   pub fn contours_to_fill_geometry( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()
@@ -164,39 +247,9 @@ mod private
       return None;
     }
 
-    let mut body_id = 0;
-    let mut max_box_diagonal_size = 0.0;
-    for ( i, contour ) in contours.iter().enumerate()
-    {
-      if contour.is_empty()
-      {
-        continue;
-      }
-      let ( mut x1, mut y1, mut x2, mut y2 ) = ( f32::MAX, f32::MAX, f32::MIN, f32::MIN );
-      for [ x, y ] in contour
-      {
-        x1 = x1.min( *x );
-        y1 = y1.min( *y );
-        x2 = x2.max( *x );
-        y2 = y2.max( *y );
-      }
-      let controur_size = ( ( x2 - x1 ).powi( 2 ) + ( y2 - y1 ).powi( 2 ) ).sqrt();
-      if max_box_diagonal_size < controur_size
-      {
-        max_box_diagonal_size = controur_size;
-        body_id = i;
-      }
-    }
-
-    let body_bounding_box = BoundingBox::compute2d
-    (
-      contours.get( body_id ).unwrap()
-      .iter()
-      .flatten()
-      .cloned()
-      .collect::< Vec< _ > >()
-      .as_slice()
-    );
+    let body_id = largest_contour_index( contours );
+    let body_contour = contours.get( body_id )?;
+    let body_bounding_box = contour_bounding_box( body_contour );
 
     let mut outside_body_list = vec![];
     let mut inside_body_list = vec![];
@@ -207,15 +260,7 @@ mod private
         continue;
       }
 
-      let bounding_box = BoundingBox::compute2d
-      (
-        contour
-        .iter()
-        .flatten()
-        .cloned()
-        .collect::< Vec< _ > >()
-        .as_slice()
-      );
+      let bounding_box = contour_bounding_box( contour );
 
       let has_part_outside_body = bounding_box.left() < body_bounding_box.left() ||
       bounding_box.right() > body_bounding_box.right() ||
@@ -232,7 +277,7 @@ mod private
       }
     }
 
-    let mut base = vec![ contours[ body_id ].clone() ];
+    let mut base = vec![ body_contour.clone() ];
     base.extend( inside_body_list );
 
     let mut bodies = vec![ base ];
@@ -243,44 +288,7 @@ mod private
 
     for contours in bodies
     {
-      let mut flat_positions: Vec< f64 > = Vec::new();
-      let mut hole_indices: Vec< usize > = Vec::new();
-
-      if let Some( outer_contour ) = contours.get( 0 )
-      {
-        if outer_contour.is_empty()
-        {
-          return None;
-        }
-        for &[ x, y ] in outer_contour
-        {
-          flat_positions.push( x as f64 );
-          flat_positions.push( y as f64 );
-        }
-      }
-      else
-      {
-        return None;
-      }
-
-      // Process holes (remaining contours)
-      // Their winding order must be opposite to the outer (e.g., CW for holes)
-      for i in 1..contours.len()
-      {
-        let hole_contour = &contours[ i ];
-        if hole_contour.is_empty()
-        {
-          continue;
-        }
-
-        hole_indices.push( flat_positions.len() / 2 );
-
-        for &[ x, y ] in hole_contour
-        {
-          flat_positions.push( x as f64 );
-          flat_positions.push( y as f64 );
-        }
-      }
+      let ( flat_positions, hole_indices ) = flatten_with_holes( &contours )?;
 
       // Fix(TASK-018): return None on triangulation failure instead of
       // silently skipping the failed body and continuing with whatever
@@ -306,7 +314,7 @@ mod private
       .map( | i | i as u32 )
       .collect::< Vec< _ > >();
 
-      let body_positions = flat_positions.chunks( 2 )
+      let body_positions = flat_positions.chunks_exact( 2 )
       .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
       .collect::< Vec< _ > >();
 
@@ -343,6 +351,7 @@ mod private
   /// to adjust its size later.
   ///
   /// The plane lies in the XY plane (Z = 0).
+  #[ must_use ]
   pub fn plane_to_geometry() -> Option< PrimitiveData >
   {
     let positions =
@@ -392,6 +401,7 @@ mod private
   ///
   /// A `Vec<[f32; 2]>` containing the flattened 2D points of the path.
   #[ cfg( feature = "text" ) ]
+  #[ must_use ]
   pub fn path_to_points( path : Vec< PathEl > ) -> Vec< [ f32; 2 ] >
   {
     let mut points = vec![];

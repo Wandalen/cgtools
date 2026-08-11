@@ -9,6 +9,8 @@
 //! Relocated from inline `#[ cfg( test ) ]` modules across `src/compile/*` by
 //! task 073 ( bodies verbatim; imports crate-qualified ).
 
+#![ expect( clippy::float_cmp, reason = "assertions check exact pass-through of constant tints/coordinates; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+
 // The viewport assertions compare against exact literal constants (e.g. `0.0`,
 // known integer-valued results), not derived floating-point computations —
 // exact comparison is the correct check there, not an epsilon tolerance.

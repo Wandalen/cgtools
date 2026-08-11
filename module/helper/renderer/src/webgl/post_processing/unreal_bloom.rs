@@ -91,6 +91,14 @@ mod private
     /// * `height` - The initial height of the input texture for the bloom pass.
     /// * `format` - The internal format of the textures to be created (e.g., `gl::RGBA16F`).
     ///   This should match the format of the input texture.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a bloom shader fails to compile/link or a uniform upload fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a fixed bloom uniform location is absent from a compiled shader.
     pub fn new
     (
       gl : &gl::WebGl2RenderingContext,

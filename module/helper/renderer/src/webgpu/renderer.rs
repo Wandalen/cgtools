@@ -14,6 +14,7 @@ mod private
   use gpu_hal::
   {
     Error,
+    Device,
     Buffer,
     BufferUsage,
     TextureDesc,
@@ -116,6 +117,136 @@ mod private
     default_sampler : Sampler
   }
 
+  /// Creates the HDR color and depth render targets sized to
+  /// `width` x `height`, returning their views.
+  fn frame_targets_create( device : &Device, width : u32, height : u32 )
+  -> Result< ( TextureView, TextureView ), Error >
+  {
+    let hdr_texture = device.create_texture
+    (
+      &TextureDesc
+      {
+        size : [ width, height, 1 ],
+        format : TextureFormat::Rgba16Float,
+        usage : TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING
+      }
+    )?;
+    let hdr_view = hdr_texture.view()?;
+
+    let depth_texture = device.create_texture
+    (
+      &TextureDesc
+      {
+        size : [ width, height, 1 ],
+        format : TextureFormat::Depth24Plus,
+        usage : TextureUsage::RENDER_ATTACHMENT
+      }
+    )?;
+    let depth_view = depth_texture.view()?;
+
+    Ok( ( hdr_view, depth_view ) )
+  }
+
+  /// Creates the stand-ins bound when a material lacks a texture : a 1x1
+  /// dummy texture view and a linear-filtering repeat sampler.
+  fn material_defaults_create( device : &Device ) -> Result< ( TextureView, Sampler ), Error >
+  {
+    // 1x1 stand-in for absent material textures. Its contents are never
+    // read: the shader samples a slot only when its flag bit is set.
+    let dummy_texture = device.create_texture
+    (
+      &TextureDesc
+      {
+        size : [ 1, 1, 1 ],
+        format : TextureFormat::Rgba8Unorm,
+        usage : TextureUsage::TEXTURE_BINDING
+      }
+    )?;
+    let dummy_texture_view = dummy_texture.view()?;
+
+    let default_sampler = device.create_sampler
+    (
+      SamplerDesc { filter : FilterMode::Linear, address : AddressMode::Repeat }
+    )?;
+
+    Ok( ( dummy_texture_view, default_sampler ) )
+  }
+
+  /// Compiles the PBR shader and builds the opaque HDR pass pipeline over the
+  /// frame/material/model bind group layouts.
+  fn opaque_pipeline_create
+  (
+    device : &Device,
+    frame_layout : &BindGroupLayout,
+    material_layout : &BindGroupLayout,
+    model_layout : &BindGroupLayout
+  )
+  -> Result< RenderPipeline, Error >
+  {
+    let main_shader = device.create_shader_module
+    (
+      &ShaderSource
+      {
+        wgsl : include_str!( "shaders/main.wgsl" ),
+        glsl_vertex : Some( include_str!( "shaders/main.vert.glsl" ) ),
+        glsl_fragment : Some( include_str!( "shaders/main.frag.glsl" ) )
+      }
+    )?;
+
+    let vertex_layouts = Geometry::vertex_layouts();
+
+    device.create_render_pipeline
+    (
+      &RenderPipelineDesc
+      {
+        shader : &main_shader,
+        vertex_entry : "vs_main",
+        fragment_entry : "fs_main",
+        vertex_buffers : &vertex_layouts,
+        bind_group_layouts : &[ frame_layout, material_layout, model_layout ],
+        color_format : TextureFormat::Rgba16Float,
+        depth : Some( DepthState { format : TextureFormat::Depth24Plus } ),
+        cull_back : true
+      }
+    )
+  }
+
+  /// Compiles the ACES tone mapping shader and builds the fullscreen pass
+  /// pipeline targeting `color_format` ( the surface's own format ).
+  fn tonemap_pipeline_create
+  (
+    device : &Device,
+    tonemap_layout : &BindGroupLayout,
+    color_format : TextureFormat
+  )
+  -> Result< RenderPipeline, Error >
+  {
+    let tonemap_shader = device.create_shader_module
+    (
+      &ShaderSource
+      {
+        wgsl : include_str!( "shaders/tonemap.wgsl" ),
+        glsl_vertex : Some( include_str!( "shaders/tonemap.vert.glsl" ) ),
+        glsl_fragment : Some( include_str!( "shaders/tonemap.frag.glsl" ) )
+      }
+    )?;
+
+    device.create_render_pipeline
+    (
+      &RenderPipelineDesc
+      {
+        shader : &tonemap_shader,
+        vertex_entry : "vs_main",
+        fragment_entry : "fs_main",
+        vertex_buffers : &[],
+        bind_group_layouts : &[ tonemap_layout ],
+        color_format,
+        depth : None,
+        cull_back : false
+      }
+    )
+  }
+
   impl WebGpuRenderer
   {
     /// Builds pipelines and frame targets sized to the context's current
@@ -125,9 +256,6 @@ mod private
     ///
     /// Returns an error when shader compilation, pipeline creation, or GPU
     /// resource allocation fails on the device.
-    // One linear chain of layout/buffer/texture/pipeline creation; each step feeds
-    // the next, so splitting would only scatter the wiring.
-    #[ allow( clippy::too_many_lines ) ]
     pub fn new( context : &GpuContext ) -> Result< Self, Error >
     {
       let device = &context.device;
@@ -182,96 +310,13 @@ mod private
         BufferUsage::UNIFORM | BufferUsage::COPY_DST
       )?;
 
-      let hdr_texture = device.create_texture
-      (
-        &TextureDesc
-        {
-          size : [ width, height, 1 ],
-          format : TextureFormat::Rgba16Float,
-          usage : TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING
-        }
-      )?;
-      let hdr_view = hdr_texture.view()?;
+      let ( hdr_view, depth_view ) = frame_targets_create( device, width, height )?;
+      let ( dummy_texture_view, default_sampler ) = material_defaults_create( device )?;
 
-      let depth_texture = device.create_texture
-      (
-        &TextureDesc
-        {
-          size : [ width, height, 1 ],
-          format : TextureFormat::Depth24Plus,
-          usage : TextureUsage::RENDER_ATTACHMENT
-        }
-      )?;
-      let depth_view = depth_texture.view()?;
-
-      // 1x1 stand-in for absent material textures. Its contents are never
-      // read: the shader samples a slot only when its flag bit is set.
-      let dummy_texture = device.create_texture
-      (
-        &TextureDesc
-        {
-          size : [ 1, 1, 1 ],
-          format : TextureFormat::Rgba8Unorm,
-          usage : TextureUsage::TEXTURE_BINDING
-        }
-      )?;
-      let dummy_texture_view = dummy_texture.view()?;
-
-      let default_sampler = device.create_sampler
-      (
-        SamplerDesc { filter : FilterMode::Linear, address : AddressMode::Repeat }
-      )?;
-
-      let main_shader = device.create_shader_module
-      (
-        &ShaderSource
-        {
-          wgsl : include_str!( "shaders/main.wgsl" ),
-          glsl_vertex : Some( include_str!( "shaders/main.vert.glsl" ) ),
-          glsl_fragment : Some( include_str!( "shaders/main.frag.glsl" ) )
-        }
-      )?;
-      let tonemap_shader = device.create_shader_module
-      (
-        &ShaderSource
-        {
-          wgsl : include_str!( "shaders/tonemap.wgsl" ),
-          glsl_vertex : Some( include_str!( "shaders/tonemap.vert.glsl" ) ),
-          glsl_fragment : Some( include_str!( "shaders/tonemap.frag.glsl" ) )
-        }
-      )?;
-
-      let vertex_layouts = Geometry::vertex_layouts();
-
-      let opaque_pipeline = device.create_render_pipeline
-      (
-        &RenderPipelineDesc
-        {
-          shader : &main_shader,
-          vertex_entry : "vs_main",
-          fragment_entry : "fs_main",
-          vertex_buffers : &vertex_layouts,
-          bind_group_layouts : &[ &frame_layout, &material_layout, &model_layout ],
-          color_format : TextureFormat::Rgba16Float,
-          depth : Some( DepthState { format : TextureFormat::Depth24Plus } ),
-          cull_back : true
-        }
-      )?;
-
-      let tonemap_pipeline = device.create_render_pipeline
-      (
-        &RenderPipelineDesc
-        {
-          shader : &tonemap_shader,
-          vertex_entry : "vs_main",
-          fragment_entry : "fs_main",
-          vertex_buffers : &[],
-          bind_group_layouts : &[ &tonemap_layout ],
-          color_format : context.surface.format(),
-          depth : None,
-          cull_back : false
-        }
-      )?;
+      let opaque_pipeline =
+        opaque_pipeline_create( device, &frame_layout, &material_layout, &model_layout )?;
+      let tonemap_pipeline =
+        tonemap_pipeline_create( device, &tonemap_layout, context.surface.format() )?;
 
       let frame_bind_group = device.create_bind_group
       (

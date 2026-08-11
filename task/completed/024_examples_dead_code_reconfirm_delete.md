@@ -27,6 +27,31 @@ crate, before deleting anything. Cross-check against task 031 (broken example "H
 non-functional example is a stronger candidate for deletion than merely having a broken doc link, so
 resolve which examples are being deleted before that task rewrites their links.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `examples/minwebgl/derive_tools_issue/` fully deleted (not archived)? `ls examples/minwebgl/ | grep -i derive_tools_issue` → no match (exit 1); `git ls-tree -r --name-only HEAD -- examples/minwebgl/derive_tools_issue` → 0 entries (was: `4` files, per `git ls-tree -r --name-only 4469eafb^ -- examples/minwebgl/derive_tools_issue`, the commit immediately prior to the deletion).
+- [x] C2 — Are both claimed reference-cleanup targets (`examples/index.md`, `examples/demo_completeness.md`) free of the deleted crate? `grep -n "derive_tools_issue"` on both → 0 hits.
+- [x] C3 — Is the deletion committed (not merely uncommitted local state)? `git status --porcelain -- examples/minwebgl/derive_tools_issue examples/index.md examples/demo_completeness.md` → empty (clean); `git log --oneline -- examples/minwebgl/derive_tools_issue` → single entry, `4469eafb`.
+- [x] C4 — Do the two "kept, other consumers exist" dependencies (`derive_tools`, `strum`) still have exactly the claimed consumer crates? `cargo metadata`'s resolved dependency graph, filtered to workspace members via `jq` → `derive_tools`: `mingl`, `minwebgpu`, `ndarray_cg`; `strum`: `hexagonal_map`, `browser_input` — exact match to the claimed 5 (`ndarray_cg, mingl, minwebgpu` / `hexagonal_map, browser_input`).
+- [x] C5 — Is the deliberately-untouched `locales.md` stale row still present (left alone by design, not silently fixed or silently corrupted)? Row for `derive_tools_issue` still present in `locales.md` (now at line 39 — shifted by unrelated later edits, not renumbered by this task, consistent with it being a generated file nobody hand-edits).
+
+### Measurements
+
+- [x] M1 — Files tracked under `examples/minwebgl/derive_tools_issue/`: `0` (was: `4`, per `git ls-tree -r --name-only 4469eafb^`).
+- [x] M2 — References to `derive_tools_issue` repo-wide outside `task/` and the one documented exception (`locales.md`): `0`.
+
+### Invariants
+
+- [x] I1 — Workspace dependency graph resolves cleanly post-deletion, and the 5 claimed dependents are exactly the crates still declaring `derive_tools`/`strum`: `longrun .launch dir::/home/user1/pro/lib/yrd_gamedev/cgtools -- cargo metadata --format-version 1 | jq ...` → `browser_input: strum`, `hexagonal_map: strum`, `mingl: derive_tools`, `minwebgpu: derive_tools`, `ndarray_cg: derive_tools` (`-0043_longrun.log`).
+- [x] I2 — A representative `derive_tools` consumer still builds clean: `longrun .launch dir::/home/user1/pro/lib/yrd_gamedev/cgtools -- cargo check -p ndarray_cg --all-features` → exit 0, "Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.72s" (`-0031_longrun.log`).
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the deleted example silently reappearing (e.g. re-added under a different case/name) without re-triage: re-running C1's `ls`/`git ls-tree` check must continue to return 0 entries.
+- [x] AF2 — Guards against `derive_tools`/`strum` being pruned from their last remaining consumer without notice (which would make the "kept, has other consumers" justification stale): re-running C4's metadata query must continue to show at least one workspace-member consumer for each before either dependency is removed from the root `Cargo.toml`.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P3

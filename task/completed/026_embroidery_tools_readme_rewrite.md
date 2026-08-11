@@ -29,6 +29,32 @@ the real source. The actual API (confirmed by grepping `src/embroidery_file.rs`,
 sections entirely from the real API surface; the "Current Status & Roadmap" / "Use Cases" prose sections
 may be salvageable if reworded to stop implying the fictional API works.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Are the fictional API symbols (`EmbroideryPattern`, `PesVersion`, `.stitch_count(`, `Stitch::normal`, `.write_file(`, `.add_stitch(`, `.color_count(`, `.add_color(`, `Color::rgb(`) absent from the rewritten `readme.md`? Anchored grep (`grep -nE "EmbroideryPattern|PesVersion\b|\.stitch_count\(|Stitch::normal|\.write_file\(|\.add_stitch\(|\.color_count\(|\.add_color\(|Color::rgb\("`) → `0` matches (was `19` pre-fix, `git show ba2a6eb8:module/helper/embroidery_tools/readme.md`, same pattern). A looser substring grep turns up 2 false positives (`stitch_count` as a local variable name derived from the real `.stitches().len()`, and "no path-based `write_file()`" in the corrective prose) — inspected individually and confirmed non-fictional.
+- [x] C2 — Does the documented `EmbroideryFile` API match the real signatures in `src/embroidery_file.rs`? `new()`, `stitches()`, `threads()`, `stitch(dx,dy)`, `jump(dx,dy)`, `color_change(dx,dy)`, `trim()`, `end()`, `add_stitch_relative()`, `add_stitch_absolute()`, `add_thread()`, `bounds()`, `as_command_blocks()` all confirmed present with matching signatures by direct source read.
+- [x] C3 — Is the enum correctly named `PESVersion` (not `PesVersion`) with `V1`/`V6` variants, and is `pec_threads() -> [Thread; 65]` correctly signatured? Confirmed in `src/format/pes.rs:8-16` and `src/format/pec.rs:13`.
+- [x] C4 — Is the "no path-based `write_file()` convenience" correction still accurate? `grep "pub fn" src/format/pes/writer.rs src/format/pec/writer.rs` shows only `write<W>(emb, writer, version)` (pes) and `write<W>(emb, writer)` (pec) — no `write_file` in either writer.
+- [x] C5 — Is the crate-root re-export gap note ("`use embroidery_tools::*;` resolves nothing") still accurate? `src/lib.rs`'s `mod_interface!` block contains only `layer` declarations (`embroidery_file`, `stitch_instruction`, `format`, `thread`, `metadata`, `error`) — no `own use`/`orphan use` at crate root, confirmed by direct read.
+- [x] C6 — Are geometric transforms (scale/translate/rotate) still correctly listed as absent/Planned rather than Implemented? Confirmed: no such methods exist anywhere in `EmbroideryFile`'s `impl` block (`src/embroidery_file.rs`, read in full).
+
+### Measurements
+
+- [x] M1 — Fictional-symbol residue count in `readme.md` (same anchored pattern as C1): `0` (was: `19`, `git show ba2a6eb8:module/helper/embroidery_tools/readme.md`).
+- [x] M2 — `readme.md` line count: `255` (was: `235`, same baseline commit) — net +20 lines from the added crate-root re-export note, manual `File`/`BufWriter` construction, and the Pattern Operations/Thread Color Handling rewrites.
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p embroidery_tools --all-features && cargo test -p embroidery_tools --doc --all-features` → exit 0; nextest 10/10 passed, doc-tests 0/0 (`readme.md` is a plain file here, not `include_str!`-embedded into a doc comment, so its code blocks are illustrative only — consistent with `src/lib.rs`, which has no `include_str!(...readme.md...)` anywhere).
+- [x] I2 — Compiler/lints clean: `cargo clippy -p embroidery_tools --all-targets --all-features -- -D warnings` → exit 0, zero warnings (confirmed reproducible after two independent `cargo clean -p embroidery_tools` rebuilds).
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a fictional symbol being reintroduced by a future "helpful" doc edit: re-running C1/M1's anchored grep against `readme.md` must keep returning `0`.
+- [x] AF2 — Guards against the crate-root re-export gap note going stale: if a future change adds `own use`/`orphan use` at the top level of `src/lib.rs`'s `mod_interface!` block, the readme's "resolves nothing" claim (readme.md:69) becomes false and must be updated in the same change.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P4 (doc rewrite)

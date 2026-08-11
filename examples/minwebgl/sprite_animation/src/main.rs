@@ -1,3 +1,5 @@
+//! Sprite animation example — plays a 2D sprite-sheet animation from a texture with WebGL2.
+
 use minwebgl as gl;
 
 fn main()
@@ -7,7 +9,7 @@ fn main()
 
 async fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
 
   let vert_shader = include_str!( "../shaders/main.vert" );

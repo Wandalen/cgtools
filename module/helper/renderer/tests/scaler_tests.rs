@@ -14,8 +14,8 @@ fn create_rotation_sequence( start : QuatF64, end : QuatF64, duration : f64 ) ->
 {
   let tweens =
   vec![
-    Tween::new( start, end, duration / 2.0, Linear::new() ),
-    Tween::new( end, start, duration / 2.0, Linear::new() )
+    Tween::new( start, end, duration / 2.0, Linear::build() ),
+    Tween::new( end, start, duration / 2.0, Linear::build() )
   ];
   Sequence::new( tweens ).unwrap()
 }
@@ -25,8 +25,8 @@ fn create_translation_sequence( start : F64x3, end : F64x3, duration : f64 ) -> 
 {
   let tweens =
   vec![
-    Tween::new( start, end, duration / 2.0, Linear::new() ),
-    Tween::new( end, start, duration / 2.0, Linear::new() )
+    Tween::new( start, end, duration / 2.0, Linear::build() ),
+    Tween::new( end, start, duration / 2.0, Linear::build() )
   ];
   Sequence::new( tweens ).unwrap()
 }
@@ -70,9 +70,7 @@ fn test_scaler_remove_group()
 }
 
 #[ test ]
-// Compared values are read back unmodified through a getter right after being written via
-// the exact same literal (no arithmetic in between), so strict float equality is safe.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "values read back through a getter are the exact literals just written; no arithmetic in between" ) ]
 fn test_scaler_scale_get_mut()
 {
   let sequencer = Sequencer::new();
@@ -106,9 +104,7 @@ fn test_scaler_clear()
 }
 
 #[ test ]
-// Compared values are read back unmodified through a getter right after being written via
-// the exact same literal (no arithmetic in between), so strict float equality is safe.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "values read back through a getter are the exact literals just written; no arithmetic in between" ) ]
 fn test_grouped_nodes_independence()
 {
   let mut sequencer = Sequencer::new();
@@ -156,9 +152,7 @@ fn test_animatable_composition_update()
 }
 
 #[ test ]
-// Compared values are read back unmodified through a getter right after being written via
-// the exact same literal (no arithmetic in between), so strict float equality is safe.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "values read back through a getter are the exact literals just written; no arithmetic in between" ) ]
 fn test_scaler_weights_structure()
 {
   let sequencer = Sequencer::new();

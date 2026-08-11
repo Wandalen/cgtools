@@ -1,8 +1,15 @@
 //! Helper functions for setting up filters with generic type parameters
 
-use crate::*;
-use utils::*;
-use filters::*;
+use crate::
+{
+  utils,
+  filters,
+  wasm_bindgen,
+  Renderer,
+  controls,
+};
+use utils::get_element_by_id_unchecked;
+use filters::{ blur, Filter, resize, brightness_contrast };
 use wasm_bindgen::{ JsCast, JsValue, prelude::Closure };
 use std::{ cell::RefCell, rc::Rc };
 use web_sys::HtmlElement;
@@ -119,6 +126,9 @@ pub struct SliderRange
 }
 
 /// Helper for brightness/contrast filters (they have generic type parameters)
+// `range` must be owned, not borrowed: it is moved into the `'static` `Closure::new` below,
+// so a `&SliderRange` parameter would fail to outlive the closure (E0521).
+#[ allow( clippy::needless_pass_by_value, reason = "range must be owned to be moved into the 'static onclick closure" ) ]
 pub fn setup_brightness_contrast_filter< T : 'static + Clone >
 (
   filter_renderer : &Rc< RefCell< Renderer > >,

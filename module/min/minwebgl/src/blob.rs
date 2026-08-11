@@ -3,6 +3,12 @@ mod private
 {
 
   /// Creates a blob from u8 slice sequence and options
+  ///
+  /// # Errors
+  /// Returns `Err` if the browser fails to create an object URL for the blob.
+  ///
+  /// # Panics
+  /// Panics if the browser fails to construct the `Blob` from the given data and options.
   pub fn create_blob< T : Into< web_sys::js_sys::Array > >( data : T, mime_type : &str )
   -> Result< String, crate::JsValue >
   {

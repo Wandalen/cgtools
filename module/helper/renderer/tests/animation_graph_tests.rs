@@ -23,7 +23,7 @@ fn create_animation() -> Sequencer
 {
   let mut animation = Sequencer::new();
 
-  let linear = Linear::new();
+  let linear = Linear::build();
   animation.insert
   (
     TRANSLATION_PREFIX,
@@ -37,7 +37,7 @@ fn create_animation() -> Sequencer
     ).unwrap()
   );
 
-  let linear = Linear::new();
+  let linear = Linear::build();
   animation.insert
   (
     ROTATION_PREFIX,
@@ -51,7 +51,7 @@ fn create_animation() -> Sequencer
     ).unwrap()
   );
 
-  let linear = Linear::new();
+  let linear = Linear::build();
   animation.insert
   (
     SCALE_PREFIX,
@@ -65,7 +65,7 @@ fn create_animation() -> Sequencer
     ).unwrap()
   );
 
-  let linear = Linear::new();
+  let linear = Linear::build();
   animation.insert
   (
     MORPH_TARGET_PREFIX,
@@ -90,7 +90,7 @@ fn create_graph() -> AnimationGraph
   graph.node_add( "a", animation.clone() );
   graph.node_add( "b", animation );
 
-  let instant_tween = Tween::new( 1.0, 1.0, 0.0, Linear::new() );
+  let instant_tween = Tween::new( 1.0, 1.0, 0.0, Linear::build() );
   let true_condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
     true
@@ -110,7 +110,7 @@ fn animation_graph_conditions_test()
   graph.node_add( "b", animation.clone() );
   graph.node_add( "c", animation );
 
-  let instant_tween = Tween::new( 1.0, 1.0, 0.0, Linear::new() );
+  let instant_tween = Tween::new( 1.0, 1.0, 0.0, Linear::build() );
   let false_condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
     false
@@ -197,7 +197,7 @@ fn animation_graph_edge_add_test()
   assert!( graph.node_get( "c" ).is_some() );
   assert!( graph.edge_get( "a", "ac" ).is_none() );
 
-  let instant_tween = Tween::new( 1.0, 1.0, 0.0, Linear::new() );
+  let instant_tween = Tween::new( 1.0, 1.0, 0.0, Linear::build() );
   let true_condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
     true

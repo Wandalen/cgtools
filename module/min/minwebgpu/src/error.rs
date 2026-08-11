@@ -61,7 +61,10 @@ mod private
   {
     /// Indicates a failure to create a view for a texture.
     #[ error( "Failed to create view for the texture: {0}" )]
-    FailedToCreateView( String )
+    FailedToCreateView( String ),
+    /// Indicates a failure to write data to a texture.
+    #[ error( "Failed to write to the texture: {0}" )]
+    FailedWriteToTexture( String ),
   }
 
   /// Errors that can occur while mapping or writing to a WebGPU buffer.

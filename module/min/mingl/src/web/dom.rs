@@ -20,7 +20,6 @@ mod private
   // Variants are constructed directly by sibling crates (`minwebgpu::context`,
   // `minwebgl::context`) across the crate boundary — `#[non_exhaustive]` would
   // break that construction, so this is a deliberate public contract instead.
-  #[ allow( clippy::exhaustive_enums ) ]
   #[ derive( Debug, error::typed::Error ) ]
   pub enum Error
   {

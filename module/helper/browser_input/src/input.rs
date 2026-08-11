@@ -198,12 +198,11 @@ impl Default for State
 
 /// A function to get pointer coordinates relative to the client area (the viewport).
 // Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
-#[ allow( clippy::cast_possible_truncation ) ]
 // Fix(BUG-053): `PointerEvent` derefs to `MouseEvent`, whose `client_x`/`client_y` return `i32`
 // or `f64` depending on `web_sys_unstable_apis` (see minwebgl/src/texture/d2.rs); `as i32` is a
 // real truncating cast in the `f64` case and a same-type identity cast clippy calls
 // "unnecessary" in the `i32` case — both are the same source line.
-#[ allow( clippy::unnecessary_cast ) ]
+#[ allow( clippy::unnecessary_cast, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is real under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled there" ) ]
 pub static CLIENT : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.client_x() as i32, event.client_y() as i32 ] )
@@ -211,12 +210,11 @@ pub static CLIENT : fn( &PointerEvent ) -> I32x2 = | event |
 
 /// A function to get pointer coordinates relative to the entire page, including scrolled-out areas.
 // Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
-#[ allow( clippy::cast_possible_truncation ) ]
 // Fix(BUG-053): `PointerEvent` derefs to `MouseEvent`, whose `page_x`/`page_y` return `i32` or
 // `f64` depending on `web_sys_unstable_apis` (see minwebgl/src/texture/d2.rs); `as i32` is a
 // real truncating cast in the `f64` case and a same-type identity cast clippy calls
 // "unnecessary" in the `i32` case — both are the same source line.
-#[ allow( clippy::unnecessary_cast ) ]
+#[ allow( clippy::unnecessary_cast, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is real under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled there" ) ]
 pub static PAGE : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.page_x() as i32, event.page_y() as i32 ] )
@@ -224,12 +222,11 @@ pub static PAGE : fn( &PointerEvent ) -> I32x2 = | event |
 
 /// A function to get pointer coordinates relative to the user's screen.
 // Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
-#[ allow( clippy::cast_possible_truncation ) ]
 // Fix(BUG-053): `PointerEvent` derefs to `MouseEvent`, whose `screen_x`/`screen_y` return `i32`
 // or `f64` depending on `web_sys_unstable_apis` (see minwebgl/src/texture/d2.rs); `as i32` is a
 // real truncating cast in the `f64` case and a same-type identity cast clippy calls
 // "unnecessary" in the `i32` case — both are the same source line.
-#[ allow( clippy::unnecessary_cast ) ]
+#[ allow( clippy::unnecessary_cast, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is real under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled there" ) ]
 pub static SCREEN : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.screen_x() as i32, event.screen_y() as i32 ] )
@@ -276,11 +273,7 @@ impl Input
   /// # Errors
   /// Returns `BrowserInputError` if browser APIs are unavailable or event listener registration fails.
   #[ inline ]
-  // Sets up 5 independent event closures (pointer button/cancel/move, wheel, keyboard) that
-  // share captured state (`event_queue`, `get_coords`, `last_pointer_type`) via `Rc::clone`.
-  // Splitting each closure into its own function would require threading that shared state
-  // through extra parameters for no behavioral change — a real refactor, not a mechanical one.
-  #[ allow( clippy::too_many_lines ) ]
+  #[ expect( clippy::too_many_lines, reason = "sets up 5 independent event closures sharing captured state ( event_queue, get_coords, last_pointer_type ) via Rc::clone; splitting each into its own function would thread that shared state through extra parameters for no behavioral change" ) ]
   pub fn new< F >
   (
     pointer_event_target : Option< EventTarget >,

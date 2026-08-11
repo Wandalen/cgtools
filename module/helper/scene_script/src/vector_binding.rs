@@ -21,7 +21,6 @@ mod private
   // Rhai's numeric model is `f64`-only (`FLOAT`); every scalar entering a
   // native `f32` type crosses this narrowing cast at the boundary. Intentional
   // and unavoidable given Rhai's API, not a precision bug.
-  #[ allow( clippy::cast_possible_truncation ) ]
   pub fn register_f32x2( engine : &mut Engine )
   {
     engine

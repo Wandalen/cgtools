@@ -43,9 +43,9 @@ pub fn load_image_from_file( file : &File, on_load_callback : Box< dyn Fn( &Html
   file_reader.set_onload( Some( onload.as_ref().unchecked_ref() ) );
   onload.forget();
 
-  if let Err( e ) = file_reader.read_as_data_url( &file )
+  if let Err( e ) = file_reader.read_as_data_url( file )
   {
-    minwebgl::warn!( "Failed to read file: {:?}", e );
+    minwebgl::warn!( "Failed to read file: {e:?}" );
   }
 }
 
@@ -298,7 +298,7 @@ pub fn get_element_by_id_unchecked< T : JsCast >( id : &str ) -> T
   .document()
   .expect( "Should have a document" );
   document.get_element_by_id( id )
-  .expect( &format!( "No element with id '{id}'" ) )
+  .unwrap_or_else( || panic!( "No element with id '{id}'" ) )
   .dyn_into::< T >()
-  .expect( &format!( "Element is not of type {}", std::any::type_name::< T >() ) )
+  .unwrap_or_else( |_| panic!( "Element is not of type {}", std::any::type_name::< T >() ) )
 }

@@ -72,7 +72,7 @@ fn create_filter_card
 
   // Map filter ID to thumbnail filename
   let thumbnail_name = map_filter_id_to_thumbnail( id );
-  let thumbnail_path = format!( "/assets/thumbnails/{}.png", thumbnail_name );
+  let thumbnail_path = format!( "/assets/thumbnails/{thumbnail_name}.png" );
   img_element.set_src( &thumbnail_path );
   img_element.set_alt( name );
   img_element.set_class_name( "filter-thumbnail-img" );

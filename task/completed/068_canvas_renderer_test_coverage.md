@@ -37,6 +37,30 @@ Verify with `longrun .launch dir::<workspace root> -- cargo test -p canvas_rende
 (or the wasm-appropriate equivalent established at pickup) — the reproducer must stay green and
 keep its 5-section documentation intact wherever it lands.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is the census still accurate: `0` `tests/` files and exactly `1` inline `#[test]` in `src/`? `ls module/helper/canvas_renderer/tests` → no such directory; `grep -rn "#\[ *test *\]" src/` → exactly 1 hit (`src/renderer.rs:448`).
+- [x] C2 — Is the documented-exception rationale comment still present immediately above `mod tests`, naming task 068 and both rejected alternatives? `src/renderer.rs:379-386` — present, names "task 068" explicitly, explains why exposing `resolve_mesh_colors` (option a) and testing through `render`'s public surface (option c) both lose.
+- [x] C3 — Is `resolve_mesh_colors` still genuinely unreachable from outside the crate, confirming option (a) was never silently done later? Same evidence as TASK-016/C3: `grep -n resolve_mesh_colors src/lib.rs` → `0` hits; the crate-root `mod_interface!` block exposes only `CanvasRenderer`.
+- [x] C4 — Does every public `CanvasRenderer` method still require a live `&GL`, confirming option (c) is still genuinely impossible natively? `grep -n "pub fn" src/renderer.rs` → `new`, `upload_node`, `render`, `set_texture` all take `gl : &GL` directly; `get_texture` takes none but requires an already-constructed `Self`, which itself required `&GL` via `new` — there is no GL-free construction path.
+- [x] C5 — Was a public-surface `tests/` suite deliberately never created, and does that remain the case? `module/helper/canvas_renderer/tests/` still does not exist (see C1); the crate's only public type (`CanvasRenderer`) still has no GL-free method to exercise from an integration test.
+
+### Measurements
+
+- [x] M1 — Inline `#[test]` count in `canvas_renderer/src/`: `1`, unchanged since TASK-016 added it and TASK-068's own census recorded it — TASK-068 was a placement decision, not a code change, so no delta is expected or claimed here.
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, `longrun`-launched, same run reused from TASK-016): `cargo nextest run -p canvas_renderer --all-features` → exit `0`, "1 test run: 1 passed, 0 skipped" (`-0138_longrun.log`).
+- [ ] I2 — Compiler/lints (crate-scoped, `longrun`-launched, same run reused from TASK-016): `cargo clippy -p canvas_renderer --all-targets --all-features -- -D warnings` → exit `101` (FAIL), root-caused entirely to the unrelated, pre-existing `browser_log` dependency issue described in TASK-016's I2 — `canvas_renderer`'s own `src/` carries zero `#[allow(...)]` attributes and is never reached by this run (`-0138_longrun.log`).
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a future contributor "fixing" the test-placement convention deviation by blindly moving the test to `tests/` (which would fail to compile, since integration tests can't see `super::private::*`): the exception comment (`renderer.rs:379-386`) is the guard — re-check it is still present and still explains why relocation is impossible, not just asserting "keep for now" without reasoning.
+- [x] AF2 — Guards against a second, unrelated inline test accreting in `src/` under cover of "there's already precedent for an inline test here": re-running C1's `grep -rn "#\[ *test *\]" src/` must still return exactly `1` hit; any second inline test needs its own fresh Crate Locality decision (per this workspace's D7 gate), not silent accretion.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 035's workspace test-coverage census per Crate

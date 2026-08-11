@@ -4,6 +4,7 @@ mod private
   pub trait Animatable : Clone + core::fmt::Debug
   {
     /// Interpolates between two values at the given time ( 0.0 to 1.0 ).
+    #[ must_use ]
     fn interpolate( &self, other : &Self, time : f64 ) -> Self;
   }
 

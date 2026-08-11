@@ -48,6 +48,25 @@ mod private
         Self::Depth24Plus => Ok( gl::GL::DEPTH_COMPONENT24 )
       }
     }
+
+    /// The ( format, type ) pair `texSubImage2D` expects for a
+    /// tightly-packed upload of this format's texels.
+    pub( crate ) fn webgl_format_and_type( self ) -> Result< ( u32, u32 ), Error >
+    {
+      match self
+      {
+        Self::Rgba8Unorm | Self::Rgba8UnormSrgb => Ok( ( gl::GL::RGBA, gl::GL::UNSIGNED_BYTE ) ),
+        Self::Bgra8Unorm =>
+        {
+          Err( Error::Unsupported( "bgra8unorm has no WebGL2 internal format".to_string() ) )
+        }
+        Self::Rgba16Float => Ok( ( gl::GL::RGBA, gl::GL::HALF_FLOAT ) ),
+        Self::Depth24Plus =>
+        {
+          Err( Error::Unsupported( "depth24plus is not a valid texSubImage2D upload target".to_string() ) )
+        }
+      }
+    }
   }
 
   impl VertexFormat

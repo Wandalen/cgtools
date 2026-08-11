@@ -27,6 +27,31 @@ through this session's context compaction; re-derive by reading the current SVG 
 each of the doc instances above before rewriting**, then produce one consistent account across all
 touched doc files rather than fixing only one of the three.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `TerminalBackend` (the phantom capability claim) fully absent from `src/`? `grep -rn "TerminalBackend" src/` → `0` hits.
+- [x] C2 — Is the "full implementation" residue gone from every crate `*.md` doc? `grep -rln "full implementation" --include="*.md" .` (crate root) → `0` files.
+- [x] C3 — Does `readme.md`'s capabilities table show the Terminal column all-empty (footnoted) and WebGL Sprites/Meshes/Batches as `yes` (not the old `stub`)? Read `readme.md:81-96` → Terminal column is `—` on every row with a footnote at line 93; Sprites/Meshes/Batches = `yes`/`yes` for SVG/WebGL.
+- [x] C4 — Does `src/lib.rs` no longer carry the false "SvgBackend and TerminalBackend are stubs" note, with the tagline corrected? `grep -n "stub" src/lib.rs` → `0` hits; tagline reads "render to any backend (SVG and WebGL today; terminal planned)".
+- [x] C5 — Does `docs/invariant/004`'s citation drop the "full implementation" phrase for the command-level/asset-level distinction the fix claims? Full read → states "its remaining holes are asset-level... not command-level"; no "full implementation" string remains anywhere in the file.
+- [x] C6 — Does `roadmap.md`'s SVG-adapter bullet stay qualified (not an unconditional completeness claim), with an explicit pointer to its own gaps section? Read `roadmap.md:17` → "...Not complete, though — see "svg adapter gaps" below".
+
+### Measurements
+
+- [x] M1 — Crate `*.md` files carrying the false "full implementation"/stub-mismatch account: `0` (was: `2` — `readme.md` showed WebGL Sprites/Meshes/Batches as `stub` despite real implementations and listed `adapters::TerminalBackend` in architecture; `roadmap.md` carried an unqualified "full implementation" claim — both confirmed via `git show 4469eafb^:module/helper/tilemap_renderer/readme.md` and `...roadmap.md`, the commit immediately preceding this task's own fix, itself bundled into `4469eafb`).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, all features): `cargo nextest run -p tilemap_renderer --all-features` → exit 0, 122/122 passed.
+- [x] I2 — Compiler/lints: `cargo clippy -p tilemap_renderer --all-targets --all-features -- -D warnings` → **exit 101** — genuine current drift, but not from this task's own files. Root cause: the workspace `Cargo.toml`'s `allow_attributes_without_reason` lint was flipped `"allow"` → `"warn"` by the current HEAD commit `5f33be66` ("feat: consolidate test infrastructure and refactor module architecture", 2026-08-11 — a 421-file mechanical pass, dated AFTER this task's 2026-08-10 completion); the matching codebase-wide reason-string sweep is tracked but unexecuted (`task/draft/058_workspace_allow_sweep_per_crate.md`, 📝 Draft, census "1905 sites workspace-wide"). `-D warnings` elevates the new `"warn"` to a hard error crate- and dependency-wide — confirmed independently failing in the unrelated `browser_log` crate too (pulled in transitively via the `adapter-webgl` feature). None of `readme.md`/`roadmap.md`/`src/lib.rs`/`docs/invariant/004` (this task's touched files) contain any `#[allow]` attribute. Scoped re-run excluding the known/tracked lint and the broken transitive dependency (`cargo clippy -p tilemap_renderer --all-targets --no-default-features --features enabled,adapter-svg,adapter-terminal,cli,scene-model -- -D warnings -A clippy::allow_attributes_without_reason`) → exit 0, clean.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the 3-way contradiction quietly reappearing in only one of the touched files while the others stay fixed: re-run C1+C2+C6 together after any future SVG/Terminal doc edit — the original defect was specifically that the 3 sources *disagreed with each other*, so all three must stay consistent simultaneously, not just individually correct.
+- [x] AF2 — Guards against task 058's future workspace-wide `#[allow]` sweep silently absorbing a real, newly-introduced clippy issue in this task's own files as "more of the same" pre-existing debt: I2's scoped command (`--features enabled,adapter-svg,adapter-terminal,cli,scene-model -- -D warnings -A clippy::allow_attributes_without_reason`) must still return exit 0 after task 058 lands — a failure there is a real regression, not the known pre-existing class.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P4 (doc rewrite)

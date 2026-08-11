@@ -37,7 +37,7 @@ impl< E > ArrayRef< E, 1 > for ( E, )
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-    #[ allow( unsafe_code ) ]
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
     let result : &[ E; 1 ] = unsafe { &*( ( self as *const ( E, ) ).cast::< [ E; 1 ] >() ) };
 
     // Check size and alignment of the whole collection
@@ -76,7 +76,7 @@ impl< E > ArrayMut< E, 1 > for ( E, )
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-    #[ allow( unsafe_code ) ]
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
     let result : &mut [ E; 1 ] = unsafe { &mut *( ( self as *mut ( E, ) ).cast::< [ E; 1 ] >() ) };
 
     // Perform checks under debug conditions

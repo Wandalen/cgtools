@@ -1,5 +1,10 @@
-use crate::*;
-use filters::*;
+use crate::
+{
+  filters,
+  framebuffer,
+  wasm_bindgen,
+};
+use filters::{ FilterRenderer, Filter };
 use framebuffer::Framebuffer;
 use minwebgl as gl;
 use gl::GL;
@@ -143,7 +148,7 @@ impl Renderer
   fn create_program( gl : &GL, filter_source : &str ) -> WebGlProgram
   {
     gl::ProgramFromSources::new( Self::VERTEX_SOURCE, filter_source )
-    .compile_and_link( &gl )
+    .compile_and_link( gl )
     .expect( "Unable to compile program" )
   }
 }

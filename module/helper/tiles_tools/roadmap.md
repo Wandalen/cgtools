@@ -2,7 +2,7 @@
 
 **Version:** 2.0 (Ground-Truth Rewrite)
 **Date:** 2026-08-10
-**Status:** Phases 1, 2, 6 complete · Phase 3 substantially complete (1 known gap) · Phase 4 partially complete (1 known gap, 1 sub-area not started) · Phase 5 not started
+**Status:** Phases 1, 2, 3, 6 complete · Phase 4 partially complete (1 known gap, 1 sub-area not started) · Phase 5 not started
 **Next Priority:** see [Next Priority Actions](#next-priority-actions)
 
 > **Revision note:** this file previously contained two contradictory status
@@ -16,12 +16,12 @@
 
 ## Quick Start for Contributors
 
-**Current Priority:** see [Next Priority Actions](#next-priority-actions) — the two documented functional gaps (Flow Fields, ECS movement resolution) or Phase 5 (Procedural Generation), depending on interest.
+**Current Priority:** see [Next Priority Actions](#next-priority-actions) — the documented functional gap (Flow Fields) or Phase 5 (Procedural Generation), depending on interest.
 
 **Ready to Code:**
 1. Clone repo and run `cargo nextest run -p tiles_tools --all-features` to verify the current state
 2. Check [Development Environment](#development-environment) setup
-3. Read [Known Gaps](#known-gaps) before touching Flow Fields or ECS movement — both already have a documented pitfall explaining the current stub behavior
+3. Read [Known Gaps](#known-gaps) before touching Flow Fields — it already has a documented pitfall explaining the current stub behavior
 4. Follow [Definition of Done](#definition-of-done) criteria
 
 ## Development Environment
@@ -60,7 +60,7 @@ cargo doc --open                   # Review current API
 | Spatial Partitioning (`Quadtree`) | ✅ Complete | `spatial.rs` | ✅ `docs/data_structure/002` |
 | Hex Geometry / Mesh Gen | ✅ Complete | `geometry.rs` | ✅ `docs/algorithm/004` |
 | A* Pathfinding | ✅ Complete | `pathfind.rs` | ✅ `docs/algorithm/002` |
-| ECS Integration (`World`, components, systems) | ⚠️ Substantially complete — movement resolution is a no-op | `ecs/` | ✅ `docs/api/001`, `docs/type/002` · ⚠️ `docs/pitfall/002` |
+| ECS Integration (`World`, components, systems) | ✅ Complete | `ecs/` | ✅ `docs/api/001`, `docs/type/002` |
 | Field of View | ✅ Complete | `field_of_view.rs` | ✅ `docs/algorithm/003` |
 | Flow Fields | ⚠️ Scaffolded only — every query returns a fixed stub value | `flowfield.rs` | ⚠️ `docs/pitfall/001` |
 | Region analysis / flood fill / multi-grid pathfinding | ⏳ Not started | - | - |
@@ -76,7 +76,7 @@ cargo doc --open                   # Review current API
 
 ## Known Gaps
 
-Four functional gaps are known and already documented in `docs/pitfall/` — this section links to them rather than duplicating their content, per `docs/pitfall/readme.md`:
+Three functional gaps are known and already documented in `docs/pitfall/` — this section links to them rather than duplicating their content, per `docs/pitfall/readme.md`:
 
 | Pitfall | Impact | Blocking? |
 |---------|--------|-----------|
@@ -199,7 +199,7 @@ Universal grid system library with seamless interoperability across four coordin
 
 ---
 
-## Phase 3: ECS Integration ⚠️ Substantially Complete
+## Phase 3: ECS Integration ✅ Complete
 
 **Goal:** HECS-based ECS with grid-aware components and systems.
 
@@ -246,10 +246,9 @@ No Wave Function Collapse, tileset-definition, noise-generation, or configuratio
 In rough priority order, grounded in [Known Gaps](#known-gaps) and the phase statuses above:
 
 1. **Close `docs/pitfall/001`** — implement a real Flow Field / Integration Field algorithm (replace the stub bodies in `flowfield.rs`). Unblocks RTS-style multi-unit movement, the stated purpose of the module.
-2. **Close `docs/pitfall/002`** — make `World::request_movement` actually move the entity's `Position` component instead of discarding the target. Unblocks ECS-driven movement generally.
-3. **Phase 5: Procedural Generation** — genuinely unstarted; Wave Function Collapse is the largest single piece of scope left in the whole roadmap.
-4. **Region analysis / flood fill / multi-grid pathfinding** (remainder of Phase 4) — no code exists yet.
-5. **Lower priority, non-blocking:** `docs/pitfall/003` (real compression) and `docs/pitfall/004` (rename or merge the two ambiguous `distance` methods).
+2. **Phase 5: Procedural Generation** — genuinely unstarted; Wave Function Collapse is the largest single piece of scope left in the whole roadmap.
+3. **Region analysis / flood fill / multi-grid pathfinding** (remainder of Phase 4) — no code exists yet.
+4. **Lower priority, non-blocking:** `docs/pitfall/003` (real compression) and `docs/pitfall/004` (rename or merge the two ambiguous `distance` methods).
 
 ---
 
@@ -298,6 +297,6 @@ In rough priority order, grounded in [Known Gaps](#known-gaps) and the phase sta
 
 ### Updated Project Status
 
-**Current State:** Phases 1, 2, and 6 complete; Phase 3 and Phase 4 substantially complete with documented gaps; Phase 5 not started.
+**Current State:** Phases 1, 2, 3, and 6 complete; Phase 4 substantially complete with documented gaps; Phase 5 not started.
 **Next Priority:** see [Next Priority Actions](#next-priority-actions) above.
 **Target:** Complete multi-grid-system library with functional flow fields, functional ECS movement, and procedural generation.

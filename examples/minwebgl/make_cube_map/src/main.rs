@@ -79,8 +79,8 @@ fn gen_cube_texture( gl : &GL, width: i32, height: i32 ) -> Option< gl::web_sys:
       gl::TEXTURE_CUBE_MAP_POSITIVE_X + i as u32,
       0,
       gl::RGBA as i32,
-      width as i32,
-      height as i32,
+      width,
+      height,
       0,
       gl::RGBA,
       gl::UNSIGNED_BYTE,
@@ -97,20 +97,22 @@ fn gen_cube_texture( gl : &GL, width: i32, height: i32 ) -> Option< gl::web_sys:
   texture
 }
 
-async fn run() -> Result< (), gl::WebglError >
+/// Renders the model into a freshly created cube map texture : compiles the
+/// generation shaders, uploads the model geometry, and draws every cube face
+/// into the texture through a temporary framebuffer. Returns the cube texture
+/// together with the model's maximum vertex distance used for normalization.
+fn generate_cube_map
+(
+  gl : &GL,
+  document : &gltf::Document,
+  buffers : &[ gltf::buffer::Data ]
+) -> Result< ( Option< gl::web_sys::WebGlTexture >, f32 ), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
-  let gl = gl::context::retrieve_or_make()?;
-
   // Vertex and fragment shaders
   let vertex_shader_src = include_str!( "../shaders/gen_cube_map.vert" );
   let fragment_shader_src = include_str!( "../shaders/gen_cube_map.frag" );
-  let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src ).compile_and_link( &gl )?;
+  let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src ).compile_and_link( gl )?;
   gl.use_program( Some( &program ) );
-
-  // Load model
-  let obj_buffer = gl::file::load( "static/diamond.glb" ).await.expect( "Failed to load the model" );
-  let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
 
   let positions : Vec< [ f32; 3 ] >;
   let normals : Vec< [ f32; 3 ] >;
@@ -123,7 +125,7 @@ async fn run() -> Result< (), gl::WebglError >
     let reader = primitive.reader( | buffer | Some( &buffers[ buffer.index() ] ) );
 
     let pos_iter = reader.read_positions().expect( "Failed to read positions" );
-    
+
     max_distance = pos_iter
     .clone()
     .map( | p | gl::F32x3::new( p[ 0 ], p[ 1 ], p[ 2 ] ).mag() )
@@ -139,19 +141,19 @@ async fn run() -> Result< (), gl::WebglError >
     indices = index_iter.into_u32().collect();
   }
 
-  let pos_buffer =  gl::buffer::create( &gl )?;
-  let normal_buffer = gl::buffer::create( &gl )?;
+  let pos_buffer = gl::buffer::create( gl )?;
+  let normal_buffer = gl::buffer::create( gl )?;
 
-  gl::buffer::upload( &gl, &pos_buffer, &positions, GL::STATIC_DRAW );
-  gl::buffer::upload( &gl, &normal_buffer, &normals, GL::STATIC_DRAW );
+  gl::buffer::upload( gl, &pos_buffer, &positions, GL::STATIC_DRAW );
+  gl::buffer::upload( gl, &normal_buffer, &normals, GL::STATIC_DRAW );
 
-  let vao = gl::vao::create( &gl )?;
+  let vao = gl::vao::create( gl )?;
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 0, &pos_buffer )?;
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 1, &normal_buffer )?;
+  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( gl, 0, &pos_buffer )?;
+  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( gl, 1, &normal_buffer )?;
 
-  let index_buffer = gl::buffer::create( &gl )?;
-  gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
+  let index_buffer = gl::buffer::create( gl )?;
+  gl::index::upload( gl, &index_buffer, &indices, GL::STATIC_DRAW );
 
   // Get variables locations
   let projection_matrix_location = gl.get_uniform_location( &program, "projectionMatrix" );
@@ -166,16 +168,16 @@ async fn run() -> Result< (), gl::WebglError >
 
   let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
   (
-     90.0f32.to_radians(),  
-     1.0, 
-     0.1, 
+     90.0f32.to_radians(),
+     1.0,
+     0.1,
      10.0
   );
 
   let model_matrix = gl::F32x4x4::from_scale_rotation_translation
   (
-    gl::F32x3::splat( 1.0 ), 
-    gl::QuatF32::from_angle_y( 0.0 ), 
+    gl::F32x3::splat( 1.0 ),
+    gl::QuatF32::from_angle_y( 0.0 ),
     gl::F32x3::ZERO
   );
 
@@ -183,31 +185,31 @@ async fn run() -> Result< (), gl::WebglError >
   let normal_matrix = model_matrix.truncate().inverse().unwrap().transpose();
 
   // Update uniform values
-  gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_array(), true )?;
-  gl::uniform::matrix_upload( &gl, model_matrix_location, &model_matrix.to_array(), true )?;
-  gl::uniform::matrix_upload( &gl, normal_matrix_location, &normal_matrix.to_array(), true )?;
+  gl::uniform::matrix_upload( gl, projection_matrix_location, &perspective_matrix.to_array(), true )?;
+  gl::uniform::matrix_upload( gl, model_matrix_location, &model_matrix.to_array(), true )?;
+  gl::uniform::matrix_upload( gl, normal_matrix_location, &normal_matrix.to_array(), true )?;
 
-  gl::uniform::upload( &gl, max_distance_location, &max_distance )?;
+  gl::uniform::upload( gl, max_distance_location, &max_distance )?;
 
   let ( tex_width, tex_height ) = ( 512, 512 );
-  let cube_texture = gen_cube_texture( &gl, tex_width, tex_height );
+  let cube_texture = gen_cube_texture( gl, tex_width, tex_height );
 
   // Render to our cube texture using custom frame buffer
   // All the needed buffers were setup above
   let frame_buffer = gl.create_framebuffer();
-  gl.bind_framebuffer( gl::FRAMEBUFFER , frame_buffer.as_ref() );
-  gl.viewport( 0, 0, tex_width, tex_height);
-  gl.clear_color( 0.0, 0.0, 0.0, 1.0);
-  for i in 0..6
+  gl.bind_framebuffer( gl::FRAMEBUFFER, frame_buffer.as_ref() );
+  gl.viewport( 0, 0, tex_width, tex_height );
+  gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
+  for ( i, camera ) in cube_camera.iter().enumerate()
   {
-    let view_matrix = &cube_camera[ i ].to_array();
-    gl::uniform::matrix_upload( &gl, view_matrix_location.clone(), view_matrix, true )?;
+    let view_matrix = &camera.to_array();
+    gl::uniform::matrix_upload( gl, view_matrix_location.clone(), view_matrix, true )?;
     gl.framebuffer_texture_2d
-    ( 
-      gl::FRAMEBUFFER, 
-      gl::COLOR_ATTACHMENT0, 
-      gl::TEXTURE_CUBE_MAP_POSITIVE_X + i as u32, 
-      cube_texture.as_ref(), 
+    (
+      gl::FRAMEBUFFER,
+      gl::COLOR_ATTACHMENT0,
+      gl::TEXTURE_CUBE_MAP_POSITIVE_X + i as u32,
+      cube_texture.as_ref(),
       0
     );
     gl.clear( gl::COLOR_BUFFER_BIT );
@@ -217,6 +219,20 @@ async fn run() -> Result< (), gl::WebglError >
   gl.delete_buffer( Some( &pos_buffer ) );
   gl.delete_buffer( Some( &normal_buffer ) );
   gl.delete_framebuffer( frame_buffer.as_ref() );
+
+  Ok( ( cube_texture, max_distance ) )
+}
+
+async fn run() -> Result< (), gl::WebglError >
+{
+  gl::browser::setup( gl::browser::Config::default() );
+  let gl = gl::context::retrieve_or_make()?;
+
+  // Load model
+  let obj_buffer = gl::file::load( "static/diamond.glb" ).await.expect( "Failed to load the model" );
+  let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
+
+  let ( cube_texture, max_distance ) = generate_cube_map( &gl, &document, &buffers )?;
 
   //
   // Create new program to display the result

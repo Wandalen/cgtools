@@ -53,6 +53,36 @@ pickup:**
 - `text/ufo.rs` dead-code/doc-drift cleanup (task 021).
 - The `csgrs`/`core2` yanked-dependency issue in this same crate (BUG-007/task 008).
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `contours_to_fill_geometry` genuinely gated behind `font-processing` (matching the `path_to_points`/`text` precedent it was designed to mirror)? Current `src/primitive.rs:159-160`: `#[ cfg( feature = "font-processing" ) ] pub fn contours_to_fill_geometry( ... )`, preceded by a 3-field `Fix(TASK-055)` comment at lines 150-158.
+- [x] C2 — Is the `mod_interface!` export block genuinely split (function moved out of the ungated `orphan use` group into its own gated group)? Current `src/primitive.rs:421-440`: the ungated group now holds only `curve_to_geometry, plane_to_geometry` (2 items, down from the original 3); a dedicated `#[ cfg( feature = "font-processing" ) ] orphan use { contours_to_fill_geometry };` block (lines 429-433) sits directly beside the pre-existing `#[ cfg( feature = "text" ) ] orphan use { path_to_points };` block (435-439) it was built to mirror.
+- [x] C3 — Is the `BoundingBox` import genuinely split out under its own `font-processing` gate? Current `src/primitive.rs:17-18`: `#[ cfg( feature = "font-processing" ) ] use gl::geometry::BoundingBox;`, separated from the ungated `use gl::{ F32x2, F32x4 };` (line 7).
+- [x] C4 — Does `Cargo.toml` still carry the claimed `required-features` test entry? Current `Cargo.toml:85-87`: `[[test]]` / `name = "contours_to_fill_geometry_test"` / `required-features = ["font-processing"]`, with its TASK-055-citing explanatory comment at lines 82-84.
+- [x] C5 — Is the actually-implemented resolution direction 1 (gate behind `font-processing`), not the rejected direction 2 (`earcutr` made non-optional)? Current `Cargo.toml:60`: `earcutr = { workspace = true, optional = true }` — still optional, confirming direction 1 was chosen.
+- [x] C6 — Is the adversarial finding's claimed resolution (`--features text` alone, previously E0432, later fixed by task 021) still holding today? `longrun`-launched `cargo check -p primitive_generation --no-default-features --features text` → clean, exit 0.
+
+### Measurements
+
+- [x] M1 — `#[ cfg( feature = "font-processing" ) ]` gates immediately above `contours_to_fill_geometry`'s declaration: `1` (was: `0` — confirmed via `git show 2be3d2cc -- module/helper/primitive_generation/src/primitive.rs`, whose diff shows `+  #[ cfg( feature = "font-processing" ) ]` as a pure addition with no prior `#[cfg]` on that line).
+- [x] M2 — Members of the ungated `orphan use` group in `mod_interface!`: `2` (was: `3` — same `2be3d2cc` diff shows `-    contours_to_fill_geometry,` removed from that group).
+
+### Invariants
+
+- [x] I1 — Crate check, default features (the exact scenario this task's Goal names as broken pre-fix: `E0433 cannot find crate earcutr`): `longrun`-launched `cargo check -p primitive_generation` → clean, exit 0. Confirmed still fixed: no `earcutr`-related error under default features.
+- [ ] I2 — Crate check, `--features font-processing` (the feature this fix specifically gates behind, and the scenario meant to actually exercise the gated function): `longrun`-launched `cargo check -p primitive_generation --features font-processing` → currently FAILS: `error[E0639]: cannot create non-exhaustive struct using struct expression` at `src/text/ufo.rs:368` and `:83`, exit 101. Root-caused, not assumed: this is not a regression of this task's own gate — C1-C4 above independently confirm the gate, export split, import split, and Cargo.toml entry are all still intact. The failure is the same newly-introduced, unrelated regression documented in tasks 018/021's Verification sections: commit `5f33be66` ("feat: consolidate test infrastructure and refactor module architecture", 2026-08-11 09:30, one day after this task's own 2026-08-10 verification) added `#[ non_exhaustive ]` to `mingl::geometry::BoundingBox`; two pre-existing struct-literal construction sites in `text/ufo.rs` — a file this task never touched — now fail to compile whenever `font-processing` is enabled. `cargo check -p primitive_generation --all-features` fails identically, same root cause.
+- [x] I3 — Crate test suite, default features: `longrun`-launched `cargo nextest run -p primitive_generation` → `3 tests run: 3 passed, 0 skipped`, exit 0 (this task's own `contours_to_fill_geometry_test.rs` is cleanly excluded here by its `required-features = ["font-processing"]` entry, matching this task's own claimed default-features behavior of "3 tests across 2 binaries").
+- [ ] I4 — Crate test suite, `--all-features` (needed to run this task's own gated test binary): `longrun`-launched `cargo nextest run -p primitive_generation --all-features` → currently FAILS to even compile, same E0639 root cause as I2, exit 101.
+- [ ] I5 — Lint cleanliness: `longrun`-launched `cargo clippy -p primitive_generation --all-targets --all-features -- -D warnings` → currently FAILS, but not on this task's code: `error: could not compile browser_log (lib) due to 1 previous error` — `#[ allow( clippy::exhaustive_structs ) ]` at `module/helper/browser_log/src/panic.rs:82` carries no `reason = "..."`, violating the workspace's own `allow_attributes_without_reason = "warn"` lint (root `Cargo.toml:117`) once promoted to a hard error by `-D warnings`. Same commit `5f33be66` last touched that line; unrelated to `primitive_generation`.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the `#[cfg(feature = "font-processing")]` gate silently being dropped from `contours_to_fill_geometry` (reintroducing the original default-features `E0433`): re-run C1 — the function must still be immediately preceded by that exact `#[cfg]` line — and re-run I1, which must keep passing under default features.
+- [x] AF2 — Guards against `earcutr` silently being promoted back to a non-optional dependency (the rejected direction 2) without a fresh, explicit re-investigation of whether it has genuinely become a core, always-needed capability: re-run C5 — `earcutr` in `Cargo.toml` must still read `optional = true` unless such an investigation justifies changing it.
+- [x] AF3 — Guards against trusting this task's original "15/15 dimensions PASS, clean clippy" claim without re-running it: I2/I4/I5 above are direct proof that a fully-passing verification can silently go stale from an unrelated commit landing the very next day, in a file (`text/ufo.rs`) this task never touched. Before citing this task's `font-processing`/`--all-features` build as currently working — e.g. as precedent that the crate is healthy — re-run `cargo check -p primitive_generation --features font-processing` and `cargo clippy -p primitive_generation --all-targets --all-features -- -D warnings` fresh; do not assume a prior day's PASS still holds.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Discovered as a byproduct of task 018's fix (silent failure + NaN gap in

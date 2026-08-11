@@ -25,7 +25,7 @@ mod private
     view_formats : Vec< GpuTextureFormat >
   }
 
-  impl< 'a > Default for TextureDescriptor< 'a >
+  impl Default for TextureDescriptor< '_ >
   {
     #[ inline ]
     fn default() -> Self

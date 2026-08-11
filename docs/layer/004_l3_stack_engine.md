@@ -25,13 +25,21 @@ is L0 directly, the accepted violation tracked in
 | Engine | Stack | Upward vocabulary | Downward seam |
 |--------|-------|-------------------|---------------|
 | `renderer` | d3 | Scene graph: `Node`/`Scene`/`Mesh`, PBR materials, cameras, lights | Direct `minwebgl` (`renderer::webgl::*` namespace) |
-| `tilemap_renderer` | d2 | POD `RenderCommand` stream + assets | `Backend` trait — SVG needs no GPU at all; the WebGL2 adapter uses `minwebgl` |
+| `tilemap_renderer` | d2 | POD `RenderCommand` stream + assets | `Backend` trait — SVG/terminal need no GPU at all; the WebGL2 adapter uses `minwebgl` directly; `adapter-webgpu` / `adapter-native` target `gpu_hal` ( [ADR-003](../adr/003_d2_stack_hal_adoption.md) ) |
 
 The two demonstrate the two portability strategies ADR-001 weighs: a trait
 seam at the command level (`tilemap_renderer` — backends multiply freely)
 versus per-backend namespaces (`renderer` — each backend is a parallel
 tree). The architecture keeps the first and dissolves the second onto the
-HAL.
+HAL. `tilemap_renderer`'s new adapters go further: rather than dissolving an
+existing direct dependency, they adopt the HAL from the start — the same
+trait seam now multiplying backends *through* L1 instead of around it.
+
+### Explorations
+
+| File | Relationship |
+|------|--------------|
+| [../adr/003_d2_stack_hal_adoption.md](../adr/003_d2_stack_hal_adoption.md) | Extends L1 adoption to `tilemap_renderer` — new `adapter-webgpu` / `adapter-native` / `adapter-none` |
 
 ### Layers
 

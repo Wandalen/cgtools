@@ -24,6 +24,60 @@ cleanup bucket, Fix-in-place). Rename the package to `mdmath_ai` to match the di
 workspace for any `mdmath_ia` references (root `Cargo.toml` dependency declarations, other crates'
 `Cargo.toml` files, doc mentions) that need updating in the same change so nothing silently breaks.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Does `Cargo.toml`'s `name` field read `mdmath_ai` (matching the directory), not the
+  transposed `mdmath_ia`? Read `module/blank/mdmath_ai/Cargo.toml` line 2 → `name = "mdmath_ai"`.
+- [x] C2 — Does `readme.md`'s H1 heading match the corrected name? Read
+  `module/blank/mdmath_ai/readme.md` line 1 → `# mdmath_ai`.
+- [x] C3 — Does the crate's own internal doc URL (the evidence originally used to decide which
+  spelling was correct) still agree with the fixed name? `grep -n html_root_url
+  module/blank/mdmath_ai/src/lib.rs` → `#![doc(html_root_url =
+  "https://docs.rs/mdmath_ai/latest/mdmath_ai/")]`, consistent with the manifest.
+- [x] C4 — Does `cargo check -p mdmath_ia` (the old, transposed name) still correctly fail to
+  resolve, confirming nothing still aliases it? `cargo check -p mdmath_ia` → exit 101, "error:
+  package ID specification `mdmath_ia` did not match any packages", with cargo's own `help:`
+  suggesting `mdmath_ai`.
+- [x] C5 — Are there zero remaining LIVE `mdmath_ia` references repo-wide (excluding the known
+  self-correcting generated `locales.md` and descriptive task-tracking prose)?
+  `grep -rln mdmath_ia --exclude-dir=.git .` from repo root → 5 files: `locales.md` (generated,
+  pre-existing documented staleness — its `name` column is scraped from each crate's `Cargo.toml` at
+  generation time, so it self-corrects on next run), `task/completed/019_mdmath_ai_package_name_mismatch.md`
+  (this file's own prose), `task/readme.md` (task-index descriptive row), `task/action_plan/001_i4.md`
+  (a changelog row narrating this task's own fix), `task/completed/024_examples_dead_code_reconfirm_delete.md`
+  (a later, unrelated task noting the same `locales.md` staleness). All 5 inspected directly this
+  session — none is a live code or config reference. The last two were not named in this task's
+  original History (new mentions have appeared since it was written), but both are descriptive prose
+  about the historical rename, not evidence that the rename itself regressed.
+
+### Measurements
+
+- [x] M1 — `Cargo.toml` package `name`: `mdmath_ai` (was: `mdmath_ia` — confirmed via
+  `git show dc8c8c1f:module/blank/mdmath_ai/Cargo.toml`, the repo's initial commit).
+- [x] M2 — `readme.md` H1 heading: `# mdmath_ai` (was: `# mdmath_ia` — confirmed via
+  `git show dc8c8c1f:module/blank/mdmath_ai/readme.md`).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p mdmath_ai --all-features` → exit 4,
+  "error: no tests to run" — NOT exit 0. Genuinely expected, not a regression: this is an empty
+  scaffold crate (`mod_interface!{}` with no items, no `#[test]` functions anywhere), consistent
+  with this task's own History account ("no tests to run").
+- [x] I2 — Compiler/lints clean: `cargo clippy -p mdmath_ai --all-targets --all-features -- -D
+  warnings` → exit 0, zero warnings.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a "half rename" that fixes the manifest but leaves the directory name,
+  doc URL, or readme heading inconsistent with it: C1–C3 jointly check three independent surfaces
+  rather than trusting one field in isolation.
+- [x] AF2 — Guards against the old name silently continuing to resolve via some other mechanism (a
+  stray `[package] name` reintroduced, a path override, a workspace patch): re-running C4's
+  `cargo check -p mdmath_ia` after any future edit must still fail with "did not match any
+  packages" — a PASS there would mean the old identity silently came back.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P3 (dead code /

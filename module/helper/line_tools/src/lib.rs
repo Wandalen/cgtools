@@ -397,12 +397,20 @@ mod private
         }
 
         /// Retrieves a reference to the mesh.
+        ///
+        /// # Errors
+        ///
+        /// Returns `WebglError` if the mesh has not been created yet.
         pub fn mesh_get( &self ) -> Result< &Mesh, gl::WebglError >
         {
           self.render_state.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
         }  
 
         /// Retrieves a mutable reference to the mesh.
+        ///
+        /// # Errors
+        ///
+        /// Returns `WebglError` if the mesh has not been created yet.
         pub fn mesh_get_mut( &mut self ) -> Result< &mut Mesh, gl::WebglError >
         {
           self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )

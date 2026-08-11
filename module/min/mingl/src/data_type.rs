@@ -136,7 +136,6 @@ mod private
 // `size` parameter at 4, so any `n` that is actually usable as a GL vector/matrix
 // dimension (at most 4, or 16 for a 4x4 matrix) is far below `i32::MAX` — this cast
 // can never wrap or truncate for such `n`.
-#[ allow( clippy::cast_possible_truncation, clippy::cast_possible_wrap ) ]
 const fn dim_as_i32( n : usize ) -> i32
 {
   n as i32

@@ -33,6 +33,10 @@ mod private
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
     /// * `color` - The base color to apply (RGB values, typically in range [0.0, 1.0])
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the shader fails to compile or link.
     pub fn new( gl : &gl::WebGl2RenderingContext, color : [ f32; 3 ] ) -> Result< Self, gl::WebglError >
     {
       let fs_shader = include_str!( "../shaders/post_processing/shadow_to_color.frag" );

@@ -2,7 +2,6 @@ mod private
 {
   #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   use minwebgpu as gl;
-  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   use crate::Error;
 
   /// Buffer usage bit flags ( WebGPU bit values ).
@@ -95,6 +94,29 @@ mod private
     Rgba16Float,
     /// 24-bit depth.
     Depth24Plus
+  }
+
+  impl TextureFormat
+  {
+    /// Bytes occupied by one texel, for `bytes_per_row` computation on a
+    /// tightly-packed ( unpadded ) CPU-side upload buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] for `Depth24Plus`, whose CPU-side
+    /// byte layout is platform-defined and not a portable upload target.
+    pub fn bytes_per_texel( self ) -> Result< u32, Error >
+    {
+      match self
+      {
+        Self::Rgba8Unorm | Self::Rgba8UnormSrgb | Self::Bgra8Unorm => Ok( 4 ),
+        Self::Rgba16Float => Ok( 8 ),
+        Self::Depth24Plus =>
+        {
+          Err( Error::Unsupported( "depth24plus has no portable CPU-side texel layout".to_string() ) )
+        }
+      }
+    }
   }
 
   #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]

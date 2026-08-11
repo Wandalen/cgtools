@@ -21,6 +21,10 @@ mod private
   impl ShadowMap
   {
     /// Creates shadow map with specified resolution
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if allocating the shadow-map GPU resources fails.
     pub fn new( gl : &GL, resolution : u32 ) -> Result< Self, gl::WebglError >
     {
       let resolution = resolution as i32;
@@ -101,6 +105,10 @@ mod private
     }
 
     /// Renders shadow map from light's perspective
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a node upload or draw call fails during the depth pass.
     pub fn render
     (
       &self,
@@ -170,6 +178,10 @@ mod private
   impl ShadowBaker
   {
     /// Creates shadow baker
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if allocating the baker's GPU resources fails.
     pub fn new( gl : &GL ) -> Result< Self, gl::WebglError >
     {
       let framebuffer = gl.create_framebuffer();
@@ -258,6 +270,10 @@ mod private
     }
 
     /// Bakes shadows into lightmaps via two-pass rendering: depth map, then PCSS lightmap baking
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a pass, upload, or draw fails during either baking pass.
     pub fn render_soft_shadow
     (
       &self,

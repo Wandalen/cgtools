@@ -253,6 +253,30 @@ for every constructed value with N pairwise-distinct components,
 component_accessor[i](v) == v[i]  for all i in 0..N
 ```
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Does `Vector<E,4>::w()` now correctly read `self.0[3]` (not `self.0[2]`)? `grep -n -A3 "fn w(" src/vector/vec4/general.rs` → `pub fn w( &self ) -> E` at line 45, body `self.0[ 3 ]`, with an adjacent `Fix(BUG-043)` comment stating the root cause and pitfall.
+- [x] C2 — Does the reproducer test exist and genuinely cover the fixed behavior? `tests/inc/vec4_test.rs::accessor_test` exists, marked `// test_kind: bug_reproducer(BUG-043)`, and asserts `v.w() == 4`/`v.w() != v.z()` for both an integer (`I32x4`) and a float (`F32x4`) type.
+- [x] C3 — Is `Quat<E>::w()` confirmed still an independent implementation (never delegating to the fixed `Vector::w()`, so this fix carried no risk of a double-fix or regression there)? Confirmed in `src/quaternion/general.rs`: `Quat::w()` has its own body, `self.0[ 3 ]`, with no call into `Vector::w()`.
+- [x] C4 — Does the "currently zero live call sites beyond `Quat::w()`" claim still hold today (i.e. no new bare-`Vector<E,4>::w()` caller has been introduced since the fix that would need this exact regression check)? Workspace-wide `grep -rn "\.w()" --include="*.rs" .` (excluding `quaternion/` and the test file itself) → still exactly 3 matches, all `quat.w()` receivers in `module/math/ndarray_cg/src/d2/mat3x3/general.rs:235-237` — unchanged in count and location from the bug's own filing-time audit.
+
+### Measurements
+
+- [x] M1 — `Vector<E,4>::w()`'s body: now `self.0[ 3 ]` (was: `self.0[ 2 ]`, cite `git show 9b71cf39^:module/math/ndarray_cg/src/vector/vec4/general.rs` — pre-fix, `w()` was byte-identical to `z()`'s body; `9b71cf39` is the exact fix commit, confirmed via `git diff 9b71cf39^ 9b71cf39` matching this bug's own `## Fix Applied` section exactly).
+- [x] M2 — `accessor_test` reproducer presence in `tests/inc/vec4_test.rs`: now `1` test (was: file did not exist at all — `git show 9b71cf39^:module/math/ndarray_cg/tests/inc/vec4_test.rs` → `fatal: path ... exists on disk, but not in '9b71cf39^'`, confirming the file, and its test, is wholly new to the fix commit).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p ndarray_cg --all-features` (via `longrun`) → exit 0, 261/261 passed, 0 skipped (includes `vec4_test::accessor_test`, confirmed in the pass list).
+- [x] I2 — Compiler/lints clean: `cargo clippy -p ndarray_cg --all-targets --all-features -- -D warnings` (via `longrun`) → exit 0, zero warnings/errors.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against `w()`'s index silently reverting to `2` (e.g. a careless copy-paste from `z()` again during an unrelated refactor): re-running C1/M1 (`self.0[ 3 ]`) and `accessor_test` (I1) must both still hold; the test's `assert_ne!( v.w(), v.z() )` exists specifically to catch this exact regression mode.
+- [x] AF2 — Guards against a *new* bare-`Vector<E,4>::w()` call site being added elsewhere without re-auditing that it now receives the corrected accessor: C4's workspace-wide `.w()` grep is the re-check mechanism — any new match found outside `quaternion/`/`vec4_test.rs` should be spot-verified against the fixed `self.0[3]` body before being trusted.
+
 ## History
 
 | Date       | Event  | Notes                                                                                                     |

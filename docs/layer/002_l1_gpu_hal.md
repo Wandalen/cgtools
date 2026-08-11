@@ -44,8 +44,12 @@ pixel-verified end-to-end in the terminal by `opaque_path_renders_lit_quad`. The
 covers the opaque path only: buffers, 2d textures, samplers, shader modules,
 bind groups, one-color-attachment render passes. Not yet covered: texture
 upload, mipmaps, MSAA, compute.
-`renderer`'s legacy `webgl` tree and the other L3 engines keep their accepted
-direct-to-L0 dependencies until strangled onto the HAL.
+`renderer`'s legacy `webgl` tree keeps its accepted direct-to-L0 dependency
+until strangled onto the HAL. `tilemap_renderer` (d2) is the second targeted
+consumer — its `adapter-webgpu` / `adapter-native` adopt the HAL per
+[../adr/003_d2_stack_hal_adoption.md](../adr/003_d2_stack_hal_adoption.md);
+its existing `adapter-webgl` keeps its direct `minwebgl` dependency for now,
+on the same accepted-until-strangled posture.
 
 ### Layers
 
@@ -60,6 +64,7 @@ direct-to-L0 dependencies until strangled onto the HAL.
 |------|--------------|
 | [../adr/002_gpu_hal_in_house.md](../adr/002_gpu_hal_in_house.md) | Build-vs-buy decision — closed in-house; `gpu_hal` is the L1 HAL |
 | [../explorations/001_gpu_hal_buy_vs_build.md](../explorations/001_gpu_hal_buy_vs_build.md) | The comparison and spike evidence behind ADR-002 ( closed ) |
+| [../adr/003_d2_stack_hal_adoption.md](../adr/003_d2_stack_hal_adoption.md) | Extends L1 adoption to the d2 stack ( `tilemap_renderer` ) |
 
 ### Sources
 
@@ -67,3 +72,4 @@ direct-to-L0 dependencies until strangled onto the HAL.
 |------|--------------|
 | `module/helper/gpu_hal/` | The v0 implementation |
 | `module/helper/renderer/src/webgpu/` | First consumer — the canonical opaque path on both backends |
+| `module/helper/tilemap_renderer/src/backend.rs` | Second targeted consumer — `adapter-webgpu` / `adapter-native` ( [ADR-003](../adr/003_d2_stack_hal_adoption.md) ) |

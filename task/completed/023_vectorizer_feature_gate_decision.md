@@ -34,6 +34,71 @@ change.
 to keep the door open on this task's DELETE decision for a future revival if a real consumer emerges.
 Does not reopen or otherwise change this task's own terminal state; see this task's History entry below.
 
+## Verification
+
+**Special case:** this is a deletion task — `module/helper/vectorizer` no longer exists on disk, so the
+usual crate-scoped `cargo nextest -p <crate>` / `cargo clippy -p <crate>` Invariants do not apply (there
+is no package left to target). Invariants below verify the deletion's continued completeness and
+workspace-graph health instead, re-derived fresh this session rather than trusted from the original
+History account.
+
+### Checklist
+
+- [x] C1 — Is `module/helper/vectorizer/` still absent from disk? `test -d
+  module/helper/vectorizer && echo "STILL EXISTS" || echo "confirmed absent"` → confirmed absent.
+- [x] C2 — Does root `Cargo.toml` still carry zero `vectorizer` references (no `members` entry, no
+  `[workspace.dependencies.vectorizer]` block)? `grep -n vectorizer Cargo.toml` → zero hits.
+- [x] C3 — Does `script/test_workspace.sh` still carry zero `vectorizer` references (the broken
+  `-p vectorizer` check block the adversarial pass removed)? `grep -n vectorizer
+  script/test_workspace.sh` → zero hits.
+- [x] C4 — Does `action/run` still carry zero `vectorizer` references (the stale illustrative comment
+  replaced with `embroidery_tools`)? `grep -n vectorizer action/run` → zero hits.
+- [x] C5 — Are there zero remaining LIVE `vectorizer` references repo-wide (excluding the known
+  self-correcting generated `locales.md` and descriptive task/health-tracking prose)? `grep -rl
+  vectorizer . --exclude-dir=.git --exclude-dir=target` → 4 files: `locales.md` (generated,
+  pre-existing documented staleness, self-corrects on next generation — same reasoning as this task's
+  own History), `task/action_plan/001_i4.md` (changelog row narrating this task's own deletion),
+  `task/readme.md` (task-index descriptive row for task 056), `health.md` (status line: "056 —
+  vectorizer revival watch item", descriptive), `task/completed/055_primitive_generation_earcutr_feature_gate_missing.md`
+  (unrelated later task's prose citing "an unrelated vectorizer-removal commit" for its own
+  investigation context). All 5 inspected directly this session — none is a live code or config
+  reference. None of these were named in this task's original History (new mentions accrued since,
+  from task 056's filing and later tasks) — all confirmed to be descriptive prose about the historical
+  deletion, not evidence of regression.
+
+### Measurements
+
+- [x] M1 — `module/helper/vectorizer/` file count at time of deletion: 14 source files (per this task's
+  own Goal). Directory now: absent (0 files) — confirmed via `test -d` in C1.
+- [x] M2 — Root `Cargo.toml` `members`/`[workspace.dependencies]` `vectorizer` entries: 0 (was: 1
+  commented-out `members` entry + 1 `[workspace.dependencies.vectorizer]` block with a wrong path,
+  both removed outright — matches this task's own History account of the executed change).
+
+### Invariants
+
+- [x] I1 — Workspace graph resolves cleanly and contains zero `vectorizer` package: `cargo metadata
+  --no-deps --format-version 1` (via `longrun .launch`, this session) → exit 0; grepped the JSON output
+  for `"name":"...vectorizer..."` → zero matches, confirming the package is absent from the resolved
+  graph, not just from `members` text.
+- [x] I2 — No script or tool anywhere in the repo still attempts to build/test the deleted package by
+  name: `grep -rn vectorizer script/ action/ .github/ 2>/dev/null` (the directories most likely to hold
+  a stale invocation) → zero hits beyond the already-cleared C3/C4 files. A workspace-wide
+  `cargo check --workspace --all-features` was attempted but is not usable as this invariant's evidence
+  — it fails on a pre-existing, unrelated compile error in the `examples/minwebgl/text_rendering`
+  example crate (confirmed via `git diff --stat` showing zero local modifications to that crate — the
+  failure predates and is unrelated to this session's work) — noted honestly rather than papered over
+  by silently narrowing scope without saying so.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the deletion silently regressing (crate directory resurrected, or
+  re-registered in `Cargo.toml`, without this task file being updated): C1+C2 jointly check both the
+  filesystem and the manifest rather than trusting one signal.
+- [x] AF2 — Guards against a partial cleanup where the crate is gone but stale references linger and
+  would break the next person who runs them: C3+C4+I2 specifically target the two files the adversarial
+  pass found broken last time (`script/test_workspace.sh`, `action/run`) plus a fresh sweep of the
+  likely-culprit directories, rather than re-trusting the original fix without re-checking it.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P3 (decision point)

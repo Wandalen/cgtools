@@ -53,6 +53,10 @@ mod private
     /// Parameters:
     /// * nodes - list of [`Node`]'s which current 3D
     ///   transformation parameters are used for defining [`Pose`]
+    ///
+    /// # Panics
+    ///
+    /// Panics if a morph-target node's skeleton has no displacement data.
     pub fn new( nodes : &[ Rc< RefCell< Node > > ] ) -> Self
     {
       let animatables = nodes.iter()

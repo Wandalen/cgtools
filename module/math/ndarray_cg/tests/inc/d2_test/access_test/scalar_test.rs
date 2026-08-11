@@ -16,7 +16,7 @@ fn assumptions()
 
 // `scalar_ref` only retrieves an element that was stored verbatim via `set_row_major` —
 // no arithmetic occurs, so the result is bit-identical to the original literal.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn test_scalar_ref_generic< D : the_module::mat::Descriptor >()
 where
   the_module::Mat< 2, 2, f32, D > : the_module::ScalarRef< Scalar = f32 >,

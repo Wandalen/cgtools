@@ -49,7 +49,7 @@ fn create_plane( gl : &GL, scene : &Rc< RefCell< Scene > > )
   {
     return;
   };
-  let gltf = primitives_data_to_gltf( gl, vec![ plane ] );
+  let gltf = primitives_data_to_gltf( gl, &[ plane ] );
   if let Some( plane ) = gltf.nodes.first()
   {
     // if let Object3D::Mesh( mesh ) = &plane.borrow().object
@@ -172,7 +172,7 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
     }
   }
 
-  let instant_tween = Tween::new( 1.0, 1.0, 0.0, Linear::new() );
+  let instant_tween = Tween::new( 1.0, 1.0, 0.0, Linear::build() );
   let true_condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
     true
@@ -182,7 +182,7 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   graph.node_add( "jump", animations.get( "standing_jump" ).unwrap().clone() );
 
   let input = input_.clone();
-  let tween = Tween::new( 1.0, 1.0, 2.4, Linear::new() );
+  let tween = Tween::new( 1.0, 1.0, 2.4, Linear::build() );
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
     input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::Space )
@@ -210,7 +210,7 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   graph.edge_add( "idle", "walk", "idle_to_walk", instant_tween.clone(), condition );
 
   let input = input_.clone();
-  let tween = Tween::new( 1.0, 1.0, 1.55, Linear::new() );
+  let tween = Tween::new( 1.0, 1.0, 1.55, Linear::build() );
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
     !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW )
@@ -266,7 +266,7 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   graph.node_add( "run_jump", animations.get( "running_jump" ).unwrap().clone() );
 
   let input = input_.clone();
-  let tween = Tween::new( 1.0, 1.0, 0.9, Linear::new() );
+  let tween = Tween::new( 1.0, 1.0, 0.9, Linear::build() );
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
     input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW ) &&
@@ -292,7 +292,7 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   graph.edge_add( "run", "walk", "run_to_walk", instant_tween.clone(), condition );
 
   let input = input_.clone();
-  let tween = Tween::new( 1.0, 1.0, 1.55, Linear::new() );
+  let tween = Tween::new( 1.0, 1.0, 1.55, Linear::build() );
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
     !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW )
@@ -326,7 +326,7 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   graph.node_add( "leg_kick", animations.get( "mma_kick" ).unwrap().clone() );
 
   let input = input_.clone();
-  let tween = Tween::new( 1.0, 1.0, 1.0, Linear::new() );
+  let tween = Tween::new( 1.0, 1.0, 1.0, Linear::build() );
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
     input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyE ) ||
@@ -334,7 +334,7 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   };
   graph.edge_add( "idle", "idle_to_fight", "idle_to_idle_to_fight", tween.clone(), condition );
 
-  let tween = Tween::new( 0.0, 0.0, 1.0, Linear::new() );
+  let tween = Tween::new( 0.0, 0.0, 1.0, Linear::build() );
   graph.edge_add( "fight_to_idle", "idle", "fight_to_idle_to_idle", tween.clone(), true_condition );
 
   let input = input_.clone();

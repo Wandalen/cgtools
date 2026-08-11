@@ -67,6 +67,9 @@ missing_docs = "warn"
 # missing_debug_implementations = "warn" # qqq : uncomment please
 # Warns against using unsafe code.
 unsafe-code = "warn"
+# `web_sys_unstable_apis` is a raw `--cfg` opt-in consumed by web-sys itself ( see BUG-053 and
+# minwebgl/src/texture/d2.rs ); declare it so referencing it is not `unexpected_cfgs`.
+unexpected_cfgs = { level = "warn", check-cfg = [ "cfg(web_sys_unstable_apis)" ] }
 
 [workspace.lints.clippy]
 # Individual restriction lints (not as a group per clippy recommendations)
@@ -165,6 +168,9 @@ path = "module/helper/line_tools"
 [workspace.dependencies.tilemap_renderer]
 version = "0.2.0"
 path = "module/helper/tilemap_renderer"
+# Members opt into defaults explicitly; lets minimal consumers ( e.g. pingpong_animation )
+# make their `default-features = false` effective instead of silently ignored.
+default-features = false
 
 [workspace.dependencies.tilemap_scene]
 version = "0.1.0"

@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::{ GL, WebGlVertexArrayObject, VectorDataType, WebglError, buffer, DataType, vao, BufferDescriptor, AsBytes };
+  use crate::{ GL, WebGlVertexArrayObject, VectorDataType, WebglError, buffer, DataType, vao, BufferDescriptor };
 
   /// Represents the vertices geometry, including its vertex array object (VAO)
   /// and the number of vertices.

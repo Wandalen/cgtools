@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::{ From, mem, GL, WebGlBuffer, AsBytes, Into, WebGlProgram, IntoEnumIterator, VariantIterator, js_sys, JsValue };
+  use crate::{ From, mem, GL, WebGlBuffer, Into, WebGlProgram, js_sys, JsValue };
 
   /// Upload data to a uniform block object.
   #[ inline ]
@@ -77,7 +77,6 @@ mod private
   // UNIFORM_BLOCK_*/UNIFORM_* parameter definitions -- realistic values never approach
   // i32::MAX, so this single narrow conversion point is safe by construction.
   #[ cfg( feature = "diagnostics" ) ]
-  #[ allow( clippy::cast_possible_truncation ) ]
   fn param_as_i32( value : f64 ) -> i32
   {
     value as i32
@@ -88,7 +87,6 @@ mod private
   // driver-bounded counts per the WebGL2 spec -- realistic values never approach `u32::MAX`,
   // so this single narrow conversion point is safe by construction.
   #[ cfg( feature = "diagnostics" ) ]
-  #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
   fn param_as_u32( value : f64 ) -> u32
   {
     value as u32
@@ -173,7 +171,7 @@ mod private
       },
       BlockId::BlockIndex( block_index ) =>
       {
-        let block_name = gl.get_active_uniform_block_name( program, block_index ).unwrap_or_else( String::new );
+        let block_name = gl.get_active_uniform_block_name( program, block_index ).unwrap_or_default();
         ( block_index, block_name )
       },
     }

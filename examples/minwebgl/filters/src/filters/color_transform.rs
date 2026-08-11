@@ -1,4 +1,10 @@
-use super::*;
+use super::
+{
+  Filter,
+  FilterRenderer,
+  gl,
+  default_render_pass,
+};
 use serde::{ Serialize, Deserialize };
 
 #[ derive( Debug, Serialize, Deserialize ) ]
@@ -43,7 +49,7 @@ impl Filter for ColorTransform
     let rgb_multipliers_location = gl.get_uniform_location( renderer.get_program(), "u_rgb_multipliers" );
     let rgb_offsets_location = gl.get_uniform_location( renderer.get_program(), "u_rgb_offsets" );
 
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
 
     let multipliers = [ self.red_multiplier, self.green_multiplier, self.blue_multiplier ];
     gl::uniform::upload( gl, rgb_multipliers_location, multipliers.as_slice() ).unwrap();

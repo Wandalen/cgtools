@@ -44,6 +44,32 @@ Per-marker outcomes follow task 038's triage contract. Verify with
 `cargo test -p tiles_tools --all-features` (via `longrun .launch`); doc updates must keep
 `docs/algorithm/004` and `docs/pitfall/002` consistent with whatever the code becomes.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is the workspace task-marker census (`xxx:`/`qqq:`/`aaa:`/`TODO:`) in `tiles_tools/src/` still clean? `grep -rnE "(^|[^a-zA-Z_])(xxx|qqq|aaa|TODO) *:" src/` → 0 hits (exit 1) — matches this task's claimed "Census clean (exit 1, zero markers in crate)".
+- [x] C2 — Is `geometry.rs`'s naming cleanup (`mesh`→`geometry`/`shape` vocabulary purge, `hexagon_triangles_with_tranform` typo fix) still intact? `geometry_producer` present (line 24); `grep -c "mesh_producer" src/geometry.rs` → `0`; `hexagon_triangles_with_transform` present (line 108); `grep -c "hexagon_triangles_with_tranform\b" src/geometry.rs` → `0`.
+- [x] C3 — Is `docs/algorithm/004`'s rename (`..._mesh_generation.md` → `..._geometry_generation.md`) and its cross-references still intact? File exists at the new path; `docs/algorithm/readme.md:19` and `docs/definition/readme.md:23` both cite the new filename; `docs/pitfall/readme.md` has 0 hits for "002".
+- [x] C4 — Is the type-safe movement queue in `world.rs` still implemented (replacing the discard-the-target no-op)? `movement_requests : HashMap< hecs::Entity, MovementRequestApply >` (line 69) with `type MovementRequestApply = Box< dyn FnOnce( &mut hecs::World ) -> bool + Send + Sync >` (line 53) — structurally identical to the claim, now behind a named type alias. `git diff` on `world.rs` shows only 1 unrelated cosmetic line (an `#[allow]` reason-string addition on a different, unrelated function) — the movement queue itself is untouched since this task.
+- [x] C5 — Is `docs/pitfall/002_ecs_movement_requests_are_a_no_op.md` still deleted? Absent from `docs/pitfall/` (only `001`, `003`, `004`, `readme.md` remain).
+- [x] C6 — Are `systems.rs`'s caller-supplied `is_accessible`/`cost` parameters still in place, with both TODOs gone? `process_movement< C, Fa, Fc >` (line 47) / `calculate_movement< C, Fa, Fc >` (line 84) both take `is_accessible : Fa` / `cost : Fc`; 0 `TODO` hits remain in `systems.rs`.
+- [ ] C7 — Was this task's own claim of having fully updated "roadmap.md" as 1 of 8 `pitfall/002` reference sites accurate? PARTIALLY — the deep Phase 3 narrative (roadmap.md:208) and the Known Gaps table were updated correctly, but 4 other roadmap.md locations still describe ECS movement/`pitfall/002` as an open gap (full list: task 025's Verification C1). The other 7 claimed reference sites (pitfall/readme, type/002, definition/readme, api/001 ×4) were spot-checked only via `docs/pitfall/readme.md`'s 0-hit grep in C3, not independently re-swept in full here.
+
+### Measurements
+
+- [x] M1 — Task markers in `tiles_tools/src/`: `0` (was: `8` — 5 in `geometry.rs` at lines 9,10,11,12,23 + 1 in `world.rs` at line 230 + 2 in `systems.rs` at lines 91,92; confirmed via `git show 77cc9b9a:module/helper/tiles_tools/src/{geometry.rs,ecs/world.rs,ecs/systems.rs}`, independently reproducing this task's own census).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, `--all-features`): `cargo nextest run -p tiles_tools --all-features` → exit 0, 245/245 passed (log `-0009_longrun.log`). This task's own post-fix baseline (log `-0028`, cited in its History) was `56 unit + 189 integration = 245` (doc-tests excluded from nextest) — an identical total; task 072 later reorganized inline tests into top-level files (net −5 from consolidating true duplicates, landing at 240) and task 078 added 5 previously-dead integration tests back (net +5, landing at 245) — see task 078's Measurements for the full chain arithmetic.
+- [ ] I2 — Compiler/lints (crate-scoped, `--all-features`): `cargo clippy -p tiles_tools --all-targets --all-features -- -D warnings` → exit 101 (log `-0015_longrun.log`). Root cause is an unrelated dependency (`browser_log`, 3 hops away via `animation`/`mingl`/`minwebgl`) — full trace in task 025's Verification I2. Not attributable to this task's `geometry.rs`/`world.rs`/`systems.rs` edits.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a marker reappearing without the same triage-and-resolve discipline: re-running C1's census grep after any future edit to `tiles_tools/src/` must still return 0 — a nonzero count means a marker was added without a corresponding Goal-style disposition record.
+- [x] AF2 — Guards against `world.rs`'s movement queue silently regressing to a discard-the-target no-op: re-running C4's grep for `movement_requests : HashMap` after any future `World`/`request_movement` edit must still find the typed-closure queue, not a bare no-op body.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 038's workspace marker census (80 lines →

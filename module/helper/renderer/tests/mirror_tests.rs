@@ -20,7 +20,7 @@ fn create_animation() -> Sequencer
 {
   let mut animation = Sequencer::new();
 
-  let linear = Linear::new();
+  let linear = Linear::build();
   animation.insert
   (
     TRANSLATION_PREFIX,
@@ -34,7 +34,7 @@ fn create_animation() -> Sequencer
     ).unwrap()
   );
 
-  let linear = Linear::new();
+  let linear = Linear::build();
   animation.insert
   (
     ROTATION_PREFIX,
@@ -48,7 +48,7 @@ fn create_animation() -> Sequencer
     ).unwrap()
   );
 
-  let linear = Linear::new();
+  let linear = Linear::build();
   animation.insert
   (
     SCALE_PREFIX,
@@ -62,7 +62,7 @@ fn create_animation() -> Sequencer
     ).unwrap()
   );
 
-  let linear = Linear::new();
+  let linear = Linear::build();
   animation.insert
   (
     MORPH_TARGET_PREFIX,

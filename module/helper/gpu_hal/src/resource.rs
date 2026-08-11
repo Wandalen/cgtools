@@ -91,11 +91,7 @@ mod private
     }
 
     /// The raw wgpu object, when the handle belongs to the native backend.
-    // The browser variants live on the other side of the target boundary,
-    // so the surviving match is infallible; Option keeps the drill-down
-    // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    #[ allow( clippy::unnecessary_wraps ) ]
     #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::Buffer >
     {
@@ -183,18 +179,45 @@ mod private
       }
     }
 
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+    pub( crate ) fn expect_webgpu( &self ) -> &web_sys::GpuTexture
+    {
+      match self
+      {
+        Self::WebGpu( raw ) => raw,
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( _ ) => panic!( "backend mismatch : expected a WebGPU texture" )
+      }
+    }
+
+    #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+    pub( crate ) fn expect_webgl( &self ) -> &TextureWebGl
+    {
+      match self
+      {
+        Self::WebGl( raw ) => raw,
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu( _ ) => panic!( "backend mismatch : expected a WebGL texture" )
+      }
+    }
+
     /// The raw wgpu object, when the handle belongs to the native backend.
-    // The browser variants live on the other side of the target boundary,
-    // so the surviving match is infallible; Option keeps the drill-down
-    // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    #[ allow( clippy::unnecessary_wraps ) ]
     #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::Texture >
     {
       match self
       {
         Self::Native( raw ) => Some( raw )
+      }
+    }
+
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    pub( crate ) fn expect_native( &self ) -> &wgpu::Texture
+    {
+      match self
+      {
+        Self::Native( raw ) => raw
       }
     }
   }
@@ -265,11 +288,7 @@ mod private
     }
 
     /// The raw wgpu object, when the handle belongs to the native backend.
-    // The browser variants live on the other side of the target boundary,
-    // so the surviving match is infallible; Option keeps the drill-down
-    // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    #[ allow( clippy::unnecessary_wraps ) ]
     #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::TextureView >
     {
@@ -353,11 +372,7 @@ mod private
     }
 
     /// The raw wgpu object, when the handle belongs to the native backend.
-    // The browser variants live on the other side of the target boundary,
-    // so the surviving match is infallible; Option keeps the drill-down
-    // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    #[ allow( clippy::unnecessary_wraps ) ]
     #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::Sampler >
     {
@@ -441,11 +456,7 @@ mod private
     }
 
     /// The raw wgpu object, when the handle belongs to the native backend.
-    // The browser variants live on the other side of the target boundary,
-    // so the surviving match is infallible; Option keeps the drill-down
-    // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    #[ allow( clippy::unnecessary_wraps ) ]
     #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::ShaderModule >
     {
@@ -529,11 +540,7 @@ mod private
     }
 
     /// The raw wgpu object, when the handle belongs to the native backend.
-    // The browser variants live on the other side of the target boundary,
-    // so the surviving match is infallible; Option keeps the drill-down
-    // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    #[ allow( clippy::unnecessary_wraps ) ]
     #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::BindGroupLayout >
     {
@@ -617,11 +624,7 @@ mod private
     }
 
     /// The raw wgpu object, when the handle belongs to the native backend.
-    // The browser variants live on the other side of the target boundary,
-    // so the surviving match is infallible; Option keeps the drill-down
-    // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    #[ allow( clippy::unnecessary_wraps ) ]
     #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::BindGroup >
     {
@@ -706,11 +709,7 @@ mod private
     }
 
     /// The raw wgpu object, when the handle belongs to the native backend.
-    // The browser variants live on the other side of the target boundary,
-    // so the surviving match is infallible; Option keeps the drill-down
-    // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    #[ allow( clippy::unnecessary_wraps ) ]
     #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::RenderPipeline >
     {

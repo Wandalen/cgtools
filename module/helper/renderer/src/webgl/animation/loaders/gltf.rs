@@ -141,7 +141,7 @@ mod private
 
       let easing : Box< dyn EasingFunction< AnimatableType = QuatF64 > > = match channel.sampler().interpolation()
       {
-        Interpolation::Linear => Linear::new(),
+        Interpolation::Linear => Linear::build(),
         Interpolation::Step => Box::new( Step::new( 1.0 ) ),
         Interpolation::CubicSpline =>
         {
@@ -228,7 +228,7 @@ mod private
 
       let easing : Box< dyn EasingFunction< AnimatableType = F64x3 > > = match channel.sampler().interpolation()
       {
-        Interpolation::Linear => Linear::new(),
+        Interpolation::Linear => Linear::build(),
         Interpolation::Step => Box::new( Step::new( 1.0 ) ),
         Interpolation::CubicSpline =>
         {
@@ -314,7 +314,7 @@ mod private
 
       let easing : Box< dyn EasingFunction< AnimatableType = Vec< f64 > > > = match channel.sampler().interpolation()
       {
-        Interpolation::Linear => Linear::new(),
+        Interpolation::Linear => Linear::build(),
         Interpolation::Step => Box::new( Step::new( 1.0 ) ),
         Interpolation::CubicSpline => Box::new
         (

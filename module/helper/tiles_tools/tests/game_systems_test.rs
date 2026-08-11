@@ -74,6 +74,7 @@ fn test_game_state_machine() {
   assert_eq!(machine.current_state(), GameState::Loading);
 }
 
+#[ expect( clippy::float_cmp, reason = "whole-number resource arithmetic is exact; the asserts pin the exact stored values" ) ]
 #[test]
 fn test_resource_management() {
   let mut resource = Resource::new(100.0);
@@ -95,6 +96,7 @@ fn test_resource_management() {
   assert!(!resource.is_full());
 }
 
+#[ expect( clippy::float_cmp, reason = "whole-number resource arithmetic is exact; the asserts pin the exact stored values" ) ]
 #[test]
 fn test_resource_manager() {
   let mut manager = ResourceManager::new();

@@ -55,10 +55,59 @@ fn make_target( gl : &GL ) -> Option< gl::web_sys::WebGlTexture >
   texture
 }
 
+/// Uploads the static scene styling, loaded once from `scene.rhai` (see
+/// `scene::SceneConfig`) and uploaded once at startup rather than every frame
+/// like the 4 dynamic uniforms in `run` — unlike the WebGPU port's single
+/// packed uniform buffer (rewritten wholesale each frame), this crate
+/// uploads one GL uniform per field, so there's no bulk buffer write to
+/// piggyback the per-frame values onto and no reason to re-upload
+/// unchanging values every frame.
+#[cfg( target_arch = "wasm32" )]
+fn upload_scene_styling( gl : &GL, program : &gl::web_sys::WebGlProgram )
+{
+  let u_bg_top_loc = gl.get_uniform_location( program, "u_bg_top" );
+  let u_bg_bottom_loc = gl.get_uniform_location( program, "u_bg_bottom" );
+  let u_nebula_color_loc = gl.get_uniform_location( program, "u_nebula_color" );
+  let u_nebula_opacity_loc = gl.get_uniform_location( program, "u_nebula_opacity" );
+  let u_stars_color_loc = gl.get_uniform_location( program, "u_stars_color" );
+  let u_stars_intensity_loc = gl.get_uniform_location( program, "u_stars_intensity" );
+  let u_grid_color_loc = gl.get_uniform_location( program, "u_grid_color" );
+  let u_grid_opacity_loc = gl.get_uniform_location( program, "u_grid_opacity" );
+  let u_corona_inner_loc = gl.get_uniform_location( program, "u_corona_inner" );
+  let u_corona_mid_loc = gl.get_uniform_location( program, "u_corona_mid" );
+  let u_corona_outer_loc = gl.get_uniform_location( program, "u_corona_outer" );
+  let u_disc_dark_loc = gl.get_uniform_location( program, "u_disc_dark" );
+  let u_disc_mid_loc = gl.get_uniform_location( program, "u_disc_mid" );
+  let u_disc_bright_loc = gl.get_uniform_location( program, "u_disc_bright" );
+  let u_disc_base_radius_loc = gl.get_uniform_location( program, "u_disc_base_radius" );
+  let u_ring_color_loc = gl.get_uniform_location( program, "u_ring_color" );
+  let u_ring_radius_loc = gl.get_uniform_location( program, "u_ring_radius" );
+
+  let scene = scene::SceneConfig::load();
+  gl.use_program( Some( program ) );
+  gl::uniform::upload( gl, u_bg_top_loc, &scene.background.top.to_array() ).unwrap();
+  gl::uniform::upload( gl, u_bg_bottom_loc, &scene.background.bottom.to_array() ).unwrap();
+  gl::uniform::upload( gl, u_nebula_color_loc, &scene.nebula.color.to_array() ).unwrap();
+  gl::uniform::upload( gl, u_nebula_opacity_loc, &( scene.nebula.opacity as f32 ) ).unwrap();
+  gl::uniform::upload( gl, u_stars_color_loc, &scene.stars.color.to_array() ).unwrap();
+  gl::uniform::upload( gl, u_stars_intensity_loc, &( scene.stars.intensity as f32 ) ).unwrap();
+  gl::uniform::upload( gl, u_grid_color_loc, &scene.grid.color.to_array() ).unwrap();
+  gl::uniform::upload( gl, u_grid_opacity_loc, &( scene.grid.opacity as f32 ) ).unwrap();
+  gl::uniform::upload( gl, u_corona_inner_loc, &scene.sun_corona.inner.to_array() ).unwrap();
+  gl::uniform::upload( gl, u_corona_mid_loc, &scene.sun_corona.mid.to_array() ).unwrap();
+  gl::uniform::upload( gl, u_corona_outer_loc, &scene.sun_corona.outer.to_array() ).unwrap();
+  gl::uniform::upload( gl, u_disc_dark_loc, &scene.sun_disc.dark.to_array() ).unwrap();
+  gl::uniform::upload( gl, u_disc_mid_loc, &scene.sun_disc.mid.to_array() ).unwrap();
+  gl::uniform::upload( gl, u_disc_bright_loc, &scene.sun_disc.bright.to_array() ).unwrap();
+  gl::uniform::upload( gl, u_disc_base_radius_loc, &( scene.sun_disc.base_radius as f32 ) ).unwrap();
+  gl::uniform::upload( gl, u_ring_color_loc, &scene.orbit_ring.color.to_array() ).unwrap();
+  gl::uniform::upload( gl, u_ring_radius_loc, &( scene.orbit_ring.radius as f32 ) ).unwrap();
+}
+
 #[cfg( target_arch = "wasm32" )]
 fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
 
   let canvas = gl::canvas::make()?;
   canvas.set_width( SIZE as u32 );
@@ -77,50 +126,7 @@ fn run() -> Result< (), gl::WebglError >
   let u_node_count_loc = gl.get_uniform_location( &program, "u_node_count" );
   let u_grid_density_loc = gl.get_uniform_location( &program, "u_grid_density" );
 
-  let u_bg_top_loc = gl.get_uniform_location( &program, "u_bg_top" );
-  let u_bg_bottom_loc = gl.get_uniform_location( &program, "u_bg_bottom" );
-  let u_nebula_color_loc = gl.get_uniform_location( &program, "u_nebula_color" );
-  let u_nebula_opacity_loc = gl.get_uniform_location( &program, "u_nebula_opacity" );
-  let u_stars_color_loc = gl.get_uniform_location( &program, "u_stars_color" );
-  let u_stars_intensity_loc = gl.get_uniform_location( &program, "u_stars_intensity" );
-  let u_grid_color_loc = gl.get_uniform_location( &program, "u_grid_color" );
-  let u_grid_opacity_loc = gl.get_uniform_location( &program, "u_grid_opacity" );
-  let u_corona_inner_loc = gl.get_uniform_location( &program, "u_corona_inner" );
-  let u_corona_mid_loc = gl.get_uniform_location( &program, "u_corona_mid" );
-  let u_corona_outer_loc = gl.get_uniform_location( &program, "u_corona_outer" );
-  let u_disc_dark_loc = gl.get_uniform_location( &program, "u_disc_dark" );
-  let u_disc_mid_loc = gl.get_uniform_location( &program, "u_disc_mid" );
-  let u_disc_bright_loc = gl.get_uniform_location( &program, "u_disc_bright" );
-  let u_disc_base_radius_loc = gl.get_uniform_location( &program, "u_disc_base_radius" );
-  let u_ring_color_loc = gl.get_uniform_location( &program, "u_ring_color" );
-  let u_ring_radius_loc = gl.get_uniform_location( &program, "u_ring_radius" );
-
-  // Static scene styling, loaded once from `scene.rhai` (see
-  // `scene::SceneConfig`) and uploaded once here rather than every frame
-  // like the 4 dynamic uniforms above — unlike the WebGPU port's single
-  // packed uniform buffer (rewritten wholesale each frame), this crate
-  // uploads one GL uniform per field, so there's no bulk buffer write to
-  // piggyback the per-frame values onto and no reason to re-upload
-  // unchanging values every frame.
-  let scene = scene::SceneConfig::load();
-  gl.use_program( Some( &program ) );
-  gl::uniform::upload( &gl, u_bg_top_loc, &scene.background.top.to_array() ).unwrap();
-  gl::uniform::upload( &gl, u_bg_bottom_loc, &scene.background.bottom.to_array() ).unwrap();
-  gl::uniform::upload( &gl, u_nebula_color_loc, &scene.nebula.color.to_array() ).unwrap();
-  gl::uniform::upload( &gl, u_nebula_opacity_loc, &( scene.nebula.opacity as f32 ) ).unwrap();
-  gl::uniform::upload( &gl, u_stars_color_loc, &scene.stars.color.to_array() ).unwrap();
-  gl::uniform::upload( &gl, u_stars_intensity_loc, &( scene.stars.intensity as f32 ) ).unwrap();
-  gl::uniform::upload( &gl, u_grid_color_loc, &scene.grid.color.to_array() ).unwrap();
-  gl::uniform::upload( &gl, u_grid_opacity_loc, &( scene.grid.opacity as f32 ) ).unwrap();
-  gl::uniform::upload( &gl, u_corona_inner_loc, &scene.sun_corona.inner.to_array() ).unwrap();
-  gl::uniform::upload( &gl, u_corona_mid_loc, &scene.sun_corona.mid.to_array() ).unwrap();
-  gl::uniform::upload( &gl, u_corona_outer_loc, &scene.sun_corona.outer.to_array() ).unwrap();
-  gl::uniform::upload( &gl, u_disc_dark_loc, &scene.sun_disc.dark.to_array() ).unwrap();
-  gl::uniform::upload( &gl, u_disc_mid_loc, &scene.sun_disc.mid.to_array() ).unwrap();
-  gl::uniform::upload( &gl, u_disc_bright_loc, &scene.sun_disc.bright.to_array() ).unwrap();
-  gl::uniform::upload( &gl, u_disc_base_radius_loc, &( scene.sun_disc.base_radius as f32 ) ).unwrap();
-  gl::uniform::upload( &gl, u_ring_color_loc, &scene.orbit_ring.color.to_array() ).unwrap();
-  gl::uniform::upload( &gl, u_ring_radius_loc, &( scene.orbit_ring.radius as f32 ) ).unwrap();
+  upload_scene_styling( &gl, &program );
 
   // Offscreen G-buffer-style framebuffer: attachment 0 receives the composed
   // scene color, attachment 1 receives emission only ( the subset of the

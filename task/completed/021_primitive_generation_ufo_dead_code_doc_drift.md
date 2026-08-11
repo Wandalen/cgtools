@@ -28,6 +28,34 @@ before deleting outright); (2) separately, the crate's docs understate its actua
 what the code supports — carried forward from the audit triage plan, re-confirm the specific
 under-description against current docs before rewriting.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `contours_to_mesh` genuinely deleted from `primitive_generation` (not merely unexported)? Workspace-wide `grep -rn "contours_to_mesh" --include="*.rs" .` → `2` hits total, both in `examples/minwebgl/text_rendering/src/text.rs` (that example's own pre-existing local duplicate, per the History's own citation); `0` hits anywhere under `module/helper/primitive_generation`.
+- [x] C2 — Is `src/text/ufo.rs`'s real module now gated on `font-processing` (the fix this task made after task 055's adversarial pass rerouted the finding here), not the original `text`? Current source: line 11 `#[ cfg( feature = "font-processing" ) ]` directly above `mod private` (line 12), preceded by a 3-field `Fix(TASK-021)` comment (lines 5-10) citing the exact root cause (module gated on `text` while calling `font-processing`-only `contours_to_fill_geometry`).
+- [x] C3 — Is the old silent-stub module (drifted-signature always-`None`/empty fallbacks) genuinely replaced with a loud, empty stub? Current source lines 537-540: `#[ cfg( not( feature = "font-processing" ) ) ] mod private { }` — a genuinely empty module body, no fallback function definitions at all. Under that cfg, referencing any of `load_fonts`/`Glyph`/`Font`/`text_to_mesh`/`text_to_countour_mesh` is now a compile-time "not found" error, never a silently-wrong runtime result.
+- [x] C4 — Are exactly the 3 claimed-dead features (`csg`, `gltf-import`, `random`) and 6 claimed-dead dependencies (`csgrs`, `parry3d`, `gltf`, `rand`, `getrandom`, `interpoli`) genuinely absent from `Cargo.toml`? `grep -nE "csg|gltf-import|random|csgrs|parry3d|^gltf|getrandom|interpoli" Cargo.toml` → `0` hits. Current `[features]` block holds exactly 5 keys (`default`, `enabled`, `full`, `text`, `font-processing`); current `[dependencies]` holds 9 crates plus a separate `[dependencies.web-sys]` table (10 total).
+- [x] C5 — Do the readme's claimed Feature Flags section and 2 new executable doc-test snippets (Curve to Ribbon Mesh, Text to 3D Geometry) still exist? Confirmed via direct read: `readme.md:33-40` (Feature Flags section, both self-verification commands present verbatim — `cargo doc -p primitive_generation --features font-processing --open` and `cargo check -p primitive_generation --no-default-features --features text`); `readme.md:69-75` and `:81-90` (the two ```rust,no_run``` code blocks).
+
+### Measurements
+
+- [x] M1 — `src/text/ufo.rs` line count: `553` (was: `765` — `git show 4469eafb^:module/helper/primitive_generation/src/text/ufo.rs | wc -l` → `765`), a net `-212` lines. Note, investigated honestly: this is larger than the History's own claimed "167 lines" for the `contours_to_mesh` deletion in isolation — the same implementing commit (`4469eafb`) also bundled the `text`→`font-processing` re-gate and stub replacement (this task's own Goal item 2 follow-on, C2/C3 above) into the same file, so the measured net diff is not attributable to the dead-code deletion alone. Both claimed changes are independently confirmed present; the discrepancy is an imprecise historical citation, not a functional defect.
+- [x] M2 — `Cargo.toml` named `[features]` keys: `5` (was: `8` per `git show 4469eafb^:module/helper/primitive_generation/Cargo.toml`), a `-3` delta matching the claimed removal exactly. `[dependencies]` entries (incl. `web-sys`): `10` (was: `16`), a `-6` delta matching the claimed removal exactly.
+
+### Invariants
+
+- [x] I1 — Crate check, default features: `longrun`-launched `cargo check -p primitive_generation` → clean, `Finished \`dev\` profile [unoptimized + debuginfo] target(s) in 10.32s`, exit 0.
+- [x] I2 — Crate check, `--no-default-features --features text` (the exact combination this task's History claims to have made buildable "for the first time ever"): `longrun`-launched `cargo check -p primitive_generation --no-default-features --features text` → clean, exit 0. Confirmed still holding today.
+- [ ] I3 — Crate check, `--all-features` (needed to reach this task's own `font-processing`-gated readme doc test): `longrun`-launched `cargo check -p primitive_generation --all-features` → currently FAILS: `error[E0639]: cannot create non-exhaustive struct using struct expression` at `src/text/ufo.rs:368` and `:83`, exit 101 — same newly-introduced, unrelated regression documented in task 018's Verification (commit `5f33be66`, 2026-08-11, one day after this task's own 2026-08-10 verification; `mingl::geometry::BoundingBox` gained `#[ non_exhaustive ]`, breaking two pre-existing struct-literal sites in `ufo.rs` this task never touched). Consequently `cargo test -p primitive_generation --doc --all-features` (the readme's 3 doc tests, including this task's own 2 new snippets) also cannot currently compile, exit 101.
+- [ ] I4 — Lint cleanliness, default features: `longrun`-launched `cargo clippy -p primitive_generation --all-targets -- -D warnings` → currently FAILS, but not on this task's code: `error: could not compile browser_log (lib) due to 1 previous error` — same `5f33be66`-introduced, unrelated `#[ allow( clippy::exhaustive_structs ) ]`-without-`reason` violation documented in tasks 018/055's Verification sections (`module/helper/browser_log/src/panic.rs:82`, workspace `Cargo.toml:117`'s `allow_attributes_without_reason = "warn"` lint). `primitive_generation`'s own code contributes zero clippy findings.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against `contours_to_mesh` silently reappearing (e.g. re-copied from the example's local duplicate): re-run C1's workspace grep — must still show `0` hits inside `module/helper/primitive_generation`.
+- [x] AF2 — Guards against the feature graph silently regrowing dead entries: re-run C4's grep for the 3 removed features / 6 removed dependencies — must still return `0` hits in `Cargo.toml`.
+- [x] AF3 — Guards against trusting this task's original "7-stage battery, all clean" History claim without re-running it: I3/I4 above are direct proof that a fully-passing verification can go stale from an unrelated commit landing the very next day. Before citing this task's readme doc tests, `--all-features` build, or clippy run as currently working — e.g. as evidence the crate is healthy — re-run `cargo check -p primitive_generation --all-features`, `cargo test -p primitive_generation --doc --all-features`, and `cargo clippy -p primitive_generation --all-targets --all-features -- -D warnings` fresh; do not assume a prior day's PASS still holds.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P3 (dead code) tier

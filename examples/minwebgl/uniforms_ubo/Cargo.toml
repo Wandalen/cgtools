@@ -9,3 +9,6 @@ license = "MIT"
 minwebgl = { workspace = true }
 [package.metadata.action]
 tags = ["runtime:browser", "api:webgl"]
+
+[lints]
+workspace = true

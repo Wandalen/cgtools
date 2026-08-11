@@ -27,6 +27,31 @@ duplicated logic, unless a genuine minwebgl-specific behavioral difference is fo
 (re-confirm before assuming pure duplication — diff the two files' actual bodies, not just line counts,
 before deleting anything). P3 — dead-code/hygiene bucket, Fix-in-place.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Does `exec_loop.rs` match `minwebgpu`'s established `reuse` pattern? `diff module/min/minwebgl/src/exec_loop.rs module/min/minwebgpu/src/exec_loop.rs` → empty (byte-identical).
+- [x] C2 — Is the duplicated Closure-based render-loop logic (the old `Rc<RefCell<Option<Closure>>>` implementation) fully gone? `grep -c "RefCell\|Closure::wrap" module/min/minwebgl/src/exec_loop.rs` → `0`.
+- [x] C3 — Does the file still correctly `reuse ::mingl::web::exec_loop`? Direct read confirms `crate::mod_interface! { reuse ::mingl::web::exec_loop; }` is the file's entire export surface.
+- [x] C4 — Does the file's actual line count match the task's own narrative? Not exactly — `wc -l` reports `11` lines today, not the "7-line" figure quoted in the History's illustrative snippet; however it is confirmed byte-identical (C1) to `minwebgpu`'s own 11-line file, which is the actual reference pattern this task set out to match. The "7-line" figure is an inexact illustrative simplification in the prose, not a functional discrepancy.
+
+### Measurements
+
+- [x] M1 — `exec_loop.rs` line count: now `11` (was: `63` — cite `git show 25ceae76~1:module/min/minwebgl/src/exec_loop.rs`, the full pre-fix duplicated `run`/`request_animation_frame` implementation).
+
+### Invariants
+
+- [x] I1 — Crate-scoped native test suite: `cargo test -p minwebgl --all-features` → exit `0` (same run as task 011's I1); no `exec_loop`-specific tests exist, consistent with this task's own claim that the reuse pattern has no independently testable behavior beyond compiling and exporting the right symbols.
+- [ ] I2 — Lint cleanliness, literal historically-cited command: `cargo clippy -p minwebgl --all-targets --all-features -- -D warnings` → exit `101` today, blocked at the unrelated `browser_log` dependency — same root cause as task 011's I2 (commit `5f33be66`, dated after this task completed), unrelated to `exec_loop.rs`.
+- [x] I3 — Lint cleanliness, isolated: `cargo clippy -p minwebgl --no-deps --all-targets --all-features -- -D warnings` (still exits 101 crate-wide, see task 011's I3) reports zero findings anywhere in `exec_loop.rs`.
+- [x] I4 — External caller sanity: repo-wide grep finds 10+ real example/module callers of `minwebgl::exec_loop`/`exec_loop::run` (`gltf_viewer`, `skeletal_animation`, `obj_load`, `diamond`, etc.), consistent with this task's own spot-check of 3 of them.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the file drifting back into a local duplicate of `mingl`'s logic: re-run C1's `diff` against `minwebgpu`'s `exec_loop.rs` — any future divergence should be a deliberate, documented minwebgl-specific behavior difference, not silent drift.
+- [x] AF2 — Guards against the pre-existing, non-blocking `enabled`-without-`web` feature gap (already investigated and dispositioned by this task's own adversarial pass — 1 attributable error vs. 35 pre-existing `context.rs` errors) being mistaken for a new regression: a future re-check must separate any *new* errors in that combination from this already-understood baseline rather than treating the whole combination's failure as newly caused by this task.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P3 (dead code /

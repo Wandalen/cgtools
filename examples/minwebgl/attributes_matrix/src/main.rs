@@ -13,9 +13,28 @@ use std::
   rc::Rc,
 };
 
+const POSITION_DATA : [ f32 ; 36 ] =
+[
+  // 12x3x2 position
+   -0.6, -0.4, -0.6, -0.5, -0.65, -0.35, // Triangle 5
+   -0.4,  0.3, -0.35, 0.4, -0.3,  0.25,  // Triangle 3
+   -0.1, -0.1,  0.0,  0.2,  0.0, -0.15,  // Triangle 1
+    0.1, -0.3,  0.15, -0.1, 0.05, -0.25, // Triangle 6
+    0.3, -0.2,  0.25, 0.1,  0.2,  0.05,  // Triangle 2
+    0.5,  0.5,  0.45, 0.6,  0.55, 0.6,   // Triangle 4
+];
+
+// Vertex data
+const COLOR_DATA : [ f32 ; 18 ] =
+[
+  // color 2x6x3
+  0.9849, 0.0600, 0.0662, 0.1232, 0.9332, 0.4260, 0.6969, 0.5353, 0.1471,
+  0.2899, 0.9056, 0.7799, 0.2565, 0.6451, 0.8498, 0.0969, 0.9353, 0.0471,
+];
+
 fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
 
   // Vertex and fragment shader source code
@@ -23,25 +42,6 @@ fn run() -> Result< (), gl::WebglError >
   let fragment_shader_src = include_str!( "../shaders/shader.frag" );
   let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src ).compile_and_link( &gl )?;
   gl.use_program( Some( &program ) );
-
-  let position_data :  [ f32 ; 36 ] =
-  [
-    // 12x3x2 position
-     -0.6, -0.4, -0.6, -0.5, -0.65, -0.35, // Triangle 5
-     -0.4,  0.3, -0.35, 0.4, -0.3,  0.25,  // Triangle 3
-     -0.1, -0.1,  0.0,  0.2,  0.0, -0.15,  // Triangle 1
-      0.1, -0.3,  0.15, -0.1, 0.05, -0.25, // Triangle 6
-      0.3, -0.2,  0.25, 0.1,  0.2,  0.05,  // Triangle 2
-      0.5,  0.5,  0.45, 0.6,  0.55, 0.6,   // Triangle 4
-  ];
-
-  // Vertex data
-  let color_data : [ f32 ; 18 ] =
-  [
-    // color 2x6x3
-    0.9849, 0.0600, 0.0662, 0.1232, 0.9332, 0.4260, 0.6969, 0.5353, 0.1471,
-    0.2899, 0.9056, 0.7799, 0.2565, 0.6451, 0.8498, 0.0969, 0.9353, 0.0471,
-  ];
 
   let trans_data : nd::Array< _, _ > = array!
   [
@@ -63,7 +63,7 @@ fn run() -> Result< (), gl::WebglError >
   ];
 
   // Transformation matrices
-  let _trans_data : [ f32 ; 18 ] =
+  let trans_data_flat : [ f32 ; 18 ] =
   [
 
     1.0, 0.0,
@@ -83,17 +83,17 @@ fn run() -> Result< (), gl::WebglError >
   // You can use either flat array ( either static or dynamic )
   // or you can prefer nd::Array with it's flexible math.
   // The last one will save you much time on development and performance.
-  assert_eq!( &_trans_data[ .. ], trans_data.as_slice().unwrap() );
+  assert_eq!( &trans_data_flat[ .. ], trans_data.as_slice().unwrap() );
 
   // Create buffer and upload vertex data
 
   let position_slot = 0;
   let position_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &position_buffer, &position_data, GL::STATIC_DRAW );
+  gl::buffer::upload( &gl, &position_buffer, &POSITION_DATA, GL::STATIC_DRAW );
 
   let color_slot = 1;
   let color_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &color_buffer, &color_data, GL::STATIC_DRAW );
+  gl::buffer::upload( &gl, &color_buffer, &COLOR_DATA, GL::STATIC_DRAW );
 
   let trans_slot = 2;
   let trans_buffer = gl::buffer::create( &gl )?;
@@ -172,5 +172,5 @@ fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  run().unwrap()
+  run().unwrap();
 }

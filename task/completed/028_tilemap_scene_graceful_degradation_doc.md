@@ -26,6 +26,30 @@ P4 (rewrite bucket) — **the exact contradiction's specific claims were not pre
 this session's context compaction; re-derive by reading the current degradation-handling code against
 each doc instance before rewriting.**
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Does `docs/algorithm/002`'s Missing-sprite handling section still describe exactly the 3-case Story-C semantics (unset-`External` silent skip; any other unresolved ref → hard `UnresolvedRef`; autotile mask miss cannot degrade)? Read confirms all 3 cases present verbatim at `docs/algorithm/002_scene_rendering_pass.md:44-50`.
+- [x] C2 — Does `docs/api/001` still disclose "four" (not "three") divergences, with the missing-sprite behavior as divergence 4? `grep -n "four divergences\|four respects" docs/api/001_renderer_integration_api.md` → 2 hits (lines 34, 43); `grep -c "three divergences"` → `0`.
+- [x] C3 — Does `docs/format/005`'s `External` row still cite the correct API name `set_external_sprite` (not the stale `set_sprite` typo the audit found)? `grep -n "set_external_sprite" docs/format/005_sprite_sources.md` → present (line 23); `grep -rn "\bset_sprite\b" docs/ roadmap.md` → `0` hits doc-wide.
+- [x] C4 — Does `roadmap.md`'s `External` item still point live at `docs/algorithm/002` instead of the dangling `§12.2 of the spec` reference? `grep -rn "§12.2\|12\.2 of the spec\|spec\.md" roadmap.md docs/` → `0` hits; the item's body now reads "`docs/algorithm/002` documents actual behavior."
+- [x] C5 — Do the underlying code facts the docs now assert still hold? (a) `frame.rs` still has exactly `13` `.ok_or_else( || CompileError::UnresolvedRef` sites (`grep -n UnresolvedRef src/compile/frame.rs` → 13 hits); (b) `NeighborBitmaskSource::ByMapping.fallback` is still a required `Box< SpriteSource >`, not `Option` (`src/source.rs:180`); (c) the crate still has zero log/tracing dependencies (`grep -iE "^log|tracing" Cargo.toml` → 0 hits).
+
+### Measurements
+
+- [x] M1 — Disclosed spec divergences in `docs/api/001`: `4` (was: `3`, per `git show 4469eafb^:module/helper/tilemap_scene/docs/api/001_renderer_integration_api.md`, whose Compatibility Guarantees paragraph reads "Beyond the three divergences disclosed above").
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, `longrun`-launched): `cargo nextest run -p tilemap_scene --all-features` → exit `0`, "169 tests run: 169 passed, 0 skipped" (`-0141_longrun.log`) — matches the 169/169 this task's own History cites.
+- [ ] I2 — Compiler/lints (crate-scoped, `longrun`-launched): `cargo clippy -p tilemap_scene --all-targets --all-features -- -D warnings` → exit `101` (FAIL). Root cause is entirely pre-existing and outside this task's own edits — TASK-028 touched 6 doc files plus `roadmap.md` only (confirmed zero `src/` changes via its own D5 gate). The build aborts on `1` site in dependency `browser_log` plus `40` sites in dependency `tilemap_renderer` (all `#[allow(clippy::exhaustive_structs)]` missing `reason=`), before ever reaching `tilemap_scene`'s own lint pass (`-0141_longrun.log`). Separately worth flagging, though also not a TASK-028 regression since it touched no `src/`: `tilemap_scene`'s own `src/` independently carries 7 `#[allow(...)]` attributes with no inline `reason=` (`compile/frame.rs:967,971`; `compile/vertex.rs:90`; `compile/neighbors.rs:139,193`; `compile/edges.rs:178,183`), each justified only by a preceding `//` comment per this workspace's `rulebook.md` convention — a convention that does not satisfy clippy's `allow_attributes_without_reason` lint, which requires the reason inline in the attribute itself.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the 3-story contradiction silently creeping back in if only one doc file is touched in a future change: re-running `grep -rn -i "placeholder\|checkerboard" docs/ roadmap.md` must keep showing every hit framing the placeholder as a roadmap-tracked *pending* option, never as current behavior.
+- [x] AF2 — Guards against the exact residue class this task's own adversarial pass caught ("three divergences" / "item 4" ordinal references) recurring after a future partial edit: re-running `grep -rn "three divergences\|item 4" docs/ roadmap.md` must stay at `0` hits.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P4 (doc rewrite)

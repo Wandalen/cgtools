@@ -50,6 +50,14 @@ mod private
   impl NormalDepthOutlinePass
   {
     /// Creates a new `NormalDepthOutlinePass` instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the outline shaders fail to compile or link.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a required uniform location is absent from the compiled shader.
     pub fn new(
       gl : &gl::WebGl2RenderingContext,
       position_texture : Option< gl::web_sys::WebGlTexture >,

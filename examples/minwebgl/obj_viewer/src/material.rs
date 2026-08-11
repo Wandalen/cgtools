@@ -129,7 +129,7 @@ impl GLMaterial
     {
       gl::uniform::upload
       (
-        &gl, 
+        gl, 
         gl.get_uniform_location( &self.program, "ambient" ), 
         &ambient[ .. ]
       ).unwrap();
@@ -139,7 +139,7 @@ impl GLMaterial
     {
       gl::uniform::upload
       (
-        &gl, 
+        gl, 
         gl.get_uniform_location( &self.program, "diffuse" ), 
         &diffuse[ .. ]
       ).unwrap();
@@ -149,7 +149,7 @@ impl GLMaterial
     {
       gl::uniform::upload
       (
-        &gl, 
+        gl, 
         gl.get_uniform_location( &self.program, "specular" ), 
         &specular[ .. ]
       ).unwrap();
@@ -159,7 +159,7 @@ impl GLMaterial
     {
       gl::uniform::upload
       (
-        &gl, 
+        gl, 
         gl.get_uniform_location( &self.program, "shininess" ), 
         shininess
       ).unwrap();
@@ -169,7 +169,7 @@ impl GLMaterial
     {
       gl::uniform::upload
       (
-        &gl, 
+        gl, 
         gl.get_uniform_location( &self.program, "dissolve" ), 
         dissolve
       ).unwrap();
@@ -179,7 +179,7 @@ impl GLMaterial
     {
       gl::uniform::upload
       (
-        &gl, 
+        gl, 
         gl.get_uniform_location( &self.program, "optical_density" ), 
         optical_density
       ).unwrap();

@@ -42,7 +42,7 @@ where
 // (src/vector/operator.rs) — distinct impls from the owned-value forms
 // already covered earlier in this function. Applying clippy's "remove the &"
 // suggestion would silently drop coverage of those reference-operand impls.
-#[ allow( clippy::op_ref ) ]
+#[ expect( clippy::op_ref, reason = "the & operands deliberately exercise the reference-operand operator impls — clippy's suggested removal would silently drop that coverage; see the comment above" ) ]
 fn vector_rem_generic< E >()
 where
   E : the_module::MatNum + From< u8 > + PartialEq + core::fmt::Debug,

@@ -1,4 +1,11 @@
-use super::*;
+use super::
+{
+  wasm_bindgen,
+  Filter,
+  FilterRenderer,
+  GL,
+  default_render_pass,
+};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
 

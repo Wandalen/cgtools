@@ -1,4 +1,5 @@
 //! Integration tests related to Tween struct and trait Animatable
+#![ expect( clippy::float_cmp, reason = "assertions check deterministic interpolation arithmetic against exact expected values" ) ]
 
 #[ cfg( test ) ]
 mod tests
@@ -39,7 +40,7 @@ mod tests
   #[ test ]
   fn test_tween_initial_state()
   {
-    let tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
+    let tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() );
     assert_eq!( tween.state(), AnimationState::Pending );
     assert_eq!( tween.progress(), 0.0 );
     assert!( !tween.is_completed() );
@@ -48,7 +49,7 @@ mod tests
   #[ test ]
   fn test_tween_progress_and_completion()
   {
-    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
+    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() );
 
     let val1 = tween.update( 0.5 );
     assert_eq!( tween.state(), AnimationState::Running );
@@ -65,7 +66,7 @@ mod tests
   #[ test ]
   fn test_tween_with_delay_behavior()
   {
-    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
+    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() )
     .with_delay( 0.5 );
 
     // First update: still in delay
@@ -87,7 +88,7 @@ mod tests
   #[ test ]
   fn test_tween_pause_resume()
   {
-    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::new() );
+    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::build() );
     tween.update( 0.5 ); // Progress to 2.5
     assert_eq!( tween.value_get(), 2.5 );
 
@@ -109,7 +110,7 @@ mod tests
   #[ test ]
   fn test_tween_finite_repeat()
   {
-    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() ).with_repeat( 2 );
+    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_repeat( 2 );
 
     tween.update( 1.0 ); // First loop finishes
     assert!( !tween.is_completed() );
@@ -126,7 +127,7 @@ mod tests
   #[ test ]
   fn test_tween_infinite_repeat()
   {
-    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
+    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() )
     .with_repeat( -1 );
 
     tween.update( 1.0 );
@@ -160,7 +161,7 @@ mod tests
   #[ test ]
   fn test_tween_infinite_repeat_preserves_overflow_elapsed()
   {
-    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() ).with_repeat( -1 );
+    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_repeat( -1 );
 
     let val = tween.update( 1.25 ); // crosses the 1.0s repeat boundary with 0.25s left over
 
@@ -173,7 +174,7 @@ mod tests
   {
     // Same `.min( 0.0 )` -> `.max( 0.0 )` fix as test_tween_infinite_repeat_preserves_overflow_elapsed
     // above, applied to the finite-repeat branch instead of the infinite one.
-    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() ).with_repeat( 2 );
+    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_repeat( 2 );
 
     let val = tween.update( 1.25 );
 
@@ -206,8 +207,8 @@ mod tests
   {
     let tweens : [ Tween< f32 >; 2 ] =
     [
-      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() ).with_delay( 2.0 ),
-      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() ).with_delay( 0.5 ),
+      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::build() ).with_delay( 2.0 ),
+      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::build() ).with_delay( 0.5 ),
     ];
 
     assert_eq!( tweens.delay_get(), 0.5 );
@@ -217,7 +218,7 @@ mod tests
   #[ test ]
   fn test_tween_yoyo_with_repeat()
   {
-    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
+    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() )
     .with_repeat( 1 ).with_yoyo( true );
 
     // First loop: 0.0 -> 10.0

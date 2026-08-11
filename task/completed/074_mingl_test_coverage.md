@@ -30,6 +30,32 @@ Per-test procedure (uniform across the 035 decomposition):
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p mingl --all-features` —
    all green before and after each relocation batch.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Do all 13 inline `#[ test ]` functions in `module/min/mingl/src/` sit in exactly one file, `web/file.rs`, as the census claimed? `grep -rln "#\[ *test *\]" src/` → only `src/web/file.rs`; `grep -c "#\[ *test *\]" src/web/file.rs` → `13`.
+- [x] C2 — Are `resolve_url` and `data_url_base64_payload` (the two private helpers the kept-inline tests pin) absent from `web/file.rs`'s `mod_interface!` export block — confirming the expose-or-exception decision was "keep private", not "widen API"? Confirmed: the block only exports `load`, `is_self_contained_url`, `Error`.
+- [x] C3 — Does `web/file.rs` carry the documented exception-rationale comment naming this task and both rejected alternatives? Confirmed at lines 196-204: `// Exception ( task 074 ) : ...` ending `// Rejected alternatives : exposing the helpers ( zero non-test callers ), or testing through `load` itself ( impossible natively -- browser-only APIs ).`
+- [x] C4 — Does `tests/readme.md` list all 5 `tests/tests/*.rs` files with a Responsibility Table row each? Confirmed: 5 rows — `bounding_box.rs`, `bounding_sphere.rs`, `camera_orbit_controls.rs`, `data_type_test.rs`, `nd_test.rs`.
+- [x] C5 — Was the draft's coordination item — the `data_type.rs:84` "verify" marker's test — actually already satisfied by task 061 before this task needed to land it? Confirmed: `tests/tests/data_type_test.rs` exists with 4 tests (independently re-verified under task 061's own Verification section); this task added no separate test file.
+- [x] C6 — Do the 13 kept-inline tests actually execute under the workspace's canonical (native) verification command, proving they are live coverage rather than dormant wasm-only code — the load-bearing fact for the keep-inline exception? `cargo nextest run -p mingl --all-features` → all 13 `web::file::private::tests::*` entries run and PASS natively (see I1).
+
+### Measurements
+
+- [x] M1 — Inline `#[ test ]` count in `src/web/file.rs`: current `13` (was: `13`, `git show 25ceae76:module/min/mingl/src/web/file.rs | grep -c "#\[ *test *\]"`) — unchanged, confirming the claimed "zero relocations".
+- [x] M2 — `"Exception ( task 074 )"` rationale-comment occurrences in `src/web/file.rs`: current `1` (was: `0`, `git show 25ceae76:module/min/mingl/src/web/file.rs | grep -c "Exception ( task 074 )"`).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p mingl --all-features` → exit 0, 51/51 passed (13 inline + 38 integration — matches this task's own claimed 13/38 split exactly).
+- [ ] I2 — Compiler/lints clean (crate-scoped): `cargo clippy -p mingl --all-targets --all-features -- -D warnings` → exit 101, NOT clean. Root cause fully isolated to a different, workspace-local crate: `module/helper/browser_log/src/panic.rs:82`'s `#[ allow( clippy::exhaustive_structs ) ]` lacks a `reason = ".."`, tripping the workspace's `allow_attributes_without_reason = "warn"` lint (escalated to a hard error by `-D warnings`). `browser_log` is pulled in only transitively, via mingl's optional `web_log` feature; the build aborts there before mingl's own source is ever clippy-checked. `git log -1 --format="%h %ad %s" --date=iso -- module/helper/browser_log/src/panic.rs` → commit `5f33be66`, dated 2026-08-11 (today) — lands after this task's 2026-08-10 completion and is unrelated to the test-placement work this task performed (a single comment block added to `web/file.rs`). (Independently corroborated: a concurrent sibling verification of the unrelated `primitive_generation` crate hit the identical `browser_log:82` failure in the same session.)
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a future contributor "fixing" the convention by relocating these tests and silently widening the API to make relocation possible: re-running C2's `mod_interface!` export-list check must keep showing `resolve_url`/`data_url_base64_payload` absent; if a future change exports either, the exception comment (C3) must be removed/updated in the same change, not left stale and contradicted.
+- [x] AF2 — Guards against the kept-inline exception being cited as blanket precedent for other, non-exceptional inline tests elsewhere in the crate: C1's `grep -rln "#\[ *test *\]" src/` must keep returning only `src/web/file.rs` — any second file appearing there is a new instance requiring its own independent expose-or-exception decision, not an automatic pass under this task's exception.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 035's workspace test-coverage census per Crate

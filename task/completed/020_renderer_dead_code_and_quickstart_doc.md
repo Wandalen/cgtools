@@ -28,6 +28,31 @@ session — delete after confirming no `mod raw;` declaration still references i
 Quick Start example doesn't compile against the current API — carried forward from the audit triage plan,
 re-confirm the exact mismatch against current `module/helper/renderer/src/` before rewriting.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `Composer`/`composer.rs` fully deleted (not merely renamed), while `Pass`/`SwapFramebuffer` survive under the renamed `pass.rs`? `ls src/webgl/post_processing/` → no `composer.rs`, has `pass.rs`; `grep -rn "struct Composer" .` (workspace-wide, excluding `target/`) → `0` hits; `src/webgl/post_processing/mod.rs:15` declares `layer pass;` (not `layer composer;`), with `Pass`/`SwapFramebuffer` still exported.
+- [x] C2 — Is `material/raw.rs` deleted with no dangling `mod raw`/`layer raw` reference? `ls src/webgl/material/` → only `mod.rs`, `pbr.rs` remain; `grep -rn "mod raw" src/webgl/material/` → `0` hits.
+- [x] C3 — Is the Quick Start doc now wired into `cargo test --doc` via a real `include_str!` of `readme.md`? `src/lib.rs:4` → `#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]`, preceded by a comment citing TASK-020 (`lib.rs:3`); `readme.md` contains exactly 3 `rust,no_run` blocks (lines 65, 107, 171).
+- [x] C4 — Was `SwapFramebuffer`'s broken doc comment (`//` instead of `///`) fixed? `src/webgl/post_processing/pass.rs` shows proper `///` doc comments at lines 46, 91, 94 for `SwapFramebuffer` and its methods — no bare `//` immediately preceding the struct/impl.
+
+### Measurements
+
+- [x] M1 — `struct Composer` occurrences in `src/`: `0` (was: `1`, cite `git show 4469eafb^:module/helper/renderer/src/webgl/post_processing/composer.rs` — struct present; absent entirely at `4469eafb`, confirming that commit as the deletion point).
+- [x] M2 — `doc = include_str!(...readme.md...)` occurrences in `lib.rs`: `1` (was: `0`, cite `git show 4469eafb^:module/helper/renderer/src/lib.rs` → `0` hits for `doc = include_str.*readme`; `git show 4469eafb:...` → `1` hit).
+
+### Invariants
+
+- [x] I1 — Native test suite (shared with 013/047/075, package-scoped, `longrun`-detached): `cargo nextest run -p renderer --all-features` → exit 0, `79 tests run: 79 passed, 0 skipped`.
+- [x] I2 — Compiler/lints: `cargo clippy -p renderer --all-targets --all-features -- -D warnings` → exit 101, **fails**, but on the same unrelated cause documented in full under task 013's own Verification (`module/helper/browser_log/src/panic.rs:82`, commit `5f33be66`, 2026-08-11 — postdates this task's 2026-08-10 completion). Isolated via `cargo clippy -p renderer --all-targets --all-features --no-deps -- -D warnings` → exit 0, clean — `renderer`'s own code (incl. this task's `pass.rs`/`lib.rs`/`material/` changes) is unaffected.
+- [x] I3 — Doc tests (the specific gate this task built): `RUSTDOCFLAGS="-D warnings" cargo test --doc -p renderer --all-features` (via `longrun`) → exit 0, `test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out` — the 3 tests are exactly `lib.rs - (line 66)`, `(line 108)`, `(line 172)`, matching this task's own claimed identities and count.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against `Composer` (or an equivalent unused abstraction) silently reappearing without a fresh wire-in-vs-delete decision: re-running C1's workspace-wide `grep -rn "struct Composer" .` must stay at `0` hits.
+- [x] AF2 — Guards against the Quick Start readme drifting uncompilable again silently: this task's own mutation check already proved the gate discriminates (a deliberately broken snippet produced `E0061`, 2/3 blocks still green). The direct re-check is I3 itself — any future readme Quick Start edit that breaks compilation fails `cargo test --doc -p renderer` loudly instead of rotting unnoticed, which is the exact failure mode this task closed.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P3 (dead code)

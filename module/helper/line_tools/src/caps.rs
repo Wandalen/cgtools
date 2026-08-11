@@ -25,6 +25,7 @@ mod private
     ///
     /// This method returns a tuple containing the vertices, indices, and the number of vertices
     /// for the cap's mesh.
+    #[must_use]
     pub fn geometry( &self ) -> ( Vec< f32 >, Vec< u32 >, usize )
     {
       match self 
@@ -59,7 +60,7 @@ mod private
     let mut indices = Vec::new();
 
     positions.push( [ 0.0; 2 ] );
-    for i in 0..( segments + 1 )
+    for i in 0..=segments
     {
       let theta = std::f32::consts::PI * 0.5 + i as f32 / segments as f32 * std::f32::consts::PI;
       let ( y, x ) = theta.sin_cos();

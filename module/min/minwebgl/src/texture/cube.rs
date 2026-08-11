@@ -7,7 +7,6 @@ type GL = web_sys::WebGl2RenderingContext;
 // are small enum values fixed by the WebGL2 spec, far below `i32::MAX` -- `tex_parameteri`
 // requires `i32` per its WebIDL `GLint` signature, so this narrow, single-purpose conversion
 // point is safe by construction for every constant it is called with in this file.
-#[ allow( clippy::cast_possible_wrap ) ]
 fn param_as_i32( value : u32 ) -> i32
 {
   value as i32

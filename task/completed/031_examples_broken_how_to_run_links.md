@@ -29,6 +29,29 @@ command against the crate's real structure) rather than trusting the carried-for
 with task 024 (non-functional example deletion) — resolve which examples are being deleted first, so
 their links aren't fixed only to be deleted right after.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is the broken one-directory-short pattern (`](../how_to_run.md)`) fully eradicated across every example crate readme? `grep -rl "](\.\./how_to_run\.md)" examples --include="readme.md"` → 0 files (was: `49`, independently re-derived via `git grep -c "](\.\./how_to_run\.md)" 4469eafb^ -- 'examples/*/*/readme.md'` against the pre-fix commit, not merely re-quoting the task's own citation).
+- [x] C2 — Does the central `examples/how_to_run.md` target the corrected `../../` links point to actually exist? `test -f examples/how_to_run.md` → exists; and no family-level `how_to_run.md` exists anywhere that would make a one-level link valid — `find examples -mindepth 2 -maxdepth 2 -iname "how_to_run.md"` → 0 results.
+- [x] C3 — Does the crate-readme count still match the claimed tree shape (72 crate-level readmes)? `find examples -mindepth 3 -maxdepth 3 -iname "readme.md" | wc -l` → `72`.
+- [x] C4 — Are exactly the 2 claimed exceptions (`jewelry_site`, `renderer_pbr_scene`) the only readmes without the standard link, and do both carry their own working run instructions? `comm -23` between the full 72-readme list and the correct-link (`../../how_to_run.md`) list → exactly `examples/minwebgl/jewelry_site/readme.md` and `examples/minwebgpu/renderer_pbr_scene/readme.md`; confirmed both carry real, non-template instructions — `jewelry_site` has its own `## How to Run` (static HTTP server, e.g. `python -m http.server 8000`), `renderer_pbr_scene` has its own `## 🚀 Run`.
+
+### Measurements
+
+- [x] M1 — Readmes still carrying the broken `](../how_to_run.md)` pattern: `0` (was: `49`, per `git grep -c` against the pre-fix commit `4469eafb^`).
+- [x] M2 — Readmes carrying the correct `](../../how_to_run.md)` pattern: `70` (was: `21`, per the same pre-fix commit — matching the task's own claim that 21 readmes "already used the correct `../../how_to_run.md`"; `70 = 49 fixed + 21 pre-existing-correct`).
+
+### Invariants
+
+- [x] I1 — Full-tree link-resolution re-sweep (the mechanical link check this task was actually about): `grep -rl "](\.\./how_to_run\.md)" examples --include="readme.md" | wc -l` → `0`; `grep -rl "](\.\./\.\./how_to_run\.md)" examples --include="readme.md" | wc -l` → `70`; `70 + 2` (documented exceptions) `= 72` total crate readmes — every readme accounted for, 0 unresolved.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a new example crate being added later with the pre-fix one-level-short template (a plausible copy-paste regression from an older example): re-running I1's broken-pattern grep after any new example crate addition must still return `0`.
+- [x] AF2 — Guards against the 2 documented exceptions silently growing (e.g. a third crate quietly dropping the standard link without adding its own instructions): re-running C4's `comm -23` diff must continue to return exactly the same 2 paths, and each must still resolve to a real, non-template run section rather than a missing one.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P5 (doc drift)

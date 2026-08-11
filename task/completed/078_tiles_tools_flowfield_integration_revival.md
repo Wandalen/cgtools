@@ -45,6 +45,31 @@ Resolution procedure:
 4. Verify with `longrun .launch dir::<workspace root> -- cargo test -p tiles_tools --all-features` —
    integration suite green with the module enabled.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `tests/integration/flowfield_tests.rs` still enabled in `tests/integration/mod.rs`, with the disablement/placeholder comments gone? Current `mod.rs` lists `mod flowfield_tests;` uncommented among 9 modules; no disablement comment, no `grid_tests`/`pathfinding_tests`/`generation_tests` placeholder comments remain.
+- [x] C2 — Is the manual `Ord`/`PartialOrd` impl on `hexagonal::Coordinate` (the root-cause fix) still present? `impl< System, Orientation > PartialOrd for Coordinate< System, Orientation >` (line 97) and `impl< System, Orientation > Ord for Coordinate< System, Orientation >` (line 106) both present; `hexagonal.rs` shows 0 uncommitted diff — untouched since this task.
+- [x] C3 — Are exactly the 5 claimed-survivor tests still present, with the hexagonal-only rationale documented? `test_hex_grid_with_water_obstacles`, `test_batch_flow_direction_queries`, `test_group_movement_flow_application`, `test_multi_goal_capture_points`, `test_flow_field_ecs_integration` — 5/5 exact name match; file header carries a "Why hexagonal-only" section citing `Grid2D`'s `Index`/`IndexMut` bound.
+- [x] C4 — Do all 5 survivor tests still pass, and is the claimed `189 → 194` integration-suite growth still reflected live? All 5 visible passing by name in the fresh nextest run (log `-0009_longrun.log`); current `tiles_tools::integration_tests` count is `194` (M2).
+
+### Measurements
+
+- [x] M1 — `tests/integration/flowfield_tests.rs` line count: `153` (was: `479`, `git show cd98503d^:module/helper/tiles_tools/tests/integration/flowfield_tests.rs | wc -l` — matches this task's own Goal-stage census, "479 lines" almost exactly). Note: this task's History text claims the rewrite landed at "178" lines, but the actual committed content (`git show cd98503d:...flowfield_tests.rs | wc -l`, identical to the current working tree — 0 uncommitted changes on this file) is `153`, not `178` — a minor inaccuracy in the task's own narrative number. The substantive claim (5 named survivor tests, hexagonal-only rationale) is independently confirmed accurate in C3, so this is cosmetic, not a functional regression.
+- [x] M2 — `tiles_tools::integration_tests` live count: `194` (was: `189`, this task's own claimed pre-revival baseline, matching task 072's independently-logged `-0041` baseline). Exactly `+5`, matching the 5 revived survivor tests in C3.
+- [x] M3 — Crate-wide non-doc test total: `245` (5 inline unit + 46 relocated top-level + 194 integration). This task's own claimed end-state computes to the identical `245` — the later architecture refactor (commit `5f33be66`, dated 2026-08-11 09:30, confirmed via `git show 5f33be66 --stat` to touch `field_of_view.rs`/`flowfield.rs`/etc. but not `tests/integration/flowfield_tests.rs` itself) left this task's own end-state test count completely unchanged.
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, `--all-features`): `cargo nextest run -p tiles_tools --all-features` → exit 0, 245/245 passed (log `-0009_longrun.log`).
+- [ ] I2 — Compiler/lints (crate-scoped, `--all-features`): `cargo clippy -p tiles_tools --all-targets --all-features -- -D warnings` → exit 101 (log `-0015_longrun.log`). Root cause is an unrelated dependency (`browser_log`) — full trace in task 025's Verification I2. Unrelated to this task's `hexagonal.rs`/`flowfield_tests.rs`/`mod.rs` edits.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against `flowfield_tests.rs` silently going back to disabled: re-running C1's `mod.rs` check after any future `tests/integration/` edit must still show `mod flowfield_tests;` uncommented.
+- [x] AF2 — Guards against the `Ord` impl being removed or weakened (which would silently make `calculate_flow`/`add_goal` uncallable again for every coordinate type): re-running C2's grep after any future `hexagonal::Coordinate` edit must still find both `PartialOrd` and `Ord` impls.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Found during task 072's tests/ survey: the module is the

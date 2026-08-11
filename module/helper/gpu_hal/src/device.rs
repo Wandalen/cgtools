@@ -251,7 +251,6 @@ mod private
       // Browser buffer allocations sit far below f64's exact integer
       // range, so the cast is lossless in practice.
       #[ cfg( target_arch = "wasm32" ) ]
-      #[ allow( clippy::cast_precision_loss ) ]
       let size_f64 = size as f64;
       match self
       {
@@ -419,9 +418,7 @@ mod private
     ///
     /// Returns [`Error::WebGl`] if the WebGL context fails to allocate the
     /// sampler. The WebGPU and native backends never fail this call.
-    // A single-backend build can make the surviving arm infallible; the
-    // other backend's arm fails for real, so the signature stays fallible.
-    #[ allow( clippy::unnecessary_wraps ) ]
+    #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
     pub fn create_sampler( &self, desc : SamplerDesc ) -> Result< Sampler, Error >
     {
       match self
@@ -488,9 +485,7 @@ mod private
     /// Returns [`Error::Unsupported`] on the WebGL backend if `source` is
     /// missing either GLSL override slot. The WebGPU and native backends
     /// never fail this call.
-    // Infallibility of the webgpu-only build is incidental : the WebGL arm
-    // fails for real, so the signature stays fallible.
-    #[ allow( clippy::unnecessary_wraps ) ]
+    #[ allow( clippy::unnecessary_wraps, reason = "fires only in the webgpu-only build, whose infallibility is incidental; the WebGL arm fails for real, so the signature stays fallible" ) ]
     pub fn create_shader_module( &self, source : &ShaderSource< '_ > ) -> Result< ShaderModule, Error >
     {
       match self
@@ -536,9 +531,7 @@ mod private
     /// Returns [`Error::WebGpu`] if the underlying WebGPU layout-entry or
     /// layout-creation call fails. The WebGL and native backends never
     /// fail this call.
-    // A single-backend build can make the surviving arm infallible; the
-    // other backend's arm fails for real, so the signature stays fallible.
-    #[ allow( clippy::unnecessary_wraps ) ]
+    #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
     pub fn create_bind_group_layout
     (
       &self,
@@ -620,9 +613,7 @@ mod private
     /// includes the canvas backbuffer as a sampled texture view — the
     /// backbuffer cannot be sampled. The WebGPU and native backends never
     /// fail this call.
-    // A single-backend build can make the surviving arm infallible; the
-    // other backend's arm fails for real, so the signature stays fallible.
-    #[ allow( clippy::unnecessary_wraps ) ]
+    #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
     pub fn create_bind_group
     (
       &self,
@@ -862,11 +853,7 @@ mod private
     }
 
     /// The raw wgpu object, when the handle belongs to the native backend.
-    // The browser variants live on the other side of the target boundary,
-    // so the surviving match is infallible; Option keeps the drill-down
-    // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    #[ allow( clippy::unnecessary_wraps ) ]
     #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::Device >
     {
@@ -894,9 +881,7 @@ mod private
     ///
     /// Returns [`Error::WebGpu`] if the underlying WebGPU write call
     /// fails. The WebGL and native backends never fail this call.
-    // A single-backend build can make the surviving arm infallible; the
-    // other backend's arm fails for real, so the signature stays fallible.
-    #[ allow( clippy::unnecessary_wraps ) ]
+    #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
     pub fn write_buffer( &self, buffer : &Buffer, data : &[ u8 ] ) -> Result< (), Error >
     {
       match self
@@ -924,10 +909,107 @@ mod private
       }
     }
 
+    /// Writes `data` into `texture` at the base mip level, covering the
+    /// texture's full extent. `data` must be tightly packed ( no row
+    /// padding ) — the WebGPU and native arms derive their own internal
+    /// `bytes_per_row` from the texture's format; WebGL never needs one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] if the texture's format has no
+    /// portable CPU-side texel layout ( e.g. `Depth24Plus` ), or a
+    /// backend-specific error if the underlying write call fails.
+    pub fn write_texture( &self, texture : &Texture, data : &[ u8 ] ) -> Result< (), Error >
+    {
+      match self
+      {
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu( queue ) =>
+        {
+          let raw = texture.expect_webgpu();
+          let width = raw.width();
+          let height = raw.height();
+          let depth_or_array_layers = raw.depth_or_array_layers();
+          let format = TextureFormat::from_webgpu( raw.format() )?;
+          let bytes_per_row = width * format.bytes_per_texel()?;
+
+          let data_layout = web_sys::GpuTexelCopyBufferLayout::new();
+          data_layout.set_bytes_per_row( bytes_per_row );
+          data_layout.set_rows_per_image( height );
+
+          let size = web_sys::GpuExtent3dDict::new( width );
+          size.set_height( height );
+          size.set_depth_or_array_layers( depth_or_array_layers );
+
+          gl::queue::write_texture
+          (
+            queue,
+            &web_sys::GpuTexelCopyTextureInfo::new( raw ),
+            data,
+            &data_layout,
+            &size
+          )?;
+          Ok( () )
+        }
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( context ) =>
+        {
+          let raw = texture.expect_webgl();
+          let ( format, type_ ) = raw.format.webgl_format_and_type()?;
+          context.bind_texture( glw::GL::TEXTURE_2D, Some( &raw.texture ) );
+          context.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_opt_u8_array
+          (
+            glw::GL::TEXTURE_2D,
+            0,
+            0,
+            0,
+            to_i32( raw.size[ 0 ] ),
+            to_i32( raw.size[ 1 ] ),
+            format,
+            type_,
+            Some( data )
+          )
+          .map_err( | e | Error::WebGl( format!( "{e:?}" ) ) )?;
+          Ok( () )
+        }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( queue ) =>
+        {
+          let raw = texture.expect_native();
+          let width = raw.width();
+          let height = raw.height();
+          // Native queries wgpu's own authoritative format-size table
+          // directly, rather than routing through `TextureFormat::
+          // bytes_per_texel` — `raw.format()` is already a
+          // `wgpu::TextureFormat`, so a round trip through the HAL's own
+          // enum would just re-derive what wgpu already knows.
+          let bytes_per_row = width * raw.format().block_copy_size( None )
+          .ok_or_else( || Error::Unsupported( format!( "{:?} has no portable CPU-side texel layout", raw.format() ) ) )?;
+
+          queue.write_texture
+          (
+            wgpu::TexelCopyTextureInfo
+            {
+              texture : raw,
+              mip_level : 0,
+              origin : wgpu::Origin3d::ZERO,
+              aspect : wgpu::TextureAspect::All
+            },
+            data,
+            wgpu::TexelCopyBufferLayout
+            {
+              offset : 0,
+              bytes_per_row : Some( bytes_per_row ),
+              rows_per_image : Some( height )
+            },
+            wgpu::Extent3d { width, height, depth_or_array_layers : raw.depth_or_array_layers() }
+          );
+          Ok( () )
+        }
+      }
+    }
+
     /// Finishes `encoder` and submits its command buffer.
-    // Consuming the encoder forecloses reuse after submission, which WebGPU
-    // rejects at runtime.
-    #[ allow( clippy::needless_pass_by_value ) ]
     pub fn submit( &self, encoder : CommandEncoder )
     {
       match self
@@ -986,11 +1068,7 @@ mod private
     }
 
     /// The raw wgpu object, when the handle belongs to the native backend.
-    // The browser variants live on the other side of the target boundary,
-    // so the surviving match is infallible; Option keeps the drill-down
-    // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    #[ allow( clippy::unnecessary_wraps ) ]
     #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::Queue >
     {
@@ -1038,9 +1116,7 @@ mod private
     /// Returns [`Error::WebGpu`] if retrieving the current WebGPU canvas
     /// texture or creating its view fails. The WebGL and native backends
     /// never fail this call.
-    // A single-backend build can make the surviving arm infallible; the
-    // other backend's arm fails for real, so the signature stays fallible.
-    #[ allow( clippy::unnecessary_wraps ) ]
+    #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
     pub fn current_view( &self ) -> Result< TextureView, Error >
     {
       match self
@@ -1133,11 +1209,7 @@ mod private
 
     /// The raw wgpu texture the surface renders into, when the handle
     /// belongs to the native backend.
-    // The browser variants live on the other side of the target boundary,
-    // so the surviving match is infallible; Option keeps the drill-down
-    // contract uniform across backends.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    #[ allow( clippy::unnecessary_wraps ) ]
     #[must_use]
     pub fn as_native( &self ) -> Option< &wgpu::Texture >
     {

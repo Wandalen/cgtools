@@ -28,6 +28,30 @@ already moved since this finding was made. For each remaining crate, migrate its
 following whatever pattern the 5 already-migrated crates establish. Likely worth decomposing per-crate at
 pickup, same as tasks 035/036.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is the re-derived denominator (30 `module/` crates) still accurate? `for d in module/{alias,helper,math,min,blank}/*; do [ -f "$d/Cargo.toml" ] && echo "$d"; done | wc -l` → `30`.
+- [x] C2 — Do exactly the 8 claimed crates (and no others) carry `docs/`? Directory scan across all 30 → `line_tools, renderer, scene_script, tilemap_renderer, tilemap_scene, tiles_tools, minwebgpu, minwgpu` — identical set, same 8, same names, as claimed.
+- [x] C3 — Is the "zero `spec.md`" prohibition-check still true? `find module examples -iname spec.md` → `0` hits (workspace-wide, broader than this task's own module-only claim).
+- [x] C4 — Is "zero untyped loose files at any `docs/` root" still true for all 8 adopted crates? `find <crate>/docs -maxdepth 1 -type f` for each of the 8 → empty every time (all content lives in typed subdirectories: `feature/`, `invariant/`, `pitfall/`, `api/`, `algorithm/`, `pattern/`, ...).
+- [x] C5 — Are all 3 `roadmap.md` companion files (the one permitted crate-root `.md` exception besides readme/license/changelog) inside already-adopted crates? `find module -iname roadmap.md` → `tilemap_scene/roadmap.md`, `tiles_tools/roadmap.md`, `tilemap_renderer/roadmap.md` — all 3 are members of the C2 8-crate adopted set.
+
+### Measurements
+
+- [x] M1 — `docs/`-adopted crate count: `8/30` (was: `5/27`, the original 2026-08-08 audit figure this task's own Goal explicitly flagged as stale-by-design and re-derived at pickup — both figures are the task's own cited before/after, not a code change this task made).
+
+### Invariants
+
+- [x] I1 — Directory-presence re-scan (the mechanical equivalent of a test suite for a docs-structure claim): looped `[ -d "$d/docs" ]` check across all 30 `module/` crates → 8 matches, byte-identical crate list to C2.
+- [x] I2 — Prohibition re-scan: `find module examples -iname spec.md` → exit 0, `0` results.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against filler `docs/` trees being created later just to inflate the adoption count: C2's spot check confirms all 8 use genuine typed doc-definition subdirectories with real content (not empty scaffolding) — a future count that includes an empty `docs/` directory with no typed subdirectory content would be gaming this metric, not satisfying it.
+- [x] AF2 — Guards against a future crate accumulating scattered design `.md` files without a corresponding `docs/` migration going unnoticed: re-running C3's `spec.md` search plus a scan for crate-root loose `.md` files beyond `readme`/`license`/`changelog`/`roadmap` is the named mechanical trigger (per this task's own dissolution reasoning) for revisiting this task's "no migration backlog" conclusion — it is not a one-time check.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P8 (mechanical

@@ -28,7 +28,7 @@ mod private
     .register_fn
     (
       "tween",
-      | start : F32x2, end : F32x2, duration : f64 | Tween::new( start, end, duration, Linear::new() )
+      | start : F32x2, end : F32x2, duration : f64 | Tween::new( start, end, duration, Linear::build() )
     )
     .register_fn( "update", | t : &mut Tween< F32x2 >, delta_time : f64 | t.update( delta_time ) )
     .register_fn( "value", | t : &mut Tween< F32x2 > | t.value_get() )
@@ -48,7 +48,7 @@ mod private
     .register_fn
     (
       "tween",
-      | start : F64x2, end : F64x2, duration : f64 | Tween::new( start, end, duration, Linear::new() )
+      | start : F64x2, end : F64x2, duration : f64 | Tween::new( start, end, duration, Linear::build() )
     )
     .register_fn( "update", | t : &mut Tween< F64x2 >, delta_time : f64 | t.update( delta_time ) )
     .register_fn( "value", | t : &mut Tween< F64x2 > | t.value_get() )

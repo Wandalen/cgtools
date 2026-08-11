@@ -12,6 +12,7 @@ mod private
   ];
 
   /// Generates the geometry for a circle using a `TRIANGLE_FAN` draw mode.
+  #[must_use]
   pub fn circle_geometry( segments : usize ) -> Vec< [ f32; 2 ] >
   {
     let mut positions = Vec::with_capacity( segments );
@@ -19,13 +20,14 @@ mod private
     {
       let theta = 2.0 * std::f32::consts::PI * wedge as f32 / segments as f32;
       let ( s, c ) = theta.sin_cos();
-      positions.push( [ 0.5 * c, 0.5 * s ] )
+      positions.push( [ 0.5 * c, 0.5 * s ] );
     }
 
     positions
   }
 
    /// Generates the geometry for the left half of a circle using `TRIANGLES` draw mode.
+  #[must_use]
   pub fn circle_left_half_geometry( segments : usize ) -> Vec< [ f32; 2 ] >
   {
     let mut positions = Vec::with_capacity( segments * 3 );
@@ -44,6 +46,7 @@ mod private
   }
 
   /// Generates the geometry for the right half of a circle using `TRIANGLES` draw mode.
+  #[must_use]
   pub fn circle_right_half_geometry( segments : usize ) -> Vec< [ f32; 2 ] >
   {
     let mut positions = Vec::with_capacity( segments * 3 );
@@ -62,6 +65,7 @@ mod private
   }
 
   /// Return positions and uvs for a rectangle, used in 3d line
+  #[must_use]
   pub fn four_piece_rectangle_geometry() -> ( [ [ f32; 2 ]; 8 ], [ u32; 18 ],  [ [ f32; 2 ]; 8 ] )
   {
     let positions = 

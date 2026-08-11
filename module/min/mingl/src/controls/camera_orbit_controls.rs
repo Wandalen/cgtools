@@ -193,7 +193,6 @@ mod private
   // Struct-literal construction with `..Default::default()` is the established public
   // contract, exercised extensively by `tests/tests/camera_orbit_controls.rs` (23+ cases)
   // and by downstream examples — `#[non_exhaustive]` would break that contract.
-  #[ allow( clippy::exhaustive_structs ) ]
   pub struct CameraOrbitControls
   {
     /// The position of the camera in 3D space.
@@ -486,7 +485,6 @@ mod private
     {
       // `delta_time` is a per-frame delta in seconds — always minuscule relative to
       // f32's precision limits, so narrowing it once here cannot lose meaningful precision.
-      #[ allow( clippy::cast_possible_truncation ) ]
       let delta_time = delta_time as f32;
 
       // Decays self.movement_decay% every 10 milliseconds
@@ -579,7 +577,6 @@ mod private
       move | e : web_sys::PointerEvent |
       {
         // screen_x/y return f64 under web_sys_unstable_apis (web-sys ≥ 0.3.94); f64→f32 cast is intentional
-        #[ allow( clippy::cast_possible_truncation ) ]
         let pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
         active_pointers.borrow_mut().insert( e.pointer_id(), pos );
         let count = active_pointers.borrow().len();
@@ -630,7 +627,6 @@ mod private
       {
         let pointer_id = e.pointer_id();
         // screen_x/y return f64 under web_sys_unstable_apis (web-sys ≥ 0.3.94); f64→f32 cast is intentional
-        #[ allow( clippy::cast_possible_truncation ) ]
         let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
 
         let current_state = state.borrow().clone();
@@ -709,7 +705,6 @@ mod private
         if let CameraState::None = *state.borrow()
         {
           // delta_y is a scroll increment (typically tens to low thousands); f64→f32 cast is intentional
-          #[ allow( clippy::cast_possible_truncation ) ]
           let delta_y = e.delta_y() as f32;
           camera.borrow_mut().zoom( delta_y );
         }

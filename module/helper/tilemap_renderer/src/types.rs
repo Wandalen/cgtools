@@ -96,7 +96,6 @@ mod private
   // `examples/minwebgl/hexagonal_map/src/main.rs:97` — so `#[non_exhaustive]` would break
   // those call sites: it forbids all struct-expression construction from other crates,
   // `..` update syntax included, not just literals naming every field.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct RenderConfig
   {
@@ -170,7 +169,6 @@ mod private
   // `tilemap_scene/src/compile/frame.rs`'s `make_transform()` and
   // `tilemap_scene/src/compile/viewport.rs`'s `make_transform()` (neither uses `..`),
   // so `#[non_exhaustive]` would break those call sites.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct Transform
   {

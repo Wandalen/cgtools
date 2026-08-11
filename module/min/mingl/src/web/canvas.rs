@@ -128,9 +128,7 @@ mod private
     // Set the canvas dimensions to match the parent element's size.
     // `client_width`/`client_height` return `i32` for historical WebIDL reasons, but the
     // DOM spec guarantees both are always non-negative for a connected element.
-    #[ allow( clippy::cast_sign_loss ) ]
     let width = parent.client_width() as u32;
-    #[ allow( clippy::cast_sign_loss ) ]
     let height = parent.client_height() as u32;
 
     // log::info!( "resize : {width}x{height}" );

@@ -87,15 +87,13 @@ mod private
       #[ derive( Debug ) ]
       pub struct $program_type( ProgramInfo );
 
-      // The zero-location expansion ( e.g. `EmptyShader` ) leaves `gl` and `program` unused.
-      #[ allow( unused_variables ) ]
+      #[ allow( unused_variables, reason = "the zero-location expansion ( e.g. `EmptyShader` ) leaves `gl` and `program` unused" ) ]
       impl $program_type
       {
         /// Creates a new shader instance.
         pub fn new( gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Self
         {
-          // Never mutated in the zero-location expansion.
-          #[ allow( unused_mut ) ]
+          #[ allow( unused_mut, reason = "never mutated in the zero-location expansion" ) ]
           let mut locations = FxHashMap::default();
 
           $(
@@ -176,18 +174,15 @@ mod private
       #[ derive( Debug ) ]
       pub struct $program_type( ProgramInfo );
 
-      // The zero-location expansion ( e.g. `EmptyShader` ) leaves `gl` and `program` unused.
-      #[ allow( unused_variables ) ]
+      #[ allow( unused_variables, reason = "the zero-location expansion ( e.g. `EmptyShader` ) leaves `gl` and `program` unused" ) ]
       impl $program_type
       {
         /// Creates a new shader instance.
         pub fn new( gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Self
         {
-          // Never mutated in the zero-location expansion.
-          #[ allow( unused_mut ) ]
+          #[ allow( unused_mut, reason = "never mutated in the zero-location expansion" ) ]
           let mut locations = FxHashMap::default();
-          // Never mutated when the invocation lists no UBO blocks.
-          #[ allow( unused_mut ) ]
+          #[ allow( unused_mut, reason = "never mutated when the invocation lists no UBO blocks" ) ]
           let mut ubo_indices = FxHashMap::default();
 
           $(
@@ -290,9 +285,7 @@ mod private
     pub ubo_indices : FxHashMap< String, u32 >,
   }
 
-  // Debug prints location keys and UBO indices; the raw `WebGlProgram` handle has
-  // no useful textual form.
-  #[ allow( clippy::missing_fields_in_debug ) ]
+  #[ expect( clippy::missing_fields_in_debug, reason = "Debug prints location keys and UBO indices; the raw `WebGlProgram` handle has no useful textual form" ) ]
   impl core::fmt::Debug for ProgramInfo
   {
     fn fmt( &self, f: &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result

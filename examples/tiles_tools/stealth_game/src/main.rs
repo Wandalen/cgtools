@@ -555,7 +555,7 @@ impl StealthGame {
           let base_detection = 10 - player_stealth_state.level;
           // player_light_level is a normalized lighting value in [0.0, 1.0], so the
           // scaled product is always small and non-negative: no truncation or sign loss.
-          #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+          #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "player_light_level is a normalized lighting value in [0.0, 1.0], so the scaled product is always small and non-negative: no truncation or sign loss")]
           let light_modifier = (player_light_level * 5.0) as u32;
           let distance_modifier = (effective_range - distance) / 2;
           let cover_modifier = if player_stealth_state.in_cover { 0 } else { 3 };

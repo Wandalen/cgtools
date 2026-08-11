@@ -1,10 +1,11 @@
 //! Integration tests for the Slice-1 compile layer
 //! (`tilemap_scene::compile::compile_assets` + `compile_frame`).
 
+#![ expect( clippy::float_cmp, reason = "assertions check exact pass-through of constant tints/coordinates; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+
 // Test-only idioms: exact array comparisons and ref-in-closure patterns are
-// intentional; `Default::default()` reads fine at fixture build sites;
-// fixture builders sometimes exceed the 100-line heuristic. `compiled` is
-// declared eagerly in every test for ergonomic id lookup
+// intentional; fixture builders sometimes exceed the 100-line heuristic.
+// `compiled` is declared eagerly in every test for ergonomic id lookup
 // (`compiled.ids.sprite(...)` assertions) — many tests don't reference it.
 
 use rustc_hash::FxHashMap as HashMap;
@@ -35,6 +36,7 @@ use tilemap_scene::
   FreeInstance,
   HexConfig,
   LayerBehaviour,
+  MipmapMode,
   NeighborBitmaskSource,
   Object,
   ObjectLayer,
@@ -44,9 +46,11 @@ use tilemap_scene::
   Renderer,
   RenderPipeline,
   RenderSpec,
+  SamplerFilter,
   Scene,
   SceneSnapshot,
   SortMode,
+  SortYSource,
   SpriteRef,
   SpriteSource,
   Tile,
@@ -59,13 +63,13 @@ use tilemap_scene::
   ViewportAnchorPoint,
   ViewportInstance,
   ViewportTiling,
+  WrapMode,
   compile_assets,
 };
 
 extern crate alloc;
 use alloc::sync::Arc;
 use tilemap_renderer::assets::ImageSource;
-use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
 
 // ────────────────────────────────────────────────────────────────────────────
 // Fixture builders.
@@ -105,7 +109,7 @@ fn grass_object() -> Object
     anchor : Anchor::Hex,
     global_layer : "terrain".into(),
     priority : Some( 10 ),
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states : anims,
@@ -583,11 +587,11 @@ fn rejects_multihex_anchor()
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let err = try_compile( &spec, &scene, &Camera::default() ).unwrap_err();
   assert!
   (
-    matches!( err, CompileError::UnsupportedAnchor { ref anchor, .. } if *anchor == "Multihex" ),
+    matches!( err, CompileError::UnsupportedAnchor { anchor, .. } if anchor == "Multihex" ),
     "expected UnsupportedAnchor/Multihex, got {err:?}",
   );
 }
@@ -674,7 +678,7 @@ fn variant_fixed_always_picks_that_index()
     }
   );
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let scene = SceneSnapshot
   {
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
@@ -717,7 +721,7 @@ fn variant_random_deterministic_across_frames()
     }
   );
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let scene = SceneSnapshot
   {
     tiles : vec!
@@ -823,11 +827,11 @@ fn phase_offset_hashcoord_spreads_frames_across_tiles()
 
   // Sixteen tiles at the same global time. Phase offset should scatter them
   // across the period so at least a couple of different frames are visible.
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let tiles : Vec< Tile > =
     ( 0..16 ).map( | q | Tile { pos : ( q, 0 ), objects : vec![ "grass".into() ] } ).collect();
   let scene = SceneSnapshot { tiles, ..minimal_scene_3x3() };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
 
   let sprites : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
@@ -862,9 +866,9 @@ fn wall_spec() -> RenderSpec
         frame_rects : HashMap::default(),
         image_size : None,
       },
-      filter : Default::default(),
-      mipmap : Default::default(),
-      wrap : Default::default(),
+      filter : SamplerFilter::default(),
+      mipmap : MipmapMode::default(),
+      wrap : WrapMode::default(),
     }
   );
   let wall = Object
@@ -873,7 +877,7 @@ fn wall_spec() -> RenderSpec
     anchor : Anchor::Hex,
     global_layer : "terrain".into(),
     priority : None,
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states :
@@ -1002,9 +1006,9 @@ fn neighbor_condition_skirt_on_water_side()
           ( "grass_side_se", ( 2, 0 ) ),
         ],
       ),
-      filter : Default::default(),
-      mipmap : Default::default(),
-      wrap : Default::default(),
+      filter : SamplerFilter::default(),
+      mipmap : MipmapMode::default(),
+      wrap : WrapMode::default(),
     }
   );
   // Add a water object.
@@ -1014,7 +1018,7 @@ fn neighbor_condition_skirt_on_water_side()
     anchor : Anchor::Hex,
     global_layer : "terrain".into(),
     priority : Some( 1 ),
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states :
@@ -1079,6 +1083,7 @@ fn neighbor_condition_skirt_on_water_side()
 }
 
 #[ test ]
+#[ expect( clippy::too_many_lines, reason = "linear fixture-build, compile, assert scenario; splitting would scatter the scenario steps across helpers" ) ]
 fn neighbor_condition_priority_lower_blends_grass_over_sand()
 {
   let mut spec = minimal_spec();
@@ -1106,9 +1111,9 @@ fn neighbor_condition_priority_lower_blends_grass_over_sand()
           ( "sand_edge_nw",  ( 5, 1 ) ),
         ],
       ),
-      filter : Default::default(),
-      mipmap : Default::default(),
-      wrap : Default::default(),
+      filter : SamplerFilter::default(),
+      mipmap : MipmapMode::default(),
+      wrap : WrapMode::default(),
     }
   );
   // Grass prio 10 (already in grass_object).
@@ -1118,7 +1123,7 @@ fn neighbor_condition_priority_lower_blends_grass_over_sand()
     anchor : Anchor::Hex,
     global_layer : "terrain".into(),
     priority : Some( 8 ),
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states :
@@ -1200,6 +1205,7 @@ fn neighbor_condition_priority_lower_blends_grass_over_sand()
 }
 
 #[ test ]
+#[ expect( clippy::too_many_lines, reason = "linear fixture-build, compile, assert scenario; splitting would scatter the scenario steps across helpers" ) ]
 fn vertex_corners_three_way_blend()
 {
   // Three tiles surrounding a vertex: grass at (0,0), sand at (1,-1), water at (0,-1).
@@ -1220,9 +1226,9 @@ fn vertex_corners_three_way_blend()
           ( "tri_gsw_2", ( 2, 0 ) ),
         ],
       ),
-      filter : Default::default(),
-      mipmap : Default::default(),
-      wrap : Default::default(),
+      filter : SamplerFilter::default(),
+      mipmap : MipmapMode::default(),
+      wrap : WrapMode::default(),
     }
   );
 
@@ -1235,7 +1241,7 @@ fn vertex_corners_three_way_blend()
       anchor : Anchor::Hex,
       global_layer : "terrain".into(),
       priority : Some( prio ),
-      sort_y_source : Default::default(),
+      sort_y_source : SortYSource::default(),
       pivot : ( 0.5, 0.5 ),
       default_state : "default".into(),
       states :
@@ -1269,7 +1275,7 @@ fn vertex_corners_three_way_blend()
     anchor : Anchor::Hex,   // anchor type of the owning object doesn't matter for VertexCorners pass
     global_layer : "terrain".into(),
     priority : None,
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states :
@@ -1357,9 +1363,9 @@ fn vertex_corners_wildcard_edge_fade()
           ( "edge_fade_2", ( 2, 0 ) ),
         ],
       ),
-      filter : Default::default(),
-      mipmap : Default::default(),
-      wrap : Default::default(),
+      filter : SamplerFilter::default(),
+      mipmap : MipmapMode::default(),
+      wrap : WrapMode::default(),
     }
   );
   spec.objects.push( Object
@@ -1368,7 +1374,7 @@ fn vertex_corners_wildcard_edge_fade()
     anchor : Anchor::Hex,
     global_layer : "terrain".into(),
     priority : None,
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states :
@@ -1457,7 +1463,7 @@ fn static_object_with_anchor( id : &str, anchor : Anchor, sprite : SpriteRef ) -
     anchor,
     global_layer : "terrain".into(),
     priority : None,
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states : anims,
@@ -1514,7 +1520,7 @@ fn edge_instance_emits_single_sprite()
     ..minimal_scene_3x3()
   };
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites.len(), 1, "canonicalisation should dedupe both declarations" );
@@ -1558,8 +1564,8 @@ fn edge_rotation_matches_direction()
       ],
       ..minimal_scene_3x3()
     };
-    let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-    let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+    let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+    let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
     let sprites = sprite_commands( &commands );
     assert_eq!( sprites.len(), 1 );
@@ -1608,7 +1614,7 @@ fn edge_connected_bitmask_isolated()
     anchor : Anchor::Edge,
     global_layer : "terrain".into(),
     priority : None,
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states,
@@ -1663,7 +1669,7 @@ fn free_pos_emits_at_instance_position()
   };
 
   let camera = Camera { world_center : ( 0.0, 0.0 ), zoom : 1.0, viewport_size : ( 800, 600 ) };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let commands = compile_at_time( &spec, &scene, &camera, 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites.len(), 1 );
@@ -1708,7 +1714,7 @@ fn free_pos_rejects_neighbour_aware_source()
     anchor : Anchor::FreePos,
     global_layer : "terrain".into(),
     priority : None,
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states,
@@ -1728,7 +1734,7 @@ fn free_pos_rejects_neighbour_aware_source()
     ..minimal_scene_3x3()
   };
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let err = try_compile( &spec, &scene, &Camera::default() ).unwrap_err();
   assert!(
     matches!( err, CompileError::UnsupportedSource { .. } ),
@@ -1767,7 +1773,7 @@ fn viewport_center_emits_screen_space_sprite()
     anchor : Anchor::Viewport,
     global_layer : "terrain".into(),
     priority : None,
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states,
@@ -1782,7 +1788,7 @@ fn viewport_center_emits_screen_space_sprite()
     ..minimal_scene_3x3()
   };
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
   let screen = screen_space_commands( &commands );
   assert_eq!( screen.len(), 1 );
@@ -1823,7 +1829,7 @@ fn viewport_stretch_scales_to_viewport()
     anchor : Anchor::Viewport,
     global_layer : "terrain".into(),
     priority : None,
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states,
@@ -1839,7 +1845,7 @@ fn viewport_stretch_scales_to_viewport()
   };
 
   let camera = Camera { world_center : ( 0.0, 0.0 ), zoom : 1.0, viewport_size : ( 800, 600 ) };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let commands = compile_at_time( &spec, &scene, &camera, 0.0 );
   let screen = screen_space_commands( &commands );
   assert_eq!( screen.len(), 1 );
@@ -1879,7 +1885,7 @@ fn viewport_repeat2d_tiles_to_cover_viewport()
     anchor : Anchor::Viewport,
     global_layer : "terrain".into(),
     priority : None,
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states,
@@ -1896,7 +1902,7 @@ fn viewport_repeat2d_tiles_to_cover_viewport()
 
   // Viewport 800x600 with 72x64 tiles → ceil(800/72)+1 = 13 cols, ceil(600/64)+1 = 11 rows.
   let camera = Camera { world_center : ( 0.0, 0.0 ), zoom : 1.0, viewport_size : ( 800, 600 ) };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let commands = compile_at_time( &spec, &scene, &camera, 0.0 );
   let screen = screen_space_commands( &commands );
   assert_eq!( screen.len(), 13 * 11, "expected full grid of screen-space sprites" );
@@ -1923,7 +1929,7 @@ fn global_tint_multiplies_into_every_sprite()
     ..minimal_scene_3x3()
   };
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites.len(), 1 );
@@ -1944,7 +1950,7 @@ fn global_tint_none_is_identity()
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites[ 0 ].tint, [ 1.0, 1.0, 1.0, 1.0 ] );
@@ -1967,7 +1973,7 @@ fn layer_behaviour_blend_reaches_sprite_command()
     ..minimal_scene_3x3()
   };
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites.len(), 1 );
@@ -1995,7 +2001,7 @@ fn layer_behaviour_alpha_multiplies_into_sprite_tint()
     ..minimal_scene_3x3()
   };
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites.len(), 1 );
@@ -2032,7 +2038,7 @@ fn layer_behaviour_alpha_composes_with_global_tint()
     ..minimal_scene_3x3()
   };
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &commands );
   let tint = sprites[ 0 ].tint;
@@ -2084,7 +2090,7 @@ fn viewport_layer_behaviour_propagates_to_screen_space_sprite()
     anchor : Anchor::Viewport,
     global_layer : "terrain".into(),
     priority : None,
-    sort_y_source : Default::default(),
+    sort_y_source : SortYSource::default(),
     pivot : ( 0.5, 0.5 ),
     default_state : "default".into(),
     states,
@@ -2099,7 +2105,7 @@ fn viewport_layer_behaviour_propagates_to_screen_space_sprite()
     ..minimal_scene_3x3()
   };
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
   let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
   let screen = screen_space_commands( &commands );
   assert_eq!( screen.len(), 1 );

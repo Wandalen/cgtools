@@ -29,6 +29,7 @@ mod private
     // Pitfall: `EasingFunction::apply` returns `Self::AnimatableType` (no `Result`) for every
     // implementor, so this can't become a `Result` without changing the shared trait — a loud
     // panic on malformed caller input is the correct fix at this call site.
+    #[must_use]
     pub fn new
     (
       m1 : Vec< E >,

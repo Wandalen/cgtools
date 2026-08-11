@@ -428,46 +428,16 @@ mod private
     }
   }
 
-  /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
-  // 550 lines : the glTF ingest walks images/buffers/textures/materials/meshes in one
-  // dependency-ordered pass; splitting would thread a dozen lookup tables through helpers.
-  #[ allow( clippy::too_many_lines ) ]
-  pub async fn load
+  /// Collects the raw byte payload of every glTF buffer : the embedded GLB
+  /// binary chunk first ( when present ), then each URI-addressed buffer
+  /// fetched relative to `folder_path`.
+  async fn buffers_load
   (
-    document : &gl::web_sys::Document,
-    gltf_path : &str,
-    gl : &gl::WebGl2RenderingContext
-  ) -> Result< GLTF, gl::WebglError >
+    gltf_file : &mut gltf::Gltf,
+    folder_path : &str
+  )
+  -> Result< Vec< gl::js_sys::Uint8Array >, gl::WebglError >
   {
-    gl.bind_vertex_array( None );
-
-    let path = std::path::Path::new( gltf_path );
-    let folder_path = path.parent().map_or( "", | p | p.to_str().expect( "Path is not UTF-8 encoded" ) );
-    gl::debug!( "Folder: {folder_path}\nFile: {gltf_path}" );
-
-    // let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
-    // .await.expect( "Failed to load gltf file" );
-    // Propagate fetch / parse failures as errors instead of panicking: an
-    // `.unwrap()` here aborts the whole wasm module (e.g. when a dev server
-    // returns an HTML 404 page, or the bytes are not a valid glTF/GLB), leaving
-    // it unusable for every subsequent call.
-    // `WebglError::Other` only carries a `&'static str`, so the underlying
-    // `JsValue` / `gltf::Error` (file path, HTTP status, JSON parse location)
-    // would otherwise be lost. Log it to the console before mapping so a failed
-    // load is diagnosable in production.
-    let gltf_slice = gl::file::load( gltf_path ).await
-    .map_err( | e |
-    {
-      gl::browser::error!( "Failed to load gltf file '{gltf_path}': {e:?}" );
-      gl::WebglError::Other( "Failed to load gltf file" )
-    } )?;
-    let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice )
-    .map_err( | e |
-    {
-      gl::browser::error!( "Failed to parse gltf file '{gltf_path}': {e}" );
-      gl::WebglError::Other( "Failed to parse gltf file" )
-    } )?;
-
     let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
 
     // Move the GLB bin into buffers
@@ -480,7 +450,8 @@ mod private
 
     for gltf_buffer in gltf_file.buffers()
     {
-      if let gltf::buffer::Source::Uri( uri ) = gltf_buffer.source() {
+      if let gltf::buffer::Source::Uri( uri ) = gltf_buffer.source()
+      {
         let path = resolve_asset_uri( folder_path, uri );
         let buffer = gl::file::load( &path ).await
         .map_err( | e |
@@ -501,113 +472,126 @@ mod private
       }
     }
 
-    let bin_buffers = buffers.iter()
-    .map( minwebgl::js_sys::Uint8Array::to_vec )
-    .collect::< Vec< _ > >();
+    Ok( buffers )
+  }
 
-    gl::debug!( "Buffers: {}", buffers.len() );
+  /// Creates an `<img>` element for `src` and uploads it into a new WebGL
+  /// texture pushed onto `images` : a 1x1 white placeholder immediately, the
+  /// decoded image ( with mipmaps ) once the element's onload fires.
+  fn texture_upload
+  (
+    document : &gl::web_sys::Document,
+    gl : &gl::WebGl2RenderingContext,
+    images : &Rc< RefCell< Vec< gl::web_sys::WebGlTexture > > >,
+    src : &Rc< str >
+  )
+  {
+    let texture = gl.create_texture().expect( "Failed to create a texture" );
+    gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+    gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+    (
+      gl::TEXTURE_2D,
+      0,
+      // Both RGBA and RGBA8 are valid internalformat values for texImage2D in WebGL2
+      gl::RGBA as i32,
+      1,
+      1,
+      0,
+      gl::RGBA,
+      gl::UNSIGNED_BYTE,
+      Some( &[ 255, 255, 255, 255 ] )
+    ).expect( "Failed to upload data to texture" );
+    gl::texture::d2::filter_linear( gl );
 
-    // Upload images
+    images.borrow_mut().push( texture.clone() );
+
+    let img_element = document.create_element( "img" ).unwrap().dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
+    img_element.style().set_property( "display", "none" ).unwrap();
+
+    let load_texture : Closure< dyn Fn() > = Closure::new
+    (
+      {
+        let gl = gl.clone();
+        let img = img_element.clone();
+        let src = src.clone();
+        move ||
+        {
+          gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+          gl.tex_image_2d_with_u32_and_u32_and_html_image_element
+          (
+            gl::TEXTURE_2D,
+            0,
+            gl::RGBA as i32,
+            gl::RGBA,
+            gl::UNSIGNED_BYTE,
+            &img
+          ).expect( "Failed to upload data to texture" );
+
+          gl.generate_mipmap( gl::TEXTURE_2D );
+          gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+
+          // revoke_object_url is specified only for blob: URLs; for data: URIs or
+          // plain file paths it is a no-op, and unwrapping its result is a latent
+          // panic hazard in stricter runtimes. Only revoke the urls we created.
+          if src.starts_with( "blob:" )
+          {
+            gl::web_sys::Url::revoke_object_url( &src ).unwrap();
+          }
+
+          img.remove();
+        }
+      }
+    );
+
+    // Without an onerror handler a 404 or malformed image URI fails silently:
+    // the 1x1 white placeholder stays bound, nothing is logged, and load()
+    // still returns Ok. Mirror the error logging added for buffer URI loads so
+    // image failures are diagnosable instead of rendering as blank textures.
+    let on_error : Closure< dyn Fn() > = Closure::new
+    (
+      {
+        let img = img_element.clone();
+        let src = src.clone();
+        move ||
+        {
+          gl::browser::error!( "Failed to load gltf image '{src}'" );
+          img.remove();
+        }
+      }
+    );
+
+    img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+    img_element.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
+    img_element.set_src( src );
+    load_texture.forget();
+    on_error.forget();
+  }
+
+  /// Starts an asynchronous texture upload for every glTF image ( URI-sourced
+  /// or embedded buffer view ) and returns the shared texture list the
+  /// uploads fill in.
+  fn images_upload
+  (
+    document : &gl::web_sys::Document,
+    gl : &gl::WebGl2RenderingContext,
+    gltf_file : &gltf::Gltf,
+    folder_path : &str,
+    buffers : &[ gl::js_sys::Uint8Array ]
+  )
+  -> Rc< RefCell< Vec< gl::web_sys::WebGlTexture > > >
+  {
     let images = Rc::new( RefCell::new( Vec::new() ) );
-
-    // Creates an <img> html elements, and sets its src property to 'src' parameter
-    // When the image is loaded, creates a texture and adds it to the 'images' array
-    let upload_texture = | src : Rc< str > |
-    {
-      let texture = gl.create_texture().expect( "Failed to create a texture" );
-      gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
-      gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
-      (
-        gl::TEXTURE_2D,
-        0,
-        // Both RGBA and RGBA8 are valid internalformat values for texImage2D in WebGL2
-        gl::RGBA as i32,
-        1,
-        1,
-        0,
-        gl::RGBA,
-        gl::UNSIGNED_BYTE,
-        Some( &[ 255, 255, 255, 255 ] )
-      ).expect( "Failed to upload data to texture" );
-      gl::texture::d2::filter_linear( gl );
-
-      images.borrow_mut().push( texture.clone() );
-
-      let img_element = document.create_element( "img" ).unwrap().dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
-      img_element.style().set_property( "display", "none" ).unwrap();
-
-      let load_texture : Closure< dyn Fn() > = Closure::new
-      (
-        {
-          //let images = images.clone();
-          let gl = gl.clone();
-          let img = img_element.clone();
-          let src = src.clone();
-          move ||
-          {
-            gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
-            //gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 1 );
-            gl.tex_image_2d_with_u32_and_u32_and_html_image_element
-            (
-              gl::TEXTURE_2D,
-              0,
-              gl::RGBA as i32,
-              gl::RGBA,
-              gl::UNSIGNED_BYTE,
-              &img
-            ).expect( "Failed to upload data to texture" );
-            //gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
-
-            gl.generate_mipmap( gl::TEXTURE_2D );
-            gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
-
-            // revoke_object_url is specified only for blob: URLs; for data: URIs or
-            // plain file paths it is a no-op, and unwrapping its result is a latent
-            // panic hazard in stricter runtimes. Only revoke the urls we created.
-            if src.starts_with( "blob:" )
-            {
-              gl::web_sys::Url::revoke_object_url( &src ).unwrap();
-            }
-
-            img.remove();
-          }
-        }
-      );
-
-      // Without an onerror handler a 404 or malformed image URI fails silently:
-      // the 1x1 white placeholder stays bound, nothing is logged, and load()
-      // still returns Ok. Mirror the error logging added for buffer URI loads so
-      // image failures are diagnosable instead of rendering as blank textures.
-      let on_error : Closure< dyn Fn() > = Closure::new
-      (
-        {
-          let img = img_element.clone();
-          let src = src.clone();
-          move ||
-          {
-            gl::browser::error!( "Failed to load gltf image '{src}'" );
-            img.remove();
-          }
-        }
-      );
-
-      img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
-      img_element.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
-      img_element.set_src( &src );
-      load_texture.forget();
-      on_error.forget();
-    };
 
     // If a source of an image is Uri - load the file
     // If a source of an image is View - create a blob from buffer, then turn it into an Object Url,
     // then load an image from the url
     for gltf_image in gltf_file.images()
     {
-      match  gltf_image.source()
+      match gltf_image.source()
       {
         gltf::image::Source::Uri { uri, mime_type: _ } =>
         {
-          upload_texture( resolve_asset_uri( folder_path, uri ).into() );
+          texture_upload( document, gl, &images, &resolve_asset_uri( folder_path, uri ).into() );
         },
         gltf::image::Source::View { view, mime_type } =>
         {
@@ -624,14 +608,24 @@ mod private
           }.expect( "Failed to create a Blob" );
 
           let url = gl::web_sys::Url::create_object_url_with_blob( &blob ).expect( "Failed to create object url" );
-          upload_texture( url.into() );
+          texture_upload( document, gl, &images, &url.into() );
         }
       }
     }
 
-    gl::debug!( "Images: {}", images.borrow().len() );
+    images
+  }
 
-    // Upload buffer to the GPU
+  /// Uploads every glTF buffer view into its own GPU buffer bound to the
+  /// view's declared target ( `ARRAY_BUFFER` when absent ).
+  fn gl_buffers_upload
+  (
+    gl : &gl::WebGl2RenderingContext,
+    gltf_file : &gltf::Gltf,
+    buffers : &[ gl::js_sys::Uint8Array ]
+  )
+  -> Result< Vec< gl::WebGlBuffer >, gl::WebglError >
+  {
     let mut gl_buffers = Vec::new();
     // The target option may not be set for the attributes/indices buffers
     // This scenario should be checked
@@ -639,11 +633,11 @@ mod private
     {
       let buffer = gl::buffer::create( gl )?;
 
-      let target =  if let Some( target ) = view.target()
+      let target = if let Some( target ) = view.target()
       {
         match target
         {
-          gltf::buffer::Target::ArrayBuffer => gl::ARRAY_BUFFER ,
+          gltf::buffer::Target::ArrayBuffer => gl::ARRAY_BUFFER,
           gltf::buffer::Target::ElementArrayBuffer => gl::ELEMENT_ARRAY_BUFFER
         }
       }
@@ -665,9 +659,18 @@ mod private
       gl_buffers.push( buffer );
     }
 
-    gl::debug!( "GL Buffers: {}", gl_buffers.len() );
+    Ok( gl_buffers )
+  }
 
-    // Create textures
+  /// Wraps every raw uploaded image in a [`Texture`] carrying its glTF
+  /// sampler's filtering and wrapping modes.
+  fn textures_create
+  (
+    gltf_file : &gltf::Gltf,
+    images : &Rc< RefCell< Vec< gl::web_sys::WebGlTexture > > >
+  )
+  -> Vec< Rc< RefCell< Texture > > >
+  {
     let mut textures = Vec::new();
     for gltf_t in gltf_file.textures()
     {
@@ -696,7 +699,20 @@ mod private
       textures.push( Rc::new( RefCell::new( texture ) ) );
     }
 
-    // Create materials
+    textures
+  }
+
+  /// Builds a [`PbrMaterial`] per glTF material plus a trailing fallback for
+  /// primitives without one, and seeds the per-material variation map used to
+  /// share shader-define clones between primitives.
+  fn materials_create
+  (
+    gl : &gl::WebGl2RenderingContext,
+    gltf_file : &gltf::Gltf,
+    textures : &[ Rc< RefCell< Texture > > ]
+  )
+  -> ( Vec< SharedMaterial >, FxHashMap< uuid::Uuid, Vec< SharedMaterial > > )
+  {
     let make_texture_info = | info : Option< gltf::texture::Info< '_ > > |
     {
       info.map( | v |
@@ -711,7 +727,6 @@ mod private
 
     let mut materials : Vec< SharedMaterial > = Vec::new();
     let mut material_variation_map : FxHashMap< uuid::Uuid, Vec< SharedMaterial > > = FxHashMap::default();
-    let mut used_materials : Vec< SharedMaterial > = Vec::new();
 
     for gltf_m in gltf_file.materials()
     {
@@ -772,33 +787,233 @@ mod private
     material_variation_map.insert( fallback.id(), Vec::new() );
     materials.push( Rc::new( RefCell::new( Box::new( fallback ) ) ) );
 
-    gl::debug!( "PbrMaterials: {}",materials.len() );
-    let make_attibute_info = | acc : &gltf::Accessor< '_ >, slot |
+    ( materials, material_variation_map )
+  }
+
+  /// Describes one vertex attribute over the uploaded GPU buffers from its
+  /// glTF accessor : data type, offset, stride, and dimensionality.
+  fn attribute_info_make
+  (
+    gl_buffers : &[ gl::WebGlBuffer ],
+    acc : &gltf::Accessor< '_ >,
+    slot : u32
+  )
+  -> AttributeInfo
+  {
+    let data_type = match acc.data_type()
     {
-      let data_type = match acc.data_type()
-      {
-        gltf::accessor::DataType::U8 => gl::DataType::U8,
-        gltf::accessor::DataType::I8 => gl::DataType::I8,
-        gltf::accessor::DataType::U16 => gl::DataType::U16,
-        gltf::accessor::DataType::I16 => gl::DataType::I16,
-        gltf::accessor::DataType::U32 => gl::DataType::U32,
-        gltf::accessor::DataType::F32 => gl::DataType::F32
-      };
-
-      let descriptor = gl::BufferDescriptor::new::< [ f32; 1 ] >()
-      .offset( acc.offset() as i32 / data_type.byte_size() )
-      .normalized( acc.normalized() )
-      .stride( acc.view().unwrap().stride().unwrap_or( 0 ) as i32 / data_type.byte_size() )
-      .vector( gl::VectorDataType::new( data_type, acc.dimensions().multiplicity() as i32, 1 ) );
-
-      AttributeInfo
-      {
-        slot,
-        buffer : gl_buffers[ acc.view().unwrap().index() ].clone(),
-        descriptor,
-        bounding_box : gl::geometry::BoundingBox::default()
-      }
+      gltf::accessor::DataType::U8 => gl::DataType::U8,
+      gltf::accessor::DataType::I8 => gl::DataType::I8,
+      gltf::accessor::DataType::U16 => gl::DataType::U16,
+      gltf::accessor::DataType::I16 => gl::DataType::I16,
+      gltf::accessor::DataType::U32 => gl::DataType::U32,
+      gltf::accessor::DataType::F32 => gl::DataType::F32
     };
+
+    let descriptor = gl::BufferDescriptor::new::< [ f32; 1 ] >()
+    .offset( acc.offset() as i32 / data_type.byte_size() )
+    .normalized( acc.normalized() )
+    .stride( acc.view().unwrap().stride().unwrap_or( 0 ) as i32 / data_type.byte_size() )
+    .vector( gl::VectorDataType::new( data_type, acc.dimensions().multiplicity() as i32, 1 ) );
+
+    AttributeInfo
+    {
+      slot,
+      buffer : gl_buffers[ acc.view().unwrap().index() ].clone(),
+      descriptor,
+      bounding_box : gl::geometry::BoundingBox::default()
+    }
+  }
+
+  /// Uploads every supported vertex attribute of one glTF primitive into its
+  /// [`Geometry`], registering skinning / morph shader defines on
+  /// `dummy_material` as they are encountered.
+  fn geometry_attributes_add
+  (
+    gl : &gl::WebGl2RenderingContext,
+    geometry : &mut Geometry,
+    gltf_primitive : &gltf::Primitive< '_ >,
+    gl_buffers : &[ gl::WebGlBuffer ],
+    dummy_material : &mut PbrMaterial
+  )
+  -> Result< (), gl::WebglError >
+  {
+    let mut add_define = | name : &str |
+    {
+      dummy_material.add_define( format!( "USE_{}", name.to_uppercase() ), String::new() );
+    };
+
+    for ( sem, acc ) in gltf_primitive.attributes()
+    {
+      if acc.sparse().is_some()
+      {
+        gl::debug!( "Sparce accessors are not supported yet" );
+        continue;
+      }
+
+      match sem
+      {
+        gltf::Semantic::Positions =>
+        {
+          geometry.vertex_count = acc.count() as u32;
+          let gltf_box = gltf_primitive.bounding_box();
+
+          let mut attr_info = attribute_info_make( gl_buffers, &acc, 0 );
+          attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
+          geometry.add_attribute( gl, "positions", attr_info )?;
+        },
+        gltf::Semantic::Normals =>
+        {
+          geometry.add_attribute( gl, "normals", attribute_info_make( gl_buffers, &acc, 1 ) )?;
+        },
+        gltf::Semantic::TexCoords( i ) =>
+        {
+          assert!( i < 5, "Only 5 types of texture coordinates are supported" );
+          geometry.add_attribute
+          (
+            gl,
+            format!( "texture_coordinates_{}", 2 + i ),
+            attribute_info_make( gl_buffers, &acc, 2 + i )
+          )?;
+        },
+        gltf::Semantic::Colors( i ) =>
+        {
+          assert!( i < 2, "Only 2 types of color coordinates are supported" );
+          geometry.add_attribute
+          (
+            gl,
+            format!( "colors_{}", 7 + i ),
+            attribute_info_make( gl_buffers, &acc, 7 + i )
+          )?;
+        },
+        gltf::Semantic::Tangents =>
+        {
+          add_define( "tangents" );
+          geometry.add_attribute
+          (
+            gl,
+            "tangents",
+            attribute_info_make( gl_buffers, &acc, 9 )
+          )?;
+        },
+        gltf::Semantic::Joints( i ) =>
+        {
+          let name = format!( "joints_{i}" );
+          add_define( &name );
+          geometry.add_attribute
+          (
+            gl,
+            name,
+            attribute_info_make( gl_buffers, &acc, 10 + i ),
+          )?;
+        },
+        gltf::Semantic::Weights( i ) =>
+        {
+          let name = format!( "weights_{i}" );
+          add_define( &name );
+          geometry.add_attribute
+          (
+            gl,
+            name,
+            attribute_info_make( gl_buffers, &acc, 13 + i )
+          )?;
+        }
+      }
+    }
+
+    Ok( () )
+  }
+
+  /// Builds one glTF primitive's [`Geometry`] : draw mode, indices, and
+  /// vertex attributes.
+  fn primitive_geometry_create
+  (
+    gl : &gl::WebGl2RenderingContext,
+    gltf_primitive : &gltf::Primitive< '_ >,
+    gl_buffers : &[ gl::WebGlBuffer ],
+    dummy_material : &mut PbrMaterial
+  )
+  -> Result< Geometry, gl::WebglError >
+  {
+    let mut geometry = Geometry::new( gl )?;
+    geometry.draw_mode = gltf_primitive.mode().as_gl_enum();
+
+    // Indices
+    if let Some( acc ) = gltf_primitive.indices()
+    {
+      let info = IndexInfo
+      {
+        buffer : gl_buffers[ acc.view().unwrap().index() ].clone(),
+        count : acc.count() as u32,
+        offset : acc.offset() as u32,
+        data_type : acc.data_type().as_gl_enum()
+      };
+      geometry.add_index( gl, info )?;
+    }
+
+    geometry_attributes_add( gl, &mut geometry, gltf_primitive, gl_buffers, dummy_material )?;
+
+    Ok( geometry )
+  }
+
+  /// Picks the material clone for one primitive : reuses a clone whose vertex
+  /// defines match `dummy_material`'s, otherwise clones the primitive's glTF
+  /// material, applies the defines, and records it in `used_materials`.
+  fn primitive_material_resolve
+  (
+    gltf_primitive : &gltf::Primitive< '_ >,
+    materials : &[ SharedMaterial ],
+    material_variation_map : &FxHashMap< uuid::Uuid, Vec< SharedMaterial > >,
+    used_materials : &mut Vec< SharedMaterial >,
+    dummy_material : &PbrMaterial
+  )
+  -> SharedMaterial
+  {
+    let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
+    let gltf_material = materials[ material_id ].clone();
+
+    // Amongst different materials with the same uuid, find the one that has the same vertex defines
+    let variation = material_variation_map
+    .get( &gltf_material.borrow().id() )
+    .and_then(| m |
+      m.iter()
+      .find( | m | m.borrow().vertex_defines_str() == dummy_material.vertex_defines_str() ))
+    .cloned();
+
+    if let Some( material ) = variation
+    {
+      material
+    }
+    else
+    {
+      let material = Rc::new( RefCell::new( gltf_material.borrow().dyn_clone() ) );
+      let mut m = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
+
+      for ( name, value ) in dummy_material.vertex_defines()
+      {
+        m.add_vertex_define( name.clone(), value );
+      }
+
+      std::mem::drop( m );
+      used_materials.push( material.clone() );
+
+      material
+    }
+  }
+
+  /// Assembles every glTF mesh from its primitives' geometry and resolved
+  /// material clones.
+  fn meshes_create
+  (
+    gl : &gl::WebGl2RenderingContext,
+    gltf_file : &gltf::Gltf,
+    gl_buffers : &[ gl::WebGlBuffer ],
+    materials : &[ SharedMaterial ],
+    material_variation_map : &FxHashMap< uuid::Uuid, Vec< SharedMaterial > >,
+    used_materials : &mut Vec< SharedMaterial >
+  )
+  -> Result< Vec< Rc< RefCell< Mesh > > >, gl::WebglError >
+  {
     let mut meshes = Vec::new();
     for gltf_mesh in gltf_file.meshes()
     {
@@ -806,135 +1021,12 @@ mod private
 
       for gltf_primitive in gltf_mesh.primitives()
       {
-        let mut geometry = Geometry::new( gl )?;
-        geometry.draw_mode = gltf_primitive.mode().as_gl_enum();
-
-        let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
         let mut dummy_material = PbrMaterial::new( gl );
-        let gltf_material = materials[ material_id ].clone();
-
-        let mut add_define = | name : &str |
-        {
-          dummy_material.add_define( format!( "USE_{}", name.to_uppercase() ), String::new() );
-        };
-
-        // Indices
-        if let Some( acc ) = gltf_primitive.indices()
-        {
-          let info = IndexInfo
-          {
-            buffer : gl_buffers[ acc.view().unwrap().index() ].clone(),
-            count : acc.count() as u32,
-            offset : acc.offset() as u32,
-            data_type : acc.data_type().as_gl_enum()
-          };
-          geometry.add_index( gl, info )?;
-        }
-
-        // Attributes
-        for ( sem, acc ) in gltf_primitive.attributes()
-        {
-          if acc.sparse().is_some()
-          {
-            gl::debug!( "Sparce accessors are not supported yet" );
-            continue;
-          }
-
-          match sem
-          {
-            gltf::Semantic::Positions =>
-            {
-              geometry.vertex_count = acc.count() as u32;
-              let gltf_box = gltf_primitive.bounding_box();
-
-              let mut attr_info = make_attibute_info( &acc, 0 );
-              attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
-              geometry.add_attribute( gl, "positions", attr_info )?;
-            },
-            gltf::Semantic::Normals =>
-            {
-              geometry.add_attribute( gl, "normals", make_attibute_info( &acc, 1 ) )?;
-            },
-            gltf::Semantic::TexCoords( i ) =>
-            {
-              assert!( i < 5, "Only 5 types of texture coordinates are supported" );
-              geometry.add_attribute
-              (
-                gl,
-                format!( "texture_coordinates_{}", 2 + i ),
-                make_attibute_info( &acc, 2 + i )
-              )?;
-            },
-            gltf::Semantic::Colors( i ) =>
-            {
-              assert!( i < 2, "Only 2 types of color coordinates are supported" );
-              geometry.add_attribute
-              (
-                gl,
-                format!( "colors_{}", 7 + i ),
-                make_attibute_info( &acc, 7 + i )
-              )?;
-            },
-            gltf::Semantic::Tangents =>
-            {
-              add_define( "tangents" );
-              geometry.add_attribute
-              (
-                gl,
-                "tangents",
-                make_attibute_info( &acc, 9 )
-              )?;
-            },
-            gltf::Semantic::Joints( i ) =>
-            {
-              let name = format!( "joints_{i}" );
-              add_define( &name );
-              geometry.add_attribute
-              (
-                gl,
-                name,
-                make_attibute_info( &acc, 10 + i ),
-              )?;
-            },
-            gltf::Semantic::Weights( i ) =>
-            {
-              let name = format!( "weights_{i}" );
-              add_define( &name );
-              geometry.add_attribute
-              (
-                gl,
-                name,
-                make_attibute_info( &acc, 13 + i )
-              )?;
-            },
-            //a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
-          }
-        }
-
-        // Amongst different materials with the same uuid, find the one that has the same vertex defines
-        let new_material = if let Some( material ) = material_variation_map
-        .get( &gltf_material.borrow().id() )
-        .and_then(| m |
-          m.iter()
-          .find( | m | m.borrow().vertex_defines_str() == dummy_material.vertex_defines_str() ))
-        {
-          material.clone()
-        }
-        else
-        {
-          let material = Rc::new( RefCell::new( gltf_material.borrow().dyn_clone() ) );
-          let mut m = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
-
-          for ( name, value ) in dummy_material.vertex_defines()
-          {
-            m.add_vertex_define( name.clone(), value );
-          }
-
-          std::mem::drop( m );
-          used_materials.push( material.clone() );
-
-          material
-        };
+        let geometry = primitive_geometry_create( gl, &gltf_primitive, gl_buffers, &mut dummy_material )?;
+        let new_material = primitive_material_resolve
+        (
+          &gltf_primitive, materials, material_variation_map, used_materials, &dummy_material
+        );
 
         let primitive = Primitive
         {
@@ -948,9 +1040,39 @@ mod private
       meshes.push( Rc::new( RefCell::new( mesh ) ) );
     }
 
-    gl::debug!( "Meshes: {}",meshes.len() );
+    Ok( meshes )
+  }
 
-    let gltf_lights = get_light_list( &gltf_file ).unwrap_or_default();
+  /// A node prepared for skeleton attachment : the node, its glTF skin, its
+  /// primitives' morph targets, and its mesh's morph weights.
+  type RiggedNode< 'a > =
+  (
+    Rc< RefCell< Node > >,
+    Option< gltf::Skin< 'a > >,
+    Option< Vec< MorphTargets< 'a > > >,
+    Option< Vec< f32 > >
+  );
+
+  /// Product of [`nodes_create`] : the flat node list, per-node
+  /// skeleton-attachment data, and the nodes carrying lights.
+  struct NodesCreated< 'a >
+  {
+    nodes : Vec< Rc< RefCell< Node > > >,
+    rigged_nodes : Vec< RiggedNode< 'a > >,
+    lights : Vec< Rc< RefCell< Node > > >
+  }
+
+  /// Instantiates every glTF node with its transform and object ( mesh,
+  /// light, or plain ), wires the child hierarchy, and returns the flat node
+  /// list, skeleton-attachment data, and the light nodes.
+  fn nodes_create< 'a >
+  (
+    gltf_file : &'a gltf::Gltf,
+    meshes : &[ Rc< RefCell< Mesh > > ]
+  )
+  -> NodesCreated< 'a >
+  {
+    let gltf_lights = get_light_list( gltf_file ).unwrap_or_default();
 
     let mut nodes = Vec::new();
     let mut rigged_nodes = Vec::new();
@@ -980,7 +1102,6 @@ mod private
       {
         Object3D::Other
       };
-
 
       if let Some( name ) = gltf_node.name() { node.set_name( name ); }
 
@@ -1016,8 +1137,19 @@ mod private
       }
     }
 
-    gl::debug!( "Nodes: {}", nodes.len() );
+    NodesCreated { nodes, rigged_nodes, lights }
+  }
 
+  /// Builds the name-to-node map and attaches a [`Skeleton`] to every rigged
+  /// mesh, switching its materials onto the skinning / morph-target shader
+  /// paths.
+  fn skeletons_attach
+  (
+    nodes : &[ Rc< RefCell< Node > > ],
+    rigged_nodes : Vec< RiggedNode< '_ > >,
+    bin_buffers : &[ Vec< u8 > ]
+  )
+  {
     let nodes_map = nodes.iter()
     .filter_map
     (
@@ -1048,7 +1180,7 @@ mod private
           primitives_morph_targets.as_ref(),
           primitives_vertices_count.as_slice(),
           weights,
-          bin_buffers.as_slice()
+          bin_buffers
         )
         {
           mesh.borrow_mut().skeleton = Some( skeleton.clone() );
@@ -1070,13 +1202,17 @@ mod private
         }
       }
     }
+  }
 
-    #[ cfg( feature = "animation" ) ]
-    let animations = crate::webgl::animation::loaders::gltf::load( gl, &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;
-
-    #[ cfg( feature = "animation" ) ]
-    gl::debug!( "Animations: {}", animations.len() );
-
+  /// Builds every glTF scene from the instantiated nodes and computes the
+  /// initial world matrices.
+  fn scenes_create
+  (
+    gltf_file : &gltf::Gltf,
+    nodes : &[ Rc< RefCell< Node > > ]
+  )
+  -> Vec< Rc< RefCell< Scene > > >
+  {
     let mut scenes = Vec::new();
 
     for gltf_scene in gltf_file.scenes()
@@ -1089,6 +1225,97 @@ mod private
       scene.update_world_matrix();
       scenes.push( Rc::new( RefCell::new( scene ) ) );
     }
+
+    scenes
+  }
+
+  /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError` if fetching or parsing the glTF file or its buffers fails.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the path is not UTF-8, or if texture creation/upload fails.
+  pub async fn load
+  (
+    document : &gl::web_sys::Document,
+    gltf_path : &str,
+    gl : &gl::WebGl2RenderingContext
+  ) -> Result< GLTF, gl::WebglError >
+  {
+    gl.bind_vertex_array( None );
+
+    let path = std::path::Path::new( gltf_path );
+    let folder_path = path.parent().map_or( "", | p | p.to_str().expect( "Path is not UTF-8 encoded" ) );
+    gl::debug!( "Folder: {folder_path}\nFile: {gltf_path}" );
+
+    // let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
+    // .await.expect( "Failed to load gltf file" );
+    // Propagate fetch / parse failures as errors instead of panicking: an
+    // `.unwrap()` here aborts the whole wasm module (e.g. when a dev server
+    // returns an HTML 404 page, or the bytes are not a valid glTF/GLB), leaving
+    // it unusable for every subsequent call.
+    // `WebglError::Other` only carries a `&'static str`, so the underlying
+    // `JsValue` / `gltf::Error` (file path, HTTP status, JSON parse location)
+    // would otherwise be lost. Log it to the console before mapping so a failed
+    // load is diagnosable in production.
+    let gltf_slice = gl::file::load( gltf_path ).await
+    .map_err( | e |
+    {
+      gl::browser::error!( "Failed to load gltf file '{gltf_path}': {e:?}" );
+      gl::WebglError::Other( "Failed to load gltf file" )
+    } )?;
+    let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice )
+    .map_err( | e |
+    {
+      gl::browser::error!( "Failed to parse gltf file '{gltf_path}': {e}" );
+      gl::WebglError::Other( "Failed to parse gltf file" )
+    } )?;
+
+    let buffers = buffers_load( &mut gltf_file, folder_path ).await?;
+
+    let bin_buffers = buffers.iter()
+    .map( minwebgl::js_sys::Uint8Array::to_vec )
+    .collect::< Vec< _ > >();
+
+    gl::debug!( "Buffers: {}", buffers.len() );
+
+    let images = images_upload( document, gl, &gltf_file, folder_path, &buffers );
+
+    gl::debug!( "Images: {}", images.borrow().len() );
+
+    let gl_buffers = gl_buffers_upload( gl, &gltf_file, &buffers )?;
+
+    gl::debug!( "GL Buffers: {}", gl_buffers.len() );
+
+    let textures = textures_create( &gltf_file, &images );
+
+    let ( materials, material_variation_map ) = materials_create( gl, &gltf_file, &textures );
+    let mut used_materials : Vec< SharedMaterial > = Vec::new();
+
+    gl::debug!( "PbrMaterials: {}",materials.len() );
+    let meshes = meshes_create
+    (
+      gl, &gltf_file, &gl_buffers, &materials, &material_variation_map, &mut used_materials
+    )?;
+
+    gl::debug!( "Meshes: {}",meshes.len() );
+
+    let NodesCreated { nodes, rigged_nodes, lights } = nodes_create( &gltf_file, &meshes );
+
+    gl::debug!( "Nodes: {}", nodes.len() );
+
+    skeletons_attach( &nodes, rigged_nodes, &bin_buffers );
+
+    #[ cfg( feature = "animation" ) ]
+    let animations = crate::webgl::animation::loaders::gltf::load( gl, &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;
+
+    #[ cfg( feature = "animation" ) ]
+    gl::debug!( "Animations: {}", animations.len() );
+
+    let scenes = scenes_create( &gltf_file, &nodes );
 
     gl.bind_vertex_array( None );
     gl.flush();

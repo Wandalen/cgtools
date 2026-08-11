@@ -31,6 +31,32 @@ Per-test procedure (uniform across the 035 decomposition):
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p embroidery_tools --all-features` —
    all green before and after each relocation batch.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `src/` free of every inline test marker (`#[ cfg( test ) ]`, `#[ test ]`, `mod tests`)? `grep -rn "cfg( *test *)\|#\[ *test *\]\|mod tests" src/` → `0` hits (was `8` `#[ test ]` markers across 5 files pre-fix — see M1).
+- [x] C2 — Does `tests/` now hold exactly the 3 claimed files with the claimed test counts (`embroidery_file_test.rs`: 2 relocated + 2 new = 4; `pes_test.rs`: 3; `pec_test.rs`: 3)? Confirmed by direct grep count per file: `embroidery_file_test.rs` 4, `pes_test.rs` 3, `pec_test.rs` 3 — 10 total, matching the nextest run's "10 tests run: 10 passed".
+- [x] C3 — Was the dead commented-out assert (`threads()[ 1 ]`) deliberately left OUT of the relocated `tests/pec_test.rs`, as the History claims? `grep -n "threads()\[ *1 *\]" tests/pec_test.rs` → `0` hits (commented-out code stays banned; not relocated).
+- [x] C4 — Does `tests/readme.md` document the Responsibility Table and the fixture-path cwd contract as claimed? Confirmed by direct read: Responsibility Table lists all 3 files, and the header explains fixture paths in `test_files/` are relative to the crate root as cwd.
+- [x] C5 — Was the pre-066 baseline genuinely "0 `tests/` files, 8 inline tests across 5 src files" as the Goal's census claimed? Confirmed via `git show 25ceae76` (pre-066 commit): `tests/` did not exist (`git ls-tree` empty); inline `#[ test ]` count summed across the 5 touched files (`embroidery_file.rs` 2, `format/pes/reader.rs` 1, `format/pes/writer.rs` 2, `format/pec/reader.rs` 2, `format/pec/writer.rs` 1) = `8`.
+- [x] C6 — Was the `test_version6` name collision (from `pes/reader.rs` and `pes/writer.rs`, merged into one `pes_test.rs`) actually resolved by descriptive renaming? `grep -c "fn test_version6" tests/pes_test.rs` → `0`; actual names are `write_v1_matches_reference_fixture`, `write_v6_matches_reference_fixture`, `v6_roundtrip_preserves_metadata_and_threads`.
+
+### Measurements
+
+- [x] M1 — Inline `#[ test ]` count in `src/`: `0` (was: `8`, `git show 25ceae76`, summed across `embroidery_file.rs`, `format/pes/reader.rs`, `format/pes/writer.rs`, `format/pec/reader.rs`, `format/pec/writer.rs`).
+- [x] M2 — Integration test count in `tests/`: `10` (was: `0` — the `tests/` directory did not exist at the pre-066 baseline commit `25ceae76`).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, reused from sibling task 026 in this batch): `cargo nextest run -p embroidery_tools --all-features && cargo test -p embroidery_tools --doc --all-features` → exit 0; nextest 10/10 passed (`embroidery_file_test` 4/4, `pec_test` 3/3, `pes_test` 3/3), doc-tests 0/0.
+- [x] I2 — Compiler/lints clean (reused): `cargo clippy -p embroidery_tools --all-targets --all-features -- -D warnings` → exit 0, zero warnings (confirmed reproducible after two independent `cargo clean -p embroidery_tools` rebuilds).
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a new test being added back inline in `src/` instead of `tests/`: re-running C1's grep (`cfg( test )`/`#[ test ]`/`mod tests` across `src/`) must keep returning `0`, per the workspace rulebook's Test placement rule (`rulebook.md § Test placement` — public-API tests belong in `tests/`).
+- [x] AF2 — Guards against the two `test_version6` name collision silently reappearing: re-running C6's `grep -c "fn test_version6" tests/pes_test.rs` must stay `0`; a future relocation reusing the old generic name would recreate the exact collision this task fixed.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 035's workspace test-coverage census per Crate

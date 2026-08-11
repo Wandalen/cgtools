@@ -5,7 +5,7 @@ use minwebgl as gl;
 
 pub fn update
 (
-  line : Rc< RefCell< line_tools::d2::Line > >,
+  line : &Rc< RefCell< line_tools::d2::Line > >,
   canvas : &gl::web_sys::HtmlCanvasElement,
   input : &mut browser_input::Input
 )

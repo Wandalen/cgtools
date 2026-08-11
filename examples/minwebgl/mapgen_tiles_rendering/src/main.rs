@@ -54,7 +54,7 @@ fn load_image
   .body()
   .unwrap();
   let _ = body.append_child( &image );
-  image.set_id( &path.to_string() );
+  image.set_id( path );
   let _ = image.style()
   .set_property( "visibility", "hidden" );
   let _ = image.style()
@@ -89,7 +89,7 @@ fn load_image
 
 fn init()
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
 
   let window = web_sys::window()
   .expect( "Should have a window" );
@@ -321,11 +321,11 @@ fn update()
   prepare_texture1u( &DATA, size, GL::TEXTURE1 );
 
   let tiles_location = gl.get_uniform_location( &program, "tiles_sampler" );
-  let map_location = gl.get_uniform_location( &program, "map_sampler" );
+  let map_sampler_location = gl.get_uniform_location( &program, "map_sampler" );
 
   // When more than 1 texture is used. You need set binding slot for every texture.
   gl.uniform1i( tiles_location.as_ref(), 0 );
-  gl.uniform1i( map_location.as_ref(), 1 );
+  gl.uniform1i( map_sampler_location.as_ref(), 1 );
 
   let texel_size = [ 1.0 / size.0 as f32, 1.0 / size.1 as f32 ];
   let texel_size_location = gl.get_uniform_location( &program, "texel_size" );
@@ -343,5 +343,5 @@ fn run()
 
 fn main()
 {
-  run()
+  run();
 }

@@ -98,7 +98,11 @@ pending, starting with the basics:
 
 ### future backends
 
-- WebGPU via `minwebgpu` (compute shaders, advanced instancing)
+- WebGPU / native / no-op via `gpu_hal` (`adapter-webgpu`, `adapter-native`, `adapter-none`) —
+  adopted in `docs/adr/003_d2_stack_hal_adoption.md` (supersedes the earlier direct-`minwebgpu`
+  idea); tracked as `task/executing/084_tilemap_renderer_adapter_none_backend.md`,
+  `task/verified/086_tilemap_renderer_adapter_webgpu_backend.md`,
+  `task/verified/087_tilemap_renderer_adapter_native_backend.md`
 - Interactive SVG with JavaScript events
 
 ## design decisions

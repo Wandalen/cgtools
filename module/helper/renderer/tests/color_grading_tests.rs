@@ -3,9 +3,7 @@
 use renderer::webgl::post_processing::ColorGradingParams;
 
 #[ test ]
-// Every comparison here is against the exact literal the field was constructed/defaulted
-// with (never a computed/rounded result), so strict float equality is intentional and safe.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "comparisons are against the exact construction/default literals, never computed results" ) ]
 fn test_color_grading_params_default_values()
 {
   let params = ColorGradingParams::default();
@@ -22,9 +20,7 @@ fn test_color_grading_params_default_values()
 }
 
 #[ test ]
-// Every comparison here is against the exact literal the field was constructed with
-// (never a computed/rounded result), so strict float equality is intentional and safe.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "comparisons are against the exact construction literals, never computed results" ) ]
 fn test_color_grading_params_clone()
 {
   let params = ColorGradingParams

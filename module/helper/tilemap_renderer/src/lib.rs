@@ -39,6 +39,8 @@ mod_interface::mod_interface!
     feature = "adapter-svg",
     feature = "adapter-terminal",
     feature = "adapter-webgl",
+    feature = "adapter-webgpu",
+    feature = "adapter-none",
   ) ) ]
   layer adapters;
 }

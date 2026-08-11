@@ -20,7 +20,6 @@ mod private
   // `tilemap_renderer/tests/assets_test.rs:32` and
   // `tilemap_scene/src/compile/assets.rs:115`, so `#[non_exhaustive]` would
   // break those call sites.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct Assets
   {
@@ -181,7 +180,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/assets_test.rs:35`, so `#[non_exhaustive]` would
   // break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct ImageAsset
   {
@@ -208,7 +206,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_scene/src/compile/assets.rs:318`, so `#[non_exhaustive]` would
   // break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct SpriteAsset
   {
@@ -224,7 +221,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/assets_test.rs:71`, so `#[non_exhaustive]` would
   // break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct GeometryAsset
   {
@@ -251,7 +247,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/assets_test.rs:128`, so `#[non_exhaustive]` would
   // break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct GradientAsset
   {
@@ -268,7 +263,6 @@ mod private
   // `tilemap_renderer/tests/assets_test.rs:124` and
   // `tilemap_renderer/tests/svg_backend_test.rs:207`, so `#[non_exhaustive]`
   // would break those call sites.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy ) ]
   pub struct GradientStop
   {
@@ -313,7 +307,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/svg_backend_test.rs:287`, so `#[non_exhaustive]`
   // would break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct PatternAsset
   {
@@ -333,7 +326,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/assets_test.rs:144`, so `#[non_exhaustive]` would
   // break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct ClipMaskAsset
   {
@@ -347,7 +339,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/assets_test.rs:160`, so `#[non_exhaustive]` would
   // break that call site.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct PathAsset
   {

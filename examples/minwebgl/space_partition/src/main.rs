@@ -44,10 +44,7 @@ fn apply_aspect_ratio( x : f32, aspect : f32 ) -> f32
   f32::midpoint( x, 1.0 )
 }
 
-// 240 lines : one linear WebGL/KD-tree setup followed by the frame-loop closure sharing
-// captured state ( gl, trees, lines, colors ); splitting would scatter tightly-coupled
-// locals across artificial helper parameters.
-#[ allow( clippy::too_many_lines ) ]
+#[ allow( clippy::too_many_lines, reason = "240 lines : one linear WebGL/KD-tree setup followed by the frame-loop closure sharing captured state ( gl, trees, lines, colors ); splitting would scatter tightly-coupled locals across artificial helper parameters" ) ]
 fn run() -> Result< (), gl::WebglError >
 {
   const NUM_POINTS : usize = 500;
@@ -56,10 +53,9 @@ fn run() -> Result< (), gl::WebglError >
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
 
-  // Canvas dimensions are small pixel values; casting to f32 for GL math is always safe here.
-  #[ allow( clippy::cast_precision_loss ) ]
+  #[ allow( clippy::cast_precision_loss, reason = "canvas dimensions are small pixel values; casting to f32 for GL math is always safe here" ) ]
   let width = canvas.width() as f32;
-  #[ allow( clippy::cast_precision_loss ) ]
+  #[ allow( clippy::cast_precision_loss, reason = "canvas dimensions are small pixel values; casting to f32 for GL math is always safe here" ) ]
   let height = canvas.height() as f32;
 
   let aspect = width / height;
@@ -155,9 +151,7 @@ fn run() -> Result< (), gl::WebglError >
       let settings = settings.clone();
       move | value : f32 |
       {
-        // `value` is UI-slider-bound to [0.0, 100.0] (see the "K Neighbours" slider above),
-        // always non-negative and well within usize range.
-        #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
+        #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "value is UI-slider-bound to [0.0, 100.0] (see the K Neighbours slider above), always non-negative and well within usize range" ) ]
         let k_neighbours = value as usize;
         settings.borrow_mut().k_neighbours = k_neighbours;
       }
@@ -190,10 +184,9 @@ fn run() -> Result< (), gl::WebglError >
     let settings = settings.clone();
     move | _ : f64 |
     {
-      // Canvas dimensions are small pixel values; casting to f32 for GL math is always safe here.
-      #[ allow( clippy::cast_precision_loss ) ]
+      #[ allow( clippy::cast_precision_loss, reason = "canvas dimensions are small pixel values; casting to f32 for GL math is always safe here" ) ]
       let width = canvas.width() as f32;
-      #[ allow( clippy::cast_precision_loss ) ]
+      #[ allow( clippy::cast_precision_loss, reason = "canvas dimensions are small pixel values; casting to f32 for GL math is always safe here" ) ]
       let height = canvas.height() as f32;
 
       for c in &mut colors
@@ -203,8 +196,7 @@ fn run() -> Result< (), gl::WebglError >
 
       input.update_state();
       let mouse_pos = input.pointer_position();
-      // Pointer coordinates are small pixel values; casting to f32 for GL math is always safe here.
-      #[ allow( clippy::cast_precision_loss ) ]
+      #[ allow( clippy::cast_precision_loss, reason = "pointer coordinates are small pixel values; casting to f32 for GL math is always safe here" ) ]
       let mut mouse_pos = gl::F32x2::new( mouse_pos.0[ 0 ] as f32, height - mouse_pos.0[ 1 ] as f32 ) / gl::F32x2::new( width, height );
 
       mouse_pos.0[ 0 ] = apply_aspect_ratio( mouse_pos.0[ 0 ], aspect );
@@ -255,8 +247,7 @@ fn run() -> Result< (), gl::WebglError >
       // Draw points
       gl.use_program( Some( &point_program ) );
       gl.bind_vertex_array( Some( &points_vao ) );
-      // `NUM_POINTS` is a small compile-time constant (500); always fits i32.
-      #[ allow( clippy::cast_possible_truncation, clippy::cast_possible_wrap ) ]
+      #[ allow( clippy::cast_possible_truncation, clippy::cast_possible_wrap, reason = "NUM_POINTS is a small compile-time constant (500); always fits i32" ) ]
       gl.draw_arrays( gl::POINTS, 0, NUM_POINTS as i32 );
 
       match settings.borrow().search.as_str()

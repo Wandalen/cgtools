@@ -18,7 +18,7 @@ fn test_into_vector_from_tuples_and_arrays()
   let got : Vector< f32, 4 > = [ 1.0, 2.0, 3.0, 4.0 ].into_vector();
   // Pure data round-trip through `into_vector()`/`to_array()` — no arithmetic, so the result
   // is bit-identical to the literal array converted from.
-  #[ allow( clippy::float_cmp ) ]
+  #[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
   { assert_eq!( got.to_array(), [ 1.0, 2.0, 3.0, 4.0 ] ); }
 }
 

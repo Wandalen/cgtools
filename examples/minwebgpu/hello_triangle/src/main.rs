@@ -8,7 +8,7 @@ use minwebgpu as gl;
 #[cfg(target_arch = "wasm32")]
 async fn run() -> Result< (), gl::WebGPUError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::retrieve_or_make()?;
 
   let context = gl::context::from_canvas( &canvas )?;

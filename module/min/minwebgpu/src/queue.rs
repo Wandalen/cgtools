@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::{ web_sys, mem, WebGPUError, BufferError };
+  use crate::{ web_sys, mem, WebGPUError, BufferError, TextureError };
 
   /// Submits a command buffer to the WebGPU queue.
   #[ inline ]
@@ -28,6 +28,27 @@ mod private
 
     Ok( () )
   }
+
+  /// Writes pixel data to a WebGPU texture (whole-texture, base mip level only).
+  ///
+  /// # Errors
+  /// Returns `error::TextureError::FailedWriteToTexture` if the underlying
+  /// `GPUQueue.writeTexture` call throws.
+  #[ inline ]
+  pub fn write_texture
+  (
+    queue : &web_sys::GpuQueue,
+    destination : &web_sys::GpuTexelCopyTextureInfo,
+    data : &[ u8 ],
+    data_layout : &web_sys::GpuTexelCopyBufferLayout,
+    size : &web_sys::GpuExtent3dDict
+  ) -> Result< (), WebGPUError >
+  {
+    queue.write_texture_with_u8_slice_and_gpu_extent_3d_dict( destination, data, data_layout, size )
+    .map_err( | e | TextureError::FailedWriteToTexture( format!( "{e:?}" ) ))?;
+
+    Ok( () )
+  }
 }
 
 crate::mod_interface!
@@ -35,6 +56,7 @@ crate::mod_interface!
   own use
   {
     submit,
-    write_buffer
+    write_buffer,
+    write_texture
   };
 }

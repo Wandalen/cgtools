@@ -218,7 +218,7 @@ mod tests
   /// (unlike a libm transcendental call, whose rounding is implementation-defined). Verified
   /// empirically that `0.1_f64/0.2_f64/0.3_f64 as f32` land on the exact same bit pattern as
   /// the `f32` literals compared against, so no double-rounding hazard applies here.
-  #[ allow( clippy::float_cmp ) ]
+  #[ allow( clippy::float_cmp, reason = "to_array()'s `as f32` narrowing is an IEEE-754 basic conversion, correctly-rounded on every target including wasm32's f32.demote_f64; verified empirically that 0.1_f64/0.2_f64/0.3_f64 as f32 land on the exact same bit pattern as the f32 literals compared against, so no double-rounding hazard applies here" ) ]
   #[ test ]
   fn color_to_array_appends_opaque_alpha()
   {

@@ -234,7 +234,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let colors = primitives_data.iter()
   .map( | p | p.color )
   .collect::< Vec< _ > >();
-  let canvas_gltf = primitives_data_to_gltf( &gl, primitives_data );
+  let canvas_gltf = primitives_data_to_gltf( &gl, &primitives_data );
 
   ( canvas_gltf, colors )
 }

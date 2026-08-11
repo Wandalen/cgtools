@@ -6,7 +6,9 @@ This demo runs a Pong-style scene entirely from a `.rhai` script — loops, bran
 
 The host then takes two consecutive recorded frames and smoothly interpolates between them using `animation::Tween<F32x2>` with a `Linear` easing function — the real `animation` crate, not placeholder lerp math. This shows how a scripted simulation and the workspace's own animation/easing machinery compose: Rhai owns the per-tick logic, Rust owns the sub-frame interpolation.
 
-*(No showcase — console/logic demo, no visual output)*
+An example-local `frame_to_commands` compiler (`src/render.rs`) then translates each recorded `Frame` into `tilemap_renderer::commands::RenderCommand`s — the ball and both paddles as mesh draws — per `docs/adr/003_d2_stack_hal_adoption.md` Decision #4 (glue code, not a shared crate: this is the only consumer). With the `adapter-svg` feature enabled, `main()` submits every frame's compiled commands to a `tilemap_renderer` `SvgBackend` and prints the resulting SVG's size.
+
+*(Console output by default; opt in to `--features adapter-svg` for SVG backend output. `adapter-webgl` is feature-forwarded but not wired here — see `src/main.rs`'s `render_frames` for why.)*
 
 **[How to run](../../how_to_run.md)**
 

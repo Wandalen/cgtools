@@ -129,6 +129,10 @@ mod private
 
     /// Check if blended animation is completed ( checks if all animations are completed )
     /// Better use before update
+    ///
+    /// # Panics
+    ///
+    /// Panics if any animation time is NaN ( the completion sort uses strict `partial_cmp` ).
     #[ must_use ]
     pub fn is_completed( &self ) -> bool
     {

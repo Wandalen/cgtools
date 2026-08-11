@@ -1,3 +1,4 @@
+#[ allow( clippy::wildcard_imports, reason = "crate-root prelude from mod_interface!; enumerating would break on every layer change" ) ]
 use crate::*;
 use core::any::type_name_of_val;
 
@@ -5,7 +6,8 @@ impl UniformUpload for f32
 {
   fn upload( &self, gl : &GL, uniform_location : Option< WebGlUniformLocation > ) -> Result< (), WebglError >
   {
-    Ok( gl.uniform1f( uniform_location.as_ref(), *self ) )
+    gl.uniform1f( uniform_location.as_ref(), *self );
+    Ok( () )
   }
 }
 
@@ -15,10 +17,10 @@ impl UniformUpload for [ f32 ]
   {
     match self.len()
     {
-      1 => Ok( gl.uniform1fv_with_f32_array( uniform_location.as_ref(), self ) ),
-      2 => Ok( gl.uniform2fv_with_f32_array( uniform_location.as_ref(), self ) ),
-      3 => Ok( gl.uniform3fv_with_f32_array( uniform_location.as_ref(), self ) ),
-      4 => Ok( gl.uniform4fv_with_f32_array( uniform_location.as_ref(), self ) ),
+      1 => { gl.uniform1fv_with_f32_array( uniform_location.as_ref(), self ); Ok( () ) },
+      2 => { gl.uniform2fv_with_f32_array( uniform_location.as_ref(), self ); Ok( () ) },
+      3 => { gl.uniform3fv_with_f32_array( uniform_location.as_ref(), self ); Ok( () ) },
+      4 => { gl.uniform4fv_with_f32_array( uniform_location.as_ref(), self ); Ok( () ) },
       _ => Err
       (
         WebglError::CantUploadUniform
@@ -39,9 +41,9 @@ impl UniformMatrixUpload for [ f32 ]
   {
     match self.len()
     {
-      4 => Ok( gl.uniform_matrix2fv_with_f32_array( uniform_location.as_ref(), !column_major, self ) ),
-      9 => Ok( gl.uniform_matrix3fv_with_f32_array( uniform_location.as_ref(), !column_major, self ) ),
-      16 => Ok( gl.uniform_matrix4fv_with_f32_array( uniform_location.as_ref(), !column_major, self ) ),
+      4 => { gl.uniform_matrix2fv_with_f32_array( uniform_location.as_ref(), !column_major, self ); Ok( () ) },
+      9 => { gl.uniform_matrix3fv_with_f32_array( uniform_location.as_ref(), !column_major, self ); Ok( () ) },
+      16 => { gl.uniform_matrix4fv_with_f32_array( uniform_location.as_ref(), !column_major, self ); Ok( () ) },
       _ => Err
       (
         WebglError::CantUploadUniform
@@ -62,10 +64,10 @@ impl< const N : usize > UniformUpload for [ f32 ; N ]
   {
     match self.len()
     {
-      1 => Ok( gl.uniform1fv_with_f32_array( uniform_location.as_ref(), self ) ),
-      2 => Ok( gl.uniform2fv_with_f32_array( uniform_location.as_ref(), self ) ),
-      3 => Ok( gl.uniform3fv_with_f32_array( uniform_location.as_ref(), self ) ),
-      4 => Ok( gl.uniform4fv_with_f32_array( uniform_location.as_ref(), self ) ),
+      1 => { gl.uniform1fv_with_f32_array( uniform_location.as_ref(), self ); Ok( () ) },
+      2 => { gl.uniform2fv_with_f32_array( uniform_location.as_ref(), self ); Ok( () ) },
+      3 => { gl.uniform3fv_with_f32_array( uniform_location.as_ref(), self ); Ok( () ) },
+      4 => { gl.uniform4fv_with_f32_array( uniform_location.as_ref(), self ); Ok( () ) },
       _ => Err
       (
         WebglError::CantUploadUniform
@@ -86,10 +88,10 @@ impl< const N : usize > UniformUpload for [ [ f32 ; N ] ]
   {
     match N
     {
-      1 => Ok( gl.uniform1fv_with_f32_array( uniform_location.as_ref(), self.as_flattened() ) ),
-      2 => Ok( gl.uniform2fv_with_f32_array( uniform_location.as_ref(), self.as_flattened() ) ),
-      3 => Ok( gl.uniform3fv_with_f32_array( uniform_location.as_ref(), self.as_flattened() ) ),
-      4 => Ok( gl.uniform4fv_with_f32_array( uniform_location.as_ref(), self.as_flattened() ) ),
+      1 => { gl.uniform1fv_with_f32_array( uniform_location.as_ref(), self.as_flattened() ); Ok( () ) },
+      2 => { gl.uniform2fv_with_f32_array( uniform_location.as_ref(), self.as_flattened() ); Ok( () ) },
+      3 => { gl.uniform3fv_with_f32_array( uniform_location.as_ref(), self.as_flattened() ); Ok( () ) },
+      4 => { gl.uniform4fv_with_f32_array( uniform_location.as_ref(), self.as_flattened() ); Ok( () ) },
       _ => Err
       (
         WebglError::CantUploadUniform
@@ -110,9 +112,9 @@ impl< const N : usize > UniformMatrixUpload for [ f32 ; N ]
   {
     match self.len()
     {
-      4 => Ok( gl.uniform_matrix2fv_with_f32_array( uniform_location.as_ref(), !column_major, self ) ),
-      9 => Ok( gl.uniform_matrix3fv_with_f32_array( uniform_location.as_ref(), !column_major, self ) ),
-      16 => Ok( gl.uniform_matrix4fv_with_f32_array( uniform_location.as_ref(), !column_major, self ) ),
+      4 => { gl.uniform_matrix2fv_with_f32_array( uniform_location.as_ref(), !column_major, self ); Ok( () ) },
+      9 => { gl.uniform_matrix3fv_with_f32_array( uniform_location.as_ref(), !column_major, self ); Ok( () ) },
+      16 => { gl.uniform_matrix4fv_with_f32_array( uniform_location.as_ref(), !column_major, self ); Ok( () ) },
       _ => Err
       (
         WebglError::CantUploadUniform

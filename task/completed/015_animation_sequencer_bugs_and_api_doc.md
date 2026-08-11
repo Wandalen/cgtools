@@ -115,6 +115,136 @@ The future-incompatibility item below was directly confirmed in an earlier sessi
 Bundled as one task since all three concerns are small and confined to the same crate; split into
 separate tasks at pickup if any turns out to be larger than expected.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is `[Tween<T>; N]::duration_get`/`delay_get`'s min/max-reduction bug still fixed? Read
+  `src/interpolation.rs:425-451`: `duration_get`'s `min_start` is seeded `f64::MAX` and reduced via
+  `.min( min_start )` (line 430); `delay_get` seeds `f64::MAX` and reduces via `.min( min_delay )` (line
+  447) — both correct (was: max-seeded/min-seeded-at-0.0). `Fix(TASK-015)`/`Root cause`/`Pitfall` comment
+  present at lines 417-424 (current lines drifted from the task's originally-cited `415-441`, since that
+  range covered the pre-fix code before this 8-line comment was inserted — self-caused shift, not
+  external drift). Reproducer `tests/interpolation_test.rs::test_tween_array_duration_and_delay_get`
+  present at line 205, passing (see I1).
+- [x] C2 — Is `Sequencer::delay_get`'s reduction direction still fixed? Read `src/sequencer.rs:266-275`:
+  seeded `f64::MAX`, reduces via `.min( min_delay )` (line 271) — correct (was `.max`). `Fix(TASK-015)`
+  comment at lines 256-264. Reproducer
+  `tests/sequencer_test.rs::test_sequencer_delay_get_and_progress_with_delayed_tween` present at line
+  219, passing (see I1).
+- [x] C3 — Is `Tween::repeat_handle`'s post-wrap elapsed-time clamp still fixed in both repeat branches?
+  Read `src/interpolation.rs:257-288`: infinite-repeat branch (line 269) and finite-repeat branch (line
+  279) both use `.max( 0.0 )` (was `.min`). `Fix(TASK-015)` comment at lines 247-256. Reproducers
+  `tests/interpolation_test.rs::test_tween_infinite_repeat_preserves_overflow_elapsed` (161) and
+  `::test_tween_finite_repeat_preserves_overflow_elapsed` (172) both present, passing (see I1).
+- [x] C4 — Is `Sequence::new`'s Unsorted-validation reassignment still fixed? Read
+  `src/sequencer.rs:334-374`: `last_delay = player.delay_get();` reassignment present inside the loop
+  (line 355), keeping the `last_delay > player.delay_get()` check live (was dead code, always comparing
+  against `0.0`). `Fix(TASK-015)` comment at lines 341-347. Reproducer
+  `tests/sequencer_test.rs::test_sequence_new_rejects_unsorted_players` present at line 254, passing (see
+  I1).
+- [x] C5 — Are exactly 4 `Fix(TASK-015)` source comments present (one per bug)? `grep -rn
+  "Fix(TASK-015)" src/` → 4 hits: `sequencer.rs:256`, `sequencer.rs:341`, `interpolation.rs:247`,
+  `interpolation.rs:417`.
+- [x] C6 — Are exactly 5 `bug_reproducer(TASK-015)`-tagged tests present, each with the full 5-section
+  doc comment (Root Cause/Why Not Caught/Fix Applied/Prevention/Pitfall)? `grep -rn
+  "bug_reproducer(TASK-015)" tests/` → 4 tag comments (one tag block is shared by the two near-duplicate
+  repeat-overflow tests at `interpolation_test.rs:141`, covering both
+  `test_tween_infinite_repeat_preserves_overflow_elapsed` and
+  `test_tween_finite_repeat_preserves_overflow_elapsed`); read all 4 blocks in full — each has all 5
+  sections present.
+- [x] C7 — Does `readme.md`'s Core Components table show the real API (not the fictitious
+  `add()`/`get_value()`), with the previously-missing `Sequence` row added? Current table
+  (`readme.md:113-118`) has 4 rows: `Sequencer` (`insert()`, `get()`), `Sequence` (new row:
+  `current_get()`), `Tween` (`value_get()`), `EasingFunction`. Confirmed pre-fix baseline via `git show
+  0a6c9cc0:module/helper/animation/readme.md`: only 3 rows (`Sequencer` with `add()`/`get_value()`,
+  `Tween`, `EasingFunction`) — no `Sequence` row. `grep -n "get_value\|\.add(\|::add(" readme.md` → 0 hits
+  now.
+- [x] C8 — Does the macro-export future-incompat concern (resolved 2026-08-10 via git-log archaeology)
+  still hold under a fresh, independent re-check? `impl_easing_function` is still defined at crate root
+  in `src/lib.rs`, now at lines 23-47 (doc comment 11-22) — drifted from the 2026-08-10-recorded
+  `55-76`/`43-54`. Investigated: `git diff 67cea248 HEAD -- src/lib.rs` shows the shift is caused entirely
+  by removal of 8 unrelated file-level `#![allow(clippy::...)]`/`#![allow(dead_code)]` lines that used to
+  sit above the macro (out-of-scope cleanup from a later session, not a TASK-015 concern) — the macro's
+  own body and rationale comment are untouched. `grep -rn "macro_export" src/` → 0 active-attribute hits
+  (only 2 doc-comment prose mentions). Re-ran (not just re-trusted) `cargo check -p animation --target
+  wasm32-unknown-unknown --lib` fresh via `longrun` → exit 0, 15s; grepped the full log for `warning` (8
+  hits, all attributed to the `minwebgl` dependency, 0 attributed to `animation`) and for
+  `macro_expanded_macro_exports_accessed_by_absolute_paths` (0 hits). Concern remains genuinely resolved.
+- [x] C9 — Does the documented `minwebgl` `get_image_data` regression-detour fix still hold? Read
+  `module/min/minwebgl/src/texture/d2.rs:299-367`: the code has evolved past TASK-015's own
+  single-signature revert — a later, separate fix (`Fix(BUG-053)`, lines 350-363) replaced it with a
+  `#[cfg(web_sys_unstable_apis)]`-gated dual branch (`i32` args when the cfg is on, line 365; `f64` args
+  when off, line 367), permanently resolving the same root flip-flop TASK-015 had patched narrowly. Not a
+  regression — a superseding, more robust fix on the same call site. The underlying "`animation` still
+  compiles against its mandatory `minwebgl` dependency" claim is independently reconfirmed by I1's fresh
+  passing run (nextest must compile `minwebgl` transitively to run `animation`'s tests).
+- [x] C10 — Are the 7 claimed `clippy::manual_is_multiple_of` conversions still in place across all 5
+  cited files? 5 of 7 sites confirmed still converted: `examples/tiles_tools/event_system_demo/src/main.rs:225`
+  (`.is_multiple_of(3)`), `examples/tiles_tools/stealth_game/src/main.rs:423` (`.is_multiple_of(5)`),
+  `module/helper/renderer/tests/skeleton_tests.rs:207` (`.is_multiple_of(2)`),
+  `module/helper/tilemap_renderer/src/adapters/svg.rs:1177,1200` (both `.is_multiple_of(2)`). The
+  remaining 2 sites (`module/helper/renderer/src/webgl/post_processing/outline/wide_outline.rs`, both on
+  `u32` operands) are **regressed**: both now read `% 2 == 0` again (lines 374, 441). Root-caused via `git
+  show 5f33be66 -- .../wide_outline.rs`: commit `5f33be66` ("feat: consolidate test infrastructure and
+  refactor module architecture", 2026-08-11 — unrelated to TASK-015) explicitly reverts both `i.is_multiple_of(
+  2 )` → `i % 2 == 0` and `self.num_passes.is_multiple_of( 2 )` → `self.num_passes % 2 == 0`, while
+  leaving the other 4 files' conversions untouched despite touching all 5 files in that same commit. A
+  genuine regression, not benign drift — but currently **invisible to the crate's own lint gate**:
+  `renderer/Cargo.toml` pins `rust-version = "1.75.0"` (added in 2025, long predates TASK-015), and
+  clippy's `manual_is_multiple_of` lint is MSRV-gated — even a forced `cargo clippy -p renderer
+  --all-targets --all-features -- -W clippy::manual_is_multiple_of` run (via `longrun`) produced zero
+  diagnostics against `wide_outline.rs`. Flagged for awareness; out of scope to fix here (not in this
+  task's file list).
+
+### Measurements
+
+- [x] M1 — `bug_reproducer(TASK-015)`-covered test count in `tests/interpolation_test.rs` +
+  `tests/sequencer_test.rs`: `21` (12+9) (was: `16` (9+7) — confirmed via `git show
+  0a6c9cc0:module/helper/animation/tests/interpolation_test.rs` and `...sequencer_test.rs`, `grep -c "#\[
+  *test *\]"` on each). Delta `+5` matches the 5 claimed reproducer tests exactly.
+- [x] M2 — `readme.md` Core Components table row count: `4` (was: `3` — confirmed via `git show
+  0a6c9cc0:module/helper/animation/readme.md`, which had `Sequencer`/`Tween`/`EasingFunction` only, no
+  `Sequence` row).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p animation --all-features` → exit 0, 29/29
+  passed (via `longrun`).
+- [x] I2 — Compiler/lints, deny-warnings (crate-scoped): `cargo clippy -p animation --all-targets
+  --all-features -- -D warnings` → **exit 101, NOT clean** — but the failure is not in `animation` or
+  anything TASK-015 touched: it fails compiling the transitive dependency `browser_log`
+  (`module/helper/browser_log/src/panic.rs:82`, `#[allow(clippy::exhaustive_structs)]` without a `reason
+  = "..."` clause, which `-D warnings` promotes to a hard error via
+  `clippy::allow_attributes_without_reason`). `cargo tree -p animation --all-features -i browser_log`
+  confirms the path: `animation → mingl/minwebgl → browser_log`. Already tracked separately and out of
+  scope here: `task/draft/058_workspace_allow_sweep_per_crate.md` (workspace-wide `#[allow]`
+  justification sweep).
+- [x] I3 — Isolation check for I2 (crate-scoped, no deny-warnings): `cargo clippy -p animation
+  --all-targets --all-features` (no `-D warnings`) → exit 0; `animation` itself reports 20 warnings
+  (pre-existing pedantic-tier style suggestions, unrelated to any TASK-015 claim), confirming
+  `animation`'s own code has no new hard failures — I2's exit 101 is entirely attributable to the
+  unrelated `browser_log` blocker.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against any of the 4 min/max-reduction bugs (duration_get/delay_get array reduction,
+  Sequencer::delay_get, Tween::repeat_handle's two branches, Sequence::new's Unsorted check) silently
+  recurring: re-run `cargo nextest run -p animation --all-features` (I1) and confirm these 5 tests still
+  show PASS: `test_tween_array_duration_and_delay_get`,
+  `test_sequencer_delay_get_and_progress_with_delayed_tween`,
+  `test_tween_infinite_repeat_preserves_overflow_elapsed`,
+  `test_tween_finite_repeat_preserves_overflow_elapsed`, `test_sequence_new_rejects_unsorted_players` —
+  each was constructed so only the buggy seed/direction/reassignment fails it (see each test's own Root
+  Cause doc comment).
+- [x] AF2 — Guards against `readme.md`'s Core Components table drifting from the real API again: re-grep
+  the table (`readme.md:113-118`) against each type's real public methods; specifically `grep -n
+  "get_value\|\.add(\|::add(" readme.md` must stay at 0 hits (the two fictitious pre-fix method names).
+- [x] AF3 — Guards against `#[macro_export]` being reintroduced on `impl_easing_function` (reviving the
+  `macro_expanded_macro_exports_accessed_by_absolute_paths` future-incompat lint): `grep -rn
+  "macro_export" src/` must stay at 0 active-attribute hits, and `cargo check -p animation --target
+  wasm32-unknown-unknown --lib` must stay free of that lint name in its output.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P2 (remaining logic

@@ -175,11 +175,8 @@ where
 ///
 /// Similiar functions:
 /// look_at_rh - returns the same matrix, but takes camera's view center, instead of direction
-// `eye`/`dir`/`up` are taken by value to preserve this public function's existing calling
-// convention, used with owned vectors across the workspace (including `module/helper/renderer`,
-// out of scope for this change); switching to by-reference would be a breaking API change.
 #[ inline ]
-#[ allow( clippy::needless_pass_by_value ) ]
+#[ expect( clippy::needless_pass_by_value, reason = "eye/dir/up stay by-value to preserve the public calling convention used with owned vectors across the workspace; by-reference would be a breaking API change" ) ]
 pub fn look_to_rh< E, Vec3 >
 (
   eye : Vec3,
@@ -221,10 +218,8 @@ where
 ///
 /// Similiar functions:
 /// look_to_rh - returns the same matrix, but takes camera's view direction
-// `center` is taken by value to preserve this public function's existing calling convention
-// ( see `look_to_rh` above for the full rationale ).
 #[ inline ]
-#[ allow( clippy::needless_pass_by_value ) ]
+#[ expect( clippy::needless_pass_by_value, reason = "center stays by-value to preserve the public calling convention — same rationale as look_to_rh above" ) ]
 pub fn look_at_rh< E, Vec3 >
 (
   eye : Vec3,

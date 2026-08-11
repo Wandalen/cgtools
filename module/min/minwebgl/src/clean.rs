@@ -1,6 +1,7 @@
 /// Internal namespace.
 mod private
 {
+  #[ allow( clippy::wildcard_imports, reason = "crate-root prelude from mod_interface!; enumerating would break on every layer change" ) ]
   use crate::*;
   /// A type alias for the WebGL2 rendering context.
   type GL = WebGl2RenderingContext;
@@ -40,6 +41,9 @@ mod private
   }
 
   /// Unbind 2D textures from multiple texture units.
+  ///
+  /// # Panics
+  /// Panics if any `active` item fails to convert into a `u32` texture unit id.
   pub fn texture_2d_array< T, E >( gl : &GL, active : T )
   where 
     T : IntoIterator,

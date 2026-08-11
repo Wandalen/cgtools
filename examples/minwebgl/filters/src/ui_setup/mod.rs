@@ -14,7 +14,7 @@ mod filter_setup_helpers;
 mod filter_setup_advanced;
 mod event_handlers;
 
-use crate::*;
+use crate::{ controls, Renderer };
 use std::{ cell::RefCell, rc::Rc };
 
 /// Hides the controls bar and clears all controls

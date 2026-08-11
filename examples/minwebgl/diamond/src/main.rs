@@ -9,14 +9,14 @@ use gl::
 
 async fn load_cube_texture( name : &str ) -> Result< [ image::RgbaImage; 6 ], JsValue >
 {
-  let px = gl::file::load( &format!( "static/{}/PX.png", name ) ).await.expect( "Failed to load PX face" );
-  let nx = gl::file::load( &format!( "static/{}/NX.png", name ) ).await.expect( "Failed to load NX face" );
+  let px = gl::file::load( &format!( "static/{name}/PX.png" ) ).await.expect( "Failed to load PX face" );
+  let nx = gl::file::load( &format!( "static/{name}/NX.png" ) ).await.expect( "Failed to load NX face" );
 
-  let py = gl::file::load( &format!( "static/{}/PY.png", name ) ).await.expect( "Failed to load PY face" );
-  let ny = gl::file::load( &format!( "static/{}/NY.png", name ) ).await.expect( "Failed to load NY face" );
+  let py = gl::file::load( &format!( "static/{name}/PY.png" ) ).await.expect( "Failed to load PY face" );
+  let ny = gl::file::load( &format!( "static/{name}/NY.png" ) ).await.expect( "Failed to load NY face" );
 
-  let pz = gl::file::load( &format!( "static/{}/PZ.png", name ) ).await.expect( "Failed to load PZ face" );
-  let nz = gl::file::load( &format!( "static/{}/NZ.png", name ) ).await.expect( "Failed to load NZ face" );
+  let pz = gl::file::load( &format!( "static/{name}/PZ.png" ) ).await.expect( "Failed to load PZ face" );
+  let nz = gl::file::load( &format!( "static/{name}/NZ.png" ) ).await.expect( "Failed to load NZ face" );
 
   let px = image::load_from_memory( &px ).unwrap().to_rgba8();
   let nx = image::load_from_memory( &nx ).unwrap().to_rgba8();
@@ -34,9 +34,8 @@ fn upload_cube_texture( gl : &GL, faces : &[ image::RgbaImage ], location: u32 )
   gl.active_texture( gl::TEXTURE0 + location );
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture.as_ref() );
 
-  for i in 0..faces.len()
+  for ( i, image ) in faces.iter().enumerate()
   {
-    let image = &faces[ i ];
     let ( width, height ) = image.dimensions();
     gl. tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
     (
@@ -48,7 +47,7 @@ fn upload_cube_texture( gl : &GL, faces : &[ image::RgbaImage ], location: u32 )
       0,
       gl::RGBA,
       gl::UNSIGNED_BYTE,
-      Some( &image )
+      Some( image )
     ).expect( "Failed to upload data to texture" );
   }
 
@@ -59,9 +58,39 @@ fn upload_cube_texture( gl : &GL, faces : &[ image::RgbaImage ], location: u32 )
   gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_R, gl::CLAMP_TO_EDGE as i32 );
 }
 
+/// Positions, normals, texture coordinates, and indices of a single primitive.
+type Geometry = ( Vec< [ f32; 3 ] >, Vec< [ f32; 3 ] >, Vec< [ f32; 2 ] >, Vec< u32 > );
+
+/// Reads the first primitive's positions, normals, texture coordinates, and indices
+/// from the parsed glb document.
+fn read_geometry
+(
+  document : &gltf::Document,
+  buffers : &[ gltf::buffer::Data ]
+) -> Geometry
+{
+  let mesh = document.meshes().next().expect( "No meshes were found" );
+  let primitive = mesh.primitives().next().expect( "No primitives were found" );
+  let reader = primitive.reader( | buffer | Some( &buffers[ buffer.index() ] ) );
+
+  let pos_iter = reader.read_positions().expect( "Failed to read positions" );
+  let positions = pos_iter.collect();
+
+  let normals_iter = reader.read_normals().expect( "Failed to read normals" );
+  let normals = normals_iter.collect();
+
+  let tex_iter = reader.read_tex_coords( primitive.index() as u32 ).expect( "Failed to read texture coordinates" );
+  let tex_coords = tex_iter.into_f32().collect();
+
+  let index_iter = reader.read_indices().expect( "Failed to read indices" );
+  let indices = index_iter.into_u32().collect();
+
+  ( positions, normals, tex_coords, indices )
+}
+
 async fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
 
   // Vertex and fragment shaders
@@ -78,28 +107,7 @@ async fn run() -> Result< (), gl::WebglError >
   let obj_buffer = gl::file::load( "static/diamond.glb" ).await.expect( "Failed to load the model" );
   let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
 
-  let positions : Vec< [ f32; 3 ] >;
-  let normals : Vec< [ f32; 3 ] >;
-  let tex_coords : Vec< [ f32; 2 ] >;
-  let indices : Vec< u32 >;
-
-  {
-    let mesh = document.meshes().next().expect( "No meshes were found" );
-    let primitive = mesh.primitives().next().expect( "No primitives were found" );
-    let reader = primitive.reader( | buffer | Some( &buffers[ buffer.index() ] ) );
-
-    let pos_iter = reader.read_positions().expect( "Failed to read positions" );
-    positions = pos_iter.collect();
-
-    let normals_iter = reader.read_normals().expect( "Failed to read normals" );
-    normals = normals_iter.collect();
-
-    let tex_iter = reader.read_tex_coords( primitive.index() as u32 ).expect( "Failed to read texture coordinates" );
-    tex_coords = tex_iter.into_f32().collect();
-
-    let index_iter = reader.read_indices().expect( "Failed to read indices" );
-    indices = index_iter.into_u32().collect();
-  }
+  let ( positions, normals, tex_coords, indices ) = read_geometry( &document, &buffers );
 
   let pos_buffer =  gl::buffer::create( &gl )?;
   let normal_buffer = gl::buffer::create( &gl )?;

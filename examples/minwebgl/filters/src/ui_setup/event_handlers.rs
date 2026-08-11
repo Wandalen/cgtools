@@ -1,8 +1,15 @@
 //! Special event handlers for filters with dropdown controls
 
-use crate::*;
-use utils::*;
-use filters::*;
+use crate::
+{
+  utils,
+  filters,
+  wasm_bindgen,
+  Renderer,
+  controls,
+};
+use utils::get_element_by_id_unchecked;
+use filters::{ channels, flip };
 use wasm_bindgen::{ JsCast, JsValue, prelude::Closure };
 use std::{ cell::RefCell, rc::Rc };
 use web_sys::HtmlElement;

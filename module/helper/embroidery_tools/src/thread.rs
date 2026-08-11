@@ -15,7 +15,6 @@ mod private
   // struct-literal construction is the deliberate public contract, pinned by
   // `tests/pes_test.rs` and documented in `readme.md`, so `#[non_exhaustive]`
   // would break that contract (same precedent as `browser_log::panic::Config`).
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Default, Clone, Copy, PartialEq, Eq, Hash ) ]
   pub struct Color
   {
@@ -33,7 +32,6 @@ mod private
   // construction (including `..Default::default()`) is the deliberate public
   // contract, pinned by `tests/pes_test.rs` and documented in `readme.md`, so
   // `#[non_exhaustive]` would break that contract (same precedent as `Color` above).
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Default, Clone, PartialEq, Eq, Hash ) ]
   pub struct Thread
   {

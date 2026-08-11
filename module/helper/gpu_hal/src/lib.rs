@@ -14,9 +14,6 @@
 //! `Surface::read_pixels`.
 #![ doc( html_root_url = "https://docs.rs/gpu_hal/latest/gpu_hal/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
-#![ allow( clippy::missing_inline_in_public_items ) ] // Backend methods delegate to per-backend impls; inlining is a codegen/LTO decision, not a per-method one.
-#![ allow( clippy::exhaustive_structs ) ] // Literal construction of descriptor/config structs is the public API contract.
-#![ allow( clippy::exhaustive_enums ) ] // Callers must handle every backend/format variant explicitly; hiding future variants would silently break that.
 
 #[ cfg( feature = "enabled" ) ]
 mod private {}

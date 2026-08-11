@@ -1,4 +1,10 @@
-use super::*;
+use super::
+{
+  Filter,
+  FilterRenderer,
+  gl,
+  default_render_pass,
+};
 use serde::{ Serialize, Deserialize };
 
 #[ derive( Debug, Serialize, Deserialize ) ]
@@ -114,7 +120,7 @@ impl Filter for Oil
     let resolution_location = gl.get_uniform_location( renderer.get_program(), "u_resolution" );
     let texel_size_location = gl.get_uniform_location( renderer.get_program(), "u_texel_size" );
     let oil_range_location = gl.get_uniform_location( renderer.get_program(), "u_oil_range" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
 
     let resolution = [ gl.drawing_buffer_width(), gl.drawing_buffer_height() ];
     let texel_size = [ 1.0 / gl.drawing_buffer_width() as f32, 1.0 / gl.drawing_buffer_height() as f32 ];

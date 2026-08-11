@@ -35,7 +35,7 @@ where
     option_element.set_text( variant );
     select_element.add_with_html_option_element( &option_element ).unwrap();
   }
-  return select_element;
+  select_element
 }
 
 pub fn setup_download_button
@@ -121,7 +121,7 @@ pub fn setup_drop_zone
       .and_then( | dt | dt.files() )
       .and_then( | files | files.get( 0 ) )
       {
-        upload_json_map( file, map_json.clone() );
+        upload_json_map( &file, map_json.clone() );
       }
     }
   );
@@ -134,10 +134,10 @@ pub fn setup_drop_zone
   drop_handler.forget();
 }
 
-fn upload_json_map( file : web_sys::File, map_json : Rc< RefCell< Option< String > > > )
+fn upload_json_map( file : &web_sys::File, map_json : Rc< RefCell< Option< String > > > )
 {
   let reader = web_sys::FileReader::new().unwrap();
-  reader.read_as_text( &file ).unwrap();
+  reader.read_as_text( file ).unwrap();
 
   let onload = Closure::< dyn Fn( _ ) >::new
   ({
@@ -186,10 +186,10 @@ pub fn calculate_map_size( map : &crate::core_game::Map ) -> [ i64; 2 ]
     }
   );
 
-  let min_q = min_q.unwrap_or_default() as i64;
-  let max_q = max_q.map_or( 0, | inner | inner + 1 ) as i64;
-  let min_r = min_r.unwrap_or_default() as i64;
-  let max_r = max_r.map_or( 0, | inner | inner + 1 ) as i64;
+  let min_q = i64::from( min_q.unwrap_or_default() );
+  let max_q = i64::from( max_q.map_or( 0, | inner | inner + 1 ) );
+  let min_r = i64::from( min_r.unwrap_or_default() );
+  let max_r = i64::from( max_r.map_or( 0, | inner | inner + 1 ) );
 
   [ max_q - min_q, max_r - min_r ]
 }

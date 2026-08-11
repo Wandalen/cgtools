@@ -9,6 +9,10 @@ mod private
     fn renders_to_input( &self ) -> bool;
 
     /// Renders post-processing effect.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the pass's GPU work fails ( shader, framebuffer, or draw errors ).
     fn render
     (
       &self,

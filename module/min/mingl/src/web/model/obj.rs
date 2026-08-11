@@ -41,7 +41,6 @@ mod private
 
     // Model byte counts are far below 2^52 (f64's exact-integer limit) for any
     // realistic 3D model, so this precision loss is immaterial for display purposes.
-    #[ allow( clippy::cast_precision_loss ) ]
     let memory_kb = report.size_in_bytes as f64 / 1024.0;
 
     write!
@@ -217,7 +216,7 @@ mod private
     // would require replacing the `&[u8]` reader with a `futures_lite::AsyncBufRead` adapter,
     // a larger migration than this lint cleanup. `tobj/async`'s deprecated function remains the
     // only currently-wired way to call into tobj's buffer-based async loader.
-    #[ allow( deprecated ) ]
+    #[ expect( deprecated, reason = "tobj/async's deprecated function is the only currently-wired way to call tobj's buffer-based async loader on this crate's wasm32 target — full rationale in the comment above" ) ]
     tobj::load_obj_buf_async
     (
       &mut obj_buffer,

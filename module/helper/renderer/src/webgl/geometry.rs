@@ -22,6 +22,10 @@ mod private
   {
     /// Configures the attribute pointer for this attribute, linking the buffer to the specified slot
     /// using the provided `WebGl2RenderingContext`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if configuring the attribute pointer fails.
     pub fn upload( &self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       self.descriptor.attribute_pointer( gl, self.slot, &self.buffer )?;
@@ -63,6 +67,10 @@ mod private
   impl Geometry
   {
     /// Creates a new `Geometry` instance, initializing the VAO and other default values.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if VAO creation fails.
     pub fn new( gl : &gl::WebGl2RenderingContext ) -> Result< Self, gl::WebglError >
     {
       let vao = gl::vao::create( gl )?;
@@ -92,6 +100,10 @@ mod private
     ///
     /// It binds the VAO, uploads the attribute, and stores the `AttributeInfo`.
     /// Returns `Err` if an attribute with the same name already exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if an attribute with the same name already exists or the upload fails.
     pub fn add_attribute< Name : Into< Box< str > > >
     (
       &mut self,
@@ -121,6 +133,10 @@ mod private
     /// Adds an index buffer to the geometry.
     ///
     /// It binds the VAO and the element array buffer, storing the information in the VAO.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if uploading the index buffer fails.
     pub fn add_index
     (
       &mut self,
@@ -138,6 +154,10 @@ mod private
     ///
     /// It binds the VAO and then iterates through the attributes to upload them.
     /// If an index buffer exists, it binds it as well.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if any attribute or the index buffer fails to upload.
     pub fn upload( &self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       self.bind( gl );
@@ -165,6 +185,10 @@ mod private
     }
 
     /// Return the bounding box of the `positions` attribute
+    ///
+    /// # Panics
+    ///
+    /// Panics if the geometry has no `positions` attribute.
     #[ must_use ]
     pub fn bounding_box( &self ) -> BoundingBox
     {

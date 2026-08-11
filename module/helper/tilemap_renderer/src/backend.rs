@@ -25,6 +25,12 @@ mod private
     Unsupported( &'static str ),
     /// Backend-specific error.
     BackendError( String ),
+    /// The GPU context was lost (WebGL `webglcontextlost`, or equivalent). `submit`/`output`
+    /// return this instead of driving calls into an invalid context until the context is
+    /// restored. On restoration, the caller must re-call [`Backend::load_assets`] to re-upload
+    /// GPU state — the same "safe to call multiple times... clear and reload all GPU/SVG state"
+    /// contract `load_assets` already documents for level transitions.
+    ContextLost,
   }
 
   impl core::fmt::Display for RenderError
@@ -37,6 +43,7 @@ mod private
         RenderError::MissingAsset( idx ) => write!( f, "missing asset: {idx}" ),
         RenderError::Unsupported( what ) => write!( f, "unsupported: {what}" ),
         RenderError::BackendError( msg ) => write!( f, "backend error: {msg}" ),
+        RenderError::ContextLost => write!( f, "GPU context lost; call load_assets to restore GPU state after it is restored" ),
       }
     }
   }
@@ -62,7 +69,6 @@ mod private
   // Constructed via full struct-literal syntax from outside this crate, e.g.
   // `tilemap_renderer/tests/backend_test.rs`'s GPU-readback assertions, so
   // `#[non_exhaustive]` would break those call sites.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct Bitmap
   {

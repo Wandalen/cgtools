@@ -1,13 +1,15 @@
+//! Video-as-texture example — streams an HTML video element into a WebGL2 texture.
+
 use minwebgl as gl;
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  run().unwrap();
 }
 
-async fn run() -> Result< (), gl::WebglError >
+fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
 
   let vertex_shader_src = include_str!( "../shaders/main.vert" );

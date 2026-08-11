@@ -31,6 +31,57 @@ Per-test procedure (uniform across the 035 decomposition):
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p behaviour_tree --all-features` —
    all green before and after each relocation batch.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Are all originally-inline tests fully gone from `src/lib.rs`, with zero `#[test]`/`cfg(test)`
+  markers left behind? `grep -n "cfg( *test *)\|#\[ *test *\]" src/lib.rs` (crate root) → no matches, exit
+  `1`.
+- [x] C2 — Do all 15 tests (14 relocated + 1 new) now live in `tests/behaviour_tree_test.rs`? `grep -c
+  "#\[ *test *\]" tests/behaviour_tree_test.rs` → `15`.
+- [x] C3 — Is the claimed new test (`for_entity` + `set_property`/`get_property` roundtrip) actually
+  present, and is the relocated livelock-guard reproducer from task 017 intact? `grep -n "fn
+  test_behavior_context_for_entity_and_properties\|fn test_repeat_node_infinite_livelock_guard"
+  tests/behaviour_tree_test.rs` → both present, at lines 30 and 301 respectively; the latter retains its
+  full 5-section doc comment.
+- [x] C4 — Does `tests/readme.md` exist with a Responsibility Table documenting the relocation? Read
+  directly: present, one-row table (`behaviour_tree_test.rs` → "Context state, composite/decorator
+  semantics, builder, livelock guard").
+- [x] C5 — Do the three `#[non_exhaustive]` types (`BehaviorStatus`, `BehaviorContext`, `BehaviorValue`)
+  stay externally-legal to use from the relocated tests (no struct literals, no exhaustive matches)?
+  `grep -n "non_exhaustive" src/lib.rs` → 3 hits (lines 59, 72, 164, one per type); `grep -n
+  "BehaviorContext\s*{" tests/behaviour_tree_test.rs` → 0 hits (no struct-literal construction); the full
+  external-crate test compile in I1 below empirically confirms no illegal access.
+
+### Measurements
+
+- [x] M1 — Inline `#[test]` count in `src/lib.rs`: `0` (was: `14` — confirmed via `git show
+  4469eafb^:module/helper/behaviour_tree/src/lib.rs | grep -c '#\[ *test *\]'` → `14`).
+- [x] M2 — Test count in `tests/`: `15` (was: `0` — `git show
+  4469eafb^:module/helper/behaviour_tree/tests` errors with "path exists on disk, but not in
+  '4469eafb^'", confirming the directory did not exist before the commit this task's History cites).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p behaviour_tree --all-features` → exit 0, `15
+  tests run: 15 passed, 0 skipped` (0 unit, 15 integration — matches the claimed unit-0/integration-15/15
+  split).
+- [x] I2 — Doc-tests: `cargo test --doc -p behaviour_tree --all-features` → exit 0, `test result: ok. 1
+  passed; 0 failed` (matches the claimed doc-test 1/1).
+- [x] I3 — Compiler/lints clean: `cargo clippy -p behaviour_tree --all-targets --all-features -- -D
+  warnings` → exit 0, zero warnings.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a future edit re-adding an inline `#[cfg(test)] mod tests` block in
+  `src/lib.rs` instead of extending `tests/behaviour_tree_test.rs` (reintroducing the convention violation
+  this task fixed): re-run `grep -c "cfg( *test *)\|#\[ *test *\]" src/lib.rs` — must stay `0`.
+- [x] AF2 — Guards against a relocated test silently losing coverage during a future refactor (e.g. a test
+  deleted rather than moved): `tests/behaviour_tree_test.rs`'s test count must never drop below `15`
+  without an explicit, documented reason — re-check via `grep -c "#\[ *test *\]"
+  tests/behaviour_tree_test.rs`.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 035's workspace test-coverage census per Crate

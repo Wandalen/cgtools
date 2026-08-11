@@ -68,13 +68,9 @@ pub struct IntegrationField< System, Orientation >
 pub struct FlowField< System, Orientation >
 {
   /// Grid dimensions
-  // Exception ( task 072 ) : read only by the inline pinned test in `mod tests`
-  // below, which accesses these private fields directly because they have no
-  // public accessor ( widening the API solely for test placement was rejected ).
-  #[ allow( dead_code ) ]
+  #[ allow( dead_code, reason = "read only by the inline pinned test below, which accesses this private field directly because it has no public accessor ( task 072 )" ) ]
   width : i32,
-  // Same reason as `width` above -- read by the same inline pinned test.
-  #[ allow( dead_code ) ]
+  #[ allow( dead_code, reason = "read by the same inline pinned test as `width`" ) ]
   height : i32,
   /// Phantom marker for system type
   _phantom_system : std::marker::PhantomData< System >,
@@ -185,7 +181,7 @@ impl< System, Orientation > FlowField< System, Orientation >
   }
 
   /// Calculates integration field using modified Dijkstra's algorithm.
-  #[ allow( clippy::unused_self ) ] // Stub body; the Dijkstra implementation will write `self`'s fields.
+  #[ expect( clippy::unused_self, reason = "stub body; the Dijkstra implementation will write `self`'s fields" ) ]
   fn calculate_integration_field< C, Fa, Fc >( &mut self, _goal : &C, _is_passable : &Fa, _get_cost : &Fc )
   where
     C : Distance + Neighbors + Clone + PartialEq + std::hash::Hash + Ord,
@@ -205,7 +201,7 @@ impl< System, Orientation > FlowField< System, Orientation >
   }
 
   /// Generates flow directions from the integration field.
-  #[ allow( clippy::unused_self ) ] // Stub body; the direction pass will write `self`'s fields.
+  #[ expect( clippy::unused_self, reason = "stub body; the direction pass will write `self`'s fields" ) ]
   fn generate_flow_directions< C, Fa >( &mut self, _is_passable : &Fa )
   where
     C : Neighbors + Clone,
@@ -397,7 +393,7 @@ impl< System, Orientation > MultiGoalFlowField< System, Orientation >
   }
 
   /// Recalculates the combined flow field from all individual goal fields.
-  #[ allow( clippy::unused_self ) ] // Stub body; the combining pass will write `self`'s fields.
+  #[ expect( clippy::unused_self, reason = "stub body; the combining pass will write `self`'s fields" ) ]
   fn recalculate_combined_field( &mut self )
   {
     // Implementation would combine multiple flow fields by choosing

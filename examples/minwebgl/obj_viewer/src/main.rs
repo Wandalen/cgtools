@@ -23,7 +23,7 @@ mod material;
 
 async fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
 
@@ -84,27 +84,91 @@ async fn run() -> Result< (), gl::WebglError >
   gl::console::time_end_with_label( "Parse" );
 
   // Provides detailed info about the model
-  gl::diagnostics::obj::make_reports( &models, &materials ).iter().for_each( | v | gl::log::info!( "{}", v ) );
+  for report in &gl::diagnostics::obj::make_reports( &models, &materials )
+  {
+    gl::log::info!( "{report}" );
+  }
   gl::console::time_with_label( "Create gl objects" );
 
   // Here we generate texture programs for each material( compile shaders for each one )
   // We store unique texture names inside a HashSet to then load them separately in the next step
   let mut texture_names = HashSet::new();
   let mut gl_materials = Vec::with_capacity( materials.len() );
-  for mat in materials.iter()
+  for mat in &materials
   {
-    let gl_material = GLMaterial::from_tobj_material( &gl, &mat, &mut texture_names )?;
+    let gl_material = GLMaterial::from_tobj_material( &gl, mat, &mut texture_names )?;
     gl_material.init_uniforms( &gl );
     gl_materials.push(  gl_material );
   }
 
+  let textures = load_textures( &gl, texture_names, texture_path );
+
+  let ( gl_meshes_opaque, gl_meshes_transparent ) = build_meshes( &gl, &models, &gl_materials, &perspective_matrix )?;
+
+  gl.enable( gl::DEPTH_TEST );
+  gl.enable( gl::BLEND );
+
+  gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
+  gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
+  gl.clear_depth( 1.0 );
+
+  gl::console::time_end_with_label( "Create gl objects" );
+
+  // Define the update and draw logic
+  let update_and_draw =
+  {
+    move | _t : f64 |
+    {
+      let view_matrix = camera.borrow().view().to_array();
+      let eye = camera.borrow().eye().to_array();
+
+      for m in &gl_meshes_opaque
+      {
+        m.update( &gl, &eye, &view_matrix );
+      }
+
+      for m in &gl_meshes_transparent
+      {
+        m.update( &gl, &eye, &view_matrix );
+      }
+
+      gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
+      for m in &gl_meshes_opaque
+      {
+        m.render( &gl, &textures );
+      }
+
+      for m in &gl_meshes_transparent
+      {
+        m.render( &gl, &textures );
+      }
+
+      true
+    }
+  };
+
+  // Run the render loop
+  gl::exec_loop::run( update_and_draw );
+
+  Ok( () )
+}
+
+/// Loads every texture named in `texture_names` from `static/{texture_path}/`,
+/// uploading each into a WebGl texture once its hidden image element finishes loading.
+fn load_textures
+(
+  gl : &gl::WebGl2RenderingContext,
+  texture_names : HashSet< ( String, TextureType ) >,
+  texture_path : &str
+) -> Arc< Mutex< HashMap< String, gl::web_sys::WebGlTexture > > >
+{
   let textures = Arc::new( Mutex::new( HashMap::new() ) );
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
-  for ( name, t_type ) in texture_names.into_iter()
+  for ( name, t_type ) in texture_names
   {
-    let path = format!( "static/{}/{}", texture_path, name );
-    gl::info!( "{}", path );
+    let path = format!( "static/{texture_path}/{name}" );
+    gl::info!( "{path}" );
 
     let img_element = document.create_element( "img" ).unwrap().dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
     img_element.style().set_property( "display", "none" ).unwrap();
@@ -119,7 +183,7 @@ async fn run() -> Result< (), gl::WebglError >
           let texture = gl.create_texture();
           gl::texture::d2::upload( &gl, texture.as_ref(), &img );
 
-          if texture.is_some()
+          if let Some( texture ) = texture
           {
             gl::texture::d2::default_parameters( &gl );
             // We generate mipmaps for the color textures, and ignore the others
@@ -133,7 +197,7 @@ async fn run() -> Result< (), gl::WebglError >
               _ => {}
             }
 
-            textures.lock().unwrap().insert( name.to_string(), texture.unwrap() );
+            textures.lock().unwrap().insert( name.clone(), texture );
           }
           img.remove();
         }
@@ -144,15 +208,27 @@ async fn run() -> Result< (), gl::WebglError >
     img_element.set_src( &path );
     load_texture.forget();
   }
+  textures
+}
 
+/// Builds a VAO-backed mesh for every model, binding each with its material,
+/// and splits the result into opaque and transparent groups.
+fn build_meshes
+(
+  gl : &gl::WebGl2RenderingContext,
+  models : &[ tobj::Model ],
+  gl_materials : &[ GLMaterial ],
+  perspective_matrix : &gl::math::F32x4x4
+) -> Result< ( Vec< GLMesh >, Vec< GLMesh > ), gl::WebglError >
+{
   // Here we generate Vertex Array Objects for each mesh and then bind
   // Each mesh with its material in a single struct
-  let mut gl_meshes_opaque =  Vec::with_capacity( models.len() );
-  let mut gl_meshes_transparent =  Vec::with_capacity( models.len() );
-  for model in models.iter()
+  let mut gl_meshes_opaque = Vec::with_capacity( models.len() );
+  let mut gl_meshes_transparent = Vec::with_capacity( models.len() );
+  for model in models
   {
-    let gl_mesh = GLMesh::from_tobj_model( &gl, model, &gl_materials )?;
-    gl_mesh.set_perpsective( &gl, &perspective_matrix );
+    let gl_mesh = GLMesh::from_tobj_model( gl, model, gl_materials )?;
+    gl_mesh.set_perpsective( gl, perspective_matrix );
 
     match gl_mesh.material().mtl
     {
@@ -167,55 +243,7 @@ async fn run() -> Result< (), gl::WebglError >
       }
     }
   }
-
-  gl.enable( gl::DEPTH_TEST );
-  gl.enable( gl::BLEND );
-
-  gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
-  gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
-  gl.clear_depth( 1.0 );
-
-  gl::console::time_end_with_label( "Create gl objects" );
-
-  // Define the update and draw logic
-  let update_and_draw =
-  {
-    move | t : f64 |
-    {
-      let _time = t as f32 / 1000.0;
-
-      let view_matrix = camera.borrow().view().to_array();
-      let eye = camera.borrow().eye().to_array();
-
-      for m in gl_meshes_opaque.iter()
-      {
-        m.update( &gl, &eye, &view_matrix );
-      }
-
-      for m in gl_meshes_transparent.iter()
-      {
-        m.update( &gl, &eye, &view_matrix );
-      }
-
-      gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
-      for m in gl_meshes_opaque.iter()
-      {
-        m.render( &gl, &textures );
-      }
-
-      for m in gl_meshes_transparent.iter()
-      {
-        m.render( &gl, &textures );
-      }
-
-      true
-    }
-  };
-
-  // Run the render loop
-  gl::exec_loop::run( update_and_draw );
-
-  Ok( () )
+  Ok( ( gl_meshes_opaque, gl_meshes_transparent ) )
 }
 
 fn main()

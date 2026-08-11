@@ -8,5 +8,8 @@ authors = [
 ]
 license = "MIT"
 
+[lints]
+workspace = true
+
 [package.metadata.action]
 tags = ["runtime:browser"]

@@ -175,25 +175,21 @@ mod private
     fn fragment_shader( &self ) -> String;
 
     /// Return a string containing combined version of the vertex and fragment defines
-    // The default body returns a `'static` literal, but overrides (e.g. `pbr.rs`) return a
-    // reference into a `&self`-owned cache field, so the signature must stay generic over `&self`.
-    #[ allow( clippy::unnecessary_literal_bound ) ]
+    #[ expect( clippy::unnecessary_literal_bound, reason = "overrides return references into `&self`-owned cache fields, so the signature cannot promise `'static`" ) ]
     fn defines_str( &self ) -> &str
     {
       ""
     }
 
     /// Returns a string containing vertex shader related defines
-    // See `defines_str` above: overrides return non-`'static` cached-field references.
-    #[ allow( clippy::unnecessary_literal_bound ) ]
+    #[ expect( clippy::unnecessary_literal_bound, reason = "overrides return non-`'static` cached-field references" ) ]
     fn vertex_defines_str( &self ) -> &str
     {
       ""
     }
 
     /// Returns a string containing fragment shader related defines
-    // See `defines_str` above: overrides return non-`'static` cached-field references.
-    #[ allow( clippy::unnecessary_literal_bound ) ]
+    #[ expect( clippy::unnecessary_literal_bound, reason = "overrides return non-`'static` cached-field references" ) ]
     fn fragment_defines_str( &self ) -> &str
     {
       ""
@@ -216,6 +212,10 @@ mod private
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations in the shader program.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a uniform upload fails.
     fn upload_on_state_change
     (
       &self,
@@ -228,6 +228,10 @@ mod private
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations in the shader program.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a uniform upload fails.
     fn upload
     (
       &self,

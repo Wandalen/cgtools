@@ -1,3 +1,4 @@
+//! Raycaster example — casts rays against scene geometry for collision and interaction with WebGL2.
 
 mod controls;
 
@@ -8,7 +9,7 @@ use gl::GL;
 
 fn main()
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   run();
 }
 
@@ -98,7 +99,7 @@ fn run()
       1.0 =>
       {
         // throw ray forward and check distance to an obstacle
-        let RayCollision { len, .. } = cast_ray( &player_pos, angle );
+        let RayCollision { len, .. } = cast_ray( player_pos, angle );
         // if an obstacle it too close then the movement is 0
         if len > 0.1 { 1.0 } else { 0.0 }
       }
@@ -106,7 +107,7 @@ fn run()
       {
         // thow ray backward and check distance to an obstacle
         let angle = wrap_angle( consts::PI + angle );
-        let RayCollision { len, .. } = cast_ray( &player_pos, angle );
+        let RayCollision { len, .. } = cast_ray( player_pos, angle );
         if len > 0.1 { -1.0 } else { 0.0 }
       }
       _ => 0.0
@@ -123,11 +124,11 @@ fn run()
     // inside this grid. we normalize player position
     // with map size len which is 8 and then move x coordinate
     // to left so it is on the left half of the screen
-    let posx = player_pos[ 0 ] / MAP_SIDE as f32 - 1.;
+    let pos_x = player_pos[ 0 ] / MAP_SIDE as f32 - 1.;
     // y coodinate should be flipped because map's y positive
     // direction is downwards
-    let posy = 1. - player_pos[ 1 ] / MAP_SIDE as f32 * 2.;
-    let player_pos_screen_space = [ posx, posy ];
+    let pos_y = 1. - player_pos[ 1 ] / MAP_SIDE as f32 * 2.;
+    let player_pos_screen_space = [ pos_x, pos_y ];
 
     // do raycasting
     rays.clear();
@@ -142,7 +143,7 @@ fn run()
       // adjust ray angle to player angle and shift by half of the field of view
       let ray_angle = angle + ray_angle - ( fov / 2. ).to_radians();
       let ray_angle = wrap_angle( ray_angle );
-      let RayCollision { pos, len } = cast_ray( &player_pos, ray_angle );
+      let RayCollision { pos, len } = cast_ray( player_pos, ray_angle );
 
       // adjust len to remove fish-eye effect
       let len = len * ( ray_angle - angle ).cos();
@@ -227,11 +228,11 @@ fn map_vao( gl : &GL ) -> gl::WebGlVertexArrayObject
 
     // screen-space coordinates of a tile
     // shifted to the left part of the screen
-    let posx = ( -WIDTH / 2. + CELL_SIZE * ( col + 0.5 ) ) / ( WIDTH / 2. );
-    let posy = ( HEIGHT / 2. - CELL_SIZE * ( row + 0.5 ) ) / ( HEIGHT / 2. );
+    let pos_x = ( -WIDTH / 2. + CELL_SIZE * ( col + 0.5 ) ) / ( WIDTH / 2. );
+    let pos_y = ( HEIGHT / 2. - CELL_SIZE * ( row + 0.5 ) ) / ( HEIGHT / 2. );
 
-    data.push( posx );
-    data.push( posy );
+    data.push( pos_x );
+    data.push( pos_y );
     data.push( color[ 0 ] );
     data.push( color[ 1 ] );
     data.push( color[ 2 ] );
@@ -264,7 +265,7 @@ fn map_vao( gl : &GL ) -> gl::WebGlVertexArrayObject
 }
 
 // algorithm explanation - https://www.youtube.com/watch?v=NbSee-XM7WA&t=1574s&ab_channel=javidx9
-fn cast_ray( start : &[ f32; 2 ], angle : f32 ) -> RayCollision
+fn cast_ray( start : [ f32; 2 ], angle : f32 ) -> RayCollision
 {
   let direction = direction( angle );
 

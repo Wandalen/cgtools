@@ -154,6 +154,30 @@ not by this section.
 
 **Aggregate verdict:** PASS — all 8 dimensions 🟢 on both passes, no fixes needed.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Does `Vector::min()/max()` now live in a `MatNum + PartialOrd`-bound impl block, separate from the `NdFloat`-bound block retaining `normalize`/`mag`/`distance`? Confirmed in `src/vector/arithmetics.rs`: `impl< E : MatEl + NdFloat, const LEN : usize > Vector< E, LEN >` contains only `normalize`/`mag`/`distance`; a new `impl< E : MatNum + PartialOrd, const LEN : usize > Vector< E, LEN >` block immediately below contains `min`/`max`, with doc comments no longer saying "Currently float-only" (now: "Satisfied by all integer primitives and floats alike").
+- [x] C2 — Do all 4 claimed commutative `Mul<Vector<{i32,i64,u32,u64},LEN>>` impls exist in `src/vector/operator/mul.rs`, mirroring the pre-existing `f32`/`f64` pattern? `grep -n "impl.*Mul.*Vector.*for i32\|...for i64\|...for u32\|...for u64"` → all 4 present at lines 97/112/127/142 (immediately after the pre-existing `f32`/`f64` impls at 73/85), each calling `mul_scalar( &rhs, self )` and each carrying the same `# Overflow` doc-comment as the float impls.
+- [x] C3 — Do the claimed test functions `vector_min_max_generic<E>()` and `vector_scalar_mul_commutative_generic<E>()` exist and are they registered for all 4 integer types? Confirmed at `tests/inc/integer_test/arithmetic_test.rs:99,110` (definitions) and `:391,394` (macro-body wrapper `#[test]` fns), with `integer_arithmetic_tests!( i32, i64, u32, u64 )` invoked at line 442.
+- [x] C4 — Is the `blocked_by: 044` dependency actually satisfied — does `mdmath_core::vector::{min,max}` support non-float `E` today? Indirectly confirmed by C1/C2 compiling and I1/I2 passing — a still-`NdFloat`-bound upstream free function would make this crate's relaxed `MatNum + PartialOrd` bound fail to compile for integer `E`, and `cargo clippy` (I2) would fail first.
+
+### Measurements
+
+- [x] M1 — `Vector::min()/max()`'s trait bound: now `MatNum + PartialOrd` (was: `MatEl + NdFloat`, cite `git show 9b71cf39^:module/math/ndarray_cg/src/vector/arithmetics.rs` — pre-fix, a single combined impl block covered `normalize`/`mag`/`min`/`max`/`distance` under one `NdFloat` bound; `9b71cf39` is the exact fix commit, confirmed via `git diff 9b71cf39^ 9b71cf39` isolating exactly this block split with no unrelated changes).
+- [x] M2 — Commutative integer `Mul<Vector<E,LEN>> for E` impl count: now `4` (i32/i64/u32/u64) (was: `0`, cite `git show 9b71cf39^:module/math/ndarray_cg/src/vector/operator/mul.rs` — only `f32`/`f64` impls present pre-fix).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p ndarray_cg --all-features` (via `longrun`) → exit 0, 261/261 passed, 0 skipped.
+- [x] I2 — Compiler/lints clean: `cargo clippy -p ndarray_cg --all-targets --all-features -- -D warnings` (via `longrun`) → exit 0, zero warnings/errors.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against `min`/`max` silently drifting back onto an `NdFloat`-only bound in a future refactor (re-coupling them with `normalize`/`mag`, which genuinely need `sqrt`): I1/I2 passing IS this check — `I32x3::min(...)`/`max(...)` (exercised by `vector_min_max_generic::<i32>`) only compiles under the relaxed bound, so a regression here fails the build before it fails a test assertion.
+- [x] AF2 — Guards against one of the 4 integer `Mul` impls being silently dropped (e.g. during a mechanical find-replace): re-running C2's grep must always return exactly 4 matches; `vector_scalar_mul_commutative_generic` (registered for all 4 types via the macro) will fail to compile if any one impl is missing.
+
 ## History
 
 *(append-only — newest entry last; never edit or remove past entries)*

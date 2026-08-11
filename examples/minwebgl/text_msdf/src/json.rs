@@ -73,7 +73,7 @@ impl MSDFFontJSON
     let mut kerning_map : HashMap< u8, HashMap< u8, f32 > > = HashMap::new();
 
     // If present, build a map of offsets between possible pair of letters 
-    for k in res.kernings.iter()
+    for k in &res.kernings
     {
       if let Some( map ) = kerning_map.get_mut( &k.first )
       {

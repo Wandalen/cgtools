@@ -67,6 +67,7 @@ mod private
   impl Sequencer
   {
     /// Creates a new animation Sequencer.
+    #[must_use]
     pub fn new() -> Self
     {
       Self
@@ -78,6 +79,7 @@ mod private
     }
 
     /// Returns list of contained [`AnimatablePlayer`]'s names
+    #[must_use]
     pub fn keys( &self ) -> Vec< Box< str > >
     {
       self.players.keys().cloned()
@@ -122,6 +124,7 @@ mod private
     }
 
     /// Gets reference to named player
+    #[must_use]
     pub fn get< T >( &self, name : &str ) -> Option< &T >
     where T : AnimatablePlayer + 'static
     {
@@ -139,6 +142,7 @@ mod private
     }
 
     /// Gets the current value of a named animation as dyn ref.
+    #[must_use]
     pub fn get_dyn_value( &self, name : &str ) -> Option< &dyn AnimatablePlayer >
     {
       let player_box = self.players.get( name )?;
@@ -146,6 +150,7 @@ mod private
     }
 
     /// Checks if the Sequencer has completed all animations.
+    #[must_use]
     pub fn is_completed( &self ) -> bool
     {
       self.state == AnimationState::Completed
@@ -210,24 +215,28 @@ mod private
     }
 
     /// Gets the current  Sequencer time.
+    #[must_use]
     pub fn time( &self ) -> f64
     {
       self.time
     }
 
     /// Gets the Sequencer state.
+    #[must_use]
     pub fn state( &self ) -> AnimationState
     {
       self.state
     }
 
     /// Gets the number of active animations.
+    #[must_use]
     pub fn animation_count( &self ) -> usize
     {
       self.players.len()
     }
 
     /// Progress of [`Sequencer`]
+    #[must_use]
     pub fn progress( &self ) -> f64
     {
       if self.state == AnimationState::Pending
@@ -242,6 +251,7 @@ mod private
 
     /// Gets the longest duration among [`Self::players`], used as the Sequencer's overall
     /// animation duration in [`Self::progress`].
+    #[must_use]
     pub fn duration_get( &self ) -> f64
     {
       let mut max_duration = 0.0;
@@ -263,6 +273,7 @@ mod private
     // Pitfall: the return type and correct seed value are easy to eyeball as right; only the
     // comparison direction is wrong, so a glance at the seed alone gives false confidence.
     /// Get smallest delay of [`Self::players`]
+    #[must_use]
     pub fn delay_get( &self ) -> f64
     {
       let mut min_delay = f64::MAX;
@@ -374,18 +385,21 @@ mod private
     }
 
     /// Returns active [`AnimatablePlayer`] at current elapsed time
+    #[must_use]
     pub fn current_get( &self ) -> Option< &T >
     {
       self.players.get( self.current )
     }
 
     /// Returns active [`AnimatablePlayer`] index in players array
+    #[must_use]
     pub fn current_id_get( &self ) -> usize
     {
       self.current
     }
 
     /// Returns reference to all sequence of players
+    #[must_use]
     pub fn players( &self ) -> &[ T ]
     {
       &self.players
@@ -398,6 +412,7 @@ mod private
     }
 
     /// Returns elapsed time
+    #[must_use]
     pub fn time( &self ) -> f64
     {
       self.elapsed

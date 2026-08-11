@@ -119,11 +119,9 @@ mod private
       // `color_indices` holds indices returned by `build_unique_palette` into
       // `thread_palette`, a fixed 65-entry array (see `pec_threads`), so every
       // value is < 65 and fits in `u8`.
-      #[ allow( clippy::cast_possible_truncation ) ]
       let bytes = color_indices.iter().map( | v | *v as u8 ).collect::< Vec< _ > >();
       // Guarded above: the `add_value >= 255` branch already returned an error,
       // so `add_value` is always < 255 here and fits in `u8`.
-      #[ allow( clippy::cast_possible_truncation ) ]
       let add_value_u8 = add_value as u8;
       writer.write_u8( add_value_u8 )?;
       writer.write_all( &bytes )?;
@@ -334,7 +332,6 @@ mod private
     {
       // short instruction (1 byte)
       // Guarded by the condition above: `value` is within (-64, 63), well inside `i8`'s range.
-      #[ allow( clippy::cast_possible_truncation ) ]
       let byte = value as i8 & MASK_7_BIT;
       writer.write_i8( byte )
     }

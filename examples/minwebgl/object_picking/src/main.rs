@@ -1,3 +1,4 @@
+//! Object picking example — selects rendered objects under the mouse cursor with WebGL2.
 
 mod shaders;
 
@@ -22,7 +23,7 @@ use web_sys::
 
 fn main()
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   gl::spawn_local( async { gl::info!( "{:?}", run().await ) } );
 }
 
@@ -115,14 +116,14 @@ async fn run() -> Result< (), gl::WebglError >
       // `web_sys_unstable_apis` is active (see minwebgl/src/texture/d2.rs); the explicit `f64`
       // annotation makes `.into()` resolve correctly in both cases (`i32: Into<f64>` widens,
       // `f64: Into<f64>` is identity), matching `canvas_x`/`canvas_y` (`rect.left()`/`.top()`).
-      #[ allow( clippy::useless_conversion ) ]
+      #[ allow( clippy::useless_conversion, reason = "cfg-dependent per the Fix(BUG-053) note above — the conversion is an identity only under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled in the default i32 build" ) ]
       let x : f64 = e.client_x().into();
-      #[ allow( clippy::useless_conversion ) ]
+      #[ allow( clippy::useless_conversion, reason = "cfg-dependent per the Fix(BUG-053) note above — the conversion is an identity only under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled in the default i32 build" ) ]
       let y : f64 = e.client_y().into();
 
       let x = x - canvas_x;
       let y = y - canvas_y;
-      let y = height as f64 - y;
+      let y = f64::from( height ) - y;
 
       let pos = [ x, y ];
 
@@ -184,20 +185,20 @@ fn draw_outline
   gl.use_program( Some( &outline_shader.program ) );
   gl::uniform::matrix_upload
   (
-    &gl,
+    gl,
     outline_shader.mvp.clone(),
     ( projection * transform ).raw_slice(),
     true
   ).unwrap();
 
   gl.disable( GL::DEPTH_TEST );
-  draw_meshes( meshes.as_ref(), &gl );
+  draw_meshes( meshes, gl );
 
   // draw object
   gl.use_program( Some( &object_shader.program ) );
   gl::uniform::matrix_upload
   (
-    &gl,
+    gl,
     object_shader.model.clone(),
     transform.raw_slice(),
     true
@@ -205,7 +206,7 @@ fn draw_outline
 
   gl.enable( GL::DEPTH_TEST );
   gl.clear( GL::DEPTH_BUFFER_BIT );
-  draw_meshes( meshes.as_ref(), &gl );
+  draw_meshes( meshes, gl );
 }
 
 fn draw_objects( objects : &[ Object ], object_shader : &shaders::ObjectShader, meshes : &[ Mesh ], gl : &GL )
@@ -220,7 +221,7 @@ fn draw_objects( objects : &[ Object ], object_shader : &shaders::ObjectShader, 
       true
     ).unwrap();
 
-    draw_meshes( meshes.as_ref(), gl );
+    draw_meshes( meshes, gl );
   }
 }
 
@@ -272,7 +273,7 @@ async fn load_meshes( models : &[ tobj::Model ], materials : &[ tobj::Material ]
 
     let texture = if let Some( name ) = &material.diffuse_texture
     {
-      let img = gl::dom::create_image_element( &format!( "static/cat/{}", name ) ).unwrap();
+      let img = gl::dom::create_image_element( &format!( "static/cat/{name}" ) ).unwrap();
       // tried to do texture uploading in on_load callback
       // but i had visual artifacts on the texture
       // like, some black spots for some reason

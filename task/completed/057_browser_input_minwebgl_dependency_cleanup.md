@@ -42,6 +42,32 @@ task `001`; re-filing here under a fresh ID resolves that). The note's core clai
 exactly two math types) was verified 2026-08-10 but found incomplete — the `JsCast` re-export and the
 test-file import above are additional real coupling points its plan didn't cover.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is the `minwebgl` dependency genuinely removed from `Cargo.toml`, replaced by `ndarray_cg`? Current `[dependencies]` shows `ndarray_cg = { workspace = true, optional = true }` and `enabled = ["dep:ndarray_cg", "dep:web-sys", "dep:strum"]`; no `minwebgl` entry anywhere in the manifest.
+- [x] C2 — Do the `web-sys` features include the claimed `Window`/`Document` additions (the 4th coupling class discovered mid-implementation)? Current manifest's `web-sys` feature list: `Window, Document, KeyboardEvent, PointerEvent, WheelEvent, Element, HtmlElement, CssStyleDeclaration` — both present.
+- [x] C3 — Is `JsCast` now sourced via `web_sys::wasm_bindgen` rather than minwebgl's re-export, at both claimed sites? `grep -n "JsCast" src/util.rs src/input.rs` → `util.rs:4` and `input.rs:8` both import `wasm_bindgen::{ JsCast as _, ... }` through `web_sys`, zero through `minwebgl`.
+- [x] C4 — Does the test file import `ndarray_cg::I32x2` instead of `minwebgl::math::I32x2`? `tests/active_pointers_test.rs:7` → `use ndarray_cg::I32x2;`.
+- [x] C5 — Are the only residual `minwebgl` mentions in the crate the claimed documentation-only ones? `grep -in minwebgl src/*.rs tests/*.rs readme.md tests/manual/readme.md` → exactly 3 hits in `input.rs` (lines 203/216/229, doc comments citing `minwebgl/src/texture/d2.rs` re the BUG-053 cfg split) + 2 hits in `tests/manual/readme.md` (the `examples/minwebgl/touch_input_test` manual-test pointer) — no dependency-relevant hit.
+
+### Measurements
+
+- [x] M1 — `Cargo.toml` core dependency: `minwebgl` (was, `git show 4469eafb^:module/helper/browser_input/Cargo.toml`) → `ndarray_cg` (now) — `git diff 4469eafb^ 4469eafb -- module/helper/browser_input/Cargo.toml` shows the exact swap (`enabled = ["dep:minwebgl", ...]` → `["dep:ndarray_cg", ...]`; `minwebgl = { features = ["math"], ... }` → `ndarray_cg = { ... }`).
+- [x] M2 — `web-sys` feature-list length: `6` (was, same diff/parent commit) → `8` (now, +`Window` +`Document`).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo test -p browser_input --all-features` → exit 0; unittests 0/0, `active_pointers_test` 7/7, `pointer_type_test` 6/6, doc-tests 0/0.
+- [x] I2 — Compiler/lints clean: `cargo clippy -p browser_input --all-targets --all-features -- -D warnings` → exit 0, zero warnings.
+- [x] I3 — Primary target still builds (this task's actual point — WebGL decoupling without losing wasm32 buildability): `cargo check --target wasm32-unknown-unknown -p browser_input --all-features` → exit 0, 163s.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against `minwebgl` silently creeping back into `Cargo.toml` as a quick fix for a future missing type: re-run C1/C5's grep for `minwebgl` across `Cargo.toml` and `src/` — any hit outside the 3 documented `input.rs` doc-comment cross-references is a regression.
+- [x] AF2 — Guards against the web-sys FEATURE-unification gap (the 4th coupling class this task discovered, invisible to any static grep — it only surfaced as a wasm32 compile failure) recurring on a future dependency edit: re-running I3 after any future edit to `browser_input`'s `web-sys` feature list or dependency graph is the only real guard, since a transitively-supplied feature silently disappearing cannot be caught by source-level diffing alone.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Migrated from browser_input's informal `task/` note by task 040

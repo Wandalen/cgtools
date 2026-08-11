@@ -60,6 +60,7 @@ use crate::Animatable;
     // Pitfall: boundary-only tests (t = 0.0 / 1.0) can't catch this — `apply`'s early-return
     // guards bypass the solve loop at both boundaries regardless of `iterations`, so only
     // mid-curve values expose the wrong shape.
+    #[must_use]
     pub fn new( parameters : [ f64; 4 ] ) -> Self
     {
       let [ i1, i2, o1, o2 ] = parameters;

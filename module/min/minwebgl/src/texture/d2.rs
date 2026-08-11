@@ -14,7 +14,6 @@ type GL = web_sys::WebGl2RenderingContext;
 // `i32::MAX` -- the `texImage2D`/`texParameteri` family requires `i32` per their WebIDL
 // `GLint`/`GLenum` signatures, so this narrow, single-purpose conversion point is safe by
 // construction for every constant it is called with in this file.
-#[ allow( clippy::cast_possible_wrap ) ]
 fn param_as_i32( value : u32 ) -> i32
 {
   value as i32
@@ -25,7 +24,6 @@ fn param_as_i32( value : u32 ) -> i32
 // signed ) -- real browsers cap canvas/texture/video dimensions at a few tens of thousands
 // of pixels ( e.g. `MAX_TEXTURE_SIZE`, a browser's own max canvas area ), so these values
 // never approach `i32::MAX` in practice.
-#[ allow( clippy::cast_possible_wrap ) ]
 fn dim_as_i32( value : u32 ) -> i32
 {
   value as i32
@@ -129,9 +127,8 @@ pub fn upload
 /// rendering of animations or multiple images by storing them in a single texture.
 // `examples/minwebgl/sprite_animation/src/main.rs` constructs `SpriteSheet` via a struct
 // literal from outside this crate ( `gl::texture::d2::SpriteSheet { sprites_in_row: 8, .. }` );
-// `#[non_exhaustive]` would break that established external call-site contract, so the lint
-// is suppressed here instead of applying the usual real fix.
-#[ allow( clippy::exhaustive_structs ) ]
+// `#[non_exhaustive]` would break that established external call-site contract, so the struct
+// deliberately stays exhaustive ( `exhaustive_structs` is centrally allowed in the root manifest ).
 pub struct SpriteSheet
 {
   /// Number of sprites in each row of the sheet
@@ -298,9 +295,8 @@ pub fn update_video( gl : &GL, texture : &web_sys::WebGlTexture, video_element :
 /// data fails.
 // `get_image_data` below is `#[cfg(web_sys_unstable_apis)]`-gated at two argument-type
 // signatures inside web-sys itself (see BUG-053); `web_sys_unstable_apis` is a raw `--cfg`
-// flag, not a Cargo feature, so rustc has no `check-cfg` declaration for it and always
-// classifies referencing it as `unexpected_cfgs` regardless of which signature is active.
-#[ allow( unexpected_cfgs ) ]
+// flag, not a Cargo feature, declared via `check-cfg` in the root manifest's
+// `[workspace.lints.rust]` so referencing it is not `unexpected_cfgs`.
 #[ inline ]
 pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement, sprite_sheet : &SpriteSheet ) -> Result< web_sys::WebGlTexture, WebglError >
 {

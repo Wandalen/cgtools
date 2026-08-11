@@ -315,15 +315,12 @@ mod private
     // `height`/`width` are design bounds derived from stitch coordinates; real
     // embroidery designs stay well under 2^24 units, so this never loses meaningful
     // precision even though `i32 -> f32` is not lossless in the general case.
-    #[ allow( clippy::cast_precision_loss ) ]
     let mut trans_y : f32 = 100.0 + height as f32;
     trans_x += hoop_width / 2.0;
     trans_y += hoop_height / 2.0;
     // Same bound as `trans_y`'s initializer above: `width`/`height` are design bounds
     // that never realistically approach 2^24 units.
-    #[ allow( clippy::cast_precision_loss ) ]
     let neg_width = -width as f32;
-    #[ allow( clippy::cast_precision_loss ) ]
     let neg_height = -height as f32;
     trans_x += neg_width / 2.0;
     trans_y += neg_height / 2.0;
@@ -496,7 +493,6 @@ mod private
     // `color_indices` comes from `pec::write_content`, whose values are indices into
     // the fixed 65-entry thread palette (see `pec::write_pec_header`), so every value
     // is < 65 and fits in `u8`.
-    #[ allow( clippy::cast_possible_truncation ) ]
     let color_indices : Vec< _ > = color_indices.iter().map( | v | *v as u8 ).collect();
     let spaces = vec![ 0x20_u8; 128_usize.wrapping_sub( count ) ];
 
@@ -523,7 +519,6 @@ mod private
   {
     let len = str.len().min( usize::from( u16::MAX ) );
     // Bounded above by the `.min( usize::from( u16::MAX ) )` clamp on the line above.
-    #[ allow( clippy::cast_possible_truncation ) ]
     let len_u16 = len as u16;
     writer.write_u16::< LE >( len_u16 )?;
     writer.write_all( &str.as_bytes()[ ..len ] )?;
@@ -538,7 +533,6 @@ mod private
   {
     let len = str.len().min( usize::from( u8::MAX ) );
     // Bounded above by the `.min( usize::from( u8::MAX ) )` clamp on the line above.
-    #[ allow( clippy::cast_possible_truncation ) ]
     let len_u8 = len as u8;
     writer.write_u8( len_u8 )?;
     writer.write_all( &str.as_bytes()[ ..len ] )?;

@@ -349,10 +349,7 @@ impl KeyboardKey
   }
 
   /// Get the string representation of this KeyboardCode
-  // Exhaustive 150-variant match acting as a static lookup table mirroring the DOM
-  // `KeyboardEvent.code` spec — splitting it would fragment one spec mapping across
-  // multiple functions for no behavioral benefit.
-  #[ allow( clippy::too_many_lines ) ]
+  #[ expect( clippy::too_many_lines, reason = "exhaustive 150-variant match acting as a static lookup table mirroring the DOM KeyboardEvent.code spec; splitting it would fragment one spec mapping across multiple functions for no behavioral benefit" ) ]
   #[ inline ]
   #[ must_use ]
   pub const fn as_str( &self ) -> &'static str
@@ -614,9 +611,7 @@ impl FromStr for KeyboardKey
 {
   type Err = ();
 
-  // Exhaustive 150-variant match acting as a static lookup table mirroring the DOM
-  // `KeyboardEvent.code` spec — see `as_str`'s justification above for the same reasoning.
-  #[ allow( clippy::too_many_lines ) ]
+  #[ expect( clippy::too_many_lines, reason = "exhaustive 150-variant match acting as a static lookup table mirroring the DOM KeyboardEvent.code spec — same reasoning as as_str above" ) ]
   #[ inline ]
   fn from_str( s : &str ) -> Result< Self, Self::Err >
   {

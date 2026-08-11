@@ -1,4 +1,10 @@
-use super::*;
+use super::
+{
+  Filter,
+  FilterRenderer,
+  GL,
+  gl,
+};
 use serde::{ Serialize, Deserialize };
 
 #[ derive( Debug, Serialize, Deserialize ) ]

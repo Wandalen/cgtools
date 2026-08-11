@@ -137,7 +137,6 @@ mod private
           false,
           VectorDataType::new( mingl::DataType::F32, 3, 1 )
         )
-        .unwrap()
       ),
     ];
 
@@ -207,7 +206,7 @@ mod private
         node.borrow_mut().set_name( name.clone() );
       }
 
-      primitive_data.transform.set_node_transform( node.clone() );
+      primitive_data.transform.set_node_transform( &node );
 
       nodes.push( node.clone() );
       if primitive_data.parent.is_none()

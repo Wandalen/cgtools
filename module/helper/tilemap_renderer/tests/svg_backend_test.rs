@@ -1,11 +1,11 @@
-#![ cfg( feature = "adapter-svg" ) ]
-
 //! `SvgBackend` adapter behavior tests, relocated from inline `src/adapters/svg.rs` by
 //! task 071. Every test drives the backend purely through its public surface --
 //! `SvgBackend::new` / `set_viewport_scale` / `set_viewport_offset` plus the `Backend`
 //! trait -- and asserts on the rendered SVG string from `output()`. Tests of the
 //! adapter's private formatting/encoding helpers remain inline in `src/adapters/svg.rs`
 //! as a documented exception (see the comment on that module).
+
+#![ cfg( feature = "adapter-svg" ) ]
 
 use tilemap_renderer::assets::*;
 use tilemap_renderer::backend::*;

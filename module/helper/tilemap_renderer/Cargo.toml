@@ -16,6 +16,7 @@ default = ["enabled"]
 full = ["enabled", "adapter-svg", "adapter-terminal", "adapter-webgl", "cli", "scene-model"]
 adapter-svg = ["enabled", "dep:base64", "dep:bytemuck", "dep:image"]
 adapter-terminal = ["enabled"]
+adapter-none = ["enabled"]
 # Requires wasm32-unknown-unknown target.
 adapter-webgl = [
   "enabled",
@@ -23,6 +24,13 @@ adapter-webgl = [
   "dep:web-sys",
   "dep:js-sys",
   "dep:wasm-bindgen",
+  "dep:bytemuck"
+]
+# Requires wasm32-unknown-unknown target.
+adapter-webgpu = [
+  "enabled",
+  "dep:gpu_hal",
+  "dep:web-sys",
   "dep:bytemuck"
 ]
 # CLI stub — not yet reimplemented
@@ -38,7 +46,14 @@ scene-model = [
 [dependencies]
 nohash-hasher = { workspace = true, optional = true }
 minwebgl = { workspace = true, optional = true }
-web-sys = { workspace = true, optional = true }
+gpu_hal = { workspace = true, features = [ "webgpu" ], optional = true }
+web-sys = { workspace = true, optional = true, features = [
+  # webgl.rs: WebGlBackend::new registers persistent webglcontextlost /
+  # webglcontextrestored listeners on the canvas (EventTarget) and calls
+  # Event::prevent_default() in the loss handler.
+  "EventTarget",
+  "Event",
+] }
 js-sys = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
@@ -50,3 +65,4 @@ serde = { workspace = true, features = [ "derive" ], optional = true }
 
 [dev-dependencies]
 bytemuck.workspace = true
+wasm-bindgen-test = { workspace = true }

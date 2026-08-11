@@ -32,9 +32,9 @@ mod private
     topology_to_gl,
   };
   use crate::assets::Assets;
-  use crate::backend::*;
-  use crate::commands::*;
-  use crate::types::*;
+  use crate::backend::{ RenderError, Backend, Output, Capabilities };
+  use crate::commands::{ Clear, Mesh, Sprite, CreateSpriteBatch, CreateMeshBatch, BindBatch, AddSpriteInstance, AddMeshInstance, SetSpriteInstance, SetMeshInstance, RemoveInstance, SetSpriteBatchParams, SetMeshBatchParams, DrawBatch, DeleteBatch, RenderCommand };
+  use crate::types::{ FillRef, RenderConfig, ResourceId, Batch, MipmapMode, BlendMode, asset, SamplerFilter, WrapMode };
 
   // ============================================================================
   // Sprite renderer
@@ -71,23 +71,24 @@ mod private
     ///
     /// `region` is the sprite rect in pixels and `tex_size` is the sheet's dimensions — same
     /// convention as `sprite_batch.vert`, so both shaders normalize UV the same way.
-    fn draw( &self, gl : &gl::GL, transform : &[ f32; 9 ], region : &[ f32; 4 ], tex_size : &[ f32; 2 ], tint : &[ f32; 4 ], viewport : &[ f32; 2 ], depth : f32, max_depth : f32 )
+    #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct WebGL uniform upload target; grouping into a struct would add indirection without reducing call-site complexity for this single-call-site private method" ) ]
+    fn draw( &self, gl : &gl::GL, transform : &[ f32; 9 ], region : &[ f32; 4 ], tex_size : [ f32; 2 ], tint : &[ f32; 4 ], viewport : [ f32; 2 ], depth : f32, max_depth : f32 )
     {
       // Unbind any VAO to prevent stale attribute state from interfering
       gl.bind_vertex_array( None );
       self.program.activate();
       self.program.uniform_matrix_upload( "u_transform", transform.as_slice(), true );
       self.program.uniform_upload( "u_region", region );
-      self.program.uniform_upload( "u_tex_size", tex_size );
+      self.program.uniform_upload( "u_tex_size", &tex_size );
       self.program.uniform_upload( "u_tint", tint );
-      self.program.uniform_upload( "u_viewport", viewport );
+      self.program.uniform_upload( "u_viewport", &viewport );
       self.program.uniform_upload( "u_depth", &depth );
       self.program.uniform_upload( "u_max_depth", &max_depth );
       gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
     }
 
     /// Draw an instanced sprite batch.
-    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : &[ f32; 2 ], max_depth : f32 )
+    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : [ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Sprite { instances, vao, params, .. } = batch else { return; };
       if instances.is_empty() { return; }
@@ -101,7 +102,7 @@ mod private
       gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
 
       self.batch_program.activate();
-      self.batch_program.uniform_upload( "u_viewport", viewport );
+      self.batch_program.uniform_upload( "u_viewport", &viewport );
       self.batch_program.uniform_upload( "u_tex_size", &[ tw as f32, th as f32 ] );
       let parent_mat = params.transform.to_mat3();
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
@@ -150,6 +151,7 @@ mod private
     }
 
     /// Draw a single mesh.
+    #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct WebGL uniform upload target or draw-call input; grouping into a struct would add indirection without reducing call-site complexity for this single-call-site private method" ) ]
     fn draw
     (
       &self,
@@ -158,7 +160,7 @@ mod private
       transform : &[ f32; 9 ],
       color : &[ f32; 4 ],
       topology : u32,
-      viewport : &[ f32; 2 ],
+      viewport : [ f32; 2 ],
       use_texture : bool,
       depth : f32,
       max_depth : f32,
@@ -167,7 +169,7 @@ mod private
       self.program.activate();
       self.program.uniform_matrix_upload( "u_transform", transform.as_slice(), true );
       self.program.uniform_upload( "u_color", color );
-      self.program.uniform_upload( "u_viewport", viewport );
+      self.program.uniform_upload( "u_viewport", &viewport );
       self.program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
       self.program.uniform_upload( "u_depth", &depth );
       self.program.uniform_upload( "u_max_depth", &max_depth );
@@ -189,7 +191,7 @@ mod private
     }
 
     /// Draw an instanced mesh batch. VAO is already configured via `setup_mesh_batch_vao`.
-    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : &[ f32; 2 ], max_depth : f32 )
+    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : [ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Mesh { instances, vao, params, .. } = batch else { return };
       if instances.is_empty() { return; }
@@ -208,7 +210,7 @@ mod private
       }
 
       self.batch_program.activate();
-      self.batch_program.uniform_upload( "u_viewport", viewport );
+      self.batch_program.uniform_upload( "u_viewport", &viewport );
       self.batch_program.uniform_upload( "u_color", &color );
       self.batch_program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
       let parent_mat = params.transform.to_mat3();
@@ -259,6 +261,12 @@ mod private
 
     // -- batch editing state --
     recording_batch : Option< ResourceId< Batch > >,
+
+    // -- context state --
+    // Set by the `webglcontextlost` listener, cleared by `webglcontextrestored`.
+    // `submit`/`output` check this before issuing any GL call. `Rc` so the listener
+    // closures (which outlive `new`) can share it with the backend instance.
+    context_lost : Rc< Cell< bool > >,
   }
 
   impl WebGlBackend
@@ -312,6 +320,9 @@ mod private
         .and_then( | v | u32::try_from( v as i64 ).ok() )
         .unwrap_or( 2048 );
 
+      let context_lost = Rc::new( Cell::new( false ) );
+      Self::register_context_loss_listeners( &gl, &context_lost );
+
       Ok( Self
       {
         config,
@@ -321,7 +332,46 @@ mod private
         mesh,
         max_texture_size,
         recording_batch : None,
+        context_lost,
       })
+    }
+
+    /// Registers persistent `webglcontextlost` / `webglcontextrestored` listeners on the
+    /// canvas reachable from `gl`. Context can be lost and restored more than once in a
+    /// session (unlike the one-shot `Closure::once_into_js` image-load idiom elsewhere in
+    /// this file), so both closures are leaked via `.forget()` rather than consumed on first
+    /// invocation. `webglcontextlost` calls `prevent_default()` — the WebGL spec's own opt-in
+    /// signal for the browser to attempt restoration at all; omitting it means the browser
+    /// never tries. If `gl`'s canvas cannot be resolved (e.g. a non-`HtmlCanvasElement`
+    /// rendering target), listener registration is skipped and a diagnostic is logged —
+    /// context loss then remains silently unrecoverable, same as before this method existed.
+    fn register_context_loss_listeners( gl : &gl::GL, context_lost : &Rc< Cell< bool > > )
+    {
+      let Some( canvas ) = gl.canvas().and_then( | c | c.dyn_into::< web_sys::HtmlCanvasElement >().ok() ) else
+      {
+        web_sys::console::warn_1
+        (
+          &"WebGlBackend: could not resolve an HtmlCanvasElement from the GL context; context-loss detection is disabled".into()
+        );
+        return;
+      };
+
+      let lost_flag = Rc::clone( context_lost );
+      let on_lost = Closure::< dyn FnMut( web_sys::Event ) >::new( move | event : web_sys::Event |
+      {
+        event.prevent_default();
+        lost_flag.set( true );
+      });
+      let _ = canvas.add_event_listener_with_callback( "webglcontextlost", on_lost.as_ref().unchecked_ref() );
+      on_lost.forget();
+
+      let restored_flag = Rc::clone( context_lost );
+      let on_restored = Closure::< dyn FnMut( web_sys::Event ) >::new( move | _event : web_sys::Event |
+      {
+        restored_flag.set( false );
+      });
+      let _ = canvas.add_event_listener_with_callback( "webglcontextrestored", on_restored.as_ref().unchecked_ref() );
+      on_restored.forget();
     }
 
     fn viewport_size( &self ) -> [ f32; 2 ]
@@ -357,7 +407,7 @@ mod private
       self.gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
     }
 
-    fn cmd_mesh( &self, m : &Mesh, viewport : &[ f32; 2 ] )
+    fn cmd_mesh( &self, m : &Mesh, viewport : [ f32; 2 ] )
     {
       let res = self.resources.borrow();
       if let Some( geom ) = res.geometry( m.geometry )
@@ -378,7 +428,7 @@ mod private
       }
     }
 
-    fn cmd_sprite( &self, s : &Sprite, viewport : &[ f32; 2 ] )
+    fn cmd_sprite( &self, s : &Sprite, viewport : [ f32; 2 ] )
     {
       let res = self.resources.borrow();
       let Some( gpu_sprite ) = res.sprite( s.sprite ) else { return };
@@ -395,7 +445,7 @@ mod private
 
       let mat = s.transform.to_mat3();
       apply_blend( &self.gl, &s.blend );
-      self.sprite.draw( &self.gl, &mat, &gpu_sprite.region, &tex_size, &s.tint, viewport, s.transform.depth, self.config.max_depth );
+      self.sprite.draw( &self.gl, &mat, &gpu_sprite.region, tex_size, &s.tint, viewport, s.transform.depth, self.config.max_depth );
     }
 
     fn cmd_create_sprite_batch( &mut self, cmd : &CreateSpriteBatch ) -> Result< (), RenderError >
@@ -445,7 +495,7 @@ mod private
       Ok( () )
     }
 
-    fn cmd_bind_batch( &mut self, cmd : &BindBatch ) -> Result< (), RenderError >
+    fn cmd_bind_batch( &mut self, cmd : BindBatch ) -> Result< (), RenderError >
     {
       if let Some( current ) = self.recording_batch
       {
@@ -602,7 +652,7 @@ mod private
       Ok( () )
     }
 
-    fn cmd_remove_instance( &mut self, ri : &RemoveInstance ) -> Result< (), RenderError >
+    fn cmd_remove_instance( &mut self, ri : RemoveInstance ) -> Result< (), RenderError >
     {
       let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
       let mut res = self.resources.borrow_mut();
@@ -715,7 +765,7 @@ mod private
       }
     }
 
-    fn cmd_draw_batch( &self, db : &DrawBatch, viewport : &[ f32; 2 ] ) -> Result< (), RenderError >
+    fn cmd_draw_batch( &self, db : DrawBatch, viewport : [ f32; 2 ] ) -> Result< (), RenderError >
     {
       if self.recording_batch == Some( db.batch )
       {
@@ -747,7 +797,7 @@ mod private
       Ok( () )
     }
 
-    fn cmd_delete_batch( &mut self, db : &DeleteBatch )
+    fn cmd_delete_batch( &mut self, db : DeleteBatch )
     {
       // If the batch being deleted is currently bound, clear the recording slot so
       // subsequent instance commands do not silently target a dangling id.
@@ -1028,82 +1078,75 @@ mod private
               gl : gl.clone(), vao, position_buffer, uv_buffer, index_buffer, vertex_count, index_count,
             });
 
-            // Re-setup any mesh batch VAOs that reference this geometry.
-            // Batches created before async load completed only have instance attribs;
-            // now that geometry buffers are available, add geometry attribs too.
-            {
-              let res = resources.borrow();
-              if let Some( geom ) = res.geometry( id )
-              {
-                for batch in res.batches.values()
-                {
-                  if let GpuBatch::Mesh { vao, params, instances, .. } = batch
-                    && params.geometry == id
-                  {
-                    setup_mesh_batch_vao
-                    (
-                      gl,
-                      vao,
-                      geom.position_buffer.as_ref(),
-                      geom.uv_buffer.as_ref(),
-                      geom.index_buffer.as_ref(),
-                      instances.buffer(),
-                    );
-                  }
-                }
-              }
-            }
+            refresh_mesh_batch_vaos( gl, &resources, id );
           });
         }
         else
         {
-          // Synchronous path — all data is already in memory.
-          let vao = gl::vao::create( gl ).map_err( map_err )?;
-          gl.bind_vertex_array( Some( &vao ) );
-
-          let mut position_buffer = None;
-          if let crate::assets::Source::Bytes( ref bytes ) = geom.positions
-          {
-            let buffer = gl::buffer::create( gl ).map_err( map_err )?;
-            gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
-            gl.enable_vertex_attrib_array( 0 );
-            gl.vertex_attrib_pointer_with_i32( 0, 2, gl::FLOAT, false, 0, 0 );
-            position_buffer = Some( buffer );
-          }
-
-          let mut uv_buffer = None;
-          if let Some( crate::assets::Source::Bytes( ref bytes ) ) = geom.uvs
-          {
-            let buffer = gl::buffer::create( gl ).map_err( map_err )?;
-            gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
-            gl.enable_vertex_attrib_array( 1 );
-            gl.vertex_attrib_pointer_with_i32( 1, 2, gl::FLOAT, false, 0, 0 );
-            uv_buffer = Some( buffer );
-          }
-
-          let mut index_buffer = None;
-          let mut index_count = None;
-          if let Some( crate::assets::Source::Bytes( ref bytes ) ) = geom.indices
-          {
-            let buffer = gl::buffer::create( gl ).map_err( map_err )?;
-            gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &buffer ) );
-            let u8_array = js_sys::Uint8Array::from( bytes.as_slice() );
-            gl.buffer_data_with_array_buffer_view( gl::ELEMENT_ARRAY_BUFFER, &u8_array, gl::STATIC_DRAW );
-            index_count = Some( ( ( bytes.len() as u32 ) / idx_stride, idx_gl_type ) );
-            index_buffer = Some( buffer );
-          }
-
-          gl.bind_vertex_array( None );
-
-          let vertex_count = if let crate::assets::Source::Bytes( ref bytes ) = geom.positions
-          { ( bytes.len() / 8 ) as u32 } else { 0 };
-
-          self.resources.borrow_mut().store_geometry( geom.id, GpuGeometry
-          {
-            gl : gl.clone(), vao, position_buffer, uv_buffer, index_buffer, vertex_count, index_count,
-          });
+          self.load_geometry_sync( geom, idx_stride, idx_gl_type )?;
         }
       }
+
+      Ok( () )
+    }
+
+    // Synchronous geometry load — all data already in memory (no `Source::Path` fields).
+    // Split out of `load_geometries` to keep that function's async/sync dispatch readable.
+    fn load_geometry_sync
+    (
+      &self,
+      geom : &crate::assets::GeometryAsset,
+      idx_stride : u32,
+      idx_gl_type : u32,
+    ) -> Result< (), RenderError >
+    {
+      let gl = &self.gl;
+      let map_err = | e : gl::WebglError | RenderError::BackendError( format!( "{e:?}" ) );
+
+      let vao = gl::vao::create( gl ).map_err( map_err )?;
+      gl.bind_vertex_array( Some( &vao ) );
+
+      let mut position_buffer = None;
+      if let crate::assets::Source::Bytes( ref bytes ) = geom.positions
+      {
+        let buffer = gl::buffer::create( gl ).map_err( map_err )?;
+        gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
+        gl.enable_vertex_attrib_array( 0 );
+        gl.vertex_attrib_pointer_with_i32( 0, 2, gl::FLOAT, false, 0, 0 );
+        position_buffer = Some( buffer );
+      }
+
+      let mut uv_buffer = None;
+      if let Some( crate::assets::Source::Bytes( ref bytes ) ) = geom.uvs
+      {
+        let buffer = gl::buffer::create( gl ).map_err( map_err )?;
+        gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
+        gl.enable_vertex_attrib_array( 1 );
+        gl.vertex_attrib_pointer_with_i32( 1, 2, gl::FLOAT, false, 0, 0 );
+        uv_buffer = Some( buffer );
+      }
+
+      let mut index_buffer = None;
+      let mut index_count = None;
+      if let Some( crate::assets::Source::Bytes( ref bytes ) ) = geom.indices
+      {
+        let buffer = gl::buffer::create( gl ).map_err( map_err )?;
+        gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &buffer ) );
+        let u8_array = js_sys::Uint8Array::from( bytes.as_slice() );
+        gl.buffer_data_with_array_buffer_view( gl::ELEMENT_ARRAY_BUFFER, &u8_array, gl::STATIC_DRAW );
+        index_count = Some( ( ( bytes.len() as u32 ) / idx_stride, idx_gl_type ) );
+        index_buffer = Some( buffer );
+      }
+
+      gl.bind_vertex_array( None );
+
+      let vertex_count = if let crate::assets::Source::Bytes( ref bytes ) = geom.positions
+      { ( bytes.len() / 8 ) as u32 } else { 0 };
+
+      self.resources.borrow_mut().store_geometry( geom.id, GpuGeometry
+      {
+        gl : gl.clone(), vao, position_buffer, uv_buffer, index_buffer, vertex_count, index_count,
+      });
 
       Ok( () )
     }
@@ -1149,41 +1192,46 @@ mod private
 
     fn submit( &mut self, commands : &[ RenderCommand ] ) -> Result< (), RenderError >
     {
+      if self.context_lost.get()
+      {
+        return Err( RenderError::ContextLost );
+      }
+
       let viewport = self.viewport_size();
 
       for cmd in commands
       {
         // Unimplemented placeholder arms (Path/Text/Group) all map to {} and are
         // intentionally kept separate for readability and future expansion.
-        #[ allow( clippy::match_same_arms ) ]
+        #[ allow( clippy::match_same_arms, reason = "unimplemented placeholder arms (Path/Text/Group) intentionally kept separate for readability and future expansion" ) ]
         match cmd
         {
           RenderCommand::Clear( c ) => self.cmd_clear( c ),
 
           // Mesh & sprite
-          RenderCommand::Mesh( m ) => self.cmd_mesh( m, &viewport ),
-          RenderCommand::Sprite( s ) => self.cmd_sprite( s, &viewport ),
+          RenderCommand::Mesh( m ) => self.cmd_mesh( m, viewport ),
+          RenderCommand::Sprite( s ) => self.cmd_sprite( s, viewport ),
           // ScreenSpaceSprite uses the same draw path as Sprite — the compile
           // layer already emits coordinates in screen-space (no camera
           // project), so the adapter does not need to branch further. The
           // distinction matters only to callers that post-process the command
           // stream.
-          RenderCommand::ScreenSpaceSprite( s ) => self.cmd_sprite( s, &viewport ),
+          RenderCommand::ScreenSpaceSprite( s ) => self.cmd_sprite( s, viewport ),
 
           // Batch lifecycle
           RenderCommand::CreateSpriteBatch( c ) => self.cmd_create_sprite_batch( c )?,
           RenderCommand::CreateMeshBatch( c ) => self.cmd_create_mesh_batch( c )?,
-          RenderCommand::BindBatch( b ) => self.cmd_bind_batch( b )?,
+          RenderCommand::BindBatch( b ) => self.cmd_bind_batch( *b )?,
           RenderCommand::AddSpriteInstance( si ) => self.cmd_add_sprite_instance( si )?,
           RenderCommand::AddMeshInstance( mi ) => self.cmd_add_mesh_instance( mi )?,
           RenderCommand::SetSpriteInstance( si ) => self.cmd_set_sprite_instance( si )?,
           RenderCommand::SetMeshInstance( mi ) => self.cmd_set_mesh_instance( mi )?,
-          RenderCommand::RemoveInstance( ri ) => self.cmd_remove_instance( ri )?,
+          RenderCommand::RemoveInstance( ri ) => self.cmd_remove_instance( *ri )?,
           RenderCommand::SetSpriteBatchParams( sp ) => self.cmd_set_sprite_batch_params( sp )?,
           RenderCommand::SetMeshBatchParams( mp ) => self.cmd_set_mesh_batch_params( mp )?,
           RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
-          RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db, &viewport )?,
-          RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
+          RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( *db, viewport )?,
+          RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( *db ),
 
           // Path — skip (unimplemented; see capabilities().paths). Warn on the opener only (not MoveTo/LineTo/etc.)
           // so a 1000-segment path produces one message, not 1000. `capabilities()`
@@ -1223,6 +1271,11 @@ mod private
 
     fn output( &self ) -> Result< Output, RenderError >
     {
+      if self.context_lost.get()
+      {
+        return Err( RenderError::ContextLost );
+      }
+
       Ok( Output::Presented )
     }
 
@@ -1261,8 +1314,36 @@ mod private
   // Shared utilities
   // ============================================================================
 
+  // Re-setup any mesh batch VAOs that reference geometry `id`.
+  // Batches created before async load completed only have instance attribs;
+  // now that geometry buffers are available, add geometry attribs too.
+  fn refresh_mesh_batch_vaos( gl : &gl::GL, resources : &Rc< RefCell< GpuResources > >, id : ResourceId< asset::Geometry > )
+  {
+    let res = resources.borrow();
+    if let Some( geom ) = res.geometry( id )
+    {
+      for batch in res.batches.values()
+      {
+        if let GpuBatch::Mesh { vao, params, instances, .. } = batch
+          && params.geometry == id
+        {
+          setup_mesh_batch_vao
+          (
+            gl,
+            vao,
+            geom.position_buffer.as_ref(),
+            geom.uv_buffer.as_ref(),
+            geom.index_buffer.as_ref(),
+            instances.buffer(),
+          );
+        }
+      }
+    }
+  }
+
   /// Like `gl::texture::d2::upload_image_from_path`, but updates
   /// `GpuTexture.width` / `height` cells once the image loads.
+  #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct texture-loading input (source, id, resource table, and independent sampler settings); grouping into a struct would add indirection for this single-call-site private helper" ) ]
   fn upload_image_from_path
   (
     gl : &gl::GL,

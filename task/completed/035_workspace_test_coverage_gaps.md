@@ -29,6 +29,30 @@ tests) to rebuild the per-crate list, then decompose into one task per affected 
 Unity (`tsk.rulebook.md § Core Procedures : Procedure - Decompose by Crate`, PROC17) rather than trying to
 force this single Draft through full `File Task` as one multi-crate task.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Do all 12 claimed successor drafts (066-077) exist with the exact claimed crate mapping? Checked each of `066`-`077` by number: all 12 present under `task/completed/` (embroidery_tools, behaviour_tree, canvas_renderer, minwebgl, minwgpu, tilemap_renderer, tiles_tools, tilemap_scene, mingl, renderer, browser_input, browser_log — exact 1:1 match to the History's own list, no duplicates).
+- [x] C2 — **Drift found, reported honestly:** all 12 successors are themselves now `✅ (Completed)` (this task's own filing left them as fresh drafts on 2026-08-10; by today, 2026-08-11, all 12 have been executed and verified independently of this task). This is expected forward progress from a deliberately-umbrella/decomposition-only task, not a defect in it.
+- [x] C3 — Is dimension (3) ("claims vs reality") still correctly dissolved (zero readme test-coverage-claim phrasings across the 12 successor-relevant crates)? Re-checked this session — no coverage-claim phrasing found in any of the 12 crates' readmes.
+- [x] C4 — Do the crates whose inline-test counts are unchanged today reflect a genuine "keep inline as documented exception" decision (not neglect)? Cross-checked against each successor's own History section, independently of this file: `canvas_renderer` (068) — "keep the test inline as a documented exception" for the private-access reproducer, still `0 tests/` + `1` inline. `mingl` (074) and `minwgpu` (070) — both successor Historys independently restate this task's own pre-fix census numbers (`13 inline`, `21 inline`) verbatim before recording their own per-test expose-or-exception review — confirming those crates were genuinely revisited, not skipped.
+
+### Measurements
+
+- [x] M1 — Total inline `#[test]` count across the original 11-crate census, today: `79` (embroidery_tools 0, behaviour_tree 0, canvas_renderer 1, minwebgl 4, minwgpu 21, tilemap_renderer 29, tiles_tools 5, tilemap_scene 0, mingl 13, renderer 6, browser_input 0) — was: `247` per this task's own census. Cross-validated independently against 3 successors' own re-stated pre-fix numbers (068 "1 inline", 074 "13 inline", 070 "21 inline" — all matching this task's claim exactly). **Drift, expected:** 168 tests relocated/resolved by the now-✅-Completed successors (066, 067, 071, 072, 073, 076 each dropped to 0; 071 and 072 dropped substantially).
+- [x] M2 — Successor drafts still un-executed (📝/⏳): `0` of 12 (was: `12` of `12` at this task's own 2026-08-10 filing) — all 12 have since reached ✅ Completed.
+
+### Invariants
+
+- [x] I1 — Re-run of the per-crate census this task's own verification was actually about (`test -d <crate>/tests`, `grep -rE "#\[\s*test\s*\]" <crate>/src`) across all 12 successor crates against current `module/` state: results tabulated in Checklist/Measurements above; command re-run fresh this session, not reused from the file.
+- [x] I2 — Successor task existence and state re-check: for each of `066`-`077`, `find task -iname "<n>_*.md"` then `grep state:` on the match → 12/12 exist, 12/12 report `✅ (Completed)`.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a "kept inline as exception" claim papering over a crate nobody actually revisited: the check is that each unchanged-count crate's OWN successor task file (068/070/074) independently records the identical pre-fix number plus an explicit decision rationale — a blank/silent successor task with no such record would mean the census was never actually re-derived at pickup as this task's Goal mandated.
+- [x] AF2 — Guards against a future crate being added to `module/` without a coverage decision, repeating this task's original problem: a fresh workspace-wide census (re-running this task's own derivation method — `find`/`grep` per crate) finding a crate with no `tests/` dir and undocumented inline tests, uncovered by any of 059-077, would be exactly this task's original finding recurring.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P7 (test coverage)

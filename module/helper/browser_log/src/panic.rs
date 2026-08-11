@@ -79,7 +79,6 @@ mod private
   // Both fields are plain flags with no invariant between them — direct struct-literal
   // construction is the deliberate public contract (pinned by `tests/panic_hook_test.rs`'s
   // `config_fields_construct_independently`), so `#[non_exhaustive]` would break that contract.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug ) ]
   pub struct Config
   {

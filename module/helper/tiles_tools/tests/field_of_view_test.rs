@@ -13,6 +13,7 @@
 use tiles_tools::field_of_view::{ VisibilityMap, VisibilityState };
 use tiles_tools::coordinates::square::{ Coordinate as SquareCoord, EightConnected };
 
+#[ expect( clippy::float_cmp, reason = "the light level read back is the exact literal just stored; no arithmetic in between" ) ]
 #[ test ]
 fn test_visibility_map_basic()
 {

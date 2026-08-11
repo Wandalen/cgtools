@@ -208,6 +208,10 @@ mod private
     /// Traverses all nodes in the scene, starting from the root children, and calls the provided callback function for each node.
     ///
     /// * `callback`: A mutable closure or function that takes an `Rc<RefCell<Node>>` as input and returns a `Result<(), gl::WebglError>`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the callback returns one for any visited node.
     pub fn traverse< F >( &self, callback : &mut F ) -> Result< (), gl::WebglError >
     where F : FnMut( Rc< RefCell< Node > > ) -> Result< (), gl::WebglError >
     {

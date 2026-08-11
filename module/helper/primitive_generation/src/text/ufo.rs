@@ -58,33 +58,33 @@ mod private
       )
       .collect::< Vec< _ > >();
 
-      let flat_contours = contours.iter().flatten().flatten().cloned().collect::< Vec< _ > >();
+      let flat_contours = contours.iter().flatten().flatten().copied().collect::< Vec< _ > >();
       let bounding_box = BoundingBox::compute2d( &flat_contours );
 
       let [ x1, y1 ] = [ bounding_box.left(), bounding_box.down() ];
       let [ x2, y2 ] = [ bounding_box.right(), bounding_box.up() ];
 
-      let halfx = ( x2 - x1 ) / 2.0;
-      let halfy = ( y2 - y1 ) / 2.0;
-      let offsetx = x1;
-      let offsety = y1;
-      let offsetx = - halfx - offsetx;
-      let offsety = - halfy - offsety;
+      let half_x = ( x2 - x1 ) / 2.0;
+      let half_y = ( y2 - y1 ) / 2.0;
+      let offset_x = x1;
+      let offset_y = y1;
+      let offset_x = - half_x - offset_x;
+      let offset_y = - half_y - offset_y;
 
       for contour in &mut contours
       {
         for point in contour.iter_mut()
         {
-          point[ 0 ] += offsetx;
-          point[ 1 ] += offsety;
+          point[ 0 ] += offset_x;
+          point[ 1 ] += offset_y;
         }
       }
 
-      let bounding_box = BoundingBox
-      {
-        min : [ ( x1 + offsetx ) as f32, ( y1 + offsety ) as f32, 0.0 ].into(),
-        max : [ ( x2 + offsetx ) as f32, ( y2 + offsety ) as f32, 0.0 ].into()
-      };
+      let bounding_box = BoundingBox::new
+      (
+        [ ( x1 + offset_x ), ( y1 + offset_y ), 0.0 ],
+        [ ( x2 + offset_x ), ( y2 + offset_y ), 0.0 ]
+      );
 
       Self
       {
@@ -115,16 +115,14 @@ mod private
     }
 
     /// Creates a `Glyph` from a `.glif` file's byte data.
-    // The glif XML event loop is one linear state machine; splitting it into helpers would
-    // scatter the per-event state transitions without shrinking the logic.
-    #[ allow( clippy::too_many_lines ) ]
-    fn from_glif( glif_bytes : Vec< u8 >, character : char ) -> Option< Self >
+    #[ expect( clippy::too_many_lines, reason = "the glif XML event loop is one linear state machine; splitting it into helpers would scatter the per-event state transitions without shrinking the logic" ) ]
+    fn from_glif( glif_bytes : &[ u8 ], character : char ) -> Option< Self >
     {
-      let glif_str = std::str::from_utf8( &glif_bytes ).unwrap();
+      let glif_str = std::str::from_utf8( glif_bytes ).unwrap();
       let mut reader = Reader::from_str( glif_str );
       reader.config_mut().trim_text( true );
 
-      let mut _contours = vec![];
+      let mut raw_contours = vec![];
       let mut contour_points = vec![];
       let mut typ = PointType::Move;
 
@@ -194,8 +192,8 @@ mod private
           {
             typ = PointType::Move;
             let mut contour = Contour::default();
-            contour.points = contour_points.drain( .. ).collect::< Vec< _ > >();
-            _contours.push( contour );
+            contour.points = std::mem::take(&mut contour_points);
+            raw_contours.push( contour );
           },
           Ok( Event::Eof ) => break,
           _ => ()
@@ -205,7 +203,7 @@ mod private
       let mut contours = vec![];
       let mut curves = vec![];
 
-      for contour in _contours
+      for contour in raw_contours
       {
         let mut path = vec![];
         let Ok( bez_path ) = contour.to_kurbo()
@@ -216,31 +214,27 @@ mod private
 
         flatten
         (
-          bez_path.elements().iter().cloned(),
+          bez_path.elements().iter().copied(),
           0.25,
           | p | path.push( p )
         );
 
         let mut contour = vec![];
 
-        path.iter()
-        .for_each
-        (
-          | p |
+        for p in &path
+        {
+          match p
           {
-            match p
+            kurbo::PathEl::MoveTo( point ) |
+            kurbo::PathEl::LineTo( point ) => contour.push( [ point.x, point.y ] ),
+            kurbo::PathEl::ClosePath =>
             {
-              kurbo::PathEl::MoveTo( point ) |
-              kurbo::PathEl::LineTo( point ) => contour.push( [ point.x, point.y ] ),
-              kurbo::PathEl::ClosePath =>
-              {
-                contours.push( contour.clone() );
-                contour.clear();
-              },
-              _ => ()
-            }
+              contours.push( contour.clone() );
+              contour.clear();
+            },
+            _ => ()
           }
-        );
+        }
 
         curves.push( bez_path );
         contours.push( contour );
@@ -280,7 +274,7 @@ mod private
         let glyph_path = format!( "{}/{}.glif", glyphs_path, c as char );
         let glif_bytes = gl::file::load( &glyph_path ).await
         .expect( "Failed to load glif file" );
-        if let Some( glyph ) = Glyph::from_glif( glif_bytes, c as char )
+        if let Some( glyph ) = Glyph::from_glif( &glif_bytes, c as char )
         {
           glyphs.insert( c as char, glyph );
         }
@@ -291,7 +285,7 @@ mod private
         let glyph_path = format!( "{}/{}_.glif", glyphs_path, c as char );
         let glif_bytes = gl::file::load( &glyph_path ).await
         .expect( "Failed to load glif file" );
-        if let Some( glyph ) = Glyph::from_glif( glif_bytes, c as char )
+        if let Some( glyph ) = Glyph::from_glif( &glif_bytes, c as char )
         {
           glyphs.insert( c as char, glyph );
         }
@@ -314,14 +308,14 @@ mod private
         let glyph_path = format!( "{glyphs_path}/{name}.glif" );
         let glif_bytes = gl::file::load( &glyph_path ).await
         .expect( "Failed to load glif file" );
-        if let Some( glyph ) = Glyph::from_glif( glif_bytes, c )
+        if let Some( glyph ) = Glyph::from_glif( &glif_bytes, c )
         {
           glyphs.insert( c, glyph );
         }
       }
 
       let [ mut max_x, mut max_y ] = [ 0.0, 0.0 ];
-      for ( _, glyph ) in &glyphs
+      for glyph in glyphs.values()
       {
         let [ x1, y1 ] = [ glyph.bounding_box.left(), glyph.bounding_box.down() ];
         let [ x2, y2 ] = [ glyph.bounding_box.right(), glyph.bounding_box.up() ];
@@ -338,14 +332,14 @@ mod private
       }
 
       let scale = 250.0;
-      for ( _, glyph ) in &mut glyphs
+      for glyph in glyphs.values_mut()
       {
         glyph.scale( scale / max_y );
       }
 
       let mut min = F32x3::MAX;
       let mut max = F32x3::MIN;
-      for ( _, glyph ) in &glyphs
+      for glyph in glyphs.values()
       {
         if min > glyph.bounding_box.min
         {
@@ -357,7 +351,7 @@ mod private
         }
       }
 
-      for ( _, glyph ) in &mut glyphs
+      for glyph in glyphs.values_mut()
       {
         glyph.body = contours_to_fill_geometry( &glyph.contours );
       }
@@ -365,11 +359,7 @@ mod private
       Self
       {
         glyphs,
-        max_size : BoundingBox
-        {
-          min,
-          max
-        }
+        max_size : BoundingBox::new( min, max )
       }
     }
   }
@@ -382,13 +372,14 @@ mod private
     for font_name in font_names
     {
       let font_path = format!( "static/fonts/ufo/{font_name}.ufo" );
-      fonts.insert( font_name.to_string(), Font::new( &font_path ).await );
+      fonts.insert( (*font_name).to_string(), Font::new( &font_path ).await );
     }
 
     fonts
   }
 
   /// Converts text string into a collection of filled mesh primitives using the specified font.
+  #[ must_use ]
   pub fn text_to_mesh( text : &str, font : &Font, transform : &Transform ) -> Vec< PrimitiveData >
   {
     let mut mesh = vec![];
@@ -398,21 +389,21 @@ mod private
     transform.scale = [ 0.003, 0.003, 1.0 ].into();
     let max_x = font.max_size.max[ 0 ] - font.max_size.min[ 0 ];
     let max_y = font.max_size.max[ 1 ] - font.max_size.min[ 1 ];
-    let halfx = max_x * transform.scale[ 0 ];
+    let half_x = max_x * transform.scale[ 0 ];
 
     for char in text.chars()
     {
       let Some( glyph ) = font.glyphs.get( &char )
       else
       {
-        transform.translation[ 0 ] -= halfx / 2.0;
+        transform.translation[ 0 ] -= half_x / 2.0;
         continue;
       };
 
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] -= if glyph_x < halfx / 4.0
+      transform.translation[ 0 ] -= if glyph_x < half_x / 4.0
       {
-        halfx / 2.0
+        half_x / 2.0
       }
       else
       {
@@ -425,7 +416,7 @@ mod private
       let Some( glyph ) = font.glyphs.get( &char ).cloned()
       else
       {
-        transform.translation[ 0 ] += halfx;
+        transform.translation[ 0 ] += half_x;
         continue;
       };
 
@@ -434,9 +425,9 @@ mod private
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
       transform.translation[ 1 ] -= diff;
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] += if glyph_x < halfx / 4.0
+      transform.translation[ 0 ] += if glyph_x < half_x / 4.0
       {
-        halfx
+        half_x
       }
       else
       {
@@ -453,6 +444,7 @@ mod private
   }
 
   /// Converts text string into outlined contour meshes with specified line width.
+  #[ must_use ]
   pub fn text_to_countour_mesh(
     text : &str,
     font : &Font,
@@ -467,21 +459,21 @@ mod private
     transform.scale = [ 0.003, 0.003, 1.0 ].into();
     let max_x = font.max_size.max[ 0 ] - font.max_size.min[ 0 ];
     let max_y = font.max_size.max[ 1 ] - font.max_size.min[ 1 ];
-    let halfx = max_x * transform.scale[ 0 ];
+    let half_x = max_x * transform.scale[ 0 ];
 
     for char in text.chars()
     {
       let Some( glyph ) = font.glyphs.get( &char )
       else
       {
-        transform.translation[ 0 ] -= halfx / 2.0;
+        transform.translation[ 0 ] -= half_x / 2.0;
         continue;
       };
 
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] -= if glyph_x < halfx / 4.0
+      transform.translation[ 0 ] -= if glyph_x < half_x / 4.0
       {
-        halfx / 2.0
+        half_x / 2.0
       }
       else
       {
@@ -494,7 +486,7 @@ mod private
       let Some( glyph ) = font.glyphs.get( &char ).cloned()
       else
       {
-        transform.translation[ 0 ] += halfx;
+        transform.translation[ 0 ] += half_x;
         continue;
       };
 
@@ -503,9 +495,9 @@ mod private
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
       transform.translation[ 1 ] -= diff;
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] += if glyph_x < halfx / 4.0
+      transform.translation[ 0 ] += if glyph_x < half_x / 4.0
       {
-        halfx
+        half_x
       }
       else
       {

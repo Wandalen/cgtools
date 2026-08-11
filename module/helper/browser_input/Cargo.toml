@@ -50,6 +50,18 @@ strum = { workspace = true, features = ["derive"], optional = true }
 [dev-dependencies]
 test_tools = { workspace = true }
 
+# Fix(BUG-079): feature shim, not a real dependency — `test_tools` drags in
+# rand 0.8 → getrandom 0.2, which refuses to compile for wasm32-unknown-unknown
+# unless its `js` backend feature is on; this switches it on for test builds only.
+# Root cause: Cargo.lock resolves getrandom 0.2/0.3/0.4 side by side, and the
+# `getrandom_backend="wasm_js"` cfg in `.cargo/config.toml` is invisible to the
+# 0.2 generation, which predates cfg-based backend selection.
+# Pitfall: deliberately version-local (not `workspace = true` — the workspace
+# getrandom is 0.3+); duplicate-major resolutions need per-major activation
+# (`cargo tree -i getrandom --target wasm32-unknown-unknown` shows the split).
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+getrandom = { version = "0.2", features = [ "js" ] }
+
 # Metadata for crates.io
 [package.metadata.docs.rs]
 all-features = true

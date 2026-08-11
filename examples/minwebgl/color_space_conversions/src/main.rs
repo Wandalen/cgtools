@@ -36,7 +36,7 @@ impl RectInfo
     name : &str,
   ) -> Result< Self, gl::WebglError >
   {
-    return Ok(
+    Ok(
       Self
       {
         name : name.to_string(),
@@ -49,7 +49,7 @@ impl RectInfo
 
 fn get_input_element( document: &web_sys::Document, id: &str ) -> Result< HtmlInputElement, gl::WebglError >
 {
-  return document.get_element_by_id( id )
+  document.get_element_by_id( id )
   .ok_or
   (
     gl::WebglError::MissingDataError( "Element not found ( get_input_element )" )
@@ -63,7 +63,7 @@ fn get_input_element( document: &web_sys::Document, id: &str ) -> Result< HtmlIn
 
 fn get_element( document: &web_sys::Document, id: &str ) -> Result< HtmlElement, gl::WebglError >
 {
-  return document.get_element_by_id( id )
+  document.get_element_by_id( id )
   .ok_or
   (
     gl::WebglError::MissingDataError( "Element not found ( get_element )" )
@@ -77,7 +77,7 @@ fn get_element( document: &web_sys::Document, id: &str ) -> Result< HtmlElement,
 
 // 185 lines : one linear event-handler setup ending in a flat match over 14 color-space
 // conversion arms; splitting the match would only relocate the repetition, not reduce it.
-#[ allow( clippy::too_many_lines ) ]
+#[ allow( clippy::too_many_lines, reason = "one linear event-handler setup ending in a flat match over 14 color-space conversion arms; splitting the match would only relocate the repetition, not reduce it" ) ]
 fn run() -> Result< (), gl::WebglError >
 {
   let window = gl::web_sys::window().expect( "no global `window` exists" );
@@ -120,7 +120,7 @@ fn run() -> Result< (), gl::WebglError >
 
   // `component` is clamped to [0.0, 1.0] before scaling by `u8::MAX`, so the rounded
   // result is always exactly representable in `u8` — no truncation or sign loss is possible.
-  #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
+  #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "component is clamped to [0.0, 1.0] before scaling by u8::MAX, so the rounded result is always exactly representable in u8 — no truncation or sign loss is possible" ) ]
   let ftou = | component : f32 | ( f32::from(u8::MAX) * component.clamp( 0.0, 1.0 ) ).round() as u8;
 
   let update_rectangles = Closure::< dyn FnMut( Event ) >::new
@@ -263,7 +263,7 @@ fn run() -> Result< (), gl::WebglError >
   .expect( "Failed to create initial event" );
   srgb_color_picker.dispatch_event( &initial_event ).unwrap();
 
-  return Ok( () )
+  Ok( () )
 }
 
 fn main()

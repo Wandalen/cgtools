@@ -26,6 +26,30 @@ re-confirm against current `module/math/ndarray_cg/src/` before touching**, and 
 whether each site should become a real runtime check (`Result`/panic) or is genuinely
 performance-critical-enough to justify staying debug-only with an explicit doc comment explaining why.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Are all 11 claimed `debug_assert`→`assert`/`assert_eq` conversions still live as unconditional checks (no `debug_assert`/`cfg(debug_assertions)` remaining) across the 6 touched files? `grep -rn "debug_assert\|cfg( *debug_assertions" src/d2/arithmetics/{add,mul}.rs src/d2/mat/access_{common,row_major,column_major}.rs src/quaternion/from.rs` → only 2 live `debug_assert_eq!` calls remain (both `raw_set`, the claimed-safe exceptions per C2); every one of the other sites shows `assert!`/`assert_eq!` with an adjacent `Fix(TASK-014)` comment, and 0 live `cfg( debug_assertions )` gates remain anywhere.
+- [x] C2 — Are the 2 "left debug-only, no change" `raw_set` sites genuinely still safe — does the very next line unconditionally panic on a length mismatch regardless of build profile? Confirmed at `src/d2/mat/access_row_major.rs:316-319` and `src/d2/mat/access_column_major.rs:320-323`: `debug_assert_eq!` is immediately followed by `self.raw_slice_mut().copy_from_slice(...)`, which panics unconditionally on a length mismatch via `[T]::copy_from_slice`'s own always-on check.
+- [x] C3 — Are the 2 CRITICAL unsafe-guarded sites (`with_column_major`, `with_row_major`) still guarded by an unconditional `assert_eq!` immediately before their `unsafe { *ptr.add(...) }` read? Confirmed: `src/d2/mat/access_row_major.rs:340-341` (`with_column_major`) and `src/d2/mat/access_column_major.rs:338-339` (`with_row_major`) both open with `assert_eq!( scalars.len(), ROWS*COLS, "Size should be equal" );` directly before the `unsafe` block.
+- [x] C4 — Is the `quaternion/from.rs` `debug_assert` genuinely removed (not merely converted)? Current file (`src/quaternion/from.rs`) has zero live `debug_assert!` calls — the only occurrence of the text "debug_assert" is inside the `Fix(TASK-014)` explanatory comment (line 16); the redundant `value.try_into().unwrap()` unconditional-panic path (the reason removal was safe) is confirmed still present on the next statement.
+- [x] C5 — Do all 29 claimed new test functions exist under their claimed names in their claimed files? Verified via targeted `grep -n` for every one of the 29 function names (9 in `lane_test.rs`, 6 in `mul_test.rs`, 6 in `raw_slice_test.rs`, 6 in `fns_test.rs`, 2 in `quat_test/general.rs`) — all 29 present.
+
+### Measurements
+
+- [x] M1 — Live `debug_assert!`/`debug_assert_eq!`/`cfg(debug_assertions)` raw match count across the 6 touched files: `2` (was: `18` — 1+2+2+6+6+1 across `add.rs`/`mul.rs`/`access_common.rs`/`access_row_major.rs`/`access_column_major.rs`/`from.rs` respectively, cite `git show 9b71cf39^:module/math/ndarray_cg/src/quaternion/from.rs` and its 5 sibling files — `9b71cf39` is the exact fix commit, confirmed via `git diff 9b71cf39^ 9b71cf39 --stat -- module/math/ndarray_cg/src/` touching precisely the 6 files this task claims, plus `vector/arithmetics.rs`, `vector/operator/mul.rs`, `vector/vec4/general.rs` which belong to sibling tasks 048/BUG-043 bundled into the same commit).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p ndarray_cg --all-features` (via `longrun`) → exit 0, 261/261 passed, 0 skipped.
+- [x] I2 — Compiler/lints clean: `cargo clippy -p ndarray_cg --all-targets --all-features -- -D warnings` (via `longrun`) → exit 0, zero warnings/errors.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a `debug_assert` silently creeping back into one of the 12 fixed functions (11 converted + 1 removed) without the same release-mode-safety analysis this task performed: re-running C1's grep after any future edit to these 6 files must still return exactly 2 live `debug_assert*` hits (both `raw_set`), never more.
+- [x] AF2 — Guards against the two CRITICAL unsafe-guarded sites (`with_column_major`/`with_row_major`) losing their guard silently during an unrelated refactor: re-running C3's check — `assert_eq!` immediately preceding the `unsafe { *ptr.add(...) }` block — must still hold; a regression here reintroduces genuine undefined behavior, not just wrong data.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P2 (remaining logic

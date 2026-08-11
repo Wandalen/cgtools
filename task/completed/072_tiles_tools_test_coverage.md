@@ -30,6 +30,31 @@ Per-test procedure (uniform across the 035 decomposition):
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p tiles_tools --all-features` —
    all green before and after each relocation batch.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Are the 7 relocated top-level `tests/*_test.rs` files still present? `debug_test.rs`, `events_test.rs`, `field_of_view_test.rs`, `flowfield_test.rs`, `game_systems_test.rs`, `serialization_test.rs`, `spatial_test.rs` — 7/7, confirmed via directory listing.
+- [x] C2 — Is the inline `#[test]` count in `src/` still exactly 5, across exactly the 3 claimed exception files? `grep -rlE "#\[ ?test ?\]" src/` → `src/flowfield.rs`, `src/field_of_view.rs`, `src/debug.rs` (3 files); names confirmed via the fresh nextest run: `debug::tests::test_grid_renderer_creation`, `debug::tests::test_grid_renderer_markers`, `flowfield::tests::test_flow_field_creation`, `flowfield::tests::test_dynamic_flow_field_dirty_marking`, `field_of_view::tests::test_fov_calculator_creation` (5/5, matches the claimed 2+2+1 split).
+- [x] C3 — Does the crate still pass green under BOTH feature configurations (this task's central claim)? Freshly re-run, not cited from old logs: `cargo test -p tiles_tools --all-features` → 245/245 (I1); `cargo test -p tiles_tools` (default features) → exit 0 — the six `enabled`-gated top-level files ran 37 tests (debug 5, events 11, field_of_view 1, flowfield 3, game_systems 8, spatial 9) + 5 inline unit tests, `serialization_test.rs` and `integration_tests.rs` both compiled to "running 0 tests", 39 doc-tests ran — an exact match to this task's own claimed default-features breakdown (log `-0049_longrun.log`).
+- [x] C4 — Does `tests/readme.md` still exist with its 9-row Responsibility Table? Read in full — 9 rows present exactly as claimed (`integration_tests.rs`, `integration/`, `debug_test.rs`, `events_test.rs`, `field_of_view_test.rs`, `flowfield_test.rs`, `game_systems_test.rs`, `serialization_test.rs`, `spatial_test.rs`).
+
+### Measurements
+
+- [x] M1 — Inline `#[test]` count in `src/`: `5` (was: `56`, this task's own re-derived census at pickup, matching the filing task's independent count).
+- [x] M2 — Live crate-wide non-doc test total: `245` (this task's own end-state was `240` = 5 unit + 46 relocated + 189 integration, logs `-0041`/`-0042`; current total is higher because task 078 — filed as this task's own explicit follow-up — later added 5 previously-dead integration tests; see task 078's Measurements).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, `--all-features`): `cargo nextest run -p tiles_tools --all-features` → exit 0, 245/245 passed (log `-0009_longrun.log`).
+- [ ] I2 — Compiler/lints (crate-scoped, `--all-features`): `cargo clippy -p tiles_tools --all-targets --all-features -- -D warnings` → exit 101 (log `-0015_longrun.log`). Root cause is an unrelated dependency (`browser_log`) — full trace in task 025's Verification I2. Unrelated to this task's test-relocation work.
+- [x] I3 — Default-features build/test, this task's own central claim re-run fresh: `cargo test -p tiles_tools` → exit 0 (log `-0049_longrun.log`, elapsed 210s).
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a relocated test silently losing its feature gate: re-running C3's dual-config check after any `tests/*_test.rs` or `lib.rs` feature-gate edit must reproduce the same 0-vs-N pattern for `integration_tests.rs`/`serialization_test.rs`.
+- [x] AF2 — Guards against a "documented exception" inline test being silently duplicated back into `tests/` (recreating the pre-072 duplication this task eliminated): re-running C2's file list must stay exactly `debug.rs`/`field_of_view.rs`/`flowfield.rs` with exactly 5 tests combined.
+
 ## History
 
 - **[2026-08-10]** `FILED` — Decomposed from task 035's workspace test-coverage census per Crate

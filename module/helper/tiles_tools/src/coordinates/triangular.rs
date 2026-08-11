@@ -226,7 +226,6 @@ impl Coordinate< FlatSided >
   /// Converts a 2D point (e.g., from a mouse click) to the nearest `TriAxial` coordinate.
   #[ inline ]
   #[ must_use ]
-  #[ allow( clippy::cast_possible_truncation ) ] // Pixel-space floor/ceil results are game-scale, far below `i32` limits.
   pub fn from_pixel_with_edge_len( Pixel { data : [ x, y ]  } : Pixel, edge_length : f32 ) -> Self
   {
     let cell_size : [ f32; 2 ] = [ edge_length * SQRT_3 / 2.0, edge_length ];
@@ -263,7 +262,6 @@ impl Coordinate< FlatTopped >
   /// Converts a 2D point (e.g., from a mouse click) to the nearest `TriAxial` coordinate.
   #[ inline ]
   #[ must_use ]
-  #[ allow( clippy::cast_possible_truncation ) ] // Pixel-space floor/ceil results are game-scale, far below `i32` limits.
   pub fn from_pixel_with_edge_len( Pixel { data : [ x, y ]  } : Pixel, edge_length : f32 ) -> Self
   {
     Self::new_unchecked

@@ -376,6 +376,11 @@ mod private
   /// Intermediate GPU resources (the compiled programs, the off-screen FBO and the source
   /// cubemap) are freed on every exit path — success or `?`-propagated error — via RAII
   /// guards. Only the three output textures escape, wrapped in the returned [`IBL`].
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError` if shader compilation or GPU resource creation
+  /// for the prefiltering passes fails.
   pub fn generate
   (
     gl : &gl::WebGl2RenderingContext,

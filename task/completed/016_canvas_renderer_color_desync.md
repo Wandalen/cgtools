@@ -25,6 +25,30 @@ exact file/line is not re-verified in this filing pass; re-confirm against curre
 `module/helper/canvas_renderer/src/` before touching.** Write a test that asserts color-state consistency
 across the specific operation sequence that triggers the desync before fixing.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Does `resolve_mesh_colors` still index `colors` by `resolved.len()` (count of meshes already resolved), never a counter shared with the raw traversal? `src/renderer.rs:109-130` — `resolved.push( *colors.get( resolved.len() ).unwrap_or( &default_color() ) )`, executed only inside the `Object3D::Mesh` branch of the traversal closure.
+- [x] C2 — Does `render()` still resolve `mesh_colors` once up front and walk it with its own mesh-only counter, with no leftover duplicate of the pre-fix shared-counter indexing? `src/renderer.rs:295-335` — `let mesh_colors = resolve_mesh_colors( scene, colors );` (line 297) runs once before the draw traversal; the draw closure indexes `mesh_colors.get( mesh_i )` (line 313) with `mesh_i` incremented only inside its own `Object3D::Mesh` branch (line 316) — no second/legacy indexing path exists anywhere else in the function.
+- [x] C3 — Is `resolve_mesh_colors` still excluded from the crate's public API (private-by-design, not re-exported)? `grep -n resolve_mesh_colors src/lib.rs` → `0` hits; the crate-root `crate::mod_interface!` block in `renderer.rs` (lines 487-493) exposes only `CanvasRenderer` via `orphan use`.
+- [x] C4 — Is the regression test still present, still exercising a non-mesh node between two mesh nodes, and still passing? `src/renderer.rs:449-484` builds `group_1`→`mesh_1` and `group_2`→`mesh_2` (two non-mesh groups, one mesh child each); `cargo nextest run -p canvas_renderer --all-features` (see I1) → `resolve_mesh_colors_stays_in_sync_across_non_mesh_siblings` PASS.
+- [x] C5 — Does the source still carry the required 3-field `Fix(TASK-016)` / `Root cause` / `Pitfall` comment immediately above `resolve_mesh_colors`? `src/renderer.rs:101-108` — all 3 fields present verbatim, matching this workspace's bug-fix documentation convention.
+
+### Measurements
+
+- [x] M1 — Live reference count to `resolve_mesh_colors` in `renderer.rs`: `2` (1 definition at line 109, 1 call site at line 297) — confirms `render()` resolves mesh colors through exactly one path, with no leftover duplicate of the pre-fix inline indexing. No historical "was" is cited here: `git show 4469eafb^:module/helper/canvas_renderer/src/renderer.rs` already contains the fix, so the true introducing commit sits further back than this pass could cheaply isolate — no number is fabricated in its place.
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped, `longrun`-launched): `cargo nextest run -p canvas_renderer --all-features` → exit `0`, "1 test run: 1 passed, 0 skipped" (`-0138_longrun.log`).
+- [ ] I2 — Compiler/lints (crate-scoped, `longrun`-launched): `cargo clippy -p canvas_renderer --all-targets --all-features -- -D warnings` → exit `101` (FAIL) — but root-caused entirely outside `canvas_renderer`. The build aborts while checking the transitive dependency `browser_log` (`module/helper/browser_log/src/panic.rs:82`, `#[allow(clippy::exhaustive_structs)]` missing the `reason = "..."` that this workspace's `allow_attributes_without_reason = "warn"` lint now demands once escalated to error by `-D warnings`) — clippy never reaches `canvas_renderer`'s own source in this run. Confirmed `canvas_renderer`'s own `src/` carries zero `#[allow(...)]` attributes at all (`grep -rn "allow(" module/helper/canvas_renderer/src/` → 0 hits), so this crate's own code is not implicated. `browser_log`'s working tree is clean/committed (last touched by unrelated commit `5f33be66`) — this is pre-existing workspace drift, unrelated to and predating both TASK-016 and TASK-068 (`-0138_longrun.log`).
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the shared-counter regression silently reappearing: re-running C1/C2's read of `renderer.rs:109-130` and `:295-335` after any future edit must still show `resolved.len()` and `mesh_i` as the only two counters, each incrementing exclusively inside its own `Object3D::Mesh` branch — a counter shared with the raw, unfiltered traversal is exactly the TASK-016 bug.
+- [x] AF2 — Guards against the regression test being weakened back to an all-mesh scene (the exact shape that let the original bug hide, per this file's own "Why Not Caught"): re-running the test must still exercise a scene where a non-mesh node sits between two mesh nodes; `grep -n "group_node()\|mesh_node()" src/renderer.rs` inside `mod tests` must keep showing 2 non-mesh groups, each wrapping exactly 1 mesh child, never a flat all-mesh list.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P2 (remaining logic

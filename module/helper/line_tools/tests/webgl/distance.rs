@@ -1,6 +1,5 @@
 
-// Exact float comparisons are intentional: these assertions check deterministic
-// cumulative-distance arithmetic against exact literal expected values.
+#![ expect( clippy::float_cmp, reason = "assertions check deterministic cumulative-distance arithmetic against exact literal expected values" ) ]
 
 use super::*;
 use line_tools::d3;
