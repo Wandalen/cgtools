@@ -95,7 +95,9 @@ mod private
         ..Default::default()
       };
 
-      let texture = Texture { target : gl::TEXTURE_2D, source : Some( source ), sampler };
+      // This texture is a fresh GPU allocation made above, solely owned by this
+      // `EngravingTexture` — mark it `owned` so `Drop` frees it (see `Texture`'s doc comment).
+      let texture = Texture { target : gl::TEXTURE_2D, source : Some( source ), sampler, owned : true, gl : Some( gl.clone() ) };
       let info = TextureInfo { texture : Rc::new( RefCell::new( texture ) ), uv_position };
 
       Ok( Self { info, width, height, levels } )
