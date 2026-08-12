@@ -105,7 +105,7 @@ fn query_arguments( names_optional : bool, defaults : &shader_chunks::QueryParam
     named_arg( "order", Kind::String, "Sort direction: asc | desc.", Some( defaults.order.as_str().to_string() ) ),
     named_arg( "limit", Kind::Integer, "Keep at most N chunks; 0 = unlimited.", Some( "0".to_string() ) ),
     named_arg( "offset", Kind::Integer, "Skip the first N chunks.", Some( "0".to_string() ) ),
-    named_arg( "caption", Kind::String, "Table caption (table/markdown formats only).", None ),
+    named_arg( "heading", Kind::String, "Heading line above the table (table/markdown formats only).", None ),
     named_arg( "width", Kind::Integer, "Max column width (table/markdown formats only); 0 = auto.", Some( "0".to_string() ) ),
   ]
 }
@@ -183,7 +183,7 @@ fn query_params_from
   { params.order = order.parse().map_err( | e | cli_error( &e ) )?; }
   params.limit = arg_usize( cmd, "limit" )?;
   params.offset = arg_usize( cmd, "offset" )?;
-  if let Some( caption ) = arg_string( cmd, "caption" ) { params.caption = caption; }
+  if let Some( heading ) = arg_string( cmd, "heading" ) { params.heading = heading; }
   params.width = arg_usize( cmd, "width" )?;
   Ok( params )
 }
@@ -221,7 +221,7 @@ fn cmd_list() -> ( CommandDefinition, CommandRoutine )
   [
     "shader_chunks list".to_string(),
     "shader_chunks list pattern::noise".to_string(),
-    "shader_chunks list tag::math format::json".to_string(),
+    "shader_chunks list tag::noise format::json".to_string(),
     "shader_chunks list roots::1 fields::name,exports".to_string(),
   ])
   .arguments( query_arguments( true, &defaults ) )
@@ -415,7 +415,7 @@ fn print_help()
   ];
   data.examples = vec!
   [
-    ExampleEntry { invocation : "shader_chunks list tag::math format::json".to_string(), desc : None },
+    ExampleEntry { invocation : "shader_chunks list tag::noise format::json".to_string(), desc : None },
     ExampleEntry { invocation : "shader_chunks get hash21".to_string(), desc : None },
     ExampleEntry { invocation : "shader_chunks compose hash21 value_noise".to_string(), desc : None },
   ];
@@ -453,11 +453,11 @@ fn print_command_help( command : &str, def : &CommandDefinition )
     }
     else
     {
-      let mut desc = arg.hint.clone();
-      if let Some( default ) = &arg.attributes.default
+      let desc = match &arg.attributes.default
       {
-        desc.push_str( &format!( " [default: {default}]" ) );
-      }
+        Some( default ) => format!( "{} [default: {default}]", arg.hint ),
+        None => arg.hint.clone(),
+      };
       argument_rows.push( CommandEntry { name : format!( "{}::", arg.name ), desc } );
     }
   }

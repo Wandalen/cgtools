@@ -37,13 +37,79 @@ fn list_prints_a_table_with_all_four_bundled_chunks()
 }
 
 #[ test ]
-fn get_hash21_prints_full_detail()
+fn get_hash21_prints_one_expanded_detail_record()
 {
   let output = run( &[ "get", "hash21" ] );
   assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
   let stdout = stdout_of( &output );
-  assert!( stdout.contains( "name: hash21" ), "{stdout}" );
-  assert!( stdout.contains( "stage: None" ), "{stdout}" );
+  assert!( stdout.contains( "-[ RECORD 1 ]" ), "get default must be expanded records:\n{stdout}" );
+  assert!( stdout.contains( "| hash21" ), "{stdout}" );
+  assert!( stdout.contains( "stage" ), "{stdout}" );
+  assert!( stdout.contains( "fn hash21(p: vec2f) -> f32" ), "exports field must render:\n{stdout}" );
+  assert!( !stdout.contains( "-[ RECORD 2 ]" ), "one name must yield one record:\n{stdout}" );
+}
+
+#[ test ]
+fn list_and_get_agree_under_identical_explicit_parameters()
+{
+  // The unification contract end-to-end: one routine, one engine — with the
+  // same explicit parameters the two commands are byte-identical.
+  let shared = [ "hash21", "fields::name,stage", "format::expanded" ];
+  let list = run( &[ &[ "list" ][ .. ], &shared[ .. ] ].concat() );
+  let get = run( &[ &[ "get" ][ .. ], &shared[ .. ] ].concat() );
+  assert!( list.status.success(), "stderr: {}", String::from_utf8_lossy( &list.stderr ) );
+  assert!( get.status.success(), "stderr: {}", String::from_utf8_lossy( &get.stderr ) );
+  assert_eq!( stdout_of( &list ), stdout_of( &get ), "`list` and `get` must share one engine" );
+}
+
+#[ test ]
+fn list_filters_and_formats_via_named_params()
+{
+  let output = run( &[ "list", "tag::noise", "format::names" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  assert_eq!( stdout_of( &output ), "value_noise\nfbm3\n" );
+
+  let output = run( &[ "list", "roots::1", "format::names" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  assert_eq!( stdout_of( &output ), "fbm3\nfullscreen_triangle\n" );
+
+  let output = run( &[ "list", "count::1" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  assert_eq!( stdout_of( &output ), "4\n" );
+}
+
+#[ test ]
+fn invalid_param_values_exit_non_zero_loudly()
+{
+  for ( args, needle ) in
+  [
+    ( &[ "list", "format::bogus" ][ .. ], "invalid `format` value" ),
+    ( &[ "list", "sort::bogus" ][ .. ], "invalid `sort` value" ),
+    ( &[ "list", "order::bogus" ][ .. ], "invalid `order` value" ),
+    ( &[ "list", "tags_mode::bogus" ][ .. ], "invalid `tags_mode` value" ),
+    ( &[ "list", "limit::-1" ][ .. ], "invalid `limit` value" ),
+    ( &[ "list", "fields::bogus" ][ .. ], "unknown field" ),
+  ]
+  {
+    let output = run( args );
+    assert!( !output.status.success(), "expected non-zero exit for {args:?}" );
+    let stderr = String::from_utf8_lossy( &output.stderr );
+    assert!( !stderr.contains( "panicked at" ), "unexpected panic backtrace:\n{stderr}" );
+    assert!( stderr.contains( needle ), "stderr for {args:?} must name the offense:\n{stderr}" );
+  }
+}
+
+#[ test ]
+fn get_without_names_fails_loudly_while_list_succeeds()
+{
+  // Same parameter surface, different defaults: `names` is required for
+  // `get`, optional for `list`.
+  let get = run( &[ "get" ] );
+  assert!( !get.status.success(), "bare `get` must fail" );
+  assert!( String::from_utf8_lossy( &get.stderr ).contains( "names" ), "missing-argument error must name `names`" );
+
+  let list = run( &[ "list" ] );
+  assert!( list.status.success(), "bare `list` must succeed" );
 }
 
 #[ test ]
@@ -220,12 +286,15 @@ fn no_argument_command_trailing_help_works()
 #[ test ]
 fn per_command_help_spells_argument_shapes()
 {
-  // One command per argument shape — required `<name>`, optional `[name]`,
-  // repeatable `<name...>` — pinned via the usage line, where the shape
-  // derived from each `ArgumentDefinition`'s attributes shows.
+  // One command per positional shape — required repeatable `<names...>`,
+  // optional repeatable `[names...]`, optional `[name]` — pinned via the
+  // usage line, where the shape derived from each `ArgumentDefinition`'s
+  // attributes shows; commands with named parameters additionally carry the
+  // `[param::value ...]` marker.
   for ( args, expected ) in
   [
-    ( &[ "get", "help" ][ .. ], "Usage: shader_chunks get <name>" ),
+    ( &[ "get", "help" ][ .. ], "Usage: shader_chunks get <names...> [param::value ...]" ),
+    ( &[ "list", "help" ][ .. ], "Usage: shader_chunks list [names...] [param::value ...]" ),
     ( &[ "tree", "help" ][ .. ], "Usage: shader_chunks tree [name]" ),
     ( &[ "compose", "help" ][ .. ], "Usage: shader_chunks compose <names...>" ),
   ]
@@ -235,6 +304,45 @@ fn per_command_help_spells_argument_shapes()
     let stdout = stdout_of( &output );
     assert!( stdout.contains( expected ), "{args:?} usage line wrong:\n{stdout}" );
   }
+}
+
+#[ test ]
+fn per_command_help_lists_named_params_with_per_command_defaults()
+{
+  // The two help screens list the identical 20-parameter surface; only the
+  // baked-in defaults differ — that difference must be visible to the user.
+  let list_help = stdout_of( &run( &[ "list", "help" ] ) );
+  let get_help = stdout_of( &run( &[ "help", "get" ] ) );
+  for param in
+  [
+    "pattern::", "case::", "tag::", "tags_mode::", "stage::", "depends_on::", "transitive::",
+    "exports::", "roots::", "leaves::", "fields::", "count::", "format::", "sort::", "order::",
+    "limit::", "offset::", "heading::", "width::",
+  ]
+  {
+    assert!( list_help.contains( param ), "list help missing `{param}`:\n{list_help}" );
+    assert!( get_help.contains( param ), "get help missing `{param}`:\n{get_help}" );
+  }
+  assert!( list_help.contains( "[default: table]" ), "{list_help}" );
+  assert!( list_help.contains( "[default: name,description,tags,depends_on]" ), "{list_help}" );
+  assert!( get_help.contains( "[default: expanded]" ), "{get_help}" );
+  assert!( get_help.contains( "[default: name,description,stage,tags,depends_on,exports]" ), "{get_help}" );
+}
+
+#[ test ]
+fn top_level_help_groups_commands_by_responsibility()
+{
+  // Groups mirror docs/cli/command_group/ — Query, Graph, Compose, in that
+  // order, with each command under its own group.
+  let stdout = stdout_of( &run( &[] ) );
+  let query_pos = stdout.find( "Query" ).expect( "Query group present" );
+  let graph_pos = stdout.find( "Graph" ).expect( "Graph group present" );
+  let compose_pos = stdout.find( "Compose" ).expect( "Compose group present" );
+  assert!( query_pos < graph_pos && graph_pos < compose_pos, "group order wrong:\n{stdout}" );
+  let list_pos = stdout.find( "list [names...]" ).expect( "list entry present" );
+  let tree_pos = stdout.find( "tree [name]" ).expect( "tree entry present" );
+  assert!( query_pos < list_pos && list_pos < graph_pos, "`list` must sit in the Query group:\n{stdout}" );
+  assert!( graph_pos < tree_pos && tree_pos < compose_pos, "`tree` must sit in the Graph group:\n{stdout}" );
 }
 
 #[ test ]
@@ -250,9 +358,9 @@ fn unknown_command_help_fails_loudly()
 #[ test ]
 fn named_argument_help_value_is_not_a_help_request()
 {
-  // Escape hatch: `name::help` addresses a (hypothetical) chunk literally
+  // Escape hatch: `names::help` addresses a (hypothetical) chunk literally
   // named `help` — it must reach the chunk lookup, not the help path.
-  let output = run( &[ "get", "name::help" ] );
+  let output = run( &[ "get", "names::help" ] );
   assert!( !output.status.success(), "expected non-zero exit for an unknown chunk" );
   let stderr = String::from_utf8_lossy( &output.stderr );
   assert!( stderr.contains( "unknown chunk" ), "{stderr}" );
@@ -267,5 +375,6 @@ fn command_output_prints_exactly_once()
   let output = run( &[ "get", "hash21" ] );
   assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
   let stdout = stdout_of( &output );
-  assert_eq!( stdout.matches( "name: hash21" ).count(), 1, "command output must print exactly once:\n{stdout}" );
+  assert_eq!( stdout.matches( "-[ RECORD 1 ]" ).count(), 1, "command output must print exactly once:\n{stdout}" );
+  assert_eq!( stdout.matches( "| hash21" ).count(), 1, "command output must print exactly once:\n{stdout}" );
 }

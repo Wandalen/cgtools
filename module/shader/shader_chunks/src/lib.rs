@@ -12,7 +12,7 @@ mod private
   use error_tools::Error;
   use data_fmt::
   {
-    ColumnData, ExpandedFormatter, Format, JsonFormatter, RowBuilder, TableCaption, TableConfig,
+    ColumnData, ExpandedFormatter, Format, Heading, JsonFormatter, RowBuilder, TableConfig,
     TableFormatter, TreeFormatter, TreeNode, YamlFormatter,
   };
 
@@ -359,8 +359,9 @@ mod private
     pub limit : usize,
     /// Skip this many chunks before applying `limit`.
     pub offset : usize,
-    /// Table caption (`table`/`markdown` formats only); empty = off.
-    pub caption : String,
+    /// Heading line above the table (`table`/`markdown` formats only);
+    /// empty = off.
+    pub heading : String,
     /// Maximum column width (`table`/`markdown` formats only); `0` = auto.
     pub width : usize,
   }
@@ -391,7 +392,7 @@ mod private
         order : SortOrder::Asc,
         limit : 0,
         offset : 0,
-        caption : String::new(),
+        heading : String::new(),
         width : 0,
       }
     }
@@ -447,11 +448,9 @@ mod private
         return true;
       }
       if seen.insert( name )
+        && let Some( dep ) = shader_chunks_core::chunk_get( name )
       {
-        if let Some( dep ) = shader_chunks_core::chunk_get( name )
-        {
-          queue.extend( dep.depends_on.iter().copied() );
-        }
+        queue.extend( dep.depends_on.iter().copied() );
       }
     }
     false
@@ -561,13 +560,13 @@ mod private
     let render_table = | config : TableConfig | -> Result< String, CliError >
     {
       let mut config = config;
-      if !params.caption.is_empty()
+      if !params.heading.is_empty()
       {
-        config = config.caption( TableCaption::new( params.caption.clone() ) );
+        config = config.with_heading( Heading::new( params.heading.clone() ) );
       }
       if params.width > 0
       {
-        config = config.max_column_width( Some( params.width ) );
+        config = config.with_max_column_width( Some( params.width ) );
       }
       Format::format( &TableFormatter::with_config( config ), &view )
       .map_err( | e | CliError::Render( e.to_string() ) )
@@ -581,7 +580,7 @@ mod private
       .map_err( | e | CliError::Render( e.to_string() ) ),
       OutputFormat::Json => Format::format( &JsonFormatter::new(), &view )
       .map_err( | e | CliError::Render( e.to_string() ) ),
-      OutputFormat::Yaml => Format::format( &YamlFormatter, &view )
+      OutputFormat::Yaml => Format::format( &YamlFormatter::new(), &view )
       .map_err( | e | CliError::Render( e.to_string() ) ),
       OutputFormat::Names => unreachable!( "names format returned before row building" ),
     }

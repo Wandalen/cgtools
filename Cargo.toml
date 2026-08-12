@@ -480,7 +480,7 @@ features = ["cli_help_template"]
 [workspace.dependencies.data_fmt]
 version = "=0.8.1"
 default-features = false
-features = ["enabled", "table_plain", "tree_hierarchical", "tree_aligned"]
+features = ["enabled", "table_plain", "tree_hierarchical", "tree_aligned", "format_json", "format_yaml"]
 
 [workspace.dependencies.rustyline]
 version = "18.0"
