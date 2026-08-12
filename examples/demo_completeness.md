@@ -42,7 +42,6 @@
 | space_partition | no | yes | yes | yes | | | |
 | spinning_cube_size_opt | yes | yes | yes | yes | | | |
 | sprite_animation | yes | yes | yes | yes | | | |
-| sun_grid_lines (webgl) | no | yes | yes | yes | | | |
 | text_msdf | yes | yes | yes | yes | | | |
 | text_rendering | yes | yes | yes | yes | | | |
 | touch_input_test | no | yes | yes | no | | | |
@@ -58,8 +57,6 @@
 | sun_grid_lines (webgpu) | no | yes | yes | no | | | |
 | grid_render | yes | yes | yes | yes | | | |
 | hello_triangle (wgpu) | yes | yes | yes | yes | | | |
-| sun_grid_lines (wgpu) | no | yes | yes | yes | | | |
-| sun_grid_lines_vulkan (wgpu) | no | yes | yes | yes | | | |
 | f32x2_vector_arithmetic | no | yes | yes | no | | | |
 | pingpong_animation | no | yes | yes | no | | | |
 | advanced_pathfinding_demo | no | yes | yes | no | | | |

@@ -58,13 +58,10 @@ async fn app_run() -> Result< (), gl::WebGPUError >
   let presentation_format = gl::context::preferred_format();
   gl::context::configure( &device, &context, presentation_format )?;
 
-  // scene.rhai owns this example's fragment-only WGSL body (its `shader`
-  // field), loaded here before assembly so shader_source::assemble() can
-  // prepend the shared shader_chunks chunks — the fullscreen-triangle
-  // vertex stage and the noise stack — ahead of it. Not `include_str!`-ed
-  // whole, and not a separate WGSL file.
-  let scene = scene::SceneConfig::load();
-  let wgsl = shader_source::assemble( &scene.shader );
+  // shader_source::assemble() prepends the shared shader_chunks chunks —
+  // the fullscreen-triangle vertex stage and the noise stack — ahead of
+  // its own fragment-only body, shader/scene_fragment.wgsl.
+  let wgsl = shader_source::assemble();
   let shader = gl::ShaderModule::new( &wgsl ).create( &device );
 
   let render_pipeline = gl::render_pipeline::create

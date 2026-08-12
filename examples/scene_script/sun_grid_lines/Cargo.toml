@@ -18,7 +18,7 @@ shader_chunks = { workspace = true }
 
 # Native WGSL parse + validation of the assembled shader ( tests/
 # shader_source_test.rs ) — the only pre-browser check that catches actual
-# WGSL errors in scene.rhai's shader field, not just structural drift.
+# WGSL errors in shader/scene_fragment.wgsl, not just structural drift.
 [dev-dependencies]
 naga = { workspace = true }
 

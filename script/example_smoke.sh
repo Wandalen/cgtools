@@ -13,7 +13,7 @@
 #
 # usage:
 #   script/example_smoke.sh [example_dir ...]
-# defaults: both sun_grid_lines twins plus the canonical WebGPU-path pair
+# defaults: sun_grid_lines plus the canonical WebGPU-path pair
 # (hello_triangle, renderer_pbr_scene)
 #
 # Verify any verdict yourself by replaying the printed browsee line, e.g.:
@@ -28,7 +28,6 @@ examples=( "$@" )
 if [ "${#examples[@]}" -eq 0 ]
 then
   examples=(
-    examples/minwebgl/sun_grid_lines
     examples/scene_script/sun_grid_lines
     examples/minwebgpu/hello_triangle
     examples/minwebgpu/renderer_pbr_scene

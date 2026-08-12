@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Opens the already-generated examples/index.html gallery directly in a browser via
+# browsee, for local preview/debugging. No server needed — the gallery page is fully
+# self-contained (inline CSS/JS, only relative <img>/<a> references, no fetch/modules),
+# so a plain file:// URL renders identically to how GitHub Pages serves it over http://.
+# Run action/gallery first if index.html doesn't exist yet or looks stale.
+set -euo pipefail
+
+_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+_REPO_ROOT="$( cd "$_SCRIPT_DIR/.." && pwd )"
+_INDEX="$_REPO_ROOT/examples/index.html"
+
+if [[ ! -f "$_INDEX" ]]
+then
+  printf 'error: %s does not exist — run action/gallery first\n' "$_INDEX" >&2
+  exit 1
+fi
+
+_url="file://$_INDEX"
+
+if command -v browsee > /dev/null 2>&1
+then
+  timeout 90 browsee .launch session::cgtools_gallery url::"$_url" > /dev/null 2>&1 \
+    && printf 'opened %s\n' "$_url" \
+    || printf 'note: browsee could not open a browser tab — open %s manually\n' "$_url" >&2
+else
+  printf 'note: browsee not found on PATH — open %s manually\n' "$_url" >&2
+fi

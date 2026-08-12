@@ -1,3 +1,33 @@
+// Scene description for the sun/grid HUD diagram — every color, opacity,
+// radius, and dynamic that isn't already keyboard-interactive (seed, node
+// count, grid density stay live; see 'Params' in src/main.rs). Evaluated
+// by src/scene.rs at compile time via include_str!, run through
+// scene_script::engine_build(), and extracted into SceneConfig via rhai's
+// serde bridge ( rhai::serde::from_dynamic ) — a rebuild is required to
+// pick up edits, see readme.md.
+//
+// The scene is composed from six primitive families, each a list so the
+// diagram can carry more than one instance of a kind: nebula_bands (fog
+// layers drifting at their own speed), star_layers (background twinkle at
+// two densities), orbit_rings (concentric rails), and nodes (authored
+// planets/moons with their own orbit radius, angular speed, and phase —
+// distinct from the keyboard-driven procedural nodes the shader also
+// supports, which keep working exactly as before). sun_corona and
+// sun_disc stay singular — there is exactly one star — but both carry
+// dynamics (flicker_*, pulsate_*) instead of being purely static. effects
+// is the one cross-cutting block: vignette, a global glow multiplier, and
+// a faint scanline texture, all analytically single-pass ( no offscreen
+// texture exists to sample for a true multi-tap effect like chromatic
+// aberration ).
+//
+// The fragment shader that renders this data lives separately, in
+// ../shader/scene_fragment.wgsl — its Uniforms layout mirrors every field
+// below 1:1 (see src/uniforms.rs for the conversion). Splitting the
+// shader into its own file lets this document satisfy
+// docs/pattern/004_script_as_data.md by simple inspection: every value
+// below is a plain color/number/list literal, no function or operator
+// calls anywhere.
+
 let background = #{ top : [ 0.0196, 0.0549, 0.0941 ], bottom : [ 0.0549, 0.1490, 0.2392 ] };
 
 // Three fog layers at different heights, hues, and drift speeds/directions —
@@ -58,3 +88,15 @@ let nodes =
 ];
 
 let effects = #{ vignette_strength : 0.35, vignette_radius : 0.55, glow_intensity : 1.1, scanline_intensity : 0.05 };
+
+#{
+  background : background,
+  nebula_bands : nebula_bands,
+  star_layers : star_layers,
+  grid : grid,
+  sun_corona : sun_corona,
+  sun_disc : sun_disc,
+  orbit_rings : orbit_rings,
+  nodes : nodes,
+  effects : effects,
+}

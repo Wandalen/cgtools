@@ -430,15 +430,15 @@
     <div class="stats">
         <!-- GALLERY:STATS:BEGIN -->
         <div class="stat-card" aria-live="polite" aria-atomic="true">
-            <div class="stat-number" id="totalDemos">73</div>
+            <div class="stat-number" id="totalDemos">69</div>
             <div class="stat-label">Total Examples</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number" id="completedDemos">53</div>
+            <div class="stat-number" id="completedDemos">52</div>
             <div class="stat-label">Live Demos</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number">54</div>
+            <div class="stat-number">50</div>
             <div class="stat-label">With Showcase</div>
         </div>
         <div class="stat-card">
@@ -478,7 +478,7 @@
         <section class="category-section" data-category="webgl">
             <div class="category-header">
                 <h2>WebGL Examples</h2>
-                <span class="category-badge">48 demos</span>
+                <span class="category-badge">47 demos</span>
             </div>
             <div class="demo-grid">
                 <article class="demo-card" role="article" data-name="2d line">
@@ -1026,20 +1026,6 @@
                     </div>
                 </article>
 
-                <article class="demo-card" role="article" data-name="sun grid lines">
-                    <div class="demo-image">
-                        <img src="./minwebgl/sun_grid_lines/showcase.webp" alt="Sun Grid Lines" loading="lazy" width="350" height="250">
-                    </div>
-                    <div class="demo-content">
-                        <h3 class="demo-title">Sun Grid Lines</h3>
-                        <p class="demo-desc">A sci-fi HUD-style solar-system diagram, rendered by a fullscreen fragment shader — no meshes, no textures, no vertex buffer. A dark vertical-gradient background carries a noise-modulated nebula band and sparse twinkling stars; a grid overlays the whole scene; a granulated, noise-jagged star sits at the center inside a layered radial corona; a glowing ring traces its orbit, with one or more nodes circling it.</p>
-                        <span class="demo-status">✓ Has Showcase</span>
-                        <div class="demo-links">
-                            <a href="./minwebgl/sun_grid_lines/" class="demo-link" aria-label="View Sun Grid Lines demo">View Details</a>
-                        </div>
-                    </div>
-                </article>
-
                 <article class="demo-card" role="article" data-name="text msdf">
                     <div class="demo-image">
                         <img src="./minwebgl/text_msdf/showcase.webp" alt="MSDF Text Rendering" loading="lazy" width="350" height="250">
@@ -1224,7 +1210,7 @@
         <section class="category-section" data-category="wgpu">
             <div class="category-header">
                 <h2>WGPU Examples</h2>
-                <span class="category-badge">5 demos</span>
+                <span class="category-badge">2 demos</span>
             </div>
             <div class="demo-grid">
                 <article class="demo-card" role="article" data-name="grid render">
@@ -1251,48 +1237,6 @@
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="https://github.com/Wandalen/cgtools/blob/master/examples/minwgpu/hello_triangle/readme.md" class="demo-link" aria-label="View Hello Triangle (wgpu) demo">View Details</a>
-                        </div>
-                    </div>
-                </article>
-
-                <article class="demo-card" role="article" data-name="sun grid lines chunked">
-                    <div class="demo-image">
-                        <img src="./minwgpu/sun_grid_lines_chunked/showcase.webp" alt="Sun Grid Lines, Chunked (wgpu)" loading="lazy" width="350" height="250">
-                    </div>
-                    <div class="demo-content">
-                        <h3 class="demo-title">Sun Grid Lines, Chunked (wgpu)</h3>
-                        <p class="demo-desc">A variant of sun_grid_lines that renders the identical image but assembles its shader from chunks: small, reusable pieces of WGSL from the shared shader_chunks crate, instead of duplicating them inline into one scene.wgsl. Each chunk is exactly one function — or, for the vertex stage, one entry point plus the struct type it returns — stored as a .wgsl file whose leading comment block is a manifest describing its interface: hash21, value_noise, fbm3, and fullscreen_triangle. At startup, shader_chunks::compose() reads every chunk's manifest header, topologically sorts the chunks by their declared dependencies, and concatenates their WGSL bodies in that order — before this example's own fragment body (shaders/scene_fragment.wgsl) is appended as the final, non-reusable "quot;program"quot; that consumes them.</p>
-                        <span class="demo-status">✓ Has Showcase</span>
-                        <div class="demo-links">
-                            <a href="https://github.com/Wandalen/cgtools/blob/master/examples/minwgpu/sun_grid_lines_chunked/readme.md" class="demo-link" aria-label="View Sun Grid Lines, Chunked (wgpu) demo">View Details</a>
-                        </div>
-                    </div>
-                </article>
-
-                <article class="demo-card" role="article" data-name="sun grid lines">
-                    <div class="demo-image">
-                        <img src="./minwgpu/sun_grid_lines/showcase.webp" alt="Sun Grid Lines (wgpu)" loading="lazy" width="350" height="250">
-                    </div>
-                    <div class="demo-content">
-                        <h3 class="demo-title">Sun Grid Lines (wgpu)</h3>
-                        <p class="demo-desc">A native-wgpu port of minwebgl_sun_grid_lines: the same sci-fi HUD-style solar-system diagram — dark gradient background, noise-modulated nebula band, twinkling star field, grid overlay, granulated corona-wrapped star, glowing orbit ring, and one or more orbiting nodes — rendered by a single fullscreen fragment shader. It reuses the identical WGSL shader (shaders/scene.wgsl) written for the browser WebGPU port, byte-for-byte — WGSL is portable across both.</p>
-                        <span class="demo-status">✓ Has Showcase</span>
-                        <div class="demo-links">
-                            <a href="https://github.com/Wandalen/cgtools/blob/master/examples/minwgpu/sun_grid_lines/readme.md" class="demo-link" aria-label="View Sun Grid Lines (wgpu) demo">View Details</a>
-                        </div>
-                    </div>
-                </article>
-
-                <article class="demo-card" role="article" data-name="sun grid lines vulkan">
-                    <div class="demo-image">
-                        <img src="./minwgpu/sun_grid_lines_vulkan/showcase.webp" alt="Sun Grid Lines (wgpu / Vulkan backend)" loading="lazy" width="350" height="250">
-                    </div>
-                    <div class="demo-content">
-                        <h3 class="demo-title">Sun Grid Lines (wgpu / Vulkan backend)</h3>
-                        <p class="demo-desc">The same native-wgpu sun_grid_lines example, with the backend pinned explicitly to Vulkan instead of letting wgpu pick whatever PRIMARY backend the host prefers. Identical source otherwise: same WGSL shader (shaders/scene.wgsl, byte-for-byte copy), same single-shot offscreen-texture-to-PNG pattern, same fixed uniforms (node_count = 4).</p>
-                        <span class="demo-status">✓ Has Showcase</span>
-                        <div class="demo-links">
-                            <a href="https://github.com/Wandalen/cgtools/blob/master/examples/minwgpu/sun_grid_lines_vulkan/readme.md" class="demo-link" aria-label="View Sun Grid Lines (wgpu / Vulkan backend) demo">View Details</a>
                         </div>
                     </div>
                 </article>
@@ -1341,7 +1285,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Sun Grid Lines (WebGPU)</h3>
-                        <p class="demo-desc">A browser-WebGPU port of minwebgl_sun_grid_lines's sci-fi HUD-style solar-system diagram, since expanded into a richer scene: a dark gradient background; three drifting nebula bands; two twinkling star-field layers; a grid overlay; a granulated, flickering, gently-pulsating corona-wrapped star; three glowing, pulsing orbit rings; six authored orbiting planets/moons; a handful of keyboard-driven procedural nodes; and a vignette/glow/scanline effects pass — all rendered by a single fullscreen fragment shader written in WGSL instead of GLSL. scene.rhai (see below) has diverged from the WebGL sibling's own scene.rhai, which still describes the original single-layer scene unchanged.</p>
+                        <p class="demo-desc">A sci-fi HUD-style solar-system diagram rendered entirely by a single fullscreen WGSL fragment shader in the browser via WebGPU: a dark gradient background; three drifting nebula bands; two twinkling star-field layers; a grid overlay; a granulated, flickering, gently-pulsating corona-wrapped star; three glowing, pulsing orbit rings; six authored orbiting planets/moons; a handful of keyboard-driven procedural nodes; and a vignette/glow/scanline effects pass. scene.rhai (see below) is the scene data; the fragment shader itself lives in its own file, shader/scene_fragment.wgsl (see below).</p>
                         <span class="demo-status incomplete">No Showcase Yet</span>
                         <div class="demo-links">
                             <a href="./scene_script/sun_grid_lines/" class="demo-link" aria-label="View Sun Grid Lines (WebGPU) demo">View Details</a>

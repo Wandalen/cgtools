@@ -1,19 +1,12 @@
 //! Tests for `shader_source`: the assembled WGSL's structural honesty
 //! ( every declaration exactly once, dependencies ahead of dependents ), the
-//! `scene.rhai`-owned-shader-vs-`scene.rs` fixed-size-array sync that used
-//! to be kept by hand, and a full native naga parse + validation — the one
-//! check that catches actual WGSL errors before a browser ever sees them.
+//! `shader/scene_fragment.wgsl`-vs-`scene.rs` fixed-size-array sync that
+//! used to be kept by hand, and a full native naga parse + validation — the
+//! one check that catches actual WGSL errors before a browser ever sees
+//! them.
 
 use sun_grid_lines::scene;
-use sun_grid_lines::shader_source::assemble;
-
-/// Loads `scene.rhai`'s own `shader` field — the fragment-only WGSL body
-/// these tests exercise — without repeating `SceneConfig::load()`'s
-/// evaluation logic in every test.
-fn fragment_wgsl() -> String
-{
-  scene::SceneConfig::load().shader
-}
+use sun_grid_lines::shader_source::{ assemble, FRAGMENT_WGSL };
 
 /// Returns `source` with every whole-line `//` comment dropped, so chunk
 /// manifest headers ( `//@ export: fn hash21(...)` ) and prose comments
@@ -36,7 +29,7 @@ fn code_occurrences( source : &str, pattern : &str ) -> usize
 #[ test ]
 fn assembled_shader_declares_every_symbol_exactly_once()
 {
-  let shader = assemble( &fragment_wgsl() );
+  let shader = assemble();
   for declaration in
   [
     "fn hash21(",
@@ -58,13 +51,13 @@ fn assembled_shader_declares_every_symbol_exactly_once()
 #[ test ]
 fn fragment_body_redeclares_no_chunk_symbol_and_consumes_them()
 {
-  let fragment_wgsl = fragment_wgsl();
+  let fragment_wgsl = FRAGMENT_WGSL;
   for chunk_declaration in [ "fn hash21(", "fn value_noise(", "fn fbm3(", "fn vs_main(", "struct VertexOutput" ]
   {
     assert_eq!
     (
       code_occurrences( &fragment_wgsl, chunk_declaration ), 0,
-      "scene.rhai's shader field must not carry its own copy of `{chunk_declaration}` — it comes from shader_chunks"
+      "shader/scene_fragment.wgsl must not carry its own copy of `{chunk_declaration}` — it comes from shader_chunks"
     );
   }
 
@@ -76,7 +69,7 @@ fn fragment_body_redeclares_no_chunk_symbol_and_consumes_them()
     assert!
     (
       code_occurrences( &fragment_wgsl, consumed ) > 0,
-      "scene.rhai's shader field must consume `{consumed}`"
+      "shader/scene_fragment.wgsl must consume `{consumed}`"
     );
   }
 }
@@ -89,7 +82,7 @@ fn fragment_body_redeclares_no_chunk_symbol_and_consumes_them()
 #[ test ]
 fn assembled_wgsl_parses_and_validates()
 {
-  let shader = assemble( &fragment_wgsl() );
+  let shader = assemble();
   let module = naga::front::wgsl::parse_str( &shader )
   .unwrap_or_else( | error | panic!( "assembled WGSL does not parse :\n{}", error.emit_to_string( &shader ) ) );
   naga::valid::Validator::new( naga::valid::ValidationFlags::all(), naga::valid::Capabilities::default() )
@@ -100,7 +93,7 @@ fn assembled_wgsl_parses_and_validates()
 #[ test ]
 fn assembled_shader_orders_dependencies_before_dependents()
 {
-  let shader = code_only( &assemble( &fragment_wgsl() ) );
+  let shader = code_only( &assemble() );
   let hash21 = shader.find( "fn hash21(" ).expect( "hash21 must be declared" );
   let value_noise = shader.find( "fn value_noise(" ).expect( "value_noise must be declared" );
   let fbm3 = shader.find( "fn fbm3(" ).expect( "fbm3 must be declared" );
@@ -110,15 +103,15 @@ fn assembled_shader_orders_dependencies_before_dependents()
   assert!( fbm3 < fs_main, "every chunk must precede the fragment body that consumes the stack" );
 }
 
-// Mechanizes what scene.rhai's shader field header used to call "kept in
-// sync by hand": the WGSL scene constants and fixed-size uniform-array
+// Mechanizes what shader/scene_fragment.wgsl's header used to call "kept
+// in sync by hand": the WGSL scene constants and fixed-size uniform-array
 // lengths must equal `scene.rs`'s canonical `*_COUNT` constants, which
 // `SceneConfig::load()` in turn asserts against `scene.rhai`'s list
 // lengths — closing the script → Rust → WGSL chain end to end.
 #[ test ]
 fn wgsl_scene_constants_match_scene_rs()
 {
-  let fragment_wgsl = fragment_wgsl();
+  let fragment_wgsl = FRAGMENT_WGSL;
   let counts =
   [
     ( "NEBULA_BAND_COUNT", scene::NEBULA_BAND_COUNT ),
@@ -132,7 +125,7 @@ fn wgsl_scene_constants_match_scene_rs()
     assert!
     (
       fragment_wgsl.contains( &declaration ),
-      "scene.rhai's shader field must declare `{declaration}`, matching scene::{name}"
+      "shader/scene_fragment.wgsl must declare `{declaration}`, matching scene::{name}"
     );
   }
 
@@ -153,7 +146,7 @@ fn wgsl_scene_constants_match_scene_rs()
     assert!
     (
       fragment_wgsl.contains( &declaration ),
-      "scene.rhai's shader field's Uniforms must declare `{declaration}`, matching its scene.rs count"
+      "shader/scene_fragment.wgsl's Uniforms must declare `{declaration}`, matching its scene.rs count"
     );
   }
 }

@@ -51,7 +51,7 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 |<img width="500px" src="./minwebgl/renderer_with_outlines/showcase.webp"><br>[Outlines postprocessing](./minwebgl/renderer_with_outlines/readme.md) |[Shadowmap](./minwebgl/shadowmap/readme.md)<br>*(No showcase yet)* |
 |<img width="500px" src="./minwebgl/simple_pbr/showcase.webp"><br>[Simple PBR](./minwebgl/simple_pbr/readme.md) |<img width="500px" src="./minwebgl/skeletal_animation/showcase.webp"><br>[Skeletal animation](./minwebgl/skeletal_animation/readme.md) |
 |<img width="500px" src="./minwebgl/space_partition/showcase.webp"><br>[Space partition](./minwebgl/space_partition/readme.md) |<img width="500px" src="./minwebgl/spinning_cube_size_opt/showcase.webp"><br>[Spinning cube](./minwebgl/spinning_cube_size_opt/readme.md) |
-|<img width="500px" src="./minwebgl/sprite_animation/showcase.webp"><br>[Sprite animation](./minwebgl/sprite_animation/readme.md) |<img width="500px" src="./minwebgl/sun_grid_lines/showcase.webp"><br>[Sun grid lines](./minwebgl/sun_grid_lines/readme.md) |
+|<img width="500px" src="./minwebgl/sprite_animation/showcase.webp"><br>[Sprite animation](./minwebgl/sprite_animation/readme.md) | |
 |<img width="500px" src="./minwebgl/text_msdf/showcase.webp"><br>[Text MSDF](./minwebgl/text_msdf/readme.md) |<img width="500px" src="./minwebgl/text_rendering/showcase.webp"><br>[Text rendering](./minwebgl/text_rendering/readme.md) |
 |[Touch input test](./minwebgl/touch_input_test/readme.md)<br>*(No showcase — manual testing aid, not a demo)* |<img width="500px" src="./minwebgl/trivial/showcase.webp"><br>[Trivial](./minwebgl/trivial/readme.md) |
 |<img width="500px" src="./minwebgl/uniforms_animation/showcase.webp"><br>[Uniform animation](./minwebgl/uniforms_animation/readme.md) |<img width="500px" src="./minwebgl/uniforms_ubo/showcase.webp"><br>[Uniform UBO](./minwebgl/uniforms_ubo/readme.md) |
@@ -69,7 +69,6 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 | | |
 |:-------------------------:|:-------------------------:|
 |<img width="500px" src="./minwgpu/grid_render/showcase.webp"><br>[Grid renderer](./minwgpu/grid_render/readme.md) |<img width="500px" src="./minwgpu/hello_triangle/showcase.webp"><br>[Hello triangle](./minwgpu/hello_triangle/readme.md) |
-|<img width="500px" src="./minwgpu/sun_grid_lines/showcase.webp"><br>[Sun grid lines](./minwgpu/sun_grid_lines/readme.md) |<img width="500px" src="./minwgpu/sun_grid_lines_vulkan/showcase.webp"><br>[Sun grid lines (Vulkan)](./minwgpu/sun_grid_lines_vulkan/readme.md) |
 
 ## Scripting Examples
 
@@ -98,12 +97,12 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 | demo_todo_categorized.md | Categorized todo list for examples |
 | example_requirements.md | Requirements documentation for examples |
 | how_to_run.md | Setup and execution instructions for examples |
-| index.html | Interactive HTML gallery with 72 example showcases |
+| index.html | Interactive HTML gallery with 69 example showcases |
 | index.md | Markdown-formatted examples list |
 | math/ | Math-based examples directory (1 demo) |
-| minwebgl/ | WebGL examples directory (48 demos) |
+| minwebgl/ | WebGL examples directory (47 demos) |
 | minwebgpu/ | WebGPU examples directory (4 demos) |
-| minwgpu/ | WGPU examples directory (4 demos) |
+| minwgpu/ | WGPU examples directory (2 demos) |
 | non_developer_how_to_run.md | Beginner-friendly step-by-step guide for running examples with no prior Rust experience |
 | readme.md | Root documentation for examples directory |
 | scene_script/ | Rhai scripting examples directory (3 demos) |
