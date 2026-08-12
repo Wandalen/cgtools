@@ -28,7 +28,7 @@ fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
   ( w.max( 1 ), h.max( 1 ) )
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default()
@@ -163,5 +163,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

@@ -36,7 +36,7 @@ mod private
     /// Sets the type of the buffer from the provided type
     #[ inline ]
     #[ must_use ]
-    pub fn set_type( mut self, b_type : GpuBufferBindingType ) -> Self
+    pub fn type_set( mut self, b_type : GpuBufferBindingType ) -> Self
     {
       self.b_type = Some( b_type );
       self

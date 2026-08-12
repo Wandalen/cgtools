@@ -3,7 +3,7 @@
 use minwebgl as gl;
 use gl::GL;
 
-fn get_cube_data() -> &'static [ f32 ]
+fn cube_data_get() -> &'static [ f32 ]
 {
   &[
   //  X     Y     Z     U    V
@@ -53,7 +53,7 @@ fn get_cube_data() -> &'static [ f32 ]
 
 // The order I took from here
 // https://github.com/mrdoob/three.js/blob/master/src/cameras/CubeCamera.js
-fn make_cube_camera() -> [ gl::F32x4x4; 6 ]
+fn cube_camera_make() -> [ gl::F32x4x4; 6 ]
 {
   let px = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_X, gl::F32x3::NEG_Y );
   let nx = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::X, gl::F32x3::NEG_Y );
@@ -67,7 +67,7 @@ fn make_cube_camera() -> [ gl::F32x4x4; 6 ]
   [ px, nx, py, ny, pz, nz ]
 }
 
-fn gen_cube_texture( gl : &GL, width: i32, height: i32 ) -> Option< gl::web_sys::WebGlTexture >
+fn cube_texture_gen( gl : &GL, width: i32, height: i32 ) -> Option< gl::web_sys::WebGlTexture >
 {
   let texture = gl.create_texture();
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture.as_ref() );
@@ -101,7 +101,7 @@ fn gen_cube_texture( gl : &GL, width: i32, height: i32 ) -> Option< gl::web_sys:
 /// generation shaders, uploads the model geometry, and draws every cube face
 /// into the texture through a temporary framebuffer. Returns the cube texture
 /// together with the model's maximum vertex distance used for normalization.
-fn generate_cube_map
+fn cube_map_generate
 (
   gl : &GL,
   document : &gltf::Document,
@@ -164,7 +164,7 @@ fn generate_cube_map
   let max_distance_location = gl.get_uniform_location( &program, "max_distance" );
 
   // Camera setup
-  let cube_camera = make_cube_camera();
+  let cube_camera = cube_camera_make();
 
   let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
   (
@@ -192,7 +192,7 @@ fn generate_cube_map
   gl::uniform::upload( gl, max_distance_location, &max_distance )?;
 
   let ( tex_width, tex_height ) = ( 512, 512 );
-  let cube_texture = gen_cube_texture( gl, tex_width, tex_height );
+  let cube_texture = cube_texture_gen( gl, tex_width, tex_height );
 
   // Render to our cube texture using custom frame buffer
   // All the needed buffers were setup above
@@ -223,7 +223,7 @@ fn generate_cube_map
   Ok( ( cube_texture, max_distance ) )
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
@@ -232,7 +232,7 @@ async fn run() -> Result< (), gl::WebglError >
   let obj_buffer = gl::file::load( "static/diamond.glb" ).await.expect( "Failed to load the model" );
   let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
 
-  let ( cube_texture, max_distance ) = generate_cube_map( &gl, &document, &buffers )?;
+  let ( cube_texture, max_distance ) = cube_map_generate( &gl, &document, &buffers )?;
 
   //
   // Create new program to display the result
@@ -250,7 +250,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Prepare attributes
   // We don't really need uvs, but they came with a model, so I decided to leave them be
-  let cube_attr = get_cube_data();
+  let cube_attr = cube_data_get();
   let vertex_count = cube_attr.len() / 5;
   let cube_attr_buffer = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &cube_attr_buffer, cube_attr, gl::STATIC_DRAW );
@@ -329,5 +329,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

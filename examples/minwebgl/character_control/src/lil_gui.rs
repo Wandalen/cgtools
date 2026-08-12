@@ -5,16 +5,16 @@ use gl::wasm_bindgen::{ self, prelude::* };
 extern "C"
 {
   #[ wasm_bindgen( js_name = "newGui" ) ]
-  pub fn new_gui() -> JsValue;
+  pub fn gui_new() -> JsValue;
 
   #[ wasm_bindgen( js_name = "addFolder" ) ]
-  pub fn add_folder( gui : &JsValue, name : &str ) -> JsValue;
+  pub fn folder_add( gui : &JsValue, name : &str ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "addSliderController" ) ]
-  pub fn add_slider( gui : &JsValue, object : &JsValue, property : &str, min : f64, max : f64, step : f64 ) -> JsValue;
+  pub fn slider_add( gui : &JsValue, object : &JsValue, property : &str, min : f64, max : f64, step : f64 ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "addDropdownController" ) ]
-  pub fn add_dropdown( gui : &JsValue, object : &JsValue, property : &str, options : &JsValue ) -> JsValue;
+  pub fn dropdown_add( gui : &JsValue, object : &JsValue, property : &str, options : &JsValue ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "onFinishChange" ) ]
   pub fn on_finish_change( gui : &JsValue, callback : &Closure< dyn FnMut( JsValue ) > ) -> JsValue;
@@ -23,7 +23,7 @@ extern "C"
   pub fn on_change( gui : &JsValue, callback : &Closure< dyn FnMut( f32 ) > ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "getTitle" ) ]
-  pub fn set_name( gui : &JsValue, value : &str ) -> JsValue;
+  pub fn name_set( gui : &JsValue, value : &str ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "onChange" ) ]
   pub fn on_change_string( gui : &JsValue, callback : &Closure< dyn FnMut( String ) > ) -> JsValue;

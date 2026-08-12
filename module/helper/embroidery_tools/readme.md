@@ -41,7 +41,7 @@ use embroidery_tools::stitch_instruction::Instruction;
 
 fn read_pattern() -> Result<(), Box<dyn std::error::Error>> {
   // Read a PES file
-  let emb = pes::read_file("design.pes")?;
+  let emb = pes::file_read("design.pes")?;
 
   let (min_x, min_y, max_x, max_y) = emb.bounds();
   println!("Pattern info:");
@@ -83,8 +83,8 @@ fn create_pattern() -> Result<(), Box<dyn std::error::Error>> {
   let mut emb = EmbroideryFile::new();
 
   // Register the thread palette
-  emb.add_thread(Thread { color: Color { r: 255, g: 0, b: 0 }, ..Default::default() }); // Red
-  emb.add_thread(Thread { color: Color { r: 0, g: 255, b: 0 }, ..Default::default() }); // Green
+  emb.thread_add(Thread { color: Color { r: 255, g: 0, b: 0 }, ..Default::default() }); // Red
+  emb.thread_add(Thread { color: Color { r: 0, g: 255, b: 0 }, ..Default::default() }); // Green
 
   // Add stitches — coordinates passed to these helpers are relative to the previous point
   emb.stitch(0, 0);
@@ -135,9 +135,9 @@ let stitch_count = emb.stitches().len();
 let thread_count = emb.threads().len();
 
 // Pattern normalization — fixes instruction encoding before writing or after reading
-emb.fix_color_count();                     // ensure enough threads for every color change
-emb.interpolate_stop_as_duplicate_color();  // encode Stop as a duplicated color change
-emb.interpolate_duplicate_color_as_stop();  // decode a duplicated color change back to Stop
+emb.color_count_fix();                      // ensure enough threads for every color change
+emb.stop_interpolate_as_duplicate_color();  // encode Stop as a duplicated color change
+emb.duplicate_color_interpolate_as_stop();  // decode a duplicated color change back to Stop
 ```
 
 There is currently no geometric transform API (scale/translate/rotate) — see Current Limitations
@@ -170,8 +170,8 @@ below.
 - **PES Format** - Versions 1 and 6 support
 - **Basic Pattern Operations** - Create, read, modify patterns
 - **Color Management** - Handle thread colors and palettes
-- **Stitch Encoding Normalization** - `fix_color_count()`, `interpolate_stop_as_duplicate_color()`,
-  `interpolate_duplicate_color_as_stop()` (called explicitly, not automatic)
+- **Stitch Encoding Normalization** - `color_count_fix()`, `stop_interpolate_as_duplicate_color()`,
+  `duplicate_color_interpolate_as_stop()` (called explicitly, not automatic)
 
 ### 🚧 Planned Features
 - **Geometric Transforms** - Scale, translate, rotate a pattern
@@ -244,7 +244,7 @@ fn convert_directory(input_dir: &str, output_dir: &str) -> Result<(), Box<dyn st
   for entry in fs::read_dir(input_dir)? {
     let path = entry?.path();
     if path.extension() == Some("pes".as_ref()) {
-      let mut emb = pes::read_file(&path)?;
+      let mut emb = pes::file_read(&path)?;
       let stem = path.file_stem().unwrap().to_str().unwrap();
       let mut out = BufWriter::new(File::create(format!("{output_dir}/{stem}.pec"))?);
       pec::write(&mut emb, &mut out)?;

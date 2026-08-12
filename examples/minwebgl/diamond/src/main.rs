@@ -7,7 +7,7 @@ use gl::
   JsValue
 };
 
-async fn load_cube_texture( name : &str ) -> Result< [ image::RgbaImage; 6 ], JsValue >
+async fn cube_texture_load( name : &str ) -> Result< [ image::RgbaImage; 6 ], JsValue >
 {
   let px = gl::file::load( &format!( "static/{name}/PX.png" ) ).await.expect( "Failed to load PX face" );
   let nx = gl::file::load( &format!( "static/{name}/NX.png" ) ).await.expect( "Failed to load NX face" );
@@ -28,7 +28,7 @@ async fn load_cube_texture( name : &str ) -> Result< [ image::RgbaImage; 6 ], Js
   Ok( [ px, nx, py, ny, pz, nz ] )
 }
 
-fn upload_cube_texture( gl : &GL, faces : &[ image::RgbaImage ], location: u32 )
+fn cube_texture_upload( gl : &GL, faces : &[ image::RgbaImage ], location: u32 )
 {
   let texture = gl.create_texture();
   gl.active_texture( gl::TEXTURE0 + location );
@@ -63,7 +63,7 @@ type Geometry = ( Vec< [ f32; 3 ] >, Vec< [ f32; 3 ] >, Vec< [ f32; 2 ] >, Vec< 
 
 /// Reads the first primitive's positions, normals, texture coordinates, and indices
 /// from the parsed glb document.
-fn read_geometry
+fn geometry_read
 (
   document : &gltf::Document,
   buffers : &[ gltf::buffer::Data ]
@@ -88,7 +88,7 @@ fn read_geometry
   ( positions, normals, tex_coords, indices )
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
@@ -100,14 +100,14 @@ async fn run() -> Result< (), gl::WebglError >
   gl.use_program( Some( &program ) );
 
   // Load textures
-  let env_map = load_cube_texture( "skybox" ).await.expect( "Failed to load environment map" );
-  let cube_normal_map = load_cube_texture( "normal_cube" ).await.expect( "Failed to load cube normal map" );
+  let env_map = cube_texture_load( "skybox" ).await.expect( "Failed to load environment map" );
+  let cube_normal_map = cube_texture_load( "normal_cube" ).await.expect( "Failed to load cube normal map" );
 
   // Load model
   let obj_buffer = gl::file::load( "static/diamond.glb" ).await.expect( "Failed to load the model" );
   let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
 
-  let ( positions, normals, tex_coords, indices ) = read_geometry( &document, &buffers );
+  let ( positions, normals, tex_coords, indices ) = geometry_read( &document, &buffers );
 
   let pos_buffer =  gl::buffer::create( &gl )?;
   let normal_buffer = gl::buffer::create( &gl )?;
@@ -184,8 +184,8 @@ async fn run() -> Result< (), gl::WebglError >
   gl.uniform1i( gl.get_uniform_location( &program, "envMap" ).as_ref(), env_map_location );
   gl.uniform1i( gl.get_uniform_location( &program, "cubeNormalMap" ).as_ref(), cube_normal_map_location );
 
-  upload_cube_texture( &gl, &env_map, env_map_location as u32 );
-  upload_cube_texture( &gl, &cube_normal_map, cube_normal_map_location as u32 );
+  cube_texture_upload( &gl, &env_map, env_map_location as u32 );
+  cube_texture_upload( &gl, &cube_normal_map, cube_normal_map_location as u32 );
 
   gl.enable( gl::DEPTH_TEST );
 
@@ -223,5 +223,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

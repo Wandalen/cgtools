@@ -23,7 +23,7 @@ static COLOR_DATA: [f32; 9] = [
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc<'_> = wee_alloc::WeeAlloc::INIT;
 
-fn run() -> Result<(), gl::WebglError> {
+fn app_run() -> Result<(), gl::WebglError> {
   gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
 
@@ -106,5 +106,5 @@ fn run() -> Result<(), gl::WebglError> {
 }
 
 fn main() {
-  run().unwrap();
+  app_run().unwrap();
 }

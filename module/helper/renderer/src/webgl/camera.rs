@@ -6,7 +6,7 @@ mod private
   use mingl::
   {
     CameraOrbitControls,
-    controls::camera_orbit_controls::bind_controls_to_input
+    controls::camera_orbit_controls::controls_bind_to_input
   };
 
   /// A struct representing a 3D camera with orbit controls.
@@ -78,7 +78,7 @@ mod private
       canvas : &web_sys::HtmlCanvasElement
     )
     {
-      bind_controls_to_input( canvas, &self.controls );
+      controls_bind_to_input( canvas, &self.controls );
     }
 
     /// Uploads the camera's matrices and position to a WebGL2 shader program.
@@ -138,7 +138,7 @@ mod private
     /// Sets the window size for the camera controls.
     pub fn set_window_size( &mut self, window_size : gl::F32x2 )
     {
-      self.controls.borrow_mut().set_size( window_size.to_array() );
+      self.controls.borrow_mut().size_set( window_size.to_array() );
     }
 
     /// Sets the projection matrix value

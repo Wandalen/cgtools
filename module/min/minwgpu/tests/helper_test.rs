@@ -1,6 +1,6 @@
 //! Native tests for the `helper` layer's public surface (established by task 070): the pure
 //! `attr` shortcut, whose output fields are directly observable, and the synchronous
-//! `request_adapter` shortcut's error path, which is deterministic without a GPU (an
+//! `adapter_request` shortcut's error path, which is deterministic without a GPU (an
 //! empty-backends instance can never provide an adapter).
 
 use minwgpu::{ helper, Error };
@@ -16,7 +16,7 @@ fn attr_maps_arguments_onto_vertex_attribute_fields()
   assert_eq!( attribute.shader_location, 3 );
 }
 
-/// The synchronous `request_adapter` shortcut must surface an adapter-request failure as
+/// The synchronous `adapter_request` shortcut must surface an adapter-request failure as
 /// the crate's own error type, not a panic.
 #[ test ]
 fn request_adapter_shortcut_errors_on_empty_backends()
@@ -28,7 +28,7 @@ fn request_adapter_shortcut_errors_on_empty_backends()
   };
   let instance = wgpu::Instance::new( &descriptor );
 
-  let result = helper::adapter::request_adapter( &instance, &wgpu::RequestAdapterOptions::default() );
+  let result = helper::adapter::adapter_request( &instance, &wgpu::RequestAdapterOptions::default() );
   assert!
   (
     matches!( &result, Err( Error::RequestAdapterError( _ ) ) ),

@@ -32,7 +32,7 @@ const COLOR_DATA : [ f32 ; 18 ] =
   0.2899, 0.9056, 0.7799, 0.2565, 0.6451, 0.8498, 0.0969, 0.9353, 0.0471,
 ];
 
-fn run() -> Result< (), gl::WebglError >
+fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
@@ -172,5 +172,5 @@ fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  run().unwrap();
+  app_run().unwrap();
 }

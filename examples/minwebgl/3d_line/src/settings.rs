@@ -86,9 +86,9 @@ pub fn init() -> Settings
   }
 }
 
-fn setup_world_width_slider( gui : &JsValue, object : &JsValue, gl : gl::WebGl2RenderingContext, lines : Rc< RefCell< Vec< Line > > > )
+fn world_width_slider_setup( gui : &JsValue, object : &JsValue, gl : gl::WebGl2RenderingContext, lines : Rc< RefCell< Vec< Line > > > )
 {
-  let prop = lil_gui::add_slider( gui, object, "World width", 0.0, 0.05, 0.001 );
+  let prop = lil_gui::slider_add( gui, object, "World width", 0.0, 0.05, 0.001 );
   let callback = Closure::new
   (
     {
@@ -111,9 +111,9 @@ fn setup_world_width_slider( gui : &JsValue, object : &JsValue, gl : gl::WebGl2R
   callback.forget();
 }
 
-fn setup_screen_width_slider( gui : &JsValue, object : &JsValue, gl : gl::WebGl2RenderingContext, lines : Rc< RefCell< Vec< Line > > > )
+fn screen_width_slider_setup( gui : &JsValue, object : &JsValue, gl : gl::WebGl2RenderingContext, lines : Rc< RefCell< Vec< Line > > > )
 {
-  let prop = lil_gui::add_slider( gui, object, "Screen width", 0.0, 100.0, 1.0 );
+  let prop = lil_gui::slider_add( gui, object, "Screen width", 0.0, 100.0, 1.0 );
   let callback = Closure::new
   (
     {
@@ -136,9 +136,9 @@ fn setup_screen_width_slider( gui : &JsValue, object : &JsValue, gl : gl::WebGl2
   callback.forget();
 }
 
-fn setup_alpha_to_coverage_toggle( gui : &JsValue, object : &JsValue, gl : gl::WebGl2RenderingContext, lines : Rc< RefCell< Vec< Line > > > )
+fn alpha_to_coverage_toggle_setup( gui : &JsValue, object : &JsValue, gl : gl::WebGl2RenderingContext, lines : Rc< RefCell< Vec< Line > > > )
 {
-  let prop = lil_gui::add_boolean( gui, object, "Alpha to coverage" );
+  let prop = lil_gui::boolean_add( gui, object, "Alpha to coverage" );
   let callback = Closure::new
   (
     move | value : bool |
@@ -163,9 +163,9 @@ fn setup_alpha_to_coverage_toggle( gui : &JsValue, object : &JsValue, gl : gl::W
   callback.forget();
 }
 
-fn setup_world_units_toggle( gui : &JsValue, object : &JsValue, gl : gl::WebGl2RenderingContext, lines : Rc< RefCell< Vec< Line > > > )
+fn world_units_toggle_setup( gui : &JsValue, object : &JsValue, gl : gl::WebGl2RenderingContext, lines : Rc< RefCell< Vec< Line > > > )
 {
-  let prop = lil_gui::add_boolean( gui, object, "World units" );
+  let prop = lil_gui::boolean_add( gui, object, "World units" );
   let callback = Closure::new
   (
     {
@@ -200,9 +200,9 @@ fn setup_world_units_toggle( gui : &JsValue, object : &JsValue, gl : gl::WebGl2R
   callback.forget();
 }
 
-fn setup_dashes_toggle( gui : &JsValue, object : &JsValue, lines : Rc< RefCell< Vec< Line > > > )
+fn dashes_toggle_setup( gui : &JsValue, object : &JsValue, lines : Rc< RefCell< Vec< Line > > > )
 {
-  let prop = lil_gui::add_boolean( gui, object, "Dashes" );
+  let prop = lil_gui::boolean_add( gui, object, "Dashes" );
   let callback = Closure::new
   (
     move | value : bool |
@@ -218,9 +218,9 @@ fn setup_dashes_toggle( gui : &JsValue, object : &JsValue, lines : Rc< RefCell< 
   callback.forget();
 }
 
-fn setup_trail_length_slider( gui : &JsValue, object : &JsValue, settings : Rc< RefCell< Settings > > )
+fn trail_length_slider_setup( gui : &JsValue, object : &JsValue, settings : Rc< RefCell< Settings > > )
 {
-  let prop = lil_gui::add_slider( gui, object, "Trail length", 2.0, 500.0, 1.0 );
+  let prop = lil_gui::slider_add( gui, object, "Trail length", 2.0, 500.0, 1.0 );
   let callback = Closure::new
   (
     move | value : f32 |
@@ -232,9 +232,9 @@ fn setup_trail_length_slider( gui : &JsValue, object : &JsValue, settings : Rc< 
   callback.forget();
 }
 
-fn setup_simulation_speed_slider( gui : &JsValue, object : &JsValue, settings : Rc< RefCell< Settings > > )
+fn simulation_speed_slider_setup( gui : &JsValue, object : &JsValue, settings : Rc< RefCell< Settings > > )
 {
-  let prop = lil_gui::add_slider( gui, object, "Simulation speed", 0.0, 0.001, 0.00001 );
+  let prop = lil_gui::slider_add( gui, object, "Simulation speed", 0.0, 0.001, 0.00001 );
   let callback = Closure::new
   (
     move | value : f32 |
@@ -246,9 +246,9 @@ fn setup_simulation_speed_slider( gui : &JsValue, object : &JsValue, settings : 
   callback.forget();
 }
 
-fn setup_dash_version_dropdown( gui : &JsValue, object : &JsValue, lines : Rc< RefCell< Vec< Line > > > )
+fn dash_version_dropdown_setup( gui : &JsValue, object : &JsValue, lines : Rc< RefCell< Vec< Line > > > )
 {
-  let prop = lil_gui::add_dropdown( gui, object, "Dash Version", &serde_wasm_bindgen::to_value( &[ "V1", "V2", "V3", "V4" ] ).unwrap() );
+  let prop = lil_gui::dropdown_add( gui, object, "Dash Version", &serde_wasm_bindgen::to_value( &[ "V1", "V2", "V3", "V4" ] ).unwrap() );
   let callback = Closure::new
   (
     {
@@ -257,7 +257,7 @@ fn setup_dash_version_dropdown( gui : &JsValue, object : &JsValue, lines : Rc< R
       {
         let mut settings : Settings = serde_wasm_bindgen::from_value( object.clone() ).unwrap();
         settings.dash_version = value;
-        upload_dash_pattern( &lines, &settings );
+        dash_pattern_upload( &lines, &settings );
       }
     }
   );
@@ -265,9 +265,9 @@ fn setup_dash_version_dropdown( gui : &JsValue, object : &JsValue, lines : Rc< R
   callback.forget();
 }
 
-fn setup_dash_offset_slider( gui : &JsValue, object : &JsValue, lines : Rc< RefCell< Vec< Line > > > )
+fn dash_offset_slider_setup( gui : &JsValue, object : &JsValue, lines : Rc< RefCell< Vec< Line > > > )
 {
-  let prop = lil_gui::add_slider( gui, object, "Dash offset", 0.0, 1.0, 0.0001 );
+  let prop = lil_gui::slider_add( gui, object, "Dash offset", 0.0, 1.0, 0.0001 );
   let callback = Closure::new
   (
     move | value : f32 |
@@ -283,9 +283,9 @@ fn setup_dash_offset_slider( gui : &JsValue, object : &JsValue, lines : Rc< RefC
   callback.forget();
 }
 
-fn setup_dash_param_slider( gui : &JsValue, object : &JsValue, lines : Rc< RefCell< Vec< Line > > >, label : &str, min : f64, max : f64, step : f64 )
+fn dash_param_slider_setup( gui : &JsValue, object : &JsValue, lines : Rc< RefCell< Vec< Line > > >, label : &str, min : f64, max : f64, step : f64 )
 {
-  let prop = lil_gui::add_slider( gui, object, label, min, max, step );
+  let prop = lil_gui::slider_add( gui, object, label, min, max, step );
   let callback = Closure::new
   (
     {
@@ -293,7 +293,7 @@ fn setup_dash_param_slider( gui : &JsValue, object : &JsValue, lines : Rc< RefCe
       move | _ : f32 |
       {
         let settings : Settings = serde_wasm_bindgen::from_value( object.clone() ).unwrap();
-        upload_dash_pattern( &lines, &settings );
+        dash_pattern_upload( &lines, &settings );
       }
     }
   );
@@ -315,25 +315,25 @@ pub fn bind_to_ui
   let object = serde_wasm_bindgen::to_value( &settings.borrow().clone() ).unwrap();
   let gui = lil_gui::new_gui();
 
-  setup_world_width_slider( &gui, &object, gl.clone(), lines.clone() );
-  setup_screen_width_slider( &gui, &object, gl.clone(), lines.clone() );
-  setup_alpha_to_coverage_toggle( &gui, &object, gl.clone(), lines.clone() );
-  setup_world_units_toggle( &gui, &object, gl.clone(), lines.clone() );
-  setup_dashes_toggle( &gui, &object, lines.clone() );
+  world_width_slider_setup( &gui, &object, gl.clone(), lines.clone() );
+  screen_width_slider_setup( &gui, &object, gl.clone(), lines.clone() );
+  alpha_to_coverage_toggle_setup( &gui, &object, gl.clone(), lines.clone() );
+  world_units_toggle_setup( &gui, &object, gl.clone(), lines.clone() );
+  dashes_toggle_setup( &gui, &object, lines.clone() );
 
   // Trail length and simulation speed are read each frame from the JS object,
   // so they only need a slider — no onChange callback required.
-  setup_trail_length_slider( &gui, &object, settings.clone() );
-  setup_simulation_speed_slider( &gui, &object, settings.clone() );
+  trail_length_slider_setup( &gui, &object, settings.clone() );
+  simulation_speed_slider_setup( &gui, &object, settings.clone() );
 
-  let gui = lil_gui::add_folder( &gui, "Dash settings" );
+  let gui = lil_gui::folder_add( &gui, "Dash settings" );
 
-  setup_dash_version_dropdown( &gui, &object, lines.clone() );
-  setup_dash_offset_slider( &gui, &object, lines.clone() );
-  setup_dash_param_slider( &gui, &object, lines.clone(), "Dash size 1", 0.0, 1.0, 0.01 );
-  setup_dash_param_slider( &gui, &object, lines.clone(), "Dash gap 1", 0.0, 1.0, 0.01 );
-  setup_dash_param_slider( &gui, &object, lines.clone(), "Dash size 2", 0.0, 1.0, 0.01 );
-  setup_dash_param_slider( &gui, &object, lines.clone(), "Dash gap 2", 0.0, 1.0, 0.01 );
+  dash_version_dropdown_setup( &gui, &object, lines.clone() );
+  dash_offset_slider_setup( &gui, &object, lines.clone() );
+  dash_param_slider_setup( &gui, &object, lines.clone(), "Dash size 1", 0.0, 1.0, 0.01 );
+  dash_param_slider_setup( &gui, &object, lines.clone(), "Dash gap 1", 0.0, 1.0, 0.01 );
+  dash_param_slider_setup( &gui, &object, lines.clone(), "Dash size 2", 0.0, 1.0, 0.01 );
+  dash_param_slider_setup( &gui, &object, lines.clone(), "Dash gap 2", 0.0, 1.0, 0.01 );
 
   object
 }
@@ -342,7 +342,7 @@ pub fn bind_to_ui
 ///
 /// The variant is chosen by `settings.dash_version` (`"V1"` .. `"V4"`), and the
 /// segment lengths come from `dash_size1`, `dash_gap1`, `dash_size2`, `dash_gap2`.
-pub fn upload_dash_pattern( lines : &Rc< RefCell< Vec< Line > > >, settings : &Settings )
+pub fn dash_pattern_upload( lines : &Rc< RefCell< Vec< Line > > >, settings : &Settings )
 {
   let mut lines = lines.borrow_mut();
   match settings.dash_version.as_str()

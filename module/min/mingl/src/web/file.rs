@@ -58,7 +58,7 @@ mod private
   /// * Origin-absolute paths (leading `/`) are appended to the origin as-is.
   /// * Anything else is treated as origin-relative and joined with a single `/`.
   #[ must_use ]
-  pub fn resolve_url( origin : &str, file_name : &str ) -> String
+  pub fn url_resolve( origin : &str, file_name : &str ) -> String
   {
     if is_self_contained_url( file_name )
     {
@@ -164,7 +164,7 @@ mod private
   {
     let window = web_sys::window().unwrap();
     let origin = window.location().origin()?;
-    let url = resolve_url( &origin, file_name );
+    let url = url_resolve( &origin, file_name );
 
     // `fetch()` rejects `cors` mode for `data:` URLs — decode them directly instead.
     if url.starts_with( "data:" )
@@ -203,7 +203,7 @@ crate::mod_interface!
 {
 
   own use load;
-  own use resolve_url;
+  own use url_resolve;
   own use data_url_base64_payload;
   own use is_self_contained_url;
   own use Error;

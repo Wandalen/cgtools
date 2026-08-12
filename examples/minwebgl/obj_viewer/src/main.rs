@@ -13,7 +13,7 @@ use mesh::GLMesh;
 use mingl::
 {
   CameraOrbitControls,
-  controls::camera_orbit_controls::bind_controls_to_input
+  controls::camera_orbit_controls::controls_bind_to_input
 };
 use minwebgl::{ self as gl, JsCast };
 use web_sys::wasm_bindgen::prelude::Closure;
@@ -21,7 +21,7 @@ use web_sys::wasm_bindgen::prelude::Closure;
 mod mesh;
 mod material;
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::make()?;
@@ -57,7 +57,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let camera = Rc::new( RefCell::new( camera ) );
 
-  bind_controls_to_input( &canvas, &camera );
+  controls_bind_to_input( &canvas, &camera );
 
   // You need to provide the full path to the object, and paths to folder that contain textures and mtl
   // Path is relative to "assets", and you cannot move up, so all of your file should be located in "assets" folder
@@ -73,18 +73,18 @@ async fn run() -> Result< (), gl::WebglError >
   // This is for loading the model in a form as close as possible to the form specified in obj file, which might not me suitable for render
   // But you can get some useful diagnostic information
 
-  // let ( models, materials ) = load_model_from_slice( &model_buffer, mtl_path, &tobj::LoadOptions::default() ).await.expect( "Failed to load OBJ file" );
+  // let ( models, materials ) = model_load_from_slice( &model_buffer, mtl_path, &tobj::LoadOptions::default() ).await.expect( "Failed to load OBJ file" );
   // let materials = materials.expect( "Failed to load materials" );
-  // diagnostic::make_reports( &models, &materials ).iter().for_each( | v | println!("{}", v));
+  // diagnostic::reports_make( &models, &materials ).iter().for_each( | v | println!("{}", v));
 
   // Load model
   gl::console::time_with_label( "Parse" );
-  let ( models, materials ) = gl::model::obj::load_model_from_slice( &model_buffer, mtl_path, &tobj::GPU_LOAD_OPTIONS ).await.expect( "Failed to load OBJ file" );
+  let ( models, materials ) = gl::model::obj::model_load_from_slice( &model_buffer, mtl_path, &tobj::GPU_LOAD_OPTIONS ).await.expect( "Failed to load OBJ file" );
   let materials = materials.expect( "Failed to load materials" );
   gl::console::time_end_with_label( "Parse" );
 
   // Provides detailed info about the model
-  for report in &gl::diagnostics::obj::make_reports( &models, &materials )
+  for report in &gl::diagnostics::obj::reports_make( &models, &materials )
   {
     gl::log::info!( "{report}" );
   }
@@ -97,13 +97,13 @@ async fn run() -> Result< (), gl::WebglError >
   for mat in &materials
   {
     let gl_material = GLMaterial::from_tobj_material( &gl, mat, &mut texture_names )?;
-    gl_material.init_uniforms( &gl );
+    gl_material.uniforms_init( &gl );
     gl_materials.push(  gl_material );
   }
 
-  let textures = load_textures( &gl, texture_names, texture_path );
+  let textures = textures_load( &gl, texture_names, texture_path );
 
-  let ( gl_meshes_opaque, gl_meshes_transparent ) = build_meshes( &gl, &models, &gl_materials, &perspective_matrix )?;
+  let ( gl_meshes_opaque, gl_meshes_transparent ) = meshes_build( &gl, &models, &gl_materials, &perspective_matrix )?;
 
   gl.enable( gl::DEPTH_TEST );
   gl.enable( gl::BLEND );
@@ -155,7 +155,7 @@ async fn run() -> Result< (), gl::WebglError >
 
 /// Loads every texture named in `texture_names` from `static/{texture_path}/`,
 /// uploading each into a WebGl texture once its hidden image element finishes loading.
-fn load_textures
+fn textures_load
 (
   gl : &gl::WebGl2RenderingContext,
   texture_names : HashSet< ( String, TextureType ) >,
@@ -213,7 +213,7 @@ fn load_textures
 
 /// Builds a VAO-backed mesh for every model, binding each with its material,
 /// and splits the result into opaque and transparent groups.
-fn build_meshes
+fn meshes_build
 (
   gl : &gl::WebGl2RenderingContext,
   models : &[ tobj::Model ],
@@ -228,7 +228,7 @@ fn build_meshes
   for model in models
   {
     let gl_mesh = GLMesh::from_tobj_model( gl, model, gl_materials )?;
-    gl_mesh.set_perpsective( gl, perspective_matrix );
+    gl_mesh.perpsective_set( gl, perspective_matrix );
 
     match gl_mesh.material().mtl
     {
@@ -248,5 +248,5 @@ fn build_meshes
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

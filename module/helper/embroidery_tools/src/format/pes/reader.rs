@@ -19,7 +19,7 @@ mod private
   /// Returns `EmbroideryError::IOError` if the file cannot be opened or read.
   /// Propagates any error returned by [`read`].
   #[ inline ]
-  pub fn read_file< P >( path : P ) -> Result< EmbroideryFile, EmbroideryError >
+  pub fn file_read< P >( path : P ) -> Result< EmbroideryFile, EmbroideryError >
   where
     P : AsRef< Path >
   {
@@ -32,7 +32,7 @@ mod private
   /// # Errors
   /// Propagates any error returned by [`read`].
   #[ inline ]
-  pub fn read_memory( mem : &[ u8 ] ) -> Result< EmbroideryFile, EmbroideryError >
+  pub fn memory_read( mem : &[ u8 ] ) -> Result< EmbroideryFile, EmbroideryError >
   {
     let mut reader = Cursor::new( mem );
     read( &mut reader )
@@ -57,23 +57,23 @@ mod private
     
     if pes_string == "#PEC0001".as_bytes()
     {
-      pec::read_content( &mut emb, reader, &[] )?;
+      pec::content_read( &mut emb, reader, &[] )?;
       return Ok( emb );
     }
     // Position where PEC section starts
     let pec_block_position = reader.read_u32::< LE >()?;
     let mut threads = vec![];
-    
+
     if pes_string == "#PES0001".as_bytes()
     {
-      emb.get_mut_metadata().insert_text( "version", "1".into() );
+      emb.metadata_get_mut().text_insert( "version", "1".into() );
       // pyembroidery just don't do anything for this version
       // and goes straight to reading PEC section
     }
     else if pes_string == "#PES0060".as_bytes()
     {
-      emb.get_mut_metadata().insert_text( "version", "6".into() );
-      read_header_version6( &mut emb, reader, &mut threads )?;
+      emb.metadata_get_mut().text_insert( "version", "6".into() );
+      header_version6_read( &mut emb, reader, &mut threads )?;
     }
     else
     {
@@ -82,24 +82,24 @@ mod private
     }
     // Read PEC
     reader.seek( SeekFrom::Start( u64::from( pec_block_position ) ) )?;
-    pec::read_content( &mut emb, reader, &threads )?;
+    pec::content_read( &mut emb, reader, &threads )?;
 
     Ok( emb )
   }
 
   /// Reads PES header version 6. If it encounters any complex thing it just returns immediately
-  fn read_header_version6< R >( emb : &mut EmbroideryFile, reader : &mut R, threads : &mut Vec< Thread > )
+  fn header_version6_read< R >( emb : &mut EmbroideryFile, reader : &mut R, threads : &mut Vec< Thread > )
   -> Result< (), EmbroideryError >
   where
     R : Read + Seek
   {
     reader.seek( SeekFrom::Current( 4 ) )?; // skip some offset
-    read_pes_metadata( emb, reader )?;
+    pes_metadata_read( emb, reader )?;
     reader.seek( SeekFrom::Current( 36 ) )?;
-    let val = read_pes_string( reader )?;
+    let val = pes_string_read( reader )?;
     if let Some( val ) = val
     {
-      emb.get_mut_metadata().insert_text( "image_file", val );
+      emb.metadata_get_mut().text_insert( "image_file", val );
     }
 
     reader.seek( SeekFrom::Current( 24 ) )?;
@@ -116,53 +116,53 @@ mod private
     let count_threads = reader.read_u16::< LE >()?;
     for _ in 0..count_threads
     {
-      threads.push( read_pes_thread( reader )? );
+      threads.push( pes_thread_read( reader )? );
     }
     Ok( () )
   }
 
   /// Reads few metadata fields
-  fn read_pes_metadata< R >( emb : &mut EmbroideryFile, reader : &mut R ) -> Result< (), EmbroideryError >
+  fn pes_metadata_read< R >( emb : &mut EmbroideryFile, reader : &mut R ) -> Result< (), EmbroideryError >
   where
     R : Read
   {
-    let val = read_pes_string( reader )?;
+    let val = pes_string_read( reader )?;
     if let Some( val ) = val
     {
-      emb.get_mut_metadata().insert_text( "name", val );
+      emb.metadata_get_mut().text_insert( "name", val );
     }
-    let val = read_pes_string( reader )?;
+    let val = pes_string_read( reader )?;
     if let Some( val ) = val
     {
-      emb.get_mut_metadata().insert_text( "category", val );
+      emb.metadata_get_mut().text_insert( "category", val );
     }
-    let val = read_pes_string( reader )?;
+    let val = pes_string_read( reader )?;
     if let Some( val ) = val
     {
-      emb.get_mut_metadata().insert_text( "author", val );
+      emb.metadata_get_mut().text_insert( "author", val );
     }
-    let val = read_pes_string( reader )?;
+    let val = pes_string_read( reader )?;
     if let Some( val ) = val
     {
-      emb.get_mut_metadata().insert_text( "keywords", val );
+      emb.metadata_get_mut().text_insert( "keywords", val );
     }
-    let val = read_pes_string( reader )?;
+    let val = pes_string_read( reader )?;
     if let Some( val ) = val
     {
-      emb.get_mut_metadata().insert_text( "comments", val );
+      emb.metadata_get_mut().text_insert( "comments", val );
     }
 
     Ok( () )
   }
 
   /// Reads PES thread
-  fn read_pes_thread< R >( reader : &mut R ) -> Result< Thread, EmbroideryError >
+  fn pes_thread_read< R >( reader : &mut R ) -> Result< Thread, EmbroideryError >
   where
     R : Read + Seek
   {
     let mut thread = Thread
     {
-      catalog_number : read_pes_string( reader )?.map_or( "0".into(), std::convert::Into::into ),
+      catalog_number : pes_string_read( reader )?.map_or( "0".into(), std::convert::Into::into ),
       ..Default::default()
     };
 
@@ -171,15 +171,15 @@ mod private
     let b = reader.read_u8()?;
     thread.color = Color { r, g, b };
     reader.seek( SeekFrom::Current( 5 ) )?; // Some offset
-    thread.description = read_pes_string( reader )?.map_or( "Unknown".into(), std::convert::Into::into );
-    thread.brand = read_pes_string( reader )?.map_or( std::borrow::Cow::default(), std::convert::Into::into );
-    thread.chart = read_pes_string( reader )?.map_or( std::borrow::Cow::default(), std::convert::Into::into );
-    
+    thread.description = pes_string_read( reader )?.map_or( "Unknown".into(), std::convert::Into::into );
+    thread.brand = pes_string_read( reader )?.map_or( std::borrow::Cow::default(), std::convert::Into::into );
+    thread.chart = pes_string_read( reader )?.map_or( std::borrow::Cow::default(), std::convert::Into::into );
+
     Ok( thread )
   }
 
-  /// Reads PES string. First byte is lenght of a string, then its content 
-  fn read_pes_string< R >( reader : &mut R ) -> Result< Option< String >, EmbroideryError >
+  /// Reads PES string. First byte is lenght of a string, then its content
+  fn pes_string_read< R >( reader : &mut R ) -> Result< Option< String >, EmbroideryError >
   where
     R : Read
   {
@@ -199,7 +199,7 @@ mod private
 
 crate::mod_interface!
 {
-  orphan use read_file;
-  orphan use read_memory;
+  orphan use file_read;
+  orphan use memory_read;
   orphan use read;
 }

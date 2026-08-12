@@ -53,7 +53,7 @@ use crate::Animatable;
     // Fix(TASK-041): `iterations` defaulted to 0, which skips `apply`'s Newton-Raphson solve loop
     // entirely — the curve's `y_get` was evaluated at the raw input fraction instead of the
     // solved Bezier parameter, silently producing the wrong easing shape for every named curve
-    // built through this constructor without an explicit `set_iterations`/`with_iterations` call
+    // built through this constructor without an explicit `iterations_set`/`with_iterations` call
     // (all 24 in `impl_easing_function!` invocations below).
     // Root cause: a numeric-solver parameter defaulted to its degenerate "off" value instead of a
     // value that actually performs the solve.
@@ -76,7 +76,7 @@ use crate::Animatable;
     /// Sets the number of iterations for the easing function's internal calculation.
     ///
     /// Higher values increase precision at the cost of performance.
-    pub fn set_iterations( &mut self, iterations : usize )
+    pub fn iterations_set( &mut self, iterations : usize )
     {
       self.iterations = iterations;
     }

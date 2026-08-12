@@ -8,14 +8,14 @@ use crate::
   Renderer,
   controls,
 };
-use utils::get_element_by_id_unchecked;
+use utils::element_by_id_unchecked_get;
 use filters::{ channels, flip };
 use wasm_bindgen::{ JsCast, JsValue, prelude::Closure };
 use std::{ cell::RefCell, rc::Rc };
 use web_sys::HtmlElement;
 
 /// Sets up the channels filter with dropdown control
-pub fn setup_channels_filter
+pub fn channels_filter_setup
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   current_filter : &Rc< RefCell< String > >
@@ -25,17 +25,17 @@ pub fn setup_channels_filter
   let current_filter_clone = current_filter.clone();
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
-    filter_renderer_clone.borrow_mut().restore_previous_texture();
+    filter_renderer_clone.borrow_mut().previous_texture_restore();
     *current_filter_clone.borrow_mut() = String::from( "channels" );
-    filter_renderer_clone.borrow_mut().save_previous_texture();
+    filter_renderer_clone.borrow_mut().previous_texture_save();
 
-    controls::clear_controls();
+    controls::controls_clear();
 
     let options = web_sys::js_sys::Array::of3( &"Red".into(), &"Green".into(), &"Blue".into() );
-    controls::add_dropdown( "Channel", "channel", "Red", &options.into() );
+    controls::dropdown_add( "Channel", "channel", "Red", &options.into() );
 
     let initial = channels::Channels { channel: channels::Channel::Red };
-    filter_renderer_clone.borrow_mut().apply_filter( &initial );
+    filter_renderer_clone.borrow_mut().filter_apply( &initial );
 
     let fr = filter_renderer_clone.clone();
     let callback : Closure< dyn Fn( JsValue ) > = Closure::new( move | values : JsValue |
@@ -54,7 +54,7 @@ pub fn setup_channels_filter
       };
 
       let filter = channels::Channels { channel };
-      fr.borrow_mut().apply_filter( &filter );
+      fr.borrow_mut().filter_apply( &filter );
     });
     controls::on_change( callback.as_ref().unchecked_ref() );
     callback.forget();
@@ -62,13 +62,13 @@ pub fn setup_channels_filter
     controls::show();
   });
 
-  let card = get_element_by_id_unchecked::< HtmlElement >( "channels" );
+  let card = element_by_id_unchecked_get::< HtmlElement >( "channels" );
   card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
   onclick.forget();
 }
 
 /// Sets up the flip filter with dropdown control
-pub fn setup_flip_filter
+pub fn flip_filter_setup
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   current_filter : &Rc< RefCell< String > >
@@ -78,17 +78,17 @@ pub fn setup_flip_filter
   let current_filter_clone = current_filter.clone();
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
-    filter_renderer_clone.borrow_mut().restore_previous_texture();
+    filter_renderer_clone.borrow_mut().previous_texture_restore();
     *current_filter_clone.borrow_mut() = String::from( "flip" );
-    filter_renderer_clone.borrow_mut().save_previous_texture();
+    filter_renderer_clone.borrow_mut().previous_texture_save();
 
-    controls::clear_controls();
+    controls::controls_clear();
 
     let options = web_sys::js_sys::Array::of3( &"FlipX".into(), &"FlipY".into(), &"FlipXY".into() );
-    controls::add_dropdown( "Direction", "flip", "FlipX", &options.into() );
+    controls::dropdown_add( "Direction", "flip", "FlipX", &options.into() );
 
     let initial = flip::Flip { flip: flip::FlipDirection::FlipX };
-    filter_renderer_clone.borrow_mut().apply_filter( &initial );
+    filter_renderer_clone.borrow_mut().filter_apply( &initial );
 
     let fr = filter_renderer_clone.clone();
     let callback : Closure< dyn Fn( JsValue ) > = Closure::new( move | values : JsValue |
@@ -107,7 +107,7 @@ pub fn setup_flip_filter
       };
 
       let filter = flip::Flip { flip };
-      fr.borrow_mut().apply_filter( &filter );
+      fr.borrow_mut().filter_apply( &filter );
     });
     controls::on_change( callback.as_ref().unchecked_ref() );
     callback.forget();
@@ -115,7 +115,7 @@ pub fn setup_flip_filter
     controls::show();
   });
 
-  let card = get_element_by_id_unchecked::< HtmlElement >( "flip" );
+  let card = element_by_id_unchecked_get::< HtmlElement >( "flip" );
   card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
   onclick.forget();
 }

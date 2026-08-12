@@ -112,7 +112,7 @@ fallback, inline `DrawBatch` pipeline order) +
 all migrated via `tests/common::flatten_to_sprites`) +
 14 `scene_model_test` (RON + serde round-trip).
 
-**Closed `TILEMAP_SCENE_FEEDBACK.md` items:**
+**Closed items from the (since-removed) `TILEMAP_SCENE_FEEDBACK.md` review:**
 
 - §1 Runtime spec mutation — gone. Per-instance phase override
   (`set_phase_offset`) replaces the duplicate-Object workaround.

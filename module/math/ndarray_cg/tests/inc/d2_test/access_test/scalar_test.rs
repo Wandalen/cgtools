@@ -14,7 +14,7 @@ fn assumptions()
   assert_eq!( size1, size2, "Same size" );
 }
 
-// `scalar_ref` only retrieves an element that was stored verbatim via `set_row_major` —
+// `scalar_ref` only retrieves an element that was stored verbatim via `row_major_set` —
 // no arithmetic occurs, so the result is bit-identical to the original literal.
 #[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn test_scalar_ref_generic< D : the_module::mat::Descriptor >()
@@ -27,8 +27,8 @@ where
 {
   use the_module::{ Mat, Ix2 };
 
-  // Use set_row_major for consistent logical layout regardless of internal storage
-  let mat = Mat::< 2, 2, f32, D >::default().set_row_major( &[ 1.0, 2.0, 3.0, 4.0 ] );
+  // Use row_major_set for consistent logical layout regardless of internal storage
+  let mat = Mat::< 2, 2, f32, D >::default().row_major_set( &[ 1.0, 2.0, 3.0, 4.0 ] );
 
   // Test scalar_ref for each element - these should work consistently now
   let scalar = mat.scalar_ref( Ix2( 0, 0 ) );

@@ -15,7 +15,7 @@
 //! building a fresh scene with the extended spec. This is deliberate:
 //! mutating the spec on a live scene invalidates handles and the prior
 //! consumer-side workaround for that was the documented source of texture
-//! flicker (see `TILEMAP_SCENE_FEEDBACK.md` §1).
+//! flicker (recorded in `roadmap.md`'s closed feedback items, §1).
 //!
 //! Spatial indexes (`instances_at_hex`, per-anchor `Vec`s) are maintained
 //! eagerly on every mutation. A first-cut implementation uses `Vec::retain`

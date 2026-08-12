@@ -118,7 +118,7 @@ impl GLMaterial
   }
 
   // Upload uniforms related to the shading that are not going to change
-  pub fn init_uniforms( &self, gl : &GL )
+  pub fn uniforms_init( &self, gl : &GL )
   {
     gl.use_program( Some( &self.program ) );
 

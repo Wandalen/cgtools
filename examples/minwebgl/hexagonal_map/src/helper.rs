@@ -18,7 +18,7 @@ pub enum EditMode
   EditRivers,
 }
 
-pub fn setup_select< 'a, I >( document : &web_sys::Document, id : &str, variants : I ) -> HtmlSelectElement
+pub fn select_setup< 'a, I >( document : &web_sys::Document, id : &str, variants : I ) -> HtmlSelectElement
 where
   I : Iterator< Item = &'a String >
 {
@@ -38,7 +38,7 @@ where
   select_element
 }
 
-pub fn setup_download_button
+pub fn download_button_setup
 (
   document : &web_sys::Document,
   map : Rc< RefCell< core_game::Map > >
@@ -51,20 +51,20 @@ pub fn setup_download_button
 
   let onclick : Closure< dyn Fn() > = Closure::new
   ({
-    move || download_map( &map.borrow() )
+    move || map_download( &map.borrow() )
   });
 
   button.set_onclick( Some( onclick.as_ref().unchecked_ref() ) );
   onclick.forget();
 }
 
-fn download_map( map : &core_game::Map )
+fn map_download( map : &core_game::Map )
 {
   let json = serde_json::to_string( map ).unwrap();
   let array = web_sys::js_sys::Array::new();
   array.push( &JsValue::from_str( &json ) );
 
-  let url = gl::blob::create_blob( array, "application/json" ).unwrap();
+  let url = gl::blob::blob_create( array, "application/json" ).unwrap();
 
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -74,14 +74,14 @@ fn download_map( map : &core_game::Map )
   .dyn_into::< web_sys::HtmlAnchorElement >()
   .unwrap();
 
-  let [ q, r ] = calculate_map_size( map );
+  let [ q, r ] = map_size_calculate( map );
   let file_name = format!( "map_{q}x{r}.json" );
   anchor.set_href( &url );
   anchor.set_download( &file_name );
   anchor.click();
 }
 
-pub fn setup_drop_zone
+pub fn drop_zone_setup
 (
   document : &web_sys::Document,
   map_json : Rc< RefCell< Option< String > > >
@@ -121,7 +121,7 @@ pub fn setup_drop_zone
       .and_then( | dt | dt.files() )
       .and_then( | files | files.get( 0 ) )
       {
-        upload_json_map( &file, map_json.clone() );
+        json_map_upload( &file, map_json.clone() );
       }
     }
   );
@@ -134,7 +134,7 @@ pub fn setup_drop_zone
   drop_handler.forget();
 }
 
-fn upload_json_map( file : &web_sys::File, map_json : Rc< RefCell< Option< String > > > )
+fn json_map_upload( file : &web_sys::File, map_json : Rc< RefCell< Option< String > > > )
 {
   let reader = web_sys::FileReader::new().unwrap();
   reader.read_as_text( file ).unwrap();
@@ -161,7 +161,7 @@ fn upload_json_map( file : &web_sys::File, map_json : Rc< RefCell< Option< Strin
   onload.forget();
 }
 
-pub fn calculate_map_size( map : &crate::core_game::Map ) -> [ i64; 2 ]
+pub fn map_size_calculate( map : &crate::core_game::Map ) -> [ i64; 2 ]
 {
   let mut min_q = None;
   let mut max_q = None;

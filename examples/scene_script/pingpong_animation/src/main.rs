@@ -39,7 +39,7 @@ fn main() -> Result< (), Box< rhai::EvalAltResult > >
     }
   }
 
-  render_frames( &frames );
+  frames_render( &frames );
 
   Ok( () )
 }
@@ -47,7 +47,7 @@ fn main() -> Result< (), Box< rhai::EvalAltResult > >
 /// Compiles each frame via [`pingpong_animation::render::frame_to_commands`]
 /// and submits it to a fresh `SvgBackend`, printing the resulting SVG's size.
 #[ cfg( feature = "adapter-svg" ) ]
-fn render_frames( frames : &[ pingpong_animation::Frame ] )
+fn frames_render( frames : &[ pingpong_animation::Frame ] )
 {
   use pingpong_animation::render::{ frame_to_commands, render_assets };
   use tilemap_renderer::
@@ -90,7 +90,7 @@ fn render_frames( frames : &[ pingpong_animation::Frame ] )
 /// clause, which tests this feature "on the wasm32 target" rather than via a
 /// plain native `cargo run`.
 #[ cfg( all( feature = "adapter-webgl", not( feature = "adapter-svg" ) ) ) ]
-fn render_frames( frames : &[ pingpong_animation::Frame ] )
+fn frames_render( frames : &[ pingpong_animation::Frame ] )
 {
   use pingpong_animation::render::{ frame_to_commands, render_assets };
   use tilemap_renderer::
@@ -145,4 +145,4 @@ fn render_frames( frames : &[ pingpong_animation::Frame ] )
 
 /// No-op when no adapter feature is enabled — the default (console-only) build.
 #[ cfg( not( any( feature = "adapter-svg", feature = "adapter-webgl" ) ) ) ]
-fn render_frames( _frames : &[ pingpong_animation::Frame ] ) {}
+fn frames_render( _frames : &[ pingpong_animation::Frame ] ) {}

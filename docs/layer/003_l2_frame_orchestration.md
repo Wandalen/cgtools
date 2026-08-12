@@ -25,7 +25,7 @@ and resolve mechanics are the same shape of problem.
 - `renderer` (`src/webgl/renderer.rs`): the MSAA `RGBA16F` target set
   (main / emission / transparent accumulate / revealage), the opaque →
   transparent → `resolve` → post-chain ordering, and the
-  `post_processing/composer.rs` pass composition.
+  `post_processing/pass.rs` pass composition.
 - `tilemap_renderer` (WebGL2 adapter): per-batch VAO lifecycle and
   draw-time state management inside `src/adapters/webgl.rs`.
 
@@ -49,4 +49,4 @@ name and a documented home.
 |------|--------------|
 | `module/blank/frame_graph/` | The reserved crate slot |
 | `module/helper/renderer/src/webgl/renderer.rs` | The richest embedded instance: target zoo + pass ordering + resolve |
-| `module/helper/renderer/src/webgl/post_processing/composer.rs` | Pass composition machinery |
+| `module/helper/renderer/src/webgl/post_processing/pass.rs` | Pass composition machinery |

@@ -14,7 +14,7 @@ A versatile graphics abstraction layer designed to work across different renderi
 
 ### 📷 **Camera System**
 - **Orbital Camera Controller** - `CameraOrbitControls`: rotate, pan, and zoom around a target point (`camera_orbit_controls` feature)
-- **Mouse & Touch Input** - `bind_controls_to_input` wires pointer events — drag to rotate, right-drag to pan, wheel/pinch to zoom (`web` feature)
+- **Mouse & Touch Input** - `controls_bind_to_input` wires pointer events — drag to rotate, right-drag to pan, wheel/pinch to zoom (`web` feature)
 - **Motion Constraints** - Longitude/latitude rotation ranges, min/max zoom distance, optional movement smoothing with decay
 - **View Matrix** - Right-handed `view()` matrix computed from the camera's current state
 
@@ -62,7 +62,7 @@ fn setup_camera()
 }
 ```
 
-On the web, `bind_controls_to_input( &canvas, &camera )` (`web` feature, `camera : Rc<RefCell<CameraOrbitControls>>`) wires
+On the web, `controls_bind_to_input( &canvas, &camera )` (`web` feature, `camera : Rc<RefCell<CameraOrbitControls>>`) wires
 mouse drag/right-drag/wheel and touch drag/pinch to these methods for you. Projection is out of scope — build a
 projection matrix with `ndarray_cg` (re-exported as `mingl::math` under the `math` feature).
 
@@ -101,7 +101,7 @@ fn data_conversion_examples()
 |-----------|---------|-------------|
 | `CameraOrbitControls` | Orbit camera around a target point | `rotate()`, `pan()`, `zoom()`, `update()`, `view()` |
 | `CameraRotationState` / `CameraZoomState` / `CameraPanState` | Per-motion constraints and sensitivity (`camera.rotation` / `.zoom` / `.pan` fields) | `longitude_range_set()`, `min_distance_set()`, `movement_decay_set()` |
-| `bind_controls_to_input` | Wire canvas pointer events to a camera (`web` feature) | mouse drag/right-drag/wheel, touch drag/pinch |
+| `controls_bind_to_input` | Wire canvas pointer events to a camera (`web` feature) | mouse drag/right-drag/wheel, touch drag/pinch |
 | `IntoVectorDataType` | Map Rust types to attribute descriptors | `into_vector_data_type()` |
 | `VectorDataType` | Attribute layout descriptor | `byte_size()`, `natoms()`, `scalar()` |
 | `AsBytes` / `IntoBytes` | Buffer conversion traits (re-exported `asbytes`) | `as_bytes()`, `byte_size()`, `into_bytes()` |

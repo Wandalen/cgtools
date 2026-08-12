@@ -104,7 +104,7 @@ pub mod ufo
     fn from_glif( glif_bytes : &[ u8 ], character : char ) -> Option< Self >
     {
       let glif_str = std::str::from_utf8( glif_bytes ).unwrap();
-      let raw_contours = parse_glif_contours( glif_str );
+      let raw_contours = glif_contours_parse( glif_str );
 
       let mut contours = vec![];
 
@@ -155,7 +155,7 @@ pub mod ufo
   }
 
   /// Parses the `<point>` elements of a glif XML document into norad contours.
-  fn parse_glif_contours( glif_str : &str ) -> Vec< Contour >
+  fn glif_contours_parse( glif_str : &str ) -> Vec< Contour >
   {
     let mut reader = Reader::from_str( glif_str );
     reader.config_mut().trim_text( true );
@@ -393,7 +393,7 @@ pub mod ufo
   }
 
   /// Finds the index of the contour with the largest bounding box diagonal - the glyph's main body.
-  fn find_body_contour( contours : &[ Vec< [ f32; 2 ] > ] ) -> usize
+  fn body_contour_find( contours : &[ Vec< [ f32; 2 ] > ] ) -> usize
   {
     let mut body_id = 0;
     let mut max_box_diagonal_size = 0;
@@ -421,7 +421,7 @@ pub mod ufo
   }
 
   /// Splits contours into triangulation bodies : the main body with its holes, plus each outside contour as its own body.
-  fn split_into_bodies( contours : &[ Vec< [ f32; 2 ] > ], body_id : usize ) -> Vec< Vec< Vec< [ f32; 2 ] > > >
+  fn contours_split_into_bodies( contours : &[ Vec< [ f32; 2 ] > ], body_id : usize ) -> Vec< Vec< Vec< [ f32; 2 ] > > >
   {
     let body_bounding_box = BoundingBox::compute2d
     (
@@ -515,7 +515,7 @@ pub mod ufo
   }
 
   /// Extends the mesh with side walls connecting the front and back glyph outlines.
-  fn add_border_walls
+  fn border_walls_add
   (
     contours : &[ Vec< [ f32; 2 ] > ],
     body_positions : &mut Vec< [ f32; 3 ] >,
@@ -623,7 +623,7 @@ pub mod ufo
     body_indices.extend( second_surface_indices );
 
     // Add border to glyph mesh
-    add_border_walls( contours, &mut body_positions, &mut body_indices );
+    border_walls_add( contours, &mut body_positions, &mut body_indices );
 
     Some( ( body_positions, body_indices ) )
   }
@@ -635,8 +635,8 @@ pub mod ufo
       return None;
     }
 
-    let body_id = find_body_contour( contours );
-    let bodies = split_into_bodies( contours, body_id );
+    let body_id = body_contour_find( contours );
+    let bodies = contours_split_into_bodies( contours, body_id );
 
     let mut positions = vec![];
     let mut indices = vec![];
@@ -729,7 +729,7 @@ pub mod ufo
     }
   }
 
-  pub async fn load_fonts( font_names : &[ String ] ) -> FxHashMap< String, Font >
+  pub async fn fonts_load( font_names : &[ String ] ) -> FxHashMap< String, Font >
   {
     let mut fonts = FxHashMap::< String, Font >::default();
 
@@ -742,9 +742,9 @@ pub mod ufo
     fonts
   }
 
-  pub async fn load_fonts_3d( gl : &GL, font_names : &[ String ] ) -> FxHashMap< String, Font3D >
+  pub async fn fonts_3d_load( gl : &GL, font_names : &[ String ] ) -> FxHashMap< String, Font3D >
   {
-    load_fonts( font_names )
+    fonts_load( font_names )
     .await
     .iter()
     .map( | ( n, f ) | ( n.clone(), Font3D::from_font( gl, f.clone() ) ) )
@@ -1002,7 +1002,7 @@ pub mod ttf
     }
   }
 
-  pub async fn load_fonts_3d( gl : &GL, font_names : &[ String ] ) -> FxHashMap< String, Font3D >
+  pub async fn fonts_3d_load( gl : &GL, font_names : &[ String ] ) -> FxHashMap< String, Font3D >
   {
     let mut fonts = FxHashMap::< String, Font3D >::default();
 

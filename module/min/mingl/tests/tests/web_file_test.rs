@@ -1,4 +1,4 @@
-//! Verifies `web::file`'s pure URL helpers — `resolve_url`'s resolution rules
+//! Verifies `web::file`'s pure URL helpers — `url_resolve`'s resolution rules
 //! ( pass-through for self-contained URLs, origin joining for paths ) and
 //! `data_url_base64_payload`'s validation of `data:` URLs. These pin the
 //! natively-testable logic deliberately extracted from the wasm-only `load`
@@ -7,14 +7,14 @@
 //! exported at the `web::file` module path for exactly this purpose.
 
 use super::*;
-use the_module::web::file::{ resolve_url, data_url_base64_payload };
+use the_module::web::file::{ url_resolve, data_url_base64_payload };
 
 #[ test ]
 fn passes_https_url_through()
 {
   assert_eq!
   (
-    resolve_url( "https://app.example.com", "https://cdn.example.com/foo.glb" ),
+    url_resolve( "https://app.example.com", "https://cdn.example.com/foo.glb" ),
     "https://cdn.example.com/foo.glb"
   );
 }
@@ -24,7 +24,7 @@ fn passes_http_url_through()
 {
   assert_eq!
   (
-    resolve_url( "https://app.example.com", "http://legacy.example.com/foo.glb" ),
+    url_resolve( "https://app.example.com", "http://legacy.example.com/foo.glb" ),
     "http://legacy.example.com/foo.glb"
   );
 }
@@ -34,7 +34,7 @@ fn passes_protocol_relative_url_through()
 {
   assert_eq!
   (
-    resolve_url( "https://app.example.com", "//cdn.example.com/foo.glb" ),
+    url_resolve( "https://app.example.com", "//cdn.example.com/foo.glb" ),
     "//cdn.example.com/foo.glb"
   );
 }
@@ -44,7 +44,7 @@ fn passes_blob_url_through()
 {
   assert_eq!
   (
-    resolve_url( "https://app.example.com", "blob:https://app.example.com/uuid-1234" ),
+    url_resolve( "https://app.example.com", "blob:https://app.example.com/uuid-1234" ),
     "blob:https://app.example.com/uuid-1234"
   );
 }
@@ -54,7 +54,7 @@ fn passes_data_url_through()
 {
   assert_eq!
   (
-    resolve_url( "https://app.example.com", "data:application/octet-stream;base64,Z2xURg==" ),
+    url_resolve( "https://app.example.com", "data:application/octet-stream;base64,Z2xURg==" ),
     "data:application/octet-stream;base64,Z2xURg=="
   );
 }
@@ -64,7 +64,7 @@ fn joins_origin_absolute_path_without_extra_slash()
 {
   assert_eq!
   (
-    resolve_url( "https://app.example.com", "/assets/foo.glb" ),
+    url_resolve( "https://app.example.com", "/assets/foo.glb" ),
     "https://app.example.com/assets/foo.glb"
   );
 }
@@ -74,7 +74,7 @@ fn joins_origin_relative_path_with_slash()
 {
   assert_eq!
   (
-    resolve_url( "https://app.example.com", "static/foo.glb" ),
+    url_resolve( "https://app.example.com", "static/foo.glb" ),
     "https://app.example.com/static/foo.glb"
   );
 }
@@ -84,7 +84,7 @@ fn joins_bare_filename_with_slash()
 {
   assert_eq!
   (
-    resolve_url( "https://app.example.com", "foo.glb" ),
+    url_resolve( "https://app.example.com", "foo.glb" ),
     "https://app.example.com/foo.glb"
   );
 }
@@ -94,7 +94,7 @@ fn empty_input_resolves_to_origin_root()
 {
   assert_eq!
   (
-    resolve_url( "https://app.example.com", "" ),
+    url_resolve( "https://app.example.com", "" ),
     "https://app.example.com/"
   );
 }

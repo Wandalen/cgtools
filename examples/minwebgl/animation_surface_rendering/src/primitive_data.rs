@@ -89,7 +89,7 @@ mod private
 
   /// Creates the geometry for one primitive : appends its vertex positions and offset indices
   /// to the shared buffers and wires up the position attribute and the index buffer.
-  fn create_geometry
+  fn geometry_create
   (
     gl : &WebGl2RenderingContext,
     attributes : &Rc< RefCell< AttributesData > >,
@@ -144,7 +144,7 @@ mod private
   }
 
   /// Wires child-to-parent links between nodes according to each primitive's parent id.
-  fn link_node_hierarchy( nodes : &[ Rc< RefCell< Node > > ], primitives_data : &[ PrimitiveData ] )
+  fn node_hierarchy_link( nodes : &[ Rc< RefCell< Node > > ], primitives_data : &[ PrimitiveData ] )
   {
     let node_iter = nodes.iter()
     .zip( primitives_data.iter().map( | p | p.parent ) );
@@ -219,7 +219,7 @@ mod private
     {
       let object = if let Some( attributes ) = &primitive_data.attributes
       {
-        let geometry = create_geometry
+        let geometry = geometry_create
         (
           gl,
           attributes,
@@ -265,7 +265,7 @@ mod private
     gl::buffer::upload( gl, &position_buffer, &positions, GL::STATIC_DRAW );
     gl::index::upload( gl, &index_buffer, &indices, GL::STATIC_DRAW );
 
-    link_node_hierarchy( &nodes, primitives_data );
+    node_hierarchy_link( &nodes, primitives_data );
 
     GLTF
     {

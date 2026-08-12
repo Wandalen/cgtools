@@ -63,7 +63,6 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 |:-------------------------:|:-------------------------:|
 |<img width="500px" src="./minwebgpu/deffered_rendering/showcase.webp"><br>[Deffered rendering](./minwebgpu/deffered_rendering/readme.md) |<img width="500px" src="./minwebgpu/hello_triangle/showcase.webp"><br>[Hello triangle](./minwebgpu/hello_triangle/readme.md) |
 |<img width="500px" src="./minwebgpu/hello_triangle_quickstart/showcase.webp"><br>[Hello triangle quickstart](./minwebgpu/hello_triangle_quickstart/readme.md) |[PBR scene (gpu_hal)](./minwebgpu/renderer_pbr_scene/readme.md)<br>*(No showcase yet)* |
-|[Sun grid lines](./minwebgpu/sun_grid_lines/readme.md)<br>*(No showcase — see readme for why)* | |
 
 ## WGPU Examples
 
@@ -77,6 +76,7 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 | | |
 |:-------------------------:|:-------------------------:|
 |[F32x2 vector arithmetic](./scene_script/f32x2_vector_arithmetic/readme.md)<br>*(No showcase — console output)* |[Pingpong animation](./scene_script/pingpong_animation/readme.md)<br>*(No showcase — console output)* |
+|[Sun grid lines](./scene_script/sun_grid_lines/readme.md)<br>*(No showcase — see readme for why)* | |
 
 ## Tiles Tools Examples
 
@@ -102,9 +102,9 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 | index.md | Markdown-formatted examples list |
 | math/ | Math-based examples directory (1 demo) |
 | minwebgl/ | WebGL examples directory (48 demos) |
-| minwebgpu/ | WebGPU examples directory (5 demos) |
+| minwebgpu/ | WebGPU examples directory (4 demos) |
 | minwgpu/ | WGPU examples directory (4 demos) |
 | non_developer_how_to_run.md | Beginner-friendly step-by-step guide for running examples with no prior Rust experience |
 | readme.md | Root documentation for examples directory |
-| scene_script/ | Rhai scripting examples directory (2 demos) |
+| scene_script/ | Rhai scripting examples directory (3 demos) |
 | tiles_tools/ | tiles_tools game-dev examples directory (12 demos) |

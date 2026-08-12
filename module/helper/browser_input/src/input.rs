@@ -546,14 +546,14 @@ impl Input
 
   /// Processes all pending events in the queue and updates the internal input state.
   #[ inline ]
-  pub fn update_state( &mut self )
+  pub fn state_update( &mut self )
   {
-    apply_events_to_state( &mut self.state, &self.event_queue.borrow() );
+    events_apply_to_state( &mut self.state, &self.event_queue.borrow() );
   }
 
   /// Clears all events from the event queue.
   #[ inline ]
-  pub fn clear_events( &mut self )
+  pub fn events_clear( &mut self )
   {
     self.event_queue.borrow_mut().clear();
     self.state.scroll = F64x3::default();
@@ -562,7 +562,7 @@ impl Input
 
 /// Applies a slice of events to the given state, updating it accordingly.
 #[ inline ]
-pub fn apply_events_to_state( state : &mut State, events : &[ Event ] )
+pub fn events_apply_to_state( state : &mut State, events : &[ Event ] )
 {
   for Event { event_type, .. } in events
   {

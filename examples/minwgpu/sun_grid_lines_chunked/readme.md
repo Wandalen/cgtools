@@ -18,7 +18,7 @@ the final, non-reusable "program" that consumes them.
 That duplication is real, not hypothetical: the fullscreen-triangle trick and
 the noise functions are hand-copied verbatim across this example, its
 [Vulkan-backend sibling](../sun_grid_lines_vulkan/readme.md), the
-[browser WebGPU port](../../minwebgpu/sun_grid_lines/readme.md), and
+[browser WebGPU port](../../scene_script/sun_grid_lines/readme.md), and
 re-derived by hand in GLSL for the
 [WebGL2 original](../../minwebgl/sun_grid_lines/readme.md) — four independent
 copies of the same two ideas. This example doesn't fix that duplication

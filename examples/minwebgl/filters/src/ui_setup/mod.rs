@@ -18,10 +18,10 @@ use crate::{ controls, Renderer };
 use std::{ cell::RefCell, rc::Rc };
 
 /// Hides the controls bar and clears all controls
-pub fn hide_controls_bar()
+pub fn controls_bar_hide()
 {
   controls::hide();
-  controls::clear_controls();
+  controls::controls_clear();
 }
 
 /// Sets up the complete UI for filters
@@ -32,18 +32,18 @@ pub fn hide_controls_bar()
 /// 3. Setup of filters with UI controls (sliders, dropdowns)
 ///
 /// Returns a reference to the current filter name
-pub fn setup_ui( filter_renderer : &Rc< RefCell< Renderer > > ) -> Rc< RefCell< String > >
+pub fn ui_setup( filter_renderer : &Rc< RefCell< Renderer > > ) -> Rc< RefCell< String > >
 {
   let current_filter = Rc::new( RefCell::new( String::from( "none" ) ) );
 
   // Generate filter buttons in the UI grid
-  filter_buttons::generate_filter_buttons();
+  filter_buttons::filter_buttons_generate();
 
   // Setup filters that don't require controls
-  filter_setup_simple::setup_filters_without_controls( filter_renderer, &current_filter );
+  filter_setup_simple::filters_without_controls_setup( filter_renderer, &current_filter );
 
   // Setup filters that require controls (sliders, dropdowns, etc.)
-  filter_setup_advanced::setup_filters_with_controls( filter_renderer, &current_filter );
+  filter_setup_advanced::filters_with_controls_setup( filter_renderer, &current_filter );
 
   current_filter
 }

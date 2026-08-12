@@ -102,7 +102,7 @@ mod private
     #[ must_use ]
     pub fn write_r( mut self ) -> Self
     {
-      self.write_mask = add_mask( self.write_mask, gpu_color_write::RED );
+      self.write_mask = mask_add( self.write_mask, gpu_color_write::RED );
       self
     }
 
@@ -111,7 +111,7 @@ mod private
     #[ must_use ]
     pub fn write_g( mut self ) -> Self
     {
-      self.write_mask = add_mask( self.write_mask, gpu_color_write::GREEN );
+      self.write_mask = mask_add( self.write_mask, gpu_color_write::GREEN );
       self
     }
 
@@ -120,7 +120,7 @@ mod private
     #[ must_use ]
     pub fn write_b( mut self ) -> Self
     {
-      self.write_mask = add_mask( self.write_mask, gpu_color_write::BLUE );
+      self.write_mask = mask_add( self.write_mask, gpu_color_write::BLUE );
       self
     }
 
@@ -129,12 +129,12 @@ mod private
     #[ must_use ]
     pub fn write_a( mut self ) -> Self
     {
-      self.write_mask = add_mask( self.write_mask, gpu_color_write::ALPHA );
+      self.write_mask = mask_add( self.write_mask, gpu_color_write::ALPHA );
       self
     }
   }
 
-  fn add_mask( mask : Option< u32 >, value : u32 ) -> Option< u32 >
+  fn mask_add( mask : Option< u32 >, value : u32 ) -> Option< u32 >
   {
     if mask.is_some() 
     {

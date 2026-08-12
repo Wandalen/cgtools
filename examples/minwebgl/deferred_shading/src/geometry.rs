@@ -6,7 +6,7 @@ use renderer::webgl::{ loaders::gltf, AttributeInfo, IndexInfo };
 use crate::types::RenderGeometry;
 
 /// Setup geometry for light volumes and visualization spheres
-pub fn create_geometry
+pub fn geometry_create
 (
   gl : &GL,
   sphere : &gltf::GLTF,
@@ -14,7 +14,7 @@ pub fn create_geometry
   radius_buffer : &gl::WebGlBuffer,
 ) -> Result< RenderGeometry, gl::WebglError >
 {
-  let mut light_volume = create_light_volume( gl )?;
+  let mut light_volume = light_volume_create( gl )?;
 
   let translation_attribute = AttributeInfo
   {
@@ -52,7 +52,7 @@ pub fn create_geometry
 }
 
 /// Creates the geometry for a light volume (a unit cube).
-pub fn create_light_volume( gl : &GL ) -> Result< renderer::webgl::Geometry, WebglError >
+pub fn light_volume_create( gl : &GL ) -> Result< renderer::webgl::Geometry, WebglError >
 {
   // Define cube vertices
   static CUBE_VERTICES : &[ f32 ] =

@@ -131,7 +131,6 @@ Example | Description
 [Hello Triangle](./minwebgpu/hello_triangle/readme.md) | Basic WebGPU triangle rendering
 [Hello Triangle Quickstart](./minwebgpu/hello_triangle_quickstart/readme.md) | Same triangle via minwebgpu's aggregated setup/draw helpers
 [PBR Scene (gpu_hal)](./minwebgpu/renderer_pbr_scene/readme.md) | Canonical `gpu_hal` opaque path — metallic-roughness sphere grid, runs on WebGPU and WebGL2
-[Sun Grid Lines](./minwebgpu/sun_grid_lines/readme.md) | Procedural sci-fi HUD solar-system diagram, ported to WebGPU/WGSL
 
 ## WGPU Examples
 
@@ -148,6 +147,7 @@ Example | Description
 --- | ---
 [F32x2 Vector Arithmetic](./scene_script/f32x2_vector_arithmetic/readme.md) | Rhai script building an F32x2 value from vector arithmetic
 [Pingpong Animation](./scene_script/pingpong_animation/readme.md) | Rhai-driven ball/paddle simulation tweened with animation::Tween
+[Sun Grid Lines](./scene_script/sun_grid_lines/readme.md) | Procedural sci-fi HUD solar-system diagram, ported to WebGPU/WGSL
 
 ## Tiles Tools Examples
 

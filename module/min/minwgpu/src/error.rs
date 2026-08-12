@@ -21,6 +21,15 @@ mod private
     /// Error when `Adapter::request_device` fails.
     #[ error( "{0}" ) ]
     RequestDeviceError( #[ from ] wgpu::RequestDeviceError ),
+    /// Error when polling the device for completed GPU work fails.
+    #[ error( "{0}" ) ]
+    PollError( #[ from ] wgpu::PollError ),
+    /// Error when asynchronously mapping a buffer for host access fails.
+    #[ error( "{0}" ) ]
+    BufferAsyncError( #[ from ] wgpu::BufferAsyncError ),
+    /// Error when a texture format is not supported by the requested operation.
+    #[ error( "texture format {0:?} is not supported : {1}" ) ]
+    UnsupportedTextureFormat( wgpu::TextureFormat, &'static str ),
   }
 }
 

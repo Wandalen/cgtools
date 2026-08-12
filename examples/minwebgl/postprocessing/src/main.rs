@@ -15,7 +15,7 @@ use core::cell::RefCell;
 /// color grading, and gamma correction applied to a 3D model.
 fn main()
 {
-  gl::spawn_local( async { run().await.unwrap() } );
+  gl::spawn_local( async { app_run().await.unwrap() } );
 }
 
 /// Sets up and runs the post-processing demo with interactive controls.
@@ -25,7 +25,7 @@ fn main()
 /// 1. Tone mapping (HDR to LDR conversion using ACES)
 /// 2. Color grading (adjustable color correction in LDR space)
 /// 3. Gamma correction (final sRGB conversion for display)
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );

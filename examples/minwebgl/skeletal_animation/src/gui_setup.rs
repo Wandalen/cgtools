@@ -7,7 +7,7 @@ use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
 use rustc_hash::FxHashMap;
 
-use crate::lil_gui::{ on_change_string, new_gui, add_dropdown, show };
+use crate::lil_gui::{ on_change_string, gui_new, dropdown_add, show };
 
 #[ derive( Default, Serialize, Deserialize ) ]
 pub struct Settings
@@ -34,7 +34,7 @@ pub fn setup
   }
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
-  let gui = new_gui();
+  let gui = gui_new();
 
   let animations = animations.into_iter()
   .filter_map
@@ -58,7 +58,7 @@ pub fn setup
   .collect::< Vec< _ > >();
 
   // Choose animation
-  let prop = add_dropdown
+  let prop = dropdown_add
   (
     &gui,
     &object,

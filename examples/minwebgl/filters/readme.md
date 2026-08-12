@@ -65,7 +65,7 @@ The example uses a custom JavaScript-based control system (`controls.js`) interf
 - **Dynamic updates**: Real-time parameter changes trigger immediate filter re-rendering
 - **Minimal footprint**: Reduces bundle size and external dependencies
 
-The control system is exposed through the `controls` module with functions like `add_slider()`, `add_dropdown()`, `on_change()`, and `get_values()`.
+The control system is exposed through the `controls` module with functions like `slider_add()`, `dropdown_add()`, `on_change()`, and `values_get()`.
 
 ### Modular UI Setup
 The UI initialization code is organized into specialized modules for maintainability:

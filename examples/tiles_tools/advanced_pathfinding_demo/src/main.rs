@@ -18,13 +18,13 @@ fn main()
     println!("Advanced Pathfinding Demonstration");
     println!("=================================");
 
-    demonstrate_basic_pathfinding();
-    demonstrate_advanced_pathfinding();
-    demonstrate_multi_goal_pathfinding();
-    demonstrate_edge_cost_pathfinding();
-    demonstrate_hexagonal_pathfinding();
-    demonstrate_triangular_pathfinding();
-    demonstrate_isometric_pathfinding();
+    basic_pathfinding_demonstrate();
+    advanced_pathfinding_demonstrate();
+    multi_goal_pathfinding_demonstrate();
+    edge_cost_pathfinding_demonstrate();
+    hexagonal_pathfinding_demonstrate();
+    triangular_pathfinding_demonstrate();
+    isometric_pathfinding_demonstrate();
 
     println!("\n🎉 Advanced Pathfinding Demo Complete!");
     println!("Key features demonstrated:");
@@ -35,7 +35,7 @@ fn main()
     println!("- Performance characteristics");
 }
 
-fn demonstrate_basic_pathfinding()
+fn basic_pathfinding_demonstrate()
 {
     println!("\n=== Basic A* Pathfinding ===");
     let start = SquareCoord::<FourConnected>::new(0, 0);
@@ -61,7 +61,7 @@ fn demonstrate_basic_pathfinding()
     }
 }
 
-fn demonstrate_advanced_pathfinding()
+fn advanced_pathfinding_demonstrate()
 {
     println!("\n=== Advanced A* with Configuration ===");
     let start = SquareCoord::<FourConnected>::new(0, 0);
@@ -81,7 +81,7 @@ fn demonstrate_advanced_pathfinding()
     }
 }
 
-fn demonstrate_multi_goal_pathfinding()
+fn multi_goal_pathfinding_demonstrate()
 {
     println!("\n=== Multi-Goal Pathfinding ===");
     let ai_position = SquareCoord::<FourConnected>::new(2, 2);
@@ -106,7 +106,7 @@ fn demonstrate_multi_goal_pathfinding()
     }
 }
 
-fn demonstrate_edge_cost_pathfinding()
+fn edge_cost_pathfinding_demonstrate()
 {
     println!("\n=== Edge Cost Pathfinding (8-Connected) ===");
     let start_8 = SquareCoord::<EightConnected>::new(0, 0);
@@ -133,7 +133,7 @@ fn demonstrate_edge_cost_pathfinding()
     }
 }
 
-fn demonstrate_hexagonal_pathfinding()
+fn hexagonal_pathfinding_demonstrate()
 {
     println!("\n=== Hexagonal Grid Pathfinding ===");
     let hex_start = HexCoord::<Axial, Pointy>::new(-2, 2);
@@ -152,7 +152,7 @@ fn demonstrate_hexagonal_pathfinding()
     }
 }
 
-fn demonstrate_triangular_pathfinding()
+fn triangular_pathfinding_demonstrate()
 {
     println!("\n=== Triangular Grid Pathfinding ===");
     let tri_start = TriCoord::< FlatSided >::new( 0, 1, 0 ).unwrap();
@@ -171,7 +171,7 @@ fn demonstrate_triangular_pathfinding()
     }
 }
 
-fn demonstrate_isometric_pathfinding()
+fn isometric_pathfinding_demonstrate()
 {
     println!("\n=== Isometric Grid Pathfinding ===");
     let iso_start = IsoCoord::<Diamond>::new(0, 0);

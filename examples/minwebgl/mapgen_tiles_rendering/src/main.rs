@@ -4,7 +4,7 @@ use gl::GL;
 use minwebgl as gl;
 use ndarray_cg::{ mat::DescriptorOrderColumnMajor, F32x4x4 };
 use web_sys::wasm_bindgen::prelude::*;
-use minwebgl::dom::create_image_element;
+use minwebgl::dom::image_element_create;
 
 const LAYERS : i32 = 6;
 // Tile map raw data for texture with integer color channels
@@ -28,23 +28,23 @@ const DATA : [ u8; 256 ] =
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
-fn set_load_callback()
+fn load_callback_set()
 {
   let load = move | _img: &web_sys::HtmlImageElement |
   {
     update();
   };
 
-  let _ = load_image( "static/tileset.png", Box::new( load ) );
+  let _ = image_load( "static/tileset.png", Box::new( load ) );
 }
 
-fn load_image
+fn image_load
 (
   path : &str,
   on_load_callback : Box< dyn Fn( &web_sys::HtmlImageElement ) >,
 ) -> Result< web_sys::HtmlImageElement, minwebgl::JsValue >
 {
-  let image = create_image_element( "tileset.png" )?;
+  let image = image_element_create( "tileset.png" )?;
   let window = web_sys::window()
   .expect( "Should have a window" );
   let document = window
@@ -101,10 +101,10 @@ fn init()
   .style();
   let _ = body_style.set_property( "margin", "0" );
 
-  set_load_callback();
+  load_callback_set();
 }
 
-fn prepare_vertex_attributes()
+fn vertex_attributes_prepare()
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -148,7 +148,7 @@ fn prepare_vertex_attributes()
   gl.bind_vertex_array( Some( &vao ) );
 }
 
-fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
+fn mvp_create() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -193,7 +193,7 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
   perspective_matrix * view_matrix * translate * scale
 }
 
-fn prepare_texture_array( id: &str, layers: i32, texture_id: u32 ) -> Option< web_sys::WebGlTexture >
+fn texture_array_prepare( id: &str, layers: i32, texture_id: u32 ) -> Option< web_sys::WebGlTexture >
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -259,7 +259,7 @@ fn prepare_texture_array( id: &str, layers: i32, texture_id: u32 ) -> Option< we
   texture_array
 }
 
-fn prepare_texture1u
+fn texture1u_prepare
 (
   data: &[u8],
   size: ( i32, i32 ),
@@ -308,17 +308,17 @@ fn update()
     .unwrap();
   gl.use_program( Some( &program ) );
 
-  let mvp = create_mvp();
+  let mvp = mvp_create();
   let mvp_location = gl.get_uniform_location( &program, "mvp" );
 
   gl::uniform::matrix_upload( &gl, mvp_location, mvp.raw_slice(), false )
   .unwrap();
 
-  prepare_vertex_attributes();
-  prepare_texture_array( "tileset.png", LAYERS, GL::TEXTURE0 );
+  vertex_attributes_prepare();
+  texture_array_prepare( "tileset.png", LAYERS, GL::TEXTURE0 );
 
   let size = ( 16, 16 );
-  prepare_texture1u( &DATA, size, GL::TEXTURE1 );
+  texture1u_prepare( &DATA, size, GL::TEXTURE1 );
 
   let tiles_location = gl.get_uniform_location( &program, "tiles_sampler" );
   let map_sampler_location = gl.get_uniform_location( &program, "map_sampler" );
@@ -335,7 +335,7 @@ fn update()
   gl.bind_vertex_array( None );
 }
 
-fn run()
+fn app_run()
 {
   init();
   update();
@@ -343,5 +343,5 @@ fn run()
 
 fn main()
 {
-  run();
+  app_run();
 }

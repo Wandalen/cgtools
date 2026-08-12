@@ -16,12 +16,12 @@ fn main()
   // Square Grid Game of Life
   println!( "\n🟩 SQUARE GRID (8-connected neighbors)" );
   let mut square_game = SquareGameOfLife::new( 20, 20 );
-  square_game.print_state();
+  square_game.state_print();
 
   for i in 1..=5
   {
     square_game.step();
-    square_game.print_state();
+    square_game.state_print();
 
     if i < 5
     {
@@ -32,23 +32,23 @@ fn main()
   // Hexagonal Grid Game of Life
   println!( "\n🔶 HEXAGONAL GRID (6-connected neighbors)" );
   let mut hex_game = HexGameOfLife::new();
-  hex_game.print_state();
+  hex_game.state_print();
 
   for _ in 1..=3
   {
     hex_game.step();
-    hex_game.print_state();
+    hex_game.state_print();
   }
 
   // Triangular Grid Game of Life
   println!( "\n🔺 TRIANGULAR GRID (3-connected neighbors)" );
   let mut tri_game = TriangularGameOfLife::new();
-  tri_game.print_state();
+  tri_game.state_print();
 
   for _ in 1..=3
   {
     tri_game.step();
-    tri_game.print_state();
+    tri_game.state_print();
   }
 
   println!( "\n✨ Demo Complete!" );

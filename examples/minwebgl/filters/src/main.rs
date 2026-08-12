@@ -11,7 +11,7 @@ mod zoom_pan;
 mod sidebar_toggle;
 mod bg_removal_bindgen;
 
-use ui_setup::setup_ui;
+use ui_setup::ui_setup;
 use renderer::Renderer;
 use minwebgl as gl;
 use gl::GL;
@@ -28,12 +28,12 @@ use std::{ rc::Rc, cell::RefCell };
 fn main()
 {
   gl::browser::setup( gl::browser::Config::default() );
-  run();
+  app_run();
 }
 
 /// Creates a reusable handler that uploads an `HtmlImageElement` into a GL texture,
 /// resizes the canvas to match, and applies the original filter.
-fn create_image_handler( renderer : Rc< RefCell< Renderer > >, gl : GL ) -> Box< dyn Fn( &HtmlImageElement ) >
+fn image_handler_create( renderer : Rc< RefCell< Renderer > >, gl : GL ) -> Box< dyn Fn( &HtmlImageElement ) >
 {
   Box::new
   (
@@ -69,44 +69,44 @@ fn create_image_handler( renderer : Rc< RefCell< Renderer > >, gl : GL ) -> Box<
       canvas.set_height( img.height() );
 
       // Show canvas and hide placeholder
-      utils::show_canvas();
+      utils::canvas_show();
 
-      renderer.borrow_mut().update_framebuffer_size( img.width() as i32, img.height() as i32 );
-      renderer.borrow_mut().set_original_texture( texture.clone() );
-      renderer.borrow_mut().set_image_texture( texture );
-      renderer.borrow_mut().apply_filter( &filters::original::Original );
+      renderer.borrow_mut().framebuffer_size_update( img.width() as i32, img.height() as i32 );
+      renderer.borrow_mut().original_texture_set( texture.clone() );
+      renderer.borrow_mut().image_texture_set( texture );
+      renderer.borrow_mut().filter_apply( &filters::original::Original );
     }
   )
 }
 
 /// Sets up the file upload button.
-fn setup_upload_button( filter_renderer : &Rc< RefCell< Renderer > >, gl : &GL )
+fn upload_button_setup( filter_renderer : &Rc< RefCell< Renderer > >, gl : &GL )
 {
   let filter_renderer_upload = filter_renderer.clone();
   let gl_upload = gl.clone();
-  utils::setup_file_upload( "upload-btn", "file-input", move | file : File |
+  utils::file_upload_setup( "upload-btn", "file-input", move | file : File |
   {
-    let onload = create_image_handler( filter_renderer_upload.clone(), gl_upload.clone() );
-    utils::load_image_from_file( &file, onload );
+    let onload = image_handler_create( filter_renderer_upload.clone(), gl_upload.clone() );
+    utils::image_from_file_load( &file, onload );
   });
 }
 
 /// Sets up drag-and-drop image loading.
-fn setup_drag_drop_handler( filter_renderer : &Rc< RefCell< Renderer > >, gl : &GL )
+fn drag_drop_handler_setup( filter_renderer : &Rc< RefCell< Renderer > >, gl : &GL )
 {
   let filter_renderer_drop = filter_renderer.clone();
   let gl_drop = gl.clone();
-  utils::setup_drag_and_drop( move | file : File |
+  utils::drag_and_drop_setup( move | file : File |
   {
-    let onload = create_image_handler( filter_renderer_drop.clone(), gl_drop.clone() );
-    utils::load_image_from_file( &file, onload );
+    let onload = image_handler_create( filter_renderer_drop.clone(), gl_drop.clone() );
+    utils::image_from_file_load( &file, onload );
   });
 }
 
 /// Sets up the save button.
-fn setup_save_button( gl : &GL )
+fn save_button_setup( gl : &GL )
 {
-  let save_btn = utils::get_element_by_id_unchecked::< web_sys::HtmlElement >( "save-btn" );
+  let save_btn = utils::element_by_id_unchecked_get::< web_sys::HtmlElement >( "save-btn" );
   let gl_save = gl.clone();
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
@@ -114,21 +114,21 @@ fn setup_save_button( gl : &GL )
     gl_save.flush();
     gl_save.finish();
 
-    utils::save_canvas( "canvas", "filtered-image.png" );
+    utils::canvas_save( "canvas", "filtered-image.png" );
   });
   save_btn.set_onclick( Some( onclick.as_ref().unchecked_ref() ) );
   onclick.forget();
 }
 
 /// Sets up the apply button - captures current canvas state and makes it the new source texture.
-fn setup_apply_button
+fn apply_button_setup
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   gl : &GL,
   current_filter : &Rc< RefCell< String > >
 )
 {
-  let apply_btn = utils::get_element_by_id_unchecked::< web_sys::HtmlElement >( "apply-btn" );
+  let apply_btn = utils::element_by_id_unchecked_get::< web_sys::HtmlElement >( "apply-btn" );
   let filter_renderer_apply = filter_renderer.clone();
   let gl_apply = gl.clone();
   let current_filter_apply = current_filter.clone();
@@ -146,20 +146,20 @@ fn setup_apply_button
           let height = canvas_element.height() as i32;
 
           // Update renderer with new texture and framebuffer size
-          filter_renderer_apply.borrow_mut().update_framebuffer_size( width, height );
-          filter_renderer_apply.borrow_mut().set_image_texture( Some( new_texture ) );
+          filter_renderer_apply.borrow_mut().framebuffer_size_update( width, height );
+          filter_renderer_apply.borrow_mut().image_texture_set( Some( new_texture ) );
 
           // Re-render with original filter to show the applied result
-          filter_renderer_apply.borrow_mut().apply_filter( &filters::original::Original );
+          filter_renderer_apply.borrow_mut().filter_apply( &filters::original::Original );
 
           // Clear previous state so restore won't undo the apply
-          filter_renderer_apply.borrow_mut().clear_previous_state();
+          filter_renderer_apply.borrow_mut().previous_state_clear();
 
           // Reset current filter so it can be re-applied
           *current_filter_apply.borrow_mut() = String::from( "none" );
 
           // Hide controls bar
-          ui_setup::hide_controls_bar();
+          ui_setup::controls_bar_hide();
 
           gl::info!( "✅ Filter applied! Ready for next filter." );
         }
@@ -175,13 +175,13 @@ fn setup_apply_button
 }
 
 /// Sets up the cancel button - restores previous texture and hides buttons.
-fn setup_cancel_button
+fn cancel_button_setup
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   current_filter : &Rc< RefCell< String > >
 )
 {
-  let cancel_btn = utils::get_element_by_id_unchecked::< web_sys::HtmlElement >( "cancel-btn" );
+  let cancel_btn = utils::element_by_id_unchecked_get::< web_sys::HtmlElement >( "cancel-btn" );
   let filter_renderer_cancel = filter_renderer.clone();
   let current_filter_cancel = current_filter.clone();
   let onclick_cancel : Closure< dyn Fn() > = Closure::new( move ||
@@ -190,12 +190,12 @@ fn setup_cancel_button
     *current_filter_cancel.borrow_mut() = String::from( "none" );
 
     // Restore previous texture and canvas size
-    filter_renderer_cancel.borrow_mut().restore_previous_texture();
-    filter_renderer_cancel.borrow_mut().clear_previous_state();
-    filter_renderer_cancel.borrow_mut().apply_filter( &filters::original::Original );
+    filter_renderer_cancel.borrow_mut().previous_texture_restore();
+    filter_renderer_cancel.borrow_mut().previous_state_clear();
+    filter_renderer_cancel.borrow_mut().filter_apply( &filters::original::Original );
 
     // Hide controls bar
-    ui_setup::hide_controls_bar();
+    ui_setup::controls_bar_hide();
 
     gl::info!( "❌ Filter cancelled." );
   });
@@ -204,18 +204,18 @@ fn setup_cancel_button
 }
 
 /// Sets up the revert button - restores original texture immediately.
-fn setup_revert_button( filter_renderer : &Rc< RefCell< Renderer > > )
+fn revert_button_setup( filter_renderer : &Rc< RefCell< Renderer > > )
 {
-  let revert_btn = utils::get_element_by_id_unchecked::< web_sys::HtmlElement >( "revert-btn" );
+  let revert_btn = utils::element_by_id_unchecked_get::< web_sys::HtmlElement >( "revert-btn" );
   let filter_renderer_revert = filter_renderer.clone();
   let onclick_revert : Closure< dyn Fn() > = Closure::new( move ||
   {
     // Restore original texture
-    filter_renderer_revert.borrow_mut().restore_original_texture();
-    filter_renderer_revert.borrow_mut().apply_filter( &filters::original::Original );
+    filter_renderer_revert.borrow_mut().original_texture_restore();
+    filter_renderer_revert.borrow_mut().filter_apply( &filters::original::Original );
 
     // Hide controls bar if visible
-    ui_setup::hide_controls_bar();
+    ui_setup::controls_bar_hide();
 
     gl::info!( "⏮️ Reverted to original image!" );
   });
@@ -224,7 +224,7 @@ fn setup_revert_button( filter_renderer : &Rc< RefCell< Renderer > > )
 }
 
 /// Creates the closure that loads the background-removed image and updates the canvas.
-fn create_bg_removal_image_handler
+fn bg_removal_image_handler_create
 (
   gl : GL,
   renderer : Rc< RefCell< Renderer > >,
@@ -262,11 +262,11 @@ fn create_bg_removal_image_handler
     canvas.set_width( img.width() );
     canvas.set_height( img.height() );
 
-    utils::show_canvas();
+    utils::canvas_show();
 
-    renderer.borrow_mut().update_framebuffer_size( img.width() as i32, img.height() as i32 );
-    renderer.borrow_mut().set_image_texture( texture );
-    renderer.borrow_mut().apply_filter( &filters::original::Original );
+    renderer.borrow_mut().framebuffer_size_update( img.width() as i32, img.height() as i32 );
+    renderer.borrow_mut().image_texture_set( texture );
+    renderer.borrow_mut().filter_apply( &filters::original::Original );
 
     *is_processing.borrow_mut() = false;
     gl::info!( "Background removed successfully!" );
@@ -274,7 +274,7 @@ fn create_bg_removal_image_handler
 }
 
 /// Runs the background-removal pipeline: capture canvas, process, and load result.
-async fn process_background_removal
+async fn background_removal_process
 (
   gl : GL,
   renderer : Rc< RefCell< Renderer > >,
@@ -284,7 +284,7 @@ async fn process_background_removal
   gl.flush();
   gl.finish();
 
-  let canvas = utils::get_element_by_id_unchecked::< HtmlCanvasElement >( "canvas" );
+  let canvas = utils::element_by_id_unchecked_get::< HtmlCanvasElement >( "canvas" );
 
   // Convert canvas to blob via Promise
   let promise = js_sys::Promise::new( &mut | resolve, _reject |
@@ -318,11 +318,11 @@ async fn process_background_removal
   let blob : web_sys::Blob = blob_js.unchecked_into();
   gl::info!( "Removing background..." );
 
-  if let Some( processed_blob ) = bg_removal_bindgen::process_image( blob ).await
+  if let Some( processed_blob ) = bg_removal_bindgen::image_process( blob ).await
   {
     // Load result as image and update canvas
-    let handler = create_bg_removal_image_handler( gl.clone(), renderer.clone(), is_processing.clone() );
-    utils::load_image_from_blob( &processed_blob, handler );
+    let handler = bg_removal_image_handler_create( gl.clone(), renderer.clone(), is_processing.clone() );
+    utils::image_from_blob_load( &processed_blob, handler );
   }
   else
   {
@@ -332,9 +332,9 @@ async fn process_background_removal
 }
 
 /// Sets up the remove-background button.
-fn setup_bg_remove_button( filter_renderer : &Rc< RefCell< Renderer > >, gl : &GL )
+fn bg_remove_button_setup( filter_renderer : &Rc< RefCell< Renderer > >, gl : &GL )
 {
-  let bg_btn = utils::get_element_by_id_unchecked::< web_sys::HtmlElement >( "bg-remove-btn" );
+  let bg_btn = utils::element_by_id_unchecked_get::< web_sys::HtmlElement >( "bg-remove-btn" );
   let gl_bg = gl.clone();
   let filter_renderer_bg = filter_renderer.clone();
   let is_processing = Rc::new( RefCell::new( false ) );
@@ -349,13 +349,13 @@ fn setup_bg_remove_button( filter_renderer : &Rc< RefCell< Renderer > >, gl : &G
     let gl_inner = gl_bg.clone();
     let renderer_inner = filter_renderer_bg.clone();
     let is_processing_inner = is_processing.clone();
-    wasm_bindgen_futures::spawn_local( process_background_removal( gl_inner, renderer_inner, is_processing_inner ) );
+    wasm_bindgen_futures::spawn_local( background_removal_process( gl_inner, renderer_inner, is_processing_inner ) );
   });
   bg_btn.set_onclick( Some( onclick_bg.as_ref().unchecked_ref() ) );
   onclick_bg.forget();
 }
 
-fn run()
+fn app_run()
 {
   // Create GL context with preserveDrawingBuffer enabled for saving
   // and premultiplied_alpha disabled for correct transparency handling
@@ -370,19 +370,19 @@ fn run()
   let filter_renderer = Renderer::new( &gl, None );
   let filter_renderer = Rc::new( RefCell::new( filter_renderer ) );
 
-  let current_filter = setup_ui( &filter_renderer );
+  let current_filter = ui_setup( &filter_renderer );
 
   // Setup zoom and pan controls
-  zoom_pan::setup_zoom_pan();
+  zoom_pan::zoom_pan_setup();
 
   // Setup sidebar toggle
-  sidebar_toggle::setup_sidebar_toggle();
+  sidebar_toggle::sidebar_toggle_setup();
 
-  setup_upload_button( &filter_renderer, &gl );
-  setup_drag_drop_handler( &filter_renderer, &gl );
-  setup_save_button( &gl );
-  setup_apply_button( &filter_renderer, &gl, &current_filter );
-  setup_cancel_button( &filter_renderer, &current_filter );
-  setup_revert_button( &filter_renderer );
-  setup_bg_remove_button( &filter_renderer, &gl );
+  upload_button_setup( &filter_renderer, &gl );
+  drag_drop_handler_setup( &filter_renderer, &gl );
+  save_button_setup( &gl );
+  apply_button_setup( &filter_renderer, &gl, &current_filter );
+  cancel_button_setup( &filter_renderer, &current_filter );
+  revert_button_setup( &filter_renderer );
+  bg_remove_button_setup( &filter_renderer, &gl );
 }

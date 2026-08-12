@@ -15,16 +15,16 @@ extern "C"
   pub fn new_gui() -> JsValue;
 
   #[ wasm_bindgen( js_name = "addBoolean" ) ]
-  pub fn add_boolean( gui : &JsValue,  object : &JsValue, property : &str ) -> JsValue;
+  pub fn boolean_add( gui : &JsValue,  object : &JsValue, property : &str ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "addFolder" ) ]
-  pub fn add_folder( gui : &JsValue, name : &str ) -> JsValue;
+  pub fn folder_add( gui : &JsValue, name : &str ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "addSliderController" ) ]
-  pub fn add_slider( gui : &JsValue, object : &JsValue, property : &str, min : f64, max : f64, step : f64 ) -> JsValue;
+  pub fn slider_add( gui : &JsValue, object : &JsValue, property : &str, min : f64, max : f64, step : f64 ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "addDropdownController" ) ]
-  pub fn add_dropdown( gui : &JsValue, object : &JsValue, property : &str, options : &JsValue ) -> JsValue;
+  pub fn dropdown_add( gui : &JsValue, object : &JsValue, property : &str, options : &JsValue ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "onFinishChange" ) ]
   pub fn on_finish_change( gui : &JsValue, callback : &Closure< dyn FnMut( JsValue ) > ) -> JsValue;
@@ -39,7 +39,7 @@ extern "C"
   pub fn on_change_bool( gui : &JsValue, callback : &Closure< dyn FnMut( bool ) > ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "setName" ) ]
-  pub fn set_name( gui : &JsValue, value : &str ) -> JsValue;
+  pub fn name_set( gui : &JsValue, value : &str ) -> JsValue;
 
 
   #[ wasm_bindgen( js_name = "hide" ) ]

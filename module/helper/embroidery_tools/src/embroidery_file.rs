@@ -60,7 +60,7 @@ mod private
 
     /// Gets mutable metadata
     #[ inline ]
-    pub fn get_mut_metadata( &mut self ) -> &mut Metadata
+    pub fn metadata_get_mut( &mut self ) -> &mut Metadata
     {
       &mut self.metadata
     }
@@ -68,7 +68,7 @@ mod private
     /// Gets metadata
     #[ must_use ]
     #[ inline ]
-    pub fn get_metadata( &self ) -> &Metadata
+    pub fn metadata_get( &self ) -> &Metadata
     {
       &self.metadata
     }
@@ -77,50 +77,50 @@ mod private
     #[ inline ]
     pub fn stitch( &mut self, dx : i32, dy : i32 )
     {
-      self.add_stitch_relative( Stitch { x : dx, y : dy, instruction : Instruction::Stitch } );
+      self.stitch_add_relative( Stitch { x : dx, y : dy, instruction : Instruction::Stitch } );
     }
 
     /// Adds jump instruction with relative coordinates
     #[ inline ]
     pub fn jump( &mut self, dx : i32, dy : i32 )
     {
-      self.add_stitch_relative( Stitch { x : dx, y : dy, instruction : Instruction::Jump } );
+      self.stitch_add_relative( Stitch { x : dx, y : dy, instruction : Instruction::Jump } );
     }
 
     /// Adds color change instruction with relative coordinates
     #[ inline ]
     pub fn color_change( &mut self, dx : i32, dy : i32 )
     {
-      self.add_stitch_relative( Stitch { x : dx, y : dy, instruction : Instruction::ColorChange } );
+      self.stitch_add_relative( Stitch { x : dx, y : dy, instruction : Instruction::ColorChange } );
     }
 
     /// Adds trim instruction with relative coordinates at [0; 0]
     #[ inline ]
     pub fn trim( &mut self )
     {
-      self.add_stitch_relative( Stitch { x : 0, y : 0, instruction : Instruction::Trim } );
+      self.stitch_add_relative( Stitch { x : 0, y : 0, instruction : Instruction::Trim } );
     }
 
     /// Adds end instruction with relative coordinates at [0; 0]
     #[ inline ]
     pub fn end( &mut self )
     {
-      self.add_stitch_relative( Stitch { x : 0, y : 0, instruction : Instruction::End } );
+      self.stitch_add_relative( Stitch { x : 0, y : 0, instruction : Instruction::End } );
     }
 
     /// Adds stitch instruction, assuming that coodinates are relative
     #[ inline ]
-    pub fn add_stitch_relative( &mut self, mut stitch : Stitch )
+    pub fn stitch_add_relative( &mut self, mut stitch : Stitch )
     {
       // Convert to absolute
       stitch.x += self.prev_x;
       stitch.y += self.prev_y;
-      self.add_stitch_absolute( stitch );
+      self.stitch_add_absolute( stitch );
     }
 
     /// Adds stitch instruction, assuming that coodinates are absolute
     #[ inline ]
-    pub fn add_stitch_absolute( &mut self, stitch : Stitch )
+    pub fn stitch_add_absolute( &mut self, stitch : Stitch )
     {
       self.prev_x = stitch.x;
       self.prev_y = stitch.y;
@@ -129,7 +129,7 @@ mod private
 
     /// Adds thread to palette
     #[ inline ]
-    pub fn add_thread( &mut self, thread : Thread )
+    pub fn thread_add( &mut self, thread : Thread )
     {
       self.threads.push( thread );
     }
@@ -138,16 +138,16 @@ mod private
     /// Currently PEC pallete is used for random thread sampling
     #[ must_use ]
     #[ inline ]
-    pub fn get_thread_or_filler( &self, index : usize ) -> Thread
+    pub fn thread_or_filler_get( &self, index : usize ) -> Thread
     {
-      self.threads.get( index ).unwrap_or( &thread::get_random_thread() ).clone()
+      self.threads.get( index ).unwrap_or( &thread::random_thread_get() ).clone()
     }
 
     /// This function replaces duplicate color changes with `Stop` instruciton.
     /// Should be used when reading specific formats where stop instruction is encoded
     /// with duplicate color change
     #[ inline ]
-    pub fn interpolate_duplicate_color_as_stop( &mut self )
+    pub fn duplicate_color_interpolate_as_stop( &mut self )
     {
       let mut thread_index = 0;
       let mut init_color = true;
@@ -196,7 +196,7 @@ mod private
     /// specific formats where Stop instruction should be encoded as
     /// duplicate color change
     #[ inline ]
-    pub fn interpolate_stop_as_duplicate_color( &mut self )
+    pub fn stop_interpolate_as_duplicate_color( &mut self )
     {
       let mut thread_index = 0;
       for i in 0..self.stitches.len()
@@ -240,7 +240,7 @@ mod private
     /// This function ensures that there is a enough threads
     /// for every color change. If it is not then it adds some random threads
     #[ inline ]
-    pub fn fix_color_count( &mut self )
+    pub fn color_count_fix( &mut self )
     {
       let mut thread_index = 0;
       let mut init_color = true;
@@ -270,7 +270,7 @@ mod private
 
       while self.threads.len() < thread_index
       {
-        self.add_thread( self.get_thread_or_filler( self.threads().len() ) );
+        self.thread_add( self.thread_or_filler_get( self.threads().len() ) );
       }
     }
 

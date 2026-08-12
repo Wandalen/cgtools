@@ -117,7 +117,7 @@ mod private
   /// Returns size in bytes the model occupies when loaded in memory
   #[ inline ]
   #[ must_use ]
-  pub fn compute_size_in_memory( model : &tobj::Model ) -> usize
+  pub fn size_in_memory_compute( model : &tobj::Model ) -> usize
   {
     let mesh = &model.mesh;
     let mut size_in_bytes = 0;
@@ -202,7 +202,7 @@ mod private
       }
 
       let name = &model.name;
-      let size_in_bytes = compute_size_in_memory( model );
+      let size_in_bytes = size_in_memory_compute( model );
       let num_vertices = mesh.positions.len() / 3;
       let num_indices = mesh.indices.len();
       let num_normals = mesh.normals.len() / 3;
@@ -251,7 +251,7 @@ mod private
   /// A `Vec` containing a `ReportObjModel` for each model in the input slice.
   #[ inline ]
   #[ must_use ]
-  pub fn make_reports< 'model, 'mtl >
+  pub fn reports_make< 'model, 'mtl >
   (
     models : &'model [ tobj::Model ],
     materials : &'mtl [ tobj::Material ]
@@ -277,7 +277,7 @@ crate::mod_interface!
 
   orphan use
   {
-    make_reports,
+    reports_make,
     ReportObjModel,
     BoundingBox,
     BoundingSphere

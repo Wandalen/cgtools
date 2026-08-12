@@ -85,7 +85,7 @@ mod app
 
   /// Builds the draw list: a 5x2 sphere grid ( metallic and dielectric rows,
   /// roughness rising left to right ) over a ground plane.
-  fn build_items( context : &GpuContext, renderer : &WebGpuRenderer ) -> Result< Vec< RenderItem >, Error >
+  fn items_build( context : &GpuContext, renderer : &WebGpuRenderer ) -> Result< Vec< RenderItem >, Error >
   {
     let mut items = Vec::new();
 
@@ -131,7 +131,7 @@ mod app
   }
 
   /// One light of each supported kind: warm sun, cool point fill, white spot.
-  fn build_lights() -> Lights
+  fn lights_build() -> Lights
   {
     let mut lights = Lights::new();
     assert!( lights.push_direct( [ 1.0, 2.0, 1.0 ], [ 1.0, 0.96, 0.88 ], 3.0 ) );
@@ -141,7 +141,7 @@ mod app
   }
 
   /// Sets up the chosen backend and runs the render loop.
-  pub async fn run() -> Result< (), Error >
+  pub async fn app_run() -> Result< (), Error >
   {
     gl::browser::setup( gl::browser::Config::default() );
     let canvas = gl::canvas::retrieve_or_make().map_err( gl::WebGPUError::from )?;
@@ -162,8 +162,8 @@ mod app
     document.set_title( &format!( "renderer PBR scene — {backend}" ) );
 
     let renderer = WebGpuRenderer::new( &context )?;
-    let items = build_items( &context, &renderer )?;
-    let lights = build_lights();
+    let items = items_build( &context, &renderer )?;
+    let lights = lights_build();
 
     let aspect = canvas.width() as f32 / canvas.height() as f32;
     let fovy = 40f32.to_radians();
@@ -199,7 +199,7 @@ mod app
 #[ cfg( target_arch = "wasm32" ) ]
 fn main()
 {
-  gl::spawn_local( async move { app::run().await.unwrap() } );
+  gl::spawn_local( async move { app::app_run().await.unwrap() } );
 }
 
 #[ cfg( not( target_arch = "wasm32" ) ) ]

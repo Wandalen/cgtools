@@ -7,7 +7,7 @@ use gl::wasm_bindgen::prelude::*;
 use renderer::webgl::animation::Animation;
 use std::collections::HashMap;
 
-use crate::lil_gui::{ on_change_string, new_gui, add_dropdown, add_slider, on_change, show };
+use crate::lil_gui::{ on_change_string, new_gui, dropdown_add, slider_add, on_change, show };
 
 #[ derive( Default, Serialize, Deserialize ) ]
 pub struct Settings
@@ -76,7 +76,7 @@ pub struct Settings
 }
 
 /// Copies the first 60 morph weights into the numbered settings fields, defaulting missing entries to zero.
-fn init_weight_settings( settings : &mut Settings, weights : &[ f32 ] )
+fn weight_settings_init( settings : &mut Settings, weights : &[ f32 ] )
 {
   let mut weights_iter = weights.iter();
   settings.w0 = *weights_iter.next().unwrap_or( &0.0 );
@@ -142,7 +142,7 @@ fn init_weight_settings( settings : &mut Settings, weights : &[ f32 ] )
 }
 
 /// Builds the animation dropdown and wires selection changes to `current_animation`.
-fn bind_animation_dropdown
+fn animation_dropdown_bind
 (
   gui : &JsValue,
   object : &JsValue,
@@ -157,7 +157,7 @@ fn bind_animation_dropdown
   animation_names.insert( 0, "<none>".to_string() );
 
   // Choose animation
-  let prop = add_dropdown
+  let prop = dropdown_add
   (
     gui,
     object,
@@ -192,11 +192,11 @@ fn bind_animation_dropdown
 }
 
 /// Creates the 60 weight sliders and wires each to its morph weight slot.
-fn bind_weight_sliders( gui : &JsValue, object : &JsValue, weights : &Rc< RefCell< Vec< f32 > > > )
+fn weight_sliders_bind( gui : &JsValue, object : &JsValue, weights : &Rc< RefCell< Vec< f32 > > > )
 {
   for i in 0..60
   {
-    let prop = add_slider( gui, object, &format!( "w{i}" ), 0.0, 1.0, 0.01 );
+    let prop = slider_add( gui, object, &format!( "w{i}" ), 0.0, 1.0, 0.01 );
     let weights_rc = Rc::clone( weights );
 
     let callback = Closure::new
@@ -242,7 +242,7 @@ pub fn setup
     *current_animation.borrow_mut() = None;
   }
 
-  init_weight_settings( &mut settings, &weights.borrow() );
+  weight_settings_init( &mut settings, &weights.borrow() );
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
   let gui = new_gui();
@@ -264,8 +264,8 @@ pub fn setup
   )
   .collect::< HashMap< _, _ > >();
 
-  bind_animation_dropdown( &gui, &object, animations, current_animation );
-  bind_weight_sliders( &gui, &object, weights );
+  animation_dropdown_bind( &gui, &object, animations, current_animation );
+  weight_sliders_bind( &gui, &object, weights );
 
   std::mem::forget( object );
 

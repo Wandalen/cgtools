@@ -24,37 +24,37 @@ fn main()
   println!("----------------");
 
   // Create different grid styles
-  demonstrate_grid_styles();
+  grid_styles_demonstrate();
   
   // === PATHFINDING DEBUG DEMONSTRATION ===
   println!("\n🗺️ Pathfinding Debug Visualization");
   println!("----------------------------------");
   
-  demonstrate_pathfinding_debug();
+  pathfinding_debug_demonstrate();
 
   // === ECS INSPECTOR DEMONSTRATION ===
   println!("\n🔍 ECS Component Inspector");
   println!("-------------------------");
   
-  demonstrate_ecs_inspector();
+  ecs_inspector_demonstrate();
 
   // === PERFORMANCE PROFILER DEMONSTRATION ===
   println!("\n⚡ Performance Profiler");
   println!("----------------------");
   
-  demonstrate_performance_profiler();
+  performance_profiler_demonstrate();
 
   // === UTILITY FUNCTIONS DEMONSTRATION ===
   println!("\n🛠️ Debug Utilities");
   println!("------------------");
   
-  demonstrate_debug_utilities();
+  debug_utilities_demonstrate();
 
   // === INTEGRATION DEMONSTRATION ===
   println!("\n🎮 Integrated Game Debug Session");
   println!("-------------------------------");
   
-  demonstrate_integrated_debugging();
+  integrated_debugging_demonstrate();
 
   println!("\n✨ Debug Demo Complete!");
   println!("\nKey features demonstrated:");
@@ -68,7 +68,7 @@ fn main()
   println!("• Integrated debugging workflows");
 }
 
-fn demonstrate_grid_styles()
+fn grid_styles_demonstrate()
 {
   println!("Testing different grid styles...");
 
@@ -113,7 +113,7 @@ fn demonstrate_grid_styles()
   println!("{}", tri_grid.render_ascii());
 }
 
-fn demonstrate_pathfinding_debug()
+fn pathfinding_debug_demonstrate()
 {
   let mut pathfinder = PathfindingDebugger::new(12, 8);
 
@@ -169,7 +169,7 @@ fn demonstrate_pathfinding_debug()
   // println!("✅ Pathfinding debug exported to -debug_pathfinding.svg");
 }
 
-fn demonstrate_ecs_inspector()
+fn ecs_inspector_demonstrate()
 {
   let mut inspector = ECSInspector::new();
 
@@ -245,7 +245,7 @@ fn demonstrate_ecs_inspector()
   println!("{}", inspector.export_json());
 }
 
-fn demonstrate_performance_profiler()
+fn performance_profiler_demonstrate()
 {
   let mut profiler = PerformanceProfiler::new();
 
@@ -303,7 +303,7 @@ fn demonstrate_performance_profiler()
   // println!("✅ Performance data exported to performance_data.csv");
 }
 
-fn demonstrate_debug_utilities()
+fn debug_utilities_demonstrate()
 {
   println!("Testing debug utility functions...");
 
@@ -341,7 +341,7 @@ fn demonstrate_debug_utilities()
   }
 }
 
-fn demonstrate_integrated_debugging()
+fn integrated_debugging_demonstrate()
 {
   println!("Simulating integrated debugging session...");
 

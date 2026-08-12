@@ -2,22 +2,22 @@
 //! these need a GPU: a `wgpu::Instance` created with `Backends::empty()` deterministically
 //! has no adapter to offer, so every adapter request below must resolve to
 //! `Err( Error::RequestAdapterError )` — never panic — regardless of the host's hardware.
-//! Builder state accumulation is pinned through the `get_*` getters: the instance and
+//! Builder state accumulation is pinned through the `*_get` getters: the instance and
 //! adapter stages through the public chain, the device stage through the `doc( hidden )`
 //! `Context::device_builder_for_tests` constructor ( that state is unreachable without a
 //! real adapter ).
 
 use minwgpu::{ context::Context, Error };
 
-/// A builder chained from `Context::builder()` through `make_instance` with zero backends
+/// A builder chained from `Context::builder()` through `instance_make` with zero backends
 /// must surface the adapter failure as the crate's own error type, not a panic.
 #[ test ]
 fn empty_backends_request_adapter_errors_without_panicking()
 {
   let result = Context::builder()
   .backends( wgpu::Backends::empty() )
-  .make_instance()
-  .request_adapter();
+  .instance_make()
+  .adapter_request();
 
   // `ContextBuilder` is not `Debug` (it holds a boxed selector closure), so destructure
   // instead of formatting the whole `Result`.
@@ -30,12 +30,12 @@ fn empty_backends_request_adapter_errors_without_panicking()
 }
 
 /// The instance stage accumulates `backends` into the `wgpu::InstanceDescriptor`,
-/// observable through `get_instance_descriptor`.
+/// observable through `instance_descriptor_get`.
 #[ test ]
 fn instance_builder_sets_backends()
 {
   let builder = Context::builder().backends( wgpu::Backends::VULKAN );
-  assert_eq!( builder.get_instance_descriptor().backends, wgpu::Backends::VULKAN );
+  assert_eq!( builder.instance_descriptor_get().backends, wgpu::Backends::VULKAN );
 }
 
 /// The instance stage accumulates `flags` into the `wgpu::InstanceDescriptor`.
@@ -44,19 +44,19 @@ fn instance_builder_sets_flags()
 {
   let flags = wgpu::InstanceFlags::VALIDATION;
   let builder = Context::builder().flags( flags );
-  assert_eq!( builder.get_instance_descriptor().flags, flags );
+  assert_eq!( builder.instance_descriptor_get().flags, flags );
 }
 
-/// The adapter stage ( reached through the real `make_instance` chain — headless-safe
+/// The adapter stage ( reached through the real `instance_make` chain — headless-safe
 /// with zero backends ) accumulates `power_preference` into the request options.
 #[ test ]
 fn adapter_builder_sets_power_preference()
 {
   let builder = Context::builder()
   .backends( wgpu::Backends::empty() )
-  .make_instance()
+  .instance_make()
   .power_preference( wgpu::PowerPreference::HighPerformance );
-  assert_eq!( builder.get_request_adapter_options().power_preference, wgpu::PowerPreference::HighPerformance );
+  assert_eq!( builder.request_adapter_options_get().power_preference, wgpu::PowerPreference::HighPerformance );
 }
 
 /// The adapter stage accumulates `force_fallback_adapter` into the request options.
@@ -65,9 +65,9 @@ fn adapter_builder_sets_force_fallback()
 {
   let builder = Context::builder()
   .backends( wgpu::Backends::empty() )
-  .make_instance()
+  .instance_make()
   .force_fallback_adapter( true );
-  assert!( builder.get_request_adapter_options().force_fallback_adapter );
+  assert!( builder.request_adapter_options_get().force_fallback_adapter );
 }
 
 /// Providing a custom selector is recorded ( `has_adapter_selector` ) without invoking it.
@@ -76,7 +76,7 @@ fn adapter_builder_sets_selector()
 {
   let builder = Context::builder()
   .backends( wgpu::Backends::empty() )
-  .make_instance()
+  .instance_make()
   .adapter_selector( | _ | panic!( "should not be called" ) );
   assert!( builder.has_adapter_selector() );
 }
@@ -87,7 +87,7 @@ fn device_builder_sets_label()
 {
   let label = String::from( "test_device" );
   let builder = Context::device_builder_for_tests().label( &label );
-  assert_eq!( builder.get_device_descriptor().label, Some( "test_device" ) );
+  assert_eq!( builder.device_descriptor_get().label, Some( "test_device" ) );
 }
 
 /// The device stage accumulates `required_features`.
@@ -96,7 +96,7 @@ fn device_builder_sets_features()
 {
   let features = wgpu::Features::TEXTURE_COMPRESSION_BC;
   let builder = Context::device_builder_for_tests().required_features( features );
-  assert_eq!( builder.get_device_descriptor().required_features, features );
+  assert_eq!( builder.device_descriptor_get().required_features, features );
 }
 
 /// The device stage accumulates `required_limits`.
@@ -105,7 +105,7 @@ fn device_builder_sets_limits()
 {
   let limits = wgpu::Limits { max_bind_groups : 4, ..wgpu::Limits::downlevel_webgl2_defaults() };
   let builder = Context::device_builder_for_tests().required_limits( limits.clone() );
-  assert_eq!( builder.get_device_descriptor().required_limits, limits );
+  assert_eq!( builder.device_descriptor_get().required_limits, limits );
 }
 
 /// The device stage accumulates `memory_hints` ( `wgpu::MemoryHints` has no `PartialEq`,
@@ -118,13 +118,13 @@ fn device_builder_sets_memory_hints()
 
   assert_eq!
   (
-    core::mem::discriminant( &builder.get_device_descriptor().memory_hints ),
+    core::mem::discriminant( &builder.device_descriptor_get().memory_hints ),
     core::mem::discriminant( &hints )
   );
 }
 
 /// A custom `adapter_selector` takes priority over the request options and its error
-/// propagates out of `request_adapter` unchanged in kind. The closure flips a flag so the
+/// propagates out of `adapter_request` unchanged in kind. The closure flips a flag so the
 /// test proves the selector was genuinely invoked, not bypassed.
 #[ test ]
 fn adapter_selector_is_invoked_and_its_error_propagates()
@@ -133,8 +133,8 @@ fn adapter_selector_is_invoked_and_its_error_propagates()
   // directly, but an empty-backends request produces one deterministically.
   let harvest = Context::builder()
   .backends( wgpu::Backends::empty() )
-  .make_instance()
-  .request_adapter();
+  .instance_make()
+  .adapter_request();
   let Err( harvested ) = harvest else { panic!( "empty backends must not yield an adapter" ) };
 
   let called = core::cell::Cell::new( false );
@@ -142,7 +142,7 @@ fn adapter_selector_is_invoked_and_its_error_propagates()
 
   let result = Context::builder()
   .backends( wgpu::Backends::empty() )
-  .make_instance()
+  .instance_make()
   .adapter_selector
   (
     | _instance |
@@ -151,7 +151,7 @@ fn adapter_selector_is_invoked_and_its_error_propagates()
       Err( err_slot.take().expect( "selector must be called exactly once" ) )
     }
   )
-  .request_adapter();
+  .adapter_request();
 
   assert!( called.get(), "custom adapter_selector must be invoked" );
   let Err( error ) = result else { panic!( "selector error must propagate as Err" ) };
@@ -178,7 +178,7 @@ fn from_instance_supports_adapter_stage_configuration()
   let result = Context::from_instance( instance )
   .power_preference( wgpu::PowerPreference::HighPerformance )
   .force_fallback_adapter( false )
-  .request_adapter();
+  .adapter_request();
 
   let Err( error ) = result else { panic!( "empty backends must not yield an adapter" ) };
   assert!

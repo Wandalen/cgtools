@@ -24,8 +24,8 @@ fn fixture_program() -> EmbroideryFile
   emb.end();
 
   let threads = pec::pec_threads();
-  emb.add_thread( threads[ 1 ].clone() );
-  emb.add_thread( threads[ 2 ].clone() );
+  emb.thread_add( threads[ 1 ].clone() );
+  emb.thread_add( threads[ 2 ].clone() );
 
   emb
 }
@@ -70,11 +70,11 @@ fn v6_roundtrip_preserves_metadata_and_threads()
   let mut emb = EmbroideryFile::new();
   emb.stitch( 0, 0 );
   emb.end();
-  let metadata = emb.get_mut_metadata();
-  metadata.insert_text( "category", "Fantasy".into() );
-  metadata.insert_text( "author", "George R.R. Martin".into() );
-  metadata.insert_text( "keywords", "Dragons, mediavel, story, adventure".into() );
-  metadata.insert_text( "comments", "When \"The Winds of Winter\"?".into() );
+  let metadata = emb.metadata_get_mut();
+  metadata.text_insert( "category", "Fantasy".into() );
+  metadata.text_insert( "author", "George R.R. Martin".into() );
+  metadata.text_insert( "keywords", "Dragons, mediavel, story, adventure".into() );
+  metadata.text_insert( "comments", "When \"The Winds of Winter\"?".into() );
 
   let color = Color { r : 123, g : 234, b : 125 };
   let thread = Thread
@@ -86,7 +86,7 @@ fn v6_roundtrip_preserves_metadata_and_threads()
     chart : "No chart".into(),
     ..Default::default()
   };
-  emb.add_thread( thread );
+  emb.thread_add( thread );
 
   let mut memory = vec![ 0_u8; 2048 ];
   {
@@ -96,12 +96,12 @@ fn v6_roundtrip_preserves_metadata_and_threads()
 
   let mut reader = Cursor::new( &mut memory );
   let emb = pes::read( &mut reader ).unwrap();
-  let metadata = emb.get_metadata();
+  let metadata = emb.metadata_get();
 
-  assert_eq!( metadata.get_text( "category" ).unwrap(), "Fantasy" );
-  assert_eq!( metadata.get_text( "author" ).unwrap(), "George R.R. Martin" );
-  assert_eq!( metadata.get_text( "keywords" ).unwrap(), "Dragons, mediavel, story, adventure" );
-  assert_eq!( metadata.get_text( "comments" ).unwrap(), "When \"The Winds of Winter\"?" );
+  assert_eq!( metadata.text_get( "category" ).unwrap(), "Fantasy" );
+  assert_eq!( metadata.text_get( "author" ).unwrap(), "George R.R. Martin" );
+  assert_eq!( metadata.text_get( "keywords" ).unwrap(), "Dragons, mediavel, story, adventure" );
+  assert_eq!( metadata.text_get( "comments" ).unwrap(), "When \"The Winds of Winter\"?" );
 
   let thread = &emb.threads()[ 0 ];
   assert_eq!( thread.description, "A very good thread" );

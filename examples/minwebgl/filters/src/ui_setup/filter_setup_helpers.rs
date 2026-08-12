@@ -8,14 +8,14 @@ use crate::
   Renderer,
   controls,
 };
-use utils::get_element_by_id_unchecked;
+use utils::element_by_id_unchecked_get;
 use filters::{ blur, Filter, resize, brightness_contrast };
 use wasm_bindgen::{ JsCast, JsValue, prelude::Closure };
 use std::{ cell::RefCell, rc::Rc };
 use web_sys::HtmlElement;
 
 /// Helper for blur filters (they have generic type parameters)
-pub fn setup_blur_filter< T : 'static + Clone >
+pub fn blur_filter_setup< T : 'static + Clone >
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   current_filter : &Rc< RefCell< String > >,
@@ -34,15 +34,15 @@ blur::Blur< T > : Filter
 
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
-    filter_renderer_clone.borrow_mut().restore_previous_texture();
+    filter_renderer_clone.borrow_mut().previous_texture_restore();
     ( *current_filter_clone.borrow_mut() ).clone_from( &card_id_str );
-    filter_renderer_clone.borrow_mut().save_previous_texture();
+    filter_renderer_clone.borrow_mut().previous_texture_save();
 
-    controls::clear_controls();
-    controls::add_slider( "Size", "size", 5.0, 1.0, max, 1.0 );
+    controls::controls_clear();
+    controls::slider_add( "Size", "size", 5.0, 1.0, max, 1.0 );
 
     let initial = blur::Blur::new( 5, blur_type_init.clone() );
-    filter_renderer_clone.borrow_mut().apply_filter( &initial );
+    filter_renderer_clone.borrow_mut().filter_apply( &initial );
 
     let fr = filter_renderer_clone.clone();
     let blur_type_change = blur_type_init.clone();
@@ -53,7 +53,7 @@ blur::Blur< T > : Filter
       let size = val.as_f64().unwrap() as i32;
 
       let filter = blur::Blur::new( size, blur_type_change.clone() );
-      fr.borrow_mut().apply_filter( &filter );
+      fr.borrow_mut().filter_apply( &filter );
     });
     controls::on_change( callback.as_ref().unchecked_ref() );
     callback.forget();
@@ -61,13 +61,13 @@ blur::Blur< T > : Filter
     controls::show();
   });
 
-  let card = get_element_by_id_unchecked::< HtmlElement >( card_id );
+  let card = element_by_id_unchecked_get::< HtmlElement >( card_id );
   card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
   onclick.forget();
 }
 
 /// Helper for resize filters (they have generic type parameters)
-pub fn setup_resize_filter< T : 'static + Clone >
+pub fn resize_filter_setup< T : 'static + Clone >
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   current_filter : &Rc< RefCell< String > >,
@@ -85,15 +85,15 @@ resize::Resize< T > : Filter
 
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
-    filter_renderer_clone.borrow_mut().restore_previous_texture();
+    filter_renderer_clone.borrow_mut().previous_texture_restore();
     ( *current_filter_clone.borrow_mut() ).clone_from( &card_id_str );
-    filter_renderer_clone.borrow_mut().save_previous_texture();
+    filter_renderer_clone.borrow_mut().previous_texture_save();
 
-    controls::clear_controls();
-    controls::add_slider( "Scale", "scale", 1.0, 0.1, 10.0, 0.01 );
+    controls::controls_clear();
+    controls::slider_add( "Scale", "scale", 1.0, 0.1, 10.0, 0.01 );
 
     let initial = resize::Resize::new( 1.0_f32, resize_type_init.clone() );
-    filter_renderer_clone.borrow_mut().apply_filter( &initial );
+    filter_renderer_clone.borrow_mut().filter_apply( &initial );
 
     let fr = filter_renderer_clone.clone();
     let resize_type_change = resize_type_init.clone();
@@ -104,7 +104,7 @@ resize::Resize< T > : Filter
       let scale = val.as_f64().unwrap() as f32;
 
       let filter = resize::Resize::new( scale, resize_type_change.clone() );
-      fr.borrow_mut().apply_filter( &filter );
+      fr.borrow_mut().filter_apply( &filter );
     });
     controls::on_change( callback.as_ref().unchecked_ref() );
     callback.forget();
@@ -112,7 +112,7 @@ resize::Resize< T > : Filter
     controls::show();
   });
 
-  let card = get_element_by_id_unchecked::< HtmlElement >( card_id );
+  let card = element_by_id_unchecked_get::< HtmlElement >( card_id );
   card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
   onclick.forget();
 }
@@ -129,7 +129,7 @@ pub struct SliderRange
 // `range` must be owned, not borrowed: it is moved into the `'static` `Closure::new` below,
 // so a `&SliderRange` parameter would fail to outlive the closure (E0521).
 #[ allow( clippy::needless_pass_by_value, reason = "range must be owned to be moved into the 'static onclick closure" ) ]
-pub fn setup_brightness_contrast_filter< T : 'static + Clone >
+pub fn brightness_contrast_filter_setup< T : 'static + Clone >
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   current_filter : &Rc< RefCell< String > >,
@@ -148,16 +148,16 @@ brightness_contrast::BrightnessContrast< T > : Filter
 
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
-    filter_renderer_clone.borrow_mut().restore_previous_texture();
+    filter_renderer_clone.borrow_mut().previous_texture_restore();
     ( *current_filter_clone.borrow_mut() ).clone_from( &card_id_str );
-    filter_renderer_clone.borrow_mut().save_previous_texture();
+    filter_renderer_clone.borrow_mut().previous_texture_save();
 
-    controls::clear_controls();
-    controls::add_slider( "Brightness", "brightness", 0.0, range.min, range.max, range.step );
-    controls::add_slider( "Contrast", "contrast", 0.0, range.min, range.max, range.step );
+    controls::controls_clear();
+    controls::slider_add( "Brightness", "brightness", 0.0, range.min, range.max, range.step );
+    controls::slider_add( "Contrast", "contrast", 0.0, range.min, range.max, range.step );
 
     let initial = brightness_contrast::BrightnessContrast::new( 0.0, 0.0, bc_type_init.clone() );
-    filter_renderer_clone.borrow_mut().apply_filter( &initial );
+    filter_renderer_clone.borrow_mut().filter_apply( &initial );
 
     let fr = filter_renderer_clone.clone();
     let bc_type_change = bc_type_init.clone();
@@ -170,7 +170,7 @@ brightness_contrast::BrightnessContrast< T > : Filter
       let contrast = contrast_val.as_f64().unwrap();
 
       let filter = brightness_contrast::BrightnessContrast::new( brightness as f32, contrast as f32, bc_type_change.clone() );
-      fr.borrow_mut().apply_filter( &filter );
+      fr.borrow_mut().filter_apply( &filter );
     });
     controls::on_change( callback.as_ref().unchecked_ref() );
     callback.forget();
@@ -178,7 +178,7 @@ brightness_contrast::BrightnessContrast< T > : Filter
     controls::show();
   });
 
-  let card = get_element_by_id_unchecked::< HtmlElement >( card_id );
+  let card = element_by_id_unchecked_get::< HtmlElement >( card_id );
   card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
   onclick.forget();
 }

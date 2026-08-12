@@ -63,7 +63,7 @@ mod private
   /// # Panics
   /// Panics if the global `window`/`document` is unavailable, or if the window's location has no origin.
   #[ inline ]
-  pub fn create_video_element( path : &str, video_width : u32, video_height : u32 ) -> Result< web_sys::HtmlVideoElement, wasm_bindgen::JsValue >
+  pub fn video_element_create( path : &str, video_width : u32, video_height : u32 ) -> Result< web_sys::HtmlVideoElement, wasm_bindgen::JsValue >
   {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
@@ -105,7 +105,7 @@ mod private
   /// # Panics
   /// Panics if the global `window`/`document` is unavailable, or if the window's location has no origin.
   #[ inline ]
-  pub fn create_image_element( path : &str ) -> Result< web_sys::HtmlImageElement, wasm_bindgen::JsValue >
+  pub fn image_element_create( path : &str ) -> Result< web_sys::HtmlImageElement, wasm_bindgen::JsValue >
   {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
@@ -131,7 +131,7 @@ crate::mod_interface!
     JsCast,
     Error,
   };
-  own use create_video_element;
-  own use create_image_element;
+  own use video_element_create;
+  own use image_element_create;
 
 }

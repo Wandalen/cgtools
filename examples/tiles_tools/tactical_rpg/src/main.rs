@@ -44,7 +44,7 @@ impl Experience {
   }
   }
   
-  pub fn add_xp(&mut self, xp: u32) -> bool {
+  pub fn xp_add(&mut self, xp: u32) -> bool {
   self.current_xp += xp;
   if self.current_xp >= self.xp_to_next_level {
     self.level_up();
@@ -119,7 +119,7 @@ enum GamePhase
 }
 
 impl TacticalRPG {
-  fn spawn_player_warrior(world: &mut World, team: Team) -> hecs::Entity {
+  fn player_warrior_spawn(world: &mut World, team: Team) -> hecs::Entity {
   world.spawn((
     Position::new(HexCoord::<Axial, Pointy>::new(-2, 1)),
     Health::new(120),
@@ -138,7 +138,7 @@ impl TacticalRPG {
   ))
   }
 
-  fn spawn_player_mage(world: &mut World, team: Team) -> hecs::Entity {
+  fn player_mage_spawn(world: &mut World, team: Team) -> hecs::Entity {
   world.spawn((
     Position::new(HexCoord::<Axial, Pointy>::new(-1, 0)),
     Health::new(80),
@@ -157,7 +157,7 @@ impl TacticalRPG {
   ))
   }
 
-  fn spawn_enemy_goblin(world: &mut World, team: Team) -> hecs::Entity {
+  fn enemy_goblin_spawn(world: &mut World, team: Team) -> hecs::Entity {
   world.spawn((
     Position::new(HexCoord::<Axial, Pointy>::new(2, -1)),
     Health::new(60),
@@ -176,7 +176,7 @@ impl TacticalRPG {
   ))
   }
 
-  fn spawn_enemy_orc(world: &mut World, team: Team) -> hecs::Entity {
+  fn enemy_orc_spawn(world: &mut World, team: Team) -> hecs::Entity {
   world.spawn((
     Position::new(HexCoord::<Axial, Pointy>::new(3, -2)),
     Health::new(100),
@@ -201,10 +201,10 @@ impl TacticalRPG {
   let player_team = Team::new(0);
   let enemy_team = Team::hostile(1);
 
-  let player_warrior = Self::spawn_player_warrior(&mut world, player_team);
-  let player_mage = Self::spawn_player_mage(&mut world, player_team);
-  let enemy_goblin = Self::spawn_enemy_goblin(&mut world, enemy_team);
-  let enemy_orc = Self::spawn_enemy_orc(&mut world, enemy_team);
+  let player_warrior = Self::player_warrior_spawn(&mut world, player_team);
+  let player_mage = Self::player_mage_spawn(&mut world, player_team);
+  let enemy_goblin = Self::enemy_goblin_spawn(&mut world, enemy_team);
+  let enemy_orc = Self::enemy_orc_spawn(&mut world, enemy_team);
 
   let mut turn_queue = VecDeque::new();
   turn_queue.extend([player_warrior, player_mage, enemy_goblin, enemy_orc]);
@@ -221,11 +221,11 @@ impl TacticalRPG {
   }
   
   /// Starts a new turn
-  pub fn start_turn(&mut self) {
+  pub fn turn_start(&mut self) {
   if let Some(entity) = self.turn_queue.pop_front() {
     self.current_turn = Some(entity);
     println!("\n=== Turn {} ===", self.turn_number);
-    self.print_unit_status(entity);
+    self.unit_status_print(entity);
     
     // Check if this is a player or AI unit
     let team_id = {
@@ -238,20 +238,20 @@ impl TacticalRPG {
     
     if team_id == self.player_team.id {
       self.game_phase = GamePhase::Planning;
-      self.handle_player_turn(entity);
+      self.player_turn_handle(entity);
     } else {
       self.game_phase = GamePhase::AI;
-      self.handle_ai_turn(entity);
+      self.ai_turn_handle(entity);
     }
   } else {
     // End of round, reset turn queue
-    self.reset_turn_queue();
+    self.turn_queue_reset();
     self.turn_number += 1;
   }
   }
   
   /// Handles a player unit's turn
-  fn handle_player_turn(&mut self, entity: hecs::Entity) {
+  fn player_turn_handle(&mut self, entity: hecs::Entity) {
   println!("🎮 Player turn - planning actions...");
   
   // In a real implementation, this would wait for player input
@@ -263,7 +263,7 @@ impl TacticalRPG {
       println!("Player unit at ({}, {})", pos_coord.q, pos_coord.r);
       
       // Find nearest enemy
-      let target = self.find_nearest_enemy(entity);
+      let target = self.nearest_enemy_find(entity);
       (pos_coord, target)
     } else {
       return;
@@ -276,7 +276,7 @@ impl TacticalRPG {
     
     // Try to attack or move closer
     if pos.distance_to(&target.1) <= 2 {
-      self.execute_attack(entity, target.0);
+      self.attack_execute(entity, target.0);
     } else {
       self.execute_move_toward(entity, target.1.coord);
     }
@@ -286,7 +286,7 @@ impl TacticalRPG {
   }
   
   /// Handles an AI unit's turn
-  fn handle_ai_turn(&mut self, entity: hecs::Entity) {
+  fn ai_turn_handle(&mut self, entity: hecs::Entity) {
   println!("🤖 AI turn - calculating optimal action...");
   
   let (pos_coord, target) = {
@@ -295,7 +295,7 @@ impl TacticalRPG {
       println!("AI unit at ({}, {})", pos_coord.q, pos_coord.r);
       
       // Simple AI: move toward nearest player unit and attack if possible
-      let target = self.find_nearest_player(entity);
+      let target = self.nearest_player_find(entity);
       (pos_coord, target)
     } else {
       return;
@@ -309,7 +309,7 @@ impl TacticalRPG {
     
     if distance <= 1 {
       // Attack if adjacent
-      self.execute_attack(entity, target.0);
+      self.attack_execute(entity, target.0);
     } else if distance <= 4 {
       // Move closer if within reasonable range
       self.execute_move_toward(entity, target.1.coord);
@@ -323,7 +323,7 @@ impl TacticalRPG {
   }
   
   /// Executes an attack between two units
-  fn execute_attack(&mut self, attacker: hecs::Entity, target: hecs::Entity) {
+  fn attack_execute(&mut self, attacker: hecs::Entity, target: hecs::Entity) {
   let (final_damage, target_level) = {
     let attacker_stats = self.world.get::<Stats>(attacker).expect("attacker should have stats");
     let attacker_equipment = self.world.get::<Equipment>(attacker).expect("attacker should have equipment");
@@ -359,7 +359,7 @@ impl TacticalRPG {
     // Award experience to attacker
     if let Ok(mut exp) = self.world.get_mut::<Experience>(attacker) {
       let xp_gained = target_level * 50;
-      if exp.add_xp(xp_gained) {
+      if exp.xp_add(xp_gained) {
         println!("🎉 Level up! Now level {}", exp.level);
       }
     }
@@ -394,7 +394,7 @@ impl TacticalRPG {
   }
   
   /// Finds the nearest enemy unit
-  fn find_nearest_enemy(&self, entity: hecs::Entity) -> Option<(hecs::Entity, Position<HexCoord<Axial, Pointy>>)> {
+  fn nearest_enemy_find(&self, entity: hecs::Entity) -> Option<(hecs::Entity, Position<HexCoord<Axial, Pointy>>)> {
   if let Ok(our_team) = self.world.get::<Team>(entity) {
     if let Ok(our_pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
       return self.world.find_nearest_entity(&our_pos)
@@ -415,7 +415,7 @@ impl TacticalRPG {
   }
   
   /// Finds the nearest player unit
-  fn find_nearest_player(&self, entity: hecs::Entity) -> Option<(hecs::Entity, Position<HexCoord<Axial, Pointy>>)> {
+  fn nearest_player_find(&self, entity: hecs::Entity) -> Option<(hecs::Entity, Position<HexCoord<Axial, Pointy>>)> {
   if let Ok(our_pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
     return self.world.find_nearest_entity(&our_pos)
       .and_then(|(nearest_entity, nearest_pos, _distance)| {
@@ -440,7 +440,7 @@ impl TacticalRPG {
   }
   
   /// Resets the turn queue for a new round
-  fn reset_turn_queue(&mut self) {
+  fn turn_queue_reset(&mut self) {
   // Collect all living units sorted by initiative
   let mut units_by_initiative = Vec::new();
   
@@ -459,7 +459,7 @@ impl TacticalRPG {
   }
   
   /// Prints the status of a unit
-  fn print_unit_status(&self, entity: hecs::Entity) {
+  fn unit_status_print(&self, entity: hecs::Entity) {
   if let Ok(health) = self.world.get::<Health>(entity) {
     if let Ok(stats) = self.world.get::<Stats>(entity) {
       if let Ok(pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
@@ -484,7 +484,7 @@ impl TacticalRPG {
   }
   
   /// Prints the current battlefield state
-  pub fn print_battlefield(&self) {
+  pub fn battlefield_print(&self) {
   println!("\n📍 Battlefield Status:");
   
   // Find all living units
@@ -525,23 +525,23 @@ impl TacticalRPG {
   }
   
   /// Runs the complete game simulation
-  pub fn run_simulation(&mut self) {
+  pub fn simulation_run(&mut self) {
   println!("🎯 Tactical RPG Combat Simulation");
   println!("=================================");
   println!("🟢 = Player Units");
   println!("🔴 = Enemy Units");
   println!("⬡ = Empty Hex");
   
-  self.print_battlefield();
+  self.battlefield_print();
   
   // Run several turns
   for turn in 1..=10 {
-    self.start_turn();
-    self.print_battlefield();
+    self.turn_start();
+    self.battlefield_print();
     
     // Check victory conditions
-    let player_units_alive = self.count_living_units(self.player_team.id);
-    let enemy_units_alive = self.count_living_units(self.enemy_team.id);
+    let player_units_alive = self.living_units_count(self.player_team.id);
+    let enemy_units_alive = self.living_units_count(self.enemy_team.id);
     
     #[allow(clippy::else_if_without_else, reason = "both branches diverge (`break`), so a trailing `else` would be flagged `redundant_else`, but omitting it triggers `else_if_without_else` — the two pedantic lints contradict for this pattern; redundant_else's guidance is followed")]
     if player_units_alive == 0 {
@@ -563,7 +563,7 @@ impl TacticalRPG {
   }
   
   /// Counts living units for a team
-  fn count_living_units(&self, team_id: u32) -> usize {
+  fn living_units_count(&self, team_id: u32) -> usize {
   let mut count = 0;
   for (_entity, (health, team)) in &mut self.world.query::<(&Health, &Team)>() {
     if health.is_alive() && team.id == team_id {
@@ -578,7 +578,7 @@ impl TacticalRPG {
 fn main()
 {
   let mut game = TacticalRPG::new();
-  game.run_simulation();
+  game.simulation_run();
   
   println!("\n✨ Tactical RPG Demo Complete!");
   println!("This example showcases:");

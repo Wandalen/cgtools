@@ -25,11 +25,11 @@ use shadow::{ ShadowBaker, ShadowMap };
 fn main()
 {
   gl::browser::setup( gl::browser::Config::default() );
-  gl::spawn_local( async { gl::info!( "{:?}", run().await ) } );
+  gl::spawn_local( async { gl::info!( "{:?}", app_run().await ) } );
 }
 
 /// Creates the scene camera sized to the canvas and binds its controls.
-fn setup_camera( canvas : &HtmlCanvasElement, width : i32, height : i32 ) -> renderer::webgl::Camera
+fn camera_setup( canvas : &HtmlCanvasElement, width : i32, height : i32 ) -> renderer::webgl::Camera
 {
   let aspect = width as f32 / height as f32;
 
@@ -75,7 +75,7 @@ fn spot_light_node( light_pos : gl::F32x3, light_dir : gl::F32x3 ) -> Node
 }
 
 /// Marks every mesh in the scene as a shadow caster.
-fn mark_shadow_casters( scene : &renderer::webgl::Scene )
+fn shadow_casters_mark( scene : &renderer::webgl::Scene )
 {
   _ = scene.traverse
   (
@@ -93,7 +93,7 @@ fn mark_shadow_casters( scene : &renderer::webgl::Scene )
 }
 
 /// Applies the baked colored shadow texture as the floor's base color texture.
-fn apply_floor_texture( floor_node : &Rc< RefCell< Node > >, colored_texture : Option< web_sys::WebGlTexture > )
+fn floor_texture_apply( floor_node : &Rc< RefCell< Node > >, colored_texture : Option< web_sys::WebGlTexture > )
 {
   if let Object3D::Mesh( mesh ) = &floor_node.borrow().object
   {
@@ -113,7 +113,7 @@ fn apply_floor_texture( floor_node : &Rc< RefCell< Node > >, colored_texture : O
   }
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -132,7 +132,7 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
 
-  let camera = setup_camera( &canvas, width, height );
+  let camera = camera_setup( &canvas, width, height );
 
   // EXT_color_buffer_float is required for rendering to float framebuffer attachments (RGBA16F/RGBA32F).
   gl.get_extension( "EXT_color_buffer_float" )
@@ -170,7 +170,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   main_scene.add( Rc::new( RefCell::new( spot_light_node( light_pos, light_dir ) ) ) );
 
-  mark_shadow_casters( &main_scene );
+  shadow_casters_mark( &main_scene );
 
   let near = 0.1;
   let far = 30.0;
@@ -186,14 +186,14 @@ async fn run() -> Result< (), gl::WebglError >
   let lightmap_res = 2048;
   let shadowmap = ShadowMap::new( &gl, shadowmap_res )?;
   shadowmap.render( &main_scene, light )?;
-  let shadow_texture = create_texture( &gl, lightmap_res, gl::R8 );
+  let shadow_texture = texture_create( &gl, lightmap_res, gl::R8 );
   let shadow_baker = ShadowBaker::new( &gl )?;
   shadow_baker.render_soft_shadow( &floor_node.borrow(), shadow_texture.as_ref(), lightmap_res, lightmap_res, &shadowmap, light )?;
 
   // Convert shadow texture to colored base color texture
   let base_color = [ 0.8, 0.8, 0.8 ];
   let shadow_to_color_pass = ShadowToColorPass::new( &gl, base_color )?;
-  let colored_texture = create_texture( &gl, lightmap_res, gl::RGB8 );
+  let colored_texture = texture_create( &gl, lightmap_res, gl::RGB8 );
 
   // Create a framebuffer for rendering
   let framebuffer = gl.create_framebuffer();
@@ -205,7 +205,7 @@ async fn run() -> Result< (), gl::WebglError >
   // Unbind framebuffer
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
-  apply_floor_texture( &floor_node, colored_texture );
+  floor_texture_apply( &floor_node, colored_texture );
 
   let update = move | _ |
   {
@@ -232,7 +232,7 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
-fn create_texture( gl : &GL, res : u32, format : u32 ) -> Option< web_sys::WebGlTexture >
+fn texture_create( gl : &GL, res : u32, format : u32 ) -> Option< web_sys::WebGlTexture >
 {
   let ret = gl.create_texture();
   gl.bind_texture( gl::TEXTURE_2D, ret.as_ref() );

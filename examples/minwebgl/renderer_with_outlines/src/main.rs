@@ -9,7 +9,7 @@ use minwebgl as gl;
 
 use gl::
 {
-  texture::d2::upload_image_from_path,
+  texture::d2::image_upload_from_path,
   GL,
   JsCast,
   web_sys::
@@ -64,14 +64,14 @@ use std::cell::RefCell;
 /// # Returns
 ///
 /// A `TextureInfo` containing the texture data.
-fn create_texture
+fn texture_create
 (
   gl : &GL,
   image_path : &str
 ) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_image_from_path( gl, &image_path, true );
+  let texture_id = image_upload_from_path( gl, &image_path, true );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )
@@ -93,7 +93,7 @@ fn create_texture
   }
 }
 
-fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
+fn object_colors_generate( object_count : u32 ) -> Vec< F32x4 >
 {
   
 
@@ -116,7 +116,7 @@ fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
   .collect::< Vec< _ > >()
 }
 
-fn get_attributes( gltf : &GLTF ) -> Result< FxHashMap< Box< str >, AttributeInfo >, gl::WebglError >
+fn attributes_get( gltf : &GLTF ) -> Result< FxHashMap< Box< str >, AttributeInfo >, gl::WebglError >
 {
   for mesh in &gltf.meshes
   {
@@ -131,7 +131,7 @@ fn get_attributes( gltf : &GLTF ) -> Result< FxHashMap< Box< str >, AttributeInf
   Err( gl::WebglError::MissingDataError( "Primitive" ) )
 }
 
-fn get_html_element_by_id( id : &str ) -> HtmlElement
+fn html_element_get_by_id( id : &str ) -> HtmlElement
 {
   let document = window()
   .unwrap()
@@ -143,22 +143,22 @@ fn get_html_element_by_id( id : &str ) -> HtmlElement
   .unwrap()
 }
 
-fn get_html_span_element_by_id( id : &str ) -> HtmlSpanElement
+fn html_span_element_get_by_id( id : &str ) -> HtmlSpanElement
 {
-  get_html_element_by_id( id )
+  html_element_get_by_id( id )
   .dyn_into::< HtmlSpanElement >()
   .unwrap()
 }
 
-fn get_html_input_element_by_id( id : &str ) -> HtmlInputElement
+fn html_input_element_get_by_id( id : &str ) -> HtmlInputElement
 {
-  get_html_element_by_id( id )
+  html_element_get_by_id( id )
   .dyn_into::< HtmlInputElement >()
   .unwrap()
 }
 
 /// Initializes the browser context, canvas, and WebGL2 context with the required extensions.
-fn init_context() -> Result< ( HtmlCanvasElement, GL ), gl::WebglError >
+fn context_init() -> Result< ( HtmlCanvasElement, GL ), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
@@ -176,7 +176,7 @@ fn init_context() -> Result< ( HtmlCanvasElement, GL ), gl::WebglError >
 }
 
 /// Creates the scene camera looking at `center` and binds its controls to the canvas.
-fn setup_camera( canvas : &HtmlCanvasElement, center : gl::F32x3 ) -> Camera
+fn camera_setup( canvas : &HtmlCanvasElement, center : gl::F32x3 ) -> Camera
 {
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
@@ -197,7 +197,7 @@ fn setup_camera( canvas : &HtmlCanvasElement, center : gl::F32x3 ) -> Camera
 }
 
 /// Creates the G-buffer with attachments wired to the mesh attribute buffers.
-fn create_gbuffer
+fn gbuffer_create
 (
   gl : &GL,
   canvas : &HtmlCanvasElement,
@@ -357,7 +357,7 @@ impl SelectTextureContext
 }
 
 /// Attaches the change listener that tracks the display dropdown's selected value.
-fn bind_select_listener( select_value : Rc< RefCell< String > > )
+fn select_listener_bind( select_value : Rc< RefCell< String > > )
 {
   let select_change_closure = Closure::wrap
   (
@@ -380,16 +380,16 @@ fn bind_select_listener( select_value : Rc< RefCell< String > > )
     as Box< dyn FnMut( _ ) >
   );
 
-  let select_element = get_html_element_by_id( "displayOption" );
+  let select_element = html_element_get_by_id( "displayOption" );
   let _ = select_element.add_event_listener_with_callback( "change", select_change_closure.as_ref().unchecked_ref() );
   select_change_closure.forget();
 }
 
 /// Attaches the input listener that syncs the outline thickness slider with its display span.
-fn bind_thickness_slider( outline_thickness : Rc< RefCell< f32 > > )
+fn thickness_slider_bind( outline_thickness : Rc< RefCell< f32 > > )
 {
-  let outline_thickness_slider_element = get_html_input_element_by_id( "outlineThicknessSlider" );
-  let outline_thickness_display_span = get_html_span_element_by_id( "outlineThicknessValue" );
+  let outline_thickness_slider_element = html_input_element_get_by_id( "outlineThicknessSlider" );
+  let outline_thickness_display_span = html_span_element_get_by_id( "outlineThicknessValue" );
 
   // Set initial value of the display span
   let () = outline_thickness_display_span.set_text_content( Some( &outline_thickness.borrow().to_string() ) );
@@ -435,7 +435,7 @@ fn bind_thickness_slider( outline_thickness : Rc< RefCell< f32 > > )
 /// # Returns
 ///
 /// A `Result` containing the configured `GLTF` scene, or a `gl::WebglError` if loading fails.
-async fn setup_scene( gl : &GL ) -> Result< GLTF, gl::WebglError >
+async fn scene_setup( gl : &GL ) -> Result< GLTF, gl::WebglError >
 {
   let window = web_sys::window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
@@ -453,17 +453,17 @@ async fn setup_scene( gl : &GL ) -> Result< GLTF, gl::WebglError >
   Ok( gltf )
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
-  let ( canvas, gl ) = init_context()?;
+  let ( canvas, gl ) = context_init()?;
 
-  let gltf = setup_scene( &gl ).await.unwrap();
+  let gltf = scene_setup( &gl ).await.unwrap();
   let scenes = gltf.scenes.clone();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
   gl::info!( "Scene boudnig box: {scene_bounding_box:?}" );
 
-  let camera = setup_camera( &canvas, scene_bounding_box.center() );
+  let camera = camera_setup( &canvas, scene_bounding_box.center() );
 
   let renderer = Rc::new
   (
@@ -475,15 +475,15 @@ async fn run() -> Result< (), gl::WebglError >
 
   let ibl = renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/pink_sunrise_4k/", None ).await;
   renderer.borrow_mut().set_ibl( ibl );
-  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/pink_sunrise.jpg" );
+  let skybox = texture_create( &gl, "environment_maps/equirectangular_maps/pink_sunrise.jpg" );
   renderer.borrow_mut().set_skybox( skybox.texture.borrow().source.clone() );
   let renderer1 = renderer.clone();
 
-  let attributes = get_attributes( &gltf )?;
+  let attributes = attributes_get( &gltf )?;
 
   gl::info!( "{:?}", attributes.keys() );
 
-  let gbuffer = Rc::new( RefCell::new( create_gbuffer( &gl, &canvas, &attributes )? ) );
+  let gbuffer = Rc::new( RefCell::new( gbuffer_create( &gl, &canvas, &attributes )? ) );
 
   let swap_buffer = Rc::new
   (
@@ -500,7 +500,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let outline_thickness = Rc::new( RefCell::new( 5.0f32 ) );
 
-  let object_colors = generate_object_colors( gltf.meshes.len() as u32 );
+  let object_colors = object_colors_generate( gltf.meshes.len() as u32 );
 
   let gl = Rc::new( RefCell::new( gl ) );
   let gl2 = gl.clone();
@@ -516,10 +516,10 @@ async fn run() -> Result< (), gl::WebglError >
 
   let select_value = Rc::new( RefCell::new( String::new() ) );
 
-  bind_select_listener( select_value.clone() );
-  bind_thickness_slider( outline_thickness );
+  select_listener_bind( select_value.clone() );
+  thickness_slider_bind( outline_thickness );
 
-  let fps_value = get_html_span_element_by_id( "fpsValue" );
+  let fps_value = html_span_element_get_by_id( "fpsValue" );
   let mut last_time = 0.0;
   let mut fps = 0;
 
@@ -579,5 +579,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

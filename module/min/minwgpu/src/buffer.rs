@@ -56,7 +56,7 @@ mod private
     /// Returns a reference to the underlying `wgpu::Buffer`.
     #[ inline ]
     #[ must_use ]
-    pub fn get_buffer( &self ) -> &wgpu::Buffer
+    pub fn buffer_get( &self ) -> &wgpu::Buffer
     {
       &self.buffer
     }
@@ -64,7 +64,7 @@ mod private
     /// Returns a reference to the `wgpu::VertexBufferLayout`.
     #[ inline ]
     #[ must_use ]
-    pub fn get_layout( &self ) -> &wgpu::VertexBufferLayout< 'a >
+    pub fn layout_get( &self ) -> &wgpu::VertexBufferLayout< 'a >
     {
       &self.layout
     }
@@ -208,7 +208,7 @@ mod private
         /// Returns the configured initial data as raw bytes, if any.
         #[ inline ]
         #[ must_use ]
-        pub fn get_data( &self ) -> Option< &'a [ u8 ] >
+        pub fn data_get( &self ) -> Option< &'a [ u8 ] >
         {
           self.$field_name.data
         }
@@ -216,7 +216,7 @@ mod private
         /// Returns the configured debug label, if any.
         #[ inline ]
         #[ must_use ]
-        pub fn get_label( &self ) -> Option< &'a str >
+        pub fn label_get( &self ) -> Option< &'a str >
         {
           self.$field_name.label
         }
@@ -224,7 +224,7 @@ mod private
         /// Returns the configured buffer size in bytes.
         #[ inline ]
         #[ must_use ]
-        pub fn get_size( &self ) -> wgpu::BufferAddress
+        pub fn size_get( &self ) -> wgpu::BufferAddress
         {
           self.$field_name.size
         }
@@ -232,7 +232,7 @@ mod private
         /// Returns whether the buffer is to be mapped at creation.
         #[ inline ]
         #[ must_use ]
-        pub fn get_mapped_at_creation( &self ) -> bool
+        pub fn mapped_at_creation_get( &self ) -> bool
         {
           self.$field_name.mapped_at_creation
         }
@@ -240,7 +240,7 @@ mod private
         /// Returns the configured usage flags.
         #[ inline ]
         #[ must_use ]
-        pub fn get_usage( &self ) -> wgpu::BufferUsages
+        pub fn usage_get( &self ) -> wgpu::BufferUsages
         {
           self.$field_name.usage
         }
@@ -326,7 +326,7 @@ mod private
     /// Returns the configured byte distance between consecutive elements.
     #[ inline ]
     #[ must_use ]
-    pub fn get_array_stride( &self ) -> wgpu::BufferAddress
+    pub fn array_stride_get( &self ) -> wgpu::BufferAddress
     {
       self.array_stride
     }
@@ -334,7 +334,7 @@ mod private
     /// Returns the configured step mode.
     #[ inline ]
     #[ must_use ]
-    pub fn get_step_mode( &self ) -> wgpu::VertexStepMode
+    pub fn step_mode_get( &self ) -> wgpu::VertexStepMode
     {
       self.step_mode
     }
@@ -342,7 +342,7 @@ mod private
     /// Returns the configured vertex attributes.
     #[ inline ]
     #[ must_use ]
-    pub fn get_attributes( &self ) -> &'a [ wgpu::VertexAttribute ]
+    pub fn attributes_get( &self ) -> &'a [ wgpu::VertexAttribute ]
     {
       self.attributes
     }

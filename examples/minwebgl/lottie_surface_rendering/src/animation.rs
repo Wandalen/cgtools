@@ -107,7 +107,7 @@ fn brush_to_color( brush : &velato::model::Brush, frame : f64 ) -> F32x4
 type RepeaterAssignment = ( usize, Range< usize >, velato::model::Repeater );
 
 /// Expands `Instance` layers into their asset sublayers and returns the extended layer list.
-fn expand_instance_layers( composition : &Composition ) -> Vec< velato::model::Layer >
+fn instance_layers_expand( composition : &Composition ) -> Vec< velato::model::Layer >
 {
   let assets = composition.assets.clone();
 
@@ -150,7 +150,7 @@ fn expand_instance_layers( composition : &Composition ) -> Vec< velato::model::L
 }
 
 /// Scans a layer's shapes for the last draw brush, defaulting to a fully transparent solid brush.
-fn scan_layer_brush( shapes : &[ Shape ] ) -> Brush
+fn layer_brush_scan( shapes : &[ Shape ] ) -> Brush
 {
   let mut brush = Brush::Fixed( velato::model::fixed::Brush::Solid( color::AlphaColor::from_rgba8( 0, 0, 0, 0 ) ) );
 
@@ -224,7 +224,7 @@ fn layer_to_primitives
 
   let mut layer_primitives = vec![];
 
-  let mut brush = scan_layer_brush( &shapes );
+  let mut brush = layer_brush_scan( &shapes );
 
   let mut stroke_width = 1.0;
 
@@ -298,7 +298,7 @@ fn layer_to_primitives
 }
 
 /// Collects primitives for every layer, including group sublayers appended during processing.
-fn collect_layer_primitives
+fn layer_primitives_collect
 (
   layers : &mut Vec< velato::model::Layer >
 ) -> ( Vec< Vec< ( PrimitiveData, Behavior ) > >, Vec< RepeaterAssignment > )
@@ -324,7 +324,7 @@ fn collect_layer_primitives
 }
 
 /// Applies collected repeater assignments onto their target primitives.
-fn apply_repeaters
+fn repeaters_apply
 (
   primitives : &mut [ Vec< ( PrimitiveData, Behavior ) > ],
   repeaters : Vec< RepeaterAssignment >
@@ -347,7 +347,7 @@ fn apply_repeaters
 }
 
 /// Assigns parent links and hierarchical names across all collected primitives.
-fn assign_parents
+fn parents_assign
 (
   layers : &[ velato::model::Layer ],
   primitives : &mut [ Vec< ( PrimitiveData, Behavior ) > ]
@@ -404,10 +404,10 @@ impl Animation
   {
     let composition : Composition = composition.into();
 
-    let mut layers = expand_instance_layers( &composition );
-    let ( mut primitives, repeaters ) = collect_layer_primitives( &mut layers );
-    apply_repeaters( &mut primitives, repeaters );
-    assign_parents( &layers, &mut primitives );
+    let mut layers = instance_layers_expand( &composition );
+    let ( mut primitives, repeaters ) = layer_primitives_collect( &mut layers );
+    repeaters_apply( &mut primitives, repeaters );
+    parents_assign( &layers, &mut primitives );
 
     let primitives_data = primitives.into_iter()
     .flatten()
@@ -437,7 +437,7 @@ impl Animation
   }
 
   /// Traverses and updates the scene's nodes based on the animation behaviors for a given frame.
-  fn update_scene( &self, scene : &mut Scene, frame : f64 )
+  fn scene_update( &self, scene : &mut Scene, frame : f64 )
   {
     let mut nodes_to_insert = vec![];
 
@@ -521,7 +521,7 @@ impl Animation
   }
 
   /// Filters and removes nodes from the scene that are outside of their active frame range for a given frame.
-  fn filter_nodes( &self, scene : &mut Scene, frame : f64 )
+  fn nodes_filter( &self, scene : &mut Scene, frame : f64 )
   {
     let mut nodes_to_remove = HashMap::new();
 
@@ -647,8 +647,8 @@ impl Animation
 
     let mut scene = scene.borrow().clone();
 
-    self.filter_nodes( &mut scene, frame );
-    self.update_scene( &mut scene, frame );
+    self.nodes_filter( &mut scene, frame );
+    self.scene_update( &mut scene, frame );
     let colors = self.colors_from_scene( &mut scene, frame );
 
     scene.update_world_matrix();
@@ -657,7 +657,7 @@ impl Animation
   }
 
   /// Sets the world matrix for all scenes within the GLTF data.
-  pub fn set_world_matrix( &self, world_matrix : F32x4x4 )
+  pub fn world_matrix_set( &self, world_matrix : F32x4x4 )
   {
     for scene in &self.gltf.scenes
     {
@@ -669,7 +669,7 @@ impl Animation
 }
 
 /// Asynchronously loads a Lottie animation file from a given path and constructs a new `Animation` object.
-pub async fn load_animation( gl : &GL, path : &str ) -> Animation
+pub async fn animation_load( gl : &GL, path : &str ) -> Animation
 {
   let lottie_json_bin = gl::file::load( path ).await.unwrap();
   let composition = Composition::from_slice( lottie_json_bin.as_slice() ).unwrap();

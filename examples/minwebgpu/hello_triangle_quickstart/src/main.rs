@@ -1,6 +1,6 @@
 //! The same triangle as `hello_triangle`, built with minwebgpu's quickstart
 //! helpers instead of the raw step-by-step setup: `context::setup` replaces
-//! the from_canvas/request_adapter/request_device/preferred_format/configure
+//! the from_canvas/adapter_request/device_request/preferred_format/configure
 //! sequence, and `render_pass::draw_to` replaces the command
 //! encoder/pass/submit ceremony. Every value the helpers hand back — device,
 //! queue, format, the render pass itself — is still the plain native
@@ -14,7 +14,7 @@
 use minwebgpu as gl;
 
 #[cfg(target_arch = "wasm32")]
-async fn run() -> Result< (), gl::WebGPUError >
+async fn app_run() -> Result< (), gl::WebGPUError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::retrieve_or_make()?;
@@ -52,7 +52,7 @@ async fn run() -> Result< (), gl::WebGPUError >
 #[cfg(target_arch = "wasm32")]
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }
 
 // Stub main for native targets

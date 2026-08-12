@@ -10,7 +10,7 @@ use gl::GL;
 fn main()
 {
   gl::browser::setup( gl::browser::Config::default() );
-  run();
+  app_run();
 }
 
 // screen width in pixels
@@ -37,7 +37,7 @@ const MAP : [ u8; MAP_SIDE * MAP_SIDE ] =
   1, 1, 1, 1, 1, 1, 1, 1,
 ];
 
-fn run()
+fn app_run()
 {
   let gl = gl::context::retrieve_or_make().unwrap();
   gl.clear_color( 0.3, 0.3, 0.3, 1. );
@@ -86,7 +86,7 @@ fn run()
     // if right - then clockwise
     // if none is pressed then rotation is 0
     angle += rotation_velocity * delta_time * controls.borrow().rotation_direction();
-    angle = wrap_angle( angle );
+    angle = angle_wrap( angle );
 
     // 1 is forward, -1 is backward
     let move_dir = controls.borrow().move_direction();
@@ -99,15 +99,15 @@ fn run()
       1.0 =>
       {
         // throw ray forward and check distance to an obstacle
-        let RayCollision { len, .. } = cast_ray( player_pos, angle );
+        let RayCollision { len, .. } = ray_cast( player_pos, angle );
         // if an obstacle it too close then the movement is 0
         if len > 0.1 { 1.0 } else { 0.0 }
       }
       -1.0 =>
       {
         // thow ray backward and check distance to an obstacle
-        let angle = wrap_angle( consts::PI + angle );
-        let RayCollision { len, .. } = cast_ray( player_pos, angle );
+        let angle = angle_wrap( consts::PI + angle );
+        let RayCollision { len, .. } = ray_cast( player_pos, angle );
         if len > 0.1 { -1.0 } else { 0.0 }
       }
       _ => 0.0
@@ -142,8 +142,8 @@ fn run()
       let ray_angle = ( i as f32 * step ).to_radians();
       // adjust ray angle to player angle and shift by half of the field of view
       let ray_angle = angle + ray_angle - ( fov / 2. ).to_radians();
-      let ray_angle = wrap_angle( ray_angle );
-      let RayCollision { pos, len } = cast_ray( player_pos, ray_angle );
+      let ray_angle = angle_wrap( ray_angle );
+      let RayCollision { pos, len } = ray_cast( player_pos, ray_angle );
 
       // adjust len to remove fish-eye effect
       let len = len * ( ray_angle - angle ).cos();
@@ -265,7 +265,7 @@ fn map_vao( gl : &GL ) -> gl::WebGlVertexArrayObject
 }
 
 // algorithm explanation - https://www.youtube.com/watch?v=NbSee-XM7WA&t=1574s&ab_channel=javidx9
-fn cast_ray( start : [ f32; 2 ], angle : f32 ) -> RayCollision
+fn ray_cast( start : [ f32; 2 ], angle : f32 ) -> RayCollision
 {
   let direction = direction( angle );
 
@@ -356,7 +356,7 @@ fn direction( angle : f32 ) -> [ f32; 2 ]
 }
 
 // wrap angle between 0 and 2PI
-fn wrap_angle( val : f32 ) -> f32
+fn angle_wrap( val : f32 ) -> f32
 {
   if val < 0.0
   {

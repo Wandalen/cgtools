@@ -147,8 +147,8 @@ mod private
     ) -> Result< ( Device, Queue, Surface ), Error >
     {
       let context = gl::context::from_canvas( canvas ).map_err( gl::WebGPUError::from )?;
-      let adapter = gl::context::request_adapter().await;
-      let device = gl::context::request_device( &adapter ).await;
+      let adapter = gl::context::adapter_request().await;
+      let device = gl::context::device_request( &adapter ).await;
       let queue = device.queue();
       let raw_format = gl::context::preferred_format();
       gl::context::configure( &device, &context, raw_format )?;
@@ -210,11 +210,11 @@ mod private
     pub fn new_native( width : u32, height : u32 ) -> Result< ( Device, Queue, Surface ), Error >
     {
       let context = minwgpu::context::Context::builder()
-      .make_instance()
-      .request_adapter()?
-      .finish_context()?;
-      let device = context.get_device().clone();
-      let queue = context.get_queue().clone();
+      .instance_make()
+      .adapter_request()?
+      .context_finish()?;
+      let device = context.device_get().clone();
+      let queue = context.queue_get().clone();
       let format = TextureFormat::Rgba8Unorm;
       let texture = device.create_texture( &wgpu::TextureDescriptor
       {
@@ -903,7 +903,7 @@ mod private
         #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
         Self::WebGpu( queue ) =>
         {
-          gl::queue::write_buffer( queue, buffer.expect_webgpu(), data )?;
+          gl::queue::buffer_write( queue, buffer.expect_webgpu(), data )?;
           Ok( () )
         }
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
@@ -955,7 +955,7 @@ mod private
           size.set_height( height );
           size.set_depth_or_array_layers( depth_or_array_layers );
 
-          gl::queue::write_texture
+          gl::queue::texture_write
           (
             queue,
             &web_sys::GpuTexelCopyTextureInfo::new( raw ),

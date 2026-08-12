@@ -182,7 +182,7 @@ Self : RawSlice< Scalar = E >
     ];
 
     let mut mat3 = Mat::< 3, 3, E, Descriptor >::default();
-    mat3.raw_set_slice( &trunc_slice );
+    mat3.raw_slice_set( &trunc_slice );
     mat3
   }
 }

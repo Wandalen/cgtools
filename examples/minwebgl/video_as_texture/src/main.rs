@@ -4,10 +4,10 @@ use minwebgl as gl;
 
 fn main()
 {
-  run().unwrap();
+  app_run().unwrap();
 }
 
-fn run() -> Result< (), gl::WebglError >
+fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
@@ -21,7 +21,7 @@ fn run() -> Result< (), gl::WebglError >
   let video_width = 640;
   let video_height = 480;
 
-  let video_element = gl::dom::create_video_element( path, video_width, video_height )
+  let video_element = gl::dom::video_element_create( path, video_width, video_height )
   .expect( "Failed to create video element" );
   let texture = gl.create_texture().expect( "Failed to create texture" );
   gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
@@ -33,7 +33,7 @@ fn run() -> Result< (), gl::WebglError >
     {
       gl.clear_color( 0.8, 0.8, 0.8, 1.0 );
       gl.clear( gl::COLOR_BUFFER_BIT );
-      gl::texture::d2::update_video( &gl, &texture, &video_element );
+      gl::texture::d2::video_update( &gl, &texture, &video_element );
 
       gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
 

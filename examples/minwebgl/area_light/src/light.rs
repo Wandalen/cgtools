@@ -10,7 +10,7 @@ pub struct RectangularLight
 
 impl RectangularLight
 {
-  pub fn apply_transform( &mut self, t : &gl::F32x4x4 )
+  pub fn transform_apply( &mut self, t : &gl::F32x4x4 )
   {
     self.vertices =
     [

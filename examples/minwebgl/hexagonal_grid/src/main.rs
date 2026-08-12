@@ -22,7 +22,7 @@ use std::{ cell::RefCell, collections::HashMap, rc::Rc };
 
 fn main() -> Result< (), min::WebglError >
 {
-  draw_hexes()
+  hexes_draw()
 }
 
 /// GPU resources shared by every demo render function: the drawing context, the shared
@@ -36,17 +36,17 @@ struct DemoRenderer< 'a >
   hexagon_geometry : &'a min::geometry::Positions,
 }
 
-fn draw_hexes() -> Result< (), minwebgl::WebglError >
+fn hexes_draw() -> Result< (), minwebgl::WebglError >
 {
-  let ( context, canvas, canvas_size ) = setup_context_and_canvas()?;
+  let ( context, canvas, canvas_size ) = context_and_canvas_setup()?;
   let mut input = Input::new( Some( canvas.clone().dyn_into().unwrap() ), browser_input::CLIENT ).expect( "Failed to initialize input" );
 
-  let ( grid, grid_center, aspect_scale, grid_mesh ) = build_grid( canvas_size );
-  let ( hex_shader, grid_geometry, outline_geometry, hexagon_geometry ) = create_geometries( &context, &grid_mesh )?;
+  let ( grid, grid_center, aspect_scale, grid_mesh ) = grid_build( canvas_size );
+  let ( hex_shader, grid_geometry, outline_geometry, hexagon_geometry ) = geometries_create( &context, &grid_mesh )?;
 
   // used to swith between demos
   let demo_number = Rc::new( RefCell::new( 0 ) );
-  let color_picker = setup_ui( &context, &demo_number );
+  let color_picker = ui_setup( &context, &demo_number );
 
   // for pathfind demo
   let mut start = Coordinate::< Axial, Pointy >::new( 2, 4 );
@@ -64,7 +64,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   let draw = move | _ |
   {
-    input.update_state();
+    input.state_update();
 
     let selected_hex_coord = pointer_to_hex( &canvas, canvas_size, aspect_scale, grid_center, &input );
     let renderer = DemoRenderer
@@ -83,7 +83,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       _ => painting_demo( &renderer, &canvas, canvas_size, &input, aspect_scale, &mut painting_canvas, &color_picker ),
     }
 
-    input.clear_events();
+    input.events_clear();
 
     true
   };
@@ -94,12 +94,12 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 }
 
 // creates the webgl context, the canvas handle, and the dpr-corrected canvas size
-fn setup_context_and_canvas() -> Result< ( GL, HtmlCanvasElement, F32x2 ), min::WebglError >
+fn context_and_canvas_setup() -> Result< ( GL, HtmlCanvasElement, F32x2 ), min::WebglError >
 {
   min::browser::setup( min::browser::Config::default() );
   let o = min::context::ContextOptions::default()
-  .remove_dpr_scaling( true )
-  .preserve_drawing_buffer( true );
+  .dpr_scaling_remove( true )
+  .drawing_buffer_preserve( true );
   let context = min::context::retrieve_or_make_with( o )?;
   let canvas = context.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
   // used to scale canvas true size to css size
@@ -110,7 +110,7 @@ fn setup_context_and_canvas() -> Result< ( GL, HtmlCanvasElement, F32x2 ), min::
 }
 
 // builds the rectangular hex grid, its pixel-space center, the aspect-corrected scale, and its mesh
-fn build_grid( canvas_size : F32x2 ) -> ( RectangularGrid< Odd, Pointy >, Pixel, F32x2, Vec< f32 > )
+fn grid_build( canvas_size : F32x2 ) -> ( RectangularGrid< Odd, Pointy >, Pixel, F32x2, Vec< f32 > )
 {
   // inclusize grid bounds
   let region =
@@ -141,7 +141,7 @@ fn build_grid( canvas_size : F32x2 ) -> ( RectangularGrid< Odd, Pointy >, Pixel,
 }
 
 // compiles the shared hexagon shader and the grid/outline/hexagon vertex geometries
-fn create_geometries
+fn geometries_create
 (
   context : &GL,
   grid_mesh : &[ f32 ],
@@ -160,7 +160,7 @@ fn create_geometries
 }
 
 // wires up the demo-switcher buttons and returns the color picker used by the painting demo
-fn setup_ui( context : &GL, demo_number : &Rc< RefCell< i32 > > ) -> HtmlInputElement
+fn ui_setup( context : &GL, demo_number : &Rc< RefCell< i32 > > ) -> HtmlInputElement
 {
   let document = web_sys::window().unwrap().document().unwrap();
 

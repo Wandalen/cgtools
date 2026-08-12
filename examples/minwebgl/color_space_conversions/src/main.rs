@@ -40,14 +40,14 @@ impl RectInfo
       Self
       {
         name : name.to_string(),
-        color_element : get_element( document, &format!( "{name}-rectangle" ) )?,
-        color_coord_label : get_element( document, &format!( "{name}-value" ) )?
+        color_element : element_get( document, &format!( "{name}-rectangle" ) )?,
+        color_coord_label : element_get( document, &format!( "{name}-value" ) )?
       }
     )
   }
 }
 
-fn get_input_element( document: &web_sys::Document, id: &str ) -> Result< HtmlInputElement, gl::WebglError >
+fn input_element_get( document: &web_sys::Document, id: &str ) -> Result< HtmlInputElement, gl::WebglError >
 {
   document.get_element_by_id( id )
   .ok_or
@@ -61,7 +61,7 @@ fn get_input_element( document: &web_sys::Document, id: &str ) -> Result< HtmlIn
   )
 }
 
-fn get_element( document: &web_sys::Document, id: &str ) -> Result< HtmlElement, gl::WebglError >
+fn element_get( document: &web_sys::Document, id: &str ) -> Result< HtmlElement, gl::WebglError >
 {
   document.get_element_by_id( id )
   .ok_or
@@ -78,12 +78,12 @@ fn get_element( document: &web_sys::Document, id: &str ) -> Result< HtmlElement,
 // 185 lines : one linear event-handler setup ending in a flat match over 14 color-space
 // conversion arms; splitting the match would only relocate the repetition, not reduce it.
 #[ allow( clippy::too_many_lines, reason = "one linear event-handler setup ending in a flat match over 14 color-space conversion arms; splitting the match would only relocate the repetition, not reduce it" ) ]
-fn run() -> Result< (), gl::WebglError >
+fn app_run() -> Result< (), gl::WebglError >
 {
   let window = gl::web_sys::window().expect( "no global `window` exists" );
   let document = window.document().expect( "should have a document on window" );
 
-  let srgb_color_picker = get_input_element( &document, "srgb-color-picker" )?;
+  let srgb_color_picker = input_element_get( &document, "srgb-color-picker" )?;
 
   let mut rectangle_elements = vec![];
 
@@ -109,7 +109,7 @@ fn run() -> Result< (), gl::WebglError >
     rectangle_elements.push( RectInfo::new( &document, name )? );
   }
 
-  let srgb_element = get_element( &document, "srgb-value" )?;
+  let srgb_element = element_get( &document, "srgb-value" )?;
 
   let set_color = | rect_elem : &HtmlElement, css_color : &str |
   {
@@ -269,5 +269,5 @@ fn run() -> Result< (), gl::WebglError >
 fn main()
 {
   gl::browser::setup( gl::browser::Config::default() );
-  gl::spawn_local( async move { run().unwrap() } );
+  gl::spawn_local( async move { app_run().unwrap() } );
 }

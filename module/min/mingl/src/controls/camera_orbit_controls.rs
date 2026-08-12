@@ -249,7 +249,7 @@ mod private
 
     /// Updates the camera's knowledge of the window or viewport size.
     #[ inline ]
-    pub fn set_size( &mut self, size : [ f32; 2 ] )
+    pub fn size_set( &mut self, size : [ f32; 2 ] )
     {
       self.window_size = F32x2::from( size );
     }
@@ -289,11 +289,11 @@ mod private
       else
       {
         self.rotation.current_rotation_angle = screen_d;
-        self.apply_rotation();
+        self.rotation_apply();
       }
     }
 
-    fn apply_rotation( &mut self )
+    fn rotation_apply( &mut self )
     {
       let dir = ( self.eye - self.center ).normalize();
       let x = dir.cross( self.up ).normalize();
@@ -494,7 +494,7 @@ mod private
       if self.rotation.movement_smoothing_enabled
       {
         self.rotation.current_rotation_angle = self.rotation.current_angular_speed * delta_time / 1000.0;
-        self.apply_rotation();
+        self.rotation_apply();
         self.rotation.current_angular_speed *= 1.0 - decay_percentage;
       }
     }
@@ -560,7 +560,7 @@ mod private
   /// and selects the resulting camera interaction state.
   #[ cfg( feature = "web" ) ]
   #[ inline ]
-  fn make_pointer_down_closure
+  fn pointer_down_closure_make
   (
     canvas : &web_sys::HtmlCanvasElement,
     state : &Rc< RefCell< CameraState > >,
@@ -609,7 +609,7 @@ mod private
   /// camera depending on the current interaction state.
   #[ cfg( feature = "web" ) ]
   #[ inline ]
-  fn make_pointer_move_closure
+  fn pointer_move_closure_make
   (
     camera : &Rc< RefCell< CameraOrbitControls > >,
     state : &Rc< RefCell< CameraState > >,
@@ -690,7 +690,7 @@ mod private
   /// Creates the `wheel` closure that zooms the camera when no pointer gesture is active.
   #[ cfg( feature = "web" ) ]
   #[ inline ]
-  fn make_wheel_closure
+  fn wheel_closure_make
   (
     camera : &Rc< RefCell< CameraOrbitControls > >,
     state : &Rc< RefCell< CameraState > >
@@ -716,7 +716,7 @@ mod private
   /// which all remove the pointer and transition state identically.
   #[ cfg( feature = "web" ) ]
   #[ inline ]
-  fn make_pointer_release_closure
+  fn pointer_release_closure_make
   (
     state : &Rc< RefCell< CameraState > >,
     prev_screen_pos : &Rc< RefCell< [ f32; 2 ] > >,
@@ -754,7 +754,7 @@ mod private
   /// Creates the `contextmenu` closure that suppresses the browser's context menu.
   #[ cfg( feature = "web" ) ]
   #[ inline ]
-  fn make_context_menu_closure() -> Closure< dyn Fn( web_sys::PointerEvent ) >
+  fn context_menu_closure_make() -> Closure< dyn Fn( web_sys::PointerEvent ) >
   {
     Closure::new
     (
@@ -785,7 +785,7 @@ mod private
   ///   instance that will be manipulated by the user input.
   #[ cfg( feature = "web" ) ]
   #[ inline ]
-  pub fn bind_controls_to_input
+  pub fn controls_bind_to_input
   (
     canvas : &web_sys::HtmlCanvasElement,
     camera : &Rc< RefCell< CameraOrbitControls > >
@@ -800,11 +800,11 @@ mod private
     // Prevent the browser from handling touch gestures (pinch-to-zoom, scroll) on the canvas.
     let _ = canvas.style().set_property( "touch-action", "none" );
 
-    let on_pointer_down = make_pointer_down_closure( canvas, &state, &prev_screen_pos, &active_pointers );
-    let on_pointer_move = make_pointer_move_closure( camera, &state, &prev_screen_pos, &active_pointers );
-    let on_wheel = make_wheel_closure( camera, &state );
-    let on_pointer_release = make_pointer_release_closure( &state, &prev_screen_pos, &active_pointers );
-    let on_context_menu = make_context_menu_closure();
+    let on_pointer_down = pointer_down_closure_make( canvas, &state, &prev_screen_pos, &active_pointers );
+    let on_pointer_move = pointer_move_closure_make( camera, &state, &prev_screen_pos, &active_pointers );
+    let on_wheel = wheel_closure_make( camera, &state );
+    let on_pointer_release = pointer_release_closure_make( &state, &prev_screen_pos, &active_pointers );
+    let on_context_menu = context_menu_closure_make();
 
     canvas.set_oncontextmenu( Some( on_context_menu.as_ref().unchecked_ref() ) );
     on_context_menu.forget();
@@ -832,7 +832,7 @@ crate::mod_interface!
   #[ cfg( feature = "web" ) ]
   own use
   {
-    bind_controls_to_input
+    controls_bind_to_input
   };
 
   /// Exposes the `CameraOrbitControls` struct for public use.

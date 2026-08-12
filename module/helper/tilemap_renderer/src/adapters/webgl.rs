@@ -830,7 +830,7 @@ mod private
             let mime = crate::assets::detect_image_mime( bytes );
             let parts = gl::js_sys::Array::new();
             parts.push( &gl::js_sys::Uint8Array::from( bytes.as_slice() ) );
-            let url = match gl::blob::create_blob( parts, mime )
+            let url = match gl::blob::blob_create( parts, mime )
             {
               Ok( url ) => url,
               Err( err ) =>
@@ -1366,7 +1366,7 @@ mod private
     Ok( tex )
   }
 
-  /// Like `gl::texture::d2::upload_image_from_path`, but updates
+  /// Like `gl::texture::d2::image_upload_from_path`, but updates
   /// `GpuTexture.width` / `height` cells once the image loads.
   #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct texture-loading input (source, id, resource table, and independent sampler settings); grouping into a struct would add indirection for this single-call-site private helper" ) ]
   fn upload_image_from_path
@@ -1409,7 +1409,7 @@ mod private
       move ||
       {
         // `revoke_object_url` is only meaningful for `blob:` URLs created by
-        // `minwebgl::create_blob` (`ImageSource::Encoded`); a real
+        // `minwebgl::blob_create` (`ImageSource::Encoded`); a real
         // `ImageSource::Path` string passed through this same shared closure
         // must never be revoked. Done unconditionally, before the staleness
         // check below: the browser has already decoded the image into `img`

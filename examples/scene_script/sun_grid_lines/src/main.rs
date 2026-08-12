@@ -9,7 +9,7 @@
 //! This example only works on WebAssembly (wasm32) targets where WebGPU
 //! APIs are available.
 
-// Only the wasm32 path (`run()`) consumes the scene module here; the native
+// Only the wasm32 path (`app_run()`) consumes the scene module here; the native
 // path below is a stub, and the scene tests live in `tests/scene_test.rs`
 // against the library target.
 #[cfg( target_arch = "wasm32" )]
@@ -113,7 +113,7 @@ where
 
 /// Builds the static-styling portion of `UniformsRaw` from a loaded scene —
 /// `time`/`seed`/`node_count`/`grid_density` are left zeroed, overwritten
-/// every frame by `run()`'s animation loop via struct-update syntax.
+/// every frame by `app_run()`'s animation loop via struct-update syntax.
 #[cfg( target_arch = "wasm32" )]
 fn base_uniforms_from_scene( scene : &scene::SceneConfig ) -> UniformsRaw
 {
@@ -158,7 +158,7 @@ fn base_uniforms_from_scene( scene : &scene::SceneConfig ) -> UniformsRaw
 }
 
 #[cfg( target_arch = "wasm32" )]
-async fn run() -> Result< (), gl::WebGPUError >
+async fn app_run() -> Result< (), gl::WebGPUError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::retrieve_or_make()?;
@@ -166,8 +166,8 @@ async fn run() -> Result< (), gl::WebGPUError >
   canvas.set_height( SIZE );
 
   let context = gl::context::from_canvas( &canvas )?;
-  let adapter = gl::context::request_adapter().await;
-  let device = gl::context::request_device( &adapter ).await;
+  let adapter = gl::context::adapter_request().await;
+  let device = gl::context::device_request( &adapter ).await;
   let queue = device.queue();
   let presentation_format = gl::context::preferred_format();
   gl::context::configure( &device, &context, presentation_format )?;
@@ -236,7 +236,7 @@ async fn run() -> Result< (), gl::WebGPUError >
     };
 
     let raw = UniformsRaw { time, seed, node_count, grid_density, ..base_uniforms };
-    gl::queue::write_buffer( &queue, &uniform_buffer, &[ raw ] ).unwrap();
+    gl::queue::buffer_write( &queue, &uniform_buffer, &[ raw ] ).unwrap();
 
     let canvas_texture = gl::context::current_texture( &context ).unwrap();
     let canvas_view = gl::texture::view( &canvas_texture ).unwrap();
@@ -267,7 +267,7 @@ async fn run() -> Result< (), gl::WebGPUError >
 #[cfg( target_arch = "wasm32" )]
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }
 
 // Stub main for native targets

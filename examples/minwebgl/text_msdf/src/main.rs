@@ -7,7 +7,7 @@ use minwebgl::{ self as gl, wasm_bindgen::prelude::Closure, JsCast };
 mod text;
 mod json;
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
 
@@ -28,7 +28,7 @@ async fn run() -> Result< (), gl::WebglError >
   let font_str = String::from_utf8( gl::file::load( "static/font/Alike-Regular.json" ).await.unwrap() ).unwrap();
   //let font_str = include_str!( "../assets/font/Alike-Regular.json" );
   // Parse font from the provided file
-  let font = json::MSDFFontJSON::parse_font( &font_str );
+  let font = json::MSDFFontJSON::font_parse( &font_str );
   // Create render data from the text based on the font
   let fortmatted_text = font.format( text );
   let buffer = gl::buffer::create( &gl )?;
@@ -89,7 +89,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl::uniform::upload( &gl, tex_size_location, &font.scale[ .. ] )?;
   gl::uniform::upload( &gl, bounding_box_location, &fortmatted_text.bounding_box.to_array()[ .. ] )?;
 
-  load_font_texture( &gl );
+  font_texture_load( &gl );
 
   gl.enable( gl::DEPTH_TEST );
   gl.enable( gl::BLEND );
@@ -128,9 +128,9 @@ async fn run() -> Result< (), gl::WebglError >
 }
 
 /// Loads the MSDF font atlas image and uploads it into a texture once the image is ready.
-fn load_font_texture( gl : &gl::WebGl2RenderingContext )
+fn font_texture_load( gl : &gl::WebGl2RenderingContext )
 {
-  let img = gl::dom::create_image_element( "static/font/Alike-Regular.png" ).unwrap();
+  let img = gl::dom::image_element_create( "static/font/Alike-Regular.png" ).unwrap();
   img.style().set_property( "display", "none" ).unwrap();
 
   let texture = gl.create_texture();
@@ -155,5 +155,5 @@ fn load_font_texture( gl : &gl::WebGl2RenderingContext )
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

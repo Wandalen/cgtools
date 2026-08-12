@@ -1,17 +1,17 @@
-//! Verifies `geometry`'s atom-count validation ( `minwebgl::geometry::validate_natoms` ) —
+//! Verifies `geometry`'s atom-count validation ( `minwebgl::geometry::natoms_validate` ) —
 //! the BUG-052 fix extracted the check into a testable function returning `Result` so an
 //! unsupported `natoms` surfaces as a recoverable error instead of a panic. Relocated from
 //! inline `src/geometry.rs` per the all-tests-in-tests/ convention; the helper is exported
 //! at the `geometry` module path for exactly this purpose.
 
-use minwebgl::{ geometry::validate_natoms, WebglError };
+use minwebgl::{ geometry::natoms_validate, WebglError };
 
 #[ test ]
 fn validate_natoms_accepts_supported_values()
 {
   for natoms in 1 ..= 4
   {
-    assert!( validate_natoms( natoms ).is_ok(), "natoms {natoms} must be supported" );
+    assert!( natoms_validate( natoms ).is_ok(), "natoms {natoms} must be supported" );
   }
 }
 
@@ -27,7 +27,7 @@ fn validate_natoms_rejects_unsupported_value()
 {
   for natoms in [ 0, 5, -1 ]
   {
-    let result = validate_natoms( natoms );
+    let result = natoms_validate( natoms );
     assert!
     (
       matches!( result, Err( WebglError::NotSupportedForType( _ ) ) ),

@@ -61,7 +61,7 @@ fn passes_origin_absolute_path_through()
 fn empty_folder_yields_origin_absolute_uri()
 {
   // Documents the benign empty-folder behavior: origin-absolute and
-  // origin-relative forms collapse to the same URL once `resolve_url`
+  // origin-relative forms collapse to the same URL once `url_resolve`
   // joins them against the window origin.
   assert_eq!
   (

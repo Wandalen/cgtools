@@ -39,7 +39,7 @@ mod private
   }
 
   #[ inline ]
-  fn rem_vector< E, const LEN : usize >( a : &Vector< E, LEN >, b : &Vector< E, LEN > ) -> Vector< E, LEN >
+  fn vector_rem< E, const LEN : usize >( a : &Vector< E, LEN >, b : &Vector< E, LEN > ) -> Vector< E, LEN >
   where
     E : MatNum,
   {
@@ -52,7 +52,7 @@ mod private
   }
 
   #[ inline ]
-  fn rem_scalar< E, const LEN : usize >( a : &Vector< E, LEN >, scalar : E ) -> Vector< E, LEN >
+  fn scalar_rem< E, const LEN : usize >( a : &Vector< E, LEN >, scalar : E ) -> Vector< E, LEN >
   where
     E : MatNum,
   {
@@ -78,7 +78,7 @@ mod private
     #[ inline ]
     fn rem( self, rhs : Self ) -> Self::Output
     {
-      rem_vector( &self, &rhs )
+      vector_rem( &self, &rhs )
     }
   }
 
@@ -95,7 +95,7 @@ mod private
     #[ inline ]
     fn rem( self, rhs : Self ) -> Self::Output
     {
-      rem_vector( self, rhs )
+      vector_rem( self, rhs )
     }
   }
 
@@ -112,7 +112,7 @@ mod private
     #[ inline ]
     fn rem( self, scalar : E ) -> Self::Output
     {
-      rem_scalar( &self, scalar )
+      scalar_rem( &self, scalar )
     }
   }
 
@@ -128,7 +128,7 @@ mod private
     #[ inline ]
     fn rem( self, scalar : E ) -> Self::Output
     {
-      rem_scalar( self, scalar )
+      scalar_rem( self, scalar )
     }
   }
 

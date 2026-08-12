@@ -450,7 +450,7 @@ mod private
     pub fn compute_bounding_box( &mut self )
     {
       if let Object3D::Mesh( ref mesh ) = self.object {
-        self.bounding_box = mesh.borrow().bounding_box().apply_transform( self.world_matrix );
+        self.bounding_box = mesh.borrow().bounding_box().transform_apply( self.world_matrix );
       }
     }
 
@@ -459,7 +459,7 @@ mod private
     {
       if let Object3D::Mesh( ref mesh ) = self.object
       {
-        self.local_bounding_box = mesh.borrow().bounding_box().apply_transform( self.matrix );
+        self.local_bounding_box = mesh.borrow().bounding_box().transform_apply( self.matrix );
       }
     }
 
@@ -525,8 +525,8 @@ mod private
     {
       let mut bbox = self.bounding_box_hierarchical();
 
-      bbox.apply_transform_mut( self.get_world_matrix().inverse().unwrap() );
-      bbox.apply_transform_mut( self.get_local_matrix() );
+      bbox.transform_apply_mut( self.get_world_matrix().inverse().unwrap() );
+      bbox.transform_apply_mut( self.get_local_matrix() );
 
       bbox
     }

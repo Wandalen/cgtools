@@ -25,7 +25,7 @@ use renderer::webgl::
 mod lil_gui;
 mod gui_setup;
 
-fn write_tree( node : &Rc< RefCell< Node > >, depth : usize, output : &mut String )
+fn tree_write( node : &Rc< RefCell< Node > >, depth : usize, output : &mut String )
 {
   let name = node
   .borrow()
@@ -37,28 +37,28 @@ fn write_tree( node : &Rc< RefCell< Node > >, depth : usize, output : &mut Strin
 
   for child in node.borrow().get_children()
   {
-    write_tree( child, depth + 1, output );
+    tree_write( child, depth + 1, output );
   }
 }
 
-fn print_tree( node : &Rc< RefCell< Node > > )
+fn tree_print( node : &Rc< RefCell< Node > > )
 {
   let mut tree_str = String::new();
-  write_tree( node, 1, &mut tree_str );
+  tree_write( node, 1, &mut tree_str );
   gl::info!( "{tree_str}" );
 }
 
 /// Splits root sub [`Node`]s names into named subtrees
 /// Not mentioned nodes from root subnodes in parts
 /// argument list will be added as separated node names group
-fn split_node_names_into_parts
+fn node_names_split_into_parts
 (
   root : &Rc< RefCell< Node > >,
   part_names : &[ &str ]
 )
 -> HashMap< Box< str >, Vec< Box< str > > >
 {
-  fn collect_names( node : &Rc< RefCell< Node > >, out : &mut Vec< Box< str > > )
+  fn names_collect( node : &Rc< RefCell< Node > >, out : &mut Vec< Box< str > > )
   {
     let Some( name ) = node.borrow().get_name()
     else
@@ -69,7 +69,7 @@ fn split_node_names_into_parts
     out.push( name );
     for child in node.borrow().get_children()
     {
-      collect_names( child, out );
+      names_collect( child, out );
     }
   }
 
@@ -111,7 +111,7 @@ fn split_node_names_into_parts
       let mut part = vec![];
       if part_names.contains( &name )
       {
-        collect_names( &node, &mut part );
+        names_collect( &node, &mut part );
       }
       else
       {
@@ -135,7 +135,7 @@ fn split_node_names_into_parts
 }
 
 /// Creates the orbit camera framed on the scene's bounding box and binds its controls.
-fn setup_camera( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : &mingl::geometry::BoundingBox, width : f32, height : f32 ) -> Camera
+fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : &mingl::geometry::BoundingBox, width : f32, height : f32 ) -> Camera
 {
   gl::info!( "Scene boudnig box: {scene_bounding_box:?}" );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
@@ -168,7 +168,7 @@ fn setup_camera( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : 
 }
 
 /// Groups the skeleton's node names into named body-part lists for the scaler.
-fn assemble_parts( root : &Rc< RefCell< Node > > ) -> HashMap< Box< str >, Vec< Box< str > > >
+fn parts_assemble( root : &Rc< RefCell< Node > > ) -> HashMap< Box< str >, Vec< Box< str > > >
 {
   let parts = vec!
   [
@@ -179,7 +179,7 @@ fn assemble_parts( root : &Rc< RefCell< Node > > ) -> HashMap< Box< str >, Vec< 
     "mixamorig:LeftUpLeg"
   ];
 
-  let mut parts = split_node_names_into_parts( root, &parts );
+  let mut parts = node_names_split_into_parts( root, &parts );
 
   let mut hands = parts.remove( "mixamorig:RightShoulder" ).unwrap();
   hands.extend( parts.remove( "mixamorig:LeftShoulder" ).unwrap() );
@@ -207,7 +207,7 @@ fn assemble_parts( root : &Rc< RefCell< Node > > ) -> HashMap< Box< str >, Vec< 
   parts
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
@@ -229,7 +229,7 @@ async fn run() -> Result< (), gl::WebglError >
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  let camera = setup_camera( &canvas, &scene_bounding_box, width, height );
+  let camera = camera_setup( &canvas, &scene_bounding_box, width, height );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
@@ -247,8 +247,8 @@ async fn run() -> Result< (), gl::WebglError >
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
   let scaler = gui_setup::setup( gltf.animations.clone() );
-  print_tree( &scenes[ 0 ].borrow().children[ 0 ] );
-  let parts = assemble_parts( &scenes[ 0 ].borrow().children[ 0 ] );
+  tree_print( &scenes[ 0 ].borrow().children[ 0 ] );
+  let parts = parts_assemble( &scenes[ 0 ].borrow().children[ 0 ] );
 
   if let Some( scaler ) = scaler.borrow_mut().as_mut()
   {
@@ -312,5 +312,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

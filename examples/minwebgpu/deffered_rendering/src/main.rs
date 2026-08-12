@@ -24,7 +24,7 @@ mod light;
 mod model;
 
 #[cfg(target_arch = "wasm32")]
-fn create_textures
+fn textures_create
 (
   device : &gl::web_sys::GpuDevice,
   size : [ u32; 3 ]
@@ -56,14 +56,14 @@ fn create_textures
 /// Creates the gbuffer color textures and the depth texture, returning a view
 /// for each : `[ position, albedo, normal, depth ]`.
 #[cfg(target_arch = "wasm32")]
-fn create_texture_views
+fn texture_views_create
 (
   device : &gl::web_sys::GpuDevice,
   size : [ u32; 3 ]
 )
 -> Result< [ gl::web_sys::GpuTextureView; 4 ], gl::WebGPUError >
 {
-  let [ pos_tex, albedo_tex, normal_tex ] = create_textures( device, size )?;
+  let [ pos_tex, albedo_tex, normal_tex ] = textures_create( device, size )?;
   let depth_texture = gl::texture::create
   (
     device,
@@ -88,7 +88,7 @@ fn create_texture_views
 /// Creates the shared uniform bind group layout ( frame uniforms + light storage )
 /// together with its bind group.
 #[cfg(target_arch = "wasm32")]
-fn create_uniform_bind_group
+fn uniform_bind_group_create
 (
   device : &gl::web_sys::GpuDevice,
   uniform_buffer : &gl::web_sys::GpuBuffer,
@@ -128,7 +128,7 @@ fn create_uniform_bind_group
 /// Creates the gbuffer bind group layout and the two pipelines that fill the
 /// gbuffer : the instanced model pipeline and the ground plane pipeline.
 #[cfg(target_arch = "wasm32")]
-fn create_gbuffer_pipelines
+fn gbuffer_pipelines_create
 (
   device : &gl::web_sys::GpuDevice,
   gbuffer_shader : &gl::web_sys::GpuShaderModule,
@@ -146,7 +146,7 @@ fn create_gbuffer_pipelines
     device,
     // Sets the visibility `FRAGMENT` to all entries
     // And auto computes binding value for each entry
-    // Fix(BUG-051): see the identical note above `create_uniform_bind_group` — each
+    // Fix(BUG-051): see the identical note above `uniform_bind_group_create` — each
     // `.entry_from_ty(..)` in this chain now returns `Result<Self, WebGPUError>`.
     &gl::layout::bind_group::desc()
     .fragment()
@@ -206,7 +206,7 @@ fn create_gbuffer_pipelines
 
 /// Binds the gbuffer texture views and the depth view for the lighting pass.
 #[cfg(target_arch = "wasm32")]
-fn create_gbuffer_bind_group
+fn gbuffer_bind_group_create
 (
   device : &gl::web_sys::GpuDevice,
   layout : &gl::web_sys::GpuBindGroupLayout,
@@ -232,7 +232,7 @@ fn create_gbuffer_bind_group
 
 /// Creates the fullscreen lighting pipeline that composes the gbuffer onto the canvas.
 #[cfg(target_arch = "wasm32")]
-fn create_lighting_pipeline
+fn lighting_pipeline_create
 (
   device : &gl::web_sys::GpuDevice,
   render_shader : &gl::web_sys::GpuShaderModule,
@@ -267,7 +267,7 @@ fn create_lighting_pipeline
 /// Creates the light-update compute pipeline and the bind groups for the
 /// light update and light visualization passes.
 #[cfg(target_arch = "wasm32")]
-fn create_light_bindings
+fn light_bindings_create
 (
   device : &gl::web_sys::GpuDevice,
   light_update_shader : &gl::web_sys::GpuShaderModule,
@@ -311,7 +311,7 @@ fn create_light_bindings
 /// Records the gbuffer pass : draws the instanced models and the ground plane
 /// into the albedo, position, and normal attachments.
 #[cfg(target_arch = "wasm32")]
-fn record_gbuffer_pass
+fn gbuffer_pass_record
 (
   encoder : &gl::web_sys::GpuCommandEncoder,
   color_views : [ &gl::web_sys::GpuTextureView; 3 ],
@@ -350,7 +350,7 @@ fn record_gbuffer_pass
 
 /// Records the fullscreen lighting pass composing the gbuffer onto the canvas.
 #[cfg(target_arch = "wasm32")]
-fn record_lighting_pass
+fn lighting_pass_record
 (
   encoder : &gl::web_sys::GpuCommandEncoder,
   canvas_view : &gl::web_sys::GpuTextureView,
@@ -379,7 +379,7 @@ fn record_lighting_pass
 /// Records the light visualization pass drawing every light source on top of
 /// the lit scene, reusing the gbuffer depth.
 #[cfg(target_arch = "wasm32")]
-fn record_light_vis_pass
+fn light_vis_pass_record
 (
   encoder : &gl::web_sys::GpuCommandEncoder,
   canvas_view : &gl::web_sys::GpuTextureView,
@@ -414,7 +414,7 @@ fn record_light_vis_pass
 
 /// Records the compute pass advancing every light's position.
 #[cfg(target_arch = "wasm32")]
-fn record_light_update_pass
+fn light_update_pass_record
 (
   encoder : &gl::web_sys::GpuCommandEncoder,
   compute_pipeline : &gl::web_sys::GpuComputePipeline,
@@ -430,14 +430,14 @@ fn record_light_update_pass
 }
 
 #[cfg(target_arch = "wasm32")]
-async fn run() -> Result< (), gl::WebGPUError >
+async fn app_run() -> Result< (), gl::WebGPUError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::retrieve_or_make()?;
   //let canvas = gl::canvas::make()?;
   let context = gl::context::from_canvas( &canvas )?;
-  let adapter = gl::context::request_adapter().await;
-  let device = gl::context::request_device( &adapter ).await;
+  let adapter = gl::context::adapter_request().await;
+  let device = gl::context::device_request( &adapter ).await;
   let queue = device.queue();
 
   let presentation_format = gl::context::preferred_format();
@@ -451,7 +451,7 @@ async fn run() -> Result< (), gl::WebGPUError >
   let gbuffer_shader = gl::ShaderModule::new( include_str!( "../shaders/gbuffer.wgsl" ) ).create( &device );
   let render_shader = gl::ShaderModule::new( include_str!( "../shaders/render.wgsl" ) ).create( &device );
 
-  let [ pos_view, albedo_view, normal_view, depth_view ] = create_texture_views( &device, [ width, height, 1 ] )?;
+  let [ pos_view, albedo_view, normal_view, depth_view ] = texture_views_create( &device, [ width, height, 1 ] )?;
 
   // Create needed state
   let model_state = ModelState::new( &device ).await?;
@@ -460,19 +460,19 @@ async fn run() -> Result< (), gl::WebGPUError >
   let light_vis_state = LightVisualizationState::new( &device, presentation_format )?;
 
   let ( uniform_bind_group_layout, uniform_bind_group ) =
-  create_uniform_bind_group( &device, &uniform_state.buffer, &light_state.buffer )?;
+  uniform_bind_group_create( &device, &uniform_state.buffer, &light_state.buffer )?;
 
   let ( gbuffer_bind_group_layout, gbuffer_render_pipeline, big_plane_render_pipeline ) =
-  create_gbuffer_pipelines( &device, &gbuffer_shader, &big_plane_shader, &uniform_bind_group_layout )?;
+  gbuffer_pipelines_create( &device, &gbuffer_shader, &big_plane_shader, &uniform_bind_group_layout )?;
 
   let gbuffer_bind_group =
-  create_gbuffer_bind_group( &device, &gbuffer_bind_group_layout, &albedo_view, &pos_view, &normal_view, &depth_view );
+  gbuffer_bind_group_create( &device, &gbuffer_bind_group_layout, &albedo_view, &pos_view, &normal_view, &depth_view );
 
   let render_pipeline =
-  create_lighting_pipeline( &device, &render_shader, &uniform_bind_group_layout, &gbuffer_bind_group_layout, presentation_format )?;
+  lighting_pipeline_create( &device, &render_shader, &uniform_bind_group_layout, &gbuffer_bind_group_layout, presentation_format )?;
 
   let ( light_compute_pipeline, light_update_bind_group, light_vis_bind_group ) =
-  create_light_bindings( &device, &light_update_shader, &uniform_state.buffer, &light_state.buffer, &light_vis_state.render_pipeline );
+  light_bindings_create( &device, &light_update_shader, &uniform_state.buffer, &light_state.buffer, &light_vis_state.render_pipeline );
 
   // Define camera related parameters
   let eye = gl::math::F32x3::from( [ 70.0, 50.0, 0.0 ] );
@@ -515,7 +515,7 @@ async fn run() -> Result< (), gl::WebGPUError >
 
       let encoder = device.create_command_encoder();
 
-      record_gbuffer_pass
+      gbuffer_pass_record
       (
         &encoder,
         [ &albedo_view, &pos_view, &normal_view ],
@@ -525,9 +525,9 @@ async fn run() -> Result< (), gl::WebGPUError >
         &uniform_bind_group,
         &model_state
       );
-      record_lighting_pass( &encoder, &canvas_view, &render_pipeline, &uniform_bind_group, &gbuffer_bind_group );
-      record_light_vis_pass( &encoder, &canvas_view, &depth_view, &light_vis_state.render_pipeline, &light_vis_bind_group, &light_state.buffer );
-      record_light_update_pass( &encoder, &light_compute_pipeline, &light_update_bind_group );
+      lighting_pass_record( &encoder, &canvas_view, &render_pipeline, &uniform_bind_group, &gbuffer_bind_group );
+      light_vis_pass_record( &encoder, &canvas_view, &depth_view, &light_vis_state.render_pipeline, &light_vis_bind_group, &light_state.buffer );
+      light_update_pass_record( &encoder, &light_compute_pipeline, &light_update_bind_group );
 
       gl::queue::submit( &device.queue(), encoder.finish() );
 
@@ -544,7 +544,7 @@ async fn run() -> Result< (), gl::WebGPUError >
 #[cfg(target_arch = "wasm32")]
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }
 
 // Stub main for native targets

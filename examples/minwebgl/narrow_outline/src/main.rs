@@ -116,7 +116,7 @@ impl_locations!
 /// * `texture` - The texture to bind.
 /// * `location` - The uniform location in the shader for the sampler.
 /// * `slot` - The texture unit to bind to ( e.g., `GL::TEXTURE0` ).
-fn upload_texture
+fn texture_upload
 (
   gl : &gl::WebGl2RenderingContext,
   texture : &WebGlTexture,
@@ -142,7 +142,7 @@ fn upload_texture
 ///
 /// An `Option< ( WebGlFramebuffer, WebGlTexture ) >` containing the created framebuffer and
 /// its color attachment texture, or `None` if creation fails.
-fn create_framebuffer
+fn framebuffer_create
 (
   gl : &gl::WebGl2RenderingContext,
   ( width, height ) : ( i32, i32 )
@@ -198,7 +198,7 @@ fn create_framebuffer
 /// * `gl` - The WebGL2 rendering context.
 /// * `framebuffer` - The framebuffer to bind.
 /// * `size` - The size of the framebuffer ( width, height ).
-fn upload_framebuffer(
+fn framebuffer_upload(
   gl : &gl::WebGl2RenderingContext,
   framebuffer : &WebGlFramebuffer,
   size : ( i32, i32 )
@@ -218,7 +218,7 @@ fn upload_framebuffer(
 /// * `offset` - The offset in bytes within the buffer to start uploading data.
 /// * `data` - The `Vec<u8>` containing the data to upload.
 #[ inline ]
-pub fn upload_buffer_data
+pub fn buffer_data_upload
 (
   gl : &gl::WebGl2RenderingContext,
   buffer : &WebGlBuffer,
@@ -247,7 +247,7 @@ pub fn upload_buffer_data
 ///
 /// Returns `WebglError::FailedToAllocateResource` when the WebGL buffer can't be created.
 #[ inline ]
-pub fn add_buffer
+pub fn buffer_add
 (
   gl : &gl::WebGl2RenderingContext,
   gltf : &mut GLTF,
@@ -255,7 +255,7 @@ pub fn add_buffer
 ) -> Result< WebGlBuffer, gl::WebglError >
 {
   let buffer = gl.create_buffer().ok_or( gl::WebglError::FailedToAllocateResource( "Buffer" ) )?;
-  upload_buffer_data( gl, &buffer, GL::ARRAY_BUFFER, 0, buffer_data );
+  buffer_data_upload( gl, &buffer, GL::ARRAY_BUFFER, 0, buffer_data );
   gltf.gl_buffers.push( buffer.clone() );
   Ok( buffer )
 }
@@ -271,7 +271,7 @@ pub fn add_buffer
 ///
 /// Panics if the object id attribute descriptor can't be constructed for `F32` data.
 #[ inline ]
-pub fn add_attributes
+pub fn attributes_add
 (
   gl : &gl::WebGl2RenderingContext,
   gltf : &mut GLTF,
@@ -294,9 +294,9 @@ pub fn add_attributes
   }
 
   let object_id_bytes = object_id_data.iter().flat_map(| i | i.to_be_bytes()).collect::< Vec< _ > >();
-  let object_id_buffer = add_buffer( gl, gltf, object_id_bytes )?;
+  let object_id_buffer = buffer_add( gl, gltf, object_id_bytes )?;
 
-  let object_id_info = make_buffer_attribute_info(
+  let object_id_info = buffer_attribute_info_make(
     &object_id_buffer,
     0,
     1,
@@ -333,7 +333,7 @@ pub fn add_attributes
 /// # Returns
 ///
 /// A `Result<AttributeInfo, WebglError>` containing the attribute info or an error if the type is not supported.
-fn make_buffer_attribute_info
+fn buffer_attribute_info_make
 (
   buffer : &web_sys::WebGlBuffer,
   offset : i32,
@@ -387,7 +387,7 @@ fn make_buffer_attribute_info
 ///
 /// Panics if the primitive can't be converted to a triangle mesh.
 #[ inline ]
-pub fn add_primitive
+pub fn primitive_add
 (
   primitive : &ProcedureMesh,
   positions: &mut Vec< [ f32; 3 ] >,
@@ -457,7 +457,7 @@ pub fn add_primitive
 ///
 /// A `Vec<(ProcedureMesh, [f32; 9])>` where each tuple contains a primitive and an array of
 /// 9 floats representing its translation, rotation, and scale.
-fn get_primitives_and_transform() -> Vec< ( ProcedureMesh, [ f32; 9 ] ) >
+fn primitives_and_transform_get() -> Vec< ( ProcedureMesh, [ f32; 9 ] ) >
 {
   let meshes: Vec< ProcedureMesh > = vec![
     {
@@ -579,7 +579,7 @@ fn csg_attribute_infos
   [
     (
       "positions",
-      make_buffer_attribute_info
+      buffer_attribute_info_make
       (
         position_buffer,
         0,
@@ -591,7 +591,7 @@ fn csg_attribute_infos
     ),
     (
       "normals",
-      make_buffer_attribute_info
+      buffer_attribute_info_make
       (
         normal_buffer,
         0,
@@ -603,7 +603,7 @@ fn csg_attribute_infos
     ),
     (
       "object_ids",
-      make_buffer_attribute_info
+      buffer_attribute_info_make
       (
         object_id_buffer,
         0,
@@ -654,7 +654,7 @@ fn primitives_csgrs_gltf
     gltf.gl_buffers.push( buffer );
   }
 
-  let primitives = get_primitives_and_transform();
+  let primitives = primitives_and_transform_get();
 
   let material = Rc::new( RefCell::new( Box::new( PbrMaterial::new( gl ) ) as Box< dyn Material > ) );
   gltf.materials.push( material.clone() );
@@ -677,7 +677,7 @@ fn primitives_csgrs_gltf
     let last_indices_count = indices.len() as u32;
     let last_vertex_offset = vertex_offset;
 
-    add_primitive
+    primitive_add
     (
       &primitive,
       &mut positions,
@@ -857,7 +857,7 @@ impl Renderer
     // --- Create Framebuffers and Textures ---
 
     // Framebuffer for rendering the initial object silhouette
-    let ( object_fb, t ) = create_framebuffer( gl, viewport ).unwrap();
+    let ( object_fb, t ) = framebuffer_create( gl, viewport ).unwrap();
     let object_fb_color = t[ 0 ].clone();
     let object_fb_depth = t[ 1 ].clone();
     let object_fb_norm = t[ 2 ].clone();
@@ -938,7 +938,7 @@ impl Renderer
     let u_near_loc = locations.get( "near" ).unwrap().clone().unwrap();
     let u_far_loc = locations.get( "far" ).unwrap().clone().unwrap();
 
-    upload_framebuffer( gl, object_fb, self.viewport );
+    framebuffer_upload( gl, object_fb, self.viewport );
     //gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
     gl.clear_color( 0.0, 0.0, 0.0, 0.0 );
@@ -1019,9 +1019,9 @@ impl Renderer
 
     gl.clear_color( background_color[ 0 ], background_color[ 1 ], background_color[ 2 ], background_color[ 3 ] );
 
-    upload_texture( gl, object_fb_color, &u_color_texture_loc, GL::TEXTURE0 );
-    upload_texture( gl, object_fb_depth, &u_depth_texture_loc, GL::TEXTURE1 );
-    upload_texture( gl, object_fb_norm, &u_norm_texture_loc, GL::TEXTURE2 );
+    texture_upload( gl, object_fb_color, &u_color_texture_loc, GL::TEXTURE0 );
+    texture_upload( gl, object_fb_depth, &u_depth_texture_loc, GL::TEXTURE1 );
+    texture_upload( gl, object_fb_norm, &u_norm_texture_loc, GL::TEXTURE2 );
     //gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array()[ .. ], true ).unwrap();
     gl::uniform::upload( gl, Some( u_resolution_loc.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
     gl::uniform::upload( gl, Some( u_outline_thickness_loc.clone() ), &outline_thickness ).unwrap();
@@ -1039,7 +1039,7 @@ impl Renderer
 /// # Returns
 ///
 /// A `Result` indicating success or a WebGL error.
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   let renderer = Renderer::new();
 
@@ -1051,7 +1051,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let gltf_path = "static/bike.glb";
   let mut gltf = load( &document, gltf_path, &renderer.gl ).await?;
-  let _ = add_attributes( &renderer.gl, &mut gltf );
+  let _ = attributes_add( &renderer.gl, &mut gltf );
 
   let scenes = gltf.scenes.clone();
   scenes[ 0 ].borrow_mut().update_world_matrix();
@@ -1078,9 +1078,9 @@ async fn run() -> Result< (), gl::WebglError >
 
 /// The main entry point of the application.
 ///
-/// Spawns the asynchronous `run` function using `gl::spawn_local` which is
+/// Spawns the asynchronous `app_run` function using `gl::spawn_local` which is
 /// suitable for WebAssembly targets in a browser environment.
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

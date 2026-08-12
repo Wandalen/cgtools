@@ -37,11 +37,11 @@ use web_sys::HtmlCanvasElement;
 fn main()
 {
   gl::browser::setup( gl::browser::Config::default() );
-  gl::spawn_local( async move { gl::info!( "{:?}", run().await ) } );
+  gl::spawn_local( async move { gl::info!( "{:?}", app_run().await ) } );
 }
 
 /// Render the geometry pass: write geometry data to G-buffer
-fn render_geometry_pass
+fn geometry_pass_render
 (
   gl : &web_sys::WebGl2RenderingContext,
   fb : &types::Framebuffers,
@@ -92,7 +92,7 @@ fn render_geometry_pass
 
 /// Render the lighting pass: calculate lighting using G-buffer and light volumes
 #[ expect( clippy::too_many_arguments, reason = "the lighting pass irreducibly needs the GL context, every G-buffer/shader/geometry resource, the camera, viewport size, view-projection, and per-frame light state; bundling into a struct would only rename the coupling" ) ]
-fn render_lighting_pass
+fn lighting_pass_render
 (
   gl : &web_sys::WebGl2RenderingContext,
   fb : &types::Framebuffers,
@@ -144,7 +144,7 @@ fn render_lighting_pass
 }
 
 /// Render light source visualization: draw small spheres at light positions
-fn render_light_visualization
+fn light_visualization_render
 (
   gl : &web_sys::WebGl2RenderingContext,
   fb : &types::Framebuffers,
@@ -180,7 +180,7 @@ fn render_light_visualization
 }
 
 /// Render the final screen pass: display the lit scene
-fn render_screen_pass
+fn screen_pass_render
 (
   gl : &web_sys::WebGl2RenderingContext,
   fb : &types::Framebuffers,
@@ -196,7 +196,7 @@ fn render_screen_pass
 }
 
 /// Configure initial WebGL state
-fn configure_webgl_state( gl : &web_sys::WebGl2RenderingContext, width : i32, height : i32 )
+fn webgl_state_configure( gl : &web_sys::WebGl2RenderingContext, width : i32, height : i32 )
 {
   gl.viewport( 0, 0, width, height );
   gl.enable( GL::DEPTH_TEST );
@@ -207,7 +207,7 @@ fn configure_webgl_state( gl : &web_sys::WebGl2RenderingContext, width : i32, he
 }
 
 /// Generate random radii for lights
-fn generate_light_radii( count : usize, min : f32, max : f32 ) -> Vec< f32 >
+fn light_radii_generate( count : usize, min : f32, max : f32 ) -> Vec< f32 >
 {
   let mut radii = ( 0..count )
   .map( | _ | rand::random_range( min..=max ) )
@@ -220,7 +220,7 @@ fn generate_light_radii( count : usize, min : f32, max : f32 ) -> Vec< f32 >
 }
 
 /// Update light positions based on their elliptical orbits
-fn update_light_positions( lights : &mut types::LightSystem, light_count : usize, current_time : f32 )
+fn light_positions_update( lights : &mut types::LightSystem, light_count : usize, current_time : f32 )
 {
   lights.orbits[ 1..light_count ]
   .iter()
@@ -234,7 +234,7 @@ fn update_light_positions( lights : &mut types::LightSystem, light_count : usize
 }
 
 /// Update light radii if the radius range has changed
-fn update_light_radii
+fn light_radii_update
 (
   gl : &web_sys::WebGl2RenderingContext,
   lights : &mut types::LightSystem,
@@ -247,7 +247,7 @@ fn update_light_radii
   // Exact identity check on cached slider values - epsilon comparison would skip small real changes
   if prev_range.0.to_bits() != min_radius.to_bits() || prev_range.1.to_bits() != max_radius.to_bits()
   {
-    let new_radii = generate_light_radii( max_light_count, min_radius, max_radius );
+    let new_radii = light_radii_generate( max_light_count, min_radius, max_radius );
     *lights.radii.borrow_mut() = new_radii;
 
     gl.bind_buffer( GL::ARRAY_BUFFER, Some( &lights.radius_buffer ) );
@@ -268,7 +268,7 @@ fn update_light_radii
 }
 
 /// Update translation buffer with new light positions
-fn update_translation_buffer
+fn translation_buffer_update
 (
   gl : &web_sys::WebGl2RenderingContext,
   lights : &types::LightSystem,
@@ -286,7 +286,7 @@ fn update_translation_buffer
 }
 
 /// Setup scene transformation and calculate transformed center
-fn setup_scene_transform( scene_bounding_box : &gl::geometry::BoundingBox ) -> ( gl::math::F32x4x4, gl::math::F32x4x4, F32x3 )
+fn scene_transform_setup( scene_bounding_box : &gl::geometry::BoundingBox ) -> ( gl::math::F32x4x4, gl::math::F32x4x4, F32x3 )
 {
   let rotation = mat3x3h::rot( 10.0f32.to_radians(), 0.0, 0.0 )
     * mat3x3h::rot( 0.0, 90.0f32.to_radians(), 0.0 );
@@ -311,7 +311,7 @@ fn setup_scene_transform( scene_bounding_box : &gl::geometry::BoundingBox ) -> (
 }
 
 /// Setup camera with interactive controls
-fn setup_camera
+fn camera_setup
 (
   scene_bounding_box : &gl::geometry::BoundingBox,
   scene_center : F32x3,
@@ -349,7 +349,7 @@ fn setup_camera
 }
 
 /// Setup GUI with parameters
-fn setup_gui() -> ( GuiParams, gl::wasm_bindgen::JsValue, gl::wasm_bindgen::JsValue )
+fn gui_setup() -> ( GuiParams, gl::wasm_bindgen::JsValue, gl::wasm_bindgen::JsValue )
 {
   let params = GuiParams
   {
@@ -361,9 +361,9 @@ fn setup_gui() -> ( GuiParams, gl::wasm_bindgen::JsValue, gl::wasm_bindgen::JsVa
   };
   let params_obj = serde_wasm_bindgen::to_value( &params ).unwrap();
 
-  let gui = lil_gui::new_gui();
+  let gui = lil_gui::gui_new();
   lil_gui::add( &gui, &params_obj, "light_count", Some( 1.0 ), Some( 5000.0 ), Some( 1.0 ) );
-  lil_gui::add_color( &gui, &params_obj, "light_color" );
+  lil_gui::color_add( &gui, &params_obj, "light_color" );
   lil_gui::add( &gui, &params_obj, "min_radius", Some( 1.0 ), Some( 50.0 ), Some( 0.1 ) );
   lil_gui::add( &gui, &params_obj, "max_radius", Some( 1.0 ), Some( 100.0 ), Some( 0.1 ) );
   lil_gui::add( &gui, &params_obj, "intensity", Some( 0.1 ), Some( 5.0 ), Some( 0.1 ) );
@@ -371,7 +371,7 @@ fn setup_gui() -> ( GuiParams, gl::wasm_bindgen::JsValue, gl::wasm_bindgen::JsVa
   ( params, params_obj, gui )
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   let window = web_sys::window().unwrap();
   let document =  window.document().unwrap();
@@ -399,22 +399,22 @@ async fn run() -> Result< (), gl::WebglError >
   let scene_bounding_box = sponza.scenes[ 0 ].borrow().bounding_box();
   gl::info!( "Scene bounding box: {scene_bounding_box:?}" );
 
-  configure_webgl_state( &gl, width, height );
+  webgl_state_configure( &gl, width, height );
 
-  let shaders = shader::load_shaders( &gl )?;
+  let shaders = shader::shaders_load( &gl )?;
 
-  let ( scene_transform, rotation, scene_center ) = setup_scene_transform( &scene_bounding_box );
+  let ( scene_transform, rotation, scene_center ) = scene_transform_setup( &scene_bounding_box );
 
-  let camera = setup_camera( &scene_bounding_box, scene_center, aspect, width, height, &canvas );
+  let camera = camera_setup( &scene_bounding_box, scene_center, aspect, width, height, &canvas );
 
-  let fb = framebuffer::create_framebuffers( &gl, width, height );
+  let fb = framebuffer::framebuffers_create( &gl, width, height );
 
-  let ( params, params_obj, _gui ) = setup_gui();
+  let ( params, params_obj, _gui ) = gui_setup();
 
   let max_light_count = 5000;
-  let mut lights = light::create_light_system( &gl, max_light_count, params.min_radius, params.max_radius )?;
+  let mut lights = light::light_system_create( &gl, max_light_count, params.min_radius, params.max_radius )?;
 
-  let geom = geometry::create_geometry( &gl, &sphere, &lights.translation_buffer, &lights.radius_buffer )?;
+  let geom = geometry::geometry_create( &gl, &sphere, &lights.translation_buffer, &lights.radius_buffer )?;
 
   let fps_counter = document.get_element_by_id( "fps-counter" ).unwrap();
 
@@ -442,13 +442,13 @@ async fn run() -> Result< (), gl::WebglError >
     // Validate and update radius range if changed
     let min_radius = params.min_radius.min( params.max_radius );
     let max_radius = params.max_radius.max( params.min_radius );
-    update_light_radii( &gl, &mut lights, max_light_count, min_radius, max_radius );
+    light_radii_update( &gl, &mut lights, max_light_count, min_radius, max_radius );
 
     // Update light positions based on their elliptical orbits
-    update_light_positions( &mut lights, light_count, current_time );
+    light_positions_update( &mut lights, light_count, current_time );
 
     // Update the translation buffer with the new light positions
-    update_translation_buffer( &gl, &lights, light_count );
+    translation_buffer_update( &gl, &lights, light_count );
 
     // Get view and projection matrices from the camera
     let view = camera.get_view_matrix();
@@ -464,24 +464,24 @@ async fn run() -> Result< (), gl::WebglError >
     ];
 
     // --- Geometry Pass ---
-    render_geometry_pass( &gl, &fb, &shaders, &sponza, &scene_transform, &rotation, &scene_mvp );
+    geometry_pass_render( &gl, &fb, &shaders, &sponza, &scene_transform, &rotation, &scene_mvp );
 
     // --- Lighting Pass ---
-    render_lighting_pass
+    lighting_pass_render
     (
       &gl, &fb, &shaders, &geom, &camera, width, height,
       &view_projection, light_color_with_intensity, light_count
     );
 
     // --- Light Source Visualization Pass ---
-    render_light_visualization
+    light_visualization_render
     (
       &gl, &fb, &shaders, &geom,
       &view_projection, params.light_color, light_count
     );
 
     // --- Final Screen Pass ---
-    render_screen_pass( &gl, &fb, &shaders );
+    screen_pass_render( &gl, &fb, &shaders );
 
     true // Continue the render loop
   };

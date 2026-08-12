@@ -6,9 +6,9 @@ use web_sys::WebGlTexture;
 use crate::types::{ Framebuffers, GBuffer };
 
 /// Create framebuffers for deferred rendering
-pub fn create_framebuffers( gl : &GL, width : i32, height : i32 ) -> Framebuffers
+pub fn framebuffers_create( gl : &GL, width : i32, height : i32 ) -> Framebuffers
 {
-  let gbuffer = create_gbuffer( gl, width, height );
+  let gbuffer = gbuffer_create( gl, width, height );
 
   let offscreen_color = tex_storage_2d( gl, GL::RGBA8, width, height );
   let offscreen_buffer = gl.create_framebuffer();
@@ -32,7 +32,7 @@ pub fn create_framebuffers( gl : &GL, width : i32, height : i32 ) -> Framebuffer
 
 /// Creates and configures the G-buffer framebuffer and its associated textures
 /// (position, normal, color) and depth renderbuffer.
-pub fn create_gbuffer( gl : &GL, width : i32, height : i32 ) -> GBuffer
+pub fn gbuffer_create( gl : &GL, width : i32, height : i32 ) -> GBuffer
 {
   // Create textures for position, normal, and color
   // RGBA16F for position and normal to store floating-point data

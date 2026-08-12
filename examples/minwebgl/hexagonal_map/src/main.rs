@@ -23,7 +23,7 @@ use web_sys::{ HtmlCanvasElement, HtmlSelectElement };
 use rustc_hash::FxHashMap;
 use core_game::Coord;
 use triaxial::TriAxial;
-use helper::{ EditMode, setup_select, setup_download_button, setup_drop_zone };
+use helper::{ EditMode, select_setup, download_button_setup, drop_zone_setup };
 
 /// Static geometry resource handles shared by every render-command builder this frame.
 #[ derive( Clone, Copy ) ]
@@ -34,7 +34,7 @@ struct GeometryIds
   rectangle : ResourceId< asset::Geometry >,
 }
 
-/// Per-frame camera/zoom/screen-size parameters shared by every `make_transform` call.
+/// Per-frame camera/zoom/screen-size parameters shared by every `transform_make` call.
 #[ derive( Clone, Copy ) ]
 struct ViewParams
 {
@@ -59,7 +59,7 @@ fn f32_to_bytes( data : &[ f32 ] ) -> Vec< u8 >
 
 /// Builds a Transform that maps from local vertex space to screen pixels,
 /// matching the old renderer's camera/zoom/aspect behavior.
-fn make_transform( world_pos : [ f32; 2 ], rotation : f32, obj_scale : [ f32; 2 ], view : ViewParams ) -> Transform
+fn transform_make( world_pos : [ f32; 2 ], rotation : f32, obj_scale : [ f32; 2 ], view : ViewParams ) -> Transform
 {
   let ( as_x, as_y ) = if view.w > view.h
   {
@@ -91,26 +91,26 @@ fn make_transform( world_pos : [ f32; 2 ], rotation : f32, obj_scale : [ f32; 2 
 fn main()
 {
   gl::browser::setup( gl::browser::Config::default() );
-  gl::spawn_local( async move { run() } );
+  gl::spawn_local( async move { app_run() } );
 }
 
-fn run()
+fn app_run()
 {
-  let ( document, canvas, gl, width, height, dpr ) = setup_canvas();
+  let ( document, canvas, gl, width, height, dpr ) = canvas_setup();
 
   let game_config = include_str!( "../config.json" );
   let game_config = serde_json::from_str::< core_game::Config >( game_config ).unwrap();
 
-  let ( mut backend, geometry, textures ) = load_scene_assets( gl, width, height, &game_config );
+  let ( mut backend, geometry, textures ) = scene_assets_load( gl, width, height, &game_config );
 
   let map = Rc::new( RefCell::new( core_game::Map::default() ) );
   let loaded_map : Rc< RefCell< Option< String > > > = Rc::default();
 
-  let ui = setup_ui( &document, &game_config, &map, &loaded_map );
-  let mut input = setup_input( &canvas, dpr );
+  let ui = ui_setup( &document, &game_config, &map, &loaded_map );
+  let mut input = input_setup( &canvas, dpr );
 
   let mut zoom = 0.1_f32;
-  let ( inv_canvas_size, aspect ) = compute_screen_params( width, height );
+  let ( inv_canvas_size, aspect ) = screen_params_compute( width, height );
   let mut camera_pos = F32x2::default();
 
   let mut last_pointer_pos : Option< I32x2 > = None;
@@ -119,13 +119,13 @@ fn run()
 
   let update = move | _ |
   {
-    input.update_state();
+    input.state_update();
 
     let w = canvas.width() as f32;
     let h = canvas.height() as f32;
 
-    sync_loaded_map( &loaded_map, &map );
-    handle_zoom_wheel( &input, &mut zoom );
+    loaded_map_sync( &loaded_map, &map );
+    zoom_wheel_handle( &input, &mut zoom );
 
     let pointer_pos = input.pointer_position();
     let pointer_pos = screen_to_world( pointer_pos, inv_canvas_size, aspect, zoom, h );
@@ -138,16 +138,16 @@ fn run()
 
     if edit_mode == EditMode::EditRivers
     {
-      handle_river_editing( &input, tri_point, &mut river_point1_add, &mut river_point1_remove, &map );
+      river_editing_handle( &input, tri_point, &mut river_point1_add, &mut river_point1_remove, &map );
     }
 
     if input.is_key_down( KeyboardKey::Space ) && input.is_button_down( MouseButton::Main )
     {
-      pan_camera( last_pointer_pos, pointer_pos, inv_canvas_size, aspect, zoom, h, &mut camera_pos );
+      camera_pan( last_pointer_pos, pointer_pos, inv_canvas_size, aspect, zoom, h, &mut camera_pos );
     }
     else if edit_mode == EditMode::EditTiles
     {
-      edit_tile( &input, &ui, &game_config, hexagon_coord, &map );
+      tile_edit( &input, &ui, &game_config, hexagon_coord, &map );
     }
     else
     {
@@ -155,7 +155,7 @@ fn run()
     }
 
     last_pointer_pos = Some( input.pointer_position() );
-    input.clear_events();
+    input.events_clear();
 
     // ---- Build render commands ----
 
@@ -166,8 +166,8 @@ fn run()
       commands::RenderCommand::Clear( commands::Clear { color : [ 0.1, 0.2, 0.3, 1.0 ] } ),
     ];
 
-    push_tile_render_commands( &map, &game_config, &textures, geometry, view, &mut render_commands );
-    push_river_render_commands( &map, geometry.rectangle, view, &mut render_commands );
+    tile_render_commands_push( &map, &game_config, &textures, geometry, view, &mut render_commands );
+    river_render_commands_push( &map, geometry.rectangle, view, &mut render_commands );
 
     let _ = backend.submit( &render_commands );
 
@@ -177,7 +177,7 @@ fn run()
 }
 
 /// Creates the canvas at device-pixel-ratio resolution and retrieves its GL context.
-fn setup_canvas() -> ( web_sys::Document, HtmlCanvasElement, web_sys::WebGl2RenderingContext, u32, u32, f64 )
+fn canvas_setup() -> ( web_sys::Document, HtmlCanvasElement, web_sys::WebGl2RenderingContext, u32, u32, f64 )
 {
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -191,14 +191,14 @@ fn setup_canvas() -> ( web_sys::Document, HtmlCanvasElement, web_sys::WebGl2Rend
   let height = ( fheight * dpr ) as u32;
   canvas.set_width( width );
   canvas.set_height( height );
-  browser_input::prevent_rightclick( &canvas.clone().dyn_into().unwrap() );
+  browser_input::rightclick_prevent( &canvas.clone().dyn_into().unwrap() );
 
   ( document, canvas, gl, width, height, dpr )
 }
 
 /// Loads the hexagon/outline/rectangle geometries and every referenced sprite texture into
 /// the backend, returning it alongside the geometry handles and the source-path → texture-id map.
-fn load_scene_assets
+fn scene_assets_load
 (
   gl : web_sys::WebGl2RenderingContext,
   width : u32,
@@ -308,7 +308,7 @@ fn load_scene_assets
 }
 
 /// Wires up the mode/tile/player `<select>` controls plus the download button and drop zone.
-fn setup_ui
+fn ui_setup
 (
   document : &web_sys::Document,
   game_config : &core_game::Config,
@@ -317,19 +317,19 @@ fn setup_ui
 ) -> Ui
 {
   let mode_select_variants = [ EditMode::EditTiles, EditMode::EditRivers ].map( | v | v.as_ref().to_string() );
-  let mode_select = setup_select( document, "edit-mode", mode_select_variants.iter() );
-  let tile_select = setup_select( document, "tile", game_config.object_props.iter().map( | p | &p.name ) );
+  let mode_select = select_setup( document, "edit-mode", mode_select_variants.iter() );
+  let tile_select = select_setup( document, "tile", game_config.object_props.iter().map( | p | &p.name ) );
   let player_list = game_config.player_colors.iter().enumerate().map( | ( i, _ ) | i.to_string() ).collect::< Vec< _ > >();
-  let player_select = setup_select( document, "player", player_list.iter() );
+  let player_select = select_setup( document, "player", player_list.iter() );
 
-  setup_download_button( document, map.clone() );
-  setup_drop_zone( document, loaded_map.clone() );
+  download_button_setup( document, map.clone() );
+  drop_zone_setup( document, loaded_map.clone() );
 
   Ui { mode : mode_select, tile : tile_select, player : player_select }
 }
 
 /// Wires up pointer/keyboard input on `canvas`, scaling pointer coordinates by the device pixel ratio.
-fn setup_input( canvas : &HtmlCanvasElement, dpr : f64 ) -> browser_input::Input
+fn input_setup( canvas : &HtmlCanvasElement, dpr : f64 ) -> browser_input::Input
 {
   browser_input::Input::new
   (
@@ -347,7 +347,7 @@ fn setup_input( canvas : &HtmlCanvasElement, dpr : f64 ) -> browser_input::Input
 }
 
 /// Computes the reciprocal canvas size and the aspect-ratio correction vector used by `screen_to_world`.
-fn compute_screen_params( width : u32, height : u32 ) -> ( F32x2, F32x2 )
+fn screen_params_compute( width : u32, height : u32 ) -> ( F32x2, F32x2 )
 {
   let inv_canvas_size = F32x2::new( 1.0 / width as f32, 1.0 / height as f32 );
   let aspect = if width > height
@@ -362,7 +362,7 @@ fn compute_screen_params( width : u32, height : u32 ) -> ( F32x2, F32x2 )
 }
 
 /// Applies a dropped-in map JSON payload, if one has arrived since the last frame.
-fn sync_loaded_map( loaded_map : &Rc< RefCell< Option< String > > >, map : &Rc< RefCell< core_game::Map > > )
+fn loaded_map_sync( loaded_map : &Rc< RefCell< Option< String > > >, map : &Rc< RefCell< core_game::Map > > )
 {
   let mut loaded_map = loaded_map.borrow_mut();
   if let Some( map_json ) = loaded_map.as_ref()
@@ -377,7 +377,7 @@ fn sync_loaded_map( loaded_map : &Rc< RefCell< Option< String > > >, map : &Rc< 
 }
 
 /// Applies mouse-wheel deltas queued this frame to the zoom level.
-fn handle_zoom_wheel( input : &browser_input::Input, zoom : &mut f32 )
+fn zoom_wheel_handle( input : &browser_input::Input, zoom : &mut f32 )
 {
   const ZOOM_FACTOR : f32 = 0.75;
 
@@ -398,7 +398,7 @@ fn handle_zoom_wheel( input : &browser_input::Input, zoom : &mut f32 )
 }
 
 /// Adds or removes river segments based on this frame's queued pointer-button presses.
-fn handle_river_editing
+fn river_editing_handle
 (
   input : &browser_input::Input,
   tri_point : TriAxial,
@@ -446,7 +446,7 @@ fn handle_river_editing
 }
 
 /// Pans the camera by the pointer movement since last frame (call only while dragging).
-fn pan_camera
+fn camera_pan
 (
   last_pointer_pos : Option< I32x2 >,
   pointer_pos : F32x2,
@@ -466,7 +466,7 @@ fn pan_camera
 
 /// Places or removes a tile at `hexagon_coord` based on which mouse button is held
 /// (call only while in tile-edit mode).
-fn edit_tile
+fn tile_edit
 (
   input : &browser_input::Input,
   ui : &Ui,
@@ -507,7 +507,7 @@ fn edit_tile
 
 /// Appends one filled hexagon, one outline, and (if the tile has a sprite) one textured
 /// quad per placed tile.
-fn push_tile_render_commands
+fn tile_render_commands_push
 (
   map : &Rc< RefCell< core_game::Map > >,
   game_config : &core_game::Config,
@@ -524,7 +524,7 @@ fn push_tile_render_commands
     // Filled hexagon
     let [ r, g, b ] = game_config.player_colors[ hex.owner_index.0 as usize ];
     let color = [ f32::from( r ) / 255.0, f32::from( g ) / 255.0, f32::from( b ) / 255.0, 1.0 ];
-    let tr = make_transform( position.data, 0.0, [ 1.0, 1.0 ], view );
+    let tr = transform_make( position.data, 0.0, [ 1.0, 1.0 ], view );
     render_commands.push( commands::RenderCommand::Mesh( commands::Mesh
     {
       transform : tr,
@@ -537,7 +537,7 @@ fn push_tile_render_commands
     }));
 
     // Outline
-    let tr = make_transform( position.data, 0.0, [ 1.0, 1.0 ], view );
+    let tr = transform_make( position.data, 0.0, [ 1.0, 1.0 ], view );
     render_commands.push( commands::RenderCommand::Mesh( commands::Mesh
     {
       transform : tr,
@@ -558,7 +558,7 @@ fn push_tile_render_commands
     let scale = sprite.scale;
     let obj_scale = [ scale, scale ];
 
-    let tr = make_transform( position.data, 0.0, obj_scale, view );
+    let tr = transform_make( position.data, 0.0, obj_scale, view );
     render_commands.push( commands::RenderCommand::Mesh( commands::Mesh
     {
       transform : tr,
@@ -573,7 +573,7 @@ fn push_tile_render_commands
 }
 
 /// Appends one stretched, rotated rectangle per river segment.
-fn push_river_render_commands
+fn river_render_commands_push
 (
   map : &Rc< RefCell< core_game::Map > >,
   rectangle_id : ResourceId< asset::Geometry >,
@@ -594,7 +594,7 @@ fn push_river_render_commands
     let dy = p2.y() - p1.y();
     let angle = dy.atan2( dx );
 
-    let tr = make_transform( center.into(), angle, [ length, river_width ], view );
+    let tr = transform_make( center.into(), angle, [ length, river_width ], view );
     render_commands.push( commands::RenderCommand::Mesh( commands::Mesh
     {
       transform : tr,

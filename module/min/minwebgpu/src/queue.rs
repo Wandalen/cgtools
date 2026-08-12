@@ -16,11 +16,11 @@ mod private
   /// Returns `error::BufferError::FailedWriteToBuffer` if the underlying
   /// `GPUQueue.writeBuffer` call throws.
   #[ inline ]
-  pub fn write_buffer< T : mem::Pod >
-  ( 
+  pub fn buffer_write< T : mem::Pod >
+  (
     queue : &web_sys::GpuQueue,
-    buffer : &web_sys::GpuBuffer, 
-    data : &[ T ] 
+    buffer : &web_sys::GpuBuffer,
+    data : &[ T ]
   ) -> Result< (), WebGPUError >
   {
     queue.write_buffer_with_f64_and_u8_slice( buffer, 0.0, mem::cast_slice( data ) )
@@ -35,7 +35,7 @@ mod private
   /// Returns `error::TextureError::FailedWriteToTexture` if the underlying
   /// `GPUQueue.writeTexture` call throws.
   #[ inline ]
-  pub fn write_texture
+  pub fn texture_write
   (
     queue : &web_sys::GpuQueue,
     destination : &web_sys::GpuTexelCopyTextureInfo,
@@ -56,7 +56,7 @@ crate::mod_interface!
   own use
   {
     submit,
-    write_buffer,
-    write_texture
+    buffer_write,
+    texture_write
   };
 }

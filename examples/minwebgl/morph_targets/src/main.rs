@@ -24,7 +24,7 @@ mod lil_gui;
 mod gui_setup;
 
 /// Rescales the named mesh nodes that come in at the wrong unit scale.
-fn rescale_named_nodes( scene : &Rc< RefCell< Scene > > )
+fn named_nodes_rescale( scene : &Rc< RefCell< Scene > > )
 {
   let need_rescale = [ "Head_Mesh", "Object_7", "Object_6" ];
   let _ = scene.borrow()
@@ -47,7 +47,7 @@ fn rescale_named_nodes( scene : &Rc< RefCell< Scene > > )
 }
 
 /// Creates the scene camera from the scene's bounding box and binds its controls to the canvas.
-fn setup_camera( canvas : &gl::web_sys::HtmlCanvasElement, scene : &Rc< RefCell< Scene > > ) -> Camera
+fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene : &Rc< RefCell< Scene > > ) -> Camera
 {
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
@@ -84,7 +84,7 @@ fn setup_camera( canvas : &gl::web_sys::HtmlCanvasElement, scene : &Rc< RefCell<
 }
 
 /// Finds the first skeleton with morph displacements and returns its shared morph weights, initialized to the defaults.
-fn find_morph_weights( meshes : &[ Rc< RefCell< Mesh > > ] ) -> Rc< RefCell< Vec< f32 > > >
+fn morph_weights_find( meshes : &[ Rc< RefCell< Mesh > > ] ) -> Rc< RefCell< Vec< f32 > > >
 {
   meshes.iter()
   .find_map
@@ -108,7 +108,7 @@ fn find_morph_weights( meshes : &[ Rc< RefCell< Mesh > > ] ) -> Rc< RefCell< Vec
 }
 
 /// Clears the normal displacement bindings so only position morphs apply.
-fn reset_normal_displacements( meshes : &[ Rc< RefCell< Mesh > > ] )
+fn normal_displacements_reset( meshes : &[ Rc< RefCell< Mesh > > ] )
 {
   for mesh in meshes
   {
@@ -122,7 +122,7 @@ fn reset_normal_displacements( meshes : &[ Rc< RefCell< Mesh > > ] )
   }
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
@@ -139,9 +139,9 @@ async fn run() -> Result< (), gl::WebglError >
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
 
-  rescale_named_nodes( &scenes[ 0 ] );
+  named_nodes_rescale( &scenes[ 0 ] );
 
-  let camera = setup_camera( &canvas, &scenes[ 0 ] );
+  let camera = camera_setup( &canvas, &scenes[ 0 ] );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
@@ -156,9 +156,9 @@ async fn run() -> Result< (), gl::WebglError >
   camera.get_controls().borrow_mut().center.0[ 1 ] += -5.5;
   camera.get_controls().borrow_mut().center.0[ 2 ] += -2.0;
 
-  let weights = find_morph_weights( &gltf.meshes );
+  let weights = morph_weights_find( &gltf.meshes );
 
-  reset_normal_displacements( &gltf.meshes );
+  normal_displacements_reset( &gltf.meshes );
 
   let gui_weights = Rc::new( RefCell::new( vec![ 0.0; 60 ] ) );
 
@@ -238,5 +238,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

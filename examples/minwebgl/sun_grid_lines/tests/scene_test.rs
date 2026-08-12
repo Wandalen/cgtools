@@ -8,7 +8,7 @@ use minwebgl_sun_grid_lines::scene::SceneConfig;
 /// Asserts every field `scene.rhai` declares round-trips through
 /// `SceneConfig::load()` correctly — deliberately exhaustive ( not just a
 /// spot check ) so every field is exercised on every target, including
-/// native, where `main.rs`'s wasm32-gated `run()` — the only other
+/// native, where `main.rs`'s wasm32-gated `app_run()` — the only other
 /// consumer — never compiles in and can't do it instead.
 #[ test ]
 #[ expect( clippy::float_cmp, reason = "every value here is a literal parsed straight out of scene.rhai with no arithmetic in between, so bit-exact round-trip fidelity is exactly what this test means to check" ) ]

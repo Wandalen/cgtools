@@ -8,7 +8,7 @@
 use mingl::
 {
   CameraOrbitControls,
-  controls::camera_orbit_controls::bind_controls_to_input
+  controls::camera_orbit_controls::controls_bind_to_input
 };
 use minwebgl as gl;
 use web_sys::js_sys;
@@ -26,7 +26,7 @@ mod settings;
 
 /// Sets up the WebGL context, simulation, line meshes, GUI, and starts the render loop.
 #[ allow( clippy::too_many_lines, reason = "single linear WebGL/camera/simulation setup culminating in the frame-loop closure that captures nearly all local state (gl, camera, lines, settings, simulation, base_colors); splitting would scatter tightly-coupled locals across artificial helper parameters" ) ]
-fn run() -> Result< (), gl::WebglError >
+fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::make()?;
@@ -63,7 +63,7 @@ fn run() -> Result< (), gl::WebglError >
   camera.window_size = [ width, height ].into();
 
   let camera = Rc::new( RefCell::new( camera ) );
-  bind_controls_to_input( &canvas, &camera );
+  controls_bind_to_input( &canvas, &camera );
 
   let world_matrix = gl::math::mat4x4::identity();
   let projection_matrix = gl::math::mat3x3h::perspective_rh_gl( fov, aspect_ratio, near, far );
@@ -107,7 +107,7 @@ fn run() -> Result< (), gl::WebglError >
  
   // Wrap lines in Rc<RefCell> so they can be shared with the GUI callbacks and render loop.
   let lines = Rc::new( RefCell::new( lines ) );
-  settings::upload_dash_pattern( &lines, &settings.borrow() );
+  settings::dash_pattern_upload( &lines, &settings.borrow() );
   // Build the lil-gui panel and get a JsValue handle to the settings object
   // so the render loop can read live UI values each frame.
   let _ = settings::bind_to_ui( &gl, &settings, &lines );
@@ -180,5 +180,5 @@ fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  run().unwrap();
+  app_run().unwrap();
 }

@@ -173,7 +173,7 @@ impl SquareGameOfLife
     }
 
     // Update world state
-    self.update_world_state( &next_generation );
+    self.world_state_update( &next_generation );
     self.generation += 1;
   }
 
@@ -194,7 +194,7 @@ impl SquareGameOfLife
 
   /// Updates the world state based on the next generation, aging surviving
   /// cells and reviving/killing entities that changed state.
-  fn update_world_state( &mut self, next_generation : &HashMap< SquareCoord< EightConnected >, bool > )
+  fn world_state_update( &mut self, next_generation : &HashMap< SquareCoord< EightConnected >, bool > )
   {
     let mut existing = HashMap::new();
     {
@@ -240,7 +240,7 @@ impl SquareGameOfLife
   }
 
   /// Prints the current state of the grid.
-  pub fn print_state( &self )
+  pub fn state_print( &self )
   {
     println!( "\nGeneration {}", self.generation );
 
@@ -358,7 +358,7 @@ impl HexGameOfLife
   }
 
   /// Prints the hexagonal grid state.
-  pub fn print_state( &self )
+  pub fn state_print( &self )
   {
     println!( "\nHexagonal Generation {}", self.generation );
 
@@ -430,7 +430,7 @@ impl TriangularGameOfLife
   }
 
   /// Prints the triangular grid state.
-  pub fn print_state( &self )
+  pub fn state_print( &self )
   {
     println!( "\nTriangular Generation {}", self.generation );
 

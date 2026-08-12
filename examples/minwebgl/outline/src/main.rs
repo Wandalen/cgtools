@@ -114,7 +114,7 @@ impl_locations!
 /// * `texture` - The texture to bind.
 /// * `location` - The uniform location in the shader for the sampler.
 /// * `slot` - The texture unit to bind to ( e.g., `GL::TEXTURE0` ).
-fn upload_texture
+fn texture_upload
 (
   gl : &gl::WebGl2RenderingContext,
   texture : &WebGlTexture,
@@ -140,7 +140,7 @@ fn upload_texture
 ///
 /// An `Option< ( WebGlFramebuffer, WebGlTexture ) >` containing the created framebuffer and
 /// its color attachment texture, or `None` if creation fails.
-fn create_framebuffer
+fn framebuffer_create
 (
   gl : &gl::WebGl2RenderingContext,
   size : ( i32, i32 ),
@@ -202,7 +202,7 @@ fn create_framebuffer
 /// * `gl` - The WebGL2 rendering context.
 /// * `framebuffer` - The framebuffer to bind.
 /// * `size` - The size of the framebuffer ( width, height ).
-fn upload_framebuffer(
+fn framebuffer_upload(
   gl : &gl::WebGl2RenderingContext,
   framebuffer : &WebGlFramebuffer,
   size : ( i32, i32 )
@@ -320,12 +320,12 @@ impl Renderer
     // --- Create Framebuffers and Textures ---
 
     // Framebuffer for rendering the initial object silhouette
-    let ( object_fb, object_fb_color, object_fb_normal ) = create_framebuffer( gl, viewport, true ).unwrap();
+    let ( object_fb, object_fb_color, object_fb_normal ) = framebuffer_create( gl, viewport, true ).unwrap();
     // Framebuffer for the JFA initialization pass
-    let ( jfa_init_fb, jfa_init_fb_color, _ ) = create_framebuffer( gl, viewport, false ).unwrap();
+    let ( jfa_init_fb, jfa_init_fb_color, _ ) = framebuffer_create( gl, viewport, false ).unwrap();
     // Framebuffers for the JFA step passes ( ping-pong )
-    let ( jfa_step_fb_0, jfa_step_fb_color_0, _ ) = create_framebuffer( gl, viewport, false ).unwrap();
-    let ( jfa_step_fb_1, jfa_step_fb_color_1, _ ) = create_framebuffer( gl, viewport, false ).unwrap();
+    let ( jfa_step_fb_0, jfa_step_fb_color_0, _ ) = framebuffer_create( gl, viewport, false ).unwrap();
+    let ( jfa_step_fb_1, jfa_step_fb_color_1, _ ) = framebuffer_create( gl, viewport, false ).unwrap();
 
     // Store the color attachment textures
     renderer.textures.insert( "object_fb_color".to_string(), object_fb_color );
@@ -333,7 +333,7 @@ impl Renderer
     renderer.textures.insert( "jfa_init_fb_color".to_string(), jfa_init_fb_color );
     renderer.textures.insert( "jfa_step_fb_color_0".to_string(), jfa_step_fb_color_0 );
     renderer.textures.insert( "jfa_step_fb_color_1".to_string(), jfa_step_fb_color_1 );
-    renderer.textures.insert( "equirect_map".to_string(), gl::texture::d2::upload_image_from_path( gl, "static/skybox/pink_sunrise.jpg", true ) );
+    renderer.textures.insert( "equirect_map".to_string(), gl::texture::d2::image_upload_from_path( gl, "static/skybox/pink_sunrise.jpg", true ) );
 
     // Store the framebuffers
     renderer.framebuffers.insert( "object_fb".to_string(), object_fb );
@@ -388,7 +388,7 @@ impl Renderer
     let u_view_loc = locations.get( "u_view" ).unwrap().clone().unwrap();
     let u_model_loc = locations.get( "u_model" ).unwrap().clone().unwrap();
 
-    upload_framebuffer( gl, object_fb, self.viewport );
+    framebuffer_upload( gl, object_fb, self.viewport );
 
     gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
     gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 0.0 ] );
@@ -454,9 +454,9 @@ impl Renderer
 
     let u_object_texture = locations.get( "u_object_texture" ).unwrap().clone().unwrap();
 
-    upload_framebuffer( gl, jfa_init_fb, self.viewport );
+    framebuffer_upload( gl, jfa_init_fb, self.viewport );
 
-    upload_texture( gl, object_fb_color, &u_object_texture, GL::TEXTURE0 );
+    texture_upload( gl, object_fb_color, &u_object_texture, GL::TEXTURE0 );
 
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
   }
@@ -491,18 +491,18 @@ impl Renderer
     // Ping-pong rendering: Determine input texture and output framebuffer based on step index `i`
     if i == 0 // First step uses the initialization result
     {
-      upload_framebuffer( gl, jfa_step_fb_0, self.viewport ); // Render to FB 0
-      upload_texture( gl, jfa_init_fb_color, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is JFA init texture
+      framebuffer_upload( gl, jfa_step_fb_0, self.viewport ); // Render to FB 0
+      texture_upload( gl, jfa_init_fb_color, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is JFA init texture
     }
     else if i % 2 == 0 // Even steps ( 2, 4, ... ) read from FB 1, render to FB 0
     {
-      upload_framebuffer( gl, jfa_step_fb_0, self.viewport ); // Render to FB 0
-      upload_texture( gl, jfa_step_fb_color_1, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is texture from FB 1
+      framebuffer_upload( gl, jfa_step_fb_0, self.viewport ); // Render to FB 0
+      texture_upload( gl, jfa_step_fb_color_1, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is texture from FB 1
     }
     else // Odd steps ( 1, 3, ... ) read from FB 0, render to FB 1
     {
-      upload_framebuffer( gl, jfa_step_fb_1, self.viewport ); // Render to FB 1
-      upload_texture( gl, jfa_step_fb_color_0, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is texture from FB 0
+      framebuffer_upload( gl, jfa_step_fb_1, self.viewport ); // Render to FB 1
+      texture_upload( gl, jfa_step_fb_color_0, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is texture from FB 0
     }
 
     // Upload resolution uniform ( needed for distance calculations in the shader )
@@ -586,18 +586,18 @@ impl Renderer
     )
     .unwrap();
 
-    upload_texture( gl, equirect_map, &u_equirect_map, GL::TEXTURE0 );
-    upload_texture( gl, object_fb_color, &u_object_texture, GL::TEXTURE1 );
-    upload_texture( gl, object_fb_normal, &u_normal_texture, GL::TEXTURE2 );
+    texture_upload( gl, equirect_map, &u_equirect_map, GL::TEXTURE0 );
+    texture_upload( gl, object_fb_color, &u_object_texture, GL::TEXTURE1 );
+    texture_upload( gl, object_fb_normal, &u_normal_texture, GL::TEXTURE2 );
 
     // The final JFA result is in jfa_step_fb_color_0 if num_passes is even, otherwise in jfa_step_fb_color_1
     if num_passes % 2 == 0
     {
-      upload_texture( gl, jfa_step_fb_color_0, &u_jfa_step_texture, GL::TEXTURE3 );
+      texture_upload( gl, jfa_step_fb_color_0, &u_jfa_step_texture, GL::TEXTURE3 );
     }
     else
     {
-      upload_texture( gl, jfa_step_fb_color_1, &u_jfa_step_texture, GL::TEXTURE3 );
+      texture_upload( gl, jfa_step_fb_color_1, &u_jfa_step_texture, GL::TEXTURE3 );
     }
 
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
@@ -612,7 +612,7 @@ impl Renderer
 /// # Returns
 ///
 /// A `Result` indicating success or a WebGL error.
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   let renderer = Renderer::new();
 
@@ -648,9 +648,9 @@ async fn run() -> Result< (), gl::WebglError >
 
 /// The main entry point of the application.
 ///
-/// Spawns the asynchronous `run` function using `gl::spawn_local` which is
+/// Spawns the asynchronous `app_run` function using `gl::spawn_local` which is
 /// suitable for WebAssembly targets in a browser environment.
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

@@ -409,7 +409,7 @@ mod private
   ///
   /// When `folder_path` is empty (the glTF was loaded from a bare filename, so it
   /// sits at the origin root) a folder-relative `uri` resolves to `"/{uri}"`. This
-  /// is intentional and harmless: `resolve_url` joins both `"/buffer.bin"` and
+  /// is intentional and harmless: `url_resolve` joins both `"/buffer.bin"` and
   /// `"buffer.bin"` against the origin to the same `"{origin}/buffer.bin"`. A glTF
   /// served from a subdirectory must be loaded with that directory in `gltf_path`
   /// (e.g. `"assets/scene.gltf"`), otherwise the glTF fetch itself fails first.

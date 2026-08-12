@@ -70,7 +70,7 @@ mod private
   {
     if o.remove_dpr_scaling
     {
-      canvas::remove_dpr_scaling( canvas );
+      canvas::dpr_scaling_remove( canvas );
     }
 
     let context_options : js_sys::Object = o.into();
@@ -216,7 +216,7 @@ mod private
   {
     /// Set whether to remove device pixel ratio scaling.
     #[ must_use ]
-    pub fn remove_dpr_scaling( mut self, val : bool ) -> Self
+    pub fn dpr_scaling_remove( mut self, val : bool ) -> Self
     {
       self.remove_dpr_scaling = val;
       self
@@ -224,7 +224,7 @@ mod private
 
     /// Set whether to preserve the drawing buffer.
     #[ must_use ]
-    pub fn preserve_drawing_buffer( mut self, val : bool ) -> Self
+    pub fn drawing_buffer_preserve( mut self, val : bool ) -> Self
     {
       self.preserve_drawing_buffer = val;
       self

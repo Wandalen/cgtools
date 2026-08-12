@@ -22,7 +22,7 @@ use renderer::webgl::
 mod lil_gui;
 mod gui_setup;
 
-fn add_light( scene : &Rc< RefCell< Scene > >, light : Light ) -> Rc< RefCell< Node > >
+fn light_add( scene : &Rc< RefCell< Scene > >, light : Light ) -> Rc< RefCell< Node > >
 {
   let light_node = Rc::new( RefCell::new( Node::new() ) );
   light_node.borrow_mut().object = Object3D::Light( light );
@@ -31,7 +31,7 @@ fn add_light( scene : &Rc< RefCell< Scene > >, light : Light ) -> Rc< RefCell< N
 }
 
 /// Creates the orbit camera framed on the scene's bounding box and binds its controls.
-fn setup_camera( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : &mingl::geometry::BoundingBox, width : f32, height : f32 ) -> Camera
+fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : &mingl::geometry::BoundingBox, width : f32, height : f32 ) -> Camera
 {
   gl::info!( "Scene boudnig box: {scene_bounding_box:?}" );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
@@ -65,7 +65,7 @@ fn setup_camera( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : 
 }
 
 /// Adds the three rotating direct lights, three rotating point lights, and the named controllable light to the scene.
-fn create_lights( scene : &Rc< RefCell< Scene > > ) -> ( Vec< Rc< RefCell< Node > > >, Rc< RefCell< Node > > )
+fn lights_create( scene : &Rc< RefCell< Scene > > ) -> ( Vec< Rc< RefCell< Node > > >, Rc< RefCell< Node > > )
 {
   let mut lights = vec![];
 
@@ -78,7 +78,7 @@ fn create_lights( scene : &Rc< RefCell< Scene > > ) -> ( Vec< Rc< RefCell< Node 
 
   for color in colors
   {
-    let d = add_light
+    let d = light_add
     (
       scene,
       Light::Direct
@@ -97,7 +97,7 @@ fn create_lights( scene : &Rc< RefCell< Scene > > ) -> ( Vec< Rc< RefCell< Node 
 
   for color in colors
   {
-    let p = add_light
+    let p = light_add
     (
       scene,
       Light::Point
@@ -115,7 +115,7 @@ fn create_lights( scene : &Rc< RefCell< Scene > > ) -> ( Vec< Rc< RefCell< Node 
     lights.push( p );
   }
 
-  let controllable_light = add_light
+  let controllable_light = light_add
   (
     scene,
     Light::Direct
@@ -134,7 +134,7 @@ fn create_lights( scene : &Rc< RefCell< Scene > > ) -> ( Vec< Rc< RefCell< Node 
 }
 
 /// Clones the marker sphere onto every light's position or direction.
-fn create_light_spheres( sphere : &Rc< RefCell< Node > >, lights : &[ Rc< RefCell< Node > > ] ) -> Vec< Rc< RefCell< Node > > >
+fn light_spheres_create( sphere : &Rc< RefCell< Node > >, lights : &[ Rc< RefCell< Node > > ] ) -> Vec< Rc< RefCell< Node > > >
 {
   lights.iter()
   .filter_map
@@ -164,7 +164,7 @@ fn create_light_spheres( sphere : &Rc< RefCell< Node > >, lights : &[ Rc< RefCel
 }
 
 /// Rotates every non-controllable light around the scene and moves its marker sphere with it.
-fn animate_lights( lights : &[ Rc< RefCell< Node > > ], spheres : &[ Rc< RefCell< Node > > ], t : f64, light_radius : f32, light_speed : f32 )
+fn lights_animate( lights : &[ Rc< RefCell< Node > > ], spheres : &[ Rc< RefCell< Node > > ], t : f64, light_radius : f32, light_speed : f32 )
 {
   for ( i, light ) in lights.iter().enumerate()
   {
@@ -209,7 +209,7 @@ fn animate_lights( lights : &[ Rc< RefCell< Node > > ], spheres : &[ Rc< RefCell
   }
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
@@ -237,7 +237,7 @@ async fn run() -> Result< (), gl::WebglError >
   }
 
   let scene_bounding_box = scene.borrow().bounding_box();
-  let camera = setup_camera( &canvas, &scene_bounding_box, width, height );
+  let camera = camera_setup( &canvas, &scene_bounding_box, width, height );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_use_emission( &gl, true );
@@ -253,11 +253,11 @@ async fn run() -> Result< (), gl::WebglError >
   let sphere_gltf = renderer::webgl::loaders::gltf::load( &document, "static/sphere.glb", &gl ).await?;
   let sphere = sphere_gltf.scenes[ 0 ].borrow().children.last().cloned().unwrap();
 
-  let ( lights, controllable_light ) = create_lights( &scene );
+  let ( lights, controllable_light ) = lights_create( &scene );
 
   sphere.borrow_mut().set_scale( F32x3::splat( 0.02 ) );
 
-  let spheres = create_light_spheres( &sphere, &lights );
+  let spheres = light_spheres_create( &sphere, &lights );
 
   let controllable_sphere = sphere.borrow().clone_tree();
   controllable_sphere.borrow_mut().set_translation( F32x3::splat( 1.0 ) );
@@ -289,7 +289,7 @@ async fn run() -> Result< (), gl::WebglError >
         }
       }
 
-      animate_lights( &lights, &spheres, t, light_radius, light_speed );
+      lights_animate( &lights, &spheres, t, light_radius, light_speed );
 
       // If textures are of different size, gl.view_port needs to be called
 
@@ -321,5 +321,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

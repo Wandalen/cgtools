@@ -64,7 +64,7 @@ mod private
     /// and no instance or adapter. Public only so the device-descriptor setter tests can
     /// live in `tests/`; the type-state invariant ( an adapter is present in this state
     /// when it is reached through the public chain ) is deliberately not upheld, so
-    /// calling `finish_context` on the result panics. Not part of the supported API.
+    /// calling `context_finish` on the result panics. Not part of the supported API.
     #[ doc( hidden ) ]
     #[ inline ]
     #[ must_use ]
@@ -85,7 +85,7 @@ mod private
     /// Returns a reference to the `wgpu::Instance`.
     #[ inline ]
     #[ must_use ]
-    pub fn get_instance( &self ) -> &wgpu::Instance
+    pub fn instance_get( &self ) -> &wgpu::Instance
     {
       &self.instance
     }
@@ -93,7 +93,7 @@ mod private
     /// Returns a reference to the `wgpu::Adapter`.
     #[ inline ]
     #[ must_use ]
-    pub fn get_adapter( &self ) -> &wgpu::Adapter
+    pub fn adapter_get( &self ) -> &wgpu::Adapter
     {
       &self.adapter
     }
@@ -101,7 +101,7 @@ mod private
     /// Returns a reference to the `wgpu::Device`.
     #[ inline ]
     #[ must_use ]
-    pub fn get_device( &self ) -> &wgpu::Device
+    pub fn device_get( &self ) -> &wgpu::Device
     {
       &self.device
     }
@@ -109,7 +109,7 @@ mod private
     /// Returns a reference to the `wgpu::Queue`.
     #[ inline ]
     #[ must_use ]
-    pub fn get_queue( &self ) -> &wgpu::Queue
+    pub fn queue_get( &self ) -> &wgpu::Queue
     {
       &self.queue
     }
@@ -151,6 +151,42 @@ mod private
     }
   }
 
+  /// Creates a ready-to-use headless `Context` on the primary backends.
+  ///
+  /// Equivalent to [`headless_with`] with [`wgpu::Backends::PRIMARY`] : an instance on the
+  /// primary backends, a high-performance adapter, and a device with the default
+  /// descriptor. Suited for offscreen rendering where no window surface is involved;
+  /// use [`Context::builder`] directly when extra features or limits are required.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error when no suitable adapter is found or the device request fails.
+  #[ inline ]
+  pub fn headless() -> Result< Context, crate::Error >
+  {
+    headless_with( wgpu::Backends::PRIMARY )
+  }
+
+  /// Creates a ready-to-use headless `Context` on the given backends.
+  ///
+  /// Builds an instance restricted to `backends`, requests a high-performance adapter,
+  /// and requests a device with the default descriptor.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error when no suitable adapter is found on the given backends or the
+  /// device request fails.
+  #[ inline ]
+  pub fn headless_with( backends : wgpu::Backends ) -> Result< Context, crate::Error >
+  {
+    Context::builder()
+    .backends( backends )
+    .instance_make()
+    .power_preference( wgpu::PowerPreference::HighPerformance )
+    .adapter_request()?
+    .context_finish()
+  }
+
   pub type AdapterSelector< 's > = Box< dyn FnMut( &wgpu::Instance ) -> Result< wgpu::Adapter, crate::Error > + 's >;
 
   /// Type-state marker: the builder is configuring the `wgpu::Instance` ( the state
@@ -158,11 +194,11 @@ mod private
   pub struct InstanceBuilder;
 
   /// Type-state marker: the builder is selecting a `wgpu::Adapter` ( entered via
-  /// `make_instance` or [`Context::from_instance`] ).
+  /// `instance_make` or [`Context::from_instance`] ).
   pub struct AdapterBuilder;
 
   /// Type-state marker: the builder is configuring the `wgpu::Device` request ( entered
-  /// via `request_adapter` / `request_adapter_async` ).
+  /// via `adapter_request` / `adapter_request_async` ).
   pub struct DeviceBuilder;
 
   /// A type-state builder for creating a `wgpu` `Context`.
@@ -188,7 +224,7 @@ mod private
     /// Returns the accumulated `wgpu::InstanceDescriptor`.
     #[ inline ]
     #[ must_use ]
-    pub fn get_instance_descriptor( &self ) -> &wgpu::InstanceDescriptor
+    pub fn instance_descriptor_get( &self ) -> &wgpu::InstanceDescriptor
     {
       &self.instance_descriptor
     }
@@ -196,7 +232,7 @@ mod private
     /// Returns the accumulated `wgpu::RequestAdapterOptions`.
     #[ inline ]
     #[ must_use ]
-    pub fn get_request_adapter_options( &self ) -> &wgpu::RequestAdapterOptions< 'a, 'b >
+    pub fn request_adapter_options_get( &self ) -> &wgpu::RequestAdapterOptions< 'a, 'b >
     {
       &self.request_adapter_options
     }
@@ -204,7 +240,7 @@ mod private
     /// Returns the accumulated `wgpu::DeviceDescriptor`.
     #[ inline ]
     #[ must_use ]
-    pub fn get_device_descriptor( &self ) -> &wgpu::DeviceDescriptor< 'l >
+    pub fn device_descriptor_get( &self ) -> &wgpu::DeviceDescriptor< 'l >
     {
       &self.device_descriptor
     }
@@ -259,7 +295,7 @@ mod private
     /// Creates the `wgpu::Instance` and transitions the builder to the next state for adapter selection.
     #[ inline ]
     #[ must_use ]
-    pub fn make_instance( mut self ) -> ContextBuilder< 'a, 'b, 'l, 's, AdapterBuilder >
+    pub fn instance_make( mut self ) -> ContextBuilder< 'a, 'b, 'l, 's, AdapterBuilder >
     {
       self.instance = Some( wgpu::Instance::new( &self.instance_descriptor ) );
 
@@ -338,10 +374,10 @@ mod private
     /// # Panics
     ///
     /// Panics if the instance was never set. This cannot happen through the public API: the
-    /// `AdapterBuilder` state is only reachable via `make_instance` or `from_instance`, both of
+    /// `AdapterBuilder` state is only reachable via `instance_make` or `from_instance`, both of
     /// which populate `instance` before this method becomes callable.
     #[ inline ]
-    pub async fn request_adapter_async( mut self ) -> Result< ContextBuilder< 'a, 'b, 'l, 's, DeviceBuilder >, crate::Error >
+    pub async fn adapter_request_async( mut self ) -> Result< ContextBuilder< 'a, 'b, 'l, 's, DeviceBuilder >, crate::Error >
     {
       let adapter = if let Some( adapter_selector ) = &mut self.adapter_selector
       {
@@ -386,9 +422,9 @@ mod private
     ///
     /// Return error in case of `Instance::request_adapter` returns error.
     #[ inline ]
-    pub fn request_adapter( self ) -> Result< ContextBuilder< 'a, 'b, 'l, 's, DeviceBuilder >, crate::Error >
+    pub fn adapter_request( self ) -> Result< ContextBuilder< 'a, 'b, 'l, 's, DeviceBuilder >, crate::Error >
     {
-      pollster::block_on( self.request_adapter_async() )
+      pollster::block_on( self.adapter_request_async() )
     }
   }
 
@@ -449,10 +485,10 @@ mod private
     /// # Panics
     ///
     /// Panics if the adapter was never set. This cannot happen through the public API: the
-    /// `DeviceBuilder` state is only reachable via `request_adapter`/`request_adapter_async`,
+    /// `DeviceBuilder` state is only reachable via `adapter_request`/`adapter_request_async`,
     /// which populate `adapter` before this method becomes callable.
     #[ inline ]
-    pub async fn finish_context_async( self ) -> Result< Context, crate::Error >
+    pub async fn context_finish_async( self ) -> Result< Context, crate::Error >
     {
       let ( device, queue ) = self.adapter.as_ref().unwrap().request_device( &self.device_descriptor ).await?;
       let Self {  instance, adapter, .. } = self;
@@ -471,9 +507,9 @@ mod private
     ///
     /// Returns error in case of `Adapter::request_device` returns error.
     #[ inline ]
-    pub fn finish_context( self ) -> Result< Context, crate::Error >
+    pub fn context_finish( self ) -> Result< Context, crate::Error >
     {
-      pollster::block_on( self.finish_context_async() )
+      pollster::block_on( self.context_finish_async() )
     }
   }
 }
@@ -485,4 +521,6 @@ mod_interface!
   own use InstanceBuilder;
   own use AdapterBuilder;
   own use DeviceBuilder;
+  own use headless;
+  own use headless_with;
 }

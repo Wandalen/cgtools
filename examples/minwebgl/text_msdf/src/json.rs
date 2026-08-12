@@ -58,7 +58,7 @@ pub struct MSDFFontJSON
 
 impl MSDFFontJSON 
 {
-  pub fn parse_font( font: &str ) -> MSDFFont
+  pub fn font_parse( font: &str ) -> MSDFFont
   {
     let res : Self = serde_json::from_str( font ).unwrap();
 

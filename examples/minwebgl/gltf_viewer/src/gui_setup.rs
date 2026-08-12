@@ -6,7 +6,7 @@ use renderer::webgl::Renderer;
 use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
 
-use crate::lil_gui::{add_slider, new_gui, on_change, show};
+use crate::lil_gui::{slider_add, gui_new, on_change, show};
 
 #[ derive( Default, Serialize, Deserialize ) ]
 pub struct Settings
@@ -26,9 +26,9 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > > )
   settings.exposure = renderer.borrow().exposure();
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
-  let gui = new_gui();
+  let gui = gui_new();
 
-  let prop = add_slider( &gui, &object, "bloomRadius", 0.0, 1.0, 0.01 );
+  let prop = slider_add( &gui, &object, "bloomRadius", 0.0, 1.0, 0.01 );
   let callback = Closure::new
   (
     {
@@ -42,7 +42,7 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > > )
   on_change( &prop, &callback );
   callback.forget();
 
-  let prop = add_slider( &gui, &object, "bloomStrength", 0.0, 10.0, 0.1 );
+  let prop = slider_add( &gui, &object, "bloomStrength", 0.0, 10.0, 0.1 );
   let callback = Closure::new
   (
     {
@@ -56,7 +56,7 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > > )
   on_change( &prop, &callback );
   callback.forget();
 
-  let prop = add_slider( &gui, &object, "exposure", -10.0, 10.0, 0.1 );
+  let prop = slider_add( &gui, &object, "exposure", -10.0, 10.0, 0.1 );
   let callback = Closure::new
   (
     {

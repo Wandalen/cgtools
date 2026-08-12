@@ -92,7 +92,7 @@ fn iterate( z : &mut Board, scratch : &mut Board )
 }
 
 // Function to ensure the four corners of the grid are always alive
-fn turn_on_corners( z : &mut Board )
+fn corners_turn_on( z : &mut Board )
 {
   let n = z.nrows(); // Get the number of rows
   let m = z.ncols(); // Get the number of columns
@@ -131,13 +131,13 @@ fn main()
   let mut scratch = Board::from_elem( ( N, N ), Cell( 0 )); // Create a scratch array for neighbor calculations
   let steps = 50; // Number of steps to simulate
 
-  turn_on_corners( &mut a ); // Turn on the corners of the grid
+  corners_turn_on( &mut a ); // Turn on the corners of the grid
 
   // Simulate the Game of Life for the specified number of steps
   for _ in 0..steps
   {
     iterate( &mut a, &mut scratch ); // Apply the game rules
-    turn_on_corners( &mut a );       // Ensure the corners stay alive
+    corners_turn_on( &mut a );       // Ensure the corners stay alive
   }
 
   render( &a ); // Render the final grid

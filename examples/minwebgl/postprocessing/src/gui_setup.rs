@@ -5,7 +5,7 @@ use core::cell::RefCell;
 use renderer::webgl::{ Renderer, post_processing::{ ColorGradingPass, ColorGradingParams } };
 use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
-use crate::lil_gui::{ add_slider, add_folder, new_gui, on_change, show };
+use crate::lil_gui::{ slider_add, folder_add, gui_new, on_change, show };
 
 #[ derive( Default, Serialize, Deserialize ) ]
 pub struct RendererSettings
@@ -31,7 +31,7 @@ pub struct ColorGradingSettings
 }
 
 /// Adds one color grading slider wired to a single `ColorGradingParams` field.
-fn add_grading_slider
+fn grading_slider_add
 (
   folder : &JsValue,
   cg_object : &JsValue,
@@ -40,7 +40,7 @@ fn add_grading_slider
   field : fn( &mut ColorGradingParams ) -> &mut f32,
 )
 {
-  let prop = add_slider( folder, cg_object, name, -1.0, 1.0, 0.01 );
+  let prop = slider_add( folder, cg_object, name, -1.0, 1.0, 0.01 );
   let callback = Closure::new
   (
     {
@@ -57,7 +57,7 @@ fn add_grading_slider
 
 pub fn setup( renderer : &Rc< RefCell< Renderer > >, color_grading : &Rc< RefCell< ColorGradingPass > > )
 {
-  let gui = new_gui();
+  let gui = gui_new();
 
   // === Renderer Settings ===
   let mut renderer_settings = RendererSettings::default();
@@ -66,10 +66,10 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > >, color_grading : &Rc< RefCel
   renderer_settings.exposure = renderer.borrow().exposure();
 
   let renderer_object = serde_wasm_bindgen::to_value( &renderer_settings ).unwrap();
-  let renderer_folder = add_folder( &gui, "Renderer" );
+  let renderer_folder = folder_add( &gui, "Renderer" );
 
   // Exposure
-  let prop = add_slider( &renderer_folder, &renderer_object, "exposure", -10.0, 10.0, 0.1 );
+  let prop = slider_add( &renderer_folder, &renderer_object, "exposure", -10.0, 10.0, 0.1 );
   let callback = Closure::new
   (
     {
@@ -84,7 +84,7 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > >, color_grading : &Rc< RefCel
   callback.forget();
 
   // Bloom Radius
-  let prop = add_slider( &renderer_folder, &renderer_object, "bloomRadius", 0.0, 1.0, 0.01 );
+  let prop = slider_add( &renderer_folder, &renderer_object, "bloomRadius", 0.0, 1.0, 0.01 );
   let callback = Closure::new
   (
     {
@@ -99,7 +99,7 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > >, color_grading : &Rc< RefCel
   callback.forget();
 
   // Bloom Strength
-  let prop = add_slider( &renderer_folder, &renderer_object, "bloomStrength", 0.0, 10.0, 0.1 );
+  let prop = slider_add( &renderer_folder, &renderer_object, "bloomStrength", 0.0, 10.0, 0.1 );
   let callback = Closure::new
   (
     {
@@ -127,32 +127,32 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > >, color_grading : &Rc< RefCel
   cg_settings.saturation = params.saturation;
 
   let cg_object = serde_wasm_bindgen::to_value( &cg_settings ).unwrap();
-  let cg_folder = add_folder( &gui, "Color Grading" );
+  let cg_folder = folder_add( &gui, "Color Grading" );
 
   // White Balance folder
-  let wb_folder = add_folder( &cg_folder, "White Balance" );
+  let wb_folder = folder_add( &cg_folder, "White Balance" );
 
-  add_grading_slider( &wb_folder, &cg_object, "temperature", color_grading, | p | &mut p.temperature );
+  grading_slider_add( &wb_folder, &cg_object, "temperature", color_grading, | p | &mut p.temperature );
 
-  add_grading_slider( &wb_folder, &cg_object, "tint", color_grading, | p | &mut p.tint );
+  grading_slider_add( &wb_folder, &cg_object, "tint", color_grading, | p | &mut p.tint );
 
   // Tone Controls folder
-  let tone_folder = add_folder( &cg_folder, "Tone Controls" );
+  let tone_folder = folder_add( &cg_folder, "Tone Controls" );
 
-  add_grading_slider( &tone_folder, &cg_object, "exposure", color_grading, | p | &mut p.exposure );
+  grading_slider_add( &tone_folder, &cg_object, "exposure", color_grading, | p | &mut p.exposure );
 
-  add_grading_slider( &tone_folder, &cg_object, "shadows", color_grading, | p | &mut p.shadows );
+  grading_slider_add( &tone_folder, &cg_object, "shadows", color_grading, | p | &mut p.shadows );
 
-  add_grading_slider( &tone_folder, &cg_object, "highlights", color_grading, | p | &mut p.highlights );
+  grading_slider_add( &tone_folder, &cg_object, "highlights", color_grading, | p | &mut p.highlights );
 
   // Color Adjustments folder
-  let color_folder = add_folder( &cg_folder, "Color Adjustments" );
+  let color_folder = folder_add( &cg_folder, "Color Adjustments" );
 
-  add_grading_slider( &color_folder, &cg_object, "contrast", color_grading, | p | &mut p.contrast );
+  grading_slider_add( &color_folder, &cg_object, "contrast", color_grading, | p | &mut p.contrast );
 
-  add_grading_slider( &color_folder, &cg_object, "vibrance", color_grading, | p | &mut p.vibrance );
+  grading_slider_add( &color_folder, &cg_object, "vibrance", color_grading, | p | &mut p.vibrance );
 
-  add_grading_slider( &color_folder, &cg_object, "saturation", color_grading, | p | &mut p.saturation );
+  grading_slider_add( &color_folder, &cg_object, "saturation", color_grading, | p | &mut p.saturation );
 
   core::mem::forget( renderer_object );
   core::mem::forget( cg_object );

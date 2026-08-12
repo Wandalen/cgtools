@@ -26,12 +26,12 @@ where
   };
 
   // Define matrices using row_major for consistent logical layout
-  let mat_a = Mat::< 1, 3, f32, D >::default().set_row_major
+  let mat_a = Mat::< 1, 3, f32, D >::default().row_major_set
   (&[
     1.0, 2.0, 3.0,
   ]);
 
-  let mat_b = Mat::< 3, 2, f32, D >::default().set_row_major
+  let mat_b = Mat::< 3, 2, f32, D >::default().row_major_set
   (&[
     7.0, 8.0,
     9.0, 10.0,
@@ -46,7 +46,7 @@ where
   println!( "After mul" );
 
   // Expected result
-  let exp = Mat::< 1, 2, f32, D >::default().set_row_major
+  let exp = Mat::< 1, 2, f32, D >::default().row_major_set
   (&[
     58.0, 64.0,
   ]);
@@ -119,8 +119,8 @@ where
 
   // a is 2x3, b is 2x2: a's column count (3) does not match b's row count (2), so the
   // inner multiplication dimension is incompatible.
-  let mat_a = Mat::< 2, 3, f32, D >::default().set_row_major( &[ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
-  let mat_b = Mat::< 2, 2, f32, D >::default().set_row_major( &[ 1.0, 2.0, 3.0, 4.0 ] );
+  let mat_a = Mat::< 2, 3, f32, D >::default().row_major_set( &[ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
+  let mat_b = Mat::< 2, 2, f32, D >::default().row_major_set( &[ 1.0, 2.0, 3.0, 4.0 ] );
   let mut mat_r = Mat::< 2, 2, f32, D >::default();
 
   // Attempt multiplication with incompatible inner dimensions, should panic
@@ -144,16 +144,16 @@ fn test_multiply_incompatible_dimensions_column_major()
 }
 
 /// ## Root Cause
-/// `d2::mul_mat_vec`'s dimension-compatibility check (`adim[1] != ROWS`) lived inside
+/// `d2::mat_vec_mul`'s dimension-compatibility check (`adim[1] != ROWS`) lived inside
 /// `#[ cfg( debug_assertions ) ]`, so a release build skipped it entirely.
 ///
 /// ## Why Not Caught
-/// `mul_mat_vec` has no direct test anywhere in this suite; it is only reachable
+/// `mat_vec_mul` has no direct test anywhere in this suite; it is only reachable
 /// indirectly through the `Mul<Vector<COLS>>` operator impls, which never exercise a
 /// mismatched shape.
 ///
 /// ## Fix Applied
-/// TASK-014 changed `mul_mat_vec()`'s `#[ cfg( debug_assertions ) ]` block to run
+/// TASK-014 changed `mat_vec_mul()`'s `#[ cfg( debug_assertions ) ]` block to run
 /// unconditionally (see `src/d2/arithmetics/mul.rs`). This test calls the free function
 /// directly with a matrix column count that does not match the vector length.
 ///
@@ -181,12 +181,12 @@ where
 
   // a is 3x3 (3 columns), but b/r are length-2 vectors: a's column count (3) does not
   // match the vector length (2).
-  let mat_a = Mat::< 3, 3, f32, D >::default().set_row_major( &[ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ] );
+  let mat_a = Mat::< 3, 3, f32, D >::default().row_major_set( &[ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ] );
   let vec_b = Vector::< f32, 2 >::from_array( [ 1.0, 2.0 ] );
   let mut vec_r = Vector::< f32, 2 >::default();
 
   // Attempt matrix-vector multiplication with incompatible dimensions, should panic
-  d2::mul_mat_vec( &mut vec_r, &mat_a, &vec_b );
+  d2::mat_vec_mul( &mut vec_r, &mat_a, &vec_b );
 }
 
 #[ test ]

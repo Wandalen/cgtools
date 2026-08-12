@@ -216,7 +216,7 @@ mod private
 
   /// Walks the composition layers — group contents are appended as new sublayers while
   /// iterating — and produces per-layer primitive lists plus all repeater assignments.
-  fn collect_layer_primitives
+  fn layer_primitives_collect
   (
     layers : &mut Vec< interpoli::Layer >
   ) -> ( Vec< Vec< PrimitiveData > >, Vec< RepeaterAssignment > )
@@ -241,7 +241,7 @@ mod private
 
   /// Applies collected repeater assignments : an empty id range targets the layer's base
   /// primitive, otherwise every primitive in the range receives the repeater.
-  fn apply_repeaters( primitives : &mut [ Vec< PrimitiveData > ], repeaters : Vec< RepeaterAssignment > )
+  fn repeaters_apply( primitives : &mut [ Vec< PrimitiveData > ], repeaters : Vec< RepeaterAssignment > )
   {
     for ( layer, primitive_ids, repeater ) in repeaters
     {
@@ -261,7 +261,7 @@ mod private
 
   /// Resolves parent links : layer bases keep their layer parent, in-layer primitives parent
   /// to their layer base, and layer-parent indices are remapped to primitive ids.
-  fn assign_parents( composition : &Composition, primitives : &mut [ Vec< PrimitiveData > ] )
+  fn parents_assign( composition : &Composition, primitives : &mut [ Vec< PrimitiveData > ] )
   {
     let layer_iter = composition.layers.iter().enumerate()
     .zip( primitives.iter_mut() );
@@ -311,9 +311,9 @@ mod private
       let composition : Composition = composition.into();
 
       let mut layers = composition.layers.clone();
-      let ( mut primitives, repeaters ) = collect_layer_primitives( &mut layers );
-      apply_repeaters( &mut primitives, repeaters );
-      assign_parents( &composition, &mut primitives );
+      let ( mut primitives, repeaters ) = layer_primitives_collect( &mut layers );
+      repeaters_apply( &mut primitives, repeaters );
+      parents_assign( &composition, &mut primitives );
 
       let primitives_data = primitives.into_iter()
       .flatten()
@@ -340,7 +340,7 @@ mod private
     }
 
     /// Updates the scene nodes with their animated transformations and repeater logic for a given frame.
-    fn update_scene( &self, scene : &mut Scene, frame : f64 )
+    fn scene_update( &self, scene : &mut Scene, frame : f64 )
     {
       let mut nodes_to_insert = vec![];
 
@@ -424,7 +424,7 @@ mod private
     }
 
     /// Filters and removes nodes from the scene that are outside of their defined frame range.
-    fn filter_nodes( &self, scene : &mut Scene, frame : f64 )
+    fn nodes_filter( &self, scene : &mut Scene, frame : f64 )
     {
       let mut nodes_to_remove = FxHashMap::default();
 
@@ -551,8 +551,8 @@ mod private
 
       let mut scene = scene.borrow().clone();
 
-      self.filter_nodes( &mut scene, frame );
-      self.update_scene( &mut scene, frame );
+      self.nodes_filter( &mut scene, frame );
+      self.scene_update( &mut scene, frame );
       let colors = self.colors_from_scene( &mut scene, frame );
 
       scene.update_world_matrix();
@@ -561,7 +561,7 @@ mod private
     }
 
     /// Sets the world matrix for all scenes within the GLTF data.
-    pub fn set_world_matrix( &self, world_matrix : F32x4x4 )
+    pub fn world_matrix_set( &self, world_matrix : F32x4x4 )
     {
       for scene in &self.gltf.scenes
       {

@@ -11,7 +11,7 @@
 
 use tiles_tools::serialization::{GameStateSerializer, Achievement, SerializationFormat, SaveManager, SaveVersion, ConfigManager, GameConfig, PlayerProgress, SerializableGameState};
 
-fn build_basic_game_state() -> SerializableGameState
+fn basic_game_state_build() -> SerializableGameState
 {
   // === BASIC SERIALIZATION ===
   println!("\n📄 Basic Game State Serialization");
@@ -60,7 +60,7 @@ fn build_basic_game_state() -> SerializableGameState
   game_state
 }
 
-fn demonstrate_serialization_formats(game_state: &SerializableGameState)
+fn serialization_formats_demonstrate(game_state: &SerializableGameState)
 {
   // === MULTIPLE FORMATS DEMONSTRATION ===
   println!("\n🔄 Multiple Serialization Formats");
@@ -104,7 +104,7 @@ fn demonstrate_serialization_formats(game_state: &SerializableGameState)
   println!("  RON player level: {}", ron_restored.progress.level);
 }
 
-fn demonstrate_compression(game_state: &SerializableGameState)
+fn compression_demonstrate(game_state: &SerializableGameState)
 {
   // === COMPRESSION DEMONSTRATION ===
   println!("\n🗜️ Compression");
@@ -141,7 +141,7 @@ fn demonstrate_compression(game_state: &SerializableGameState)
   println!("  Restored player level: {}", decompressed.progress.level);
 }
 
-fn demonstrate_save_manager(game_state: &SerializableGameState, temp_dir: &std::path::Path) -> SaveManager
+fn save_manager_demonstrate(game_state: &SerializableGameState, temp_dir: &std::path::Path) -> SaveManager
 {
   // === SAVE MANAGER DEMONSTRATION ===
   println!("\n💾 Save Manager");
@@ -214,7 +214,7 @@ fn demonstrate_save_manager(game_state: &SerializableGameState, temp_dir: &std::
   save_manager
 }
 
-fn demonstrate_version_compatibility()
+fn version_compatibility_demonstrate()
 {
   // === VERSION COMPATIBILITY ===
   println!("\n🔄 Version Compatibility");
@@ -231,7 +231,7 @@ fn demonstrate_version_compatibility()
   println!("Incompatible version compatibility: {}", current_version.is_compatible_with(&incompatible_version));
 }
 
-fn demonstrate_configuration(temp_dir: &std::path::Path)
+fn configuration_demonstrate(temp_dir: &std::path::Path)
 {
   // === CONFIGURATION MANAGEMENT ===
   println!("\n⚙️ Configuration Management");
@@ -269,7 +269,7 @@ fn demonstrate_configuration(temp_dir: &std::path::Path)
   println!("  Key bindings: {}", loaded_config.controls.key_bindings.len());
 }
 
-fn demonstrate_player_progress()
+fn player_progress_demonstrate()
 {
   // === PLAYER PROGRESS TRACKING ===
   println!("\n👤 Player Progress Tracking");
@@ -336,7 +336,7 @@ fn demonstrate_player_progress()
   println!("    Deaths: {}", progress.statistics.deaths);
 }
 
-fn demonstrate_cleanup(save_manager: &SaveManager, temp_dir: &std::path::Path)
+fn cleanup_demonstrate(save_manager: &SaveManager, temp_dir: &std::path::Path)
 {
   // === CLEANUP DEMONSTRATION ===
   println!("\n🧹 Cleanup");
@@ -356,7 +356,7 @@ fn demonstrate_cleanup(save_manager: &SaveManager, temp_dir: &std::path::Path)
   println!("✅ Cleaned up temporary files");
 }
 
-fn demonstrate_performance(game_state: &SerializableGameState)
+fn performance_demonstrate(game_state: &SerializableGameState)
 {
   // === PERFORMANCE DEMONSTRATION ===
   println!("\n⚡ Performance Test");
@@ -397,22 +397,22 @@ fn main()
   println!("💾 Serialization System Demonstration");
   println!("=====================================");
 
-  let game_state = build_basic_game_state();
+  let game_state = basic_game_state_build();
 
-  demonstrate_serialization_formats(&game_state);
-  demonstrate_compression(&game_state);
+  serialization_formats_demonstrate(&game_state);
+  compression_demonstrate(&game_state);
 
   // Create a temporary directory for saves (in real usage, this would be a persistent directory)
   let temp_dir = std::env::temp_dir().join("tiles_tools_demo_saves");
   std::fs::create_dir_all(&temp_dir).expect("Failed to create saves directory");
 
-  let save_manager = demonstrate_save_manager(&game_state, &temp_dir);
+  let save_manager = save_manager_demonstrate(&game_state, &temp_dir);
 
-  demonstrate_version_compatibility();
-  demonstrate_configuration(&temp_dir);
-  demonstrate_player_progress();
-  demonstrate_cleanup(&save_manager, &temp_dir);
-  demonstrate_performance(&game_state);
+  version_compatibility_demonstrate();
+  configuration_demonstrate(&temp_dir);
+  player_progress_demonstrate();
+  cleanup_demonstrate(&save_manager, &temp_dir);
+  performance_demonstrate(&game_state);
 
   println!("\n✨ Serialization Demo Complete!");
   println!("\nKey features demonstrated:");

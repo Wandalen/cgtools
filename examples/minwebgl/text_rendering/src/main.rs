@@ -37,7 +37,7 @@ use std::any::type_name_of_val;
 
 mod text;
 
-fn make_buffer_attribute_info
+fn buffer_attribute_info_make
 (
   buffer : &web_sys::WebGlBuffer,
   offset : i32,
@@ -85,7 +85,7 @@ fn scene_attribute_infos
   [
     (
       "positions",
-      make_buffer_attribute_info
+      buffer_attribute_info_make
       (
         position_buffer,
         0,
@@ -97,7 +97,7 @@ fn scene_attribute_infos
     ),
     (
       "normals",
-      make_buffer_attribute_info
+      buffer_attribute_info_make
       (
         normal_buffer,
         0,
@@ -133,7 +133,7 @@ impl Default for Transform
 
 impl Transform
 {
-  fn set_node_transform( &self, node : &Rc< RefCell< Node > > )
+  fn node_transform_set( &self, node : &Rc< RefCell< Node > > )
   {
     let t = self.translation;
     let r = self.rotation;
@@ -243,7 +243,7 @@ fn primitives_data_to_gltf
 
     let node = Rc::new( RefCell::new( Node::new() ) );
     node.borrow_mut().object = Object3D::Mesh( mesh.clone() );
-    primitive_data.transform.set_node_transform( &node );
+    primitive_data.transform.node_transform_set( &node );
 
     nodes.push( node.clone() );
     meshes.push( mesh );
@@ -268,7 +268,7 @@ fn primitives_data_to_gltf
   }
 }
 
-fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
+fn context_init() -> ( WebGl2RenderingContext, HtmlCanvasElement )
 {
   gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
@@ -281,7 +281,7 @@ fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
   ( gl, canvas )
 }
 
-fn init_camera( canvas : &HtmlCanvasElement ) -> Camera
+fn camera_init( canvas : &HtmlCanvasElement ) -> Camera
 {
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
@@ -304,9 +304,9 @@ fn init_camera( canvas : &HtmlCanvasElement ) -> Camera
   camera
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
-  let ( gl, canvas ) = init_context();
+  let ( gl, canvas ) = context_init();
 
   let font_names = [
     "Roboto-Regular".to_string(),
@@ -315,8 +315,8 @@ async fn run() -> Result< (), gl::WebglError >
     "Parisienne-Regular".to_string()
   ];
 
-  let fonts_ufo_3d = text::ufo::load_fonts_3d( &gl, font_names.as_slice() ).await;
-  let fonts_ttf_3d = text::ttf::load_fonts_3d( &gl, font_names.as_slice() ).await;
+  let fonts_ufo_3d = text::ufo::fonts_3d_load( &gl, font_names.as_slice() ).await;
+  let fonts_ttf_3d = text::ttf::fonts_3d_load( &gl, font_names.as_slice() ).await;
 
   let text = "CGTools".to_string();
 
@@ -353,7 +353,7 @@ async fn run() -> Result< (), gl::WebglError >
   let scenes = gltf.scenes.clone();
 
   scenes[ 0 ].borrow_mut().update_world_matrix();
-  let camera = init_camera( &canvas );
+  let camera = camera_init( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
 
@@ -396,5 +396,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

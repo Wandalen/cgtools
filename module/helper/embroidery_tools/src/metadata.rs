@@ -32,14 +32,14 @@ mod private
     /// Returns design name
     #[ must_use ]
     #[ inline ]
-    pub fn get_name( &self ) -> Option< &str >
+    pub fn name_get( &self ) -> Option< &str >
     {
       self.name.as_deref()
     }
 
     /// Sets design name
     #[ inline ]
-    pub fn set_name( &mut self, name : Option< String > )
+    pub fn name_set( &mut self, name : Option< String > )
     {
       self.name = name;
     }
@@ -47,21 +47,21 @@ mod private
     /// Returns text data stored by `key`
     #[ must_use ]
     #[ inline ]
-    pub fn get_text( &self, key : &str ) -> Option< &str >
+    pub fn text_get( &self, key : &str ) -> Option< &str >
     {
       self.text.get( key ).map( String::as_str )
     }
 
     /// Inserts text data by `key`
     #[ inline ]
-    pub fn insert_text( &mut self, key : &str, value : String )
+    pub fn text_insert( &mut self, key : &str, value : String )
     {
       _ = self.text.insert( key.into(), value );
     }
 
     /// Inserts graphics data by `key`
     #[ inline ]
-    pub fn insert_graphics( &mut self, key : &str, graphics : Graphics )
+    pub fn graphics_insert( &mut self, key : &str, graphics : Graphics )
     {
       _ = self.graphics.insert( key.into(), graphics );
     }

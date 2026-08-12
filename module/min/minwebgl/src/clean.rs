@@ -23,7 +23,7 @@ mod private
   // Pitfall: `.expect()`/`.unwrap()` inside a loop body over caller-supplied data is easy to
   // miss in review since the surrounding function's own (pre-fix) signature gave no hint that
   // a panic was possible inside.
-  pub fn convert_attachment_id< I, E >( id : I ) -> Result< u32, WebglError >
+  pub fn attachment_id_convert< I, E >( id : I ) -> Result< u32, WebglError >
   where
     E : std::fmt::Debug,
     I : TryInto< u32, Error = E >
@@ -97,7 +97,7 @@ mod private
   {
     for i in attachments
     {
-      framebuffer_texture_2d_attachment( gl, convert_attachment_id( i )? );
+      framebuffer_texture_2d_attachment( gl, attachment_id_convert( i )? );
     }
     Ok( () )
   }
@@ -133,7 +133,7 @@ mod private
   {
     for i in attachments
     {
-      framebuffer_renderbuffer_attachment( gl, convert_attachment_id( i )? );
+      framebuffer_renderbuffer_attachment( gl, attachment_id_convert( i )? );
     }
     Ok( () )
   }
@@ -143,7 +143,7 @@ crate::mod_interface!
 {
   own use
   {
-    convert_attachment_id,
+    attachment_id_convert,
     framebuffer,
     framebuffer_renderbuffer,
     framebuffer_renderbuffer_array,

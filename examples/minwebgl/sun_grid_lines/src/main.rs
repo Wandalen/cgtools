@@ -7,7 +7,7 @@
 //! from `scene.rhai` (see `scene` module) instead of being a shader
 //! constant — edit that file and rebuild to restyle the diagram.
 
-// Only the wasm32 path (`run()`) consumes the scene module here; the native
+// Only the wasm32 path (`app_run()`) consumes the scene module here; the native
 // path below is a stub, and the scene tests live in `tests/scene_test.rs`
 // against the library target.
 #[cfg( target_arch = "wasm32" )]
@@ -43,7 +43,7 @@ struct Params
 /// size `SIZE x SIZE`, matching the format `UnrealBloomPass` expects as
 /// input.
 #[cfg( target_arch = "wasm32" )]
-fn make_target( gl : &GL ) -> Option< gl::web_sys::WebGlTexture >
+fn target_make( gl : &GL ) -> Option< gl::web_sys::WebGlTexture >
 {
   let texture = gl.create_texture();
   gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
@@ -56,13 +56,13 @@ fn make_target( gl : &GL ) -> Option< gl::web_sys::WebGlTexture >
 
 /// Uploads the static scene styling, loaded once from `scene.rhai` (see
 /// `scene::SceneConfig`) and uploaded once at startup rather than every frame
-/// like the 4 dynamic uniforms in `run` — unlike the WebGPU port's single
+/// like the 4 dynamic uniforms in `app_run` — unlike the WebGPU port's single
 /// packed uniform buffer (rewritten wholesale each frame), this crate
 /// uploads one GL uniform per field, so there's no bulk buffer write to
 /// piggyback the per-frame values onto and no reason to re-upload
 /// unchanging values every frame.
 #[cfg( target_arch = "wasm32" )]
-fn upload_scene_styling( gl : &GL, program : &gl::web_sys::WebGlProgram )
+fn scene_styling_upload( gl : &GL, program : &gl::web_sys::WebGlProgram )
 {
   let u_bg_top_loc = gl.get_uniform_location( program, "u_bg_top" );
   let u_bg_bottom_loc = gl.get_uniform_location( program, "u_bg_bottom" );
@@ -104,7 +104,7 @@ fn upload_scene_styling( gl : &GL, program : &gl::web_sys::WebGlProgram )
 }
 
 #[cfg( target_arch = "wasm32" )]
-fn run() -> Result< (), gl::WebglError >
+fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
 
@@ -125,15 +125,15 @@ fn run() -> Result< (), gl::WebglError >
   let u_node_count_loc = gl.get_uniform_location( &program, "u_node_count" );
   let u_grid_density_loc = gl.get_uniform_location( &program, "u_grid_density" );
 
-  upload_scene_styling( &gl, &program );
+  scene_styling_upload( &gl, &program );
 
   // Offscreen G-buffer-style framebuffer: attachment 0 receives the composed
   // scene color, attachment 1 receives emission only ( the subset of the
   // scene that should bloom ). Both feed the post-processing chain below.
   let scene_framebuffer = gl.create_framebuffer();
   gl.bind_framebuffer( GL::FRAMEBUFFER, scene_framebuffer.as_ref() );
-  let main_color_texture = make_target( &gl );
-  let emission_texture = make_target( &gl );
+  let main_color_texture = target_make( &gl );
+  let emission_texture = target_make( &gl );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, main_color_texture.as_ref(), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, emission_texture.as_ref(), 0 );
   gl.bind_framebuffer( GL::FRAMEBUFFER, None );
@@ -213,7 +213,7 @@ fn run() -> Result< (), gl::WebglError >
 #[cfg( target_arch = "wasm32" )]
 fn main()
 {
-  run().unwrap();
+  app_run().unwrap();
 }
 
 // Stub main for native targets

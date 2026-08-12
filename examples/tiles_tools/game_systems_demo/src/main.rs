@@ -23,31 +23,31 @@ fn main()
   println!("\n⚔️ Turn-Based Combat System");
   println!("---------------------------");
 
-  demonstrate_turn_based_combat();
+  turn_based_combat_demonstrate();
 
   // === GAME STATE MACHINE DEMONSTRATION ===
   println!("\n🎯 Game State Management");
   println!("------------------------");
 
-  demonstrate_game_state_machine();
+  game_state_machine_demonstrate();
 
   // === RESOURCE MANAGEMENT DEMONSTRATION ===
   println!("\n💎 Resource Management");
   println!("----------------------");
 
-  demonstrate_resource_management();
+  resource_management_demonstrate();
 
   // === QUEST SYSTEM DEMONSTRATION ===
   println!("\n📜 Quest System");
   println!("---------------");
 
-  demonstrate_quest_system();
+  quest_system_demonstrate();
 
   // === INTEGRATED GAMEPLAY DEMONSTRATION ===
   println!("\n🌟 Integrated Tactical RPG Session");
   println!("----------------------------------");
 
-  demonstrate_integrated_gameplay();
+  integrated_gameplay_demonstrate();
 
   println!("\n✨ Game Systems Demo Complete!");
   println!("\nKey features demonstrated:");
@@ -60,7 +60,7 @@ fn main()
   println!("• Event-driven architecture for system coordination");
 }
 
-fn setup_combat_participants() -> TurnBasedGame
+fn combat_participants_setup() -> TurnBasedGame
 {
   let mut game = TurnBasedGame::new();
 
@@ -89,7 +89,7 @@ fn setup_combat_participants() -> TurnBasedGame
   game
 }
 
-fn simulate_combat_rounds(game: &mut TurnBasedGame)
+fn combat_rounds_simulate(game: &mut TurnBasedGame)
 {
   println!("\nSimulating 2 rounds of combat:");
 
@@ -153,7 +153,7 @@ fn simulate_combat_rounds(game: &mut TurnBasedGame)
   println!("\nCombat round completed! Final round: {}", game.round_number());
 }
 
-fn demonstrate_status_effects(game: &mut TurnBasedGame)
+fn status_effects_demonstrate(game: &mut TurnBasedGame)
 {
   // Demonstrate status effects
   println!("\nApplying status effects...");
@@ -194,14 +194,14 @@ fn demonstrate_status_effects(game: &mut TurnBasedGame)
   }
 }
 
-fn demonstrate_turn_based_combat()
+fn turn_based_combat_demonstrate()
 {
-  let mut game = setup_combat_participants();
-  simulate_combat_rounds(&mut game);
-  demonstrate_status_effects(&mut game);
+  let mut game = combat_participants_setup();
+  combat_rounds_simulate(&mut game);
+  status_effects_demonstrate(&mut game);
 }
 
-fn demonstrate_game_state_machine()
+fn game_state_machine_demonstrate()
 {
   let mut state_machine = GameStateMachine::new(GameState::Initialize);
   
@@ -246,7 +246,7 @@ fn demonstrate_game_state_machine()
   println!("Final state: {:?}", state_machine.current_state());
 }
 
-fn demonstrate_resource_management()
+fn resource_management_demonstrate()
 {
   let mut resource_manager = ResourceManager::new();
 
@@ -346,7 +346,7 @@ fn demonstrate_resource_management()
   }
 }
 
-fn build_main_quest() -> Quest
+fn main_quest_build() -> Quest
 {
   Quest {
   id: "save_village".to_string(),
@@ -396,7 +396,7 @@ fn build_main_quest() -> Quest
   }
 }
 
-fn build_side_quest() -> Quest
+fn side_quest_build() -> Quest
 {
   Quest {
   id: "gather_herbs".to_string(),
@@ -425,7 +425,7 @@ fn build_side_quest() -> Quest
   }
 }
 
-fn simulate_quest_progress(quest_manager: &mut QuestManager)
+fn quest_progress_simulate(quest_manager: &mut QuestManager)
 {
   println!("\nSimulating quest progress...");
 
@@ -448,7 +448,7 @@ fn simulate_quest_progress(quest_manager: &mut QuestManager)
   println!("  Defeated orc chieftain!");
 }
 
-fn print_quest_completion(quest_manager: &QuestManager)
+fn quest_completion_print(quest_manager: &QuestManager)
 {
   println!("\nQuest completion status:");
   println!("  Completed quests: {}", quest_manager.completed_quest_count());
@@ -467,14 +467,14 @@ fn print_quest_completion(quest_manager: &QuestManager)
   }
 }
 
-fn demonstrate_quest_system()
+fn quest_system_demonstrate()
 {
   let mut quest_manager = QuestManager::new();
 
   println!("Setting up quest system...");
 
-  quest_manager.add_quest(build_main_quest());
-  quest_manager.add_quest(build_side_quest());
+  quest_manager.add_quest(main_quest_build());
+  quest_manager.add_quest(side_quest_build());
 
   // Start both quests
   println!("\nStarting quests...");
@@ -491,8 +491,8 @@ fn demonstrate_quest_system()
   }
   }
 
-  simulate_quest_progress(&mut quest_manager);
-  print_quest_completion(&quest_manager);
+  quest_progress_simulate(&mut quest_manager);
+  quest_completion_print(&quest_manager);
 
   // Demonstrate flags
   quest_manager.set_flag("village_saved".to_string(), true);
@@ -503,7 +503,7 @@ fn demonstrate_quest_system()
   println!("  hero_reputation: {}", quest_manager.get_flag("hero_reputation"));
 }
 
-fn setup_battle(turn_game: &mut TurnBasedGame, resources: &mut ResourceManager, quest_manager: &mut QuestManager)
+fn battle_setup(turn_game: &mut TurnBasedGame, resources: &mut ResourceManager, quest_manager: &mut QuestManager)
 {
   // Create a tactical scenario
   println!("\n🗺️ Tactical Battle Setup");
@@ -555,7 +555,7 @@ fn setup_battle(turn_game: &mut TurnBasedGame, resources: &mut ResourceManager, 
   quest_manager.add_quest(battle_quest);
 }
 
-fn print_battlefield()
+fn battlefield_print()
 {
   // Create a visual representation
   let mut battle_grid = GridRenderer::new()
@@ -580,7 +580,7 @@ fn print_battlefield()
   println!("{}", battle_grid.render_ascii());
 }
 
-fn simulate_combat_round(turn_game: &mut TurnBasedGame, resources: &mut ResourceManager, event_bus: &mut EventBus)
+fn combat_round_simulate(turn_game: &mut TurnBasedGame, resources: &mut ResourceManager, event_bus: &mut EventBus)
 {
   // Simulate one round of combat
   let mut actions_this_round = 0;
@@ -660,7 +660,7 @@ fn simulate_combat_round(turn_game: &mut TurnBasedGame, resources: &mut Resource
   }
 }
 
-fn resolve_battle_outcome(resources: &ResourceManager, quest_manager: &mut QuestManager, state_machine: &mut GameStateMachine, event_bus: &mut EventBus)
+fn battle_outcome_resolve(resources: &ResourceManager, quest_manager: &mut QuestManager, state_machine: &mut GameStateMachine, event_bus: &mut EventBus)
 {
   println!("\n📊 End of Round Status:");
   for entity_id in [1, 2, 3, 11, 12, 13] {
@@ -737,7 +737,7 @@ fn resolve_battle_outcome(resources: &ResourceManager, quest_manager: &mut Quest
   println!("• Debug visualization showed tactical positions");
 }
 
-fn demonstrate_integrated_gameplay()
+fn integrated_gameplay_demonstrate()
 {
   println!("Setting up integrated tactical RPG session...");
 
@@ -761,11 +761,11 @@ fn demonstrate_integrated_gameplay()
   EventResult::Continue
   });
 
-  setup_battle(&mut turn_game, &mut resources, &mut quest_manager);
-  print_battlefield();
+  battle_setup(&mut turn_game, &mut resources, &mut quest_manager);
+  battlefield_print();
 
   println!("Combat begins!");
-  simulate_combat_round(&mut turn_game, &mut resources, &mut event_bus);
+  combat_round_simulate(&mut turn_game, &mut resources, &mut event_bus);
 
-  resolve_battle_outcome(&resources, &mut quest_manager, &mut state_machine, &mut event_bus);
+  battle_outcome_resolve(&resources, &mut quest_manager, &mut state_machine, &mut event_bus);
 }

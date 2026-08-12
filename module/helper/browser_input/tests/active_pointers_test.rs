@@ -1,4 +1,4 @@
-//! Unit pins for [`browser_input::apply_events_to_state`]'s `active_pointers` bookkeeping —
+//! Unit pins for [`browser_input::events_apply_to_state`]'s `active_pointers` bookkeeping —
 //! press/release/move/cancel sequences across single and multiple simultaneous pointer
 //! contacts, including the idempotent-duplicate-press guard.
 
@@ -40,7 +40,7 @@ fn cancel( id : i32 ) -> Event
 fn press_adds_one_entry()
 {
   let mut state = State::new();
-  apply_events_to_state( &mut state, &[ press( 1, 10, 20 ) ] );
+  events_apply_to_state( &mut state, &[ press( 1, 10, 20 ) ] );
   assert_eq!( state.active_pointers, [ ( 1, point( 10, 20 ) ) ] );
 }
 
@@ -48,7 +48,7 @@ fn press_adds_one_entry()
 fn two_presses_add_two_entries()
 {
   let mut state = State::new();
-  apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), press( 2, 30, 40 ) ] );
+  events_apply_to_state( &mut state, &[ press( 1, 10, 20 ), press( 2, 30, 40 ) ] );
   assert_eq!( state.active_pointers.len(), 2 );
   assert!( state.active_pointers.contains( &( 1, point( 10, 20 ) ) ) );
   assert!( state.active_pointers.contains( &( 2, point( 30, 40 ) ) ) );
@@ -58,7 +58,7 @@ fn two_presses_add_two_entries()
 fn move_updates_position()
 {
   let mut state = State::new();
-  apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), move_to( 1, 50, 60 ) ] );
+  events_apply_to_state( &mut state, &[ press( 1, 10, 20 ), move_to( 1, 50, 60 ) ] );
   assert_eq!( state.active_pointers, [ ( 1, point( 50, 60 ) ) ] );
 }
 
@@ -66,7 +66,7 @@ fn move_updates_position()
 fn release_removes_entry()
 {
   let mut state = State::new();
-  apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), press( 2, 30, 40 ), release( 1, 10, 20 ) ] );
+  events_apply_to_state( &mut state, &[ press( 1, 10, 20 ), press( 2, 30, 40 ), release( 1, 10, 20 ) ] );
   assert_eq!( state.active_pointers, [ ( 2, point( 30, 40 ) ) ] );
 }
 
@@ -74,7 +74,7 @@ fn release_removes_entry()
 fn cancel_removes_entry()
 {
   let mut state = State::new();
-  apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), press( 2, 30, 40 ), cancel( 2 ) ] );
+  events_apply_to_state( &mut state, &[ press( 1, 10, 20 ), press( 2, 30, 40 ), cancel( 2 ) ] );
   assert_eq!( state.active_pointers, [ ( 1, point( 10, 20 ) ) ] );
 }
 
@@ -82,7 +82,7 @@ fn cancel_removes_entry()
 fn duplicate_press_is_idempotent()
 {
   let mut state = State::new();
-  apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), press( 1, 15, 25 ) ] );
+  events_apply_to_state( &mut state, &[ press( 1, 10, 20 ), press( 1, 15, 25 ) ] );
   // Guard fires: second press for the same id does not add a duplicate entry.
   assert_eq!( state.active_pointers, [ ( 1, point( 10, 20 ) ) ] );
 }
@@ -91,7 +91,7 @@ fn duplicate_press_is_idempotent()
 fn full_sequence_ends_empty()
 {
   let mut state = State::new();
-  apply_events_to_state
+  events_apply_to_state
   (
     &mut state,
     &

@@ -311,7 +311,7 @@ where
   }
 
   #[ inline( always ) ]
-  fn raw_set_slice( &mut self, scalars : &[ Self::Scalar ] )
+  fn raw_slice_set( &mut self, scalars : &[ Self::Scalar ] )
   {
     self.raw_slice_mut().copy_from_slice( scalars );
   }
@@ -352,13 +352,13 @@ where
     })
     .collect();
     
-    self.raw_set_slice( scalars.as_ref() );
+    self.raw_slice_set( scalars.as_ref() );
     self
   }
 
   #[ inline ]
   fn with_column_major( mut self, scalars : &[ Self::Scalar ] ) -> Self {
-    self.raw_set_slice( scalars );
+    self.raw_slice_set( scalars );
     self
   }
 }

@@ -98,7 +98,7 @@ mod private
     /// Tells the builder to auto compute offsets for each attribute
     #[ inline ]
     #[ must_use ]
-    pub fn compute_offsets( mut self ) -> Self
+    pub fn offsets_compute( mut self ) -> Self
     {
       self.compute_offsets = true;
       self

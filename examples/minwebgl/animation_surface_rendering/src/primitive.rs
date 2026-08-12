@@ -86,7 +86,7 @@ mod private
   }
 
   /// Finds the contour with the largest bounding-box diagonal — treated as the body outline.
-  fn find_body_contour( contours : &[ Vec< [ f32; 2 ] > ] ) -> usize
+  fn body_contour_find( contours : &[ Vec< [ f32; 2 ] > ] ) -> usize
   {
     let mut body_id = 0;
     let mut max_box_diagonal_size = 0.0;
@@ -119,7 +119,7 @@ mod private
 
   /// Groups contours into bodies : the body contour and its inner holes form the base body,
   /// while every contour reaching outside the body becomes its own standalone body.
-  fn group_contours_into_bodies
+  fn contours_group_into_bodies
   (
     contours : &[ Vec< [ f32; 2 ] > ],
     body_id : usize
@@ -181,7 +181,7 @@ mod private
   /// Triangulates every body with `earcutr`, concatenating all vertex positions and indices.
   ///
   /// Returns `None` when a body has no outer contour or its outer contour is empty.
-  fn triangulate_bodies
+  fn bodies_triangulate
   (
     bodies : Vec< Vec< Vec< [ f32; 2 ] > > >
   ) -> Option< ( Vec< [ f32; 3 ] >, Vec< u32 > ) >
@@ -273,9 +273,9 @@ mod private
       return None;
     }
 
-    let body_id = find_body_contour( contours );
-    let bodies = group_contours_into_bodies( contours, body_id );
-    let ( positions, indices ) = triangulate_bodies( bodies )?;
+    let body_id = body_contour_find( contours );
+    let bodies = contours_group_into_bodies( contours, body_id );
+    let ( positions, indices ) = bodies_triangulate( bodies )?;
 
     let attributes = AttributesData
     {

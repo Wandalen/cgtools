@@ -4,7 +4,7 @@ use core::cell::RefCell;
 use minwebgl as gl;
 use gl::
 {
-  texture::d2::upload_image_from_path,
+  texture::d2::image_upload_from_path,
   F32x4,
   math::mat4x4::identity,
   GL,
@@ -56,14 +56,14 @@ use crate::animation::{ model, Model, Shape, Layer, Transform, Color, fixed, eas
 /// # Returns
 ///
 /// A `TextureInfo` containing the texture data.
-fn create_texture
+fn texture_create
 (
   gl : &WebGl2RenderingContext,
   image_path : &str
 ) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_image_from_path( gl, &image_path, false );
+  let texture_id = image_upload_from_path( gl, &image_path, false );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )
@@ -93,7 +93,7 @@ fn create_texture
 /// # Returns
 ///
 /// A tuple containing the `WebGl2RenderingContext` and the `HtmlCanvasElement`.
-fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
+fn context_init() -> ( WebGl2RenderingContext, HtmlCanvasElement )
 {
   gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
@@ -123,7 +123,7 @@ fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
 /// # Returns
 ///
 /// A configured `Camera` object.
-fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > ] ) -> Camera
+fn camera_init( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > ] ) -> Camera
 {
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
@@ -193,7 +193,7 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
 ///
 /// * `node` - A reference to the `Rc<RefCell<Node>>` to modify.
 /// * `material_callback` - A closure that takes a material reference and modifies it.
-fn apply_function_to_node_materials
+fn function_apply_to_node_materials
 (
   node : &Rc< RefCell< Node > >,
   mut material_callback : impl FnMut( &mut PbrMaterial )
@@ -226,7 +226,7 @@ fn apply_function_to_node_materials
 /// # Returns
 ///
 /// A `Result` containing the configured `GLTF` scene, or a `gl::WebglError` if loading fails.
-async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglError >
+async fn scene_setup( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglError >
 {
   let window = web_sys::window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
@@ -234,14 +234,14 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
-  let texture = Some( create_texture( gl, "textures/earth2.jpg" ) );
-  apply_function_to_node_materials( &earth, | m | { m.set_base_color_texture( texture.clone() ); } );
+  let texture = Some( texture_create( gl, "textures/earth2.jpg" ) );
+  function_apply_to_node_materials( &earth, | m | { m.set_base_color_texture( texture.clone() ); } );
 
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
-  let texture = Some( create_texture( gl, "textures/clouds2.png" ) );
-  apply_function_to_node_materials
+  let texture = Some( texture_create( gl, "textures/clouds2.png" ) );
+  function_apply_to_node_materials
   (
     &clouds,
     | m |
@@ -257,8 +257,8 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   clouds.borrow_mut().update_local_matrix();
 
   let moon = clone( &mut gltf, &earth );
-  let texture = Some( create_texture( gl, "textures/moon2.jpg" ) );
-  apply_function_to_node_materials( &moon, | m | { m.set_base_color_texture( texture.clone() ); } );
+  let texture = Some( texture_create( gl, "textures/moon2.jpg" ) );
+  function_apply_to_node_materials( &moon, | m | { m.set_base_color_texture( texture.clone() ); } );
   let scale = 0.25;
   let distance = 7.0;
   moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
@@ -281,7 +281,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 /// # Returns
 ///
 /// A tuple containing the `GLTF` scene for the canvas and a `Vec` of `F32x4` colors.
-async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x4 > )
+async fn canvas_scene_setup( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x4 > )
 {
   let font_names = [ "Roboto-Regular" ];
   let fonts = text::ufo::load_fonts( &font_names ).await;
@@ -329,7 +329,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
 /// # Returns
 ///
 /// A `Transform` with the given rotation and a 100 → 200 `EASE_IN_OUT_BACK` scale pulse.
-fn make_circle_transform( rotation_range : ( f64, f64 ) ) -> Transform
+fn circle_transform_make( rotation_range : ( f64, f64 ) ) -> Transform
 {
   Transform::former()
   .rotation
@@ -363,7 +363,7 @@ fn make_circle_transform( rotation_range : ( f64, f64 ) ) -> Transform
 /// # Returns
 ///
 /// A `Transform` with a fixed position, a fixed -20 degree rotation, and the optional scale.
-fn make_rect_transform( position_x : f64, scale : Option< f64 > ) -> Transform
+fn rect_transform_make( position_x : f64, scale : Option< f64 > ) -> Transform
 {
   let former = Transform::former()
   .position( fixed( kurbo::Point::new( position_x, 0.0 ) ) )
@@ -387,7 +387,7 @@ fn make_rect_transform( position_x : f64, scale : Option< f64 > ) -> Transform
 /// * `rect_transform` - Transform of each rectangle relative to its offset layer.
 /// * `color` - Fill color of the rectangles.
 /// * `repeats` - How many rectangles to distribute around the circle.
-fn add_circle
+fn circle_add
 (
   model : &mut Model,
   rect_geo : &Shape,
@@ -466,7 +466,7 @@ fn add_circle
 /// # Returns
 ///
 /// An `animation::Animation` struct.
-fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Animation
+fn animation_setup( gl : &GL, width : usize, height : usize ) -> animation::Animation
 {
   let points : Vec< [ f32; 2 ] > = vec!
   [
@@ -501,52 +501,52 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
   .end()
   .form();
 
-  add_circle
+  circle_add
   (
     &mut model,
     &rect_geo,
-    make_circle_transform( ( -10.0, 350.0 ) ),
-    make_rect_transform( 1.6, Some( 60.0 ) ),
+    circle_transform_make( ( -10.0, 350.0 ) ),
+    rect_transform_make( 1.6, Some( 60.0 ) ),
     F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ),
     11
   );
 
-  add_circle
+  circle_add
   (
     &mut model,
     &rect_geo,
-    make_circle_transform( ( 0.0, 360.0 ) ),
-    make_rect_transform( 2.7, Some( 80.0 ) ),
+    circle_transform_make( ( 0.0, 360.0 ) ),
+    rect_transform_make( 2.7, Some( 80.0 ) ),
     F32x4::from_array( [ 1.0, 0.75, 0.75, 1.0 ] ),
     15
   );
 
-  add_circle
+  circle_add
   (
     &mut model,
     &rect_geo,
-    make_circle_transform( ( 10.0, 370.0 ) ),
-    make_rect_transform( 4.2, None ),
+    circle_transform_make( ( 10.0, 370.0 ) ),
+    rect_transform_make( 4.2, None ),
     F32x4::from_array( [ 1.0, 0.5, 0.5, 1.0 ] ),
     17
   );
 
-  add_circle
+  circle_add
   (
     &mut model,
     &rect_geo,
-    make_circle_transform( ( 20.0, 380.0 ) ),
-    make_rect_transform( 5.7, Some( 120.0 ) ),
+    circle_transform_make( ( 20.0, 380.0 ) ),
+    rect_transform_make( 5.7, Some( 120.0 ) ),
     F32x4::from_array( [ 1.0, 0.25, 0.25, 1.0 ] ),
     19
   );
 
-  add_circle
+  circle_add
   (
     &mut model,
     &rect_geo,
-    make_circle_transform( ( 30.0, 390.0 ) ),
-    make_rect_transform( 7.4, Some( 140.0 ) ),
+    circle_transform_make( ( 30.0, 390.0 ) ),
+    rect_transform_make( 7.4, Some( 140.0 ) ),
     F32x4::from_array( [ 0.8, 0.0, 0.0, 1.0 ] ),
     21
   );
@@ -565,18 +565,18 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
 /// 6. Configures the cameras for both scenes.
 /// 7. Initializes the main `Renderer` and a post-processing pipeline.
 /// 8. Starts the main render loop, which updates the animations and renders the scenes each frame.
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
-  let ( gl, canvas ) = init_context();
+  let ( gl, canvas ) = context_init();
 
-  let mut gltf = setup_scene( &gl ).await?;
+  let mut gltf = scene_setup( &gl ).await?;
 
-  let ( canvas_gltf, _ ) = setup_canvas_scene( &gl ).await;
+  let ( canvas_gltf, _ ) = canvas_scene_setup( &gl ).await;
   canvas_gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
-  let animation = setup_animation( &gl, canvas.height() as usize, canvas.width() as usize );
-  animation.set_world_matrix( identity() );
+  let animation = animation_setup( &gl, canvas.height() as usize, canvas.width() as usize );
+  animation.world_matrix_set( identity() );
 
-  let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
+  let canvas_camera = camera_init( &canvas, &canvas_gltf.scenes );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 150.0 ].into();
   {
@@ -593,7 +593,7 @@ async fn run() -> Result< (), gl::WebglError >
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
   let canvas_sphere = clone( &mut gltf, &earth );
-  apply_function_to_node_materials
+  function_apply_to_node_materials
   (
     &canvas_sphere,
     | m |
@@ -611,7 +611,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let scenes = gltf.scenes.clone();
 
-  let camera = init_camera( &canvas, &scenes );
+  let camera = camera_init( &canvas, &scenes );
   camera.bind_controls( &canvas );
   let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() )
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
@@ -620,7 +620,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/gltf_viewer_ibl_unreal", None ).await );
-  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
+  let skybox = texture_create( &gl, "environment_maps/equirectangular_maps/space3.png" );
   renderer.set_skybox( skybox.texture.borrow().source.clone() );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
@@ -674,7 +674,7 @@ async fn run() -> Result< (), gl::WebglError >
 
 /// The main entry point of the application.
 ///
-/// This function calls `gl::spawn_local` to execute the asynchronous `run` function,
+/// This function calls `gl::spawn_local` to execute the asynchronous `app_run` function,
 /// which sets up and runs the entire WebGL application.
 fn main()
 {
@@ -682,7 +682,7 @@ fn main()
   (
     async move
     {
-      run().await.expect( "Program finish work with errors" );
+      app_run().await.expect( "Program finish work with errors" );
     }
   );
 }

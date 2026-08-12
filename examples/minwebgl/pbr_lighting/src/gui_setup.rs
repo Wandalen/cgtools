@@ -11,10 +11,10 @@ use std::{ rc::Rc, cell::RefCell };
 
 use crate::lil_gui::
 {
-  add_slider,
-  add_color,
-  add_dropdown,
-  new_gui,
+  slider_add,
+  color_add,
+  dropdown_add,
+  gui_new,
   on_change,
   on_finish_change,
   show
@@ -62,7 +62,7 @@ pub struct Settings
 
 impl Settings
 {
-  fn get_controllable_light_position( &self ) -> F32x3
+  fn controllable_light_position_get( &self ) -> F32x3
   {
     F32x3::from_spherical
     (
@@ -94,7 +94,7 @@ impl Default for Settings
 }
 
 /// Fills the controllable-light settings from the light's current parameters.
-fn init_settings_from_light( light : &Light, settings : &mut Settings )
+fn settings_from_light_init( light : &Light, settings : &mut Settings )
 {
   match light
   {
@@ -124,9 +124,9 @@ fn init_settings_from_light( light : &Light, settings : &mut Settings )
 }
 
 /// Adds the bloom radius, bloom strength, and exposure sliders wired to the renderer.
-fn setup_renderer_sliders( gui : &JsValue, object : &JsValue, renderer : &Rc< RefCell< Renderer > > )
+fn renderer_sliders_setup( gui : &JsValue, object : &JsValue, renderer : &Rc< RefCell< Renderer > > )
 {
-  let prop = add_slider( gui, object, "bloomRadius", 0.0, 1.0, 0.01 );
+  let prop = slider_add( gui, object, "bloomRadius", 0.0, 1.0, 0.01 );
   let callback = Closure::new
   (
     {
@@ -140,7 +140,7 @@ fn setup_renderer_sliders( gui : &JsValue, object : &JsValue, renderer : &Rc< Re
   on_change( &prop, &callback );
   callback.forget();
 
-  let prop = add_slider( gui, object, "bloomStrength", 0.0, 10.0, 0.1 );
+  let prop = slider_add( gui, object, "bloomStrength", 0.0, 10.0, 0.1 );
   let callback = Closure::new
   (
     {
@@ -154,7 +154,7 @@ fn setup_renderer_sliders( gui : &JsValue, object : &JsValue, renderer : &Rc< Re
   on_change( &prop, &callback );
   callback.forget();
 
-  let prop = add_slider( gui, object, "exposure", -10.0, 10.0, 0.1 );
+  let prop = slider_add( gui, object, "exposure", -10.0, 10.0, 0.1 );
   let callback = Closure::new
   (
     {
@@ -170,7 +170,7 @@ fn setup_renderer_sliders( gui : &JsValue, object : &JsValue, renderer : &Rc< Re
 }
 
 /// Zeroes out the controllable light's strength whatever its current variant is.
-fn mute_controllable_light( controllable_light : &Rc< RefCell< Node > > )
+fn controllable_light_mute( controllable_light : &Rc< RefCell< Node > > )
 {
   if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
   {
@@ -194,7 +194,7 @@ fn mute_controllable_light( controllable_light : &Rc< RefCell< Node > > )
 }
 
 /// Sets every animated direct light's strength.
-fn set_direct_strengths( directs : &[ Rc< RefCell< Node > > ], strength : f32 )
+fn direct_strengths_set( directs : &[ Rc< RefCell< Node > > ], strength : f32 )
 {
   for direct in directs
   {
@@ -206,7 +206,7 @@ fn set_direct_strengths( directs : &[ Rc< RefCell< Node > > ], strength : f32 )
 }
 
 /// Sets every animated point light's strength and range.
-fn set_point_strengths( points : &[ Rc< RefCell< Node > > ], strength : f32, range : f32 )
+fn point_strengths_set( points : &[ Rc< RefCell< Node > > ], strength : f32, range : f32 )
 {
   for point in points
   {
@@ -219,23 +219,23 @@ fn set_point_strengths( points : &[ Rc< RefCell< Node > > ], strength : f32, ran
 }
 
 /// Activates the animated direct lights, muting the point rig and the controllable light.
-fn apply_direct_mode( points : &[ Rc< RefCell< Node > > ], directs : &[ Rc< RefCell< Node > > ], controllable_light : &Rc< RefCell< Node > > )
+fn direct_mode_apply( points : &[ Rc< RefCell< Node > > ], directs : &[ Rc< RefCell< Node > > ], controllable_light : &Rc< RefCell< Node > > )
 {
-  mute_controllable_light( controllable_light );
-  set_point_strengths( points, 0.0, 0.0 );
-  set_direct_strengths( directs, 50.0 );
+  controllable_light_mute( controllable_light );
+  point_strengths_set( points, 0.0, 0.0 );
+  direct_strengths_set( directs, 50.0 );
 }
 
 /// Activates the animated point lights, muting the direct rig and the controllable light.
-fn apply_point_mode( points : &[ Rc< RefCell< Node > > ], directs : &[ Rc< RefCell< Node > > ], controllable_light : &Rc< RefCell< Node > > )
+fn point_mode_apply( points : &[ Rc< RefCell< Node > > ], directs : &[ Rc< RefCell< Node > > ], controllable_light : &Rc< RefCell< Node > > )
 {
-  mute_controllable_light( controllable_light );
-  set_direct_strengths( directs, 0.0 );
-  set_point_strengths( points, 100.0, 10.0 );
+  controllable_light_mute( controllable_light );
+  direct_strengths_set( directs, 0.0 );
+  point_strengths_set( points, 100.0, 10.0 );
 }
 
 /// Switches the controllable light to a direct light built from the current settings, muting the animated rigs.
-fn apply_controllable_direct_mode
+fn controllable_direct_mode_apply
 (
   points : &[ Rc< RefCell< Node > > ],
   directs : &[ Rc< RefCell< Node > > ],
@@ -243,8 +243,8 @@ fn apply_controllable_direct_mode
   settings : &Rc< RefCell< Settings > >,
 )
 {
-  set_direct_strengths( directs, 0.0 );
-  set_point_strengths( points, 0.0, 0.0 );
+  direct_strengths_set( directs, 0.0 );
+  point_strengths_set( points, 0.0, 0.0 );
 
   if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
   {
@@ -252,7 +252,7 @@ fn apply_controllable_direct_mode
     (
       DirectLight
       {
-        direction : settings.borrow().get_controllable_light_position(),
+        direction : settings.borrow().controllable_light_position_get(),
         color : F32x3::from_array( settings.borrow().light_color ),
         strength : settings.borrow().light_strength
       }
@@ -261,7 +261,7 @@ fn apply_controllable_direct_mode
 }
 
 /// Switches the controllable light to a point light built from the current settings, muting the animated rigs.
-fn apply_controllable_point_mode
+fn controllable_point_mode_apply
 (
   points : &[ Rc< RefCell< Node > > ],
   directs : &[ Rc< RefCell< Node > > ],
@@ -269,8 +269,8 @@ fn apply_controllable_point_mode
   settings : &Rc< RefCell< Settings > >,
 )
 {
-  set_direct_strengths( directs, 0.0 );
-  set_point_strengths( points, 0.0, 0.0 );
+  direct_strengths_set( directs, 0.0 );
+  point_strengths_set( points, 0.0, 0.0 );
 
   if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
   {
@@ -278,7 +278,7 @@ fn apply_controllable_point_mode
     (
       PointLight
       {
-        position : settings.borrow().get_controllable_light_position(),
+        position : settings.borrow().controllable_light_position_get(),
         color : F32x3::from_array( settings.borrow().light_color ),
         strength : settings.borrow().light_strength,
         range : settings.borrow().light_range
@@ -288,7 +288,7 @@ fn apply_controllable_point_mode
 }
 
 /// Adds the light mode dropdown that switches between the animated and controllable lighting rigs.
-fn setup_light_mode_dropdown
+fn light_mode_dropdown_setup
 (
   gui : &JsValue,
   object : &JsValue,
@@ -306,7 +306,7 @@ fn setup_light_mode_dropdown
     LightMode::ControllablePoint
   ];
 
-  let prop = add_dropdown
+  let prop = dropdown_add
   (
     gui,
     object,
@@ -328,22 +328,22 @@ fn setup_light_mode_dropdown
           {
             LightMode::Direct =>
             {
-              apply_direct_mode( &points, &directs, &controllable_light );
+              direct_mode_apply( &points, &directs, &controllable_light );
             },
             LightMode::Point =>
             {
               settings.borrow_mut().light_mode = LightMode::Point;
-              apply_point_mode( &points, &directs, &controllable_light );
+              point_mode_apply( &points, &directs, &controllable_light );
             },
             LightMode::ControllableDirect =>
             {
               settings.borrow_mut().light_mode = LightMode::ControllableDirect;
-              apply_controllable_direct_mode( &points, &directs, &controllable_light, &settings );
+              controllable_direct_mode_apply( &points, &directs, &controllable_light, &settings );
             },
             LightMode::ControllablePoint =>
             {
               settings.borrow_mut().light_mode = LightMode::ControllablePoint;
-              apply_controllable_point_mode( &points, &directs, &controllable_light, &settings );
+              controllable_point_mode_apply( &points, &directs, &controllable_light, &settings );
             }
           }
         }
@@ -355,7 +355,7 @@ fn setup_light_mode_dropdown
 }
 
 /// Adds one spherical-coordinate slider that repositions the controllable light from the settings.
-fn add_position_slider
+fn position_slider_add
 (
   gui : &JsValue,
   object : &JsValue,
@@ -366,7 +366,7 @@ fn add_position_slider
   field : fn( &mut Settings ) -> &mut f32,
 )
 {
-  let prop = add_slider( gui, object, name, range.0, range.1, range.2 );
+  let prop = slider_add( gui, object, name, range.0, range.1, range.2 );
   let callback = Closure::new
   (
     {
@@ -375,7 +375,7 @@ fn add_position_slider
       move | value : f32 |
       {
         *field( &mut settings.borrow_mut() ) = value;
-        let position = settings.borrow().get_controllable_light_position();
+        let position = settings.borrow().controllable_light_position_get();
         if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
         {
           match light
@@ -402,9 +402,9 @@ fn add_position_slider
 }
 
 /// Adds the color picker wired to the controllable light's color.
-fn add_color_control( gui : &JsValue, object : &JsValue, controllable_light : &Rc< RefCell< Node > >, settings : &Rc< RefCell< Settings > > )
+fn color_control_add( gui : &JsValue, object : &JsValue, controllable_light : &Rc< RefCell< Node > >, settings : &Rc< RefCell< Settings > > )
 {
-  let prop = add_color( gui, object, "lightColor" );
+  let prop = color_add( gui, object, "lightColor" );
   let callback = Closure::new
   (
     {
@@ -442,9 +442,9 @@ fn add_color_control( gui : &JsValue, object : &JsValue, controllable_light : &R
 }
 
 /// Adds the strength slider wired to the controllable light's intensity.
-fn add_strength_slider( gui : &JsValue, object : &JsValue, controllable_light : &Rc< RefCell< Node > >, settings : &Rc< RefCell< Settings > > )
+fn strength_slider_add( gui : &JsValue, object : &JsValue, controllable_light : &Rc< RefCell< Node > >, settings : &Rc< RefCell< Settings > > )
 {
-  let prop = add_slider( gui, object, "lightStrength", 0.0, 1000.0, 1.0 );
+  let prop = slider_add( gui, object, "lightStrength", 0.0, 1000.0, 1.0 );
   let callback = Closure::new
   (
     {
@@ -479,9 +479,9 @@ fn add_strength_slider( gui : &JsValue, object : &JsValue, controllable_light : 
 }
 
 /// Adds the range slider affecting the controllable light when it is a point light.
-fn add_range_slider( gui : &JsValue, object : &JsValue, controllable_light : &Rc< RefCell< Node > >, settings : &Rc< RefCell< Settings > > )
+fn range_slider_add( gui : &JsValue, object : &JsValue, controllable_light : &Rc< RefCell< Node > >, settings : &Rc< RefCell< Settings > > )
 {
-  let prop = add_slider( gui, object, "lightRange", 0.1, 50.0, 0.1 );
+  let prop = slider_add( gui, object, "lightRange", 0.1, 50.0, 0.1 );
   let callback = Closure::new
   (
     {
@@ -541,36 +541,36 @@ pub fn setup
   settings.bloom_strength = renderer.borrow().bloom_strength();
   settings.exposure = renderer.borrow().exposure();
 
-  init_settings_from_light( light, &mut settings );
+  settings_from_light_init( light, &mut settings );
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
-  let gui = new_gui();
+  let gui = gui_new();
 
   let settings = Rc::new( RefCell::new( settings ) );
 
   // Bloom and exposure controls
-  setup_renderer_sliders( &gui, &object, renderer );
+  renderer_sliders_setup( &gui, &object, renderer );
 
   // Lighting mode
-  setup_light_mode_dropdown( &gui, &object, points, directs, controllable_light, &settings );
+  light_mode_dropdown_setup( &gui, &object, points, directs, controllable_light, &settings );
 
   // Controllable light pitch slider
-  add_position_slider( &gui, &object, "lightPitch", ( 0.0, 360.0, 0.1 ), controllable_light, &settings, | s | &mut s.light_pitch );
+  position_slider_add( &gui, &object, "lightPitch", ( 0.0, 360.0, 0.1 ), controllable_light, &settings, | s | &mut s.light_pitch );
 
   // Controllable light yaw slider
-  add_position_slider( &gui, &object, "lightYaw", ( -80.0, 80.0, 0.1 ), controllable_light, &settings, | s | &mut s.light_yaw );
+  position_slider_add( &gui, &object, "lightYaw", ( -80.0, 80.0, 0.1 ), controllable_light, &settings, | s | &mut s.light_yaw );
 
   // Controllable light distance slider
-  add_position_slider( &gui, &object, "lightDistance", ( 0.01, 5.0, 0.01 ), controllable_light, &settings, | s | &mut s.light_distance );
+  position_slider_add( &gui, &object, "lightDistance", ( 0.01, 5.0, 0.01 ), controllable_light, &settings, | s | &mut s.light_distance );
 
   // Controllable light color
-  add_color_control( &gui, &object, controllable_light, &settings );
+  color_control_add( &gui, &object, controllable_light, &settings );
 
   // Controllable light strength
-  add_strength_slider( &gui, &object, controllable_light, &settings );
+  strength_slider_add( &gui, &object, controllable_light, &settings );
 
   // Controllable light range (for point lights)
-  add_range_slider( &gui, &object, controllable_light, &settings );
+  range_slider_add( &gui, &object, controllable_light, &settings );
 
   std::mem::forget( object );
 

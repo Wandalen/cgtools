@@ -12,7 +12,7 @@ use tiles_tools::{
     coordinates::square::{ Coordinate as SquareCoord, FourConnected },
 };
 
-fn spawn_entities(world: &mut World) -> Position<SquareCoord<FourConnected>>
+fn entities_spawn(world: &mut World) -> Position<SquareCoord<FourConnected>>
 {
     println!("\n=== Spawning Entities ===");
     let player = world.spawn((
@@ -60,7 +60,7 @@ fn spawn_entities(world: &mut World) -> Position<SquareCoord<FourConnected>>
     *world.hecs_world.get::<&Position<SquareCoord<FourConnected>>>(player).unwrap()
 }
 
-fn detect_and_resolve_collisions(world: &mut World)
+fn collisions_detect_and_resolve(world: &mut World)
 {
     println!("\n=== Collision Detection ===");
     let collisions = CollisionSystem::detect_collisions::<SquareCoord<FourConnected>>(&world.hecs_world);
@@ -84,7 +84,7 @@ fn detect_and_resolve_collisions(world: &mut World)
     }
 }
 
-fn run_spatial_queries(world: &World, player_pos: Position<SquareCoord<FourConnected>>)
+fn spatial_queries_run(world: &World, player_pos: Position<SquareCoord<FourConnected>>)
 {
     println!("\n=== Spatial Queries ===");
 
@@ -144,7 +144,7 @@ fn run_spatial_queries(world: &World, player_pos: Position<SquareCoord<FourConne
     }
 }
 
-fn demonstrate_collision_layers(world: &mut World)
+fn collision_layers_demonstrate(world: &mut World)
 {
     println!("\n=== Collision Layers ===");
     let _ghost = world.spawn((
@@ -167,7 +167,7 @@ fn demonstrate_collision_layers(world: &mut World)
     // (This would require extending the collision system to consider layers)
 }
 
-fn demonstrate_performance(world: &mut World)
+fn performance_demonstrate(world: &mut World)
 {
     println!("\n=== Performance Demonstration ===");
 
@@ -205,11 +205,11 @@ fn main()
 
     let mut world = World::new();
 
-    let player_pos = spawn_entities(&mut world);
-    detect_and_resolve_collisions(&mut world);
-    run_spatial_queries(&world, player_pos);
-    demonstrate_collision_layers(&mut world);
-    demonstrate_performance(&mut world);
+    let player_pos = entities_spawn(&mut world);
+    collisions_detect_and_resolve(&mut world);
+    spatial_queries_run(&world, player_pos);
+    collision_layers_demonstrate(&mut world);
+    performance_demonstrate(&mut world);
 
     println!("\nECS collision and spatial query demonstration complete!");
     println!("\nKey features demonstrated:");

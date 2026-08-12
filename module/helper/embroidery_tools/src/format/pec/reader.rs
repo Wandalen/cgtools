@@ -25,7 +25,7 @@ mod private
   /// Returns `EmbroideryError::IOError` if the file cannot be opened or read.
   /// Propagates any error returned by [`read`].
   #[ inline ]
-  pub fn read_file< P >( path : P ) -> Result< EmbroideryFile, EmbroideryError >
+  pub fn file_read< P >( path : P ) -> Result< EmbroideryFile, EmbroideryError >
   where
     P : AsRef< Path >
   {
@@ -38,7 +38,7 @@ mod private
   /// # Errors
   /// Propagates any error returned by [`read`].
   #[ inline ]
-  pub fn read_memory( mem : &[ u8 ] ) -> Result< EmbroideryFile, EmbroideryError >
+  pub fn memory_read( mem : &[ u8 ] ) -> Result< EmbroideryFile, EmbroideryError >
   {
     let mut reader = Cursor::new( mem );
     read( &mut reader )
@@ -48,7 +48,7 @@ mod private
   /// # Errors
   /// Returns `EmbroideryError::IOError` if `reader` fails to produce the header bytes.
   /// Returns `EmbroideryError::DecodingError` if the header does not match `"#PEC0001"`.
-  /// Propagates any error returned by [`read_content`].
+  /// Propagates any error returned by [`content_read`].
   #[ inline ]
   pub fn read< R >( reader : &mut R ) -> Result< EmbroideryFile, EmbroideryError >
   where
@@ -64,8 +64,8 @@ mod private
     }
     
     let mut emb = EmbroideryFile::new();
-    read_content( &mut emb, reader, &[] )?;
-    
+    content_read( &mut emb, reader, &[] )?;
+
     Ok( emb )
   }
 
@@ -79,7 +79,7 @@ mod private
   /// # Errors
   /// Returns `EmbroideryError::IOError` if any read or seek operation on `reader` fails.
   #[ inline ]
-  pub fn read_content< R >( emb : &mut EmbroideryFile, reader : &mut R, pes_chart : &[ Thread ] )
+  pub fn content_read< R >( emb : &mut EmbroideryFile, reader : &mut R, pes_chart : &[ Thread ] )
   ->
   Result< (), EmbroideryError >
   where
@@ -94,7 +94,7 @@ mod private
     let mut label = [ 0; 16 ];
     reader.read_exact( &mut label )?;
     let label = String::from_utf8_lossy( &label ).trim_end().to_owned();
-    emb.get_mut_metadata().set_name( Some( label ) );
+    emb.metadata_get_mut().name_set( Some( label ) );
 
     reader.seek( SeekFrom::Current( 0xF ) )?;
 
@@ -115,30 +115,30 @@ mod private
     // but it is saved to preserve similarity with original implementation 
     let mut threads = vec![];
 
-    map_pec_colors( emb, &color_bytes, pes_chart, &mut threads );
+    pec_colors_map( emb, &color_bytes, pes_chart, &mut threads );
 
     reader.seek( SeekFrom::Current( i64::from( 0x1D0 - u16::from( color_changes ) ) ) )?;
     let stitch_block_len = u64::from( reader.read_u24::< LE >()? );
     let stitch_block_end = stitch_block_len - 5 + reader.stream_position()?;
 
     reader.seek( SeekFrom::Current( 0x0B ) )?;
-    read_pec_instructions( emb, reader )?;
+    pec_instructions_read( emb, reader )?;
 
     reader.seek( SeekFrom::Start( stitch_block_end ) )?;
 
     let byte_size = pec_graphics_byte_stride as usize * pec_graphics_icon_height as usize;
     // PEC stores one general thumbnail and one for each thread
-    read_pec_graphics( emb, reader, byte_size, pec_graphics_byte_stride, &threads );
+    pec_graphics_read( emb, reader, byte_size, pec_graphics_byte_stride, &threads );
 
-    emb.interpolate_duplicate_color_as_stop();
+    emb.duplicate_color_interpolate_as_stop();
 
     Ok( () )
   }
 
   /// Uploads thread palette
-  fn map_pec_colors
+  fn pec_colors_map
   (
-    emb : &mut EmbroideryFile, 
+    emb : &mut EmbroideryFile,
     color_bytes : &[ u8 ],
     chart : &[ Thread ],
     values : &mut Vec< Thread >
@@ -153,42 +153,42 @@ mod private
 
     if chart.is_empty()
     {
-      process_pec_colors( emb, color_bytes, values );
+      pec_colors_process( emb, color_bytes, values );
     }
     else if chart.len() >= color_bytes.len()
     {
       for thread in chart
       {
-        emb.add_thread( thread.clone() );
+        emb.thread_add( thread.clone() );
         values.push( thread.clone() );
       }
     }
     else
     {
-      process_pec_table( emb, color_bytes, chart.to_vec(), values );
+      pec_table_process( emb, color_bytes, chart.to_vec(), values );
     }
   }
 
   /// Uploads default PEC threads
-  fn process_pec_colors( emb : &mut EmbroideryFile, color_bytes : &[ u8 ], values : &mut Vec< Thread > )
+  fn pec_colors_process( emb : &mut EmbroideryFile, color_bytes : &[ u8 ], values : &mut Vec< Thread > )
   {
     let threads = pec_threads();
     let max_value = threads.len();
     for byte in color_bytes
     {
       let thread = &threads[ *byte as usize % max_value ];
-      emb.add_thread( thread.clone() );
+      emb.thread_add( thread.clone() );
       values.push( thread.clone() );
     }
   }
 
   /// Merges default PEC threads and chart from PES together
-  fn process_pec_table
+  fn pec_table_process
   (
-    emb : &mut EmbroideryFile, 
+    emb : &mut EmbroideryFile,
     color_bytes : &[ u8 ],
     mut chart : Vec< Thread >,
-    values : &mut Vec< Thread >  
+    values : &mut Vec< Thread >
   )
   {
     // Basically, drains threads from chart, and when it is empty
@@ -202,10 +202,10 @@ mod private
     {
       let color_index = *byte as usize % max_value;
       let thread_value = thread_map.get( &color_index );
-      
+
       if let Some( thread ) = thread_value
       {
-        emb.add_thread( thread.clone() );
+        emb.thread_add( thread.clone() );
         values.push( thread.clone() );
       }
       else
@@ -224,7 +224,7 @@ mod private
   }
 
   /// Reads machine instructions section
-  fn read_pec_instructions< R >( emb : &mut EmbroideryFile, reader : &mut R )
+  fn pec_instructions_read< R >( emb : &mut EmbroideryFile, reader : &mut R )
   ->
   Result< (), std::io::Error >
   where
@@ -348,7 +348,7 @@ mod private
   }
 
   /// Reads thumbnail images section
-  fn read_pec_graphics< R >
+  fn pec_graphics_read< R >
   (
     emb : &mut EmbroideryFile,
     reader : &mut R,
@@ -375,7 +375,7 @@ mod private
       {
         let name = "pec_graphic_".to_string() + &i.to_string();
         let graphics = Graphics::PecGraphics { image, stride, thread };
-        emb.get_mut_metadata().insert_graphics( &name, graphics );
+        emb.metadata_get_mut().graphics_insert( &name, graphics );
       }
     }
   }
@@ -383,8 +383,8 @@ mod private
 
 crate::mod_interface!
 {
-  orphan use read_content;
-  orphan use read_file;
-  orphan use read_memory;
+  orphan use content_read;
+  orphan use file_read;
+  orphan use memory_read;
   orphan use read;
 }

@@ -6,7 +6,7 @@ use minwebgl as gl;
 use renderer::webgl::animation::{ Animation, Scaler };
 use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
-use crate::lil_gui::{ add_dropdown, add_slider, new_gui, on_change, on_change_string, show };
+use crate::lil_gui::{ dropdown_add, slider_add, new_gui, on_change, on_change_string, show };
 use rustc_hash::FxHashMap;
 
 const PART_NAMES : [ &str; 4 ] =
@@ -81,7 +81,7 @@ pub fn setup
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
   let gui = new_gui();
 
-  let prop = add_dropdown
+  let prop = dropdown_add
   (
     &gui,
     &object,
@@ -115,7 +115,7 @@ pub fn setup
 
   for part in PART_NAMES
   {
-    let prop = add_slider( &gui, &object, part, 0.0, 3.0, 0.01 );
+    let prop = slider_add( &gui, &object, part, 0.0, 3.0, 0.01 );
     let scaler_ref = Rc::clone( &scaler );
 
     let callback = Closure::new

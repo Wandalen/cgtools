@@ -18,7 +18,7 @@ fn test_apply_rotation()
 
   let mat = mingl::math::mat3x3h::rot( 0.0, 90.0f32.to_radians(), 0.0 );
 
-  bb.apply_transform_mut( mat );
+  bb.transform_apply_mut( mat );
 
   assert_abs_diff_eq!( bb.min, F32x3::new( 0.0, 0.0, -1.0 ) );
   assert_abs_diff_eq!( bb.max, F32x3::new( 1.0, 1.0, 0.0 ) );
@@ -31,7 +31,7 @@ fn test_apply_scale()
 
   let mat = mingl::math::mat3x3h::scale( [ 2.0, 5.0, 3.0 ] );
 
-  bb.apply_transform_mut( mat );
+  bb.transform_apply_mut( mat );
 
   assert_abs_diff_eq!( bb.min, F32x3::new( 0.0, 0.0, 0.0 ) );
   assert_abs_diff_eq!( bb.max, F32x3::new( 2.0, 5.0, 3.0 ) );
@@ -44,7 +44,7 @@ fn test_apply_translation()
 
   let mat = mingl::math::mat3x3h::translation( [ 2.0, 5.0, 3.0 ] );
 
-  bb.apply_transform_mut( mat );
+  bb.transform_apply_mut( mat );
 
   assert_abs_diff_eq!( bb.min, F32x3::new( 2.0, 5.0, 3.0 ) );
   assert_abs_diff_eq!( bb.max, F32x3::new( 3.0, 6.0, 4.0 ) );

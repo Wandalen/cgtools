@@ -8,7 +8,7 @@ use crate::
   Renderer,
   controls,
 };
-use utils::get_element_by_id_unchecked;
+use utils::element_by_id_unchecked_get;
 use filters::
 {
   desaturate,
@@ -27,7 +27,7 @@ use std::{ cell::RefCell, rc::Rc };
 use web_sys::HtmlElement;
 
 /// Sets up filters that don't have parameters
-pub fn setup_filters_without_controls
+pub fn filters_without_controls_setup
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   current_filter : &Rc< RefCell< String > >
@@ -35,27 +35,27 @@ pub fn setup_filters_without_controls
 {
   let filters =
   [
-    ( "desaturate",  make_closure_with_filter_tracking( filter_renderer, desaturate::Desaturate, "desaturate", current_filter ) ),
-    ( "edge",        make_closure_with_filter_tracking( filter_renderer, edge::Edge, "edge", current_filter ) ),
-    ( "emboss",      make_closure_with_filter_tracking( filter_renderer, emboss::Emboss, "emboss", current_filter ) ),
-    ( "enrich",      make_closure_with_filter_tracking( filter_renderer, enrich::Enrich, "enrich", current_filter ) ),
-    ( "grayscale",   make_closure_with_filter_tracking( filter_renderer, gray_scale::GrayScale, "grayscale", current_filter ) ),
-    ( "invert",      make_closure_with_filter_tracking( filter_renderer, invert::Invert, "invert", current_filter ) ),
-    ( "sepia",       make_closure_with_filter_tracking( filter_renderer, sepia::Sepia, "sepia", current_filter ) ),
-    ( "solarize",    make_closure_with_filter_tracking( filter_renderer, solarize::Solarize, "solarize", current_filter ) ),
-    ( "transpose",   make_closure_with_filter_tracking( filter_renderer, transpose::Transpose, "transpose", current_filter ) ),
+    ( "desaturate",  closure_with_filter_tracking_make( filter_renderer, desaturate::Desaturate, "desaturate", current_filter ) ),
+    ( "edge",        closure_with_filter_tracking_make( filter_renderer, edge::Edge, "edge", current_filter ) ),
+    ( "emboss",      closure_with_filter_tracking_make( filter_renderer, emboss::Emboss, "emboss", current_filter ) ),
+    ( "enrich",      closure_with_filter_tracking_make( filter_renderer, enrich::Enrich, "enrich", current_filter ) ),
+    ( "grayscale",   closure_with_filter_tracking_make( filter_renderer, gray_scale::GrayScale, "grayscale", current_filter ) ),
+    ( "invert",      closure_with_filter_tracking_make( filter_renderer, invert::Invert, "invert", current_filter ) ),
+    ( "sepia",       closure_with_filter_tracking_make( filter_renderer, sepia::Sepia, "sepia", current_filter ) ),
+    ( "solarize",    closure_with_filter_tracking_make( filter_renderer, solarize::Solarize, "solarize", current_filter ) ),
+    ( "transpose",   closure_with_filter_tracking_make( filter_renderer, transpose::Transpose, "transpose", current_filter ) ),
   ];
 
   for ( card_id, closure ) in filters
   {
-    let card = get_element_by_id_unchecked::< HtmlElement >( card_id );
+    let card = element_by_id_unchecked_get::< HtmlElement >( card_id );
     card.add_event_listener_with_callback( "click", closure.as_ref().unchecked_ref() ).unwrap();
     closure.forget();
   }
 }
 
 /// Creates a closure that applies a filter and tracks the current filter
-pub fn make_closure_with_filter_tracking
+pub fn closure_with_filter_tracking_make
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   filter : impl Filter + 'static,
@@ -75,11 +75,11 @@ pub fn make_closure_with_filter_tracking
       return;
     }
     // Restore previous state if switching from another unapplied filter
-    filter_renderer.borrow_mut().restore_previous_texture();
+    filter_renderer.borrow_mut().previous_texture_restore();
     ( *current_filter.borrow_mut() ).clone_from( &filter_name );
-    filter_renderer.borrow_mut().save_previous_texture();
-    controls::clear_controls();
-    filter_renderer.borrow_mut().apply_filter( &filter );
+    filter_renderer.borrow_mut().previous_texture_save();
+    controls::controls_clear();
+    filter_renderer.borrow_mut().filter_apply( &filter );
     controls::show();
   }))
 }

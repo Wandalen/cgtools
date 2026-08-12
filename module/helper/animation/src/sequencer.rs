@@ -143,7 +143,7 @@ mod private
 
     /// Gets the current value of a named animation as dyn ref.
     #[must_use]
-    pub fn get_dyn_value( &self, name : &str ) -> Option< &dyn AnimatablePlayer >
+    pub fn dyn_value_get( &self, name : &str ) -> Option< &dyn AnimatablePlayer >
     {
       let player_box = self.players.get( name )?;
       Some( player_box.as_ref() )
@@ -195,7 +195,7 @@ mod private
     }
 
     /// Renames an player in the Sequencer.
-    pub fn rename_player( &mut self, current_name : &str, new_name : &str ) -> bool
+    pub fn player_rename( &mut self, current_name : &str, new_name : &str ) -> bool
     {
       if let Some( ( _, value ) ) = self.players.remove_entry( current_name )
       {

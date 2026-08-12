@@ -34,7 +34,7 @@ mod private
   // Pitfall: a function that already returns `Result` is exactly where a
   // stray `panic!`/`unwrap`/`expect` is easiest to miss in review — grep for
   // those macros in any function whose signature already promises `Result`.
-  pub fn validate_natoms( natoms : i32 ) -> Result< (), WebglError >
+  pub fn natoms_validate( natoms : i32 ) -> Result< (), WebglError >
   {
     match natoms
     {
@@ -79,7 +79,7 @@ mod private
     #[ inline ]
     pub fn new( gl : GL, positions : &[ f32 ], natoms : i32 ) -> Result< Self, WebglError >
     {
-      validate_natoms( natoms )?;
+      natoms_validate( natoms )?;
       let position_buffer = buffer::create( &gl )?;
       let typ = VectorDataType::new( DataType::F32, natoms, 1 );
       buffer::upload( &gl, &position_buffer, positions, GL::STATIC_DRAW );
@@ -89,7 +89,7 @@ mod private
       // `BufferDescriptor` is fully data-driven — `attribute_pointer` reads only the
       // runtime `VectorDataType` — so no natoms-to-compile-time-type dispatch is
       // needed: build the descriptor from `typ` directly. This is what generalizes
-      // `Positions::new` to every arity `validate_natoms` accepts.
+      // `Positions::new` to every arity `natoms_validate` accepts.
       let descriptor = BufferDescriptor
       {
         vector : typ,
@@ -130,7 +130,7 @@ crate::mod_interface!
   own use
   {
     Positions,
-    validate_natoms,
+    natoms_validate,
   };
 
 }

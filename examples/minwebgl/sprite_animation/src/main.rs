@@ -4,10 +4,10 @@ use minwebgl as gl;
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
@@ -19,7 +19,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Settings for `rock.png` sprite sheets
   let path = "static/rock.png";
-  let image_element = gl::dom::create_image_element( path )
+  let image_element = gl::dom::image_element_create( path )
   .expect( "Failed to create image element" );
   let sprite_sheet = gl::texture::d2::SpriteSheet
   {
@@ -29,7 +29,7 @@ async fn run() -> Result< (), gl::WebglError >
     amount: 64,
   };
 
-  gl::texture::d2::upload_sprite( &gl, &image_element, &sprite_sheet ).await?;
+  gl::texture::d2::sprite_upload( &gl, &image_element, &sprite_sheet ).await?;
 
   let update_and_draw =
   {

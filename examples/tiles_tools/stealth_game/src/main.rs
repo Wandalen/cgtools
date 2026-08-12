@@ -60,7 +60,7 @@ impl Stealth {
   self.noise_level = 0;
   }
 
-  pub fn set_cover(&mut self, in_cover: bool) {
+  pub fn cover_set(&mut self, in_cover: bool) {
   self.in_cover = in_cover;
   if in_cover {
     self.noise_level = self.noise_level.saturating_sub(2);
@@ -97,11 +97,11 @@ impl Vision {
   }
   }
 
-  pub fn increase_alert(&mut self, amount: u32) {
+  pub fn alert_increase(&mut self, amount: u32) {
   self.alert_level = (self.alert_level + amount).min(10);
   }
 
-  pub fn get_effective_range(&self) -> u32 {
+  pub fn effective_range_get(&self) -> u32 {
   // Alert guards see farther
   self.base_range + (self.alert_level / 2)
   }
@@ -137,11 +137,11 @@ impl PatrolRoute {
   }
   }
 
-  pub fn get_current_target(&self) -> Option<SquareCoord<EightConnected>> {
+  pub fn current_target_get(&self) -> Option<SquareCoord<EightConnected>> {
   self.waypoints.get(self.current_waypoint).copied()
   }
 
-  pub fn advance_waypoint(&mut self) {
+  pub fn waypoint_advance(&mut self) {
   if self.current_wait > 0 {
     self.current_wait = self.current_wait.saturating_sub(1);
     return;
@@ -223,11 +223,11 @@ impl LevelMap {
   };
 
   // Create a simple level layout
-  map.generate_level_layout();
+  map.level_layout_generate();
   map
   }
 
-  fn generate_level_layout(&mut self) {
+  fn level_layout_generate(&mut self) {
   // Create perimeter walls
   for x in 0..self.width {
     self.walls.insert(SquareCoord::<EightConnected>::new(x, 0));
@@ -366,18 +366,18 @@ impl StealthGame {
   }
 
   /// Processes one turn of the game.
-  pub fn process_turn(&mut self) {
+  pub fn turn_process(&mut self) {
   self.turn_counter += 1;
 
   match self.game_state {
     GameState::Stealth => {
-      self.process_stealth_turn();
+      self.stealth_turn_process();
     }
     GameState::Alert => {
-      self.process_alert_turn();
+      self.alert_turn_process();
     }
     GameState::Detected => {
-      self.process_detected_turn();
+      self.detected_turn_process();
     }
     _ => {
       // Game over states
@@ -394,27 +394,27 @@ impl StealthGame {
   }
 
   /// Processes a turn in stealth mode.
-  fn process_stealth_turn(&mut self) {
+  fn stealth_turn_process(&mut self) {
   // Update guard patrols
   let guard_entities = self.guard_entities.clone();
   for guard in guard_entities {
-    self.update_guard_patrol(guard);
+    self.guard_patrol_update(guard);
   }
 
   // Check for player detection
-  if self.check_player_detection() {
+  if self.player_detection_check() {
     self.game_state = GameState::Alert;
     println!("🚨 Alert! Guards are searching...");
   }
 
   // Simulate player movement (in a real game, this would be input-driven)
-  self.simulate_player_movement();
+  self.player_movement_simulate();
   }
 
   /// Processes a turn in alert mode.
-  fn process_alert_turn(&mut self) {
+  fn alert_turn_process(&mut self) {
   // Guards move toward last known player position
-  if self.check_player_detection() {
+  if self.player_detection_check() {
     self.game_state = GameState::Detected;
     println!("🎯 Player detected! Game over!");
   }
@@ -439,13 +439,13 @@ impl StealthGame {
   }
 
   /// Processes a turn when player is detected.
-  fn process_detected_turn(&mut self) {
+  fn detected_turn_process(&mut self) {
   // Game over - guards converge on player
   self.game_state = GameState::GameOver;
   }
 
   /// Updates a guard's patrol behavior.
-  fn update_guard_patrol(&mut self, guard: hecs::Entity) {
+  fn guard_patrol_update(&mut self, guard: hecs::Entity) {
   // First get position without any mutable borrows
   let current_pos = {
     if let Ok(pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(guard) {
@@ -458,10 +458,10 @@ impl StealthGame {
   // Then get and modify patrol data
   let target_to_move = {
     if let Ok(mut patrol) = self.world.get_mut::<PatrolRoute>(guard) {
-      if let Some(target) = patrol.get_current_target() {
+      if let Some(target) = patrol.current_target_get() {
         // Check if we've reached the target
         if current_pos.distance(&target) <= 1 {
-          patrol.advance_waypoint();
+          patrol.waypoint_advance();
           None
         } else {
           // Need to move toward target
@@ -476,12 +476,12 @@ impl StealthGame {
   };
 
   if let Some(target) = target_to_move {
-    self.move_guard_toward(guard, target);
+    self.guard_move_toward(guard, target);
   }
   }
 
   /// Moves a guard toward a target position.
-  fn move_guard_toward(&mut self, guard: hecs::Entity, target: SquareCoord<EightConnected>) {
+  fn guard_move_toward(&mut self, guard: hecs::Entity, target: SquareCoord<EightConnected>) {
   if let Ok(pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(guard) {
     if let Ok(movable) = self.world.get::<Movable>(guard) {
       // Use pathfinding to move toward target
@@ -505,7 +505,7 @@ impl StealthGame {
   }
 
   /// Checks if any guard can detect the player.
-  fn check_player_detection(&mut self) -> bool {
+  fn player_detection_check(&mut self) -> bool {
   let (player_coord, player_stealth_state, player_light_level) = {
     if let Ok(player_pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(self.player_entity) {
       if let Ok(player_stealth) = self.world.get::<Stealth>(self.player_entity) {
@@ -540,7 +540,7 @@ impl StealthGame {
     if let Ok(mut vision) = self.world.get_mut::<Vision>(guard) {
 
       let distance = guard_coord.distance(&player_coord);
-      let effective_range = vision.get_effective_range();
+      let effective_range = vision.effective_range_get();
 
       if distance <= effective_range {
         // Check line of sight
@@ -565,7 +565,7 @@ impl StealthGame {
                               distance_modifier + cover_modifier + noise_modifier;
 
           if detection_score >= vision.detection_threshold {
-            vision.increase_alert(3);
+            vision.alert_increase(3);
             if vision.alert_level >= 7 {
               detected = true;
             }
@@ -585,7 +585,7 @@ impl StealthGame {
   }
 
   /// Simulates player movement for demonstration.
-  fn simulate_player_movement(&mut self) {
+  fn player_movement_simulate(&mut self) {
   let (current_pos, objective) = {
     if let Ok(player_pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(self.player_entity) {
       (player_pos.coord, self.level_map.objective)
@@ -612,7 +612,7 @@ impl StealthGame {
         // Update stealth state
         if let Ok(mut stealth) = self.world.get_mut::<Stealth>(self.player_entity) {
           stealth.start_moving();
-          stealth.set_cover(self.level_map.has_cover(next_pos));
+          stealth.cover_set(self.level_map.has_cover(next_pos));
         }
       } else {
         // Wait and hide
@@ -632,7 +632,7 @@ impl StealthGame {
     if let Ok(guard_pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(guard) {
       if let Ok(vision) = self.world.get::<Vision>(guard) {
         let distance = guard_pos.coord.distance(&pos);
-        if distance <= vision.get_effective_range() {
+        if distance <= vision.effective_range_get() {
           let has_los = self.fov_calculator.line_of_sight(
             &guard_pos.coord,
             &pos,
@@ -650,12 +650,12 @@ impl StealthGame {
   }
 
   /// Prints the current game state.
-  pub fn print_game_state(&self) {
+  pub fn game_state_print(&self) {
   println!("\n=== Turn {} ===", self.turn_counter);
   println!("Game State: {:?}", self.game_state);
 
   // Print level with entities
-  self.print_level_map();
+  self.level_map_print();
 
   // Print player status
   if let Ok(player_pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(self.player_entity) {
@@ -678,7 +678,7 @@ impl StealthGame {
   }
 
   /// Prints the level map with entities and lighting.
-  fn print_level_map(&self) {
+  fn level_map_print(&self) {
   let lighting = self.lighting_calculator.calculate_lighting(|coord| {
     self.level_map.blocks_sight(*coord)
   });
@@ -749,18 +749,18 @@ impl StealthGame {
   }
 
   /// Runs the complete stealth game simulation.
-  pub fn run_simulation(&mut self) {
+  pub fn simulation_run(&mut self) {
   println!("🎯 Stealth Game Simulation");
   println!("=========================");
   println!("Objective: Reach the 🏆 without being detected!");
   println!("Use cover (🌿) and darkness to avoid guards (👮)");
 
-  self.print_game_state();
+  self.game_state_print();
 
   // Run game loop
   for turn in 1..=30 {
-    self.process_turn();
-    self.print_game_state();
+    self.turn_process();
+    self.game_state_print();
 
     match self.game_state {
       GameState::Victory => {
@@ -788,7 +788,7 @@ impl StealthGame {
 fn main()
 {
   let mut game = StealthGame::new();
-  game.run_simulation();
+  game.simulation_run();
 
   println!("\n✨ Stealth Game Demo Complete!");
   println!("This example showcases:");

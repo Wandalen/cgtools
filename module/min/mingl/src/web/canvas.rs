@@ -79,13 +79,13 @@ mod private
     if let Some( parent ) = canvas.parent_element()
     {
       // Resize the canvas initially
-      resize_canvas( &canvas, &parent );
+      canvas_resize( &canvas, &parent );
 
       // Create a closure to handle window resizing
       let canvas_clone = canvas.clone();
       let closure = Closure::wrap( Box::new( move ||
       {
-        resize_canvas( &canvas_clone, &parent );
+        canvas_resize( &canvas_clone, &parent );
       }) as Box< dyn Fn() > );
 
       // Add the closure as a listener to the resize event
@@ -123,7 +123,7 @@ mod private
   }
 
   // Function to resize the canvas
-  fn resize_canvas( canvas: &HtmlCanvasElement, parent: &Element )
+  fn canvas_resize( canvas: &HtmlCanvasElement, parent: &Element )
   {
     // Set the canvas dimensions to match the parent element's size.
     // `client_width`/`client_height` return `i32` for historical WebIDL reasons, but the
@@ -144,7 +144,7 @@ mod private
   /// Panics if the global `window` object is unavailable, or if setting the `width`/`height`
   /// CSS properties on the canvas style fails.
   #[ inline ]
-  pub fn remove_dpr_scaling( canvas: &HtmlCanvasElement )
+  pub fn dpr_scaling_remove( canvas: &HtmlCanvasElement )
   {
     let width = canvas.width();
     let height = canvas.height();
@@ -166,7 +166,7 @@ crate::mod_interface!
     retrieve,
     make,
     retrieve_or_make,
-    remove_dpr_scaling
+    dpr_scaling_remove
   };
 
 }

@@ -8,8 +8,8 @@ use embroidery_tools::stitch_instruction::{ Instruction, Stitch };
 fn add_stitch_relative_accumulates_positions()
 {
   let mut emb = EmbroideryFile::new();
-  emb.add_stitch_relative( Stitch { x : 10, y : 20, instruction : Instruction::Stitch } );
-  emb.add_stitch_relative( Stitch { x : 30, y : 40, instruction : Instruction::Stitch } );
+  emb.stitch_add_relative( Stitch { x : 10, y : 20, instruction : Instruction::Stitch } );
+  emb.stitch_add_relative( Stitch { x : 30, y : 40, instruction : Instruction::Stitch } );
 
   let stitches = emb.stitches();
 
@@ -21,8 +21,8 @@ fn add_stitch_relative_accumulates_positions()
 fn add_stitch_absolute_keeps_positions()
 {
   let mut emb = EmbroideryFile::new();
-  emb.add_stitch_absolute( Stitch { x : 10, y : 20, instruction : Instruction::Stitch } );
-  emb.add_stitch_absolute( Stitch { x : 30, y : 40, instruction : Instruction::Stitch } );
+  emb.stitch_add_absolute( Stitch { x : 10, y : 20, instruction : Instruction::Stitch } );
+  emb.stitch_add_absolute( Stitch { x : 30, y : 40, instruction : Instruction::Stitch } );
 
   let stitches = emb.stitches();
 
@@ -34,9 +34,9 @@ fn add_stitch_absolute_keeps_positions()
 fn bounds_returns_min_and_max_stitch_coordinates()
 {
   let mut emb = EmbroideryFile::new();
-  emb.add_stitch_absolute( Stitch { x : -5, y : 40, instruction : Instruction::Stitch } );
-  emb.add_stitch_absolute( Stitch { x : 30, y : -20, instruction : Instruction::Stitch } );
-  emb.add_stitch_absolute( Stitch { x : 10, y : 15, instruction : Instruction::Jump } );
+  emb.stitch_add_absolute( Stitch { x : -5, y : 40, instruction : Instruction::Stitch } );
+  emb.stitch_add_absolute( Stitch { x : 30, y : -20, instruction : Instruction::Stitch } );
+  emb.stitch_add_absolute( Stitch { x : 10, y : 15, instruction : Instruction::Jump } );
 
   // ( min_x, min_y, max_x, max_y )
   assert_eq!( emb.bounds(), ( -5, -20, 30, 40 ) );
@@ -46,10 +46,10 @@ fn bounds_returns_min_and_max_stitch_coordinates()
 fn as_command_blocks_splits_at_instruction_changes()
 {
   let mut emb = EmbroideryFile::new();
-  emb.add_stitch_absolute( Stitch { x : 0, y : 0, instruction : Instruction::Stitch } );
-  emb.add_stitch_absolute( Stitch { x : 1, y : 1, instruction : Instruction::Stitch } );
-  emb.add_stitch_absolute( Stitch { x : 2, y : 2, instruction : Instruction::Jump } );
-  emb.add_stitch_absolute( Stitch { x : 3, y : 3, instruction : Instruction::Stitch } );
+  emb.stitch_add_absolute( Stitch { x : 0, y : 0, instruction : Instruction::Stitch } );
+  emb.stitch_add_absolute( Stitch { x : 1, y : 1, instruction : Instruction::Stitch } );
+  emb.stitch_add_absolute( Stitch { x : 2, y : 2, instruction : Instruction::Jump } );
+  emb.stitch_add_absolute( Stitch { x : 3, y : 3, instruction : Instruction::Stitch } );
 
   let blocks = emb.as_command_blocks();
 

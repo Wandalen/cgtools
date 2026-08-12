@@ -43,7 +43,7 @@ impl LightState
 {
   pub fn new( device : &web_sys::GpuDevice ) -> Result< Self, WebGPUError >
   {
-    let lights = generate_lights();
+    let lights = lights_generate();
     let lights_raw = lights.iter().map( Light::as_raw ).collect::< Vec< LightRaw> >();
 
     let buffer = gl::BufferInitDescriptor::new
@@ -118,7 +118,7 @@ impl LightVisualizationState
   }
 }
 
-fn generate_lights() -> Vec< Light >
+fn lights_generate() -> Vec< Light >
 {
   let mut rng = rand::rng();
 

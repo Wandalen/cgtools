@@ -43,7 +43,7 @@ use web_sys::HtmlCanvasElement;
 use browser_input::keyboard::KeyboardKey;
 
 /// Add new plane [`renderer::webgl::Node`] to [`Scene`]
-fn create_plane( gl : &GL, scene : &Rc< RefCell< Scene > > )
+fn plane_create( gl : &GL, scene : &Rc< RefCell< Scene > > )
 {
   let Some( plane ) = plane_to_geometry()
   else
@@ -70,7 +70,7 @@ fn create_plane( gl : &GL, scene : &Rc< RefCell< Scene > > )
   }
 }
 
-async fn setup_scene( gl : &GL ) -> Result< GLTF, WebglError >
+async fn scene_setup( gl : &GL ) -> Result< GLTF, WebglError >
 {
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -79,7 +79,7 @@ async fn setup_scene( gl : &GL ) -> Result< GLTF, WebglError >
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, gl ).await?;
   gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
 
-  create_plane( gl, &gltf.scenes[ 0 ] );
+  plane_create( gl, &gltf.scenes[ 0 ] );
 
   let character = gltf.scenes[ 0 ].borrow().get_nodes_by_substring( "Armature" )[ 0 ].clone();
   let plane = gltf.scenes[ 0 ].borrow().get_nodes_by_substring( "Plane" )[ 0 ].clone();
@@ -95,7 +95,7 @@ async fn setup_scene( gl : &GL ) -> Result< GLTF, WebglError >
   Ok( gltf )
 }
 
-fn setup_camera( width : f32, height : f32 ) -> Camera
+fn camera_setup( width : f32, height : f32 ) -> Camera
 {
   // Camera setup - will follow character
   let aspect_ratio = width / height;
@@ -114,13 +114,13 @@ fn setup_camera( width : f32, height : f32 ) -> Camera
   camera
 }
 
-fn setup_input( canvas : &HtmlCanvasElement ) -> ( Rc< RefCell< CharacterControls > >, Rc< RefCell< CharacterInput > > )
+fn input_setup( canvas : &HtmlCanvasElement ) -> ( Rc< RefCell< CharacterControls > >, Rc< RefCell< CharacterInput > > )
 {
   // Character controls setup
   let mut character_controls = CharacterControls::default();
 
-  character_controls.set_position( F64x3::from( [ 0.0, 1.5, 3.0 ] ) );
-  character_controls.set_rotation( 0.0, 0.0 );
+  character_controls.position_set( F64x3::from( [ 0.0, 1.5, 3.0 ] ) );
+  character_controls.rotation_set( 0.0, 0.0 );
 
   character_controls.rotation_sensitivity = 0.003;
 
@@ -128,7 +128,7 @@ fn setup_input( canvas : &HtmlCanvasElement ) -> ( Rc< RefCell< CharacterControl
   let character_input = Rc::new( RefCell::new( CharacterInput::new() ) );
 
   // Bind character controls to input
-  mingl::controls::character_controls::bind_controls_to_input
+  mingl::controls::character_controls::controls_bind_to_input
   (
     canvas,
     &character_controls,
@@ -161,7 +161,7 @@ fn key_up_condition( input : &Rc< RefCell< browser_input::Input > >, key : Keybo
 }
 
 /// Prepares named sequencers : strips the global hips translation ( except listed animations ) and flips running_jump's lateral axes.
-fn prepare_animations( animations : Vec< Animation > ) -> FxHashMap< String, Sequencer >
+fn animations_prepare( animations : Vec< Animation > ) -> FxHashMap< String, Sequencer >
 {
   let mut animations = animations.into_iter()
   .filter_map( | a | Some( ( a.name?.into_string(), a.animation.as_any().downcast_ref::< Sequencer >().unwrap().clone() ) ) )
@@ -198,7 +198,7 @@ fn prepare_animations( animations : Vec< Animation > ) -> FxHashMap< String, Seq
 }
 
 /// Adds idle, jump, and walk nodes with their keyboard-driven edges.
-fn add_locomotion_states
+fn locomotion_states_add
 (
   graph : &mut AnimationGraph,
   animations : &FxHashMap< String, Sequencer >,
@@ -241,7 +241,7 @@ fn add_locomotion_states
 }
 
 /// Adds run nodes and the edges between walk, run, and jump states.
-fn add_run_states
+fn run_states_add
 (
   graph : &mut AnimationGraph,
   animations : &FxHashMap< String, Sequencer >,
@@ -300,7 +300,7 @@ fn add_run_states
 }
 
 /// Adds fight nodes and the kick edges driven by the E and Q keys.
-fn add_fight_states
+fn fight_states_add
 (
   graph : &mut AnimationGraph,
   animations : &FxHashMap< String, Sequencer >,
@@ -340,22 +340,22 @@ fn add_fight_states
 }
 
 /// Builds the character's animation state graph from the loaded animations.
-fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_input::Input > > ) -> AnimationGraph
+fn graph_setup( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_input::Input > > ) -> AnimationGraph
 {
   let mut graph = AnimationGraph::new( &animations[ 0 ].nodes );
 
-  let animations = prepare_animations( animations );
+  let animations = animations_prepare( animations );
 
   let instant_tween = Tween::new( 1.0, 1.0, 0.0, Linear::build() );
 
-  add_locomotion_states( &mut graph, &animations, input_, &instant_tween );
-  add_run_states( &mut graph, &animations, input_, &instant_tween );
-  add_fight_states( &mut graph, &animations, input_, &instant_tween );
+  locomotion_states_add( &mut graph, &animations, input_, &instant_tween );
+  run_states_add( &mut graph, &animations, input_, &instant_tween );
+  fight_states_add( &mut graph, &animations, input_, &instant_tween );
 
   graph
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
@@ -369,10 +369,10 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf = setup_scene( &gl ).await?;
+  let gltf = scene_setup( &gl ).await?;
   let scene = gltf.scenes[ 0 ].clone();
-  let ( character_controls, character_input ) = setup_input( &canvas );
-  let camera = setup_camera( width, height );
+  let ( character_controls, character_input ) = input_setup( &canvas );
+  let camera = camera_setup( width, height );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
@@ -392,19 +392,19 @@ async fn run() -> Result< (), gl::WebglError >
   initial_center.0[ 1 ] += 1.5;
   camera.get_controls().borrow_mut().center = initial_center;
 
-  character_controls.borrow_mut().set_rotation( 0.0, 0.0 );
+  character_controls.borrow_mut().rotation_set( 0.0, 0.0 );
   let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
   camera.get_controls().borrow_mut().eye = initial_center - forward * character_controls.borrow().zoom as f32;
 
   let input = Rc::new( RefCell::new( browser_input::Input::new( Some( canvas.clone().dyn_into().unwrap() ), browser_input::CLIENT ).expect( "Failed to initialize input" ) ) );
-  let mut graph = setup_graph( gltf.animations.clone(), &input );
+  let mut graph = graph_setup( gltf.animations.clone(), &input );
 
   // Define the update and draw logic
   let update_and_draw =
   {
     move | t : f64 |
     {
-      input.borrow_mut().update_state();
+      input.borrow_mut().state_update();
 
       let time = t / 1000.0;
 
@@ -468,5 +468,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

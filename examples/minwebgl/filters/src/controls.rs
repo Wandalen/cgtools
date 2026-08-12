@@ -8,19 +8,19 @@ use wasm_bindgen::prelude::*;
 extern "C"
 {
   #[wasm_bindgen(js_name = clearControls)]
-  pub fn clear_controls();
+  pub fn controls_clear();
 
   #[wasm_bindgen(js_name = addSlider)]
-  pub fn add_slider(label: &str, property: &str, value: f64, min: f64, max: f64, step: f64);
+  pub fn slider_add(label: &str, property: &str, value: f64, min: f64, max: f64, step: f64);
 
   #[wasm_bindgen(js_name = addDropdown)]
-  pub fn add_dropdown(label: &str, property: &str, value: &str, options: &JsValue);
+  pub fn dropdown_add(label: &str, property: &str, value: &str, options: &JsValue);
 
   #[wasm_bindgen(js_name = onChange)]
   pub fn on_change(callback: &JsValue);
 
   #[wasm_bindgen(js_name = getValues)]
-  pub fn get_values() -> JsValue;
+  pub fn values_get() -> JsValue;
 
   #[wasm_bindgen(js_name = show)]
   pub fn show();

@@ -14,10 +14,10 @@ use wasm_bindgen::prelude::*;
 fn main()
 {
   gl::browser::setup( gl::browser::Config::default() );
-  run();
+  app_run();
 }
 
-fn run()
+fn app_run()
 {
   let image_path = "static/unnamed.png";
   let gl = gl::context::retrieve_or_make().expect( "Can't retrieve GL context" );
@@ -92,10 +92,10 @@ fn run()
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
   };
 
-  load_image( image_path, Box::new( load ) );
+  image_load( image_path, Box::new( load ) );
 }
 
-fn load_image( path : &str, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )
+fn image_load( path : &str, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )
 {
   let window = web_sys::window().expect( "Should have a window" );
   let document = window.document().expect( "Should have a document" );

@@ -8,7 +8,7 @@ use mingl::F32x4;
 use minwebgl as gl;
 use gl::
 {
-  texture::d2::upload_image_from_path,
+  texture::d2::image_upload_from_path,
   GL,
   WebGl2RenderingContext,
   web_sys::HtmlCanvasElement,
@@ -37,13 +37,13 @@ use std::rc::Rc;
 use canvas_renderer::renderer::CanvasRenderer;
 use primitive_generation::{text, Transform, primitives_data_to_gltf};
 
-fn create_texture(
+fn texture_create(
   gl : &WebGl2RenderingContext,
   image_path : &str
 ) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_image_from_path( gl, &image_path, false );
+  let texture_id = image_upload_from_path( gl, &image_path, false );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )
@@ -65,7 +65,7 @@ fn create_texture(
   }
 }
 
-fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
+fn context_init() -> ( WebGl2RenderingContext, HtmlCanvasElement )
 {
   gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
@@ -78,7 +78,7 @@ fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
   ( gl, canvas )
 }
 
-fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > ] ) -> Camera
+fn camera_init( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > ] ) -> Camera
 {
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
@@ -146,7 +146,7 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
 ///
 /// * `node` - A reference to the `Rc<RefCell<Node>>` to modify.
 /// * `material_callback` - A closure that takes a material reference and modifies it.
-fn apply_function_to_node_materials
+fn function_to_node_materials_apply
 (
   node : &Rc< RefCell< Node > >,
   mut material_callback : impl FnMut( &mut PbrMaterial )
@@ -166,20 +166,20 @@ fn apply_function_to_node_materials
   }
 }
 
-async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglError >
+async fn scene_setup( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglError >
 {
   let window = web_sys::window().unwrap();
   let document =  window.document().unwrap();
   let mut gltf = renderer::webgl::loaders::gltf::load( &document, "static/gltf/sphere.glb", gl ).await?;
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
-  let texture = create_texture( gl, "textures/earth2.jpg" );
-  apply_function_to_node_materials( &earth, | m | { m.set_base_color_texture( Some( texture.clone() ) ); } );
+  let texture = texture_create( gl, "textures/earth2.jpg" );
+  function_to_node_materials_apply( &earth, | m | { m.set_base_color_texture( Some( texture.clone() ) ); } );
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
-  let texture = create_texture( gl, "textures/clouds2.png" );
-  apply_function_to_node_materials( &clouds,
+  let texture = texture_create( gl, "textures/clouds2.png" );
+  function_to_node_materials_apply( &clouds,
     | m |
     {
       m.set_base_color_texture( Some( texture.clone() ) );
@@ -193,8 +193,8 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   clouds.borrow_mut().update_local_matrix();
 
   let moon = clone( &mut gltf, &earth );
-  let texture = create_texture( gl, "textures/moon2.jpg" );
-  apply_function_to_node_materials( &moon, | m | { m.set_base_color_texture( Some( texture.clone() ) ); } );
+  let texture = texture_create( gl, "textures/moon2.jpg" );
+  function_to_node_materials_apply( &moon, | m | { m.set_base_color_texture( Some( texture.clone() ) ); } );
   let scale = 0.25;
   let distance = 7.0;// 30.0 * 1.0;
   moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
@@ -204,7 +204,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   Ok( gltf )
 }
 
-async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x4 > )
+async fn canvas_scene_setup( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x4 > )
 {
   let font_names = [ "Roboto-Regular" ];
   let fonts = text::ufo::load_fonts( &font_names ).await;
@@ -239,15 +239,15 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   ( canvas_gltf, colors )
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
-  let ( gl, canvas ) = init_context();
+  let ( gl, canvas ) = context_init();
 
-  let mut gltf = setup_scene( &gl ).await?;
+  let mut gltf = scene_setup( &gl ).await?;
 
-  let ( canvas_gltf, colors ) = setup_canvas_scene( &gl ).await;
+  let ( canvas_gltf, colors ) = canvas_scene_setup( &gl ).await;
 
-  let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
+  let canvas_camera = camera_init( &canvas, &canvas_gltf.scenes );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 8.0 ].into();
   {
@@ -263,7 +263,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
   let canvas_sphere = clone( &mut gltf, &earth );
-  apply_function_to_node_materials
+  function_to_node_materials_apply
   (
     &canvas_sphere,
     | m |
@@ -283,7 +283,7 @@ async fn run() -> Result< (), gl::WebglError >
   let scenes = gltf.scenes.clone();
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
-  let camera = init_camera( &canvas, &scenes );
+  let camera = camera_init( &canvas, &scenes );
   camera.bind_controls( &canvas );
   let eye = gl::math::mat3x3h::rot( 0.0, - 76.0_f32.to_radians(), - 20.0_f32.to_radians() )
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
@@ -292,7 +292,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/gltf_viewer_ibl_unreal/", None ).await );
-  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
+  let skybox = texture_create( &gl, "environment_maps/equirectangular_maps/space3.png" );
   renderer.set_skybox( skybox.texture.borrow().source.clone() );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
@@ -337,5 +337,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

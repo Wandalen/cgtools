@@ -8,7 +8,7 @@ The host then takes two consecutive recorded frames and smoothly interpolates be
 
 An example-local `frame_to_commands` compiler (`src/render.rs`) then translates each recorded `Frame` into `tilemap_renderer::commands::RenderCommand`s — the ball and both paddles as mesh draws — per `docs/adr/003_d2_stack_hal_adoption.md` Decision #4 (glue code, not a shared crate: this is the only consumer). With the `adapter-svg` feature enabled, `main()` submits every frame's compiled commands to a `tilemap_renderer` `SvgBackend` and prints the resulting SVG's size. With the `adapter-webgl` feature enabled (wasm32 target only), `main()` instead submits them to a `tilemap_renderer` `WebGlBackend` bound to a browser-provided WebGL2 canvas via `minwebgl::context::retrieve_or_make`.
 
-*(Console output by default; opt in to `--features adapter-svg` for SVG backend output via a plain native `cargo run`. `--features adapter-webgl` targets wasm32-unknown-unknown only — `tilemap_renderer`'s `WebGlBackend` needs a real browser-provided `WebGl2RenderingContext`, so a native run compiles but panics at runtime; see `src/main.rs`'s `render_frames` doc comment.)*
+*(Console output by default; opt in to `--features adapter-svg` for SVG backend output via a plain native `cargo run`. `--features adapter-webgl` targets wasm32-unknown-unknown only — `tilemap_renderer`'s `WebGlBackend` needs a real browser-provided `WebGl2RenderingContext`, so a native run compiles but panics at runtime; see `src/main.rs`'s `frames_render` doc comment.)*
 
 **[How to run](../../how_to_run.md)**
 

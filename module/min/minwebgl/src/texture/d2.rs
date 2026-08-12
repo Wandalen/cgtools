@@ -49,7 +49,7 @@ fn dim_as_i32( value : u32 ) -> i32
 /// can't be created, or if the `img` element's `display` style property can't be set.
 #[ inline ]
 #[ must_use ]
-pub fn upload_image_from_path( gl : &GL, src : &str, flip : bool ) -> WebGlTexture
+pub fn image_upload_from_path( gl : &GL, src : &str, flip : bool ) -> WebGlTexture
 {
   let window = window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
@@ -248,7 +248,7 @@ pub fn create_and_upload_no_flip( gl : &GL, img : &web_sys::HtmlImageElement ) -
 /// # Panics
 /// Panics if the WebGL driver fails to upload the video frame to the texture.
 #[ inline ]
-pub fn update_video( gl : &GL, texture : &web_sys::WebGlTexture, video_element : &web_sys::HtmlVideoElement )
+pub fn video_update( gl : &GL, texture : &web_sys::WebGlTexture, video_element : &web_sys::HtmlVideoElement )
 {
   gl.bind_texture( GL::TEXTURE_2D, Some( texture ) );
   gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_video_element
@@ -298,7 +298,7 @@ pub fn update_video( gl : &GL, texture : &web_sys::WebGlTexture, video_element :
 // flag, not a Cargo feature, declared via `check-cfg` in the root manifest's
 // `[workspace.lints.rust]` so referencing it is not `unexpected_cfgs`.
 #[ inline ]
-pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement, sprite_sheet : &SpriteSheet ) -> Result< web_sys::WebGlTexture, WebglError >
+pub async fn sprite_upload( gl : &GL, image_element : &web_sys::HtmlImageElement, sprite_sheet : &SpriteSheet ) -> Result< web_sys::WebGlTexture, WebglError >
 {
   let load_promise = js_sys::Promise::new
   (

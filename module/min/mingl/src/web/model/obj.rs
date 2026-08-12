@@ -8,7 +8,7 @@ mod private
   use model::obj;
 
   #[ inline ]
-  fn format_vec3( v : [ f32; 3 ] ) -> String
+  fn vec3_format( v : [ f32; 3 ] ) -> String
   {
     format!
     (
@@ -20,7 +20,7 @@ mod private
   }
 
   #[ inline ]
-  fn format_set< V : Display >( set : &HashSet< V > ) -> String
+  fn set_format< V : Display >( set : &HashSet< V > ) -> String
   {
     let res = set
     .iter()
@@ -32,12 +32,12 @@ mod private
 
   /// Writes the geometry-statistics and bounding-volume section of a model report.
   #[ inline ]
-  fn write_report( f : &mut std::fmt::Formatter< '_ >, report : &obj::ReportObjModel< '_, '_ > ) -> std::fmt::Result
+  fn report_write( f : &mut std::fmt::Formatter< '_ >, report : &obj::ReportObjModel< '_, '_ > ) -> std::fmt::Result
   {
-    let box_min = format_vec3( report.bounding_box.min.into() );
-    let box_max = format_vec3( report.bounding_box.max.into() );
-    let sphere_center = format_vec3( report.bounding_sphere.center.into() );
-    let arities_set = format_set( &report.num_of_arities );
+    let box_min = vec3_format( report.bounding_box.min.into() );
+    let box_max = vec3_format( report.bounding_box.max.into() );
+    let sphere_center = vec3_format( report.bounding_sphere.center.into() );
+    let arities_set = set_format( &report.num_of_arities );
 
     // Model byte counts are far below 2^52 (f64's exact-integer limit) for any
     // realistic 3D model, so this precision loss is immaterial for display purposes.
@@ -89,12 +89,12 @@ mod private
 
   /// Writes the material-properties section of a model report.
   #[ inline ]
-  fn write_material( f : &mut std::fmt::Formatter< '_ >, m : &Material ) -> std::fmt::Result
+  fn material_write( f : &mut std::fmt::Formatter< '_ >, m : &Material ) -> std::fmt::Result
   {
     let m = m.clone();
-    let ambient = m.ambient.map_or_else( || String::from( "None" ), format_vec3 );
-    let diffuse = m.diffuse.map_or_else( || String::from( "None" ), format_vec3 );
-    let specular = m.specular.map_or_else( || String::from( "None" ), format_vec3 );
+    let ambient = m.ambient.map_or_else( || String::from( "None" ), vec3_format );
+    let diffuse = m.diffuse.map_or_else( || String::from( "None" ), vec3_format );
+    let specular = m.specular.map_or_else( || String::from( "None" ), vec3_format );
     let shininess = m.shininess.map_or_else( || String::from( "None" ), | v | v.to_string() );
     let dissolve = m.dissolve.map_or_else( || String::from( "None" ), | v | v.to_string() );
     let optical_density = m.optical_density.map_or_else( || String::from( "None" ), | v | v.to_string() );
@@ -152,11 +152,11 @@ mod private
     #[ inline ]
     fn fmt( &self, f: &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
     {
-      write_report( f, &self.report )?;
+      report_write( f, &self.report )?;
 
       match self.report.material
       {
-        Some( m ) => write_material( f, m ),
+        Some( m ) => material_write( f, m ),
         None => write!( f, "Material: None" ),
       }
     }
@@ -173,14 +173,14 @@ mod private
   /// * `materials`: A slice of `tobj::Material` instances that the models may reference.
   #[ inline ]
   #[ must_use ]
-  pub fn make_reports< 'model, 'mtl >
+  pub fn reports_make< 'model, 'mtl >
   (
     models : &'model [ Model ],
     materials : &'mtl [ Material ]
   )
   -> Vec< ForBrowser< obj::ReportObjModel< 'model, 'mtl > > >
   {
-    let reports = obj::make_reports( models, materials );
+    let reports = obj::reports_make( models, materials );
     ForBrowser::from_reports( reports )
   }
 
@@ -202,7 +202,7 @@ mod private
   /// Returns an error if the OBJ buffer cannot be parsed, or if a referenced material
   /// library cannot be fetched or parsed.
   #[ inline ]
-  pub async fn load_model_from_slice
+  pub async fn model_load_from_slice
   (
     mut obj_buffer : &[ u8 ],
     material_folder : &str,
@@ -248,8 +248,8 @@ crate::mod_interface!
 
   orphan use
   {
-    make_reports,
-    load_model_from_slice
+    reports_make,
+    model_load_from_slice
   };
 
 }
