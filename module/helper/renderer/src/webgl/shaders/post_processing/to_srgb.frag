@@ -16,7 +16,11 @@ vec3 LinearToSrgb( const in vec3 color )
 
 void main()
 {
-  vec3 result = LinearToSrgb( texture( sourceTexture, vUv ).rgb );
+  vec4 src = texture( sourceTexture, vUv );
+  vec3 result = LinearToSrgb( src.rgb );
   //result = texture( sourceTexture, vUv ).rgb;
-  frag_color = vec4( result, 1.0 );
+  // Forward the coverage alpha from the tone mapping pass (background=0,
+  // geometry=1) instead of hardcoding opaque, so the canvas this pass writes
+  // to the default framebuffer can be alpha-composited by the caller.
+  frag_color = vec4( result, src.a );
 }

@@ -37,7 +37,9 @@ void main()
 
   // Background pixels are cleared with alpha = 0 and must bypass tone mapping
   // ( as the clear color does in three.js ); geometry writes alpha = 1.
-  if( src.a <= 0.0 ) { frag_color = vec4( src.rgb, 1.0 ); return; }
+  // The coverage alpha is forwarded (not hardcoded to 1) so a caller can composite
+  // the canvas over other content (e.g. AR over a photo) with real per-pixel coverage.
+  if( src.a <= 0.0 ) { frag_color = vec4( src.rgb, src.a ); return; }
   if( src.a >= 1.0 ) { frag_color = vec4( aces_tone_map( src.rgb ), 1.0 ); return; }
 
   // Partially covered: an MSAA-resolved silhouette pixel holds the coverage-weighted
@@ -68,7 +70,7 @@ void main()
   // keep the previous blend rather than guess.
   if( backgroundCount == 0.0 )
   {
-    frag_color = vec4( mix( src.rgb, aces_tone_map( src.rgb ), src.a ), 1.0 );
+    frag_color = vec4( mix( src.rgb, aces_tone_map( src.rgb ), src.a ), src.a );
     return;
   }
 
@@ -77,5 +79,5 @@ void main()
   // coverage must not turn into negative light. A tiny `a` can inflate `geometry`,
   // but aces_tone_map() clamps to 1, so its contribution stays bounded by `a`.
   vec3 geometry = max( ( src.rgb - ( 1.0 - src.a ) * background ) / src.a, vec3( 0.0 ) );
-  frag_color = vec4( src.a * aces_tone_map( geometry ) + ( 1.0 - src.a ) * background, 1.0 );
+  frag_color = vec4( src.a * aces_tone_map( geometry ) + ( 1.0 - src.a ) * background, src.a );
 }
