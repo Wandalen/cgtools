@@ -8,7 +8,7 @@
 - **started_at:** null
 - **expires_at:** null
 - **round:** 1
-- **state:** 🎯 (Verified)
+- **state:** 📦 (Executed)
 - **closes:** null
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/examples/minwebgl/diamond
@@ -16,6 +16,8 @@
 - **verification_date:** 2026-08-12
 - **blocked_by:** null
 - **priority:** 2
+- **executing_at:** 2026-08-13 02:16:48
+- **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 
 ## Goal
 
@@ -96,6 +98,13 @@ not by this section. Administrative/marker-cleanup task — no test-related item
 | **Total** | | — | 🟢 | — | — |
 
 Adversarial pass: attempted to find a reason this should NOT be Verified — checked whether "keep vs delete" was genuinely settled (yes, 065 explicitly decided keep, backed by readme.md/index.md/demo_completeness.md evidence read directly, not asserted); checked whether the deletion could break the build (no — it's a full-line comment, `cargo check` gate catches any accidental syntax damage regardless). No blocking finding surfaced.
+
+## Journal
+
+| Timestamp           | Actor                | Event | Note         |
+|---------------------|----------------------|-------|--------------|
+| 2026-08-13 02:16:48 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
+| 2026-08-13 02:17:52 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | EXEC_COMPLETE | execution complete |
 
 ## History
 

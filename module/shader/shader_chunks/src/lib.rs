@@ -8,15 +8,32 @@
 mod private
 {
   use core::fmt;
+  use core::str::FromStr;
   use error_tools::Error;
-  use data_fmt::{ ColumnData, Format, RowBuilder, TableConfig, TableFormatter, TreeFormatter, TreeNode };
+  use data_fmt::
+  {
+    ColumnData, ExpandedFormatter, Format, JsonFormatter, RowBuilder, TableCaption, TableConfig,
+    TableFormatter, TreeFormatter, TreeNode, YamlFormatter,
+  };
 
   /// Error returned by every `shader_chunks` command function.
   #[ derive( Debug, Error ) ]
   pub enum CliError
   {
-    /// `get`/`tree`/`compose` named a chunk not present in [`shader_chunks_core::CHUNKS`].
+    /// A command named a chunk not present in [`shader_chunks_core::CHUNKS`].
     UnknownChunk( String ),
+    /// `fields::` named a field outside [`QUERY_FIELDS`].
+    UnknownField( String ),
+    /// A parameter value fell outside its allowed set or range.
+    InvalidParam
+    {
+      /// The parameter's `key::` name as typed on the command line.
+      param : &'static str,
+      /// The offending value as typed.
+      value : String,
+      /// Human-readable statement of the allowed values or range.
+      allowed : &'static str,
+    },
     /// `compose` failed the dependency resolution [`shader_chunks_core::try_compose`] performs.
     Compose( shader_chunks_core::ComposeError ),
     /// A `data_fmt` render call failed.
@@ -30,6 +47,8 @@ mod private
       match self
       {
         Self::UnknownChunk( name ) => write!( f, "unknown chunk: `{name}` (see `list` for valid names)" ),
+        Self::UnknownField( field ) => write!( f, "unknown field: `{field}` (valid fields: {})", QUERY_FIELDS.join( ", " ) ),
+        Self::InvalidParam { param, value, allowed } => write!( f, "invalid `{param}` value: `{value}` (allowed: {allowed})" ),
         Self::Compose( err ) => write!( f, "{err}" ),
         Self::Render( msg ) => write!( f, "render error: {msg}" ),
       }
@@ -38,15 +57,16 @@ mod private
 
   impl CliError
   {
-    /// Maps this error to a process exit code: `1` for a bad chunk name or a
-    /// failed composition (validation-style, caller-fixable by passing
-    /// different arguments), `2` for a render failure (internal).
+    /// Maps this error to a process exit code: `1` for a bad chunk name, a
+    /// bad field or parameter value, or a failed composition
+    /// (validation-style, caller-fixable by passing different arguments),
+    /// `2` for a render failure (internal).
     #[ must_use ]
     pub fn exit_code( &self ) -> i32
     {
       match self
       {
-        Self::UnknownChunk( _ ) | Self::Compose( _ ) => 1,
+        Self::UnknownChunk( _ ) | Self::UnknownField( _ ) | Self::InvalidParam { .. } | Self::Compose( _ ) => 1,
         Self::Render( _ ) => 2,
       }
     }
@@ -58,29 +78,34 @@ mod private
     .ok_or_else( || CliError::UnknownChunk( name.to_string() ) )
   }
 
-  fn tags_string( wgsl : &str ) -> String
+  fn tags_string( chunk : &shader_chunks_core::ChunkDescriptor ) -> String
   {
-    shader_chunks_core::parse_tags( wgsl )
+    chunk.tags
     .iter()
     .map( | ( group, tag ) | format!( "{group}:{tag}" ) )
     .collect::< Vec< _ > >()
     .join( ", " )
   }
 
-  fn depends_on_string( wgsl : &str ) -> String
+  fn depends_on_string( chunk : &shader_chunks_core::ChunkDescriptor ) -> String
   {
-    let deps = shader_chunks_core::parse_depends_on( wgsl );
-    if deps.is_empty() { "(none)".to_string() } else { deps.join( ", " ) }
+    if chunk.depends_on.is_empty() { "(none)".to_string() } else { chunk.depends_on.join( ", " ) }
+  }
+
+  /// Names of every chunk some other chunk directly depends on — the
+  /// complement of the `roots::1` filter and of the no-argument `tree` forest.
+  fn depended_on_set() -> std::collections::HashSet< &'static str >
+  {
+    shader_chunks_core::CHUNKS.iter()
+    .flat_map( | chunk | chunk.depends_on.iter().copied() )
+    .collect()
   }
 
   /// Every bundled chunk nothing else depends on — the roots of the
   /// no-argument `tree` forest.
   fn dependents_free_roots() -> Vec< &'static shader_chunks_core::ChunkDescriptor >
   {
-    let depended_on : std::collections::HashSet< &str > = shader_chunks_core::CHUNKS.iter()
-    .flat_map( | chunk | shader_chunks_core::parse_depends_on( chunk.wgsl ) )
-    .collect();
-
+    let depended_on = depended_on_set();
     shader_chunks_core::CHUNKS.iter()
     .filter( | chunk | !depended_on.contains( chunk.name ) )
     .collect()
@@ -101,8 +126,8 @@ mod private
   fn dep_tree( chunk : &shader_chunks_core::ChunkDescriptor ) -> TreeNode< ColumnData >
   {
     let name = chunk.name;
-    let mut node = TreeNode::new( name.to_string(), Some( ColumnData::new( vec![ name.to_string(), tags_string( chunk.wgsl ) ] ) ) );
-    for dep_name in shader_chunks_core::parse_depends_on( chunk.wgsl )
+    let mut node = TreeNode::new( name.to_string(), Some( ColumnData::new( vec![ name.to_string(), tags_string( chunk ) ] ) ) );
+    for &dep_name in chunk.depends_on
     {
       if let Ok( dep ) = find_chunk( dep_name )
       {
@@ -112,51 +137,514 @@ mod private
     node
   }
 
-  /// Table of every bundled chunk: name / description / tags / depends_on.
-  ///
-  /// # Errors
-  ///
-  /// Returns [`CliError::Render`] if the `data_fmt` table formatter fails.
-  pub fn list_chunks() -> Result< String, CliError >
+  /// Every field name `fields::` and `sort::` accept, in canonical column
+  /// order. `source` is the chunk's raw WGSL body.
+  pub const QUERY_FIELDS : &[ &str ] =
+  &[ "name", "description", "stage", "tags", "depends_on", "exports", "source" ];
+
+  /// How multiple `tag::` selectors combine.
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  pub enum TagsMode
   {
-    let mut builder = RowBuilder::new( vec!
-    [
-      "name".to_string(), "description".to_string(), "tags".to_string(), "depends_on".to_string(),
-    ]);
-    for chunk in shader_chunks_core::CHUNKS
-    {
-      builder.add_row_mut( vec!
-      [
-        chunk.name.into(),
-        shader_chunks_core::parse_description( chunk.wgsl ).into(),
-        tags_string( chunk.wgsl ).into(),
-        depends_on_string( chunk.wgsl ).into(),
-      ]);
-    }
-    let view = builder.build_view();
-    Format::format( &TableFormatter::with_config( TableConfig::plain() ), &view )
-    .map_err( | e | CliError::Render( e.to_string() ) )
+    /// A chunk matches when at least one selector matches.
+    Any,
+    /// A chunk matches only when every selector matches.
+    All,
   }
 
-  /// Full detail text for one chunk: name, description, stage, tags,
-  /// `depends_on`, exports.
+  impl TagsMode
+  {
+    /// The `tags_mode::` spelling of this variant.
+    #[ must_use ]
+    pub fn as_str( self ) -> &'static str
+    {
+      match self { Self::Any => "any", Self::All => "all" }
+    }
+  }
+
+  impl FromStr for TagsMode
+  {
+    type Err = CliError;
+    fn from_str( s : &str ) -> Result< Self, CliError >
+    {
+      match s
+      {
+        "any" => Ok( Self::Any ),
+        "all" => Ok( Self::All ),
+        other => Err( CliError::InvalidParam { param : "tags_mode", value : other.to_string(), allowed : "any, all" } ),
+      }
+    }
+  }
+
+  /// Sort key applied to the filtered chunk set.
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  pub enum SortKey
+  {
+    /// Keep selection order: `names::` order when given, registry order otherwise.
+    Input,
+    /// Sort by chunk name.
+    Name,
+    /// Sort by stage (stage-less chunks first), then name.
+    Stage,
+    /// Sort by description text, then name.
+    Description,
+  }
+
+  impl SortKey
+  {
+    /// The `sort::` spelling of this variant.
+    #[ must_use ]
+    pub fn as_str( self ) -> &'static str
+    {
+      match self
+      {
+        Self::Input => "input",
+        Self::Name => "name",
+        Self::Stage => "stage",
+        Self::Description => "description",
+      }
+    }
+  }
+
+  impl FromStr for SortKey
+  {
+    type Err = CliError;
+    fn from_str( s : &str ) -> Result< Self, CliError >
+    {
+      match s
+      {
+        "input" => Ok( Self::Input ),
+        "name" => Ok( Self::Name ),
+        "stage" => Ok( Self::Stage ),
+        "description" => Ok( Self::Description ),
+        other => Err( CliError::InvalidParam { param : "sort", value : other.to_string(), allowed : "input, name, stage, description" } ),
+      }
+    }
+  }
+
+  /// Sort direction. `Desc` reverses whatever `sort::` produced — including
+  /// `input` order, so `sort::input order::desc` is the reversed registry.
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  pub enum SortOrder
+  {
+    /// Ascending (the sort's natural direction).
+    Asc,
+    /// Descending (reverse of `Asc`).
+    Desc,
+  }
+
+  impl SortOrder
+  {
+    /// The `order::` spelling of this variant.
+    #[ must_use ]
+    pub fn as_str( self ) -> &'static str
+    {
+      match self { Self::Asc => "asc", Self::Desc => "desc" }
+    }
+  }
+
+  impl FromStr for SortOrder
+  {
+    type Err = CliError;
+    fn from_str( s : &str ) -> Result< Self, CliError >
+    {
+      match s
+      {
+        "asc" => Ok( Self::Asc ),
+        "desc" => Ok( Self::Desc ),
+        other => Err( CliError::InvalidParam { param : "order", value : other.to_string(), allowed : "asc, desc" } ),
+      }
+    }
+  }
+
+  /// Output rendering for query results.
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  pub enum OutputFormat
+  {
+    /// Plain aligned table (`data_fmt` plain config).
+    Table,
+    /// Markdown pipe table.
+    Markdown,
+    /// One `-[ RECORD N ]` block per chunk, one line per field (psql `\x` style).
+    Expanded,
+    /// Pretty-printed JSON array of row objects.
+    Json,
+    /// YAML sequence of row mappings.
+    Yaml,
+    /// Bare chunk names, one per line — script/pipe friendly; ignores `fields::`.
+    Names,
+  }
+
+  impl OutputFormat
+  {
+    /// The `format::` spelling of this variant.
+    #[ must_use ]
+    pub fn as_str( self ) -> &'static str
+    {
+      match self
+      {
+        Self::Table => "table",
+        Self::Markdown => "markdown",
+        Self::Expanded => "expanded",
+        Self::Json => "json",
+        Self::Yaml => "yaml",
+        Self::Names => "names",
+      }
+    }
+  }
+
+  impl FromStr for OutputFormat
+  {
+    type Err = CliError;
+    fn from_str( s : &str ) -> Result< Self, CliError >
+    {
+      match s
+      {
+        "table" => Ok( Self::Table ),
+        "markdown" => Ok( Self::Markdown ),
+        "expanded" => Ok( Self::Expanded ),
+        "json" => Ok( Self::Json ),
+        "yaml" => Ok( Self::Yaml ),
+        "names" => Ok( Self::Names ),
+        other => Err( CliError::InvalidParam { param : "format", value : other.to_string(), allowed : "table, markdown, expanded, json, yaml, names" } ),
+      }
+    }
+  }
+
+  /// The full parameter surface shared by `list` and `get` — one struct, one
+  /// engine ([`query_chunks`]). The two commands differ only in the defaults
+  /// [`QueryParams::list_defaults`] and [`QueryParams::get_defaults`] supply.
+  #[ derive( Debug, Clone ) ]
+  pub struct QueryParams
+  {
+    /// Chunk names to select, in the given order (duplicates allowed);
+    /// empty selects every bundled chunk in registry order.
+    pub names : Vec< String >,
+    /// Substring filter on chunk names; empty = off.
+    pub pattern : String,
+    /// `true` makes `pattern`/`exports` matching case-sensitive.
+    pub case_sensitive : bool,
+    /// Tag selectors — `group:tag` exact pair, or bare `tag` matching any
+    /// group; empty = off. Selector matching is always case-sensitive.
+    pub tags : Vec< String >,
+    /// How multiple `tags` selectors combine.
+    pub tags_mode : TagsMode,
+    /// Stage filter: `any` (off), `none` (stage-less chunks only), or a
+    /// literal stage name.
+    pub stage : String,
+    /// Keep only chunks that depend on this chunk (name validated loudly);
+    /// empty = off.
+    pub depends_on : String,
+    /// Widen `depends_on` from direct dependencies to the full transitive
+    /// closure.
+    pub transitive : bool,
+    /// Substring filter over export signatures; empty = off.
+    pub exports : String,
+    /// Keep only chunks nothing else depends on.
+    pub roots : bool,
+    /// Keep only chunks with no dependencies of their own.
+    pub leaves : bool,
+    /// Fields to project as columns, each from [`QUERY_FIELDS`].
+    pub fields : Vec< String >,
+    /// Print only the matched-chunk count — taken after all filters, before
+    /// `offset`/`limit`.
+    pub count : bool,
+    /// Output rendering.
+    pub format : OutputFormat,
+    /// Sort key applied after filtering.
+    pub sort : SortKey,
+    /// Sort direction (`Desc` reverses, including `input` order).
+    pub order : SortOrder,
+    /// Keep at most this many chunks after `offset`; `0` = unlimited.
+    pub limit : usize,
+    /// Skip this many chunks before applying `limit`.
+    pub offset : usize,
+    /// Table caption (`table`/`markdown` formats only); empty = off.
+    pub caption : String,
+    /// Maximum column width (`table`/`markdown` formats only); `0` = auto.
+    pub width : usize,
+  }
+
+  impl QueryParams
+  {
+    /// `list` defaults: every chunk, overview columns, plain table.
+    #[ must_use ]
+    pub fn list_defaults() -> Self
+    {
+      Self
+      {
+        names : Vec::new(),
+        pattern : String::new(),
+        case_sensitive : false,
+        tags : Vec::new(),
+        tags_mode : TagsMode::Any,
+        stage : "any".to_string(),
+        depends_on : String::new(),
+        transitive : false,
+        exports : String::new(),
+        roots : false,
+        leaves : false,
+        fields : vec![ "name".to_string(), "description".to_string(), "tags".to_string(), "depends_on".to_string() ],
+        count : false,
+        format : OutputFormat::Table,
+        sort : SortKey::Input,
+        order : SortOrder::Asc,
+        limit : 0,
+        offset : 0,
+        caption : String::new(),
+        width : 0,
+      }
+    }
+
+    /// `get` defaults: same engine as `list`, detail columns, expanded
+    /// per-record output.
+    #[ must_use ]
+    pub fn get_defaults() -> Self
+    {
+      let mut params = Self::list_defaults();
+      params.fields = vec!
+      [
+        "name".to_string(), "description".to_string(), "stage".to_string(),
+        "tags".to_string(), "depends_on".to_string(), "exports".to_string(),
+      ];
+      params.format = OutputFormat::Expanded;
+      params
+    }
+  }
+
+  /// Substring test honoring the `case::` switch — case-insensitive by
+  /// default, exact when `case_sensitive` is set.
+  fn contains_pattern( haystack : &str, needle : &str, case_sensitive : bool ) -> bool
+  {
+    if case_sensitive
+    { haystack.contains( needle ) }
+    else
+    { haystack.to_lowercase().contains( &needle.to_lowercase() ) }
+  }
+
+  /// One `tag::` selector against one chunk: `group:tag` demands the exact
+  /// pair; a bare `tag` matches that tag under any group.
+  fn matches_tag_selector( chunk : &shader_chunks_core::ChunkDescriptor, selector : &str ) -> bool
+  {
+    match selector.split_once( ':' )
+    {
+      Some( ( group, tag ) ) => chunk.tags.iter().any( | &( g, t ) | g == group && t == tag ),
+      None => chunk.tags.iter().any( | &( _, t ) | t == selector ),
+    }
+  }
+
+  /// Whether `chunk` reaches `target` through its transitive `depends_on`
+  /// closure (breadth-agnostic walk; the chunk itself is not a member of its
+  /// own closure).
+  fn reaches( chunk : &shader_chunks_core::ChunkDescriptor, target : &str ) -> bool
+  {
+    let mut queue : Vec< &str > = chunk.depends_on.to_vec();
+    let mut seen = std::collections::HashSet::new();
+    while let Some( name ) = queue.pop()
+    {
+      if name == target
+      {
+        return true;
+      }
+      if seen.insert( name )
+      {
+        if let Some( dep ) = shader_chunks_core::chunk_get( name )
+        {
+          queue.extend( dep.depends_on.iter().copied() );
+        }
+      }
+    }
+    false
+  }
+
+  /// Renders one [`QUERY_FIELDS`] field of one chunk as cell text.
+  fn field_value( chunk : &shader_chunks_core::ChunkDescriptor, field : &str ) -> String
+  {
+    match field
+    {
+      "name" => chunk.name.to_string(),
+      "description" => chunk.description.to_string(),
+      "stage" => chunk.stage.map_or_else( || "(none)".to_string(), str::to_string ),
+      "tags" => tags_string( chunk ),
+      "depends_on" => depends_on_string( chunk ),
+      "exports" => if chunk.exports.is_empty() { "(none)".to_string() } else { chunk.exports.join( "; " ) },
+      "source" => chunk.wgsl.to_string(),
+      _ => unreachable!( "field `{field}` validated against QUERY_FIELDS before projection" ),
+    }
+  }
+
+  /// All filters of [`QueryParams`] applied to one chunk.
+  fn chunk_matches
+  (
+    chunk : &shader_chunks_core::ChunkDescriptor,
+    params : &QueryParams,
+    depended_on : &std::collections::HashSet< &str >,
+  ) -> bool
+  {
+    if !params.pattern.is_empty() && !contains_pattern( chunk.name, &params.pattern, params.case_sensitive )
+    {
+      return false;
+    }
+    if !params.tags.is_empty()
+    {
+      let matched = | selector : &String | matches_tag_selector( chunk, selector );
+      let ok = match params.tags_mode
+      {
+        TagsMode::Any => params.tags.iter().any( matched ),
+        TagsMode::All => params.tags.iter().all( matched ),
+      };
+      if !ok
+      {
+        return false;
+      }
+    }
+    match params.stage.as_str()
+    {
+      "any" => {},
+      "none" => if chunk.stage.is_some() { return false; },
+      literal => if chunk.stage != Some( literal ) { return false; },
+    }
+    if !params.depends_on.is_empty()
+    {
+      let hit = if params.transitive
+      { reaches( chunk, &params.depends_on ) }
+      else
+      { chunk.depends_on.contains( &params.depends_on.as_str() ) };
+      if !hit
+      {
+        return false;
+      }
+    }
+    if !params.exports.is_empty()
+    {
+      let hit = chunk.exports.iter()
+      .any( | signature | contains_pattern( signature, &params.exports, params.case_sensitive ) );
+      if !hit
+      {
+        return false;
+      }
+    }
+    if params.roots && depended_on.contains( chunk.name )
+    {
+      return false;
+    }
+    if params.leaves && !chunk.depends_on.is_empty()
+    {
+      return false;
+    }
+    true
+  }
+
+  /// Renders an already-selected chunk sequence per the projection and
+  /// formatting parameters.
+  fn render_chunks
+  (
+    chunks : &[ &'static shader_chunks_core::ChunkDescriptor ],
+    params : &QueryParams,
+  ) -> Result< String, CliError >
+  {
+    if params.format == OutputFormat::Names
+    {
+      return Ok( chunks.iter().map( | chunk | chunk.name ).collect::< Vec< _ > >().join( "\n" ) );
+    }
+
+    let mut builder = RowBuilder::new( params.fields.clone() );
+    for chunk in chunks
+    {
+      builder.add_row_mut
+      (
+        params.fields.iter().map( | field | field_value( chunk, field ).into() ).collect()
+      );
+    }
+    let view = builder.build_view();
+
+    let render_table = | config : TableConfig | -> Result< String, CliError >
+    {
+      let mut config = config;
+      if !params.caption.is_empty()
+      {
+        config = config.caption( TableCaption::new( params.caption.clone() ) );
+      }
+      if params.width > 0
+      {
+        config = config.max_column_width( Some( params.width ) );
+      }
+      Format::format( &TableFormatter::with_config( config ), &view )
+      .map_err( | e | CliError::Render( e.to_string() ) )
+    };
+
+    match params.format
+    {
+      OutputFormat::Table => render_table( TableConfig::plain() ),
+      OutputFormat::Markdown => render_table( TableConfig::markdown() ),
+      OutputFormat::Expanded => Format::format( &ExpandedFormatter::new(), &view )
+      .map_err( | e | CliError::Render( e.to_string() ) ),
+      OutputFormat::Json => Format::format( &JsonFormatter::new(), &view )
+      .map_err( | e | CliError::Render( e.to_string() ) ),
+      OutputFormat::Yaml => Format::format( &YamlFormatter, &view )
+      .map_err( | e | CliError::Render( e.to_string() ) ),
+      OutputFormat::Names => unreachable!( "names format returned before row building" ),
+    }
+  }
+
+  /// The single query engine behind both `list` and `get`: selects chunks
+  /// (`names::`, or every bundled chunk), applies every filter, sorts, pages,
+  /// and renders. Pipeline order: select → filter → `count` short-circuit →
+  /// sort/order → `offset`/`limit` → render.
   ///
   /// # Errors
   ///
-  /// Returns [`CliError::UnknownChunk`] when `name` is not in [`shader_chunks_core::CHUNKS`].
-  pub fn get_chunk( name : &str ) -> Result< String, CliError >
+  /// - [`CliError::UnknownField`] — a `fields` entry outside [`QUERY_FIELDS`].
+  /// - [`CliError::UnknownChunk`] — a `names` entry or `depends_on` naming no
+  ///   bundled chunk.
+  /// - [`CliError::Render`] — a `data_fmt` formatter failure.
+  pub fn query_chunks( params : &QueryParams ) -> Result< String, CliError >
   {
-    let chunk = find_chunk( name )?;
-    let exports = shader_chunks_core::parse_exports( chunk.wgsl ).join( "\n  " );
-    Ok( format!
-    (
-      "name: {name}\ndescription: {description}\nstage: {stage:?}\ntags: {tags}\ndepends_on: {depends_on}\nexports:\n  {exports}\n",
-      name = chunk.name,
-      description = shader_chunks_core::parse_description( chunk.wgsl ),
-      stage = shader_chunks_core::parse_stage( chunk.wgsl ),
-      tags = tags_string( chunk.wgsl ),
-      depends_on = depends_on_string( chunk.wgsl ),
-    ))
+    for field in &params.fields
+    {
+      if !QUERY_FIELDS.contains( &field.as_str() )
+      {
+        return Err( CliError::UnknownField( field.clone() ) );
+      }
+    }
+    if !params.depends_on.is_empty()
+    {
+      find_chunk( &params.depends_on )?;
+    }
+
+    let mut chunks : Vec< &'static shader_chunks_core::ChunkDescriptor > = if params.names.is_empty()
+    {
+      shader_chunks_core::CHUNKS.iter().collect()
+    }
+    else
+    {
+      params.names.iter().map( | name | find_chunk( name ) ).collect::< Result< _, _ > >()?
+    };
+
+    let depended_on = depended_on_set();
+    chunks.retain( | chunk | chunk_matches( chunk, params, &depended_on ) );
+
+    if params.count
+    {
+      return Ok( chunks.len().to_string() );
+    }
+
+    match params.sort
+    {
+      SortKey::Input => {},
+      SortKey::Name => chunks.sort_by_key( | chunk | chunk.name ),
+      SortKey::Stage => chunks.sort_by_key( | chunk | ( chunk.stage.unwrap_or( "" ), chunk.name ) ),
+      SortKey::Description => chunks.sort_by_key( | chunk | ( chunk.description, chunk.name ) ),
+    }
+    if params.order == SortOrder::Desc
+    {
+      chunks.reverse();
+    }
+
+    let limit = if params.limit == 0 { usize::MAX } else { params.limit };
+    let chunks : Vec< _ > = chunks.into_iter().skip( params.offset ).take( limit ).collect();
+
+    render_chunks( &chunks, params )
   }
 
   /// Table of every distinct `group:tag` pair and the chunk(s) carrying it.
@@ -169,7 +657,7 @@ mod private
     let mut pairs : Vec< ( String, Vec< &'static str > ) > = Vec::new();
     for chunk in shader_chunks_core::CHUNKS
     {
-      for ( group, tag ) in shader_chunks_core::parse_tags( chunk.wgsl )
+      for &( group, tag ) in chunk.tags
       {
         let key = format!( "{group}:{tag}" );
         if let Some( entry ) = pairs.iter_mut().find( | entry | entry.0 == key )
@@ -254,8 +742,13 @@ mod private
 ::mod_interface::mod_interface!
 {
   own use CliError;
-  own use list_chunks;
-  own use get_chunk;
+  own use QUERY_FIELDS;
+  own use TagsMode;
+  own use SortKey;
+  own use SortOrder;
+  own use OutputFormat;
+  own use QueryParams;
+  own use query_chunks;
   own use list_tags;
   own use tree_chunk;
   own use try_compose_wgsl;

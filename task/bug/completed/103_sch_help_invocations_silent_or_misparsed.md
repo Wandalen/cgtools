@@ -1,12 +1,15 @@
 # BUG-103: `sch help` succeeds silently and `sch compose help` misparses `help` as a chunk name — every help invocation is silent or wrong
 
 - **Severity:** Medium
-- **state:** Draft
+- **state:** Completed
 - **Affects:** Every conventional help invocation of the `shader_chunks`/`sch` CLI — the only working spelling is the bare, argument-less binary name
 - **Component:** `module/shader/shader_chunks` (`src/main.rs` dispatch)
 - **repo_identity:** self
 - **Filed:** 2026-08-13
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/bug/
+- **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **verification_date:** 2026-08-13
+- **Fixed:** 2026-08-13
 
 ## Symptom
 
@@ -43,3 +46,13 @@ cargo run -q -p shader_chunks --bin sch -- compose help ; echo "exit=$? (expect 
 ## How Discovered
 
 User-reported: `sch help` at the terminal printed nothing after installing via `verb/install/run`, then `sch compose help` errored with `unknown chunk: help`. Reproduced against a fresh build; all five framework help spellings confirmed silent via exit-code/output probe.
+
+## Fix
+
+`src/main.rs` (`Fix(BUG-103)` comment at the site):
+
+1. `main` now prints `result.outputs` after a successful dispatch; the five command routines no longer `println!` their own content (single print channel — a leftover routine print would double-print).
+2. Top-level spellings `help` / `.` / `.help` (and `help help`) route to `print_help()`, identical to the bare invocation.
+3. `help <command>` and `<command> ... help` render a `cli_fmt` help screen (`print_command_help`) built from the command's registered `CommandDefinition` — usage line with argument shapes (`<name>` required, `[name]` optional, `<name...>` repeatable), description tagline, one row per argument hint, and the definition's usage examples — the same template and style as the top-level screen. An unknown target falls through to the `.{target}.help` rewrite, so it still fails loudly (exit 1, "not found"), and named-argument spellings (`name::help`) pass through to normal binding.
+
+**Verification:** `verb/test_only pkg::shader_chunks` — 29/29 passed (9 help-spelling tests, 2 marked `bug_reproducer(BUG-103)`, in `tests/cli_subprocess_test.rs`); `cargo clippy -p shader_chunks --all-targets -- -D warnings` — exit 0. Behavior matrix (help / compose help / help compose / tree help / get help / list help / tags help / frobnicate help / get hash21 single-print / `.` / help help / name::help / `. help`) probed against the rebuilt binary — all as specified.

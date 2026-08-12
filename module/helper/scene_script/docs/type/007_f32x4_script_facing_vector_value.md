@@ -49,7 +49,7 @@ No construction is ever rejected. `f32x4(x, y, z, w)` accepts any four values Rh
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f32x4_register` — constructor (plus 2-arg `f32x4(xy, zw)` overload), `.x`/`.y`/`.z`/`.w` getters, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`min`/`max`, `truncate` (arity-4 only), `to_string` |
+| `src/vector_binding.rs` | `f32x4_register` — constructor (plus 2-arg `f32x4(xy, zw)` overload), `.x`/`.y`/`.z`/`.w` getters, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`distance_squared`/`min`/`max`, `truncate` (arity-4 only), `to_string` |
 
 ### Tests
 

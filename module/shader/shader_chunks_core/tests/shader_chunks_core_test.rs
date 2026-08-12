@@ -123,6 +123,81 @@ fn chunks_table_names_match_each_manifest()
 }
 
 #[ test ]
+fn chunks_table_descriptions_match_each_manifest()
+{
+  for chunk in CHUNKS
+  {
+    assert_eq!
+    (
+      chunk.description,
+      parse_description( chunk.wgsl ),
+      "descriptor description for `{}` must mirror its `//@ description:` manifest line",
+      chunk.name
+    );
+  }
+}
+
+#[ test ]
+fn chunks_table_tags_match_each_manifest()
+{
+  for chunk in CHUNKS
+  {
+    assert_eq!
+    (
+      parse_tags( chunk.wgsl ),
+      chunk.tags,
+      "descriptor tags for `{}` must mirror its `//@ tags:` manifest line",
+      chunk.name
+    );
+  }
+}
+
+#[ test ]
+fn chunks_table_stages_match_each_manifest()
+{
+  for chunk in CHUNKS
+  {
+    assert_eq!
+    (
+      chunk.stage,
+      parse_stage( chunk.wgsl ),
+      "descriptor stage for `{}` must mirror its `//@ stage:` manifest line ( or absence )",
+      chunk.name
+    );
+  }
+}
+
+#[ test ]
+fn chunks_table_depends_on_match_each_manifest()
+{
+  for chunk in CHUNKS
+  {
+    assert_eq!
+    (
+      parse_depends_on( chunk.wgsl ),
+      chunk.depends_on,
+      "descriptor depends_on for `{}` must mirror its `//@ depends_on:` manifest line",
+      chunk.name
+    );
+  }
+}
+
+#[ test ]
+fn chunks_table_exports_match_each_manifest()
+{
+  for chunk in CHUNKS
+  {
+    assert_eq!
+    (
+      parse_exports( chunk.wgsl ),
+      chunk.exports,
+      "descriptor exports for `{}` must mirror its `//@ export:` manifest lines, in file order",
+      chunk.name
+    );
+  }
+}
+
+#[ test ]
 fn chunk_get_resolves_every_bundled_name_to_its_row()
 {
   for chunk in CHUNKS

@@ -8,7 +8,7 @@
 - **Purpose**: Define `F32x3` as a Rhai-registered Domain Type — a single-precision 3D vector value a script constructs, reads, and combines — distinct from `F64x3` ([`type/006`](006_f64x3_script_facing_vector_value.md)) despite sharing the same shape.
 - **Responsibility**: State the type's domain meaning, its construction/validation rules, and its relationships to its double-precision counterpart and to `Tween`.
 - **In Scope**: The Rhai-registered projection named `"F32x3"` — the script-visible type, not the Rust struct behind it.
-- **Out of Scope**: `ndarray_cg::F32x3`'s own Rust definition, which `scene_script` does not own (see [`pattern/001`](../pattern/001_manual_customtype_registration_for_foreign_types.md) for why registration is manual rather than a trait derive); full call signatures and error behavior (see [`api/001`](../api/001_rhai_scripting_surface.md)); `Vector<f32, 3>`'s additional Rust-side geometry methods `to_homogenous` and spherical conversion — neither is registered into Rhai, so a script cannot reach them (`cross` *is* now registered — see Sources below).
+- **Out of Scope**: `ndarray_cg::F32x3`'s own Rust definition, which `scene_script` does not own (see [`pattern/001`](../pattern/001_manual_customtype_registration_for_foreign_types.md) for why registration is manual rather than a trait derive); full call signatures and error behavior (see [`api/001`](../api/001_rhai_scripting_surface.md)); `Vector<f32, 3>`'s additional Rust-side spherical-conversion methods (`from_spherical`/`to_spherical`) — not registered into Rhai, so a script cannot reach them (`cross` and `to_homogenous` *are* now registered — see Sources below).
 
 ### Definition
 
@@ -49,10 +49,10 @@ No construction is ever rejected. `f32x3(x, y, z)` accepts any three values Rhai
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f32x3_register` — constructor, `.x`/`.y`/`.z` getters, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`min`/`max`, `cross` (arity-3 only), `to_string` |
+| `src/vector_binding.rs` | `f32x3_register` — constructor, `.x`/`.y`/`.z` getters, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`distance_squared`/`min`/`max`, `cross`/`to_homogenous` (arity-3 only), `to_string` |
 
 ### Tests
 
 | File | Relationship |
 |------|--------------|
-| `tests/engine_test.rs` | `f32x3_arithmetic_roundtrip`, `tween_f32x3_updates_toward_end_value`, `vector_cross_product_computes_orthogonal_vector` — `F32x3` is the representative type for `cross`'s test |
+| `tests/engine_test.rs` | `f32x3_arithmetic_roundtrip`, `tween_f32x3_updates_toward_end_value`, `vector_cross_product_computes_orthogonal_vector`, `vector_to_homogenous_appends_w_component` — `F32x3` is the representative type for `cross`'s and `to_homogenous`'s tests |

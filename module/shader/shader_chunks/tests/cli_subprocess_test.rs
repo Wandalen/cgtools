@@ -145,8 +145,9 @@ fn sch_alias_binary_produces_identical_output_to_shader_chunks()
 /// ## Fix Applied
 /// `main` now prints `result.outputs` after a successful dispatch, routes
 /// the top-level spellings (`help`, `.`, `.help`) to `print_help()`, and
-/// rewrites `help <command>` / `<command> help` to the `.{command}.help`
-/// builtin `unilang` auto-registers per command.
+/// renders `help <command>` / `<command> help` with `cli_fmt` from the
+/// command's registered definition — an unknown target falls through to
+/// the `.{target}.help` rewrite, keeping the loud unknown-command failure.
 ///
 /// ## Prevention
 /// The help-spelling tests below pin every form (top-level, per-command
@@ -180,7 +181,10 @@ fn trailing_help_prints_per_command_help_not_chunk_lookup()
   assert!( output.status.success(), "stderr: {stderr}" );
   assert!( !stderr.contains( "unknown chunk" ), "`compose help` must not be a chunk lookup:\n{stderr}" );
   let stdout = stdout_of( &output );
-  assert!( stdout.contains( "Command: .compose" ), "{stdout}" );
+  assert!( stdout.contains( "Usage: shader_chunks compose <names...>" ), "{stdout}" );
+  assert!( stdout.contains( "One or more chunk names" ), "argument hint must render:\n{stdout}" );
+  assert!( stdout.contains( "shader_chunks compose hash21 value_noise" ), "example must render:\n{stdout}" );
+  assert!( !stdout.contains( "Command: .compose" ), "unilang's generic help format must not leak through:\n{stdout}" );
 }
 
 #[ test ]
@@ -210,7 +214,27 @@ fn no_argument_command_trailing_help_works()
   let output = run( &[ "list", "help" ] );
   assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
   let stdout = stdout_of( &output );
-  assert!( stdout.contains( "Command: .list" ), "{stdout}" );
+  assert!( stdout.contains( "Usage: shader_chunks list" ), "{stdout}" );
+}
+
+#[ test ]
+fn per_command_help_spells_argument_shapes()
+{
+  // One command per argument shape — required `<name>`, optional `[name]`,
+  // repeatable `<name...>` — pinned via the usage line, where the shape
+  // derived from each `ArgumentDefinition`'s attributes shows.
+  for ( args, expected ) in
+  [
+    ( &[ "get", "help" ][ .. ], "Usage: shader_chunks get <name>" ),
+    ( &[ "tree", "help" ][ .. ], "Usage: shader_chunks tree [name]" ),
+    ( &[ "compose", "help" ][ .. ], "Usage: shader_chunks compose <names...>" ),
+  ]
+  {
+    let output = run( args );
+    assert!( output.status.success(), "stderr for {args:?}: {}", String::from_utf8_lossy( &output.stderr ) );
+    let stdout = stdout_of( &output );
+    assert!( stdout.contains( expected ), "{args:?} usage line wrong:\n{stdout}" );
+  }
 }
 
 #[ test ]

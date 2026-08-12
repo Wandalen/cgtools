@@ -5,11 +5,13 @@
 Terminal CLI for listing, inspecting, and composing the WGSL shader chunks
 bundled in [`shader_chunks_core`](../shader_chunks_core/readme.md). Read-only
 inspection tool: it never modifies a chunk, only reads and renders the
-manifest data `shader_chunks_core` already parses.
+manifest data `shader_chunks_core`'s `CHUNKS` descriptor table already
+carries as compile-time fields — no manifest is parsed at CLI runtime.
 
 Dispatch is real `unilang` (`CommandRegistry` + `Pipeline`, `src/main.rs`);
 `list`/`tags` tables and the `tree` dependency view are rendered by
-`data_fmt`; the top-level help screen (shown on no arguments) is rendered by
+`data_fmt`; the help screens — top-level (no arguments, `help`, or `.`) and
+per-command (`<command> help`, `help <command>`) — are rendered by
 `cli_fmt`. Every command's logic lives in `src/lib.rs` as a plain
 `Result<String, CliError>`-returning function, independent of `unilang` —
 `src/main.rs` only wires argv in and an exit code out.
@@ -23,6 +25,7 @@ Dispatch is real `unilang` (`CommandRegistry` + `Pipeline`, `src/main.rs`);
 | `tags` | Table of every distinct `group:tag` pair and the chunk(s) carrying it |
 | `tree [name]` | Dependency tree for one chunk, or a forest of every chunk nothing depends on |
 | `compose <name...>` | Preview WGSL composed from the given chunks, dependency-ordered |
+| `help` / `<command> help` | Top-level usage / per-command help (`help <command>` works too) |
 
 ## Examples
 

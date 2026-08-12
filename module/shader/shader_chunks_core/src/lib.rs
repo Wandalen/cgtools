@@ -22,17 +22,30 @@
 mod private
 {
 
-  /// One bundled WGSL chunk, as one row of [`CHUNKS`]: its manifest-declared
-  /// name paired with its full source text ( manifest header included ).
+  /// One bundled WGSL chunk, as one row of [`CHUNKS`]: every field of its
+  /// `//@` manifest header materialized as compile-time data, in manifest
+  /// line order, plus its full source text ( manifest header included ).
   ///
-  /// `name` mirrors the chunk's own `//@ name:` manifest line so enumeration
-  /// and [`chunk_get`]'s by-name lookup need no manifest parsing; the
-  /// `chunks_table_names_match_each_manifest` test keeps the mirror honest.
+  /// Each field mirrors its manifest line verbatim, so neither enumeration
+  /// nor [`chunk_get`]'s by-name lookup ever parses a manifest at runtime;
+  /// the `chunks_table_*_match_each_manifest` test family keeps every mirror
+  /// honest. The `parse_*` functions remain the way to read manifest fields
+  /// off arbitrary ( non-bundled ) chunk text.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
   pub struct ChunkDescriptor
   {
-    /// The chunk's `//@ name:` manifest value — also its `shader/` file stem.
+    /// The chunk's `//@ name:` manifest value — also its `shader/<name>/` directory and file stem.
     pub name : &'static str,
+    /// The chunk's one-line `//@ description:` manifest value.
+    pub description : &'static str,
+    /// The chunk's `//@ tags:` manifest value as `( group, tag )` pairs, empty when the line is blank.
+    pub tags : &'static [ ( &'static str, &'static str ) ],
+    /// The chunk's `//@ stage:` manifest value — `Some` only for entry-point chunks ( e.g. `"vertex"` ).
+    pub stage : Option< &'static str >,
+    /// The chunk's `//@ depends_on:` manifest value as chunk names, empty when the line is blank.
+    pub depends_on : &'static [ &'static str ],
+    /// One entry per `//@ export:` manifest line, WGSL-syntax signature verbatim, in file order.
+    pub exports : &'static [ &'static str ],
     /// The chunk's complete WGSL source text, manifest header included.
     pub wgsl : &'static str,
   }

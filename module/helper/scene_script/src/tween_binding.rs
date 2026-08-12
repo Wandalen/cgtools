@@ -218,7 +218,7 @@ mod private
       "tween",
       | start : F32x3, end : F32x3, duration : f64, m1 : F32x3, m2 : F32x3 | -> Tween< F32x3 >
       {
-        Tween::new( start, end, duration, Box::new( CubicHermite::new( m1, m2 ) ) )
+        Tween::new( start, end, duration, Box::new( CubicHermite::< F32x3 >::new( m1, m2 ) ) )
       }
     )
     .register_fn( "update", | t : &mut Tween< F32x3 >, delta_time : f64 | t.update( delta_time ) )
@@ -265,7 +265,7 @@ mod private
       "tween",
       | start : F32x4, end : F32x4, duration : f64, m1 : F32x4, m2 : F32x4 | -> Tween< F32x4 >
       {
-        Tween::new( start, end, duration, Box::new( CubicHermite::new( m1, m2 ) ) )
+        Tween::new( start, end, duration, Box::new( CubicHermite::< F32x4 >::new( m1, m2 ) ) )
       }
     )
     .register_fn( "update", | t : &mut Tween< F32x4 >, delta_time : f64 | t.update( delta_time ) )
@@ -314,7 +314,7 @@ mod private
       "tween",
       | start : F64x1, end : F64x1, duration : f64, m1 : F64x1, m2 : F64x1 | -> Tween< F64x1 >
       {
-        Tween::new( start, end, duration, Box::new( CubicHermite::new( m1, m2 ) ) )
+        Tween::new( start, end, duration, Box::new( CubicHermite::< F64x1 >::new( m1, m2 ) ) )
       }
     )
     .register_fn( "update", | t : &mut Tween< F64x1 >, delta_time : f64 | t.update( delta_time ) )
@@ -363,7 +363,7 @@ mod private
       "tween",
       | start : F64x2, end : F64x2, duration : f64, m1 : F64x2, m2 : F64x2 | -> Tween< F64x2 >
       {
-        Tween::new( start, end, duration, Box::new( CubicHermite::new( m1, m2 ) ) )
+        Tween::new( start, end, duration, Box::new( CubicHermite::< F64x2 >::new( m1, m2 ) ) )
       }
     )
     .register_fn( "update", | t : &mut Tween< F64x2 >, delta_time : f64 | t.update( delta_time ) )
@@ -409,7 +409,7 @@ mod private
       "tween",
       | start : F64x3, end : F64x3, duration : f64, m1 : F64x3, m2 : F64x3 | -> Tween< F64x3 >
       {
-        Tween::new( start, end, duration, Box::new( CubicHermite::new( m1, m2 ) ) )
+        Tween::new( start, end, duration, Box::new( CubicHermite::< F64x3 >::new( m1, m2 ) ) )
       }
     )
     .register_fn( "update", | t : &mut Tween< F64x3 >, delta_time : f64 | t.update( delta_time ) )
@@ -455,7 +455,7 @@ mod private
       "tween",
       | start : F64x4, end : F64x4, duration : f64, m1 : F64x4, m2 : F64x4 | -> Tween< F64x4 >
       {
-        Tween::new( start, end, duration, Box::new( CubicHermite::new( m1, m2 ) ) )
+        Tween::new( start, end, duration, Box::new( CubicHermite::< F64x4 >::new( m1, m2 ) ) )
       }
     )
     .register_fn( "update", | t : &mut Tween< F64x4 >, delta_time : f64 | t.update( delta_time ) )

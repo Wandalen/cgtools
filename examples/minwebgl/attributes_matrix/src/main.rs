@@ -115,7 +115,6 @@ fn app_run() -> Result< (), gl::WebglError >
   .attribute_pointer( &gl, trans_slot, &trans_buffer )?;
   gl.bind_vertex_array( None );
 
-  // xxx
   // Prepare to change transformation every frame
   // std140 alignment require to allocate 4 words for the first row and 4 for the second row.
   let trans = vec!

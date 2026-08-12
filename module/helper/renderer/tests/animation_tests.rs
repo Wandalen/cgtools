@@ -10,7 +10,7 @@ mod tests
   // Browser, not Node: every test here needs a real WebGL2 context.
   wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
-  use animation::{ Sequence, Tween, Sequencer, AnimatablePlayer };
+  use animation::{ Sequence, Tween, Sequencer };
   use renderer::webgl::
   {
     animation::base::

@@ -264,6 +264,16 @@ mod private
   impl Font
   {
     /// Asynchronously loads a new `Font` from a UFO directory path.
+    //
+    // Fix: the 3 glyph-fetch loops below used `.expect(...)`, panicking the
+    // entire app if ANY of the full a-z/A-Z/0-9 set (62 files) was absent from
+    // a UFO directory, even though callers only ever render a handful of
+    // specific letters.
+    // Root cause: `.expect` treated a missing-but-optional glyph the same as a
+    // fatal load error -- a font legitimately may not define every glyph.
+    // Pitfall: a loop over an exhaustive enumeration (full alphabet/digit set)
+    // must tolerate individual misses via `continue`; only the per-glyph fetch
+    // is optional, not the overall load.
     async fn new( path : &str ) -> Self
     {
       let mut glyphs = FxHashMap::< char, Glyph >::default();
@@ -272,8 +282,11 @@ mod private
       for c in b'a'..=b'z'
       {
         let glyph_path = format!( "{}/{}.glif", glyphs_path, c as char );
-        let glif_bytes = gl::file::load( &glyph_path ).await
-        .expect( "Failed to load glif file" );
+        let Ok( glif_bytes ) = gl::file::load( &glyph_path ).await
+        else
+        {
+          continue;
+        };
         if let Some( glyph ) = Glyph::from_glif( &glif_bytes, c as char )
         {
           glyphs.insert( c as char, glyph );
@@ -283,8 +296,11 @@ mod private
       for c in b'A'..=b'Z'
       {
         let glyph_path = format!( "{}/{}_.glif", glyphs_path, c as char );
-        let glif_bytes = gl::file::load( &glyph_path ).await
-        .expect( "Failed to load glif file" );
+        let Ok( glif_bytes ) = gl::file::load( &glyph_path ).await
+        else
+        {
+          continue;
+        };
         if let Some( glyph ) = Glyph::from_glif( &glif_bytes, c as char )
         {
           glyphs.insert( c as char, glyph );
@@ -306,8 +322,11 @@ mod private
       ]
       {
         let glyph_path = format!( "{glyphs_path}/{name}.glif" );
-        let glif_bytes = gl::file::load( &glyph_path ).await
-        .expect( "Failed to load glif file" );
+        let Ok( glif_bytes ) = gl::file::load( &glyph_path ).await
+        else
+        {
+          continue;
+        };
         if let Some( glyph ) = Glyph::from_glif( &glif_bytes, c )
         {
           glyphs.insert( c, glyph );

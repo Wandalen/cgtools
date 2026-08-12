@@ -427,7 +427,6 @@ fn tween_with_easing_selector_rejects_unknown_curve_name()
 }
 
 #[ test ]
-#[ expect( clippy::float_cmp, reason = "assertion checks a value derived from CubicHermite's exact polynomial coefficients at t=0.5; no arithmetic drift is possible and epsilon comparison would weaken it" ) ]
 fn tween_with_cubic_hermite_tangents_deviates_from_linear_interpolation()
 {
   let engine = engine_build();

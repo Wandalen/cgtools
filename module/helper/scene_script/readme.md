@@ -16,8 +16,8 @@ implementation.
 | File | Responsibility |
 |------|-----------------|
 | `src/lib.rs` | Crate entry point; re-exports each layer plus `rhai` itself. |
-| `src/vector_binding.rs` | Registers the full `ndarray_cg::{F32,F64}x{1,2,3,4}` vector family into a `rhai::Engine`: constructors (plus a 2-arg `f32x4`/`f64x4` overload), `.x`/`.y`/`.z`/`.w`, `+`/`-` (binary and unary)/`*` operators, and `dot`/`mag`/`mag2`/`normalize`/`distance`/`min`/`max`/`cross`/`truncate`. |
-| `src/tween_binding.rs` | Registers `animation::Tween< T >` for every registered vector type `T` into a `rhai::Engine`: `tween(...)` constructor (3-arg Linear, 4-arg named-easing), `.update`/`.value`/`.is_completed`/`.progress`/`.duration`/`.delay`/`.time`/`.current_repeat`/`.state`, `.pause`/`.resume`/`.reset`, and `.with_delay`/`.with_duration`/`.with_repeat`/`.with_yoyo` builders. |
+| `src/vector_binding.rs` | Registers the full `ndarray_cg::{F32,F64}x{1,2,3,4}` vector family into a `rhai::Engine`: constructors (plus a 2-arg `f32x4`/`f64x4` overload), `.x`/`.y`/`.z`/`.w`, `+`/`-` (binary and unary)/`*` operators, and `dot`/`mag`/`mag2`/`normalize`/`distance`/`distance_squared`/`min`/`max`/`cross`/`to_homogenous`/`truncate`. |
+| `src/tween_binding.rs` | Registers `animation::Tween< T >` for every registered vector type `T` into a `rhai::Engine`: `tween(...)` constructor (3-arg Linear, 4-arg named-easing, 5-arg direct-tangent `CubicHermite`), `.update`/`.value`/`.is_completed`/`.progress`/`.duration`/`.delay`/`.time`/`.current_repeat`/`.state`, `.pause`/`.resume`/`.reset`, and `.with_delay`/`.with_duration`/`.with_repeat`/`.with_yoyo` builders. |
 | `src/engine.rs` | `engine_build()` — a `rhai::Engine` with all 16 bindings pre-registered. |
 | `src/top_level_lint.rs` | `check_top_level_is_declarative()` — rejects imperative code sitting outside of a function. |
 | `tests/engine_test.rs` | Smoke tests for all 16 registrations, feature tests for the extended vector-math and Tween operations, plus a distinctness check between `F32x2` and `F64x2`. |

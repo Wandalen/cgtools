@@ -49,10 +49,10 @@ No construction is ever rejected. `f32x1(x)` accepts any value Rhai can supply a
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f32x1_register` — constructor, `.x` getter, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`min`/`max`, `to_string` |
+| `src/vector_binding.rs` | `f32x1_register` — constructor, `.x` getter, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`distance_squared`/`min`/`max`, `to_string` |
 
 ### Tests
 
 | File | Relationship |
 |------|--------------|
-| `tests/engine_test.rs` | `f32x1_arithmetic_roundtrip`; `F32x1` is also the representative type for every new `Tween` operation's test: `tween_progress_reports_fraction_of_duration_elapsed`, `tween_builder_methods_configure_duration_and_delay`, `tween_time_accumulates_elapsed_delta_time`, `tween_pause_halts_further_progress_until_resumed`, `tween_reset_returns_to_start_value`, `tween_current_repeat_increments_after_each_repeat_cycle`, `tween_with_yoyo_reverses_direction_on_alternate_repeats`, `tween_state_reports_animation_lifecycle_stage`, `tween_with_easing_selector_accepts_named_curve`, `tween_with_easing_selector_rejects_unknown_curve_name` |
+| `tests/engine_test.rs` | `f32x1_arithmetic_roundtrip`; `F32x1` is also the representative type for every new `Tween` operation's test: `tween_progress_reports_fraction_of_duration_elapsed`, `tween_builder_methods_configure_duration_and_delay`, `tween_time_accumulates_elapsed_delta_time`, `tween_pause_halts_further_progress_until_resumed`, `tween_reset_returns_to_start_value`, `tween_current_repeat_increments_after_each_repeat_cycle`, `tween_with_yoyo_reverses_direction_on_alternate_repeats`, `tween_state_reports_animation_lifecycle_stage`, `tween_with_easing_selector_accepts_named_curve`, `tween_with_easing_selector_rejects_unknown_curve_name`, `tween_with_cubic_hermite_tangents_deviates_from_linear_interpolation` |

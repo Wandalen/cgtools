@@ -49,10 +49,10 @@ No construction is ever rejected. `f32x2(x, y)` accepts any two values Rhai can 
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f32x2_register` — constructor, `.x`/`.y` getters, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`min`/`max`, `to_string` |
+| `src/vector_binding.rs` | `f32x2_register` — constructor, `.x`/`.y` getters, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`distance_squared`/`min`/`max`, `to_string` |
 
 ### Tests
 
 | File | Relationship |
 |------|--------------|
-| `tests/engine_test.rs` | `f32x2_arithmetic_roundtrip`, `f32x2_and_f64x2_are_distinct_types_not_interchangeable`, `vector_dot_product_computes_scalar`, `vector_magnitude_and_magnitude_squared_match_pythagorean_length`, `vector_normalize_returns_new_unit_length_copy_without_mutating_original`, `vector_distance_computes_separation_between_two_points`, `vector_min_and_max_take_componentwise_extremes`, `vector_unary_negation_negates_all_components` — `F32x2` is the representative type for every new universal vector-math operation's test |
+| `tests/engine_test.rs` | `f32x2_arithmetic_roundtrip`, `f32x2_and_f64x2_are_distinct_types_not_interchangeable`, `vector_dot_product_computes_scalar`, `vector_magnitude_and_magnitude_squared_match_pythagorean_length`, `vector_normalize_returns_new_unit_length_copy_without_mutating_original`, `vector_distance_computes_separation_between_two_points`, `vector_distance_squared_computes_squared_separation`, `vector_min_and_max_take_componentwise_extremes`, `vector_unary_negation_negates_all_components` — `F32x2` is the representative type for every new universal vector-math operation's test |

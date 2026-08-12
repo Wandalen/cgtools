@@ -8,7 +8,7 @@
 - **started_at:** null
 - **expires_at:** null
 - **round:** 1
-- **state:** 🎯 (Verified)
+- **state:** 📦 (Executed)
 - **closes:** null
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/examples/minwebgl/make_cube_map
@@ -16,6 +16,8 @@
 - **verification_date:** 2026-08-12
 - **blocked_by:** null
 - **priority:** 2
+- **executing_at:** 2026-08-13 02:18:21
+- **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 
 ## Goal
 
@@ -96,6 +98,13 @@ not by this section. Administrative/marker-cleanup task — no test-related item
 | **Total** | | — | 🟢 | — | — |
 
 Adversarial pass: checked this isn't secretly a duplicate of 094 sharing one task (confirmed Crate Scope Unity requires separate files despite the near-identical shape); checked readme.md/index.md/demo_completeness.md evidence directly rather than trusting 065's summary at face value — confirmed independently in this session. No blocking finding surfaced.
+
+## Journal
+
+| Timestamp           | Actor                | Event | Note         |
+|---------------------|----------------------|-------|--------------|
+| 2026-08-13 02:18:21 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
+| 2026-08-13 02:18:54 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | EXEC_COMPLETE | execution complete |
 
 ## History
 

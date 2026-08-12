@@ -64,7 +64,7 @@ mod tests
     // Pitfall: `.scene` vs `.scenes` is a one-character typo that the compiler catches loudly, but
     // only if the module compiles far enough to reach this line — the missing `Node` import above
     // masked this second error until the first was fixed.
-    gltf.scenes[ 0 ].borrow().traverse( &mut get_skeleton );
+    gltf.scenes[ 0 ].borrow().traverse( &mut get_skeleton ).unwrap();
 
     skeleton.unwrap().borrow().clone()
   }

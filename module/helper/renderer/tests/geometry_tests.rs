@@ -5,6 +5,15 @@
 mod tests
 {
   use wasm_bindgen_test::wasm_bindgen_test;
+
+  // Fix(BUG-105): this suite had no `wasm_bindgen_test_configure!( run_in_browser )` call, so
+  // its one test binary defaulted to Node.js, where `web_sys::window()` is always `None`.
+  // Root cause: file created without the configure! line every sibling suite in this directory
+  // (animation_tests.rs, pmrem_tests.rs, skeleton_tests.rs) already carries.
+  // Pitfall: a missing `run_in_browser` config doesn't fail to compile — it fails at runtime
+  // with an unrelated-looking `CanvasRetrievingError("Failed to get window")`, which reads like
+  // a `minwebgl`/`mingl` regression rather than the test's own harness misconfiguration.
+  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
   use gl::GL;
   use renderer::webgl::{ Geometry, AttributeInfo };

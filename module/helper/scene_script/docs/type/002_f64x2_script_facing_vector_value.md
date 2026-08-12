@@ -43,7 +43,7 @@ No construction is ever rejected. `f64x2(x, y)` accepts any two values Rhai can 
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f64x2_register` — constructor, `.x`/`.y` getters, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`min`/`max` (all native `f64`, no boundary cast), `to_string` |
+| `src/vector_binding.rs` | `f64x2_register` — constructor, `.x`/`.y` getters, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`distance_squared`/`min`/`max` (all native `f64`, no boundary cast), `to_string` |
 
 ### Tests
 

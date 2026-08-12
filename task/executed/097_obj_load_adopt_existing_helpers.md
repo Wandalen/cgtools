@@ -8,7 +8,7 @@
 - **started_at:** null
 - **expires_at:** null
 - **round:** 1
-- **state:** 🎯 (Verified)
+- **state:** 📦 (Executed)
 - **closes:** null
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/examples/minwebgl/obj_load
@@ -16,6 +16,8 @@
 - **verification_date:** 2026-08-12
 - **blocked_by:** null
 - **priority:** 2
+- **executing_at:** 2026-08-13 02:22:14
+- **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 
 ## Goal
 
@@ -122,6 +124,13 @@ not by this section.
 | **Total** | | — | 🟢 | — | — |
 
 Adversarial pass: the strongest challenge here is "are you sure `load_model_from_slice` and `make_reports` are actually already correct/complete, or would adopting them just move the bug?" — checked by reading `load_model_from_slice`'s full body (not just its signature): it already handles the async `.mtl` fetch-and-log-and-fail path the example's stub was missing, and is exported via `mod_interface!`'s `orphan use` block, confirming it's genuinely part of the public API, not a private helper this task would be reaching past. Checked `materials` field type (`Result<Vec<Material>, LoadError>`) is correctly called out in In Scope as a named open point rather than glossed over. No blocking finding surfaced.
+
+## Journal
+
+| Timestamp           | Actor                | Event | Note         |
+|---------------------|----------------------|-------|--------------|
+| 2026-08-13 02:22:14 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
+| 2026-08-13 02:22:16 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | EXEC_COMPLETE | execution complete — API drift from spec: helpers are named `model_load_from_slice`/`reports_make` (noun-first), not the task text's `load_model_from_slice`/`make_reports`; re-derived call site against current `mingl/src/web/model/obj.rs` and the already-working `obj_viewer` example precedent. wasm32 check + clippy (`-D warnings`) both exit 0; AF2 (manual browser render) not performed — no browser available in this environment. |
 
 ## History
 
