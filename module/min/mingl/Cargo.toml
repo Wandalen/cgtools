@@ -97,6 +97,7 @@ web-sys = { workspace = true, optional = true, features = [
   'MouseEvent',
   'WheelEvent',
   'KeyboardEvent',
+  'ResizeObserver',
   'console',
 ]}
 

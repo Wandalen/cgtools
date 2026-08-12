@@ -380,7 +380,7 @@ mod private
             if direct_light.direction.mag() < DIRECTION_LIGHT_MIN_MAGNITUDE
             {
               let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
-              let rot_matrix = gl::math::d2::F32x3x3::from( node.rotation_get() );
+              let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.rotation_get() );
               direct_light.direction = rot_matrix * forward;
             }
             direct_light.direction = direct_light.direction.normalize();

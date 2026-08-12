@@ -79,4 +79,4 @@ need. The determinism contract is much easier to keep when it is structural.
 | `module/helper/tilemap_scene/src/scene.rs` | The document model (scene + seed) |
 | `module/helper/tilemap_scene/src/compile/frame.rs` | The deterministic compiler |
 | `examples/scene_script/sun_grid_lines/scene.rhai` | The document (d2 known use) — pure literal content, no engine calls |
-| `examples/scene_script/sun_grid_lines/src/scene.rs` | The schema + loader — no separate compiler step; `rhai::serde::from_dynamic` deserializes straight into the structs `main.rs` reads |
+| `examples/scene_script/sun_grid_lines/src/scene.rs` | The schema + loader — no separate compiler step; `rhai::serde::from_dynamic` deserializes straight into the structs `uniforms.rs` reads |

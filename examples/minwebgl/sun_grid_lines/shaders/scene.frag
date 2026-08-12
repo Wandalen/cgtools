@@ -8,6 +8,9 @@ uniform float u_time;
 uniform float u_seed;
 uniform int u_node_count;
 uniform float u_grid_density;
+// Drawing-buffer resolution in physical pixels. The canvas fills its parent,
+// so this changes whenever the page layout does — refreshed every frame.
+uniform vec2 u_resolution;
 
 // Static scene styling, sourced from `scene.rhai` on the host side ( see
 // `../src/scene.rs` ) instead of being baked in here as shader constants.
@@ -78,7 +81,15 @@ void main()
 {
   vec2 uv = v_uv; // y = 0 at canvas bottom, y = 1 at canvas top ( GL convention )
   vec2 center = vec2( 0.5 );
-  float d = distance( uv, center );
+  // The canvas fills its parent, so the buffer is rarely square. q is the
+  // aspect-true frame: identical to uv on a square canvas, x widened or
+  // narrowed around the center elsewhere, so every distance-based shape
+  // ( corona, disc, ring, nodes, star cells, grid cells ) stays round or
+  // square at any aspect ratio. Stretchy vertical structure ( gradient,
+  // nebula band ) keeps raw uv deliberately.
+  float aspect = u_resolution.x / max( u_resolution.y, 1.0 );
+  vec2 q = ( uv - center ) * vec2( aspect, 1.0 ) + center;
+  float d = distance( q, center );
 
   // 1. Background: vertical gradient, lighter toward vertical center.
   vec3 navy = u_bg_top;
@@ -95,8 +106,8 @@ void main()
 
   // 3. Sparse background stars: one hashed candidate point per grid cell.
   {
-    vec2 cell = floor( uv * 9.0 );
-    vec2 cell_uv = fract( uv * 9.0 );
+    vec2 cell = floor( q * 9.0 );
+    vec2 cell_uv = fract( q * 9.0 );
     float has_star = step( 0.86, hash21( cell + u_seed ) );
     vec2 star_pos = vec2( hash21( cell + 0.17 + u_seed ), hash21( cell + 4.31 + u_seed ) );
     float star_d = distance( cell_uv, star_pos );
@@ -108,7 +119,7 @@ void main()
   // 4. Grid overlay, density controlled by u_grid_density, constant
   // screen-space line width via fwidth.
   {
-    vec2 g = uv * u_grid_density;
+    vec2 g = q * u_grid_density;
     vec2 grid_d = abs( fract( g - 0.5 ) - 0.5 ) / fwidth( g );
     float line = 1.0 - min( min( grid_d.x, grid_d.y ), 1.0 );
     vec3 grid_color = u_grid_color;
@@ -133,12 +144,12 @@ void main()
   // 6. Star disk: fbm surface granulation inside a noise-jagged rim.
   {
     float base_radius = u_disc_base_radius;
-    float angle = atan( uv.y - 0.5, uv.x - 0.5 );
+    float angle = atan( q.y - 0.5, q.x - 0.5 );
     float rim_noise = fbm3( vec2( cos( angle ), sin( angle ) ) * 4.0 ) - 0.4375;
     float radius = base_radius + rim_noise * 0.015;
     float disk = 1.0 - smoothstep( radius - 0.004, radius, d );
 
-    float gran_n = fbm3( uv * 40.0 + 3.0 );
+    float gran_n = fbm3( q * 40.0 + 3.0 );
     vec3 dark = u_disc_dark;
     vec3 mid = u_disc_mid;
     vec3 bright = u_disc_bright;
@@ -187,7 +198,7 @@ void main()
         + fi * ( 6.28318 / float( node_count ) ) + phase_jitter;
       float orbit_r = u_ring_radius * radius_jitter;
       vec2 planet_pos = vec2( 0.5 + orbit_r * cos( theta ), 0.5 - orbit_r * sin( theta ) );
-      float pd = distance( uv, planet_pos );
+      float pd = distance( q, planet_pos );
 
       vec3 halo_color = u_ring_color;
       float halo = ( 1.0 - smoothstep( 0.0, 0.018, pd ) ) * 0.85;

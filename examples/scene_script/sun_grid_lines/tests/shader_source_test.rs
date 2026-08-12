@@ -1,7 +1,8 @@
 //! Tests for `shader_source`: the assembled WGSL's structural honesty
-//! ( every declaration exactly once, dependencies ahead of dependents ) and
-//! the `scene.rhai`-owned-shader-vs-`scene.rs` fixed-size-array sync that
-//! used to be kept by hand.
+//! ( every declaration exactly once, dependencies ahead of dependents ), the
+//! `scene.rhai`-owned-shader-vs-`scene.rs` fixed-size-array sync that used
+//! to be kept by hand, and a full native naga parse + validation — the one
+//! check that catches actual WGSL errors before a browser ever sees them.
 
 use sun_grid_lines::scene;
 use sun_grid_lines::shader_source::assemble;
@@ -78,6 +79,22 @@ fn fragment_body_redeclares_no_chunk_symbol_and_consumes_them()
       "scene.rhai's shader field must consume `{consumed}`"
     );
   }
+}
+
+// The structural tests above check composition honesty, not language
+// validity — a typo inside a function body would sail through all of them
+// and only explode at ShaderModule creation in the browser. Parsing and
+// validating with naga ( the same front end wgpu itself uses ) fails such
+// errors natively, at test time.
+#[ test ]
+fn assembled_wgsl_parses_and_validates()
+{
+  let shader = assemble( &fragment_wgsl() );
+  let module = naga::front::wgsl::parse_str( &shader )
+  .unwrap_or_else( | error | panic!( "assembled WGSL does not parse :\n{}", error.emit_to_string( &shader ) ) );
+  naga::valid::Validator::new( naga::valid::ValidationFlags::all(), naga::valid::Capabilities::default() )
+  .validate( &module )
+  .unwrap_or_else( | error | panic!( "assembled WGSL does not validate : {error:?}" ) );
 }
 
 #[ test ]

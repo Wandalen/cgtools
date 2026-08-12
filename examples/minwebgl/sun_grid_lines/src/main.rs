@@ -26,9 +26,6 @@ use core::cell::RefCell;
 #[cfg( target_arch = "wasm32" )]
 use web_sys::{ wasm_bindgen::prelude::*, KeyboardEvent };
 
-#[cfg( target_arch = "wasm32" )]
-const SIZE : i32 = 800; // square canvas, matching the reference composition
-
 /// Live-adjustable scene parameters, shared between the animation loop and
 /// the keyboard handler below.
 #[cfg( target_arch = "wasm32" )]
@@ -40,14 +37,15 @@ struct Params
 }
 
 /// Allocates one linear-filtered, clamp-wrapped `RGBA16F` render target of
-/// size `SIZE x SIZE`, matching the format `UnrealBloomPass` expects as
-/// input.
+/// the given `( width, height )` size, matching the format `UnrealBloomPass`
+/// expects as input. `tex_storage_2d` storage is immutable-size, so a resize
+/// means allocating a fresh target, never resizing this one.
 #[cfg( target_arch = "wasm32" )]
-fn target_make( gl : &GL ) -> Option< gl::web_sys::WebGlTexture >
+fn target_make( gl : &GL, size : ( i32, i32 ) ) -> Option< gl::web_sys::WebGlTexture >
 {
   let texture = gl.create_texture();
   gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
-  gl.tex_storage_2d( GL::TEXTURE_2D, 1, GL::RGBA16F, SIZE, SIZE );
+  gl.tex_storage_2d( GL::TEXTURE_2D, 1, GL::RGBA16F, size.0, size.1 );
   gl::texture::d2::filter_linear( gl );
   gl::texture::d2::wrap_clamp( gl );
   gl.bind_texture( GL::TEXTURE_2D, None );
@@ -108,9 +106,11 @@ fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
 
+  // Fill-parent canvas: mingl's make() sizes the drawing buffer to the CSS
+  // box ( at devicePixelRatio ) and keeps it sized via ResizeObserver; the
+  // frame loop below re-asserts the size anyway and reallocates the
+  // offscreen targets when it changes.
   let canvas = gl::canvas::make()?;
-  canvas.set_width( SIZE as u32 );
-  canvas.set_height( SIZE as u32 );
 
   let gl = gl::context::from_canvas( &canvas )?;
   let _ = gl.get_extension( "EXT_color_buffer_float" )
@@ -124,24 +124,29 @@ fn app_run() -> Result< (), gl::WebglError >
   let u_seed_loc = gl.get_uniform_location( &program, "u_seed" );
   let u_node_count_loc = gl.get_uniform_location( &program, "u_node_count" );
   let u_grid_density_loc = gl.get_uniform_location( &program, "u_grid_density" );
+  let u_resolution_loc = gl.get_uniform_location( &program, "u_resolution" );
 
   scene_styling_upload( &gl, &program );
 
   // Offscreen G-buffer-style framebuffer: attachment 0 receives the composed
   // scene color, attachment 1 receives emission only ( the subset of the
   // scene that should bloom ). Both feed the post-processing chain below.
+  // Every size-dependent target here is allocated at the startup buffer size
+  // and reallocated by the frame loop whenever the fill-parent canvas
+  // changes size.
+  let mut size = ( canvas.width().max( 1 ) as i32, canvas.height().max( 1 ) as i32 );
   let scene_framebuffer = gl.create_framebuffer();
   gl.bind_framebuffer( GL::FRAMEBUFFER, scene_framebuffer.as_ref() );
-  let main_color_texture = target_make( &gl );
-  let emission_texture = target_make( &gl );
+  let mut main_color_texture = target_make( &gl, size );
+  let mut emission_texture = target_make( &gl, size );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, main_color_texture.as_ref(), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, emission_texture.as_ref(), 0 );
   gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
   // Bloom + blend + present chain, wired exactly as the renderer crate's own
   // Renderer uses it internally ( module/helper/renderer/src/webgl/renderer.rs ).
-  let mut swap = SwapFramebuffer::new( &gl, SIZE as u32, SIZE as u32 );
-  let bloom = UnrealBloomPass::new( &gl, SIZE as u32, SIZE as u32, GL::RGBA16F )?;
+  let mut swap = SwapFramebuffer::new( &gl, size.0 as u32, size.1 as u32 );
+  let mut bloom = UnrealBloomPass::new( &gl, size.0 as u32, size.1 as u32, GL::RGBA16F )?;
   let mut blend = BlendPass::new( &gl )?;
   let to_srgb = ToSrgbPass::new( &gl, true )?;
 
@@ -172,6 +177,38 @@ fn app_run() -> Result< (), gl::WebglError >
 
   let update_and_draw = move | t : f64 |
   {
+    // The loop owns the buffer size: reconcile it with the canvas's CSS box
+    // every frame ( devicePixelRatio-exact ), and reallocate every
+    // size-dependent GL resource when it actually changed — tex_storage_2d
+    // storage is immutable-size, so reallocation is the only option.
+    let dpr = gl::web_sys::window().unwrap().device_pixel_ratio();
+    let w = ( f64::from( canvas.client_width() ) * dpr ).round() as i32;
+    let h = ( f64::from( canvas.client_height() ) * dpr ).round() as i32;
+    if w <= 0 || h <= 0
+    {
+      return true; // collapsed/hidden layout — nothing to render this frame
+    }
+    if ( w, h ) != size
+    {
+      size = ( w, h );
+      canvas.set_width( w as u32 );
+      canvas.set_height( h as u32 );
+
+      gl.delete_texture( main_color_texture.as_ref() );
+      gl.delete_texture( emission_texture.as_ref() );
+      main_color_texture = target_make( &gl, size );
+      emission_texture = target_make( &gl, size );
+      gl.bind_framebuffer( GL::FRAMEBUFFER, scene_framebuffer.as_ref() );
+      gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, main_color_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, emission_texture.as_ref(), 0 );
+      gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+
+      swap.gl_resources_free( &gl );
+      swap = SwapFramebuffer::new( &gl, w as u32, h as u32 );
+      bloom.gl_resources_free( &gl );
+      bloom = UnrealBloomPass::new( &gl, w as u32, h as u32, GL::RGBA16F ).unwrap();
+    }
+
     let time = ( t / 1000.0 ) as f32;
     let ( seed, node_count, grid_density ) =
     {
@@ -183,8 +220,9 @@ fn app_run() -> Result< (), gl::WebglError >
     // targets.
     gl.bind_framebuffer( GL::FRAMEBUFFER, scene_framebuffer.as_ref() );
     gl::drawbuffers::drawbuffers( &gl, &[ 0, 1 ] );
-    gl.viewport( 0, 0, SIZE, SIZE );
+    gl.viewport( 0, 0, size.0, size.1 );
     gl.use_program( Some( &program ) );
+    gl.uniform2f( u_resolution_loc.as_ref(), size.0 as f32, size.1 as f32 );
     gl::uniform::upload( &gl, u_time_loc.clone(), &time ).unwrap();
     gl::uniform::upload( &gl, u_seed_loc.clone(), &seed ).unwrap();
     gl::uniform::upload( &gl, u_node_count_loc.clone(), &node_count ).unwrap();

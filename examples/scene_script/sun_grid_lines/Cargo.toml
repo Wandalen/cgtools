@@ -16,6 +16,12 @@ rhai = { workspace = true, features = [ "serde" ] }
 scene_script = { workspace = true }
 shader_chunks = { workspace = true }
 
+# Native WGSL parse + validation of the assembled shader ( tests/
+# shader_source_test.rs ) — the only pre-browser check that catches actual
+# WGSL errors in scene.rhai's shader field, not just structural drift.
+[dev-dependencies]
+naga = { workspace = true }
+
 # Only include WebGPU and related dependencies for wasm32 targets
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 bytemuck = { workspace = true, features = [ "derive" ] }
