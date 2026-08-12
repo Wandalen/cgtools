@@ -54,7 +54,7 @@ correctness burden (WGSL's floor-based `fract()` versus Rust's trunc-based
 one, for one) — that never runs on the GPU path it mirrors. The manifest,
 not a Rust port, is what makes a chunk's interface legible.
 
-**Consumers:** the browser WebGPU port
-[`scene_script/sun_grid_lines`](../../../examples/scene_script/sun_grid_lines/readme.md)
+**Consumers:** the orrery scene family's browser WebGPU member
+[`orrery/webgpu`](../../../examples/orrery/webgpu/readme.md)
 composes these four chunks ahead of its own scene-specific, fragment-only
 WGSL body (`shader/scene_fragment.wgsl`).

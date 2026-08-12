@@ -5,8 +5,8 @@
 //! one check that catches actual WGSL errors before a browser ever sees
 //! them.
 
-use sun_grid_lines::scene;
-use sun_grid_lines::shader_source::{ assemble, FRAGMENT_WGSL };
+use orrery_webgpu::scene;
+use orrery_webgpu::shader_source::{ assemble, FRAGMENT_WGSL };
 
 /// Returns `source` with every whole-line `//` comment dropped, so chunk
 /// manifest headers ( `//@ export: fn hash21(...)` ) and prose comments

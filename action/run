@@ -17,7 +17,7 @@
 #@          reported as a name collision, not ambiguity — candidates listed, qualify with a
 #@          parent directory to pick one. Never guesses in any of these cases.
 #@ param:   <query>   partial match against the crate's path relative to repo root, e.g.
-#@                    `sun_grid` matches `examples/minwgpu/sun_grid_lines`; or the numeric order
+#@                    `orrery` matches `examples/orrery/webgpu`; or the numeric order
 #@                    id shown in `list` output's leftmost column, e.g. `62`. Two reserved values
 #@                    instead of a real query: `list [tag]` prints every discoverable example
 #@                    path with its order id, optionally filtered to those carrying `tag` (e.g.
@@ -64,6 +64,7 @@ _TAGS=(
   runtime:browser
   runtime:native
   runtime:offscreen
+  scene:orrery
 )
 
 _tag_known()
@@ -204,7 +205,7 @@ else
   # — is a different, higher-confidence category than a candidate that merely
   # contains the query as a substring: narrow to exact matches whenever at
   # least one exists, and remember it via _exact_tie so a leftover collision
-  # among them (e.g. `sun_grid_lines` naming 3 unrelated examples) is reported
+  # among them (e.g. `hello_triangle` naming 2 unrelated examples) is reported
   # as a name collision below, never lumped in with genuine fuzzy ambiguity.
   _exact=()
   for _c in "${_matches[@]}"

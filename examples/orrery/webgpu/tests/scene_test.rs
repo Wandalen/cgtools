@@ -3,7 +3,7 @@
 //!
 //! Relocated from `src/scene.rs`, per the all-tests-in-tests/ convention.
 
-use sun_grid_lines::scene::
+use orrery_webgpu::scene::
 {
   Background, Color, Effects, Grid, NebulaBand, Node, OrbitRing, SceneConfig,
   StarLayer, SunCorona, SunDisc,

@@ -1,8 +1,8 @@
 // Procedural sci-fi HUD diagram: an animated star, three orbit rings, six
 // authored planets/moons, a drifting multi-band nebula, a twinkling
 // multi-layer star field, and a Cartesian grid — rendered by a fullscreen
-// fragment shader. WGSL port of the WebGL2 minwebgl_sun_grid_lines
-// example's scene.frag; glow reuses that example's analytic
+// fragment shader. WGSL port of the earlier WebGL2 implementation
+// ( minwebgl_sun_grid_lines, since removed ); glow reuses its analytic
 // radial-falloff / exp terms directly ( no multi-pass Gaussian bloom
 // infrastructure exists for WebGPU in this workspace ).
 //

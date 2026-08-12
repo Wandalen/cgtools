@@ -65,7 +65,6 @@ Below is a list of all available examples, each demonstrating a unique WebGL con
 | `hexagonal_map` | A full-featured hexagonal map editor with tile painting, rivers, and save/load functionality. |
 | `mapgen_tiles_rendering` | An efficient tilemap rendering system using texture arrays and unsigned integer textures. |
 | `wfc` | Procedurally generates tilemaps from a sample pattern using the Wave Function Collapse algorithm. |
-| `sun_grid_lines` | A procedural sci-fi HUD diagram — animated star, orbit ring, and grid rendered in a single fragment shader. |
 | **Text Rendering** | |
 | `text_msdf` | Renders high-quality, infinitely scalable text using Multi-channel Signed Distance Fields (MSDF). |
 | `text_rendering` | Generates and renders true 3D text geometry from TTF and UFO font files. |

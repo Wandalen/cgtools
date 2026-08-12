@@ -50,8 +50,11 @@ render through *any* backend, including the ones (`adapter-svg`,
 3. **Vulkan is a backend-selection detail, not a new adapter.** Forcing
    `wgpu` onto its Vulkan backend happens inside `adapter-native`'s
    construction (an explicit-backend constructor path), mirroring the
-   existing `examples/minwgpu/sun_grid_lines_vulkan` precedent of forcing
-   wgpu's backend bits rather than inventing a parallel API surface.
+   precedent set by `examples/minwgpu/sun_grid_lines_vulkan` (since
+   removed) of forcing wgpu's backend bits rather than inventing a
+   parallel API surface — the orrery scene family plans to carry Vulkan
+   the same way, as a run mode of its native-`wgpu` member (see
+   `examples/orrery/readme.md`).
 
 4. **L5→L3 wiring is example-local glue, not a new shared crate.** Compiling
    a script's per-frame output (e.g. `pingpong_animation`'s `Frame`) into
@@ -85,8 +88,8 @@ render through *any* backend, including the ones (`adapter-svg`,
   `explorations/001` already used to defer L1 itself until triggered.
 - **A dedicated `adapter-vulkan`.** Rejected: Vulkan is a `wgpu` backend
   selection, not a distinct command-stream target;
-  `sun_grid_lines_vulkan` already establishes that forcing a backend is a
-  constructor-time choice, not a new `Backend` implementation.
+  `sun_grid_lines_vulkan` (since removed) already established that forcing
+  a backend is a constructor-time choice, not a new `Backend` implementation.
 - **Migrate `adapter-webgl` onto `gpu_hal` at the same time.** Rejected for
   now: it already works: unwiring it risks regressing a working backend for
   no functional gain the current request needs. Its HAL migration stays an

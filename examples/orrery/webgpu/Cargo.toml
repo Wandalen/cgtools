@@ -1,5 +1,5 @@
 [package]
-name = "sun_grid_lines"
+name = "orrery_webgpu"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
@@ -44,4 +44,4 @@ features = [
 # No minwebgpu dependency for native targets
 
 [package.metadata.action]
-tags = ["runtime:browser", "api:webgpu"]
+tags = ["runtime:browser", "api:webgpu", "scene:orrery"]

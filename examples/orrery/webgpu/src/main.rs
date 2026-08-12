@@ -13,9 +13,9 @@
 // modules here; the native path below is a stub, and their tests live in
 // `tests/` against the library target.
 #[cfg( target_arch = "wasm32" )]
-use sun_grid_lines::scene;
+use orrery_webgpu::scene;
 #[cfg( target_arch = "wasm32" )]
-use sun_grid_lines::shader_source;
+use orrery_webgpu::shader_source;
 
 #[cfg( target_arch = "wasm32" )]
 mod uniforms;

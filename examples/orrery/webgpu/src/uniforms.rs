@@ -5,7 +5,7 @@
 //! `UniformsRaw::with_frame`; everything else is static scene styling loaded
 //! once (see `impl From<&scene::SceneConfig>` below).
 
-use sun_grid_lines::scene;
+use orrery_webgpu::scene;
 use minwebgpu as gl;
 
 #[ repr( C ) ]

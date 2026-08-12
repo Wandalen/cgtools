@@ -52,8 +52,16 @@ members = [
   "examples/minwebgpu/*",
   "examples/minwgpu/*",
   "examples/math/*",
+  "examples/orrery/*",
   "examples/scene_script/*",
   "examples/tiles_tools/*",
+]
+
+# API-group symlinks into scene-family dirs ( e.g. examples/minwebgpu/orrery ->
+# ../orrery/webgpu ) are discoverability pointers, not second member paths —
+# excluded so the member globs above don't resolve the same package twice.
+exclude = [
+  "examples/minwebgpu/orrery",
 ]
 
 # Source :: https://github.com/obox-systems/conventions/blob/master/code_style.md#lints-and-warnings

@@ -7,13 +7,13 @@
 # panics or uncaught JS exceptions in the piped console. This is execution
 # proof (page boots, wasm runs, no panics) — not pixel proof: WebGPU frame
 # presentation is impossible in headless chromium on this host (see
-# examples/scene_script/sun_grid_lines/readme.md), and WebGL2 runs on
+# examples/orrery/webgpu/readme.md), and WebGL2 runs on
 # SwiftShader, so visual verdicts stay with windowed `browsee .launch`
 # sessions and per-example showcase images.
 #
 # usage:
 #   script/example_smoke.sh [example_dir ...]
-# defaults: sun_grid_lines plus the canonical WebGPU-path pair
+# defaults: orrery/webgpu plus the canonical WebGPU-path pair
 # (hello_triangle, renderer_pbr_scene)
 #
 # Verify any verdict yourself by replaying the printed browsee line, e.g.:
@@ -28,7 +28,7 @@ examples=( "$@" )
 if [ "${#examples[@]}" -eq 0 ]
 then
   examples=(
-    examples/scene_script/sun_grid_lines
+    examples/orrery/webgpu
     examples/minwebgpu/hello_triangle
     examples/minwebgpu/renderer_pbr_scene
   )

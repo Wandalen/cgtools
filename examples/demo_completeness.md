@@ -54,7 +54,7 @@
 | hello_triangle (webgpu) | yes | yes | yes | yes | | | |
 | hello_triangle_quickstart (webgpu) | yes | yes | yes | yes | | | |
 | renderer_pbr_scene (webgpu) | no | yes | yes | no | | | |
-| sun_grid_lines (webgpu) | no | yes | yes | no | | | |
+| orrery (webgpu) | no | yes | yes | no | | | |
 | grid_render | yes | yes | yes | yes | | | |
 | hello_triangle (wgpu) | yes | yes | yes | yes | | | |
 | f32x2_vector_arithmetic | no | yes | yes | no | | | |
