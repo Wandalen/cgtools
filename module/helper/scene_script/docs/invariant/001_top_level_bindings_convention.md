@@ -50,7 +50,7 @@ isn't last) is rejected.
   `tests/example_convention_test.rs::example_scripts_follow_declarative_top_level_convention`
   — a test-suite-visible regression gate, not just a hand-authored
   convention documented in prose.
-- `build_engine()` (`src/engine.rs`) runs Rhai's default
+- `engine_build()` (`src/engine.rs`) runs Rhai's default
   `OptimizationLevel::Simple`, which folds dead/no-op constructs (an
   empty-bodied, else-less `if`; an unused local `let`) before this checker
   ever inspects them — irrelevant to real scripts (which do real work
@@ -89,7 +89,7 @@ isn't last) is rejected.
 | File | Relationship |
 |------|--------------|
 | `src/top_level_lint.rs` | `check_top_level_is_declarative()`, `call_expr()`, `role()` — the enforcement itself |
-| `src/engine.rs` | `build_engine()` — the `OptimizationLevel::Simple` engine every script is checked against |
+| `src/engine.rs` | `engine_build()` — the `OptimizationLevel::Simple` engine every script is checked against |
 
 ### Tests
 

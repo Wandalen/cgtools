@@ -368,6 +368,7 @@ fn test_pan_does_not_change_up_vector()
   assert_abs_diff_eq!( exp_up, controls.up );
 }
 
+// test_kind: bug_reproducer(BUG-004)
 /// ## Root Cause
 /// Mouse delta used inconsistent sign convention: `prev - new` for X, `new - prev`
 /// for Y. The `pan()` method expects standard `new - prev` (positive = right/down).
@@ -385,7 +386,6 @@ fn test_pan_does_not_change_up_vector()
 /// ## Pitfall
 /// Screen-space deltas must match method coordinate expectations. Document
 /// expected delta sign convention in method docs.
-// test_kind: bug_reproducer(BUG-004)
 #[ test ]
 fn test_pan_horizontal()
 {

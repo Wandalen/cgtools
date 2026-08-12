@@ -18,11 +18,30 @@ fn test_vector_ref_slice()
 }
 
 // test_kind: bug_reproducer(BUG-054)
-/// Under Miri Stacked Borrows (`cargo +nightly miri test -p mdmath_core
-/// --all-features`), this already-existing functional test is the exact
-/// sequence that exposes BUG-054: `ArrayMut<E,N>::vector_mut` for `[E]`
-/// cast `self.as_ptr()` (`SharedReadOnly` provenance) to `*mut [E;N]` instead
-/// of `self.as_mut_ptr()` (`Unique` provenance) before writing through it.
+/// ## Root Cause
+/// `ArrayMut<E,N>::vector_mut` for `[E]` cast `self.as_ptr()` (`SharedReadOnly`
+/// provenance) to `*mut [E;N]` instead of `self.as_mut_ptr()` (`Unique`
+/// provenance) before writing through it.
+///
+/// ## Why Not Caught
+/// This already-existing functional test exercises the exact sequence that
+/// exposes BUG-054, but the provenance violation is undefined behavior rather
+/// than an observable failure under ordinary execution — a plain `cargo test`
+/// run passes regardless, so nothing flagged it before Miri checked provenance.
+///
+/// ## Fix Applied
+/// `vector_mut` now casts through `self.as_mut_ptr()` (`Unique` provenance)
+/// instead of `self.as_ptr()` before writing through the resulting pointer.
+///
+/// ## Prevention
+/// Verified under Miri Stacked Borrows: `cargo +nightly miri test -p mdmath_core
+/// --all-features` runs this exact test to confirm the provenance violation is
+/// gone.
+///
+/// ## Pitfall
+/// Casting a shared (`&self`)-derived pointer to a `*mut` and writing through it
+/// is UB under Stacked Borrows even when it "works" on real hardware — always
+/// derive a mutable-cast pointer from `as_mut_ptr()`, never `as_ptr()`.
 #[ test ]
 fn test_vector_mut_slice()
 {

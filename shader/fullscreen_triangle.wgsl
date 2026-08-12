@@ -1,5 +1,6 @@
 //@ name: fullscreen_triangle
 //@ description: Fullscreen-triangle vertex stage: 3 vertices, no vertex buffer, vertex_index alone picks the corner.
+//@ tags: category:vertex
 //@ stage: vertex
 //@ depends_on:
 //@ export: struct VertexOutput { position: vec4f, uv: vec2f }

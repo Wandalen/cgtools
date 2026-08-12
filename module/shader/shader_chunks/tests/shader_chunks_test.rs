@@ -4,25 +4,10 @@
 
 use shader_chunks::
 {
-  compose, parse_name, parse_depends_on,
+  compose, try_compose, parse_name, parse_depends_on, parse_description, parse_stage, parse_exports, parse_tags,
+  ComposeError, ALL_CHUNKS,
   HASH21, VALUE_NOISE, FBM3, FULLSCREEN_TRIANGLE,
 };
-
-const ALL_CHUNKS : &[ &str ] = &[ HASH21, VALUE_NOISE, FBM3, FULLSCREEN_TRIANGLE ];
-
-/// Test-only: collects every `//@ key: value` line in `wgsl`, in file
-/// order. Unlike the crate's own private `manifest_field`, this is never
-/// needed by `compose()` — only `export` repeats per chunk, and only the
-/// test below cares about it — so it lives here rather than the library,
-/// where a fn unused outside tests would be dead code in a non-test build.
-fn manifest_fields<'a>( wgsl : &'a str, key : &str ) -> Vec< &'a str >
-{
-  let prefix = format!( "//@ {key}:" );
-  wgsl.lines()
-  .filter_map( | line | line.strip_prefix( prefix.as_str() ) )
-  .map( str::trim )
-  .collect()
-}
 
 /// Test-only: pulls the declared symbol name out of an `export` line's
 /// WGSL signature ( `"fn hash21(p: vec2f) -> f32"` -> `"hash21"`,
@@ -63,7 +48,7 @@ fn export_names_match_a_real_declaration_in_the_wgsl_body()
 {
   for &chunk in ALL_CHUNKS
   {
-    for signature in manifest_fields( chunk, "export" )
+    for signature in parse_exports( chunk )
     {
       let name = exported_name( signature );
       let declared = chunk.contains( &format!( "fn {name}(" ) ) || chunk.contains( &format!( "struct {name}" ) );
@@ -109,4 +94,81 @@ fn parse_depends_on_handles_empty_value()
 fn parse_depends_on_handles_multiple_entries()
 {
   assert_eq!( parse_depends_on( "//@ depends_on: a, b\n" ), vec![ "a", "b" ] );
+}
+
+#[ test ]
+fn all_chunks_lists_every_bundled_chunk()
+{
+  assert_eq!( ALL_CHUNKS.len(), 4 );
+}
+
+#[ test ]
+fn parse_description_reads_every_bundled_chunk()
+{
+  assert_eq!( parse_description( HASH21 ), "Single-value hash of a 2D point into [0, 1)." );
+  assert_eq!( parse_description( VALUE_NOISE ), "Bilinear-interpolated value noise sampled at a 2D point, in [0, 1)." );
+  assert_eq!( parse_description( FBM3 ), "Fixed 3-octave fractal Brownian motion built on value_noise, in [0, 0.875]." );
+  assert_eq!
+  (
+    parse_description( FULLSCREEN_TRIANGLE ),
+    "Fullscreen-triangle vertex stage: 3 vertices, no vertex buffer, vertex_index alone picks the corner."
+  );
+}
+
+#[ test ]
+fn parse_stage_is_some_only_for_the_vertex_chunk()
+{
+  assert_eq!( parse_stage( HASH21 ), None );
+  assert_eq!( parse_stage( VALUE_NOISE ), None );
+  assert_eq!( parse_stage( FBM3 ), None );
+  assert_eq!( parse_stage( FULLSCREEN_TRIANGLE ), Some( "vertex" ) );
+}
+
+#[ test ]
+fn parse_exports_counts_match_each_chunk()
+{
+  assert_eq!( parse_exports( HASH21 ).len(), 1 );
+  assert_eq!( parse_exports( VALUE_NOISE ).len(), 1 );
+  assert_eq!( parse_exports( FBM3 ).len(), 1 );
+  assert_eq!( parse_exports( FULLSCREEN_TRIANGLE ).len(), 2 );
+}
+
+#[ test ]
+fn parse_tags_reads_every_bundled_chunk()
+{
+  assert_eq!( parse_tags( HASH21 ), vec![ ( "category", "hash" ) ] );
+  assert_eq!( parse_tags( VALUE_NOISE ), vec![ ( "category", "noise" ) ] );
+  assert_eq!( parse_tags( FBM3 ), vec![ ( "category", "noise" ), ( "technique", "fractal" ) ] );
+  assert_eq!( parse_tags( FULLSCREEN_TRIANGLE ), vec![ ( "category", "vertex" ) ] );
+}
+
+#[ test ]
+#[ should_panic( expected = "malformed `//@ tags:` entry" ) ]
+fn parse_tags_panics_on_malformed_entry()
+{
+  let _ = parse_tags( "//@ name: x\n//@ tags: not_a_pair\n" );
+}
+
+#[ test ]
+fn try_compose_matches_compose_output_on_success()
+{
+  let expected = compose( &[ FBM3, FULLSCREEN_TRIANGLE, VALUE_NOISE, HASH21 ] );
+  let actual = try_compose( &[ FBM3, FULLSCREEN_TRIANGLE, VALUE_NOISE, HASH21 ] ).expect( "should succeed" );
+  assert_eq!( actual, expected );
+}
+
+#[ test ]
+fn try_compose_returns_err_on_missing_dependency()
+{
+  let err = try_compose( &[ VALUE_NOISE, FBM3 ] ).expect_err( "should fail" );
+  assert!( matches!( err, ComposeError::MissingDependency { .. } ), "expected MissingDependency, got {err:?}" );
+}
+
+#[ test ]
+fn try_compose_returns_err_on_cyclic_dependency()
+{
+  const A : &str = "//@ name: a\n//@ depends_on: b\nfn a() {}";
+  const B : &str = "//@ name: b\n//@ depends_on: a\nfn b() {}";
+  let err = try_compose( &[ A, B ] ).expect_err( "should fail" );
+  assert!( matches!( err, ComposeError::CyclicDependency( _ ) ), "expected CyclicDependency, got {err:?}" );
 }

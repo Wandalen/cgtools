@@ -21,7 +21,9 @@ members = [
   "module/min/minwebgl",
   "module/min/minwebgpu",
   "module/min/minwgpu",
-  "module/min/shader_chunks",
+
+  # Shader modules
+  "module/shader/shader_chunks",
 
   # Helper modules
   "module/helper/animation",
@@ -211,9 +213,11 @@ path = "module/min/minwebgpu"
 version = "0.1.0"
 path = "module/min/minwgpu"
 
+# = shader
+
 [workspace.dependencies.shader_chunks]
 version = "0.1.0"
-path = "module/min/shader_chunks"
+path = "module/shader/shader_chunks"
 
 # = hal
 

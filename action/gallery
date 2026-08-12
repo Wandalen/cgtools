@@ -1,19 +1,25 @@
 #!/usr/bin/env bash
-# Regenerates examples/index.html's gallery region (stats + category/card listing) and
-# fully regenerates examples/index.md, both from action/run's own example discovery plus
-# each example's own readme.md — title from its first heading, description from the
-# paragraph following its **Keywords:** line. Single source of truth: no example metadata
-# is hand-maintained or duplicated in either generated file.
+# Regenerates examples/index.html's gallery region (stats + filter buttons + tag-group/card
+# listing) and fully regenerates examples/index.md, both from action/run's own example
+# discovery plus each example's own readme.md — title from its first heading, description
+# from the paragraph following its **Keywords:** line. Single source of truth: no example
+# metadata is hand-maintained or duplicated in either generated file.
 #
-# index.html is spliced between fixed marker comments (GALLERY:STATS:*, GALLERY:SECTIONS:*)
-# so the hand-authored CSS/header/footer/search-filter JS around it is never touched.
-# Browser-kind examples link to their own live-demo path (only resolves once GitHub Pages
-# actually hosts the built dist/ output there); other kinds link to GitHub's own rendered
-# readme.md view, since a plain relative link to raw markdown does not render as HTML once
-# deployed. index.md always links to each example's own readme.md — it's consumed via
-# GitHub's repo browser, where that has always rendered correctly.
+# Grouping is by tag — the group:key values each example declares in its own Cargo.toml's
+# [package.metadata.action] table. One section per distinct tag, listing every example that
+# carries it, so an example with several tags appears in each of those groups. An example
+# with no tags still counts in the stats but lands in no group — warned to stderr, never
+# dropped silently.
 #
-# `--check`: writes nothing; diffs freshly generated content against what's on disk and
+# index.html is spliced between fixed marker comments (GALLERY:STATS:*, GALLERY:FILTERS:*,
+# GALLERY:SECTIONS:*) so the hand-authored CSS/header/footer/search-filter JS around it is
+# never touched. Browser-kind examples link to their own live-demo path (only resolves once
+# GitHub Pages actually hosts the built dist/ output there); other kinds link to GitHub's
+# own rendered readme.md view, since a plain relative link to raw markdown does not render
+# as HTML once deployed. index.md always links to each example's own readme.md — it's
+# consumed via GitHub's repo browser, where that has always rendered correctly.
+#
+# `verify::1`: writes nothing; diffs freshly generated content against what's on disk and
 # exits non-zero (printing the diff) if either file would change — for CI drift detection.
 set -euo pipefail
 
@@ -25,50 +31,53 @@ _INDEX_MD="$_EXAMPLES_DIR/index.md"
 _GH_REPO="Wandalen/cgtools"
 _GH_BRANCH="master"
 
-_check=0
+_verify=0
 for _a in "$@"
 do
   case "$_a" in
-    --check) _check=1 ;;
-    *) printf 'error: unknown argument %q\n' "$_a" >&2; exit 2 ;;
+    verify::* )
+      _verify="${_a#verify::}"
+      if [[ "$_verify" != "0" && "$_verify" != "1" ]]
+      then
+        printf 'error: verify:: expects 0 or 1, got %q\n' "${_a#verify::}" >&2
+        exit 2
+      fi
+      ;;
+    * ) printf 'error: unknown argument %q (expected verify::1)\n' "$_a" >&2; exit 2 ;;
   esac
 done
 
 _tmp="$( mktemp -d )"
 trap 'rm -rf "$_tmp"' EXIT
 
-# Gallery category taxonomy: examples/<dir> -> data-category key / section title. Matches
-# the data-category/data-filter values already wired into index.html's CSS and filter JS.
-# Display order falls out naturally from action/run's own alphabetical-by-relpath discovery
-# order — examples/math < minwebgl < minwebgpu < minwgpu < orrery < scene_script <
-# tiles_tools — so no separate sort/bucketing step is needed here.
-_category_key()
-{
-  case "$1" in
-    minwebgl) printf 'webgl' ;;
-    minwebgpu) printf 'webgpu' ;;
-    minwgpu) printf 'wgpu' ;;
-    *) printf '%s' "$1" ;;
-  esac
-}
-
-_category_title()
-{
-  case "$1" in
-    math) printf 'Math Examples' ;;
-    webgl) printf 'WebGL Examples' ;;
-    webgpu) printf 'WebGPU Examples' ;;
-    wgpu) printf 'WGPU Examples' ;;
-    orrery) printf 'Orrery Examples' ;;
-    scene_script) printf 'Scripting Examples' ;;
-    tiles_tools) printf 'Tiles Tools Examples' ;;
-    *) printf '%s Examples' "$1" ;;
-  esac
-}
-
+# GitHub-anchor slug for index.md's TOC: lowercase, drop everything outside [a-z0-9 -],
+# then each space to a hyphen — `API · WebGL` → `api--webgl` (the `·` is removed, its
+# two surrounding spaces each become a hyphen), matching the anchor GitHub itself
+# generates for that heading. Spaces map one-to-one, never collapsed.
 _slugify()
 {
-  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9 -]//g; s/ /-/g'
+}
+
+# Friendly display label for a "group:name" tag (e.g. api:webgl -> "API · WebGL").
+# Both halves fall back to _title_case_fallback so an outlier tag not special-cased
+# below (e.g. scene:orrery) still renders sensibly instead of being hardcoded here.
+_tag_label()
+{
+  local _group="${1%%:*}" _name="${1#*:}" _group_label _name_label
+  case "$_group" in
+    api) _group_label="API" ;;
+    runtime) _group_label="Runtime" ;;
+    scene) _group_label="Scene" ;;
+    *) _group_label="$( _title_case_fallback "$_group" )" ;;
+  esac
+  case "$_name" in
+    webgl) _name_label="WebGL" ;;
+    webgpu) _name_label="WebGPU" ;;
+    wgpu) _name_label="WGPU" ;;
+    *) _name_label="$( _title_case_fallback "$_name" )" ;;
+  esac
+  printf '%s · %s' "$_group_label" "$_name_label"
 }
 
 _html_escape()
@@ -133,53 +142,31 @@ _title_case_fallback()
 
 _tmp_stats="$_tmp/stats.html"
 _tmp_sections="$_tmp/sections.html"
+_tmp_tagfilters="$_tmp/tagfilters.html"
 _tmp_md_body="$_tmp/body.md"
+mkdir -p "$_tmp/card" "$_tmp/mdrow"
 : > "$_tmp_sections"
 : > "$_tmp_md_body"
 
 _total=0
 _browser=0
 _with_showcase=0
-_categories=""
-_current_cat=""
-_cat_count=0
-_cat_buffer="$_tmp/cat_buffer.html"
-_md_cat_buffer="$_tmp/cat_buffer.md"
-: > "$_cat_buffer"
-: > "$_md_cat_buffer"
+_example_ids=()
+_example_tags=()
 
-_flush_category()
-{
-  [[ -n "$_current_cat" ]] || return 0
-  local _title _plural
-  _title="$( _category_title "$_current_cat" )"
-  _plural="s"
-  [[ $_cat_count -eq 1 ]] && _plural=""
-  {
-    printf '        <!-- %s -->\n' "$_title"
-    printf '        <section class="category-section" data-category="%s">\n' "$_current_cat"
-    printf '            <div class="category-header">\n'
-    printf '                <h2>%s</h2>\n' "$_title"
-    printf '                <span class="category-badge">%s demo%s</span>\n' "$_cat_count" "$_plural"
-    printf '            </div>\n'
-    printf '            <div class="demo-grid">\n'
-    cat "$_cat_buffer"
-    printf '            </div>\n'
-    printf '        </section>\n'
-    printf '\n'
-  } >> "$_tmp_sections"
-
-  {
-    printf '\n## %s\n\n' "$_title"
-    printf 'Example | Description\n--- | ---\n'
-    cat "$_md_cat_buffer"
-  } >> "$_tmp_md_body"
-}
-
+# Pass 1: render every example's card and md row exactly once, keyed by its stable
+# discovery id; remember its tags. Grouping happens in pass 2, so an example carrying
+# several tags is rendered once and then emitted into each of its groups.
 while IFS='|' read -r _id _relpath _kind _tags
 do
   _total=$(( _total + 1 ))
   [[ "$_kind" == "browser" ]] && _browser=$(( _browser + 1 ))
+  if [[ -z "$_tags" ]]
+  then
+    printf 'warning: %s declares no tags — it will appear in no tag group\n' "$_relpath" >&2
+  fi
+  _example_ids+=( "$_id" )
+  _example_tags+=( "$_tags" )
 
   _absdir="$_REPO_ROOT/$_relpath"
   _relpath_short="${_relpath#examples/}"
@@ -187,23 +174,6 @@ do
   _title="$( _extract_title "$_absdir" )"
   [[ -n "$_title" ]] || _title="$( _title_case_fallback "$( basename "$_relpath" )" )"
   _desc="$( _extract_description "$_absdir" )"
-
-  _cat_dir="$( cut -d/ -f2 <<< "$_relpath" )"
-  _cat="$( _category_key "$_cat_dir" )"
-
-  if [[ "$_cat" != "$_current_cat" ]]
-  then
-    _flush_category
-    _current_cat="$_cat"
-    _cat_count=0
-    : > "$_cat_buffer"
-    : > "$_md_cat_buffer"
-    case ",$_categories," in
-      *",$_cat,"*) ;;
-      *) _categories="${_categories:+$_categories,}$_cat" ;;
-    esac
-  fi
-  _cat_count=$(( _cat_count + 1 ))
 
   _title_esc="$( _html_escape "$_title" )"
   _desc_esc="$( _html_escape "$( _strip_markdown "$_desc" )" )"
@@ -228,7 +198,7 @@ do
   fi
 
   {
-    printf '                <article class="demo-card" role="article" data-name="%s">\n' "$_name"
+    printf '                <article class="demo-card" role="article" data-name="%s" data-path="%s" data-tags="%s">\n' "$_name" "$_relpath_short" "$_tags"
     printf '                    <div class="demo-image">\n'
     printf '%s\n' "$_image_html"
     printf '                    </div>\n'
@@ -245,17 +215,70 @@ do
     printf '                    </div>\n'
     printf '                </article>\n'
     printf '\n'
-  } >> "$_cat_buffer"
+  } > "$_tmp/card/$_id.html"
 
   _md_desc="${_desc//|/\\|}"
   [[ -n "$_md_desc" ]] || _md_desc="—"
-  printf '[%s](%s) | %s\n' "${_title//|/\\|}" "$_readme_link" "$_md_desc" >> "$_md_cat_buffer"
-done < <( "$_SCRIPT_DIR/run" list --raw )
+  printf '[%s](%s) | %s\n' "${_title//|/\\|}" "$_readme_link" "$_md_desc" > "$_tmp/mdrow/$_id.md"
+done < <( "$_SCRIPT_DIR/run" list raw::1 )
 
-_flush_category
+# Pass 2: one section per distinct tag, C-collated so group order is deterministic
+# (api:* < runtime:* < scene:*); an example appears in every group whose tag it
+# carries, its single pass-1 card emitted into each. Members keep pass 1's discovery
+# order within each group. The filter row is generated from the same tag list with
+# data-filter values equal to each section's data-category, so the hand-authored
+# filter JS (exact string match) keeps working unchanged.
+_all_tags="$( printf '%s\n' "${_example_tags[@]}" | tr ',' '\n' | sed '/^$/d' | LC_ALL=C sort -u )"
 
-_category_count=0
-[[ -n "$_categories" ]] && _category_count="$( awk -F, '{print NF}' <<< "$_categories" )"
+printf '            <button class="filter-btn active" data-filter="all">All Tags</button>\n' > "$_tmp_tagfilters"
+
+_group_count=0
+while IFS= read -r _tag
+do
+  [[ -n "$_tag" ]] || continue
+  _group_count=$(( _group_count + 1 ))
+  _label="$( _tag_label "$_tag" )"
+
+  _members=()
+  for _i in "${!_example_ids[@]}"
+  do
+    case ",${_example_tags[$_i]}," in
+      *",$_tag,"*) _members+=( "${_example_ids[$_i]}" ) ;;
+    esac
+  done
+
+  _n=${#_members[@]}
+  _plural="s"
+  [[ $_n -eq 1 ]] && _plural=""
+
+  printf '            <button class="filter-btn" data-filter="%s">%s</button>\n' "$_tag" "$_label" >> "$_tmp_tagfilters"
+
+  {
+    printf '        <!-- %s -->\n' "$_tag"
+    printf '        <section class="category-section" data-category="%s">\n' "$_tag"
+    printf '            <div class="category-header">\n'
+    printf '                <h2>%s</h2>\n' "$_label"
+    printf '                <span class="category-badge">%s demo%s</span>\n' "$_n" "$_plural"
+    printf '            </div>\n'
+    printf '            <div class="demo-grid">\n'
+    for _m in "${_members[@]}"
+    do
+      cat "$_tmp/card/$_m.html"
+    done
+    printf '            </div>\n'
+    printf '        </section>\n'
+    printf '\n'
+  } >> "$_tmp_sections"
+
+  {
+    printf '\n## %s\n\n' "$_label"
+    printf 'Example | Description\n--- | ---\n'
+    for _m in "${_members[@]}"
+    do
+      cat "$_tmp/mdrow/$_m.md"
+    done
+  } >> "$_tmp_md_body"
+done <<< "$_all_tags"
 
 {
   printf '        <div class="stat-card" aria-live="polite" aria-atomic="true">\n'
@@ -271,8 +294,8 @@ _category_count=0
   printf '            <div class="stat-label">With Showcase</div>\n'
   printf '        </div>\n'
   printf '        <div class="stat-card">\n'
-  printf '            <div class="stat-number">%s</div>\n' "$_category_count"
-  printf '            <div class="stat-label">Categories</div>\n'
+  printf '            <div class="stat-number">%s</div>\n' "$_group_count"
+  printf '            <div class="stat-label">Tag Groups</div>\n'
   printf '        </div>\n'
 } > "$_tmp_stats"
 
@@ -287,29 +310,30 @@ _splice_between()
   ' "$_in" > "$_out"
 }
 
-if ! grep -qF '<!-- GALLERY:STATS:BEGIN -->' "$_INDEX_HTML" || ! grep -qF '<!-- GALLERY:SECTIONS:BEGIN -->' "$_INDEX_HTML"
+if ! grep -qF '<!-- GALLERY:STATS:BEGIN -->' "$_INDEX_HTML" || ! grep -qF '<!-- GALLERY:SECTIONS:BEGIN -->' "$_INDEX_HTML" || ! grep -qF '<!-- GALLERY:TAGFILTERS:BEGIN -->' "$_INDEX_HTML"
 then
-  printf 'error: examples/index.html is missing its GALLERY marker comments (GALLERY:STATS:BEGIN/END, GALLERY:SECTIONS:BEGIN/END) — they must exist once, by hand, before this script can splice into it\n' >&2
+  printf 'error: examples/index.html is missing its GALLERY marker comments (GALLERY:STATS:BEGIN/END, GALLERY:TAGFILTERS:BEGIN/END, GALLERY:SECTIONS:BEGIN/END) — they must exist once, by hand, before this script can splice into it\n' >&2
   exit 1
 fi
 
 _splice_between "$_INDEX_HTML" '<!-- GALLERY:STATS:BEGIN -->' '<!-- GALLERY:STATS:END -->' "$_tmp_stats" "$_tmp/step1.html"
-_splice_between "$_tmp/step1.html" '<!-- GALLERY:SECTIONS:BEGIN -->' '<!-- GALLERY:SECTIONS:END -->' "$_tmp_sections" "$_tmp/index.html.new"
+_splice_between "$_tmp/step1.html" '<!-- GALLERY:TAGFILTERS:BEGIN -->' '<!-- GALLERY:TAGFILTERS:END -->' "$_tmp_tagfilters" "$_tmp/step2.html"
+_splice_between "$_tmp/step2.html" '<!-- GALLERY:SECTIONS:BEGIN -->' '<!-- GALLERY:SECTIONS:END -->' "$_tmp_sections" "$_tmp/index.html.new"
 
 {
   printf '# Examples\n\n'
-  printf 'Interactive WebGL/WebGPU examples demonstrating CGTools capabilities. Generated by `action/gallery` from each example'"'"'s own readme.md — do not hand-edit.\n\n'
+  printf 'Interactive WebGL/WebGPU examples demonstrating CGTools capabilities, grouped by tag — an example appears in every group whose tag it carries. Generated by `action/gallery` from each example'"'"'s own readme.md — do not hand-edit.\n\n'
   printf '## Table of Contents\n\n'
-  IFS=',' read -ra _cat_list <<< "$_categories"
-  for _c in "${_cat_list[@]}"
+  while IFS= read -r _tag
   do
-    _t="$( _category_title "$_c" )"
-    printf -- '- [%s](#%s)\n' "$_t" "$( _slugify "$_t" )"
-  done
+    [[ -n "$_tag" ]] || continue
+    _label="$( _tag_label "$_tag" )"
+    printf -- '- [%s](#%s)\n' "$_label" "$( _slugify "$_label" )"
+  done <<< "$_all_tags"
   cat "$_tmp_md_body"
 } > "$_tmp/index.md.new"
 
-if (( _check ))
+if (( _verify ))
 then
   _drift=0
   if ! diff -u "$_INDEX_HTML" "$_tmp/index.html.new" > "$_tmp/diff_html.txt"
@@ -329,11 +353,11 @@ then
     printf 'error: gallery is out of date — run action/gallery to regenerate\n' >&2
     exit 1
   fi
-  printf 'gallery is up to date (%d examples)\n' "$_total"
+  printf 'gallery is up to date (%d examples, %d tag groups)\n' "$_total" "$_group_count"
   exit 0
 fi
 
 cp "$_tmp/index.html.new" "$_INDEX_HTML"
 cp "$_tmp/index.md.new" "$_INDEX_MD"
-printf 'regenerated examples/index.html and examples/index.md (%d examples, %d live demos, %d with showcase, %d categories)\n' \
-  "$_total" "$_browser" "$_with_showcase" "$_category_count"
+printf 'regenerated examples/index.html and examples/index.md (%d examples, %d live demos, %d with showcase, %d tag groups)\n' \
+  "$_total" "$_browser" "$_with_showcase" "$_group_count"

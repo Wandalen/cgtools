@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Check examples/index.html + index.md are up to date
-        run: action/gallery --check
+        run: action/gallery verify::1
 
   build-deploy:
     if: github.event_name != 'pull_request'
@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Check examples/index.html + index.md are up to date
-        run: action/gallery --check
+        run: action/gallery verify::1
 
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown

@@ -66,7 +66,7 @@ do
     _failed=$(( _failed + 1 ))
     printf 'warning: trunk build failed for %s -- its demo link will 404 on the deployed site\n' "$_relpath" >&2
   fi
-done < <( "$_SCRIPT_DIR/run" list --raw )
+done < <( "$_SCRIPT_DIR/run" list raw::1 )
 
 printf 'staged %s: %d demo(s) built, %d failed\n' "$_out" "$_built" "$_failed"
 (( _failed == 0 ))

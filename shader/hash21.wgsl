@@ -1,5 +1,6 @@
 //@ name: hash21
 //@ description: Single-value hash of a 2D point into [0, 1).
+//@ tags: category:hash
 //@ depends_on:
 //@ export: fn hash21(p: vec2f) -> f32
 

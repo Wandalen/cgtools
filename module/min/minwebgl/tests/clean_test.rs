@@ -6,8 +6,7 @@
 
 use minwebgl::{ clean::attachment_id_convert, WebglError };
 
-/// bug_reproducer(TASK-011)
-///
+// test_kind: bug_reproducer(TASK-011)
 /// ## Root Cause
 /// `framebuffer_texture_2d_array`/`framebuffer_renderbuffer_array` converted each
 /// caller-supplied attachment id via `TryInto< u32 >` then `.expect()` the conversion —

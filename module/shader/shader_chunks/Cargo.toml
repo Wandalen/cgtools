@@ -2,6 +2,7 @@
 name = "shader_chunks"
 version = "0.1.0"
 edition = "2024"
+description = "Manifest-driven WGSL shader-chunk composer — topologically sorts and concatenates reusable shader functions by dependency"
 
 [dependencies]
 mod_interface.workspace = true

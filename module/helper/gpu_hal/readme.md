@@ -79,6 +79,16 @@ on pixels read back from the offscreen target.
 
 ## Context
 
+- `docs/definition/readme.md` — this crate's own feature / invariant / pattern / pitfall documentation
 - `docs/layer/002_l1_gpu_hal.md` — the layer's contract
 - `docs/explorations/001_gpu_hal_buy_vs_build.md` — the build-vs-buy analysis behind building thin
 - `docs/adr/001_multi_stack_rendering_architecture.md` — the architecture this crate serves
+
+## Directory Layout
+
+| Path | Responsibility |
+|------|----------------|
+| `src/` | Crate source — device/queue/surface, resource, pipeline, pass, and error wrappers over three backends |
+| `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
+| `tests/` | Integration tests (native backend only) |
+| `readme.md` | This file — user-facing entry point |

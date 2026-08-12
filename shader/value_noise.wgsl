@@ -1,5 +1,6 @@
 //@ name: value_noise
 //@ description: Bilinear-interpolated value noise sampled at a 2D point, in [0, 1).
+//@ tags: category:noise
 //@ depends_on: hash21
 //@ export: fn value_noise(p: vec2f) -> f32
 

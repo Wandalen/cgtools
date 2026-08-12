@@ -8,6 +8,7 @@
 | blender_tests.rs | Tests animation blending |
 | color_grading_tests.rs | Tests color grading pipeline |
 | geometry_tests.rs | Tests `Geometry` attribute API (add_attribute duplicate handling) |
+| webgl/pbr_material.rs | Tests PBR material enums (`CullMode`, `AlphaMode`) — defaults, variants, clone/copy |
 | scaler_tests.rs | Tests animation scaling |
 | skeleton_tests.rs | Tests skeleton stuff |
 | animation_graph_tests.rs | Tests animation graph stuff |

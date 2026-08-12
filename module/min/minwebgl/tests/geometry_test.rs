@@ -16,12 +16,31 @@ fn validate_natoms_accepts_supported_values()
 }
 
 // test_kind: bug_reproducer(BUG-052)
+/// ## Root Cause
+/// `natoms_validate` (relocated from inline `src/geometry.rs`) panicked via
+/// `panic!( "Unsapported buffer descriptor" )` on an unsupported `natoms` value
+/// instead of returning a recoverable error.
+///
+/// ## Why Not Caught
+/// The check lived inline in `src/geometry.rs` with no standalone function to call
+/// directly, so nothing could unit-test the unsupported-`natoms` path in isolation
+/// before this fix extracted it.
+///
+/// ## Fix Applied
+/// Extracted the check into `natoms_validate`, returning `Result< (), WebglError >`
+/// (`WebglError::NotSupportedForType`) instead of panicking; the BUG-052 contract —
+/// unsupported `natoms` returns `Err`, never panics — is otherwise unchanged.
+///
+/// ## Prevention
 /// RED state (empirically confirmed): reverting this helper's body to the pre-fix
 /// `panic!( "Unsapported buffer descriptor" )` and marking this test `#[should_panic]`
 /// genuinely panics — verified via a temporary probe before this fix was finalized.
-/// The original probe value was `3`; task 062's switch removal made `1 ..= 4`
-/// supported, so the unsupported probes moved outside that range. The BUG-052
-/// contract under test is unchanged: unsupported `natoms` returns `Err`, never panics.
+///
+/// ## Pitfall
+/// The probe values are relative to the currently-supported range, not fixed: the
+/// original probe value was `3`; task 062's switch removal made `1 ..= 4` supported,
+/// so the unsupported probes moved outside that range to `[ 0, 5, -1 ]`. A future
+/// change to the supported range must re-check these probes still fall outside it.
 #[ test ]
 fn validate_natoms_rejects_unsupported_value()
 {

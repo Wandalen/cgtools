@@ -1,5 +1,6 @@
 //@ name: fbm3
 //@ description: Fixed 3-octave fractal Brownian motion built on value_noise, in [0, 0.875].
+//@ tags: category:noise, technique:fractal
 //@ depends_on: value_noise
 //@ export: fn fbm3(p: vec2f) -> f32
 

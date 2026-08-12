@@ -18,7 +18,7 @@ implementation.
 | `src/lib.rs` | Crate entry point; re-exports each layer plus `rhai` itself. |
 | `src/vector_binding.rs` | Registers `ndarray_cg::F32x2` and `F64x2` into a `rhai::Engine`: constructors, `.x`/`.y`, `+`/`-`/`*` operators. |
 | `src/tween_binding.rs` | Registers `animation::Tween< F32x2 >` and `Tween< F64x2 >` into a `rhai::Engine`: `tween(...)` constructor, `.update`/`.value`/`.is_completed`. |
-| `src/engine.rs` | `build_engine()` — a `rhai::Engine` with all four bindings pre-registered. |
+| `src/engine.rs` | `engine_build()` — a `rhai::Engine` with all four bindings pre-registered. |
 | `src/top_level_lint.rs` | `check_top_level_is_declarative()` — rejects imperative code sitting outside of a function. |
 | `tests/engine_test.rs` | Smoke tests for all four registrations, plus a distinctness check between `F32x2` and `F64x2`. |
 | `tests/example_convention_test.rs` | Checks every `examples/scene_script/*/src/*.rhai` script against `check_top_level_is_declarative()`, plus the checker's own accept/reject cases. |

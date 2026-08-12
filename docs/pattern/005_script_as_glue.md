@@ -23,7 +23,7 @@ and a redeploy, exactly the loop scripting exists to break.
 
 Embed a scripting language and curate its surface:
 
-- The host assembles an interpreter (`build_engine()` in the known use,
+- The host assembles an interpreter (`engine_build()` in the known use,
   over Rhai) and registers bindings — each binding module exposes one slice
   of engine vocabulary (vectors, tweens) into script space.
 - The script is code: it calls the bound API imperatively, and new behavior
@@ -92,7 +92,7 @@ retrofit.
 
 | File | Relationship |
 |------|--------------|
-| `module/helper/scene_script/src/engine.rs` | Interpreter assembly (`build_engine()`) |
+| `module/helper/scene_script/src/engine.rs` | Interpreter assembly (`engine_build()`) |
 | `module/helper/scene_script/src/tween_binding.rs` | Binding slice: animation tweens |
 | `module/helper/scene_script/src/vector_binding.rs` | Binding slice: vector math |
 | `module/helper/scene_script/src/top_level_lint.rs` | Structural check: imperative code confined to `main()` |
