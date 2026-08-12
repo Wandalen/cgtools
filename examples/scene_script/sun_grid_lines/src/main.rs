@@ -13,7 +13,7 @@
 // path below is a stub, and the scene tests live in `tests/scene_test.rs`
 // against the library target.
 #[cfg( target_arch = "wasm32" )]
-use minwebgpu_sun_grid_lines::scene;
+use sun_grid_lines::scene;
 
 #[cfg( target_arch = "wasm32" )]
 use minwebgpu as gl;

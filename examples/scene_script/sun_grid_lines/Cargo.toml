@@ -1,5 +1,5 @@
 [package]
-name = "minwebgpu_sun_grid_lines"
+name = "sun_grid_lines"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
