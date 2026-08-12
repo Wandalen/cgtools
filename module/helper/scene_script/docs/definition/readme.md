@@ -35,7 +35,7 @@
 | pitfall | 003 | `rhai::serde`'s Bridge Requires the Exact `FLOAT` Type | [pitfall/003_rhai_serde_bridge_requires_exact_float_type.md](../pitfall/003_rhai_serde_bridge_requires_exact_float_type.md) |
 | pitfall | 004 | f32 Boundary Cast Silently Truncates Precision | [pitfall/004_f32_boundary_cast_truncates_precision.md](../pitfall/004_f32_boundary_cast_truncates_precision.md) |
 | pitfall | 005 | `OptimizationLevel::Simple` Folds Trivial Top-Level Constructs | [pitfall/005_optimization_level_simple_folds_trivial_top_level_constructs.md](../pitfall/005_optimization_level_simple_folds_trivial_top_level_constructs.md) |
-| pitfall | 006 | Only Linear Easing Is Exposed to Scripts | [pitfall/006_only_linear_easing_is_exposed_to_scripts.md](../pitfall/006_only_linear_easing_is_exposed_to_scripts.md) |
+| pitfall | 006 | Parameterized Easing Curves Are Unreachable by Name | [pitfall/006_parameterized_easing_curves_are_unreachable_by_name.md](../pitfall/006_parameterized_easing_curves_are_unreachable_by_name.md) |
 | type | 001 | F32x2 (Script-Facing Vector Value) | [type/001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) |
 | type | 002 | F64x2 (Script-Facing Vector Value) | [type/002_f64x2_script_facing_vector_value.md](../type/002_f64x2_script_facing_vector_value.md) |
 | type | 003 | F32x1 (Script-Facing Vector Value) | [type/003_f32x1_script_facing_vector_value.md](../type/003_f32x1_script_facing_vector_value.md) |

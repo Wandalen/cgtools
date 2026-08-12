@@ -12,7 +12,7 @@
 
 ### Definition
 
-`F64x2` is a 2-component vector value, each component held at double (`f64`) precision. A script constructs one via `f64x2(x, y)` and reads its components via `.x`/`.y` — read-only; no operation registered anywhere mutates an existing `F64x2` in place. Every operation that produces an `F64x2` (`f64x2(...)`, `+`, `-`, `*`) produces a *new* value; there is no way to change one in place. Identity is purely structural: two `F64x2` values built from the same `(x, y)` are indistinguishable to a script, with no separate identity beyond their own components — this is what makes it a value object rather than a DDD entity, which would carry identity and lifecycle independent of its current attribute values.
+`F64x2` is a 2-component vector value, each component held at double (`f64`) precision. A script constructs one via `f64x2(x, y)` and reads its components via `.x`/`.y` — read-only; no operation registered anywhere mutates an existing `F64x2` in place. Every operation that produces an `F64x2` (`f64x2(...)`, `+`, `-`, `*`, unary `-`, `normalize`, `min`, `max`) produces a *new* value; there is no way to change one in place — this includes `normalize`, despite its name suggesting in-place mutation. Identity is purely structural: two `F64x2` values built from the same `(x, y)` are indistinguishable to a script, with no separate identity beyond their own components — this is what makes it a value object rather than a DDD entity, which would carry identity and lifecycle independent of its current attribute values.
 
 The domain meaning is deliberately unconstrained: `scene_script` registers no interpretation beyond "a 2D double-precision vector." Whether a given `F64x2` stands for a position, a velocity, or an offset is a convention the calling script and host establish between themselves — this type carries no tag or field recording which.
 
@@ -43,10 +43,10 @@ No construction is ever rejected. `f64x2(x, y)` accepts any two values Rhai can 
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f64x2_register` — constructor, `.x`/`.y` getters, `+`/`-`/`*` operators, `to_string` |
+| `src/vector_binding.rs` | `f64x2_register` — constructor, `.x`/`.y` getters, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`min`/`max` (all native `f64`, no boundary cast), `to_string` |
 
 ### Tests
 
 | File | Relationship |
 |------|--------------|
-| `tests/engine_test.rs` | `f64x2_arithmetic_roundtrip`, `f32x2_and_f64x2_are_distinct_types_not_interchangeable` |
+| `tests/engine_test.rs` | `f64x2_arithmetic_roundtrip`, `f32x2_and_f64x2_are_distinct_types_not_interchangeable`, `vector_f64_universal_math_uses_native_precision_without_casting` — confirms `dot`/`mag` need no boundary cast on this type |

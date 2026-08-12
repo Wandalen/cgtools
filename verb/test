@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+#@ purpose: Full/final verification gate (CLAUDE.md's `verb/test` — phase/task completion
+#@          gates, not ordinary per-increment checks; use `verb/test_only` for those).
+#@          Native workspace suite (nextest + doctests + clippy), plus two wasm32 stages:
+#@          (1) a compile check over every browser-kind example, so a compile break that
+#@          only manifests on the wasm32 target (e.g. a workspace dependency's default
+#@          features silently changing, as happened with error_tools 0.41 breaking
+#@          `mingl`) fails this gate instead of only 404-ing on the deployed site; (2) the
+#@          actual wasm_bindgen_test suites (browser-driven via the runner wired up in
+#@          .cargo/config.toml), discovered by content rather than hardcoded, since those
+#@          tests are cfg-gated to wasm32 and invisible to the native nextest stage above.
+#@ warning: Never env-prefix RUSTFLAGS/RUSTDOCFLAGS here: .cargo/config.toml's [build] and
+#@          [target.wasm32-unknown-unknown] sections carry --cfg flags
+#@          (web_sys_unstable_apis, getrandom_backend) this workspace needs to compile at
+#@          all; an env var replaces those wholesale instead of merging, producing spurious
+#@          failures. Lint denial goes through clippy's own `-- -D warnings` args instead.
+#@ output:  Runs native stages in order, stops at the first failing stage. Both wasm32
+#@          stages run to completion even after a failure (one broken example/crate
+#@          doesn't hide failures in the rest), printing `=== wasm32 check: <path> ===` /
+#@          `=== wasm32 test: <path> ===` per item and a summary count each — but the
+#@          script's own exit code is still non-zero if anything failed anywhere.
+#@          Long-running: launch via `longrun .launch`, never run directly in the
+#@          foreground.
+set -euo pipefail
+
+if [[ "${1:-}" == "." ]]
+then
+  printf '\n  %s\n\n' "$(basename "$0")"
+  sed -n 's/^#@ /  /p' "$0"
+  printf '\n'
+  exit 0
+fi
+
+_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+_REPO_ROOT="$( cd "$_SCRIPT_DIR/.." && pwd )"
+cd "$_REPO_ROOT"
+
+printf '=== native: cargo nextest run --all-features --workspace ===\n'
+cargo nextest run --all-features --workspace
+
+printf '=== native: cargo test --doc --all-features --workspace ===\n'
+cargo test --doc --all-features --workspace
+
+printf '=== native: cargo clippy --all-targets --all-features --workspace ===\n'
+cargo clippy --all-targets --all-features --workspace -- -D warnings
+
+printf '=== wasm32: rustup target add wasm32-unknown-unknown ===\n'
+rustup target add wasm32-unknown-unknown
+
+_wasm_failed=0
+
+# Stage 1: compile-check every browser-kind example -- catches a workspace
+# dependency's compile break that only manifests on the wasm32 target (e.g.
+# error_tools 0.41 breaking mingl), scoped exactly like action/build_site's
+# trunk loop.
+_checked=0
+_failed=0
+while IFS='|' read -r _id _relpath _kind _tags
+do
+  [[ "$_kind" == "browser" ]] || continue
+  printf '=== wasm32 check: %s ===\n' "$_relpath"
+  if ( cd "$_REPO_ROOT/$_relpath" && cargo check --target wasm32-unknown-unknown )
+  then
+    _checked=$(( _checked + 1 ))
+  else
+    _failed=$(( _failed + 1 ))
+    printf 'error: wasm32 check failed for %s\n' "$_relpath" >&2
+  fi
+done < <( "$_REPO_ROOT/action/run" list raw::1 )
+printf 'wasm32 check: %d example(s) checked, %d failed\n' "$_checked" "$_failed"
+(( _failed == 0 )) || _wasm_failed=1
+
+# Stage 2: actually run every wasm_bindgen_test suite -- these are cfg-gated
+# to wasm32 (see e.g. module/min/minwebgpu/tests/), so the native nextest
+# stage above never sees them at all, compiled out entirely. Browser-driven
+# via the runner wired up in .cargo/config.toml's [target.wasm32-unknown-unknown].
+# Discovered by content, never hardcoded, so a future crate adding
+# wasm-only tests is picked up automatically.
+_wasm_test_dirs=()
+while IFS= read -r _f
+do
+  _d="$( cd "$( dirname "$_f" )" && pwd )"
+  while [[ "$_d" != "$_REPO_ROOT" && ! -f "$_d/Cargo.toml" ]]
+  do
+    _d="$( dirname "$_d" )"
+  done
+  [[ -f "$_d/Cargo.toml" ]] && _wasm_test_dirs+=( "$_d" )
+done < <( grep -rl 'wasm_bindgen_test' --include='*.rs' "$_REPO_ROOT/module" "$_REPO_ROOT/examples" 2>/dev/null )
+
+if (( ${#_wasm_test_dirs[@]} > 0 ))
+then
+  mapfile -t _wasm_test_dirs < <( printf '%s\n' "${_wasm_test_dirs[@]}" | sort -u )
+  _wtested=0
+  _wtfailed=0
+  for _d in "${_wasm_test_dirs[@]}"
+  do
+    printf '=== wasm32 test: %s ===\n' "${_d#"$_REPO_ROOT"/}"
+    if ( cd "$_d" && cargo test --target wasm32-unknown-unknown --all-features )
+    then
+      _wtested=$(( _wtested + 1 ))
+    else
+      _wtfailed=$(( _wtfailed + 1 ))
+      printf 'error: wasm32 test suite failed for %s\n' "${_d#"$_REPO_ROOT"/}" >&2
+    fi
+  done
+  printf 'wasm32 test: %d crate(s) tested, %d failed\n' "$_wtested" "$_wtfailed"
+  (( _wtfailed == 0 )) || _wasm_failed=1
+else
+  printf 'wasm32 test: no wasm_bindgen_test suites found -- skipping\n'
+fi
+
+(( _wasm_failed == 0 ))

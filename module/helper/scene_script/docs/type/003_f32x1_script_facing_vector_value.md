@@ -12,7 +12,7 @@
 
 ### Definition
 
-`F32x1` is the minimal member of `ndarray_cg`'s `{Element}x{Arity}` family: a 1-component vector held at single (`f32`) precision. A script constructs one via `f32x1(x)` and reads its component via `.x` — read-only; no operation registered anywhere mutates an existing `F32x1` in place. Every operation that produces an `F32x1` (`f32x1(...)`, `+`, `-`, `*`) produces a *new* value; there is no way to change one in place. Identity is purely structural: two `F32x1` values built from the same `x` are indistinguishable to a script, with no separate identity beyond their own component.
+`F32x1` is the minimal member of `ndarray_cg`'s `{Element}x{Arity}` family: a 1-component vector held at single (`f32`) precision. A script constructs one via `f32x1(x)` and reads its component via `.x` — read-only; no operation registered anywhere mutates an existing `F32x1` in place. Every operation that produces an `F32x1` (`f32x1(...)`, `+`, `-`, `*`, unary `-`, `normalize`, `min`, `max`) produces a *new* value; there is no way to change one in place — this includes `normalize`, despite its name suggesting in-place mutation. Identity is purely structural: two `F32x1` values built from the same `x` are indistinguishable to a script, with no separate identity beyond their own component.
 
 At arity 1, `F32x1` carries no arithmetic behavior a raw `f32` scalar wouldn't already have — its purpose is uniformity, not new capability: it lets the vector family's registration pattern ([`pattern/002`](../pattern/002_dual_precision_side_by_side_registration.md)) and a script's mental model extend down to a single component without a special case. The domain meaning is otherwise deliberately unconstrained, same as every other arity: `scene_script` registers no interpretation beyond "a 1D single-precision vector."
 
@@ -49,10 +49,10 @@ No construction is ever rejected. `f32x1(x)` accepts any value Rhai can supply a
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f32x1_register` — constructor, `.x` getter, `+`/`-`/`*` operators, `to_string` |
+| `src/vector_binding.rs` | `f32x1_register` — constructor, `.x` getter, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`min`/`max`, `to_string` |
 
 ### Tests
 
 | File | Relationship |
 |------|--------------|
-| `tests/engine_test.rs` | `f32x1_arithmetic_roundtrip` |
+| `tests/engine_test.rs` | `f32x1_arithmetic_roundtrip`; `F32x1` is also the representative type for every new `Tween` operation's test: `tween_progress_reports_fraction_of_duration_elapsed`, `tween_builder_methods_configure_duration_and_delay`, `tween_time_accumulates_elapsed_delta_time`, `tween_pause_halts_further_progress_until_resumed`, `tween_reset_returns_to_start_value`, `tween_current_repeat_increments_after_each_repeat_cycle`, `tween_with_yoyo_reverses_direction_on_alternate_repeats`, `tween_state_reports_animation_lifecycle_stage`, `tween_with_easing_selector_accepts_named_curve`, `tween_with_easing_selector_rejects_unknown_curve_name` |

@@ -31,8 +31,8 @@ shader_chunks list
 ```
 
 ### Notes
-- Read-only — never modifies chunk data, only reads and renders what
-  `shader_chunks_core::ALL_CHUNKS` already parses.
+- Read-only — never modifies chunk data, only reads and renders the chunks
+  the `shader_chunks_core::CHUNKS` table bundles.
 - Output format: [`table_plain`](../format/01_table_plain.md).
 
 ### Related Commands

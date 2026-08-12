@@ -30,6 +30,7 @@ Bug reports for the cgtools workspace. IDs share the tsk Unified ID namespace tr
 | ID | Title | Severity | Component | Filed | State |
 |----|-------|----------|-----------|-------|-------|
 | BUG-101 | [`animation_surface_rendering`'s pinned `kurbo`/`peniko` versions no longer match the unpinned `interpoli` git dependency's current requirements, breaking `cargo check --workspace`](./draft/101_animation_surface_rendering_kurbo_peniko_version_skew.md) | High | examples/minwebgl/animation_surface_rendering | 2026-08-12 | Draft |
+| BUG-103 | [`sch help` succeeds silently and `sch compose help` misparses `help` as a chunk name — every help invocation is silent or wrong](./draft/103_sch_help_invocations_silent_or_misparsed.md) | Medium | module/shader/shader_chunks | 2026-08-13 | Draft |
 
 ## Closed Bugs
 

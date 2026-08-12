@@ -22,18 +22,25 @@
 mod private
 {
 
-  /// `hash21` chunk: 2D-point -> pseudo-random scalar hash.
-  pub const HASH21 : &str = include_str!( "../../../../shader/hash21.wgsl" );
-  /// `value_noise` chunk: bilinear value noise over [`HASH21`].
-  pub const VALUE_NOISE : &str = include_str!( "../../../../shader/value_noise.wgsl" );
-  /// `fbm3` chunk: three-octave fractal Brownian motion over [`VALUE_NOISE`].
-  pub const FBM3 : &str = include_str!( "../../../../shader/fbm3.wgsl" );
-  /// `fullscreen_triangle` chunk: vertex entry point emitting one screen-covering triangle.
-  pub const FULLSCREEN_TRIANGLE : &str = include_str!( "../../../../shader/fullscreen_triangle.wgsl" );
+  /// One bundled WGSL chunk, as one row of [`CHUNKS`]: its manifest-declared
+  /// name paired with its full source text ( manifest header included ).
+  ///
+  /// `name` mirrors the chunk's own `//@ name:` manifest line so enumeration
+  /// and [`chunk_get`]'s by-name lookup need no manifest parsing; the
+  /// `chunks_table_names_match_each_manifest` test keeps the mirror honest.
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  pub struct ChunkDescriptor
+  {
+    /// The chunk's `//@ name:` manifest value — also its `shader/` file stem.
+    pub name : &'static str,
+    /// The chunk's complete WGSL source text, manifest header included.
+    pub wgsl : &'static str,
+  }
 
-  /// Every bundled chunk, in declaration order — the full set a caller can
-  /// pass to [`compose`]/[`try_compose`] or enumerate for inspection.
-  pub const ALL_CHUNKS : &[ &str ] = &[ HASH21, VALUE_NOISE, FBM3, FULLSCREEN_TRIANGLE ];
+  // The chunk table itself ( `CHUNKS` + `chunk_get` ) is spliced in from
+  // `chunks.rs`, kept as a separate data-only file so a build script can
+  // later generate it from `shader/` — see that file's header note.
+  include!( "chunks.rs" );
 
   // A chunk's `//@ key: value` header lines are its manifest. `manifest_field`
   // reads a mandatory single-line field ( `name`, `depends_on`, `description`,
@@ -277,11 +284,9 @@ mod private
 
 ::mod_interface::mod_interface!
 {
-  own use HASH21;
-  own use VALUE_NOISE;
-  own use FBM3;
-  own use FULLSCREEN_TRIANGLE;
-  own use ALL_CHUNKS;
+  own use ChunkDescriptor;
+  own use CHUNKS;
+  own use chunk_get;
   own use parse_name;
   own use parse_depends_on;
   own use parse_description;

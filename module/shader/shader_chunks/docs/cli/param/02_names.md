@@ -3,8 +3,9 @@
 - **Fundamental Type:** [`ChunkName`](../type/01_chunk_name.md) list
   (`Vec<String>` at the `src/lib.rs` boundary; unilang `Kind::String` with
   `ArgumentAttributes { multiple: true, .. }`)
-- **Constraints:** Every element must resolve against
-  `shader_chunks_core::ALL_CHUNKS` via `shader_chunks_core::parse_name` — the first
+- **Constraints:** Every element must resolve via
+  `shader_chunks_core::chunk_get` ( an O(1) lookup against the
+  `shader_chunks_core::CHUNKS` table ) — the first
   unresolved element returns `CliError::UnknownChunk`; a resolved-but-
   incomplete set (e.g. a chunk without its declared dependency) returns
   `CliError::Compose(ComposeError::MissingDependency)` from
@@ -53,7 +54,7 @@ names::value_noise    # resolves, but omits its `hash21` dependency:
 
 | Type | Kind | Fundamental | Key Constraint |
 |------|------|-------------|----------------|
-| [ChunkName](../type/01_chunk_name.md) | String (list) | `Vec<String>` | Every element must resolve in `shader_chunks_core::ALL_CHUNKS` |
+| [ChunkName](../type/01_chunk_name.md) | String (list) | `Vec<String>` | Every element must resolve in `shader_chunks_core::CHUNKS` |
 
 ---
 

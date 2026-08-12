@@ -18,4 +18,4 @@ A **pitfall** documents one way this crate's API can be misused or misunderstood
 | 003 | [`rhai::serde`'s Bridge Requires the Exact `FLOAT` Type](003_rhai_serde_bridge_requires_exact_float_type.md) | An `f32` deserialize-target field fails outright against Rhai's `f64` `FLOAT` — it never narrows | ✅ |
 | 004 | [f32 Boundary Cast Silently Truncates Precision](004_f32_boundary_cast_truncates_precision.md) | `f32x2(...)` silently narrows any `f64` literal beyond `f32` precision | ✅ |
 | 005 | [`OptimizationLevel::Simple` Folds Trivial Top-Level Constructs](005_optimization_level_simple_folds_trivial_top_level_constructs.md) | A trivial `if`/`let` can be optimized away before the checker ever sees it | ✅ |
-| 006 | [Only Linear Easing Is Exposed to Scripts](006_only_linear_easing_is_exposed_to_scripts.md) | `tween(...)` is always Linear-eased; no script-facing way to select another curve | ✅ |
+| 006 | [Parameterized Easing Curves Are Unreachable by Name](006_parameterized_easing_curves_are_unreachable_by_name.md) | `CubicHermite`/`Squad` need constructor arguments a bare curve-name string can't supply | ✅ |

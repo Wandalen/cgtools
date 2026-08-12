@@ -8,11 +8,11 @@
 - **Purpose**: Define `F64x4` as a Rhai-registered Domain Type — a double-precision 4D vector value a script constructs, reads, and combines — distinct from `F32x4` ([`type/007`](007_f32x4_script_facing_vector_value.md)) despite sharing the same shape.
 - **Responsibility**: State the type's domain meaning, its construction/validation rules, and its relationships to its single-precision counterpart and to `Tween`.
 - **In Scope**: The Rhai-registered projection named `"F64x4"` — the script-visible type, not the Rust struct behind it.
-- **Out of Scope**: `ndarray_cg::F64x4`'s own Rust definition, which `scene_script` does not own (see [`pattern/001`](../pattern/001_manual_customtype_registration_for_foreign_types.md) for why registration is manual rather than a trait derive); full call signatures and error behavior (see [`api/001`](../api/001_rhai_scripting_surface.md)); `Vector<f64, 4>`'s additional Rust-side methods (`truncate`, `From<(Vec2, Vec2)>`) — none of these are registered into Rhai.
+- **Out of Scope**: `ndarray_cg::F64x4`'s own Rust definition, which `scene_script` does not own (see [`pattern/001`](../pattern/001_manual_customtype_registration_for_foreign_types.md) for why registration is manual rather than a trait derive); full call signatures and error behavior (see [`api/001`](../api/001_rhai_scripting_surface.md)).
 
 ### Definition
 
-`F64x4` is a 4-component vector value, each component held at double (`f64`) precision. A script constructs one via `f64x4(x, y, z, w)` and reads its components via `.x`/`.y`/`.z`/`.w` — read-only; no operation registered anywhere mutates an existing `F64x4` in place. Every operation that produces an `F64x4` (`f64x4(...)`, `+`, `-`, `*`) produces a *new* value; there is no way to change one in place. Identity is purely structural, same as [`type/002`](002_f64x2_script_facing_vector_value.md)'s `F64x2`.
+`F64x4` is a 4-component vector value, each component held at double (`f64`) precision. A script constructs one via `f64x4(x, y, z, w)`, or via a 2-arg overload `f64x4(xy, zw)` that concatenates two `F64x2` values' components, and reads its components via `.x`/`.y`/`.z`/`.w` — read-only; no operation registered anywhere mutates an existing `F64x4` in place. Every operation that produces an `F64x4` (either constructor overload, `+`, `-`, `*`, unary `-`, `normalize`, `min`, `max`) produces a *new* value; there is no way to change one in place. Identity is purely structural, same as [`type/002`](002_f64x2_script_facing_vector_value.md)'s `F64x2`.
 
 ### Validation
 
@@ -41,7 +41,7 @@ No construction is ever rejected. `f64x4(x, y, z, w)` accepts any four values Rh
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f64x4_register` — constructor, `.x`/`.y`/`.z`/`.w` getters, `+`/`-`/`*` operators, `to_string` |
+| `src/vector_binding.rs` | `f64x4_register` — constructor (plus 2-arg `f64x4(xy, zw)` overload), `.x`/`.y`/`.z`/`.w` getters, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`min`/`max`, `truncate` (arity-4 only, all native `f64`, no boundary cast), `to_string` |
 
 ### Tests
 

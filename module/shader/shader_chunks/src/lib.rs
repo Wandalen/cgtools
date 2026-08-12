@@ -15,7 +15,7 @@ mod private
   #[ derive( Debug, Error ) ]
   pub enum CliError
   {
-    /// `get`/`tree`/`compose` named a chunk not present in [`shader_chunks_core::ALL_CHUNKS`].
+    /// `get`/`tree`/`compose` named a chunk not present in [`shader_chunks_core::CHUNKS`].
     UnknownChunk( String ),
     /// `compose` failed the dependency resolution [`shader_chunks_core::try_compose`] performs.
     Compose( shader_chunks_core::ComposeError ),
@@ -52,11 +52,9 @@ mod private
     }
   }
 
-  fn find_chunk( name : &str ) -> Result< &'static str, CliError >
+  fn find_chunk( name : &str ) -> Result< &'static shader_chunks_core::ChunkDescriptor, CliError >
   {
-    shader_chunks_core::ALL_CHUNKS.iter()
-    .copied()
-    .find( | &wgsl | shader_chunks_core::parse_name( wgsl ) == name )
+    shader_chunks_core::chunk_get( name )
     .ok_or_else( || CliError::UnknownChunk( name.to_string() ) )
   }
 
@@ -77,15 +75,14 @@ mod private
 
   /// Every bundled chunk nothing else depends on — the roots of the
   /// no-argument `tree` forest.
-  fn dependents_free_roots() -> Vec< &'static str >
+  fn dependents_free_roots() -> Vec< &'static shader_chunks_core::ChunkDescriptor >
   {
-    let depended_on : std::collections::HashSet< &str > = shader_chunks_core::ALL_CHUNKS.iter()
-    .flat_map( | &wgsl | shader_chunks_core::parse_depends_on( wgsl ) )
+    let depended_on : std::collections::HashSet< &str > = shader_chunks_core::CHUNKS.iter()
+    .flat_map( | chunk | shader_chunks_core::parse_depends_on( chunk.wgsl ) )
     .collect();
 
-    shader_chunks_core::ALL_CHUNKS.iter()
-    .copied()
-    .filter( | &wgsl | !depended_on.contains( shader_chunks_core::parse_name( wgsl ) ) )
+    shader_chunks_core::CHUNKS.iter()
+    .filter( | chunk | !depended_on.contains( chunk.name ) )
     .collect()
   }
 
@@ -101,15 +98,15 @@ mod private
   /// panicking — defensive only, since every real chunk's `depends_on` is
   /// validated at `compose` time and this bundled set is fixed and
   /// self-consistent.
-  fn dep_tree( wgsl : &str ) -> TreeNode< ColumnData >
+  fn dep_tree( chunk : &shader_chunks_core::ChunkDescriptor ) -> TreeNode< ColumnData >
   {
-    let name = shader_chunks_core::parse_name( wgsl );
-    let mut node = TreeNode::new( name.to_string(), Some( ColumnData::new( vec![ name.to_string(), tags_string( wgsl ) ] ) ) );
-    for dep_name in shader_chunks_core::parse_depends_on( wgsl )
+    let name = chunk.name;
+    let mut node = TreeNode::new( name.to_string(), Some( ColumnData::new( vec![ name.to_string(), tags_string( chunk.wgsl ) ] ) ) );
+    for dep_name in shader_chunks_core::parse_depends_on( chunk.wgsl )
     {
-      if let Ok( dep_wgsl ) = find_chunk( dep_name )
+      if let Ok( dep ) = find_chunk( dep_name )
       {
-        node.children.push( dep_tree( dep_wgsl ) );
+        node.children.push( dep_tree( dep ) );
       }
     }
     node
@@ -126,14 +123,14 @@ mod private
     [
       "name".to_string(), "description".to_string(), "tags".to_string(), "depends_on".to_string(),
     ]);
-    for &wgsl in shader_chunks_core::ALL_CHUNKS
+    for chunk in shader_chunks_core::CHUNKS
     {
       builder.add_row_mut( vec!
       [
-        shader_chunks_core::parse_name( wgsl ).into(),
-        shader_chunks_core::parse_description( wgsl ).into(),
-        tags_string( wgsl ).into(),
-        depends_on_string( wgsl ).into(),
+        chunk.name.into(),
+        shader_chunks_core::parse_description( chunk.wgsl ).into(),
+        tags_string( chunk.wgsl ).into(),
+        depends_on_string( chunk.wgsl ).into(),
       ]);
     }
     let view = builder.build_view();
@@ -146,19 +143,19 @@ mod private
   ///
   /// # Errors
   ///
-  /// Returns [`CliError::UnknownChunk`] when `name` is not in [`shader_chunks_core::ALL_CHUNKS`].
+  /// Returns [`CliError::UnknownChunk`] when `name` is not in [`shader_chunks_core::CHUNKS`].
   pub fn get_chunk( name : &str ) -> Result< String, CliError >
   {
-    let wgsl = find_chunk( name )?;
-    let exports = shader_chunks_core::parse_exports( wgsl ).join( "\n  " );
+    let chunk = find_chunk( name )?;
+    let exports = shader_chunks_core::parse_exports( chunk.wgsl ).join( "\n  " );
     Ok( format!
     (
       "name: {name}\ndescription: {description}\nstage: {stage:?}\ntags: {tags}\ndepends_on: {depends_on}\nexports:\n  {exports}\n",
-      name = shader_chunks_core::parse_name( wgsl ),
-      description = shader_chunks_core::parse_description( wgsl ),
-      stage = shader_chunks_core::parse_stage( wgsl ),
-      tags = tags_string( wgsl ),
-      depends_on = depends_on_string( wgsl ),
+      name = chunk.name,
+      description = shader_chunks_core::parse_description( chunk.wgsl ),
+      stage = shader_chunks_core::parse_stage( chunk.wgsl ),
+      tags = tags_string( chunk.wgsl ),
+      depends_on = depends_on_string( chunk.wgsl ),
     ))
   }
 
@@ -170,19 +167,18 @@ mod private
   pub fn list_tags() -> Result< String, CliError >
   {
     let mut pairs : Vec< ( String, Vec< &'static str > ) > = Vec::new();
-    for &wgsl in shader_chunks_core::ALL_CHUNKS
+    for chunk in shader_chunks_core::CHUNKS
     {
-      let name = shader_chunks_core::parse_name( wgsl );
-      for ( group, tag ) in shader_chunks_core::parse_tags( wgsl )
+      for ( group, tag ) in shader_chunks_core::parse_tags( chunk.wgsl )
       {
         let key = format!( "{group}:{tag}" );
         if let Some( entry ) = pairs.iter_mut().find( | entry | entry.0 == key )
         {
-          entry.1.push( name );
+          entry.1.push( chunk.name );
         }
         else
         {
-          pairs.push( ( key, vec![ name ] ) );
+          pairs.push( ( key, vec![ chunk.name ] ) );
         }
       }
     }
@@ -205,14 +201,14 @@ mod private
   /// Returns [`CliError::UnknownChunk`] when `name` is `Some` and not found.
   pub fn tree_chunk( name : Option< &str > ) -> Result< String, CliError >
   {
-    let roots : Vec< &'static str > = match name
+    let roots : Vec< &'static shader_chunks_core::ChunkDescriptor > = match name
     {
       Some( name ) => vec![ find_chunk( name )? ],
       None => dependents_free_roots(),
     };
 
     let formatter = TreeFormatter::new();
-    Ok( roots.iter().map( | &wgsl |
+    Ok( roots.iter().map( | &chunk |
     {
       // `format_aligned` never renders its own argument's `name`/`data` (only
       // `show_root: true` would, and even then via bare `name` with no
@@ -220,7 +216,7 @@ mod private
       // root as the sole child of an invisible, data-less parent makes that
       // root itself appear as a normal aligned row instead of being skipped.
       let mut invisible_parent = TreeNode::new( String::new(), None );
-      invisible_parent.children.push( dep_tree( wgsl ) );
+      invisible_parent.children.push( dep_tree( chunk ) );
       formatter.format_aligned( &invisible_parent )
     }).collect::< Vec< _ > >().join( "\n" ) )
   }
@@ -240,7 +236,7 @@ mod private
     shader_chunks_core::try_compose( chunks ).map_err( CliError::Compose )
   }
 
-  /// Resolves `names` against [`shader_chunks_core::ALL_CHUNKS`] and composes them.
+  /// Resolves `names` via [`shader_chunks_core::chunk_get`] and composes them.
   ///
   /// # Errors
   ///
@@ -248,7 +244,9 @@ mod private
   /// [`CliError::Compose`] on a missing dependency.
   pub fn compose_chunks( names : &[ String ] ) -> Result< String, CliError >
   {
-    let chunks : Vec< &str > = names.iter().map( | name | find_chunk( name ) ).collect::< Result< _, _ > >()?;
+    let chunks : Vec< &str > = names.iter()
+    .map( | name | find_chunk( name ).map( | chunk | chunk.wgsl ) )
+    .collect::< Result< _, _ > >()?;
     try_compose_wgsl( &chunks )
   }
 }

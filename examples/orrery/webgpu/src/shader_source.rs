@@ -13,15 +13,14 @@
 /// `assemble()`'s chunks provide.
 pub const FRAGMENT_WGSL : &str = include_str!( "../shader/scene_fragment.wgsl" );
 
-/// Returns the complete WGSL shader source: the four `shader_chunks_core`
-/// chunks — concatenated dependency-before-dependent by
+/// Returns the complete WGSL shader source: every bundled
+/// `shader_chunks_core` chunk ( the `shader_chunks_core::CHUNKS` table ) —
+/// concatenated dependency-before-dependent by
 /// `shader_chunks_core::compose()` — followed by `FRAGMENT_WGSL`.
 #[ must_use ]
 pub fn assemble() -> String
 {
-  let chunks_wgsl = shader_chunks_core::compose
-  (
-    &[ shader_chunks_core::HASH21, shader_chunks_core::VALUE_NOISE, shader_chunks_core::FBM3, shader_chunks_core::FULLSCREEN_TRIANGLE ]
-  );
+  let chunk_bodies : Vec< &str > = shader_chunks_core::CHUNKS.iter().map( | chunk | chunk.wgsl ).collect();
+  let chunks_wgsl = shader_chunks_core::compose( &chunk_bodies );
   format!( "{chunks_wgsl}\n\n{FRAGMENT_WGSL}" )
 }

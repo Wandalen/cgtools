@@ -23,15 +23,16 @@ Confirmed directly against the source: `tween_binding.rs` calls `register_fn` fo
 
 Full call signatures and error behavior live in [`api/001`](../api/001_rhai_scripting_surface.md); this section states only what shape each operation consumes/produces:
 
-- **Construction**: `tween(start, end, duration)` takes two vectors of the same registered type (both arguments must be the identical one of the 8 — e.g. both `F32x2`, or both `F64x3`, never mixed precision or arity) and a `float` duration, producing an opaque `Tween` value. The easing curve is always Linear — not a parameter (see [`pitfall/006`](../pitfall/006_only_linear_easing_is_exposed_to_scripts.md)).
-- **Mutation**: `.update(delta_time)` is the only operation that changes a `Tween`'s internal state; it also returns the freshly-computed value.
-- **Read-only access**: `.value()` and `.is_completed()` observe current state without changing it.
+- **Construction**: `tween(start, end, duration)` takes two vectors of the same registered type (both arguments must be the identical one of the 8 — e.g. both `F32x2`, or both `F64x3`, never mixed precision or arity) and a `float` duration, producing an opaque `Tween` value eased Linearly. A 4-arg overload, `tween(start, end, duration, easing)`, takes a curve name instead of defaulting to Linear (see [`pitfall/006`](../pitfall/006_parameterized_easing_curves_are_unreachable_by_name.md) for exactly which names are accepted and which curves remain unreachable this way).
+- **Mutation**: `.update(delta_time)` remains the only operation that advances interpolation, but it is no longer the only mutating operation — `.pause()`/`.resume()`/`.reset()` also change internal state (halting/resuming progress, or returning to the start value with elapsed time and repeat count zeroed).
+- **Read-only access**: `.value()`, `.is_completed()`, `.progress()`, `.duration()`, `.delay()`, `.time()`, `.current_repeat()`, and `.state()` observe current state without changing it — the last returns the lifecycle stage (`"Pending"`/`"Running"`/`"Paused"`/`"Completed"`) as a string.
+- **Builder-style reconfiguration**: `.with_delay(value)`, `.with_duration(value)`, `.with_repeat(count)`, and `.with_yoyo(enabled)` each consume the `Tween` by value and return a modified copy for chaining (`t.with_delay(0.5).with_duration(2.0)`) — same non-mutating-receiver shape as the vector types' own operations, not the `.update()`/`.pause()`/`.resume()`/`.reset()` in-place style.
 
 ### Pitfalls
 
 | File | Relationship |
 |------|--------------|
-| [006_only_linear_easing_is_exposed_to_scripts.md](../pitfall/006_only_linear_easing_is_exposed_to_scripts.md) | The easing curve this shape's constructor always uses, with no script-facing way to change it |
+| [006_parameterized_easing_curves_are_unreachable_by_name.md](../pitfall/006_parameterized_easing_curves_are_unreachable_by_name.md) | The named-easing-curve subset this shape's constructor can select, and which curves remain unreachable |
 
 ### Patterns
 
@@ -55,4 +56,4 @@ Full call signatures and error behavior live in [`api/001`](../api/001_rhai_scri
 
 | File | Relationship |
 |------|--------------|
-| `tests/engine_test.rs` | `tween_f32x1_updates_toward_end_value`, `tween_f32x2_updates_toward_end_value`, `tween_f32x3_updates_toward_end_value`, `tween_f32x4_updates_toward_end_value`, `tween_f64x1_updates_toward_end_value`, `tween_f64x2_updates_toward_end_value`, `tween_f64x3_updates_toward_end_value`, `tween_f64x4_updates_toward_end_value` |
+| `tests/engine_test.rs` | `tween_f32x1_updates_toward_end_value`, `tween_f32x2_updates_toward_end_value`, `tween_f32x3_updates_toward_end_value`, `tween_f32x4_updates_toward_end_value`, `tween_f64x1_updates_toward_end_value`, `tween_f64x2_updates_toward_end_value`, `tween_f64x3_updates_toward_end_value`, `tween_f64x4_updates_toward_end_value` — construction and `.update` roundtrip, one per vector type; `tween_progress_reports_fraction_of_duration_elapsed`, `tween_builder_methods_configure_duration_and_delay`, `tween_time_accumulates_elapsed_delta_time`, `tween_pause_halts_further_progress_until_resumed`, `tween_reset_returns_to_start_value`, `tween_current_repeat_increments_after_each_repeat_cycle`, `tween_with_yoyo_reverses_direction_on_alternate_repeats`, `tween_state_reports_animation_lifecycle_stage`, `tween_with_easing_selector_accepts_named_curve`, `tween_with_easing_selector_rejects_unknown_curve_name` — the new accessor/control/builder/easing-selector operations, all exercised via `F32x1` as the representative element type |

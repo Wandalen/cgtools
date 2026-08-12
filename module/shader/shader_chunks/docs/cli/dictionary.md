@@ -13,8 +13,8 @@ Domain terms used throughout `docs/cli/`, alphabetical.
   compile.
 - **Export** — A named function or item a chunk makes available to WGSL
   code that includes it (e.g. `hash21` exports a `fn hash21(...)`).
-- **Registry** — The compiled-in, static list of every chunk
-  (`shader_chunks_core::ALL_CHUNKS`) this CLI inspects; never runtime-discovered
+- **Registry** — The compiled-in, static table of every chunk
+  (`shader_chunks_core::CHUNKS`) this CLI inspects; never runtime-discovered
   or loaded from the filesystem.
 - **Stage** — The shader pipeline stage (e.g. fragment, vertex, or
   stage-agnostic) a chunk is written for.

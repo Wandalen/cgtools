@@ -8,7 +8,7 @@ told you which chunk name to inspect.
 
 -- **Parameters:** name
 -- **Exit Codes:** 0 (success) | 1 (`name` does not resolve against
-   `shader_chunks_core::ALL_CHUNKS`)
+   `shader_chunks_core::CHUNKS`)
 -- **Modes:** (none)
 
 ### Syntax

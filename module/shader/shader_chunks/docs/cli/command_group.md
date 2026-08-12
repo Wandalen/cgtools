@@ -4,7 +4,7 @@
 
 All 5 commands (`.list`, `.get`, `.tags`, `.tree`, `.compose`) are read-only
 inspections over the compiled-in chunk registry
-(`shader_chunks_core::ALL_CHUNKS`). None mutate state, none write files, none
+(`shader_chunks_core::CHUNKS`). None mutate state, none write files, none
 touch the network or filesystem beyond the WGSL text already embedded via
 `include_str!` at compile time.
 
@@ -38,7 +38,7 @@ Test above already answers as one group.
 
 - Idempotent: identical input always produces identical output.
 - No side effects outside stdout content and process exit code.
-- Every command operates only on `shader_chunks_core::ALL_CHUNKS` — no
+- Every command operates only on `shader_chunks_core::CHUNKS` — no
   runtime-discovered, user-supplied, or filesystem-loaded chunk source
   exists in this CLI.
 

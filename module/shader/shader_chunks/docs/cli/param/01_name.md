@@ -2,9 +2,9 @@
 
 - **Fundamental Type:** [`ChunkName`](../type/01_chunk_name.md) (`String` wrapped
   conceptually; unilang `Kind::String`)
-- **Constraints:** Must resolve against `shader_chunks_core::ALL_CHUNKS` via
-  `shader_chunks_core::parse_name` — an unresolved name returns
-  `CliError::UnknownChunk`, never a panic
+- **Constraints:** Must resolve via `shader_chunks_core::chunk_get` — an O(1)
+  lookup against the `shader_chunks_core::CHUNKS` table; an unresolved name
+  returns `CliError::UnknownChunk`, never a panic
 - **Default:** **(required)** for `get` — no default, since detail output is
   meaningless without a target chunk; `Varies` for `tree` — absent means
   "every chunk nothing else depends on" (the full forest), not an error
@@ -45,7 +45,7 @@ name::bogus_chunk    # "unknown chunk: `bogus_chunk` (see `list` for valid names
 
 | Type | Kind | Fundamental | Key Constraint |
 |------|------|-------------|----------------|
-| [ChunkName](../type/01_chunk_name.md) | String | `String` | Must resolve in `shader_chunks_core::ALL_CHUNKS` |
+| [ChunkName](../type/01_chunk_name.md) | String | `String` | Must resolve in `shader_chunks_core::CHUNKS` |
 
 ---
 

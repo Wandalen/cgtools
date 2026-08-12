@@ -124,3 +124,124 @@ fn sch_alias_binary_produces_identical_output_to_shader_chunks()
     );
   }
 }
+
+// test_kind: bug_reproducer(BUG-103)
+/// ## Root Cause
+/// `main.rs` printed nothing itself — each command routine `println!`ed its
+/// own success content — so every framework-generated help output returned
+/// through `result.outputs` (the `.` listing, `.help`, `?`/`??`,
+/// `.{command}.help`) was computed and silently dropped, and the
+/// conventional spellings had no mapping onto those forms: bare `help`
+/// dot-normalized onto the swallowed `.help` builtin (exit 0, zero bytes),
+/// while a trailing `help` bound as an ordinary positional argument
+/// (`compose help` → "unknown chunk: `help`").
+///
+/// ## Why Not Caught
+/// The only help-path test exercised the bare no-argument invocation, which
+/// short-circuits to `print_help()` before the pipeline; every other test
+/// ran a real command whose routine printed its own stdout, so the
+/// outputs-dropping dispatch path never produced a visible difference.
+///
+/// ## Fix Applied
+/// `main` now prints `result.outputs` after a successful dispatch, routes
+/// the top-level spellings (`help`, `.`, `.help`) to `print_help()`, and
+/// rewrites `help <command>` / `<command> help` to the `.{command}.help`
+/// builtin `unilang` auto-registers per command.
+///
+/// ## Prevention
+/// The help-spelling tests below pin every form (top-level, per-command
+/// leading and trailing, no-argument command, unknown command, named-arg
+/// escape) plus a prints-exactly-once guard on a normal command.
+///
+/// ## Pitfall
+/// In a routines-print-themselves `unilang` setup, any command the
+/// framework answers on its own is invisible until the entry point prints
+/// `result.outputs` — and `contains()`-style assertions cannot catch the
+/// double-printing that central printing can introduce; count occurrences.
+#[ test ]
+fn help_word_prints_top_level_usage()
+{
+  let output = run( &[ "help" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  let stdout = stdout_of( &output );
+  assert!( stdout.contains( "Usage: shader_chunks" ), "`help` must print usage, not silence:\n{stdout}" );
+  assert!( stdout.contains( "compose" ), "{stdout}" );
+}
+
+// test_kind: bug_reproducer(BUG-103)
+/// Second symptom of BUG-103 — the trailing-`help` misparse; full
+/// Root Cause / Why Not Caught / Fix / Prevention / Pitfall sections are on
+/// [`help_word_prints_top_level_usage`].
+#[ test ]
+fn trailing_help_prints_per_command_help_not_chunk_lookup()
+{
+  let output = run( &[ "compose", "help" ] );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( output.status.success(), "stderr: {stderr}" );
+  assert!( !stderr.contains( "unknown chunk" ), "`compose help` must not be a chunk lookup:\n{stderr}" );
+  let stdout = stdout_of( &output );
+  assert!( stdout.contains( "Command: .compose" ), "{stdout}" );
+}
+
+#[ test ]
+fn dot_and_dot_help_match_bare_invocation_usage()
+{
+  let bare = stdout_of( &run( &[] ) );
+  for args in [ &[ "." ][ .. ], &[ ".help" ][ .. ], &[ "help", "help" ][ .. ] ]
+  {
+    let output = run( args );
+    assert!( output.status.success(), "stderr for {args:?}: {}", String::from_utf8_lossy( &output.stderr ) );
+    assert_eq!( stdout_of( &output ), bare, "{args:?} must print the same usage as the bare invocation" );
+  }
+}
+
+#[ test ]
+fn leading_and_trailing_help_forms_print_identical_per_command_help()
+{
+  let leading = run( &[ "help", "compose" ] );
+  let trailing = run( &[ "compose", "help" ] );
+  assert!( leading.status.success(), "stderr: {}", String::from_utf8_lossy( &leading.stderr ) );
+  assert_eq!( stdout_of( &leading ), stdout_of( &trailing ), "`help compose` and `compose help` must agree" );
+}
+
+#[ test ]
+fn no_argument_command_trailing_help_works()
+{
+  let output = run( &[ "list", "help" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  let stdout = stdout_of( &output );
+  assert!( stdout.contains( "Command: .list" ), "{stdout}" );
+}
+
+#[ test ]
+fn unknown_command_help_fails_loudly()
+{
+  let output = run( &[ "frobnicate", "help" ] );
+  assert!( !output.status.success(), "expected non-zero exit for help on an unknown command" );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( !stderr.contains( "panicked at" ), "unexpected panic backtrace:\n{stderr}" );
+  assert!( stderr.contains( "not found" ), "{stderr}" );
+}
+
+#[ test ]
+fn named_argument_help_value_is_not_a_help_request()
+{
+  // Escape hatch: `name::help` addresses a (hypothetical) chunk literally
+  // named `help` — it must reach the chunk lookup, not the help path.
+  let output = run( &[ "get", "name::help" ] );
+  assert!( !output.status.success(), "expected non-zero exit for an unknown chunk" );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( stderr.contains( "unknown chunk" ), "{stderr}" );
+}
+
+#[ test ]
+fn command_output_prints_exactly_once()
+{
+  // Central `result.outputs` printing replaced per-routine `println!`s — a
+  // leftover routine print would pass every `contains()` assertion while
+  // printing twice; occurrence count is the only guard that catches it.
+  let output = run( &[ "get", "hash21" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  let stdout = stdout_of( &output );
+  assert_eq!( stdout.matches( "name: hash21" ).count(), 1, "command output must print exactly once:\n{stdout}" );
+}

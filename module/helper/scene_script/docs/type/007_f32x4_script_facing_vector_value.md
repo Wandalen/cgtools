@@ -8,11 +8,11 @@
 - **Purpose**: Define `F32x4` as a Rhai-registered Domain Type — a single-precision 4D vector value a script constructs, reads, and combines — distinct from `F64x4` ([`type/008`](008_f64x4_script_facing_vector_value.md)) despite sharing the same shape.
 - **Responsibility**: State the type's domain meaning, its construction/validation rules, and its relationships to its double-precision counterpart and to `Tween`.
 - **In Scope**: The Rhai-registered projection named `"F32x4"` — the script-visible type, not the Rust struct behind it.
-- **Out of Scope**: `ndarray_cg::F32x4`'s own Rust definition, which `scene_script` does not own (see [`pattern/001`](../pattern/001_manual_customtype_registration_for_foreign_types.md) for why registration is manual rather than a trait derive); full call signatures and error behavior (see [`api/001`](../api/001_rhai_scripting_surface.md)); `Vector<f32, 4>`'s additional Rust-side methods (`truncate`, `From<(Vec2, Vec2)>`) — none of these are registered into Rhai, so a script cannot reach them.
+- **Out of Scope**: `ndarray_cg::F32x4`'s own Rust definition, which `scene_script` does not own (see [`pattern/001`](../pattern/001_manual_customtype_registration_for_foreign_types.md) for why registration is manual rather than a trait derive); full call signatures and error behavior (see [`api/001`](../api/001_rhai_scripting_surface.md)).
 
 ### Definition
 
-`F32x4` is a 4-component vector value, each component held at single (`f32`) precision. A script constructs one via `f32x4(x, y, z, w)` and reads its components via `.x`/`.y`/`.z`/`.w` — read-only; no operation registered anywhere mutates an existing `F32x4` in place. Every operation that produces an `F32x4` (`f32x4(...)`, `+`, `-`, `*`) produces a *new* value; there is no way to change one in place. Identity is purely structural, same as [`type/001`](001_f32x2_script_facing_vector_value.md)'s `F32x2`.
+`F32x4` is a 4-component vector value, each component held at single (`f32`) precision. A script constructs one via `f32x4(x, y, z, w)`, or via a 2-arg overload `f32x4(xy, zw)` that concatenates two `F32x2` values' components, and reads its components via `.x`/`.y`/`.z`/`.w` — read-only; no operation registered anywhere mutates an existing `F32x4` in place. Every operation that produces an `F32x4` (either constructor overload, `+`, `-`, `*`, unary `-`, `normalize`, `min`, `max`) produces a *new* value; there is no way to change one in place. Identity is purely structural, same as [`type/001`](001_f32x2_script_facing_vector_value.md)'s `F32x2`.
 
 The domain meaning is deliberately unconstrained, same as every other arity in this family: `scene_script` registers no interpretation beyond "a 4D single-precision vector."
 
@@ -49,10 +49,10 @@ No construction is ever rejected. `f32x4(x, y, z, w)` accepts any four values Rh
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f32x4_register` — constructor, `.x`/`.y`/`.z`/`.w` getters, `+`/`-`/`*` operators, `to_string` |
+| `src/vector_binding.rs` | `f32x4_register` — constructor (plus 2-arg `f32x4(xy, zw)` overload), `.x`/`.y`/`.z`/`.w` getters, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`min`/`max`, `truncate` (arity-4 only), `to_string` |
 
 ### Tests
 
 | File | Relationship |
 |------|--------------|
-| `tests/engine_test.rs` | `f32x4_arithmetic_roundtrip`, `tween_f32x4_updates_toward_end_value` |
+| `tests/engine_test.rs` | `f32x4_arithmetic_roundtrip`, `tween_f32x4_updates_toward_end_value`, `vector_truncate_drops_w_component`, `vector_f32x4_from_two_f32x2_concatenates_components` — `F32x4` is the representative type for `truncate`'s and the 2-arg constructor overload's tests |

@@ -1,6 +1,6 @@
 # Type :: 1. ChunkName
 
-**Purpose:** Identifies one shader chunk in `shader_chunks_core::ALL_CHUNKS` by
+**Purpose:** Identifies one shader chunk in `shader_chunks_core::CHUNKS` by
 the value of its `//@ name: <value>` metadata comment — the identifier every
 command that targets a specific chunk (`get`, `tree`, `compose`) accepts.
 
@@ -14,15 +14,16 @@ a real parse/validate step — not because a `ChunkName` struct exists in the
 source.
 
 **Constraints:**
-- Must exactly match the `name` a bundled chunk's leading `//@ name: <value>`
-  WGSL comment parses to, via `shader_chunks_core::parse_name`
+- Must exactly match a `shader_chunks_core::CHUNKS` row's `name` field — which
+  mirrors that chunk's leading `//@ name: <value>` WGSL comment
 - Case-sensitive, no normalization or fuzzy matching
 - The valid set is closed and enumerable: run `list` to see every accepted
   value (currently `hash21`, `value_noise`, `fbm3`, `fullscreen_triangle`)
 
-**Parsing:** `find_chunk(name: &str)` (`src/lib.rs`) linearly scans
-`shader_chunks_core::ALL_CHUNKS`, calling `shader_chunks_core::parse_name` on each
-bundled WGSL blob and comparing for an exact string match. No match →
+**Parsing:** `find_chunk(name: &str)` (`src/lib.rs`) resolves the name via
+`shader_chunks_core::chunk_get` — an O(1) lookup into the
+`shader_chunks_core::CHUNKS` descriptor table, no scan, no manifest
+parsing. No match →
 `CliError::UnknownChunk(name)`, reported to the user as `` unknown chunk:
 `<name>` (see `list` for valid names) `` on stderr with a non-zero exit —
 never a panic.

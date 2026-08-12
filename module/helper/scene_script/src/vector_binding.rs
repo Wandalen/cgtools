@@ -17,6 +17,15 @@ mod private
   /// registration never matches a script's `f64` literal. See
   /// [`f64x1_register`] for the `f64`-element sibling, which needs no such
   /// cast; register both to let a script pick either precision.
+  ///
+  /// Also registers the arity-generic math already implemented on
+  /// `ndarray_cg::Vector` — `.dot()`, `.mag()`, `.mag2()`, `.normalize()`
+  /// (returns a *new* unit-length copy; does not mutate in place, despite
+  /// the name), `.distance()`, `.distance_squared()` (skips the `.mag()`-style
+  /// square root; cheaper when only comparing relative distances),
+  /// `.min()`, `.max()`, and unary `-` negation. Every scalar result is cast
+  /// up to `f64` at the boundary for the same reason the constructor casts
+  /// down.
   #[ inline ]
   // Rhai's numeric model is `f64`-only (`FLOAT`); every scalar entering a
   // native `f32` type crosses this narrowing cast at the boundary. Intentional
@@ -29,8 +38,17 @@ mod private
     .register_get( "x", | v : &mut F32x1 | f64::from( v.x() ) )
     .register_fn( "+", | a : F32x1, b : F32x1 | a + b )
     .register_fn( "-", | a : F32x1, b : F32x1 | a - b )
+    .register_fn( "-", | a : F32x1 | -a )
     .register_fn( "*", | a : F32x1, s : f64 | a * ( s as f32 ) )
     .register_fn( "*", | s : f64, a : F32x1 | a * ( s as f32 ) )
+    .register_fn( "dot", | a : F32x1, b : F32x1 | f64::from( a.dot( &b ) ) )
+    .register_fn( "mag", | a : F32x1 | f64::from( a.mag() ) )
+    .register_fn( "mag2", | a : F32x1 | f64::from( a.mag2() ) )
+    .register_fn( "normalize", | a : F32x1 | a.normalize() )
+    .register_fn( "distance", | a : F32x1, b : F32x1 | f64::from( a.distance( &b ) ) )
+    .register_fn( "distance_squared", | a : F32x1, b : F32x1 | f64::from( a.distance_squared( &b ) ) )
+    .register_fn( "min", | a : F32x1, b : F32x1 | a.min( b ) )
+    .register_fn( "max", | a : F32x1, b : F32x1 | a.max( b ) )
     .register_fn( "to_string", | v : &mut F32x1 | format!( "F32x1({})", v.x() ) );
   }
 
@@ -61,8 +79,17 @@ mod private
     .register_get( "y", | v : &mut F32x2 | f64::from( v.y() ) )
     .register_fn( "+", | a : F32x2, b : F32x2 | a + b )
     .register_fn( "-", | a : F32x2, b : F32x2 | a - b )
+    .register_fn( "-", | a : F32x2 | -a )
     .register_fn( "*", | a : F32x2, s : f64 | a * ( s as f32 ) )
     .register_fn( "*", | s : f64, a : F32x2 | a * ( s as f32 ) )
+    .register_fn( "dot", | a : F32x2, b : F32x2 | f64::from( a.dot( &b ) ) )
+    .register_fn( "mag", | a : F32x2 | f64::from( a.mag() ) )
+    .register_fn( "mag2", | a : F32x2 | f64::from( a.mag2() ) )
+    .register_fn( "normalize", | a : F32x2 | a.normalize() )
+    .register_fn( "distance", | a : F32x2, b : F32x2 | f64::from( a.distance( &b ) ) )
+    .register_fn( "distance_squared", | a : F32x2, b : F32x2 | f64::from( a.distance_squared( &b ) ) )
+    .register_fn( "min", | a : F32x2, b : F32x2 | a.min( b ) )
+    .register_fn( "max", | a : F32x2, b : F32x2 | a.max( b ) )
     .register_fn( "to_string", | v : &mut F32x2 | format!( "F32x2({}, {})", v.x(), v.y() ) );
   }
 
@@ -85,8 +112,20 @@ mod private
     .register_get( "z", | v : &mut F32x3 | f64::from( v.z() ) )
     .register_fn( "+", | a : F32x3, b : F32x3 | a + b )
     .register_fn( "-", | a : F32x3, b : F32x3 | a - b )
+    .register_fn( "-", | a : F32x3 | -a )
     .register_fn( "*", | a : F32x3, s : f64 | a * ( s as f32 ) )
     .register_fn( "*", | s : f64, a : F32x3 | a * ( s as f32 ) )
+    .register_fn( "dot", | a : F32x3, b : F32x3 | f64::from( a.dot( &b ) ) )
+    .register_fn( "mag", | a : F32x3 | f64::from( a.mag() ) )
+    .register_fn( "mag2", | a : F32x3 | f64::from( a.mag2() ) )
+    .register_fn( "normalize", | a : F32x3 | a.normalize() )
+    .register_fn( "distance", | a : F32x3, b : F32x3 | f64::from( a.distance( &b ) ) )
+    .register_fn( "distance_squared", | a : F32x3, b : F32x3 | f64::from( a.distance_squared( &b ) ) )
+    .register_fn( "min", | a : F32x3, b : F32x3 | a.min( b ) )
+    .register_fn( "max", | a : F32x3, b : F32x3 | a.max( b ) )
+    .register_fn( "cross", | a : F32x3, b : F32x3 | a.cross( b ) )
+    // Appends w = 1.0, producing a homogeneous coordinate for matrix/transform math.
+    .register_fn( "to_homogenous", | a : F32x3 | a.to_homogenous() )
     .register_fn( "to_string", | v : &mut F32x3 | format!( "F32x3({}, {}, {})", v.x(), v.y(), v.z() ) );
   }
 
@@ -108,14 +147,27 @@ mod private
       "f32x4",
       | x : f64, y : f64, z : f64, w : f64 | F32x4::new( x as f32, y as f32, z as f32, w as f32 )
     )
+    // `From<(Vec2, Vec2)>` overload: concatenates `xy`'s two components with
+    // `zw`'s two components — `(x, y, z, w)`, not a geometric combination.
+    .register_fn( "f32x4", | xy : F32x2, zw : F32x2 | F32x4::from( ( xy, zw ) ) )
     .register_get( "x", | v : &mut F32x4 | f64::from( v.x() ) )
     .register_get( "y", | v : &mut F32x4 | f64::from( v.y() ) )
     .register_get( "z", | v : &mut F32x4 | f64::from( v.z() ) )
     .register_get( "w", | v : &mut F32x4 | f64::from( v.w() ) )
     .register_fn( "+", | a : F32x4, b : F32x4 | a + b )
     .register_fn( "-", | a : F32x4, b : F32x4 | a - b )
+    .register_fn( "-", | a : F32x4 | -a )
     .register_fn( "*", | a : F32x4, s : f64 | a * ( s as f32 ) )
     .register_fn( "*", | s : f64, a : F32x4 | a * ( s as f32 ) )
+    .register_fn( "dot", | a : F32x4, b : F32x4 | f64::from( a.dot( &b ) ) )
+    .register_fn( "mag", | a : F32x4 | f64::from( a.mag() ) )
+    .register_fn( "mag2", | a : F32x4 | f64::from( a.mag2() ) )
+    .register_fn( "normalize", | a : F32x4 | a.normalize() )
+    .register_fn( "distance", | a : F32x4, b : F32x4 | f64::from( a.distance( &b ) ) )
+    .register_fn( "distance_squared", | a : F32x4, b : F32x4 | f64::from( a.distance_squared( &b ) ) )
+    .register_fn( "min", | a : F32x4, b : F32x4 | a.min( b ) )
+    .register_fn( "max", | a : F32x4, b : F32x4 | a.max( b ) )
+    .register_fn( "truncate", | a : F32x4 | a.truncate() )
     .register_fn
     (
       "to_string",
@@ -138,8 +190,17 @@ mod private
     .register_get( "x", | v : &mut F64x1 | v.x() )
     .register_fn( "+", | a : F64x1, b : F64x1 | a + b )
     .register_fn( "-", | a : F64x1, b : F64x1 | a - b )
+    .register_fn( "-", | a : F64x1 | -a )
     .register_fn( "*", | a : F64x1, s : f64 | a * s )
     .register_fn( "*", | s : f64, a : F64x1 | a * s )
+    .register_fn( "dot", | a : F64x1, b : F64x1 | a.dot( &b ) )
+    .register_fn( "mag", | a : F64x1 | a.mag() )
+    .register_fn( "mag2", | a : F64x1 | a.mag2() )
+    .register_fn( "normalize", | a : F64x1 | a.normalize() )
+    .register_fn( "distance", | a : F64x1, b : F64x1 | a.distance( &b ) )
+    .register_fn( "distance_squared", | a : F64x1, b : F64x1 | a.distance_squared( &b ) )
+    .register_fn( "min", | a : F64x1, b : F64x1 | a.min( b ) )
+    .register_fn( "max", | a : F64x1, b : F64x1 | a.max( b ) )
     .register_fn( "to_string", | v : &mut F64x1 | format!( "F64x1({})", v.x() ) );
   }
 
@@ -164,8 +225,17 @@ mod private
     .register_get( "y", | v : &mut F64x2 | v.y() )
     .register_fn( "+", | a : F64x2, b : F64x2 | a + b )
     .register_fn( "-", | a : F64x2, b : F64x2 | a - b )
+    .register_fn( "-", | a : F64x2 | -a )
     .register_fn( "*", | a : F64x2, s : f64 | a * s )
     .register_fn( "*", | s : f64, a : F64x2 | a * s )
+    .register_fn( "dot", | a : F64x2, b : F64x2 | a.dot( &b ) )
+    .register_fn( "mag", | a : F64x2 | a.mag() )
+    .register_fn( "mag2", | a : F64x2 | a.mag2() )
+    .register_fn( "normalize", | a : F64x2 | a.normalize() )
+    .register_fn( "distance", | a : F64x2, b : F64x2 | a.distance( &b ) )
+    .register_fn( "distance_squared", | a : F64x2, b : F64x2 | a.distance_squared( &b ) )
+    .register_fn( "min", | a : F64x2, b : F64x2 | a.min( b ) )
+    .register_fn( "max", | a : F64x2, b : F64x2 | a.max( b ) )
     .register_fn( "to_string", | v : &mut F64x2 | format!( "F64x2({}, {})", v.x(), v.y() ) );
   }
 
@@ -185,8 +255,20 @@ mod private
     .register_get( "z", | v : &mut F64x3 | v.z() )
     .register_fn( "+", | a : F64x3, b : F64x3 | a + b )
     .register_fn( "-", | a : F64x3, b : F64x3 | a - b )
+    .register_fn( "-", | a : F64x3 | -a )
     .register_fn( "*", | a : F64x3, s : f64 | a * s )
     .register_fn( "*", | s : f64, a : F64x3 | a * s )
+    .register_fn( "dot", | a : F64x3, b : F64x3 | a.dot( &b ) )
+    .register_fn( "mag", | a : F64x3 | a.mag() )
+    .register_fn( "mag2", | a : F64x3 | a.mag2() )
+    .register_fn( "normalize", | a : F64x3 | a.normalize() )
+    .register_fn( "distance", | a : F64x3, b : F64x3 | a.distance( &b ) )
+    .register_fn( "distance_squared", | a : F64x3, b : F64x3 | a.distance_squared( &b ) )
+    .register_fn( "min", | a : F64x3, b : F64x3 | a.min( b ) )
+    .register_fn( "max", | a : F64x3, b : F64x3 | a.max( b ) )
+    .register_fn( "cross", | a : F64x3, b : F64x3 | a.cross( b ) )
+    // Appends w = 1.0, producing a homogeneous coordinate for matrix/transform math.
+    .register_fn( "to_homogenous", | a : F64x3 | a.to_homogenous() )
     .register_fn( "to_string", | v : &mut F64x3 | format!( "F64x3({}, {}, {})", v.x(), v.y(), v.z() ) );
   }
 
@@ -201,14 +283,27 @@ mod private
     engine
     .register_type_with_name::< F64x4 >( "F64x4" )
     .register_fn( "f64x4", F64x4::new )
+    // `From<(Vec2, Vec2)>` overload: concatenates `xy`'s two components with
+    // `zw`'s two components — `(x, y, z, w)`, not a geometric combination.
+    .register_fn( "f64x4", | xy : F64x2, zw : F64x2 | F64x4::from( ( xy, zw ) ) )
     .register_get( "x", | v : &mut F64x4 | v.x() )
     .register_get( "y", | v : &mut F64x4 | v.y() )
     .register_get( "z", | v : &mut F64x4 | v.z() )
     .register_get( "w", | v : &mut F64x4 | v.w() )
     .register_fn( "+", | a : F64x4, b : F64x4 | a + b )
     .register_fn( "-", | a : F64x4, b : F64x4 | a - b )
+    .register_fn( "-", | a : F64x4 | -a )
     .register_fn( "*", | a : F64x4, s : f64 | a * s )
     .register_fn( "*", | s : f64, a : F64x4 | a * s )
+    .register_fn( "dot", | a : F64x4, b : F64x4 | a.dot( &b ) )
+    .register_fn( "mag", | a : F64x4 | a.mag() )
+    .register_fn( "mag2", | a : F64x4 | a.mag2() )
+    .register_fn( "normalize", | a : F64x4 | a.normalize() )
+    .register_fn( "distance", | a : F64x4, b : F64x4 | a.distance( &b ) )
+    .register_fn( "distance_squared", | a : F64x4, b : F64x4 | a.distance_squared( &b ) )
+    .register_fn( "min", | a : F64x4, b : F64x4 | a.min( b ) )
+    .register_fn( "max", | a : F64x4, b : F64x4 | a.max( b ) )
+    .register_fn( "truncate", | a : F64x4 | a.truncate() )
     .register_fn
     (
       "to_string",

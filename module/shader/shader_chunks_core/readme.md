@@ -44,8 +44,12 @@ can be passed in any order and are still concatenated
 dependency-before-dependent; `compose()` panics immediately on a typo'd or
 missing dependency or a cycle, naming the offending chunk, while
 `try_compose()` is the same sort returning a `ComposeError` instead, for
-callers (e.g. a CLI) taking untrusted chunk sets. `ALL_CHUNKS` lists every
-bundled chunk for enumeration; `parse_name`/`parse_description`/`parse_tags`/
+callers (e.g. a CLI) taking untrusted chunk sets. `CHUNKS` is the
+bundled-chunk table — one `ChunkDescriptor` row (`name` plus full WGSL
+source) per chunk — for enumeration, and `chunk_get( name )` resolves one
+row by name in O(1), with no table scan and no manifest parsing; the table
+lives in `src/chunks.rs`, a data-only file shaped for later build-script
+generation from `shader/`. `parse_name`/`parse_description`/`parse_tags`/
 `parse_depends_on`/`parse_stage`/`parse_exports` each read one manifest
 field directly, without going through `compose`. Two tests keep the header
 honest against the code it describes:

@@ -8,7 +8,7 @@
 - **Purpose**: Define `F64x3` as a Rhai-registered Domain Type — a double-precision 3D vector value a script constructs, reads, and combines — distinct from `F32x3` ([`type/005`](005_f32x3_script_facing_vector_value.md)) despite sharing the same shape.
 - **Responsibility**: State the type's domain meaning, its construction/validation rules, and its relationships to its single-precision counterpart and to `Tween`.
 - **In Scope**: The Rhai-registered projection named `"F64x3"` — the script-visible type, not the Rust struct behind it.
-- **Out of Scope**: `ndarray_cg::F64x3`'s own Rust definition, which `scene_script` does not own (see [`pattern/001`](../pattern/001_manual_customtype_registration_for_foreign_types.md) for why registration is manual rather than a trait derive); full call signatures and error behavior (see [`api/001`](../api/001_rhai_scripting_surface.md)); `Vector<f64, 3>`'s additional Rust-side geometry methods (`cross`, `to_homogenous`, spherical conversion) — none of these are registered into Rhai.
+- **Out of Scope**: `ndarray_cg::F64x3`'s own Rust definition, which `scene_script` does not own (see [`pattern/001`](../pattern/001_manual_customtype_registration_for_foreign_types.md) for why registration is manual rather than a trait derive); full call signatures and error behavior (see [`api/001`](../api/001_rhai_scripting_surface.md)); `Vector<f64, 3>`'s additional Rust-side geometry methods `to_homogenous` and spherical conversion — neither is registered into Rhai (`cross` *is* now registered — see Sources below).
 
 ### Definition
 
@@ -41,7 +41,7 @@ No construction is ever rejected. `f64x3(x, y, z)` accepts any three values Rhai
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f64x3_register` — constructor, `.x`/`.y`/`.z` getters, `+`/`-`/`*` operators, `to_string` |
+| `src/vector_binding.rs` | `f64x3_register` — constructor, `.x`/`.y`/`.z` getters, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`min`/`max`, `cross` (arity-3 only, all native `f64`, no boundary cast), `to_string` |
 
 ### Tests
 

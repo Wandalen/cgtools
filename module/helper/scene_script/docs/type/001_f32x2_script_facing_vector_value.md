@@ -12,7 +12,7 @@
 
 ### Definition
 
-`F32x2` is a 2-component vector value, each component held at single (`f32`) precision. A script constructs one via `f32x2(x, y)` and reads its components via `.x`/`.y` — read-only; no operation registered anywhere mutates an existing `F32x2` in place. Every operation that produces an `F32x2` (`f32x2(...)`, `+`, `-`, `*`) produces a *new* value; there is no way to change one in place. Identity is purely structural: two `F32x2` values built from the same `(x, y)` are indistinguishable to a script, with no separate identity beyond their own components — this is what makes it a value object rather than a DDD entity, which would carry identity and lifecycle independent of its current attribute values.
+`F32x2` is a 2-component vector value, each component held at single (`f32`) precision. A script constructs one via `f32x2(x, y)` and reads its components via `.x`/`.y` — read-only; no operation registered anywhere mutates an existing `F32x2` in place. Every operation that produces an `F32x2` (`f32x2(...)`, `+`, `-`, `*`, unary `-`, `normalize`, `min`, `max`) produces a *new* value; there is no way to change one in place — this includes `normalize`, despite its name suggesting in-place mutation. Identity is purely structural: two `F32x2` values built from the same `(x, y)` are indistinguishable to a script, with no separate identity beyond their own components — this is what makes it a value object rather than a DDD entity, which would carry identity and lifecycle independent of its current attribute values.
 
 The domain meaning is deliberately unconstrained: `scene_script` registers no interpretation beyond "a 2D single-precision vector." Whether a given `F32x2` stands for a position, a velocity, or an offset is a convention the calling script and host establish between themselves — this type carries no tag or field recording which.
 
@@ -49,10 +49,10 @@ No construction is ever rejected. `f32x2(x, y)` accepts any two values Rhai can 
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f32x2_register` — constructor, `.x`/`.y` getters, `+`/`-`/`*` operators, `to_string` |
+| `src/vector_binding.rs` | `f32x2_register` — constructor, `.x`/`.y` getters, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`min`/`max`, `to_string` |
 
 ### Tests
 
 | File | Relationship |
 |------|--------------|
-| `tests/engine_test.rs` | `f32x2_arithmetic_roundtrip`, `f32x2_and_f64x2_are_distinct_types_not_interchangeable` |
+| `tests/engine_test.rs` | `f32x2_arithmetic_roundtrip`, `f32x2_and_f64x2_are_distinct_types_not_interchangeable`, `vector_dot_product_computes_scalar`, `vector_magnitude_and_magnitude_squared_match_pythagorean_length`, `vector_normalize_returns_new_unit_length_copy_without_mutating_original`, `vector_distance_computes_separation_between_two_points`, `vector_min_and_max_take_componentwise_extremes`, `vector_unary_negation_negates_all_components` — `F32x2` is the representative type for every new universal vector-math operation's test |

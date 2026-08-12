@@ -43,7 +43,7 @@ No construction is ever rejected. `f64x1(x)` accepts any value Rhai can supply a
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f64x1_register` — constructor, `.x` getter, `+`/`-`/`*` operators, `to_string` |
+| `src/vector_binding.rs` | `f64x1_register` — constructor, `.x` getter, `+`/`-` (binary)/`*` operators, unary `-` negation, `dot`/`mag`/`mag2`/`normalize`/`distance`/`min`/`max` (all native `f64`, no boundary cast), `to_string` |
 
 ### Tests
 

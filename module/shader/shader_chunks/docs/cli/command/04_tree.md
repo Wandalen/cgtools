@@ -8,7 +8,7 @@ composition order before running `compose`.
 
 -- **Parameters:** name
 -- **Exit Codes:** 0 (success) | 1 (`name` given but does not resolve
-   against `shader_chunks_core::ALL_CHUNKS`)
+   against `shader_chunks_core::CHUNKS`)
 -- **Modes:** single tree (`name` given) | full forest (`name` omitted)
 
 ### Syntax

@@ -1,7 +1,9 @@
 //! Thin entry point: builds the `unilang` `CommandRegistry`, dispatches via
 //! `Pipeline`, and maps a [`shader_chunks::CliError`] to a process exit
 //! code. All rendering and business logic lives in `src/lib.rs` — this file
-//! only wires it to `unilang`'s dispatch and argv/exit-code plumbing.
+//! only wires it to `unilang`'s dispatch and argv/exit-code plumbing, maps
+//! the conventional help spellings (`help`, `.`, `<command> help`) onto
+//! `unilang`'s help machinery, and prints `Pipeline` outputs centrally.
 
 use std::sync::atomic::{ AtomicI32, Ordering };
 use unilang::prelude::*;
@@ -76,7 +78,6 @@ fn cmd_list() -> ( CommandDefinition, CommandRoutine )
   let routine : CommandRoutine = Box::new( | _cmd, _ctx |
   {
     let content = shader_chunks::list_chunks().map_err( | e | cli_error( &e ) )?;
-    println!( "{content}" );
     Ok( text_output( content ) )
   });
 
@@ -116,7 +117,6 @@ fn cmd_get() -> ( CommandDefinition, CommandRoutine )
       unreachable!( "argument 'name' is declared Kind::String and required" )
     };
     let content = shader_chunks::get_chunk( name ).map_err( | e | cli_error( &e ) )?;
-    println!( "{content}" );
     Ok( text_output( content ) )
   });
 
@@ -145,7 +145,6 @@ fn cmd_tags() -> ( CommandDefinition, CommandRoutine )
   let routine : CommandRoutine = Box::new( | _cmd, _ctx |
   {
     let content = shader_chunks::list_tags().map_err( | e | cli_error( &e ) )?;
-    println!( "{content}" );
     Ok( text_output( content ) )
   });
 
@@ -187,7 +186,6 @@ fn cmd_tree() -> ( CommandDefinition, CommandRoutine )
       _ => None,
     };
     let content = shader_chunks::tree_chunk( name ).map_err( | e | cli_error( &e ) )?;
-    println!( "{content}" );
     Ok( text_output( content ) )
   });
 
@@ -229,7 +227,6 @@ fn cmd_compose() -> ( CommandDefinition, CommandRoutine )
       None => unreachable!( "argument 'names' is declared Kind::List, multiple, and required" ),
     };
     let content = shader_chunks::compose_chunks( &names ).map_err( | e | cli_error( &e ) )?;
-    println!( "{content}" );
     Ok( text_output( content ) )
   });
 
@@ -281,10 +278,56 @@ fn main()
 {
   let mut argv : Vec< String > = std::env::args().skip( 1 ).collect();
 
-  if argv.is_empty()
+  // Fix(BUG-103): map conventional help spellings onto `unilang`'s help
+  // machinery and print `result.outputs` centrally instead of leaving all
+  // printing to command routines.
+  // Root cause: `main` never printed `result.outputs`, so every
+  // framework-generated help path (`.`, `.help`, `?`/`??`, `.{command}.help`)
+  // succeeded with zero bytes of output — routines only printed their own
+  // success content — and no mapping existed from the conventional `help` /
+  // `<command> help` spellings to those framework forms, so a trailing
+  // `help` bound as an ordinary positional argument (`compose help` →
+  // "unknown chunk: `help`").
+  // Pitfall: in a routines-print-themselves `unilang` setup, anything the
+  // framework answers on its own (help listings, per-command help) is
+  // invisible until the entry point prints `result.outputs` — wire that
+  // first, then spell help forms via the auto-registered `.{command}.help`
+  // builtins so unknown commands still fail loudly.
+
+  // `sch`, `sch .`, `sch help`, `sch .help` — all spell "top-level help".
+  if argv.is_empty() || ( argv.len() == 1 && matches!( argv[ 0 ].as_str(), "." | "help" | ".help" ) )
   {
     print_help();
     return;
+  }
+
+  // `sch help <command>` / `sch <command> ... help` — per-command help via
+  // the `.{command}.help` builtin `unilang` auto-registers per command; an
+  // unknown command still fails loudly through the unknown-command path.
+  // Only a token that is exactly `help` is a help request — named-argument
+  // spellings (`name::help`) pass through untouched.
+  let help_target = if matches!( argv[ 0 ].as_str(), "help" | ".help" )
+  {
+    Some( argv[ 1 ].clone() )
+  }
+  else if argv.len() >= 2 && argv[ argv.len() - 1 ] == "help"
+  {
+    Some( argv[ 0 ].clone() )
+  }
+  else
+  {
+    None
+  };
+
+  if let Some( target ) = help_target
+  {
+    let target = target.strip_prefix( '.' ).unwrap_or( target.as_str() );
+    if target == "help"
+    {
+      print_help();
+      return;
+    }
+    argv = vec![ format!( ".{target}.help" ) ];
   }
 
   // unilang's own argv-parsing tests (tests/system/argv_api.rs) only ever
@@ -307,5 +350,13 @@ fn main()
       eprintln!( "{error}" );
     }
     std::process::exit( EXIT_CODE.load( Ordering::Relaxed ) );
+  }
+
+  for output in &result.outputs
+  {
+    if !output.content.is_empty()
+    {
+      println!( "{}", output.content );
+    }
   }
 }

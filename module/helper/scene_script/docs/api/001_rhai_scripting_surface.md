@@ -19,14 +19,32 @@ The table groups rows by element type across arities rather than enumerating all
 |-----------|----------------------|----------|
 | `f32x1`, `f32x2`, `f32x3`, `f32x4` | `(x[, y[, z[, w]]]) -> F32x{1,2,3,4}` | Constructs the matching-arity `f32`-element vector. Every argument arrives as Rhai's `f64` and is cast to `f32` at the boundary (see [`pitfall/004`](../pitfall/004_f32_boundary_cast_truncates_precision.md)). |
 | `f64x1`, `f64x2`, `f64x3`, `f64x4` | `(x[, y[, z[, w]]]) -> F64x{1,2,3,4}` | Constructs the matching-arity `f64`-element vector. No precision cast — Rhai's `f64` matches the element type exactly. |
+| `f32x4`, `f64x4` (2-arg overload) | `(xy: F32x2/F64x2, zw: F32x2/F64x2) -> F32x4/F64x4` | Concatenates two same-precision 2-component vectors' components — `(xy.x, xy.y, zw.x, zw.y)`, not a geometric combination. Coexists with the arity-4 scalar constructor above; Rhai dispatches by argument type/count. |
 | `.x` (all arities); `.y` (arity ≥2); `.z` (arity ≥3); `.w` (arity 4 only) | `(vector) -> float` | Read-only property getters, one per component the arity actually has. No corresponding setters are registered — a script cannot mutate a vector's components in place. |
-| `+`, `-` | `(vector, vector) -> vector` | Component-wise add/subtract, for any vector type against its own type only — never across precision or arity (see [`invariant/002`](../invariant/002_f32x2_f64x2_type_distinctness.md)). |
+| `+`, `-` (binary) | `(vector, vector) -> vector` | Component-wise add/subtract, for any vector type against its own type only — never across precision or arity (see [`invariant/002`](../invariant/002_f32x2_f64x2_type_distinctness.md)). |
+| `-` (unary) | `(vector) -> vector` | Component-wise negation. Registered under the same `"-"` name as binary subtract; Rhai dispatches by arity (1 argument vs 2). |
 | `*` | `(vector, float) -> vector` or `(float, vector) -> vector` | Scalar multiply, registered both operand orders. |
+| `dot` | `(vector, vector) -> float` | Dot product, same type only. |
+| `mag`, `mag2` | `(vector) -> float` | Euclidean magnitude and squared magnitude (`mag2` avoids the square root). |
+| `normalize` | `(vector) -> vector` | Returns a new unit-length copy. Despite the name, this does not mutate the receiver — every vector operation is non-mutating, same as `+`/`-`/`*` above. |
+| `distance` | `(vector, vector) -> float` | Euclidean distance between two same-type vectors — equivalent to `(b - a).mag()`. |
+| `min`, `max` | `(vector, vector) -> vector` | Component-wise minimum/maximum. |
+| `cross` | `(F32x3/F64x3, F32x3/F64x3) -> F32x3/F64x3` | 3-component cross product, right-handed. Registered only on the two arity-3 types — no arity-2 or arity-4 analog exists. |
+| `truncate` | `(F32x4/F64x4) -> F32x3/F64x3` | Drops the `w` component, same precision. Registered only on the two arity-4 types. |
 | `to_string` | `(vector) -> string` | Renders as `"F32x1(x)"`, `"F32x2(x, y)"`, `"F32x3(x, y, z)"`, `"F32x4(x, y, z, w)"`, and the `F64x*` equivalents. |
-| `tween` | `(start: vector, end: vector, duration: float) -> Tween` | Constructs a `Tween`, always Linear-eased (see [`pitfall/006`](../pitfall/006_only_linear_easing_is_exposed_to_scripts.md)). Overloaded on the vector argument type across all 8 registered types: passing two same-type vectors yields a `Tween` over that type — a script never names the precision or arity separately from the vectors it passes, and `start`/`end` must be the same type (never, e.g., one `F32x2` and one `F32x3`). |
+| `tween` (3-arg) | `(start: vector, end: vector, duration: float) -> Tween` | Constructs a `Tween` with Linear easing. Overloaded on the vector argument type across all 8 registered types: passing two same-type vectors yields a `Tween` over that type — a script never names the precision or arity separately from the vectors it passes, and `start`/`end` must be the same type (never, e.g., one `F32x2` and one `F32x3`). |
+| `tween` (4-arg) | `(start: vector, end: vector, duration: float, easing: string) -> Tween`, fallible | Same as the 3-arg form, but names an easing curve instead of defaulting to Linear — `"Linear"` or one of 24 CSS-style presets (`"EaseInSine"` .. `"EaseInOutBack"`; see [`pitfall/006`](../pitfall/006_parameterized_easing_curves_are_unreachable_by_name.md) for exactly which curves, and which remain unreachable). An unrecognized name is a script-catchable runtime error whose message contains `"unknown easing curve name"` — never a silent fallback to Linear. |
 | `.update` (on `Tween`) | `(tween, delta_time: float) -> vector` | Advances the tween's internal elapsed time by `delta_time` and returns the resulting interpolated value. Mutates the tween. |
 | `.value` (on `Tween`) | `(tween) -> vector` | Reads the current interpolated value without advancing time. |
 | `.is_completed` (on `Tween`) | `(tween) -> bool` | Reports whether the tween has reached its end value. |
+| `.progress` (on `Tween`) | `(tween) -> float` | Fraction of duration elapsed, clamped to `0.0..=1.0`; reads `0.0` while still `Pending` (delay not yet elapsed). |
+| `.duration`, `.delay` (on `Tween`) | `(tween) -> float` | Read back the tween's configured duration/delay. |
+| `.time` (on `Tween`) | `(tween) -> float` | Total elapsed time since construction (or since the last `.reset()`), including any repeat cycles. |
+| `.current_repeat` (on `Tween`) | `(tween) -> int` | Number of repeat cycles completed so far. |
+| `.state` (on `Tween`) | `(tween) -> string` | The tween's lifecycle stage, `Debug`-formatted from the underlying Rust enum: `"Pending"`, `"Running"`, `"Paused"`, or `"Completed"`. |
+| `.pause`, `.resume` (on `Tween`) | `(tween) -> ()` | Halt/resume progress — a paused tween ignores further `.update()` calls until resumed. Mutates the tween. |
+| `.reset` (on `Tween`) | `(tween) -> ()` | Returns the tween to its start value and zeroes elapsed time and repeat count. Mutates the tween. |
+| `.with_delay`, `.with_duration`, `.with_repeat`, `.with_yoyo` (on `Tween`) | `(tween, value) -> Tween` | Consuming builder methods — each takes the tween by value and returns a modified copy for chaining (`t.with_delay(0.5).with_duration(2.0)`) rather than mutating in place. `.with_repeat` takes an `int` repeat count; `.with_yoyo` takes a `bool`. |
 
 ### Error Handling
 
