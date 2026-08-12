@@ -6,13 +6,14 @@
 |------|---------|-------------|----------:|
 | `algorithm/` | Non-trivial procedures, stated as HOW rather than WHAT/WHERE | [algorithm/readme.md](../algorithm/readme.md) | 1 |
 | `api/` | The crate's callable surface — operations, error handling, compatibility guarantees | [api/readme.md](../api/readme.md) | 1 |
-| `data_structure/` | Script-facing value shapes — fields, mutability, invariants | [data_structure/readme.md](../data_structure/readme.md) | 2 |
+| `data_structure/` | Script-facing generic container shapes — fields, mutability, invariants | [data_structure/readme.md](../data_structure/readme.md) | 1 |
 | `dependency/` | Crate selection rationale and configuration for direct dependencies | [dependency/readme.md](../dependency/readme.md) | 1 |
 | `feature/` | Navigational hub tying every doc instance to the one end-to-end capability | [feature/readme.md](../feature/readme.md) | 1 |
 | `integration/` | The runtime boundary between this crate and the embedded Rhai interpreter | [integration/readme.md](../integration/readme.md) | 1 |
 | `invariant/` | Correctness properties that must always hold, and their enforcement mechanisms | [invariant/readme.md](../invariant/readme.md) | 3 |
 | `pattern/` | Recurring crate-local solution shapes — problem, solution, applicability, consequences | [pattern/readme.md](../pattern/readme.md) | 2 |
 | `pitfall/` | Known traps in Rhai scoping, checker enforcement, precision, and easing scope, their failure modes, and mitigations | [pitfall/readme.md](../pitfall/readme.md) | 6 |
+| `type/` | Script-visible Domain Types — domain meaning, ddd classification, construction/validation rules | [type/readme.md](../type/readme.md) | 2 |
 
 ## Master Doc Instances Table
 
@@ -20,8 +21,7 @@
 |--------|-----|------|------|
 | algorithm | 001 | Top-Level Statement Classification | [algorithm/001_top_level_statement_classification.md](../algorithm/001_top_level_statement_classification.md) |
 | api | 001 | Rhai Scripting Surface | [api/001_rhai_scripting_surface.md](../api/001_rhai_scripting_surface.md) |
-| data_structure | 001 | F32x2/F64x2 Script-Facing Vector Types | [data_structure/001_f32x2_f64x2_script_facing_vector_types.md](../data_structure/001_f32x2_f64x2_script_facing_vector_types.md) |
-| data_structure | 002 | Tween Script-Facing Type | [data_structure/002_tween_script_facing_type.md](../data_structure/002_tween_script_facing_type.md) |
+| data_structure | 001 | Tween Script-Facing Type | [data_structure/001_tween_script_facing_type.md](../data_structure/001_tween_script_facing_type.md) |
 | dependency | 001 | rhai `internals` Feature | [dependency/001_rhai_internals_feature.md](../dependency/001_rhai_internals_feature.md) |
 | feature | 001 | Rhai Scene Scripting | [feature/001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) |
 | integration | 001 | Rhai Engine Boundary | [integration/001_rhai_engine_boundary.md](../integration/001_rhai_engine_boundary.md) |
@@ -36,3 +36,5 @@
 | pitfall | 004 | f32 Boundary Cast Silently Truncates Precision | [pitfall/004_f32_boundary_cast_truncates_precision.md](../pitfall/004_f32_boundary_cast_truncates_precision.md) |
 | pitfall | 005 | `OptimizationLevel::Simple` Folds Trivial Top-Level Constructs | [pitfall/005_optimization_level_simple_folds_trivial_top_level_constructs.md](../pitfall/005_optimization_level_simple_folds_trivial_top_level_constructs.md) |
 | pitfall | 006 | Only Linear Easing Is Exposed to Scripts | [pitfall/006_only_linear_easing_is_exposed_to_scripts.md](../pitfall/006_only_linear_easing_is_exposed_to_scripts.md) |
+| type | 001 | F32x2 (Script-Facing Vector Value) | [type/001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) |
+| type | 002 | F64x2 (Script-Facing Vector Value) | [type/002_f64x2_script_facing_vector_value.md](../type/002_f64x2_script_facing_vector_value.md) |

@@ -32,11 +32,12 @@ Applies whenever the script-facing surface grows: a new arity such as `F32x3`/`F
 | [002_f32x2_f64x2_type_distinctness.md](../invariant/002_f32x2_f64x2_type_distinctness.md) | The non-interchangeability this pattern's side-by-side registrations produce |
 | [003_rhai_facing_names_mirror_rust_identifiers.md](../invariant/003_rhai_facing_names_mirror_rust_identifiers.md) | The naming rule every new registration following this pattern must keep |
 
-### Data Structures
+### Types
 
 | File | Relationship |
 |------|--------------|
-| [001_f32x2_f64x2_script_facing_vector_types.md](../data_structure/001_f32x2_f64x2_script_facing_vector_types.md) | The two shapes this pattern currently produces side by side |
+| [001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) | One of the two values this pattern currently produces side by side |
+| [002_f64x2_script_facing_vector_value.md](../type/002_f64x2_script_facing_vector_value.md) | The other of the two values this pattern currently produces side by side |
 
 ### Sources
 

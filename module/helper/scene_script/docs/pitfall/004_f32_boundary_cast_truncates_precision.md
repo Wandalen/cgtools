@@ -25,11 +25,11 @@ Use `f64x2(...)` whenever a script's numeric precision matters for correctness; 
 |------|--------------|
 | [../invariant/002_f32x2_f64x2_type_distinctness.md](../invariant/002_f32x2_f64x2_type_distinctness.md) | The two types stay distinct even though this pitfall's precision loss happens within one of them |
 
-### Data Structures
+### Types
 
 | File | Relationship |
 |------|--------------|
-| [../data_structure/001_f32x2_f64x2_script_facing_vector_types.md](../data_structure/001_f32x2_f64x2_script_facing_vector_types.md) | The shape whose Rust-side element type (`f32`) is the root cause of this narrowing |
+| [../type/001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) | The value whose Rust-side element type (`f32`) is the root cause of this narrowing |
 
 ### Sources
 

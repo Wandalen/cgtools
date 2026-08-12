@@ -9,13 +9,13 @@ authors = [
 license = "MIT"
 
 [dependencies]
-image = { version = "0.24", features = ["rayon"] }
+image = { version = "0.25", features = ["rayon"] }
 RustyXML = "0.3.0"
 wfc_algo = { package = "wfc", version = "0.10", features = [ "js" ] }
 wfc_image = { workspace = true, features = ["parallel"] }
 minwebgl = { workspace = true }
-getrandom = { version = "0.2", features = [ "js" ] }
-rand = { version = "0.8.5" }
+getrandom = { version = "0.4", features = [ "wasm_js" ] }
+rand = { version = "0.10.2" }
 ndarray_cg = { workspace = true }
 quick-xml = { workspace = true }
 

@@ -67,7 +67,7 @@ clone_dyn_types = { workspace = true, optional = true }
 
 asbytes = { workspace = true, optional = true }
 former = { workspace = true, optional = true }
-uuid = { version = "1.12.1", features = ["v4", "js"], optional = true }
+uuid = { version = "1.20.0", features = ["v4", "js"], optional = true }
 
 [dependencies.web-sys]
 workspace = true

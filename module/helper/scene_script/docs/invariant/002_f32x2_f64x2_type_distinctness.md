@@ -27,11 +27,12 @@ If this ever stopped holding — for example, through a future accidental cross-
 |------|--------------|
 | [../pattern/002_dual_precision_side_by_side_registration.md](../pattern/002_dual_precision_side_by_side_registration.md) | The registration shape that produces this distinctness as a side effect of registering each precision separately |
 
-### Data Structures
+### Types
 
 | File | Relationship |
 |------|--------------|
-| [../data_structure/001_f32x2_f64x2_script_facing_vector_types.md](../data_structure/001_f32x2_f64x2_script_facing_vector_types.md) | The two shapes this invariant keeps separate |
+| [../type/001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) | One of the two values this invariant keeps separate |
+| [../type/002_f64x2_script_facing_vector_value.md](../type/002_f64x2_script_facing_vector_value.md) | The other of the two values this invariant keeps separate |
 
 ### Sources
 

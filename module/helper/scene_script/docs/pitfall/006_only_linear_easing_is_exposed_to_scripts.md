@@ -29,7 +29,7 @@ Today, non-linear easing requires a host-side workaround: pre-shape the interpol
 
 | File | Relationship |
 |------|--------------|
-| [../data_structure/002_tween_script_facing_type.md](../data_structure/002_tween_script_facing_type.md) | The opaque shape whose constructor carries this hardcoded choice |
+| [../data_structure/001_tween_script_facing_type.md](../data_structure/001_tween_script_facing_type.md) | The opaque shape whose constructor carries this hardcoded choice |
 
 ### Sources
 

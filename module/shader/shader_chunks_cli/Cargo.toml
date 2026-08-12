@@ -1,0 +1,19 @@
+[package]
+name = "shader_chunks_cli"
+version = "0.1.0"
+edition = "2024"
+description = "Terminal CLI for listing, inspecting, and composing shader_chunks WGSL chunks"
+
+[dependencies]
+shader_chunks.workspace = true
+unilang.workspace = true
+cli_fmt.workspace = true
+data_fmt.workspace = true
+error_tools.workspace = true
+mod_interface.workspace = true
+
+[dev-dependencies]
+assert_cmd = "2.2"
+
+[lints]
+workspace = true

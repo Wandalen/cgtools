@@ -8,14 +8,21 @@
 - **started_at:** null
 - **expires_at:** null
 - **round:** 1
-- **state:** 🎯 (Verified)
+- **state:** ✅ (Completed)
 - **closes:** null
 - **unit_type:** workspace
 - **unit:** lib/yrd_gamedev/cgtools
-- **verified_by:** self (Tier 2 Dual-Role Self-Check)
-- **verification_date:** 2026-08-12
+- **verified_by:** task
+- **verification_date:** 2026-08-12 20:04:12
 - **blocked_by:** null
-- **priority:** 3
+- **priority:** 0
+- **executing_at:** 2026-08-12 19:54:53
+- **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **in_motion:** false
+- **accepting_at:** 2026-08-12 19:55:09
+- **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **completed_at:** 2026-08-12 20:04:12
+- **completed_by:** task
 
 ## Goal
 
@@ -158,8 +165,138 @@ not by this section.
 
 Adversarial pass: strongest challenge is "is `try_compose` genuinely needed by this task, or is it scope creep belonging to task 100?" — checked against task 100's `compose` command, which takes ad hoc CLI arguments (untrusted combinations) where a raw panic is bad UX; the fallible twin has to live in `shader_chunks` itself (not the CLI) because the CLI has no access to `compose`'s private `visit`/cycle-detection internals otherwise — so it's correctly this task's deliverable, task 100 just consumes it. Second challenge: "does the repo-root `shader/` placement quietly break something else that depends on `module/min/shader_chunks/src/chunks/`?" — repo-wide grep for `shader_chunks/src/chunks` confirms zero references outside the crate's own `lib.rs`/tests, so no hidden coupling. No blocking finding survives; G6's initial fail was resolved by reclassification, not by narrowing scope.
 
+## Outcomes
+
+### Acceptance Results
+
+- **Verified by:** self (Tier 2 Dual-Role Self-Check) — same session that performed the
+  implementation; no separate verifier session dispatched. Resolved actor identity:
+  `user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/` (matches this task's own
+  `executing_by`/`accepting_by` fields).
+- **Independence note:** this is a same-session self-check, not independent verification —
+  consistent with this project's own standing verification cap (never escalate cgtools
+  acceptance walks beyond Dual-Role Self-Check). Disclosed per instruction rather than framed as
+  something it isn't: even a separately-dispatched verifier session would resolve to the same
+  actor identity on this host (`scope get::id` is deterministic per host+user+cwd, not
+  per-session — the same BUG-197 collision task 093's own Outcomes disclosed), so a nominal
+  second dispatch would not have bought genuine identity independence either. What this walk
+  does provide: two distinct, explicitly-separated passes — a confirming pass (the Checklist/
+  Measurements/Invariants/Anti-faking walk below, all re-run fresh against the now-actually-
+  implemented code rather than reused from the pre-implementation Verification Record above) and
+  an adversarial pass (a repo-wide sweep for stray old-path references and Cargo.toml
+  duplicate/orphaned entries, specifically hunting for what the confirming pass could plausibly
+  miss).
+- **Date:** 2026-08-12
+- **Verdict:** PASS
+
+#### Checklist
+
+- [x] C1 — Do all 4 `.wgsl` files exist under repo-root `shader/` and nowhere else? — YES:
+      `find shader -maxdepth 1 -name '*.wgsl'` → `shader/fbm3.wgsl`, `shader/fullscreen_triangle.wgsl`,
+      `shader/hash21.wgsl`, `shader/value_noise.wgsl` (4 files, see M1). Repo-wide
+      `find . -name '*.wgsl'` (excluding `target/`) shows every other hit belongs to unrelated crates
+      (`renderer`'s own webgpu shaders, `minwebgpu`/`minwgpu` examples) — none under any
+      `shader_chunks`-related path outside `shader/`.
+- [x] C2 — Does `module/min/shader_chunks/` no longer exist? — YES:
+      `test -d module/min/shader_chunks && echo EXISTS || echo GONE` → `GONE` (see M2).
+- [x] C3 — Does `module/shader/shader_chunks/` contain Cargo.toml, src/lib.rs, readme.md, tests/? —
+      YES: `ls module/shader/shader_chunks/` → `Cargo.toml`, `readme.md`, `src`, `tests`; `src/lib.rs`
+      (294 lines) and `tests/shader_chunks_test.rs` (175 lines) both freshly read in full this session
+      and confirmed non-empty with real content.
+- [x] C4 — Does every chunk carry a `//@ tags:` line matching the values listed in In Scope? — YES:
+      `grep -n "//@ tags:" shader/*.wgsl` → `hash21.wgsl:3: category:hash`,
+      `value_noise.wgsl:3: category:noise`, `fbm3.wgsl:3: category:noise, technique:fractal`,
+      `fullscreen_triangle.wgsl:3: category:vertex` — byte-for-byte matches the In Scope table.
+- [x] C5 — Are `ALL_CHUNKS`, `parse_tags`, `parse_description`, `parse_stage`, `parse_exports`,
+      `try_compose`, `ComposeError` all present in `mod_interface!`'s public surface? — YES:
+      `src/lib.rs:278-294` — the closing `::mod_interface::mod_interface! { ... }` block lists all 7 by
+      name (`own use ALL_CHUNKS;`, `own use parse_tags;`, `own use parse_description;`,
+      `own use parse_stage;`, `own use parse_exports;`, `own use try_compose;`,
+      `own use ComposeError;`), alongside the pre-existing `HASH21`/`VALUE_NOISE`/`FBM3`/
+      `FULLSCREEN_TRIANGLE`/`parse_name`/`parse_depends_on`/`compose`.
+- [x] C6 — Does `try_compose` share `compose`'s topological-sort logic (no divergent reimplementation)
+      and only differ in panic-vs-Result? — YES: `src/lib.rs:201-204` — `compose` is now a 1-line
+      wrapper, `try_compose( chunks ).unwrap_or_else( | err | panic!( "{err}" ) )`; `try_compose`
+      (216-231) builds `entries` then calls the single `visit` helper (239-274) per top-level entry.
+      See AF1 — exactly one `fn visit` exists in the file.
+- [x] C7 — Does the test file's private `ALL_CHUNKS`/`manifest_fields` duplication no longer exist? —
+      YES: `tests/shader_chunks_test.rs:5-10` imports `ALL_CHUNKS` and `parse_exports` directly from
+      the `shader_chunks` crate; full-file read confirms no local `const ALL_CHUNKS` or
+      `fn manifest_fields` definition anywhere in the file.
+- [x] C8 — Does workspace root `Cargo.toml` reference `module/shader/shader_chunks` in both the member
+      list and `[workspace.dependencies.shader_chunks]`? — YES: `grep -n "module/shader/shader_chunks"
+      Cargo.toml` → line 26 (member list: `"module/shader/shader_chunks",`) and line 220
+      (`path = "module/shader/shader_chunks"` under the `[workspace.dependencies.shader_chunks]` table
+      at line 218). `grep -n "shader_chunks" Cargo.toml` shows exactly these 3 lines total — no
+      orphaned or duplicate old-style entry survives (see adversarial note below).
+- [x] C9 — Does `examples/orrery/webgpu/readme.md` link resolve? — YES:
+      `examples/orrery/webgpu/readme.md:7` links
+      `[shader_chunks](../../../module/shader/shader_chunks/readme.md)`;
+      `test -f module/shader/shader_chunks/readme.md` confirms the target exists — 3×`../` from
+      `examples/orrery/webgpu/` reaches repo root, then `module/shader/shader_chunks/readme.md`
+      resolves correctly.
+
+#### Measurements
+
+- [x] M1 — `find /home/user1/pro/lib/yrd_gamedev/cgtools/shader -name '*.wgsl' | wc -l` → `4` — MET.
+- [x] M2 — `test -d /home/user1/pro/lib/yrd_gamedev/cgtools/module/min/shader_chunks && echo EXISTS ||
+      echo GONE` → `GONE` — MET.
+- [x] M3 — `grep -c "module/min/shader_chunks" /home/user1/pro/lib/yrd_gamedev/cgtools/Cargo.toml
+      /home/user1/pro/lib/yrd_gamedev/cgtools/examples/orrery/webgpu/readme.md` →
+      `Cargo.toml:0`, `examples/orrery/webgpu/readme.md:0` — MET (0 in both; `grep -c` exits 1 on a
+      zero-match count, which is the expected/correct signal here, not a command failure).
+
+#### Invariants
+
+- [x] I1 — `cargo test -p shader_chunks --all-features` → HOLD: `16 passed; 0 failed; 0 ignored;
+      0 measured; 0 filtered out` (nextest run, `task/-0026_longrun.log` lines 13/31); doc-test pass
+      shows `0 passed; 0 failed` (crate's doc comments carry no runnable examples — expected for a
+      manifest-parsing library). Detached via `longrun .launch`, exit 0, elapsed 92s total for the
+      full I1+I2+I3 chain.
+- [x] I2 — `cargo clippy -p shader_chunks --all-targets --all-features -- -D warnings` → HOLD: part of
+      the same `&&`-chained detached launch, overall exit 0; `grep -n "warning" task/-0026_longrun.log`
+      → zero matches across the entire log.
+- [x] I3 — `cargo check --workspace` → HOLD: exit 0; log shows `Finished \`dev\` profile
+      [unoptimized + debuginfo] target(s) in 1m 30s` after checking numerous workspace members
+      (`cg_tools`, `mdmath_linalg`, `minwebgpu_hello_triangle_quickstart`, `jewelry_site`,
+      `minwebgpu_deffered_rendering`, `minwebgpu_renderer_pbr_scene`, `behaviour_tree`,
+      `minwebgpu__`, and others) — full-workspace resolution confirmed, including the real
+      `orrery_webgpu` consumer.
+
+#### Anti-faking checks
+
+- [x] AF1 — `grep -n "fn visit" src/lib.rs` → single hit at line 239 — confirms the topological-sort
+      helper is reused by both `compose` and `try_compose`, not duplicated under a second name (see
+      C6 for the call-graph detail).
+- [x] AF2 — `grep -n "parse_tags\|parse_stage\|parse_exports\|try_compose"
+      tests/shader_chunks_test.rs` → 20 real call sites across `parse_stage_is_some_only_for_the_
+      vertex_chunk`, `parse_exports_counts_match_each_chunk`, `parse_tags_reads_every_bundled_chunk`,
+      `parse_tags_panics_on_malformed_entry`, `try_compose_matches_compose_output_on_success`,
+      `try_compose_returns_err_on_missing_dependency`, `try_compose_returns_err_on_cyclic_dependency`
+      — genuine assertions against real return values (e.g.
+      `assert_eq!( parse_tags( FBM3 ), vec![ ( "category", "noise" ), ( "technique", "fractal" ) ] )`),
+      not merely present in the import list.
+
+**Adversarial-pass evidence (beyond the checklist's own literal items):** repo-wide
+`grep -rn "module/min/shader_chunks" --include="*.md" --include="*.toml" --include="*.rs" .` returns
+matches only inside this task file's own historical/planning prose (Goal, In Scope, Acceptance
+Criteria, Checklist text) — zero live/functional references survive anywhere else in the repository.
+`grep -n "shader_chunks" Cargo.toml` returns exactly 3 lines (member-list entry, `[workspace.
+dependencies.shader_chunks]` header, `path =` line) — no leftover duplicate or orphaned entry from
+the pre-move state. No blocking finding survives either pass.
+
+## Journal
+
+| Timestamp           | Actor                | Event | Note         |
+|---------------------|----------------------|-------|--------------|
+| 2026-08-12 19:54:53 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
+| 2026-08-12 19:55:07 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | EXEC_COMPLETE | execution complete |
+| 2026-08-12 19:55:09 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_ACCEPT | acceptance claimed |
+| 2026-08-12 20:04:12 | task | ACCEPTANCE_PASS | acceptance passed |
+
 ## History
 
 *(append-only — newest entry last; never edit or remove past entries)*
 
 - **2026-08-12** `FILED` — Task filed by user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/. Goal: relocate shader_chunks' source and crate per user-approved plan, add tag manifest field and inspection API needed by task 100.
+- **2026-08-12** `ACCEPTANCE_PASS` — Acceptance verification passed (Tier 2 Dual-Role Self-Check; see `## Outcomes`). State ✅ Completed.

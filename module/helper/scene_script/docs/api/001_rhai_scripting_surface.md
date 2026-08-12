@@ -5,7 +5,7 @@
 - **Purpose**: Enumerate everything a script can call once `engine_build()` has registered `scene_script`'s bindings.
 - **Responsibility**: Document available operations with conceptual signatures, error conditions, and compatibility guarantees.
 - **In Scope**: Constructors, methods, operators, and property getters registered by `vector_binding.rs` and `tween_binding.rs`.
-- **Out of Scope**: The script-visible shape/fields of the involved types (see [`data_structure/001`](../data_structure/001_f32x2_f64x2_script_facing_vector_types.md), [`data_structure/002`](../data_structure/002_tween_script_facing_type.md)); the Rust-level registration functions' own rustdoc (see crate [`readme.md`](../../readme.md)).
+- **Out of Scope**: The script-visible shape/fields of the involved types (see [`type/001`](../type/001_f32x2_script_facing_vector_value.md), [`type/002`](../type/002_f64x2_script_facing_vector_value.md), [`data_structure/001`](../data_structure/001_tween_script_facing_type.md)); the Rust-level registration functions' own rustdoc (see crate [`readme.md`](../../readme.md)).
 
 ### Abstract
 
@@ -34,12 +34,18 @@ Every operation above is a strongly-typed Rhai function registration — calling
 
 Every constructor and type name mirrors its Rust identifier exactly (see [`invariant/003`](../invariant/003_rhai_facing_names_mirror_rust_identifiers.md)) — a naming convention enforced by manual review only, not tooling. The crate is pre-1.0 (`0.1.0` in `Cargo.toml`); no formal deprecation policy or versioning strategy for this scripting surface exists yet, and none is asserted here beyond the crate's own Cargo semver.
 
+### Types
+
+| File | Relationship |
+|------|--------------|
+| [001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) | The value `f32x2` constructs and `+`/`-`/`*` operate on |
+| [002_f64x2_script_facing_vector_value.md](../type/002_f64x2_script_facing_vector_value.md) | The value `f64x2` constructs and `+`/`-`/`*` operate on |
+
 ### Data Structures
 
 | File | Relationship |
 |------|--------------|
-| [001_f32x2_f64x2_script_facing_vector_types.md](../data_structure/001_f32x2_f64x2_script_facing_vector_types.md) | The shape `f32x2`/`f64x2` construct and `+`/`-`/`*` operate on |
-| [002_tween_script_facing_type.md](../data_structure/002_tween_script_facing_type.md) | The shape `tween` constructs and `.update`/`.value`/`.is_completed` operate on |
+| [001_tween_script_facing_type.md](../data_structure/001_tween_script_facing_type.md) | The shape `tween` constructs and `.update`/`.value`/`.is_completed` operate on |
 
 ### Patterns
 

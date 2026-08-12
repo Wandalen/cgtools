@@ -9,7 +9,7 @@
 
 ### Abstract
 
-A script sees `Tween` as an opaque handle with no readable fields at all — every access goes through a method (`.update`, `.value`, `.is_completed`), unlike `F32x2`/`F64x2` ([`data_structure/001`](001_f32x2_f64x2_script_facing_vector_types.md)), which expose `.x`/`.y` directly. This is a deliberate consequence of what the type represents: a tween carries internal progress state (elapsed time) that must advance monotonically through `.update`, so exposing raw fields would let a script corrupt that state directly rather than only ever moving it forward through the registered method.
+A script sees `Tween` as an opaque handle with no readable fields at all — every access goes through a method (`.update`, `.value`, `.is_completed`), unlike `F32x2`/`F64x2` ([`type/001`](../type/001_f32x2_script_facing_vector_value.md), [`type/002`](../type/002_f64x2_script_facing_vector_value.md)), which expose `.x`/`.y` directly. This is a deliberate consequence of what the type represents: a tween carries internal progress state (elapsed time) that must advance monotonically through `.update`, so exposing raw fields would let a script corrupt that state directly rather than only ever moving it forward through the registered method.
 
 ### Structure
 
@@ -17,7 +17,7 @@ A script sees `Tween` as an opaque handle with no readable fields at all — eve
 Tween { }   // no registered fields or getters
 ```
 
-Confirmed directly against the source: `tween_binding.rs` calls `register_fn` for every operation and never calls `register_get` — the type has zero script-visible fields. Internally, `Tween` is generic over its element vector type (`Tween<F32x2>` and `Tween<F64x2>` are distinct Rust types), but both are registered under the single Rhai type name `"Tween"` — a script never sees the element type as a separate name the way it does for the vector types themselves; the distinction only resurfaces indirectly, through whichever vector type a given `Tween` instance's `.value()`/`.update()` returns.
+Confirmed directly against the source: `tween_binding.rs` calls `register_fn` for every operation and never calls `register_get` — the type has zero script-visible fields. Internally, `Tween` is generic over its element vector type (`Tween<F32x2>` and `Tween<F64x2>` are distinct Rust types), but both are registered under the single Rhai type name `"Tween"` — a script never sees the element type as a separate name the way it does for the vector types themselves; the distinction only resurfaces indirectly, through whichever vector type a given `Tween` instance's `.value()`/`.update()` returns. This single-name registration is also why `Tween` is documented as one `data_structure/` instance rather than split like `F32x2`/`F64x2`: there is exactly one script-visible name to document, not two.
 
 ### Operations
 

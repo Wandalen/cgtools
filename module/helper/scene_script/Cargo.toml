@@ -36,7 +36,7 @@ rhai = { workspace = true, features = ["internals"] }
 # its own `wasm_js` feature in addition to the workspace's `--cfg
 # getrandom_backend="wasm_js"` RUSTFLAGS — the RUSTFLAGS alone is not enough.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { workspace = true, features = ["wasm_js"] }
+getrandom = { version = "0.3", features = [ "wasm_js" ] }
 
 [package.metadata.docs.rs]
 all-features = true

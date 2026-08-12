@@ -44,12 +44,18 @@ The current scope is deliberately narrow: no color type, no vector arity beyond 
 |------|--------------|
 | [001_rhai_scripting_surface.md](../api/001_rhai_scripting_surface.md) | Everything a script can call |
 
+### Types
+
+| File | Relationship |
+|------|--------------|
+| [001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) | Script-facing single-precision vector value |
+| [002_f64x2_script_facing_vector_value.md](../type/002_f64x2_script_facing_vector_value.md) | Script-facing double-precision vector value |
+
 ### Data Structures
 
 | File | Relationship |
 |------|--------------|
-| [001_f32x2_f64x2_script_facing_vector_types.md](../data_structure/001_f32x2_f64x2_script_facing_vector_types.md) | Script-facing vector shape |
-| [002_tween_script_facing_type.md](../data_structure/002_tween_script_facing_type.md) | Script-facing tween shape |
+| [001_tween_script_facing_type.md](../data_structure/001_tween_script_facing_type.md) | Script-facing tween shape |
 
 ### Patterns
 

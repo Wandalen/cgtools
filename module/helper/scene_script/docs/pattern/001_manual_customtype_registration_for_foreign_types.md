@@ -28,12 +28,18 @@ Applies to every type currently exposed to scripts — `F32x2`, `F64x2`, and `Tw
 - **No compiler-checked completeness**: omitting a `register_get` call for a field simply makes that field silently unreachable from scripts — there is no compile error the way a missing trait method would produce.
 - **Works within the orphan-rule constraint at zero dependency cost**: no wrapper newtype, no upstream trait implementation request, no extra crate — the technique is entirely local to `scene_script`.
 
+### Types
+
+| File | Relationship |
+|------|--------------|
+| [001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) | The value this pattern produces for the single-precision vector type |
+| [002_f64x2_script_facing_vector_value.md](../type/002_f64x2_script_facing_vector_value.md) | The value this pattern produces for the double-precision vector type |
+
 ### Data Structures
 
 | File | Relationship |
 |------|--------------|
-| [001_f32x2_f64x2_script_facing_vector_types.md](../data_structure/001_f32x2_f64x2_script_facing_vector_types.md) | The shape this pattern produces for the vector types |
-| [002_tween_script_facing_type.md](../data_structure/002_tween_script_facing_type.md) | The shape this pattern produces for the tween type |
+| [001_tween_script_facing_type.md](../data_structure/001_tween_script_facing_type.md) | The shape this pattern produces for the tween type |
 
 ### APIs
 

@@ -9,11 +9,11 @@ authors = [
 
 [dependencies]
 minwebgl = { workspace = true, features = [ "future", "file", "math" ] }
-serde = { version = "1.0.219", features = [ "derive" ] }
-serde_json = "1.0.142"
+serde = { version = "1.0.229", features = [ "derive" ] }
+serde_json = "1.0.151"
 
 [dependencies.bytemuck]
-version = "1.23.2"
+version = "1.25.2"
 features = [ "derive" ]
 
 [dependencies.web-sys]
