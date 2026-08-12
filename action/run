@@ -142,7 +142,7 @@ _discover_numbered()
   do
     _id=$(( _id + 1 ))
     printf '%s|%s\n' "$_id" "$_line"
-  done < <(_discover | sort)
+  done < <(_discover | LC_ALL=C sort)
 }
 
 if [[ $# -eq 0 ]]
@@ -174,7 +174,9 @@ then
     then
       printf '%s|%s|%s|%s\n' "$_id" "$_p" "$_k" "$_t"
     else
-      printf '%-4s %-60s %-10s %s\n' "$_id" "$_p" "$_k" "$_t"
+      # Display joins tags with · for readability; --raw keeps commas so
+      # parsers (e.g. action/gallery) never depend on a multibyte separator.
+      printf '%-4s %-60s %-10s %s\n' "$_id" "$_p" "$_k" "${_t//,/·}"
     fi
   done
   exit 0

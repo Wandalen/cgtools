@@ -56,7 +56,7 @@ fn fragment_body_redeclares_no_chunk_symbol_and_consumes_them()
   {
     assert_eq!
     (
-      code_occurrences( &fragment_wgsl, chunk_declaration ), 0,
+      code_occurrences( fragment_wgsl, chunk_declaration ), 0,
       "shader/scene_fragment.wgsl must not carry its own copy of `{chunk_declaration}` — it comes from shader_chunks"
     );
   }
@@ -68,7 +68,7 @@ fn fragment_body_redeclares_no_chunk_symbol_and_consumes_them()
   {
     assert!
     (
-      code_occurrences( &fragment_wgsl, consumed ) > 0,
+      code_occurrences( fragment_wgsl, consumed ) > 0,
       "shader/scene_fragment.wgsl must consume `{consumed}`"
     );
   }

@@ -40,8 +40,8 @@ trap 'rm -rf "$_tmp"' EXIT
 # Gallery category taxonomy: examples/<dir> -> data-category key / section title. Matches
 # the data-category/data-filter values already wired into index.html's CSS and filter JS.
 # Display order falls out naturally from action/run's own alphabetical-by-relpath discovery
-# order — examples/math < minwebgl < minwebgpu < minwgpu < scene_script < tiles_tools — so
-# no separate sort/bucketing step is needed here.
+# order — examples/math < minwebgl < minwebgpu < minwgpu < orrery < scene_script <
+# tiles_tools — so no separate sort/bucketing step is needed here.
 _category_key()
 {
   case "$1" in
@@ -59,6 +59,7 @@ _category_title()
     webgl) printf 'WebGL Examples' ;;
     webgpu) printf 'WebGPU Examples' ;;
     wgpu) printf 'WGPU Examples' ;;
+    orrery) printf 'Orrery Examples' ;;
     scene_script) printf 'Scripting Examples' ;;
     tiles_tools) printf 'Tiles Tools Examples' ;;
     *) printf '%s Examples' "$1" ;;

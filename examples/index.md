@@ -8,6 +8,7 @@ Interactive WebGL/WebGPU examples demonstrating CGTools capabilities. Generated 
 - [WebGL Examples](#webgl-examples)
 - [WebGPU Examples](#webgpu-examples)
 - [WGPU Examples](#wgpu-examples)
+- [Orrery Examples](#orrery-examples)
 - [Scripting Examples](#scripting-examples)
 - [Tiles Tools Examples](#tiles-tools-examples)
 
@@ -34,8 +35,8 @@ Example | Description
 [Curve Surface Rendering](./minwebgl/curve_surface_rendering/readme.md) | This demo demonstrates how to render 2D shapes from lines data as texture on objects surface in WebGL2. It uses UFO font format to get glyphs shape data and then uses it for creating filled with color 2D glyphs on objects surface.
 [Deferred Shading](./minwebgl/deferred_shading/readme.md) | An advanced WebGL rendering demo showcasing deferred shading techniques with volumetric light optimization. Features real-time lighting of complex scenes with numerous dynamic light sources while maintaining smooth 60fps performance.
 [Diamond Rendering](./minwebgl/diamond/readme.md) | This demo demonstrates rendering a diamond or crystal-like object in WebGL2. It showcases advanced material properties including refraction, reflection, and caustics to create realistic gemstone appearance.
-[Image Filter](./minwebgl/filter/readme.md) | This demo demonstrates real-time image filtering in WebGL2. It shows how to apply various shader-based filters to images or rendered scenes, including blur, sharpen, edge detection, and color grading.
 [Multiple Filters](./minwebgl/filters/readme.md) | A comprehensive collection of image filters and post-processing effects implemented entirely on the GPU using WebGL 2.0. Explore various image processing techniques from basic convolution kernels to advanced multi-pass rendering algorithms, all running in real-time.
+[Image Filter](./minwebgl/filter/readme.md) | This demo demonstrates real-time image filtering in WebGL2. It shows how to apply various shader-based filters to images or rendered scenes, including blur, sharpen, edge detection, and color grading.
 [glTF Viewer](./minwebgl/gltf_viewer/readme.md) | This demo is a comprehensive glTF 2.0 viewer implementing physically-based rendering (PBR) in WebGL2. It loads and displays 3D models with industry-standard materials, including metallic-roughness workflow, normal mapping, and image-based lighting.
 [Hexagonal Grid](./minwebgl/hexagonal_grid/readme.md) | This demo demonstrates procedural generation and rendering of hexagonal grids in WebGL2. Hexagonal grids are widely used in strategy games, board games, and data visualization due to their uniform neighbor distances.
 [Hexagonal Map](./minwebgl/hexagonal_map/readme.md) | This demo demonstrates a complete hexagonal map system in WebGL2. Building on hexagonal grid rendering, it adds terrain, tiles, and interactive map features commonly used in strategy games.
@@ -46,9 +47,9 @@ Example | Description
 [Minimized WASM Build](./minwebgl/minimize_wasm/readme.md) | This demo showcases techniques for minimizing WebAssembly binary size in cgtools applications. It demonstrates optimization strategies including dead code elimination, LTO, and size-focused compilation.
 [Morph targets](./minwebgl/morph_targets/readme.md) | —
 [Narrow Outline Rendering](./minwebgl/narrow_outline/readme.md) | This demo demonstrates narrow outline rendering in WebGL2. It shows techniques for drawing thin, consistent outlines around objects, useful for selection highlighting, stylized rendering, or UI elements.
-[Object Picking](./minwebgl/object_picking/readme.md) | This demo demonstrates object picking techniques in WebGL2. It shows how to determine which 3D object the user clicked on, essential for interactive 3D applications and games.
 [OBJ Model Loading](./minwebgl/obj_load/readme.md) | This demo demonstrates loading and parsing Wavefront OBJ files in WebGL2. The OBJ format is a widely-supported 3D model format, making this essential for importing external 3D content.
 [OBJ Model Viewer](./minwebgl/obj_viewer/readme.md) | This demo is a complete OBJ model viewer with interactive camera controls in WebGL2. Building on OBJ loading, it provides a full viewing experience with rotation, zoom, and lighting.
+[Object Picking](./minwebgl/object_picking/readme.md) | This demo demonstrates object picking techniques in WebGL2. It shows how to determine which 3D object the user clicked on, essential for interactive 3D applications and games.
 [Outline Rendering](./minwebgl/outline/readme.md) | This demo demonstrates comprehensive Jump Flood Algorithm (JFA) outline rendering technique in WebGL2. JFA is post processing technique used for creating wide smooth outlines. JFA propagates captured into render target object silhouettes texture coordinates for every pixel of silhouettes. Then this data is used for calculating outlines position on result frame.
 [PBR lighting](./minwebgl/pbr_lighting/readme.md) | This demo is showcase of point and direct light usage with renderer. User can change light pararmeters like direction, position, strength, color, range using UI. Then renderer will show how light affects on PBR surface of glTF models.
 [Post-Processing](./minwebgl/postprocessing/readme.md) | A complete post-processing pipeline demonstrating how full-screen effects can transform a rendered 3D scene with cinematic visual quality through bloom, HDR tone mapping, and color grading.
@@ -74,8 +75,8 @@ Example | Description
 Example | Description
 --- | ---
 [Deferred Rendering (WebGPU)](./minwebgpu/deffered_rendering/readme.md) | This demo demonstrates deferred shading using WebGPU. It showcases the next-generation graphics API with efficient multi-light rendering through geometry buffers and lighting passes.
-[Hello Triangle (WebGPU)](./minwebgpu/hello_triangle/readme.md) | This demo is the classic "Hello Triangle" in WebGPU. It demonstrates the minimum code needed to render a triangle using the modern WebGPU API, serving as an introduction to GPU programming.
 [Hello Triangle Quickstart (WebGPU)](./minwebgpu/hello_triangle_quickstart/readme.md) | Same triangle as [Hello Triangle](../hello_triangle/readme.md), built with minwebgpu's quickstart helpers instead of the raw step-by-step setup: `context::setup` collapses the from_canvas/request_adapter/request_device/preferred_format/configure sequence into one call, and `render_pass::draw_to` collapses the command encoder/render pass/submit ceremony into one call. Every value the helpers hand back — device, queue, format, the render pass itself — is still the plain native `web_sys` type, so dropping back to the manual API for any one step stays a normal function call away.
+[Hello Triangle (WebGPU)](./minwebgpu/hello_triangle/readme.md) | This demo is the classic "Hello Triangle" in WebGPU. It demonstrates the minimum code needed to render a triangle using the modern WebGPU API, serving as an introduction to GPU programming.
 [🧪 renderer_pbr_scene](./minwebgpu/renderer_pbr_scene/readme.md) | —
 
 ## WGPU Examples
@@ -85,13 +86,18 @@ Example | Description
 [Grid Rendering (wgpu)](./minwgpu/grid_render/readme.md) | This demo demonstrates grid rendering using wgpu, the Rust graphics library. It shows how to render grid patterns efficiently in native Rust applications using modern GPU APIs.
 [Hello Triangle (wgpu)](./minwgpu/hello_triangle/readme.md) | This demo is the classic "Hello Triangle" using wgpu in Rust. It demonstrates the minimum code needed for native GPU rendering, serving as an introduction to wgpu fundamentals.
 
+## Orrery Examples
+
+Example | Description
+--- | ---
+[Orrery (WebGPU)](./orrery/webgpu/readme.md) | A sci-fi HUD-style solar-system diagram rendered entirely by a single fullscreen WGSL fragment shader in the browser via WebGPU: a dark gradient background; three drifting nebula bands; two twinkling star-field layers; a grid overlay; a granulated, flickering, gently-pulsating corona-wrapped star; three glowing, pulsing orbit rings; six authored orbiting planets/moons; a handful of keyboard-driven procedural nodes; and a vignette/glow/scanline effects pass. `scene.rhai` (see below) is the scene data; the fragment shader itself lives in its own file, `shader/scene_fragment.wgsl` (see below).
+
 ## Scripting Examples
 
 Example | Description
 --- | ---
 [F32x2 Vector Arithmetic](./scene_script/f32x2_vector_arithmetic/readme.md) | This demo runs a `.rhai` scene script that constructs two `F32x2` vectors and combines them with ordinary `+`/`*` operators, returning the result back to the host as a typed value. It demonstrates the declarative half of `scene_script`'s two scripting patterns: a script as a *data format*, building a value purely from expressions and returning it, as opposed to driving the host imperatively.
 [Pingpong Animation](./scene_script/pingpong_animation/readme.md) | This demo runs a Pong-style scene entirely from a `.rhai` script — loops, branches, and `F32x2` vector arithmetic simulate ball and paddle motion over 40 ticks, calling back into the host once per tick via a registered `emit_frame` function. It demonstrates the imperative half of `scene_script`'s two scripting patterns: a script driving the host by side effect, as opposed to a script that only builds and returns a value.
-[Sun Grid Lines (WebGPU)](./scene_script/sun_grid_lines/readme.md) | A sci-fi HUD-style solar-system diagram rendered entirely by a single fullscreen WGSL fragment shader in the browser via WebGPU: a dark gradient background; three drifting nebula bands; two twinkling star-field layers; a grid overlay; a granulated, flickering, gently-pulsating corona-wrapped star; three glowing, pulsing orbit rings; six authored orbiting planets/moons; a handful of keyboard-driven procedural nodes; and a vignette/glow/scanline effects pass. `scene.rhai` (see below) is the scene data; the fragment shader itself lives in its own file, `shader/scene_fragment.wgsl` (see below).
 
 ## Tiles Tools Examples
 
