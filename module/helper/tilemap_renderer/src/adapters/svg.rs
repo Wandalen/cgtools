@@ -350,7 +350,9 @@ mod private
     /// Handles the Y-up → Y-down coordinate flip only. Viewport pan/zoom is applied
     /// by the top-level `<g>` wrapper managed by [`SvgContentManager`], so it must
     /// **not** be baked into individual element transforms.
-    fn transform_to_svg_static( t : &Transform, height : u32 ) -> String
+    #[ doc( hidden ) ] // implementation detail, public only so its tests can live in tests/
+    #[ must_use ]
+    pub fn transform_to_svg_static( t : &Transform, height : u32 ) -> String
     {
       let mut parts = Vec::new();
 
@@ -393,7 +395,9 @@ mod private
 
     /// Emits a raw local transform — no viewport Y-flip.
     /// Used for instances inside an already Y-flipped `<g>` parent group.
-    fn transform_to_svg_local( t : &Transform ) -> String
+    #[ doc( hidden ) ] // implementation detail, public only so its tests can live in tests/
+    #[ must_use ]
+    pub fn transform_to_svg_local( t : &Transform ) -> String
     {
       let mut parts = Vec::new();
 
@@ -489,7 +493,10 @@ mod private
       }
     }
 
-    fn anchor_to_svg( anchor : TextAnchor ) -> ( &'static str, &'static str )
+    /// Maps a [`TextAnchor`] to the SVG `text-anchor`/`dominant-baseline` value pair.
+    #[ doc( hidden ) ] // implementation detail, public only so its tests can live in tests/
+    #[ must_use ]
+    pub fn anchor_to_svg( anchor : TextAnchor ) -> ( &'static str, &'static str )
     {
       let h = match anchor
       {
@@ -508,7 +515,8 @@ mod private
 
     /// Encodes raw pixel bytes into a PNG file in memory.
     /// Returns `None` if the dimensions don't match the byte count.
-    fn bitmap_to_png( bytes : &[ u8 ], width : u32, height : u32, format : PixelFormat ) -> Option< Vec< u8 > >
+    #[ must_use ]
+    pub fn bitmap_to_png( bytes : &[ u8 ], width : u32, height : u32, format : PixelFormat ) -> Option< Vec< u8 > >
     {
       let color_type = match format
       {
@@ -548,11 +556,13 @@ mod private
       Some( ( info.width, info.height ) )
     }
 
-    // Legacy PNG-only IHDR reader. Production code uses `image_dimensions` for
-    // all formats; retained for its unit tests which exercise the hand-rolled
-    // path as a sanity check on the `image` crate's behavior for PNG inputs.
-    #[ cfg( test ) ]
-    fn png_dimensions( bytes : &[ u8 ] ) -> Option< ( u32, u32 ) >
+    /// Legacy PNG-only IHDR reader: extracts `( width, height )` from a PNG byte
+    /// stream, or returns `None` for non-PNG input. Production code uses
+    /// `image_dimensions` for all formats; retained for its tests, which exercise
+    /// the hand-rolled path as a sanity check on the `image` crate's behavior
+    /// for PNG inputs.
+    #[ must_use ]
+    pub fn png_dimensions( bytes : &[ u8 ] ) -> Option< ( u32, u32 ) >
     {
       // PNG layout: 8-byte signature + 4-byte chunk length + 4-byte "IHDR" + 4-byte width + 4-byte height
       const SIG : &[ u8 ] = &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ];
@@ -760,7 +770,8 @@ mod private
     /// - yields a valid URI reference (browsers require e.g. space → `%20`)
     /// - neutralizes attribute-injection payloads (quote, `<`, `>`, `&` are
     ///   encoded and cannot close the attribute or inject markup)
-    fn path_to_href( s : &str ) -> String
+    #[ must_use ]
+    pub fn path_to_href( s : &str ) -> String
     {
       use core::fmt::Write as _;
       let mut out = String::with_capacity( s.len() );
@@ -1680,8 +1691,9 @@ mod private
   // ============================================================================
 
   /// Manages a single SVG string buffer with indexed sections to avoid full reallocations.
+  #[ doc( hidden ) ] // implementation detail, public only so its tests can live in tests/
   #[ derive( Debug, Clone ) ]
-  struct SvgContentManager
+  pub struct SvgContentManager
   {
     buffer : String,
     defs_start : usize,
@@ -1716,6 +1728,7 @@ mod private
     }
 
     /// Creates a newly formatted SVG buffer layout empty with `<defs>` and `body` sections.
+    #[ must_use ]
     pub fn new( width : u32, height : u32, shape_rendering : &str ) -> Self
     {
       let mut buffer = String::new();
@@ -1761,6 +1774,11 @@ mod private
     }
 
     /// Updates the SVG header attributes dynamically like changing width/height bounds.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the internal offset-shift invariant is violated ( an internal
+    /// bookkeeping bug in this type ), never for any caller-supplied input.
     pub fn update_header( &mut self, width : u32, height : u32, shape_rendering : &str )
     {
       let header = format!
@@ -1792,6 +1810,11 @@ mod private
     ///
     /// This modifies the single `transform` attribute in-place so all previously
     /// rendered elements immediately reflect the new viewport without re-submission.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the internal offset-shift invariant is violated ( an internal
+    /// bookkeeping bug in this type ), never for any caller-supplied input.
     pub fn update_viewport_transform( &mut self, offset : [ f32; 2 ], scale : f32 )
     {
       let new_transform = Self::initial_vp_transform( offset, scale );
@@ -1849,7 +1872,7 @@ mod private
     /// Inlines a frame-time def (from `submit`) into the definitions section.
     ///
     /// Does **not** advance `frame_defs_start` — these defs are cleared by
-    /// [`clear_frame_defs`] at the start of each `submit()`.
+    /// [`Self::clear_frame_defs`] at the start of each `submit()`.
     pub fn push_frame_def( &mut self, def : &str )
     {
       let insert_at = self.defs_end - Self::DEFS_CLOSE.len();
@@ -1901,433 +1924,10 @@ mod private
     }
 
     /// Reference handle access to underlying payload SVG.
+    #[ must_use ]
     pub fn buffer( &self ) -> &str
     {
       &self.buffer
-    }
-  }
-
-  // ============================================================================
-  // Tests
-  // ============================================================================
-
-  // Documented exception (task 071) to the all-tests-in-tests/ convention: the tests below
-  // pin private formatting/encoding helpers -- `transform_to_svg_static`/`transform_to_svg_local`
-  // (Y-flip math), `anchor_to_svg`, `path_to_href`, `png_dimensions`, `detect_image_mime`,
-  // `bitmap_to_png`, and `SvgContentManager` -- none of which are in the `mod_interface`
-  // exports; publishing them solely for test placement would widen the API for no caller.
-  // (`image_encoded_png_stores_dimensions` additionally builds its PNG fixture via the private
-  // encoder.) The adapter's public-surface behavior tests live in `tests/svg_backend_test.rs`;
-  // the small driving helpers (`svg800x600`, `render`, `defs`) are intentionally present on
-  // both sides -- an inline module cannot import from `tests/helpers`.
-  #[ cfg( test ) ]
-  mod tests
-  {
-    use super::*;
-    use crate::backend::{ Backend, Output };
-    use crate::types::{ MipmapMode, WrapMode };
-
-    fn svg800x600() -> SvgBackend
-    {
-      SvgBackend::new( RenderConfig { width : 800, height : 600, ..Default::default() } )
-    }
-
-    fn empty_assets() -> Assets
-    {
-      Assets
-      {
-        fonts : vec![],
-        images : vec![],
-        sprites : vec![],
-        geometries : vec![],
-        gradients : vec![],
-        patterns : vec![],
-        clip_masks : vec![],
-        paths : vec![],
-      }
-    }
-
-    fn render( svg : &SvgBackend ) -> String
-    {
-      match svg.output().unwrap()
-      {
-        Output::String( s ) => s,
-        _ => panic!( "expected string output" ),
-      }
-    }
-
-    fn defs( svg : &SvgBackend ) -> String
-    {
-      let full = render( svg );
-      let start = full.find( "<defs>" ).unwrap() + "<defs>".len();
-      let end = full.find( "</defs>" ).unwrap();
-      full[ start..end ].to_string()
-    }
-
-    // -- transform Y-up --
-
-    #[ test ]
-    fn transform_y_up_bottom_left_origin()
-    {
-      // Position (0,0) in Y-up should map to SVG (0, height=600)
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform { position : [ 0.0, 0.0 ], ..Default::default() },
-        600,
-      );
-      assert!( s.contains( "translate(0,600)" ), "got: {s}" );
-    }
-
-    #[ test ]
-    fn transform_y_up_top_right()
-    {
-      // Position (800,600) should map to SVG (800, 0)
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform { position : [ 800.0, 600.0 ], ..Default::default() },
-        600,
-      );
-      assert!( s.contains( "translate(800,0)" ), "got: {s}" );
-    }
-
-    #[ test ]
-    fn transform_y_up_center()
-    {
-      // Position (400,300) should map to SVG (400, 300)
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform { position : [ 400.0, 300.0 ], ..Default::default() },
-        600,
-      );
-      assert!( s.contains( "translate(400,300)" ), "got: {s}" );
-    }
-
-    #[ test ]
-    fn transform_rotation_negated()
-    {
-      let angle = core::f32::consts::FRAC_PI_4; // 45° CCW in Y-up
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform { rotation : angle, ..Default::default() },
-        600,
-      );
-      // Should emit negative degrees in SVG
-      assert!( s.contains( "rotate(-45" ), "got: {s}" );
-    }
-
-    #[ test ]
-    fn transform_scale_y_negated()
-    {
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform { scale : [ 2.0, 3.0 ], ..Default::default() },
-        600,
-      );
-      // scale Y should be negated: 3.0 → -3.0
-      assert!( s.contains( "scale(2,-3)" ), "got: {s}" );
-    }
-
-    #[ test ]
-    fn transform_identity_scale_emits_y_flip()
-    {
-      // Default scale (1,1) should still emit scale(1,-1) for Y-flip
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform::default(),
-        600,
-      );
-      assert!( s.contains( "scale(1,-1)" ), "got: {s}" );
-    }
-
-    /// Verify that zoom=1.0 does NOT inject scale(1) noise into per-element transforms.
-    #[ test ]
-    fn transform_no_zoom_in_per_element_transform()
-    {
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform::default(),
-        600,
-      );
-      // Only scale(1,-1) for Y-flip should be present; no zoom prefix
-      assert!( !s.contains( "scale(1) " ), "got: {s}" );
-    }
-
-    #[ test ]
-    fn transform_skew_negated()
-    {
-      let angle = core::f32::consts::FRAC_PI_6; // 30°
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform { skew : [ angle, 0.0 ], ..Default::default() },
-        600,
-      );
-      assert!( s.contains( "skewX(-30" ), "got: {s}" );
-    }
-
-    // -- local transform (for batch instances inside Y-flipped group) --
-
-    #[ test ]
-    fn local_transform_no_y_flip()
-    {
-      let s = SvgBackend::transform_to_svg_local( &Transform
-      {
-        position : [ 10.0, 20.0 ],
-        rotation : 0.5,
-        scale : [ 2.0, 3.0 ],
-        ..Default::default()
-      });
-      // Position is raw, no Y-flip
-      assert!( s.contains( "translate(10,20)" ), "got: {s}" );
-      // Rotation is raw (positive), not negated
-      let deg = 0.5_f32.to_degrees();
-      assert!( s.contains( &format!( "rotate({deg})" ) ), "got: {s}" );
-      // Scale is raw, no Y negation
-      assert!( s.contains( "scale(2,3)" ), "got: {s}" );
-    }
-
-    // -- content manager --
-
-    #[ test ]
-    fn content_manager_push_clear_cycle()
-    {
-      let mut cm = SvgContentManager::new( 100, 100, "" );
-      cm.push_asset_def( "<test-def/>" );
-      cm.push_body( "<test-body/>" );
-
-      let buf = cm.buffer();
-      assert!( buf.contains( "<test-def/>" ) );
-      assert!( buf.contains( "<test-body/>" ) );
-
-      cm.clear_body();
-      let buf = cm.buffer();
-      assert!( buf.contains( "<test-def/>" ) );
-      assert!( !buf.contains( "<test-body/>" ) );
-
-      cm.clear_defs();
-      let buf = cm.buffer();
-      assert!( !buf.contains( "<test-def/>" ) );
-    }
-
-    // -- png_dimensions --
-
-    /// Verifies that `png_dimensions` extracts correct width/height from valid PNG bytes.
-    #[ test ]
-    fn png_dimensions_valid()
-    {
-      // Generate a real 3×5 PNG via bitmap_to_png, then extract dimensions from its header.
-      let bytes = vec![ 0u8; 3 * 5 * 4 ];
-      let png = SvgBackend::bitmap_to_png( &bytes, 3, 5, PixelFormat::Rgba8 ).unwrap();
-      assert_eq!( SvgBackend::png_dimensions( &png ), Some( ( 3, 5 ) ) );
-    }
-
-    /// Verifies MIME type detection from magic bytes.
-    #[ test ]
-    fn detect_image_mime_by_magic()
-    {
-      // PNG
-      assert_eq!( detect_image_mime( &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0 ] ), "image/png" );
-      // JPEG
-      assert_eq!( detect_image_mime( &[ 0xff, 0xd8, 0xff, 0xe0 ] ), "image/jpeg" );
-      // GIF
-      assert_eq!( detect_image_mime( b"GIF89a..." ), "image/gif" );
-      // WebP
-      let mut webp = Vec::from( *b"RIFF\0\0\0\0WEBP" );
-      webp.push( 0 );
-      assert_eq!( detect_image_mime( &webp ), "image/webp" );
-      // Unknown falls back to PNG
-      assert_eq!( detect_image_mime( &[ 0, 0, 0, 0 ] ), "image/png" );
-    }
-
-    /// Verifies that `path_to_href` produces a valid URI reference:
-    /// spaces become %20 and Windows backslashes become forward slashes.
-    #[ test ]
-    fn image_path_produces_valid_uri_reference()
-    {
-      assert_eq!( SvgBackend::path_to_href( "images/tile set/floor.png" ), "images/tile%20set/floor.png" );
-      assert_eq!( SvgBackend::path_to_href( r"images\tiles\floor.png" ), "images/tiles/floor.png" );
-      assert_eq!( SvgBackend::path_to_href( "safe-name_1.2.png" ), "safe-name_1.2.png" );
-      // All URI-reserved and XML-unsafe characters are percent-encoded.
-      let e = SvgBackend::path_to_href( "a\"b<c>d&e#f?g%h" );
-      assert!( !e.contains( '"' ) && !e.contains( '<' ) && !e.contains( '>' ) && !e.contains( '&' ), "unsafe char leaked: {e}" );
-    }
-
-    /// Verifies that a short / non-PNG buffer returns None.
-    #[ test ]
-    fn png_dimensions_invalid()
-    {
-      assert_eq!( SvgBackend::png_dimensions( &[] ), None );
-      assert_eq!( SvgBackend::png_dimensions( &[ 0u8; 24 ] ), None ); // no PNG signature
-    }
-
-    /// Verifies that `load_assets` extracts PNG dimensions from `ImageSource::Encoded`
-    /// so that a sprite symbol uses the correct sheet size.
-    #[ test ]
-    fn image_encoded_png_stores_dimensions()
-    {
-      let png = SvgBackend::bitmap_to_png( &[ 0u8; 8 * 4 * 4 ], 8, 4, PixelFormat::Rgba8 ).unwrap();
-      let mut svg = svg800x600();
-      let assets = Assets
-      {
-        images : vec![ ImageAsset
-        {
-          id : ResourceId::new( 0 ),
-          source : ImageSource::Encoded( png ),
-          filter : SamplerFilter::Linear,
-          mipmap : MipmapMode::Off,
-          wrap : WrapMode::Clamp,
-        }],
-        sprites : vec![ SpriteAsset
-        {
-          id : ResourceId::new( 0 ),
-          sheet : ResourceId::new( 0 ),
-          region : [ 0.0, 0.0, 4.0, 4.0 ],
-        }],
-        ..empty_assets()
-      };
-      svg.load_assets( &assets ).unwrap();
-      let d = defs( &svg );
-      // The sprite symbol's <use> must reference width="8" height="4" (the sheet size)
-      assert!( d.contains( "width=\"8\"" ), "defs: {d}" );
-      assert!( d.contains( "height=\"4\"" ), "defs: {d}" );
-    }
-
-    const PNG_MAGIC : &[ u8 ] = &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ];
-
-    /// Verifies that a 1×1 Rgba8 pixel buffer produces valid PNG output
-    /// (starts with the PNG magic bytes).
-    #[ test ]
-    fn bitmap_to_png_rgba8_valid()
-    {
-      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 128, 255 ], 1, 1, PixelFormat::Rgba8 );
-      let bytes = png.expect( "expected Some for valid 1x1 Rgba8" );
-      assert!( bytes.starts_with( PNG_MAGIC ), "not PNG: {:?}", &bytes[ ..8.min( bytes.len() ) ] );
-    }
-
-    /// Verifies that a 1×1 Rgb8 pixel buffer encodes successfully.
-    #[ test ]
-    fn bitmap_to_png_rgb8_valid()
-    {
-      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 128 ], 1, 1, PixelFormat::Rgb8 );
-      assert!( png.is_some(), "expected Some for valid 1x1 Rgb8" );
-    }
-
-    /// Verifies that a 1×1 Gray8 pixel buffer encodes successfully.
-    #[ test ]
-    fn bitmap_to_png_gray8_valid()
-    {
-      let png = SvgBackend::bitmap_to_png( &[ 128 ], 1, 1, PixelFormat::Gray8 );
-      assert!( png.is_some(), "expected Some for valid 1x1 Gray8" );
-    }
-
-    /// Verifies that a 1×1 `GrayAlpha8` pixel buffer encodes successfully.
-    #[ test ]
-    fn bitmap_to_png_gray_alpha8_valid()
-    {
-      let png = SvgBackend::bitmap_to_png( &[ 128, 255 ], 1, 1, PixelFormat::GrayAlpha8 );
-      assert!( png.is_some(), "expected Some for valid 1x1 GrayAlpha8" );
-    }
-
-    /// Verifies that mismatched dimensions (too few bytes for the declared size) return None.
-    #[ test ]
-    fn bitmap_to_png_dimension_mismatch_returns_none()
-    {
-      // 2×2 Rgba8 needs 16 bytes; supplying only 4 must return None
-      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 0, 255 ], 2, 2, PixelFormat::Rgba8 );
-      assert!( png.is_none(), "expected None for undersized buffer" );
-    }
-
-    /// Verifies pixel-for-pixel round-trip fidelity through `bitmap_to_png` for
-    /// all 4 `PixelFormat` variants — the tests above only check
-    /// magic-bytes/`is_some()`, not that the encoded pixel data is correct.
-    #[ test ]
-    fn bitmap_to_png_round_trip_pixel_fidelity()
-    {
-      let cases : &[ ( PixelFormat, u32, u32, &[ u8 ] ) ] =
-      &[
-        ( PixelFormat::Rgba8, 2, 2, &[ 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160 ] ),
-        ( PixelFormat::Rgb8, 3, 1, &[ 10, 20, 30, 40, 50, 60, 70, 80, 90 ] ),
-        ( PixelFormat::Gray8, 2, 2, &[ 10, 20, 30, 40 ] ),
-        ( PixelFormat::GrayAlpha8, 3, 1, &[ 10, 20, 30, 40, 50, 60 ] ),
-      ];
-
-      for &( format, width, height, pixels ) in cases
-      {
-        let png = SvgBackend::bitmap_to_png( pixels, width, height, format )
-          .unwrap_or_else( || panic!( "expected Some for valid {width}x{height} {format:?}" ) );
-
-        let decoder = png::Decoder::new( std::io::Cursor::new( png ) );
-        let mut reader = decoder.read_info().expect( "valid PNG should decode" );
-        let mut buf = vec![ 0u8; reader.output_buffer_size() ];
-        let info = reader.next_frame( &mut buf ).expect( "should decode frame" );
-
-        assert_eq!( &buf[ ..info.buffer_size() ], pixels, "pixel mismatch for {format:?}" );
-      }
-    }
-
-    // anchor_to_svg — 9 variants (private method, must stay inline)
-
-    #[ test ]
-    fn anchor_top_left()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::TopLeft );
-      assert_eq!( h, "start" );
-      assert_eq!( v, "hanging" );
-    }
-
-    #[ test ]
-    fn anchor_top_center()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::TopCenter );
-      assert_eq!( h, "middle" );
-      assert_eq!( v, "hanging" );
-    }
-
-    #[ test ]
-    fn anchor_top_right()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::TopRight );
-      assert_eq!( h, "end" );
-      assert_eq!( v, "hanging" );
-    }
-
-    #[ test ]
-    fn anchor_center_left()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::CenterLeft );
-      assert_eq!( h, "start" );
-      assert_eq!( v, "central" );
-    }
-
-    #[ test ]
-    fn anchor_center()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::Center );
-      assert_eq!( h, "middle" );
-      assert_eq!( v, "central" );
-    }
-
-    #[ test ]
-    fn anchor_center_right()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::CenterRight );
-      assert_eq!( h, "end" );
-      assert_eq!( v, "central" );
-    }
-
-    #[ test ]
-    fn anchor_bottom_left()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::BottomLeft );
-      assert_eq!( h, "start" );
-      assert_eq!( v, "baseline" );
-    }
-
-    #[ test ]
-    fn anchor_bottom_center()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::BottomCenter );
-      assert_eq!( h, "middle" );
-      assert_eq!( v, "baseline" );
-    }
-
-    #[ test ]
-    fn anchor_bottom_right()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::BottomRight );
-      assert_eq!( h, "end" );
-      assert_eq!( v, "baseline" );
     }
   }
 }
@@ -2335,4 +1935,5 @@ mod private
 mod_interface::mod_interface!
 {
   own use SvgBackend;
+  own use SvgContentManager;
 }

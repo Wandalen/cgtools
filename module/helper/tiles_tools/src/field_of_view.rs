@@ -259,6 +259,20 @@ impl FieldOfView
     self
   }
 
+  /// Returns the algorithm this calculator is configured to use.
+  #[ must_use ]
+  pub fn algorithm( &self ) -> FOVAlgorithm
+  {
+    self.algorithm
+  }
+
+  /// Returns `true` when the viewer position is included in visibility results.
+  #[ must_use ]
+  pub fn includes_viewer( &self ) -> bool
+  {
+    self.include_viewer
+  }
+
   /// Calculates field of view from a position.
   ///
   /// # Arguments
@@ -902,35 +916,5 @@ where
   fn default() -> Self
   {
     Self::new()
-  }
-}
-
-// Exception ( task 072 ) : the test below stays inline because it pins
-// `FieldOfView`'s private builder state -- the stored `algorithm` and
-// `include_viewer` flags -- for which no public accessor exists. The gated
-// integration suite exercises both knobs behaviorally
-// ( `test_fov_algorithm_comparison`, `test_fov_exclude_viewer` ) but nothing
-// verifies that `new()` defaults to `Shadowcasting` with the viewer included.
-// Rejected alternatives : adding getters widens the API solely for test
-// placement ; `calculate_fov` output cannot distinguish which algorithm actually
-// ran. The module's six other inline tests were relocated to
-// `tests/field_of_view_test.rs` or consolidated onto their near-verbatim twins
-// in `tests/integration/field_of_view_tests.rs` ( task 072 ).
-#[ cfg( test ) ]
-mod tests
-{
-  use super::*;
-
-  #[ test ]
-  fn test_fov_calculator_creation()
-  {
-    let fov = FieldOfView::new();
-    assert_eq!( fov.algorithm, FOVAlgorithm::Shadowcasting );
-    assert!( fov.include_viewer );
-
-    let ray_fov = FieldOfView::with_algorithm( FOVAlgorithm::RayCasting )
-      .include_viewer( false );
-    assert_eq!( ray_fov.algorithm, FOVAlgorithm::RayCasting );
-    assert!( !ray_fov.include_viewer );
   }
 }

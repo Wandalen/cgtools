@@ -68,9 +68,7 @@ pub struct IntegrationField< System, Orientation >
 pub struct FlowField< System, Orientation >
 {
   /// Grid dimensions
-  #[ allow( dead_code, reason = "read only by the inline pinned test below, which accesses this private field directly because it has no public accessor ( task 072 )" ) ]
   width : i32,
-  #[ allow( dead_code, reason = "read by the same inline pinned test as `width`" ) ]
   height : i32,
   /// Phantom marker for system type
   _phantom_system : std::marker::PhantomData< System >,
@@ -137,6 +135,20 @@ impl< System, Orientation > FlowField< System, Orientation >
       _phantom_system : std::marker::PhantomData,
       _phantom_orientation : std::marker::PhantomData,
     }
+  }
+
+  /// Returns the grid width this field was constructed with.
+  #[ must_use ]
+  pub fn width( &self ) -> i32
+  {
+    self.width
+  }
+
+  /// Returns the grid height this field was constructed with.
+  #[ must_use ]
+  pub fn height( &self ) -> i32
+  {
+    self.height
   }
 
   /// Calculates the flow field toward a goal position.
@@ -457,6 +469,14 @@ impl< System, Orientation > DynamicFlowField< System, Orientation >
     self.dirty_positions.insert( pos );
   }
 
+  /// Returns `true` when `pos` has been marked dirty and not yet consumed by
+  /// `incremental_update`.
+  #[ must_use ]
+  pub fn is_dirty( &self, pos : ( i32, i32 ) ) -> bool
+  {
+    self.dirty_positions.contains( &pos )
+  }
+
   /// Incrementally updates the flow field for changed positions.
   pub fn incremental_update< C, Fa, Fc >( &mut self, _is_passable : Fa, _get_cost : Fc )
   where
@@ -468,35 +488,5 @@ impl< System, Orientation > DynamicFlowField< System, Orientation >
   {
     // Implementation would use wavefront propagation to update only affected areas
     self.dirty_positions.clear();
-  }
-}
-
-// Exception ( task 072 ) : the two tests below stay inline because they pin
-// private fields with no public accessor -- `FlowField`'s stored `width`/`height`
-// ( `#[ allow( dead_code ) ]` construction state ) and `DynamicFlowField`'s
-// `dirty_positions` accumulation behind `mark_dirty` ( `incremental_update`
-// consumes the set without any observable distinguishing marked from unmarked
-// positions ). Rejected alternative : exposing the fields or adding getters
-// widens the API solely for test placement. The module's three public-surface
-// tests were relocated to `tests/flowfield_test.rs` ( task 072 ).
-#[ cfg( test ) ]
-mod tests
-{
-  use super::*;
-
-  #[ test ]
-  fn test_flow_field_creation()
-  {
-    let flow_field = FlowField::< (), () >::new( 10, 10 );
-    assert_eq!( flow_field.width, 10 );
-    assert_eq!( flow_field.height, 10 );
-  }
-
-  #[ test ]
-  fn test_dynamic_flow_field_dirty_marking()
-  {
-    let mut dynamic_field = DynamicFlowField::< (), () >::new( 6, 6 );
-    dynamic_field.mark_dirty( ( 3, 3 ) );
-    assert!( dynamic_field.dirty_positions.contains( &( 3, 3 ) ) );
   }
 }

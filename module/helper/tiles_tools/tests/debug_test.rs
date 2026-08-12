@@ -2,9 +2,10 @@
 //! reports, performance profiler stats, formatting utilities, and coordinate
 //! conversion, driven purely through the public surface.
 //!
-//! Relocated from `src/debug.rs` by task 072. Two `GridRenderer` state tests remain
-//! inline in `src/debug.rs` as a documented exception (they pin private builder
-//! fields with no public accessor).
+//! Relocated from `src/debug.rs` by task 072. The two formerly-inline
+//! `GridRenderer` state tests moved here once the `width()`/`height()`/`style()`/
+//! `marker_count()`/`has_marker()` getters made that state publicly observable,
+//! per the all-tests-in-tests/ convention.
 
 #![ cfg( feature = "enabled" ) ]
 
@@ -92,4 +93,32 @@ fn test_coordinate_conversion() {
   assert_eq!(int_coord.into_debug_coord(), (5, 10));
   assert_eq!(float_coord.into_debug_coord(), (5, 10));
   assert_eq!(usize_coord.into_debug_coord(), (5, 10));
+}
+
+/// Pins `GridRenderer`'s builder-state accumulation ( size and style ) through the
+/// `width()`/`height()`/`style()` getters.
+#[ test ]
+fn test_grid_renderer_creation()
+{
+  let renderer = GridRenderer::new()
+  .with_size( 10, 8 )
+  .with_style( GridStyle::Hexagonal );
+
+  assert_eq!( renderer.width(), 10 );
+  assert_eq!( renderer.height(), 8 );
+  assert!( matches!( renderer.style(), GridStyle::Hexagonal ) );
+}
+
+/// Pins marker storage through the `marker_count()`/`has_marker()` queries — rendering
+/// output is deliberately not used here, since a marker can be stored yet not rendered.
+#[ test ]
+fn test_grid_renderer_markers()
+{
+  let mut renderer = GridRenderer::new();
+  renderer.add_marker( ( 5, 3 ), "S", "Start position" );
+  renderer.add_colored_marker( ( 8, 6 ), "G", "Goal", DebugColor::Blue, 10 );
+
+  assert_eq!( renderer.marker_count(), 2 );
+  assert!( renderer.has_marker( ( 5, 3 ) ) );
+  assert!( renderer.has_marker( ( 8, 6 ) ) );
 }

@@ -12,6 +12,7 @@ asbytes.workspace = true
 
 [dev-dependencies]
 wgpu.workspace = true
+asbytes.workspace = true
 
 [lints]
 workspace = true

@@ -69,6 +69,8 @@ features = [
 
 [dev-dependencies]
 test_tools = { workspace = true }
+renderer = { workspace = true }
+minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 
 # Metadata for crates.io
 [package.metadata.docs.rs]

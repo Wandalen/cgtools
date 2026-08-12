@@ -2,7 +2,7 @@
 
 Integration and unit test suite for the `tilemap_scene` crate. All tests live here — `src/` carries
 no inline test modules (task 073 relocated the last 38; every tested item is reachable through the
-crate's `mod_interface` root re-exports, so no documented exceptions were needed).
+crate's `mod_interface` root re-exports).
 
 Two levels coexist:
 

@@ -28,7 +28,7 @@ tests/
 | `commands_test.rs` | Command types | `Copy` invariant (compile-time), enum size bound, stream construction, batch params |
 | `assets_test.rs` | Asset validation | Empty set, no-duplicate ok, per-type duplicate errors, cross-type id independence |
 | `backend_test.rs` | Backend trait | `load_assets`, `submit`, `output`, `resize`, `Capabilities::default`, all `RenderError` variants |
-| `svg_backend_test.rs` | SvgBackend adapter (relocated from inline by task 071) | Clear/viewport wrapper, paths, gradients, patterns, clip masks, sprite tint/batches, mesh topologies, effects, blend modes, groups, disk/encoded/bitmap image loading, text flow/anchors/on-path — all via the public surface; private-helper tests remain inline in `src/adapters/svg.rs` as a documented exception |
+| `svg_backend_test.rs` | SvgBackend adapter (relocated from inline by task 071) | Clear/viewport wrapper, paths, gradients, patterns, clip masks, sprite tint/batches, mesh topologies, effects, blend modes, groups, disk/encoded/bitmap image loading, text flow/anchors/on-path, plus the former private helpers ( transforms, anchors, PNG probing, `SvgContentManager` ) now exposed as documented or `doc( hidden )` pub — `src/` carries no inline test modules |
 
 ## Adding new tests
 

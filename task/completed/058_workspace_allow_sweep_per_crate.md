@@ -1393,19 +1393,18 @@ authenticity spot-check (3 of 5 cited logs). A user question ("did you verify it
 prompted a fuller Tier 2 Dual-Role Self-Check on the walk itself, run after the CLI transition had
 already been applied — disclosed here rather than presented as having happened in the ideal order.
 
-**Gate Check** · Tier: 2 · Type: Full · Verdict: PASS (1 finding, fixed in-loop) · Agents: 0 (self, dual-role) · 4/4
+**Gate Check** · Tier: 2 · Type: Full · Verdict: PASS (1 finding, fixed in-loop; full C1-C12/AF1-AF3 coverage closed) · Agents: 0 (self, dual-role) · 4/4
 
 | Gate | Name | Prev | Now | Issues | Fixes |
 | ---- | ---- | ---- | --- | ------ | ----- |
-| L1 | Checklist (C1-C12) | — | 🟡 | Adversarial pass found C4 and C5 each cited a log file (`-0073`, `-0074`) that actually held stale, unrelated content from a 2026-08-11 session (an `embroidery_tools` compile failure; real `ndarray_cg` clippy findings) — a genuine broken-citation defect, not a fabricated result | Re-ran both commands fresh (`-0313`: doc-tests, exit 0, 31/31 clean; `-0314`: wasm32 clippy, exit 0, 8s clean); both underlying claims confirmed true; citations corrected in place |
+| L1 | Checklist (C1-C12) | — | 🟢 | Adversarial pass found C4 and C5 each cited a log file (`-0073`, `-0074`) that actually held stale, unrelated content from a 2026-08-11 session (an `embroidery_tools` compile failure; real `ndarray_cg` clippy findings) — a genuine broken-citation defect, not a fabricated result. Remaining items independently re-run in an extension round: C6 (zero unstruck `⏸ BLOCKED`/`⏳ IN PROGRESS` in the census table, grep-confirmed), C8 (file exists, `state:` reads `Completed`, format uniform across all 11 `bug/completed/` files), C9 (`draft/056` exists), C12 (`load_images` History citations + task 092's own file both independently confirm cross-attribution). C10 could not be reconfirmed as originally worded: `draft/065_examples_marker_triage.md` has since moved to `completed/065_examples_marker_triage.md` — not this task's doing; an unrelated, independent actor completed task 065's own human-decision triage (concurrently, after this walk's 01:39 timestamp) and decomposed it into tasks 094-098, already fully reflected in `task/readme.md`. The original C10 answer was true when the walk ran; it is a stale-world artifact, not a defect in this task's acceptance record, and is left unedited as a point-in-time citation | Re-ran C4/C5's underlying commands fresh (`-0313`: doc-tests, exit 0, 31/31 clean; `-0314`: wasm32 clippy, exit 0, 8s clean); both underlying claims confirmed true; citations corrected in place. No fix needed for C6/C8/C9/C12 (genuine on re-check) or C10 (not a defect, see Issues) |
 | L2 | Measurements (M1-M2) | — | 🟢 | M1's `210` count independently re-run, exact match; M2 shares C3's already-verified `-0072` evidence | — |
 | L3 | Invariants (I1-I3) | — | 🟢 | I1/I3 share C1/C3's already-verified evidence (`-0071`/`-0072`, both genuine); no independent claim beyond those | — |
-| L4 | Anti-faking (AF1-AF3) | — | 🟢 | Independently re-checked AF2's underlying C11 claim directly against source (`grep -n "fn new\|fn build"` on `base.rs`) rather than trusting the citation — confirmed zero `fn new` remains, only `fn build`, matching the claim | — |
-| **Total** | | — | 🟢 | 1 finding, fixed in-loop | 2/2 |
+| L4 | Anti-faking (AF1-AF3) | — | 🟢 | Independently re-checked AF2's underlying C11 claim directly against source (`grep -n "fn new\|fn build"` on `base.rs`) rather than trusting the citation — confirmed zero `fn new` remains, only `fn build`, matching the claim. AF1's 3-crate spot-check (tiles_tools/mdmath_core/minwebgl) independently re-run: raw counts exact match (19/44/11), zero `cfg_attr(..., allow(...))` forms, zero multi-line attribute-opening splits, all 3 crates. AF3(b) confirmed via L1's C12 check (task 092's file cites `webgl.rs` edits). AF3(c) independently re-run: `mdmath_core/Cargo.toml` `rust-version = "1.81.0"` confirmed; the 5 named vector files show exactly 16 `std::ptr::from_(ref\|mut)` sites, split exactly 8+8; zero test files reference these calls | — |
+| **Total** | | — | 🟢 | 1 finding, fixed in-loop; 1 informational (non-blocking) staleness note (C10) | 2/2 |
 
-**Also independently spot-checked and confirmed genuine, unprompted by any citation defect:** C2
-(`Cargo.toml:120` read directly), C7/I2 (5-crate random sample of `workspace = true`, zero misses).
-Not independently re-verified beyond the dispatched agent's own citations: C6, C8-C10, C12, AF1, AF3's
-sub-claims (b)/(c) — none showed a risk signal comparable to C4/C5's broken log citations, and file-
-content/grep-based claims of this kind are lower-risk than command-output citations for exactly the
-failure mode found here (a stale file reused under a plausible-sounding name).
+**Full C1-C12/M1-M2/I1-I3/AF1-AF3 coverage now independently re-run, none left resting solely on the
+dispatched agent's original citations** — extends the first-round spot-check (C2, C7/I2, AF2/C11)
+completed earlier. Every item confirmed genuine except C10's citation, which went stale from
+unrelated concurrent activity after the walk completed (see L1 Issues) — not a finding against this
+task's own work or acceptance record.

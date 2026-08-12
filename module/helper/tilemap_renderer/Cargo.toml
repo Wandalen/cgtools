@@ -78,3 +78,4 @@ serde = { workspace = true, features = [ "derive" ], optional = true }
 [dev-dependencies]
 bytemuck.workspace = true
 wasm-bindgen-test = { workspace = true }
+png = { workspace = true }

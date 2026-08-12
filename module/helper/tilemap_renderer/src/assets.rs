@@ -550,11 +550,13 @@ mod_interface::mod_interface!
 /// Falls back to `image/png` when the signature is unknown, which matches
 /// the prior behavior for well-formed PNG inputs.
 ///
-/// Crate-internal helper shared by the `svg` and `webgl` adapters — kept
-/// outside `mod private` and the `mod_interface!` block above so both can
-/// call it without depending on `mod_interface`'s visibility-tier semantics.
+/// Helper shared by the `svg` and `webgl` adapters — kept outside
+/// `mod private` and the `mod_interface!` block above so both can call it
+/// without depending on `mod_interface`'s visibility-tier semantics; `pub`
+/// so its tests can live in `tests/` per the all-tests-in-tests/ convention.
 #[ cfg( any( feature = "adapter-svg", feature = "adapter-webgl" ) ) ]
-pub( crate ) fn detect_image_mime( bytes : &[ u8 ] ) -> &'static str
+#[ must_use ]
+pub fn detect_image_mime( bytes : &[ u8 ] ) -> &'static str
 {
   if bytes.starts_with( &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ] ) { return "image/png"; }
   if bytes.starts_with( &[ 0xff, 0xd8, 0xff ] ) { return "image/jpeg"; }

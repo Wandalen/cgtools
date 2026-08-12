@@ -1,6 +1,6 @@
 #![ doc = "../readme.md" ]
 
-mod shader_chunks;
+use minwgpu_sun_grid_lines_chunked::shader_chunks;
 
 #[ repr( C ) ]
 #[ derive( Clone, Copy, bytemuck::Pod, bytemuck::Zeroable ) ]

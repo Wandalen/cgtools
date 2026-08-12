@@ -1,9 +1,11 @@
-//! Native tests for the `Context` type-state builder's public error surface (established by
-//! task 070). None of these need a GPU: a `wgpu::Instance` created with `Backends::empty()`
-//! deterministically has no adapter to offer, so every adapter request below must resolve to
+//! Native tests for the `Context` type-state builder (established by task 070). None of
+//! these need a GPU: a `wgpu::Instance` created with `Backends::empty()` deterministically
+//! has no adapter to offer, so every adapter request below must resolve to
 //! `Err( Error::RequestAdapterError )` — never panic — regardless of the host's hardware.
-//! (The builders' state-accumulation logic is covered by the documented-exception inline
-//! tests in `src/`, which read internal fields no public getter exposes.)
+//! Builder state accumulation is pinned through the `get_*` getters: the instance and
+//! adapter stages through the public chain, the device stage through the `doc( hidden )`
+//! `Context::device_builder_for_tests` constructor ( that state is unreachable without a
+//! real adapter ).
 
 use minwgpu::{ context::Context, Error };
 
@@ -24,6 +26,100 @@ fn empty_backends_request_adapter_errors_without_panicking()
   (
     matches!( &error, Error::RequestAdapterError( _ ) ),
     "expected Error::RequestAdapterError, got {error:?}"
+  );
+}
+
+/// The instance stage accumulates `backends` into the `wgpu::InstanceDescriptor`,
+/// observable through `get_instance_descriptor`.
+#[ test ]
+fn instance_builder_sets_backends()
+{
+  let builder = Context::builder().backends( wgpu::Backends::VULKAN );
+  assert_eq!( builder.get_instance_descriptor().backends, wgpu::Backends::VULKAN );
+}
+
+/// The instance stage accumulates `flags` into the `wgpu::InstanceDescriptor`.
+#[ test ]
+fn instance_builder_sets_flags()
+{
+  let flags = wgpu::InstanceFlags::VALIDATION;
+  let builder = Context::builder().flags( flags );
+  assert_eq!( builder.get_instance_descriptor().flags, flags );
+}
+
+/// The adapter stage ( reached through the real `make_instance` chain — headless-safe
+/// with zero backends ) accumulates `power_preference` into the request options.
+#[ test ]
+fn adapter_builder_sets_power_preference()
+{
+  let builder = Context::builder()
+  .backends( wgpu::Backends::empty() )
+  .make_instance()
+  .power_preference( wgpu::PowerPreference::HighPerformance );
+  assert_eq!( builder.get_request_adapter_options().power_preference, wgpu::PowerPreference::HighPerformance );
+}
+
+/// The adapter stage accumulates `force_fallback_adapter` into the request options.
+#[ test ]
+fn adapter_builder_sets_force_fallback()
+{
+  let builder = Context::builder()
+  .backends( wgpu::Backends::empty() )
+  .make_instance()
+  .force_fallback_adapter( true );
+  assert!( builder.get_request_adapter_options().force_fallback_adapter );
+}
+
+/// Providing a custom selector is recorded ( `has_adapter_selector` ) without invoking it.
+#[ test ]
+fn adapter_builder_sets_selector()
+{
+  let builder = Context::builder()
+  .backends( wgpu::Backends::empty() )
+  .make_instance()
+  .adapter_selector( | _ | panic!( "should not be called" ) );
+  assert!( builder.has_adapter_selector() );
+}
+
+/// The device stage accumulates `label` into the `wgpu::DeviceDescriptor`.
+#[ test ]
+fn device_builder_sets_label()
+{
+  let label = String::from( "test_device" );
+  let builder = Context::device_builder_for_tests().label( &label );
+  assert_eq!( builder.get_device_descriptor().label, Some( "test_device" ) );
+}
+
+/// The device stage accumulates `required_features`.
+#[ test ]
+fn device_builder_sets_features()
+{
+  let features = wgpu::Features::TEXTURE_COMPRESSION_BC;
+  let builder = Context::device_builder_for_tests().required_features( features );
+  assert_eq!( builder.get_device_descriptor().required_features, features );
+}
+
+/// The device stage accumulates `required_limits`.
+#[ test ]
+fn device_builder_sets_limits()
+{
+  let limits = wgpu::Limits { max_bind_groups : 4, ..wgpu::Limits::downlevel_webgl2_defaults() };
+  let builder = Context::device_builder_for_tests().required_limits( limits.clone() );
+  assert_eq!( builder.get_device_descriptor().required_limits, limits );
+}
+
+/// The device stage accumulates `memory_hints` ( `wgpu::MemoryHints` has no `PartialEq`,
+/// so the stored variant is compared by discriminant ).
+#[ test ]
+fn device_builder_sets_memory_hints()
+{
+  let hints = wgpu::MemoryHints::MemoryUsage;
+  let builder = Context::device_builder_for_tests().memory_hints( hints.clone() );
+
+  assert_eq!
+  (
+    core::mem::discriminant( &builder.get_device_descriptor().memory_hints ),
+    core::mem::discriminant( &hints )
   );
 }
 

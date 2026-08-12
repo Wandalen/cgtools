@@ -9,12 +9,11 @@
 //! This example only works on WebAssembly (wasm32) targets where WebGPU
 //! APIs are available.
 
-// Compiled under `cargo test` (any target, so its own unit test runs
-// natively) or when actually targeting wasm32 (where `run()` uses it). A
-// plain native build/check/clippy has no consumer for it — the native path
-// below is a stub — so it would otherwise be legitimately dead code there.
-#[cfg( any( test, target_arch = "wasm32" ) )]
-mod scene;
+// Only the wasm32 path (`run()`) consumes the scene module here; the native
+// path below is a stub, and the scene tests live in `tests/scene_test.rs`
+// against the library target.
+#[cfg( target_arch = "wasm32" )]
+use minwebgpu_sun_grid_lines::scene;
 
 #[cfg( target_arch = "wasm32" )]
 use minwebgpu as gl;

@@ -159,7 +159,7 @@ The crate compiles on native targets, so its pure-logic layer is tested natively
 cargo test -p minwebgl --all-features
 ```
 
-That invocation runs the `tests/` suite (public pure-logic API, e.g. `DataType` ↔ `Const` conversions) plus two inline test modules kept in `src/` as documented exceptions (they cover private validation helpers — `validate_natoms`, `convert_attachment_id` — extracted for testability during bug fixes; see the comments on those modules). Verify the split yourself: `grep -rn "cfg( test )" src/` lists the two inline sites, `ls tests/` the native suite.
+That invocation runs the `tests/` suite — the public pure-logic API (e.g. `DataType` ↔ `Const` conversions) plus the validation helpers `validate_natoms` and `convert_attachment_id`, extracted for testability during bug fixes and exported at their module paths so their tests live in `tests/` like everything else. Verify yourself: `grep -rn "cfg( test )" src/` lists no inline test modules, `ls tests/` the native suite.
 
 Anything that touches a live GL context or the DOM (context creation, shaders, VAOs, textures, uniforms, file/fetch) is **not** natively testable and has no test runner yet — browser-side execution waits on workspace-level `wasm-bindgen-test` runner infrastructure. When building for wasm32 directly, never pass a bare `RUSTFLAGS` value: it clobbers `.cargo/config.toml`'s `--cfg web_sys_unstable_apis`.
 

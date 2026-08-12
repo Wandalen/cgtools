@@ -22,61 +22,86 @@ impl Color
   /// `vec3` uniform (`gl::uniform::upload`, one call per field), unlike
   /// the WebGPU port's single packed `vec4`-padded uniform buffer, so no
   /// alpha/padding slot is needed here.
+  #[ must_use ]
   pub fn to_array( self ) -> [ f32; 3 ]
   {
     [ self.0 as f32, self.1 as f32, self.2 as f32 ]
   }
 }
 
+/// Vertical background gradient endpoints.
 #[ derive( Debug, Clone, Deserialize ) ]
 pub struct Background
 {
+  /// Gradient color at the top edge.
   pub top : Color,
+  /// Gradient color at the bottom edge.
   pub bottom : Color,
 }
 
+/// Nebula haze parameters.
 #[ derive( Debug, Clone, Deserialize ) ]
 pub struct Nebula
 {
+  /// Haze color.
   pub color : Color,
+  /// Blend strength, 0..=1.
   pub opacity : f64,
 }
 
+/// Background star-field parameters.
 #[ derive( Debug, Clone, Deserialize ) ]
 pub struct Stars
 {
+  /// Star color.
   pub color : Color,
+  /// Brightness multiplier.
   pub intensity : f64,
 }
 
+/// Polar HUD grid parameters.
 #[ derive( Debug, Clone, Deserialize ) ]
 pub struct Grid
 {
+  /// Line color.
   pub color : Color,
+  /// Blend strength, 0..=1.
   pub opacity : f64,
 }
 
+/// Sun corona gradient stops.
 #[ derive( Debug, Clone, Deserialize ) ]
 pub struct SunCorona
 {
+  /// Color nearest the disc.
   pub inner : Color,
+  /// Mid-falloff color.
   pub mid : Color,
+  /// Outermost falloff color.
   pub outer : Color,
 }
 
+/// Sun disc shading and size.
 #[ derive( Debug, Clone, Deserialize ) ]
 pub struct SunDisc
 {
+  /// Limb ( edge ) color.
   pub dark : Color,
+  /// Mid shading color.
   pub mid : Color,
+  /// Core highlight color.
   pub bright : Color,
+  /// Disc radius in normalized screen units.
   pub base_radius : f64,
 }
 
+/// Orbit ring parameters.
 #[ derive( Debug, Clone, Deserialize ) ]
 pub struct OrbitRing
 {
+  /// Ring color.
   pub color : Color,
+  /// Ring radius in normalized screen units.
   pub radius : f64,
 }
 
@@ -86,12 +111,19 @@ pub struct OrbitRing
 #[ derive( Debug, Clone, Deserialize ) ]
 pub struct SceneConfig
 {
+  /// Vertical background gradient.
   pub background : Background,
+  /// Nebula haze band.
   pub nebula : Nebula,
+  /// Background star field.
   pub stars : Stars,
+  /// Polar HUD grid.
   pub grid : Grid,
+  /// Sun corona gradient.
   pub sun_corona : SunCorona,
+  /// Sun disc shading.
   pub sun_disc : SunDisc,
+  /// Orbit ring.
   pub orbit_ring : OrbitRing,
 }
 
@@ -100,12 +132,16 @@ impl SceneConfig
   const SCRIPT : &'static str = include_str!( "../scene.rhai" );
 
   /// Evaluates the bundled `scene.rhai` and extracts a `SceneConfig` from
-  /// its returned value via `rhai`'s serde bridge. Panics on a malformed
-  /// script or a returned shape that doesn't match `SceneConfig` — the
-  /// script is compiled into the binary by this crate itself, not supplied
-  /// by an end user, so a failure here is a build-time authoring mistake
-  /// that should fail loudly and immediately rather than degrade at
-  /// runtime.
+  /// its returned value via `rhai`'s serde bridge.
+  ///
+  /// # Panics
+  ///
+  /// Panics on a malformed script or a returned shape that doesn't match
+  /// `SceneConfig` — the script is compiled into the binary by this crate
+  /// itself, not supplied by an end user, so a failure here is a build-time
+  /// authoring mistake that should fail loudly and immediately rather than
+  /// degrade at runtime.
+  #[ must_use ]
   pub fn load() -> Self
   {
     let engine = scene_script::build_engine();
@@ -113,47 +149,5 @@ impl SceneConfig
     .expect( "scene.rhai is bundled at compile time and must evaluate" );
     rhai::serde::from_dynamic( &dynamic )
     .expect( "scene.rhai's returned value must match SceneConfig's shape" )
-  }
-}
-
-#[ cfg( test ) ]
-mod tests
-{
-  use super::*;
-
-  /// Asserts every field `scene.rhai` declares round-trips through
-  /// `SceneConfig::load()` correctly — deliberately exhaustive ( not just a
-  /// spot check ) so every field is exercised on every target, including
-  /// native, where `main.rs`'s wasm32-gated `run()` — the only other
-  /// consumer — never compiles in and can't do it instead.
-  #[ test ]
-  #[ expect( clippy::float_cmp, reason = "every value here is a literal parsed straight out of scene.rhai with no arithmetic in between, so bit-exact round-trip fidelity is exactly what this test means to check" ) ]
-  fn scene_rhai_parses_and_matches_known_values()
-  {
-    let scene = SceneConfig::load();
-
-    assert_eq!( scene.background.top.to_array(), [ 0.0196, 0.0549, 0.0941 ] );
-    assert_eq!( scene.background.bottom.to_array(), [ 0.0549, 0.1490, 0.2392 ] );
-
-    assert_eq!( scene.nebula.color.to_array(), [ 0.0706, 0.2000, 0.2902 ] );
-    assert_eq!( scene.nebula.opacity, 0.45 );
-
-    assert_eq!( scene.stars.color.to_array(), [ 0.6275, 0.8980, 1.0 ] );
-    assert_eq!( scene.stars.intensity, 0.6 );
-
-    assert_eq!( scene.grid.color.to_array(), [ 0.3137, 0.5490, 0.7451 ] );
-    assert_eq!( scene.grid.opacity, 0.18 );
-
-    assert_eq!( scene.sun_corona.inner.to_array(), [ 1.0, 0.8941, 0.4392 ] );
-    assert_eq!( scene.sun_corona.mid.to_array(), [ 1.0, 0.6824, 0.1020 ] );
-    assert_eq!( scene.sun_corona.outer.to_array(), [ 1.0, 0.2314, 0.0 ] );
-
-    assert_eq!( scene.sun_disc.dark.to_array(), [ 1.0, 0.4157, 0.0 ] );
-    assert_eq!( scene.sun_disc.mid.to_array(), [ 1.0, 0.8941, 0.4392 ] );
-    assert_eq!( scene.sun_disc.bright.to_array(), [ 1.0, 1.0, 1.0 ] );
-    assert_eq!( scene.sun_disc.base_radius, 0.075 );
-
-    assert_eq!( scene.orbit_ring.color.to_array(), [ 0.3922, 0.8235, 1.0 ] );
-    assert_eq!( scene.orbit_ring.radius, 0.425 );
   }
 }

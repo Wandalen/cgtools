@@ -33,7 +33,7 @@ pub struct Frame
 /// emitted frame — the entire simulation as a pure function of the script's
 /// own hardcoded inputs, no external state in or out. Off-screen (no GPU, no
 /// browser) and, per L5's contract, deterministic: see
-/// `simulation_is_deterministic` in `main.rs`.
+/// `simulation_is_deterministic` in `tests/simulation_test.rs`.
 ///
 /// # Errors
 ///

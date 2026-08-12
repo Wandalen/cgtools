@@ -184,6 +184,41 @@ impl GridRenderer
     self
   }
 
+  /// Returns the configured grid width.
+  #[ must_use ]
+  pub fn width( &self ) -> usize
+  {
+    self.width
+  }
+
+  /// Returns the configured grid height.
+  #[ must_use ]
+  pub fn height( &self ) -> usize
+  {
+    self.height
+  }
+
+  /// Returns the configured grid style.
+  #[ must_use ]
+  pub fn style( &self ) -> GridStyle
+  {
+    self.style
+  }
+
+  /// Returns how many markers are currently stored.
+  #[ must_use ]
+  pub fn marker_count( &self ) -> usize
+  {
+    self.markers.len()
+  }
+
+  /// Returns `true` when a marker is stored at `pos`.
+  #[ must_use ]
+  pub fn has_marker( &self, pos : ( i32, i32 ) ) -> bool
+  {
+    self.markers.contains_key( &pos )
+  }
+
   /// Adds a debug marker at the specified coordinate.
   pub fn add_marker<C>(&mut self, coord: C, symbol: &str, description: &str)
   where
@@ -1105,40 +1140,5 @@ pub mod utils {
     } else {
       format!("{bytes} B")
     }
-  }
-}
-
-// Exception ( task 072 ) : the two tests below stay inline because they pin
-// `GridRenderer`'s private builder state -- `width`/`height`/`style` accumulation
-// and `markers` storage -- for which no public accessor exists. Rendering output
-// is the only public observable, and inferring storage from rendered ASCII would
-// test a different behavior ( a marker can be stored yet not rendered ). Rejected
-// alternative : exposing the fields or adding getters widens the API solely for
-// test placement ( zero external callers ). All other debug tests were relocated
-// to `tests/debug_test.rs` ( task 072 ).
-#[ cfg( test ) ]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn test_grid_renderer_creation() {
-    let renderer = GridRenderer::new()
-      .with_size(10, 8)
-      .with_style(GridStyle::Hexagonal);
-
-    assert_eq!(renderer.width, 10);
-    assert_eq!(renderer.height, 8);
-    assert!(matches!(renderer.style, GridStyle::Hexagonal));
-  }
-
-  #[test]
-  fn test_grid_renderer_markers() {
-    let mut renderer = GridRenderer::new();
-    renderer.add_marker((5, 3), "S", "Start position");
-    renderer.add_colored_marker((8, 6), "G", "Goal", DebugColor::Blue, 10);
-
-    assert_eq!(renderer.markers.len(), 2);
-    assert!(renderer.markers.contains_key(&(5, 3)));
-    assert!(renderer.markers.contains_key(&(8, 6)));
   }
 }
