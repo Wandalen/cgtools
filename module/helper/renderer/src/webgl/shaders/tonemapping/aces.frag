@@ -35,5 +35,8 @@ void main()
   vec3 mapped = aces_tone_map( src.rgb );
   // Background pixels are cleared with alpha = 0 and must bypass tone mapping
   // ( as the clear color does in three.js ); geometry writes alpha = 1.
-  frag_color = vec4( mix( src.rgb, mapped, src.a ), 1.0 );
+  // Forwarding src.a (rather than hardcoding 1.0) also makes this coverage mask
+  // available to callers compositing the final canvas over other content (e.g.
+  // AR video passthrough) — background stays alpha=0, geometry alpha=1.
+  frag_color = vec4( mix( src.rgb, mapped, src.a ), src.a );
 }
