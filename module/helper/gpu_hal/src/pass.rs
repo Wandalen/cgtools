@@ -164,7 +164,8 @@ mod private
             } ) ],
             depth_stencil_attachment,
             timestamp_writes : None,
-            occlusion_query_set : None
+            occlusion_query_set : None,
+            multiview_mask : None
           } );
           // Untying the pass from the encoder borrow lets the HAL hand it
           // out as a plain value, like the browser passes; wgpu then checks

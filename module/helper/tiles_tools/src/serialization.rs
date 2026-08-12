@@ -434,7 +434,7 @@ impl GameStateSerializer {
   pub fn game_state_serialize(&self, state: &SerializableGameState) -> Result<Vec<u8>, SerializationError> {
     let data = match self.format {
       SerializationFormat::Json => serde_json::to_vec(state)?,
-      SerializationFormat::Binary => bincode::serialize(state)?,
+      SerializationFormat::Binary => bincode::serde::encode_to_vec(state, bincode::config::standard())?,
       SerializationFormat::Ron => ron::ser::to_string(state)?.into_bytes(),
     };
 
@@ -458,7 +458,7 @@ impl GameStateSerializer {
 
     let state = match self.format {
       SerializationFormat::Json => serde_json::from_slice(&data)?,
-      SerializationFormat::Binary => bincode::deserialize(&data)?,
+      SerializationFormat::Binary => bincode::serde::decode_from_slice(&data, bincode::config::standard())?.0,
       SerializationFormat::Ron => {
         let text = String::from_utf8(data)?;
         ron::from_str(&text).map_err(|e| {
@@ -736,8 +736,10 @@ pub enum SerializationError {
   Io(std::io::Error),
   /// JSON serialization error
   Json(serde_json::Error),
-  /// Binary serialization error
-  Binary(bincode::Error),
+  /// Binary encoding error
+  BinaryEncode(bincode::error::EncodeError),
+  /// Binary decoding error
+  BinaryDecode(bincode::error::DecodeError),
   /// RON serialization error
   Ron(ron::Error),
   /// UTF-8 conversion error
@@ -764,7 +766,8 @@ impl std::fmt::Display for SerializationError {
     match self {
       SerializationError::Io(e) => write!(f, "IO error: {e}"),
       SerializationError::Json(e) => write!(f, "JSON error: {e}"),
-      SerializationError::Binary(e) => write!(f, "Binary serialization error: {e}"),
+      SerializationError::BinaryEncode(e) => write!(f, "Binary serialization error: {e}"),
+      SerializationError::BinaryDecode(e) => write!(f, "Binary deserialization error: {e}"),
       SerializationError::Ron(e) => write!(f, "RON error: {e}"),
       SerializationError::Utf8(e) => write!(f, "UTF-8 error: {e}"),
       SerializationError::SaveNotFound(name) => write!(f, "Save '{name}' not found"),
@@ -794,9 +797,15 @@ impl From<serde_json::Error> for SerializationError {
   }
 }
 
-impl From<bincode::Error> for SerializationError {
-  fn from(error: bincode::Error) -> Self {
-    SerializationError::Binary(error)
+impl From<bincode::error::EncodeError> for SerializationError {
+  fn from(error: bincode::error::EncodeError) -> Self {
+    SerializationError::BinaryEncode(error)
+  }
+}
+
+impl From<bincode::error::DecodeError> for SerializationError {
+  fn from(error: bincode::error::DecodeError) -> Self {
+    SerializationError::BinaryDecode(error)
   }
 }
 

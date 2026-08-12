@@ -24,9 +24,9 @@ fn request_adapter_shortcut_errors_on_empty_backends()
   let descriptor = wgpu::InstanceDescriptor
   {
     backends : wgpu::Backends::empty(),
-    ..Default::default()
+    ..wgpu::InstanceDescriptor::new_without_display_handle()
   };
-  let instance = wgpu::Instance::new( &descriptor );
+  let instance = wgpu::Instance::new( descriptor );
 
   let result = helper::adapter::adapter_request( &instance, &wgpu::RequestAdapterOptions::default() );
   assert!

@@ -7,7 +7,7 @@ A **data structure** documents a data container's shape, membership invariants, 
 - **Purpose**: Navigational hub for the shape of generic container types a Rhai script can hold in a variable.
 - **Responsibility**: Document each registered container type's script-visible fields, mutability, and construction.
 - **In Scope**: `Tween` exactly as Rhai's type registry exposes it — one script-visible name regardless of which vector type backs a given instance.
-- **Out of Scope**: `animation::Tween<T>`'s actual Rust definition and full API — owned by `animation`, not re-documented here; `F32x2`/`F64x2`, which are domain-typed vector values rather than generic containers (see [`type/`](../type/readme.md)).
+- **Out of Scope**: `animation::Tween<T>`'s actual Rust definition and full API — owned by `animation`, not re-documented here; the 8 registered vector types, which are domain-typed values rather than generic containers (see [`type/`](../type/readme.md)).
 
 ### Overview Table
 

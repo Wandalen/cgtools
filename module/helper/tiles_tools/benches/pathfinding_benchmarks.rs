@@ -3,8 +3,6 @@
 //! This benchmark suite tests the performance of pathfinding algorithms
 //! across different coordinate systems and grid sizes.
 
-#![ expect( missing_docs, reason = "criterion_group! generates its public wrapper function without doc support; lint attributes on the invocation itself are ignored" ) ]
-
 use criterion::{ criterion_group, criterion_main, BenchmarkId, Criterion };
 use tiles_tools::
 {

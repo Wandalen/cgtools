@@ -16,11 +16,11 @@ implementation.
 | File | Responsibility |
 |------|-----------------|
 | `src/lib.rs` | Crate entry point; re-exports each layer plus `rhai` itself. |
-| `src/vector_binding.rs` | Registers `ndarray_cg::F32x2` and `F64x2` into a `rhai::Engine`: constructors, `.x`/`.y`, `+`/`-`/`*` operators. |
-| `src/tween_binding.rs` | Registers `animation::Tween< F32x2 >` and `Tween< F64x2 >` into a `rhai::Engine`: `tween(...)` constructor, `.update`/`.value`/`.is_completed`. |
-| `src/engine.rs` | `engine_build()` — a `rhai::Engine` with all four bindings pre-registered. |
+| `src/vector_binding.rs` | Registers the full `ndarray_cg::{F32,F64}x{1,2,3,4}` vector family into a `rhai::Engine`: constructors, `.x`/`.y`/`.z`/`.w`, `+`/`-`/`*` operators. |
+| `src/tween_binding.rs` | Registers `animation::Tween< T >` for every registered vector type `T` into a `rhai::Engine`: `tween(...)` constructor, `.update`/`.value`/`.is_completed`. |
+| `src/engine.rs` | `engine_build()` — a `rhai::Engine` with all 16 bindings pre-registered. |
 | `src/top_level_lint.rs` | `check_top_level_is_declarative()` — rejects imperative code sitting outside of a function. |
-| `tests/engine_test.rs` | Smoke tests for all four registrations, plus a distinctness check between `F32x2` and `F64x2`. |
+| `tests/engine_test.rs` | Smoke tests for all 16 registrations, plus a distinctness check between `F32x2` and `F64x2`. |
 | `tests/example_convention_test.rs` | Checks every `examples/scene_script/*/src/*.rhai` script against `check_top_level_is_declarative()`, plus the checker's own accept/reject cases. |
 | `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
 
@@ -48,14 +48,16 @@ and Rhai's outer-scope-visibility surprise.
 ## Naming convention
 
 Rhai-facing type and constructor names always mirror the real Rust
-identifier (`F32x2` / `f32x2(...)`, `F64x2` / `f64x2(...)`), never a
-generic alias like `Vec2` — see `ndarray_cg::vector` for the full
-`{Element}x{Arity}` family this extends to if more element types or
-arities are registered later. `F32x2` and `F64x2` are registered side by
-side under distinct names so a script can pick whichever float precision
-it needs; Rhai's own `FLOAT` is `f64`-only (see § Why bindings are
-registered manually), so `F64x2` needs no boundary cast while `F32x2`
-casts at the edge.
+identifier (`F32x2` / `f32x2(...)`, `F64x2` / `f64x2(...)`, and so on for
+every other registered type), never a generic alias like `Vec2` — see
+`ndarray_cg::vector` for the full `{Element}x{Arity}` family. The full
+float slice of that family is now registered: both precisions (`F32`,
+`F64`) across all four arities (`x1`, `x2`, `x3`, `x4`), eight vector
+types in total. Each precision/arity combination is registered side by
+side under its own distinct name so a script can pick whichever it
+needs; Rhai's own `FLOAT` is `f64`-only (see § Why bindings are
+registered manually), so every `F64x*` type needs no boundary cast while
+every `F32x*` type casts at the edge.
 
 ## Why bindings are registered manually
 

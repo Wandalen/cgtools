@@ -9,12 +9,12 @@ workspace = true
 
 # Scene-script parsing (scene.rs) and shader assembly (shader_source.rs)
 # have no wasm/WebGPU dependency and are unit-tested natively, so
-# serde/rhai/scene_script/shader_chunks are unconditional, not target-gated.
+# serde/rhai/scene_script/shader_chunks_core are unconditional, not target-gated.
 [dependencies]
 serde = { workspace = true, features = [ "derive" ] }
 rhai = { workspace = true, features = [ "serde" ] }
 scene_script = { workspace = true }
-shader_chunks = { workspace = true }
+shader_chunks_core = { workspace = true }
 
 # Native WGSL parse + validation of the assembled shader ( tests/
 # shader_source_test.rs ) — the only pre-browser check that catches actual

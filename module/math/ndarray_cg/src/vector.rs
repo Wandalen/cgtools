@@ -79,6 +79,8 @@ crate::mod_interface!
 
   // /// Conversions from `Array` type to `Vector`
   // layer array;
+  /// Functionality related to 1D vectors
+  layer vec1;
   /// Functionality related to 2D vectors
   layer vec2;
   /// Functionality related to 3D vectors

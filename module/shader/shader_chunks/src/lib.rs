@@ -1,294 +1,265 @@
-//! Manifest-driven WGSL shader-chunk composer. Each bundled chunk under the
-//! repo-root `shader/` directory is exactly one WGSL function (or, for the
-//! vertex stage, one entry point plus the struct type it returns) with its
-//! manifest embedded as a leading `//@`-prefixed comment block — the same
-//! machine-parsable-attribute convention this ecosystem's playbooks use
-//! ( see `playbook.rulebook.md § Structure : Attribute Block` ), with `//`
-//! standing in for `#` since that is WGSL's line-comment token. [`compose`]
-//! reads every chunk's `//@ depends_on:` line, topologically sorts the given
-//! chunks, and concatenates their WGSL bodies dependency-before-dependent —
-//! regardless of the order they were passed in — panicking immediately, and
-//! naming the offending chunk, on a cyclic or unresolvable dependency.
-//! [`try_compose`] is the same sort, non-panicking, for callers ( e.g. a CLI )
-//! taking untrusted chunk sets.
-//!
-//! This crate intentionally has no Rust reimplementation of any chunk's
-//! math ( no `hash21`/`value_noise`/`fbm3` Rust ports ). Chunks are a
-//! shader-side concept only; the manifest, not a parallel Rust body, is what
-//! makes a chunk's interface legible — and since the manifest lives inside
-//! the same file as the code it describes, there is only ever one file to
-//! open, not two.
+//! Testable command logic for the `shader_chunks` binary. Each public
+//! function here takes already-parsed arguments and returns the exact string
+//! `main.rs` prints — keeping rendering inside these functions, rather than
+//! in `main.rs` itself, is what makes the direct-call test tier possible
+//! (see `tests/shader_chunks_test.rs`): no subprocess is needed to
+//! assert on output content.
 
 mod private
 {
+  use core::fmt;
+  use error_tools::Error;
+  use data_fmt::{ ColumnData, Format, RowBuilder, TableConfig, TableFormatter, TreeFormatter, TreeNode };
 
-  /// `hash21` chunk: 2D-point -> pseudo-random scalar hash.
-  pub const HASH21 : &str = include_str!( "../../../../shader/hash21.wgsl" );
-  /// `value_noise` chunk: bilinear value noise over [`HASH21`].
-  pub const VALUE_NOISE : &str = include_str!( "../../../../shader/value_noise.wgsl" );
-  /// `fbm3` chunk: three-octave fractal Brownian motion over [`VALUE_NOISE`].
-  pub const FBM3 : &str = include_str!( "../../../../shader/fbm3.wgsl" );
-  /// `fullscreen_triangle` chunk: vertex entry point emitting one screen-covering triangle.
-  pub const FULLSCREEN_TRIANGLE : &str = include_str!( "../../../../shader/fullscreen_triangle.wgsl" );
-
-  /// Every bundled chunk, in declaration order — the full set a caller can
-  /// pass to [`compose`]/[`try_compose`] or enumerate for inspection.
-  pub const ALL_CHUNKS : &[ &str ] = &[ HASH21, VALUE_NOISE, FBM3, FULLSCREEN_TRIANGLE ];
-
-  // A chunk's `//@ key: value` header lines are its manifest. `manifest_field`
-  // reads a mandatory single-line field ( `name`, `depends_on`, `description`,
-  // `tags` ); `manifest_field_opt` reads an optional single-line field
-  // ( `stage`, vertex-only ); `manifest_field_all` collects every line for a
-  // repeatable field ( `export`, one or more per chunk ). This crate's tests
-  // ( `tests/shader_chunks_test.rs` ) cross-check `export` against the real
-  // WGSL body, so it can't silently drift.
-
-  fn manifest_field<'a>( wgsl : &'a str, key : &str ) -> &'a str
+  /// Error returned by every `shader_chunks` command function.
+  #[ derive( Debug, Error ) ]
+  pub enum CliError
   {
-    let prefix = format!( "//@ {key}:" );
-    wgsl.lines()
-    .find_map( | line | line.strip_prefix( prefix.as_str() ) )
-    .unwrap_or_else( || panic!( "chunk missing required `//@ {key}:` header line:\n{wgsl}" ) )
-    .trim()
+    /// `get`/`tree`/`compose` named a chunk not present in [`shader_chunks_core::ALL_CHUNKS`].
+    UnknownChunk( String ),
+    /// `compose` failed the dependency resolution [`shader_chunks_core::try_compose`] performs.
+    Compose( shader_chunks_core::ComposeError ),
+    /// A `data_fmt` render call failed.
+    Render( String ),
   }
 
-  fn manifest_field_opt<'a>( wgsl : &'a str, key : &str ) -> Option< &'a str >
+  impl fmt::Display for CliError
   {
-    let prefix = format!( "//@ {key}:" );
-    wgsl.lines()
-    .find_map( | line | line.strip_prefix( prefix.as_str() ) )
-    .map( str::trim )
-  }
-
-  fn manifest_field_all<'a>( wgsl : &'a str, key : &str ) -> Vec< &'a str >
-  {
-    let prefix = format!( "//@ {key}:" );
-    wgsl.lines()
-    .filter_map( | line | line.strip_prefix( prefix.as_str() ) )
-    .map( str::trim )
-    .collect()
-  }
-
-  /// Reads the chunk's `//@ name:` manifest line.
-  ///
-  /// # Panics
-  ///
-  /// Panics if the chunk has no `//@ name:` header line.
-  #[ must_use ]
-  pub fn parse_name( wgsl : &str ) -> &str
-  {
-    manifest_field( wgsl, "name" )
-  }
-
-  /// Reads the chunk's `//@ depends_on:` manifest line as a list of chunk
-  /// names ( empty when the value is empty ).
-  ///
-  /// # Panics
-  ///
-  /// Panics if the chunk has no `//@ depends_on:` header line.
-  #[ must_use ]
-  pub fn parse_depends_on( wgsl : &str ) -> Vec< &str >
-  {
-    let raw = manifest_field( wgsl, "depends_on" );
-    if raw.is_empty()
-    {
-      return Vec::new();
-    }
-    raw.split( ',' ).map( str::trim ).collect()
-  }
-
-  /// Reads the chunk's `//@ description:` manifest line.
-  ///
-  /// # Panics
-  ///
-  /// Panics if the chunk has no `//@ description:` header line.
-  #[ must_use ]
-  pub fn parse_description( wgsl : &str ) -> &str
-  {
-    manifest_field( wgsl, "description" )
-  }
-
-  /// Reads the chunk's `//@ stage:` manifest line, if present ( only the
-  /// vertex-stage chunk declares one — ordinary function chunks have none ).
-  #[ must_use ]
-  pub fn parse_stage( wgsl : &str ) -> Option< &str >
-  {
-    manifest_field_opt( wgsl, "stage" )
-  }
-
-  /// Reads every `//@ export:` manifest line, in file order ( a chunk may
-  /// export more than one symbol, e.g. a struct plus the function that
-  /// returns it ).
-  #[ must_use ]
-  pub fn parse_exports( wgsl : &str ) -> Vec< &str >
-  {
-    manifest_field_all( wgsl, "export" )
-  }
-
-  /// Reads the chunk's `//@ tags:` manifest line as a list of `(group, tag)`
-  /// pairs ( empty when the value is empty ).
-  ///
-  /// # Panics
-  ///
-  /// Panics if the chunk has no `//@ tags:` header line, or if an entry has
-  /// no `:` separator.
-  #[ must_use ]
-  pub fn parse_tags( wgsl : &str ) -> Vec< ( &str, &str ) >
-  {
-    let raw = manifest_field( wgsl, "tags" );
-    if raw.is_empty()
-    {
-      return Vec::new();
-    }
-    raw.split( ',' )
-    .map( str::trim )
-    .map( | entry | entry.split_once( ':' )
-      .unwrap_or_else( || panic!( "malformed `//@ tags:` entry (expected `group:tag`): {entry:?}" ) ) )
-    .collect()
-  }
-
-  struct ParsedChunk< 'a >
-  {
-    name : &'a str,
-    depends_on : Vec< &'a str >,
-    wgsl : &'a str,
-  }
-
-  /// Error returned by [`try_compose`] instead of panicking.
-  #[ derive( Debug, Clone, PartialEq, Eq ) ]
-  pub enum ComposeError
-  {
-    /// A dependency cycle was found among the given chunks. Carries the
-    /// visiting-stack trail ( `"[...] -> name"` ) that closed the cycle.
-    CyclicDependency( String ),
-    /// A chunk's `//@ depends_on:` names a chunk not present in the given set.
-    MissingDependency
-    {
-      /// The chunk whose `depends_on` line named the missing chunk.
-      chunk : String,
-      /// The depended-on chunk name that was not passed to `try_compose`.
-      missing : String,
-    },
-  }
-
-  impl std::fmt::Display for ComposeError
-  {
-    fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+    fn fmt( &self, f : &mut fmt::Formatter< '_ > ) -> fmt::Result
     {
       match self
       {
-        Self::CyclicDependency( trail ) => write!( f, "cyclic shader-chunk dependency: {trail}" ),
-        Self::MissingDependency { chunk, missing } =>
-        write!( f, "chunk `{chunk}` depends on `{missing}`, which was not passed to compose()" ),
+        Self::UnknownChunk( name ) => write!( f, "unknown chunk: `{name}` (see `list` for valid names)" ),
+        Self::Compose( err ) => write!( f, "{err}" ),
+        Self::Render( msg ) => write!( f, "render error: {msg}" ),
       }
     }
   }
 
-  impl std::error::Error for ComposeError {}
-
-  /// Topologically sorts `chunks` by each one's header-declared `depends_on`
-  /// and concatenates their WGSL bodies in that order, dependency before
-  /// dependent, regardless of the order they were passed in.
-  ///
-  /// # Panics
-  ///
-  /// Panics, naming the offending chunk, on a dependency cycle or a
-  /// `depends_on` entry not present in `chunks` — both are authoring mistakes
-  /// in a chunk's header ( or in the set passed to `compose` ), not states a
-  /// correctly-authored composition can reach. Use [`try_compose`] instead
-  /// when `chunks` is not already trusted to be internally consistent.
-  #[ must_use ]
-  pub fn compose( chunks : &[ &str ] ) -> String
+  impl CliError
   {
-    try_compose( chunks ).unwrap_or_else( | err | panic!( "{err}" ) )
+    /// Maps this error to a process exit code: `1` for a bad chunk name or a
+    /// failed composition (validation-style, caller-fixable by passing
+    /// different arguments), `2` for a render failure (internal).
+    #[ must_use ]
+    pub fn exit_code( &self ) -> i32
+    {
+      match self
+      {
+        Self::UnknownChunk( _ ) | Self::Compose( _ ) => 1,
+        Self::Render( _ ) => 2,
+      }
+    }
   }
 
-  /// Non-panicking twin of [`compose`]: same topological sort over `chunks`,
-  /// but reports a dependency cycle or unresolved dependency as an [`Err`]
-  /// instead of panicking — for callers ( e.g. a CLI ) taking untrusted chunk
-  /// sets where a panic is the wrong failure mode.
+  fn find_chunk( name : &str ) -> Result< &'static str, CliError >
+  {
+    shader_chunks_core::ALL_CHUNKS.iter()
+    .copied()
+    .find( | &wgsl | shader_chunks_core::parse_name( wgsl ) == name )
+    .ok_or_else( || CliError::UnknownChunk( name.to_string() ) )
+  }
+
+  fn tags_string( wgsl : &str ) -> String
+  {
+    shader_chunks_core::parse_tags( wgsl )
+    .iter()
+    .map( | ( group, tag ) | format!( "{group}:{tag}" ) )
+    .collect::< Vec< _ > >()
+    .join( ", " )
+  }
+
+  fn depends_on_string( wgsl : &str ) -> String
+  {
+    let deps = shader_chunks_core::parse_depends_on( wgsl );
+    if deps.is_empty() { "(none)".to_string() } else { deps.join( ", " ) }
+  }
+
+  /// Every bundled chunk nothing else depends on — the roots of the
+  /// no-argument `tree` forest.
+  fn dependents_free_roots() -> Vec< &'static str >
+  {
+    let depended_on : std::collections::HashSet< &str > = shader_chunks_core::ALL_CHUNKS.iter()
+    .flat_map( | &wgsl | shader_chunks_core::parse_depends_on( wgsl ) )
+    .collect();
+
+    shader_chunks_core::ALL_CHUNKS.iter()
+    .copied()
+    .filter( | &wgsl | !depended_on.contains( shader_chunks_core::parse_name( wgsl ) ) )
+    .collect()
+  }
+
+  /// Builds one `name` tree node carrying its name and tags as aligned
+  /// column data, recursing into each `depends_on` entry. `TreeFormatter`'s
+  /// `format_aligned` renders a node's `ColumnData` (not its bare `name`
+  /// field) for every non-root row, so `name` must be column 0 for it to
+  /// appear at all — see `tree_chunk`, which also compensates for
+  /// `format_aligned`'s default `show_root: false` by wrapping each root in
+  /// an invisible parent so it renders as a normal (column-bearing) row
+  /// rather than being skipped as the tree's root. A dependency name that
+  /// can't be resolved against the bundled set is skipped rather than
+  /// panicking — defensive only, since every real chunk's `depends_on` is
+  /// validated at `compose` time and this bundled set is fixed and
+  /// self-consistent.
+  fn dep_tree( wgsl : &str ) -> TreeNode< ColumnData >
+  {
+    let name = shader_chunks_core::parse_name( wgsl );
+    let mut node = TreeNode::new( name.to_string(), Some( ColumnData::new( vec![ name.to_string(), tags_string( wgsl ) ] ) ) );
+    for dep_name in shader_chunks_core::parse_depends_on( wgsl )
+    {
+      if let Ok( dep_wgsl ) = find_chunk( dep_name )
+      {
+        node.children.push( dep_tree( dep_wgsl ) );
+      }
+    }
+    node
+  }
+
+  /// Table of every bundled chunk: name / description / tags / depends_on.
   ///
   /// # Errors
   ///
-  /// Returns [`ComposeError::CyclicDependency`] on a dependency cycle, or
-  /// [`ComposeError::MissingDependency`] when a `depends_on` entry names a
-  /// chunk not present in `chunks`.
-  pub fn try_compose( chunks : &[ &str ] ) -> Result< String, ComposeError >
+  /// Returns [`CliError::Render`] if the `data_fmt` table formatter fails.
+  pub fn list_chunks() -> Result< String, CliError >
   {
-    let entries : Vec< ParsedChunk< '_ > > = chunks.iter()
-    .map( | &wgsl | ParsedChunk { name : parse_name( wgsl ), depends_on : parse_depends_on( wgsl ), wgsl } )
-    .collect();
-
-    let mut ordered : Vec< &ParsedChunk< '_ > > = Vec::with_capacity( entries.len() );
-    let mut visiting : Vec< &str > = Vec::new();
-
-    for entry in &entries
+    let mut builder = RowBuilder::new( vec!
+    [
+      "name".to_string(), "description".to_string(), "tags".to_string(), "depends_on".to_string(),
+    ]);
+    for &wgsl in shader_chunks_core::ALL_CHUNKS
     {
-      visit( entry.name, None, &entries, &mut visiting, &mut ordered )?;
+      builder.add_row_mut( vec!
+      [
+        shader_chunks_core::parse_name( wgsl ).into(),
+        shader_chunks_core::parse_description( wgsl ).into(),
+        tags_string( wgsl ).into(),
+        depends_on_string( wgsl ).into(),
+      ]);
     }
-
-    Ok( ordered.iter().map( | e | e.wgsl ).collect::< Vec< _ > >().join( "\n\n" ) )
+    let view = builder.build_view();
+    Format::format( &TableFormatter::with_config( TableConfig::plain() ), &view )
+    .map_err( | e | CliError::Render( e.to_string() ) )
   }
 
-  // Two lifetimes: `'a` is the borrowed WGSL source text ( outlives this call,
-  // e.g. `'static` for the bundled consts ); `'e` is the local `entries`
-  // slice built in `try_compose`. `ordered` collects `&'e ParsedChunk<'a>`
-  // directly instead of names, so the final join needs no second name->chunk
-  // lookup ( which would be a spurious, clippy-flagged `.expect()` — every
-  // name in `ordered` already has its chunk in hand at push time ).
-  fn visit<'a, 'e>
-  (
-    name : &'a str,
-    required_by : Option< &'a str >,
-    entries : &'e [ ParsedChunk< 'a > ],
-    visiting : &mut Vec< &'a str >,
-    ordered : &mut Vec< &'e ParsedChunk< 'a > >,
-  ) -> Result< (), ComposeError >
+  /// Full detail text for one chunk: name, description, stage, tags,
+  /// `depends_on`, exports.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`CliError::UnknownChunk`] when `name` is not in [`shader_chunks_core::ALL_CHUNKS`].
+  pub fn get_chunk( name : &str ) -> Result< String, CliError >
   {
-    if ordered.iter().any( | e | e.name == name )
+    let wgsl = find_chunk( name )?;
+    let exports = shader_chunks_core::parse_exports( wgsl ).join( "\n  " );
+    Ok( format!
+    (
+      "name: {name}\ndescription: {description}\nstage: {stage:?}\ntags: {tags}\ndepends_on: {depends_on}\nexports:\n  {exports}\n",
+      name = shader_chunks_core::parse_name( wgsl ),
+      description = shader_chunks_core::parse_description( wgsl ),
+      stage = shader_chunks_core::parse_stage( wgsl ),
+      tags = tags_string( wgsl ),
+      depends_on = depends_on_string( wgsl ),
+    ))
+  }
+
+  /// Table of every distinct `group:tag` pair and the chunk(s) carrying it.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`CliError::Render`] if the `data_fmt` table formatter fails.
+  pub fn list_tags() -> Result< String, CliError >
+  {
+    let mut pairs : Vec< ( String, Vec< &'static str > ) > = Vec::new();
+    for &wgsl in shader_chunks_core::ALL_CHUNKS
     {
-      return Ok( () );
-    }
-    if visiting.contains( &name )
-    {
-      return Err( ComposeError::CyclicDependency( format!( "{visiting:?} -> {name}" ) ) );
+      let name = shader_chunks_core::parse_name( wgsl );
+      for ( group, tag ) in shader_chunks_core::parse_tags( wgsl )
+      {
+        let key = format!( "{group}:{tag}" );
+        if let Some( entry ) = pairs.iter_mut().find( | entry | entry.0 == key )
+        {
+          entry.1.push( name );
+        }
+        else
+        {
+          pairs.push( ( key, vec![ name ] ) );
+        }
+      }
     }
 
-    let Some( entry ) = entries.iter().find( | e | e.name == name ) else
+    let mut builder = RowBuilder::new( vec![ "tag".to_string(), "chunks".to_string() ] );
+    for ( tag, chunks ) in pairs
     {
-      return Err( ComposeError::MissingDependency
-      {
-        chunk : required_by.unwrap_or( name ).to_string(),
-        missing : name.to_string(),
-      });
+      builder.add_row_mut( vec![ tag.into(), chunks.join( ", " ).into() ] );
+    }
+    let view = builder.build_view();
+    Format::format( &TableFormatter::with_config( TableConfig::plain() ), &view )
+    .map_err( | e | CliError::Render( e.to_string() ) )
+  }
+
+  /// Dependency tree for one chunk, or — with `name` absent — a forest of
+  /// every chunk nothing else depends on.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`CliError::UnknownChunk`] when `name` is `Some` and not found.
+  pub fn tree_chunk( name : Option< &str > ) -> Result< String, CliError >
+  {
+    let roots : Vec< &'static str > = match name
+    {
+      Some( name ) => vec![ find_chunk( name )? ],
+      None => dependents_free_roots(),
     };
 
-    visiting.push( name );
-    for &dep in &entry.depends_on
+    let formatter = TreeFormatter::new();
+    Ok( roots.iter().map( | &wgsl |
     {
-      visit( dep, Some( name ), entries, visiting, ordered )?;
-    }
-    visiting.pop();
-    ordered.push( entry );
-    Ok( () )
+      // `format_aligned` never renders its own argument's `name`/`data` (only
+      // `show_root: true` would, and even then via bare `name` with no
+      // column alignment) — it only renders `children`. Wrapping each real
+      // root as the sole child of an invisible, data-less parent makes that
+      // root itself appear as a normal aligned row instead of being skipped.
+      let mut invisible_parent = TreeNode::new( String::new(), None );
+      invisible_parent.children.push( dep_tree( wgsl ) );
+      formatter.format_aligned( &invisible_parent )
+    }).collect::< Vec< _ > >().join( "\n" ) )
   }
 
+  /// Composes already-resolved WGSL chunk bodies via
+  /// [`shader_chunks_core::try_compose`]. Exposed separately from
+  /// [`compose_chunks`] so tests can exercise cyclic/missing-dependency
+  /// failures with synthetic fixtures — the real bundled chunk set is fixed
+  /// and acyclic, so it can never produce a `CyclicDependency` through the
+  /// name-based [`compose_chunks`] path.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`CliError::Compose`] on a cyclic or unresolved dependency.
+  pub fn try_compose_wgsl( chunks : &[ &str ] ) -> Result< String, CliError >
+  {
+    shader_chunks_core::try_compose( chunks ).map_err( CliError::Compose )
+  }
+
+  /// Resolves `names` against [`shader_chunks_core::ALL_CHUNKS`] and composes them.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`CliError::UnknownChunk`] if any name is not bundled, or
+  /// [`CliError::Compose`] on a missing dependency.
+  pub fn compose_chunks( names : &[ String ] ) -> Result< String, CliError >
+  {
+    let chunks : Vec< &str > = names.iter().map( | name | find_chunk( name ) ).collect::< Result< _, _ > >()?;
+    try_compose_wgsl( &chunks )
+  }
 }
 
 ::mod_interface::mod_interface!
 {
-  own use HASH21;
-  own use VALUE_NOISE;
-  own use FBM3;
-  own use FULLSCREEN_TRIANGLE;
-  own use ALL_CHUNKS;
-  own use parse_name;
-  own use parse_depends_on;
-  own use parse_description;
-  own use parse_stage;
-  own use parse_exports;
-  own use parse_tags;
-  own use ComposeError;
-  own use compose;
-  own use try_compose;
+  own use CliError;
+  own use list_chunks;
+  own use get_chunk;
+  own use list_tags;
+  own use tree_chunk;
+  own use try_compose_wgsl;
+  own use compose_chunks;
 }

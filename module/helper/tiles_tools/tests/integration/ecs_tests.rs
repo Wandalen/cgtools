@@ -537,12 +537,12 @@ fn test_component_combinations()
   assert!(world.get::<Size>(complex_entity).is_ok());
   
   // Test complex queries
-  let mut complex_query = world.query::<(
+  let mut complex_query = world.query::<(hecs::Entity, (
     &Position<SquareCoord<EightConnected>>,
     &Health,
     &Stats, 
     &Movable
-  )>();
+  ))>();
   
   for (entity, (_pos, health, _stats, movable)) in &mut complex_query {
     assert_eq!(entity, complex_entity);

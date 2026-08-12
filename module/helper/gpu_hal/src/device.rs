@@ -1338,14 +1338,14 @@ mod private
   {
     let shader = desc.shader.expect_native();
 
-    let raw_layouts : Vec< &wgpu::BindGroupLayout > = desc.bind_group_layouts.iter()
-    .map( | layout | layout.expect_native() )
+    let raw_layouts : Vec< Option< &wgpu::BindGroupLayout > > = desc.bind_group_layouts.iter()
+    .map( | layout | Some( layout.expect_native() ) )
     .collect();
     let pipeline_layout = device.create_pipeline_layout( &wgpu::PipelineLayoutDescriptor
     {
       label : None,
       bind_group_layouts : &raw_layouts,
-      push_constant_ranges : &[]
+      immediate_size : 0
     } );
 
     // Two passes because wgpu's slot layout borrows its attribute
@@ -1368,7 +1368,7 @@ mod private
       .collect()
     )
     .collect();
-    let vertex_buffers : Vec< wgpu::VertexBufferLayout< '_ > > = desc.vertex_buffers.iter()
+    let vertex_buffers : Vec< Option< wgpu::VertexBufferLayout< '_ > > > = desc.vertex_buffers.iter()
     .zip( &attributes )
     .map
     (
@@ -1380,6 +1380,7 @@ mod private
         attributes
       }
     )
+    .map( Some )
     .collect();
 
     let pipeline = device.create_render_pipeline( &wgpu::RenderPipelineDescriptor
@@ -1404,8 +1405,8 @@ mod private
         wgpu::DepthStencilState
         {
           format : wgpu::TextureFormat::from( depth.format ),
-          depth_write_enabled : true,
-          depth_compare : wgpu::CompareFunction::Less,
+          depth_write_enabled : Some( true ),
+          depth_compare : Some( wgpu::CompareFunction::Less ),
           stencil : wgpu::StencilState::default(),
           bias : wgpu::DepthBiasState::default()
         }
@@ -1423,7 +1424,7 @@ mod private
           write_mask : wgpu::ColorWrites::ALL
         } ) ]
       } ),
-      multiview : None,
+      multiview_mask : None,
       cache : None
     } );
     RenderPipeline::Native( pipeline )

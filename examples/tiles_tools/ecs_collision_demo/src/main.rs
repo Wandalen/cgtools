@@ -78,7 +78,7 @@ fn collisions_detect_and_resolve(world: &mut World)
         CollisionSystem::collisions_resolve(&mut world.hecs_world, &collisions);
 
         // Show new positions after resolution
-        for (entity, pos) in &mut world.query::<&Position<SquareCoord<FourConnected>>>() {
+        for (entity, pos) in &mut world.query::<(hecs::Entity, &Position<SquareCoord<FourConnected>>)>() {
             println!("Entity {:?} now at ({}, {})", entity, pos.coord.x, pos.coord.y);
         }
     }

@@ -30,7 +30,7 @@
 //! ));
 //! 
 //! // Query entities
-//! for ( entity, ( pos, health ) ) in world.query::< ( &Position< SquareCoord< FourConnected > >, &Health ) >().iter()
+//! for ( entity, ( pos, health ) ) in world.query::< ( hecs::Entity, ( &Position< SquareCoord< FourConnected > >, &Health ) ) >().iter()
 //! {
 //!     println!( "Entity at ({}, {}) has {} health", pos.coord.x, pos.coord.y, health.current );
 //! }

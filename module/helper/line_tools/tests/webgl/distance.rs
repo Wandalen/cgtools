@@ -1,7 +1,6 @@
 
 #![ expect( clippy::float_cmp, reason = "assertions check deterministic cumulative-distance arithmetic against exact literal expected values" ) ]
 
-use super::*;
 use line_tools::d3;
 
 #[ test ]

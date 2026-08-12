@@ -1,174 +1,123 @@
-//! Tests for the manifest-driven shader-chunk composer — manifest/WGSL-body
-//! cross-checks over the real bundled chunks plus `compose`'s ordering and
-//! panic contracts.
+//! Direct-call tests for `shader_chunks`'s command logic — no
+//! subprocess; see `tests/cli_subprocess_test.rs` for end-to-end argv and
+//! exit-code coverage.
 
-use shader_chunks::
-{
-  compose, try_compose, parse_name, parse_depends_on, parse_description, parse_stage, parse_exports, parse_tags,
-  ComposeError, ALL_CHUNKS,
-  HASH21, VALUE_NOISE, FBM3, FULLSCREEN_TRIANGLE,
-};
-
-/// Test-only: pulls the declared symbol name out of an `export` line's
-/// WGSL signature ( `"fn hash21(p: vec2f) -> f32"` -> `"hash21"`,
-/// `"struct VertexOutput { .. }"` -> `"VertexOutput"` ).
-fn exported_name( signature : &str ) -> &str
-{
-  signature.split_whitespace().nth( 1 ).unwrap_or( signature )
-  .split( '(' ).next().unwrap_or( signature )
-}
+use shader_chunks::{ CliError, compose_chunks, get_chunk, list_chunks, list_tags, tree_chunk, try_compose_wgsl };
 
 #[ test ]
-fn depends_on_covers_every_actual_wgsl_call_to_another_chunk()
+fn list_chunks_lists_all_four_bundled_chunks_with_expected_columns()
 {
-  for &chunk in ALL_CHUNKS
+  let output = list_chunks().expect( "list_chunks should not fail" );
+  for name in [ "hash21", "value_noise", "fbm3", "fullscreen_triangle" ]
   {
-    let name = parse_name( chunk );
-    let declared = parse_depends_on( chunk );
-    for &other in ALL_CHUNKS
-    {
-      let other_name = parse_name( other );
-      if other_name == name
-      {
-        continue;
-      }
-      let calls_it = chunk.contains( &format!( "{other_name}(" ) );
-      let declares_it = declared.contains( &other_name );
-      assert_eq!
-      (
-        calls_it, declares_it,
-        "chunk `{name}`: actual wgsl call to `{other_name}` = {calls_it}, but depends_on lists it = {declares_it}"
-      );
-    }
+    assert!( output.contains( name ), "list output missing chunk `{name}`:\n{output}" );
   }
+  assert!( output.contains( "hash" ), "list output missing tag `hash`:\n{output}" );
 }
 
 #[ test ]
-fn export_names_match_a_real_declaration_in_the_wgsl_body()
+fn get_chunk_reports_full_detail_for_hash21()
 {
-  for &chunk in ALL_CHUNKS
-  {
-    for signature in parse_exports( chunk )
-    {
-      let name = exported_name( signature );
-      let declared = chunk.contains( &format!( "fn {name}(" ) ) || chunk.contains( &format!( "struct {name}" ) );
-      assert!( declared, "chunk declares export `{signature}` but no `fn {name}(` or `struct {name}` found in its body" );
-    }
-  }
+  let output = get_chunk( "hash21" ).expect( "get_chunk should succeed for a real chunk" );
+  assert!( output.contains( "name: hash21" ), "{output}" );
+  assert!( output.contains( "description: Single-value hash of a 2D point into [0, 1)." ), "{output}" );
+  assert!( output.contains( "stage: None" ), "{output}" );
+  assert!( output.contains( "tags: category:hash" ), "{output}" );
+  assert!( output.contains( "depends_on: (none)" ), "{output}" );
+  assert!( output.contains( "fn hash21(p: vec2f) -> f32" ), "{output}" );
 }
 
 #[ test ]
-fn compose_orders_dependencies_before_dependents_regardless_of_input_order()
+fn get_chunk_reports_unknown_chunk_error_for_bogus_name()
 {
-  let composed = compose( &[ FBM3, FULLSCREEN_TRIANGLE, VALUE_NOISE, HASH21 ] );
-  let hash21_pos = composed.find( "fn hash21" ).expect( "hash21 present" );
-  let value_noise_pos = composed.find( "fn value_noise" ).expect( "value_noise present" );
-  let fbm3_pos = composed.find( "fn fbm3" ).expect( "fbm3 present" );
-  assert!( hash21_pos < value_noise_pos, "hash21 must precede value_noise" );
-  assert!( value_noise_pos < fbm3_pos, "value_noise must precede fbm3" );
-}
-
-#[ test ]
-#[ should_panic( expected = "was not passed to compose" ) ]
-fn compose_panics_on_missing_dependency()
-{
-  let _ = compose( &[ VALUE_NOISE, FBM3 ] );
-}
-
-#[ test ]
-#[ should_panic( expected = "cyclic shader-chunk dependency" ) ]
-fn compose_panics_on_cyclic_dependency()
-{
-  const A : &str = "//@ name: a\n//@ depends_on: b\nfn a() {}";
-  const B : &str = "//@ name: b\n//@ depends_on: a\nfn b() {}";
-  let _ = compose( &[ A, B ] );
-}
-
-#[ test ]
-fn parse_depends_on_handles_empty_value()
-{
-  assert_eq!( parse_depends_on( "//@ name: x\n//@ depends_on:\n" ), Vec::< &str >::new() );
-}
-
-#[ test ]
-fn parse_depends_on_handles_multiple_entries()
-{
-  assert_eq!( parse_depends_on( "//@ depends_on: a, b\n" ), vec![ "a", "b" ] );
-}
-
-#[ test ]
-fn all_chunks_lists_every_bundled_chunk()
-{
-  assert_eq!( ALL_CHUNKS.len(), 4 );
-}
-
-#[ test ]
-fn parse_description_reads_every_bundled_chunk()
-{
-  assert_eq!( parse_description( HASH21 ), "Single-value hash of a 2D point into [0, 1)." );
-  assert_eq!( parse_description( VALUE_NOISE ), "Bilinear-interpolated value noise sampled at a 2D point, in [0, 1)." );
-  assert_eq!( parse_description( FBM3 ), "Fixed 3-octave fractal Brownian motion built on value_noise, in [0, 0.875]." );
-  assert_eq!
+  let err = get_chunk( "bogus_chunk" ).expect_err( "get_chunk should fail for an unknown name" );
+  assert!
   (
-    parse_description( FULLSCREEN_TRIANGLE ),
-    "Fullscreen-triangle vertex stage: 3 vertices, no vertex buffer, vertex_index alone picks the corner."
+    matches!( &err, CliError::UnknownChunk( name ) if name == "bogus_chunk" ),
+    "expected UnknownChunk(\"bogus_chunk\"), got {err:?}"
+  );
+  assert_eq!( err.exit_code(), 1 );
+}
+
+#[ test ]
+fn list_tags_lists_every_distinct_group_tag_pair_and_its_chunks()
+{
+  let output = list_tags().expect( "list_tags should not fail" );
+  for pair in [ "category:hash", "category:noise", "technique:fractal", "category:vertex" ]
+  {
+    assert!( output.contains( pair ), "tags output missing `{pair}`:\n{output}" );
+  }
+  assert!( output.contains( "hash21" ), "{output}" );
+  assert!( output.contains( "fbm3" ), "{output}" );
+}
+
+#[ test ]
+fn tree_chunk_shows_fbm3_dependency_chain_in_order()
+{
+  let output = tree_chunk( Some( "fbm3" ) ).expect( "tree_chunk should succeed for a real chunk" );
+  let fbm3_pos = output.find( "fbm3" ).expect( "fbm3 present" );
+  let value_noise_pos = output.find( "value_noise" ).expect( "value_noise present" );
+  let hash21_pos = output.find( "hash21" ).expect( "hash21 present" );
+  assert!( fbm3_pos < value_noise_pos, "fbm3 should precede value_noise in the tree:\n{output}" );
+  assert!( value_noise_pos < hash21_pos, "value_noise should precede hash21 in the tree:\n{output}" );
+}
+
+#[ test ]
+fn tree_chunk_with_no_name_shows_forest_of_every_root_chunk()
+{
+  let output = tree_chunk( None ).expect( "tree_chunk should succeed with no name" );
+  assert!( output.contains( "fbm3" ), "forest missing root `fbm3`:\n{output}" );
+  assert!( output.contains( "fullscreen_triangle" ), "forest missing root `fullscreen_triangle`:\n{output}" );
+}
+
+#[ test ]
+fn tree_chunk_reports_unknown_chunk_error_for_bogus_name()
+{
+  let err = tree_chunk( Some( "bogus_chunk" ) ).expect_err( "tree_chunk should fail for an unknown name" );
+  assert!( matches!( err, CliError::UnknownChunk( _ ) ), "expected UnknownChunk, got {err:?}" );
+}
+
+#[ test ]
+fn compose_chunks_orders_hash21_before_value_noise_regardless_of_input_order()
+{
+  let output = compose_chunks( &[ "value_noise".to_string(), "hash21".to_string() ] ).expect( "compose_chunks should succeed" );
+  let hash21_pos = output.find( "fn hash21" ).expect( "hash21 present" );
+  let value_noise_pos = output.find( "fn value_noise" ).expect( "value_noise present" );
+  assert!( hash21_pos < value_noise_pos, "hash21 must precede value_noise:\n{output}" );
+}
+
+#[ test ]
+fn compose_chunks_reports_unknown_chunk_error_for_bogus_name()
+{
+  let err = compose_chunks( &[ "bogus_chunk".to_string() ] ).expect_err( "compose_chunks should fail for an unknown name" );
+  assert!
+  (
+    matches!( &err, CliError::UnknownChunk( name ) if name == "bogus_chunk" ),
+    "expected UnknownChunk(\"bogus_chunk\"), got {err:?}"
   );
 }
 
 #[ test ]
-fn parse_stage_is_some_only_for_the_vertex_chunk()
+fn compose_chunks_reports_missing_dependency_error_when_hash21_is_omitted()
 {
-  assert_eq!( parse_stage( HASH21 ), None );
-  assert_eq!( parse_stage( VALUE_NOISE ), None );
-  assert_eq!( parse_stage( FBM3 ), None );
-  assert_eq!( parse_stage( FULLSCREEN_TRIANGLE ), Some( "vertex" ) );
+  let err = compose_chunks( &[ "value_noise".to_string() ] ).expect_err( "compose_chunks should fail on a missing dependency" );
+  assert!
+  (
+    matches!( &err, CliError::Compose( shader_chunks_core::ComposeError::MissingDependency { .. } ) ),
+    "expected Compose(MissingDependency), got {err:?}"
+  );
+  assert_eq!( err.exit_code(), 1 );
 }
 
 #[ test ]
-fn parse_exports_counts_match_each_chunk()
-{
-  assert_eq!( parse_exports( HASH21 ).len(), 1 );
-  assert_eq!( parse_exports( VALUE_NOISE ).len(), 1 );
-  assert_eq!( parse_exports( FBM3 ).len(), 1 );
-  assert_eq!( parse_exports( FULLSCREEN_TRIANGLE ).len(), 2 );
-}
-
-#[ test ]
-fn parse_tags_reads_every_bundled_chunk()
-{
-  assert_eq!( parse_tags( HASH21 ), vec![ ( "category", "hash" ) ] );
-  assert_eq!( parse_tags( VALUE_NOISE ), vec![ ( "category", "noise" ) ] );
-  assert_eq!( parse_tags( FBM3 ), vec![ ( "category", "noise" ), ( "technique", "fractal" ) ] );
-  assert_eq!( parse_tags( FULLSCREEN_TRIANGLE ), vec![ ( "category", "vertex" ) ] );
-}
-
-#[ test ]
-#[ should_panic( expected = "malformed `//@ tags:` entry" ) ]
-fn parse_tags_panics_on_malformed_entry()
-{
-  let _ = parse_tags( "//@ name: x\n//@ tags: not_a_pair\n" );
-}
-
-#[ test ]
-fn try_compose_matches_compose_output_on_success()
-{
-  let expected = compose( &[ FBM3, FULLSCREEN_TRIANGLE, VALUE_NOISE, HASH21 ] );
-  let actual = try_compose( &[ FBM3, FULLSCREEN_TRIANGLE, VALUE_NOISE, HASH21 ] ).expect( "should succeed" );
-  assert_eq!( actual, expected );
-}
-
-#[ test ]
-fn try_compose_returns_err_on_missing_dependency()
-{
-  let err = try_compose( &[ VALUE_NOISE, FBM3 ] ).expect_err( "should fail" );
-  assert!( matches!( err, ComposeError::MissingDependency { .. } ), "expected MissingDependency, got {err:?}" );
-}
-
-#[ test ]
-fn try_compose_returns_err_on_cyclic_dependency()
+fn try_compose_wgsl_reports_cyclic_dependency_error_on_synthetic_fixture()
 {
   const A : &str = "//@ name: a\n//@ depends_on: b\nfn a() {}";
   const B : &str = "//@ name: b\n//@ depends_on: a\nfn b() {}";
-  let err = try_compose( &[ A, B ] ).expect_err( "should fail" );
-  assert!( matches!( err, ComposeError::CyclicDependency( _ ) ), "expected CyclicDependency, got {err:?}" );
+  let err = try_compose_wgsl( &[ A, B ] ).expect_err( "try_compose_wgsl should fail on a cyclic dependency" );
+  assert!
+  (
+    matches!( &err, CliError::Compose( shader_chunks_core::ComposeError::CyclicDependency( _ ) ) ),
+    "expected Compose(CyclicDependency), got {err:?}"
+  );
 }

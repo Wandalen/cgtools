@@ -211,7 +211,8 @@ mod private
     .map_err( | _ | Error::Native( "readback map callback never fired".to_string() ) )?
     .map_err( | e | Error::Native( format!( "readback map failed : {e:?}" ) ) )?;
 
-    let mapped = slice.get_mapped_range();
+    let mapped = slice.get_mapped_range()
+    .map_err( | e | Error::Native( format!( "readback map range failed : {e:?}" ) ) )?;
     let mut pixels = Vec::with_capacity( bytes_per_row as usize * height as usize );
     for row in 0..height as usize
     {

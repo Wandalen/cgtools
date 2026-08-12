@@ -143,7 +143,7 @@ fn test_flow_field_ecs_integration()
   // Collect unit positions for batch flow processing
   let mut unit_positions = Vec::new();
   let mut query = world.query::<&Position<HexCoord<Axial, Pointy>>>();
-  for (_entity, pos) in &mut query {
+  for pos in &mut query {
     unit_positions.push(pos.coord);
   }
 

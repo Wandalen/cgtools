@@ -1,5 +1,5 @@
 use minwebgpu::{self as gl, web_sys, WebGPUError};
-use rand::Rng;
+use rand::RngExt;
 pub const NUM_LIGHTS : usize = 150;
 
 #[ repr( C ) ]

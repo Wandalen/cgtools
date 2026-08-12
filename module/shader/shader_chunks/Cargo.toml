@@ -2,10 +2,26 @@
 name = "shader_chunks"
 version = "0.1.0"
 edition = "2024"
-description = "Manifest-driven WGSL shader-chunk composer — topologically sorts and concatenates reusable shader functions by dependency"
+description = "Terminal CLI for listing, inspecting, and composing shader_chunks_core WGSL chunks"
 
 [dependencies]
+shader_chunks_core.workspace = true
+unilang.workspace = true
+cli_fmt.workspace = true
+data_fmt.workspace = true
+error_tools.workspace = true
 mod_interface.workspace = true
+
+[dev-dependencies]
+assert_cmd = "2.2"
+
+[[bin]]
+name = "shader_chunks"
+path = "src/main.rs"
+
+[[bin]]
+name = "sch"
+path = "src/main.rs"
 
 [lints]
 workspace = true

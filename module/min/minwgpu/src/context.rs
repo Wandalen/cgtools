@@ -32,7 +32,7 @@ mod private
       ContextBuilder
       {
         _state : PhantomData,
-        instance_descriptor : wgpu::InstanceDescriptor::default(),
+        instance_descriptor : wgpu::InstanceDescriptor::new_without_display_handle(),
         request_adapter_options : wgpu::RequestAdapterOptionsBase::default(),
         device_descriptor : wgpu::wgt::DeviceDescriptor::default(),
         instance : None,
@@ -54,7 +54,7 @@ mod private
       ContextBuilder
       {
         _state : PhantomData,
-        instance_descriptor : wgpu::InstanceDescriptor::default(),
+        instance_descriptor : wgpu::InstanceDescriptor::new_without_display_handle(),
         request_adapter_options : wgpu::RequestAdapterOptionsBase::default(),
         device_descriptor : wgpu::wgt::DeviceDescriptor::default(),
         instance : None,
@@ -107,7 +107,7 @@ mod private
       Self
       {
         _state : PhantomData,
-        instance_descriptor : wgpu::InstanceDescriptor::default(),
+        instance_descriptor : wgpu::InstanceDescriptor::new_without_display_handle(),
         request_adapter_options : wgpu::RequestAdapterOptionsBase::default(),
         device_descriptor : wgpu::wgt::DeviceDescriptor::default(),
         instance : Some( instance ),
@@ -299,7 +299,19 @@ mod private
     #[ must_use ]
     pub fn instance_make( mut self ) -> ContextBuilder< 'a, 'b, 'l, 's, AdapterBuilder >
     {
-      self.instance = Some( wgpu::Instance::new( &self.instance_descriptor ) );
+      // wgpu 30 : `Instance::new` consumes the descriptor by value and the descriptor is
+      // no longer `Clone` (its `display` field boxes a handle). This builder never sets
+      // `display`, so rebuild the descriptor field-by-field and keep `self`'s copy intact
+      // for `instance_descriptor_get` introspection.
+      let descriptor = wgpu::InstanceDescriptor
+      {
+        backends : self.instance_descriptor.backends,
+        flags : self.instance_descriptor.flags,
+        memory_budget_thresholds : self.instance_descriptor.memory_budget_thresholds,
+        backend_options : self.instance_descriptor.backend_options.clone(),
+        display : None,
+      };
+      self.instance = Some( wgpu::Instance::new( descriptor ) );
 
       let Self
       {

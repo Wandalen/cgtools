@@ -17,8 +17,8 @@ fn app_run() -> Result< (), minwgpu::Error >
   .power_preference( wgpu::PowerPreference::HighPerformance )
   .adapter_request()?
   .label( "device" )
-  .required_features( wgpu::Features::PUSH_CONSTANTS )
-  .required_limits( wgpu::Limits { max_push_constant_size : 16, ..Default::default() } )
+  .required_features( wgpu::Features::IMMEDIATES )
+  .required_limits( wgpu::Limits { max_immediate_size : 16, ..Default::default() } )
   .context_finish()?;
 
   let clear_color = wgpu::Color
@@ -136,17 +136,13 @@ fn scene_render
     depth_stencil_attachment : None,
     timestamp_writes : None,
     occlusion_query_set : None,
+    multiview_mask : None,
   };
 
   let mut render_pass = encoder.begin_render_pass( render_pass_desc );
   render_pass.set_pipeline( fill_pipeline );
   // Hexagon color
-  render_pass.set_push_constants
-  (
-    wgpu::ShaderStages::FRAGMENT,
-    0,
-    asbytes::cast_slice( &hexagon_color )
-  );
+  render_pass.set_immediates( 0, asbytes::cast_slice( &hexagon_color ) );
   render_pass.set_bind_group( 0, bind_group, &[] );
   render_pass.set_vertex_buffer( 0, vertex_buffer.as_ref().slice( .. ) );
   render_pass.set_vertex_buffer( 1, position_buffer.as_ref().slice( .. ) );
@@ -154,12 +150,7 @@ fn scene_render
 
   render_pass.set_pipeline( outline_pipeline );
   // Outline color
-  render_pass.set_push_constants
-  (
-    wgpu::ShaderStages::FRAGMENT,
-    0,
-    asbytes::cast_slice( &outline_color )
-  );
+  render_pass.set_immediates( 0, asbytes::cast_slice( &outline_color ) );
   render_pass.set_bind_group( 0, bind_group, &[] );
   render_pass.set_vertex_buffer( 0, line_vertex_buffer.as_ref().slice( .. ) );
   render_pass.set_vertex_buffer( 1, position_buffer.as_ref().slice( .. ) );
@@ -204,11 +195,8 @@ fn pipelines_create
     &wgpu::PipelineLayoutDescriptor
     {
       label : Some( "hexagonal_pipeline_layout" ),
-      bind_group_layouts : &[ bind_group_layout ],
-      push_constant_ranges : &
-      [
-        wgpu::PushConstantRange { stages : wgpu::ShaderStages::FRAGMENT, range : 0..16 }
-      ]
+      bind_group_layouts : &[ Some( bind_group_layout ) ],
+      immediate_size : 16
     }
   );
 
@@ -260,7 +248,7 @@ fn pipeline_create
         module : shader,
         entry_point : Some( "vs_main" ),
         compilation_options : wgpu::PipelineCompilationOptions::default(),
-        buffers : &[ vertex_buffer.layout_get().clone(), position_buffer.layout_get().clone() ]
+        buffers : &[ Some( vertex_buffer.layout_get().clone() ), Some( position_buffer.layout_get().clone() ) ]
       },
       primitive,
       depth_stencil : None,
@@ -286,7 +274,7 @@ fn pipeline_create
           ]
         }
       ),
-      multiview : None,
+      multiview_mask : None,
       cache : None
     }
   )

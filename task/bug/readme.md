@@ -29,8 +29,7 @@ Bug reports for the cgtools workspace. IDs share the tsk Unified ID namespace tr
 
 | ID | Title | Severity | Component | Filed | State |
 |----|-------|----------|-----------|-------|-------|
-
-(none currently open)
+| BUG-101 | [`animation_surface_rendering`'s pinned `kurbo`/`peniko` versions no longer match the unpinned `interpoli` git dependency's current requirements, breaking `cargo check --workspace`](./draft/101_animation_surface_rendering_kurbo_peniko_version_skew.md) | High | examples/minwebgl/animation_surface_rendering | 2026-08-12 | Draft |
 
 ## Closed Bugs
 

@@ -9,7 +9,7 @@
 
 ### Abstract
 
-A script sees `Tween` as an opaque handle with no readable fields at all — every access goes through a method (`.update`, `.value`, `.is_completed`), unlike `F32x2`/`F64x2` ([`type/001`](../type/001_f32x2_script_facing_vector_value.md), [`type/002`](../type/002_f64x2_script_facing_vector_value.md)), which expose `.x`/`.y` directly. This is a deliberate consequence of what the type represents: a tween carries internal progress state (elapsed time) that must advance monotonically through `.update`, so exposing raw fields would let a script corrupt that state directly rather than only ever moving it forward through the registered method.
+A script sees `Tween` as an opaque handle with no readable fields at all — every access goes through a method (`.update`, `.value`, `.is_completed`), unlike the 8 registered vector types (e.g. [`type/001`](../type/001_f32x2_script_facing_vector_value.md), [`type/002`](../type/002_f64x2_script_facing_vector_value.md); see the [`type/`](../type/readme.md) collection for the full set), which expose their components (`.x` and, depending on arity, `.y`/`.z`/`.w`) directly. This is a deliberate consequence of what the type represents: a tween carries internal progress state (elapsed time) that must advance monotonically through `.update`, so exposing raw fields would let a script corrupt that state directly rather than only ever moving it forward through the registered method.
 
 ### Structure
 
@@ -17,13 +17,13 @@ A script sees `Tween` as an opaque handle with no readable fields at all — eve
 Tween { }   // no registered fields or getters
 ```
 
-Confirmed directly against the source: `tween_binding.rs` calls `register_fn` for every operation and never calls `register_get` — the type has zero script-visible fields. Internally, `Tween` is generic over its element vector type (`Tween<F32x2>` and `Tween<F64x2>` are distinct Rust types), but both are registered under the single Rhai type name `"Tween"` — a script never sees the element type as a separate name the way it does for the vector types themselves; the distinction only resurfaces indirectly, through whichever vector type a given `Tween` instance's `.value()`/`.update()` returns. This single-name registration is also why `Tween` is documented as one `data_structure/` instance rather than split like `F32x2`/`F64x2`: there is exactly one script-visible name to document, not two.
+Confirmed directly against the source: `tween_binding.rs` calls `register_fn` for every operation and never calls `register_get` — the type has zero script-visible fields. Internally, `Tween` is generic over its element vector type (`Tween<F32x1>`, `Tween<F32x2>`, `Tween<F32x3>`, `Tween<F32x4>`, `Tween<F64x1>`, `Tween<F64x2>`, `Tween<F64x3>`, `Tween<F64x4>` are 8 distinct Rust types), but all 8 are registered under the single Rhai type name `"Tween"` — a script never sees the element type as a separate name the way it does for the vector types themselves; the distinction only resurfaces indirectly, through whichever vector type a given `Tween` instance's `.value()`/`.update()` returns. This single-name registration is also why `Tween` is documented as one `data_structure/` instance rather than split 8 ways like the vector types: there is exactly one script-visible name to document, not eight.
 
 ### Operations
 
 Full call signatures and error behavior live in [`api/001`](../api/001_rhai_scripting_surface.md); this section states only what shape each operation consumes/produces:
 
-- **Construction**: `tween(start, end, duration)` takes two vectors of the same type (either both `F32x2` or both `F64x2`) and a `float` duration, producing an opaque `Tween` value. The easing curve is always Linear — not a parameter (see [`pitfall/006`](../pitfall/006_only_linear_easing_is_exposed_to_scripts.md)).
+- **Construction**: `tween(start, end, duration)` takes two vectors of the same registered type (both arguments must be the identical one of the 8 — e.g. both `F32x2`, or both `F64x3`, never mixed precision or arity) and a `float` duration, producing an opaque `Tween` value. The easing curve is always Linear — not a parameter (see [`pitfall/006`](../pitfall/006_only_linear_easing_is_exposed_to_scripts.md)).
 - **Mutation**: `.update(delta_time)` is the only operation that changes a `Tween`'s internal state; it also returns the freshly-computed value.
 - **Read-only access**: `.value()` and `.is_completed()` observe current state without changing it.
 
@@ -49,10 +49,10 @@ Full call signatures and error behavior live in [`api/001`](../api/001_rhai_scri
 
 | File | Relationship |
 |------|--------------|
-| `src/tween_binding.rs` | `tween_f32x2_register`, `tween_f64x2_register` — the registration that produces this shape |
+| `src/tween_binding.rs` | `tween_f32x1_register`, `tween_f32x2_register`, `tween_f32x3_register`, `tween_f32x4_register`, `tween_f64x1_register`, `tween_f64x2_register`, `tween_f64x3_register`, `tween_f64x4_register` — the 8 registrations that produce this shape, one per vector type |
 
 ### Tests
 
 | File | Relationship |
 |------|--------------|
-| `tests/engine_test.rs` | `tween_f32x2_updates_toward_end_value`, `tween_f64x2_updates_toward_end_value` |
+| `tests/engine_test.rs` | `tween_f32x1_updates_toward_end_value`, `tween_f32x2_updates_toward_end_value`, `tween_f32x3_updates_toward_end_value`, `tween_f32x4_updates_toward_end_value`, `tween_f64x1_updates_toward_end_value`, `tween_f64x2_updates_toward_end_value`, `tween_f64x3_updates_toward_end_value`, `tween_f64x4_updates_toward_end_value` |

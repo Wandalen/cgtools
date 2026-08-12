@@ -140,7 +140,7 @@ impl SquareGameOfLife
     // Count neighbors for all positions
     {
       let mut query = self.world.query::< ( &Position< SquareCoord< EightConnected > >, &Cell ) >();
-      for ( _entity, ( pos, cell ) ) in &mut query
+      for ( pos, cell ) in &mut query
       {
         if cell.is_alive()
         {
@@ -182,7 +182,7 @@ impl SquareGameOfLife
   {
     let mut query = self.world.query::< ( &Position< SquareCoord< EightConnected > >, &Cell ) >();
 
-    for ( _entity, ( pos, cell ) ) in &mut query
+    for ( pos, cell ) in &mut query
     {
       if pos.coord == coord
       {
@@ -198,7 +198,7 @@ impl SquareGameOfLife
   {
     let mut existing = HashMap::new();
     {
-      let mut query = self.world.query::< &Position< SquareCoord< EightConnected > > >();
+      let mut query = self.world.query::< ( hecs::Entity, &Position< SquareCoord< EightConnected > > ) >();
       for ( entity, pos ) in &mut query
       {
         existing.insert( pos.coord, entity );
@@ -253,7 +253,7 @@ impl SquareGameOfLife
     let mut living_cells = std::collections::HashSet::new();
     let mut query = self.world.query::< ( &Position< SquareCoord< EightConnected > >, &Cell ) >();
 
-    for ( _entity, ( pos, cell ) ) in &mut query
+    for ( pos, cell ) in &mut query
     {
       if cell.is_alive()
       {
@@ -335,7 +335,7 @@ impl HexGameOfLife
 
     {
       let mut query = self.world.query::< ( &Position< HexCoord< Axial, Pointy > >, &Cell ) >();
-      for ( _entity, ( pos, cell ) ) in &mut query
+      for ( pos, cell ) in &mut query
       {
         if cell.is_alive()
         {
@@ -364,8 +364,8 @@ impl HexGameOfLife
 
     let mut query = self.world.query::< ( &Position< HexCoord< Axial, Pointy > >, &Cell ) >();
     let living_cells : Vec< _ > = query.iter()
-    .filter( | ( _, ( _, cell ) ) | cell.is_alive() )
-    .map( | ( _, ( pos, _ ) ) | ( pos.coord.q, pos.coord.r ) )
+    .filter( | ( _, cell ) | cell.is_alive() )
+    .map( | ( pos, _ ) | ( pos.coord.q, pos.coord.r ) )
     .collect();
 
     println!( "Living cells: {living_cells:?}" );
@@ -436,8 +436,8 @@ impl TriangularGameOfLife
 
     let mut query = self.world.query::< ( &Position< TriCoord< FlatSided > >, &Cell ) >();
     let living_cells : Vec< _ > = query.iter()
-    .filter( | ( _, ( _, cell ) ) | cell.is_alive() )
-    .map( | ( _, ( pos, _ ) ) | ( pos.coord.a, pos.coord.b, pos.coord.c ) )
+    .filter( | ( _, cell ) | cell.is_alive() )
+    .map( | ( pos, _ ) | ( pos.coord.a, pos.coord.b, pos.coord.c ) )
     .collect();
 
     println!( "Living triangular cells: {living_cells:?}" );

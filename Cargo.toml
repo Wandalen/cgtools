@@ -23,8 +23,8 @@ members = [
   "module/min/minwgpu",
 
   # Shader modules
+  "module/shader/shader_chunks_core",
   "module/shader/shader_chunks",
-  "module/shader/shader_chunks_cli",
 
   # Helper modules
   "module/helper/animation",
@@ -216,13 +216,13 @@ path = "module/min/minwgpu"
 
 # = shader
 
+[workspace.dependencies.shader_chunks_core]
+version = "0.1.0"
+path = "module/shader/shader_chunks_core"
+
 [workspace.dependencies.shader_chunks]
 version = "0.1.0"
 path = "module/shader/shader_chunks"
-
-[workspace.dependencies.shader_chunks_cli]
-version = "0.1.0"
-path = "module/shader/shader_chunks_cli"
 
 # = hal
 
@@ -271,6 +271,8 @@ version = "~2.52.1"
 
 [workspace.dependencies.error_tools]
 version = "0.41.1"
+# 0.41 dropped `error_typed` from default features; the `error::typed` facade needs it back.
+features = [ "error_typed" ]
 
 [workspace.dependencies.test_tools]
 version = "~0.19.1"
@@ -280,6 +282,9 @@ version = "~0.50.0"
 
 [workspace.dependencies.asbytes]
 version = "0.4.1"
+# 0.4 stripped default features to a bare shell; `full` restores the 0.2-era surface
+# (as_bytes/into_bytes bytemuck re-exports: AsBytes, NoUninit, cast_slice, derive).
+features = [ "full" ]
 
 # = third-party dependencies
 # qqq : categorize them

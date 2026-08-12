@@ -33,13 +33,15 @@ mod private
       }
     );
 
+    // wgpu 30 : layout entries are `Option`al and push constants became `immediate_size`.
+    let layouts : Vec< Option< &wgpu::BindGroupLayout > > = layouts.iter().copied().map( Some ).collect();
     let layout = device.create_pipeline_layout
     (
       &wgpu::PipelineLayoutDescriptor
       {
         label : Some( "fullscreen_pipeline_layout" ),
-        bind_group_layouts : layouts,
-        push_constant_ranges : &[]
+        bind_group_layouts : &layouts,
+        immediate_size : 0
       }
     );
 
@@ -80,7 +82,7 @@ mod private
             ]
           }
         ),
-        multiview : None,
+        multiview_mask : None,
         cache : None
       }
     )

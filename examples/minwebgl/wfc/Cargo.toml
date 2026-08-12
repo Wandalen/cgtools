@@ -9,7 +9,8 @@ authors = [
 license = "MIT"
 
 [dependencies]
-image = { version = "0.25", features = ["rayon"] }
+# wfc_image 0.12 (latest) still requires image ^0.24 — pinned down for type interop.
+image = { version = "0.24", features = ["rayon"] }
 RustyXML = "0.3.0"
 wfc_algo = { package = "wfc", version = "0.10", features = [ "js" ] }
 wfc_image = { workspace = true, features = ["parallel"] }

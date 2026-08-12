@@ -444,7 +444,7 @@ impl TacticalRPG {
   // Collect all living units sorted by initiative
   let mut units_by_initiative = Vec::new();
   
-  for (entity, (init, health)) in &mut self.world.query::<(&Initiative, &Health)>() {
+  for (entity, (init, health)) in &mut self.world.query::<(hecs::Entity, (&Initiative, &Health))>() {
     if health.is_alive() {
       units_by_initiative.push((entity, init.value));
     }
@@ -489,7 +489,7 @@ impl TacticalRPG {
   
   // Find all living units
   let mut units = Vec::new();
-  for (_entity, (pos, health, team)) in &mut self.world.query::<(&Position<HexCoord<Axial, Pointy>>, &Health, &Team)>() {
+  for (pos, health, team) in &mut self.world.query::<(&Position<HexCoord<Axial, Pointy>>, &Health, &Team)>() {
     if health.is_alive() {
       let symbol = if team.id == self.player_team.id { "🟢" } else { "🔴" };
       units.push((pos.coord.q, pos.coord.r, symbol));
@@ -565,7 +565,7 @@ impl TacticalRPG {
   /// Counts living units for a team
   fn living_units_count(&self, team_id: u32) -> usize {
   let mut count = 0;
-  for (_entity, (health, team)) in &mut self.world.query::<(&Health, &Team)>() {
+  for (health, team) in &mut self.world.query::<(&Health, &Team)>() {
     if health.is_alive() && team.id == team_id {
       count += 1;
     }

@@ -69,7 +69,7 @@ mod private
 
     let pixels =
     {
-      let data = buffer_slice.get_mapped_range();
+      let data = buffer_slice.get_mapped_range()?;
       rows_unpad( &data, ( width, height ) )
     };
     output_buffer.unmap();

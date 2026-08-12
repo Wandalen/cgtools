@@ -171,9 +171,9 @@ fn from_instance_supports_adapter_stage_configuration()
   let descriptor = wgpu::InstanceDescriptor
   {
     backends : wgpu::Backends::empty(),
-    ..Default::default()
+    ..wgpu::InstanceDescriptor::new_without_display_handle()
   };
-  let instance = wgpu::Instance::new( &descriptor );
+  let instance = wgpu::Instance::new( descriptor );
 
   let result = ContextBuilder::from( instance )
   .power_preference( wgpu::PowerPreference::HighPerformance )

@@ -9,9 +9,9 @@
 
 ### Design
 
-`scene_script` embeds Rhai and exposes exactly one curated vocabulary slice today: two vector precisions (`F32x2`, `F64x2`) and Linear-eased tweens over either. A script can use this vocabulary in two styles, and the crate itself does not force either one: as a pure data document, returning a value built from vector arithmetic with no engine calls beyond construction (the script-as-data form), or as imperative glue that drives the host through loops, branches, and mutation confined inside a `main()` entry point (the script-as-glue form). `top_level_lint` constrains only a script's top-level *shape* — it says nothing about which of the two styles a shape-compliant script is actually written in.
+`scene_script` embeds Rhai and exposes exactly one curated vocabulary slice today: the full `{F32,F64}x{1,2,3,4}` vector family (two precisions across four arities, eight types) and Linear-eased tweens over any of them. A script can use this vocabulary in two styles, and the crate itself does not force either one: as a pure data document, returning a value built from vector arithmetic with no engine calls beyond construction (the script-as-data form), or as imperative glue that drives the host through loops, branches, and mutation confined inside a `main()` entry point (the script-as-glue form). `top_level_lint` constrains only a script's top-level *shape* — it says nothing about which of the two styles a shape-compliant script is actually written in.
 
-The current scope is deliberately narrow: no color type, no vector arity beyond 2, no easing curve beyond Linear (see [`pitfall/006`](../pitfall/006_only_linear_easing_is_exposed_to_scripts.md)). Whether this narrowness is the finished design or a first slice of a larger intended surface is not stated anywhere in this workspace — no `roadmap.md` references `scene_script`, and no committed task exists to expand it. This is an open question, not a confirmed gap or a confirmed final scope: [`pattern/002`](../pattern/002_dual_precision_side_by_side_registration.md) documents the mechanical seam for growing the surface if and when that is decided, but this document does not assert that decision has been made.
+The current scope is deliberately narrow in what remains: no color type, no easing curve beyond Linear (see [`pitfall/006`](../pitfall/006_only_linear_easing_is_exposed_to_scripts.md)). The vector arity limitation this paragraph once noted (arity capped at 2) no longer holds — all four arities `ndarray_cg`'s own naming family defines (1 through 4) are now registered for both precisions. Whether the *remaining* narrowness (no color type, Linear-only easing) is the finished design or a further slice yet to expand is not stated anywhere in this workspace — no `roadmap.md` references `scene_script`, and no committed task exists to expand it further. This is an open question, not a confirmed gap or a confirmed final scope: [`pattern/002`](../pattern/002_dual_precision_side_by_side_registration.md) documents the mechanical seam that already carried the surface from arity 2 alone to the full family, and would carry any future growth the same way.
 
 ### Invariants
 
@@ -28,7 +28,7 @@ The current scope is deliberately narrow: no color type, no vector arity beyond 
 | [001_functions_cannot_see_outer_scope_bindings.md](../pitfall/001_functions_cannot_see_outer_scope_bindings.md) | Rhai function-scoping surprise |
 | [002_checker_is_structural_not_semantic.md](../pitfall/002_checker_is_structural_not_semantic.md) | Limits of the top-level shape check |
 | [003_rhai_serde_bridge_requires_exact_float_type.md](../pitfall/003_rhai_serde_bridge_requires_exact_float_type.md) | Consumer-side deserialization trap |
-| [004_f32_boundary_cast_truncates_precision.md](../pitfall/004_f32_boundary_cast_truncates_precision.md) | Silent precision loss constructing `F32x2` |
+| [004_f32_boundary_cast_truncates_precision.md](../pitfall/004_f32_boundary_cast_truncates_precision.md) | Silent precision loss constructing any `F32x*` type |
 | [005_optimization_level_simple_folds_trivial_top_level_constructs.md](../pitfall/005_optimization_level_simple_folds_trivial_top_level_constructs.md) | Optimizer folding before the checker runs |
 | [006_only_linear_easing_is_exposed_to_scripts.md](../pitfall/006_only_linear_easing_is_exposed_to_scripts.md) | The current scope's easing limitation |
 
@@ -48,8 +48,14 @@ The current scope is deliberately narrow: no color type, no vector arity beyond 
 
 | File | Relationship |
 |------|--------------|
-| [001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) | Script-facing single-precision vector value |
-| [002_f64x2_script_facing_vector_value.md](../type/002_f64x2_script_facing_vector_value.md) | Script-facing double-precision vector value |
+| [001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) | Script-facing single-precision 2D vector value |
+| [002_f64x2_script_facing_vector_value.md](../type/002_f64x2_script_facing_vector_value.md) | Script-facing double-precision 2D vector value |
+| [003_f32x1_script_facing_vector_value.md](../type/003_f32x1_script_facing_vector_value.md) | Script-facing single-precision 1D vector value |
+| [004_f64x1_script_facing_vector_value.md](../type/004_f64x1_script_facing_vector_value.md) | Script-facing double-precision 1D vector value |
+| [005_f32x3_script_facing_vector_value.md](../type/005_f32x3_script_facing_vector_value.md) | Script-facing single-precision 3D vector value |
+| [006_f64x3_script_facing_vector_value.md](../type/006_f64x3_script_facing_vector_value.md) | Script-facing double-precision 3D vector value |
+| [007_f32x4_script_facing_vector_value.md](../type/007_f32x4_script_facing_vector_value.md) | Script-facing single-precision 4D vector value |
+| [008_f64x4_script_facing_vector_value.md](../type/008_f64x4_script_facing_vector_value.md) | Script-facing double-precision 4D vector value |
 
 ### Data Structures
 

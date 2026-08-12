@@ -11,7 +11,7 @@ use ndarray_cg::
   vector::F32x3,
 };
 use d2::mat3x3h;
-use rand::Rng as _;
+use rand::RngExt as _;
 use web_sys::
 {
   js_sys,
@@ -345,9 +345,9 @@ fn objects_create() -> Vec< Object >
 
 fn random_rotation() -> ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >
 {
-  let rot_x = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
-  let rot_y = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
-  let rot_z = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
+  let rot_x = rand::rng().random_range( 0. .. std::f32::consts::PI * 2. );
+  let rot_y = rand::rng().random_range( 0. .. std::f32::consts::PI * 2. );
+  let rot_z = rand::rng().random_range( 0. .. std::f32::consts::PI * 2. );
   mat3x3h::rot( rot_x, rot_y, rot_z )
 }
 

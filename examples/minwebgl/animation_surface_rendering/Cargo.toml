@@ -19,11 +19,13 @@ gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
 canvas_renderer = { workspace = true }
 primitive_generation = { workspace = true, features = [ "font-processing" ] }
-kurbo = { version = "0.13.1" }
+# interpoli (git, no rev — tracks master) requires kurbo ^0.11 — matched for type interop.
+kurbo = { version = "0.11" }
 zune-hdr = { workspace = true }
 interpoli = { workspace = true }
-peniko = { version = "0.6.1" }
-color = { workspace = true }
+# interpoli's peniko ^0.4 bundles color 0.3 — both matched for type interop.
+peniko = { version = "0.4" }
+color = { version = "0.3" }
 earcutr = { workspace = true }
 former = { workspace = true }
 rustc-hash = { workspace = true }

@@ -52,6 +52,7 @@ mod private
           depth_stencil_attachment : None,
           timestamp_writes : None,
           occlusion_query_set : None,
+          multiview_mask : None,
         }
       );
       render_pass.set_pipeline( pipeline );

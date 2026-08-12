@@ -1856,7 +1856,7 @@ fn bitmap_to_png_round_trip_pixel_fidelity()
 
     let decoder = png::Decoder::new( std::io::Cursor::new( png ) );
     let mut reader = decoder.read_info().expect( "valid PNG should decode" );
-    let mut buf = vec![ 0u8; reader.output_buffer_size() ];
+    let mut buf = vec![ 0u8; reader.output_buffer_size().expect( "png output buffer size should fit in usize" ) ];
     let info = reader.next_frame( &mut buf ).expect( "should decode frame" );
 
     assert_eq!( &buf[ ..info.buffer_size() ], pixels, "pixel mismatch for {format:?}" );

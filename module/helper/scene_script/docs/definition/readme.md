@@ -13,7 +13,7 @@
 | `invariant/` | Correctness properties that must always hold, and their enforcement mechanisms | [invariant/readme.md](../invariant/readme.md) | 3 |
 | `pattern/` | Recurring crate-local solution shapes — problem, solution, applicability, consequences | [pattern/readme.md](../pattern/readme.md) | 2 |
 | `pitfall/` | Known traps in Rhai scoping, checker enforcement, precision, and easing scope, their failure modes, and mitigations | [pitfall/readme.md](../pitfall/readme.md) | 6 |
-| `type/` | Script-visible Domain Types — domain meaning, ddd classification, construction/validation rules | [type/readme.md](../type/readme.md) | 2 |
+| `type/` | Script-visible Domain Types — domain meaning, ddd classification, construction/validation rules | [type/readme.md](../type/readme.md) | 8 |
 
 ## Master Doc Instances Table
 
@@ -38,3 +38,9 @@
 | pitfall | 006 | Only Linear Easing Is Exposed to Scripts | [pitfall/006_only_linear_easing_is_exposed_to_scripts.md](../pitfall/006_only_linear_easing_is_exposed_to_scripts.md) |
 | type | 001 | F32x2 (Script-Facing Vector Value) | [type/001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) |
 | type | 002 | F64x2 (Script-Facing Vector Value) | [type/002_f64x2_script_facing_vector_value.md](../type/002_f64x2_script_facing_vector_value.md) |
+| type | 003 | F32x1 (Script-Facing Vector Value) | [type/003_f32x1_script_facing_vector_value.md](../type/003_f32x1_script_facing_vector_value.md) |
+| type | 004 | F64x1 (Script-Facing Vector Value) | [type/004_f64x1_script_facing_vector_value.md](../type/004_f64x1_script_facing_vector_value.md) |
+| type | 005 | F32x3 (Script-Facing Vector Value) | [type/005_f32x3_script_facing_vector_value.md](../type/005_f32x3_script_facing_vector_value.md) |
+| type | 006 | F64x3 (Script-Facing Vector Value) | [type/006_f64x3_script_facing_vector_value.md](../type/006_f64x3_script_facing_vector_value.md) |
+| type | 007 | F32x4 (Script-Facing Vector Value) | [type/007_f32x4_script_facing_vector_value.md](../type/007_f32x4_script_facing_vector_value.md) |
+| type | 008 | F64x4 (Script-Facing Vector Value) | [type/008_f64x4_script_facing_vector_value.md](../type/008_f64x4_script_facing_vector_value.md) |

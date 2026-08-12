@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use error_tools::{ thiserror, error };
+  use error_tools::{ dependency::thiserror, error };
 
   /// The top-level error type unifying every WebGPU operation failure exposed by this crate.
   #[ derive( Debug, error::typed::Error ) ]

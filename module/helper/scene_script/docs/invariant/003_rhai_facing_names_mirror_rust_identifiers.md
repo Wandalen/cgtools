@@ -31,8 +31,8 @@ A script author who reads Rust-side documentation (rustdoc, or this doc set) and
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f32x2_register`, `f64x2_register` — every name registered here follows this rule |
-| `src/tween_binding.rs` | `tween_f32x2_register`, `tween_f64x2_register` — same |
+| `src/vector_binding.rs` | `f32x1_register`, `f32x2_register`, `f32x3_register`, `f32x4_register`, `f64x1_register`, `f64x2_register`, `f64x3_register`, `f64x4_register` — every name registered here follows this rule |
+| `src/tween_binding.rs` | `tween_f32x1_register`, `tween_f32x2_register`, `tween_f32x3_register`, `tween_f32x4_register`, `tween_f64x1_register`, `tween_f64x2_register`, `tween_f64x3_register`, `tween_f64x4_register` — same |
 | `readme.md` | § Naming convention — the informal prose source of this rule, now also pinned as a checked-in-principle invariant |
 
 ### Tests

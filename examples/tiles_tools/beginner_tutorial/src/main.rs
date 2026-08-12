@@ -167,7 +167,7 @@ fn tutorial_step_3_player_basics()
     println!("Created player entity with ID: {player:?}");
     
     // Query the player's data
-    for (entity, (pos, health)) in &mut world.query::<(&Position<SquareCoord<FourConnected>>, &Health)>() {
+    for (entity, (pos, health)) in &mut world.query::<(hecs::Entity, (&Position<SquareCoord<FourConnected>>, &Health))>() {
         if entity == player {
             println!("Player stats:");
             println!("  Position: ({}, {})", pos.coord.x, pos.coord.y);
@@ -281,7 +281,7 @@ fn tutorial_step_5_entities()
     let mut entities_with_health = 0;
     
     // Query all entities with positions
-    for (entity, (pos, health)) in &mut world.query::<(&Position<SquareCoord<FourConnected>>, Option<&Health>)>() {
+    for (entity, (pos, health)) in &mut world.query::<(hecs::Entity, (&Position<SquareCoord<FourConnected>>, Option<&Health>))>() {
         entity_count += 1;
         if health.is_some() {
             entities_with_health += 1;
@@ -347,7 +347,7 @@ fn tutorial_step_6_combat()
     let mut player_pos = None;
     let mut goblin_pos = None;
     
-    for (entity, pos) in &mut world.query::<&Position<SquareCoord<FourConnected>>>() {
+    for (entity, pos) in &mut world.query::<(hecs::Entity, &Position<SquareCoord<FourConnected>>)>() {
         if entity == player {
             player_pos = Some(pos.coord);
         } else if entity == goblin {

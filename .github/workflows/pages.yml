@@ -89,7 +89,14 @@ jobs:
       # path list would still need to special-case that example back up to
       # "everything", for a ~312 MB anonymous, unauthenticated download that's
       # cached above across runs. See root readme.md's Assets section.
+      # continue-on-error: assets/{gltf,tiles,sprites,environment_maps} were dvc-added
+      # recently but aren't referenced by any example yet (grepped clean) — their .dir
+      # manifests never reached the remote (huggingface.co/datasets/cgtools/assets PR #2,
+      # pending a maintainer merge; the token this workflow could use has no main-write
+      # grant). `dvc pull` exits non-zero on just those 4 targets while still fetching
+      # everything the gallery actually uses — don't let that block the whole deploy.
       - name: Pull assets (anonymous public read, ~312 MB, cached above)
+        continue-on-error: true
         run: dvc pull
 
       - name: Configure Pages

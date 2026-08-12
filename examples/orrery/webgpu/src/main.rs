@@ -58,7 +58,7 @@ async fn app_run() -> Result< (), gl::WebGPUError >
   let presentation_format = gl::context::preferred_format();
   gl::context::configure( &device, &context, presentation_format )?;
 
-  // shader_source::assemble() prepends the shared shader_chunks chunks —
+  // shader_source::assemble() prepends the shared shader_chunks_core chunks —
   // the fullscreen-triangle vertex stage and the noise stack — ahead of
   // its own fragment-only body, shader/scene_fragment.wgsl.
   let wgsl = shader_source::assemble();

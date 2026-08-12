@@ -52,7 +52,7 @@ use ndarray_cg::
   F32x3
 };
 use rustc_hash::FxHashMap;
-use rand::Rng;
+use rand::RngExt;
 use std::any::type_name_of_val;
 use csgrs::traits::CSG;
 use renderer::impl_locations;

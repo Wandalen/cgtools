@@ -4,11 +4,10 @@ use mingl::mod_interface;
 
 mod private
 {
-  use error_tools::Error;
   use error_tools::dependency::thiserror;
 
   /// The primary error type for all fallible operations within the crate.
-  #[ derive( Debug, Error ) ]
+  #[ derive( Debug, thiserror::Error ) ]
   #[ non_exhaustive ]
   pub enum Error
   {
@@ -27,6 +26,9 @@ mod private
     /// Error when asynchronously mapping a buffer for host access fails.
     #[ error( "{0}" ) ]
     BufferAsyncError( #[ from ] wgpu::BufferAsyncError ),
+    /// Error when accessing the mapped range of a buffer fails.
+    #[ error( "{0}" ) ]
+    MapRangeError( #[ from ] wgpu::MapRangeError ),
     /// Error when a texture format is not supported by the requested operation.
     #[ error( "texture format {0:?} is not supported : {1}" ) ]
     UnsupportedTextureFormat( wgpu::TextureFormat, &'static str ),

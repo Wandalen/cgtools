@@ -20,7 +20,7 @@ Register each foreign type by hand instead of deriving:
 
 ### Applicability
 
-Applies to every type currently exposed to scripts — `F32x2`, `F64x2`, and `Tween<F32x2>`/`Tween<F64x2>` are all foreign, so all four registrations in `vector_binding.rs`/`tween_binding.rs` follow this shape. It would also apply to any future foreign type needing script exposure (a new math or animation primitive from a sibling crate). It is unnecessary overhead for a type `scene_script` itself owns — none exist today, since every script-facing type originates from `ndarray_cg` or `animation`.
+Applies to every type currently exposed to scripts — the full `F32x1`/`F32x2`/`F32x3`/`F32x4`/`F64x1`/`F64x2`/`F64x3`/`F64x4` family and their `Tween<...>` pairings are all foreign, so all 16 registrations in `vector_binding.rs`/`tween_binding.rs` follow this shape. It would also apply to any future foreign type needing script exposure (a new math or animation primitive from a sibling crate). It is unnecessary overhead for a type `scene_script` itself owns — none exist today, since every script-facing type originates from `ndarray_cg` or `animation`.
 
 ### Consequences
 
@@ -32,14 +32,20 @@ Applies to every type currently exposed to scripts — `F32x2`, `F64x2`, and `Tw
 
 | File | Relationship |
 |------|--------------|
-| [001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) | The value this pattern produces for the single-precision vector type |
-| [002_f64x2_script_facing_vector_value.md](../type/002_f64x2_script_facing_vector_value.md) | The value this pattern produces for the double-precision vector type |
+| [001_f32x2_script_facing_vector_value.md](../type/001_f32x2_script_facing_vector_value.md) | The value this pattern produces for the single-precision 2D vector type |
+| [002_f64x2_script_facing_vector_value.md](../type/002_f64x2_script_facing_vector_value.md) | The value this pattern produces for the double-precision 2D vector type |
+| [003_f32x1_script_facing_vector_value.md](../type/003_f32x1_script_facing_vector_value.md) | The value this pattern produces for the single-precision 1D vector type |
+| [004_f64x1_script_facing_vector_value.md](../type/004_f64x1_script_facing_vector_value.md) | The value this pattern produces for the double-precision 1D vector type |
+| [005_f32x3_script_facing_vector_value.md](../type/005_f32x3_script_facing_vector_value.md) | The value this pattern produces for the single-precision 3D vector type |
+| [006_f64x3_script_facing_vector_value.md](../type/006_f64x3_script_facing_vector_value.md) | The value this pattern produces for the double-precision 3D vector type |
+| [007_f32x4_script_facing_vector_value.md](../type/007_f32x4_script_facing_vector_value.md) | The value this pattern produces for the single-precision 4D vector type |
+| [008_f64x4_script_facing_vector_value.md](../type/008_f64x4_script_facing_vector_value.md) | The value this pattern produces for the double-precision 4D vector type |
 
 ### Data Structures
 
 | File | Relationship |
 |------|--------------|
-| [001_tween_script_facing_type.md](../data_structure/001_tween_script_facing_type.md) | The shape this pattern produces for the tween type |
+| [001_tween_script_facing_type.md](../data_structure/001_tween_script_facing_type.md) | The shape this pattern produces for the tween type, across all 8 vector types |
 
 ### APIs
 
@@ -51,5 +57,5 @@ Applies to every type currently exposed to scripts — `F32x2`, `F64x2`, and `Tw
 
 | File | Relationship |
 |------|--------------|
-| `src/vector_binding.rs` | `f32x2_register`, `f64x2_register` |
-| `src/tween_binding.rs` | `tween_f32x2_register`, `tween_f64x2_register` |
+| `src/vector_binding.rs` | `f32x1_register`, `f32x2_register`, `f32x3_register`, `f32x4_register`, `f64x1_register`, `f64x2_register`, `f64x3_register`, `f64x4_register` |
+| `src/tween_binding.rs` | `tween_f32x1_register`, `tween_f32x2_register`, `tween_f32x3_register`, `tween_f32x4_register`, `tween_f64x1_register`, `tween_f64x2_register`, `tween_f64x3_register`, `tween_f64x4_register` |
