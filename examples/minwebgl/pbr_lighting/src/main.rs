@@ -58,8 +58,8 @@ fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : 
   let far = near * 100.0f32.powi( exponent.abs() );
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ width, height ].into() );
-  camera.bind_controls( canvas );
+  camera.window_size_set( [ width, height ].into() );
+  camera.controls_bind( canvas );
 
   camera
 }
@@ -128,7 +128,7 @@ fn lights_create( scene : &Rc< RefCell< Scene > > ) -> ( Vec< Rc< RefCell< Node 
       }
     )
   );
-  controllable_light.borrow_mut().set_name( "controllable" );
+  controllable_light.borrow_mut().name_set( "controllable" );
 
   ( lights, controllable_light )
 }
@@ -154,8 +154,8 @@ fn light_spheres_create( sphere : &Rc< RefCell< Node > >, lights : &[ Rc< RefCel
         Light::Spot( _ ) => return None
       };
 
-      let sphere_clone = sphere.borrow().clone_tree();
-      sphere_clone.borrow_mut().set_translation( position );
+      let sphere_clone = sphere.borrow().tree_clone();
+      sphere_clone.borrow_mut().translation_set( position );
 
       Some( sphere_clone )
     }
@@ -168,7 +168,7 @@ fn lights_animate( lights : &[ Rc< RefCell< Node > > ], spheres : &[ Rc< RefCell
 {
   for ( i, light ) in lights.iter().enumerate()
   {
-    if let Some( name ) = light.borrow().get_name()
+    if let Some( name ) = light.borrow().name_get()
     {
       if name.to_string().as_str() == "controllable"
       {
@@ -189,7 +189,7 @@ fn lights_animate( lights : &[ Rc< RefCell< Node > > ], spheres : &[ Rc< RefCell
           );
 
           direct.direction = direction;
-          spheres[ i ].borrow_mut().set_translation( direction );
+          spheres[ i ].borrow_mut().translation_set( direction );
         },
         Light::Point( point ) =>
         {
@@ -201,7 +201,7 @@ fn lights_animate( lights : &[ Rc< RefCell< Node > > ], spheres : &[ Rc< RefCell
           );
 
           point.position = position;
-          spheres[ i ].borrow_mut().set_translation( position );
+          spheres[ i ].borrow_mut().translation_set( position );
         }
         Light::Spot( _ ) => ()
       }
@@ -228,20 +228,20 @@ async fn app_run() -> Result< (), gl::WebglError >
   let gltf_path = "static/2017_porsche_911_turbo_s_exclusive_series_991.2.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scene = gltf.scenes[ 0 ].clone();
-  scene.borrow_mut().update_world_matrix();
+  scene.borrow_mut().world_matrix_update();
 
   for node in &scene.borrow().children
   {
-    let scale = node.borrow_mut().get_scale();
-    node.borrow_mut().set_scale( scale * 40.0 );
+    let scale = node.borrow_mut().scale_get();
+    node.borrow_mut().scale_set( scale * 40.0 );
   }
 
   let scene_bounding_box = scene.borrow().bounding_box();
   let camera = camera_setup( &canvas, &scene_bounding_box, width, height );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_use_emission( &gl, true );
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", Some( 0..0 ) ).await );
+  renderer.use_emission_set( &gl, true );
+  renderer.ibl_set( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", Some( 0..0 ) ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -255,12 +255,12 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let ( lights, controllable_light ) = lights_create( &scene );
 
-  sphere.borrow_mut().set_scale( F32x3::splat( 0.02 ) );
+  sphere.borrow_mut().scale_set( F32x3::splat( 0.02 ) );
 
   let spheres = light_spheres_create( &sphere, &lights );
 
-  let controllable_sphere = sphere.borrow().clone_tree();
-  controllable_sphere.borrow_mut().set_translation( F32x3::splat( 1.0 ) );
+  let controllable_sphere = sphere.borrow().tree_clone();
+  controllable_sphere.borrow_mut().translation_set( F32x3::splat( 1.0 ) );
 
   scene.borrow_mut().children.extend_from_slice( &lights );
   scene.borrow_mut().children.extend_from_slice( &spheres );
@@ -285,7 +285,7 @@ async fn app_run() -> Result< (), gl::WebglError >
           Light::Spot( _ ) => None
         }
         {
-          controllable_sphere.borrow_mut().set_translation( position );
+          controllable_sphere.borrow_mut().translation_set( position );
         }
       }
 
@@ -298,15 +298,15 @@ async fn app_run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.borrow().main_texture() );
+      swap_buffer.input_set( renderer.borrow().main_texture() );
 
-      let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render tonemapping pass" );
 
-      swap_buffer.set_output( t );
+      swap_buffer.output_set( t );
       swap_buffer.swap();
 
-      let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let _ = to_srgb.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render ToSrgbPass" );
 
       true

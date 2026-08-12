@@ -35,7 +35,7 @@ impl TestBackend
 
 impl Backend for TestBackend
 {
-  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError >
+  fn assets_load( &mut self, _assets : &Assets ) -> Result< (), RenderError >
   {
     self.assets_loaded = true;
     Ok( () )
@@ -102,7 +102,7 @@ impl ErrorBackend
 
 impl Backend for ErrorBackend
 {
-  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError >
+  fn assets_load( &mut self, _assets : &Assets ) -> Result< (), RenderError >
   {
     if let Some( e ) = self.load.take() { return Err( e ); }
     Ok( () )
@@ -142,7 +142,7 @@ struct BitmapBackend;
 
 impl Backend for BitmapBackend
 {
-  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError >
+  fn assets_load( &mut self, _assets : &Assets ) -> Result< (), RenderError >
   {
     Ok( () )
   }
@@ -172,7 +172,7 @@ struct PresentedBackend;
 
 impl Backend for PresentedBackend
 {
-  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError >
+  fn assets_load( &mut self, _assets : &Assets ) -> Result< (), RenderError >
   {
     Ok( () )
   }
@@ -201,7 +201,7 @@ impl Backend for PresentedBackend
 // Tests
 // ============================================================================
 
-/// Verifies that `load_assets` succeeds on a valid empty asset set and
+/// Verifies that `assets_load` succeeds on a valid empty asset set and
 /// sets the internal `assets_loaded` flag, confirming the call reaches
 /// the backend implementation.
 #[ test ]
@@ -209,17 +209,17 @@ fn backend_load_assets_valid()
 {
   let mut b = TestBackend::new();
   let assets = empty_assets();
-  assert!( b.load_assets( &assets ).is_ok() );
+  assert!( b.assets_load( &assets ).is_ok() );
   assert!( b.assets_loaded );
 }
 
-/// Verifies that `load_assets` accepts an empty `Assets` struct without error.
+/// Verifies that `assets_load` accepts an empty `Assets` struct without error.
 /// Empty asset sets are a common initial state and must not be rejected.
 #[ test ]
 fn backend_load_assets_empty()
 {
   let mut b = TestBackend::new();
-  assert!( b.load_assets( &empty_assets() ).is_ok() );
+  assert!( b.assets_load( &empty_assets() ).is_ok() );
 }
 
 /// Verifies that `submit` with an empty command slice returns `Ok` and
@@ -331,23 +331,23 @@ fn backend_resize_stores_dimensions()
   assert_eq!( b.height, 600 );
 }
 
-/// Verifies that `load_assets` propagates `RenderError::MissingAsset`
+/// Verifies that `assets_load` propagates `RenderError::MissingAsset`
 /// when the backend signals a missing asset during load.
 #[ test ]
 fn backend_load_assets_missing_asset_error()
 {
   let mut b = ErrorBackend::load_missing( 7 );
-  let err = b.load_assets( &empty_assets() ).unwrap_err();
+  let err = b.assets_load( &empty_assets() ).unwrap_err();
   assert!( matches!( err, RenderError::MissingAsset( 7 ) ) );
 }
 
-/// Verifies that `load_assets` propagates `RenderError::BackendError`
+/// Verifies that `assets_load` propagates `RenderError::BackendError`
 /// when the backend encounters a generic failure during asset load.
 #[ test ]
 fn backend_load_assets_backend_error()
 {
   let mut b = ErrorBackend::load_backend_error( "disk full" );
-  let err = b.load_assets( &empty_assets() ).unwrap_err();
+  let err = b.assets_load( &empty_assets() ).unwrap_err();
   assert!( matches!( err, RenderError::BackendError( _ ) ) );
 }
 

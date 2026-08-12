@@ -104,7 +104,7 @@ mod private
     /// # Errors
     ///
     /// Returns `WebglError` if an attribute with the same name already exists or the upload fails.
-    pub fn add_attribute< Name : Into< Box< str > > >
+    pub fn attribute_add< Name : Into< Box< str > > >
     (
       &mut self,
       gl : &gl::WebGl2RenderingContext,
@@ -137,7 +137,7 @@ mod private
     /// # Errors
     ///
     /// Returns `WebglError` if uploading the index buffer fails.
-    pub fn add_index
+    pub fn index_add
     (
       &mut self,
       gl : &gl::WebGl2RenderingContext,
@@ -220,7 +220,7 @@ mod private
 
     /// Returns a reference to the `FxHashMap` containing the attribute information.
     #[ must_use ]
-    pub fn get_attributes( &self ) -> &FxHashMap< Box< str >, AttributeInfo >
+    pub fn attributes_get( &self ) -> &FxHashMap< Box< str >, AttributeInfo >
     {
       &self.attributes
     }

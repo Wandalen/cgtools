@@ -1,4 +1,4 @@
-// SPEC §13 fixes the exact formula for `hash_coord`, including the raw
+// SPEC §13 fixes the exact formula for `coord_hash`, including the raw
 // `as u32` casts. Switching to `cast_unsigned()` or similar wouldn't change
 // the bits produced, but the literal form matches the normative pseudocode in
 // SPEC §13 and makes byte-for-byte comparison with reference implementations
@@ -11,7 +11,7 @@
 //! produce identical output across runs, platforms, and renderer versions so
 //! that a scene renders visually consistently.
 //!
-//! [`hash_coord`] mixes an axial `( q, r )` pair with a salt. [`hash_str`] is a
+//! [`coord_hash`] mixes an axial `( q, r )` pair with a salt. [`str_hash`] is a
 //! 32-bit FNV-1a over the bytes of a UTF-8 string, used to derive salt values
 //! from animation / effect ids.
 //!
@@ -32,7 +32,7 @@ mod private
   /// its output bit-for-bit.
   #[ inline ]
   #[ must_use ]
-  pub fn hash_coord( q : i32, r : i32, salt : u32 ) -> u32
+  pub fn coord_hash( q : i32, r : i32, salt : u32 ) -> u32
   {
     let mut h = ( q as u32 ).wrapping_mul( 73_856_093 )
       ^ ( r as u32 ).wrapping_mul( 19_349_663 )
@@ -49,7 +49,7 @@ mod private
   /// per-animation phase offsets. See SPEC §7.1 and §13.
   #[ inline ]
   #[ must_use ]
-  pub fn hash_str( s : &str ) -> u32
+  pub fn str_hash( s : &str ) -> u32
   {
     let mut h : u32 = 0x811c_9dc5;
     for b in s.bytes()
@@ -63,6 +63,6 @@ mod private
 
 mod_interface::mod_interface!
 {
-  exposed use hash_coord;
-  exposed use hash_str;
+  exposed use coord_hash;
+  exposed use str_hash;
 }

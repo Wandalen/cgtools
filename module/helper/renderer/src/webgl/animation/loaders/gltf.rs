@@ -45,7 +45,7 @@ mod private
   use mingl::{ F64x3, QuatF64 };
   use minwebgl::GL;
 
-  fn decode_channel< 'a >
+  fn channel_decode< 'a >
   (
     channel : &Channel< '_ >,
     buffers : &'a [ Vec< u8 > ],
@@ -86,7 +86,7 @@ mod private
     buffers : &[ Vec< u8 > ],
   ) -> Option< Sequence< Tween< QuatF64 > > >
   {
-    let ( components, times, values ) = decode_channel( channel, buffers )?;
+    let ( components, times, values ) = channel_decode( channel, buffers )?;
 
     let ReadOutputs::Rotations( rotations ) = values
     else
@@ -170,7 +170,7 @@ mod private
     buffers : &[ Vec< u8 > ],
   ) -> Option< Sequence< Tween< F64x3 > > >
   {
-    let ( components, times, values ) = decode_channel( channel, buffers )?;
+    let ( components, times, values ) = channel_decode( channel, buffers )?;
 
     let values = match values
     {
@@ -258,7 +258,7 @@ mod private
   )
   -> Option< Sequence< Tween< Vec< f64 > > > >
   {
-    let ( components, times, values ) = decode_channel( channel, buffers )?;
+    let ( components, times, values ) = channel_decode( channel, buffers )?;
 
     let ReadOutputs::MorphTargetWeights( weights ) = values
     else
@@ -363,7 +363,7 @@ mod private
       for channel in animation.channels()
       {
         let node = nodes[ channel.target().node().index() ].clone();
-        let Some( name ) = node.borrow().get_name()
+        let Some( name ) = node.borrow().name_get()
         else
         {
           continue;
@@ -418,7 +418,7 @@ mod private
             {
               continue;
             };
-            let weights = displacements.get_morph_weights();
+            let weights = displacements.morph_weights_get();
             let targets = weights.borrow().len();
             let Some( sequence ) = weights_sequence( &channel, buffers, targets )
             else

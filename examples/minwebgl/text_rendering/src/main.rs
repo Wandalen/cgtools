@@ -139,11 +139,11 @@ impl Transform
     let r = self.rotation;
     let s = self.scale;
     let mut node_mut = node.borrow_mut();
-    node_mut.set_translation( [ t[ 0 ], t[ 1 ], t[ 2 ] ] );
+    node_mut.translation_set( [ t[ 0 ], t[ 1 ], t[ 2 ] ] );
     let q = gl::QuatF32::from_euler_xyz( r );
-    node_mut.set_rotation( q );
-    node_mut.set_scale( [ s[ 0 ], s[ 1 ], s[ 2 ] ] );
-    node_mut.update_local_matrix();
+    node_mut.rotation_set( q );
+    node_mut.scale_set( [ s[ 0 ], s[ 1 ], s[ 2 ] ] );
+    node_mut.local_matrix_update();
   }
 }
 
@@ -226,10 +226,10 @@ fn primitives_data_to_gltf
 
     for ( name, info ) in &attribute_infos
     {
-      geometry.add_attribute( gl, *name, info.clone() ).unwrap();
+      geometry.attribute_add( gl, *name, info.clone() ).unwrap();
     }
 
-    geometry.add_index( gl, index_info.clone() ).unwrap();
+    geometry.index_add( gl, index_info.clone() ).unwrap();
     geometry.vertex_count = primitive_data.attributes.borrow().positions.len() as u32;
 
     let primitive = Primitive
@@ -239,7 +239,7 @@ fn primitives_data_to_gltf
     };
 
     let mesh = Rc::new( RefCell::new( Mesh::new() ) );
-    mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
+    mesh.borrow_mut().primitive_add( Rc::new( RefCell::new( primitive ) ) );
 
     let node = Rc::new( RefCell::new( Node::new() ) );
     node.borrow_mut().object = Object3D::Mesh( mesh.clone() );
@@ -297,9 +297,9 @@ fn camera_init( canvas : &HtmlCanvasElement ) -> Camera
   let far = 1000.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ width, height ].into() );
+  camera.window_size_set( [ width, height ].into() );
 
-  camera.bind_controls( canvas );
+  camera.controls_bind( canvas );
 
   camera
 }
@@ -352,7 +352,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   let gltf = primitives_data_to_gltf( &gl, primitives_data, materials );
   let scenes = gltf.scenes.clone();
 
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  scenes[ 0 ].borrow_mut().world_matrix_update();
   let camera = camera_init( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
@@ -373,15 +373,15 @@ async fn app_run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.main_texture() );
+      swap_buffer.input_set( renderer.main_texture() );
 
-      let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render tonemapping pass" );
 
-      swap_buffer.set_output( t );
+      swap_buffer.output_set( t );
       swap_buffer.swap();
 
-      let _t = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let _t = to_srgb.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render to srgb pass" );
 
       true

@@ -26,11 +26,11 @@ This pairing is exact because isometric coordinates are, by the crate's own desi
 - `hexagonal::Coordinate<Axial, Orientation> → isometric::Coordinate<Diamond>`
 - `isometric::Coordinate<Diamond> → hexagonal::Coordinate<Axial, Pointy>`
 
-Every pairing involving `hexagonal` is approximate — a hex grid's 6-neighbor topology has no exact correspondence to a square or diamond grid's 4/8-neighbor topology, so any such conversion necessarily discards or distorts adjacency information. `measure_approximate_conversion_error<T, U>` (`src/coordinates/conversion.rs:335+`) and `test_roundtrip_conversion<T, U, V>` (`src/coordinates/conversion.rs:319+`) exist specifically to quantify this loss for a given conversion pair.
+Every pairing involving `hexagonal` is approximate — a hex grid's 6-neighbor topology has no exact correspondence to a square or diamond grid's 4/8-neighbor topology, so any such conversion necessarily discards or distorts adjacency information. `approximate_conversion_error_measure<T, U>` (`src/coordinates/conversion.rs:335+`) and `roundtrip_conversion_test<T, U, V>` (`src/coordinates/conversion.rs:319+`) exist specifically to quantify this loss for a given conversion pair.
 
 **`triangular::Coordinate` has zero conversion implementations** — neither `Convert` nor `ApproximateConvert` is implemented in either direction between `triangular` and any other coordinate system. A caller needing to move a triangular-grid position into square, hex, or isometric space (e.g. to reuse `data_structure/002`'s `Quadtree`, whose `SpatialCoordinate` is not implemented for `triangular` either) must write that conversion by hand; there is no crate-provided starting point.
 
-**Batch conversion** (`BatchConvertExact`/`BatchConvertApproximate`, `src/coordinates/conversion.rs:224-265`, plus the free functions `convert_batch_exact`/`convert_batch_approximate`) are generic wrappers applying the single-value trait element-wise over a `Vec<T>` — no batch-specific optimization (e.g. no shared-computation reuse across elements), just a `Vec` of the same per-element conversion.
+**Batch conversion** (`BatchConvertExact`/`BatchConvertApproximate`, `src/coordinates/conversion.rs:224-265`, plus the free functions `batch_convert_exact`/`batch_convert_approximate`) are generic wrappers applying the single-value trait element-wise over a `Vec<T>` — no batch-specific optimization (e.g. no shared-computation reuse across elements), just a `Vec` of the same per-element conversion.
 
 ### Types
 
@@ -48,7 +48,7 @@ Every pairing involving `hexagonal` is approximate — a hex grid's 6-neighbor t
 
 | File | Relationship |
 |------|--------------|
-| `src/coordinates/conversion.rs` | `Convert`, `ApproximateConvert`, `BatchConvertExact`, `BatchConvertApproximate`, every `impl` listed above, `measure_approximate_conversion_error`, `test_roundtrip_conversion` |
+| `src/coordinates/conversion.rs` | `Convert`, `ApproximateConvert`, `BatchConvertExact`, `BatchConvertApproximate`, every `impl` listed above, `approximate_conversion_error_measure`, `roundtrip_conversion_test` |
 
 ### Tests
 

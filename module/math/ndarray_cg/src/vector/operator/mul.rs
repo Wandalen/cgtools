@@ -1,6 +1,6 @@
 mod private
 {
-  use mdmath_core::vector::mul_scalar;
+  use mdmath_core::vector::scalar_mul;
   use mdmath_core::vector::mul;
 
   use crate::{MulAssign, Mat, Vector, mat, MatNum, Indexable, Ix2, IndexingRef, Mul};
@@ -50,7 +50,7 @@ mod private
     #[ inline ]
     fn mul( self, rhs : E ) -> Self::Output
     {
-      mul_scalar( &self, rhs )
+      scalar_mul( &self, rhs )
     }
   }
 
@@ -77,7 +77,7 @@ mod private
     #[ inline ]
     fn mul( self, rhs : Vector< f32, LEN > ) -> Self::Output
     {
-      mul_scalar( &rhs, self )
+      scalar_mul( &rhs, self )
     }
   }
 
@@ -89,7 +89,7 @@ mod private
     #[ inline ]
     fn mul( self, rhs : Vector< f64, LEN > ) -> Self::Output
     {
-      mul_scalar( &rhs, self )
+      scalar_mul( &rhs, self )
     }
   }
 
@@ -104,7 +104,7 @@ mod private
     #[ inline ]
     fn mul( self, rhs : Vector< i32, LEN > ) -> Self::Output
     {
-      mul_scalar( &rhs, self )
+      scalar_mul( &rhs, self )
     }
   }
 
@@ -119,7 +119,7 @@ mod private
     #[ inline ]
     fn mul( self, rhs : Vector< i64, LEN > ) -> Self::Output
     {
-      mul_scalar( &rhs, self )
+      scalar_mul( &rhs, self )
     }
   }
 
@@ -134,7 +134,7 @@ mod private
     #[ inline ]
     fn mul( self, rhs : Vector< u32, LEN > ) -> Self::Output
     {
-      mul_scalar( &rhs, self )
+      scalar_mul( &rhs, self )
     }
   }
 
@@ -149,7 +149,7 @@ mod private
     #[ inline ]
     fn mul( self, rhs : Vector< u64, LEN > ) -> Self::Output
     {
-      mul_scalar( &rhs, self )
+      scalar_mul( &rhs, self )
     }
   }
 }

@@ -281,7 +281,7 @@ mod private
     pub geometries : IntMap< ResourceId< asset::Geometry >, GpuGeometry >,
     /// Active batches keyed by batch id.
     pub batches : IntMap< ResourceId< Batch >, GpuBatch >,
-    /// Incremented on every `load_assets` call. In-flight `spawn_local` futures
+    /// Incremented on every `assets_load` call. In-flight `spawn_local` futures
     /// from a previous cycle capture the old value and bail out on resolve,
     /// so stale async data cannot overwrite freshly-loaded entries.
     pub generation : u32,
@@ -331,25 +331,25 @@ mod private
     }
 
     /// Inserts a texture into the cache.
-    pub fn store_texture( &mut self, id : ResourceId< asset::Image >, tex : GpuTexture )
+    pub fn texture_store( &mut self, id : ResourceId< asset::Image >, tex : GpuTexture )
     {
       self.textures.insert( id, tex );
     }
 
     /// Inserts a sprite into the cache.
-    pub fn store_sprite( &mut self, id : ResourceId< asset::Sprite >, sprite : GpuSprite )
+    pub fn sprite_store( &mut self, id : ResourceId< asset::Sprite >, sprite : GpuSprite )
     {
       self.sprites.insert( id, sprite );
     }
 
     /// Inserts geometry into the cache.
-    pub fn store_geometry( &mut self, id : ResourceId< asset::Geometry >, geom : GpuGeometry )
+    pub fn geometry_store( &mut self, id : ResourceId< asset::Geometry >, geom : GpuGeometry )
     {
       self.geometries.insert( id, geom );
     }
 
     /// Inserts a batch into the cache.
-    pub fn store_batch( &mut self, id : ResourceId< Batch >, batch : GpuBatch )
+    pub fn batch_store( &mut self, id : ResourceId< Batch >, batch : GpuBatch )
     {
       self.batches.insert( id, batch );
     }
@@ -473,7 +473,7 @@ mod private
   // ============================================================================
 
   /// Binds instance attrib pointers for a sprite batch VAO.
-  pub fn setup_sprite_batch_vao( gl : &gl::GL, vao : &web_sys::WebGlVertexArrayObject, buffer : &web_sys::WebGlBuffer )
+  pub fn sprite_batch_vao_setup( gl : &gl::GL, vao : &web_sys::WebGlVertexArrayObject, buffer : &web_sys::WebGlBuffer )
   {
     gl.bind_vertex_array( Some( vao ) );
     gl.bind_buffer( gl::ARRAY_BUFFER, Some( buffer ) );
@@ -507,7 +507,7 @@ mod private
   ///
   /// Takes the geometry buffers directly (position, uv, index) as `Option`s so this
   /// helper stays decoupled from the adapter's internal `GpuGeometry` struct.
-  pub fn setup_mesh_batch_vao
+  pub fn mesh_batch_vao_setup
   (
     gl : &gl::GL,
     vao : &web_sys::WebGlVertexArrayObject,
@@ -591,7 +591,7 @@ mod private
 
   /// Resolves a `Loadable` to bytes — trivial pass-through for `Ready`,
   /// or an async fetch for `Fetch`. Returns `None` on fetch failure.
-  pub async fn resolve_loadable( loadable : Loadable ) -> Option< Vec< u8 > >
+  pub async fn loadable_resolve( loadable : Loadable ) -> Option< Vec< u8 > >
   {
     match loadable
     {
@@ -626,7 +626,7 @@ mod private
   /// Sets mag/min filter on the currently bound `TEXTURE_2D` based on `filter` and `mipmap`.
   /// Caller is responsible for calling `generate_mipmap` separately when `mipmap != Off`
   /// (after the level-0 upload completes — on the async path that's inside the `on_load` callback).
-  pub fn apply_texture_filter( gl : &gl::GL, filter : &SamplerFilter, mipmap : &MipmapMode )
+  pub fn texture_filter_apply( gl : &gl::GL, filter : &SamplerFilter, mipmap : &MipmapMode )
   {
     // mag_filter ignores mipmaps — magnification samples only level 0.
     let mag = match filter
@@ -652,7 +652,7 @@ mod private
   /// from the scene-model `WrapMode`. Always applies the same mode to both axes —
   /// there's no two-axis variant in the current format; a per-axis extension can
   /// split this into two params without breaking callers.
-  pub fn apply_texture_wrap( gl : &gl::GL, wrap : WrapMode )
+  pub fn texture_wrap_apply( gl : &gl::GL, wrap : WrapMode )
   {
     let mode = match wrap
     {
@@ -671,7 +671,7 @@ mod private
   /// the RGB factors on the alpha channel would produce wrong framebuffer alpha
   /// (e.g. `src_a^2` under `Normal`) and break readPixels / compositing onto a
   /// transparent canvas background.
-  pub fn apply_blend( gl : &gl::GL, blend : &BlendMode )
+  pub fn blend_apply( gl : &gl::GL, blend : &BlendMode )
   {
     match blend
     {
@@ -739,14 +739,14 @@ mod_interface::mod_interface!
   own use GpuSprite;
   own use GpuGeometry;
   own use GpuBatch;
-  own use setup_sprite_batch_vao;
-  own use setup_mesh_batch_vao;
-  own use apply_blend;
+  own use sprite_batch_vao_setup;
+  own use mesh_batch_vao_setup;
+  own use blend_apply;
   own use Loadable;
   own use source_to_loadable;
-  own use resolve_loadable;
+  own use loadable_resolve;
   own use index_format;
-  own use apply_texture_filter;
-  own use apply_texture_wrap;
+  own use texture_filter_apply;
+  own use texture_wrap_apply;
   own use topology_to_gl;
 }

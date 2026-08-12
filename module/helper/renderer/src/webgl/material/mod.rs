@@ -131,7 +131,7 @@ mod private
 
     /// Sets or clears the dirty flag for material uniforms.
     /// Implementations must use interior mutability (e.g. `Cell<bool>`).
-    fn set_needs_update( &self, value : bool );
+    fn needs_update_set( &self, value : bool );
 
     /// Returns the base texture unit for IBL textures.
     ///
@@ -155,7 +155,7 @@ mod private
     }
 
     /// Returns reference to [`ProgramInfo`](crate::webgl::ProgramInfo) with shader locations and used [`ShaderProgram`]
-    fn make_shader_program( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >;
+    fn shader_program_make( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >;
 
     /// Returns the material type identifier (e.g., "PBR", "Unlit", "Custom").
     fn type_name( &self ) -> &'static str;
@@ -321,7 +321,7 @@ mod private
     }
 
     /// Called by the renderer after recompilation to clear the recompile flag.
-    fn clear_recompile_flag( &self ) {}
+    fn recompile_flag_clear( &self ) {}
   }
 
 }

@@ -7,7 +7,7 @@
 //! `Context::device_builder_for_tests` constructor ( that state is unreachable without a
 //! real adapter ).
 
-use minwgpu::{ context::Context, Error };
+use minwgpu::{ context::{ Context, ContextBuilder }, Error };
 
 /// A builder chained from `Context::builder()` through `instance_make` with zero backends
 /// must surface the adapter failure as the crate's own error type, not a panic.
@@ -162,9 +162,9 @@ fn adapter_selector_is_invoked_and_its_error_propagates()
   );
 }
 
-/// `Context::from_instance` enters the builder at the adapter stage: the returned builder
-/// accepts adapter-stage configuration and resolves the request against the provided
-/// instance — here one with no backends, so the request must error, not panic.
+/// `ContextBuilder::from` ( a `wgpu::Instance` ) enters the builder at the adapter stage: the
+/// returned builder accepts adapter-stage configuration and resolves the request against the
+/// provided instance — here one with no backends, so the request must error, not panic.
 #[ test ]
 fn from_instance_supports_adapter_stage_configuration()
 {
@@ -175,7 +175,7 @@ fn from_instance_supports_adapter_stage_configuration()
   };
   let instance = wgpu::Instance::new( &descriptor );
 
-  let result = Context::from_instance( instance )
+  let result = ContextBuilder::from( instance )
   .power_preference( wgpu::PowerPreference::HighPerformance )
   .force_fallback_adapter( false )
   .adapter_request();

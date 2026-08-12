@@ -40,7 +40,7 @@ mod private
   ///
   /// An `Option< ( WebGlFramebuffer, WebGlTexture ) >` containing the created framebuffer and
   /// its color attachment texture, or `None` if creation fails.
-  fn create_framebuffer
+  fn framebuffer_create
   (
     gl : &gl::GL,
     width : u32,
@@ -112,7 +112,7 @@ mod private
   // and an unfiltered traversal (every node advances it), the two silently drift apart the
   // moment a "skipped" item actually occurs -- count only what is actually consumed.
   #[ must_use ]
-  pub fn resolve_mesh_colors( scene : &Scene, colors : &[ F32x4 ] ) -> Vec< F32x4 >
+  pub fn mesh_colors_resolve( scene : &Scene, colors : &[ F32x4 ] ) -> Vec< F32x4 >
   {
     let mut resolved = Vec::new();
 
@@ -194,7 +194,7 @@ mod private
       add_location( "viewMatrix" );
       add_location( "projectionMatrix" );
 
-      let Some( ( framebuffer, output_texture ) ) = create_framebuffer( gl, width, height )
+      let Some( ( framebuffer, output_texture ) ) = framebuffer_create( gl, width, height )
       else
       {
         return Err( gl::WebglError::FailedToAllocateResource( "Framebuffer" ) );
@@ -214,13 +214,13 @@ mod private
     }
 
     /// Uploads the camera's view and projection matrices to the shader uniforms.
-    fn upload_camera( &self, gl : &GL, camera : &Camera )
+    fn camera_upload( &self, gl : &GL, camera : &Camera )
     {
       gl::uniform::matrix_upload
       (
         gl,
         self.uniforms.get( "viewMatrix" ).unwrap().clone(),
-        &camera.get_view_matrix().to_array(),
+        &camera.view_matrix_get().to_array(),
         true
       ).unwrap();
 
@@ -228,7 +228,7 @@ mod private
       (
         gl,
         self.uniforms.get( "projectionMatrix" ).unwrap().clone(),
-        &camera.get_projection_matrix().to_array(),
+        &camera.projection_matrix_get().to_array(),
         true
       ).unwrap();
     }
@@ -245,7 +245,7 @@ mod private
     /// # Panics
     ///
     /// Panics if the `worldMatrix` uniform location is missing or the matrix upload fails.
-    pub fn upload_node
+    pub fn node_upload
     (
       &self,
       gl : &GL,
@@ -256,7 +256,7 @@ mod private
       (
         gl,
         self.uniforms.get( "worldMatrix" ).unwrap().clone(),
-        node.borrow().get_world_matrix().to_array().as_slice(),
+        node.borrow().world_matrix_get().to_array().as_slice(),
         true
       ).unwrap();
     }
@@ -290,7 +290,7 @@ mod private
       colors : &[ F32x4 ]
     ) -> Result< (), gl::WebglError >
     {
-      scene.update_world_matrix();
+      scene.world_matrix_update();
 
       gl.enable( gl::DEPTH_TEST );
       gl.disable( gl::BLEND );
@@ -307,9 +307,9 @@ mod private
 
       gl.use_program( Some( &self.program ) );
 
-      // Resolved once, up front, in mesh-encounter order -- see `resolve_mesh_colors` for why
+      // Resolved once, up front, in mesh-encounter order -- see `mesh_colors_resolve` for why
       // this can't be a counter shared with the node-traversal below.
-      let mesh_colors = resolve_mesh_colors( scene, colors );
+      let mesh_colors = mesh_colors_resolve( scene, colors );
       let mut mesh_i = 0;
 
       // Define a closure to handle the drawing of each node in the scene.
@@ -335,8 +335,8 @@ mod private
           {
             let primitive = primitive_rc.borrow();
 
-            self.upload_camera( gl, camera );
-            self.upload_node( gl, &node );
+            self.camera_upload( gl, camera );
+            self.node_upload( gl, &node );
 
             primitive.geometry.borrow().bind( gl );
             primitive.draw( gl );
@@ -361,7 +361,7 @@ mod private
     ///
     /// * `gl` - The WebGL2 rendering context
     /// * `output_texture` - The new texture to use as the color attachment
-    pub fn set_texture
+    pub fn texture_set
     (
       &mut self,
       gl : &GL,
@@ -385,7 +385,7 @@ mod private
     ///
     /// A clone of the WebGlTexture that serves as the color attachment.
     #[must_use]
-    pub fn get_texture( &self ) -> WebGlTexture
+    pub fn texture_get( &self ) -> WebGlTexture
     {
       self.output_texture.clone()
     }
@@ -401,6 +401,6 @@ crate::mod_interface!
 
   own use
   {
-    resolve_mesh_colors
+    mesh_colors_resolve
   };
 }

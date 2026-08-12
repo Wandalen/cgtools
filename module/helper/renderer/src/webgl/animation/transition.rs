@@ -197,7 +197,7 @@ mod private
         );
         if let Some( translation ) = translation
         {
-          node.borrow_mut().set_translation( translation );
+          node.borrow_mut().translation_set( translation );
         }
 
         let key = format!( "{name}{ROTATION_PREFIX}" );
@@ -209,7 +209,7 @@ mod private
         );
         if let Some( rotation ) = rotation
         {
-          node.borrow_mut().set_rotation( rotation );
+          node.borrow_mut().rotation_set( rotation );
         }
 
         let key = format!( "{name}{SCALE_PREFIX}" );
@@ -221,7 +221,7 @@ mod private
         );
         if let Some( scale ) = scale
         {
-          node.borrow_mut().set_scale( scale );
+          node.borrow_mut().scale_set( scale );
         }
       }
     }

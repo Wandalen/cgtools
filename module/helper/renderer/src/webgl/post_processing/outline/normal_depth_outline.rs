@@ -103,7 +103,7 @@ mod private
     }
 
     /// Sets the thickness of the outline.
-    pub fn set_outline_thickness( &mut self, new_value : f32 )
+    pub fn outline_thickness_set( &mut self, new_value : f32 )
     {
       self.outline_thickness = new_value;
     }

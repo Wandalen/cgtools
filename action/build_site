@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+#@ purpose: Assemble a static site directory (default ./_site) mirroring examples/ at its
+#@          root: the gallery (index.html + index.md), every showcase.webp at its original
+#@          relative path, and — for every browser-kind example discovered by `run` — that
+#@          example's `trunk build --release` output at its own relative path. This is what
+#@          .github/workflows/pages.yml stages before handing off to actions/upload-pages-artifact;
+#@          runnable locally first to validate the same assembly before pushing.
+#@ output:  Prints a `=== trunk build: <path> ===` heading per browser example, a warning to
+#@          stderr for any example whose build fails (its demo link 404s on the deployed site,
+#@          the rest of the site still ships), then a one-line summary. Exits non-zero if any
+#@          example failed to build — the caller (CI or a human) decides whether that's fatal;
+#@          this script never silently swallows a partial failure.
+#@ param:   `--out <dir>`         output directory (default: <repo-root>/_site)
+#@          `--base-path <path>`  prefix passed to `trunk build --public-url`, no trailing
+#@                                slash (e.g. `/cgtools` for GitHub Pages project-site hosting;
+#@                                default: empty, i.e. root-relative — correct for serving
+#@                                <dir> directly from a local static file server)
+set -euo pipefail
+
+if [[ "${1:-}" == "." ]]
+then
+  printf '\n  %s\n\n' "$(basename "$0")"
+  sed -n 's/^#@ /  /p' "$0"
+  printf '\n'
+  exit 0
+fi
+
+_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+_REPO_ROOT="$( cd "$_SCRIPT_DIR/.." && pwd )"
+
+_out="$_REPO_ROOT/_site"
+_base_path=""
+while [[ $# -gt 0 ]]
+do
+  case "$1" in
+    --out) _out="$2"; shift 2 ;;
+    --base-path) _base_path="$2"; shift 2 ;;
+    *) printf 'error: unknown argument %q\n' "$1" >&2; exit 2 ;;
+  esac
+done
+
+rm -rf "$_out"
+mkdir -p "$_out"
+cp "$_REPO_ROOT/examples/index.html" "$_REPO_ROOT/examples/index.md" "$_out/"
+
+while IFS= read -r -d '' _f
+do
+  _rel="${_f#"$_REPO_ROOT"/examples/}"
+  mkdir -p "$_out/$( dirname "$_rel" )"
+  cp "$_f" "$_out/$_rel"
+done < <( find "$_REPO_ROOT/examples" -name showcase.webp -print0 )
+
+_built=0
+_failed=0
+while IFS='|' read -r _id _relpath _kind _tags
+do
+  [[ "$_kind" == "browser" ]] || continue
+  _rel_short="${_relpath#examples/}"
+  printf '=== trunk build: %s ===\n' "$_relpath"
+  if ( cd "$_REPO_ROOT/$_relpath" && trunk build --release --public-url "${_base_path}/${_rel_short}/" )
+  then
+    mkdir -p "$_out/$_rel_short"
+    cp -r "$_REPO_ROOT/$_relpath/dist/." "$_out/$_rel_short/"
+    _built=$(( _built + 1 ))
+  else
+    _failed=$(( _failed + 1 ))
+    printf 'warning: trunk build failed for %s -- its demo link will 404 on the deployed site\n' "$_relpath" >&2
+  fi
+done < <( "$_SCRIPT_DIR/run" list --raw )
+
+printf 'staged %s: %d demo(s) built, %d failed\n' "$_out" "$_built" "$_failed"
+(( _failed == 0 ))

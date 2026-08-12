@@ -39,7 +39,7 @@ embroidery_tools = { workspace = true }
 use embroidery_tools::format::pes;
 use embroidery_tools::stitch_instruction::Instruction;
 
-fn read_pattern() -> Result<(), Box<dyn std::error::Error>> {
+fn pattern_read() -> Result<(), Box<dyn std::error::Error>> {
   // Read a PES file
   let emb = pes::file_read("design.pes")?;
 
@@ -78,7 +78,7 @@ use embroidery_tools::thread::{Color, Thread};
 use embroidery_tools::format::{pec, pes};
 use embroidery_tools::format::pes::PESVersion;
 
-fn create_pattern() -> Result<(), Box<dyn std::error::Error>> {
+fn pattern_create() -> Result<(), Box<dyn std::error::Error>> {
   // Build a new pattern
   let mut emb = EmbroideryFile::new();
 
@@ -240,7 +240,7 @@ use embroidery_tools::format::{pec, pes};
 use std::fs::{self, File};
 use std::io::BufWriter;
 
-fn convert_directory(input_dir: &str, output_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn directory_convert(input_dir: &str, output_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
   for entry in fs::read_dir(input_dir)? {
     let path = entry?.path();
     if path.extension() == Some("pes".as_ref()) {

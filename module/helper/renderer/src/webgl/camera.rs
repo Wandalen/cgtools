@@ -72,7 +72,7 @@ mod private
     ///
     /// # Arguments
     /// * `canvas` - A reference to the HTML canvas element where the events will be bound.
-    pub fn bind_controls
+    pub fn controls_bind
     (
       &self,
       canvas : &web_sys::HtmlCanvasElement
@@ -98,9 +98,9 @@ mod private
       locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
-      let view_matrix = self.get_view_matrix().to_array();
-      let eye = self.get_eye().to_array();
-      let projection_matrix = self.get_projection_matrix();
+      let view_matrix = self.view_matrix_get().to_array();
+      let eye = self.eye_get().to_array();
+      let projection_matrix = self.projection_matrix_get();
 
       if let Some( loc ) = locations.get( "cameraPosition" )
       {
@@ -136,48 +136,48 @@ mod private
     }
 
     /// Sets the window size for the camera controls.
-    pub fn set_window_size( &mut self, window_size : gl::F32x2 )
+    pub fn window_size_set( &mut self, window_size : gl::F32x2 )
     {
       self.controls.borrow_mut().size_set( window_size.to_array() );
     }
 
     /// Sets the projection matrix value
-    pub fn set_projection_matrix( &mut self, projection_matrix : gl::F32x4x4 )
+    pub fn projection_matrix_set( &mut self, projection_matrix : gl::F32x4x4 )
     {
       self.projection_matrix = projection_matrix;
     }
 
     /// Returns a clone of the `Rc` to the camera controls.
     #[ must_use ]
-    pub fn get_controls( &self ) -> Rc< RefCell< CameraOrbitControls > >
+    pub fn controls_get( &self ) -> Rc< RefCell< CameraOrbitControls > >
     {
       self.controls.clone()
     }
 
     /// Returns the current position of the camera's eye.
     #[ must_use ]
-    pub fn get_eye( &self ) -> gl::F32x3
+    pub fn eye_get( &self ) -> gl::F32x3
     {
       self.controls.borrow().eye
     }
 
     /// Returns the camera's view matrix.
     #[ must_use ]
-    pub fn get_view_matrix( &self ) -> gl::F32x4x4
+    pub fn view_matrix_get( &self ) -> gl::F32x4x4
     {
       self.controls.borrow().view()
     }
 
     /// Returns the camera's projection matrix.
     #[ must_use ]
-    pub fn get_projection_matrix( &self ) -> gl::F32x4x4
+    pub fn projection_matrix_get( &self ) -> gl::F32x4x4
     {
       self.projection_matrix
     }
 
     /// Returns a `gl::F32x2` containing the near and far clipping plane distances.
     #[ must_use ]
-    pub fn get_near_far( &self ) -> gl::F32x2
+    pub fn near_far_get( &self ) -> gl::F32x2
     {
       gl::F32x2::new( self.near, self.far )
     }

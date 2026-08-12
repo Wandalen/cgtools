@@ -26,24 +26,24 @@
 //! use tiles_tools::serialization::*;
 //!
 //! // Create a game state
-//! let game_state = GameStateSerializer::create_basic_game_state("Test Save".to_string());
-//! 
+//! let game_state = GameStateSerializer::basic_game_state_create("Test Save".to_string());
+//!
 //! // Serialize the game state
 //! let serialized = GameStateSerializer::new()
 //!     .with_compression(true)
-//!     .serialize_game_state(&game_state)
+//!     .game_state_serialize(&game_state)
 //!     .expect("Failed to serialize game state");
 //!
 //! // Save to file
 //! # let temp_dir = std::env::temp_dir().join("tiles_tools_doctest");
 //! # std::fs::create_dir_all(&temp_dir).unwrap();
 //! SaveManager::new(&temp_dir)
-//!     .save_game_state("my_save", &game_state)
+//!     .game_state_save("my_save", &game_state)
 //!     .expect("Failed to save game");
 //!
 //! // Load from file
 //! let _loaded = SaveManager::new(&temp_dir)
-//!     .load_game_state("my_save")
+//!     .game_state_load("my_save")
 //!     .expect("Failed to load game");
 //! # std::fs::remove_dir_all(&temp_dir).ok();
 //! ```
@@ -431,7 +431,7 @@ impl GameStateSerializer {
   ///
   /// # Errors
   /// Returns an error when encoding in the selected format fails.
-  pub fn serialize_game_state(&self, state: &SerializableGameState) -> Result<Vec<u8>, SerializationError> {
+  pub fn game_state_serialize(&self, state: &SerializableGameState) -> Result<Vec<u8>, SerializationError> {
     let data = match self.format {
       SerializationFormat::Json => serde_json::to_vec(state)?,
       SerializationFormat::Binary => bincode::serialize(state)?,
@@ -439,7 +439,7 @@ impl GameStateSerializer {
     };
 
     if self.compress {
-      Ok(Self::compress_data(data))
+      Ok(Self::data_compress(data))
     } else {
       Ok(data)
     }
@@ -449,9 +449,9 @@ impl GameStateSerializer {
   ///
   /// # Errors
   /// Returns an error when decompression fails or the bytes are not valid for the selected format.
-  pub fn deserialize_game_state(&self, data: &[u8]) -> Result<SerializableGameState, SerializationError> {
+  pub fn game_state_deserialize(&self, data: &[u8]) -> Result<SerializableGameState, SerializationError> {
     let data = if self.compress {
-      Self::decompress_data(data)?
+      Self::data_decompress(data)?
     } else {
       data.to_vec()
     };
@@ -473,7 +473,7 @@ impl GameStateSerializer {
 
   /// Creates a basic game state for testing.
   #[must_use]
-  pub fn create_basic_game_state(description: String) -> SerializableGameState {
+  pub fn basic_game_state_create(description: String) -> SerializableGameState {
     SerializableGameState {
       metadata: SaveMetadata::new(description),
       world_data: vec![0u8; 1024], // Placeholder world data
@@ -484,7 +484,7 @@ impl GameStateSerializer {
   }
 
   // Private compression methods (stubbed for now - would use flate2 or similar)
-  fn compress_data(data: Vec<u8>) -> Vec<u8> {
+  fn data_compress(data: Vec<u8>) -> Vec<u8> {
     // In a real implementation, this would use flate2 or similar
     // For now, just return the data unchanged with a marker
     let mut compressed = vec![0xC0, 0x4D, 0x50]; // "CMP" marker
@@ -493,7 +493,7 @@ impl GameStateSerializer {
     compressed
   }
 
-  fn decompress_data(data: &[u8]) -> Result<Vec<u8>, SerializationError> {
+  fn data_decompress(data: &[u8]) -> Result<Vec<u8>, SerializationError> {
     // Check for compression marker
     if data.len() < 7 || data[0..3] != [0xC0, 0x4D, 0x50] {
       return Err(SerializationError::InvalidCompressionFormat);
@@ -540,14 +540,14 @@ impl SaveManager {
   ///
   /// # Errors
   /// Returns an error when the saves directory or files cannot be written, or serialization fails.
-  pub fn save_game_state(&self, save_name: &str, state: &SerializableGameState) -> Result<(), SerializationError> {
+  pub fn game_state_save(&self, save_name: &str, state: &SerializableGameState) -> Result<(), SerializationError> {
     create_dir_all(&self.saves_directory)?;
-    
+
     let save_path = self.saves_directory.join(format!("{save_name}.save"));
     let metadata_path = self.saves_directory.join(format!("{save_name}.meta"));
 
     // Serialize the game state
-    let serialized_data = self.serializer.serialize_game_state(state)?;
+    let serialized_data = self.serializer.game_state_serialize(state)?;
 
     // Create updated metadata with actual size
     let mut metadata = state.metadata.clone();
@@ -571,9 +571,9 @@ impl SaveManager {
   ///
   /// # Errors
   /// Returns an error when the save does not exist, cannot be read, or cannot be deserialized.
-  pub fn load_game_state(&self, save_name: &str) -> Result<SerializableGameState, SerializationError> {
+  pub fn game_state_load(&self, save_name: &str) -> Result<SerializableGameState, SerializationError> {
     let save_path = self.saves_directory.join(format!("{save_name}.save"));
-    
+
     if !save_path.exists() {
       return Err(SerializationError::SaveNotFound(save_name.to_string()));
     }
@@ -582,14 +582,14 @@ impl SaveManager {
     let mut data = Vec::new();
     save_file.read_to_end(&mut data)?;
 
-    self.serializer.deserialize_game_state(&data)
+    self.serializer.game_state_deserialize(&data)
   }
 
   /// Loads save metadata without loading the full save.
   ///
   /// # Errors
   /// Returns an error when the metadata file does not exist, cannot be read, or is not valid JSON.
-  pub fn load_save_metadata(&self, save_name: &str) -> Result<SaveMetadata, SerializationError> {
+  pub fn save_metadata_load(&self, save_name: &str) -> Result<SaveMetadata, SerializationError> {
     let metadata_path = self.saves_directory.join(format!("{save_name}.meta"));
     
     if !metadata_path.exists() {
@@ -607,7 +607,7 @@ impl SaveManager {
   ///
   /// # Errors
   /// Returns an error when the saves directory cannot be read.
-  pub fn list_saves(&self) -> Result<Vec<String>, SerializationError> {
+  pub fn saves_list(&self) -> Result<Vec<String>, SerializationError> {
     if !self.saves_directory.exists() {
       return Ok(Vec::new());
     }
@@ -637,7 +637,7 @@ impl SaveManager {
   ///
   /// # Errors
   /// Returns an error when an existing save or metadata file cannot be removed.
-  pub fn delete_save(&self, save_name: &str) -> Result<(), SerializationError> {
+  pub fn save_delete(&self, save_name: &str) -> Result<(), SerializationError> {
     let save_path = self.saves_directory.join(format!("{save_name}.save"));
     let metadata_path = self.saves_directory.join(format!("{save_name}.meta"));
 
@@ -656,13 +656,13 @@ impl SaveManager {
   ///
   /// # Errors
   /// Returns an error when the saves directory cannot be read.
-  pub fn get_saves_info(&self) -> Result<Vec<(String, SaveMetadata)>, SerializationError> {
-    let save_names = self.list_saves()?;
+  pub fn saves_info_get(&self) -> Result<Vec<(String, SaveMetadata)>, SerializationError> {
+    let save_names = self.saves_list()?;
     let mut saves_info = Vec::new();
 
     for name in save_names {
       // Saves with missing or invalid metadata are skipped
-      if let Ok(metadata) = self.load_save_metadata(&name) {
+      if let Ok(metadata) = self.save_metadata_load(&name) {
         saves_info.push((name, metadata));
       }
     }
@@ -691,7 +691,7 @@ impl ConfigManager {
   ///
   /// # Errors
   /// Returns an error when the config directory or file cannot be written.
-  pub fn save_config(&self, config: &GameConfig) -> Result<(), SerializationError> {
+  pub fn config_save(&self, config: &GameConfig) -> Result<(), SerializationError> {
     if let Some(parent) = self.config_path.parent() {
       create_dir_all(parent)?;
     }
@@ -708,7 +708,7 @@ impl ConfigManager {
   ///
   /// # Errors
   /// Returns an error when the config file cannot be read or is not valid JSON.
-  pub fn load_config(&self) -> Result<GameConfig, SerializationError> {
+  pub fn config_load(&self) -> Result<GameConfig, SerializationError> {
     if !self.config_path.exists() {
       return Ok(GameConfig::default());
     }
@@ -724,8 +724,8 @@ impl ConfigManager {
   ///
   /// # Errors
   /// Returns an error when the default config cannot be written.
-  pub fn reset_config(&self) -> Result<(), SerializationError> {
-    self.save_config(&GameConfig::default())
+  pub fn config_reset(&self) -> Result<(), SerializationError> {
+    self.config_save(&GameConfig::default())
   }
 }
 

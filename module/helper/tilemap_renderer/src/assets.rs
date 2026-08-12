@@ -1,7 +1,7 @@
 //! Asset definitions — resources loaded before rendering.
 //!
 //! Assets CAN allocate (`Vec`, `PathBuf`, etc.) unlike commands.
-//! They are loaded once via `Backend::load_assets()` and referenced
+//! They are loaded once via `Backend::assets_load()` and referenced
 //! from commands by `ResourceId<T>`.
 
 mod private
@@ -80,7 +80,7 @@ mod private
     #[ must_use ]
     pub fn validate( &self ) -> Vec< ValidationError >
     {
-      fn check_dups< T >( items : &[ impl HasId< T > ], kind : &'static str, errors : &mut Vec< ValidationError > )
+      fn dups_check< T >( items : &[ impl HasId< T > ], kind : &'static str, errors : &mut Vec< ValidationError > )
       {
         let mut seen = IntSet::default();
         for item in items
@@ -94,14 +94,14 @@ mod private
 
       let mut errors = Vec::new();
 
-      check_dups::< asset::Font >( &self.fonts, "font", &mut errors );
-      check_dups::< asset::Image >( &self.images, "image", &mut errors );
-      check_dups::< asset::Sprite >( &self.sprites, "sprite", &mut errors );
-      check_dups::< asset::Geometry >( &self.geometries, "geometry", &mut errors );
-      check_dups::< asset::Gradient >( &self.gradients, "gradient", &mut errors );
-      check_dups::< asset::Pattern >( &self.patterns, "pattern", &mut errors );
-      check_dups::< asset::ClipMask >( &self.clip_masks, "clip_mask", &mut errors );
-      check_dups::< asset::Path >( &self.paths, "path", &mut errors );
+      dups_check::< asset::Font >( &self.fonts, "font", &mut errors );
+      dups_check::< asset::Image >( &self.images, "image", &mut errors );
+      dups_check::< asset::Sprite >( &self.sprites, "sprite", &mut errors );
+      dups_check::< asset::Geometry >( &self.geometries, "geometry", &mut errors );
+      dups_check::< asset::Gradient >( &self.gradients, "gradient", &mut errors );
+      dups_check::< asset::Pattern >( &self.patterns, "pattern", &mut errors );
+      dups_check::< asset::ClipMask >( &self.clip_masks, "clip_mask", &mut errors );
+      dups_check::< asset::Path >( &self.paths, "path", &mut errors );
 
       errors
     }
@@ -196,7 +196,7 @@ mod private
     pub mipmap : MipmapMode,
     /// Texture wrap mode for UVs outside `[0, 1]`. GPU backends honor this via
     /// `TEXTURE_WRAP_S`/`TEXTURE_WRAP_T`; SVG backends currently ignore it and
-    /// always behave as `Clamp` (see `adapters/svg.rs` comment in `load_images`).
+    /// always behave as `Clamp` (see `adapters/svg.rs` comment in `images_load`).
     pub wrap : WrapMode,
   }
 
@@ -419,7 +419,7 @@ mod private
     /// Path to image file — backend decodes (PNG, JPEG, etc.).
     ///
     /// **SVG backend limitation:** image dimensions cannot be determined at
-    /// `load_assets` time (no file I/O is performed). Sprites referencing a
+    /// `assets_load` time (no file I/O is performed). Sprites referencing a
     /// sheet loaded this way are skipped with a stderr warning and an HTML
     /// comment in the SVG output instead of producing an invisible element.
     /// Use [`ImageSource::Bitmap`] or [`ImageSource::Encoded`] (from which the
@@ -428,7 +428,7 @@ mod private
     /// **WebGL backend:** the image is fetched and uploaded asynchronously via
     /// an `HtmlImageElement`. If loading fails (file not found, CORS, decode
     /// error), the error is logged to `console.error` and the texture remains
-    /// empty; it cannot be propagated back through `load_assets` because the
+    /// empty; it cannot be propagated back through `assets_load` because the
     /// failure happens after that call returns.
     Path( PathBuf ),
     /// Encoded image in memory — backend decodes.
@@ -451,12 +451,12 @@ mod private
     /// trusting or sanitizing their source.
     ///
     /// **WebGL backend:** MIME type is auto-detected the same way as the SVG
-    /// backend (shared `detect_image_mime` helper, crate-internal). The
+    /// backend (shared `image_mime_detect` helper, crate-internal). The
     /// bytes are wrapped in a `Blob` and decoded via a browser-native
     /// `blob:` object URL, then uploaded asynchronously through the same
     /// `HtmlImageElement` path as [`ImageSource::Path`] — including its
     /// failure-reporting behavior (logged to `console.error`, texture
-    /// remains empty, cannot propagate back through `load_assets`). The
+    /// remains empty, cannot propagate back through `assets_load`). The
     /// object URL is revoked once the image has loaded or failed to load.
     Encoded( Vec< u8 > ),
     /// Raw pixel data — ready to upload directly.
@@ -495,7 +495,7 @@ mod private
   {
     /// File path to load data from.
     ///
-    /// **SVG backend:** read via blocking `std::fs` at `load_assets` time; a
+    /// **SVG backend:** read via blocking `std::fs` at `assets_load` time; a
     /// failed read (missing file, or wasm32 where no filesystem exists) skips
     /// the whole geometry with a stderr warning and a diagnostic comment in
     /// the output. **WebGL backend:** fetched asynchronously.
@@ -508,7 +508,7 @@ mod private
   ///
   /// When used as [`GeometryAsset::data_type`] (index buffer element type),
   /// only `U8`, `U16`, and `U32` are valid. `F32` is rejected by the WebGL
-  /// backend with `RenderError::BackendError` during `load_assets`.
+  /// backend with `RenderError::BackendError` during `assets_load`.
   #[ derive( Debug ) ]
   #[ non_exhaustive ]
   pub enum DataType
@@ -556,7 +556,7 @@ mod_interface::mod_interface!
 /// so its tests can live in `tests/` per the all-tests-in-tests/ convention.
 #[ cfg( any( feature = "adapter-svg", feature = "adapter-webgl" ) ) ]
 #[ must_use ]
-pub fn detect_image_mime( bytes : &[ u8 ] ) -> &'static str
+pub fn image_mime_detect( bytes : &[ u8 ] ) -> &'static str
 {
   if bytes.starts_with( &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ] ) { return "image/png"; }
   if bytes.starts_with( &[ 0xff, 0xd8, 0xff ] ) { return "image/jpeg"; }

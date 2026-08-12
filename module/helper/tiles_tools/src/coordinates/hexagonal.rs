@@ -108,7 +108,7 @@ impl< System, Orientation > Ord for Coordinate< System, Orientation >
     /// Orders coordinates lexicographically by `( q, r )` — consistent with `PartialEq`.
     ///
     /// Required so the flowfield methods whose bounds demand `C : Ord` (priority-queue
-    /// ordering in `calculate_flow` / `add_goal`) are callable with hexagonal
+    /// ordering in `flow_calculate` / `goal_add`) are callable with hexagonal
     /// coordinates; before this impl no coordinate type in the crate satisfied them.
   fn cmp( &self, other : &Self ) -> std::cmp::Ordering
   {

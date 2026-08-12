@@ -107,10 +107,10 @@ mod app
           roughness_factor : 0.05 + i as f32 * 0.225,
           ..PbrMaterial::new()
         };
-        let binding = renderer.create_material_binding( context, &material )?;
+        let binding = renderer.material_binding_create( context, &material )?;
         let position = gl::math::F32x3::from( [ ( i as f32 - 2.0 ) * 1.7, 0.62, z ] );
         let world = gl::math::mat3x3h::translation( position );
-        items.push( renderer.create_item( context, geometry, binding, world )? );
+        items.push( renderer.item_create( context, geometry, binding, world )? );
       }
     }
 
@@ -123,9 +123,9 @@ mod app
       roughness_factor : 0.85,
       ..PbrMaterial::new()
     };
-    let binding = renderer.create_material_binding( context, &material )?;
+    let binding = renderer.material_binding_create( context, &material )?;
     let world = gl::math::mat3x3h::translation( gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] ) );
-    items.push( renderer.create_item( context, geometry, binding, world )? );
+    items.push( renderer.item_create( context, geometry, binding, world )? );
 
     Ok( items )
   }
@@ -134,9 +134,9 @@ mod app
   fn lights_build() -> Lights
   {
     let mut lights = Lights::new();
-    assert!( lights.push_direct( [ 1.0, 2.0, 1.0 ], [ 1.0, 0.96, 0.88 ], 3.0 ) );
-    assert!( lights.push_point( [ -4.0, 3.0, 3.0 ], [ 0.3, 0.5, 1.0 ], 30.0, 25.0 ) );
-    assert!( lights.push_spot( [ 0.0, 6.0, 5.0 ], [ 0.0, -1.0, -0.8 ], [ 1.0, 1.0, 1.0 ], 60.0, 30.0, 0.35, 0.55 ) );
+    assert!( lights.direct_push( [ 1.0, 2.0, 1.0 ], [ 1.0, 0.96, 0.88 ], 3.0 ) );
+    assert!( lights.point_push( [ -4.0, 3.0, 3.0 ], [ 0.3, 0.5, 1.0 ], 30.0, 25.0 ) );
+    assert!( lights.spot_push( [ 0.0, 6.0, 5.0 ], [ 0.0, -1.0, -0.8 ], [ 1.0, 1.0, 1.0 ], 60.0, 30.0, 0.35, 0.55 ) );
     lights
   }
 

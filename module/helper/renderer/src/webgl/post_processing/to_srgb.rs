@@ -19,7 +19,7 @@ mod private
   impl ToSrgbPass
   {
     /// Sets whether the pass should render its output directly to the screen.
-    pub fn set_render_to_screen( &mut self, render_to_screen : bool )
+    pub fn render_to_screen_set( &mut self, render_to_screen : bool )
     {
       self.render_to_screen = render_to_screen;
     }

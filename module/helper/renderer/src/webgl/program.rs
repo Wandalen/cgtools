@@ -51,7 +51,7 @@ mod private
     fn program( &self ) -> &WebGlProgram;
 
     /// Set [`WebGlProgram`] with locations replacement
-    fn set_program( &mut self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram );
+    fn program_set( &mut self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram );
 
     /// Returns a reference to the hash map containing uniform locations.
     fn locations( &self ) -> &FxHashMap< String, Option< gl::WebGlUniformLocation > >;
@@ -127,7 +127,7 @@ mod private
           &self.0.program
         }
 
-        fn set_program( &mut self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram )
+        fn program_set( &mut self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram )
         {
           *self = < $program_type >::new( gl, program );
         }
@@ -220,7 +220,7 @@ mod private
           &self.0.program
         }
 
-        fn set_program( &mut self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram )
+        fn program_set( &mut self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram )
         {
           *self = < $program_type >::new( gl, program );
         }

@@ -113,20 +113,20 @@ mod private
     }
 
     /// Unbinds the color attachment from the internal framebuffer.
-    pub fn unbind_attachment( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn attachment_unbind( &self, gl : &gl::WebGl2RenderingContext )
     {
       self.bind( gl );
       gl::clean::framebuffer_texture_2d( gl );
     }
 
     /// Sets the `input_texture` of the `SwapFramebuffer`.
-    pub fn set_input( &mut self, texture : Option< gl::web_sys::WebGlTexture > )
+    pub fn input_set( &mut self, texture : Option< gl::web_sys::WebGlTexture > )
     {
       self.input_texture = texture;
     }
 
     /// Sets the `output_texture` of the `SwapFramebuffer`.
-    pub fn set_output( &mut self, texture : Option< gl::web_sys::WebGlTexture > )
+    pub fn output_set( &mut self, texture : Option< gl::web_sys::WebGlTexture > )
     {
       self.output_texture = texture;
     }
@@ -134,14 +134,14 @@ mod private
 
     /// Returns the current `input_texture`.
     #[ must_use ]
-    pub fn get_input( &self ) -> Option< gl::web_sys::WebGlTexture >
+    pub fn input_get( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.input_texture.clone()
     }
 
     /// Returns the current `output_texture`.
     #[ must_use ]
-    pub fn get_output( &self ) -> Option< gl::web_sys::WebGlTexture >
+    pub fn output_get( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.output_texture.clone()
     }
@@ -150,7 +150,7 @@ mod private
     ///
     /// Because [`SwapFramebuffer`] can use textures that are shared with other structs,
     /// only the framebuffer is deleted here to avoid accidental deletion of shared textures.
-    pub fn free_gl_resources( &mut self, gl : &gl::GL )
+    pub fn gl_resources_free( &mut self, gl : &gl::GL )
     {
       gl.delete_framebuffer( self.framebuffer.as_ref() );
     }

@@ -52,8 +52,8 @@ fn main()
   ) );
 
   // Add to turn-based system
-  turn_game.add_participant( player.id() as u32, 100 );
-  resource_manager.add_entity( player.id() as u32, 100.0, 30.0 );
+  turn_game.participant_add( player.id() as u32, 100 );
+  resource_manager.entity_add( player.id() as u32, 100.0, 30.0 );
 
   // Pathfinding with obstacle avoidance
   let start = Coordinate::< FourConnected >::new( 1, 1 );
@@ -69,7 +69,7 @@ fn main()
   .with_size( 12, 10 )
   .with_style( tiles_tools::debug::GridStyle::Square4 );
 
-  debug_renderer.add_colored_marker
+  debug_renderer.colored_marker_add
   (
     ( 1, 1 ),
     "P",
@@ -77,7 +77,7 @@ fn main()
     tiles_tools::debug::DebugColor::Green,
     20
   );
-  println!( "\n{}", debug_renderer.render_ascii() );
+  println!( "\n{}", debug_renderer.ascii_render() );
 }
 ```
 

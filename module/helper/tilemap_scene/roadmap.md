@@ -51,7 +51,7 @@ Used by `examples/minwebgl/slay_map`.
 **Other infrastructure**
 
 - `Camera` with translate + uniform zoom; `viewport_size` source precedence `pipeline.viewport_size` → `camera.viewport_size`
-- `Scene.seed: Option<u64>` — folds to `u32` salt for `hash_coord`; deterministic across frames
+- `Scene.seed: Option<u64>` — folds to `u32` salt for `coord_hash`; deterministic across frames
 - `FrameSpec::anchor` — per-frame pixel anchor, overrides `Object.pivot` when set; threaded via `CompiledAssets.sprite_anchors`
 - RON + serde loader (`RenderSpec::load`, `Scene::load`) with validation hooks
 - `ScreenSpaceSprite` command (implemented end-to-end in the WebGL adapter; SVG stubs)

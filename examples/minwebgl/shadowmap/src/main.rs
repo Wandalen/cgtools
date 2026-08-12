@@ -43,8 +43,8 @@ fn camera_setup( canvas : &HtmlCanvasElement, width : i32, height : i32 ) -> ren
     0.1,
     100.0
   );
-  camera.set_window_size( [ width as f32, height as f32 ].into() );
-  camera.bind_controls( canvas );
+  camera.window_size_set( [ width as f32, height as f32 ].into() );
+  camera.controls_bind( canvas );
 
   camera
 }
@@ -109,7 +109,7 @@ fn floor_texture_apply( floor_node : &Rc< RefCell< Node > >, colored_texture : O
     let primitive_borrow = primitive.borrow_mut();
     let material_ref = primitive_borrow.material.borrow_mut();
     let mut pbr_material = cast_unchecked_material_to_ref_mut::< PbrMaterial >( material_ref );
-    pbr_material.set_base_color_texture( Some( texture_info ) );
+    pbr_material.base_color_texture_set( Some( texture_info ) );
   }
 }
 
@@ -162,8 +162,8 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let floor_node = cube_mesh.scenes[ 0 ].borrow().children[ 0 ].clone();
   main_scene.add( floor_node.clone() );
-  floor_node.borrow_mut().set_local_matrix( cube_model );
-  main_scene.update_world_matrix();
+  floor_node.borrow_mut().local_matrix_set( cube_model );
+  main_scene.world_matrix_update();
 
   let light_pos = gl::F32x3::from_array( [ 0.0, 3.0, 3.0 ] );
   let light_dir = gl::F32x3::from_array( [ 0.0, -1.0, -1.0 ] ).normalize();
@@ -188,7 +188,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   shadowmap.render( &main_scene, light )?;
   let shadow_texture = texture_create( &gl, lightmap_res, gl::R8 );
   let shadow_baker = ShadowBaker::new( &gl )?;
-  shadow_baker.render_soft_shadow( &floor_node.borrow(), shadow_texture.as_ref(), lightmap_res, lightmap_res, &shadowmap, light )?;
+  shadow_baker.soft_shadow_render( &floor_node.borrow(), shadow_texture.as_ref(), lightmap_res, lightmap_res, &shadowmap, light )?;
 
   // Convert shadow texture to colored base color texture
   let base_color = [ 0.8, 0.8, 0.8 ];
@@ -213,15 +213,15 @@ async fn app_run() -> Result< (), gl::WebglError >
 
     swap_buffer.reset();
     swap_buffer.bind( &gl );
-    swap_buffer.set_input( renderer.main_texture() );
+    swap_buffer.input_set( renderer.main_texture() );
 
-    let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+    let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
     .expect( "Failed to render tonemapping pass" );
 
-    swap_buffer.set_output( t );
+    swap_buffer.output_set( t );
     swap_buffer.swap();
 
-    let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+    let _ = to_srgb.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
     .expect( "Failed to render ToSrgbPass" );
 
     true

@@ -11,7 +11,7 @@
 - **Primitive Data Model**: `PrimitiveData`/`AttributesData`/`Transform` plus `primitives_data_to_gltf` to assemble primitives into a renderable `renderer` GLTF scene
 - **Curve Meshing**: `curve_to_geometry` turns a 2D polyline into a triangulated ribbon of given width; `plane_to_geometry` for full-screen quads
 - **Path Flattening** (`text`): `path_to_points` flattens a `kurbo` path (curves included) into a point sequence
-- **Text Rendering** (`font-processing`): load UFO fonts and convert strings to triangulated 3D meshes — `load_fonts`, `text_to_mesh`, `text_to_countour_mesh`, `contours_to_fill_geometry`
+- **Text Rendering** (`font-processing`): load UFO fonts and convert strings to triangulated 3D meshes — `fonts_load`, `text_to_mesh`, `text_to_countour_mesh`, `contours_to_fill_geometry`
 - **WebAssembly Ready**: font loading fetches over the network; used by the `text_rendering`, `curve_surface_rendering`, and `animation_surface_rendering` examples
 
 ## Installation
@@ -83,7 +83,7 @@ use primitive_generation::{ text, Transform };
 
 async fn text_to_meshes() -> usize
 {
-  let fonts = text::ufo::load_fonts( &[ "main_font" ] ).await;
+  let fonts = text::ufo::fonts_load( &[ "main_font" ] ).await;
   text::ufo::text_to_mesh( "hello", &fonts[ "main_font" ], &Transform::default() ).len()
 }
 # fn main() { let _ = text_to_meshes; }

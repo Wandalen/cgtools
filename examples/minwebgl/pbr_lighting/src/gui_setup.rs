@@ -133,7 +133,7 @@ fn renderer_sliders_setup( gui : &JsValue, object : &JsValue, renderer : &Rc< Re
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_bloom_radius( value );
+        renderer.borrow_mut().bloom_radius_set( value );
       }
     }
   );
@@ -147,7 +147,7 @@ fn renderer_sliders_setup( gui : &JsValue, object : &JsValue, renderer : &Rc< Re
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_bloom_strength( value );
+        renderer.borrow_mut().bloom_strength_set( value );
       }
     }
   );
@@ -161,7 +161,7 @@ fn renderer_sliders_setup( gui : &JsValue, object : &JsValue, renderer : &Rc< Re
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_exposure( value );
+        renderer.borrow_mut().exposure_set( value );
       }
     }
   );
@@ -529,8 +529,8 @@ pub fn setup
     return None;
   };
 
-  let controllable_name = controllable_light.borrow().get_name().unwrap();
-  lights.retain( | n | n.borrow().get_name() != Some( controllable_name.clone() ) );
+  let controllable_name = controllable_light.borrow().name_get().unwrap();
+  lights.retain( | n | n.borrow().name_get() != Some( controllable_name.clone() ) );
   let points = lights.iter().filter( |& n | matches!( n.borrow().object, Object3D::Light( Light::Point( _ ) ) ) ).cloned()
   .collect::< Vec< _ > >();
   let directs = lights.iter().filter( |& n | matches!( n.borrow().object, Object3D::Light( Light::Direct( _ ) ) ) ).cloned()

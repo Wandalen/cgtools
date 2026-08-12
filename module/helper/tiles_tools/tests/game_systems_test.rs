@@ -22,20 +22,20 @@ fn test_turn_based_game_creation() {
 #[test]
 fn test_turn_based_participants() {
   let mut game = TurnBasedGame::new();
-  game.add_participant(1, 100);
-  game.add_participant(2, 85);
-  game.add_participant(3, 95);
+  game.participant_add(1, 100);
+  game.participant_add(2, 85);
+  game.participant_add(3, 95);
 
   // Should be ordered by initiative (highest first)
   assert_eq!(game.current_turn(), Some(1)); // Initiative 100
 
-  game.end_turn();
+  game.turn_end();
   assert_eq!(game.current_turn(), Some(3)); // Initiative 95
 
-  game.end_turn();
+  game.turn_end();
   assert_eq!(game.current_turn(), Some(2)); // Initiative 85
 
-  game.end_turn();
+  game.turn_end();
   assert_eq!(game.current_turn(), Some(1)); // Back to first, round 2
   assert_eq!(game.round_number(), 2);
 }
@@ -43,16 +43,16 @@ fn test_turn_based_participants() {
 #[test]
 fn test_action_points() {
   let mut game = TurnBasedGame::new();
-  game.add_participant(1, 100);
+  game.participant_add(1, 100);
 
   assert_eq!(game.current_participant().unwrap().action_points, 3);
 
   // Spend some action points
-  assert!(game.spend_action_points(2));
+  assert!(game.action_points_spend(2));
   assert_eq!(game.current_participant().unwrap().action_points, 1);
 
   // Try to spend more than available
-  assert!(!game.spend_action_points(2));
+  assert!(!game.action_points_spend(2));
   assert_eq!(game.current_participant().unwrap().action_points, 1);
 }
 
@@ -62,15 +62,15 @@ fn test_game_state_machine() {
   assert_eq!(machine.current_state(), GameState::Initialize);
 
   // Process initialization complete
-  assert!(machine.process_event(GameStateEvent::InitComplete));
+  assert!(machine.event_process(GameStateEvent::InitComplete));
   assert_eq!(machine.current_state(), GameState::MainMenu);
 
   // Start game
-  assert!(machine.process_event(GameStateEvent::StartGame));
+  assert!(machine.event_process(GameStateEvent::StartGame));
   assert_eq!(machine.current_state(), GameState::Loading);
 
   // Invalid transition should fail
-  assert!(!machine.process_event(GameStateEvent::Pause));
+  assert!(!machine.event_process(GameStateEvent::Pause));
   assert_eq!(machine.current_state(), GameState::Loading);
 }
 
@@ -90,7 +90,7 @@ fn test_resource_management() {
   assert_eq!(resource.current, 0.0);
   assert!(resource.is_depleted());
 
-  resource.set_current(50.0);
+  resource.current_set(50.0);
   assert_eq!(resource.current, 50.0);
   assert!(!resource.is_depleted());
   assert!(!resource.is_full());
@@ -100,17 +100,17 @@ fn test_resource_management() {
 #[test]
 fn test_resource_manager() {
   let mut manager = ResourceManager::new();
-  manager.add_entity(1, 100.0, 50.0);
+  manager.entity_add(1, 100.0, 50.0);
 
-  assert!(manager.modify_health(1, -25.0));
-  assert_eq!(manager.get_resources(1).unwrap().health.current, 75.0);
+  assert!(manager.health_modify(1, -25.0));
+  assert_eq!(manager.resources_get(1).unwrap().health.current, 75.0);
 
-  assert!(manager.modify_mana(1, -10.0));
-  assert_eq!(manager.get_resources(1).unwrap().mana.current, 40.0);
+  assert!(manager.mana_modify(1, -10.0));
+  assert_eq!(manager.resources_get(1).unwrap().mana.current, 40.0);
 
   // Test defeated entities
-  manager.modify_health(1, -100.0);
-  let defeated = manager.get_defeated_entities();
+  manager.health_modify(1, -100.0);
+  let defeated = manager.defeated_entities_get();
   assert_eq!(defeated, vec![1]);
 }
 
@@ -139,15 +139,15 @@ fn test_quest_system() {
     data: HashMap::new(),
   };
 
-  quest_manager.add_quest(quest);
+  quest_manager.quest_add(quest);
 
   // Start quest
-  assert!(quest_manager.start_quest("test_quest", 1));
+  assert!(quest_manager.quest_start("test_quest", 1));
   assert_eq!(quest_manager.active_quests().len(), 1);
 
   // Update objective progress
-  quest_manager.update_objective("test_quest", "kill_enemies", 3);
-  quest_manager.update_objective("test_quest", "kill_enemies", 2);
+  quest_manager.objective_update("test_quest", "kill_enemies", 3);
+  quest_manager.objective_update("test_quest", "kill_enemies", 2);
 
   // Quest should be completed
   assert_eq!(quest_manager.completed_quests().len(), 1);
@@ -156,7 +156,7 @@ fn test_quest_system() {
 #[test]
 fn test_status_effects() {
   let mut game = TurnBasedGame::new();
-  game.add_participant(1, 100);
+  game.participant_add(1, 100);
 
   let poison = StatusEffect {
     id: "poison".to_string(),
@@ -168,7 +168,7 @@ fn test_status_effects() {
     category: EffectCategory::DamageOverTime,
   };
 
-  game.apply_status_effect(1, poison);
+  game.status_effect_apply(1, poison);
 
   let participant = game.current_participant().unwrap();
   assert_eq!(participant.status_effects.len(), 1);

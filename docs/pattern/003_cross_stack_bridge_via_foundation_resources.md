@@ -62,7 +62,7 @@ instead of widening a bridge.
 
 | File | Relationship |
 |------|--------------|
-| `examples/minwebgl/lottie_surface_rendering/src/main.rs` | Bridge in use: `CanvasRenderer::new(…)` then `canvas_renderer.get_texture()` — content crosses as a texture handle |
+| `examples/minwebgl/lottie_surface_rendering/src/main.rs` | Bridge in use: `CanvasRenderer::new(…)` then `canvas_renderer.texture_get()` — content crosses as a texture handle |
 | `module/helper/canvas_renderer/` | Existing bridge: "2D canvas renderer … with framebuffer rendering and 3D scene support" — 3D content crosses into 2D as a framebuffer, not as a scene type |
 | `module/helper/tilemap_renderer/src/commands.rs` | The d2 command stream — the declared input format any external system may emit |
 

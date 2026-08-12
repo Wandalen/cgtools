@@ -82,7 +82,7 @@ mod private
 
     /// Builds a native context over the machine's Vulkan driver, rendering
     /// into an offscreen `width` x `height` surface whose pixels
-    /// `Surface::read_pixels` returns — no browser, no window.
+    /// `Surface::pixels_read` returns — no browser, no window.
     ///
     /// # Errors
     ///

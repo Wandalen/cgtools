@@ -2,4 +2,4 @@
 
 Computer Graphics Toolkit.
 
-![Abstract Art](../../../media/primitives.jpg)
+![Abstract Art](../../../assets/media/primitives.jpg)

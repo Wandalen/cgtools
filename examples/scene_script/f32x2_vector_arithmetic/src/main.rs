@@ -4,11 +4,11 @@
 //! directly, rather than reimplementing arithmetic on the Rhai side.
 
 use ndarray_cg::F32x2;
-use scene_script::build_engine;
+use scene_script::engine_build;
 
 fn main() -> Result< (), Box< rhai::EvalAltResult > >
 {
-  let engine = build_engine();
+  let engine = engine_build();
   let script = include_str!( "f32x2_vector_arithmetic.rhai" );
 
   let hub_pos : F32x2 = engine.eval::< F32x2 >( script )?;

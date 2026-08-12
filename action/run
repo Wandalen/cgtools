@@ -24,7 +24,24 @@
 #@                    `runtime:offscreen` or `api:wgpu` — see the `_TAGS` array below for the
 #@                    full predefined set) — ids reflect position in the full sorted list, so
 #@                    they stay stable across different tag filters; `.` prints this help text.
+#@                    `--raw` (anywhere in argv, only meaningful with `list`) switches from
+#@                    aligned columns to pipe-delimited `id|path|kind|tags`, one example per
+#@                    line, for scripts (e.g. `action/gallery`) to parse without depending on
+#@                    column widths.
 set -euo pipefail
+
+_raw=0
+_args=()
+for _a in "$@"
+do
+  if [[ "$_a" == "--raw" ]]
+  then
+    _raw=1
+  else
+    _args+=( "$_a" )
+  fi
+done
+set -- "${_args[@]}"
 
 if [[ "${1:-}" == "." ]]
 then
@@ -152,7 +169,12 @@ then
         *) continue ;;
       esac
     fi
-    printf '%-4s %-60s %-10s %s\n' "$_id" "$_p" "$_k" "$_t"
+    if (( _raw ))
+    then
+      printf '%s|%s|%s|%s\n' "$_id" "$_p" "$_k" "$_t"
+    else
+      printf '%-4s %-60s %-10s %s\n' "$_id" "$_p" "$_k" "$_t"
+    fi
   done
   exit 0
 fi

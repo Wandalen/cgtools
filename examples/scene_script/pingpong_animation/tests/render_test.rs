@@ -85,7 +85,7 @@ fn t02_different_frames_produce_different_ball_position()
 fn t03_compiled_commands_submit_to_svg_backend_ok()
 {
   let mut backend = SvgBackend::new( RenderConfig::default() );
-  backend.load_assets( &render_assets() ).expect( "render_assets() must load without error" );
+  backend.assets_load( &render_assets() ).expect( "render_assets() must load without error" );
 
   let result = backend.submit( &frame_to_commands( &sample_frame( 1.0, 2.0 ) ) );
 
@@ -100,7 +100,7 @@ fn t03_compiled_commands_submit_to_svg_backend_ok()
 fn t05_adapter_svg_only_build_renders_full_pipeline()
 {
   let mut backend = SvgBackend::new( RenderConfig::default() );
-  backend.load_assets( &render_assets() ).expect( "render_assets() must load without error" );
+  backend.assets_load( &render_assets() ).expect( "render_assets() must load without error" );
   backend.submit( &frame_to_commands( &sample_frame( 3.0, 4.0 ) ) ).expect( "submit() must succeed" );
 
   let output = backend.output().expect( "output() must succeed after a clean submit" );
@@ -114,8 +114,8 @@ fn t05_adapter_svg_only_build_renders_full_pipeline()
 /// shipped backend (`SvgBackend`, `WebGlBackend`, ...) currently returns
 /// `RenderError::MissingAsset` for a command-time unresolved resource. `SvgBackend`
 /// specifically resolves a `Mesh`'s geometry via `Option`, and on `None` its
-/// `cmd_mesh` returns early *before* calling `self.content.push_body`
-/// (`src/adapters/svg.rs` — `cmd_mesh`/`generate_mesh_def`) — i.e. `Ok(())` with the
+/// `cmd_mesh` returns early *before* calling `self.content.body_push`
+/// (`src/adapters/svg.rs` — `cmd_mesh`/`mesh_def_generate`) — i.e. `Ok(())` with the
 /// draw silently skipped, not `Err`. `RenderError::MissingAsset` is a documented but
 /// currently-unreachable variant of this dependency crate, not a bug this task owns
 /// (fixing it would be new cross-crate behavior, out of this task's Cargo-forwarding-
@@ -127,7 +127,7 @@ fn t05_adapter_svg_only_build_renders_full_pipeline()
 fn af2_submit_without_loaded_assets_silently_skips_the_draw()
 {
   let mut backend = SvgBackend::new( RenderConfig::default() );
-  backend.load_assets( &empty_assets() ).expect( "loading an empty (but real) Assets value must itself succeed" );
+  backend.assets_load( &empty_assets() ).expect( "loading an empty (but real) Assets value must itself succeed" );
 
   let result = backend.submit( &frame_to_commands( &sample_frame( 0.0, 0.0 ) ) );
   assert!( result.is_ok(), "SvgBackend silently skips unresolved Mesh geometry rather than erroring: {result:?}" );

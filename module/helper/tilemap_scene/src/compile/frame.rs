@@ -41,7 +41,7 @@ mod private
     find_matching_pattern,
     resolve_corners,
   };
-  use crate::hash::hash_coord;
+  use crate::hash::coord_hash;
   use crate::layer::{ LayerBehaviour, ObjectLayer };
   use crate::object::Object;
   use crate::pipeline::{ SortMode, TilingStrategy };
@@ -70,7 +70,7 @@ mod private
     tiling : TilingStrategy,
     grid_stride : ( u32, u32 ),
     viewport_size : ( u32, u32 ),
-    /// Scene-level seed folded to `u32` for `hash_coord`. Consumed by
+    /// Scene-level seed folded to `u32` for `coord_hash`. Consumed by
     /// `VariantSelection::Random`.
     scene_seed : u32,
     /// Resolved global tint multiplier — `[1,1,1,1]` when `pipeline.global_tint`
@@ -430,7 +430,7 @@ mod private
     {
       VariantSelection::HashCoord =>
       {
-        weighted_pick( variants, object, | | u64::from( hash_coord( pos.0, pos.1, 0 ) ) )
+        weighted_pick( variants, object, | | u64::from( coord_hash( pos.0, pos.1, 0 ) ) )
       },
       VariantSelection::Fixed( idx ) =>
       {
@@ -450,7 +450,7 @@ mod private
         // Deterministic pseudo-random — seeded from `Scene.seed`, salted with
         // the grid coord so different cells pick different variants. Same
         // seed + coord + variant list → same pick across frames and runs.
-        weighted_pick( variants, object, | | u64::from( hash_coord( pos.0, pos.1, ctx.scene_seed ) ) )
+        weighted_pick( variants, object, | | u64::from( coord_hash( pos.0, pos.1, ctx.scene_seed ) ) )
       },
     }
   }

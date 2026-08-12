@@ -32,18 +32,18 @@ fn named_nodes_rescale( scene : &Rc< RefCell< Scene > > )
   (
     &mut | node |
     {
-      let name = node.borrow().get_name().unwrap_or( "<none>".into() );
+      let name = node.borrow().name_get().unwrap_or( "<none>".into() );
 
       if need_rescale.contains( &name.to_string().as_str() )
       {
-        node.borrow_mut().set_scale( F32x3::splat( 68.0 ) );
+        node.borrow_mut().scale_set( F32x3::splat( 68.0 ) );
       }
 
       Ok( () )
     }
   );
 
-  scene.borrow_mut().update_world_matrix();
+  scene.borrow_mut().world_matrix_update();
 }
 
 /// Creates the scene camera from the scene's bounding box and binds its controls to the canvas.
@@ -77,8 +77,8 @@ fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene : &Rc< RefCell<
   let far = near * 100.0f32.powi( exponent.abs() );
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ width, height ].into() );
-  camera.bind_controls( canvas );
+  camera.window_size_set( [ width, height ].into() );
+  camera.controls_bind( canvas );
 
   camera
 }
@@ -99,7 +99,7 @@ fn morph_weights_find( meshes : &[ Rc< RefCell< Mesh > > ] ) -> Rc< RefCell< Vec
       {
         return None;
       };
-      let weights = d.get_morph_weights();
+      let weights = d.morph_weights_get();
       ( *weights.borrow_mut() ).clone_from( &d.default_weights );
       Some( weights )
     }
@@ -116,7 +116,7 @@ fn normal_displacements_reset( meshes : &[ Rc< RefCell< Mesh > > ] )
     {
       if let Some( d ) = skeleton.borrow_mut().displacements_as_mut()
       {
-        d.set_displacement( None, &gltf::Semantic::Normals, 0 );
+        d.displacement_set( None, &gltf::Semantic::Normals, 0 );
       }
     }
   }
@@ -144,7 +144,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   let camera = camera_setup( &canvas, &scenes[ 0 ] );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
+  renderer.ibl_set( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -153,8 +153,8 @@ async fn app_run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  camera.get_controls().borrow_mut().center.0[ 1 ] += -5.5;
-  camera.get_controls().borrow_mut().center.0[ 2 ] += -2.0;
+  camera.controls_get().borrow_mut().center.0[ 1 ] += -5.5;
+  camera.controls_get().borrow_mut().center.0[ 2 ] += -2.0;
 
   let weights = morph_weights_find( &gltf.meshes );
 
@@ -215,15 +215,15 @@ async fn app_run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.borrow().main_texture() );
+      swap_buffer.input_set( renderer.borrow().main_texture() );
 
-      let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render tonemapping pass" );
 
-      swap_buffer.set_output( t );
+      swap_buffer.output_set( t );
       swap_buffer.swap();
 
-      let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let _ = to_srgb.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render ToSrgbPass" );
 
       true

@@ -45,7 +45,7 @@ fn test_subscribe_and_publish() {
   bus.publish(event.clone());
   assert_eq!(bus.pending_count::<TestEvent>(), 1);
 
-  bus.process_events();
+  bus.events_process();
   assert_eq!(bus.pending_count::<TestEvent>(), 0);
 
   let received_events = received.lock().unwrap();
@@ -79,7 +79,7 @@ fn test_event_priorities() {
   }, EventPriority::Normal);
 
   bus.publish(TestEvent { id: 1, message: "test".to_string() });
-  bus.process_events();
+  bus.events_process();
 
   let order = execution_order.lock().unwrap();
   assert_eq!(*order, vec!["critical", "normal", "low"]);
@@ -101,7 +101,7 @@ fn test_event_consumption() {
   });
 
   bus.publish(TestEvent { id: 1, message: "test".to_string() });
-  bus.process_events();
+  bus.events_process();
 
   let received_events = received.lock().unwrap();
   assert_eq!(received_events.len(), 0); // Event was consumed before reaching second listener
@@ -120,13 +120,13 @@ fn test_unsubscribe() {
 
   // Publish and process first event
   bus.publish(TestEvent { id: 1, message: "test1".to_string() });
-  bus.process_events();
+  bus.events_process();
   assert_eq!(*received.lock().unwrap(), 1);
 
   // Unsubscribe and publish second event
   assert!(bus.unsubscribe::<TestEvent>(listener_id));
   bus.publish(TestEvent { id: 2, message: "test2".to_string() });
-  bus.process_events();
+  bus.events_process();
   assert_eq!(*received.lock().unwrap(), 1); // Should still be 1
 }
 
@@ -148,12 +148,12 @@ fn test_auto_unsubscribe() {
 
   // First event - listener remains
   bus.publish(TestEvent { id: 1, message: "test1".to_string() });
-  bus.process_events();
+  bus.events_process();
   assert_eq!(bus.subscriber_count::<TestEvent>(), 1);
 
   // Second event - listener unsubscribes
   bus.publish(TestEvent { id: 2, message: "test2".to_string() });
-  bus.process_events();
+  bus.events_process();
   assert_eq!(bus.subscriber_count::<TestEvent>(), 0);
 }
 
@@ -174,8 +174,8 @@ fn test_batch_publishing() {
     TestEvent { id: 3, message: "test3".to_string() },
   ];
 
-  bus.publish_batch(events);
-  bus.process_events();
+  bus.batch_publish(events);
+  bus.events_process();
 
   let received_ids = received.lock().unwrap();
   assert_eq!(*received_ids, vec![1, 2, 3]);
@@ -193,7 +193,7 @@ fn test_statistics() {
   assert_eq!(bus.statistics().events_published, 1);
   assert_eq!(bus.statistics().events_processed, 0);
 
-  bus.process_events();
+  bus.events_process();
   assert_eq!(bus.statistics().events_processed, 1);
   assert_eq!(bus.statistics().process_cycles, 1);
 }
@@ -218,7 +218,7 @@ fn test_common_events() {
     movement_type: MovementType::Walk,
   });
 
-  bus.process_events();
+  bus.events_process();
 
   let recorded_moves = moves.lock().unwrap();
   assert_eq!(recorded_moves.len(), 1);
@@ -235,7 +235,7 @@ fn test_utility_functions() {
 
   bus.publish(TestEvent { id: 1, message: "test1".to_string() });
   bus.publish(TestEvent { id: 2, message: "test2".to_string() });
-  bus.process_events();
+  bus.events_process();
 
   assert_eq!(*counter.lock().unwrap(), 2);
 }
@@ -267,7 +267,7 @@ fn test_multiple_event_types() {
 
   bus.publish(EventA { value: 42 });
   bus.publish(EventB { text: "hello".to_string() });
-  bus.process_events();
+  bus.events_process();
 
   assert_eq!(*received_a.lock().unwrap(), vec![42]);
   assert_eq!(*received_b.lock().unwrap(), vec!["hello".to_string()]);

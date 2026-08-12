@@ -340,14 +340,6 @@ pub enum KeyboardKey
 
 impl KeyboardKey
 {
-  /// Convert a string code value to a KeyboardCode enum variant
-  #[ inline ]
-  #[ must_use ]
-  pub fn from_code( code : &str ) -> Self
-  {
-    KeyboardKey::from_str( code ).unwrap_or( KeyboardKey::Unidentified )
-  }
-
   /// Get the string representation of this KeyboardCode
   #[ expect( clippy::too_many_lines, reason = "exhaustive 150-variant match acting as a static lookup table mirroring the DOM KeyboardEvent.code spec; splitting it would fragment one spec mapping across multiple functions for no behavioral benefit" ) ]
   #[ inline ]
@@ -793,5 +785,15 @@ impl FromStr for KeyboardKey
       // Unknown key
       _ => Ok( KeyboardKey::Unidentified ),
     }
+  }
+}
+
+impl From< &str > for KeyboardKey
+{
+  /// Convert a string code value to a KeyboardCode enum variant
+  #[ inline ]
+  fn from( code : &str ) -> Self
+  {
+    KeyboardKey::from_str( code ).unwrap_or( KeyboardKey::Unidentified )
   }
 }

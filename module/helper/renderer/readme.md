@@ -83,7 +83,7 @@ async fn setup() -> Result< (), gl::WebglError >
   let document = window.document().unwrap();
   let gltf = loaders::gltf::load( &document, "static/model.glb", &gl ).await?;
   let scenes = gltf.scenes;
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  scenes[ 0 ].borrow_mut().world_matrix_update();
 
   // Camera: eye, up, look-at center, aspect, vertical fov, near, far
   let eye = gl::math::F32x3::from( [ 0.0, 1.0, 3.0 ] );
@@ -91,7 +91,7 @@ async fn setup() -> Result< (), gl::WebglError >
   let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
   let aspect = canvas.width() as f32 / canvas.height() as f32;
   let mut camera = Camera::new( eye, up, center, aspect, 70.0f32.to_radians(), 0.1, 1000.0 );
-  camera.set_window_size( [ canvas.width() as f32, canvas.height() as f32 ].into() );
+  camera.window_size_set( [ canvas.width() as f32, canvas.height() as f32 ].into() );
 
   // Renderer with 4x MSAA, then a first frame into its internal HDR buffer
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
@@ -130,15 +130,15 @@ fn render_frame
   // Feed that HDR result into the post-processing chain
   swap_buffer.reset();
   swap_buffer.bind( gl );
-  swap_buffer.set_input( renderer.main_texture() );
+  swap_buffer.input_set( renderer.main_texture() );
 
   // 1. Tone mapping ( HDR -> LDR, ACES )
-  let tonemapped = tonemapping.render( gl, swap_buffer.get_input(), swap_buffer.get_output() )?;
-  swap_buffer.set_output( tonemapped );
+  let tonemapped = tonemapping.render( gl, swap_buffer.input_get(), swap_buffer.output_get() )?;
+  swap_buffer.output_set( tonemapped );
   swap_buffer.swap();
 
   // 2. Gamma correction ( final output to the screen )
-  let _ = to_srgb.render( gl, swap_buffer.get_input(), swap_buffer.get_output() )?;
+  let _ = to_srgb.render( gl, swap_buffer.input_get(), swap_buffer.output_get() )?;
 
   Ok( () )
 }
@@ -154,8 +154,8 @@ See `examples/minwebgl/postprocessing` for the full interactive version of this 
 | Component | Purpose | Key Methods |
 |-----------|---------|-------------|
 | `Renderer` | Main rendering engine | `new()`, `render()`, `main_texture()` |
-| `SwapFramebuffer` | Post-processing helper | `bind()`, `set_input()`, `swap()` |
-| `Scene` | 3D scene container | `update_world_matrix()` |
+| `SwapFramebuffer` | Post-processing helper | `bind()`, `input_set()`, `swap()` |
+| `Scene` | 3D scene container | `world_matrix_update()` |
 | `Camera` | Viewport and projection | Position, rotation, projection matrices |
 
 ### Post-Processing Effects

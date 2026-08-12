@@ -120,21 +120,27 @@ mod private
   }
 
   #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
-  impl TextureFormat
+  impl From< TextureFormat > for gl::GpuTextureFormat
   {
     /// The equivalent raw WebGPU format.
-    #[must_use]
-    pub fn to_webgpu( self ) -> gl::GpuTextureFormat
+    fn from( value : TextureFormat ) -> Self
     {
-      match self
+      match value
       {
-        Self::Rgba8Unorm => gl::GpuTextureFormat::Rgba8unorm,
-        Self::Rgba8UnormSrgb => gl::GpuTextureFormat::Rgba8unormSrgb,
-        Self::Bgra8Unorm => gl::GpuTextureFormat::Bgra8unorm,
-        Self::Rgba16Float => gl::GpuTextureFormat::Rgba16float,
-        Self::Depth24Plus => gl::GpuTextureFormat::Depth24plus
+        TextureFormat::Rgba8Unorm => gl::GpuTextureFormat::Rgba8unorm,
+        TextureFormat::Rgba8UnormSrgb => gl::GpuTextureFormat::Rgba8unormSrgb,
+        TextureFormat::Bgra8Unorm => gl::GpuTextureFormat::Bgra8unorm,
+        TextureFormat::Rgba16Float => gl::GpuTextureFormat::Rgba16float,
+        TextureFormat::Depth24Plus => gl::GpuTextureFormat::Depth24plus
       }
     }
+  }
+
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+  impl TryFrom< gl::GpuTextureFormat > for TextureFormat
+  {
+    /// The error type returned if the conversion fails.
+    type Error = Error;
 
     /// The HAL equivalent of a raw WebGPU format, when the v0 surface has one.
     ///
@@ -142,7 +148,7 @@ mod private
     ///
     /// Returns [`Error::Unsupported`] when `format` has no equivalent in the
     /// v0 surface.
-    pub fn from_webgpu( format : gl::GpuTextureFormat ) -> Result< Self, Error >
+    fn try_from( format : gl::GpuTextureFormat ) -> Result< Self, Self::Error >
     {
       match format
       {
@@ -169,17 +175,16 @@ mod private
   }
 
   #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
-  impl VertexFormat
+  impl From< VertexFormat > for gl::GpuVertexFormat
   {
     /// The equivalent raw WebGPU format.
-    #[must_use]
-    pub fn to_webgpu( self ) -> gl::GpuVertexFormat
+    fn from( value : VertexFormat ) -> Self
     {
-      match self
+      match value
       {
-        Self::Float32x2 => gl::GpuVertexFormat::Float32x2,
-        Self::Float32x3 => gl::GpuVertexFormat::Float32x3,
-        Self::Float32x4 => gl::GpuVertexFormat::Float32x4
+        VertexFormat::Float32x2 => gl::GpuVertexFormat::Float32x2,
+        VertexFormat::Float32x3 => gl::GpuVertexFormat::Float32x3,
+        VertexFormat::Float32x4 => gl::GpuVertexFormat::Float32x4
       }
     }
   }
@@ -193,15 +198,14 @@ mod private
   }
 
   #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
-  impl IndexFormat
+  impl From< IndexFormat > for gl::GpuIndexFormat
   {
     /// The equivalent raw WebGPU format.
-    #[must_use]
-    pub fn to_webgpu( self ) -> gl::GpuIndexFormat
+    fn from( value : IndexFormat ) -> Self
     {
-      match self
+      match value
       {
-        Self::Uint32 => gl::GpuIndexFormat::Uint32
+        IndexFormat::Uint32 => gl::GpuIndexFormat::Uint32
       }
     }
   }

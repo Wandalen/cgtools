@@ -50,14 +50,6 @@ impl MouseButton
     }
   }
 
-  /// Convert a string representation to the corresponding MouseButton enum variant
-  #[ inline ]
-  #[ must_use ]
-  pub fn from_name( name : &str ) -> Self
-  {
-    MouseButton::from_str( name ).unwrap_or( MouseButton::Unknown )
-  }
-
   /// Get the numeric button value for this MouseButton
   #[ inline ]
   #[ must_use ]
@@ -164,5 +156,15 @@ impl From< i16 > for MouseButton
   fn from( value : i16 ) -> Self
   {
     MouseButton::from_button( value )
+  }
+}
+
+impl From< &str > for MouseButton
+{
+  /// Convert a string representation to the corresponding MouseButton enum variant
+  #[ inline ]
+  fn from( name : &str ) -> Self
+  {
+    MouseButton::from_str( name ).unwrap_or( MouseButton::Unknown )
   }
 }

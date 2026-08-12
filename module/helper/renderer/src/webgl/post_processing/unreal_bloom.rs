@@ -161,7 +161,7 @@ mod private
 
         let locations = blur_material.locations();
         // Calculate Gaussian coefficients based on the kernel radius.
-        let coefficients = get_gaussian_coefficients( radius );
+        let coefficients = gaussian_coefficients_get( radius );
         let inv_size = [ 1.0 / size[ 0 ] as f32, 1.0 / size[ 1 ] as f32 ];
         blur_material.bind( gl );
         gl.uniform1fv_with_f32_array( locations.get( "kernel" ).unwrap().as_ref(), coefficients.as_slice() );
@@ -213,7 +213,7 @@ mod private
     }
 
     /// Sets the bloom radius.
-    pub fn set_bloom_radius( &mut self, radius : f32 )
+    pub fn bloom_radius_set( &mut self, radius : f32 )
     {
       self.bloom_radius = radius.clamp( 0.0, 1.0 );
     }
@@ -226,7 +226,7 @@ mod private
     }
 
     /// Sets the bloom strength.
-    pub fn set_bloom_strength( &mut self, strength : f32 )
+    pub fn bloom_strength_set( &mut self, strength : f32 )
     {
       self.bloom_strength = strength;
     }
@@ -239,7 +239,7 @@ mod private
     }
 
     /// Free [`UnrealBloomPass`] WebGL resources
-    pub fn free_gl_resources( &mut self, gl : &gl::GL )
+    pub fn gl_resources_free( &mut self, gl : &gl::GL )
     {
 
       for target in &self.horizontal_targets
@@ -365,7 +365,7 @@ mod private
   /// # Arguments
   ///
   /// * `radius` - The radius of the Gaussian kernel (e.g., 3 means a 7x7 kernel).
-  fn get_gaussian_coefficients( radius : usize ) -> Vec< f32 >
+  fn gaussian_coefficients_get( radius : usize ) -> Vec< f32 >
   {
     let mut c = Vec::with_capacity( radius );
 

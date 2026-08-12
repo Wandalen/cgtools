@@ -11,7 +11,7 @@
 //! `minwebgl` ) exist on wasm32 only, like the drivers they wrap; the
 //! `native` backend ( `wgpu` via `minwgpu` ) exists everywhere else and
 //! renders into an offscreen texture readable through
-//! `Surface::read_pixels`.
+//! `Surface::pixels_read`.
 #![ doc( html_root_url = "https://docs.rs/gpu_hal/latest/gpu_hal/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 

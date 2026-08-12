@@ -313,7 +313,7 @@ impl Stats
 
   /// Calculates damage dealt to a target with specified defense.
   #[ must_use ]
-  pub fn calculate_damage( &self, target_defense : u32 ) -> u32
+  pub fn damage_calculate( &self, target_defense : u32 ) -> u32
   {
     self.attack.saturating_sub( target_defense / 2 ).max( 1 )
   }
@@ -630,19 +630,19 @@ impl AI
   }
 
   /// Resets the decision timer.
-  pub fn reset_decision_timer( &mut self )
+  pub fn decision_timer_reset( &mut self )
   {
     self.decision_timer = 0.0;
   }
 
   /// Sets a new target.
-  pub fn set_target( &mut self, target : Option< hecs::Entity > )
+  pub fn target_set( &mut self, target : Option< hecs::Entity > )
   {
     self.target = target;
   }
 
   /// Changes the AI state.
-  pub fn set_state( &mut self, state : AIState )
+  pub fn state_set( &mut self, state : AIState )
   {
     self.state = state;
   }

@@ -350,7 +350,7 @@ impl StealthGame {
   for torch_pos in &level_map.light_sources {
     let torch_light = LightSource::new(*torch_pos, 4, 0.7)
       .with_color(1.0, 0.8, 0.3); // Warm torch light
-    lighting_calculator.add_light_source(torch_light);
+    lighting_calculator.light_source_add(torch_light);
   }
 
   Self {
@@ -511,7 +511,7 @@ impl StealthGame {
       if let Ok(player_stealth) = self.world.get::<Stealth>(self.player_entity) {
 
         // Calculate lighting at player position
-        let lighting = self.lighting_calculator.calculate_lighting(|coord| {
+        let lighting = self.lighting_calculator.lighting_calculate(|coord| {
           self.level_map.blocks_sight(*coord)
         });
 
@@ -679,7 +679,7 @@ impl StealthGame {
 
   /// Prints the level map with entities and lighting.
   fn level_map_print(&self) {
-  let lighting = self.lighting_calculator.calculate_lighting(|coord| {
+  let lighting = self.lighting_calculator.lighting_calculate(|coord| {
     self.level_map.blocks_sight(*coord)
   });
 

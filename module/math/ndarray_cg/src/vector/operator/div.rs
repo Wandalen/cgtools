@@ -2,7 +2,7 @@ mod private
 {
   use crate::{vector, Div, Vector, MatNum, DivAssign};
   // use vector::arithmetics::inner_product::*;
-  use vector::{ div_scalar, div_mut };
+  use vector::{ scalar_div, div_mut };
 
   impl< E, const LEN : usize > Div< E > for Vector< E, LEN >
   where
@@ -16,7 +16,7 @@ mod private
     #[ inline ]
     fn div(self, rhs : E) -> Self::Output
     {
-      div_scalar( &self, rhs )
+      scalar_div( &self, rhs )
     }
   }
 

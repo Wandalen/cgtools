@@ -71,8 +71,8 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let update = move | _time |
   {
-    let view = camera.get_view_matrix();
-    let projection = camera.get_projection_matrix();
+    let view = camera.view_matrix_get();
+    let projection = camera.projection_matrix_get();
     let view_projection = projection * view;
     let skull_mvp = view_projection * skull_model;
     let plane_mvp = view_projection * plane_model;
@@ -107,7 +107,7 @@ async fn app_run() -> Result< (), gl::WebglError >
     area_light_shader.uniform_upload( "u_light_intensity", &light.intensity );
     area_light_shader.uniform_upload( "u_light_color", &light.color );
     area_light_shader.uniform_upload( "u_two_sided", &u32::from(light.two_sided) );
-    area_light_shader.uniform_upload( "u_view_position", camera.get_eye().as_slice() );
+    area_light_shader.uniform_upload( "u_view_position", camera.eye_get().as_slice() );
 
     skull_draw( &gl, &area_light_shader, &skull_mesh, skull_model.raw_slice(), skull_mvp.raw_slice() );
 
@@ -208,8 +208,8 @@ fn camera_setup( canvas : &HtmlCanvasElement, width : i32, height : i32 ) -> ren
     0.1,
     100.0
   );
-  camera.set_window_size( [ width as f32, height as f32 ].into() );
-  camera.bind_controls( canvas );
+  camera.window_size_set( [ width as f32, height as f32 ].into() );
+  camera.controls_bind( canvas );
 
   camera
 }

@@ -57,7 +57,7 @@ mod private
 
       for child in &self.children
       {
-        children.push( child.borrow().clone_tree() );
+        children.push( child.borrow().tree_clone() );
       }
 
       Self
@@ -85,14 +85,14 @@ mod private
     }
 
     /// Sets the name of the scene.
-    pub fn set_name( &mut self, name : impl Into< Box< str > > )
+    pub fn name_set( &mut self, name : impl Into< Box< str > > )
     {
       self.name = Some( name.into() );
     }
 
     /// Returns an owned clone of the scene's name.
     #[ must_use ]
-    pub fn get_name( &self ) -> Option< Box< str > >
+    pub fn name_get( &self ) -> Option< Box< str > >
     {
       self.name.clone()
     }
@@ -100,7 +100,7 @@ mod private
     /// Sets the local scale of the scene.
     ///
     /// * `scale`: The new scale as a type that can be converted into `gl::F32x3`.
-    pub fn set_scale( &mut self, scale : impl Into< gl::F32x3 > )
+    pub fn scale_set( &mut self, scale : impl Into< gl::F32x3 > )
     {
       self.scale = scale.into();
       self.needs_local_matrix_update = true;
@@ -108,7 +108,7 @@ mod private
 
     /// Returns the current local scale of the scene.
     #[ must_use ]
-    pub fn get_scale( &self ) -> gl::F32x3
+    pub fn scale_get( &self ) -> gl::F32x3
     {
       self.scale
     }
@@ -116,7 +116,7 @@ mod private
     /// Sets the local translation of the scene.
     ///
     /// * `translation`: The new translation as a type that can be converted into `gl::F32x3`.
-    pub fn set_translation( &mut self, translation : impl Into< gl::F32x3 > )
+    pub fn translation_set( &mut self, translation : impl Into< gl::F32x3 > )
     {
       self.translation = translation.into();
       self.needs_local_matrix_update = true;
@@ -124,7 +124,7 @@ mod private
 
     /// Returns the current local translation of the scene.
     #[ must_use ]
-    pub fn get_translation( &self ) -> gl::F32x3
+    pub fn translation_get( &self ) -> gl::F32x3
     {
       self.translation
     }
@@ -132,7 +132,7 @@ mod private
     /// Sets the local rotation of the scene.
     ///
     /// * `rotation`: The new rotation as a `gl::QuatF32`.
-    pub fn set_rotation( &mut self, rotation : gl::QuatF32 )
+    pub fn rotation_set( &mut self, rotation : gl::QuatF32 )
     {
       self.rotation = rotation;
       self.needs_local_matrix_update = true;
@@ -140,20 +140,20 @@ mod private
 
     /// Returns the current local rotation of the scene.
     #[ must_use ]
-    pub fn get_rotation( &self ) -> gl::QuatF32
+    pub fn rotation_get( &self ) -> gl::QuatF32
     {
       self.rotation
     }
 
     /// Returns a slice of the scene's children.
     #[ must_use ]
-    pub fn get_children( &self ) -> &[ Rc< RefCell< Node > > ]
+    pub fn children_get( &self ) -> &[ Rc< RefCell< Node > > ]
     {
       self.children.as_slice()
     }
 
     /// Sets the local transformation matrix for the node.
-    pub fn set_local_matrix( &mut self, matrix : gl::F32x4x4 )
+    pub fn local_matrix_set( &mut self, matrix : gl::F32x4x4 )
     {
       let Some( ( translation, rotation, scale ) ) = matrix.decompose()
       else
@@ -161,9 +161,9 @@ mod private
         return;
       };
 
-      self.set_translation( translation );
-      self.set_rotation( rotation );
-      self.set_scale( scale );
+      self.translation_set( translation );
+      self.rotation_set( rotation );
+      self.scale_set( scale );
 
       self.matrix = matrix;
       self.needs_local_matrix_update = false;
@@ -172,13 +172,13 @@ mod private
 
     /// Returns the current local transformation matrix.
     #[ must_use ]
-    pub fn get_local_matrix( &self ) -> gl::F32x4x4
+    pub fn local_matrix_get( &self ) -> gl::F32x4x4
     {
       self.matrix
     }
 
     /// Updates the local transformation matrix based on the current scale, rotation, and translation.
-    pub fn update_local_matrix( &mut self )
+    pub fn local_matrix_update( &mut self )
     {
       let mat = gl::F32x4x4::from_scale_rotation_translation
       (
@@ -192,7 +192,7 @@ mod private
     }
 
     /// Removes a child node at the given index.
-    pub fn remove_child( &mut self, id : usize ) -> Rc< RefCell< Node > >
+    pub fn child_remove( &mut self, id : usize ) -> Rc< RefCell< Node > >
     {
       self.children.remove( id )
     }
@@ -225,20 +225,20 @@ mod private
     }
 
     /// Updates the world transformation matrices of all nodes in the scene, starting from the root.
-    pub fn update_world_matrix( &mut self )
+    pub fn world_matrix_update( &mut self )
     {
       if self.needs_local_matrix_update
       {
-        self.update_local_matrix();
+        self.local_matrix_update();
       }
 
       // Recursively update the world matrix of each root node and its descendants.
       for child in &mut self.children
       {
-        child.borrow_mut().update_world_matrix( self.matrix, self.needs_update_child_world_matrix );
+        child.borrow_mut().world_matrix_update( self.matrix, self.needs_update_child_world_matrix );
       }
       self.needs_update_child_world_matrix = false;
-      self.compute_bounding_box();
+      self.bounding_box_compute();
     }
 
     /// Computes the bounding box for the entire hierarchy of the scene and caches it in
@@ -246,7 +246,7 @@ mod private
     ///
     /// This function calculates a `BoundingBox` that encompasses all of the scene's children and
     /// their descendants.
-    pub fn compute_bounding_box( &mut self )
+    pub fn bounding_box_compute( &mut self )
     {
       let mut bbox = BoundingBox::default();
 
@@ -267,14 +267,14 @@ mod private
 
     /// Gets [`Node`]s by `substring`
     #[ must_use ]
-    pub fn get_nodes_by_substring( &self, substring : &str ) -> Vec< Rc< RefCell< Node > > >
+    pub fn nodes_by_substring_get( &self, substring : &str ) -> Vec< Rc< RefCell< Node > > >
     {
       let mut nodes = vec![];
       let _ = self.traverse
       (
         &mut | node : Rc< RefCell< Node > > |
         {
-          if let Some( current_name ) = node.borrow().get_name()
+          if let Some( current_name ) = node.borrow().name_get()
           {
             if current_name.contains( substring )
             {
@@ -290,7 +290,7 @@ mod private
 
     /// Gets node by `name`
     #[ must_use ]
-    pub fn get_node( &self, name : &str ) -> Option< Rc< RefCell< Node > > >
+    pub fn node_get( &self, name : &str ) -> Option< Rc< RefCell< Node > > >
     {
       let mut target = None;
       let _ = self.traverse
@@ -301,7 +301,7 @@ mod private
           {
             return Ok( () );
           }
-          if let Some( current_name ) = node.borrow().get_name()
+          if let Some( current_name ) = node.borrow().name_get()
           {
             if *name == *current_name
             {

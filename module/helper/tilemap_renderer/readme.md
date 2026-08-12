@@ -58,7 +58,7 @@ use tilemap_renderer::adapters::SvgBackend;
 
 let config = RenderConfig { width : 800, height : 600, ..Default::default() };
 let mut svg = SvgBackend::new( config );
-svg.load_assets( &assets )?;
+svg.assets_load( &assets )?;
 svg.submit( &[
   RenderCommand::Clear( Clear { color : [ 0.0, 0.0, 0.0, 1.0 ] } ),
   // ... path, sprite, mesh, batch commands ...
@@ -96,7 +96,7 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > paths, text, groups, gradients, patterns, and effects are not yet rendered.
 >
 > ¹ SVG text renders, but font selection is not implemented: `Assets.fonts` is accepted
-> by `load_assets` and then ignored — no `@font-face` is emitted and `<text>` elements
+> by `assets_load` and then ignored — no `@font-face` is emitted and `<text>` elements
 > carry no `font-family`, so text appears in the viewer's default font. This is why
 > `adapter-svg` is tracked as partial. See `docs/feature/001_svg_backend_adapter.md`.
 >

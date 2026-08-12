@@ -41,12 +41,12 @@ breaks a consumer.
 ### WebGL2 backend notes
 
 - `ShaderSource` must carry both GLSL override slots — there is no WGSL
-  transpilation; `create_shader_module` returns `Unsupported` otherwise.
+  transpilation; `shader_module_create` returns `Unsupported` otherwise.
 - Bindings resolve by name convention in the GLSL: uniform block
   `ub_{group}_{binding}`, sampler uniform `tex_{group}_{binding}`. Pipeline
   creation introspects these once; names the linker pruned are skipped.
-- Inside a pass, `set_pipeline` must come before `set_bind_group` /
-  `set_vertex_buffer` — both resolve through the active pipeline's
+- Inside a pass, `pipeline_set` must come before `bind_group_set` /
+  `vertex_buffer_set` — both resolve through the active pipeline's
   introspected maps.
 - The canvas backbuffer accepts no depth attachment; render to a texture for
   depth-tested passes.
@@ -58,11 +58,11 @@ breaks a consumer.
 - `Device::new_native( width, height )` builds its context through `minwgpu`
   and renders into an offscreen texture — there is no window; the machine
   needs a Vulkan ICD, and a software one ( lavapipe ) suffices.
-- `Surface::read_pixels( &device, &queue )` is the native counterpart of
+- `Surface::pixels_read( &device, &queue )` is the native counterpart of
   presenting to a canvas : tightly-packed rgba8 bytes, top row first — the
   ground truth a pixel-asserting test reads. Browser surfaces return
   `Unsupported` there and present to their canvas instead.
-- Recording is `&mut` : `begin_render_pass` and the `RenderPass` methods take
+- Recording is `&mut` : `render_pass_begin` and the `RenderPass` methods take
   `&mut self` on every backend, because the native backend records into its
   raw wgpu objects mutably.
 - The WGSL slot of `ShaderSource` is consumed directly; the GLSL overrides

@@ -77,7 +77,7 @@ mod private
           if let Some( translation ) = translation.current_get()
           {
             let translation = translation.value_get().0.map( | v | v as f32 );
-            node.borrow_mut().set_translation( F32x3::from_array( translation ) );
+            node.borrow_mut().translation_set( F32x3::from_array( translation ) );
           }
         }
 
@@ -89,7 +89,7 @@ mod private
           if let Some( rotation ) = rotation.current_get()
           {
             let rotation = rotation.value_get().0.map( | v | v as f32 );
-            node.borrow_mut().set_rotation( QuatF32::from( rotation ) );
+            node.borrow_mut().rotation_set( QuatF32::from( rotation ) );
           }
         }
 
@@ -101,7 +101,7 @@ mod private
           if let Some( scale ) = scale.current_get()
           {
             let scale = scale.value_get().0.map( | v | v as f32 );
-            node.borrow_mut().set_scale( F32x3::from_array( scale ) );
+            node.borrow_mut().scale_set( F32x3::from_array( scale ) );
           }
         }
 
@@ -121,7 +121,7 @@ mod private
               {
                 if let Some( displacements ) = skeleton.borrow().displacements_as_ref()
                 {
-                  let weights_rc = displacements.get_morph_weights();
+                  let weights_rc = displacements.morph_weights_get();
                   let mut weights_mut = weights_rc.borrow_mut();
                   for i in 0..weights.len().min( weights_mut.len() )
                   {

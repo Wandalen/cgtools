@@ -27,9 +27,9 @@ mod private
     BackendError( String ),
     /// The GPU context was lost (WebGL `webglcontextlost`, or equivalent). `submit`/`output`
     /// return this instead of driving calls into an invalid context until the context is
-    /// restored. On restoration, the caller must re-call [`Backend::load_assets`] to re-upload
+    /// restored. On restoration, the caller must re-call [`Backend::assets_load`] to re-upload
     /// GPU state — the same "safe to call multiple times... clear and reload all GPU/SVG state"
-    /// contract `load_assets` already documents for level transitions.
+    /// contract `assets_load` already documents for level transitions.
     ContextLost,
   }
 
@@ -43,7 +43,7 @@ mod private
         RenderError::MissingAsset( idx ) => write!( f, "missing asset: {idx}" ),
         RenderError::Unsupported( what ) => write!( f, "unsupported: {what}" ),
         RenderError::BackendError( msg ) => write!( f, "backend error: {msg}" ),
-        RenderError::ContextLost => write!( f, "GPU context lost; call load_assets to restore GPU state after it is restored" ),
+        RenderError::ContextLost => write!( f, "GPU context lost; call assets_load to restore GPU state after it is restored" ),
       }
     }
   }
@@ -135,13 +135,13 @@ mod private
   ///
   /// // SVG
   /// let mut svg = SvgBackend::new( config );
-  /// svg.load_assets( &assets )?;
+  /// svg.assets_load( &assets )?;
   /// svg.submit( &commands )?;
   /// let Output::String( doc ) = svg.output()? else { unreachable!() };
   ///
   /// // GPU (realtime) — may take extra backend-specific params
   /// let mut gpu = WgpuBackend::new( config, &window );
-  /// gpu.load_assets( &assets )?;
+  /// gpu.assets_load( &assets )?;
   /// gpu.submit( &commands )?; // presents to screen
   /// ```
   pub trait Backend
@@ -151,7 +151,7 @@ mod private
     ///
     /// **Each call replaces all previously loaded assets.** Backends must
     /// clear and reload all GPU/SVG state — including any active batches.
-    /// After `load_assets` returns, all [`ResourceId`](crate::types::ResourceId)s from the previous
+    /// After `assets_load` returns, all [`ResourceId`](crate::types::ResourceId)s from the previous
     /// call are invalid; any batches created before this call are destroyed.
     ///
     /// - SVG: regenerates `<defs>` (symbols, gradients, patterns, clipPaths)
@@ -162,7 +162,7 @@ mod private
     ///
     /// Returns [`RenderError::MissingAsset`] if a referenced resource cannot be resolved,
     /// or [`RenderError::BackendError`] if asset upload fails.
-    fn load_assets( &mut self, assets : &Assets ) -> Result< (), RenderError >;
+    fn assets_load( &mut self, assets : &Assets ) -> Result< (), RenderError >;
 
     /// Process a command queue. This is the main render call.
     /// Backend iterates commands sequentially, maintaining internal state

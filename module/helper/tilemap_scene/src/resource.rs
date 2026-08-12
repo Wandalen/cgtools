@@ -335,7 +335,7 @@ mod private
     #[ default ]
     None,
     /// Offset derived deterministically from the instance's grid
-    /// coordinate (via [`crate::hash::hash_coord`]). Requires a
+    /// coordinate (via [`crate::hash::coord_hash`]). Requires a
     /// grid-anchored placement (`Hex`, `Multihex`, `Edge`).
     ///
     /// For placements without a hex coord (`FreePos`, `Viewport`),

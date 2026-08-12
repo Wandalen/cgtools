@@ -47,7 +47,7 @@ fn grading_slider_add
       let color_grading = color_grading.clone();
       move | value |
       {
-        *field( color_grading.borrow_mut().get_params_mut() ) = value;
+        *field( color_grading.borrow_mut().params_get_mut() ) = value;
       }
     }
   );
@@ -76,7 +76,7 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > >, color_grading : &Rc< RefCel
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_exposure( value );
+        renderer.borrow_mut().exposure_set( value );
       }
     }
   );
@@ -91,7 +91,7 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > >, color_grading : &Rc< RefCel
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_bloom_radius( value );
+        renderer.borrow_mut().bloom_radius_set( value );
       }
     }
   );
@@ -106,7 +106,7 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > >, color_grading : &Rc< RefCel
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_bloom_strength( value );
+        renderer.borrow_mut().bloom_strength_set( value );
       }
     }
   );
@@ -115,7 +115,7 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > >, color_grading : &Rc< RefCel
 
   // === Color Grading Settings ===
   let params = color_grading.borrow();
-  let params = params.get_params();
+  let params = params.params_get();
   let mut cg_settings = ColorGradingSettings::default();
   cg_settings.temperature = params.temperature;
   cg_settings.tint = params.tint;

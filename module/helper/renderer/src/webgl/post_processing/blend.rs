@@ -23,7 +23,7 @@ mod private
   impl BlendPass
   {
     /// Set the blending texture of the pass
-    pub fn set_blend_texture( &mut self, texture : Option< gl::web_sys::WebGlTexture > )
+    pub fn blend_texture_set( &mut self, texture : Option< gl::web_sys::WebGlTexture > )
     {
       self.blend_texture = texture;
     }

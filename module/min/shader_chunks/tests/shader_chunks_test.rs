@@ -1,11 +1,8 @@
 //! Tests for the manifest-driven shader-chunk composer — manifest/WGSL-body
 //! cross-checks over the real bundled chunks plus `compose`'s ordering and
 //! panic contracts.
-//!
-//! Relocated from `src/shader_chunks.rs`, per the all-tests-in-tests/
-//! convention.
 
-use minwgpu_sun_grid_lines_chunked::shader_chunks::
+use shader_chunks::
 {
   compose, parse_name, parse_depends_on,
   HASH21, VALUE_NOISE, FBM3, FULLSCREEN_TRIANGLE,
@@ -14,11 +11,10 @@ use minwgpu_sun_grid_lines_chunked::shader_chunks::
 const ALL_CHUNKS : &[ &str ] = &[ HASH21, VALUE_NOISE, FBM3, FULLSCREEN_TRIANGLE ];
 
 /// Test-only: collects every `//@ key: value` line in `wgsl`, in file
-/// order. Unlike the module's own private `manifest_field`, this is never
+/// order. Unlike the crate's own private `manifest_field`, this is never
 /// needed by `compose()` — only `export` repeats per chunk, and only the
-/// test below cares about it — so it lives here rather than the main
-/// module, where a fn unused outside tests would be dead code in a
-/// non-test build.
+/// test below cares about it — so it lives here rather than the library,
+/// where a fn unused outside tests would be dead code in a non-test build.
 fn manifest_fields<'a>( wgsl : &'a str, key : &str ) -> Vec< &'a str >
 {
   let prefix = format!( "//@ {key}:" );

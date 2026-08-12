@@ -21,14 +21,14 @@ mod private
     GpuSprite,
     GpuGeometry,
     GpuBatch,
-    setup_sprite_batch_vao,
-    setup_mesh_batch_vao,
-    apply_blend,
+    sprite_batch_vao_setup,
+    mesh_batch_vao_setup,
+    blend_apply,
     source_to_loadable,
-    resolve_loadable,
+    loadable_resolve,
     index_format,
-    apply_texture_filter,
-    apply_texture_wrap,
+    texture_filter_apply,
+    texture_wrap_apply,
     topology_to_gl,
   };
   use crate::assets::Assets;
@@ -88,7 +88,7 @@ mod private
     }
 
     /// Draw an instanced sprite batch.
-    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : [ f32; 2 ], max_depth : f32 )
+    fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : [ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Sprite { instances, vao, params, .. } = batch else { return; };
       if instances.is_empty() { return; }
@@ -185,13 +185,13 @@ mod private
         gl.draw_arrays( topology, 0, geom.vertex_count as i32 );
       }
       // Unbind the geometry VAO so a subsequent `vertex_attrib_pointer` call
-      // (e.g. during `setup_mesh_batch_vao` for another batch) cannot silently
+      // (e.g. during `mesh_batch_vao_setup` for another batch) cannot silently
       // mutate this geometry's attribute layout.
       gl.bind_vertex_array( None );
     }
 
-    /// Draw an instanced mesh batch. VAO is already configured via `setup_mesh_batch_vao`.
-    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : [ f32; 2 ], max_depth : f32 )
+    /// Draw an instanced mesh batch. VAO is already configured via `mesh_batch_vao_setup`.
+    fn batch_draw( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : [ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Mesh { instances, vao, params, .. } = batch else { return };
       if instances.is_empty() { return; }
@@ -247,7 +247,7 @@ mod private
   /// let config = RenderConfig { width: 800, height: 600, ..Default::default() };
   /// let gl_ctx = minwebgl::context::from_canvas( &canvas )?;
   /// let mut backend = WebGlBackend::new( config, gl_ctx )?;
-  /// backend.load_assets( &assets )?;
+  /// backend.assets_load( &assets )?;
   /// backend.submit( &commands )?;
   /// ```
   pub struct WebGlBackend
@@ -321,7 +321,7 @@ mod private
         .unwrap_or( 2048 );
 
       let context_lost = Rc::new( Cell::new( false ) );
-      Self::register_context_loss_listeners( &gl, &context_lost );
+      Self::context_loss_listeners_register( &gl, &context_lost );
 
       Ok( Self
       {
@@ -345,7 +345,7 @@ mod private
     /// never tries. If `gl`'s canvas cannot be resolved (e.g. a non-`HtmlCanvasElement`
     /// rendering target), listener registration is skipped and a diagnostic is logged —
     /// context loss then remains silently unrecoverable, same as before this method existed.
-    fn register_context_loss_listeners( gl : &gl::GL, context_lost : &Rc< Cell< bool > > )
+    fn context_loss_listeners_register( gl : &gl::GL, context_lost : &Rc< Cell< bool > > )
     {
       let Some( canvas ) = gl.canvas().and_then( | c | c.dyn_into::< web_sys::HtmlCanvasElement >().ok() ) else
       {
@@ -414,7 +414,7 @@ mod private
       {
         let mat = m.transform.to_mat3();
         let color = match m.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
-        apply_blend( &self.gl, &m.blend );
+        blend_apply( &self.gl, &m.blend );
 
         let mut use_texture = false;
         if let Some( tex_id ) = m.texture && let Some( gpu_tex ) = res.texture( tex_id )
@@ -444,7 +444,7 @@ mod private
       let tex_size = [ tw as f32, th as f32 ];
 
       let mat = s.transform.to_mat3();
-      apply_blend( &self.gl, &s.blend );
+      blend_apply( &self.gl, &s.blend );
       self.sprite.draw( &self.gl, &mat, &gpu_sprite.region, tex_size, &s.tint, viewport, s.transform.depth, self.config.max_depth );
     }
 
@@ -454,8 +454,8 @@ mod private
       let gl = &self.gl;
       let instances = ArrayBuffer::< SpriteInstanceData >::new( gl, 16 ).map_err( map_err )?;
       let vao = gl::vao::create( gl ).map_err( map_err )?;
-      setup_sprite_batch_vao( gl, &vao, instances.buffer() );
-      self.resources.borrow_mut().store_batch( cmd.batch, GpuBatch::Sprite
+      sprite_batch_vao_setup( gl, &vao, instances.buffer() );
+      self.resources.borrow_mut().batch_store( cmd.batch, GpuBatch::Sprite
       {
         gl : self.gl.clone(),
         instances,
@@ -474,7 +474,7 @@ mod private
       let res = self.resources.borrow();
       if let Some( geom ) = res.geometry( cmd.params.geometry )
       {
-        setup_mesh_batch_vao
+        mesh_batch_vao_setup
         (
           gl,
           &vao,
@@ -485,7 +485,7 @@ mod private
         );
       }
       drop( res );
-      self.resources.borrow_mut().store_batch( cmd.batch, GpuBatch::Mesh
+      self.resources.borrow_mut().batch_store( cmd.batch, GpuBatch::Mesh
       {
         gl : self.gl.clone(),
         instances,
@@ -743,13 +743,13 @@ mod private
           {
             GpuBatch::Sprite { instances, vao, .. } =>
             {
-              setup_sprite_batch_vao( &self.gl, vao, instances.buffer() );
+              sprite_batch_vao_setup( &self.gl, vao, instances.buffer() );
             }
             GpuBatch::Mesh { instances, vao, params, .. } =>
             {
               if let Some( geom ) = res.geometry( params.geometry )
               {
-                setup_mesh_batch_vao
+                mesh_batch_vao_setup
                 (
                   &self.gl,
                   vao,
@@ -784,15 +784,15 @@ mod private
         );
         return Ok( () );
       };
-      apply_blend( &self.gl, match gpu_batch
+      blend_apply( &self.gl, match gpu_batch
       {
         GpuBatch::Sprite { params, .. } => &params.blend,
         GpuBatch::Mesh { params, .. } => &params.blend,
       });
       match gpu_batch
       {
-        GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
-        GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
+        GpuBatch::Sprite { .. } => self.sprite.batch_draw( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
+        GpuBatch::Mesh { .. } => self.mesh.batch_draw( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
       }
       Ok( () )
     }
@@ -811,7 +811,7 @@ mod private
 
     // ---- Asset loading ----
 
-    fn load_images( &mut self, images : &[ crate::assets::ImageAsset ] ) -> Result< (), RenderError >
+    fn images_load( &mut self, images : &[ crate::assets::ImageAsset ] ) -> Result< (), RenderError >
     {
       let gl = &self.gl;
       self.resources.borrow_mut().textures.clear();
@@ -822,12 +822,12 @@ mod private
         {
           crate::assets::ImageSource::Bitmap { bytes, width, height, format } =>
           {
-            let tex = upload_bitmap_texture( gl, bytes, *width, *height, *format, img.id )?;
+            let tex = bitmap_texture_upload( gl, bytes, *width, *height, *format, img.id )?;
             ( tex, *width, *height )
           }
           crate::assets::ImageSource::Encoded( bytes ) =>
           {
-            let mime = crate::assets::detect_image_mime( bytes );
+            let mime = crate::assets::image_mime_detect( bytes );
             let parts = gl::js_sys::Array::new();
             parts.push( &gl::js_sys::Uint8Array::from( bytes.as_slice() ) );
             let url = match gl::blob::blob_create( parts, mime )
@@ -844,11 +844,11 @@ mod private
             };
             // Async path, same as `ImageSource::Path` below: sampler state is
             // applied inside the on_load callback once the image is actually
-            // uploaded. `upload_image_from_path` revokes this `blob:` URL
+            // uploaded. `image_upload_from_path` revokes this `blob:` URL
             // (guarded by prefix) once the browser has decoded it — unlike a
             // real path, nothing else keeps the URL alive.
             let generation = self.resources.borrow().generation;
-            let tex = upload_image_from_path( gl, &url, img.id, &self.resources, img.filter, img.mipmap, img.wrap, generation );
+            let tex = image_upload_from_path( gl, &url, img.id, &self.resources, img.filter, img.mipmap, img.wrap, generation );
             gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
             ( tex, 0, 0 )
           }
@@ -861,7 +861,7 @@ mod private
             // texture is guaranteed to be complete (esp. for mipmap modes, which leave
             // the texture incomplete until generate_mipmap runs).
             let generation = self.resources.borrow().generation;
-            let tex = upload_image_from_path( gl, path, img.id, &self.resources, img.filter, img.mipmap, img.wrap, generation );
+            let tex = image_upload_from_path( gl, path, img.id, &self.resources, img.filter, img.mipmap, img.wrap, generation );
             gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
             ( tex, 0, 0 )
           }
@@ -872,15 +872,15 @@ mod private
         // (The async Path branch does all of this inside on_load.)
         if matches!( img.source, crate::assets::ImageSource::Bitmap { .. } )
         {
-          apply_texture_filter( gl, &img.filter, &img.mipmap );
-          apply_texture_wrap( gl, img.wrap );
+          texture_filter_apply( gl, &img.filter, &img.mipmap );
+          texture_wrap_apply( gl, img.wrap );
           if !matches!( img.mipmap, MipmapMode::Off )
           {
             gl.generate_mipmap( gl::TEXTURE_2D );
           }
         }
 
-        self.resources.borrow_mut().store_texture( img.id, GpuTexture
+        self.resources.borrow_mut().texture_store( img.id, GpuTexture
         {
           gl : gl.clone(),
           texture,
@@ -895,16 +895,16 @@ mod private
       Ok( () )
     }
 
-    // Returns () unlike load_images/load_geometries because sprite loading is
+    // Returns () unlike images_load/geometries_load because sprite loading is
     // infallible — it only stores sub-regions of already-loaded textures (no GPU
     // upload, no allocation that can fail).
-    fn load_sprites( &mut self, sprites : &[ crate::assets::SpriteAsset ] )
+    fn sprites_load( &mut self, sprites : &[ crate::assets::SpriteAsset ] )
     {
       self.resources.borrow_mut().sprites.clear();
 
       for spr in sprites
       {
-        self.resources.borrow_mut().store_sprite( spr.id, GpuSprite
+        self.resources.borrow_mut().sprite_store( spr.id, GpuSprite
         {
           sheet : spr.sheet,
           region : spr.region,
@@ -912,7 +912,7 @@ mod private
       }
     }
 
-    fn load_geometries( &mut self, geometries : &[ crate::assets::GeometryAsset ] ) -> Result< (), RenderError >
+    fn geometries_load( &mut self, geometries : &[ crate::assets::GeometryAsset ] ) -> Result< (), RenderError >
     {
       let gl = &self.gl;
       let map_err = | e : gl::WebglError | RenderError::BackendError( format!( "{e:?}" ) );
@@ -939,11 +939,11 @@ mod private
         if has_path
         {
           // Register a placeholder geometry immediately so the id is available.
-          // The placeholder owns its own VAO (never shared): when `store_geometry`
+          // The placeholder owns its own VAO (never shared): when `geometry_store`
           // later replaces it, its `Drop` deletes *this* VAO, not the populated one.
           // The spawn_local future creates a separate VAO for the populated entry.
           let placeholder_vao = gl::vao::create( gl ).map_err( map_err )?;
-          self.resources.borrow_mut().store_geometry( geom.id, GpuGeometry
+          self.resources.borrow_mut().geometry_store( geom.id, GpuGeometry
           {
             gl : gl.clone(), vao : placeholder_vao, position_buffer : None, uv_buffer : None, index_buffer : None,
             vertex_count : 0, index_count : None,
@@ -962,11 +962,11 @@ mod private
           {
             let gl = &gl_clone;
 
-            let positions = resolve_loadable( positions_source ).await;
-            let uvs = match uvs_source { Some( s ) => Some( resolve_loadable( s ).await ), None => None };
-            let indices = match indices_source { Some( s ) => Some( resolve_loadable( s ).await ), None => None };
+            let positions = loadable_resolve( positions_source ).await;
+            let uvs = match uvs_source { Some( s ) => Some( loadable_resolve( s ).await ), None => None };
+            let indices = match indices_source { Some( s ) => Some( loadable_resolve( s ).await ), None => None };
 
-            // Bail out if `load_assets` ran again while we were fetching — this future
+            // Bail out if `assets_load` ran again while we were fetching — this future
             // belongs to a previous cycle and must not overwrite fresh entries.
             if resources.borrow().generation != generation { return; }
 
@@ -1015,17 +1015,17 @@ mod private
 
             let vertex_count = positions.as_ref().map_or( 0, | b | ( b.len() / 8 ) as u32 );
 
-            resources.borrow_mut().store_geometry( id, GpuGeometry
+            resources.borrow_mut().geometry_store( id, GpuGeometry
             {
               gl : gl.clone(), vao, position_buffer, uv_buffer, index_buffer, vertex_count, index_count,
             });
 
-            refresh_mesh_batch_vaos( gl, &resources, id );
+            mesh_batch_vaos_refresh( gl, &resources, id );
           });
         }
         else
         {
-          self.load_geometry_sync( geom, idx_stride, idx_gl_type )?;
+          self.geometry_sync_load( geom, idx_stride, idx_gl_type )?;
         }
       }
 
@@ -1033,8 +1033,8 @@ mod private
     }
 
     // Synchronous geometry load — all data already in memory (no `Source::Path` fields).
-    // Split out of `load_geometries` to keep that function's async/sync dispatch readable.
-    fn load_geometry_sync
+    // Split out of `geometries_load` to keep that function's async/sync dispatch readable.
+    fn geometry_sync_load
     (
       &self,
       geom : &crate::assets::GeometryAsset,
@@ -1085,7 +1085,7 @@ mod private
       let vertex_count = if let crate::assets::Source::Bytes( ref bytes ) = geom.positions
       { ( bytes.len() / 8 ) as u32 } else { 0 };
 
-      self.resources.borrow_mut().store_geometry( geom.id, GpuGeometry
+      self.resources.borrow_mut().geometry_store( geom.id, GpuGeometry
       {
         gl : gl.clone(), vao, position_buffer, uv_buffer, index_buffer, vertex_count, index_count,
       });
@@ -1100,7 +1100,7 @@ mod private
 
   impl Backend for WebGlBackend
   {
-    fn load_assets( &mut self, assets : &Assets ) -> Result< (), RenderError >
+    fn assets_load( &mut self, assets : &Assets ) -> Result< (), RenderError >
     {
       // Reset all GPU state: textures, sprites, geometries, and batches.
       // GpuBatch::drop calls delete_vertex_array; ArrayBuffer::drop calls delete_buffer.
@@ -1111,7 +1111,7 @@ mod private
       // entries belonging to this new cycle.
       //
       // ORDER MATTERS: batches must be cleared BEFORE geometries / textures (which
-      // are cleared inside `load_images` / `load_geometries` below). A mesh batch's
+      // are cleared inside `images_load` / `geometries_load` below). A mesh batch's
       // VAO holds attrib pointers into the geometry's position / uv / index buffers;
       // if the geometry was dropped first, those buffers would be deleted while
       // still referenced by live batch VAOs. Dropping batches first ensures each
@@ -1124,9 +1124,9 @@ mod private
       // Clear the stale recording batch ID: the referenced batch no longer exists,
       // so leaving it set would make cmd_bind_batch reject any new bind on the next frame.
       self.recording_batch = None;
-      self.load_images( &assets.images )?;
-      self.load_sprites( &assets.sprites );
-      self.load_geometries( &assets.geometries )?;
+      self.images_load( &assets.images )?;
+      self.sprites_load( &assets.sprites );
+      self.geometries_load( &assets.geometries )?;
       // Gradients, patterns, clip masks, and fonts are not loaded — the
       // matching `capabilities()` flags are false; roadmap.md owns the plan.
       Ok( () )
@@ -1242,7 +1242,7 @@ mod private
         clip_masks : false,  // not yet loaded or rendered
         effects : false,     // needs FBO post-processing
         // `blend_modes` means "all variants correct"; Overlay silently falls back
-        // to Normal in `apply_blend` (needs FBO / custom shader), so this is false.
+        // to Normal in `blend_apply` (needs FBO / custom shader), so this is false.
         // Callers needing per-mode info should check `supported_blend_modes`.
         blend_modes : false,
         supported_blend_modes : &[ BlendMode::Normal, BlendMode::Add, BlendMode::Multiply, BlendMode::Screen ],
@@ -1259,7 +1259,7 @@ mod private
   // Re-setup any mesh batch VAOs that reference geometry `id`.
   // Batches created before async load completed only have instance attribs;
   // now that geometry buffers are available, add geometry attribs too.
-  fn refresh_mesh_batch_vaos( gl : &gl::GL, resources : &Rc< RefCell< GpuResources > >, id : ResourceId< asset::Geometry > )
+  fn mesh_batch_vaos_refresh( gl : &gl::GL, resources : &Rc< RefCell< GpuResources > >, id : ResourceId< asset::Geometry > )
   {
     let res = resources.borrow();
     if let Some( geom ) = res.geometry( id )
@@ -1269,7 +1269,7 @@ mod private
         if let GpuBatch::Mesh { vao, params, instances, .. } = batch
           && params.geometry == id
         {
-          setup_mesh_batch_vao
+          mesh_batch_vao_setup
           (
             gl,
             vao,
@@ -1300,7 +1300,7 @@ mod private
   /// upload time, which is acceptable for the grayscale images typical
   /// in tilemap content (masks, icons, height fields) and is portable
   /// across WebGL2 implementations without special GL state.
-  fn upload_bitmap_texture
+  fn bitmap_texture_upload
   (
     gl : &gl::GL,
     bytes : &[ u8 ],
@@ -1369,7 +1369,7 @@ mod private
   /// Like `gl::texture::d2::image_upload_from_path`, but updates
   /// `GpuTexture.width` / `height` cells once the image loads.
   #[ allow( clippy::too_many_arguments, reason = "each parameter is a distinct texture-loading input (source, id, resource table, and independent sampler settings); grouping into a struct would add indirection for this single-call-site private helper" ) ]
-  fn upload_image_from_path
+  fn image_upload_from_path
   (
     gl : &gl::GL,
     src : &str,
@@ -1415,14 +1415,14 @@ mod private
         // check below: the browser has already decoded the image into `img`
         // by the time `load` fires, so the URL is safe to release regardless
         // of whether this generation is still current — deferring it behind
-        // the early return would leak the URL whenever `load_assets` reruns
+        // the early return would leak the URL whenever `assets_load` reruns
         // before an `Encoded` image finishes loading.
         if src_for_load.starts_with( "blob:" )
         {
           web_sys::Url::revoke_object_url( &src_for_load ).unwrap();
         }
 
-        // Bail out if `load_assets` ran again before the image finished loading —
+        // Bail out if `assets_load` ran again before the image finished loading —
         // this closure belongs to a previous cycle and must not touch the fresh
         // texture that now occupies this id.
         if resources.borrow().generation != generation
@@ -1440,8 +1440,8 @@ mod private
         // mag/min filters are installed on the texture object regardless of any
         // intervening bind changes — belt-and-suspenders for the async path.
         gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
-        apply_texture_filter( &gl, &filter, &mipmap );
-        apply_texture_wrap( &gl, wrap );
+        texture_filter_apply( &gl, &filter, &mipmap );
+        texture_wrap_apply( &gl, wrap );
         if !matches!( mipmap, MipmapMode::Off )
         {
           gl.generate_mipmap( gl::TEXTURE_2D );

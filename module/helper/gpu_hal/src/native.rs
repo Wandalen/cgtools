@@ -18,131 +18,122 @@ mod private
   // own bitflags share — from_bits_truncate is a bit-identical mapping, not
   // a lossy approximation.
 
-  impl BufferUsage
+  impl From< BufferUsage > for wgpu::BufferUsages
   {
     /// The equivalent raw wgpu usage flags.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::BufferUsages
+    fn from( value : BufferUsage ) -> Self
     {
-      wgpu::BufferUsages::from_bits_truncate( self.bits() )
+      wgpu::BufferUsages::from_bits_truncate( value.bits() )
     }
   }
 
-  impl TextureUsage
+  impl From< TextureUsage > for wgpu::TextureUsages
   {
     /// The equivalent raw wgpu usage flags.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::TextureUsages
+    fn from( value : TextureUsage ) -> Self
     {
-      wgpu::TextureUsages::from_bits_truncate( self.bits() )
+      wgpu::TextureUsages::from_bits_truncate( value.bits() )
     }
   }
 
-  impl ShaderStages
+  impl From< ShaderStages > for wgpu::ShaderStages
   {
     /// The equivalent raw wgpu stage flags.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::ShaderStages
+    fn from( value : ShaderStages ) -> Self
     {
-      wgpu::ShaderStages::from_bits_truncate( self.bits() )
+      wgpu::ShaderStages::from_bits_truncate( value.bits() )
     }
   }
 
-  impl TextureFormat
+  impl From< TextureFormat > for wgpu::TextureFormat
   {
     /// The equivalent raw wgpu format.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::TextureFormat
+    fn from( value : TextureFormat ) -> Self
     {
-      match self
+      match value
       {
-        Self::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
-        Self::Rgba8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,
-        Self::Bgra8Unorm => wgpu::TextureFormat::Bgra8Unorm,
-        Self::Rgba16Float => wgpu::TextureFormat::Rgba16Float,
-        Self::Depth24Plus => wgpu::TextureFormat::Depth24Plus
+        TextureFormat::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
+        TextureFormat::Rgba8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,
+        TextureFormat::Bgra8Unorm => wgpu::TextureFormat::Bgra8Unorm,
+        TextureFormat::Rgba16Float => wgpu::TextureFormat::Rgba16Float,
+        TextureFormat::Depth24Plus => wgpu::TextureFormat::Depth24Plus
       }
     }
   }
 
-  impl VertexFormat
+  impl From< VertexFormat > for wgpu::VertexFormat
   {
     /// The equivalent raw wgpu format.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::VertexFormat
+    fn from( value : VertexFormat ) -> Self
     {
-      match self
+      match value
       {
-        Self::Float32x2 => wgpu::VertexFormat::Float32x2,
-        Self::Float32x3 => wgpu::VertexFormat::Float32x3,
-        Self::Float32x4 => wgpu::VertexFormat::Float32x4
+        VertexFormat::Float32x2 => wgpu::VertexFormat::Float32x2,
+        VertexFormat::Float32x3 => wgpu::VertexFormat::Float32x3,
+        VertexFormat::Float32x4 => wgpu::VertexFormat::Float32x4
       }
     }
   }
 
-  impl IndexFormat
+  impl From< IndexFormat > for wgpu::IndexFormat
   {
     /// The equivalent raw wgpu format.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::IndexFormat
+    fn from( value : IndexFormat ) -> Self
     {
-      match self
+      match value
       {
-        Self::Uint32 => wgpu::IndexFormat::Uint32
+        IndexFormat::Uint32 => wgpu::IndexFormat::Uint32
       }
     }
   }
 
-  impl BindingType
+  impl From< BindingType > for wgpu::BindingType
   {
     /// The equivalent raw wgpu binding type — the v0 fixed set: uniform
     /// buffers, filterable 2d float textures, filtering samplers.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::BindingType
+    fn from( value : BindingType ) -> Self
     {
-      match self
+      match value
       {
-        Self::UniformBuffer => wgpu::BindingType::Buffer
+        BindingType::UniformBuffer => wgpu::BindingType::Buffer
         {
           ty : wgpu::BufferBindingType::Uniform,
           has_dynamic_offset : false,
           min_binding_size : None
         },
-        Self::Texture => wgpu::BindingType::Texture
+        BindingType::Texture => wgpu::BindingType::Texture
         {
           sample_type : wgpu::TextureSampleType::Float { filterable : true },
           view_dimension : wgpu::TextureViewDimension::D2,
           multisampled : false
         },
-        Self::Sampler => wgpu::BindingType::Sampler( wgpu::SamplerBindingType::Filtering )
+        BindingType::Sampler => wgpu::BindingType::Sampler( wgpu::SamplerBindingType::Filtering )
       }
     }
   }
 
-  impl FilterMode
+  impl From< FilterMode > for wgpu::FilterMode
   {
     /// The equivalent raw wgpu filter mode.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::FilterMode
+    fn from( value : FilterMode ) -> Self
     {
-      match self
+      match value
       {
-        Self::Nearest => wgpu::FilterMode::Nearest,
-        Self::Linear => wgpu::FilterMode::Linear
+        FilterMode::Nearest => wgpu::FilterMode::Nearest,
+        FilterMode::Linear => wgpu::FilterMode::Linear
       }
     }
   }
 
-  impl AddressMode
+  impl From< AddressMode > for wgpu::AddressMode
   {
     /// The equivalent raw wgpu address mode.
-    #[must_use]
-    pub fn to_wgpu( self ) -> wgpu::AddressMode
+    fn from( value : AddressMode ) -> Self
     {
-      match self
+      match value
       {
-        Self::ClampToEdge => wgpu::AddressMode::ClampToEdge,
-        Self::Repeat => wgpu::AddressMode::Repeat
+        AddressMode::ClampToEdge => wgpu::AddressMode::ClampToEdge,
+        AddressMode::Repeat => wgpu::AddressMode::Repeat
       }
     }
   }
@@ -158,7 +149,7 @@ mod private
   /// Returns [`Error::Unsupported`] if `texture`'s format is not
   /// `Rgba8Unorm`. Returns [`Error::Native`] if the device poll, the
   /// readback map callback, or the GPU-side buffer mapping fails.
-  pub fn read_texture_rgba8
+  pub fn texture_rgba8_read
   (
     device : &wgpu::Device,
     queue : &wgpu::Queue,
@@ -169,7 +160,7 @@ mod private
     {
       return Err( Error::Unsupported
       (
-        format!( "read_texture_rgba8 reads rgba8unorm only, not {:?}", texture.format() )
+        format!( "texture_rgba8_read reads rgba8unorm only, not {:?}", texture.format() )
       ) );
     }
     let width = texture.width();
@@ -235,5 +226,5 @@ mod private
 
 crate::mod_interface!
 {
-  own use read_texture_rgba8;
+  own use texture_rgba8_read;
 }

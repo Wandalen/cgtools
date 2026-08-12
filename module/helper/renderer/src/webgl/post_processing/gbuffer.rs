@@ -173,7 +173,7 @@ mod private
   /// * `texture` - The texture to bind.
   /// * `location` - The uniform location in the shader for the sampler.
   /// * `slot` - The texture unit to bind to ( e.g., `GL::TEXTURE0` ).
-  fn upload_texture
+  fn texture_upload
   (
     gl : &gl::WebGl2RenderingContext,
     texture : &WebGlTexture,
@@ -187,7 +187,7 @@ mod private
     gl.uniform1i( Some( location ), ( slot - GL::TEXTURE0 ) as i32 );
   }
 
-  fn upload_camera
+  fn camera_upload
   (
     gl : &gl::WebGl2RenderingContext,
     camera : &Camera,
@@ -196,7 +196,7 @@ mod private
   {
     camera.upload( gl, locations );
 
-    let [ near, far ] = camera.get_near_far().0;
+    let [ near, far ] = camera.near_far_get().0;
 
     gl::uniform::upload
     (
@@ -371,7 +371,7 @@ mod private
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 3, [ -1.0, -1.0, -1.0, 1.0 ].as_slice() );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 4, [ -1.0, -1.0, -1.0, 1.0 ].as_slice() );
 
-      upload_camera( gl, camera, locations );
+      camera_upload( gl, camera, locations );
 
       let albedo_texture_loc = &self.shader_program.locations()
       .get( "albedoTexture" ).unwrap().clone().unwrap();
@@ -429,7 +429,7 @@ mod private
 
               if let Some( albedo_texture ) = albedo_texture
               {
-                upload_texture( gl, &albedo_texture, albedo_texture_loc, GL::TEXTURE0 );
+                texture_upload( gl, &albedo_texture, albedo_texture_loc, GL::TEXTURE0 );
               }
             }
 
@@ -439,7 +439,7 @@ mod private
               gl::uniform::upload( gl, material_id_loc.clone(), material_id ).unwrap();
             }
 
-            upload_camera( gl, camera, locations );
+            camera_upload( gl, camera, locations );
             node.borrow().upload( gl, locations );
             primitive.geometry.borrow().bind( gl );
             primitive.draw( gl );

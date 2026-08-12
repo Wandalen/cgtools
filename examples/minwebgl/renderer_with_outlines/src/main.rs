@@ -124,7 +124,7 @@ fn attributes_get( gltf : &GLTF ) -> Result< FxHashMap< Box< str >, AttributeInf
     if let Some(primitive) = mesh_ref.primitives.first()
     {
       let primitive_ref = primitive.as_ref().borrow();
-      return Ok( primitive_ref.geometry.as_ref().borrow().get_attributes().clone() );
+      return Ok( primitive_ref.geometry.as_ref().borrow().attributes_get().clone() );
     }
   }
 
@@ -190,8 +190,8 @@ fn camera_setup( canvas : &HtmlCanvasElement, center : gl::F32x3 ) -> Camera
   let far = 1_000_000.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ width, height ].into() );
-  camera.bind_controls( canvas );
+  camera.window_size_set( [ width, height ].into() );
+  camera.controls_bind( canvas );
 
   camera
 }
@@ -322,17 +322,17 @@ impl SelectTextureContext
       "narrow_outline" =>
       {
         self.narrow_outline.borrow_mut()
-        .set_outline_thickness( current_outline_thickness );
+        .outline_thickness_set( current_outline_thickness );
         self.narrow_outline.borrow_mut()
-        .render( &self.gl.borrow(), self.swap_buffer.borrow().get_input(), self.swap_buffer.borrow().get_output() )
+        .render( &self.gl.borrow(), self.swap_buffer.borrow().input_get(), self.swap_buffer.borrow().output_get() )
         .expect( "Failed to render outline pass" )
       },
       "normal_depth_outline" =>
       {
         self.normal_depth_outline.borrow_mut()
-        .set_outline_thickness( current_outline_thickness );
+        .outline_thickness_set( current_outline_thickness );
         self.normal_depth_outline.borrow_mut()
-        .render( &self.gl.borrow(), self.swap_buffer.borrow().get_input(), self.swap_buffer.borrow().get_output() )
+        .render( &self.gl.borrow(), self.swap_buffer.borrow().input_get(), self.swap_buffer.borrow().output_get() )
         .expect( "Failed to render outline pass" )
       },
       _ if select_value.starts_with( "wide_outline" ) =>
@@ -341,14 +341,14 @@ impl SelectTextureContext
         {
           if let Ok( passes ) = passes.parse::< u32 >()
           {
-            self.wide_outline.borrow_mut().set_num_passes( passes );
+            self.wide_outline.borrow_mut().num_passes_set( passes );
           }
         }
 
         self.wide_outline.borrow_mut()
-        .set_outline_thickness( current_outline_thickness );
+        .outline_thickness_set( current_outline_thickness );
         self.wide_outline.borrow_mut()
-        .render( &self.gl.borrow(), self.swap_buffer.borrow().get_input(), self.swap_buffer.borrow().get_output() )
+        .render( &self.gl.borrow(), self.swap_buffer.borrow().input_get(), self.swap_buffer.borrow().output_get() )
         .expect( "Failed to render outline pass" )
       },
       _ => None
@@ -447,8 +447,8 @@ async fn scene_setup( gl : &GL ) -> Result< GLTF, gl::WebglError >
   .expect( "Scene is empty" ).clone();
   let scale = 10.0;
 
-  car.borrow_mut().set_scale( [ scale; 3 ] );
-  car.borrow_mut().update_local_matrix();
+  car.borrow_mut().scale_set( [ scale; 3 ] );
+  car.borrow_mut().local_matrix_update();
 
   Ok( gltf )
 }
@@ -474,9 +474,9 @@ async fn app_run() -> Result< (), gl::WebglError >
   );
 
   let ibl = renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/pink_sunrise_4k/", None ).await;
-  renderer.borrow_mut().set_ibl( ibl );
+  renderer.borrow_mut().ibl_set( ibl );
   let skybox = texture_create( &gl, "environment_maps/equirectangular_maps/pink_sunrise.jpg" );
-  renderer.borrow_mut().set_skybox( skybox.texture.borrow().source.clone() );
+  renderer.borrow_mut().skybox_set( skybox.texture.borrow().source.clone() );
   let renderer1 = renderer.clone();
 
   let attributes = attributes_get( &gltf )?;
@@ -549,22 +549,22 @@ async fn app_run() -> Result< (), gl::WebglError >
 
       sw2.borrow_mut().reset();
       sw2.borrow_mut().bind( &gl2.borrow() );
-      sw2.borrow_mut().set_input( renderer1.borrow().main_texture() );
+      sw2.borrow_mut().input_set( renderer1.borrow().main_texture() );
 
       if let Some( t ) = select_texture.select( &select_value.borrow() )
       {
         sw2.borrow_mut().bind( &gl2.borrow() );
-        sw2.borrow_mut().set_output( Some( t ) );
+        sw2.borrow_mut().output_set( Some( t ) );
         sw2.borrow_mut().swap();
       }
 
-      let t = tonemapping.render( &gl2.borrow(), sw2.borrow().get_input(), sw2.borrow().get_output() )
+      let t = tonemapping.render( &gl2.borrow(), sw2.borrow().input_get(), sw2.borrow().output_get() )
       .expect( "Failed to render tonemapping pass" );
 
-      sw2.borrow_mut().set_output( t );
+      sw2.borrow_mut().output_set( t );
       sw2.borrow_mut().swap();
 
-      let _t = to_srgb.render( &gl2.borrow(), sw2.borrow().get_input(), sw2.borrow().get_output() )
+      let _t = to_srgb.render( &gl2.borrow(), sw2.borrow().input_get(), sw2.borrow().output_get() )
       .expect( "Failed to render to srgb pass" );
 
       true

@@ -140,7 +140,7 @@ mod private
     }
   }
 
-  fn allocate_cubemap( gl : &GL, size : u32, num_mips : i32 ) -> Result< WebGlTexture, gl::WebglError >
+  fn cubemap_allocate( gl : &GL, size : u32, num_mips : i32 ) -> Result< WebGlTexture, gl::WebglError >
   {
     let texture = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "PMREM cubemap" ) )?;
     gl.bind_texture( gl::TEXTURE_CUBE_MAP, Some( &texture ) );
@@ -179,7 +179,7 @@ mod private
   /// letting an incomplete FBO silently render to undefined state — e.g. when
   /// `EXT_color_buffer_float` is unavailable so the RGBA16F attachment is not color-renderable,
   /// or after a context-loss recovery.
-  fn check_framebuffer_complete( gl : &GL ) -> Result< (), gl::WebglError >
+  fn framebuffer_complete_check( gl : &GL ) -> Result< (), gl::WebglError >
   {
     let status = gl.check_framebuffer_status( gl::FRAMEBUFFER );
     if status != gl::FRAMEBUFFER_COMPLETE
@@ -199,7 +199,7 @@ mod private
     num_mips : i32,
   ) -> Result< WebGlTexture, gl::WebglError >
   {
-    let texture = TextureGuard::new( gl, allocate_cubemap( gl, size, num_mips )? );
+    let texture = TextureGuard::new( gl, cubemap_allocate( gl, size, num_mips )? );
 
     programs.equirect_to_cube.bind( gl );
     let face_loc = programs.equirect_to_cube.loc( gl, "face" );
@@ -218,7 +218,7 @@ mod private
       // bail out before the remaining faces and passes render into an unusable FBO.
       if face == 0
       {
-        check_framebuffer_complete( gl )?;
+        framebuffer_complete_check( gl )?;
       }
     }
 
@@ -234,7 +234,7 @@ mod private
     Ok( texture.release() )
   }
 
-  fn prefilter_specular
+  fn specular_prefilter
   (
     gl : &GL,
     programs : &Programs< '_ >,
@@ -245,7 +245,7 @@ mod private
   {
     // Guarded because the `gl::uniform::upload` calls below can fail *after* allocation,
     // which would otherwise leak this cubemap before it is returned to the caller.
-    let texture = TextureGuard::new( gl, allocate_cubemap( gl, size, num_mips as i32 )? );
+    let texture = TextureGuard::new( gl, cubemap_allocate( gl, size, num_mips as i32 )? );
 
     programs.prefilter.bind( gl );
 
@@ -287,7 +287,7 @@ mod private
     Ok( texture.release() )
   }
 
-  fn convolve_irradiance
+  fn irradiance_convolve
   (
     gl : &GL,
     programs : &Programs< '_ >,
@@ -296,7 +296,7 @@ mod private
   {
     let irradiance_size = 64u32;
     // No TextureGuard needed — no fallible operations follow this allocation.
-    let texture = allocate_cubemap( gl, irradiance_size, 1 )?;
+    let texture = cubemap_allocate( gl, irradiance_size, 1 )?;
 
     programs.irradiance.bind( gl );
 
@@ -317,7 +317,7 @@ mod private
     Ok( texture )
   }
 
-  fn integrate_brdf( gl : &GL, programs : &Programs< '_ > ) -> Result< WebGlTexture, gl::WebglError >
+  fn brdf_integrate( gl : &GL, programs : &Programs< '_ > ) -> Result< WebGlTexture, gl::WebglError >
   {
     let lut_size = 512u32;
     // No TextureGuard needed — no fallible operations follow this allocation.
@@ -417,19 +417,19 @@ mod private
     let specular_texture = TextureGuard::new
     (
       gl,
-      prefilter_specular( gl, &programs, source_cubemap.as_ref(), cubemap_resolution, num_mips )?
+      specular_prefilter( gl, &programs, source_cubemap.as_ref(), cubemap_resolution, num_mips )?
     );
 
     gl.bind_framebuffer( gl::FRAMEBUFFER, Some( fbo.as_ref() ) );
     let diffuse_texture = TextureGuard::new
     (
       gl,
-      convolve_irradiance( gl, &programs, source_cubemap.as_ref() )?
+      irradiance_convolve( gl, &programs, source_cubemap.as_ref() )?
     );
 
     gl.bind_framebuffer( gl::FRAMEBUFFER, Some( fbo.as_ref() ) );
     // No TextureGuard needed — no fallible operations follow this allocation.
-    let brdf_lut = integrate_brdf( gl, &programs )?;
+    let brdf_lut = brdf_integrate( gl, &programs )?;
 
     // Every pass succeeded. Reset bindings, then hand the output textures to the caller by
     // disarming their guards. `source_cubemap`, `fbo` and `programs` are freed by their

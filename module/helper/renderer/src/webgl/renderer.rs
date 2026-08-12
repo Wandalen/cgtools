@@ -238,8 +238,8 @@ mod private
     /// * `gl` - A reference to the WebGl2RenderingContext.
     pub fn resolve( &self, gl : &gl::WebGl2RenderingContext, use_emission : bool, has_transparent : bool )
     {
-      self.bind_multisample( gl );
-      self.bind_resolved( gl );
+      self.multisample_bind( gl );
+      self.resolved_bind( gl );
 
       gl.bind_framebuffer( gl::READ_FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
       gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
@@ -299,8 +299,8 @@ mod private
 
       gl.bind_framebuffer( gl::READ_FRAMEBUFFER, None );
       gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
-      self.unbind_multisample( gl );
-      self.unbind_resolved( gl );
+      self.multisample_unbind( gl );
+      self.resolved_unbind( gl );
     }
 
     /// Binds the `multisample_framebuffer` and attaches its renderbuffers.
@@ -312,7 +312,7 @@ mod private
     /// # Arguments
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn bind_multisample( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn multisample_bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
@@ -327,7 +327,7 @@ mod private
     /// # Arguments
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn bind_resolved( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn resolved_bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
@@ -343,7 +343,7 @@ mod private
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
     #[ expect( clippy::unused_self, reason = "the commented-out detach calls in the body are the intended full implementation and need `self`" ) ]
-    pub fn unbind_multisample( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn multisample_unbind( &self, gl : &gl::WebGl2RenderingContext )
     {
       // gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
       // gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, None );
@@ -362,7 +362,7 @@ mod private
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
     #[ expect( clippy::unused_self, reason = "the commented-out detach calls in the body are the intended full implementation and need `self`" ) ]
-    pub fn unbind_resolved( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn resolved_unbind( &self, gl : &gl::WebGl2RenderingContext )
     {
       //  gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
       // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
@@ -371,7 +371,7 @@ mod private
     }
 
     /// Free [`FramebufferContext`] WebGL resources
-    pub fn free_gl_resources( &mut self, gl : &GL )
+    pub fn gl_resources_free( &mut self, gl : &GL )
     {
       gl.delete_framebuffer( self.resolved_framebuffer.as_ref() );
       gl.delete_framebuffer( self.multisample_framebuffer.as_ref() );
@@ -502,14 +502,14 @@ mod private
     /// Returns `WebglError` if recreating the framebuffers at the new size fails.
     pub fn resize( &mut self, gl : &gl::GL, width : u32, height : u32, samples : i32 ) -> Result< (), gl::WebglError >
     {
-      self.framebuffer_ctx.free_gl_resources( gl );
+      self.framebuffer_ctx.gl_resources_free( gl );
       if let Some( ref mut bloom ) = self.bloom_effect
       {
-        bloom.free_gl_resources( gl );
+        bloom.gl_resources_free( gl );
       }
       if let Some( ref mut swap ) = self.swap_buffer
       {
-        swap.free_gl_resources( gl );
+        swap.gl_resources_free( gl );
       }
 
       self.framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
@@ -529,13 +529,13 @@ mod private
     /// Sets the Image-Based Lighting (IBL) textures to be used for rendering.
     ///
     /// * `ibl`: The `IBL` struct containing the diffuse and specular environment maps and the BRDF integration texture.
-    pub fn set_ibl( &mut self, ibl : IBL )
+    pub fn ibl_set( &mut self, ibl : IBL )
     {
       self.ibl = Some( ibl );
     }
 
     /// Sets whether the renderer should use the emission texture for post-processing effects.
-    pub fn set_use_emission( &mut self, gl : &gl::WebGl2RenderingContext, use_emission : bool )
+    pub fn use_emission_set( &mut self, gl : &gl::WebGl2RenderingContext, use_emission : bool )
     {
       self.use_emission = use_emission;
       if use_emission && self.bloom_effect.is_none()
@@ -548,7 +548,7 @@ mod private
     }
 
     /// Sets clear color
-    pub fn set_clear_color( &mut self, color : F32x3 )
+    pub fn clear_color_set( &mut self, color : F32x3 )
     {
       self.clear_color = color;
     }
@@ -561,13 +561,13 @@ mod private
     }
 
     /// Sets the skybox cube map texture.
-    pub fn set_skybox( &mut self, texture : Option< WebGlTexture > )
+    pub fn skybox_set( &mut self, texture : Option< WebGlTexture > )
     {
       self.framebuffer_ctx.skybox_texture = texture;
     }
 
     /// Sets a new exposure value.
-    pub fn set_exposure( &mut self, exposure : f32 )
+    pub fn exposure_set( &mut self, exposure : f32 )
     {
       self.exposure = exposure;
     }
@@ -576,11 +576,11 @@ mod private
     ///
     /// This determines how far the light "bleeds" from bright areas. A larger radius
     /// results in a more expansive and softer glow.
-    pub fn set_bloom_radius( &mut self, radius : f32 )
+    pub fn bloom_radius_set( &mut self, radius : f32 )
     {
       if let Some( ref mut bloom ) = self.bloom_effect
       {
-        bloom.set_bloom_radius( radius );
+        bloom.bloom_radius_set( radius );
       }
     }
 
@@ -594,11 +594,11 @@ mod private
     ///
     /// This controls how bright or prominent the glow appears. A higher strength
     /// makes the bloom more visible.
-    pub fn set_bloom_strength( &mut self, strength : f32  )
+    pub fn bloom_strength_set( &mut self, strength : f32  )
     {
       if let Some( ref mut bloom ) = self.bloom_effect
       {
-        bloom.set_bloom_strength( strength );
+        bloom.bloom_strength_set( strength );
       }
     }
 
@@ -620,7 +620,7 @@ mod private
     /// # Panics
     ///
     /// Panics if a skybox uniform is absent or a camera matrix is not invertible.
-    pub fn draw_skybox
+    pub fn skybox_draw
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
@@ -638,8 +638,8 @@ mod private
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.skybox_texture.as_ref() );
       gl.uniform1i( equirect_map_loc.as_ref(), 0_i32 );
-      gl::uniform::matrix_upload( gl, inv_projection_loc.clone(), &camera.get_projection_matrix().inverse().unwrap().to_array(), true ).unwrap();
-      gl::uniform::matrix_upload( gl, inv_view_loc.clone(), &camera.get_view_matrix().inverse().unwrap().to_array(), true ).unwrap();
+      gl::uniform::matrix_upload( gl, inv_projection_loc.clone(), &camera.projection_matrix_get().inverse().unwrap().to_array(), true ).unwrap();
+      gl::uniform::matrix_upload( gl, inv_view_loc.clone(), &camera.view_matrix_get().inverse().unwrap().to_array(), true ).unwrap();
 
       gl.disable( gl::CULL_FACE );
       gl.enable( gl::DEPTH_TEST );
@@ -674,7 +674,7 @@ mod private
       camera : &Camera
     ) -> Result< (), gl::WebglError >
     {
-      scene.update_world_matrix();
+      scene.world_matrix_update();
 
       gl.disable( gl::BLEND );
 
@@ -689,7 +689,7 @@ mod private
       // `drawbuffers` call below (multisample FBO) and re-selected per blit in `resolve`
       // (resolved FBO). Calling `enable/disable_emission_texture` here would only set
       // drawbuffers state that is immediately overwritten before any draw uses it.
-      self.framebuffer_ctx.bind_multisample( gl );
+      self.framebuffer_ctx.multisample_bind( gl );
 
       if has_transparent && has_emissive
       {
@@ -725,11 +725,11 @@ mod private
       gl.clear_stencil( 0 );
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT );
 
-      self.upload_per_program_uniforms( gl, camera, &lights )?;
-      self.draw_opaque( gl, camera )?;
+      self.per_program_uniforms_upload( gl, camera, &lights )?;
+      self.opaque_draw( gl, camera )?;
       if !self.transparent_nodes.is_empty()
       {
-        self.draw_transparent( gl )?;
+        self.transparent_draw( gl )?;
       }
       self.composite( gl )?;
 
@@ -840,7 +840,7 @@ mod private
           let vs_src = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
           let fs_src = format!( "#version 300 es\n{}\n{}\n{}", material.fragment_defines_str(), ibl_define, material.fragment_shader() );
           let program = gl::ProgramFromSources::new( &vs_src, &fs_src ).compile_and_link( gl )?;
-          let shader_program = material.make_shader_program( gl, &program );
+          let shader_program = material.shader_program_make( gl, &program );
           let new_id = uuid::Uuid::new_v4();
 
           // Configure texture unit assignments once
@@ -878,7 +878,7 @@ mod private
         };
 
         self.material_program_map.insert( material_id, prog_id );
-        material.clear_recompile_flag();
+        material.recompile_flag_clear();
         prog_id
       };
 
@@ -894,7 +894,7 @@ mod private
     }
 
     /// Phase 2: Uploads camera, lights, and exposure uniforms to each active program.
-    fn upload_per_program_uniforms
+    fn per_program_uniforms_upload
     (
       &mut self,
       gl : &GL,
@@ -918,7 +918,7 @@ mod private
         {
           program.bind( gl );
           camera.upload( gl, program.locations() );
-          bind_lights( gl, &mut **program, lights );
+          lights_bind( gl, &mut **program, lights );
           if let Some( exposure_loc ) = program.locations().get( "exposure" )
           {
             gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
@@ -930,7 +930,7 @@ mod private
     }
 
     /// Phase 3a: Draws opaque primitives sorted by program, with per-material depth/face state.
-    fn draw_opaque
+    fn opaque_draw
     (
       &mut self,
       gl : &GL,
@@ -976,9 +976,9 @@ mod private
           last_material_id = None;
         }
 
-        enable_material_depth_properties( gl, &**material );
-        enable_material_face_properties( gl, &**material );
-        enable_material_color_mask( gl, &**material );
+        material_depth_properties_enable( gl, &**material );
+        material_face_properties_enable( gl, &**material );
+        material_color_mask_enable( gl, &**material );
 
         let material_upload_context = MaterialUploadContext
         {
@@ -990,7 +990,7 @@ mod private
         if material.needs_update() || last_material_id != Some( material.id() )
         {
           material.upload_on_state_change( gl, &material_upload_context )?;
-          material.set_needs_update( false );
+          material.needs_update_set( false );
         }
         material.upload( gl, &material_upload_context )?;
         material.bind( gl );
@@ -1015,7 +1015,7 @@ mod private
 
       if self.framebuffer_ctx.skybox_texture.is_some()
       {
-        self.draw_skybox( gl, camera );
+        self.skybox_draw( gl, camera );
       }
 
       Ok( () )
@@ -1029,7 +1029,7 @@ mod private
     ///
     /// Materials with custom `depth_func()` or `front_face()` are not supported
     /// in this pass — those properties are only applied in the opaque pass.
-    fn draw_transparent
+    fn transparent_draw
     (
       &mut self,
       gl : &GL
@@ -1073,7 +1073,7 @@ mod private
           last_material_id = None;
         }
 
-        enable_material_color_mask( gl, &**material );
+        material_color_mask_enable( gl, &**material );
 
         let material_upload_context = MaterialUploadContext
         {
@@ -1085,7 +1085,7 @@ mod private
         if material.needs_update() || last_material_id != Some( material.id() )
         {
           material.upload_on_state_change( gl, &material_upload_context )?;
-          material.set_needs_update( false );
+          material.needs_update_set( false );
         }
         material.upload( gl, &material_upload_context )?;
         material.bind( gl );
@@ -1122,7 +1122,7 @@ mod private
     {
       let has_transparent = !self.transparent_nodes.is_empty();
       self.framebuffer_ctx.resolve( gl, self.use_emission, has_transparent );
-      self.framebuffer_ctx.unbind_multisample( gl );
+      self.framebuffer_ctx.multisample_unbind( gl );
 
       if self.use_emission
       {
@@ -1130,10 +1130,10 @@ mod private
         {
           swap.reset();
           swap.bind( gl );
-          swap.set_input( self.framebuffer_ctx.emission_texture.clone() );
+          swap.input_set( self.framebuffer_ctx.emission_texture.clone() );
 
-          bloom.render( gl, swap.get_input(), swap.get_output() )?;
-          self.blend_effect.blend_texture = swap.get_output();
+          bloom.render( gl, swap.input_get(), swap.output_get() )?;
+          self.blend_effect.blend_texture = swap.output_get();
           self.blend_effect.render( gl, None, self.framebuffer_ctx.main_texture.clone() )?;
         }
       }
@@ -1172,7 +1172,7 @@ mod private
   }
 
   /// Configures face culling and front face order from material.
-  fn enable_material_face_properties( gl : &GL, material : &dyn crate::webgl::Material )
+  fn material_face_properties_enable( gl : &GL, material : &dyn crate::webgl::Material )
   {
     let cull_mode = material.cull_mode();
     let front_face = material.front_face() as u32;
@@ -1191,7 +1191,7 @@ mod private
   }
 
   /// Configures depth testing, function, and write mask from material.
-  fn enable_material_depth_properties( gl : &GL, material : &dyn crate::webgl::Material )
+  fn material_depth_properties_enable( gl : &GL, material : &dyn crate::webgl::Material )
   {
     let depth_func = material.depth_func() as u32;
     let depth_test = material.is_depth_test_enabled();
@@ -1212,7 +1212,7 @@ mod private
   }
 
   /// Sets RGBA color write mask from material.
-  fn enable_material_color_mask( gl : &GL, material : &dyn crate::webgl::Material )
+  fn material_color_mask_enable( gl : &GL, material : &dyn crate::webgl::Material )
   {
     let ( red, green, blue, alpha ) = material.color_write_mask();
 
@@ -1237,7 +1237,7 @@ mod private
     result
   }
 
-  fn bind_lights
+  fn lights_bind
   (
     gl : &GL,
     program : &mut dyn ShaderProgram,

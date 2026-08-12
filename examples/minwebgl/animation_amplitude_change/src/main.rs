@@ -29,13 +29,13 @@ fn tree_write( node : &Rc< RefCell< Node > >, depth : usize, output : &mut Strin
 {
   let name = node
   .borrow()
-  .get_name()
+  .name_get()
   .unwrap_or( "<none>".into() );
 
   let indent = "-".repeat( depth );
   let _ = writeln!( output, "{indent}{name}" );
 
-  for child in node.borrow().get_children()
+  for child in node.borrow().children_get()
   {
     tree_write( child, depth + 1, output );
   }
@@ -60,14 +60,14 @@ fn node_names_split_into_parts
 {
   fn names_collect( node : &Rc< RefCell< Node > >, out : &mut Vec< Box< str > > )
   {
-    let Some( name ) = node.borrow().get_name()
+    let Some( name ) = node.borrow().name_get()
     else
     {
       return;
     };
 
     out.push( name );
-    for child in node.borrow().get_children()
+    for child in node.borrow().children_get()
     {
       names_collect( child, out );
     }
@@ -85,7 +85,7 @@ fn node_names_split_into_parts
   (
     &mut | node : Rc< RefCell< Node > > |
     {
-      let Some( name ) = node.borrow().get_name()
+      let Some( name ) = node.borrow().name_get()
       else
       {
         return Ok( () );
@@ -102,7 +102,7 @@ fn node_names_split_into_parts
   (
     &mut | node : Rc< RefCell< Node > > |
     {
-      let Some( name ) = node.borrow().get_name()
+      let Some( name ) = node.borrow().name_get()
       else
       {
         return Ok( () );
@@ -127,7 +127,7 @@ fn node_names_split_into_parts
 
   parts.insert
   (
-    root.borrow().get_name().unwrap_or( "<none>".into() ),
+    root.borrow().name_get().unwrap_or( "<none>".into() ),
     not_mentioned.into_iter().collect::< Vec< _ > >()
   );
 
@@ -161,8 +161,8 @@ fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : 
   let far = near * 100.0f32.powi( exponent.abs() ) / 100.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ width, height ].into() );
-  camera.bind_controls( canvas );
+  camera.window_size_set( [ width, height ].into() );
+  camera.controls_bind( canvas );
 
   camera
 }
@@ -226,13 +226,13 @@ async fn app_run() -> Result< (), gl::WebglError >
   let gltf_path = "static/gltf/multi_animation.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  scenes[ 0 ].borrow_mut().world_matrix_update();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
   let camera = camera_setup( &canvas, &scene_bounding_box, width, height );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
+  renderer.ibl_set( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -241,8 +241,8 @@ async fn app_run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  camera.get_controls().borrow_mut().up = F32x3::from_array( [ 0.0, -1.0, 0.0 ] );
-  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341_171e-6, -0.015_823_878, 0.007_656_166] );
+  camera.controls_get().borrow_mut().up = F32x3::from_array( [ 0.0, -1.0, 0.0 ] );
+  camera.controls_get().borrow_mut().eye = F32x3::from_array( [-5.341_171e-6, -0.015_823_878, 0.007_656_166] );
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
@@ -289,15 +289,15 @@ async fn app_run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.borrow().main_texture() );
+      swap_buffer.input_set( renderer.borrow().main_texture() );
 
-      let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render tonemapping pass" );
 
-      swap_buffer.set_output( t );
+      swap_buffer.output_set( t );
       swap_buffer.swap();
 
-      let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let _ = to_srgb.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render ToSrgbPass" );
 
       true

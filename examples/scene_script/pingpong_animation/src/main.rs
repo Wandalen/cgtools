@@ -58,7 +58,7 @@ fn frames_render( frames : &[ pingpong_animation::Frame ] )
   };
 
   let mut backend = SvgBackend::new( RenderConfig::default() );
-  if let Err( error ) = backend.load_assets( &render_assets() )
+  if let Err( error ) = backend.assets_load( &render_assets() )
   {
     eprintln!( "failed to load render assets: {error}" );
     return;
@@ -119,7 +119,7 @@ fn frames_render( frames : &[ pingpong_animation::Frame ] )
       Err( error ) => { minwebgl::warn!( "failed to construct WebGlBackend: {error}" ); return; }
     };
 
-    if let Err( error ) = backend.load_assets( &assets )
+    if let Err( error ) = backend.assets_load( &assets )
     {
       minwebgl::warn!( "failed to load render assets: {error}" );
       return;

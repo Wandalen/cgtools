@@ -63,7 +63,7 @@ fn triangle_render_readback()
      ( a software one such as lavapipe / mesa-vulkan-drivers suffices )"
   );
 
-  let shader = device.create_shader_module( &ShaderSource
+  let shader = device.shader_module_create( &ShaderSource
   {
     wgsl : WGSL,
     glsl_vertex : None,
@@ -72,20 +72,20 @@ fn triangle_render_readback()
   .expect( "shader module creation failed" );
 
   let vertices = as_bytes( &[ -0.5, -0.5, 0.5, -0.5, 0.0, 0.5 ] );
-  let vertex_buffer = device.create_buffer_init( &vertices, BufferUsage::VERTEX )
+  let vertex_buffer = device.buffer_init_create( &vertices, BufferUsage::VERTEX )
   .expect( "vertex buffer creation failed" );
   let indices : Vec< u8 > = [ 0u32, 1, 2 ].iter().flat_map( | i | i.to_le_bytes() ).collect();
-  let index_buffer = device.create_buffer_init( &indices, BufferUsage::INDEX )
+  let index_buffer = device.buffer_init_create( &indices, BufferUsage::INDEX )
   .expect( "index buffer creation failed" );
 
   // Created empty and filled through the queue, so the readback proves
-  // `write_buffer` landed, not just `create_buffer_init`.
-  let uniform_buffer = device.create_buffer( 16, BufferUsage::UNIFORM | BufferUsage::COPY_DST )
+  // `buffer_write` landed, not just `buffer_init_create`.
+  let uniform_buffer = device.buffer_create( 16, BufferUsage::UNIFORM | BufferUsage::COPY_DST )
   .expect( "uniform buffer creation failed" );
-  queue.write_buffer( &uniform_buffer, &as_bytes( &[ 1.0, 0.0, 0.0, 1.0 ] ) )
+  queue.buffer_write( &uniform_buffer, &as_bytes( &[ 1.0, 0.0, 0.0, 1.0 ] ) )
   .expect( "uniform write failed" );
 
-  let layout = device.create_bind_group_layout
+  let layout = device.bind_group_layout_create
   (
     &[ BindGroupLayoutEntry
     {
@@ -94,10 +94,10 @@ fn triangle_render_readback()
     } ]
   )
   .expect( "bind group layout creation failed" );
-  let bind_group = device.create_bind_group( &layout, &[ BindingResource::Buffer( &uniform_buffer ) ] )
+  let bind_group = device.bind_group_create( &layout, &[ BindingResource::Buffer( &uniform_buffer ) ] )
   .expect( "bind group creation failed" );
 
-  let pipeline = device.create_render_pipeline( &RenderPipelineDesc
+  let pipeline = device.render_pipeline_create( &RenderPipelineDesc
   {
     shader : &shader,
     vertex_entry : "vs_main",
@@ -123,8 +123,8 @@ fn triangle_render_readback()
   .expect( "pipeline creation failed" );
 
   let view = surface.current_view().expect( "surface view unavailable" );
-  let mut encoder = device.create_command_encoder();
-  let mut pass = encoder.begin_render_pass
+  let mut encoder = device.command_encoder_create();
+  let mut pass = encoder.render_pass_begin
   (
     &ColorAttachmentDesc
     {
@@ -134,15 +134,15 @@ fn triangle_render_readback()
     None
   )
   .expect( "render pass failed to begin" );
-  pass.set_pipeline( &pipeline );
-  pass.set_bind_group( 0, &bind_group );
-  pass.set_vertex_buffer( 0, &vertex_buffer );
-  pass.set_index_buffer( &index_buffer, IndexFormat::Uint32 );
+  pass.pipeline_set( &pipeline );
+  pass.bind_group_set( 0, &bind_group );
+  pass.vertex_buffer_set( 0, &vertex_buffer );
+  pass.index_buffer_set( &index_buffer, IndexFormat::Uint32 );
   pass.draw_indexed( 3 );
   pass.end();
   queue.submit( encoder );
 
-  let pixels = surface.read_pixels( &device, &queue ).expect( "readback failed" );
+  let pixels = surface.pixels_read( &device, &queue ).expect( "readback failed" );
   assert_eq!( pixels.len(), ( width * height * 4 ) as usize );
 
   // Top row first : pixel ( x, y ) starts at ( y * width + x ) * 4.
@@ -191,25 +191,25 @@ struct TexturedScene
 
 /// A single triangle large enough to cover the full clip-space area, plus
 /// its index buffer.
-fn create_fullscreen_geometry( device : &Device ) -> ( Buffer, Buffer )
+fn fullscreen_geometry_create( device : &Device ) -> ( Buffer, Buffer )
 {
   let vertices = as_bytes( &[ -1.0, -1.0, 3.0, -1.0, -1.0, 3.0 ] );
-  let vertex_buffer = device.create_buffer_init( &vertices, BufferUsage::VERTEX )
+  let vertex_buffer = device.buffer_init_create( &vertices, BufferUsage::VERTEX )
   .expect( "vertex buffer creation failed" );
   let indices : Vec< u8 > = [ 0u32, 1, 2 ].iter().flat_map( | i | i.to_le_bytes() ).collect();
-  let index_buffer = device.create_buffer_init( &indices, BufferUsage::INDEX )
+  let index_buffer = device.buffer_init_create( &indices, BufferUsage::INDEX )
   .expect( "index buffer creation failed" );
   ( vertex_buffer, index_buffer )
 }
 
 /// A 64×64 `Rgba8Unorm` texture ( left empty — filled by the test itself
-/// via `write_texture` ), its bind group layout, and a bind group pairing
+/// via `texture_write` ), its bind group layout, and a bind group pairing
 /// it with a sampler. Texture entry precedes the sampler entry : the
 /// WebGL backend pairs a sampler with the nearest preceding texture
 /// entry, so this order is load-bearing.
-fn create_textured_bind_group( device : &Device ) -> ( Texture, BindGroupLayout, BindGroup )
+fn textured_bind_group_create( device : &Device ) -> ( Texture, BindGroupLayout, BindGroup )
 {
-  let texture = device.create_texture( &TextureDesc
+  let texture = device.texture_create( &TextureDesc
   {
     size : [ 64, 64, 1 ],
     format : TextureFormat::Rgba8Unorm,
@@ -217,10 +217,10 @@ fn create_textured_bind_group( device : &Device ) -> ( Texture, BindGroupLayout,
   } )
   .expect( "texture creation failed" );
   let texture_view = texture.view().expect( "texture view creation failed" );
-  let sampler = device.create_sampler( SamplerDesc::default() )
+  let sampler = device.sampler_create( SamplerDesc::default() )
   .expect( "sampler creation failed" );
 
-  let layout = device.create_bind_group_layout
+  let layout = device.bind_group_layout_create
   (
     &[
       BindGroupLayoutEntry { visibility : ShaderStages::FRAGMENT, ty : BindingType::Texture },
@@ -228,7 +228,7 @@ fn create_textured_bind_group( device : &Device ) -> ( Texture, BindGroupLayout,
     ]
   )
   .expect( "bind group layout creation failed" );
-  let bind_group = device.create_bind_group
+  let bind_group = device.bind_group_create
   (
     &layout,
     &[ BindingResource::TextureView( &texture_view ), BindingResource::Sampler( &sampler ) ]
@@ -239,7 +239,7 @@ fn create_textured_bind_group( device : &Device ) -> ( Texture, BindGroupLayout,
 }
 
 /// Builds the full textured-quad scene the test renders and re-renders.
-fn setup_textured_scene() -> TexturedScene
+fn textured_scene_setup() -> TexturedScene
 {
   let ( device, queue, surface ) = Device::new_native( 64, 64 )
   .expect
@@ -248,7 +248,7 @@ fn setup_textured_scene() -> TexturedScene
      ( a software one such as lavapipe / mesa-vulkan-drivers suffices )"
   );
 
-  let shader = device.create_shader_module( &ShaderSource
+  let shader = device.shader_module_create( &ShaderSource
   {
     wgsl : TEXTURE_WGSL,
     glsl_vertex : None,
@@ -256,10 +256,10 @@ fn setup_textured_scene() -> TexturedScene
   } )
   .expect( "shader module creation failed" );
 
-  let ( vertex_buffer, index_buffer ) = create_fullscreen_geometry( &device );
-  let ( texture, layout, bind_group ) = create_textured_bind_group( &device );
+  let ( vertex_buffer, index_buffer ) = fullscreen_geometry_create( &device );
+  let ( texture, layout, bind_group ) = textured_bind_group_create( &device );
 
-  let pipeline = device.create_render_pipeline( &RenderPipelineDesc
+  let pipeline = device.render_pipeline_create( &RenderPipelineDesc
   {
     shader : &shader,
     vertex_entry : "vs_main",
@@ -280,26 +280,26 @@ fn setup_textured_scene() -> TexturedScene
 }
 
 /// Renders one frame and reads back the center pixel — called once per
-/// `write_texture` call below to prove each upload actually lands.
-fn sample_center( scene : &TexturedScene ) -> [ u8 ; 4 ]
+/// `texture_write` call below to prove each upload actually lands.
+fn center_sample( scene : &TexturedScene ) -> [ u8 ; 4 ]
 {
   let view = scene.surface.current_view().expect( "surface view unavailable" );
-  let mut encoder = scene.device.create_command_encoder();
-  let mut pass = encoder.begin_render_pass
+  let mut encoder = scene.device.command_encoder_create();
+  let mut pass = encoder.render_pass_begin
   (
     &ColorAttachmentDesc { view : &view, clear : [ 0.0, 0.0, 0.0, 1.0 ] },
     None
   )
   .expect( "render pass failed to begin" );
-  pass.set_pipeline( &scene.pipeline );
-  pass.set_bind_group( 0, &scene.bind_group );
-  pass.set_vertex_buffer( 0, &scene.vertex_buffer );
-  pass.set_index_buffer( &scene.index_buffer, IndexFormat::Uint32 );
+  pass.pipeline_set( &scene.pipeline );
+  pass.bind_group_set( 0, &scene.bind_group );
+  pass.vertex_buffer_set( 0, &scene.vertex_buffer );
+  pass.index_buffer_set( &scene.index_buffer, IndexFormat::Uint32 );
   pass.draw_indexed( 3 );
   pass.end();
   scene.queue.submit( encoder );
 
-  let pixels = scene.surface.read_pixels( &scene.device, &scene.queue ).expect( "readback failed" );
+  let pixels = scene.surface.pixels_read( &scene.device, &scene.queue ).expect( "readback failed" );
   let start = ( ( 32u32 * 64 + 32 ) * 4 ) as usize;
   [ pixels[ start ], pixels[ start + 1 ], pixels[ start + 2 ], pixels[ start + 3 ] ]
 }
@@ -307,17 +307,17 @@ fn sample_center( scene : &TexturedScene ) -> [ u8 ; 4 ]
 #[ test ]
 fn texture_write_readback()
 {
-  let scene = setup_textured_scene();
+  let scene = textured_scene_setup();
   let texel_count = ( 64 * 64 ) as usize;
 
   // T01 : the upload lands and is sampled back correctly.
   let red : Vec< u8 > = [ 255u8, 0, 0, 255 ].repeat( texel_count );
-  scene.queue.write_texture( &scene.texture, &red ).expect( "red write_texture failed" );
-  assert_eq!( sample_center( &scene ), [ 255, 0, 0, 255 ], "sampled color should be the uploaded red" );
+  scene.queue.texture_write( &scene.texture, &red ).expect( "red texture_write failed" );
+  assert_eq!( center_sample( &scene ), [ 255, 0, 0, 255 ], "sampled color should be the uploaded red" );
 
   // T02 : overwrite semantics — a genuinely different color replaces the
   // first, proving this isn't stale or cached data.
   let green : Vec< u8 > = [ 0u8, 255, 0, 255 ].repeat( texel_count );
-  scene.queue.write_texture( &scene.texture, &green ).expect( "green write_texture failed" );
-  assert_eq!( sample_center( &scene ), [ 0, 255, 0, 255 ], "sampled color should be the overwritten green" );
+  scene.queue.texture_write( &scene.texture, &green ).expect( "green texture_write failed" );
+  assert_eq!( center_sample( &scene ), [ 0, 255, 0, 255 ], "sampled color should be the overwritten green" );
 }

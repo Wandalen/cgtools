@@ -19,7 +19,7 @@
 //!
 //! let config = RenderConfig { width : 800, height : 600, ..Default::default() };
 //! let mut svg = SvgBackend::new( config );
-//! svg.load_assets( &assets )?;
+//! svg.assets_load( &assets )?;
 //! svg.submit( &commands )?;
 //! let Output::String( doc ) = svg.output()? else { unreachable!() };
 //! ```

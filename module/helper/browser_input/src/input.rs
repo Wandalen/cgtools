@@ -86,12 +86,11 @@ pub enum PointerType
   Unknown,
 }
 
-impl PointerType
+impl From< &str > for PointerType
 {
   /// Convert from the DOM `PointerEvent.pointerType` string.
   #[ inline ]
-  #[ must_use ]
-  pub fn from_dom_str( s : &str ) -> Self
+  fn from( s : &str ) -> Self
   {
     match s
     {
@@ -299,7 +298,7 @@ impl Input
         let pos = ( *get_coords )( &event );
         let button = MouseButton::from_button( event.button() );
         let action = if event.type_() == "pointerdown" { Action::Press } else { Action::Release };
-        last_pointer_type.set( PointerType::from_dom_str( &event.pointer_type() ) );
+        last_pointer_type.set( PointerType::from( event.pointer_type().as_str() ) );
 
         // On press, capture the pointer so drag events keep arriving even when the
         // finger or cursor moves outside the target element's bounding box.
@@ -331,7 +330,7 @@ impl Input
         // The Pointer Events spec does not guarantee valid coordinates or button data
         // for pointercancel.
         let pointer_id = event.pointer_id();
-        last_pointer_type.set( PointerType::from_dom_str( &event.pointer_type() ) );
+        last_pointer_type.set( PointerType::from( event.pointer_type().as_str() ) );
         let event_type = EventType::PointerCancel( pointer_id );
         let alt = event.alt_key();
         let ctrl = event.ctrl_key();
@@ -348,7 +347,7 @@ impl Input
       {
         let pointer_id = event.pointer_id();
         let position = ( *get_coords )( &event );
-        last_pointer_type.set( PointerType::from_dom_str( &event.pointer_type() ) );
+        last_pointer_type.set( PointerType::from( event.pointer_type().as_str() ) );
         let event_type = EventType::PointerMove( pointer_id, position );
         let alt = event.alt_key();
         let ctrl = event.ctrl_key();
@@ -378,7 +377,7 @@ impl Input
       let event_queue = event_queue.clone();
       move | event : KeyboardEvent |
       {
-        let code = KeyboardKey::from_code( &event.code() );
+        let code = KeyboardKey::from( event.code().as_str() );
         let action = if event.type_() == "keydown" { Action::Press } else { Action::Release };
         let event_type = EventType::KeyboardKey( code, action );
         let alt = event.alt_key();
@@ -521,7 +520,7 @@ impl Input
   /// whether any pointer is currently active, use [`Input::active_pointers`].
   ///
   /// # Test coverage
-  /// The string-to-variant mapping is covered by the `from_dom_str` pins in
+  /// The string-to-variant mapping is covered by the `From< &str >` pins in
   /// `tests/pointer_type_test.rs`.
   /// End-to-end wiring through DOM callbacks requires a `wasm-bindgen-test` environment
   /// and is not covered on the native target.

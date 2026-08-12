@@ -1,6 +1,6 @@
 //! Deserializable scene configuration for the sun/grid HUD diagram, loaded
 //! from `scene.rhai` at compile time via `include_str!` and evaluated
-//! through `scene_script::build_engine()`. Kept free of any wasm/WebGPU
+//! through `scene_script::engine_build()`. Kept free of any wasm/WebGPU
 //! dependency so parsing can be unit-tested on the native target, unlike
 //! the rest of this crate.
 
@@ -18,9 +18,9 @@ pub struct Color( pub f64, pub f64, pub f64 );
 
 impl Color
 {
-  /// Narrows to `[ r, g, b, 1.0 ]` — the `vec4f`-packed layout `scene.wgsl`'s
-  /// `Uniforms` struct uses for every color field, sidestepping WGSL's
-  /// vec3-aligns-to-16 padding rules entirely.
+  /// Narrows to `[ r, g, b, 1.0 ]` — the `vec4f`-packed layout `scene.rhai`'s
+  /// `shader` field's `Uniforms` struct uses for every color field,
+  /// sidestepping WGSL's vec3-aligns-to-16 padding rules entirely.
   #[ must_use ]
   pub fn to_array( self ) -> [ f32; 4 ]
   {
@@ -150,8 +150,9 @@ pub struct OrbitRing
 
 /// One authored planet/moon orbiting at a fixed `radius` with angular
 /// `speed` (sign gives direction) and starting `phase` — independent of
-/// `scene.wgsl`'s keyboard-driven procedural nodes, which keep working
-/// unchanged. `scene.rhai` declares exactly [`NODE_COUNT`] of these.
+/// the shader's own keyboard-driven procedural nodes (see `scene.rhai`'s
+/// `shader` field), which keep working unchanged. `scene.rhai` declares
+/// exactly [`NODE_COUNT`] of these.
 #[ derive( Debug, Clone, PartialEq, Deserialize ) ]
 pub struct Node
 {
@@ -184,10 +185,10 @@ pub struct Effects
   pub scanline_intensity : f64,
 }
 
-// List lengths `scene.rhai` must declare exactly, mirrored by `scene.wgsl`'s
-// `array<vec4f, N>` uniform fields — a WGSL `uniform` binding's arrays must
-// be a compile-time fixed size, so there is no runtime element count to
-// fall back on.
+// List lengths `scene.rhai` must declare exactly, mirrored by its own
+// `shader` field's `array<vec4f, N>` uniform fields — a WGSL `uniform`
+// binding's arrays must be a compile-time fixed size, so there is no
+// runtime element count to fall back on.
 
 /// Fixed length of [`SceneConfig::nebula_bands`].
 pub const NEBULA_BAND_COUNT : usize = 3;
@@ -222,6 +223,10 @@ pub struct SceneConfig
   pub nodes : Vec< Node >,
   /// Cross-cutting post effects.
   pub effects : Effects,
+  /// This scene's fragment-only WGSL body — see [`crate::shader_source::assemble`]
+  /// for how it's combined with the shared `shader_chunks` chunks before
+  /// reaching the shader module.
+  pub shader : String,
 }
 
 impl SceneConfig
@@ -234,15 +239,15 @@ impl SceneConfig
   /// # Panics
   ///
   /// Panics on a malformed script, a returned shape that doesn't match
-  /// `SceneConfig`, or a list whose length doesn't match its fixed
-  /// `scene.wgsl` uniform array size — the script is compiled into the
+  /// `SceneConfig`, or a list whose length doesn't match the `shader`
+  /// field's fixed uniform array size — the script is compiled into the
   /// binary by this crate itself, not supplied by an end user, so a failure
   /// here is a build-time authoring mistake that should fail loudly and
   /// immediately rather than degrade at runtime.
   #[ must_use ]
   pub fn load() -> Self
   {
-    let engine = scene_script::build_engine();
+    let engine = scene_script::engine_build();
     let dynamic : rhai::Dynamic = engine.eval( Self::SCRIPT )
     .expect( "scene.rhai is bundled at compile time and must evaluate" );
     let scene : Self = rhai::serde::from_dynamic( &dynamic )
@@ -251,22 +256,22 @@ impl SceneConfig
     assert_eq!
     (
       scene.nebula_bands.len(), NEBULA_BAND_COUNT,
-      "scene.rhai must declare exactly {NEBULA_BAND_COUNT} nebula_bands — scene.wgsl's uniform array is fixed-size"
+      "scene.rhai must declare exactly {NEBULA_BAND_COUNT} nebula_bands — its own shader field's uniform array is fixed-size"
     );
     assert_eq!
     (
       scene.star_layers.len(), STAR_LAYER_COUNT,
-      "scene.rhai must declare exactly {STAR_LAYER_COUNT} star_layers — scene.wgsl's uniform array is fixed-size"
+      "scene.rhai must declare exactly {STAR_LAYER_COUNT} star_layers — its own shader field's uniform array is fixed-size"
     );
     assert_eq!
     (
       scene.orbit_rings.len(), ORBIT_RING_COUNT,
-      "scene.rhai must declare exactly {ORBIT_RING_COUNT} orbit_rings — scene.wgsl's uniform array is fixed-size"
+      "scene.rhai must declare exactly {ORBIT_RING_COUNT} orbit_rings — its own shader field's uniform array is fixed-size"
     );
     assert_eq!
     (
       scene.nodes.len(), NODE_COUNT,
-      "scene.rhai must declare exactly {NODE_COUNT} nodes — scene.wgsl's uniform array is fixed-size"
+      "scene.rhai must declare exactly {NODE_COUNT} nodes — its own shader field's uniform array is fixed-size"
     );
 
     scene

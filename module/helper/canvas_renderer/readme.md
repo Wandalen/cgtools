@@ -48,7 +48,7 @@ use renderer::webgl::{ Camera, Node, Scene, Renderer, Texture, TextureInfo, mate
 use std::rc::Rc;
 use std::cell::RefCell;
 
-fn apply_function_to_node_materials
+fn function_to_node_materials_apply
 (
   node : &Rc< RefCell< Node > >,
   mut material_callback : impl FnMut( &Rc< RefCell< Box< dyn Material > > > )
@@ -63,7 +63,7 @@ fn apply_function_to_node_materials
   }
 }
 
-fn setup_scene() -> Scene
+fn scene_setup() -> Scene
 {
   let mut scene = Scene::new();
   let node = Node::default();
@@ -81,7 +81,7 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
 
   // Create the CanvasRenderer and get its initial output texture
   let canvas_renderer = CanvasRenderer::new( &gl, width, height )?;
-  let canvas_texture_handle = canvas_renderer.get_texture();
+  let canvas_texture_handle = canvas_renderer.texture_get();
 
   // In a real application, you would populate `canvas_scene` with 2D elements.
   let mut canvas_scene = Scene::new();
@@ -108,9 +108,9 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
   // Create the main Renderer for the final output
   let mut main_renderer = Renderer::new( &gl, width, height, 4 )?;
 
-  // For this example, we assume that setup_scene returns
+  // For this example, we assume that scene_setup returns
   // complete `Scene` struct with 3D objects.
-  let mut main_scene = setup_scene();
+  let mut main_scene = scene_setup();
 
   // Object for that you want change texture
   let object = main_scene.children.get( 0 ).unwrap().clone();
@@ -120,7 +120,7 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
   .source( canvas_texture_handle )
   .end();
 
-  apply_function_to_node_materials
+  function_to_node_materials_apply
   (
     &object,
     | m |
@@ -135,9 +135,9 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
         let uv_position = existing.uv_position;
         let new_texture = Rc::new( RefCell::new( cloned_texture ) );
         new_texture.borrow_mut().source = canvas_texture.clone().source;
-        m.set_base_color_texture( Some( TextureInfo { texture : new_texture, uv_position } ) );
+        m.base_color_texture_set( Some( TextureInfo { texture : new_texture, uv_position } ) );
       }
-      m.set_alpha_mode( renderer::webgl::AlphaMode::Blend );
+      m.alpha_mode_set( renderer::webgl::AlphaMode::Blend );
     }
   );
 

@@ -11,7 +11,7 @@
 
 ### Design
 
-`Context::builder()` returns a `ContextBuilder` parameterized by a phantom `_state` type (`InstanceBuilder`, `AdapterBuilder`, or `DeviceBuilder`); each state exposes only the configuration and transition methods valid at that stage, so the compiler rejects calling `adapter_request` before `instance_make`, for example. `Context::from_instance( instance )` is the alternate entry point for a caller supplying an already-constructed `wgpu::Instance`, skipping straight to the `AdapterBuilder` state.
+`Context::builder()` returns a `ContextBuilder` parameterized by a phantom `_state` type (`InstanceBuilder`, `AdapterBuilder`, or `DeviceBuilder`); each state exposes only the configuration and transition methods valid at that stage, so the compiler rejects calling `adapter_request` before `instance_make`, for example. `ContextBuilder::from( instance )` (the crate's `impl From< wgpu::Instance >`) is the alternate entry point for a caller supplying an already-constructed `wgpu::Instance`, skipping straight to the `AdapterBuilder` state.
 
 **Instance stage** (`InstanceBuilder`): `backends`, `flags`, `memory_budget_thresholds`, `backend_options` configure a `wgpu::InstanceDescriptor`; `instance_make()` builds the `wgpu::Instance` and transitions to `AdapterBuilder`.
 

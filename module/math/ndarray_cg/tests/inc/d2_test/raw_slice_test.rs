@@ -65,11 +65,7 @@ fn test_raw_set_slice_generic< D : the_module::mat::Descriptor >()
 where
   the_module::Mat< 2, 2, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 >,
 {
-  use the_module::
-  {
-    Mat,
-    RawSliceMut,
-  };
+  use the_module::Mat;
   let mut mat = Mat::< 2, 2, f32, D >::default();
   mat.raw_slice_set( &[ 9.0, 10.0, 11.0, 12.0 ] );
   let exp = &[ 9.0, 10.0, 11.0, 12.0 ];

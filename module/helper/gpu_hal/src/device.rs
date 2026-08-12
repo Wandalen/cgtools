@@ -44,7 +44,7 @@ mod private
   #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
   use wgpu::util::DeviceExt;
   #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-  use crate::native::read_texture_rgba8;
+  use crate::native::texture_rgba8_read;
   use crate::
   {
     Error,
@@ -119,7 +119,7 @@ mod private
       context : glw::GL
     },
     /// Native backend surface : an offscreen render target, readable
-    /// through `read_pixels` — there is no window to present to.
+    /// through `pixels_read` — there is no window to present to.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     Native
     {
@@ -152,7 +152,7 @@ mod private
       let queue = device.queue();
       let raw_format = gl::context::preferred_format();
       gl::context::configure( &device, &context, raw_format )?;
-      let format = TextureFormat::from_webgpu( raw_format )?;
+      let format = TextureFormat::try_from( raw_format )?;
 
       Ok
       ((
@@ -197,7 +197,7 @@ mod private
     /// Requests a wgpu adapter and device ( default options — any adapter
     /// qualifies, software rasterizers included ) and builds an offscreen
     /// rgba8 surface of the given size, readable through
-    /// `Surface::read_pixels`.
+    /// `Surface::pixels_read`.
     ///
     /// Synchronous : `minwgpu` blocks on the async requests internally,
     /// which is the natural shape off the browser event loop.
@@ -223,7 +223,7 @@ mod private
         mip_level_count : 1,
         sample_count : 1,
         dimension : wgpu::TextureDimension::D2,
-        format : format.to_wgpu(),
+        format : wgpu::TextureFormat::from( format ),
         usage : wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
         view_formats : &[]
       } );
@@ -258,7 +258,7 @@ mod private
     /// Returns [`Error::WebGpu`] if the underlying WebGPU buffer-creation
     /// call fails, or [`Error::WebGl`] if the WebGL context fails to
     /// allocate the buffer. The native backend never fails this call.
-    pub fn create_buffer( &self, size : u64, usage : BufferUsage ) -> Result< Buffer, Error >
+    pub fn buffer_create( &self, size : u64, usage : BufferUsage ) -> Result< Buffer, Error >
     {
       // Browser buffer allocations sit far below f64's exact integer
       // range, so the cast is lossless in practice.
@@ -291,7 +291,7 @@ mod private
           {
             label : None,
             size,
-            usage : usage.to_wgpu(),
+            usage : wgpu::BufferUsages::from( usage ),
             mapped_at_creation : false
           } ) ) )
         }
@@ -305,7 +305,7 @@ mod private
     /// Returns [`Error::WebGpu`] if the underlying WebGPU buffer-creation
     /// call fails, or [`Error::WebGl`] if the WebGL context fails to
     /// allocate the buffer. The native backend never fails this call.
-    pub fn create_buffer_init( &self, data : &[ u8 ], usage : BufferUsage ) -> Result< Buffer, Error >
+    pub fn buffer_init_create( &self, data : &[ u8 ], usage : BufferUsage ) -> Result< Buffer, Error >
     {
       match self
       {
@@ -337,7 +337,7 @@ mod private
           {
             label : None,
             contents : data,
-            usage : usage.to_wgpu()
+            usage : wgpu::BufferUsages::from( usage )
           } ) ) )
         }
       }
@@ -351,7 +351,7 @@ mod private
     /// call fails. Returns [`Error::WebGl`] if `desc.format` has no WebGL
     /// internal-format mapping, or if the WebGL context fails to allocate
     /// the texture. The native backend never fails this call.
-    pub fn create_texture( &self, desc : &TextureDesc ) -> Result< Texture, Error >
+    pub fn texture_create( &self, desc : &TextureDesc ) -> Result< Texture, Error >
     {
       match self
       {
@@ -360,7 +360,7 @@ mod private
         {
           let mut builder = gl::texture::desc()
           .size( desc.size )
-          .format( desc.format.to_webgpu() );
+          .format( gl::GpuTextureFormat::from( desc.format ) );
           if desc.usage.contains( TextureUsage::COPY_DST )
           {
             builder = builder.copy_dst();
@@ -416,8 +416,8 @@ mod private
             mip_level_count : 1,
             sample_count : 1,
             dimension : wgpu::TextureDimension::D2,
-            format : desc.format.to_wgpu(),
-            usage : desc.usage.to_wgpu(),
+            format : wgpu::TextureFormat::from( desc.format ),
+            usage : wgpu::TextureUsages::from( desc.usage ),
             view_formats : &[]
           } ) ) )
         }
@@ -431,7 +431,7 @@ mod private
     /// Returns [`Error::WebGl`] if the WebGL context fails to allocate the
     /// sampler. The WebGPU and native backends never fail this call.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
-    pub fn create_sampler( &self, desc : SamplerDesc ) -> Result< Sampler, Error >
+    pub fn sampler_create( &self, desc : SamplerDesc ) -> Result< Sampler, Error >
     {
       match self
       {
@@ -476,11 +476,11 @@ mod private
           Ok( Sampler::Native( device.create_sampler( &wgpu::SamplerDescriptor
           {
             label : None,
-            address_mode_u : desc.address.to_wgpu(),
-            address_mode_v : desc.address.to_wgpu(),
-            address_mode_w : desc.address.to_wgpu(),
-            mag_filter : desc.filter.to_wgpu(),
-            min_filter : desc.filter.to_wgpu(),
+            address_mode_u : wgpu::AddressMode::from( desc.address ),
+            address_mode_v : wgpu::AddressMode::from( desc.address ),
+            address_mode_w : wgpu::AddressMode::from( desc.address ),
+            mag_filter : wgpu::FilterMode::from( desc.filter ),
+            min_filter : wgpu::FilterMode::from( desc.filter ),
             ..wgpu::SamplerDescriptor::default()
           } ) ) )
         }
@@ -498,7 +498,7 @@ mod private
     /// missing either GLSL override slot. The WebGPU and native backends
     /// never fail this call.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in the webgpu-only build, whose infallibility is incidental; the WebGL arm fails for real, so the signature stays fallible" ) ]
-    pub fn create_shader_module( &self, source : &ShaderSource< '_ > ) -> Result< ShaderModule, Error >
+    pub fn shader_module_create( &self, source : &ShaderSource< '_ > ) -> Result< ShaderModule, Error >
     {
       match self
       {
@@ -544,7 +544,7 @@ mod private
     /// layout-creation call fails. The WebGL and native backends never
     /// fail this call.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
-    pub fn create_bind_group_layout
+    pub fn bind_group_layout_create
     (
       &self,
       entries : &[ BindGroupLayoutEntry ]
@@ -602,8 +602,8 @@ mod private
             wgpu::BindGroupLayoutEntry
             {
               binding : u32::try_from( index ).unwrap_or( u32::MAX ),
-              visibility : entry.visibility.to_wgpu(),
-              ty : entry.ty.to_wgpu(),
+              visibility : wgpu::ShaderStages::from( entry.visibility ),
+              ty : wgpu::BindingType::from( entry.ty ),
               count : None
             }
           )
@@ -626,7 +626,7 @@ mod private
     /// backbuffer cannot be sampled. The WebGPU and native backends never
     /// fail this call.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
-    pub fn create_bind_group
+    pub fn bind_group_create
     (
       &self,
       layout : &BindGroupLayout,
@@ -741,7 +741,7 @@ mod private
     /// call fails, or [`Error::WebGl`] if the vertex/fragment shader pair
     /// fails to compile and link. The native backend never fails this
     /// call.
-    pub fn create_render_pipeline( &self, desc : &RenderPipelineDesc< '_ > ) -> Result< RenderPipeline, Error >
+    pub fn render_pipeline_create( &self, desc : &RenderPipelineDesc< '_ > ) -> Result< RenderPipeline, Error >
     {
       match self
       {
@@ -768,7 +768,7 @@ mod private
               (
                 gl::VertexAttribute::new()
                 .location( attribute.location )
-                .format( attribute.format.to_webgpu() )
+                .format( gl::GpuVertexFormat::from( attribute.format ) )
                 .offset_from_value( f64::from( attribute.offset ) )
               );
             }
@@ -778,7 +778,7 @@ mod private
 
           let fragment_state = gl::FragmentState::new( shader )
           .entry_point( desc.fragment_entry )
-          .target( gl::ColorTargetState::new().format( desc.color_format.to_webgpu() ) );
+          .target( gl::ColorTargetState::new().format( gl::GpuTextureFormat::from( desc.color_format ) ) );
 
           let mut pipeline_desc = gl::render_pipeline::desc( vertex_state )
           .layout( &pipeline_layout )
@@ -790,7 +790,7 @@ mod private
           if let Some( depth ) = desc.depth
           {
             pipeline_desc = pipeline_desc
-            .depth_stencil( gl::DepthStencilState::new().format( depth.format.to_webgpu() ) );
+            .depth_stencil( gl::DepthStencilState::new().format( gl::GpuTextureFormat::from( depth.format ) ) );
           }
           Ok( RenderPipeline::WebGpu( pipeline_desc.create( device )? ) )
         }
@@ -802,7 +802,7 @@ mod private
           .compile_and_link( context )
           .map_err( glw::WebglError::from )?;
           let ( ubo_points, texture_units ) =
-          webgl_introspect_bindings( context, &program, desc.bind_group_layouts );
+          webgl_bindings_introspect( context, &program, desc.bind_group_layouts );
 
           Ok( RenderPipeline::WebGl( Rc::new( RenderPipelineWebGl
           {
@@ -815,13 +815,13 @@ mod private
           } ) ) )
         }
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native( device ) => Ok( native_create_render_pipeline( device, desc ) )
+        Self::Native( device ) => Ok( native_render_pipeline_create( device, desc ) )
       }
     }
 
     /// Creates a command encoder for one frame's passes.
     #[must_use]
-    pub fn create_command_encoder( &self ) -> CommandEncoder
+    pub fn command_encoder_create( &self ) -> CommandEncoder
     {
       match self
       {
@@ -896,7 +896,7 @@ mod private
     /// Returns [`Error::WebGpu`] if the underlying WebGPU write call
     /// fails. The WebGL and native backends never fail this call.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
-    pub fn write_buffer( &self, buffer : &Buffer, data : &[ u8 ] ) -> Result< (), Error >
+    pub fn buffer_write( &self, buffer : &Buffer, data : &[ u8 ] ) -> Result< (), Error >
     {
       match self
       {
@@ -933,7 +933,7 @@ mod private
     /// Returns [`Error::Unsupported`] if the texture's format has no
     /// portable CPU-side texel layout ( e.g. `Depth24Plus` ), or a
     /// backend-specific error if the underlying write call fails.
-    pub fn write_texture( &self, texture : &Texture, data : &[ u8 ] ) -> Result< (), Error >
+    pub fn texture_write( &self, texture : &Texture, data : &[ u8 ] ) -> Result< (), Error >
     {
       match self
       {
@@ -944,7 +944,7 @@ mod private
           let width = raw.width();
           let height = raw.height();
           let depth_or_array_layers = raw.depth_or_array_layers();
-          let format = TextureFormat::from_webgpu( raw.format() )?;
+          let format = TextureFormat::try_from( raw.format() )?;
           let bytes_per_row = width * format.bytes_per_texel()?;
 
           let data_layout = web_sys::GpuTexelCopyBufferLayout::new();
@@ -1193,11 +1193,11 @@ mod private
     /// Returns [`Error::Unsupported`] on the WebGPU and WebGL backends —
     /// browser surfaces present to their canvas and cannot be read back
     /// through this call. On the native backend, propagates
-    /// `read_texture_rgba8`'s errors: [`Error::Unsupported`] if the
+    /// `texture_rgba8_read`'s errors: [`Error::Unsupported`] if the
     /// surface's texture format is not `Rgba8Unorm`, or [`Error::Native`]
     /// if the GPU readback fails.
     #[ cfg_attr( all( feature = "webgpu", feature = "webgl", target_arch = "wasm32" ), expect( clippy::match_same_arms, reason = "the WebGpu and WebGl arms are gated by independent features and cannot be merged into an or-pattern without breaking single-feature builds" ) ) ]
-    pub fn read_pixels( &self, device : &Device, queue : &Queue ) -> Result< Vec< u8 >, Error >
+    pub fn pixels_read( &self, device : &Device, queue : &Queue ) -> Result< Vec< u8 >, Error >
     {
       match self
       {
@@ -1207,7 +1207,7 @@ mod private
           let _ = ( device, queue );
           Err( Error::Unsupported
           (
-            "read_pixels is a native-backend operation; browser surfaces present to their canvas".to_string()
+            "pixels_read is a native-backend operation; browser surfaces present to their canvas".to_string()
           ) )
         }
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
@@ -1216,13 +1216,13 @@ mod private
           let _ = ( device, queue );
           Err( Error::Unsupported
           (
-            "read_pixels is a native-backend operation; browser surfaces present to their canvas".to_string()
+            "pixels_read is a native-backend operation; browser surfaces present to their canvas".to_string()
           ) )
         }
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
         Self::Native { texture, .. } =>
         {
-          read_texture_rgba8( device.expect_native(), queue.expect_native(), texture )
+          texture_rgba8_read( device.expect_native(), queue.expect_native(), texture )
         }
       }
     }
@@ -1246,7 +1246,7 @@ mod private
   /// units; names the linker pruned are skipped, matching GL practice for
   /// optimized-out uniforms.
   #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
-  fn webgl_introspect_bindings
+  fn webgl_bindings_introspect
   (
     context : &glw::GL,
     program : &glw::web_sys::WebGlProgram,
@@ -1330,7 +1330,7 @@ mod private
   /// Builds the v0 fixed function pipeline over a raw wgpu device : triangle
   /// list, one color target without blending, optional always-on depth.
   #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-  fn native_create_render_pipeline
+  fn native_render_pipeline_create
   (
     device : &wgpu::Device,
     desc : &RenderPipelineDesc< '_ >
@@ -1360,7 +1360,7 @@ mod private
         | attribute |
         wgpu::VertexAttribute
         {
-          format : attribute.format.to_wgpu(),
+          format : wgpu::VertexFormat::from( attribute.format ),
           offset : u64::from( attribute.offset ),
           shader_location : attribute.location
         }
@@ -1403,7 +1403,7 @@ mod private
         | depth |
         wgpu::DepthStencilState
         {
-          format : depth.format.to_wgpu(),
+          format : wgpu::TextureFormat::from( depth.format ),
           depth_write_enabled : true,
           depth_compare : wgpu::CompareFunction::Less,
           stencil : wgpu::StencilState::default(),
@@ -1418,7 +1418,7 @@ mod private
         compilation_options : wgpu::PipelineCompilationOptions::default(),
         targets : &[ Some( wgpu::ColorTargetState
         {
-          format : desc.color_format.to_wgpu(),
+          format : wgpu::TextureFormat::from( desc.color_format ),
           blend : None,
           write_mask : wgpu::ColorWrites::ALL
         } ) ]

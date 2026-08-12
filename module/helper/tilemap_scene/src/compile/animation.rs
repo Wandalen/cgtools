@@ -14,7 +14,7 @@
 mod private
 {
   use crate::compile::error::CompileError;
-  use crate::hash::{ hash_coord, hash_str };
+  use crate::hash::{ coord_hash, str_hash };
   use crate::resource::
   {
     Animation,
@@ -185,8 +185,8 @@ mod private
       PhaseOffset::Fixed( s ) => s,
       PhaseOffset::HashCoord =>
       {
-        let salt = hash_str( &anim.id );
-        let raw = hash_coord( pos.0, pos.1, salt );
+        let salt = str_hash( &anim.id );
+        let raw = coord_hash( pos.0, pos.1, salt );
         let unit = ( raw as f32 ) / ( u32::MAX as f32 );
         // Multiply by the animation's *natural* period so neighbouring tiles
         // spread across the whole cycle, not just a tiny fraction of it.
@@ -203,11 +203,11 @@ mod private
         // don't have a per-instance seed; fall back to 0.0 so the
         // animation rides the master clock there.
         let Some( seed ) = instance_seed else { return 0.0 };
-        // Mix the seed and the animation id through `hash_coord`'s
+        // Mix the seed and the animation id through `coord_hash`'s
         // avalanche so neighbouring seeds (1, 2, 3 ...) land on
         // well-separated phases — XOR alone leaves the upper bits
         // unchanged and collapses unit-magnitude differences.
-        let mixed = hash_coord( seed as i32, 0, hash_str( &anim.id ) );
+        let mixed = coord_hash( seed as i32, 0, str_hash( &anim.id ) );
         let unit = ( mixed as f32 ) / ( u32::MAX as f32 );
         let period = animation_duration_seconds( anim );
         unit * period

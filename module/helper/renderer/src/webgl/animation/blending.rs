@@ -29,7 +29,7 @@ mod private
   const EPSILON : f64 = 0.001;
 
   /// Normalize weights of blended animation values
-  pub fn normalize_weights< T >( values : &mut [ ( T, f32 ) ] )
+  pub fn weights_normalize< T >( values : &mut [ ( T, f32 ) ] )
   {
     let sum = values.iter().map( | ( _, w ) | w ).sum::< f32 >();
     if sum > 0.0
@@ -174,7 +174,7 @@ mod private
     }
 
     /// Blend translation values from all weighted animations for a specific node
-    fn blend_translation( &self, name : &str, node : &Rc< RefCell< Node > > )
+    fn translation_blend( &self, name : &str, node : &Rc< RefCell< Node > > )
     {
       let mut values = vec![];
 
@@ -201,7 +201,7 @@ mod private
 
       if self.normalize
       {
-        normalize_weights( &mut values );
+        weights_normalize( &mut values );
       }
 
       let mut translation = F32x3::default();
@@ -209,11 +209,11 @@ mod private
       {
         translation += t * w;
       }
-      node.borrow_mut().set_translation( translation );
+      node.borrow_mut().translation_set( translation );
     }
 
     /// Blend rotation values from all weighted animations for a specific node
-    fn blend_rotation( &self, name : &str, node : &Rc< RefCell< Node > > )
+    fn rotation_blend( &self, name : &str, node : &Rc< RefCell< Node > > )
     {
       let mut values = vec![];
 
@@ -240,7 +240,7 @@ mod private
 
       if self.normalize
       {
-        normalize_weights( &mut values );
+        weights_normalize( &mut values );
       }
 
       // NLERP
@@ -249,11 +249,11 @@ mod private
       {
         rotation += r * w;
       }
-      node.borrow_mut().set_rotation( rotation.normalize() );
+      node.borrow_mut().rotation_set( rotation.normalize() );
     }
 
     /// Blend scale values from all weighted animations for a specific node
-    fn blend_scale( &self, name : &str, node : &Rc< RefCell< Node > > )
+    fn scale_blend( &self, name : &str, node : &Rc< RefCell< Node > > )
     {
       let mut values = vec![];
 
@@ -280,7 +280,7 @@ mod private
 
       if self.normalize
       {
-        normalize_weights( &mut values );
+        weights_normalize( &mut values );
       }
 
       let mut scale = F32x3::default();
@@ -288,7 +288,7 @@ mod private
       {
         scale += s * w;
       }
-      node.borrow_mut().set_scale( scale );
+      node.borrow_mut().scale_set( scale );
     }
   }
 
@@ -325,9 +325,9 @@ mod private
     {
       for ( name, node ) in nodes
       {
-        self.blend_translation( name, node );
-        self.blend_rotation( name, node );
-        self.blend_scale( name, node );
+        self.translation_blend( name, node );
+        self.rotation_blend( name, node );
+        self.scale_blend( name, node );
       }
     }
   }
@@ -337,7 +337,7 @@ crate::mod_interface!
 {
   orphan use
   {
-    normalize_weights,
+    weights_normalize,
     Blender
   };
 }

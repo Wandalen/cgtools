@@ -58,7 +58,7 @@ mod private
     /// # Arguments
     ///
     /// * `color` - The new color (RGB values)
-    pub fn set_color( &mut self, color : [ f32; 3 ] )
+    pub fn color_set( &mut self, color : [ f32; 3 ] )
     {
       self.color = color;
     }

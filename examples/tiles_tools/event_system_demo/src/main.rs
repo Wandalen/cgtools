@@ -102,7 +102,7 @@ fn basic_events_demonstrate(event_bus: &mut EventBus)
   // Process all events
   println!("\n⚡ Processing Events");
   println!("-------------------");
-  event_bus.process_events();
+  event_bus.events_process();
 
   println!("📊 Events processed: {}", event_bus.statistics().events_processed);
   println!("📊 UI updates received: {}", *ui_updates.lock().unwrap());
@@ -197,7 +197,7 @@ fn combat_events_demonstrate(event_bus: &mut EventBus)
   });
 
   // Process combat events
-  event_bus.process_events();
+  event_bus.events_process();
 
   println!("\n📜 Combat Log:");
   let combat_entries = combat_log.lock().unwrap();
@@ -249,7 +249,7 @@ fn event_consumption_demonstrate(event_bus: &mut EventBus)
   });
   }
 
-  event_bus.process_events();
+  event_bus.events_process();
 
   println!("📊 Death events processed: {}", *consume_count.lock().unwrap());
   println!("📊 Respawn events processed: {}", *respawn_count.lock().unwrap());
@@ -285,7 +285,7 @@ fn auto_unsubscribe_demonstrate(event_bus: &mut EventBus)
     points: i * 10,
   });
 
-  event_bus.process_events();
+  event_bus.events_process();
   println!("  Active achievement subscribers: {}",
     event_bus.subscriber_count::<AchievementUnlocked>());
   }
@@ -319,8 +319,8 @@ fn batch_publishing_demonstrate(event_bus: &mut EventBus)
   ];
 
   println!("📤 Publishing batch of {} movement events", batch_events.len());
-  event_bus.publish_batch(batch_events);
-  event_bus.process_events();
+  event_bus.batch_publish(batch_events);
+  event_bus.events_process();
 }
 
 fn game_state_events_demonstrate(event_bus: &mut EventBus)
@@ -354,7 +354,7 @@ fn game_state_events_demonstrate(event_bus: &mut EventBus)
   });
   }
 
-  event_bus.process_events();
+  event_bus.events_process();
 }
 
 fn final_statistics_print(event_bus: &EventBus)

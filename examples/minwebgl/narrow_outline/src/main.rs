@@ -312,7 +312,7 @@ pub fn attributes_add
     {
       let primitive = primitive.borrow();
       let mut geometry = primitive.geometry.borrow_mut();
-      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone() );
+      let _ = geometry.attribute_add( gl, "object_ids", object_id_info.clone() );
     }
   }
 
@@ -697,10 +697,10 @@ fn primitives_csgrs_gltf
 
     for ( name, info ) in &attribute_infos
     {
-      geometry.add_attribute( gl, *name, info.clone() ).unwrap();
+      geometry.attribute_add( gl, *name, info.clone() ).unwrap();
     }
 
-    geometry.add_index( gl, index_info.clone() ).unwrap();
+    geometry.index_add( gl, index_info.clone() ).unwrap();
     geometry.vertex_count = vertex_offset - last_vertex_offset;
 
     let primitive = Primitive
@@ -710,18 +710,18 @@ fn primitives_csgrs_gltf
     };
 
     let mesh = Rc::new( RefCell::new( Mesh::new() ) );
-    mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
+    mesh.borrow_mut().primitive_add( Rc::new( RefCell::new( primitive ) ) );
 
     let node = Rc::new( RefCell::new( Node::new() ) );
     {
       let mut node_mut = node.borrow_mut();
       node_mut.object = Object3D::Mesh( mesh );
 
-      node_mut.set_translation( [ t[ 0 ], t[ 1 ], t[ 2 ] ] );
+      node_mut.translation_set( [ t[ 0 ], t[ 1 ], t[ 2 ] ] );
       let q = gl::QuatF32::from_euler_xyz( [ t[ 3 ], t[ 4 ], t[ 5 ] ] );
-      node_mut.set_rotation( q );
-      node_mut.set_scale( [ t[ 6 ], t[ 7 ], t[ 8 ] ] );
-      node_mut.update_local_matrix();
+      node_mut.rotation_set( q );
+      node_mut.scale_set( [ t[ 6 ], t[ 7 ], t[ 8 ] ] );
+      node_mut.local_matrix_update();
     }
     gltf.nodes.push( node.clone() );
     gltf.scenes[ 0 ].borrow_mut().children.push( node );
@@ -835,7 +835,7 @@ impl Renderer
       far
     );
 
-    camera.bind_controls( &canvas );
+    camera.controls_bind( &canvas );
 
     let programs = Programs::new( &gl );
 
@@ -965,10 +965,10 @@ impl Renderer
           gl::uniform::upload( gl, Some( u_near_loc.clone() ), &[ 0.1 ] ).unwrap();
           gl::uniform::upload( gl, Some( u_far_loc.clone() ), &[ 1000.0 ] ).unwrap();
 
-          gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array(), true ).unwrap();
-          gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &self.camera.get_view_matrix().to_array(), true ).unwrap();
-          gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &node.borrow().get_world_matrix().to_array(), true ).unwrap();
-          let normal_matrix = self.camera.get_view_matrix() * node.borrow().get_world_matrix();
+          gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.projection_matrix_get().to_array(), true ).unwrap();
+          gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &self.camera.view_matrix_get().to_array(), true ).unwrap();
+          gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &node.borrow().world_matrix_get().to_array(), true ).unwrap();
+          let normal_matrix = self.camera.view_matrix_get() * node.borrow().world_matrix_get();
           gl::uniform::matrix_upload( gl, Some( u_normal_matrix_loc.clone() ), &normal_matrix.to_array(), true ).unwrap();
 
           primitive.bind( gl );
@@ -1022,7 +1022,7 @@ impl Renderer
     texture_upload( gl, object_fb_color, &u_color_texture_loc, GL::TEXTURE0 );
     texture_upload( gl, object_fb_depth, &u_depth_texture_loc, GL::TEXTURE1 );
     texture_upload( gl, object_fb_norm, &u_norm_texture_loc, GL::TEXTURE2 );
-    //gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array()[ .. ], true ).unwrap();
+    //gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.projection_matrix_get().to_array()[ .. ], true ).unwrap();
     gl::uniform::upload( gl, Some( u_resolution_loc.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
     gl::uniform::upload( gl, Some( u_outline_thickness_loc.clone() ), &outline_thickness ).unwrap();
     gl::uniform::upload( gl, Some( u_background_color_loc.clone() ), &background_color ).unwrap();
@@ -1054,11 +1054,11 @@ async fn app_run() -> Result< (), gl::WebglError >
   let _ = attributes_add( &renderer.gl, &mut gltf );
 
   let scenes = gltf.scenes.clone();
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  scenes[ 0 ].borrow_mut().world_matrix_update();
 
   let primitive_gltf = primitives_csgrs_gltf( &renderer.gl );
   let primitive_scenes = primitive_gltf.scenes.clone();
-  primitive_scenes[ 0 ].borrow_mut().update_world_matrix();
+  primitive_scenes[ 0 ].borrow_mut().world_matrix_update();
 
   let s = vec![ scenes[ 0 ].clone(), primitive_scenes[ 0 ].clone() ];
 

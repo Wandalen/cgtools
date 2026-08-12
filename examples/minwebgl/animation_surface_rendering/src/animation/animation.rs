@@ -349,7 +349,7 @@ mod private
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
-        let Some( node_name ) = node.borrow().get_name()
+        let Some( node_name ) = node.borrow().name_get()
         else
         {
           return Ok( () );
@@ -360,7 +360,7 @@ mod private
           if let Some( animated_transform ) = &behaviour.animated_transform
           {
             let matrix = affine_to_matrix( animated_transform.evaluate( frame ).into_owned() );
-            node.borrow_mut().set_local_matrix( matrix );
+            node.borrow_mut().local_matrix_set( matrix );
           }
 
           let Some( ref repeater ) = behaviour.repeater
@@ -369,16 +369,16 @@ mod private
             return Ok( () );
           };
 
-          let Some( parent ) = node.borrow().get_parent().clone()
+          let Some( parent ) = node.borrow().parent_get().clone()
           else
           {
             return Ok( () );
           };
 
-          let Some( id ) = parent.borrow().get_children()
+          let Some( id ) = parent.borrow().children_get()
           .iter()
           .enumerate()
-          .find( | ( _, child ) | child.borrow().get_name().as_ref() == Some( &node_name ) )
+          .find( | ( _, child ) | child.borrow().name_get().as_ref() == Some( &node_name ) )
           .map( | ( i, _ ) | i )
           else
           {
@@ -392,17 +392,17 @@ mod private
             return Ok( () );
           }
 
-          let matrix = node.borrow_mut().get_local_matrix();
+          let matrix = node.borrow_mut().local_matrix_get();
 
           let mut ids_and_children = Vec::with_capacity( repeater.copies );
 
           for i in ( 0..repeater.copies ).rev()
           {
-            let node_clone = node.borrow().clone_tree();
+            let node_clone = node.borrow().tree_clone();
             let transform = affine_to_matrix( repeater.transform( i ) );
 
-            node_clone.borrow_mut().set_local_matrix( matrix * transform );
-            node_clone.borrow_mut().set_parent( Some( parent.clone() ) );
+            node_clone.borrow_mut().local_matrix_set( matrix * transform );
+            node_clone.borrow_mut().parent_set( Some( parent.clone() ) );
             ids_and_children.push( ( id + 1, node_clone.clone() ) );
           }
 
@@ -418,7 +418,7 @@ mod private
       {
         for ( i, child ) in ids_and_children.into_iter().rev()
         {
-          parent.borrow_mut().insert_child( i, child );
+          parent.borrow_mut().child_insert( i, child );
         }
       }
     }
@@ -433,7 +433,7 @@ mod private
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
-        let Some( name ) = node.borrow_mut().get_name()
+        let Some( name ) = node.borrow_mut().name_get()
         else
         {
           return Ok( () );
@@ -457,7 +457,7 @@ mod private
       (
         | n |
         {
-          let Some( name ) = n.borrow().get_name()
+          let Some( name ) = n.borrow().name_get()
           else
           {
             return false;
@@ -479,9 +479,9 @@ mod private
 
         let mut id_to_remove = vec![];
 
-        for ( i, child )  in node.borrow().get_children().iter().enumerate()
+        for ( i, child )  in node.borrow().children_get().iter().enumerate()
         {
-          let Some( name ) = child.borrow().get_name()
+          let Some( name ) = child.borrow().name_get()
           else
           {
             continue;
@@ -494,15 +494,15 @@ mod private
 
         for i in id_to_remove.iter().rev()
         {
-          if node.borrow().get_children().get( *i ).is_none()
+          if node.borrow().children_get().get( *i ).is_none()
           {
             continue;
           }
-          let child = node.borrow_mut().remove_child( *i );
-          child.borrow_mut().set_parent( None );
+          let child = node.borrow_mut().child_remove( *i );
+          child.borrow_mut().parent_set( None );
         }
 
-        nodes.extend( node.borrow().get_children().iter().cloned() );
+        nodes.extend( node.borrow().children_get().iter().cloned() );
 
         i += 1;
       }
@@ -518,7 +518,7 @@ mod private
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
-        let Some( name ) = node.borrow_mut().get_name()
+        let Some( name ) = node.borrow_mut().name_get()
         else
         {
           return Ok( () );
@@ -555,7 +555,7 @@ mod private
       self.scene_update( &mut scene, frame );
       let colors = self.colors_from_scene( &mut scene, frame );
 
-      scene.update_world_matrix();
+      scene.world_matrix_update();
 
       Some( ( scene, colors ) )
     }
@@ -565,9 +565,9 @@ mod private
     {
       for scene in &self.gltf.scenes
       {
-        let old_local_matrix = scene.borrow().get_local_matrix();
-        scene.borrow_mut().set_local_matrix( world_matrix * old_local_matrix );
-        scene.borrow_mut().update_world_matrix();
+        let old_local_matrix = scene.borrow().local_matrix_get();
+        scene.borrow_mut().local_matrix_set( world_matrix * old_local_matrix );
+        scene.borrow_mut().world_matrix_update();
       }
     }
   }

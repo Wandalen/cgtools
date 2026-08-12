@@ -5,7 +5,7 @@
 //! `RenderCommand`s, not placeholder math of its own.
 
 use ndarray_cg::F32x2;
-use scene_script::build_engine;
+use scene_script::engine_build;
 use std::{ cell::RefCell, rc::Rc };
 
 /// Compiles `Frame`s into `tilemap_renderer::commands::RenderCommand`s.
@@ -41,7 +41,7 @@ pub struct Frame
 /// parse or run.
 pub fn simulate() -> Result< Vec< Frame >, Box< rhai::EvalAltResult > >
 {
-  let mut engine = build_engine();
+  let mut engine = engine_build();
 
   let frames : Rc< RefCell< Vec< Frame > > > = Rc::new( RefCell::new( Vec::new() ) );
   let frames_sink = frames.clone();

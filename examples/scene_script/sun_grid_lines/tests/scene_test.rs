@@ -86,7 +86,17 @@ fn scene_rhai_parses_and_matches_known_values()
       Node { color : Color( 0.75, 0.80, 1.00 ), size : 0.012, radius : 0.780, speed : -0.15, phase : 5.2 },
     ],
     effects : Effects { vignette_strength : 0.35, vignette_radius : 0.55, glow_intensity : 1.1, scanline_intensity : 0.05 },
+    // Not re-typed as a literal: `shader` is ~260 lines of WGSL, and
+    // `tests/shader_source_test.rs` already exhaustively checks its
+    // structure (declarations, dependency order, uniform array sizes).
+    // Cloning here keeps this field out of the exact-value comparison
+    // below while still requiring `SceneConfig::load()` to have populated
+    // it — the asserts after `assert_eq!` are what actually check it.
+    shader : scene.shader.clone(),
   };
 
   assert_eq!( scene, expected );
+
+  assert!( scene.shader.contains( "struct Uniforms" ), "scene.rhai's shader field must declare Uniforms" );
+  assert!( scene.shader.contains( "fn fs_main(" ), "scene.rhai's shader field must declare fs_main" );
 }

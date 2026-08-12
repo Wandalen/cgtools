@@ -9,7 +9,7 @@
 
 ### Abstract
 
-Every animated sprite source (an `Animation` leaf source, or an `Animation`-driven slot inside a composite source — see `format/005`) needs one deterministic answer to "which frame, right now" — reproducible across runs and platforms so a screenshot test or a networked game stays consistent. The algorithm has two stages: first resolve a **local time** `t_local` for this specific layer instance from the shared master clock plus a per-layer phase offset, then map `t_local` onto a concrete frame index using the animation's own timing/mode declaration (see `format/004`). The phase-offset stage is also what `Variant::HashCoord`/`Random` selection (see `format/005`) and `VariantSelection`'s deterministic-hash approach share conceptually with animation phase — both lean on the same `hash_coord`/`hash_str` primitives for reproducible pseudo-randomness (see `invariant/001`'s referential-integrity neighbor, not duplicated here).
+Every animated sprite source (an `Animation` leaf source, or an `Animation`-driven slot inside a composite source — see `format/005`) needs one deterministic answer to "which frame, right now" — reproducible across runs and platforms so a screenshot test or a networked game stays consistent. The algorithm has two stages: first resolve a **local time** `t_local` for this specific layer instance from the shared master clock plus a per-layer phase offset, then map `t_local` onto a concrete frame index using the animation's own timing/mode declaration (see `format/004`). The phase-offset stage is also what `Variant::HashCoord`/`Random` selection (see `format/005`) and `VariantSelection`'s deterministic-hash approach share conceptually with animation phase — both lean on the same `coord_hash`/`str_hash` primitives for reproducible pseudo-randomness (see `invariant/001`'s referential-integrity neighbor, not duplicated here).
 
 ### Algorithm
 
@@ -19,9 +19,9 @@ Every animated sprite source (an `Animation` leaf source, or an `Animation`-driv
 |---------|------------|
 | `None` | `0.0`. |
 | `Fixed(seconds)` | The constant, unchanged. |
-| `HashCoord` | `(hash_coord(q, r, salt) as f32 / u32::MAX as f32) * animation_duration_seconds(animation)`, where `salt = hash_str(animation.id)` and `(q, r)` is the instance's grid position — requires a grid-anchored anchor. |
+| `HashCoord` | `(coord_hash(q, r, salt) as f32 / u32::MAX as f32) * animation_duration_seconds(animation)`, where `salt = str_hash(animation.id)` and `(q, r)` is the instance's grid position — requires a grid-anchored anchor. |
 | `Linear{per_q, per_r}` | `q * per_q + r * per_r` seconds — a travelling-wave gradient across the grid (e.g. `per_q = 1.0 / fps` shifts the phase by exactly one frame per column). Requires a grid-anchored anchor. |
-| `Instance` | Same hash-based approach as `HashCoord`, but keyed by a runtime-assigned per-instance seed (`hash_coord(seed as i32, 0, hash_str(animation.id))`) instead of grid position — falls back to `0.0` when the instance carries no seed. Spreads phase across instances that share one position or have no grid position at all (e.g. `FreePos`/`Viewport` anchors), which `HashCoord`/`Linear` cannot do since both require a grid coordinate. Not present in the specification text this doc replaces — see `format/004`. |
+| `Instance` | Same hash-based approach as `HashCoord`, but keyed by a runtime-assigned per-instance seed (`coord_hash(seed as i32, 0, str_hash(animation.id))`) instead of grid position — falls back to `0.0` when the instance carries no seed. Spreads phase across instances that share one position or have no grid position at all (e.g. `FreePos`/`Viewport` anchors), which `HashCoord`/`Linear` cannot do since both require a grid coordinate. Not present in the specification text this doc replaces — see `format/004`. |
 
 **`OneShot` uses a different time base, not a different formula.** For `AnimationMode::OneShot`, the "base" fed into the formula above is `t_global_master_clock - oneshot_origin` (the instance's most recent state-entry time) rather than the raw master clock directly — so a `OneShot` animation's local time restarts at zero every time the object re-enters the state that plays it, letting "completes and stops on its last frame" (Stage 2) mean something coherent across repeated re-entries rather than only ever firing once at the object's birth. `Loop`/`PingPong` use the raw shared clock directly, with no origin adjustment — see Intra/Inter-Object Sync below for what that clock actually is.
 
@@ -49,14 +49,14 @@ Every animated sprite source (an `Animation` leaf source, or an `Animation`-driv
 | File | Relationship |
 |------|--------------|
 | [format/004_declared_resources.md](../format/004_declared_resources.md) | `Animation`/`AnimationTiming`/`AnimationMode`/`PhaseOffset` are declared there; this algorithm resolves them |
-| [format/005_sprite_sources.md](../format/005_sprite_sources.md) | `Variant::HashCoord`/`Random` selection shares this algorithm's `hash_coord`/`hash_str` primitives |
+| [format/005_sprite_sources.md](../format/005_sprite_sources.md) | `Variant::HashCoord`/`Random` selection shares this algorithm's `coord_hash`/`str_hash` primitives |
 | [format/006_layer_behaviour.md](../format/006_layer_behaviour.md) | Intra-object sync is what keeps a `Masked` mask's animation aligned with its body layer |
 
 ### Sources
 
 | File | Relationship |
 |------|--------------|
-| `src/hash.rs` | `hash_coord`, `hash_str` — the deterministic primitives phase resolution is built on |
+| `src/hash.rs` | `coord_hash`, `str_hash` — the deterministic primitives phase resolution is built on |
 | `src/compile/animation.rs` | `resolve_animation_frame`, `declared_phase_seconds`, `pick_frame_index`, `animation_duration_seconds` |
 
 ### Tests

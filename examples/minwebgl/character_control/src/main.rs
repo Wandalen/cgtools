@@ -65,7 +65,7 @@ fn plane_create( gl : &GL, scene : &Rc< RefCell< Scene > > )
     //   material.base_color_texture = Some( create_texture( gl, "textures/chessboard.jpg" ).unwrap() );
     //   material.needs_update = true;
     // };
-    plane.borrow_mut().set_name( "Plane" );
+    plane.borrow_mut().name_set( "Plane" );
     scene.borrow_mut().children.push( plane.clone() );
   }
 }
@@ -77,20 +77,20 @@ async fn scene_setup( gl : &GL ) -> Result< GLTF, WebglError >
 
   let gltf_path = "static/gltf/multi_animation_extended.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, gl ).await?;
-  gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
+  gltf.scenes[ 0 ].borrow_mut().world_matrix_update();
 
   plane_create( gl, &gltf.scenes[ 0 ] );
 
-  let character = gltf.scenes[ 0 ].borrow().get_nodes_by_substring( "Armature" )[ 0 ].clone();
-  let plane = gltf.scenes[ 0 ].borrow().get_nodes_by_substring( "Plane" )[ 0 ].clone();
+  let character = gltf.scenes[ 0 ].borrow().nodes_by_substring_get( "Armature" )[ 0 ].clone();
+  let plane = gltf.scenes[ 0 ].borrow().nodes_by_substring_get( "Plane" )[ 0 ].clone();
 
-  character.borrow_mut().set_scale( F32x3::splat( 0.1 ) );
-  character.borrow_mut().set_rotation( QuatF32::from_angle_y( 0.0 ) );
+  character.borrow_mut().scale_set( F32x3::splat( 0.1 ) );
+  character.borrow_mut().rotation_set( QuatF32::from_angle_y( 0.0 ) );
 
-  plane.borrow_mut().set_scale( F32x3::splat( 100.0 ) );
-  plane.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 2.0 ) );
+  plane.borrow_mut().scale_set( F32x3::splat( 100.0 ) );
+  plane.borrow_mut().rotation_set( QuatF32::from_angle_x( f32::consts::PI / 2.0 ) );
 
-  gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
+  gltf.scenes[ 0 ].borrow_mut().world_matrix_update();
 
   Ok( gltf )
 }
@@ -109,7 +109,7 @@ fn camera_setup( width : f32, height : f32 ) -> Camera
   let center = F32x3::from( [ 0.0, 1.0, 0.0 ] );
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ width, height ].into() );
+  camera.window_size_set( [ width, height ].into() );
 
   camera
 }
@@ -375,7 +375,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   let camera = camera_setup( width, height );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
+  renderer.ibl_set( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -386,15 +386,15 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
-  let character = scene.borrow().get_nodes_by_substring( "Armature" )[ 0 ].clone();
+  let character = scene.borrow().nodes_by_substring_get( "Armature" )[ 0 ].clone();
 
-  let mut initial_center = character.borrow().get_translation();
+  let mut initial_center = character.borrow().translation_get();
   initial_center.0[ 1 ] += 1.5;
-  camera.get_controls().borrow_mut().center = initial_center;
+  camera.controls_get().borrow_mut().center = initial_center;
 
   character_controls.borrow_mut().rotation_set( 0.0, 0.0 );
   let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
-  camera.get_controls().borrow_mut().eye = initial_center - forward * character_controls.borrow().zoom as f32;
+  camera.controls_get().borrow_mut().eye = initial_center - forward * character_controls.borrow().zoom as f32;
 
   let input = Rc::new( RefCell::new( browser_input::Input::new( Some( canvas.clone().dyn_into().unwrap() ), browser_input::CLIENT ).expect( "Failed to initialize input" ) ) );
   let mut graph = graph_setup( gltf.animations.clone(), &input );
@@ -421,39 +421,39 @@ async fn app_run() -> Result< (), gl::WebglError >
       let mut position = F32x3::from_array( character_controls.borrow().position().map( | v | v as f32 ) );
       position.0[ 1 ] -= 1.5;
 
-      character.borrow_mut().set_translation( position );
+      character.borrow_mut().translation_set( position );
 
-      scene.borrow_mut().update_world_matrix();
+      scene.borrow_mut().world_matrix_update();
 
-      let mut center = ( character.borrow().get_world_matrix() * character.borrow().get_translation().to_homogenous() ).truncate();
+      let mut center = ( character.borrow().world_matrix_get() * character.borrow().translation_get().to_homogenous() ).truncate();
       center.0[ 1 ] += 1.5;
-      camera.get_controls().borrow_mut().center = center;
+      camera.controls_get().borrow_mut().center = center;
 
       if input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW ) ||
       input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyS ) ||
       input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyA ) ||
       input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyD )
       {
-        character.borrow_mut().set_rotation( Quat::from_angle_y( character_controls.borrow().yaw() as f32 / 2.0 ) );
+        character.borrow_mut().rotation_set( Quat::from_angle_y( character_controls.borrow().yaw() as f32 / 2.0 ) );
       }
 
       let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
-      camera.get_controls().borrow_mut().eye = center - forward * character_controls.borrow().zoom as f32;
+      camera.controls_get().borrow_mut().eye = center - forward * character_controls.borrow().zoom as f32;
 
       renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &camera )
       .expect( "Failed to render" );
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.borrow().main_texture() );
+      swap_buffer.input_set( renderer.borrow().main_texture() );
 
-      let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render tonemapping pass" );
 
-      swap_buffer.set_output( t );
+      swap_buffer.output_set( t );
       swap_buffer.swap();
 
-      let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let _ = to_srgb.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render ToSrgbPass" );
 
       true

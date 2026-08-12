@@ -397,7 +397,7 @@ impl TacticalRPG {
   fn nearest_enemy_find(&self, entity: hecs::Entity) -> Option<(hecs::Entity, Position<HexCoord<Axial, Pointy>>)> {
   if let Ok(our_team) = self.world.get::<Team>(entity) {
     if let Ok(our_pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
-      return self.world.find_nearest_entity(&our_pos)
+      return self.world.nearest_entity_find(&our_pos)
         .and_then(|(nearest_entity, nearest_pos, _distance)| {
           if let Ok(their_team) = self.world.get::<Team>(nearest_entity) {
             if our_team.is_hostile_to(&their_team) {
@@ -417,7 +417,7 @@ impl TacticalRPG {
   /// Finds the nearest player unit
   fn nearest_player_find(&self, entity: hecs::Entity) -> Option<(hecs::Entity, Position<HexCoord<Axial, Pointy>>)> {
   if let Ok(our_pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
-    return self.world.find_nearest_entity(&our_pos)
+    return self.world.nearest_entity_find(&our_pos)
       .and_then(|(nearest_entity, nearest_pos, _distance)| {
         if let Ok(their_team) = self.world.get::<Team>(nearest_entity) {
           if their_team.id == self.player_team.id {

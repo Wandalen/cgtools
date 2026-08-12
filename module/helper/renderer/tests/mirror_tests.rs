@@ -16,7 +16,7 @@ use renderer::webgl::animation::
   }
 };
 
-fn create_animation() -> Sequencer
+fn animation_create() -> Sequencer
 {
   let mut animation = Sequencer::new();
 
@@ -82,7 +82,7 @@ fn create_animation() -> Sequencer
 #[ test ]
 fn transition_mirroring_test()
 {
-  let animation = create_animation();
+  let animation = animation_create();
 
   let animation_xy = Mirror::along_plane( &animation, MirrorPlane::XY );
   let animation_xz_mirrored = Mirror::along_plane( &animation, MirrorPlane::XZ );
@@ -113,7 +113,7 @@ fn transition_mirroring_test()
 #[ test ]
 fn rotation_mirroring_test()
 {
-  let animation = create_animation();
+  let animation = animation_create();
 
   let animation_xy = Mirror::along_plane( &animation, MirrorPlane::XY );
   let animation_xz_mirrored = Mirror::along_plane( &animation, MirrorPlane::XZ );
@@ -144,7 +144,7 @@ fn rotation_mirroring_test()
 #[ test ]
 fn scale_mirroring_test()
 {
-  let animation = create_animation();
+  let animation = animation_create();
 
   let animation_xy = Mirror::along_plane( &animation, MirrorPlane::XY );
   let animation_xz_mirrored = Mirror::along_plane( &animation, MirrorPlane::XZ );
@@ -175,7 +175,7 @@ fn scale_mirroring_test()
 #[ test ]
 fn morph_targets_mirroring_test()
 {
-  let animation = create_animation();
+  let animation = animation_create();
 
   let animation_xy = Mirror::along_plane( &animation, MirrorPlane::XY );
   let animation_xz_mirrored = Mirror::along_plane( &animation, MirrorPlane::XZ );

@@ -52,7 +52,7 @@ New leaf or composite variants are expected to be additive. The leaf/composite n
 
 | File | Relationship |
 |------|--------------|
-| [algorithm/001_animation_phase_and_frame_selection.md](../algorithm/001_animation_phase_and_frame_selection.md) | `Variant::HashCoord`/`Random` selection shares this algorithm's `hash_coord`/`hash_str` primitives |
+| [algorithm/001_animation_phase_and_frame_selection.md](../algorithm/001_animation_phase_and_frame_selection.md) | `Variant::HashCoord`/`Random` selection shares this algorithm's `coord_hash`/`str_hash` primitives |
 | [algorithm/002_scene_rendering_pass.md](../algorithm/002_scene_rendering_pass.md) | `sample_source` step; composite sources may emit multiple draw calls per instance |
 
 ### APIs

@@ -146,20 +146,20 @@ mod private
     }
 
     /// Sets the color grading parameters.
-    pub fn set_params( &mut self, params : ColorGradingParams )
+    pub fn params_set( &mut self, params : ColorGradingParams )
     {
       self.params = params;
     }
 
     /// Gets a reference to the current color grading parameters.
     #[ must_use ]
-    pub fn get_params( &self ) -> &ColorGradingParams
+    pub fn params_get( &self ) -> &ColorGradingParams
     {
       &self.params
     }
 
     /// Gets a mutable reference to the current color grading parameters.
-    pub fn get_params_mut( &mut self ) -> &mut ColorGradingParams
+    pub fn params_get_mut( &mut self ) -> &mut ColorGradingParams
     {
       &mut self.params
     }

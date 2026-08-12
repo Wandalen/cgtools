@@ -2,7 +2,7 @@
 
 Computer graphics toolkit for WebAssembly applications.
 
-![Abstract Art](./media/primitives.jpg)
+![Abstract Art](./assets/media/primitives.jpg)
 
 ## Overview
 
@@ -84,6 +84,8 @@ browser_input = "0.1"
 | `embroidery_tools` | Embroidery pattern tools |
 
 ## Examples
+
+Browse the full [example gallery](./examples/index.md) for every example across WebGL, WebGPU, WGPU, and Rhai scripting.
 
 - [Hexagonal Grid](./examples/minwebgl/hexagonal_grid/) - Interactive pathfinding
 - [Deferred Shading](./examples/minwebgl/deferred_shading/) - 3D rendering pipeline

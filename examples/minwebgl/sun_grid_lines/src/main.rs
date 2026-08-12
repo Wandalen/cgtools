@@ -196,9 +196,9 @@ fn app_run() -> Result< (), gl::WebglError >
     // screen with sRGB conversion.
     swap.reset();
     swap.bind( &gl );
-    swap.set_input( emission_texture.clone() );
-    bloom.render( &gl, swap.get_input(), swap.get_output() ).unwrap();
-    blend.set_blend_texture( swap.get_output() );
+    swap.input_set( emission_texture.clone() );
+    bloom.render( &gl, swap.input_get(), swap.output_get() ).unwrap();
+    blend.blend_texture_set( swap.output_get() );
     blend.render( &gl, None, main_color_texture.clone() ).unwrap();
     to_srgb.render( &gl, main_color_texture.clone(), None ).unwrap();
 

@@ -1,6 +1,6 @@
 //! Deserializable scene configuration for the sun/grid HUD diagram, loaded
 //! from `scene.rhai` at compile time via `include_str!` and evaluated
-//! through `scene_script::build_engine()`. Kept free of any wasm/WebGL
+//! through `scene_script::engine_build()`. Kept free of any wasm/WebGL
 //! dependency so parsing can be unit-tested on the native target, unlike
 //! the rest of this crate.
 
@@ -144,7 +144,7 @@ impl SceneConfig
   #[ must_use ]
   pub fn load() -> Self
   {
-    let engine = scene_script::build_engine();
+    let engine = scene_script::engine_build();
     let dynamic : rhai::Dynamic = engine.eval( Self::SCRIPT )
     .expect( "scene.rhai is bundled at compile time and must evaluate" );
     rhai::serde::from_dynamic( &dynamic )

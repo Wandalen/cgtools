@@ -41,25 +41,6 @@ mod private
       }
     }
 
-    /// Creates a new `ContextBuilder` with a provided `wgpu::Instance`.
-    ///
-    /// This is the entry point for the fluent builder pattern.
-    #[ inline ]
-    #[ must_use ]
-    pub fn from_instance( instance : wgpu::Instance ) -> ContextBuilder< 'static, 'static, 'static, 'static, AdapterBuilder >
-    {
-      ContextBuilder
-      {
-        _state : PhantomData,
-        instance_descriptor : wgpu::InstanceDescriptor::default(),
-        request_adapter_options : wgpu::RequestAdapterOptionsBase::default(),
-        device_descriptor : wgpu::wgt::DeviceDescriptor::default(),
-        instance : Some( instance ),
-        adapter : None,
-        adapter_selector : None
-      }
-    }
-
     /// Test-support constructor: a `DeviceBuilder`-state builder with default descriptors
     /// and no instance or adapter. Public only so the device-descriptor setter tests can
     /// live in `tests/`; the type-state invariant ( an adapter is present in this state
@@ -112,6 +93,27 @@ mod private
     pub fn queue_get( &self ) -> &wgpu::Queue
     {
       &self.queue
+    }
+  }
+
+  impl From< wgpu::Instance > for ContextBuilder< 'static, 'static, 'static, 'static, AdapterBuilder >
+  {
+    /// Creates a new `ContextBuilder` with a provided `wgpu::Instance`.
+    ///
+    /// This is the entry point for the fluent builder pattern.
+    #[ inline ]
+    fn from( instance : wgpu::Instance ) -> Self
+    {
+      Self
+      {
+        _state : PhantomData,
+        instance_descriptor : wgpu::InstanceDescriptor::default(),
+        request_adapter_options : wgpu::RequestAdapterOptionsBase::default(),
+        device_descriptor : wgpu::wgt::DeviceDescriptor::default(),
+        instance : Some( instance ),
+        adapter : None,
+        adapter_selector : None
+      }
     }
   }
 
@@ -194,7 +196,7 @@ mod private
   pub struct InstanceBuilder;
 
   /// Type-state marker: the builder is selecting a `wgpu::Adapter` ( entered via
-  /// `instance_make` or [`Context::from_instance`] ).
+  /// `instance_make` or the `From< wgpu::Instance >` impl ).
   pub struct AdapterBuilder;
 
   /// Type-state marker: the builder is configuring the `wgpu::Device` request ( entered
@@ -374,8 +376,8 @@ mod private
     /// # Panics
     ///
     /// Panics if the instance was never set. This cannot happen through the public API: the
-    /// `AdapterBuilder` state is only reachable via `instance_make` or `from_instance`, both of
-    /// which populate `instance` before this method becomes callable.
+    /// `AdapterBuilder` state is only reachable via `instance_make` or the `From< wgpu::Instance >`
+    /// impl, both of which populate `instance` before this method becomes callable.
     #[ inline ]
     pub async fn adapter_request_async( mut self ) -> Result< ContextBuilder< 'a, 'b, 'l, 's, DeviceBuilder >, crate::Error >
     {

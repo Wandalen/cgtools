@@ -21,12 +21,12 @@ mod tests
   {
     Node,
     Object3D,
-    load_texture_data_4f,
+    texture_data_4f_load,
     loaders::gltf::load,
     skeleton::Skeleton
   };
 
-  async fn init_test() -> GL
+  async fn test_init() -> GL
   {
     gl::browser::setup( Default::default() );
     let options = gl::context::ContextOptions::default().antialias( false );
@@ -35,9 +35,9 @@ mod tests
     gl::context::from_canvas_with( &canvas, options ).unwrap()
   }
 
-  async fn init_skeleton_test( gltf_path : &str ) -> Skeleton
+  async fn skeleton_test_init( gltf_path : &str ) -> Skeleton
   {
-    let gl = init_test().await;
+    let gl = test_init().await;
     let window = gl::web_sys::window().unwrap();
     let document = window.document().unwrap();
 
@@ -72,12 +72,12 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn set_displacement_another_new_displacement_size_test()
   {
-    let mut skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
+    let mut skeleton = skeleton_test_init( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
 
     assert!
     (
       !skeleton.displacements_as_mut().as_mut().unwrap()
-      .set_displacement
+      .displacement_set
       (
         Some( [ [ 0.0; 3 ]; 2 ].to_vec() ),
         &gltf::Semantic::Tangents,
@@ -89,7 +89,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn skeleton_clone_test()
   {
-    let skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
+    let skeleton = skeleton_test_init( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
 
     let skeleton_clone = skeleton.clone();
 
@@ -101,7 +101,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn skeleton_load_displacement_test()
   {
-    let skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
+    let skeleton = skeleton_test_init( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
 
     assert!( skeleton.displacements_as_ref().is_some() );
   }
@@ -109,7 +109,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn skeleton_load_transform_test()
   {
-    let skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
+    let skeleton = skeleton_test_init( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
 
     assert!( skeleton.transforms_as_ref().is_some() );
   }
@@ -117,7 +117,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn load_texture_data_4f_test()
   {
-    let gl = init_test().await;
+    let gl = test_init().await;
 
     let texture = gl.create_texture().unwrap();
 
@@ -125,7 +125,7 @@ mod tests
     {
       let data = vec![ 0.0_f32; ( a * a ) as usize * 4 ];
 
-      assert!( load_texture_data_4f( &gl, &texture, &data, [ a, a ] ).is_ok() );
+      assert!( texture_data_4f_load( &gl, &texture, &data, [ a, a ] ).is_ok() );
     }
   }
 }
@@ -139,59 +139,59 @@ mod tests
 #[ cfg( test ) ]
 mod pure_tests
 {
-  use renderer::webgl::{ calculate_data_texture_size, skeleton::DisplacementsData };
+  use renderer::webgl::{ data_texture_size_calculate, skeleton::DisplacementsData };
 
   #[ test ]
   fn pack_displacements_data_test()
   {
     let mut displacements = DisplacementsData::new();
 
-    let data = displacements.pack_displacements_data();
+    let data = displacements.displacements_data_pack();
 
     assert_eq!( data.len(), 0 );
 
-    displacements.set_displacement
+    displacements.displacement_set
     (
       Some( [ [ 1.0, 1.0, 1.0 ]; 16 ].to_vec() ),
       &gltf::Semantic::Positions,
       16
     );
 
-    let data = displacements.pack_displacements_data();
+    let data = displacements.displacements_data_pack();
 
     assert_ne!( data.len(), 0 );
     assert_eq!( data.len(), 16 * 4 );
     assert_eq!( data.get( 0..4 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0 ] );
 
-    displacements.set_displacement
+    displacements.displacement_set
     (
       Some( [ [ 2.0, 2.0, 2.0 ]; 16 ].to_vec() ),
       &gltf::Semantic::Normals,
       16
     );
 
-    let data = displacements.pack_displacements_data();
+    let data = displacements.displacements_data_pack();
 
     assert_ne!( data.len(), 0 );
     assert_eq!( data.len(), 16 * 4 * 2 );
     assert_eq!( data.get( 0..8 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 1.0 ] );
 
-    displacements.set_displacement
+    displacements.displacement_set
     (
       Some( [ [ 3.0, 3.0, 3.0 ]; 16 ].to_vec() ),
       &gltf::Semantic::Tangents,
       16
     );
 
-    let data = displacements.pack_displacements_data();
+    let data = displacements.displacements_data_pack();
 
     assert_ne!( data.len(), 0 );
     assert_eq!( data.len(), 16 * 4 * 3 );
     assert_eq!( data.get( 0..12 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 3.0, 3.0, 3.0, 1.0 ] );
 
-    displacements.set_displacement( None, &gltf::Semantic::Normals, 16 );
+    displacements.displacement_set( None, &gltf::Semantic::Normals, 16 );
 
-    let data = displacements.pack_displacements_data();
+    let data = displacements.displacements_data_pack();
 
     assert_ne!( data.len(), 0 );
     assert_eq!( data.len(), 16 * 4 * 2 );
@@ -200,7 +200,7 @@ mod pure_tests
 
   mod calculate_data_texture_size_tests
   {
-    use super::calculate_data_texture_size;
+    use super::data_texture_size_calculate;
 
     fn is_power_of_4( v : u32 ) -> bool
     {
@@ -212,7 +212,7 @@ mod pure_tests
     {
       for data_size in [ 1, 2, 3, 4, 7, 16, 31, 64, 100, 257, 1024 ]
       {
-        let size = calculate_data_texture_size( data_size );
+        let size = data_texture_size_calculate( data_size );
         assert!
         (
           is_power_of_4( size ),
@@ -226,7 +226,7 @@ mod pure_tests
     {
       for data_size in 1..10_000
       {
-        let size = calculate_data_texture_size( data_size );
+        let size = data_texture_size_calculate( data_size );
         let capacity = ( size as usize ) * ( size as usize );
 
         assert!
@@ -242,7 +242,7 @@ mod pure_tests
     {
       for data_size in [ 1, 5, 17, 63, 65, 255, 256, 257, 1023 ]
       {
-        let size = calculate_data_texture_size( data_size );
+        let size = data_texture_size_calculate( data_size );
 
         if size > 1
         {
@@ -268,7 +268,7 @@ mod pure_tests
     {
       // Spec: the side is the smallest power of 4 whose square fits
       // `data_size` ( sides stay powers of 4 so a matrix never straddles two
-      // texture rows — see the doc comment on `calculate_data_texture_size` ).
+      // texture rows — see the doc comment on `data_texture_size_calculate` ).
       // An exact fit stays put; one element over jumps to the next power.
       let cases =
       [
@@ -284,7 +284,7 @@ mod pure_tests
 
       for ( data_size, expected_side ) in cases
       {
-        let size = calculate_data_texture_size( data_size );
+        let size = data_texture_size_calculate( data_size );
         assert_eq!
         (
           size,
@@ -297,7 +297,7 @@ mod pure_tests
     #[ test ]
     fn zero_input_behavior_is_documented()
     {
-      let size = calculate_data_texture_size( 0 );
+      let size = data_texture_size_calculate( 0 );
 
       // Current behavior: log(0) → -inf → pow → 0
       // This test documents the behavior explicitly.

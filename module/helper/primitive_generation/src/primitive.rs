@@ -176,7 +176,7 @@ mod private
   /// coordinates, returning the flat positions and hole start indices.
   /// Returns `None` when the outer contour is missing or empty.
   #[ cfg( feature = "font-processing" ) ]
-  fn flatten_with_holes( body : &[ Vec< [ f32; 2 ] > ] ) -> Option< ( Vec< f64 >, Vec< usize > ) >
+  fn with_holes_flatten( body : &[ Vec< [ f32; 2 ] > ] ) -> Option< ( Vec< f64 >, Vec< usize > ) >
   {
     let mut flat_positions : Vec< f64 > = Vec::new();
     let mut hole_indices : Vec< usize > = Vec::new();
@@ -288,7 +288,7 @@ mod private
 
     for contours in bodies
     {
-      let ( flat_positions, hole_indices ) = flatten_with_holes( &contours )?;
+      let ( flat_positions, hole_indices ) = with_holes_flatten( &contours )?;
 
       // Fix(TASK-018): return None on triangulation failure instead of
       // silently skipping the failed body and continuing with whatever

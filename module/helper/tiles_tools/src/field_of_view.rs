@@ -26,7 +26,7 @@
 //!
 //! // Calculate visibility from a position
 //! let viewer = SquareCoord::<EightConnected>::new(2, 2);
-//! let visibility = fov.calculate_fov(&viewer, 3, |coord| {
+//! let visibility = fov.fov_calculate(&viewer, 3, |coord| {
 //!     // Return true if position blocks line of sight
 //!     false // Open terrain
 //! });
@@ -133,13 +133,13 @@ where
   }
 
   /// Sets visibility state for a coordinate.
-  pub fn set_visibility( &mut self, coord : &C, state : VisibilityState )
+  pub fn visibility_set( &mut self, coord : &C, state : VisibilityState )
   {
     self.visibility.insert( coord.clone(), state );
   }
 
   /// Gets visibility state for a coordinate.
-  pub fn get_visibility( &self, coord : &C ) -> Option< &VisibilityState >
+  pub fn visibility_get( &self, coord : &C ) -> Option< &VisibilityState >
   {
     self.visibility.get( coord )
   }
@@ -253,7 +253,7 @@ impl FieldOfView
 
   /// Sets whether to include the viewer position in visibility results.
   #[ must_use ]
-  pub fn include_viewer( mut self, include : bool ) -> Self
+  pub fn viewer_include( mut self, include : bool ) -> Self
   {
     self.include_viewer = include;
     self
@@ -282,7 +282,7 @@ impl FieldOfView
   ///
   /// # Returns
   /// A visibility map containing all visible positions and their states.
-  pub fn calculate_fov< C, F >
+  pub fn fov_calculate< C, F >
   (
     &self,
     viewer : &C,
@@ -299,26 +299,26 @@ impl FieldOfView
     {
       FOVAlgorithm::Shadowcasting =>
       {
-        Self::calculate_shadowcasting_fov( viewer, max_range, &blocks_sight, &mut visibility_map );
+        Self::shadowcasting_fov_calculate( viewer, max_range, &blocks_sight, &mut visibility_map );
       }
       FOVAlgorithm::RayCasting =>
       {
-        Self::calculate_ray_casting_fov( viewer, max_range, &blocks_sight, &mut visibility_map );
+        Self::ray_casting_fov_calculate( viewer, max_range, &blocks_sight, &mut visibility_map );
       }
       FOVAlgorithm::FloodFill =>
       {
-        Self::calculate_flood_fill_fov( viewer, max_range, &blocks_sight, &mut visibility_map );
+        Self::flood_fill_fov_calculate( viewer, max_range, &blocks_sight, &mut visibility_map );
       }
       FOVAlgorithm::Bresenham =>
       {
-        Self::calculate_bresenham_fov( viewer, max_range, &blocks_sight, &mut visibility_map );
+        Self::bresenham_fov_calculate( viewer, max_range, &blocks_sight, &mut visibility_map );
       }
     }
 
     // Add viewer position if requested
     if self.include_viewer
     {
-      visibility_map.set_visibility( viewer, VisibilityState::new( true, 0, 1.0 ) );
+      visibility_map.visibility_set( viewer, VisibilityState::new( true, 0, 1.0 ) );
     }
 
     visibility_map
@@ -331,7 +331,7 @@ impl FieldOfView
     F : Fn( &C ) -> bool,
   {
     let distance = from.distance( to );
-    let visibility = self.calculate_fov( from, distance + 1, blocks_sight );
+    let visibility = self.fov_calculate( from, distance + 1, blocks_sight );
     visibility.is_visible( to )
   }
 
@@ -339,7 +339,7 @@ impl FieldOfView
   ///
   /// This implements recursive shadowcasting that processes octants systematically
   /// to create accurate field-of-view calculations with proper shadow casting.
-  fn calculate_shadowcasting_fov< C, F >
+  fn shadowcasting_fov_calculate< C, F >
   (
     viewer : &C,
     max_range : u32,
@@ -357,12 +357,12 @@ impl FieldOfView
     // For each direction from the viewer, cast rays outward
     for i in 0..neighbor_count
     {
-      Self::cast_octant_shadows( viewer, max_range, blocks_sight, visibility_map, i, neighbor_count );
+      Self::octant_shadows_cast( viewer, max_range, blocks_sight, visibility_map, i, neighbor_count );
     }
   }
 
   /// Casts shadows in a specific octant direction.
-  fn cast_octant_shadows< C, F >
+  fn octant_shadows_cast< C, F >
   (
     viewer : &C,
     max_range : u32,
@@ -411,7 +411,7 @@ impl FieldOfView
                 VisibilityState::new( true, actual_distance, light_level )
               };
 
-              visibility_map.set_visibility( neighbor, visibility_state );
+              visibility_map.visibility_set( neighbor, visibility_state );
 
               if !is_blocked
               {
@@ -440,7 +440,7 @@ impl FieldOfView
   ///
   /// This casts rays in all directions from the viewer to determine visibility.
   /// More precise than shadowcasting but computationally more expensive.
-  fn calculate_ray_casting_fov<C, F>(
+  fn ray_casting_fov_calculate<C, F>(
     viewer: &C,
     max_range: u32,
     blocks_sight: &F,
@@ -456,7 +456,7 @@ impl FieldOfView
     // Cast rays in each neighbor direction
     for start_neighbor in neighbors
     {
-      Self::cast_directional_ray(viewer, &start_neighbor, max_range, blocks_sight, visibility_map);
+      Self::directional_ray_cast(viewer, &start_neighbor, max_range, blocks_sight, visibility_map);
     }
 
     // Also cast rays to diagonal directions by combining neighbor directions
@@ -466,16 +466,16 @@ impl FieldOfView
       for j in (i + 1)..neighbor_list.len()
       {
         // Try to find positions that represent diagonal rays
-        if let Some(diagonal_target) = Self::find_diagonal_target(viewer, &neighbor_list[i], &neighbor_list[j], max_range)
+        if let Some(diagonal_target) = Self::diagonal_target_find(viewer, &neighbor_list[i], &neighbor_list[j], max_range)
         {
-          Self::cast_directional_ray(viewer, &diagonal_target, max_range, blocks_sight, visibility_map);
+          Self::directional_ray_cast(viewer, &diagonal_target, max_range, blocks_sight, visibility_map);
         }
       }
     }
   }
 
   /// Casts a single ray in a specific direction.
-  fn cast_directional_ray<C, F>(
+  fn directional_ray_cast<C, F>(
     viewer: &C,
     direction_target: &C,
     max_range: u32,
@@ -499,7 +499,7 @@ impl FieldOfView
       // Find the neighbor that best aligns with our target direction
       for neighbor in neighbors
       {
-        let alignment = Self::calculate_direction_alignment(viewer, direction_target, &current, &neighbor);
+        let alignment = Self::direction_alignment_calculate(viewer, direction_target, &current, &neighbor);
         if alignment > best_alignment
         {
           best_alignment = alignment;
@@ -529,7 +529,7 @@ impl FieldOfView
           VisibilityState::new(true, distance, light_level)
         };
 
-        visibility_map.set_visibility(&current, visibility_state);
+        visibility_map.visibility_set(&current, visibility_state);
 
         if is_blocked
         {
@@ -544,7 +544,7 @@ impl FieldOfView
   }
 
   /// Calculates how well a move from current to next aligns with the target direction.
-  fn calculate_direction_alignment<C>(
+  fn direction_alignment_calculate<C>(
     viewer: &C,
     direction_target: &C,
     current: &C,
@@ -572,7 +572,7 @@ impl FieldOfView
   }
 
   /// Finds a diagonal target position for ray casting.
-  fn find_diagonal_target<C>(
+  fn diagonal_target_find<C>(
     viewer: &C,
     neighbor1: &C,
     neighbor2: &C,
@@ -602,7 +602,7 @@ impl FieldOfView
   }
 
   /// Flood fill FOV algorithm implementation.
-  fn calculate_flood_fill_fov<C, F>(
+  fn flood_fill_fov_calculate<C, F>(
     viewer: &C,
     max_range: u32,
     blocks_sight: &F,
@@ -634,7 +634,7 @@ impl FieldOfView
         VisibilityState::new(true, distance, light_level)
       };
 
-      visibility_map.set_visibility(&current_pos, visibility_state);
+      visibility_map.visibility_set(&current_pos, visibility_state);
 
       // Continue spreading if not blocked
       if !is_blocked && distance < max_range {
@@ -648,7 +648,7 @@ impl FieldOfView
   }
 
   /// Bresenham line FOV algorithm implementation.
-  fn calculate_bresenham_fov<C, F>(
+  fn bresenham_fov_calculate<C, F>(
     viewer: &C,
     max_range: u32,
     blocks_sight: &F,
@@ -684,7 +684,7 @@ impl FieldOfView
     // Check line of sight to each position
     for target in all_positions {
       let distance = viewer.distance(&target);
-      let has_line_of_sight = Self::check_bresenham_line(viewer, &target, blocks_sight);
+      let has_line_of_sight = Self::bresenham_line_check(viewer, &target, blocks_sight);
 
       if has_line_of_sight {
         let light_level = (1.0f32 - (distance as f32 / max_range as f32)).max(0.0f32);
@@ -696,19 +696,19 @@ impl FieldOfView
           VisibilityState::new(true, distance, light_level)
         };
 
-        visibility_map.set_visibility(&target, visibility_state);
+        visibility_map.visibility_set(&target, visibility_state);
       }
     }
   }
 
   /// Checks line of sight using Bresenham line algorithm.
-  fn check_bresenham_line<C, F>(from: &C, to: &C, blocks_sight: &F) -> bool
+  fn bresenham_line_check<C, F>(from: &C, to: &C, blocks_sight: &F) -> bool
   where
     C: Distance + Neighbors + Clone + std::hash::Hash + Eq,
     F: Fn(&C) -> bool,
   {
     // Use neighbor-based line tracing for generic coordinate systems
-    let line_positions = Self::trace_bresenham_line(from, to);
+    let line_positions = Self::bresenham_line_trace(from, to);
 
     // Check if any position along the line (except endpoints) blocks sight
     for pos in line_positions.iter().skip(1) // Skip starting position
@@ -731,7 +731,7 @@ impl FieldOfView
   ///
   /// This provides a Bresenham-like line tracing that works with any coordinate
   /// system by using neighbor relationships rather than integer arithmetic.
-  fn trace_bresenham_line<C>(from: &C, to: &C) -> Vec<C>
+  fn bresenham_line_trace<C>(from: &C, to: &C) -> Vec<C>
   where
     C: Distance + Neighbors + Clone + std::hash::Hash + Eq,
   {
@@ -867,13 +867,13 @@ where
   }
 
   /// Adds a light source.
-  pub fn add_light_source( &mut self, light : LightSource< C > )
+  pub fn light_source_add( &mut self, light : LightSource< C > )
   {
     self.light_sources.push( light );
   }
 
   /// Calculates combined lighting from all sources.
-  pub fn calculate_lighting< F >( &self, blocks_sight : F ) -> std::collections::HashMap< C, f32 >
+  pub fn lighting_calculate< F >( &self, blocks_sight : F ) -> std::collections::HashMap< C, f32 >
   where
     F : Fn( &C ) -> bool,
   {
@@ -885,12 +885,12 @@ where
       let visibility_map = if light_source.penetrates_walls
       {
         // For penetrating light, create visibility without sight blocking
-        self.fov_calculator.calculate_fov( &light_source.position, light_source.radius, | _ | false )
+        self.fov_calculator.fov_calculate( &light_source.position, light_source.radius, | _ | false )
       }
       else
       {
         // Normal line-of-sight based lighting
-        self.fov_calculator.calculate_fov( &light_source.position, light_source.radius, &blocks_sight )
+        self.fov_calculator.fov_calculate( &light_source.position, light_source.radius, &blocks_sight )
       };
 
       // Add light contribution to each visible position

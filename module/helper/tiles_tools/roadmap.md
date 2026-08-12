@@ -81,7 +81,7 @@ Three functional gaps are known and already documented in `docs/pitfall/` — th
 | Pitfall | Impact | Blocking? |
 |---------|--------|-----------|
 | [`pitfall/001`](docs/pitfall/001_flow_field_algorithm_unimplemented.md) — Flow Field algorithm unimplemented | `FlowField`/`IntegrationField` compile and run but every query returns a fixed constant | Blocks real RTS-style multi-unit movement |
-| [`pitfall/003`](docs/pitfall/003_savefile_compression_is_a_fake_wrapper.md) — Save-file compression is a fake wrapper | `compress_data` adds a 7-byte header without shrinking anything | Non-blocking — save/load still round-trips correctly, just without real compression |
+| [`pitfall/003`](docs/pitfall/003_savefile_compression_is_a_fake_wrapper.md) — Save-file compression is a fake wrapper | `data_compress` adds a 7-byte header without shrinking anything | Non-blocking — save/load still round-trips correctly, just without real compression |
 | [`pitfall/004`](docs/pitfall/004_hexagonal_axial_distance_method_ambiguity.md) — Hexagonal axial distance method ambiguity | Two same-named `distance` methods resolve differently by argument shape | Non-blocking — surprising, not incorrect, when used carefully |
 
 ## Definition of Done
@@ -205,7 +205,7 @@ Universal grid system library with seamless interoperability across four coordin
 
 **Delivered:** a full `hecs`-backed `World` with `Position`, `Movable`, `Health`, `Stats`, `Team`, `AI`, `Animation`, `PlayerControlled` components and Movement, Combat, AI, Animation systems, plus an equipment/abilities system and initiative-based turn management. See [`docs/api/001`](docs/api/001_ecs_world_runtime_api.md) (runtime API) and [`docs/type/002`](docs/type/002_ecs_component_vocabulary.md) (component vocabulary). Exercised by the `ecs_collision_demo` and `tactical_rpg` examples.
 
-**Movement requests:** `World::request_movement` queues a typed target coordinate and the next `update` applies it to the entity's `Position` component, emitting `GameEvent::EntityMoved` (implemented by task 063; formerly the layer's one no-op call, tracked as `pitfall/002` until retired).
+**Movement requests:** `World::movement_request` queues a typed target coordinate and the next `update` applies it to the entity's `Position` component, emitting `GameEvent::EntityMoved` (implemented by task 063; formerly the layer's one no-op call, tracked as `pitfall/002` until retired).
 
 ---
 

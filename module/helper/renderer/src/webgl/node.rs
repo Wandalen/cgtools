@@ -93,7 +93,7 @@ mod private
 
     /// Clones the node and all of its descendants, creating a new independent scene graph subtree.
     #[ must_use ]
-    pub fn clone_tree( &self ) -> Rc< RefCell< Self > >
+    pub fn tree_clone( &self ) -> Rc< RefCell< Self > >
     {
       let object = match &self.object
       {
@@ -131,9 +131,9 @@ mod private
       (
         | n |
         {
-          let child = n.borrow().clone_tree();
-          child.borrow_mut().set_parent( Some( clone_rc.clone() ) );
-          clone_rc.borrow_mut().add_child( child.clone() );
+          let child = n.borrow().tree_clone();
+          child.borrow_mut().parent_set( Some( clone_rc.clone() ) );
+          clone_rc.borrow_mut().child_add( child.clone() );
         }
       );
 
@@ -148,7 +148,7 @@ mod private
     }
 
     /// Sets [`Node::is_visible`] for [`Node`] and its children if only_root is false
-    pub fn set_visibility( &mut self, visibility : bool, only_root : bool )
+    pub fn visibility_set( &mut self, visibility : bool, only_root : bool )
     {
       self.is_visible = visibility;
       if !only_root
@@ -168,40 +168,40 @@ mod private
     }
 
     /// Sets the name of the node.
-    pub fn set_name( &mut self, name : impl Into< Box< str > > )
+    pub fn name_set( &mut self, name : impl Into< Box< str > > )
     {
       self.name = Some( name.into() );
     }
 
     /// Returns an owned clone of the node's name.
     #[ must_use ]
-    pub fn get_name( &self ) -> Option< Box< str > >
+    pub fn name_get( &self ) -> Option< Box< str > >
     {
       self.name.clone()
     }
 
     /// Returns a slice of the node's children.
     #[ must_use ]
-    pub fn get_children( &self ) -> &[ Rc< RefCell< Node > > ]
+    pub fn children_get( &self ) -> &[ Rc< RefCell< Node > > ]
     {
       self.children.as_slice()
     }
 
     /// Sets the parent of the node.
-    pub fn set_parent( &mut self, parent : Option< Rc< RefCell< Node > > > )
+    pub fn parent_set( &mut self, parent : Option< Rc< RefCell< Node > > > )
     {
       self.parent = parent;
     }
 
     /// Returns a reference to the node's parent.
     #[ must_use ]
-    pub fn get_parent( &self ) -> &Option< Rc< RefCell< Node > > >
+    pub fn parent_get( &self ) -> &Option< Rc< RefCell< Node > > >
     {
       &self.parent
     }
 
     /// Removes a child node at the given index.
-    pub fn remove_child( &mut self, id : usize ) -> Rc< RefCell< Node > >
+    pub fn child_remove( &mut self, id : usize ) -> Rc< RefCell< Node > >
     {
       self.children.remove( id )
     }
@@ -209,7 +209,7 @@ mod private
     /// Sets the local scale of the node.
     ///
     /// * `scale`: The new scale as a type that can be converted into `gl::F32x3`.
-    pub fn set_scale( &mut self, scale : impl Into< gl::F32x3 > )
+    pub fn scale_set( &mut self, scale : impl Into< gl::F32x3 > )
     {
       self.scale = scale.into();
       self.needs_local_matrix_update = true;
@@ -217,7 +217,7 @@ mod private
 
     /// Returns the current local scale of the node.
     #[ must_use ]
-    pub fn get_scale( &self ) -> gl::F32x3
+    pub fn scale_get( &self ) -> gl::F32x3
     {
       self.scale
     }
@@ -225,7 +225,7 @@ mod private
     /// Sets the local translation of the node.
     ///
     /// * `translation`: The new translation as a type that can be converted into `gl::F32x3`.
-    pub fn set_translation( &mut self, translation : impl Into< gl::F32x3 > )
+    pub fn translation_set( &mut self, translation : impl Into< gl::F32x3 > )
     {
       self.translation = translation.into();
       self.needs_local_matrix_update = true;
@@ -233,7 +233,7 @@ mod private
 
     /// Returns the current local translation of the node.
     #[ must_use ]
-    pub fn get_translation( &self ) -> gl::F32x3
+    pub fn translation_get( &self ) -> gl::F32x3
     {
       self.translation
     }
@@ -241,7 +241,7 @@ mod private
     /// Sets the local rotation of the node.
     ///
     /// * `rotation`: The new rotation as a `gl::QuatF32`.
-    pub fn set_rotation( &mut self, rotation : gl::QuatF32 )
+    pub fn rotation_set( &mut self, rotation : gl::QuatF32 )
     {
       self.rotation = rotation;
       self.needs_local_matrix_update = true;
@@ -249,13 +249,13 @@ mod private
 
     /// Returns the current local rotation of the node.
     #[ must_use ]
-    pub fn get_rotation( &self ) -> gl::QuatF32
+    pub fn rotation_get( &self ) -> gl::QuatF32
     {
       self.rotation
     }
 
     /// Sets the local transformation matrix for the node.
-    pub fn set_local_matrix( &mut self, matrix : F32x4x4 )
+    pub fn local_matrix_set( &mut self, matrix : F32x4x4 )
     {
       let Some( ( translation, rotation, scale ) ) = matrix.decompose()
       else
@@ -263,41 +263,41 @@ mod private
         return;
       };
 
-      self.set_translation( translation );
-      self.set_rotation( rotation );
-      self.set_scale( scale );
+      self.translation_set( translation );
+      self.rotation_set( rotation );
+      self.scale_set( scale );
 
       self.matrix = matrix;
-      self.compute_local_bounding_box();
+      self.local_bounding_box_compute();
       self.needs_local_matrix_update = false;
       self.needs_world_matrix_update = true;
     }
 
     /// Sets the world transformation matrix for the node.
-    fn set_world_matrix( &mut self, matrix : F32x4x4 )
+    fn world_matrix_set( &mut self, matrix : F32x4x4 )
     {
       self.world_matrix = matrix;
       self.normal_matrix = matrix.truncate().inverse().unwrap().transpose();
-      self.compute_bounding_box();
+      self.bounding_box_compute();
       self.needs_world_matrix_update = false;
     }
 
     /// Returns the current world transformation matrix.
     #[ must_use ]
-    pub fn get_world_matrix( &self ) -> F32x4x4
+    pub fn world_matrix_get( &self ) -> F32x4x4
     {
       self.world_matrix
     }
 
     /// Returns the current local transformation matrix.
     #[ must_use ]
-    pub fn get_local_matrix( &self ) -> F32x4x4
+    pub fn local_matrix_get( &self ) -> F32x4x4
     {
       self.matrix
     }
 
     /// Updates the local transformation matrix based on the current scale, rotation, and translation.
-    pub fn update_local_matrix( &mut self )
+    pub fn local_matrix_update( &mut self )
     {
       let mat = gl::F32x4x4::from_scale_rotation_translation
       (
@@ -306,7 +306,7 @@ mod private
         self.translation
       );
       self.matrix = mat;
-      self.compute_local_bounding_box();
+      self.local_bounding_box_compute();
       self.needs_local_matrix_update = false;
       self.needs_world_matrix_update = true;
     }
@@ -315,39 +315,39 @@ mod private
     ///
     /// * `parent_mat`: The world matrix of the parent node. For the root node, this should be the identity matrix.
     /// * `needs_world_matrix_update`: A flag to force an update, even if the node's flags are false.
-    pub fn update_world_matrix( &mut self, parent_mat : gl::F32x4x4, mut needs_world_matrix_update : bool )
+    pub fn world_matrix_update( &mut self, parent_mat : gl::F32x4x4, mut needs_world_matrix_update : bool )
     {
       if self.needs_local_matrix_update
       {
-        self.update_local_matrix();
+        self.local_matrix_update();
       }
 
       if needs_world_matrix_update || self.needs_world_matrix_update
       {
-        self.set_world_matrix( parent_mat * self.matrix );
+        self.world_matrix_set( parent_mat * self.matrix );
         needs_world_matrix_update = true;
       }
 
       for child in &mut self.children
       {
-        child.borrow_mut().update_world_matrix( self.world_matrix, needs_world_matrix_update );
+        child.borrow_mut().world_matrix_update( self.world_matrix, needs_world_matrix_update );
       }
     }
 
     /// Adds a child node to this node.
     ///
     /// * `child`: The child node to be added.
-    pub fn add_child( &mut self, child : Rc< RefCell< Node > > )
+    pub fn child_add( &mut self, child : Rc< RefCell< Node > > )
     {
       self.children.push( child );
     }
 
     /// Inserts a child node at a specific index.
-    pub fn insert_child( &mut self, id : usize, child : Rc< RefCell< Node > > )
+    pub fn child_insert( &mut self, id : usize, child : Rc< RefCell< Node > > )
     {
       if id >= self.children.len()
       {
-        self.add_child( child );
+        self.child_add( child );
       }
       else
       {
@@ -447,7 +447,7 @@ mod private
 
 
     /// Computes the bounding box in the world space for the current node based on its `Object3D` type.
-    pub fn compute_bounding_box( &mut self )
+    pub fn bounding_box_compute( &mut self )
     {
       if let Object3D::Mesh( ref mesh ) = self.object {
         self.bounding_box = mesh.borrow().bounding_box().transform_apply( self.world_matrix );
@@ -455,7 +455,7 @@ mod private
     }
 
     /// Computes the bounding box in the local space for the current node based on its `Object3D` type.
-    pub fn compute_local_bounding_box( &mut self )
+    pub fn local_bounding_box_compute( &mut self )
     {
       if let Object3D::Mesh( ref mesh ) = self.object
       {
@@ -464,24 +464,24 @@ mod private
     }
 
     /// Sets [`Node`] position to coordinate system origin in node's local space
-    pub fn set_center_to_origin( &mut self )
+    pub fn center_set_to_origin( &mut self )
     {
-      self.set_local_matrix
+      self.local_matrix_set
       (
         gl::math::mat3x3h::translation( -self.local_bounding_box().center() )
         *
-        self.get_local_matrix()
+        self.local_matrix_get()
       );
     }
 
     /// Calculates max coord of [`Node`]'s bounding box min/max
     /// and then normalize local matrix scale with it
-    pub fn normalize_scale( &mut self )
+    pub fn scale_normalize( &mut self )
     {
       let bb = self.local_bounding_box_hierarchical();
       let center = bb.center();
       let radius = ( ( bb.max - bb.min ) * 0.5 ).mag();
-      self.set_local_matrix
+      self.local_matrix_set
       (
         gl::math::mat3x3h::translation( center )
         *
@@ -489,7 +489,7 @@ mod private
         *
         gl::math::mat3x3h::translation( -center )
         *
-        self.get_local_matrix()
+        self.local_matrix_get()
       );
     }
 
@@ -525,8 +525,8 @@ mod private
     {
       let mut bbox = self.bounding_box_hierarchical();
 
-      bbox.transform_apply_mut( self.get_world_matrix().inverse().unwrap() );
-      bbox.transform_apply_mut( self.get_local_matrix() );
+      bbox.transform_apply_mut( self.world_matrix_get().inverse().unwrap() );
+      bbox.transform_apply_mut( self.local_matrix_get() );
 
       bbox
     }
@@ -546,9 +546,9 @@ mod private
     }
 
     /// Multiplies `mat` with local matrix and sets result as local matrix
-    pub fn apply_matrix( &mut self, mat : F32x4x4 )
+    pub fn matrix_apply( &mut self, mat : F32x4x4 )
     {
-      self.set_local_matrix( mat * self.get_local_matrix() );
+      self.local_matrix_set( mat * self.local_matrix_get() );
     }
   }
 }

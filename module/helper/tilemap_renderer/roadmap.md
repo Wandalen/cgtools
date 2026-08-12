@@ -13,7 +13,7 @@ The core library and SVG adapter are functional; the WebGL2 adapter is partially
 - **Core types** — `Transform`, `ResourceId<T>`, `RenderConfig` (incl. configurable `max_depth`), blend modes, topology, coordinate system (Y-up)
 - **Command system** — all POD commands: Clear, Path (moveto/lineto/quad/cubic/arc/close), Text, Mesh, Sprite, Batch lifecycle, Groups with effects
 - **Asset system** — images (bitmap/encoded/path), sprites, geometries, gradients, patterns, clip masks, paths, validation
-- **Backend trait** — `load_assets`, `submit`, `output`, `resize`, `capabilities`
+- **Backend trait** — `assets_load`, `submit`, `output`, `resize`, `capabilities`
 - **SVG adapter** — implemented across every command and asset family: paths, text, sprites, meshes, batches, groups, effects, gradients, patterns, blend modes, bitmap PNG encoding, viewport pan/zoom wrapper, `Source::Path` geometry loading via blocking `std::fs` (loud skip with stderr warning + diagnostic comment on read failure, incl. on wasm32 where no filesystem exists). Not complete, though — see "svg adapter gaps" below (font selection unimplemented, image Y-flip, no `Transform::depth` ordering)
 - **WebGL2 adapter (partial)** — hardware-accelerated sprites, meshes, and instanced batches on wasm32:
   - Split across `adapters/webgl.rs` (backend + renderers + async image loader) and
@@ -74,7 +74,7 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 ### svg adapter gaps
 
 - Font loading and rendering (currently no font resolution)
-- `Source::Path` geometry loading is blocking `std::fs` only — works natively; on wasm32 the read fails at runtime and the geometry is skipped loudly (stderr warning + diagnostic SVG comment). An async `fetch()` path would need a redesign of the sync `load_assets` contract
+- `Source::Path` geometry loading is blocking `std::fs` only — works natively; on wasm32 the read fails at runtime and the geometry is skipped loudly (stderr warning + diagnostic SVG comment). An async `fetch()` path would need a redesign of the sync `assets_load` contract
 - `Transform::depth` ordering — the adapter emits in submission order and ignores `depth`; callers must pre-sort (future: stable sort by `depth` before emission)
 - Image Y-flip: SVG `<image>` elements are Y-down natively; sprites rendered from them may appear flipped
 

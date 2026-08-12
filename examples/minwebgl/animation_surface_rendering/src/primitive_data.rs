@@ -24,7 +24,7 @@ mod private
   {
     Transform,
     AttributesData,
-    make_buffer_attribute_info
+    buffer_attribute_info_make
   };
   use core::ops::Range;
 
@@ -114,7 +114,7 @@ mod private
     [
       (
         "positions",
-        make_buffer_attribute_info
+        buffer_attribute_info_make
         (
           position_buffer,
           BufferDescriptor::new::< [ f32; 3 ] >(),
@@ -134,10 +134,10 @@ mod private
 
     for ( name, info ) in &attribute_infos
     {
-      geometry.add_attribute( gl, *name, info.clone() ).unwrap();
+      geometry.attribute_add( gl, *name, info.clone() ).unwrap();
     }
 
-    geometry.add_index( gl, index_info.clone() ).unwrap();
+    geometry.index_add( gl, index_info.clone() ).unwrap();
     geometry.vertex_count = attributes.borrow().positions.len() as u32;
 
     geometry
@@ -155,10 +155,10 @@ mod private
       {
         if let Some( parent ) = nodes.get( parent )
         {
-          if parent.borrow().get_name() != child.borrow().get_name() && parent.borrow().get_name().is_some()
+          if parent.borrow().name_get() != child.borrow().name_get() && parent.borrow().name_get().is_some()
           {
-            child.borrow_mut().set_parent( Some( parent.clone() ) );
-            parent.borrow_mut().add_child( child.clone() );
+            child.borrow_mut().parent_set( Some( parent.clone() ) );
+            parent.borrow_mut().child_add( child.clone() );
           }
         }
       }
@@ -236,7 +236,7 @@ mod private
         };
 
         let mesh = Rc::new( RefCell::new( Mesh::new() ) );
-        mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
+        mesh.borrow_mut().primitive_add( Rc::new( RefCell::new( primitive ) ) );
         meshes.push( mesh.clone() );
         Object3D::Mesh( mesh )
       }
@@ -250,10 +250,10 @@ mod private
 
       if let Some( name ) = &primitive_data.name
       {
-        node.borrow_mut().set_name( name.clone() );
+        node.borrow_mut().name_set( name.clone() );
       }
 
-      primitive_data.transform.set_node_transform( &node );
+      primitive_data.transform.node_transform_set( &node );
 
       nodes.push( node.clone() );
       if primitive_data.parent.is_none()

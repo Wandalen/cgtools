@@ -8,7 +8,7 @@
 //! (`docs/pattern/001_ports_and_adapters_backend_architecture.md`).
 //!
 //! `gpu_hal` has no texture pixel-upload call (`Device` offers
-//! `create_texture` allocation only, no `write_texture`), so loaded images
+//! `texture_create` allocation only, no `texture_write`), so loaded images
 //! are allocated but never populated with real pixels -- the same
 //! async-load gap `ImageAsset::source`'s own doc comment records for the
 //! WebGL adapter. Pixel-correctness verification is out of this task's
@@ -127,10 +127,10 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
       .await
       .map_err( | e | RenderError::BackendError( format!( "failed to acquire WebGPU device : {e:?}" ) ) )?;
 
-      let ( pipeline, bind_group_layout ) = build_pipeline( &device, surface.format() )?;
-      let sampler = device.create_sampler( SamplerDesc::default() )
+      let ( pipeline, bind_group_layout ) = pipeline_build( &device, surface.format() )?;
+      let sampler = device.sampler_create( SamplerDesc::default() )
       .map_err( | e | RenderError::BackendError( format!( "failed to create sampler : {e:?}" ) ) )?;
-      let quad_vertices = device.create_buffer_init( bytemuck::cast_slice( &QUAD_VERTICES ), BufferUsage::VERTEX )
+      let quad_vertices = device.buffer_init_create( bytemuck::cast_slice( &QUAD_VERTICES ), BufferUsage::VERTEX )
       .map_err( | e | RenderError::BackendError( format!( "failed to create quad vertex buffer : {e:?}" ) ) )?;
 
       Ok( Self
@@ -175,7 +175,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     /// Extracts the position and sprite-resource-id `submit` draws `sprite`
-    /// with -- pulled out of `draw_sprite` so the command-to-draw-parameter
+    /// with -- pulled out of `sprite_draw` so the command-to-draw-parameter
     /// mapping is checkable without a live device.
     #[ must_use ]
     pub fn sprite_draw_params( sprite : &Sprite ) -> ( [ f32; 2 ], u32 )
@@ -193,7 +193,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     ///
     /// Returns `RenderError::Unsupported` for every command family other
     /// than `Sprite`.
-    pub fn classify_command( command : &RenderCommand ) -> Result< (), RenderError >
+    pub fn command_classify( command : &RenderCommand ) -> Result< (), RenderError >
     {
       match command
       {
@@ -203,7 +203,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     /// Draws one sprite into the active `pass`.
-    fn draw_sprite( &self, pass : &mut RenderPass, sprite : &Sprite ) -> Result< (), RenderError >
+    fn sprite_draw( &self, pass : &mut RenderPass, sprite : &Sprite ) -> Result< (), RenderError >
     {
       let resource_id = sprite.sprite.inner();
       let loaded_sprite = self.sprites.iter().find( | s | s.id == resource_id )
@@ -212,7 +212,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
       .ok_or( RenderError::MissingAsset( loaded_sprite.sheet ) )?;
 
       let transform = mat3_to_mat4( &sprite.transform.to_mat3() );
-      let uniforms = build_uniforms
+      let uniforms = uniforms_build
       (
         &transform,
         &loaded_sprite.region,
@@ -221,9 +221,9 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         self.config.height
       );
 
-      let uniform_buffer = self.device.create_buffer_init( bytemuck::cast_slice( &uniforms ), BufferUsage::UNIFORM )
+      let uniform_buffer = self.device.buffer_init_create( bytemuck::cast_slice( &uniforms ), BufferUsage::UNIFORM )
       .map_err( | e | RenderError::BackendError( format!( "failed to create uniform buffer : {e:?}" ) ) )?;
-      let bind_group = self.device.create_bind_group
+      let bind_group = self.device.bind_group_create
       (
         &self.bind_group_layout,
         &[
@@ -234,8 +234,8 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
       )
       .map_err( | e | RenderError::BackendError( format!( "failed to create bind group : {e:?}" ) ) )?;
 
-      pass.set_bind_group( 0, &bind_group );
-      pass.set_vertex_buffer( 0, &self.quad_vertices );
+      pass.bind_group_set( 0, &bind_group );
+      pass.vertex_buffer_set( 0, &self.quad_vertices );
       pass.draw( 6 );
       Ok( () )
     }
@@ -243,14 +243,14 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 
   impl Backend for WebGpuBackend
   {
-    fn load_assets( &mut self, assets : &Assets ) -> Result< (), RenderError >
+    fn assets_load( &mut self, assets : &Assets ) -> Result< (), RenderError >
     {
       self.images.clear();
       self.sprites.clear();
 
       for image in &assets.images
       {
-        let texture = self.device.create_texture( &TextureDesc
+        let texture = self.device.texture_create( &TextureDesc
         {
           size : [ 1, 1, 1 ],
           format : TextureFormat::Rgba8Unorm,
@@ -286,18 +286,18 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         _ => ( self.config.background, commands ),
       };
 
-      let mut encoder = self.device.create_command_encoder();
+      let mut encoder = self.device.command_encoder_create();
       let color = ColorAttachmentDesc { view : &view, clear : clear_color };
-      let mut pass = encoder.begin_render_pass( &color, None )
+      let mut pass = encoder.render_pass_begin( &color, None )
       .map_err( | e | RenderError::BackendError( format!( "failed to begin render pass : {e:?}" ) ) )?;
 
-      pass.set_pipeline( &self.pipeline );
+      pass.pipeline_set( &self.pipeline );
       for command in remaining
       {
-        Self::classify_command( command )?;
+        Self::command_classify( command )?;
         if let RenderCommand::Sprite( sprite ) = command
         {
-          self.draw_sprite( &mut pass, sprite )?;
+          self.sprite_draw( &mut pass, sprite )?;
         }
       }
       pass.end();
@@ -326,9 +326,9 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
   }
 
   /// Builds the shared sprite pipeline and its bind group layout.
-  fn build_pipeline( device : &Device, color_format : TextureFormat ) -> Result< ( RenderPipeline, BindGroupLayout ), RenderError >
+  fn pipeline_build( device : &Device, color_format : TextureFormat ) -> Result< ( RenderPipeline, BindGroupLayout ), RenderError >
   {
-    let shader = device.create_shader_module( &ShaderSource
+    let shader = device.shader_module_create( &ShaderSource
     {
       wgsl : WGSL_SOURCE,
       glsl_vertex : None,
@@ -336,7 +336,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     })
     .map_err( | e | RenderError::BackendError( format!( "failed to compile sprite shader : {e:?}" ) ) )?;
 
-    let bind_group_layout = device.create_bind_group_layout
+    let bind_group_layout = device.bind_group_layout_create
     (
       &[
         BindGroupLayoutEntry { visibility : ShaderStages::VERTEX | ShaderStages::FRAGMENT, ty : BindingType::UniformBuffer },
@@ -355,7 +355,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
       }
     ];
 
-    let pipeline = device.create_render_pipeline( &RenderPipelineDesc
+    let pipeline = device.render_pipeline_create( &RenderPipelineDesc
     {
       shader : &shader,
       vertex_entry : "vs_main",
@@ -384,7 +384,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
   }
 
   /// Builds the 28-float uniform payload matching `Uniforms` in `WGSL_SOURCE`.
-  fn build_uniforms
+  fn uniforms_build
   (
     transform : &[ f32; 16 ],
     region : &[ f32; 4 ],

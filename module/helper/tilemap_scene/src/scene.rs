@@ -95,7 +95,7 @@ mod private
 
     /// Counter that produces a unique `instance_phase_seed` for each
     /// spawned instance. Hashed once at spawn so the seed is varied
-    /// enough that mixing it with `hash_str(anim.id)` gives independent
+    /// enough that mixing it with `str_hash(anim.id)` gives independent
     /// per-instance / per-animation phases.
     next_phase_seed : u32,
   }
@@ -383,13 +383,13 @@ mod private
     {
       let state = self.default_state( object );
       // Hash the spawn-order counter so the seed is well-distributed
-      // (avoids the `hash_coord( 0, 0, _ ) == 0` fixed point biting
+      // (avoids the `coord_hash( 0, 0, _ ) == 0` fixed point biting
       // the first-spawned instance). Mixed with the scene seed so
       // re-seeded scenes get a different distribution.
       let raw_seed = self.next_phase_seed;
       self.next_phase_seed = self.next_phase_seed.wrapping_add( 1 );
       let scene_salt = ( self.seed as u32 ) ^ ( ( self.seed >> 32 ) as u32 );
-      let instance_phase_seed = crate::hash::hash_coord
+      let instance_phase_seed = crate::hash::coord_hash
       (
         raw_seed as i32, 0, scene_salt ^ 0x9E37_79B9,
       );

@@ -16,7 +16,7 @@ use tilemap_renderer::adapters::none::NoneBackend;
 mod helpers;
 use helpers::empty_assets;
 
-/// T01 -- `load_assets` accepts a non-empty `Assets` set and returns
+/// T01 -- `assets_load` accepts a non-empty `Assets` set and returns
 /// `Ok(())`, storing nothing observable.
 #[ test ]
 fn load_assets_non_empty_returns_ok()
@@ -32,16 +32,16 @@ fn load_assets_non_empty_returns_ok()
     data_type : DataType::F32,
   });
 
-  assert!( backend.load_assets( &assets ).is_ok() );
+  assert!( backend.assets_load( &assets ).is_ok() );
 }
 
 /// T02 -- `submit` accepts a non-empty command slice (a `Sprite` draw)
-/// after `load_assets` and returns `Ok(())`.
+/// after `assets_load` and returns `Ok(())`.
 #[ test ]
 fn submit_non_empty_returns_ok()
 {
   let mut backend = NoneBackend::new( RenderConfig::default() );
-  backend.load_assets( &empty_assets() ).unwrap();
+  backend.assets_load( &empty_assets() ).unwrap();
 
   let commands =
   [
@@ -74,7 +74,7 @@ fn output_always_presented_after_submit()
 }
 
 /// T04 -- `resize` never panics regardless of call ordering (before
-/// `load_assets`, then again after `submit`), and `output()` called
+/// `assets_load`, then again after `submit`), and `output()` called
 /// immediately afterward still returns `Presented` -- proving `resize`
 /// cannot leave the backend in a state that changes `output`'s return.
 #[ test ]
@@ -82,7 +82,7 @@ fn resize_before_and_after_does_not_affect_output()
 {
   let mut backend = NoneBackend::new( RenderConfig::default() );
   backend.resize( 800, 600 );
-  backend.load_assets( &empty_assets() ).unwrap();
+  backend.assets_load( &empty_assets() ).unwrap();
   backend.submit( &[] ).unwrap();
   backend.resize( 400, 300 );
 
@@ -135,7 +135,7 @@ fn capabilities_equals_default_field_for_field()
 fn submit_ignores_missing_asset_reference()
 {
   let mut backend = NoneBackend::new( RenderConfig::default() );
-  backend.load_assets( &empty_assets() ).unwrap();
+  backend.assets_load( &empty_assets() ).unwrap();
 
   let commands =
   [

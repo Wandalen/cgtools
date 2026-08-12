@@ -43,19 +43,19 @@ fn main()
     
     // Test each algorithm
     println!("\n=== Shadowcasting Algorithm ===");
-    let shadowcast_visibility = shadowcasting_fov.calculate_fov(&viewer, view_range, blocks_sight);
+    let shadowcast_visibility = shadowcasting_fov.fov_calculate(&viewer, view_range, blocks_sight);
     println!("Visible positions count: {}", shadowcast_visibility.visible_coordinates().len());
     
     println!("\n=== Ray Casting Algorithm ===");
-    let raycast_visibility = raycasting_fov.calculate_fov(&viewer, view_range, blocks_sight);
+    let raycast_visibility = raycasting_fov.fov_calculate(&viewer, view_range, blocks_sight);
     println!("Visible positions count: {}", raycast_visibility.visible_coordinates().len());
     
     println!("\n=== Bresenham Algorithm ===");
-    let bresenham_visibility = bresenham_fov.calculate_fov(&viewer, view_range, blocks_sight);
+    let bresenham_visibility = bresenham_fov.fov_calculate(&viewer, view_range, blocks_sight);
     println!("Visible positions count: {}", bresenham_visibility.visible_coordinates().len());
     
     println!("\n=== Flood Fill Algorithm ===");
-    let floodfill_visibility = floodfill_fov.calculate_fov(&viewer, view_range, blocks_sight);
+    let floodfill_visibility = floodfill_fov.fov_calculate(&viewer, view_range, blocks_sight);
     println!("Visible positions count: {}", floodfill_visibility.visible_coordinates().len());
     
     // Demonstrate line-of-sight checking
@@ -77,23 +77,23 @@ fn main()
     let mut lighting_calculator = LightingCalculator::new();
     
     // Add light sources
-    lighting_calculator.add_light_source(
+    lighting_calculator.light_source_add(
         LightSource::new(SquareCoord::<EightConnected>::new(2, 2), 6, 1.0)
             .with_color(1.0, 0.8, 0.6) // Warm light
     );
     
-    lighting_calculator.add_light_source(
+    lighting_calculator.light_source_add(
         LightSource::new(SquareCoord::<EightConnected>::new(10, 10), 5, 0.8)
             .with_color(0.6, 0.8, 1.0) // Cool light
     );
     
-    lighting_calculator.add_light_source(
+    lighting_calculator.light_source_add(
         LightSource::new(SquareCoord::<EightConnected>::new(8, 3), 4, 0.6)
             .penetrating(true) // This light passes through walls
             .with_color(0.8, 1.0, 0.8) // Green light
     );
     
-    let lighting_map = lighting_calculator.calculate_lighting(blocks_sight);
+    let lighting_map = lighting_calculator.lighting_calculate(blocks_sight);
     println!("Lit positions count: {}", lighting_map.len());
     
     // Show some specific lighting values

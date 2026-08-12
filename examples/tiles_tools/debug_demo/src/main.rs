@@ -77,16 +77,16 @@ fn grid_styles_demonstrate()
     .with_size(8, 6)
     .with_style(GridStyle::Square4);
 
-  square_grid.add_colored_marker((1, 1), "S", "Start", DebugColor::Green, 10);
-  square_grid.add_colored_marker((6, 4), "G", "Goal", DebugColor::Blue, 10);
-  square_grid.add_colored_marker((3, 2), "X", "Obstacle", DebugColor::Red, 5);
-  square_grid.add_path(vec![(1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (6, 2), (6, 3), (6, 4)], "Path", DebugColor::Yellow);
+  square_grid.colored_marker_add((1, 1), "S", "Start", DebugColor::Green, 10);
+  square_grid.colored_marker_add((6, 4), "G", "Goal", DebugColor::Blue, 10);
+  square_grid.colored_marker_add((3, 2), "X", "Obstacle", DebugColor::Red, 5);
+  square_grid.path_add(vec![(1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (6, 2), (6, 3), (6, 4)], "Path", DebugColor::Yellow);
 
   println!("\n□ Square Grid (4-connected):");
-  println!("{}", square_grid.render_ascii());
+  println!("{}", square_grid.ascii_render());
 
   // Export square grid as SVG (commented out file operations for demo)
-  // square_grid.export_svg("-debug_square_grid.svg").expect("Failed to export SVG");
+  // square_grid.svg_export("-debug_square_grid.svg").expect("Failed to export SVG");
   // println!("✅ Square grid exported to -debug_square_grid.svg");
 
   // Hexagonal grid
@@ -94,23 +94,23 @@ fn grid_styles_demonstrate()
     .with_size(10, 7)
     .with_style(GridStyle::Hexagonal);
 
-  hex_grid.add_colored_marker((2, 2), "H", "Hero", DebugColor::Green, 10);
-  hex_grid.add_colored_marker((7, 5), "T", "Treasure", DebugColor::Yellow, 10);
-  hex_grid.add_area(vec![(4, 3), (5, 3), (4, 4), (5, 4)], "Water", DebugColor::Blue, HighlightStyle::Fill);
+  hex_grid.colored_marker_add((2, 2), "H", "Hero", DebugColor::Green, 10);
+  hex_grid.colored_marker_add((7, 5), "T", "Treasure", DebugColor::Yellow, 10);
+  hex_grid.area_add(vec![(4, 3), (5, 3), (4, 4), (5, 4)], "Water", DebugColor::Blue, HighlightStyle::Fill);
 
   println!("⬢ Hexagonal Grid:");
-  println!("{}", hex_grid.render_ascii());
+  println!("{}", hex_grid.ascii_render());
 
   // Triangular grid
   let mut tri_grid = GridRenderer::new()
     .with_size(8, 5)
     .with_style(GridStyle::Triangular);
 
-  tri_grid.add_colored_marker((3, 2), "△", "Peak", DebugColor::Purple, 10);
-  tri_grid.add_area(vec![(1, 4), (2, 4), (3, 4)], "Valley", DebugColor::Green, HighlightStyle::Outline);
+  tri_grid.colored_marker_add((3, 2), "△", "Peak", DebugColor::Purple, 10);
+  tri_grid.area_add(vec![(1, 4), (2, 4), (3, 4)], "Valley", DebugColor::Green, HighlightStyle::Outline);
 
   println!("▲ Triangular Grid:");
-  println!("{}", tri_grid.render_ascii());
+  println!("{}", tri_grid.ascii_render());
 }
 
 fn pathfinding_debug_demonstrate()
@@ -118,8 +118,8 @@ fn pathfinding_debug_demonstrate()
   let mut pathfinder = PathfindingDebugger::new(12, 8);
 
   // Set up a pathfinding scenario
-  pathfinder.set_start((1, 1));
-  pathfinder.set_goal((10, 6));
+  pathfinder.start_set((1, 1));
+  pathfinder.goal_set((10, 6));
 
   // Add obstacles
   let obstacles = vec![
@@ -129,7 +129,7 @@ fn pathfinding_debug_demonstrate()
   ];
 
   for obstacle in obstacles {
-    pathfinder.add_obstacle(obstacle);
+    pathfinder.obstacle_add(obstacle);
   }
 
   // Add found path
@@ -138,7 +138,7 @@ fn pathfinding_debug_demonstrate()
     (8, 1), (9, 1), (10, 1), (10, 2), (10, 3),
     (10, 4), (10, 5), (10, 6),
   ];
-  pathfinder.add_path(path, "Optimal Path");
+  pathfinder.path_add(path, "Optimal Path");
 
   // Add algorithm state
   let visited = vec![
@@ -147,10 +147,10 @@ fn pathfinding_debug_demonstrate()
     (8, 1), (9, 1), (8, 4), (9, 4), (10, 1),
     (10, 2), (10, 3),
   ];
-  pathfinder.add_visited_nodes(visited);
+  pathfinder.visited_nodes_add(visited);
 
   let open = vec![(3, 0), (4, 1), (5, 0), (10, 4), (10, 5), (9, 6)];
-  pathfinder.add_open_nodes(open);
+  pathfinder.open_nodes_add(open);
 
   // Add cost information
   let mut costs = HashMap::new();
@@ -159,13 +159,13 @@ fn pathfinding_debug_demonstrate()
   costs.insert((8, 4), 4);  // Swamp
   costs.insert((9, 4), 4);  // Swamp
   costs.insert((9, 5), 2);  // Hill
-  pathfinder.set_costs(costs);
+  pathfinder.costs_set(costs);
 
   println!("Pathfinding Debug Visualization:");
-  println!("{}", pathfinder.render_ascii());
+  println!("{}", pathfinder.ascii_render());
 
   // Export pathfinding debug
-  // pathfinder.export_svg("-debug_pathfinding.svg").expect("Failed to export pathfinding SVG");
+  // pathfinder.svg_export("-debug_pathfinding.svg").expect("Failed to export pathfinding SVG");
   // println!("✅ Pathfinding debug exported to -debug_pathfinding.svg");
 }
 
@@ -228,21 +228,21 @@ fn ecs_inspector_demonstrate()
 
   // Record entity data
   for entity in entities {
-    inspector.record_entity(entity);
+    inspector.entity_record(entity);
   }
 
   // Record system timings
-  inspector.record_system_timing("MovementSystem".to_string(), Duration::from_micros(1500));
-  inspector.record_system_timing("RenderSystem".to_string(), Duration::from_micros(8200));
-  inspector.record_system_timing("AISystem".to_string(), Duration::from_micros(3100));
-  inspector.record_system_timing("PhysicsSystem".to_string(), Duration::from_micros(4700));
-  inspector.record_system_timing("CollisionSystem".to_string(), Duration::from_micros(2800));
+  inspector.system_timing_record("MovementSystem".to_string(), Duration::from_micros(1500));
+  inspector.system_timing_record("RenderSystem".to_string(), Duration::from_micros(8200));
+  inspector.system_timing_record("AISystem".to_string(), Duration::from_micros(3100));
+  inspector.system_timing_record("PhysicsSystem".to_string(), Duration::from_micros(4700));
+  inspector.system_timing_record("CollisionSystem".to_string(), Duration::from_micros(2800));
 
   println!("ECS Inspector Report:");
-  println!("{}", inspector.generate_report());
+  println!("{}", inspector.report_generate());
 
   println!("\nECS Data as JSON:");
-  println!("{}", inspector.export_json());
+  println!("{}", inspector.json_export());
 }
 
 fn performance_profiler_demonstrate()
@@ -267,13 +267,13 @@ fn performance_profiler_demonstrate()
     };
 
     let frame_time = base_frame_time + variance;
-    profiler.record_frame_time(frame_time);
+    profiler.frame_time_record(frame_time);
 
     // Record system times for this frame
-    profiler.record_system_time("MovementSystem".to_string(), Duration::from_micros(1000 + u64::from(frame % 500)));
-    profiler.record_system_time("RenderSystem".to_string(), Duration::from_micros(8000 + u64::from(frame % 2000)));
-    profiler.record_system_time("AISystem".to_string(), Duration::from_micros(2000 + u64::from(frame % 800)));
-    profiler.record_system_time("PhysicsSystem".to_string(), Duration::from_micros(3000 + u64::from(frame % 1200)));
+    profiler.system_time_record("MovementSystem".to_string(), Duration::from_micros(1000 + u64::from(frame % 500)));
+    profiler.system_time_record("RenderSystem".to_string(), Duration::from_micros(8000 + u64::from(frame % 2000)));
+    profiler.system_time_record("AISystem".to_string(), Duration::from_micros(2000 + u64::from(frame % 800)));
+    profiler.system_time_record("PhysicsSystem".to_string(), Duration::from_micros(3000 + u64::from(frame % 1200)));
 
     // Record memory samples every 10 frames
     if frame % 10 == 0 {
@@ -281,25 +281,25 @@ fn performance_profiler_demonstrate()
       let memory_growth = u64::from(frame) * 1024 * 10; // 10KB per frame
       let entity_count = 100 + (frame / 10) * 5; // Growing entity count
       
-      profiler.record_memory_sample(base_memory + memory_growth, entity_count);
+      profiler.memory_sample_record(base_memory + memory_growth, entity_count);
     }
   }
 
   println!("Performance Profile Report:");
-  println!("{}", profiler.generate_report());
+  println!("{}", profiler.report_generate());
 
-  let stats = profiler.get_stats();
+  let stats = profiler.stats_get();
   println!("\nQuick Performance Summary:");
   println!("• Average FPS: {:.1}", stats.fps);
   println!("• Frame Time: {:.2}ms avg, {:.2}ms max", 
     stats.avg_frame_time.as_secs_f64() * 1000.0,
     stats.max_frame_time.as_secs_f64() * 1000.0);
-  println!("• Memory: {}", utils::format_memory(stats.current_memory));
+  println!("• Memory: {}", utils::memory_format(stats.current_memory));
   println!("• Entities: {}", stats.current_entities);
-  println!("• Uptime: {}", utils::format_duration(stats.uptime));
+  println!("• Uptime: {}", utils::duration_format(stats.uptime));
 
   // Export performance data (commented out for demo)
-  // profiler.export_csv("-performance_data.csv").expect("Failed to export CSV");
+  // profiler.csv_export("-performance_data.csv").expect("Failed to export CSV");
   // println!("✅ Performance data exported to performance_data.csv");
 }
 
@@ -317,7 +317,7 @@ fn debug_utilities_demonstrate()
   ];
 
   println!("\nVisibility Map (# = visible, . = hidden):");
-  println!("{}", utils::render_bool_grid(&visibility_map, '#', '.'));
+  println!("{}", utils::bool_grid_render(&visibility_map, '#', '.'));
 
   // Duration formatting
   let durations = vec![
@@ -329,7 +329,7 @@ fn debug_utilities_demonstrate()
 
   println!("Duration Formatting:");
   for duration in durations {
-    println!("• {}", utils::format_duration(duration));
+    println!("• {}", utils::duration_format(duration));
   }
 
   // Memory formatting
@@ -337,7 +337,7 @@ fn debug_utilities_demonstrate()
   
   println!("\nMemory Formatting:");
   for size in memory_sizes {
-    println!("• {}", utils::format_memory(size));
+    println!("• {}", utils::memory_format(size));
   }
 }
 
@@ -351,19 +351,19 @@ fn integrated_debugging_demonstrate()
     .with_style(GridStyle::Square8);
 
   // Set up a tactical game scenario
-  main_renderer.add_colored_marker((2, 2), "P1", "Player 1", DebugColor::Green, 20);
-  main_renderer.add_colored_marker((12, 8), "P2", "Player 2", DebugColor::Blue, 20);
+  main_renderer.colored_marker_add((2, 2), "P1", "Player 1", DebugColor::Green, 20);
+  main_renderer.colored_marker_add((12, 8), "P2", "Player 2", DebugColor::Blue, 20);
   
   // Add enemies
-  main_renderer.add_colored_marker((7, 3), "E1", "Enemy Archer", DebugColor::Red, 15);
-  main_renderer.add_colored_marker((5, 7), "E2", "Enemy Knight", DebugColor::Red, 15);
+  main_renderer.colored_marker_add((7, 3), "E1", "Enemy Archer", DebugColor::Red, 15);
+  main_renderer.colored_marker_add((5, 7), "E2", "Enemy Knight", DebugColor::Red, 15);
   
   // Add environmental elements
-  main_renderer.add_colored_marker((6, 4), "T", "Tree", DebugColor::Green, 5);
-  main_renderer.add_colored_marker((8, 6), "R", "Rock", DebugColor::Gray, 5);
+  main_renderer.colored_marker_add((6, 4), "T", "Tree", DebugColor::Green, 5);
+  main_renderer.colored_marker_add((8, 6), "R", "Rock", DebugColor::Gray, 5);
   
   // Add area effects
-  main_renderer.add_area(
+  main_renderer.area_add(
     vec![(10, 4), (11, 4), (10, 5), (11, 5)], 
     "Fire Area", 
     DebugColor::Orange, 
@@ -371,7 +371,7 @@ fn integrated_debugging_demonstrate()
   );
 
   // Add movement ranges
-  main_renderer.add_area(
+  main_renderer.area_add(
     vec![(1, 1), (2, 1), (3, 1), (1, 2), (3, 2), (1, 3), (2, 3), (3, 3)],
     "P1 Movement Range",
     DebugColor::Green,
@@ -379,11 +379,11 @@ fn integrated_debugging_demonstrate()
   );
 
   // Add annotations
-  main_renderer.add_annotation((7, 1), "Archer Range", DebugColor::Red);
-  main_renderer.add_annotation((10, 3), "Danger Zone", DebugColor::Yellow);
+  main_renderer.annotation_add((7, 1), "Archer Range", DebugColor::Red);
+  main_renderer.annotation_add((10, 3), "Danger Zone", DebugColor::Yellow);
 
   println!("\nTactical Game State:");
-  println!("{}", main_renderer.render_ascii());
+  println!("{}", main_renderer.ascii_render());
 
   // Performance snapshot for this frame
   let mut frame_profiler = PerformanceProfiler::new();
@@ -391,19 +391,19 @@ fn integrated_debugging_demonstrate()
   
   // Simulate some game logic timing
   std::thread::sleep(Duration::from_micros(100)); // Simulate work
-  frame_profiler.record_system_time("GameLogic".to_string(), start.elapsed());
+  frame_profiler.system_time_record("GameLogic".to_string(), start.elapsed());
 
   let render_start = Instant::now();
   std::thread::sleep(Duration::from_micros(200)); // Simulate rendering
-  frame_profiler.record_system_time("Rendering".to_string(), render_start.elapsed());
+  frame_profiler.system_time_record("Rendering".to_string(), render_start.elapsed());
 
-  frame_profiler.record_frame_time(start.elapsed());
-  frame_profiler.record_memory_sample(45 * 1024 * 1024, 8); // 45MB, 8 entities
+  frame_profiler.frame_time_record(start.elapsed());
+  frame_profiler.memory_sample_record(45 * 1024 * 1024, 8); // 45MB, 8 entities
 
   println!("\nFrame Performance:");
-  let stats = frame_profiler.get_stats();
-  println!("• Frame time: {}", utils::format_duration(stats.avg_frame_time));
-  println!("• Memory usage: {}", utils::format_memory(stats.current_memory));
+  let stats = frame_profiler.stats_get();
+  println!("• Frame time: {}", utils::duration_format(stats.avg_frame_time));
+  println!("• Memory usage: {}", utils::memory_format(stats.current_memory));
   println!("• Active entities: {}", stats.current_entities);
 
   // ECS inspector snapshot
@@ -432,14 +432,14 @@ fn integrated_debugging_demonstrate()
   ];
 
   for entity in current_entities {
-    ecs.record_entity(entity);
+    ecs.entity_record(entity);
   }
 
   println!("\nEntity Summary:");
   println!("Total entities: {}", ecs.entity_count());
   let entity_ids = ecs.entity_ids();
   for id in entity_ids {
-    if let Some(entity) = ecs.get_entity(id) {
+    if let Some(entity) = ecs.entity_get(id) {
       if let Some(pos) = entity.position {
         println!("• Entity {}: {} at ({}, {})", id, entity.components.join("+"), pos.0, pos.1);
       }

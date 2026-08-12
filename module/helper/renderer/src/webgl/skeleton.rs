@@ -32,7 +32,7 @@ mod private
   /// # Errors
   ///
   /// Returns `WebglError` if the texture allocation or upload fails.
-  pub fn load_texture_data_4f
+  pub fn texture_data_4f_load
   (
     gl : &GL,
     texture : &WebGlTexture,
@@ -79,7 +79,7 @@ mod private
   /// * `texture` - The texture to bind.
   /// * `location` - The uniform location in the shader for the sampler.
   /// * `slot` - The texture unit to bind to ( e.g., `GL::TEXTURE0` ).
-  fn upload_texture
+  fn texture_upload
   (
     gl : &GL,
     texture : &WebGlTexture,
@@ -101,7 +101,7 @@ mod private
   ///    between two rows and all matrices have grid alignment.
   /// 3. The ceil is needed to get the smallest integer side length that fits all the data.
   #[ must_use ]
-  pub fn calculate_data_texture_size( data_size : usize ) -> u32
+  pub fn data_texture_size_calculate( data_size : usize ) -> u32
   {
     4.0_f32.powf( ( data_size as f32 ).sqrt().log( 4.0 ).ceil() ) as u32
   }
@@ -175,7 +175,7 @@ mod private
       let global_matrices = self.joints.iter()
       .map
       (
-        | node | node.borrow().get_world_matrix()
+        | node | node.borrow().world_matrix_get()
       )
       .collect::< Vec< _ > >();
 
@@ -183,7 +183,7 @@ mod private
       .flat_map(| m | m.to_array().to_vec())
       .collect::< Vec< _ > >();
 
-      let a = calculate_data_texture_size(global_data.len() );
+      let a = data_texture_size_calculate(global_data.len() );
       let texture_size = [ a, a ];
 
       global_data.extend( vec![ 0.0; ( a * a * 4 ) as usize - global_data.len() ] );
@@ -204,7 +204,7 @@ mod private
         .collect::< Vec< _ > >();
 
         inverse_data.extend( vec![ 0.0; ( a * a * 4 ) as usize - inverse_data.len() ] );
-        let _ = load_texture_data_4f( gl, self.inverse_texture.as_ref().unwrap(), inverse_data.as_slice(), texture_size );
+        let _ = texture_data_4f_load( gl, self.inverse_texture.as_ref().unwrap(), inverse_data.as_slice(), texture_size );
 
         if self.inverse_texture.is_some() && self.global_texture.is_some()
         {
@@ -218,9 +218,9 @@ mod private
         let inverse_matrices_loc = locations.get( "inverseBindMatricesTexture" ).unwrap();
         let texture_size_loc = locations.get( "skinMatricesTextureSize" ).unwrap();
 
-        let _ = load_texture_data_4f( gl, global_texture, global_data.as_slice(), texture_size );
-        upload_texture( gl, global_texture, global_matrices_loc.as_ref(), GLOBAL_MATRICES_SLOT );
-        upload_texture( gl, inverse_texture, inverse_matrices_loc.as_ref(), INVERSE_MATRICES_SLOT );
+        let _ = texture_data_4f_load( gl, global_texture, global_data.as_slice(), texture_size );
+        texture_upload( gl, global_texture, global_matrices_loc.as_ref(), GLOBAL_MATRICES_SLOT );
+        texture_upload( gl, inverse_texture, inverse_matrices_loc.as_ref(), INVERSE_MATRICES_SLOT );
         gl::uniform::upload( gl, texture_size_loc.clone(), texture_size.as_slice() ).unwrap();
       }
     }
@@ -233,7 +233,7 @@ mod private
       Self
       {
         joints : self.joints.iter()
-        .map( | n | n.borrow().clone_tree() )
+        .map( | n | n.borrow().tree_clone() )
         .collect::< Vec< _ > >(),
         inverse_bind_matrices : self.inverse_bind_matrices.clone(),
         global_texture : self.global_texture.clone(),
@@ -340,7 +340,7 @@ mod private
     /// # Panics
     ///
     /// Does not panic in practice : the `unwrap` runs only on slots pre-filtered to be `Some`.
-    pub fn pack_displacements_data( &mut self ) -> Vec< f32 >
+    pub fn displacements_data_pack( &mut self ) -> Vec< f32 >
     {
       let arrays =
       [
@@ -422,7 +422,7 @@ mod private
         self.displacements_texture = gl.create_texture();
       }
 
-      let mut data = self.pack_displacements_data();
+      let mut data = self.displacements_data_pack();
 
       let vertex_displacement_len = self.attributes_count() * self.targets_count;
       if self.morph_weights.borrow().is_empty()
@@ -461,7 +461,7 @@ mod private
 
         self.disp_texture_size = [ a, b ];
         data.extend( vec![ 0.0; ( a * b * 4 ) as usize - data.len() ] );
-        let _ = load_texture_data_4f( gl, self.displacements_texture.as_ref().unwrap(), data.as_slice(), [ a, b ] );
+        let _ = texture_data_4f_load( gl, self.displacements_texture.as_ref().unwrap(), data.as_slice(), [ a, b ] );
       }
 
       let mut offset = 0_i32;
@@ -506,7 +506,7 @@ mod private
       {
         if let Some( displacements_loc ) = locations.get( "morphTargetsDisplacementsTexture" )
         {
-          upload_texture( gl, displacements_texture, displacements_loc.as_ref(), DISPLACEMENTS_SLOT );
+          texture_upload( gl, displacements_texture, displacements_loc.as_ref(), DISPLACEMENTS_SLOT );
         }
         if let Some( morph_weights_loc ) = locations.get( "morphWeights" )
         {
@@ -541,13 +541,13 @@ mod private
 
     /// Returns morph weights that is used for updating geometry
     #[ must_use ]
-    pub fn get_morph_weights( &self ) -> Rc< RefCell< Vec< f32 > > >
+    pub fn morph_weights_get( &self ) -> Rc< RefCell< Vec< f32 > > >
     {
       self.morph_weights.clone()
     }
 
     /// Sets one morph targets vertex attribute data that will be packed into texture
-    pub fn set_displacement
+    pub fn displacement_set
     (
       &mut self,
       displacement_array : Option< Vec< [ f32; 3 ] > >,
@@ -733,8 +733,8 @@ crate::mod_interface!
 {
   orphan use
   {
-    load_texture_data_4f,
-    calculate_data_texture_size,
+    texture_data_4f_load,
+    data_texture_size_calculate,
     TransformsData,
     DisplacementsData,
     Skeleton,

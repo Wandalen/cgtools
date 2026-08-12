@@ -292,7 +292,7 @@ mod private
   /// For integer scalars the per-element addition is not overflow-checked: it
   /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
-  pub fn sum_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
+  pub fn scalar_sum_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
     E : Scalar,
@@ -310,13 +310,13 @@ mod private
   /// For integer scalars the per-element addition is not overflow-checked: it
   /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
-  pub fn sum_scalar< E, A, const N : usize >( a : &A, b : E ) -> A
+  pub fn scalar_sum< E, A, const N : usize >( a : &A, b : E ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
     E : Scalar,
   {
     let mut r = a.clone();
-    sum_scalar_mut( &mut r, b );
+    scalar_sum_mut( &mut r, b );
     r
   }
 
@@ -369,7 +369,7 @@ mod private
   /// panics in debug / wraps in release whenever a result leaves `E`'s range —
   /// e.g. unsigned underflow when `a` exceeds a component of `r`.
   #[ inline ]
-  pub fn sub_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
+  pub fn scalar_sub_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
     E : Scalar,
@@ -388,13 +388,13 @@ mod private
   /// panics in debug / wraps in release whenever a result leaves `E`'s range —
   /// e.g. unsigned underflow when `b` exceeds a component of `a`.
   #[ inline ]
-  pub fn sub_scalar< E, A, const N : usize >( a : &A, b : E ) -> A
+  pub fn scalar_sub< E, A, const N : usize >( a : &A, b : E ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
     E : Scalar,
   {
     let mut r = a.clone();
-    sub_scalar_mut( &mut r, b );
+    scalar_sub_mut( &mut r, b );
     r
   }
 
@@ -442,7 +442,7 @@ mod private
   /// For integer scalars the per-element multiplication is not overflow-checked:
   /// it panics in debug / wraps in release once a product leaves `E`'s range.
   #[ inline ]
-  pub fn mul_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
+  pub fn scalar_mul_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
     E : Scalar,
@@ -460,13 +460,13 @@ mod private
   /// For integer scalars the per-element multiplication is not overflow-checked:
   /// it panics in debug / wraps in release once a product leaves `E`'s range.
   #[ inline ]
-  pub fn mul_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
+  pub fn scalar_mul< E, R, const N : usize >( a : &R, b : E ) -> R
   where
     R : VectorIterMut< E, N >  + Clone,
     E : Scalar,
   {
     let mut r = a.clone();
-    mul_scalar_mut( &mut r, b );
+    scalar_mul_mut( &mut r, b );
     r
   }
 
@@ -516,7 +516,7 @@ mod private
   /// For integer `E` this panics if `a` is zero, in both debug and release
   /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
   #[ inline ]
-  pub fn div_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
+  pub fn scalar_div_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
     E : Scalar,
@@ -534,13 +534,13 @@ mod private
   /// For integer `E` this panics if `b` is zero, in both debug and release
   /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
   #[ inline ]
-  pub fn div_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
+  pub fn scalar_div< E, R, const N : usize >( a : &R, b : E ) -> R
   where
     R : VectorIterMut< E, N >  + Clone,
     E : Scalar,
   {
     let mut r = a.clone();
-    div_scalar_mut( &mut r, b );
+    scalar_div_mut( &mut r, b );
     r
   }
 
@@ -642,19 +642,19 @@ crate::mod_interface!
     sub_mut,
     mul,
     mul_mut,
-    mul_scalar,
-    mul_scalar_mut,
-    div_scalar,
-    div_scalar_mut,
+    scalar_mul,
+    scalar_mul_mut,
+    scalar_div,
+    scalar_div_mut,
     min,
     min_mut,
     max,
     max_mut,
     div,
     div_mut,
-    sub_scalar,
-    sub_scalar_mut,
-    sum_scalar,
-    sum_scalar_mut
+    scalar_sub,
+    scalar_sub_mut,
+    scalar_sum,
+    scalar_sum_mut
   };
 }

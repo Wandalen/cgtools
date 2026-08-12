@@ -64,9 +64,9 @@ fn centered_sprite_command( size : f32 ) -> RenderCommand
 /// Loads `solid_sprite_assets`, submits a clear plus a
 /// `centered_sprite_command( size )`, and returns the resulting readback
 /// `Bitmap`.
-fn render_centered_sprite( backend : &mut NativeBackend, size : f32 ) -> Bitmap
+fn centered_sprite_render( backend : &mut NativeBackend, size : f32 ) -> Bitmap
 {
-  backend.load_assets( &solid_sprite_assets() ).expect( "load_assets failed" );
+  backend.assets_load( &solid_sprite_assets() ).expect( "assets_load failed" );
   let commands = [ RenderCommand::Clear( Clear { color : CLEAR } ), centered_sprite_command( size ) ];
   backend.submit( &commands ).expect( "submit failed" );
 
@@ -85,7 +85,7 @@ fn construct_load_submit_output_returns_matching_dimensions()
   let mut backend = NativeBackend::new( RenderConfig { width : 64, height : 64, ..Default::default() } )
   .expect( "NativeBackend::new failed -- needs a Vulkan ICD (a software one such as lavapipe suffices)" );
 
-  let bitmap = render_centered_sprite( &mut backend, 64.0 );
+  let bitmap = centered_sprite_render( &mut backend, 64.0 );
 
   assert_eq!( bitmap.width, 64 );
   assert_eq!( bitmap.height, 64 );
@@ -103,7 +103,7 @@ fn sprite_and_corner_pixels_match_configured_colors()
   let mut backend = NativeBackend::new( RenderConfig { width : 64, height : 64, ..Default::default() } )
   .expect( "NativeBackend::new failed -- needs a Vulkan ICD (a software one such as lavapipe suffices)" );
 
-  let bitmap = render_centered_sprite( &mut backend, 64.0 );
+  let bitmap = centered_sprite_render( &mut backend, 64.0 );
   let at = | x : u32, y : u32 |
   {
     let start = ( ( y * bitmap.width + x ) * 4 ) as usize;
@@ -123,7 +123,7 @@ fn resize_then_output_reflects_new_dimensions()
   .expect( "NativeBackend::new failed -- needs a Vulkan ICD (a software one such as lavapipe suffices)" );
 
   backend.resize( 128, 128 );
-  let bitmap = render_centered_sprite( &mut backend, 128.0 );
+  let bitmap = centered_sprite_render( &mut backend, 128.0 );
 
   assert_eq!( bitmap.width, 128 );
   assert_eq!( bitmap.height, 128 );

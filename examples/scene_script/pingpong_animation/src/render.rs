@@ -41,7 +41,7 @@ fn quad_bytes( half_width : f32, half_height : f32 ) -> Vec< u8 >
 
 /// Builds the static geometry assets `frame_to_commands`' output references
 /// ([`BALL_GEOMETRY`], [`PADDLE_GEOMETRY`]). Must be loaded via
-/// `Backend::load_assets` before submitting any compiled commands.
+/// `Backend::assets_load` before submitting any compiled commands.
 #[ must_use ]
 pub fn render_assets() -> Assets
 {

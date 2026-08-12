@@ -63,17 +63,17 @@ mod private
   impl Transform
   {
     /// Set new local matrix of `Node`.
-    pub fn set_node_transform( &self, node : &RefCell< Node > )
+    pub fn node_transform_set( &self, node : &RefCell< Node > )
     {
       let t = self.translation;
       let r = self.rotation;
       let s = self.scale;
       let mut node_mut = node.borrow_mut();
-      node_mut.set_translation( t );
+      node_mut.translation_set( t );
       let q = gl::Quat::from_euler_xyz( r );
-      node_mut.set_rotation( q );
-      node_mut.set_scale( s );
-      node_mut.update_local_matrix();
+      node_mut.rotation_set( q );
+      node_mut.scale_set( s );
+      node_mut.local_matrix_update();
     }
   }
 
@@ -105,7 +105,7 @@ mod private
 
   /// Creates an `AttributeInfo` object using one function call for a WebGL buffer.
   #[ must_use ]
-  pub fn make_buffer_attribute_info
+  pub fn buffer_attribute_info_make
   (
     buffer : &web_sys::WebGlBuffer,
     descriptor : gl::BufferDescriptor,
@@ -162,7 +162,7 @@ mod private
     [
       (
         "positions",
-        make_buffer_attribute_info(
+        buffer_attribute_info_make(
           &position_buffer,
           BufferDescriptor::new::< [ f32; 3 ] >(),
           0,
@@ -196,7 +196,7 @@ mod private
       // Assign name from the primitive record
       if let Some( name ) = &primitive.name
       {
-        node.borrow_mut().set_name( name.clone() );
+        node.borrow_mut().name_set( name.clone() );
       }
 
       // Only create geometry/mesh if attributes exist
@@ -220,10 +220,10 @@ mod private
 
         for ( name, info ) in &attribute_infos
         {
-          geometry.add_attribute( gl, *name, info.clone() ).unwrap();
+          geometry.attribute_add( gl, *name, info.clone() ).unwrap();
         }
 
-        geometry.add_index( gl, index_info.clone() ).unwrap();
+        geometry.index_add( gl, index_info.clone() ).unwrap();
         geometry.vertex_count = attributes.borrow().positions.len() as u32;
 
         let primitive = Primitive
@@ -233,14 +233,14 @@ mod private
         };
 
         let mesh = Rc::new( RefCell::new( Mesh::new() ) );
-        mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
+        mesh.borrow_mut().primitive_add( Rc::new( RefCell::new( primitive ) ) );
 
         node.borrow_mut().object = Object3D::Mesh( mesh.clone() );
         meshes.push( mesh );
       }
 
       // Set transform for all nodes (with or without geometry)
-      primitive.transform.set_node_transform( &node );
+      primitive.transform.node_transform_set( &node );
 
       nodes.push( node.clone() );
     }
@@ -255,8 +255,8 @@ mod private
         // Get parent node and add this node as its child
         if let Some( parent_node ) = nodes.get( parent_index )
         {
-          parent_node.borrow_mut().add_child( node.clone() );
-          node.borrow_mut().set_parent( Some( parent_node.clone() ) );
+          parent_node.borrow_mut().child_add( node.clone() );
+          node.borrow_mut().parent_set( Some( parent_node.clone() ) );
         }
         else
         {
@@ -297,6 +297,6 @@ crate::mod_interface!
     PrimitiveData,
     AttributesData,
     primitives_data_to_gltf,
-    make_buffer_attribute_info
+    buffer_attribute_info_make
   };
 }

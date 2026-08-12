@@ -132,7 +132,7 @@ fn lighting_pass_render
   geom.light_volume.bind( gl );
   shaders.light.activate();
   shaders.light.uniform_matrix_upload( "u_mvp", view_projection.raw_slice(), true );
-  shaders.light.uniform_upload( "u_camera_position", camera.get_eye().as_slice() );
+  shaders.light.uniform_upload( "u_camera_position", camera.eye_get().as_slice() );
   shaders.light.uniform_upload( "u_screen_size", [ width as f32, height as f32 ].as_slice() );
   shaders.light.uniform_upload( "u_positions", &0 );
   shaders.light.uniform_upload( "u_normals", &1 );
@@ -342,8 +342,8 @@ fn camera_setup
     0.1,
     1000.0
   );
-  camera.set_window_size( [ width as f32, height as f32 ].into() );
-  camera.bind_controls( canvas );
+  camera.window_size_set( [ width as f32, height as f32 ].into() );
+  camera.controls_bind( canvas );
 
   camera
 }
@@ -395,7 +395,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   gl.bind_vertex_array( None );
   let sphere = gltf::load( &document, "static/sphere.glb", &gl ).await?;
 
-  sponza.scenes[ 0 ].borrow_mut().update_world_matrix();
+  sponza.scenes[ 0 ].borrow_mut().world_matrix_update();
   let scene_bounding_box = sponza.scenes[ 0 ].borrow().bounding_box();
   gl::info!( "Scene bounding box: {scene_bounding_box:?}" );
 
@@ -451,8 +451,8 @@ async fn app_run() -> Result< (), gl::WebglError >
     translation_buffer_update( &gl, &lights, light_count );
 
     // Get view and projection matrices from the camera
-    let view = camera.get_view_matrix();
-    let projection = camera.get_projection_matrix();
+    let view = camera.view_matrix_get();
+    let projection = camera.projection_matrix_get();
     let scene_mvp = projection * view * scene_transform;
     let view_projection = projection * view;
 

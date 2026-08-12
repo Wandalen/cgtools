@@ -365,7 +365,7 @@ mod private
   }
 
   /// Asynchronously loads multiple fonts from a list of font names.
-  pub async fn load_fonts( font_names : &[ &str ] ) -> FxHashMap< String, Font >
+  pub async fn fonts_load( font_names : &[ &str ] ) -> FxHashMap< String, Font >
   {
     let mut fonts = FxHashMap::< String, Font >::default();
 
@@ -536,7 +536,7 @@ crate::mod_interface!
   #[ cfg( feature = "font-processing" ) ]
   orphan use
   {
-    load_fonts,
+    fonts_load,
     Glyph,
     Font,
     text_to_mesh,

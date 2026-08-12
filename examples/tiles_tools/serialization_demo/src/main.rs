@@ -18,7 +18,7 @@ fn basic_game_state_build() -> SerializableGameState
   println!("----------------------------------");
 
   // Create a basic game state
-  let mut game_state = GameStateSerializer::create_basic_game_state("My First Save".to_string());
+  let mut game_state = GameStateSerializer::basic_game_state_create("My First Save".to_string());
 
   // Add some custom data
   game_state.progress.level = 5;
@@ -70,7 +70,7 @@ fn serialization_formats_demonstrate(game_state: &SerializableGameState)
   let json_serializer = GameStateSerializer::new()
   .with_format(SerializationFormat::Json);
 
-  let json_data = json_serializer.serialize_game_state(game_state)
+  let json_data = json_serializer.game_state_serialize(game_state)
   .expect("Failed to serialize to JSON");
   println!("JSON serialization: {} bytes", json_data.len());
 
@@ -78,7 +78,7 @@ fn serialization_formats_demonstrate(game_state: &SerializableGameState)
   let binary_serializer = GameStateSerializer::new()
   .with_format(SerializationFormat::Binary);
 
-  let binary_data = binary_serializer.serialize_game_state(game_state)
+  let binary_data = binary_serializer.game_state_serialize(game_state)
   .expect("Failed to serialize to binary");
   println!("Binary serialization: {} bytes", binary_data.len());
 
@@ -86,16 +86,16 @@ fn serialization_formats_demonstrate(game_state: &SerializableGameState)
   let ron_serializer = GameStateSerializer::new()
   .with_format(SerializationFormat::Ron);
 
-  let ron_data = ron_serializer.serialize_game_state(game_state)
+  let ron_data = ron_serializer.game_state_serialize(game_state)
   .expect("Failed to serialize to RON");
   println!("RON serialization: {} bytes", ron_data.len());
 
   // Verify deserialization works
-  let json_restored = json_serializer.deserialize_game_state(&json_data)
+  let json_restored = json_serializer.game_state_deserialize(&json_data)
   .expect("Failed to deserialize JSON");
-  let binary_restored = binary_serializer.deserialize_game_state(&binary_data)
+  let binary_restored = binary_serializer.game_state_deserialize(&binary_data)
   .expect("Failed to deserialize binary");
-  let ron_restored = ron_serializer.deserialize_game_state(&ron_data)
+  let ron_restored = ron_serializer.game_state_deserialize(&ron_data)
   .expect("Failed to deserialize RON");
 
   println!("✅ All formats successfully roundtrip serialized");
@@ -115,9 +115,9 @@ fn compression_demonstrate(game_state: &SerializableGameState)
   let compressed_serializer = GameStateSerializer::new()
   .with_compression(true);
 
-  let uncompressed = uncompressed_serializer.serialize_game_state(game_state)
+  let uncompressed = uncompressed_serializer.game_state_serialize(game_state)
   .expect("Failed to serialize uncompressed");
-  let compressed = compressed_serializer.serialize_game_state(game_state)
+  let compressed = compressed_serializer.game_state_serialize(game_state)
   .expect("Failed to serialize compressed");
 
   println!("Uncompressed size: {} bytes", uncompressed.len());
@@ -135,7 +135,7 @@ fn compression_demonstrate(game_state: &SerializableGameState)
   println!("Compression ratio: {ratio:.1}%");
 
   // Verify compressed data can be decompressed
-  let decompressed = compressed_serializer.deserialize_game_state(&compressed)
+  let decompressed = compressed_serializer.game_state_deserialize(&compressed)
   .expect("Failed to decompress data");
   println!("✅ Compression/decompression successful");
   println!("  Restored player level: {}", decompressed.progress.level);
@@ -151,7 +151,7 @@ fn save_manager_demonstrate(game_state: &SerializableGameState, temp_dir: &std::
   .with_serializer(GameStateSerializer::new().with_compression(true));
 
   // Save the game state
-  save_manager.save_game_state("demo_save", game_state)
+  save_manager.game_state_save("demo_save", game_state)
   .expect("Failed to save game state");
   println!("✅ Game saved as 'demo_save'");
 
@@ -161,7 +161,7 @@ fn save_manager_demonstrate(game_state: &SerializableGameState, temp_dir: &std::
   quick_save.progress.level = 6;
   quick_save.progress.experience = 3000;
 
-  save_manager.save_game_state("quick_save", &quick_save)
+  save_manager.game_state_save("quick_save", &quick_save)
   .expect("Failed to save quick save");
 
   let mut checkpoint = game_state.clone();
@@ -170,12 +170,12 @@ fn save_manager_demonstrate(game_state: &SerializableGameState, temp_dir: &std::
   checkpoint.progress.experience = 1800;
   checkpoint.metadata = checkpoint.metadata.with_tag("checkpoint".to_string());
 
-  save_manager.save_game_state("checkpoint_1", &checkpoint)
+  save_manager.game_state_save("checkpoint_1", &checkpoint)
   .expect("Failed to save checkpoint");
 
   // List all saves
   println!("\n📂 Available Saves:");
-  let saves = save_manager.list_saves()
+  let saves = save_manager.saves_list()
   .expect("Failed to list saves");
   for save_name in &saves {
   println!("  - {save_name}");
@@ -183,7 +183,7 @@ fn save_manager_demonstrate(game_state: &SerializableGameState, temp_dir: &std::
 
   // Get detailed save information
   println!("\n📊 Save Information:");
-  let saves_info = save_manager.get_saves_info()
+  let saves_info = save_manager.saves_info_get()
   .expect("Failed to get saves info");
 
   for (name, metadata) in &saves_info {
@@ -202,7 +202,7 @@ fn save_manager_demonstrate(game_state: &SerializableGameState, temp_dir: &std::
 
   // Load a specific save
   println!("🔄 Loading save 'demo_save'...");
-  let loaded_state = save_manager.load_game_state("demo_save")
+  let loaded_state = save_manager.game_state_load("demo_save")
   .expect("Failed to load save");
 
   println!("✅ Save loaded successfully:");
@@ -254,12 +254,12 @@ fn configuration_demonstrate(temp_dir: &std::path::Path)
   custom_config.controls.key_bindings.insert("inventory".to_string(), "Tab".to_string());
 
   // Save configuration
-  config_manager.save_config(&custom_config)
+  config_manager.config_save(&custom_config)
   .expect("Failed to save configuration");
   println!("✅ Configuration saved");
 
   // Load configuration
-  let loaded_config = config_manager.load_config()
+  let loaded_config = config_manager.config_load()
   .expect("Failed to load configuration");
   println!("✅ Configuration loaded:");
   println!("  Difficulty: {}", loaded_config.difficulty);
@@ -343,11 +343,11 @@ fn cleanup_demonstrate(save_manager: &SaveManager, temp_dir: &std::path::Path)
   println!("----------");
 
   // Demonstrate save deletion
-  save_manager.delete_save("checkpoint_1")
+  save_manager.save_delete("checkpoint_1")
   .expect("Failed to delete save");
   println!("✅ Deleted checkpoint_1 save");
 
-  let remaining_saves = save_manager.list_saves()
+  let remaining_saves = save_manager.saves_list()
   .expect("Failed to list remaining saves");
   println!("Remaining saves: {remaining_saves:?}");
 
@@ -375,14 +375,14 @@ fn performance_demonstrate(game_state: &SerializableGameState)
   let start_time = std::time::Instant::now();
   let serialized_large = GameStateSerializer::new()
   .with_compression(true)
-  .serialize_game_state(&large_state)
+  .game_state_serialize(&large_state)
   .expect("Failed to serialize large state");
   let serialize_duration = start_time.elapsed();
 
   let start_time = std::time::Instant::now();
   let _deserialized_large = GameStateSerializer::new()
   .with_compression(true)
-  .deserialize_game_state(&serialized_large)
+  .game_state_deserialize(&serialized_large)
   .expect("Failed to deserialize large state");
   let deserialize_duration = start_time.elapsed();
 

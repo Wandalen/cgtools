@@ -14,14 +14,14 @@ mod private
   /// re-exports `ndarray_cg::Vector` verbatim, and `animation` already
   /// implements `Animatable` for `mingl::Vector< E, N >` where
   /// `E: MatEl + Animatable` — no new impl is needed here. See
-  /// [`register_tween_f64x2`] for the `f64`-element sibling.
+  /// [`tween_f64x2_register`] for the `f64`-element sibling.
   ///
   /// Both share the Rhai type name `"Tween"` and constructor name `"tween"`
   /// — Rhai overloads `tween(...)` by the actual argument types (`F32x2` vs
   /// `F64x2`), so a script gets the right one from whichever vector type it
   /// passes in, without picking a differently-named constructor.
   #[ inline ]
-  pub fn register_tween_f32x2( engine : &mut Engine )
+  pub fn tween_f32x2_register( engine : &mut Engine )
   {
     engine
     .register_type_with_name::< Tween< F32x2 > >( "Tween" )
@@ -36,12 +36,12 @@ mod private
   }
 
   /// Registers `animation::Tween< F64x2 >` into `engine`, mirroring
-  /// [`register_tween_f32x2`] exactly but over `F64x2`. `F64x2` satisfies
+  /// [`tween_f32x2_register`] exactly but over `F64x2`. `F64x2` satisfies
   /// `Animatable` via the same blanket `mingl::Vector< E, N >` impl (`f64`
   /// implements both `MatEl` — any `Copy + Default` type does — and
   /// `Animatable` directly), so no new impl is needed here either.
   #[ inline ]
-  pub fn register_tween_f64x2( engine : &mut Engine )
+  pub fn tween_f64x2_register( engine : &mut Engine )
   {
     engine
     .register_type_with_name::< Tween< F64x2 > >( "Tween" )
@@ -60,7 +60,7 @@ crate::mod_interface!
 {
   orphan use
   {
-    register_tween_f32x2,
-    register_tween_f64x2,
+    tween_f32x2_register,
+    tween_f64x2_register,
   };
 }

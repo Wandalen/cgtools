@@ -337,8 +337,8 @@ fn tutorial_step_6_combat()
     ));
     
     // Add to resource manager for easier health management
-    resource_manager.add_entity(player.id(), 100.0, 50.0);
-    resource_manager.add_entity(goblin.id(), 30.0, 0.0);
+    resource_manager.entity_add(player.id(), 100.0, 50.0);
+    resource_manager.entity_add(goblin.id(), 30.0, 0.0);
     
     println!("Combat scenario: Player vs Goblin");
     println!("Player at (2,2) - Goblin at (3,2)");
@@ -370,9 +370,9 @@ fn tutorial_step_6_combat()
                 
                 // Player attacks goblin
                 let player_damage = 15.0_f32;
-                resource_manager.modify_health(goblin.id(), -player_damage);
+                resource_manager.health_modify(goblin.id(), -player_damage);
                 
-                if let Some(goblin_resources) = resource_manager.get_resources(goblin.id()) {
+                if let Some(goblin_resources) = resource_manager.resources_get(goblin.id()) {
                     println!("Player attacks for {player_damage} damage!");
                     println!("Goblin health: {}/{}", 
                         goblin_resources.health.current, 
@@ -385,12 +385,12 @@ fn tutorial_step_6_combat()
                 }
                 
                 // Goblin attacks back (if alive)
-                if let Some(goblin_resources) = resource_manager.get_resources(goblin.id()) {
+                if let Some(goblin_resources) = resource_manager.resources_get(goblin.id()) {
                     if goblin_resources.health.current > 0.0 {
                         let goblin_damage = 8.0_f32;
-                        resource_manager.modify_health(player.id(), -goblin_damage);
+                        resource_manager.health_modify(player.id(), -goblin_damage);
                         
-                        if let Some(player_resources) = resource_manager.get_resources(player.id()) {
+                        if let Some(player_resources) = resource_manager.resources_get(player.id()) {
                             println!("Goblin attacks for {goblin_damage} damage!");
                             println!("Player health: {}/{}", 
                                 player_resources.health.current, 
@@ -420,39 +420,39 @@ fn tutorial_step_7_debugging()
         .with_style(GridStyle::Square4);
     
     // Add player
-    debug_renderer.add_colored_marker((2, 2), "P", "Player", DebugColor::Green, 20);
+    debug_renderer.colored_marker_add((2, 2), "P", "Player", DebugColor::Green, 20);
     
     // Add enemies
-    debug_renderer.add_colored_marker((5, 3), "G", "Goblin", DebugColor::Red, 15);
-    debug_renderer.add_colored_marker((7, 5), "O", "Orc", DebugColor::Red, 15);
+    debug_renderer.colored_marker_add((5, 3), "G", "Goblin", DebugColor::Red, 15);
+    debug_renderer.colored_marker_add((7, 5), "O", "Orc", DebugColor::Red, 15);
     
     // Add treasure
-    debug_renderer.add_colored_marker((8, 1), "T", "Treasure", DebugColor::Yellow, 10);
+    debug_renderer.colored_marker_add((8, 1), "T", "Treasure", DebugColor::Yellow, 10);
     
     // Add walls/obstacles
     let walls = vec![(3, 1), (3, 2), (3, 3), (6, 4), (6, 5), (6, 6)];
     for (x, y) in walls {
-        debug_renderer.add_colored_marker((x, y), "#", "Wall", DebugColor::Gray, 5);
+        debug_renderer.colored_marker_add((x, y), "#", "Wall", DebugColor::Gray, 5);
     }
     
     // Show player's movement path
     let path = vec![(2, 2), (1, 2), (1, 3), (1, 4), (2, 4), (4, 4), (5, 4), (5, 3)];
-    debug_renderer.add_path(path, "Player Path", DebugColor::Blue);
+    debug_renderer.path_add(path, "Player Path", DebugColor::Blue);
     
     println!("Game world visualization:");
-    println!("{}", debug_renderer.render_ascii());
+    println!("{}", debug_renderer.ascii_render());
     
     // Demonstrate debug annotations
     debug_renderer.clear(); // Reset for cleaner view
     
     // Add just key elements with annotations
-    debug_renderer.add_colored_marker((2, 2), "P", "Player (HP: 85/100)", DebugColor::Green, 20);
-    debug_renderer.add_colored_marker((5, 3), "G", "Goblin (HP: 15/30)", DebugColor::Red, 15);
-    debug_renderer.add_annotation((2, 1), "Start", DebugColor::Blue);
-    debug_renderer.add_annotation((8, 1), "Goal", DebugColor::Yellow);
+    debug_renderer.colored_marker_add((2, 2), "P", "Player (HP: 85/100)", DebugColor::Green, 20);
+    debug_renderer.colored_marker_add((5, 3), "G", "Goblin (HP: 15/30)", DebugColor::Red, 15);
+    debug_renderer.annotation_add((2, 1), "Start", DebugColor::Blue);
+    debug_renderer.annotation_add((8, 1), "Goal", DebugColor::Yellow);
     
     println!("\nDetailed game state with annotations:");
-    println!("{}", debug_renderer.render_ascii());
+    println!("{}", debug_renderer.ascii_render());
     
     println!("✅ Visual debugging is crucial for understanding complex game states!\n");
 }
@@ -525,11 +525,11 @@ fn tutorial_step_8_complete_game()
     ));
     
     // Add to game systems
-    turn_game.add_participant(player.id(), 100); // Player goes first
-    turn_game.add_participant(goblin.id(), 80);  // Goblin second
+    turn_game.participant_add(player.id(), 100); // Player goes first
+    turn_game.participant_add(goblin.id(), 80);  // Goblin second
     
-    resource_manager.add_entity(player.id(), 100.0, 30.0);
-    resource_manager.add_entity(goblin.id(), 25.0, 0.0);
+    resource_manager.entity_add(player.id(), 100.0, 30.0);
+    resource_manager.entity_add(goblin.id(), 25.0, 0.0);
     
     println!("🎮 Mini Dungeon Explorer Started!");
     println!("Player Goal: Defeat the goblin and find the treasure");
@@ -552,7 +552,7 @@ fn tutorial_step_8_complete_game()
     
     // Combat occurs
     println!("⚔️ Player attacks goblin!");
-    resource_manager.modify_health(goblin.id(), -25.0); // Defeat goblin
+    resource_manager.health_modify(goblin.id(), -25.0); // Defeat goblin
     
     event_bus.publish(EnemyDefeated {
         enemy_type: "Goblin".to_string(),
@@ -569,10 +569,10 @@ fn tutorial_step_8_complete_game()
     player_gold += 100;
     
     // Victory condition
-    state_machine.process_event(GameStateEvent::VictoryAchieved);
+    state_machine.event_process(GameStateEvent::VictoryAchieved);
     println!("🎉 Victory! Game completed!");
     
-    event_bus.process_events();
+    event_bus.events_process();
     
     // Final game summary
     println!("\n📋 Game Summary:");

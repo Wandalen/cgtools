@@ -45,7 +45,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   let gltf_path = "static/skull_salazar_downloadable.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  scenes[ 0 ].borrow_mut().world_matrix_update();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
 
@@ -80,15 +80,15 @@ async fn app_run() -> Result< (), gl::WebglError >
   let far = near * 100.0f32.powi( exponent.abs() );
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ width, height ].into() );
-  camera.bind_controls( &canvas );
+  camera.window_size_set( [ width, height ].into() );
+  camera.controls_bind( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_use_emission( &gl, true );
-  renderer.set_bloom_strength( 0.5 );
-  renderer.set_bloom_radius( 0.5 );
-  renderer.set_exposure( 1.0 );
-  renderer.set_ibl( loaders::ibl::load( &gl, "static/envMap", None ).await );
+  renderer.use_emission_set( &gl, true );
+  renderer.bloom_strength_set( 0.5 );
+  renderer.bloom_radius_set( 0.5 );
+  renderer.exposure_set( 1.0 );
+  renderer.ibl_set( loaders::ibl::load( &gl, "static/envMap", None ).await );
   let renderer = Rc::new( RefCell::new( renderer ) );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
@@ -107,29 +107,29 @@ async fn app_run() -> Result< (), gl::WebglError >
 
     swap_buffer.reset();
     swap_buffer.bind( &gl );
-    swap_buffer.set_input( renderer.borrow().main_texture() );
+    swap_buffer.input_set( renderer.borrow().main_texture() );
 
     // Post-processing pipeline - order matters for correct visual output:
 
     // Pass 1: Tone mapping (HDR → LDR conversion using ACES algorithm)
     // Must be first to compress HDR values into displayable LDR range (0-1)
-    let res = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+    let res = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
     .expect( "Failed to render tonemapping pass" );
 
-    swap_buffer.set_output( res );
+    swap_buffer.output_set( res );
     swap_buffer.swap();
 
     // Pass 2: Color grading (adjusts hue, saturation, brightness in LDR space)
     // Applied after tone mapping to work with perceptually linear LDR colors
-    let res = color_grading.borrow().render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+    let res = color_grading.borrow().render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
     .expect( "Failed to render color grading pass" );
 
-    swap_buffer.set_output( res );
+    swap_buffer.output_set( res );
     swap_buffer.swap();
 
     // Pass 3: Gamma correction (linear → sRGB for final display)
     // Must be last to ensure correct gamma for monitor display
-    let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+    let _ = to_srgb.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
     .expect( "Failed to render ToSrgbPass" );
 
     true

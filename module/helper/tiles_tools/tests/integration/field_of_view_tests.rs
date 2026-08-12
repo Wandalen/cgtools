@@ -31,7 +31,7 @@ fn test_shadowcasting_fov_square_grid()
   let viewer = SquareCoord::<EightConnected>::new(5, 5);
 
   // Open terrain - no obstacles
-  let visibility = fov.calculate_fov(&viewer, 4, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 4, |_| false);
 
   // Viewer position should be visible
   assert!(visibility.is_visible(&viewer));
@@ -63,12 +63,12 @@ fn test_shadowcasting_fov_with_obstacles()
     SquareCoord::<EightConnected>::new(6, 3),
   ];
 
-  let visibility = fov.calculate_fov(&viewer, 8, |coord| walls.contains(coord));
+  let visibility = fov.fov_calculate(&viewer, 8, |coord| walls.contains(coord));
 
   // Wall positions should be visible but block sight
   for wall_pos in &walls {
     assert!(visibility.is_visible(wall_pos));
-    if let Some(state) = visibility.get_visibility(wall_pos) {
+    if let Some(state) = visibility.visibility_get(wall_pos) {
       assert!(state.blocks_sight);
     }
   }
@@ -85,7 +85,7 @@ fn test_ray_casting_fov()
   let fov = FieldOfView::with_algorithm(FOVAlgorithm::RayCasting);
   let viewer = SquareCoord::<EightConnected>::new(10, 10);
 
-  let visibility = fov.calculate_fov(&viewer, 6, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 6, |_| false);
 
   // Should include viewer position
   assert!(visibility.is_visible(&viewer));
@@ -101,7 +101,7 @@ fn test_flood_fill_fov()
   let fov = FieldOfView::with_algorithm(FOVAlgorithm::FloodFill);
   let viewer = SquareCoord::<EightConnected>::new(8, 8);
 
-  let visibility = fov.calculate_fov(&viewer, 3, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 3, |_| false);
 
   // Should include viewer
   assert!(visibility.is_visible(&viewer));
@@ -117,7 +117,7 @@ fn test_bresenham_fov()
   let fov = FieldOfView::with_algorithm(FOVAlgorithm::Bresenham);
   let viewer = SquareCoord::<EightConnected>::new(0, 0);
 
-  let visibility = fov.calculate_fov(&viewer, 5, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 5, |_| false);
 
   // Basic functionality test
   assert!(visibility.is_visible(&viewer));
@@ -136,7 +136,7 @@ fn test_hexagonal_shadowcasting_fov()
   let fov = FieldOfView::new();
   let viewer = HexCoord::<Axial, Pointy>::new(0, 0);
 
-  let visibility = fov.calculate_fov(&viewer, 3, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 3, |_| false);
 
   // Viewer should be visible
   assert!(visibility.is_visible(&viewer));
@@ -170,7 +170,7 @@ fn test_hexagonal_fov_with_blocking_terrain()
     HexCoord::<Axial, Pointy>::new(1, -1),
   ];
 
-  let visibility = fov.calculate_fov(&viewer, 4, |coord| blocking_hexes.contains(coord));
+  let visibility = fov.fov_calculate(&viewer, 4, |coord| blocking_hexes.contains(coord));
 
   // Blocking positions should be visible themselves
   for blocker in &blocking_hexes {
@@ -275,10 +275,10 @@ fn test_visibility_state_properties()
 #[ test ]
 fn test_fov_exclude_viewer()
 {
-  let fov = FieldOfView::new().include_viewer(false);
+  let fov = FieldOfView::new().viewer_include(false);
   let viewer = SquareCoord::<EightConnected>::new(7, 7);
 
-  let visibility = fov.calculate_fov(&viewer, 2, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 2, |_| false);
 
   // In a full implementation, viewer should not be included in results
   // Current stub implementation may include viewer regardless of setting
@@ -295,7 +295,7 @@ fn test_fov_distance_ranges()
   let fov = FieldOfView::new();
   let viewer = SquareCoord::<EightConnected>::new(10, 10);
 
-  let visibility = fov.calculate_fov(&viewer, 5, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 5, |_| false);
 
   // Test distance-based queries
   let close_coords = visibility.coordinates_in_range(0, 2);
@@ -338,9 +338,9 @@ fn test_single_light_source_calculation()
 
   let light_pos = SquareCoord::<EightConnected>::new(5, 5);
   let light_source = LightSource::new(light_pos, 4, 1.0);
-  calculator.add_light_source(light_source);
+  calculator.light_source_add(light_source);
 
-  let lighting = calculator.calculate_lighting(|_| false);
+  let lighting = calculator.lighting_calculate(|_| false);
 
   // Should have lighting at the source position
   assert!(lighting.contains_key(&light_pos));
@@ -362,13 +362,13 @@ fn test_multiple_light_sources()
   // Add two overlapping light sources
   let light1_pos = SquareCoord::<EightConnected>::new(3, 3);
   let light1 = LightSource::new(light1_pos, 3, 0.6);
-  calculator.add_light_source(light1);
+  calculator.light_source_add(light1);
 
   let light2_pos = SquareCoord::<EightConnected>::new(5, 3);
   let light2 = LightSource::new(light2_pos, 3, 0.7);
-  calculator.add_light_source(light2);
+  calculator.light_source_add(light2);
 
-  let lighting = calculator.calculate_lighting(|_| false);
+  let lighting = calculator.lighting_calculate(|_| false);
 
   // Overlapping area should have combined lighting (but capped at 1.0)
   let overlap_pos = SquareCoord::<EightConnected>::new(4, 3);
@@ -386,13 +386,13 @@ fn test_light_with_obstacles()
 
   let light_pos = SquareCoord::<EightConnected>::new(8, 8);
   let light_source = LightSource::new(light_pos, 5, 1.0);
-  calculator.add_light_source(light_source);
+  calculator.light_source_add(light_source);
 
   // Define walls that block light
   let walls = [SquareCoord::<EightConnected>::new(9, 8),
     SquareCoord::<EightConnected>::new(10, 8)];
 
-  let lighting = calculator.calculate_lighting(|coord| walls.contains(coord));
+  let lighting = calculator.lighting_calculate(|coord| walls.contains(coord));
 
   // Positions behind walls should have no/reduced lighting in a full implementation
   let shadowed_pos = SquareCoord::<EightConnected>::new(11, 8);
@@ -410,12 +410,12 @@ fn test_penetrating_light()
   let light_pos = SquareCoord::<EightConnected>::new(12, 12);
   let penetrating_light = LightSource::new(light_pos, 4, 0.8)
     .penetrating(true);
-  calculator.add_light_source(penetrating_light);
+  calculator.light_source_add(penetrating_light);
 
   // Wall that would normally block light
   let wall = SquareCoord::<EightConnected>::new(13, 12);
 
-  let lighting = calculator.calculate_lighting(|coord| *coord == wall);
+  let lighting = calculator.lighting_calculate(|coord| *coord == wall);
 
   // Position behind wall should still be lit due to penetrating light
   let behind_wall = SquareCoord::<EightConnected>::new(14, 12);
@@ -438,8 +438,8 @@ fn test_square_vs_hex_fov_consistency()
   let square_viewer = SquareCoord::<EightConnected>::new(0, 0);
   let hex_viewer = HexCoord::<Axial, Pointy>::new(0, 0);
 
-  let square_vis = square_fov.calculate_fov(&square_viewer, 2, |_| false);
-  let hex_vis = hex_fov.calculate_fov(&hex_viewer, 2, |_| false);
+  let square_vis = square_fov.fov_calculate(&square_viewer, 2, |_| false);
+  let hex_vis = hex_fov.fov_calculate(&hex_viewer, 2, |_| false);
 
   // Both should include their respective viewer positions
   assert!(square_vis.is_visible(&square_viewer));
@@ -465,7 +465,7 @@ fn test_fov_algorithm_comparison()
 
   for algorithm in &algorithms {
     let fov = FieldOfView::with_algorithm(*algorithm);
-    let visibility = fov.calculate_fov(&viewer, range, |_| false);
+    let visibility = fov.fov_calculate(&viewer, range, |_| false);
 
     // All algorithms should at least see the viewer
     assert!(visibility.is_visible(&viewer));
@@ -485,7 +485,7 @@ fn test_fov_large_range()
 
   // Large FOV calculation
   let start_time = std::time::Instant::now();
-  let visibility = fov.calculate_fov(&viewer, 20, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 20, |_| false);
   let calculation_time = start_time.elapsed();
 
   // Should complete within reasonable time
@@ -502,9 +502,9 @@ fn test_fov_zero_range()
   let fov = FieldOfView::new();
   let viewer = SquareCoord::<EightConnected>::new(3, 3);
 
-  let visibility = fov.calculate_fov(&viewer, 0, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 0, |_| false);
 
-  // Should only see the viewer position (if include_viewer is true)
+  // Should only see the viewer position (if viewer_include is true)
   assert!(visibility.is_visible(&viewer));
   let visible_coords = visibility.visible_coordinates();
   assert_eq!(visible_coords.len(), 1);
@@ -518,7 +518,7 @@ fn test_fov_all_blocking_terrain()
   let viewer = SquareCoord::<EightConnected>::new(7, 7);
 
   // Everything blocks sight
-  let visibility = fov.calculate_fov(&viewer, 5, |_| true);
+  let visibility = fov.fov_calculate(&viewer, 5, |_| true);
 
   // Should still see the viewer position
   assert!(visibility.is_visible(&viewer));
@@ -526,7 +526,7 @@ fn test_fov_all_blocking_terrain()
   // Immediate neighbors might be visible but blocking
   let neighbor = SquareCoord::<EightConnected>::new(8, 7);
   if visibility.is_visible(&neighbor) {
-    if let Some(state) = visibility.get_visibility(&neighbor) {
+    if let Some(state) = visibility.visibility_get(&neighbor) {
       assert!(state.blocks_sight);
     }
   }
@@ -543,11 +543,11 @@ fn test_lighting_performance()
   for i in 0..10 {
     let light_pos = SquareCoord::<EightConnected>::new(i * 5, i * 5);
     let light = LightSource::new(light_pos, 8, 0.5);
-    calculator.add_light_source(light);
+    calculator.light_source_add(light);
   }
 
   let start_time = std::time::Instant::now();
-  let _lighting = calculator.calculate_lighting(|_| false);
+  let _lighting = calculator.lighting_calculate(|_| false);
   let calculation_time = start_time.elapsed();
 
   // Multiple light sources should still calculate quickly

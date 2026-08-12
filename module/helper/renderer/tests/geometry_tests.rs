@@ -10,7 +10,7 @@ mod tests
   use renderer::webgl::{ Geometry, AttributeInfo };
 
   /// Creates a headless WebGL2 context for structural tests.
-  async fn init_gl() -> GL
+  async fn gl_init() -> GL
   {
     gl::browser::setup( Default::default() );
     let canvas = gl::canvas::make().unwrap();
@@ -58,13 +58,13 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn add_attribute_duplicate_name_returns_err_not_panic()
   {
-    let gl = init_gl().await;
+    let gl = gl_init().await;
     let mut geometry = Geometry::new( &gl ).expect( "Geometry::new should succeed" );
 
-    geometry.add_attribute( &gl, "positions", make_attribute_info( &gl ) )
+    geometry.attribute_add( &gl, "positions", make_attribute_info( &gl ) )
     .expect( "first add_attribute call with a fresh name should succeed" );
 
-    let result = geometry.add_attribute( &gl, "positions", make_attribute_info( &gl ) );
+    let result = geometry.attribute_add( &gl, "positions", make_attribute_info( &gl ) );
 
     assert!
     (

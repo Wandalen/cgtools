@@ -8,7 +8,7 @@
 //!
 //! ```ignore
 //! let renderer = Renderer::new( &spec, &PathResolver )?;
-//! backend.load_assets( renderer.assets() );
+//! backend.assets_load( renderer.assets() );
 //!
 //! // Per frame:
 //! let cmds = renderer.render( &scene, &camera )?;
@@ -320,7 +320,7 @@ mod private
     }
 
     /// Backend-ready asset table. Submit once at startup via
-    /// `backend.load_assets( renderer.assets() )`.
+    /// `backend.assets_load( renderer.assets() )`.
     #[ inline ]
     #[ must_use ]
     pub fn assets( &self ) -> &Assets { &self.compiled.assets }

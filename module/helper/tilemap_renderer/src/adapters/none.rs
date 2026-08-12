@@ -34,7 +34,7 @@ mod private
   impl Backend for NoneBackend
   {
     #[ inline ]
-    fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError >
+    fn assets_load( &mut self, _assets : &Assets ) -> Result< (), RenderError >
     {
       Ok( () )
     }

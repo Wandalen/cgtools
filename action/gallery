@@ -1,0 +1,338 @@
+#!/usr/bin/env bash
+# Regenerates examples/index.html's gallery region (stats + category/card listing) and
+# fully regenerates examples/index.md, both from action/run's own example discovery plus
+# each example's own readme.md — title from its first heading, description from the
+# paragraph following its **Keywords:** line. Single source of truth: no example metadata
+# is hand-maintained or duplicated in either generated file.
+#
+# index.html is spliced between fixed marker comments (GALLERY:STATS:*, GALLERY:SECTIONS:*)
+# so the hand-authored CSS/header/footer/search-filter JS around it is never touched.
+# Browser-kind examples link to their own live-demo path (only resolves once GitHub Pages
+# actually hosts the built dist/ output there); other kinds link to GitHub's own rendered
+# readme.md view, since a plain relative link to raw markdown does not render as HTML once
+# deployed. index.md always links to each example's own readme.md — it's consumed via
+# GitHub's repo browser, where that has always rendered correctly.
+#
+# `--check`: writes nothing; diffs freshly generated content against what's on disk and
+# exits non-zero (printing the diff) if either file would change — for CI drift detection.
+set -euo pipefail
+
+_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+_REPO_ROOT="$( cd "$_SCRIPT_DIR/.." && pwd )"
+_EXAMPLES_DIR="$_REPO_ROOT/examples"
+_INDEX_HTML="$_EXAMPLES_DIR/index.html"
+_INDEX_MD="$_EXAMPLES_DIR/index.md"
+_GH_REPO="Wandalen/cgtools"
+_GH_BRANCH="master"
+
+_check=0
+for _a in "$@"
+do
+  case "$_a" in
+    --check) _check=1 ;;
+    *) printf 'error: unknown argument %q\n' "$_a" >&2; exit 2 ;;
+  esac
+done
+
+_tmp="$( mktemp -d )"
+trap 'rm -rf "$_tmp"' EXIT
+
+# Gallery category taxonomy: examples/<dir> -> data-category key / section title. Matches
+# the data-category/data-filter values already wired into index.html's CSS and filter JS.
+# Display order falls out naturally from action/run's own alphabetical-by-relpath discovery
+# order — examples/math < minwebgl < minwebgpu < minwgpu < scene_script < tiles_tools — so
+# no separate sort/bucketing step is needed here.
+_category_key()
+{
+  case "$1" in
+    minwebgl) printf 'webgl' ;;
+    minwebgpu) printf 'webgpu' ;;
+    minwgpu) printf 'wgpu' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+_category_title()
+{
+  case "$1" in
+    math) printf 'Math Examples' ;;
+    webgl) printf 'WebGL Examples' ;;
+    webgpu) printf 'WebGPU Examples' ;;
+    wgpu) printf 'WGPU Examples' ;;
+    scene_script) printf 'Scripting Examples' ;;
+    tiles_tools) printf 'Tiles Tools Examples' ;;
+    *) printf '%s Examples' "$1" ;;
+  esac
+}
+
+_slugify()
+{
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'
+}
+
+_html_escape()
+{
+  local _s="$1"
+  _s="${_s//&/&amp;}"
+  _s="${_s//</&lt;}"
+  _s="${_s//>/&gt;}"
+  _s="${_s//\"/&quot;}"
+  printf '%s' "$_s"
+}
+
+_extract_title()
+{
+  sed -n '1{s/^#\+[[:space:]]*//p}' "$1/readme.md"
+}
+
+# Description = the first paragraph following the readme's **Keywords:** line that isn't
+# just a standalone image embed (some readmes put a screenshot directly under Keywords,
+# before the prose). Empty if the readme has no Keywords line (2 of 73 examples today) — the
+# caller omits the description rather than guessing at a fallback extraction heuristic.
+_extract_description()
+{
+  awk '
+    function is_img(s) { return s ~ /^!\[[^]]*\]\([^)]*\)[[:space:]]*$/ }
+    /^\*\*Keywords:\*\*/ { mode = 1; next }
+    mode == 0 { next }
+    mode == 1 && /^[[:space:]]*$/ { next }
+    mode == 1 { buf = $0; nlines = 1; mode = 2; next }
+    mode == 2 && /^[[:space:]]*$/ {
+      if (nlines == 1 && is_img(buf)) { mode = 1; buf = ""; nlines = 0; next }
+      desc = buf
+      exit
+    }
+    mode == 2 { buf = buf " " $0; nlines++; next }
+    END { if (desc == "" && mode == 2 && !(nlines == 1 && is_img(buf))) desc = buf; print desc }
+  ' "$1/readme.md"
+}
+
+# Plain-text rendering of a markdown snippet for embedding in HTML: inline links keep only
+# their link text, backticks and emphasis markers are dropped. The markdown output (index.md)
+# uses the raw, unstripped description instead — there, that syntax renders correctly.
+_strip_markdown()
+{
+  sed -E \
+    -e 's/\[([^]]*)\]\([^)]*\)/\1/g' \
+    -e 's/`//g' \
+    -e 's/\*\*([^*]+)\*\*/\1/g' \
+    -e 's/\*([^*]+)\*/\1/g' \
+    <<< "$1"
+}
+
+_title_case_fallback()
+{
+  local _s="${1//_/ }" _out="" _w
+  for _w in $_s
+  do
+    _out="${_out:+$_out }${_w^}"
+  done
+  printf '%s' "$_out"
+}
+
+_tmp_stats="$_tmp/stats.html"
+_tmp_sections="$_tmp/sections.html"
+_tmp_md_body="$_tmp/body.md"
+: > "$_tmp_sections"
+: > "$_tmp_md_body"
+
+_total=0
+_browser=0
+_with_showcase=0
+_categories=""
+_current_cat=""
+_cat_count=0
+_cat_buffer="$_tmp/cat_buffer.html"
+_md_cat_buffer="$_tmp/cat_buffer.md"
+: > "$_cat_buffer"
+: > "$_md_cat_buffer"
+
+_flush_category()
+{
+  [[ -n "$_current_cat" ]] || return 0
+  local _title _plural
+  _title="$( _category_title "$_current_cat" )"
+  _plural="s"
+  [[ $_cat_count -eq 1 ]] && _plural=""
+  {
+    printf '        <!-- %s -->\n' "$_title"
+    printf '        <section class="category-section" data-category="%s">\n' "$_current_cat"
+    printf '            <div class="category-header">\n'
+    printf '                <h2>%s</h2>\n' "$_title"
+    printf '                <span class="category-badge">%s demo%s</span>\n' "$_cat_count" "$_plural"
+    printf '            </div>\n'
+    printf '            <div class="demo-grid">\n'
+    cat "$_cat_buffer"
+    printf '            </div>\n'
+    printf '        </section>\n'
+    printf '\n'
+  } >> "$_tmp_sections"
+
+  {
+    printf '\n## %s\n\n' "$_title"
+    printf 'Example | Description\n--- | ---\n'
+    cat "$_md_cat_buffer"
+  } >> "$_tmp_md_body"
+}
+
+while IFS='|' read -r _id _relpath _kind _tags
+do
+  _total=$(( _total + 1 ))
+  [[ "$_kind" == "browser" ]] && _browser=$(( _browser + 1 ))
+
+  _absdir="$_REPO_ROOT/$_relpath"
+  _relpath_short="${_relpath#examples/}"
+
+  _title="$( _extract_title "$_absdir" )"
+  [[ -n "$_title" ]] || _title="$( _title_case_fallback "$( basename "$_relpath" )" )"
+  _desc="$( _extract_description "$_absdir" )"
+
+  _cat_dir="$( cut -d/ -f2 <<< "$_relpath" )"
+  _cat="$( _category_key "$_cat_dir" )"
+
+  if [[ "$_cat" != "$_current_cat" ]]
+  then
+    _flush_category
+    _current_cat="$_cat"
+    _cat_count=0
+    : > "$_cat_buffer"
+    : > "$_md_cat_buffer"
+    case ",$_categories," in
+      *",$_cat,"*) ;;
+      *) _categories="${_categories:+$_categories,}$_cat" ;;
+    esac
+  fi
+  _cat_count=$(( _cat_count + 1 ))
+
+  _title_esc="$( _html_escape "$_title" )"
+  _desc_esc="$( _html_escape "$( _strip_markdown "$_desc" )" )"
+  _name="$( tr '[:upper:]' '[:lower:]' <<< "${_relpath_short##*/}" | tr '_' ' ' )"
+  _readme_link="./${_relpath_short}/readme.md"
+
+  if [[ "$_kind" == "browser" ]]
+  then
+    _gallery_link="./${_relpath_short}/"
+  else
+    _gallery_link="https://github.com/$_GH_REPO/blob/$_GH_BRANCH/$_relpath/readme.md"
+  fi
+
+  if [[ -f "$_absdir/showcase.webp" ]]
+  then
+    _with_showcase=$(( _with_showcase + 1 ))
+    _image_html="                        <img src=\"./${_relpath_short}/showcase.webp\" alt=\"$_title_esc\" loading=\"lazy\" width=\"350\" height=\"250\">"
+    _status_html='                        <span class="demo-status">✓ Has Showcase</span>'
+  else
+    _image_html='                        <span>No showcase yet</span>'
+    _status_html='                        <span class="demo-status incomplete">No Showcase Yet</span>'
+  fi
+
+  {
+    printf '                <article class="demo-card" role="article" data-name="%s">\n' "$_name"
+    printf '                    <div class="demo-image">\n'
+    printf '%s\n' "$_image_html"
+    printf '                    </div>\n'
+    printf '                    <div class="demo-content">\n'
+    printf '                        <h3 class="demo-title">%s</h3>\n' "$_title_esc"
+    if [[ -n "$_desc_esc" ]]
+    then
+      printf '                        <p class="demo-desc">%s</p>\n' "$_desc_esc"
+    fi
+    printf '%s\n' "$_status_html"
+    printf '                        <div class="demo-links">\n'
+    printf '                            <a href="%s" class="demo-link" aria-label="View %s demo">View Details</a>\n' "$_gallery_link" "$_title_esc"
+    printf '                        </div>\n'
+    printf '                    </div>\n'
+    printf '                </article>\n'
+    printf '\n'
+  } >> "$_cat_buffer"
+
+  _md_desc="${_desc//|/\\|}"
+  [[ -n "$_md_desc" ]] || _md_desc="—"
+  printf '[%s](%s) | %s\n' "${_title//|/\\|}" "$_readme_link" "$_md_desc" >> "$_md_cat_buffer"
+done < <( "$_SCRIPT_DIR/run" list --raw )
+
+_flush_category
+
+_category_count=0
+[[ -n "$_categories" ]] && _category_count="$( awk -F, '{print NF}' <<< "$_categories" )"
+
+{
+  printf '        <div class="stat-card" aria-live="polite" aria-atomic="true">\n'
+  printf '            <div class="stat-number" id="totalDemos">%s</div>\n' "$_total"
+  printf '            <div class="stat-label">Total Examples</div>\n'
+  printf '        </div>\n'
+  printf '        <div class="stat-card">\n'
+  printf '            <div class="stat-number" id="completedDemos">%s</div>\n' "$_browser"
+  printf '            <div class="stat-label">Live Demos</div>\n'
+  printf '        </div>\n'
+  printf '        <div class="stat-card">\n'
+  printf '            <div class="stat-number">%s</div>\n' "$_with_showcase"
+  printf '            <div class="stat-label">With Showcase</div>\n'
+  printf '        </div>\n'
+  printf '        <div class="stat-card">\n'
+  printf '            <div class="stat-number">%s</div>\n' "$_category_count"
+  printf '            <div class="stat-label">Categories</div>\n'
+  printf '        </div>\n'
+} > "$_tmp_stats"
+
+_splice_between()
+{
+  local _in="$1" _begin="$2" _end="$3" _content="$4" _out="$5"
+  awk -v begin="$_begin" -v end="$_end" -v contentfile="$_content" '
+    index($0, begin) { print; while ((getline line < contentfile) > 0) print line; skip = 1; next }
+    index($0, end) { skip = 0 }
+    skip { next }
+    { print }
+  ' "$_in" > "$_out"
+}
+
+if ! grep -qF '<!-- GALLERY:STATS:BEGIN -->' "$_INDEX_HTML" || ! grep -qF '<!-- GALLERY:SECTIONS:BEGIN -->' "$_INDEX_HTML"
+then
+  printf 'error: examples/index.html is missing its GALLERY marker comments (GALLERY:STATS:BEGIN/END, GALLERY:SECTIONS:BEGIN/END) — they must exist once, by hand, before this script can splice into it\n' >&2
+  exit 1
+fi
+
+_splice_between "$_INDEX_HTML" '<!-- GALLERY:STATS:BEGIN -->' '<!-- GALLERY:STATS:END -->' "$_tmp_stats" "$_tmp/step1.html"
+_splice_between "$_tmp/step1.html" '<!-- GALLERY:SECTIONS:BEGIN -->' '<!-- GALLERY:SECTIONS:END -->' "$_tmp_sections" "$_tmp/index.html.new"
+
+{
+  printf '# Examples\n\n'
+  printf 'Interactive WebGL/WebGPU examples demonstrating CGTools capabilities. Generated by `action/gallery` from each example'"'"'s own readme.md — do not hand-edit.\n\n'
+  printf '## Table of Contents\n\n'
+  IFS=',' read -ra _cat_list <<< "$_categories"
+  for _c in "${_cat_list[@]}"
+  do
+    _t="$( _category_title "$_c" )"
+    printf -- '- [%s](#%s)\n' "$_t" "$( _slugify "$_t" )"
+  done
+  cat "$_tmp_md_body"
+} > "$_tmp/index.md.new"
+
+if (( _check ))
+then
+  _drift=0
+  if ! diff -u "$_INDEX_HTML" "$_tmp/index.html.new" > "$_tmp/diff_html.txt"
+  then
+    _drift=1
+    printf '=== examples/index.html would change ===\n' >&2
+    cat "$_tmp/diff_html.txt" >&2
+  fi
+  if ! diff -u "$_INDEX_MD" "$_tmp/index.md.new" > "$_tmp/diff_md.txt"
+  then
+    _drift=1
+    printf '=== examples/index.md would change ===\n' >&2
+    cat "$_tmp/diff_md.txt" >&2
+  fi
+  if (( _drift ))
+  then
+    printf 'error: gallery is out of date — run action/gallery to regenerate\n' >&2
+    exit 1
+  fi
+  printf 'gallery is up to date (%d examples)\n' "$_total"
+  exit 0
+fi
+
+cp "$_tmp/index.html.new" "$_INDEX_HTML"
+cp "$_tmp/index.md.new" "$_INDEX_MD"
+printf 'regenerated examples/index.html and examples/index.md (%d examples, %d live demos, %d with showcase, %d categories)\n' \
+  "$_total" "$_browser" "$_with_showcase" "$_category_count"

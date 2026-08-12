@@ -145,7 +145,7 @@ mod private
     /// Returns answer need use IBL for current material instance or not
     need_use_ibl : bool,
     /// Signal for updating material uniforms.
-    /// Use `set_needs_update(true)` after changing material properties.
+    /// Use `needs_update_set(true)` after changing material properties.
     needs_update : Cell< bool >,
     /// Signal that shader defines have changed and program needs recompilation.
     needs_recompile : Cell< bool >,
@@ -232,13 +232,13 @@ mod private
         cached_vertex_defines_str : String::new(),
         cached_fragment_defines_str : String::new(),
       };
-      mat.rebuild_defines_cache();
+      mat.defines_cache_rebuild();
       mat
     }
 
     /// Enables or disables Image-Based Lighting (IBL) for this material.
     /// If the value changes, the shader program will be marked for recompilation.
-    pub fn set_need_use_ibl( &mut self, value : bool )
+    pub fn need_use_ibl_set( &mut self, value : bool )
     {
       if value != self.need_use_ibl
       {
@@ -254,10 +254,10 @@ mod private
     }
 
     /// Sets the base color texture.
-    pub fn set_base_color_texture( &mut self, value : Option< TextureInfo > )
+    pub fn base_color_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.base_color_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -268,10 +268,10 @@ mod private
     }
 
     /// Sets the metallic roughness texture.
-    pub fn set_metallic_roughness_texture( &mut self, value : Option< TextureInfo > )
+    pub fn metallic_roughness_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.metallic_roughness_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -282,10 +282,10 @@ mod private
     }
 
     /// Sets the normal texture.
-    pub fn set_normal_texture( &mut self, value : Option< TextureInfo > )
+    pub fn normal_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.normal_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -296,10 +296,10 @@ mod private
     }
 
     /// Sets the occlusion texture.
-    pub fn set_occlusion_texture( &mut self, value : Option< TextureInfo > )
+    pub fn occlusion_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.occlusion_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -310,10 +310,10 @@ mod private
     }
 
     /// Sets the emissive texture.
-    pub fn set_emissive_texture( &mut self, value : Option< TextureInfo > )
+    pub fn emissive_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.emissive_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -324,10 +324,10 @@ mod private
     }
 
     /// Sets the specular texture.
-    pub fn set_specular_texture( &mut self, value : Option< TextureInfo > )
+    pub fn specular_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.specular_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -338,10 +338,10 @@ mod private
     }
 
     /// Sets the specular color texture.
-    pub fn set_specular_color_texture( &mut self, value : Option< TextureInfo > )
+    pub fn specular_color_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.specular_color_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -352,10 +352,10 @@ mod private
     }
 
     /// Sets the light map texture.
-    pub fn set_light_map( &mut self, value : Option< TextureInfo > )
+    pub fn light_map_set( &mut self, value : Option< TextureInfo > )
     {
       self.light_map = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -366,10 +366,10 @@ mod private
     }
 
     /// Sets the alpha mode.
-    pub fn set_alpha_mode( &mut self, value : AlphaMode )
+    pub fn alpha_mode_set( &mut self, value : AlphaMode )
     {
       self.alpha_mode = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -380,10 +380,10 @@ mod private
     }
 
     /// Sets the specular factor.
-    pub fn set_specular_factor( &mut self, value : Option< f32 > )
+    pub fn specular_factor_set( &mut self, value : Option< f32 > )
     {
       self.specular_factor = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -394,10 +394,10 @@ mod private
     }
 
     /// Sets the specular color factor.
-    pub fn set_specular_color_factor( &mut self, value : Option< gl::F32x3 > )
+    pub fn specular_color_factor_set( &mut self, value : Option< gl::F32x3 > )
     {
       self.specular_color_factor = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -408,7 +408,7 @@ mod private
     }
 
     /// Rebuilds all cached defines strings from current state.
-    fn rebuild_defines_cache( &mut self )
+    fn defines_cache_rebuild( &mut self )
     {
       let local_defines = self.local_defines();
 
@@ -440,29 +440,29 @@ mod private
     }
 
     /// Added the specified name and value is #define directive to the material
-    pub fn add_vertex_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
+    pub fn vertex_define_add< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
       self.vertex_defines.insert( name.into(), value.into() );
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
     /// Added the specified name and value is #define directive to the material
-    pub fn add_fragment_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
+    pub fn fragment_define_add< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
       self.fragment_defines.insert( name.into(), value.into() );
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
     /// Added the specified name and value is #define directive to the material
-    pub fn add_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
+    pub fn define_add< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
       let name = name.into();
       let value = value.into();
       self.vertex_defines.insert( name.clone(), value.clone() );
       self.fragment_defines.insert( name, value );
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -584,7 +584,7 @@ mod private
       self.needs_update.get()
     }
 
-    fn set_needs_update( &self, value : bool )
+    fn needs_update_set( &self, value : bool )
     {
       self.needs_update.set( value );
     }
@@ -601,7 +601,7 @@ mod private
       }
     }
 
-    fn make_shader_program( &self, minwebgl : &minwebgl::WebGl2RenderingContext, program : &minwebgl::WebGlProgram ) -> Box< dyn ShaderProgram >
+    fn shader_program_make( &self, minwebgl : &minwebgl::WebGl2RenderingContext, program : &minwebgl::WebGlProgram ) -> Box< dyn ShaderProgram >
     {
       PBRShader::new( minwebgl, program ).dyn_clone()
     }
@@ -746,7 +746,7 @@ mod private
       self.needs_recompile.get()
     }
 
-    fn clear_recompile_flag( &self )
+    fn recompile_flag_clear( &self )
     {
       self.needs_recompile.set( false );
     }

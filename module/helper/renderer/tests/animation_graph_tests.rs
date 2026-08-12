@@ -19,7 +19,7 @@ use renderer::webgl::animation::
 };
 use rustc_hash::FxHashMap;
 
-fn create_animation() -> Sequencer
+fn animation_create() -> Sequencer
 {
   let mut animation = Sequencer::new();
 
@@ -82,9 +82,9 @@ fn create_animation() -> Sequencer
   animation
 }
 
-fn create_graph() -> AnimationGraph
+fn graph_create() -> AnimationGraph
 {
-  let animation = create_animation();
+  let animation = animation_create();
   let mut graph = AnimationGraph::new( &FxHashMap::default() );
 
   graph.node_add( "a", animation.clone() );
@@ -104,7 +104,7 @@ fn create_graph() -> AnimationGraph
 fn animation_graph_conditions_test()
 {
   let mut graph = AnimationGraph::new( &FxHashMap::default() );
-  let animation = create_animation();
+  let animation = animation_create();
 
   graph.node_add( "a", animation.clone() );
   graph.node_add( "b", animation.clone() );
@@ -133,7 +133,7 @@ fn animation_graph_conditions_test()
 #[ test ]
 fn animation_graph_current_name_get_test()
 {
-  let mut graph = create_graph();
+  let mut graph = graph_create();
   graph.update( 0.5 );
   graph.update( 0.5 );
 
@@ -143,7 +143,7 @@ fn animation_graph_current_name_get_test()
 #[ test ]
 fn animation_graph_current_set_test()
 {
-  let mut graph = create_graph();
+  let mut graph = graph_create();
   graph.update( 0.5 );
   graph.update( 0.5 );
 
@@ -157,11 +157,11 @@ fn animation_graph_current_set_test()
 #[ test ]
 fn animation_graph_node_add_test()
 {
-  let mut graph = create_graph();
+  let mut graph = graph_create();
   graph.update( 0.5 );
   graph.update( 0.5 );
 
-  let animation = create_animation();
+  let animation = animation_create();
 
   assert!( graph.node_get( "c" ).is_none() );
 
@@ -173,7 +173,7 @@ fn animation_graph_node_add_test()
 #[ test ]
 fn animation_graph_node_remove_test()
 {
-  let mut graph = create_graph();
+  let mut graph = graph_create();
   graph.update( 0.5 );
   graph.update( 0.5 );
 
@@ -187,11 +187,11 @@ fn animation_graph_node_remove_test()
 #[ test ]
 fn animation_graph_edge_add_test()
 {
-  let mut graph = create_graph();
+  let mut graph = graph_create();
   graph.update( 0.5 );
   graph.update( 0.5 );
 
-  graph.node_add( "c", create_animation() );
+  graph.node_add( "c", animation_create() );
 
   assert!( graph.node_get( "a" ).is_some() );
   assert!( graph.node_get( "c" ).is_some() );
@@ -210,7 +210,7 @@ fn animation_graph_edge_add_test()
 #[ test ]
 fn animation_graph_edge_remove_test()
 {
-  let mut graph = create_graph();
+  let mut graph = graph_create();
   graph.update( 0.5 );
   graph.update( 0.5 );
 
@@ -226,7 +226,7 @@ fn animation_graph_edge_remove_test()
 #[ test ]
 fn animation_graph_update_test()
 {
-  let mut graph = create_graph();
+  let mut graph = graph_create();
 
   graph.update( 0.75 );
   graph.update( 0.75 );

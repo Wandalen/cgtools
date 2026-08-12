@@ -35,7 +35,7 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > > )
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_bloom_radius( value );
+        renderer.borrow_mut().bloom_radius_set( value );
       }
     }
   );
@@ -49,7 +49,7 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > > )
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_bloom_strength( value );
+        renderer.borrow_mut().bloom_strength_set( value );
       }
     }
   );
@@ -63,7 +63,7 @@ pub fn setup( renderer : &Rc< RefCell< Renderer > > )
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_exposure( value );
+        renderer.borrow_mut().exposure_set( value );
       }
     }
   );

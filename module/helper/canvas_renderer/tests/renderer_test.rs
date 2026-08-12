@@ -1,4 +1,4 @@
-//! Verifies `CanvasRenderer`'s mesh-to-color resolution ( `canvas_renderer::renderer::resolve_mesh_colors` ) —
+//! Verifies `CanvasRenderer`'s mesh-to-color resolution ( `canvas_renderer::renderer::mesh_colors_resolve` ) —
 //! the TASK-016 fix extracted the correspondence logic into a function testable WITHOUT a
 //! live WebGL context ( every `CanvasRenderer` method takes `&GL`, so nothing else here is
 //! natively exercisable ). Relocated from inline `src/renderer.rs` per the
@@ -7,7 +7,7 @@
 
 #![ cfg( feature = "enabled" ) ]
 
-use canvas_renderer::renderer::resolve_mesh_colors;
+use canvas_renderer::renderer::mesh_colors_resolve;
 use renderer::webgl::{ Mesh, Node, Object3D, Scene };
 use minwebgl::F32x4;
 use std::cell::RefCell;
@@ -21,7 +21,7 @@ fn group_node() -> Rc< RefCell< Node > >
   Rc::new( RefCell::new( Node::new() ) )
 }
 
-/// Builds a mesh node with no primitives -- `resolve_mesh_colors` only inspects whether the
+/// Builds a mesh node with no primitives -- `mesh_colors_resolve` only inspects whether the
 /// node is `Object3D::Mesh`, never `Mesh::primitives`.
 fn mesh_node() -> Rc< RefCell< Node > >
 {
@@ -48,7 +48,7 @@ fn mesh_node() -> Rc< RefCell< Node > >
 /// mesh and non-mesh nodes.
 ///
 /// ## Fix Applied
-/// Extracted the mesh-to-color resolution into `resolve_mesh_colors`, which indexes `colors`
+/// Extracted the mesh-to-color resolution into `mesh_colors_resolve`, which indexes `colors`
 /// by `resolved.len()` -- a count that only grows when a mesh is actually pushed -- instead
 /// of a counter shared with every traversed node. `render` now calls this function once up
 /// front and walks its result in lockstep with a mesh-only counter during the real
@@ -76,10 +76,10 @@ fn resolve_mesh_colors_stays_in_sync_across_non_mesh_siblings()
   let mut scene = Scene::new();
 
   let group_1 = group_node();
-  group_1.borrow_mut().add_child( mesh_node() );
+  group_1.borrow_mut().child_add( mesh_node() );
 
   let group_2 = group_node();
-  group_2.borrow_mut().add_child( mesh_node() );
+  group_2.borrow_mut().child_add( mesh_node() );
 
   scene.add( group_1 );
   scene.add( group_2 );
@@ -88,7 +88,7 @@ fn resolve_mesh_colors_stays_in_sync_across_non_mesh_siblings()
   let color_for_mesh_2 = F32x4::from_array( [ 0.0, 1.0, 0.0, 1.0 ] );
   let colors = [ color_for_mesh_1, color_for_mesh_2 ];
 
-  let resolved = resolve_mesh_colors( &scene, &colors );
+  let resolved = mesh_colors_resolve( &scene, &colors );
 
   assert_eq!( resolved.len(), 2, "expected exactly one resolved color per mesh" );
   assert_eq!

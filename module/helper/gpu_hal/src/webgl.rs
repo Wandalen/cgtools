@@ -217,7 +217,7 @@ mod private
       }
     }
 
-    pub( crate ) fn set_current_pipeline( &self, pipeline : Rc< RenderPipelineWebGl > )
+    pub( crate ) fn current_pipeline_set( &self, pipeline : Rc< RenderPipelineWebGl > )
     {
       *self.pipeline.borrow_mut() = Some( pipeline );
     }

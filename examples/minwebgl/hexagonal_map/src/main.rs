@@ -301,7 +301,7 @@ fn scene_assets_load
     paths : vec![],
   };
 
-  backend.load_assets( &all_assets )
+  backend.assets_load( &all_assets )
   .expect( "backend error" );
 
   ( backend, GeometryIds { hexagon : hexagon_id, outline : outline_id, rectangle : rectangle_id }, textures )

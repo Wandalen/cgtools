@@ -8,7 +8,7 @@
 //! - Team-based filtering
 
 use tiles_tools::{
-    ecs::{World, Position, Health, Stats, Team, Collision, CollisionSystem, SpatialQuerySystem, find_nearest_entity},
+    ecs::{World, Position, Health, Stats, Team, Collision, CollisionSystem, SpatialQuerySystem, nearest_entity_find},
     coordinates::square::{ Coordinate as SquareCoord, FourConnected },
 };
 
@@ -63,7 +63,7 @@ fn entities_spawn(world: &mut World) -> Position<SquareCoord<FourConnected>>
 fn collisions_detect_and_resolve(world: &mut World)
 {
     println!("\n=== Collision Detection ===");
-    let collisions = CollisionSystem::detect_collisions::<SquareCoord<FourConnected>>(&world.hecs_world);
+    let collisions = CollisionSystem::collisions_detect::<SquareCoord<FourConnected>>(&world.hecs_world);
     println!("Detected {} collisions", collisions.len());
 
     for collision in &collisions {
@@ -75,7 +75,7 @@ fn collisions_detect_and_resolve(world: &mut World)
     if !collisions.is_empty() {
         println!("\n=== Collision Resolution ===");
         println!("Resolving collisions by separating entities...");
-        CollisionSystem::resolve_collisions(&mut world.hecs_world, &collisions);
+        CollisionSystem::collisions_resolve(&mut world.hecs_world, &collisions);
 
         // Show new positions after resolution
         for (entity, pos) in &mut world.query::<&Position<SquareCoord<FourConnected>>>() {
@@ -89,7 +89,7 @@ fn spatial_queries_run(world: &World, player_pos: Position<SquareCoord<FourConne
     println!("\n=== Spatial Queries ===");
 
     // Circular query around player
-    let nearby_entities = SpatialQuerySystem::query_circle(&world.hecs_world, &player_pos, 3);
+    let nearby_entities = SpatialQuerySystem::circle_query(&world.hecs_world, &player_pos, 3);
     println!("Entities within radius 3 of player: {}", nearby_entities.len());
     for (entity, pos) in nearby_entities {
         println!("  Entity {:?} at ({}, {})", entity, pos.coord.x, pos.coord.y);
@@ -98,19 +98,19 @@ fn spatial_queries_run(world: &World, player_pos: Position<SquareCoord<FourConne
     // Line query between two points
     let line_start = Position::new(SquareCoord::<FourConnected>::new(0, 0));
     let line_end = Position::new(SquareCoord::<FourConnected>::new(10, 10));
-    let line_entities = SpatialQuerySystem::query_line(&world.hecs_world, &line_start, &line_end);
+    let line_entities = SpatialQuerySystem::line_query(&world.hecs_world, &line_start, &line_end);
     println!("\nEntities along line from (0,0) to (10,10): {}", line_entities.len());
 
     // Rectangular query
     let center = Position::new(SquareCoord::<FourConnected>::new(5, 5));
-    let rect_entities = SpatialQuerySystem::query_rectangle(&world.hecs_world, &center, 4, 4);
+    let rect_entities = SpatialQuerySystem::rectangle_query(&world.hecs_world, &center, 4, 4);
     println!("\nEntities in 4x4 rectangle around (5,5): {}", rect_entities.len());
 
     // Team-based queries
     println!("\n=== Team-Based Queries ===");
 
     // Find all enemy entities within range
-    let enemies_nearby = SpatialQuerySystem::query_by_team(
+    let enemies_nearby = SpatialQuerySystem::by_team_query(
         &world.hecs_world,
         &player_pos,
         8,
@@ -123,7 +123,7 @@ fn spatial_queries_run(world: &World, player_pos: Position<SquareCoord<FourConne
     }
 
     // Find allied entities
-    let allies_nearby = SpatialQuerySystem::query_by_team(
+    let allies_nearby = SpatialQuerySystem::by_team_query(
         &world.hecs_world,
         &player_pos,
         5,
@@ -137,7 +137,7 @@ fn spatial_queries_run(world: &World, player_pos: Position<SquareCoord<FourConne
 
     // Find nearest entity to player
     println!("\n=== Nearest Entity Search ===");
-    if let Some((nearest_entity, nearest_pos, distance)) = find_nearest_entity(&world.hecs_world, &player_pos) {
+    if let Some((nearest_entity, nearest_pos, distance)) = nearest_entity_find(&world.hecs_world, &player_pos) {
         println!("Nearest entity to player: {nearest_entity:?}");
         println!("  Position: ({}, {})", nearest_pos.coord.x, nearest_pos.coord.y);
         println!("  Distance: {distance}");
@@ -160,7 +160,7 @@ fn collision_layers_demonstrate(world: &mut World)
     println!("Spawned wall entity at (8, 8) with layer 2");
 
     // Check collisions again with layered entities
-    let new_collisions = CollisionSystem::detect_collisions::<SquareCoord<FourConnected>>(&world.hecs_world);
+    let new_collisions = CollisionSystem::collisions_detect::<SquareCoord<FourConnected>>(&world.hecs_world);
     println!("New collision count with layered entities: {}", new_collisions.len());
 
     // Demonstrate collision filtering could be added here
@@ -182,7 +182,7 @@ fn performance_demonstrate(world: &mut World)
     }
 
     let start_time = std::time::Instant::now();
-    let mass_collisions = CollisionSystem::detect_collisions::<SquareCoord<FourConnected>>(&world.hecs_world);
+    let mass_collisions = CollisionSystem::collisions_detect::<SquareCoord<FourConnected>>(&world.hecs_world);
     let duration = start_time.elapsed();
 
     println!("Collision detection for ~105 entities completed in {duration:?}");
@@ -191,7 +191,7 @@ fn performance_demonstrate(world: &mut World)
     // Spatial query performance
     let start_time = std::time::Instant::now();
     let center = Position::new(SquareCoord::<FourConnected>::new(5, 5));
-    let mass_spatial = SpatialQuerySystem::query_circle(&world.hecs_world, &center, 15);
+    let mass_spatial = SpatialQuerySystem::circle_query(&world.hecs_world, &center, 15);
     let duration = start_time.elapsed();
 
     println!("Spatial query for ~105 entities completed in {duration:?}");

@@ -109,12 +109,12 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
     /// buffer) fails to build.
     pub fn new( config : RenderConfig ) -> Result< Self, RenderError >
     {
-      let gpu = build_gpu_state( config.width, config.height )?;
+      let gpu = gpu_state_build( config.width, config.height )?;
       Ok( Self { gpu, config, images : Vec::new(), sprites : Vec::new() } )
     }
 
     /// Draws one sprite into the active `pass`, sampling its sheet region.
-    fn draw_sprite( &self, pass : &mut RenderPass, sprite : &Sprite ) -> Result< (), RenderError >
+    fn sprite_draw( &self, pass : &mut RenderPass, sprite : &Sprite ) -> Result< (), RenderError >
     {
       let resource_id = sprite.sprite.inner();
       let loaded_sprite = self.sprites.iter().find( | s | s.id == resource_id )
@@ -125,11 +125,11 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
       let view = image.texture.view()
       .map_err( | e | RenderError::BackendError( e.to_string() ) )?;
       let vertices = quad_vertices( &sprite.transform, &self.config, &loaded_sprite.region, image.width, image.height );
-      let vertex_buffer = self.gpu.device.create_buffer_init( &f32_bytes( &vertices ), BufferUsage::VERTEX )
+      let vertex_buffer = self.gpu.device.buffer_init_create( &f32_bytes( &vertices ), BufferUsage::VERTEX )
       .map_err( | e | RenderError::BackendError( e.to_string() ) )?;
-      let tint_buffer = self.gpu.device.create_buffer_init( &f32_bytes( &sprite.tint ), BufferUsage::UNIFORM )
+      let tint_buffer = self.gpu.device.buffer_init_create( &f32_bytes( &sprite.tint ), BufferUsage::UNIFORM )
       .map_err( | e | RenderError::BackendError( e.to_string() ) )?;
-      let bind_group = self.gpu.device.create_bind_group
+      let bind_group = self.gpu.device.bind_group_create
       (
         &self.gpu.bind_group_layout,
         &[
@@ -140,10 +140,10 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
       )
       .map_err( | e | RenderError::BackendError( e.to_string() ) )?;
 
-      pass.set_pipeline( &self.gpu.pipeline );
-      pass.set_bind_group( 0, &bind_group );
-      pass.set_vertex_buffer( 0, &vertex_buffer );
-      pass.set_index_buffer( &self.gpu.quad_indices, IndexFormat::Uint32 );
+      pass.pipeline_set( &self.gpu.pipeline );
+      pass.bind_group_set( 0, &bind_group );
+      pass.vertex_buffer_set( 0, &vertex_buffer );
+      pass.index_buffer_set( &self.gpu.quad_indices, IndexFormat::Uint32 );
       pass.draw_indexed( 6 );
       Ok( () )
     }
@@ -151,7 +151,7 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
 
   impl Backend for NativeBackend
   {
-    fn load_assets( &mut self, assets : &Assets ) -> Result< (), RenderError >
+    fn assets_load( &mut self, assets : &Assets ) -> Result< (), RenderError >
     {
       self.images.clear();
       self.sprites.clear();
@@ -164,14 +164,14 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
           continue;
         };
         let rgba = to_rgba8( bytes, *format );
-        let texture = self.gpu.device.create_texture( &TextureDesc
+        let texture = self.gpu.device.texture_create( &TextureDesc
         {
           size : [ *width, *height, 1 ],
           format : TextureFormat::Rgba8Unorm,
           usage : TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
         })
         .map_err( | e | RenderError::BackendError( e.to_string() ) )?;
-        self.gpu.queue.write_texture( &texture, &rgba )
+        self.gpu.queue.texture_write( &texture, &rgba )
         .map_err( | e | RenderError::BackendError( e.to_string() ) )?;
         self.images.push( LoadedImage { id : image.id.inner(), texture, width : *width, height : *height } );
       }
@@ -194,16 +194,16 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
 
       let view = self.gpu.surface.current_view()
       .map_err( | e | RenderError::BackendError( e.to_string() ) )?;
-      let mut encoder = self.gpu.device.create_command_encoder();
-      let mut pass = encoder.begin_render_pass( &ColorAttachmentDesc { view : &view, clear }, None )
+      let mut encoder = self.gpu.device.command_encoder_create();
+      let mut pass = encoder.render_pass_begin( &ColorAttachmentDesc { view : &view, clear }, None )
       .map_err( | e | RenderError::BackendError( e.to_string() ) )?;
 
-      pass.set_pipeline( &self.gpu.pipeline );
+      pass.pipeline_set( &self.gpu.pipeline );
       for command in remaining
       {
         match command
         {
-          RenderCommand::Sprite( sprite ) => self.draw_sprite( &mut pass, sprite )?,
+          RenderCommand::Sprite( sprite ) => self.sprite_draw( &mut pass, sprite )?,
           _ => return Err( RenderError::Unsupported( "NativeBackend only translates a leading Clear plus Sprite commands" ) ),
         }
       }
@@ -215,14 +215,14 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
 
     fn output( &self ) -> Result< Output, RenderError >
     {
-      let bytes = self.gpu.surface.read_pixels( &self.gpu.device, &self.gpu.queue )
+      let bytes = self.gpu.surface.pixels_read( &self.gpu.device, &self.gpu.queue )
       .map_err( | e | RenderError::BackendError( e.to_string() ) )?;
       Ok( Output::Bitmap( Bitmap { bytes, width : self.config.width, height : self.config.height, channels : 4 } ) )
     }
 
     fn resize( &mut self, width : u32, height : u32 )
     {
-      self.gpu = build_gpu_state( width, height )
+      self.gpu = gpu_state_build( width, height )
       .expect( "NativeBackend::resize : failed to rebuild the offscreen gpu_hal surface" );
       self.config.width = width;
       self.config.height = height;
@@ -254,16 +254,16 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
   /// Rebuilds every GPU handle from scratch against a `width`x`height`
   /// offscreen surface -- shared by `new` and `resize` since nothing in
   /// `GpuState` survives a resize.
-  fn build_gpu_state( width : u32, height : u32 ) -> Result< GpuState, RenderError >
+  fn gpu_state_build( width : u32, height : u32 ) -> Result< GpuState, RenderError >
   {
     let ( device, queue, surface ) = Device::new_native( width, height )
     .map_err( | e | RenderError::BackendError( e.to_string() ) )?;
-    let sampler = device.create_sampler( SamplerDesc::default() )
+    let sampler = device.sampler_create( SamplerDesc::default() )
     .map_err( | e | RenderError::BackendError( e.to_string() ) )?;
     let index_bytes : Vec< u8 > = QUAD_INDICES.iter().flat_map( | i | i.to_le_bytes() ).collect();
-    let quad_indices = device.create_buffer_init( &index_bytes, BufferUsage::INDEX )
+    let quad_indices = device.buffer_init_create( &index_bytes, BufferUsage::INDEX )
     .map_err( | e | RenderError::BackendError( e.to_string() ) )?;
-    let ( pipeline, bind_group_layout ) = build_pipeline( &device, surface.format() )?;
+    let ( pipeline, bind_group_layout ) = pipeline_build( &device, surface.format() )?;
 
     Ok( GpuState { device, queue, surface, sampler, quad_indices, bind_group_layout, pipeline } )
   }
@@ -273,12 +273,12 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
   /// immediately before the sampler entry -- load-bearing for the WebGL
   /// backend, which pairs a sampler with the nearest preceding texture
   /// entry (see `gpu_hal`'s own native-backend test).
-  fn build_pipeline( device : &Device, color_format : TextureFormat ) -> Result< ( RenderPipeline, BindGroupLayout ), RenderError >
+  fn pipeline_build( device : &Device, color_format : TextureFormat ) -> Result< ( RenderPipeline, BindGroupLayout ), RenderError >
   {
-    let shader = device.create_shader_module( &ShaderSource { wgsl : SPRITE_WGSL, glsl_vertex : None, glsl_fragment : None } )
+    let shader = device.shader_module_create( &ShaderSource { wgsl : SPRITE_WGSL, glsl_vertex : None, glsl_fragment : None } )
     .map_err( | e | RenderError::BackendError( e.to_string() ) )?;
 
-    let bind_group_layout = device.create_bind_group_layout
+    let bind_group_layout = device.bind_group_layout_create
     (
       &[
         BindGroupLayoutEntry { visibility : ShaderStages::FRAGMENT, ty : BindingType::UniformBuffer },
@@ -301,7 +301,7 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
       }
     ];
 
-    let pipeline = device.create_render_pipeline( &RenderPipelineDesc
+    let pipeline = device.render_pipeline_create( &RenderPipelineDesc
     {
       shader : &shader,
       vertex_entry : "vs_main",
@@ -361,7 +361,7 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
   }
 
   /// Byte-reinterprets a `f32` slice as tightly-packed little-endian bytes,
-  /// for `create_buffer_init` uploads -- avoids depending on `bytemuck`
+  /// for `buffer_init_create` uploads -- avoids depending on `bytemuck`
   /// (not part of `adapter-native`'s dependency set).
   fn f32_bytes( floats : &[ f32 ] ) -> Vec< u8 >
   {

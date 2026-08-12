@@ -86,7 +86,7 @@ mod private
     }
 
     /// Sets model-view-projection matrix
-    pub fn upload_mvp( &self, mvp : gl::F32x4x4 )
+    pub fn mvp_upload( &self, mvp : gl::F32x4x4 )
     {
       self.program.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
     }
@@ -133,9 +133,9 @@ mod private
               return Ok( () );
             }
 
-            let model = node.get_world_matrix();
+            let model = node.world_matrix_get();
             let mvp = light.view_projection() * model;
-            self.upload_mvp( mvp );
+            self.mvp_upload( mvp );
 
             for primitive in &mesh.borrow().primitives
             {
@@ -202,7 +202,7 @@ mod private
     }
 
     /// Sets target lightmap texture and dimensions
-    fn set_target( &self, texture : Option< &WebGlTexture > )
+    fn target_set( &self, texture : Option< &WebGlTexture > )
     {
       self.gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer.as_ref() );
       self.gl.framebuffer_texture_2d
@@ -233,20 +233,20 @@ mod private
     }
 
     /// Sets model matrix for geometry
-    fn upload_model( &self, model : gl::F32x4x4 )
+    fn model_upload( &self, model : gl::F32x4x4 )
     {
       self.program.uniform_matrix_upload( "u_model", model.raw_slice(), true );
     }
 
     /// Binds shadow map for sampling
-    fn set_shadowmap( &self, shadowmap : Option< &WebGlTexture > )
+    fn shadowmap_set( &self, shadowmap : Option< &WebGlTexture > )
     {
       self.gl.active_texture( gl::TEXTURE0 );
       self.gl.bind_texture( gl::TEXTURE_2D, shadowmap );
     }
 
     /// Uploads light parameters to shader
-    fn upload_light( &self, light : &mut Light )
+    fn light_upload( &self, light : &mut Light )
     {
       let light_vp = light.view_projection();
       self.program.uniform_matrix_upload( "u_light_view_projection", light_vp.raw_slice(), true );
@@ -274,7 +274,7 @@ mod private
     /// # Errors
     ///
     /// Returns `WebglError` if a pass, upload, or draw fails during either baking pass.
-    pub fn render_soft_shadow
+    pub fn soft_shadow_render
     (
       &self,
       node : &Node,
@@ -286,11 +286,11 @@ mod private
     ) -> Result< (), gl::WebglError >
     {
       self.bind( width as i32, height as i32 );
-      self.set_target( target );
-      self.upload_light( &mut light );
-      self.set_shadowmap( shadowmap.depth_buffer() );
-      let model = node.get_world_matrix();
-      self.upload_model( model );
+      self.target_set( target );
+      self.light_upload( &mut light );
+      self.shadowmap_set( shadowmap.depth_buffer() );
+      let model = node.world_matrix_get();
+      self.model_upload( model );
 
       if let crate::webgl::Object3D::Mesh( mesh ) = &node.object
       {

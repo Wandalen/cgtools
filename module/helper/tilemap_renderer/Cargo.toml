@@ -55,7 +55,7 @@ web-sys = { workspace = true, optional = true, features = [
   # Event::prevent_default() in the loss handler.
   "EventTarget",
   "Event",
-  # webgl.rs: upload_image_from_path revokes blob: object URLs created for
+  # webgl.rs: image_upload_from_path revokes blob: object URLs created for
   # ImageSource::Encoded via minwebgl::create_blob, once the image has
   # loaded or failed to load.
   "Url",

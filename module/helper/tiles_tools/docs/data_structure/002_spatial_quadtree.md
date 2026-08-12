@@ -4,7 +4,7 @@
 
 - **Purpose**: Document `Quadtree<C>`, the sparse spatial-partitioning structure used for range/circle queries over dynamically-positioned entities.
 - **Responsibility**: Document its node structure, the `SpatialCoordinate` trait boundary that limits which coordinate types can use it, and the source-verified gap between `remove`'s doc comment and its actual algorithmic complexity.
-- **In Scope**: `SpatialBounds`, `SpatialEntity<C>`, `SpatialCoordinate`, `Quadtree<C>`'s node structure, `insert`/`remove`/`query_region`/`query_circle`.
+- **In Scope**: `SpatialBounds`, `SpatialEntity<C>`, `SpatialCoordinate`, `Quadtree<C>`'s node structure, `insert`/`remove`/`region_query`/`circle_query`.
 - **Out of Scope**: The dense hex-bounded grid used for per-cell (rather than per-entity) storage (see `data_structure/001`); field-of-view/range algorithms that consume quadtree query results (see `algorithm/003`).
 
 ### Abstract
@@ -38,9 +38,9 @@ enum QuadtreeNode< C >
 | Operation | Signature (conceptual) | Complexity (verified) |
 |-----------|--------------------------|------------------------|
 | `insert` | `(&mut self, SpatialEntity<C>)` | Recurses through `insert_recursive_static`, splitting a `Leaf` into an `Internal` node once `max_entities` is exceeded — genuine O(log n) descent, one path from root to the target leaf. |
-| `query_region` | `(&self, &SpatialBounds) -> Vec<SpatialEntity<C>>` | Recurses only into child quadrants whose bounds intersect the query region — genuine pruned traversal, not a full scan. |
-| `query_circle` | `(&self, center_x, center_y, radius) -> Vec<SpatialEntity<C>>` where `C: Distance` | Implemented as `query_region` over the circle's bounding square, then a `.filter()` by exact `Distance` to discard corner false-positives (`src/spatial.rs`) — correct, but pays a rectangular query's full cost even for a circle much smaller than its bounding box. |
-| `remove` | `(&mut self, entity_id: u32) -> Vec<SpatialEntity<C>>` | **Divergence, verified directly against source**: `remove`'s doc comment (*"Removes all entities with the specified ID from the quadtree"*) makes no complexity claim itself, but the module-level *"O(log n)"* banner (`src/spatial.rs:10`) describes the structure generally, and `remove` is the operation that does not meet it. `remove_recursive_static`'s `Internal`-node arm unconditionally recurses into **all four children** — `northeast`, `northwest`, `southeast`, `southwest`, every call, no bounds pruning — because the function receives only an opaque `entity_id : u32`, with no positional hint to prune the search by. This is a full O(n) tree walk, structurally unable to be O(log n) as written: unlike `query_region`/`query_circle`, `remove` has no `SpatialBounds` argument to intersect against. |
+| `region_query` | `(&self, &SpatialBounds) -> Vec<SpatialEntity<C>>` | Recurses only into child quadrants whose bounds intersect the query region — genuine pruned traversal, not a full scan. |
+| `circle_query` | `(&self, center_x, center_y, radius) -> Vec<SpatialEntity<C>>` where `C: Distance` | Implemented as `region_query` over the circle's bounding square, then a `.filter()` by exact `Distance` to discard corner false-positives (`src/spatial.rs`) — correct, but pays a rectangular query's full cost even for a circle much smaller than its bounding box. |
+| `remove` | `(&mut self, entity_id: u32) -> Vec<SpatialEntity<C>>` | **Divergence, verified directly against source**: `remove`'s doc comment (*"Removes all entities with the specified ID from the quadtree"*) makes no complexity claim itself, but the module-level *"O(log n)"* banner (`src/spatial.rs:10`) describes the structure generally, and `remove` is the operation that does not meet it. `remove_recursive_static`'s `Internal`-node arm unconditionally recurses into **all four children** — `northeast`, `northwest`, `southeast`, `southwest`, every call, no bounds pruning — because the function receives only an opaque `entity_id : u32`, with no positional hint to prune the search by. This is a full O(n) tree walk, structurally unable to be O(log n) as written: unlike `region_query`/`circle_query`, `remove` has no `SpatialBounds` argument to intersect against. |
 | `all_entities` / `clear` | `(&self) -> Vec<SpatialEntity<C>>` / `(&mut self)` | Full-tree collection / reset; O(n) is expected and accurate for both. |
 
 ### Invariants
@@ -63,4 +63,4 @@ enum QuadtreeNode< C >
 
 ### Tests
 
-No dedicated regression test currently pins `remove`'s actual O(n) cost against the module doc comment's general O(log n) claim — both are real (verified against `src/spatial.rs`), but no benchmark or assertion distinguishes `remove`'s complexity from `insert`/`query_region`'s.
+No dedicated regression test currently pins `remove`'s actual O(n) cost against the module doc comment's general O(log n) claim — both are real (verified against `src/spatial.rs`), but no benchmark or assertion distinguishes `remove`'s complexity from `insert`/`region_query`'s.

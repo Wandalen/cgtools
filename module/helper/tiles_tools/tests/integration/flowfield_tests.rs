@@ -12,7 +12,7 @@
 //! flowfield tests in the pre-revival version of this file were structurally
 //! unsatisfiable and were retired rather than repaired. The revival census, per-test
 //! dispositions, and the `Ord` impl on `hexagonal::Coordinate` that made
-//! `calculate_flow` / `add_goal` callable at all are recorded in task 078.
+//! `flow_calculate` / `goal_add` callable at all are recorded in task 078.
 //!
 //! # Test Matrix for Flow Field Integration
 //!
@@ -44,7 +44,7 @@ fn test_hex_grid_with_water_obstacles()
     HexCoord::<Axial, Pointy>::new(2, -1),
     HexCoord::<Axial, Pointy>::new(2, 0)];
 
-  flow_field.calculate_flow(&goal,
+  flow_field.flow_calculate(&goal,
     |coord| !water_hexes.contains(coord),
     |_| 1
   );
@@ -68,7 +68,7 @@ fn test_batch_flow_direction_queries()
     HexCoord::<Axial, Pointy>::new(9, 8),
   ];
 
-  let directions = flow_field.get_flow_directions_batch(&test_coordinates);
+  let directions = flow_field.flow_directions_batch_get(&test_coordinates);
   assert_eq!(directions.len(), test_coordinates.len());
 }
 
@@ -84,7 +84,7 @@ fn test_group_movement_flow_application()
     HexCoord::<Axial, Pointy>::new(2, 5),
   ];
 
-  let group_flow = flow_field.calculate_group_flow(&unit_positions);
+  let group_flow = flow_field.group_flow_calculate(&unit_positions);
   assert_eq!(group_flow.len(), unit_positions.len());
 }
 
@@ -105,7 +105,7 @@ fn test_multi_goal_capture_points()
   ];
 
   for point in capture_points {
-    multi_field.add_goal(&point, |_| true, |_| 1);
+    multi_field.goal_add(&point, |_| true, |_| 1);
   }
 
   // One field is stored per registered goal (assertion absorbed from the
@@ -114,7 +114,7 @@ fn test_multi_goal_capture_points()
 
   // Units should move toward nearest capturable point
   let unit_pos = HexCoord::<Axial, Pointy>::new(0, 0);
-  let _direction = multi_field.get_optimal_direction(&unit_pos);
+  let _direction = multi_field.optimal_direction_get(&unit_pos);
 }
 
 // =============================================================================
@@ -148,6 +148,6 @@ fn test_flow_field_ecs_integration()
   }
 
   // Get flow directions for all units
-  let flow_directions = flow_field.get_flow_directions_batch(&unit_positions);
+  let flow_directions = flow_field.flow_directions_batch_get(&unit_positions);
   assert_eq!(flow_directions.len(), 2);
 }

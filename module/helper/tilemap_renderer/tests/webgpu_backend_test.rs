@@ -69,7 +69,7 @@ fn sprite_draw_params_differ_with_input()
 
 /// AF2 -- a command family `declared_capabilities()` reports `false` for
 /// must be rejected by the real gate `submit` calls, not silently accepted.
-/// Calls `WebGpuBackend::classify_command` directly -- the exact function
+/// Calls `WebGpuBackend::command_classify` directly -- the exact function
 /// `submit`'s loop invokes -- so this is the real anti-faking check, not a
 /// decoy that could silently drift from the code path it claims to cover.
 #[ wasm_bindgen_test ]
@@ -80,8 +80,8 @@ fn unsupported_command_family_is_rejected()
 
   // `Clear` is only honored as the *leading* command of a batch (consumed by
   // `submit` before its classification loop runs); mid-batch -- which is
-  // exactly what `classify_command` itself sees -- it is, like every other
+  // exactly what `command_classify` itself sees -- it is, like every other
   // non-`Sprite` family, unsupported.
-  assert!( WebGpuBackend::classify_command( &clear ).is_err() );
-  assert!( WebGpuBackend::classify_command( &sprite ).is_ok() );
+  assert!( WebGpuBackend::command_classify( &clear ).is_err() );
+  assert!( WebGpuBackend::command_classify( &sprite ).is_ok() );
 }

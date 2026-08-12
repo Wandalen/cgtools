@@ -17,12 +17,12 @@ use std::time::Duration;
 fn test_pathfinding_debugger() {
   let mut debugger = PathfindingDebugger::new(10, 10);
 
-  debugger.set_start((0, 0));
-  debugger.set_goal((9, 9));
-  debugger.add_obstacle((5, 5));
-  debugger.add_path(vec![(0, 0), (1, 1), (2, 2), (3, 3)], "Test Path");
+  debugger.start_set((0, 0));
+  debugger.goal_set((9, 9));
+  debugger.obstacle_add((5, 5));
+  debugger.path_add(vec![(0, 0), (1, 1), (2, 2), (3, 3)], "Test Path");
 
-  let output = debugger.render_ascii();
+  let output = debugger.ascii_render();
   assert!(output.contains("Start"));
   assert!(output.contains("Goal"));
   assert!(output.contains("Obstacle"));
@@ -39,10 +39,10 @@ fn test_ecs_inspector() {
     data: vec![("level".to_string(), "5".to_string())].into_iter().collect(),
   };
 
-  inspector.record_entity(entity);
-  inspector.record_system_timing("MovementSystem".to_string(), Duration::from_millis(5));
+  inspector.entity_record(entity);
+  inspector.system_timing_record("MovementSystem".to_string(), Duration::from_millis(5));
 
-  let report = inspector.generate_report();
+  let report = inspector.report_generate();
   assert!(report.contains("Entity 42"));
   assert!(report.contains("Position"));
   assert!(report.contains("MovementSystem"));
@@ -52,12 +52,12 @@ fn test_ecs_inspector() {
 fn test_performance_profiler() {
   let mut profiler = PerformanceProfiler::new();
 
-  profiler.record_frame_time(Duration::from_millis(16));
-  profiler.record_frame_time(Duration::from_millis(18));
-  profiler.record_system_time("RenderSystem".to_string(), Duration::from_millis(8));
-  profiler.record_memory_sample(1024 * 1024, 100); // 1MB, 100 entities
+  profiler.frame_time_record(Duration::from_millis(16));
+  profiler.frame_time_record(Duration::from_millis(18));
+  profiler.system_time_record("RenderSystem".to_string(), Duration::from_millis(8));
+  profiler.memory_sample_record(1024 * 1024, 100); // 1MB, 100 entities
 
-  let stats = profiler.get_stats();
+  let stats = profiler.stats_get();
   assert_eq!(stats.frame_count, 2);
   assert!(stats.fps > 0.0);
   assert_eq!(stats.current_memory, 1024 * 1024);
@@ -72,15 +72,15 @@ fn test_debug_utilities() {
     vec![true, true, false],
   ];
 
-  let output = utils::render_bool_grid(&grid, '#', '.');
+  let output = utils::bool_grid_render(&grid, '#', '.');
   assert!(output.contains('#'));
   assert!(output.contains('.'));
 
   let duration = Duration::from_micros(1500);
-  let formatted = utils::format_duration(duration);
+  let formatted = utils::duration_format(duration);
   assert!(formatted.contains("1.5ms"));
 
-  let memory = utils::format_memory(1536 * 1024); // 1.5 MB
+  let memory = utils::memory_format(1536 * 1024); // 1.5 MB
   assert!(memory.contains("1.5") && memory.contains("MB"));
 }
 
@@ -115,8 +115,8 @@ fn test_grid_renderer_creation()
 fn test_grid_renderer_markers()
 {
   let mut renderer = GridRenderer::new();
-  renderer.add_marker( ( 5, 3 ), "S", "Start position" );
-  renderer.add_colored_marker( ( 8, 6 ), "G", "Goal", DebugColor::Blue, 10 );
+  renderer.marker_add( ( 5, 3 ), "S", "Start position" );
+  renderer.colored_marker_add( ( 8, 6 ), "G", "Goal", DebugColor::Blue, 10 );
 
   assert_eq!( renderer.marker_count(), 2 );
   assert!( renderer.has_marker( ( 5, 3 ) ) );

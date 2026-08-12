@@ -26,13 +26,13 @@ fn test_set_local_matrix()
 
   let exp = math::mat3x3h::scale( [ 5.0; 3 ] );
 
-  scene.set_local_matrix( exp );
-  assert_abs_diff_eq!( scene.get_local_matrix(), exp );
+  scene.local_matrix_set( exp );
+  assert_abs_diff_eq!( scene.local_matrix_get(), exp );
 
   let exp = math::mat4x4::identity();
 
-  scene.set_local_matrix( exp );
-  assert_abs_diff_eq!( scene.get_local_matrix(), exp );
+  scene.local_matrix_set( exp );
+  assert_abs_diff_eq!( scene.local_matrix_get(), exp );
 }
 
 #[ test ]
@@ -45,10 +45,10 @@ fn test_default()
   let rotation = math::Quat::from( [ 0.0, 0.0, 0.0, 1.0 ] );
   let translation = math::F32x3::splat( 0.0 );
 
-  assert_abs_diff_eq!( scene.get_local_matrix(), mat );
-  assert_abs_diff_eq!( scene.get_scale(), scale );
-  assert_abs_diff_eq!( scene.get_rotation(), rotation );
-  assert_abs_diff_eq!( scene.get_translation(), translation );
+  assert_abs_diff_eq!( scene.local_matrix_get(), mat );
+  assert_abs_diff_eq!( scene.scale_get(), scale );
+  assert_abs_diff_eq!( scene.rotation_get(), rotation );
+  assert_abs_diff_eq!( scene.translation_get(), translation );
 }
 
 #[ test ]
@@ -60,19 +60,19 @@ fn test_scene_update_world_matrix_after_set_local_matrix1()
   let node2 = Rc::new( RefCell::new( Node::new() ) );
   let node11 = Rc::new( RefCell::new( Node::new() ) );
 
-  node1.borrow_mut().add_child( node11.clone() );
-  node_root.borrow_mut().add_child( node1.clone() );
-  node_root.borrow_mut().add_child( node2.clone() );
+  node1.borrow_mut().child_add( node11.clone() );
+  node_root.borrow_mut().child_add( node1.clone() );
+  node_root.borrow_mut().child_add( node2.clone() );
   scene.add( node_root.clone() );
 
   let exp = math::mat3x3h::scale( [ 5.0; 3 ] );
-  scene.set_local_matrix( exp );
-  scene.update_world_matrix();
+  scene.local_matrix_set( exp );
+  scene.world_matrix_update();
 
-  assert_abs_diff_eq!( node_root.borrow().get_world_matrix(), exp );
-  assert_abs_diff_eq!( node1.borrow().get_world_matrix(), exp );
-  assert_abs_diff_eq!( node2.borrow().get_world_matrix(), exp );
-  assert_abs_diff_eq!( node11.borrow().get_world_matrix(), exp );
+  assert_abs_diff_eq!( node_root.borrow().world_matrix_get(), exp );
+  assert_abs_diff_eq!( node1.borrow().world_matrix_get(), exp );
+  assert_abs_diff_eq!( node2.borrow().world_matrix_get(), exp );
+  assert_abs_diff_eq!( node11.borrow().world_matrix_get(), exp );
 }
 
 #[ test ]
@@ -84,23 +84,23 @@ fn test_scene_update_world_matrix_after_set_local_matrix2()
   let node2 = Rc::new( RefCell::new( Node::new() ) );
   let node11 = Rc::new( RefCell::new( Node::new() ) );
 
-  node1.borrow_mut().add_child( node11.clone() );
-  node_root.borrow_mut().add_child( node1.clone() );
-  node_root.borrow_mut().add_child( node2.clone() );
+  node1.borrow_mut().child_add( node11.clone() );
+  node_root.borrow_mut().child_add( node1.clone() );
+  node_root.borrow_mut().child_add( node2.clone() );
   scene.add( node_root.clone() );
 
   let mat1 = math::mat3x3h::scale( [ 5.0; 3 ] );
   let mat2 = math::mat3x3h::translation( [ 1.0, 1.0, 10. ] );
   let mat_exp = mat2 * mat1;
 
-  node1.borrow_mut().set_local_matrix( mat1 );
-  scene.set_local_matrix( mat2 );
-  scene.update_world_matrix();
+  node1.borrow_mut().local_matrix_set( mat1 );
+  scene.local_matrix_set( mat2 );
+  scene.world_matrix_update();
 
-  assert_abs_diff_eq!( node_root.borrow().get_world_matrix(), mat2 );
-  assert_abs_diff_eq!( node1.borrow().get_world_matrix(), mat_exp );
-  assert_abs_diff_eq!( node2.borrow().get_world_matrix(), mat2 );
-  assert_abs_diff_eq!( node11.borrow().get_world_matrix(), mat_exp );
+  assert_abs_diff_eq!( node_root.borrow().world_matrix_get(), mat2 );
+  assert_abs_diff_eq!( node1.borrow().world_matrix_get(), mat_exp );
+  assert_abs_diff_eq!( node2.borrow().world_matrix_get(), mat2 );
+  assert_abs_diff_eq!( node11.borrow().world_matrix_get(), mat_exp );
 }
 
 #[ test ]
@@ -111,10 +111,10 @@ fn test_set_translation()
 
   let exp = math::mat3x3h::translation( translation );
 
-  scene.set_translation( translation );
-  scene.update_local_matrix();
+  scene.translation_set( translation );
+  scene.local_matrix_update();
 
-  assert_abs_diff_eq!( exp, scene.get_local_matrix() );
+  assert_abs_diff_eq!( exp, scene.local_matrix_get() );
 }
 
 #[ test ]
@@ -125,10 +125,10 @@ fn test_set_scale()
 
   let exp = math::mat3x3h::scale( scale );
 
-  scene.set_scale( scale );
-  scene.update_local_matrix();
+  scene.scale_set( scale );
+  scene.local_matrix_update();
 
-  assert_abs_diff_eq!( exp, scene.get_local_matrix() );
+  assert_abs_diff_eq!( exp, scene.local_matrix_get() );
 }
 
 #[ test ]
@@ -139,10 +139,10 @@ fn test_set_rotation()
 
   let exp = math::F32x4x4::from_scale_rotation_translation( [ 1.0; 3 ], rotation, [ 0.0; 3 ] );
 
-  scene.set_rotation( rotation );
-  scene.update_local_matrix();
+  scene.rotation_set( rotation );
+  scene.local_matrix_update();
 
-  assert_abs_diff_eq!( exp, scene.get_local_matrix() );
+  assert_abs_diff_eq!( exp, scene.local_matrix_get() );
 }
 
 #[ test ]
@@ -152,7 +152,7 @@ fn test_bounding_box_cached_single_root()
   let node_root = Rc::new( RefCell::new( Node::new() ) );
   scene.add( node_root.clone() );
 
-  scene.update_world_matrix();
+  scene.world_matrix_update();
 
   // Computed while no borrow is held: a live tree-walking `bounding_box()`
   // would need to `.borrow()` every node again on each call, so proving it
@@ -180,11 +180,11 @@ fn test_bounding_box_cached_three_level_chain()
   let node_child = Rc::new( RefCell::new( Node::new() ) );
   let node_grandchild = Rc::new( RefCell::new( Node::new() ) );
 
-  node_child.borrow_mut().add_child( node_grandchild );
-  node_root.borrow_mut().add_child( node_child );
+  node_child.borrow_mut().child_add( node_grandchild );
+  node_root.borrow_mut().child_add( node_child );
   scene.add( node_root.clone() );
 
-  scene.update_world_matrix();
+  scene.world_matrix_update();
 
   let exp = hierarchical_bounding_box( &[ node_root ] );
   let got = scene.bounding_box();
@@ -197,7 +197,7 @@ fn test_bounding_box_empty_scene_is_default()
 {
   let mut scene = Scene::new();
 
-  scene.update_world_matrix();
+  scene.world_matrix_update();
 
   let exp = BoundingBox::default();
   let got = scene.bounding_box();

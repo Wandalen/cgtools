@@ -34,7 +34,7 @@ crosstalk.
 | `src/resource.rs` | Asset / tint / animation / effect resource declarations and `*Ref` wrappers. Re-exports `tilemap_renderer::types::BlendMode`. |
 | `src/pipeline.rs` | `RenderPipeline` — pipeline buckets, sort modes, hex tiling configuration. |
 | `src/coords.rs` | Public coordinate types and helpers used by the format (axial / cube / world-pixel pairs). |
-| `src/hash.rs` | `hash_coord` / `hash_str` — normative hash primitives (SPEC §13) used for `HashCoord` variant selection and animation phase offsets. |
+| `src/hash.rs` | `coord_hash` / `str_hash` — normative hash primitives (SPEC §13) used for `HashCoord` variant selection and animation phase offsets. |
 | `src/load.rs` | `RenderSpec::load` / `SceneSnapshot::load` and `from_ron_str` counterparts. |
 | `src/validate.rs` | `Validate` trait + partial impls for `RenderSpec` and `SceneSnapshot` — see [`docs/invariant/001_renderspec_referential_integrity.md`](docs/invariant/001_renderspec_referential_integrity.md) for exactly which rules are enforced today. |
 | `src/error.rs` | `LoadError`, `ValidationError`, `SnapshotLoadError`. |
@@ -78,7 +78,7 @@ use tilemap_scene::{ Camera, PathResolver, Placement, Renderer, RenderSpec, Scen
 
 let spec : RenderSpec = RenderSpec::load( "render_spec.ron" )?;
 let mut renderer = Renderer::new( &spec, &PathResolver )?;
-backend.load_assets( renderer.assets() );
+backend.assets_load( renderer.assets() );
 
 let mut scene = Scene::new( Arc::new( spec ) );
 let grass = scene.object( "grass" ).expect( "grass declared" );

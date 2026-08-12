@@ -300,7 +300,7 @@ impl Renderer
       far
     );
 
-    camera.bind_controls( &canvas );
+    camera.controls_bind( &canvas );
 
     let programs = Programs::new( &gl );
 
@@ -416,9 +416,9 @@ impl Renderer
         {
           let primitive = primitive_rc.borrow();
 
-          gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array(), true ).unwrap();
-          gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &self.camera.get_view_matrix().to_array(), true ).unwrap();
-          gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &node.borrow().get_world_matrix().to_array(), true ).unwrap();
+          gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.projection_matrix_get().to_array(), true ).unwrap();
+          gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &self.camera.view_matrix_get().to_array(), true ).unwrap();
+          gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &node.borrow().world_matrix_get().to_array(), true ).unwrap();
 
           primitive.bind( gl );
           primitive.draw( gl );
@@ -573,7 +573,7 @@ impl Renderer
     (
       gl,
       Some( u_inv_projection.clone() ),
-      &self.camera.get_projection_matrix().inverse().unwrap().to_array(),
+      &self.camera.projection_matrix_get().inverse().unwrap().to_array(),
       true
     )
     .unwrap();
@@ -581,7 +581,7 @@ impl Renderer
     (
       gl,
       Some( u_inv_view.clone() ),
-      &self.camera.get_view_matrix().inverse().unwrap().to_array(),
+      &self.camera.view_matrix_get().inverse().unwrap().to_array(),
       true
     )
     .unwrap();
@@ -624,13 +624,13 @@ async fn app_run() -> Result< (), gl::WebglError >
   let scenes = gltf.scenes.clone();
   for node in &scenes[ 0 ].borrow().children
   {
-    node.borrow_mut().set_center_to_origin();
-    node.borrow_mut().normalize_scale();
-    let scale = node.borrow().get_scale();
-    node.borrow_mut().set_scale( scale * 30.0 );
+    node.borrow_mut().center_set_to_origin();
+    node.borrow_mut().scale_normalize();
+    let scale = node.borrow().scale_get();
+    node.borrow_mut().scale_set( scale * 30.0 );
   }
 
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  scenes[ 0 ].borrow_mut().world_matrix_update();
 
   let update_and_draw =
   {

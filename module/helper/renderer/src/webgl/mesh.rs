@@ -56,7 +56,7 @@ mod private
     /// Adds a primitive to the mesh.
     ///
     /// * `primitive`: The primitive to be added.
-    pub fn add_primitive( &mut self, primitive : Rc< RefCell< Primitive > > )
+    pub fn primitive_add( &mut self, primitive : Rc< RefCell< Primitive > > )
     {
       self.primitives.push( primitive );
     }
