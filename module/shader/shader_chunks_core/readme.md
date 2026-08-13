@@ -52,11 +52,13 @@ bundled-chunk table — one `ChunkDescriptor` row per chunk, carrying every
 manifest field (`name`, `description`, `tags`, `stage`, `depends_on`,
 `exports`) as compile-time data plus the full WGSL source — for
 enumeration, and `chunk_get( name )` resolves one row by name in O(1),
-with no table scan and no manifest parsing; the table lives in
-`src/chunks.rs`, a data-only file shaped for later build-script generation
-from `shader/`, and one drift-guard test per field
-(`chunks_table_*_match_each_manifest`) holds every row equal to what the
-parsers read from its manifest. `parse_name`/`parse_description`/
+with no table scan and no manifest parsing; the table is generated at
+build time (`build.rs`) straight from those manifests — membership scanned
+from the chunk directories, row order taken from the collection-index
+table in `shader/readme.md`, the two cross-validated both ways so neither
+can drift — so adding a chunk to the collection needs no Rust edit here,
+and the drift-guard test (`chunks_table_matches_each_manifest`) holds
+every generated row equal to what the parsers read from its manifest. `parse_name`/`parse_description`/
 `parse_tags`/`parse_depends_on`/`parse_stage`/`parse_exports` each read
 one manifest field directly from arbitrary chunk text, without going
 through `compose`. Two tests keep the header
@@ -68,6 +70,56 @@ declared `export` against a real `fn`/`struct` declaration in that same
 file — so the manifest can't silently drift out of sync with the body it
 sits on top of.
 
+**Importing chunks into an application ( compile-time ).** An application
+selects just the bundled chunks it actually uses — not the whole table —
+and can define its own chunks beside them, composing both sources as one
+set:
+
+```rust
+use shader_chunks_core::{ ChunkDescriptor, chunk, dependency_closed, compose_set };
+
+// A locally-defined chunk: same descriptor shape as the bundled rows,
+// mirroring the `//@` manifest at the top of its own WGSL file.
+const MY_GLOW : ChunkDescriptor = ChunkDescriptor
+{
+  name : "my_glow",
+  description : "App-local glow falloff over the shared noise stack.",
+  tags : &[ ( "category", "scene" ) ],
+  stage : None,
+  depends_on : &[ "value_noise" ],
+  exports : &[ "fn my_glow(p: vec2f) -> f32" ],
+  wgsl : include_str!( "../shader/my_glow.wgsl" ),
+};
+
+const MY_CHUNKS : &[ ChunkDescriptor ] =
+&[
+  chunk( "hash21" ),      // imported by name — a typo'd name fails the build
+  chunk( "value_noise" ),
+  MY_GLOW,                // local and imported rows mix freely
+];
+// A forgotten import fails this assert at build time, not the first frame.
+const _ : () = assert!( dependency_closed( MY_CHUNKS ) );
+
+fn shader_source() -> String
+{
+  // Dependency-before-dependent across both sources, straight from
+  // descriptor fields — no manifest parsing at runtime.
+  compose_set( MY_CHUNKS )
+}
+```
+
+`chunk( name )` is a `const fn` returning the descriptor by value, so an
+unknown name in `const` position is a compile error; `chunk_get_from(
+set, name )` is the same `const` lookup over any caller-supplied set, for
+selecting out of a mixed set; `dependency_closed( set )` const-asserts
+that every `depends_on` entry is present in the set —
+`compose_set`/`try_compose_set`'s success precondition. A crate
+defining local chunks keeps each descriptor and its manifest in sync the
+same way this crate does: one test per chunk asserting
+`manifest_mismatches( &CHUNK )` is empty. Verify the compile-time claims
+directly: misspell a `chunk( ... )` name or drop an imported dependency
+in a consumer and `cargo check` fails naming the exact line.
+
 **No Rust mirror of any chunk's math** ( no `hash21`/`value_noise`/`fbm3`
 Rust ports ). Chunks are a shader-side concept only; a parallel Rust body
 would be a second implementation of the same logic — with its own
@@ -77,5 +129,12 @@ not a Rust port, is what makes a chunk's interface legible.
 
 **Consumers:** the orrery scene family's browser WebGPU member
 [`orrery/webgpu`](../../../examples/orrery/webgpu/readme.md)
-composes these four chunks ahead of its own scene-specific, fragment-only
-WGSL body (`shader/scene_fragment.wgsl`).
+imports all four bundled chunks by name and defines its scene-specific
+fragment stage (`shader/scene_fragment.wgsl`) as a fifth, local chunk —
+its `src/shader_source.rs` is the live model of the import pattern above.
+
+**Design docs:** each mechanism above is documented as a typed doc
+instance — registry generation and dependency-ordered composition
+(`algorithm/`), selective const import and crate-local chunks
+(`pattern/`), dependency closure and descriptor-manifest parity
+(`invariant/`) — see [docs/definition/readme.md](docs/definition/readme.md).

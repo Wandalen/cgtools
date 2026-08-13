@@ -27,6 +27,26 @@ through this session's context compaction; re-derive by reading the current SVG 
 each of the doc instances above before rewriting**, then produce one consistent account across all
 touched doc files rather than fixing only one of the three.
 
+## In Scope
+
+- `readme.md` — tagline, architecture bullet, tree, features table, and capabilities table (Terminal
+  column footnoted empty; WebGL Sprites/Meshes/Batches corrected to `yes`), depth note, ScreenSpaceSprite
+  wording
+- `roadmap.md` — SVG-adapter bullet qualified with an explicit pointer to its own gaps section;
+  terminal-gaps section reframed
+- `src/lib.rs` — false "SvgBackend and TerminalBackend are stubs" doc note deleted; tagline corrected
+- `docs/invariant/004` — citation of the "full implementation" phrase reworded to the command-level/
+  asset-level distinction
+
+## Out of Scope
+
+- `docs/feature/001`/`docs/feature/003` — already accurate (the verified "Story C" anchor used to correct
+  the other two accounts), left unchanged
+- Implementing the missing terminal `Backend` or SVG font-loading support — doc reconciliation only, no
+  new functionality
+- The workspace-wide `allow_attributes_without_reason` clippy lint drift (tracked separately in task 058)
+  — pre-existing, unrelated to this task's files
+
 ## Verification
 
 ### Checklist

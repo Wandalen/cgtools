@@ -25,6 +25,19 @@ condition are not re-verified in this filing pass; re-confirm against current
 `module/helper/behaviour_tree/src/` before touching.** A regression test needs a bounded-time assertion
 (e.g. a timeout-wrapped evaluation) to actually catch a hang rather than blocking the test suite itself.
 
+## In Scope
+
+- `module/helper/behaviour_tree/src/lib.rs`: `RepeatNode::execute` — bound the previously-unconditional
+  `loop` with a new `MAX_SYNC_ITERATIONS` (`u32 = 10_000`) cap, yielding `BehaviorStatus::Running` back
+  to the caller instead of spinning forever
+- Regression test `test_repeat_node_infinite_livelock_guard` (bounded-time, `recv_timeout`-based) added
+  to prove the fix
+
+## Out of Scope
+
+- Other node types (`SequenceNode`, `SelectorNode`, `ParallelNode`, `CooldownNode`, `InvertNode`) —
+  confirmed already bounded/loop-free during investigation; left unchanged
+
 ## Verification
 
 ### Checklist

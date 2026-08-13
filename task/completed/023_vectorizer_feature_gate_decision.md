@@ -34,6 +34,24 @@ change.
 to keep the door open on this task's DELETE decision for a future revival if a real consumer emerges.
 Does not reopen or otherwise change this task's own terminal state; see this task's History entry below.
 
+## In Scope
+
+- Investigate what "feature gate issues" block `vectorizer` compilation (temporarily re-added to workspace
+  `members` with the corrected path, ran `cargo check` across every individual feature combination)
+- Decision and execution: delete `module/helper/vectorizer/` entirely, and remove its commented-out
+  `members` entry plus the wrong-path `[workspace.dependencies.vectorizer]` block from root `Cargo.toml`
+- Clean up the two stale references the adversarial pass found: `script/test_workspace.sh`'s broken
+  `-p vectorizer` check block, and `action/run`'s stale illustrative comment (replaced with `embroidery_tools`)
+
+## Out of Scope
+
+- Fix-in-place path (relocating config types out of the CLI-only `commands` layer into `actions`, writing
+  a test suite from scratch) — investigated and rejected in favor of deletion
+- `locales.md`'s stale `vectorizer` row — left untouched as generator-maintained, expected to self-correct
+  on next regeneration
+- Reopening or reverting the deletion — a later revival interest was captured as a separate task (056)
+  without changing this task's own terminal state
+
 ## Verification
 
 **Special case:** this is a deletion task — `module/helper/vectorizer` no longer exists on disk, so the

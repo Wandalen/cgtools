@@ -12,13 +12,19 @@ here.
 | Command | `cli_doc_des.rulebook.md § Entity Operations : Add Command · OC055` | `§ Entity Operations : Remove Command · OC060` |
 | Parameter | `§ Entity Operations : Add Parameter · OC056` | `§ Entity Operations : Remove Parameter · OC061` |
 | Type | `§ Entity Operations : Add Type · OC057` | `§ Entity Operations : Remove Type · OC062` |
+| Parameter Group | `§ Entity Operations : Add Parameter Group · OC058` | `§ Entity Operations : Remove Parameter Group · OC063` |
 | Format | `§ Entity Operations : Add Format · OC059` | `§ Entity Operations : Remove Format · OC064` |
 | Command Group | `§ Entity Operations : Add Command Group · OC163` | `§ Entity Operations : Remove Command Group · OC164` |
 
 When adding a command, parameter, type, or format, follow the target
 operation's own step list in full — it already cross-references the other
 entity types (e.g. Add Command's own steps 2-3 cover registering new
-parameters/types it introduces).
+parameters/types it introduces). A new command additionally registers in
+exactly one `command_group/` instance (the partition is complete and
+non-overlapping); a new named query parameter registers in exactly one
+`param_group/` instance and in *both* query commands' Parameters tables —
+`list` and `get` share one `query_arguments` declaration in
+`src/cli.rs`, so a parameter cannot exist on only one of them.
 
 ### Inapplicable Operations
 
@@ -26,9 +32,7 @@ These entity types are deliberately absent from this CLI (see
 [`readme.md` § Scope Decisions](readme.md#scope-decisions)) — their
 Add/Remove operations do not apply until the underlying condition changes:
 
-- **Parameter Group** (`OC058`/`OC063`) — no two commands share a *set* of
-  ≥2 co-occurring parameters.
-- **User Story** (`OC065`/`OC066`) — this CLI has only 5 commands total,
+- **User Story** (`OC065`/`OC066`) — this CLI has only 6 commands total,
   not enough distinct user stories to warrant the collection.
 - **Command Noun** (`OC069`/`OC070`) — only one domain noun (`chunk`)
   exists; the collection requires ≥3.
@@ -36,6 +40,10 @@ Add/Remove operations do not apply until the underlying condition changes:
 - **Environment Parameter / Config Parameter** — this CLI reads zero
   environment variables and zero config file parameters (pure argv); both
   are conditional L3 blockers that do not apply here.
+
+*(Parameter Group moved from this list to Applicable Operations when
+`list`/`get` unified behind the shared query engine — they now co-occur
+on 19 named parameters.)*
 
 If any of these conditions changes (e.g. a second domain noun is
 introduced), re-evaluate the corresponding Scope Decision before applying

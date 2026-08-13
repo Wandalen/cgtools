@@ -49,28 +49,68 @@ mod private
     }
   }
 
-  /// Resolves `file_name` against `origin` according to `load`'s contract.
+  /// Splits an absolute `href` ( e.g. `window.location().href()` ) into its
+  /// origin ( `scheme://host[:port]` ) and the directory portion of its path —
+  /// the path truncated after its final `/`. `https://host/a/b/c.html` splits
+  /// into `https://host` and `/a/b/`; `https://host/a/b/` splits into the same
+  /// pair unchanged; `https://host` ( no path at all ) yields directory `/`.
+  fn split_origin_and_dir( href : &str ) -> ( &str, &str )
+  {
+    let path_start = href.find( "://" )
+    .and_then( | scheme_end | href[ scheme_end + 3.. ].find( '/' ).map( | i | scheme_end + 3 + i ) )
+    .unwrap_or( href.len() );
+    let ( origin, path ) = href.split_at( path_start );
+    if path.is_empty()
+    {
+      return ( origin, "/" );
+    }
+    let dir_end = path.rfind( '/' ).map_or( 0, | i | i + 1 );
+    ( origin, &path[ ..dir_end ] )
+  }
+
+  /// Resolves `file_name` against `base_href` — the current document's full
+  /// URL — according to `load`'s contract.
   ///
   /// * Absolute URLs (`http://`, `https://`, `//`) pass through unchanged.
   /// * Self-contained URLs (`blob:`, `data:`) pass through unchanged — these carry
-  ///   their own payload and must reach `fetch` verbatim; prefixing the origin
-  ///   mangles them into an unresolvable same-origin path.
-  /// * Origin-absolute paths (leading `/`) are appended to the origin as-is.
-  /// * Anything else is treated as origin-relative and joined with a single `/`.
+  ///   their own payload and must reach `fetch` verbatim; prefixing anything onto
+  ///   them mangles them into an unresolvable path.
+  /// * Origin-absolute paths (leading `/`) are appended to `base_href`'s origin,
+  ///   discarding its path — matching how a browser resolves an absolute-path
+  ///   URL reference.
+  /// * Anything else is document-relative: joined to `base_href`'s own directory
+  ///   ( its path truncated after the final `/` ), NOT to the origin root. A page
+  ///   served at `/minwebgl/text_msdf/` resolves `"static/foo.json"` to
+  ///   `/minwebgl/text_msdf/static/foo.json` — matching how a plain `<img src>`
+  ///   or `fetch()` call on that page would resolve the same relative path.
+  //
+  // Fix(BUG-109): resolving document-relative paths against `origin` alone
+  // (dropping the current page's own path) sent every subpath-deployed
+  // example's asset fetches to the site root instead of its own directory.
+  // Root cause: `window.location().origin()` never includes a path component
+  // by definition — using it as the sole join target only works for pages
+  // served at the domain root.
+  // Pitfall: don't reach for `origin` when resolving a *relative* reference —
+  // relative references resolve against the current document's directory, not
+  // its origin; only an absolute-path reference (leading `/`) targets the origin.
   #[ must_use ]
-  pub fn url_resolve( origin : &str, file_name : &str ) -> String
+  pub fn url_resolve( base_href : &str, file_name : &str ) -> String
   {
     if is_self_contained_url( file_name )
     {
       file_name.to_string()
     }
-    else if file_name.starts_with( '/' )
-    {
-      format!( "{origin}{file_name}" )
-    }
     else
     {
-      format!( "{origin}/{file_name}" )
+      let ( origin, dir ) = split_origin_and_dir( base_href );
+      if file_name.starts_with( '/' )
+      {
+        format!( "{origin}{file_name}" )
+      }
+      else
+      {
+        format!( "{origin}{dir}{file_name}" )
+      }
     }
   }
 
@@ -130,17 +170,21 @@ mod private
   /// * `data:` URL (e.g. `data:application/octet-stream;base64,...`) — decoded directly
   ///   without a network request. Only base64-encoded payloads are supported; non-base64
   ///   data URLs return `Err`.
-  /// * Origin-absolute path (`/assets/foo.png`) — joined to the window origin.
-  /// * Origin-relative path (`static/foo.png`, `foo.png`) — joined to the window origin with `/`.
+  /// * Origin-absolute path (`/assets/foo.png`) — joined to the current page's origin,
+  ///   discarding its path.
+  /// * Document-relative path (`static/foo.png`, `foo.png`) — joined to the current
+  ///   page's own directory (its path truncated after the final `/`), NOT the origin
+  ///   root — see [`url_resolve`] for the exact rule.
   ///
   /// Trunk-built examples in this repo expose assets under `static/` by default,
   /// so they pass arguments like `"static/foo.obj"`. Other deployments are free to
   /// pass full URLs or different folder prefixes.
   ///
-  /// An empty `file_name` resolves to `{origin}/` and is almost certainly a caller bug.
+  /// An empty `file_name` resolves to the current page's own directory and is
+  /// almost certainly a caller bug.
   ///
   /// # Arguments
-  /// * `file_name` - URL, data URI, or origin-relative path of the file to load.
+  /// * `file_name` - URL, data URI, or document-relative path of the file to load.
   ///
   /// # Returns
   /// A `Result` which is either a `Vec<u8>` containing the file's byte data on success,
@@ -163,8 +207,8 @@ mod private
   pub async fn load( file_name : &str ) -> Result< Vec< u8 >, Error >
   {
     let window = web_sys::window().unwrap();
-    let origin = window.location().origin()?;
-    let url = url_resolve( &origin, file_name );
+    let href = window.location().href()?;
+    let url = url_resolve( &href, file_name );
 
     // `fetch()` rejects `cors` mode for `data:` URLs — decode them directly instead.
     if url.starts_with( "data:" )

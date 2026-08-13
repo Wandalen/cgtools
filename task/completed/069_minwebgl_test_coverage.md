@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/min/minwebgl
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -34,6 +34,23 @@ Never set bare `RUSTFLAGS` on wasm32 builds (clobbers `.cargo/config.toml`'s
 Verify with the invocation the runnability story establishes (native subset via
 `longrun .launch dir::<workspace root> -- cargo test -p minwebgl` at minimum — confirm it compiles
 and runs the native-safe subset, exit 0).
+
+## In Scope
+
+- `module/min/minwebgl`: establish the runnability story (readme.md § Testing) documenting which
+  layers run natively (`cargo test -p minwebgl --all-features`) versus require a browser
+- `tests/data_type_test.rs` (+ `tests/readme.md` Responsibility Table) — new coverage pinning the
+  `DataType`↔`Const<DataType>` mapping for all 7 WebGL2 scalar constants and the roundtrip
+- The 4 pre-existing inline tests (`geometry.rs` BUG-052 `validate_natoms` pair; `clean.rs`
+  TASK-011 `convert_attachment_id` pair) kept inline as documented exceptions, not relocated
+
+## Out of Scope
+
+- GL-context/DOM layer (context, shaders, VAOs, textures, uniforms, file/fetch) — not natively
+  testable, no browser/`wasm-bindgen-test` runner yet (workspace-level gap)
+- `Err` arm of the `DataType`→`Const` conversion — untestable externally; no non-convertible
+  variant exists today
+- `error.rs`, `math.rs`, `mem.rs` — re-export shims with no logic; no tests invented (YAGNI)
 
 ## Verification
 

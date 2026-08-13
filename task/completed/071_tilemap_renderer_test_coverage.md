@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/helper/tilemap_renderer
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -29,6 +29,23 @@ Per-test procedure (uniform across the 035 decomposition):
    second copy.
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p tilemap_renderer --all-features` —
    all green before and after each relocation batch.
+
+## In Scope
+
+- `module/helper/tilemap_renderer`, `src/adapters/svg.rs` (SvgBackend adapter): triage of all 83
+  inline `#[test]` functions found at pickup
+- 54 tests exercising only public API relocated to new `tests/svg_backend_test.rs`
+  (feature-gated `adapter-svg`)
+- 29 tests pinning private helpers (`transform_to_svg_static`/`_local`, `anchor_to_svg`,
+  `path_to_href`, `png_dimensions`, `detect_image_mime`, `bitmap_to_png`, `SvgContentManager`)
+  kept inline as a documented exception
+
+## Out of Scope
+
+- Exposing any of the 8 pinned private helpers to the public API solely to enable relocation —
+  rejected as unwarranted API widening for zero non-test callers
+- The 4 pre-existing `tests/*.rs` files (`assets_test.rs`, `backend_test.rs`,
+  `commands_test.rs`, `types_test.rs`) — left untouched, disjoint coverage
 
 ## Verification
 

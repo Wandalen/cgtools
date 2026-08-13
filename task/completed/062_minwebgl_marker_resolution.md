@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/min/minwebgl
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -37,6 +37,24 @@ Per-marker outcomes follow task 038's triage contract: fix in code, or file evid
 stays, or delete if stale/unactionable. Verify with `cargo check -p minwebgl --all-features` plus
 the crate's test suite via `longrun .launch` (never set bare `RUSTFLAGS` on wasm32 builds — it
 clobbers `.cargo/config.toml`'s `--cfg web_sys_unstable_apis`).
+
+## In Scope
+
+- `module/min/minwebgl/Cargo.toml`: resolved the bytemuck-replace marker (satisfied by existing
+  `asbytes` adoption; removed dead commented-out dep lines)
+- `module/min/minwebgl/src/geometry.rs`: resolved the "move out switch" marker by deleting the
+  natoms-to-type dispatch entirely (not extracting it) and widening `validate_natoms` from
+  `2`-only to `1..=4`
+- `module/min/minwebgl/src/browser.rs`: resolved the bare `xxx : investigate` marker —
+  investigated via git history, found unreconstructable, deleted as unactionable noise
+
+## Out of Scope
+
+- `src/context.rs`'s 3 `aaa:` markers — already resolved by task 038 before this task started
+- The paired bytemuck decision's mingl-side implementation — coordinated with, but implemented
+  separately by, task 061
+- `geometry.rs`'s now-unused `AsBytes` import (dead-import drift left by the switch deletion) —
+  identified but explicitly left unfixed, outside this verification pass's edit scope
 
 ## Verification
 

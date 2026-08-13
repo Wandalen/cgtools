@@ -28,6 +28,25 @@ session — delete after confirming no `mod raw;` declaration still references i
 Quick Start example doesn't compile against the current API — carried forward from the audit triage plan,
 re-confirm the exact mismatch against current `module/helper/renderer/src/` before rewriting.
 
+## In Scope
+
+- `module/helper/renderer/src/webgl/post_processing/composer.rs`: dead `Composer` struct/impl
+  (including its commented-out `render` method) deleted; file renamed to `pass.rs` since `Pass`/
+  `SwapFramebuffer` remain live there; `post_processing/mod.rs` updated accordingly; `SwapFramebuffer`'s
+  broken `//`→`///` doc comment fixed in passing
+- `module/helper/renderer/src/webgl/material/raw.rs`: deleted (confirmed 0-byte orphan, no
+  `mod raw`/`layer raw` reference anywhere)
+- `readme.md` Quick Start — all three code blocks rewritten to compile against the current API and
+  wired into `cargo test --doc` via `#![cfg_attr(doc, doc = include_str!(...))]` in `lib.rs`
+
+## Out of Scope
+
+- Wiring `Composer` into the actual render pipeline — rejected: its core `render` method was a
+  commented-out, never-working stub, and all 14 real consumers already chain passes manually via
+  `SwapFramebuffer`
+- `Pass` and `SwapFramebuffer` themselves — confirmed live (8 in-crate implementors / `renderer.rs`
+  plus 14 examples, respectively), left unchanged
+
 ## Verification
 
 ### Checklist

@@ -28,6 +28,22 @@ unverified GLTF-loader bounding-box TODO — relocate that into the task system 
 task (re-derive its exact content and target crate at pickup) rather than leaving it in a root todo.md
 that this same triage plan is retiring as a knowledge site.
 
+## In Scope
+
+- Root `todo.md`: investigate the i32/u32-only math claim and the GLTF-loader bounding-box TODO, then
+  delete the file once both are fully accounted for
+- Relocating both findings into the task system: filed as
+  [044](../completed/044_mdmath_core_min_max_integer_bound.md),
+  [048](../completed/048_ndarray_cg_integer_min_max_and_scalar_mul.md), and
+  [047](../completed/047_renderer_scene_bounding_box_cache_and_tests.md), plus byproduct bugs
+  [BUG-043](../bug/completed/043_vector_w_wrong_index.md) and
+  [BUG-046](../bug/completed/046_skeleton_test_compile_errors.md) surfaced during the same investigation
+
+## Out of Scope
+
+- Actually implementing the fixes tracked by 044/047/048/BUG-043/BUG-046 — those are separate,
+  independently-verified task/bug files; this task's job ends at filing and relocating them
+
 ## Outcome
 
 A follow-up rigorous investigation (2026-08-09, prompted by the user re-pasting both `todo.md` claims

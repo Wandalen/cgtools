@@ -27,6 +27,23 @@ crate, before deleting anything. Cross-check against task 031 (broken example "H
 non-functional example is a stronger candidate for deletion than merely having a broken doc link, so
 resolve which examples are being deleted before that task rewrites their links.
 
+## In Scope
+
+- Workspace-wide standalone-build sweep of every example crate under
+  `examples/{math,minwebgl,minwebgpu,minwgpu}/*` to re-derive the actual delete candidates
+- Delete `examples/minwebgl/derive_tools_issue/` entirely (non-functional: empty `main()`, the real
+  `derive_tools` reproducer commented out, tagged not-completed) and clean its references from
+  `examples/index.md` and `examples/demo_completeness.md`
+
+## Out of Scope
+
+- Examples considered for "duplicated shared-crate logic" and confirmed NOT delete candidates (hex/tile
+  examples, `mapgen_tiles_rendering`, `filter` vs `filters`, `text_rendering`), plus the
+  `outline`/`narrow_outline`/`renderer_with_outlines` near-duplication deferred to task 022
+- Removing the `derive_tools`/`strum` workspace dependencies — kept, since other crates still consume
+  them (`ndarray_cg`, `mingl`, `minwebgpu`, `hexagonal_map`, `browser_input`)
+- `locales.md`'s stale row for the deleted crate — left untouched (generated file)
+
 ## Verification
 
 ### Checklist

@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/helper/embroidery_tools
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -30,6 +30,22 @@ Per-test procedure (uniform across the 035 decomposition):
    surface — no mocks, loud failures.
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p embroidery_tools --all-features` —
    all green before and after each relocation batch.
+
+## In Scope
+
+- `module/helper/embroidery_tools`: relocate all 8 inline `#[test]`s from `src/` (format
+  readers/writers) into `tests/`, plus 2 new tests pinning previously-untested public methods
+- `tests/embroidery_file_test.rs`, `tests/pes_test.rs`, `tests/pec_test.rs` — stitch accumulation,
+  `bounds()`, `as_command_blocks()`, PES V1/V6 writer-vs-fixture + roundtrip, PEC fixture-decode +
+  encoding roundtrip
+- `tests/readme.md` — Responsibility Table for the 3 new test files
+
+## Out of Scope
+
+- The dead commented-out assert (`threads()[1]`) from the original PEC test — not relocated;
+  commented-out code stays banned
+- No expose-or-exception decisions needed — all 8 original tests were public-API-only, so nothing
+  was kept inline
 
 ## Verification
 

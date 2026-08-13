@@ -24,6 +24,7 @@ members = [
 
   # Shader modules
   "module/shader/shader_chunks_core",
+  "module/shader/shader_chunks_params",
   "module/shader/shader_chunks",
 
   # Helper modules
@@ -219,6 +220,10 @@ path = "module/min/minwgpu"
 [workspace.dependencies.shader_chunks_core]
 version = "0.1.0"
 path = "module/shader/shader_chunks_core"
+
+[workspace.dependencies.shader_chunks_params]
+version = "0.1.0"
+path = "module/shader/shader_chunks_params"
 
 [workspace.dependencies.shader_chunks]
 version = "0.1.0"

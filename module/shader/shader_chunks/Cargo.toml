@@ -6,6 +6,7 @@ description = "Terminal CLI for listing, inspecting, and composing shader_chunks
 
 [dependencies]
 shader_chunks_core.workspace = true
+shader_chunks_params.workspace = true
 unilang.workspace = true
 cli_fmt.workspace = true
 data_fmt.workspace = true
@@ -14,14 +15,6 @@ mod_interface.workspace = true
 
 [dev-dependencies]
 assert_cmd = "2.2"
-
-[[bin]]
-name = "shader_chunks"
-path = "src/main.rs"
-
-[[bin]]
-name = "sch"
-path = "src/main.rs"
 
 [lints]
 workspace = true

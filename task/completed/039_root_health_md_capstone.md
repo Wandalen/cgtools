@@ -27,6 +27,17 @@ known-broken state and need immediate revision; **do not start this until at lea
 P1 (soundness bug) tier tasks have landed**, so the dashboard reflects real post-fix state rather than
 being stale on arrival.
 
+## In Scope
+
+- `health.md` (workspace root): populated from an empty stub into a living dashboard — dated build-status snapshot header, regeneration-commands table, a 30-row per-`module/`-crate table (tests, docs/ adoption, marker count, allow count, notes), a known-issues section, and an open-streams section
+- This task file's own Verification Record and the task index entry
+
+## Out of Scope
+
+- The `examples/` tree — deliberately summarized rather than tabulated per-crate (~50 demo crates, no `tests/` requirement)
+- Fixing the underlying issues `health.md` reports (e.g. the `primitive_generation`/`text_rendering`/`morph_targets` build failures found while verifying) — this task only reports state
+- Duplicating the task backlog inside `health.md` — the open-streams section links to draft ranges instead of copying content; `task/readme.md` remains the single live tracker
+
 ## Verification
 
 ### Checklist

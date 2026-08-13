@@ -2,7 +2,9 @@
 
 **Purpose:** Identifies one shader chunk in `shader_chunks_core::CHUNKS` by
 the value of its `//@ name: <value>` metadata comment — the identifier every
-command that targets a specific chunk (`get`, `tree`, `compose`) accepts.
+command that targets specific chunks (`list`, `get`, `tree`, `compose`,
+`tunables`) accepts, whether as a positional selector (`names`/`name`) or
+as the `depends_on::` filter value.
 
 **Fundamental Type:** `String` (unilang `Kind::String`). No dedicated Rust
 wrapper struct exists — `shader_chunks` is one small, read-only
@@ -33,8 +35,8 @@ never a panic.
   accessor exists, matching there being no wrapper struct (see Fundamental
   Type above)
 - `is_known(name) -> bool` — conceptually, `find_chunk(name).is_ok()`;
-  realized as the `Result` returned by every command function that
-  resolves a name (`get_chunk`, `tree_chunk`, `compose_chunks`), not as a
+  realized as the `Result` returned by every routine that resolves a name
+  (`query_chunks`, `tree_chunk`, `compose_chunks`, `tunables`), not as a
   standalone boolean-returning method
 
 ---
@@ -43,9 +45,11 @@ never a panic.
 
 | # | Command | Via Parameter |
 |---|---------|----------------|
-| 1 | [`.get`](../command/02_get.md) | `name` |
-| 2 | [`.tree`](../command/04_tree.md) | `name` |
-| 3 | [`.compose`](../command/05_compose.md) | `names` |
+| 1 | [`.list`](../command/01_list.md) | `names` (optional), `depends_on::` |
+| 2 | [`.get`](../command/02_get.md) | `names`, `depends_on::` |
+| 3 | [`.tree`](../command/04_tree.md) | `name` |
+| 4 | [`.compose`](../command/05_compose.md) | `names` |
+| 5 | [`.tunables`](../command/06_tunables.md) | `name` |
 
 ---
 
@@ -54,4 +58,5 @@ never a panic.
 | # | Parameter | Commands |
 |---|-----------|----------|
 | 1 | [`name`](../param/01_name.md) | 2 |
-| 2 | [`names`](../param/02_names.md) | 1 |
+| 2 | [`names`](../param/02_names.md) | 3 |
+| 3 | [`depends_on`](../param/08_depends_on.md) | 2 |

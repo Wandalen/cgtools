@@ -29,6 +29,22 @@ the real source. The actual API (confirmed by grepping `src/embroidery_file.rs`,
 sections entirely from the real API surface; the "Current Status & Roadmap" / "Use Cases" prose sections
 may be salvageable if reworded to stop implying the fictional API works.
 
+## In Scope
+
+- Rewrite `module/helper/embroidery_tools/readme.md`'s Quick Start, API Reference, Core Types table,
+  Pattern Operations, and Thread Color Handling sections to use only the real, verified `EmbroideryFile` API
+- Add a note documenting the crate-root re-export gap (`use embroidery_tools::*;` resolves nothing)
+- Update Current Status & Roadmap: promote stitch-encoding normalization methods to Implemented, demote
+  geometric transforms (scale/translate/rotate) to Planned
+
+## Out of Scope
+
+- Header, Features bullets, Installation, Supported Formats table, Use Cases section, and File Format
+  Specifications/Coordinate Systems prose — left untouched (no fictional API references)
+- The pre-existing "Coordinate Systems" mm-unit conversion claim — flagged as unverified but deliberately
+  left unedited, outside mandatory scope
+- Any change to the crate's actual source code — documentation-only rewrite
+
 ## Verification
 
 ### Checklist

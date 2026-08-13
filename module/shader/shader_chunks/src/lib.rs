@@ -1,9 +1,10 @@
 //! Testable command logic for the `shader_chunks` binary. Each public
 //! function here takes already-parsed arguments and returns the exact string
-//! `main.rs` prints — keeping rendering inside these functions, rather than
-//! in `main.rs` itself, is what makes the direct-call test tier possible
-//! (see `tests/shader_chunks_test.rs`): no subprocess is needed to
-//! assert on output content.
+//! the CLI prints — keeping rendering inside these functions, rather than in
+//! the [`cli`] wiring layer, is what makes the direct-call test tier
+//! possible (see `tests/shader_chunks_test.rs`): no subprocess is needed to
+//! assert on output content. The `src/bin/` entry points (`shader_chunks`
+//! and its `sch` alias) are one-line delegates to [`cli::run`].
 
 mod private
 {
@@ -723,23 +724,103 @@ mod private
     shader_chunks_core::try_compose( chunks ).map_err( CliError::Compose )
   }
 
-  /// Resolves `names` via [`shader_chunks_core::chunk_get`] and composes them.
+  /// Resolves `names` via [`shader_chunks_core::chunk_get`] and composes
+  /// them. With `transitive` set, the named set is first widened to its full
+  /// dependency closure — `compose_chunks( &[ "fbm3" ], true )` pulls in
+  /// `value_noise` and `hash21` unasked — so one root name suffices instead
+  /// of spelling out its whole chain; with it unset the named set must
+  /// already be dependency-complete or [`try_compose_wgsl`] fails loudly.
+  /// Either way [`shader_chunks_core::try_compose`]'s topological sort
+  /// orders the output, so the closure of a set and the same set written out
+  /// explicitly compose to identical text.
   ///
   /// # Errors
   ///
-  /// Returns [`CliError::UnknownChunk`] if any name is not bundled, or
+  /// Returns [`CliError::UnknownChunk`] if any name (or, under
+  /// `transitive`, any reachable dependency name) is not bundled, or
   /// [`CliError::Compose`] on a missing dependency.
-  pub fn compose_chunks( names : &[ String ] ) -> Result< String, CliError >
+  pub fn compose_chunks( names : &[ String ], transitive : bool ) -> Result< String, CliError >
   {
-    let chunks : Vec< &str > = names.iter()
-    .map( | name | find_chunk( name ).map( | chunk | chunk.wgsl ) )
+    let mut selected : Vec< &shader_chunks_core::ChunkDescriptor > = names.iter()
+    .map( | name | find_chunk( name ) )
     .collect::< Result< _, _ > >()?;
+    if transitive
+    {
+      let mut seen : std::collections::HashSet< &str > = selected.iter().map( | chunk | chunk.name ).collect();
+      let mut queue : Vec< &str > = selected.iter().flat_map( | chunk | chunk.depends_on.iter().copied() ).collect();
+      while let Some( name ) = queue.pop()
+      {
+        if seen.insert( name )
+        {
+          let chunk = find_chunk( name )?;
+          queue.extend( chunk.depends_on.iter().copied() );
+          selected.push( chunk );
+        }
+      }
+    }
+    let chunks : Vec< &str > = selected.iter().map( | chunk | chunk.wgsl ).collect();
     try_compose_wgsl( &chunks )
+  }
+
+  /// Table of every tunable parameter [`shader_chunks_params::discover_chunk`]
+  /// finds in `chunk`'s WGSL — name, kind, type, range, and range source
+  /// ( declared vs. inferred ). Exposed separately from [`tunables`] so tests
+  /// can exercise a chunk descriptor carrying `//@ param:` lines without any
+  /// of the 4 bundled chunks needing to declare one. A chunk with none
+  /// renders an explicit message instead of a blank table or an error.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`CliError::Render`] if the `data_fmt` table formatter fails.
+  pub fn tunables_of_chunk( chunk : &shader_chunks_core::ChunkDescriptor ) -> Result< String, CliError >
+  {
+    let params = shader_chunks_params::discover_chunk( chunk );
+    if params.is_empty()
+    {
+      return Ok( format!( "chunk `{}` declares no tunable parameters", chunk.name ) );
+    }
+
+    let mut builder = RowBuilder::new( vec!
+    [
+      "name".to_string(), "kind".to_string(), "type".to_string(),
+      "range".to_string(), "source".to_string(),
+    ]);
+    for param in params
+    {
+      let ( range, source ) = match param.range
+      {
+        Some( ( range, source ) ) => ( format!( "{}..{}", range.min, range.max ), format!( "{source:?}" ) ),
+        None => ( "-".to_string(), "-".to_string() ),
+      };
+      builder.add_row_mut( vec!
+      [
+        param.name.into(), format!( "{:?}", param.kind ).into(), format!( "{:?}", param.value_type ).into(),
+        range.into(), source.into(),
+      ]);
+    }
+    let view = builder.build_view();
+    Format::format( &TableFormatter::with_config( TableConfig::plain() ), &view )
+    .map_err( | e | CliError::Render( e.to_string() ) )
+  }
+
+  /// Table of every tunable parameter [`shader_chunks_params::discover_chunk`]
+  /// finds declared on bundled chunk `name`. See [`tunables_of_chunk`] for
+  /// the rendering itself.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`CliError::UnknownChunk`] if `name` is not bundled, or
+  /// [`CliError::Render`] if the `data_fmt` table formatter fails.
+  pub fn tunables( name : &str ) -> Result< String, CliError >
+  {
+    tunables_of_chunk( find_chunk( name )? )
   }
 }
 
 ::mod_interface::mod_interface!
 {
+  own use ::mod_interface::mod_interface;
+  layer cli;
   own use CliError;
   own use QUERY_FIELDS;
   own use TagsMode;
@@ -752,4 +833,6 @@ mod private
   own use tree_chunk;
   own use try_compose_wgsl;
   own use compose_chunks;
+  own use tunables_of_chunk;
+  own use tunables;
 }

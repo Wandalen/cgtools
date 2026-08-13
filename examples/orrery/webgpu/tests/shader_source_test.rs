@@ -6,7 +6,7 @@
 //! them.
 
 use orrery_webgpu::scene;
-use orrery_webgpu::shader_source::{ assemble, FRAGMENT_WGSL };
+use orrery_webgpu::shader_source::{ assemble, SCENE_FRAGMENT };
 
 /// Returns `source` with every whole-line `//` comment dropped, so chunk
 /// manifest headers ( `//@ export: fn hash21(...)` ) and prose comments
@@ -51,7 +51,7 @@ fn assembled_shader_declares_every_symbol_exactly_once()
 #[ test ]
 fn fragment_body_redeclares_no_chunk_symbol_and_consumes_them()
 {
-  let fragment_wgsl = FRAGMENT_WGSL;
+  let fragment_wgsl = SCENE_FRAGMENT.wgsl;
   for chunk_declaration in [ "fn hash21(", "fn value_noise(", "fn fbm3(", "fn vs_main(", "struct VertexOutput" ]
   {
     assert_eq!
@@ -90,6 +90,16 @@ fn assembled_wgsl_parses_and_validates()
   .unwrap_or_else( | error | panic!( "assembled WGSL does not validate : {error:?}" ) );
 }
 
+// The local chunk's descriptor restates its `//@` manifest as Rust data;
+// this is the same no-silent-drift guarantee shader_chunks_core's own
+// tests give the bundled table, applied to this crate's one local chunk.
+#[ test ]
+fn scene_fragment_descriptor_matches_its_manifest()
+{
+  let mismatches = shader_chunks_core::manifest_mismatches( &SCENE_FRAGMENT );
+  assert!( mismatches.is_empty(), "{mismatches:#?}" );
+}
+
 #[ test ]
 fn assembled_shader_orders_dependencies_before_dependents()
 {
@@ -111,7 +121,7 @@ fn assembled_shader_orders_dependencies_before_dependents()
 #[ test ]
 fn wgsl_scene_constants_match_scene_rs()
 {
-  let fragment_wgsl = FRAGMENT_WGSL;
+  let fragment_wgsl = SCENE_FRAGMENT.wgsl;
   let counts =
   [
     ( "NEBULA_BAND_COUNT", scene::NEBULA_BAND_COUNT ),

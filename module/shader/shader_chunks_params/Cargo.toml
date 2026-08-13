@@ -1,0 +1,12 @@
+[package]
+name = "shader_chunks_params"
+version = "0.1.0"
+edition = "2024"
+description = "Discovers tunable parameters (argument/define/uniform/attribute/texture) declared in shader-chunk manifest headers, resolving declared or inferred value ranges"
+
+[dependencies]
+mod_interface.workspace = true
+shader_chunks_core.workspace = true
+
+[lints]
+workspace = true

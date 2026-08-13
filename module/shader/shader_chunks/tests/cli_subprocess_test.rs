@@ -1,6 +1,6 @@
 //! Subprocess tests for the `shader_chunks` binary — real process
 //! spawns via `assert_cmd`, exercising the actual argv/exit-code path
-//! `main.rs` implements (`tests/shader_chunks_test.rs` covers the
+//! `src/cli.rs` implements (`tests/shader_chunks_test.rs` covers the
 //! underlying `src/lib.rs` functions directly, without a subprocess).
 
 use assert_cmd::Command;
@@ -175,9 +175,38 @@ fn no_arguments_prints_help_and_exits_zero()
 }
 
 #[ test ]
+fn tunables_unannotated_real_chunk_prints_explicit_empty_message()
+{
+  // Task 106's Test Matrix row "`sch tunables <annotated-name>` → expected
+  // parameter rows" is not achievable via subprocess without annotating a
+  // real bundled chunk with `//@ param:` lines — explicitly out of scope
+  // (same Q-03 boundary as task 105). `src/cli.rs`'s `tunables` routine has no
+  // branch between the declared-params and zero-params outcomes for a
+  // subprocess test to exercise beyond argv wiring, already covered here;
+  // `tunables_of_chunk_lists_declared_and_inferred_parameters` in
+  // `shader_chunks_test.rs` covers declared-parameter rendering directly
+  // against a `LOCAL_GLOW`-style fixture instead.
+  let output = run( &[ "tunables", "hash21" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  let stdout = stdout_of( &output );
+  assert!( stdout.contains( "hash21" ), "{stdout}" );
+  assert!( stdout.contains( "no tunable parameters" ), "empty case must be an explicit message, not blank:\n{stdout}" );
+}
+
+#[ test ]
+fn tunables_bogus_chunk_exits_non_zero_without_a_panic_backtrace()
+{
+  let output = run( &[ "tunables", "bogus_chunk" ] );
+  assert!( !output.status.success(), "expected non-zero exit for an unknown chunk" );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( !stderr.contains( "panicked at" ), "unexpected panic backtrace:\n{stderr}" );
+  assert!( stderr.contains( "unknown chunk" ), "{stderr}" );
+}
+
+#[ test ]
 fn sch_alias_binary_produces_identical_output_to_shader_chunks()
 {
-  for args in [ &[ "list" ][ .. ], &[ "get", "hash21" ][ .. ], &[][ .. ] ]
+  for args in [ &[ "list" ][ .. ], &[ "get", "hash21" ][ .. ], &[ "tunables", "hash21" ][ .. ], &[][ .. ] ]
   {
     let primary = run_bin( "shader_chunks", args );
     let alias = run_bin( "sch", args );
@@ -193,7 +222,8 @@ fn sch_alias_binary_produces_identical_output_to_shader_chunks()
 
 // test_kind: bug_reproducer(BUG-103)
 /// ## Root Cause
-/// `main.rs` printed nothing itself — each command routine `println!`ed its
+/// The entry point (then `main.rs`, since dissolved into `src/cli.rs`)
+/// printed nothing itself — each command routine `println!`ed its
 /// own success content — so every framework-generated help output returned
 /// through `result.outputs` (the `.` listing, `.help`, `?`/`??`,
 /// `.{command}.help`) was computed and silently dropped, and the
@@ -296,7 +326,7 @@ fn per_command_help_spells_argument_shapes()
     ( &[ "get", "help" ][ .. ], "Usage: shader_chunks get <names...> [param::value ...]" ),
     ( &[ "list", "help" ][ .. ], "Usage: shader_chunks list [names...] [param::value ...]" ),
     ( &[ "tree", "help" ][ .. ], "Usage: shader_chunks tree [name]" ),
-    ( &[ "compose", "help" ][ .. ], "Usage: shader_chunks compose <names...>" ),
+    ( &[ "compose", "help" ][ .. ], "Usage: shader_chunks compose <names...> [param::value ...]" ),
   ]
   {
     let output = run( args );
@@ -332,17 +362,24 @@ fn per_command_help_lists_named_params_with_per_command_defaults()
 #[ test ]
 fn top_level_help_groups_commands_by_responsibility()
 {
-  // Groups mirror docs/cli/command_group/ — Query, Graph, Compose, in that
-  // order, with each command under its own group.
+  // Groups mirror docs/cli/command_group/ — Query, Graph, Compose,
+  // Parameters, in that order, with each command under its own group.
   let stdout = stdout_of( &run( &[] ) );
   let query_pos = stdout.find( "Query" ).expect( "Query group present" );
   let graph_pos = stdout.find( "Graph" ).expect( "Graph group present" );
   let compose_pos = stdout.find( "Compose" ).expect( "Compose group present" );
-  assert!( query_pos < graph_pos && graph_pos < compose_pos, "group order wrong:\n{stdout}" );
+  let parameters_pos = stdout.find( "Parameters" ).expect( "Parameters group present" );
+  assert!
+  (
+    query_pos < graph_pos && graph_pos < compose_pos && compose_pos < parameters_pos,
+    "group order wrong:\n{stdout}"
+  );
   let list_pos = stdout.find( "list [names...]" ).expect( "list entry present" );
   let tree_pos = stdout.find( "tree [name]" ).expect( "tree entry present" );
+  let tunables_pos = stdout.find( "tunables <name>" ).expect( "tunables entry present" );
   assert!( query_pos < list_pos && list_pos < graph_pos, "`list` must sit in the Query group:\n{stdout}" );
   assert!( graph_pos < tree_pos && tree_pos < compose_pos, "`tree` must sit in the Graph group:\n{stdout}" );
+  assert!( compose_pos < tunables_pos, "`tunables` must sit in the Parameters group:\n{stdout}" );
 }
 
 #[ test ]
@@ -377,4 +414,102 @@ fn command_output_prints_exactly_once()
   let stdout = stdout_of( &output );
   assert_eq!( stdout.matches( "-[ RECORD 1 ]" ).count(), 1, "command output must print exactly once:\n{stdout}" );
   assert_eq!( stdout.matches( "| hash21" ).count(), 1, "command output must print exactly once:\n{stdout}" );
+}
+
+// test_kind: bug_reproducer(BUG-108)
+/// ## Root Cause
+/// Every user-facing write went through `println!`/`eprintln!`, which panic
+/// on any write error — including `EPIPE` once the pipe's reader has
+/// exited. Rust's `Stdout` is a `LineWriter`, so the first write after the
+/// reader closes surfaces the error deterministically: `sch list | true`
+/// panicked at "failed printing to stdout: Broken pipe" with exit 101,
+/// breaking the crate's documented "never a panic" contract.
+///
+/// ## Why Not Caught
+/// Every subprocess test reads the child's output to completion via
+/// `.output()`, so the pipe never closes early; in manual piping, small
+/// outputs fit the kernel pipe buffer even when a reader like `head -1`
+/// exits first, which made the panic look intermittent instead of certain.
+///
+/// ## Fix Applied
+/// `cli.rs` routes all stdout writes through `print_stdout` — `writeln!` to
+/// the locked handle, mapping `BrokenPipe` to a quiet `exit( 0 )` (the Unix
+/// convention for a reader that hung up) and any other write error to exit
+/// 2 — and all stderr writes through `print_stderr`, which discards write
+/// errors so error reporting can never itself become a second failure.
+///
+/// ## Prevention
+/// This test closes the read end of a real OS pipe (`std::io::pipe`)
+/// BEFORE spawning the binary, so the child's very first stdout write hits
+/// `EPIPE` — no race, no dependence on output size or buffer capacity; the
+/// sibling test does the same to stderr and pins the mapped exit code.
+///
+/// ## Pitfall
+/// `println!`/`eprintln!` panic on `EPIPE` by design — a CLI promising
+/// "never a panic" must not use them for user-facing output. And a casual
+/// `| head -1` smoke check proves nothing: it only breaks the pipe if the
+/// reader is already gone by the time the writer writes, so the panic
+/// hides until output is large or the scheduler is unlucky.
+#[ test ]
+fn closed_stdout_pipe_ends_quietly_without_a_panic()
+{
+  let ( reader, writer ) = std::io::pipe().expect( "OS pipe should be creatable" );
+  drop( reader );
+  let output = std::process::Command::new( env!( "CARGO_BIN_EXE_shader_chunks" ) )
+  .arg( "list" )
+  .stdout( writer )
+  .output()
+  .expect( "shader_chunks should spawn and run to completion" );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( !stderr.contains( "panicked at" ), "closed stdout must not panic:\n{stderr}" );
+  assert_eq!( output.status.code(), Some( 0 ), "closed stdout must end quietly with exit 0, got {:?}:\n{stderr}", output.status.code() );
+}
+
+// test_kind: bug_reproducer(BUG-108)
+/// Second symptom of BUG-108 — `eprintln!` panics the same way when stderr
+/// is the closed pipe, turning a mapped exit-1 error report into a 101
+/// abort; full Root Cause / Why Not Caught / Fix / Prevention / Pitfall
+/// sections are on [`closed_stdout_pipe_ends_quietly_without_a_panic`].
+#[ test ]
+fn closed_stderr_pipe_still_exits_with_the_mapped_code()
+{
+  let ( reader, writer ) = std::io::pipe().expect( "OS pipe should be creatable" );
+  drop( reader );
+  let output = std::process::Command::new( env!( "CARGO_BIN_EXE_shader_chunks" ) )
+  .args( [ "get", "bogus_chunk" ] )
+  .stderr( writer )
+  .output()
+  .expect( "shader_chunks should spawn and run to completion" );
+  assert_eq!
+  (
+    output.status.code(),
+    Some( 1 ),
+    "closed stderr must keep the mapped error exit code, not a panic's 101"
+  );
+}
+
+#[ test ]
+fn compose_single_name_with_transitive_pulls_the_full_dependency_chain()
+{
+  // Strict remains the default: a bare `compose fbm3` still fails loudly on
+  // the missing `value_noise` dependency.
+  let strict = run( &[ "compose", "fbm3" ] );
+  assert!( !strict.status.success(), "strict compose must still fail on a missing dependency" );
+
+  let output = run( &[ "compose", "fbm3", "transitive::1" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  let stdout = stdout_of( &output );
+  let hash21_pos = stdout.find( "fn hash21" ).expect( "hash21 pulled in transitively" );
+  let value_noise_pos = stdout.find( "fn value_noise" ).expect( "value_noise pulled in transitively" );
+  let fbm3_pos = stdout.find( "fn fbm3" ).expect( "fbm3 present" );
+  assert!
+  (
+    hash21_pos < value_noise_pos && value_noise_pos < fbm3_pos,
+    "composed closure must be in dependency order:\n{stdout}"
+  );
+
+  // The closure must be exactly what naming the full set explicitly yields.
+  let explicit = run( &[ "compose", "hash21", "value_noise", "fbm3" ] );
+  assert!( explicit.status.success(), "stderr: {}", String::from_utf8_lossy( &explicit.stderr ) );
+  assert_eq!( stdout, stdout_of( &explicit ), "closure must equal the explicit full set" );
 }

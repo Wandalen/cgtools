@@ -26,6 +26,19 @@ through this session's context compaction — re-derive by diffing the crate's r
 `src/` at pickup.** Kept as a separate task from task 030 (mingl's own false claims) per Crate Scope
 Unity even though both were found in the same audit pass.
 
+## In Scope
+
+- `readme.md` — reworded 4 false claims ("timestamps" in Formatted Output, "Performance Logging" feature,
+  "all WebAssembly runtimes" compatibility, redundant `console_error_panic_hook` recommendation) to match
+  actual source behavior
+- `readme.md`'s API Reference — added the previously-omitted `setup()` function and `DebugLog` trait
+
+## Out of Scope
+
+- `changelog.md`'s 0.3.0 entry — left as a historical record, not rewritten
+- Duplicate `licence`/`license` files — noted but not resolved, surfaced for user decision
+- `mingl`'s false claims — filed separately as task 030 per Crate Scope Unity
+
 ## Verification
 
 ### Checklist

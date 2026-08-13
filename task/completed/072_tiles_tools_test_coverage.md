@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/helper/tiles_tools
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -29,6 +29,24 @@ Per-test procedure (uniform across the 035 decomposition):
    second copy.
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p tiles_tools --all-features` —
    all green before and after each relocation batch.
+
+## In Scope
+
+- `module/helper/tiles_tools`: triage of 56 inline `#[test]` functions across 7 src modules
+  (`game_systems`, `spatial`, `debug`, `events`, `serialization`, `field_of_view`, `flowfield`)
+- 46 tests relocated into 7 new top-level `tests/*_test.rs` files, each feature-gated to match
+  its source module's own `lib.rs` gate
+- 5 `field_of_view` tests consolidated onto pre-existing near-verbatim integration-suite
+  duplicates; 5 tests (debug's `GridRenderer` builder-state, field_of_view's
+  calculator-defaults, flowfield's private dead-code fields) kept inline as documented
+  exceptions
+
+## Out of Scope
+
+- The disabled `tests/integration/flowfield_tests.rs` module — filed separately as follow-up
+  task 078 rather than fixed here
+- Exposing any pinned private field/behavior to enable relocation — rejected as unwarranted
+  API widening
 
 ## Verification
 

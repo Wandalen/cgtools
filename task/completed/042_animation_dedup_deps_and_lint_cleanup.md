@@ -53,6 +53,23 @@ full `cargo clean -p animation` (rules out stale incremental-compilation state h
 `cargo nextest run -p animation --all-features` confirms all tests pass (29/29) — no test depended on
 the deleted `Sequencer::value_get` or the removed `web-sys` dependency.
 
+## In Scope
+
+- `module/helper/animation/src/sequencer.rs` — delete the duplicate `Sequencer::value_get<T>` (exact
+  copy of `Tween::value_get<T>()`, zero external callers)
+- `module/helper/animation/Cargo.toml` — remove the dead, zero-reference `web-sys` optional dependency;
+  fill in the previously-empty `description` field
+- `module/helper/animation/src/lib.rs` — investigate all 8 `#![allow(clippy::...)]` attributes; remove
+  the 3 proven-vestigial ones, add a verified-hit-count justification comment to each of the 5 kept
+
+## Out of Scope
+
+- `TASK-015` (`Sequencer`/`Tween` logic bugs) and `TASK-041` (`easing`/`cubic` bugs) — this task bundles
+  only findings that don't fit either
+- `TASK-035` (workspace-wide test coverage) and `TASK-036` (workspace-wide `#[allow(...)]` justification
+  sweep) — this task closes only `animation`'s slice of both umbrella concerns, not the umbrella tasks
+  themselves
+
 ## Verification
 
 ### Checklist

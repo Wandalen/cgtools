@@ -28,6 +28,26 @@ before deleting outright); (2) separately, the crate's docs understate its actua
 what the code supports — carried forward from the audit triage plan, re-confirm the specific
 under-description against current docs before rewriting.
 
+## In Scope
+
+- `module/helper/primitive_generation/src/text/ufo.rs`: dead `contours_to_mesh` (167 unreachable
+  lines, never exported) deleted
+- `module/helper/primitive_generation/src/text/ufo.rs`: real module re-gated `text` → `font-processing`
+  (the feature its calls actually require); old silently-wrong-fallback stub replaced with a genuinely
+  empty, loudly-failing `mod private {}`
+- `Cargo.toml`: removed 3 dead features (`csg`, `gltf-import`, `random`) and their 6 dead optional
+  dependencies (`csgrs`, `parry3d`, `gltf`, `rand`, `getrandom`, `interpoli`)
+- `readme.md`: honest Features/Feature Flags sections; two placeholder blocks replaced with real,
+  compiling doc-tested snippets (Curve to Ribbon, Text to 3D)
+
+## Out of Scope
+
+- `csgrs` itself and its `core2` git patch (BUG-007/task 008) — removed only from
+  `primitive_generation`'s own manifest (unused there); left in place at the workspace level since
+  `narrow_outline`/`text_rendering` examples depend on it directly
+- `examples/minwebgl/text_rendering/src/text.rs`'s own local `contours_to_mesh` duplicate — left as
+  is, not this crate's dead code
+
 ## Verification
 
 ### Checklist

@@ -7,7 +7,7 @@
 use shader_chunks::
 {
   CliError, OutputFormat, QUERY_FIELDS, QueryParams, SortKey, SortOrder, TagsMode,
-  compose_chunks, list_tags, query_chunks, tree_chunk, try_compose_wgsl,
+  compose_chunks, list_tags, query_chunks, tree_chunk, try_compose_wgsl, tunables, tunables_of_chunk,
 };
 
 /// Runs `params` with `format::names` forced and returns the matched chunk
@@ -411,7 +411,7 @@ fn tree_chunk_reports_unknown_chunk_error_for_bogus_name()
 #[ test ]
 fn compose_chunks_orders_hash21_before_value_noise_regardless_of_input_order()
 {
-  let output = compose_chunks( &[ "value_noise".to_string(), "hash21".to_string() ] ).expect( "compose_chunks should succeed" );
+  let output = compose_chunks( &[ "value_noise".to_string(), "hash21".to_string() ], false ).expect( "compose_chunks should succeed" );
   let hash21_pos = output.find( "fn hash21" ).expect( "hash21 present" );
   let value_noise_pos = output.find( "fn value_noise" ).expect( "value_noise present" );
   assert!( hash21_pos < value_noise_pos, "hash21 must precede value_noise:\n{output}" );
@@ -420,7 +420,7 @@ fn compose_chunks_orders_hash21_before_value_noise_regardless_of_input_order()
 #[ test ]
 fn compose_chunks_reports_unknown_chunk_error_for_bogus_name()
 {
-  let err = compose_chunks( &[ "bogus_chunk".to_string() ] ).expect_err( "compose_chunks should fail for an unknown name" );
+  let err = compose_chunks( &[ "bogus_chunk".to_string() ], false ).expect_err( "compose_chunks should fail for an unknown name" );
   assert!
   (
     matches!( &err, CliError::UnknownChunk( name ) if name == "bogus_chunk" ),
@@ -431,13 +431,50 @@ fn compose_chunks_reports_unknown_chunk_error_for_bogus_name()
 #[ test ]
 fn compose_chunks_reports_missing_dependency_error_when_hash21_is_omitted()
 {
-  let err = compose_chunks( &[ "value_noise".to_string() ] ).expect_err( "compose_chunks should fail on a missing dependency" );
+  let err = compose_chunks( &[ "value_noise".to_string() ], false ).expect_err( "compose_chunks should fail on a missing dependency" );
   assert!
   (
     matches!( &err, CliError::Compose( shader_chunks_core::ComposeError::MissingDependency { .. } ) ),
     "expected Compose(MissingDependency), got {err:?}"
   );
   assert_eq!( err.exit_code(), 1 );
+}
+
+#[ test ]
+fn compose_chunks_transitive_closure_equals_the_explicit_full_set()
+{
+  let closure = compose_chunks( &[ "fbm3".to_string() ], true )
+  .expect( "transitive compose of a single root should pull its whole chain" );
+  let explicit = compose_chunks
+  (
+    &[ "hash21".to_string(), "value_noise".to_string(), "fbm3".to_string() ],
+    false,
+  ).expect( "explicit full set should compose" );
+  assert_eq!( closure, explicit, "closure and explicit full set must compose identically" );
+
+  let hash21_pos = closure.find( "fn hash21" ).expect( "hash21 pulled in transitively" );
+  let value_noise_pos = closure.find( "fn value_noise" ).expect( "value_noise pulled in transitively" );
+  let fbm3_pos = closure.find( "fn fbm3" ).expect( "fbm3 present" );
+  assert!
+  (
+    hash21_pos < value_noise_pos && value_noise_pos < fbm3_pos,
+    "closure must compose in dependency order:\n{closure}"
+  );
+}
+
+#[ test ]
+fn compose_chunks_transitive_reports_unknown_chunk_error_for_bogus_name()
+{
+  // The closure walk resolves every reachable dependency through the same
+  // loud lookup as directly-named chunks — a bogus root fails identically
+  // under both modes rather than the transitive path masking it.
+  let err = compose_chunks( &[ "bogus_chunk".to_string() ], true )
+  .expect_err( "transitive compose should fail for an unknown name" );
+  assert!
+  (
+    matches!( &err, CliError::UnknownChunk( name ) if name == "bogus_chunk" ),
+    "expected UnknownChunk(\"bogus_chunk\"), got {err:?}"
+  );
 }
 
 #[ test ]
@@ -451,4 +488,70 @@ fn try_compose_wgsl_reports_cyclic_dependency_error_on_synthetic_fixture()
     matches!( &err, CliError::Compose( shader_chunks_core::ComposeError::CyclicDependency( _ ) ) ),
     "expected Compose(CyclicDependency), got {err:?}"
   );
+}
+
+/// Mirrors `shader_chunks_params/tests/discovery_test.rs`'s own `LOCAL_GLOW`
+/// fixture — a test-local chunk carrying `//@ param:` lines, since none of
+/// the 4 bundled chunks declare any (out of scope for this task to change).
+const LOCAL_GLOW_WGSL : &str = "\
+//@ name: glow
+//@ description: Doubled value noise, a test-local chunk.
+//@ tags: category:test
+//@ depends_on: value_noise
+//@ export: fn glow(p: vec2f) -> f32
+//@ param: octaves argument u32 range(1, 8)
+//@ param: seed define u32
+
+fn glow( p : vec2f, octaves : u32, seed : u32 ) -> f32
+{
+  return value_noise( p ) * 2.0;
+}
+";
+
+const LOCAL_GLOW : shader_chunks_core::ChunkDescriptor = shader_chunks_core::ChunkDescriptor
+{
+  name : "glow",
+  description : "Doubled value noise, a test-local chunk.",
+  tags : &[ ( "category", "test" ) ],
+  stage : None,
+  depends_on : &[ "value_noise" ],
+  exports : &[ "fn glow(p: vec2f) -> f32" ],
+  wgsl : LOCAL_GLOW_WGSL,
+};
+
+#[ test ]
+fn tunables_of_chunk_lists_declared_and_inferred_parameters()
+{
+  let output = tunables_of_chunk( &LOCAL_GLOW ).expect( "tunables_of_chunk should succeed" );
+
+  assert!( output.contains( "octaves" ), "{output}" );
+  assert!( output.contains( "Argument" ), "{output}" );
+  assert!( output.contains( "U32" ), "{output}" );
+  assert!( output.contains( "1..8" ), "declared range should render verbatim:\n{output}" );
+  assert!( output.contains( "Declared" ), "{output}" );
+
+  assert!( output.contains( "seed" ), "{output}" );
+  assert!( output.contains( "Define" ), "{output}" );
+  assert!( output.contains( "0..65535" ), "inferred range for `seed` should be [0, 65535]:\n{output}" );
+  assert!( output.contains( "Inferred" ), "{output}" );
+}
+
+#[ test ]
+fn tunables_zero_declared_params_reports_explicit_message_not_blank_or_error()
+{
+  let output = tunables( "hash21" ).expect( "tunables should succeed for a bundled chunk with no declared params" );
+  assert!( output.contains( "hash21" ), "{output}" );
+  assert!( output.contains( "no tunable parameters" ), "empty case must be an explicit message, not blank:\n{output}" );
+}
+
+#[ test ]
+fn tunables_unknown_chunk_reports_unknown_chunk_error()
+{
+  let err = tunables( "bogus_chunk" ).expect_err( "tunables should fail for an unknown chunk name" );
+  assert!
+  (
+    matches!( &err, CliError::UnknownChunk( name ) if name == "bogus_chunk" ),
+    "expected UnknownChunk(\"bogus_chunk\"), got {err:?}"
+  );
+  assert_eq!( err.exit_code(), 1 );
 }

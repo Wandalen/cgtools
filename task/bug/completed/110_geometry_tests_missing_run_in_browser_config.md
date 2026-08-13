@@ -1,4 +1,4 @@
-# BUG-105: `geometry_tests.rs`'s wasm32 suite is missing `wasm_bindgen_test_configure!( run_in_browser )`, so it silently ran under Node.js and failed with an unrelated-looking error
+# BUG-110: `geometry_tests.rs`'s wasm32 suite is missing `wasm_bindgen_test_configure!( run_in_browser )`, so it silently ran under Node.js and failed with an unrelated-looking error
 
 - **Severity:** Medium
 - **state:** Completed
@@ -50,6 +50,6 @@ The underlying test logic itself was never in question — `Geometry::add_attrib
 
 ## Fix
 
-`tests/geometry_tests.rs`: added `wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );` immediately after the `wasm_bindgen_test` import, matching the exact placement already used by the three sibling suites in the same directory. 3-field comment (`Fix(BUG-105)` / `Root cause` / `Pitfall`) at the fix site, matching this codebase's established short-form convention for whole-file test-harness defects (see `BUG-046`'s identical treatment in the sibling file `skeleton_tests.rs`).
+`tests/geometry_tests.rs`: added `wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );` immediately after the `wasm_bindgen_test` import, matching the exact placement already used by the three sibling suites in the same directory. 3-field comment (`Fix(BUG-110)` / `Root cause` / `Pitfall`) at the fix site, matching this codebase's established short-form convention for whole-file test-harness defects (see `BUG-046`'s identical treatment in the sibling file `skeleton_tests.rs`).
 
 **Verification:** `cargo test --target wasm32-unknown-unknown --all-features` (package-scoped, via `longrun`) — exit 0; `test tests::add_attribute_duplicate_name_returns_err_not_panic ... ok`, all other suites in the crate (`animation_tests.rs`, `webgpu_backend_test.rs`-class suites, doctests) unaffected. Full-workspace `verb/test` re-run separately to confirm no regression elsewhere.

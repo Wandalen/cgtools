@@ -78,7 +78,11 @@ Beside the ladder: `canvas_renderer` (cross-stack bridge via textures — see
 [docs/pattern/003](docs/pattern/003_cross_stack_bridge_via_foundation_resources.md)),
 `tiles_tools` (tile-logic library feeding L4), `line_tools` (straddles the
 d2/d3 stacks, classification pending — see
-[docs/adr/001](docs/adr/001_multi_stack_rendering_architecture.md)).
+[docs/adr/001](docs/adr/001_multi_stack_rendering_architecture.md)),
+`animation` (value interpolation, easing, and multi-animation sequencing —
+feature-gated to `minwebgl`/`mingl`'s math/future/diagnostics utilities, not
+their GL-context layers, so it is a horizontal capability rather than an
+L0 occupant; feeds `scene_script`'s tween bindings today).
 
 **Rationale:** One glance answers "where does my crate sit, and what may it
 depend on" without walking the doc graph. The detailed contracts stay

@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/helper/tilemap_scene
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -29,6 +29,23 @@ Per-test procedure (uniform across the 035 decomposition):
    second copy.
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p tilemap_scene --all-features` —
    all green before and after each relocation batch.
+
+## In Scope
+
+- `module/helper/tilemap_scene`: triage of 38 inline `#[test]` functions across 9 src modules
+  (`hash`, `compile/ids`, `compile/conditions`, `compile/camera`, `compile/edges`,
+  `compile/vertex`, `compile/viewport`, `compile/animation`, `compile/coords`)
+- All 38 relocated — zero kept inline, zero consolidated — into `tests/hash_test.rs` (2) and
+  `tests/compile_units_test.rs` (36), since every tested item was externally reachable via the
+  crate's `mod_interface` root export
+- New `tests/readme.md` (unit/integration two-level structure + 12-row Responsibility Table)
+
+## Out of Scope
+
+- Consolidating `edge_rotation_flat_top_table`/phase-separation tests onto existing
+  integration tests — examined and rejected; both kept as testing different observation levels
+- Per-source-module `tests/` file layout (one file per src module) — rejected in favor of the
+  crate's existing domain-file convention
 
 ## Verification
 

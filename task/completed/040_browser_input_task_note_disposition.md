@@ -43,6 +43,19 @@ system's own `task/unverified/001_sprawl_procedural_city_dashboard.md` — coinc
 independent, ungoverned numbering sequences), but a real conflict TA063's global ID-uniqueness
 requirement would need resolved (renumber one side) the moment option (a) or (b) above is chosen.
 
+## In Scope
+
+- Deciding among the Goal's 3 options for `module/helper/browser_input/task/001_dependency_cleanup.md` (adopt as a proper local Task System / migrate the idea and retire the note / leave it and relocate)
+- Migrating the note's idea into the root task system as `task/completed/057_browser_input_minwebgl_dependency_cleanup.md`, including verifying its technical premise against source (found 2 coupling sites the note missed: a `JsCast` re-export and a test-file import)
+- Deleting `module/helper/browser_input/task/001_dependency_cleanup.md` and the now-empty `task/` directory
+- Rewriting `task/readme.md`'s "unresolved gap" preamble into a resolution record
+
+## Out of Scope
+
+- Option (a) — building a full local Task System (readme.md + canonical template) plus Aggregated Index + Global ID Registry for `browser_input` — rejected as YAGNI (nothing else to aggregate)
+- Option (c) — leaving the note in place and renaming/relocating it — rejected as leaving a second, ungoverned tracking convention alive
+- Actually implementing the migrated idea (replacing browser_input's `minwebgl` dependency with `ndarray_cg`) — deferred to task 057
+
 ## Verification
 
 ### Checklist

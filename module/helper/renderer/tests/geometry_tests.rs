@@ -6,7 +6,7 @@ mod tests
 {
   use wasm_bindgen_test::wasm_bindgen_test;
 
-  // Fix(BUG-105): this suite had no `wasm_bindgen_test_configure!( run_in_browser )` call, so
+  // Fix(BUG-110): this suite had no `wasm_bindgen_test_configure!( run_in_browser )` call, so
   // its one test binary defaulted to Node.js, where `web_sys::window()` is always `None`.
   // Root cause: file created without the configure! line every sibling suite in this directory
   // (animation_tests.rs, pmrem_tests.rs, skeleton_tests.rs) already carries.

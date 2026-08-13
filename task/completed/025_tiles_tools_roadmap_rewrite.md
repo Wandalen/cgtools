@@ -27,6 +27,24 @@ source/tests (not the roadmap's own claims, which are the thing being disputed),
 from that ground truth. Do not merely delete the contradictory sections — the milestone structure itself
 may still be useful; the fix is accuracy, not removal.
 
+## In Scope
+
+- Rewrite `module/helper/tiles_tools/roadmap.md` from ground-truth investigation (full `src/` listing,
+  `changelog.md`, `docs/pitfall/`, a live `cargo nextest` run) — one unambiguous status per phase,
+  replacing the self-contradicting Phase 2 claims
+- Fix the two dead links found during the rewrite: `docs/ecs_decision.md` →
+  `docs/architectural_evaluation/001_ecs_library_selection.md`, `src/coordinates/mod.rs` →
+  `src/coordinates.rs`
+- Add a `Known Gaps` section linking the `docs/pitfall/` entries, and a `Revision History` section
+
+## Out of Scope
+
+- Deleting or restructuring the Milestone 01-11 numbering/phase structure — Goal explicitly required
+  "accuracy, not removal"
+- Fixing the underlying ECS-movement/Flow-Field gaps themselves (`docs/pitfall/001`, `002`) — those remain
+  tracked as open pitfalls, not resolved by this doc-only task
+- Any change to the crate's source code or tests
+
 ## Verification
 
 ### Checklist

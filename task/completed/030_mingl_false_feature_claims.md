@@ -26,6 +26,18 @@ minwebgl should be reusing — check that file's own doc comments for accuracy w
 it's directly relevant). Kept as a separate task from task 029 (browser_log's own false claims) per Crate
 Scope Unity even though both were found in the same audit pass.
 
+## In Scope
+
+- `readme.md`'s Camera System section — fictional `Camera`/`OrbitControls`/`CameraController` API
+  replaced with the real `CameraOrbitControls` and `CharacterControls`
+- `readme.md`'s Data Conversion section — fictional `mingl::convert` module path corrected
+- `readme.md` — added the previously-undocumented OBJ model reporting (`BoundingBox`/`BoundingSphere`)
+
+## Out of Scope
+
+- `src/web/exec_loop.rs` — doc comments checked per the Goal's note; found accurate, left unchanged
+- `browser_log`'s false claims — filed separately as task 029 per Crate Scope Unity
+
 ## Verification
 
 ### Checklist

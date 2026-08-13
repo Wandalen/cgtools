@@ -53,6 +53,17 @@ Fix 2 confirmed logic bugs found during the `animation` crate audit (2026-08-09)
 `cargo nextest run -p animation --all-features` confirms all tests pass (29/29), including the 3 new
 reproducer tests above.
 
+## In Scope
+
+- `module/helper/animation/src/easing/cubic/bezier.rs`: `CubicBezier::new`'s default `iterations` — changed from `0` to `8`; new `.with_iterations()` fluent builder method; all 24 `impl_easing_function!` invocations updated to chain it explicitly
+- `module/helper/animation/src/easing/cubic/hermite.rs`: `CubicHermite<Vec<E>>`'s `new()`/`apply()` — replaced silent `.resize()` truncation on mismatched-length vectors with loud `assert_eq!` panics plus `# Panics` docs
+- `tests/easing_test.rs`: 3 new reproducer tests (mid-curve accuracy, 2 mismatched-length panic tests); `tests/sequencer_test.rs::test_sequencer_ease_in`: corrected an assertion that had baked in the old buggy value
+
+## Out of Scope
+
+- Any change to `EasingFunction::apply`'s shared trait signature (still returns `Self::AnimatableType` directly, no `Result`) — a `Result`-based fix was considered and rejected as too large a trait-wide change
+- `Sequencer`/`Tween` bugs from the same audit — tracked separately under `TASK-015`, deliberately split out since this task is scoped to `easing/cubic/` only
+
 ## Verification
 
 ### Checklist

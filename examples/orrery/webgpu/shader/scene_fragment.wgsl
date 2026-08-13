@@ -1,3 +1,10 @@
+//@ name: scene_fragment
+//@ description: Sun-grid-lines HUD scene fragment stage: animated star, orbit rings, planets, nebula, star field, grid, vignette.
+//@ tags: category:scene
+//@ stage: fragment
+//@ depends_on: hash21, fbm3, fullscreen_triangle
+//@ export: fn fs_main(in: VertexOutput) -> @location(0) vec4f
+
 // Procedural sci-fi HUD diagram: an animated star, three orbit rings, six
 // authored planets/moons, a drifting multi-band nebula, a twinkling
 // multi-layer star field, and a Cartesian grid — rendered by a fullscreen
@@ -20,12 +27,13 @@
 // numbers, kept in sync with scene.rs by
 // tests/shader_source_test.rs's wgsl_scene_constants_match_scene_rs.
 //
-// Fragment-only: VertexOutput/vs_main come from the
-// shader_chunks::FULLSCREEN_TRIANGLE chunk, and hash21/value_noise/fbm3
-// come from the HASH21/VALUE_NOISE/FBM3 chunks — all prepended ahead of
-// this file by shader_source::assemble() before the combined source
-// reaches the shader module. This file alone is not valid standalone
-// WGSL.
+// Fragment-only: VertexOutput/vs_main come from the fullscreen_triangle
+// chunk, and hash21/value_noise/fbm3 from the noise chunks — imported
+// from shader_chunks_core and composed together with this file's own
+// chunk ( the //@ manifest above; its descriptor mirror lives in
+// shader_source::SCENE_FRAGMENT ) by shader_source::assemble() before the
+// combined source reaches the shader module. This file alone is not valid
+// standalone WGSL.
 
 struct Uniforms
 {

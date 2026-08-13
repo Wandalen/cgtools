@@ -27,6 +27,22 @@ duplicated logic, unless a genuine minwebgl-specific behavioral difference is fo
 (re-confirm before assuming pure duplication — diff the two files' actual bodies, not just line counts,
 before deleting anything). P3 — dead-code/hygiene bucket, Fix-in-place.
 
+## In Scope
+
+- `module/min/minwebgl/src/exec_loop.rs` — replace the duplicated 63-line render-loop implementation
+  with the same `mod private { }` / `crate::mod_interface! { reuse ::mingl::web::exec_loop; }` pattern
+  `minwebgpu` already uses
+- Confirming no genuine minwebgl-specific behavioral difference existed before deleting — diffing the
+  two files' actual bodies, not just line counts
+
+## Out of Scope
+
+- `module/min/minwebgpu/src/exec_loop.rs` and `module/min/mingl/src/web/exec_loop.rs` — the reference
+  pattern and its reused source, both left untouched
+- The pre-existing `context.rs` build failures under `--no-default-features --features enabled` (no
+  `web`) — unrelated defect this task's Goal never named; `enabled`-alone is not a supported/`default`
+  configuration regardless of this change
+
 ## Verification
 
 ### Checklist

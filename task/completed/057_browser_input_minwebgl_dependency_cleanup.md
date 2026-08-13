@@ -42,6 +42,23 @@ task `001`; re-filing here under a fresh ID resolves that). The note's core clai
 exactly two math types) was verified 2026-08-10 but found incomplete — the `JsCast` re-export and the
 test-file import above are additional real coupling points its plan didn't cover.
 
+## In Scope
+
+- `module/helper/browser_input/Cargo.toml` — replace the `minwebgl` dependency with `ndarray_cg`;
+  rewire the `enabled`/`full` feature lists; add the crate's own missing `Window`/`Document` `web-sys`
+  features (the 4th coupling class, found only by the wasm32 build failing)
+- `src/util.rs`, `src/input.rs` — swap `minwebgl`-sourced `I32x2`/`F64x3`/`JsCast` imports for
+  `ndarray_cg`/`web_sys::wasm_bindgen::JsCast`
+- `tests/active_pointers_test.rs` and `readme.md` — update the `minwebgl::math::I32x2` import and the
+  Quick Start snippet to match
+
+## Out of Scope
+
+- Doc-comment cross-references to `minwebgl/src/texture/d2.rs` in `input.rs` (BUG-053 cfg-split
+  citations) — left as documentation, not a dependency
+- `tests/manual/readme.md`'s pointer to the `examples/minwebgl/touch_input_test` demo crate — a
+  separate example crate path, left unchanged
+
 ## Verification
 
 ### Checklist

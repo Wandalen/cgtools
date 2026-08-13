@@ -29,6 +29,19 @@ command against the crate's real structure) rather than trusting the carried-for
 with task 024 (non-functional example deletion) — resolve which examples are being deleted first, so
 their links aren't fixed only to be deleted right after.
 
+## In Scope
+
+- 49 example crate `readme.md` files under `examples/minwebgl/*` (45) and `examples/minwebgpu/*` (4) —
+  mechanical fix of the broken `](../how_to_run.md)` link to `](../../how_to_run.md)`
+
+## Out of Scope
+
+- `jewelry_site` and `renderer_pbr_scene` readmes — carry their own working, non-template run
+  instructions, left as-is by design
+- `examples/math/*`, `examples/minwgpu/*`, and other already-correct readmes — already used
+  `../../how_to_run.md`, not touched
+- Example deletion (task 024) — coordinated with, not performed by, this task
+
 ## Verification
 
 ### Checklist

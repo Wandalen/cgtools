@@ -4,8 +4,9 @@
 
 use shader_chunks_core::
 {
-  compose, try_compose, parse_name, parse_depends_on, parse_description, parse_stage, parse_exports, parse_tags,
-  ComposeError, CHUNKS, chunk_get,
+  compose, try_compose, compose_set, try_compose_set, parse_depends_on, parse_description, parse_stage,
+  parse_exports, parse_tags, ComposeError, ChunkDescriptor, CHUNKS, chunk_get, chunk, chunk_get_from,
+  dependency_closed, manifest_mismatches,
 };
 
 /// Test-only: pulls the declared symbol name out of an `export` line's
@@ -22,6 +23,46 @@ fn wgsl( name : &str ) -> &'static str
 {
   chunk_get( name ).unwrap_or_else( || panic!( "chunk `{name}` should be bundled" ) ).wgsl
 }
+
+// A mixed chunk set — two bundled chunks imported by name plus one chunk
+// defined locally right here, its manifest and body inline — selected and
+// dependency-validated entirely in `const` position. These items compiling
+// at all IS the compile-time-contract test ( a typo'd `chunk` name or a
+// missing dependency fails the build ); the `#[ test ]` fns below assert
+// on their values.
+
+const LOCAL_GLOW_WGSL : &str = "\
+//@ name: glow
+//@ description: Doubled value noise, a test-local chunk.
+//@ tags: category:test
+//@ depends_on: value_noise
+//@ export: fn glow(p: vec2f) -> f32
+
+fn glow( p : vec2f ) -> f32
+{
+  return value_noise( p ) * 2.0;
+}
+";
+
+const LOCAL_GLOW : ChunkDescriptor = ChunkDescriptor
+{
+  name : "glow",
+  description : "Doubled value noise, a test-local chunk.",
+  tags : &[ ( "category", "test" ) ],
+  stage : None,
+  depends_on : &[ "value_noise" ],
+  exports : &[ "fn glow(p: vec2f) -> f32" ],
+  wgsl : LOCAL_GLOW_WGSL,
+};
+
+const MIXED_SET : &[ ChunkDescriptor ] =
+&[
+  chunk( "hash21" ),
+  chunk( "value_noise" ),
+  LOCAL_GLOW,
+];
+
+const _ : () = assert!( dependency_closed( MIXED_SET ) );
 
 #[ test ]
 fn depends_on_covers_every_actual_wgsl_call_to_another_chunk()
@@ -108,91 +149,41 @@ fn chunks_table_lists_every_bundled_chunk()
 }
 
 #[ test ]
-fn chunks_table_names_match_each_manifest()
+fn chunks_table_matches_each_manifest()
 {
   for chunk in CHUNKS
   {
-    assert_eq!
+    let mismatches = manifest_mismatches( chunk );
+    assert!
     (
-      chunk.name,
-      parse_name( chunk.wgsl ),
-      "descriptor name `{}` must mirror its chunk's `//@ name:` manifest line",
+      mismatches.is_empty(),
+      "descriptor for `{}` must mirror every field of its `//@` manifest: {mismatches:#?}",
       chunk.name
     );
   }
 }
 
 #[ test ]
-fn chunks_table_descriptions_match_each_manifest()
+fn manifest_mismatches_reports_every_drifted_field()
 {
-  for chunk in CHUNKS
+  let drifted = ChunkDescriptor
   {
-    assert_eq!
-    (
-      chunk.description,
-      parse_description( chunk.wgsl ),
-      "descriptor description for `{}` must mirror its `//@ description:` manifest line",
-      chunk.name
-    );
-  }
-}
-
-#[ test ]
-fn chunks_table_tags_match_each_manifest()
-{
-  for chunk in CHUNKS
+    name : "wrong",
+    description : "Wrong.",
+    tags : &[ ( "category", "wrong" ) ],
+    stage : Some( "vertex" ),
+    depends_on : &[ "hash21" ],
+    exports : &[ "fn wrong() -> f32" ],
+    wgsl : LOCAL_GLOW_WGSL,
+  };
+  let mismatches = manifest_mismatches( &drifted );
+  assert_eq!( mismatches.len(), 6, "one mismatch per drifted field, got: {mismatches:#?}" );
+  for field in [ "name", "description", "tags", "stage", "depends_on", "export" ]
   {
-    assert_eq!
+    assert!
     (
-      parse_tags( chunk.wgsl ),
-      chunk.tags,
-      "descriptor tags for `{}` must mirror its `//@ tags:` manifest line",
-      chunk.name
-    );
-  }
-}
-
-#[ test ]
-fn chunks_table_stages_match_each_manifest()
-{
-  for chunk in CHUNKS
-  {
-    assert_eq!
-    (
-      chunk.stage,
-      parse_stage( chunk.wgsl ),
-      "descriptor stage for `{}` must mirror its `//@ stage:` manifest line ( or absence )",
-      chunk.name
-    );
-  }
-}
-
-#[ test ]
-fn chunks_table_depends_on_match_each_manifest()
-{
-  for chunk in CHUNKS
-  {
-    assert_eq!
-    (
-      parse_depends_on( chunk.wgsl ),
-      chunk.depends_on,
-      "descriptor depends_on for `{}` must mirror its `//@ depends_on:` manifest line",
-      chunk.name
-    );
-  }
-}
-
-#[ test ]
-fn chunks_table_exports_match_each_manifest()
-{
-  for chunk in CHUNKS
-  {
-    assert_eq!
-    (
-      parse_exports( chunk.wgsl ),
-      chunk.exports,
-      "descriptor exports for `{}` must mirror its `//@ export:` manifest lines, in file order",
-      chunk.name
+      mismatches.iter().any( | mismatch | mismatch.contains( field ) ),
+      "no mismatch message mentions `{field}`: {mismatches:#?}"
     );
   }
 }
@@ -210,6 +201,62 @@ fn chunk_get_resolves_every_bundled_name_to_its_row()
 fn chunk_get_returns_none_for_unknown_name()
 {
   assert_eq!( chunk_get( "no_such_chunk" ), None );
+}
+
+#[ test ]
+fn chunk_imports_a_bundled_descriptor_by_value_in_const_position()
+{
+  const IMPORTED : ChunkDescriptor = chunk( "value_noise" );
+  assert_eq!( Some( &IMPORTED ), chunk_get( "value_noise" ) );
+}
+
+#[ test ]
+#[ should_panic( expected = "unknown chunk name" ) ]
+fn chunk_panics_for_unknown_name_at_runtime()
+{
+  let _ = chunk( "no_such_chunk" );
+}
+
+#[ test ]
+fn chunk_get_from_resolves_imported_and_local_rows_of_a_mixed_set()
+{
+  let local = chunk_get_from( MIXED_SET, "glow" ).expect( "local row must resolve" );
+  assert_eq!( local, &LOCAL_GLOW );
+  let imported = chunk_get_from( MIXED_SET, "hash21" ).expect( "imported row must resolve" );
+  assert_eq!( Some( imported ), chunk_get( "hash21" ) );
+  assert!( chunk_get_from( MIXED_SET, "fbm3" ).is_none(), "unselected bundled chunk must not resolve from the set" );
+}
+
+#[ test ]
+fn dependency_closed_is_false_when_a_dependency_is_missing_from_the_set()
+{
+  assert!( dependency_closed( MIXED_SET ) );
+  assert!( !dependency_closed( &[ chunk( "fbm3" ) ] ), "fbm3 without value_noise must not count as closed" );
+}
+
+#[ test ]
+fn compose_set_orders_a_mixed_set_dependency_before_dependent()
+{
+  let composed = compose_set( MIXED_SET );
+  let hash21_pos = composed.find( "fn hash21" ).expect( "hash21 present" );
+  let value_noise_pos = composed.find( "fn value_noise" ).expect( "value_noise present" );
+  let glow_pos = composed.find( "fn glow" ).expect( "local glow chunk present" );
+  assert!( hash21_pos < value_noise_pos, "hash21 must precede value_noise" );
+  assert!( value_noise_pos < glow_pos, "value_noise must precede the local chunk depending on it" );
+}
+
+#[ test ]
+fn try_compose_set_reports_missing_dependency()
+{
+  let err = try_compose_set( &[ chunk( "fbm3" ) ] ).expect_err( "should fail" );
+  assert!( matches!( err, ComposeError::MissingDependency { .. } ), "expected MissingDependency, got {err:?}" );
+}
+
+#[ test ]
+fn local_chunk_descriptor_matches_its_manifest()
+{
+  let mismatches = manifest_mismatches( &LOCAL_GLOW );
+  assert!( mismatches.is_empty(), "{mismatches:#?}" );
 }
 
 #[ test ]

@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/math/mdmath_core
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -49,6 +49,25 @@ Per-marker outcomes follow task 038's triage contract: fix in code, or file evid
 stays (converting it into a tracked deferral with rationale), or delete if investigation proves it
 stale. Verify each code change with `cargo test -p mdmath_core --all-features` (via
 `longrun .launch`).
+
+## In Scope
+
+- `src/vector/tuple1.rs:162,193` — soundness markers resolved by deleting the hand-rolled unsafe
+  `Tuple1Iter`/`Tuple1IterMut` and returning `std::iter::once`/`once` instead
+- `src/vector/mod.rs:65,66,91` — resolved by deleting the empty, zero-consumer
+  `VectorWithLength`/`VectorWithLengthMut` trait pair the markers sat on
+- `src/vector/index/mod.rs:310` — resolved by implementing the missing `Ix4` impl block, mirroring
+  `Ix3`'s 5-impl shape
+- `src/vector/mod.rs:390` and `tests/inc/arithmetics.rs:213,235` — resolved with new
+  `into_array_test.rs`/`index_test.rs` test files and a slice-form `assert_ulps_eq!` fix
+
+## Out of Scope
+
+- `Cargo.toml:64,66` (`missing_docs`/`missing_debug_implementations` lint markers) — explicitly
+  deferred to task 058's workspace-lint-inheritance pass; this task only confirms they were handled
+  when it closes
+- `ArrayRef`/`ArrayMut` transmute-style unsafe casts in `tuple1.rs` — separate, pre-existing unsafe
+  code, explicitly out of this task's marker scope
 
 ## Verification
 

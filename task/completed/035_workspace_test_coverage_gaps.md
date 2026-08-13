@@ -29,6 +29,20 @@ tests) to rebuild the per-crate list, then decompose into one task per affected 
 Unity (`tsk.rulebook.md § Core Procedures : Procedure - Decompose by Crate`, PROC17) rather than trying to
 force this single Draft through full `File Task` as one multi-crate task.
 
+## In Scope
+
+- Workspace-wide census across `module/` crates: zero-test-coverage crates, inline `#[test]` fns in
+  `src/` violating the tests/-directory convention, and readme test-coverage claims vs. actual tests
+- Decomposing the census into 12 per-crate successor tasks (066-077) per `tsk.rulebook.md § Core
+  Procedures : Procedure - Decompose by Crate` (PROC17)
+
+## Out of Scope
+
+- Actually relocating any inline test or writing new tests — deferred entirely to the 12 per-crate
+  successor tasks; this task makes no code changes
+- The 8 `blank/` placeholder crates and the 2 alias crates (`ndarray_tools`, `browser_tools`) —
+  exempted from the zero-coverage finding as documented exceptions, not decomposed into successor tasks
+
 ## Verification
 
 ### Checklist

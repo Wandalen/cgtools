@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/min/minwgpu
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -30,6 +30,26 @@ Per-test procedure (uniform across the 035 decomposition):
    surface — no mocks, loud failures.
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p minwgpu --all-features` —
    all green before and after each relocation batch.
+
+## In Scope
+
+- `module/min/minwgpu`: kept all 21 pre-existing inline tests (`buffer.rs` 12, `context.rs` 9) in
+  place as documented exceptions — pin `pub(super)` builder-state fields with no public getters
+- `tests/context_test.rs` (3 new: type-state chain error, `adapter_selector`
+  invocation/propagation, `from_instance` adapter-stage config) and `tests/helper_test.rs` (2 new:
+  `helper::attr` mapping, sync `request_adapter` shortcut error) — deterministic public-surface
+  tests using `wgpu::Backends::empty()`
+- `tests/readme.md` Responsibility Table; `wgpu` added to `[dev-dependencies]` as test
+  infrastructure
+
+## Out of Scope
+
+- GPU-dependent surface (`build`, `finish_context`, `texture`) — stays untested natively, same
+  browser/wasm runner gap recorded by tasks 064/068/069
+- Exposing getters or the internal state-marker types (`AdapterBuilder`/`DeviceBuilder`) for test
+  placement — rejected as API widening for zero callers
+- Selector-priority-over-options-route — not fully provable without a real adapter; test pins
+  invocation + error propagation only
 
 ## Verification
 

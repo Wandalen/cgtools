@@ -84,7 +84,18 @@ do
   do
     _d="$( dirname "$_d" )"
   done
-  [[ -f "$_d/Cargo.toml" ]] && _wasm_test_dirs+=( "$_d" )
+  # Reaching $_REPO_ROOT without finding an intermediate Cargo.toml means $_f
+  # sits outside any crate directory -- must not silently fall back to the
+  # workspace root's own Cargo.toml, which would run this test suite's wasm32
+  # `cargo test --all-features` against the entire workspace instead of the
+  # (nonexistent) crate the file actually belongs to.
+  if [[ "$_d" != "$_REPO_ROOT" && -f "$_d/Cargo.toml" ]]
+  then
+    _wasm_test_dirs+=( "$_d" )
+  else
+    printf 'error: %s contains wasm_bindgen_test but has no crate Cargo.toml above it (stopped at repo root)\n' "${_f#"$_REPO_ROOT"/}" >&2
+    _wasm_failed=1
+  fi
 done < <( grep -rl 'wasm_bindgen_test' --include='*.rs' "$_REPO_ROOT/module" "$_REPO_ROOT/examples" 2>/dev/null )
 
 if (( ${#_wasm_test_dirs[@]} > 0 ))

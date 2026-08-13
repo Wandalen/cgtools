@@ -1,44 +1,55 @@
 # Parameter :: 2. names
 
 - **Fundamental Type:** [`ChunkName`](../type/01_chunk_name.md) list
-  (`Vec<String>` at the `src/lib.rs` boundary; unilang `Kind::String` with
+  (`Vec<String>` at the `src/lib.rs` boundary; unilang `Kind::List` with
   `ArgumentAttributes { multiple: true, .. }`)
 - **Constraints:** Every element must resolve via
   `shader_chunks_core::chunk_get` ( an O(1) lookup against the
   `shader_chunks_core::CHUNKS` table ) — the first
-  unresolved element returns `CliError::UnknownChunk`; a resolved-but-
-  incomplete set (e.g. a chunk without its declared dependency) returns
+  unresolved element returns `CliError::UnknownChunk`, never a panic. For
+  `compose` only, a resolved-but-incomplete set (e.g. a chunk without its
+  declared dependency) additionally returns
   `CliError::Compose(ComposeError::MissingDependency)` from
-  `shader_chunks_core::try_compose`, not a panic
-- **Default:** **(required)** — `compose` needs at least one chunk to
-  produce any output; there is no meaningful "compose nothing" default
-- **Purpose:** The set of chunks to compose into one WGSL preview, in any
-  input order — `shader_chunks_core::try_compose` performs dependency-ordered
-  topological composition internally, so `compose value_noise hash21` and
-  `compose hash21 value_noise` produce identical output.
+  `shader_chunks_core::try_compose`
+- **Default:** `Varies` — **(required)** for `get` and `compose` (neither
+  has a meaningful "no chunks" output); optional for `list`, where absent
+  means "every chunk in the registry"
+- **Purpose:** Selects the candidate chunk set an invocation operates on.
+  For `list`/`get` it fixes the query engine's selection (in the given
+  order, duplicates allowed) before [filtering](../param_group/01_filtering.md)
+  applies; for `compose` it names the chunks to concatenate, in any input
+  order — `shader_chunks_core::try_compose` resolves dependency order
+  internally.
 
 ### Examples
 ```bash
 # Valid values
-names::hash21                        # single chunk, no dependencies
-names::hash21 names::value_noise     # order-independent; unilang collects
-                                      # repeated `names::` occurrences (or a
-                                      # single positional multi-token run)
-                                      # into one Value::List
+get hash21                   # one chunk, expanded detail record
+get hash21 fbm3              # two records, in the given order
+list hash21 fbm3 hash21      # selection order kept, duplicates allowed
+compose hash21 value_noise   # order-independent; dependency-ordered output
 
 # Invalid values (rejected with error)
-names::bogus_chunk    # "unknown chunk: `bogus_chunk` (see `list` for valid names)"
-names::value_noise    # resolves, but omits its `hash21` dependency:
-                       # ComposeError::MissingDependency, non-zero exit
+get bogus_chunk        # "unknown chunk: `bogus_chunk` (see `list` for valid names)"
+compose value_noise    # resolves, but omits its `hash21` dependency:
+                        # ComposeError::MissingDependency, non-zero exit
+get                     # "The required argument 'names' is missing", non-zero exit
 ```
 
 ### Notes
-- Positional, multiple — `compose hash21 value_noise` is the primary
-  invocation form; `unilang`'s `multiple: true` attribute collects every
-  trailing positional token into a single `Value::List`, mirrored in
-  `src/main.rs`'s `cmd_compose` routine, which also accepts a bare
-  `Value::String` (a single chunk with no list wrapping) as the one-element
-  case.
+- Positional, multiple — `get hash21 fbm3` is the primary invocation form;
+  `unilang`'s `multiple: true` attribute collects every trailing positional
+  token into a single `Value::List`. All three consuming routines flatten
+  the nested list-of-lists unilang produces for positional multiples
+  (`flatten_names` in `src/cli.rs`).
+- Selection semantics differ from filter semantics: for `list`/`get`,
+  `names` fixes *which chunks enter* the query in *which order*
+  (`sort::input` preserves it) — the named-parameter filters then narrow
+  that set. This is why `names` belongs to no
+  [parameter group](../param_group/readme.md).
+- The requiredness split is the single surface difference between `list`
+  and `get` — see
+  [`command_group/01_query.md`](../command_group/01_query.md).
 
 ---
 
@@ -46,7 +57,9 @@ names::value_noise    # resolves, but omits its `hash21` dependency:
 
 | # | Command | Default | Notes |
 |---|---------|---------|-------|
-| 1 | [.compose](../command/05_compose.md) | **(required)** | At least one chunk name; dependency order is resolved automatically |
+| 1 | [.list](../command/01_list.md) | `Varies` (omit for every chunk) | Optional selection narrowing |
+| 2 | [.get](../command/02_get.md) | **(required)** | Detail output needs ≥1 target chunk |
+| 3 | [.compose](../command/05_compose.md) | **(required)** | At least one chunk name; dependency order is resolved automatically |
 
 ---
 

@@ -28,6 +28,23 @@ than trusting this citation). Note: `module/helper/line_tools/src/d2/line.rs` an
 uncommitted local modifications as of this session's start (per initial `git status`) — check whether
 those in-flight edits already address this finding before starting new work here.
 
+## In Scope
+
+- Re-derive the consolidation candidates via a workspace-wide search/diff of outline- and
+  line-rendering source files, since the original citation was not preserved through context compaction
+- Add mirrored cross-reference notes declaring the duplication intentional to the 4 near-identical JFA
+  shader files: `examples/minwebgl/outline/resources/shaders/{jfa_init,jfa_step}.frag` and
+  `module/helper/renderer/src/webgl/shaders/post_processing/outline/wide_outline/{jfa_init,jfa_step}.frag`
+
+## Out of Scope
+
+- Candidate pairs investigated and rejected as not near-identical: example `outline/outline.frag` vs
+  `narrow_outline/outline.frag`, renderer `narrow_outline.rs` vs `normal_depth_outline.rs`, `line_tools`'s
+  `d2/line.rs` vs `d3/line.rs`
+- Any functional/shader-logic change — the fix is comment-only, notes inserted after `#version 300 es`
+- Structural consolidation approaches considered and rejected: cross-crate `include_str!`, deleting the
+  example, shared shader-resource infrastructure
+
 ## Verification
 
 ### Checklist

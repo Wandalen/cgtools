@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/helper/tilemap_renderer
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -50,6 +50,26 @@ Disposition: move the implementation-plan content into the crate's docs (it has 
 Per-marker outcomes follow task 038's triage contract. Verify with
 `cargo test -p tilemap_renderer --all-features` (via `longrun .launch`); pitfall/003 must stay
 consistent with whatever the SVG path source handling becomes.
+
+## In Scope
+
+- `module/helper/tilemap_renderer/src/adapters/webgl.rs`: resolved the 6 capability-flag markers
+  (dropped `qqq` prefixes, kept plain truthful descriptions) plus the `Encoded`-image and
+  load-path-gap markers and 3 `(qqq)` cross-references
+- `module/helper/tilemap_renderer/src/adapters/svg.rs`: resolved the `Source::Path` silent-skip
+  TODO (implemented disk-backed loading with a loud skip on failure), retiring `docs/pitfall/003`
+- `module/helper/tilemap_renderer/src/adapters/webgl/webgl_helpers.rs` and `src/types.rs`:
+  resolved the Overlay blend-mode and depth-ordering markers (converted to plain factual
+  comments; future-work content moved to `roadmap.md`)
+
+## Out of Scope
+
+- Implementing an actual decoder for `ImageSource::Encoded` — deliberately deferred: decoding is
+  untestable until a wasm test runner exists, and bundling the `image` crate is an unowned
+  binary-size decision
+- The underlying rendering capability gaps themselves (tessellation, glyph atlas/SDF fonts,
+  gradients/patterns/clip masks, FBO post-processing) — only the roadmap-duplicating marker
+  comments were resolved, the features remain unimplemented
 
 ## Verification
 

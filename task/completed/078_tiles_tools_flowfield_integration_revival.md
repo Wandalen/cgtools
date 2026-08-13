@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/helper/tiles_tools
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -44,6 +44,28 @@ Resolution procedure:
    `pathfinding_tests` / `generation_tests` modules there.
 4. Verify with `longrun .launch dir::<workspace root> -- cargo test -p tiles_tools --all-features` —
    integration suite green with the module enabled.
+
+## In Scope
+
+- `module/helper/tiles_tools`: revive `tests/integration/flowfield_tests.rs` — uncomment
+  `mod flowfield_tests;` in `tests/integration/mod.rs`, repair and keep 5 of the original ~21
+  tests against `FlowField::< Axial, Pointy >` (hexagonal-only) instantiation —
+  `test_hex_grid_with_water_obstacles`, `test_batch_flow_direction_queries`,
+  `test_group_movement_flow_application`, `test_multi_goal_capture_points`,
+  `test_flow_field_ecs_integration`
+- Root-cause fix enabling the revival: add manual `PartialOrd`/`Ord` impls on
+  `hexagonal::Coordinate< System, Orientation >` — `calculate_flow`/`add_goal` require `C : Ord`,
+  previously uncallable by any coordinate type in the crate
+
+## Out of Scope
+
+- The other 16 of the original ~21 tests — retired, not repaired (duplicates of live coverage,
+  structurally-unsatisfiable square-coordinate cases since `Grid2D` is hexagonal-only,
+  assertion-free redundancies, and fragile wall-clock timing asserts)
+- Square-coordinate flowfield support in general — `Grid2D`'s `Index`/`IndexMut` bound stays
+  hexagonal-only, unaddressed by this task
+- The never-created `grid_tests`/`pathfinding_tests`/`generation_tests` placeholder modules —
+  their placeholder comments were deleted rather than fulfilled
 
 ## Verification
 

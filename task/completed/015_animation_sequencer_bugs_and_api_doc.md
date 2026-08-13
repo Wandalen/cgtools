@@ -115,6 +115,36 @@ The future-incompatibility item below was directly confirmed in an earlier sessi
 Bundled as one task since all three concerns are small and confined to the same crate; split into
 separate tasks at pickup if any turns out to be larger than expected.
 
+## In Scope
+
+- `module/helper/animation/src/interpolation.rs`: `[Tween<T>; N]::duration_get`/`delay_get`
+  min/max-reduction seeding bugs; `Tween::repeat_handle`'s post-wrap elapsed-time clamp (both repeat
+  branches) — each fixed with a `Fix(TASK-015)`/`Root cause`/`Pitfall` comment and a
+  `bug_reproducer(TASK-015)` test
+- `module/helper/animation/src/sequencer.rs`: `Sequencer::delay_get` reduction-direction bug;
+  `Sequence::new`'s Unsorted-validation dead reassignment bug — same fix/test convention
+- `module/helper/animation/readme.md`: `## API Reference § Core Components` table corrected to the
+  real API (`insert()`/`get()`/`value_get()`), plus the previously-missing `Sequence` row
+- `impl_easing_function`'s `macro_expanded_macro_exports_accessed_by_absolute_paths` future-incompat
+  warning — investigated, fix recipe verified working then reverted for later pickup; ultimately
+  confirmed already resolved by an unrelated commit's relocation to `lib.rs`, no code change needed here
+- Workspace-consistency fixes explicitly authorized mid-session to unblock this task's own
+  verification: reverted `module/min/minwebgl/src/texture/d2.rs`'s `get_image_data` call back to its
+  correct `i32`-arg signature, and converted 7 `clippy::manual_is_multiple_of` sites across 5 files
+  (`event_system_demo`, `stealth_game`, `renderer/tests/skeleton_tests.rs`, `renderer/.../wide_outline.rs`
+  ×2, `tilemap_renderer/.../svg.rs` ×2)
+
+## Out of Scope
+
+- `TASK-041` (`CubicBezier` default-iterations bug, `CubicHermite` silent-truncation bug in
+  `easing/cubic/`) — split into its own task from the same re-audit pass
+- `TASK-042` (`Sequencer::value_get` duplication, dead `web-sys` dependency, `lib.rs`
+  `#[allow(...)]` justification sweep) — split into its own task
+- `wide_outline.rs`'s `clippy::manual_is_multiple_of` regression (found during C10's re-audit) —
+  flagged for awareness only, not in this task's file list
+- The `browser_log` crate's `allow_attributes_without_reason` clippy failure blocking `-D warnings`
+  runs — pre-existing, unrelated, tracked separately as task 058
+
 ## Verification
 
 ### Checklist

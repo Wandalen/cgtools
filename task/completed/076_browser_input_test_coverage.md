@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/helper/browser_input
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -29,6 +29,23 @@ Per-test procedure (uniform across the 035 decomposition):
    second copy.
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p browser_input --all-features` —
    all green before and after each relocation batch.
+
+## In Scope
+
+- `module/helper/browser_input` (crate `browser_input`): relocate the 6 inline `#[ test ]` fns in
+  `src/input.rs` — covering `PointerType::from_dom_str` (mouse/touch/pen strings, empty-string,
+  unrecognised-string, all → `Unknown`) and the `Unknown` default — into a new
+  `tests/pointer_type_test.rs`
+- Unify the crate's `tests/` directory convention: create `tests/readme.md` (Responsibility
+  Table, triggered by reaching 3 entries) and update the stale `last_pointer_type` doc comment to
+  reference the new test location
+
+## Out of Scope
+
+- `tests/active_pointers_test.rs`'s existing 7 pointer-tracking tests — pre-existing coverage in
+  a distinct domain, left untouched
+- Keeping any test inline as a "documented exception" — not needed here since the entire tested
+  surface (`PointerType` enum, `from_dom_str` fn) is public (zero exceptions, zero consolidations)
 
 ## Verification
 

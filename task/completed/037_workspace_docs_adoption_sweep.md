@@ -28,6 +28,18 @@ already moved since this finding was made. For each remaining crate, migrate its
 following whatever pattern the 5 already-migrated crates establish. Likely worth decomposing per-crate at
 pickup, same as tasks 035/036.
 
+## In Scope
+
+- Re-deriving the workspace-wide `docs/` doc-entity adoption census across all 30 `module/` crates (originally estimated 5/27)
+- Verifying the 8 already-adopted crates (`line_tools`, `renderer`, `scene_script`, `tilemap_renderer`, `tilemap_scene`, `tiles_tools`, `minwebgpu`, `minwgpu`) use correctly typed `docs/` subdirectories with no untyped loose files
+- Verifying the zero-`spec.md` prohibition and the roadmap.md companion-file exception hold workspace-wide
+- Documenting the finding that no migration backlog exists, per `rulebook.md § Documentation layout`'s Documentation Necessity Test
+
+## Out of Scope
+
+- Actually migrating any of the remaining 22 crates' docs into `docs/` doc-entity subdirectories — the audit concluded this isn't warranted, since those crates carry no design documentation to migrate
+- Creating `docs/` scaffolding for crates without content warranting it (would violate the Documentation Necessity Test / Catalog Doc Entity anti-pattern)
+
 ## Verification
 
 ### Checklist

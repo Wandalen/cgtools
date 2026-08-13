@@ -27,6 +27,20 @@ cross-workspace task), or delete it if it's stale/already-addressed. This overla
 `issues.md` retirement) — the 8 items already catalogued there are a subset of this marker backlog;
 reconcile the two rather than double-filing the same markers as separate tasks from each.
 
+## In Scope
+
+- Re-deriving the workspace-wide `xxx:`/`qqq:`/`aaa:`/`TODO:` marker census (`module/`+`examples/`): 80 lines / 87 tokens
+- Directly resolving 5 trivial markers: `alias/ndarray_tools/tests/tests.rs` (enabled a disabled test include), `helper/embroidery_tools/src/format/pec/reader.rs` (stale TODO removed), `min/minwebgl/src/context.rs` (3 `aaa` review remnants deleted)
+- Filing 7 per-crate successor drafts (059-065) covering the remaining 60 non-trivial marker lines, one draft per crate per Crate Scope Unity
+- Reconciling task 034's 8 `issues.md` items into drafts 061/062 so nothing is double-filed
+
+## Out of Scope
+
+- Implementing the non-trivial marker fixes themselves — deferred to successor drafts 059-065
+- The 8 `mdmath*` blank-template placeholder markers — deliberately left unchanged (deleting or filing them would be YAGNI)
+- The 5 doc-quote lines citing markers as historical evidence — correctly excluded from the backlog
+- Draft 065's examples tranche (markers addressed to named people, including 2 crate-deletion calls) — routed to a human-decision task, not resolved here
+
 ## Verification
 
 ### Checklist

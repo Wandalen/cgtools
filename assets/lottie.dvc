@@ -1,0 +1,6 @@
+outs:
+- md5: c1626d92db08c55015c6eff2038aa5a7.dir
+  size: 14088
+  nfiles: 1
+  hash: md5
+  path: lottie

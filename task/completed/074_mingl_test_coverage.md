@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/min/mingl
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -29,6 +29,20 @@ Per-test procedure (uniform across the 035 decomposition):
    second copy.
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p mingl --all-features` —
    all green before and after each relocation batch.
+
+## In Scope
+
+- `module/min/mingl`, `src/web/file.rs`: triage of 13 inline `#[test]` functions, all kept
+  inline as one documented exception pinning private helpers `resolve_url` (9 tests) and
+  `data_url_base64_payload` (4 tests)
+
+## Out of Scope
+
+- Exposing `resolve_url`/`data_url_base64_payload` to the public API solely for test
+  placement — rejected (zero non-test callers; native testing through `load` is impossible,
+  it's wasm-only)
+- The `data_type.rs:84` "verify" marker test — already landed by task 061, nothing left to
+  land here
 
 ## Verification
 

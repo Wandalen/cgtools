@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/helper/browser_log
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -37,6 +37,25 @@ Deliverables:
 Cross-crate coupling: `alias/browser_tools` includes this crate's `tests/basic_test.rs` by path —
 keep the include green (`cargo test -p browser_tools` must stay exit 0 alongside
 `cargo test -p browser_log`, both via `longrun .launch`).
+
+## In Scope
+
+- `module/helper/browser_log` (crate `browser_log`): new `tests/panic_hook_test.rs` (3 tests —
+  `config_default_enables_location_and_stack_trace`, `config_fields_construct_independently`,
+  `native_hook_runs_on_real_panic`) covering `panic::Config`'s field defaults/construction and
+  the native panic-hook install path, closing the two `qqq : cover by test` markers at
+  `src/panic.rs:75,78`
+
+## Out of Scope
+
+- Deliverable 2 (extending the existing 2-test suite for logging-level/formatting gaps) — judged
+  NOT natively extendable: `BrowserLogger` is private and every observable path calls `web-sys`
+  console functions that panic on native targets; would need a wasm test environment
+- The wasm-only console-binding/message-formatting logic gated behind
+  `cfg( target_arch = "wasm32" )` — never mocked, left natively uncovered per the crate's own
+  gating decision
+- Pre-existing `licence`/`license` file duplication and changelog claim mismatch — explicitly
+  out of this task's scope, belongs to its own hygiene pass
 
 ## Verification
 

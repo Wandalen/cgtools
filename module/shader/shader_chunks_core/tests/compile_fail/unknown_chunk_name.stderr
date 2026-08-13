@@ -1,0 +1,15 @@
+error[E0080]: evaluation panicked: unknown chunk name — see CHUNKS for the bundled set
+ --> tests/compile_fail/unknown_chunk_name.rs:5:54
+  |
+5 | const BROKEN : shader_chunks_core::ChunkDescriptor = shader_chunks_core::chunk( "hash12" );
+  |                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `BROKEN` failed inside this call
+  |
+note: inside `chunk`
+ --> $RUST/core/src/panic.rs
+  |
+  = note: the failure occurred here
+  |
+ ::: src/lib.rs
+  |
+  |       None => panic!( "unknown chunk name — see CHUNKS for the bundled set" ),
+  |               --------------------------------------------------------------- in this macro invocation

@@ -5,18 +5,19 @@
 - **Constraints:** Must resolve via `shader_chunks_core::chunk_get` — an O(1)
   lookup against the `shader_chunks_core::CHUNKS` table; an unresolved name
   returns `CliError::UnknownChunk`, never a panic
-- **Default:** **(required)** for `get` — no default, since detail output is
-  meaningless without a target chunk; `Varies` for `tree` — absent means
-  "every chunk nothing else depends on" (the full forest), not an error
-- **Purpose:** Identifies which single bundled chunk a command should act
-  on. `get` treats it as mandatory. `tree` treats it as optional because
-  "show me everything" (the forest view) is itself a meaningful, common
-  request — not a missing-argument error.
+- **Default:** `Varies` — optional on `tree` (absent means "every chunk
+  nothing else depends on", the full forest, not an error); required on
+  `tunables` (no omission form)
+- **Purpose:** Identifies the single bundled chunk a command operates on —
+  the root of `tree`'s dependency rendering, or the chunk whose declared
+  tunable parameters `tunables` lists. Optional on `tree` because "show me
+  everything" (the forest view) is itself a meaningful, common request —
+  not a missing-argument error.
 
 ### Examples
 ```bash
 # Valid values
-name::hash21        # a real bundled chunk (positional form: `get hash21`)
+name::hash21        # a real bundled chunk (positional form: `tree hash21`)
 name::fbm3
 
 # Invalid values (rejected with error)
@@ -26,9 +27,13 @@ name::bogus_chunk    # "unknown chunk: `bogus_chunk` (see `list` for valid names
 ### Notes
 - Positional, not `key::value` — `shader_chunks` follows unilang's
   positional-argument convention for a command's sole identifying argument
-  (`get hash21`, not `get name::hash21`); unilang resolves a positional
-  token against the declared `ArgumentDefinition` by position, so either
-  form is accepted.
+  (`tree fbm3` / `tunables fbm3`, not `tree name::fbm3`); unilang resolves
+  a positional token against the declared `ArgumentDefinition` by
+  position, so either form is accepted.
+- `tree` and `tunables` are the only commands taking a *single* name —
+  `get` moved to the plural [`names`](02_names.md) when it adopted the
+  shared query engine (multiple chunks per invocation are meaningful
+  there).
 
 ---
 
@@ -36,8 +41,8 @@ name::bogus_chunk    # "unknown chunk: `bogus_chunk` (see `list` for valid names
 
 | # | Command | Default | Notes |
 |---|---------|---------|-------|
-| 1 | [.get](../command/02_get.md) | **(required)** | Detail output requires exactly one target chunk |
-| 2 | [.tree](../command/04_tree.md) | `Varies` (omit for the full forest) | Absent means "show every root chunk," not an error |
+| 1 | [.tree](../command/04_tree.md) | `Varies` (omit for the full forest) | Absent means "show every root chunk," not an error |
+| 2 | [.tunables](../command/06_tunables.md) | — (required) | No omission form — `tunables` always names exactly one chunk |
 
 ---
 

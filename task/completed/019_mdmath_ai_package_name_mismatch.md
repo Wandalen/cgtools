@@ -24,6 +24,19 @@ cleanup bucket, Fix-in-place). Rename the package to `mdmath_ai` to match the di
 workspace for any `mdmath_ia` references (root `Cargo.toml` dependency declarations, other crates'
 `Cargo.toml` files, doc mentions) that need updating in the same change so nothing silently breaks.
 
+## In Scope
+
+- `module/blank/mdmath_ai/Cargo.toml`: `name = "mdmath_ia"` → `name = "mdmath_ai"`
+- `module/blank/mdmath_ai/readme.md`: H1 heading `# mdmath_ia` → `# mdmath_ai`
+- Workspace-wide grep sweep confirming zero remaining live `mdmath_ia` references/dependents
+
+## Out of Scope
+
+- `locales.md`'s stale `mdmath_ia` row — generator-maintained, self-corrects on next regeneration;
+  left untouched
+- Writing tests for the blank scaffold crate — the Goal is the name mismatch only
+- `licence` file — checked for crate-name mentions, none found; left untouched
+
 ## Verification
 
 ### Checklist

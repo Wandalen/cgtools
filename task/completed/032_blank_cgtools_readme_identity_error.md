@@ -26,6 +26,21 @@ drift, Fix-in-place). Note this crate's own name collides with the workspace's o
 **Exact wrong text was not preserved precisely through this session's context compaction — re-read the
 file fresh at pickup to confirm before rewriting.**
 
+## In Scope
+
+- `module/blank/cgtools/readme.md`: fix the H1 identity line (`# cg_tools` → `# cgtools`) and add the
+  reservation-crate description sentence
+- `module/blank/cgtools/Cargo.toml`: fix the `repository` field (`Wandalen/cg_tools` →
+  `Wandalen/cgtools`) — same copy-paste contamination, caught during verification
+
+## Out of Scope
+
+- The other 5 old `blank/` crates (`cg_tools`, `mdmath`, `mdmath_ai`, `mdmath_cg`, `mdmath_linalg`)
+  still pointing their `Cargo.toml` `repository` at `Wandalen/cg_tools` — noted but not swept; left as
+  an ownership call for the user
+- `module/blank/cg_tools/readme.md` — the sibling crate, used only as a diff comparison target, not
+  modified
+
 ## Verification
 
 ### Checklist

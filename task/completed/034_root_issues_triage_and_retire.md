@@ -28,6 +28,20 @@ entirely once its content has a traceable destination (this task itself is a Con
 spirit — every one of the 8 existing entries needs an accounted-for outcome before the file is removed,
 not a silent drop).
 
+## In Scope
+
+- Root `issues.md`: recover the pre-deletion content via `git show` (16 items, not the stale "8"
+  claimed in the original filing) and triage each against current source
+- Confirm a traceable destination for all 16 items: 8 already resolved (re-confirmed by grep), 8
+  correctly covered by existing umbrella task 038 (no new tasks filed for them)
+
+## Out of Scope
+
+- Filing separate one-off tasks for the 8 still-live marker items — explicitly rejected; task 038
+  already claims them as its own subset, and duplicating would violate the no-double-filing principle
+- Deleting `issues.md` itself — already done by an unrelated prior commit (`9b71cf39`) before this task
+  began; not an action this task performed
+
 ## Verification
 
 ### Checklist

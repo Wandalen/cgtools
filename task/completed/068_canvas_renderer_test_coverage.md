@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/helper/canvas_renderer
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -36,6 +36,22 @@ native `tests/` suite.
 Verify with `longrun .launch dir::<workspace root> -- cargo test -p canvas_renderer --all-features`
 (or the wasm-appropriate equivalent established at pickup) — the reproducer must stay green and
 keep its 5-section documentation intact wherever it lands.
+
+## In Scope
+
+- `module/helper/canvas_renderer`: decide placement for the single inline bug reproducer
+  (`resolve_mesh_colors_stays_in_sync_across_non_mesh_siblings`), which tests the private
+  `resolve_mesh_colors` function
+- Decision: kept inline as a documented exception — rationale comment added on `mod tests` in
+  `src/renderer.rs`, naming this task and the two rejected alternatives
+
+## Out of Scope
+
+- Exposing `resolve_mesh_colors` publicly — rejected as API widening for zero callers (YAGNI)
+- Testing through `render`'s public contract from `tests/` — impossible natively since every
+  `CanvasRenderer` method requires a live `&GL` context
+- No public-surface `tests/` suite created — the crate's only public type has no GL-free method
+  to exercise natively
 
 ## Verification
 

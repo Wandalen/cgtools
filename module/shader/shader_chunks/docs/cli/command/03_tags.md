@@ -34,13 +34,15 @@ shader_chunks tags
 - A chunk with multiple tags (e.g. `fbm3`, tagged both `category:noise` and
   `technique:fractal`) appears once per tag it carries — one row per
   `group:tag` pair, not one row per chunk.
+- Every `tag` cell is a valid [`tag::`](../param/05_tag.md) selector for
+  `list`/`get` — this command enumerates that selector vocabulary.
 - Output format: [`table_plain`](../format/01_table_plain.md).
 
 ### Related Commands
 
 | # | Command | Relationship |
 |---|---------|--------------|
-| 1 | [`.list`](01_list.md) | Alternative view, grouped by chunk instead of by tag |
+| 1 | [`.list`](01_list.md) | Filter by these tags via `tag::`; grouped by chunk instead of by tag |
 | 2 | [`.get`](02_get.md) | Full detail for one of the chunks a tag row names |
 
 ### Referenced User Stories

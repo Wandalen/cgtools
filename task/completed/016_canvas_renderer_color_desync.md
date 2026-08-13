@@ -25,6 +25,23 @@ exact file/line is not re-verified in this filing pass; re-confirm against curre
 `module/helper/canvas_renderer/src/` before touching.** Write a test that asserts color-state consistency
 across the specific operation sequence that triggers the desync before fixing.
 
+## In Scope
+
+- `module/helper/canvas_renderer/src/renderer.rs`: extract `resolve_mesh_colors` (private,
+  `mod private`-scoped, not re-exported) indexing `colors` by `resolved.len()` instead of a counter
+  shared with the raw scene traversal; `render()` updated to resolve `mesh_colors` once up front and
+  walk it with its own mesh-only counter
+- In-source regression test `resolve_mesh_colors_stays_in_sync_across_non_mesh_siblings` (`mod tests`)
+  exercising a scene with a non-mesh node between two mesh nodes
+
+## Out of Scope
+
+- Making `resolve_mesh_colors` part of the crate's public API — deliberately kept private, not
+  re-exported via `mod_interface!`
+- The `browser_log` crate's `allow_attributes_without_reason` clippy failure blocking this crate's
+  `-D warnings` runs — pre-existing, unrelated (`canvas_renderer`'s own `src/` carries zero
+  `#[allow(...)]` attributes)
+
 ## Verification
 
 ### Checklist

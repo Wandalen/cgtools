@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/helper/behaviour_tree
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -30,6 +30,20 @@ Per-test procedure (uniform across the 035 decomposition):
    surface — no mocks, loud failures.
 3. Verify with `longrun .launch dir::<workspace root> -- cargo test -p behaviour_tree --all-features` —
    all green before and after each relocation batch.
+
+## In Scope
+
+- `module/helper/behaviour_tree`: relocate all 14 inline `#[test]`s from `src/lib.rs` into
+  `tests/behaviour_tree_test.rs`, plus 1 new test pinning untested public surface (`for_entity`,
+  `set_property`/`get_property` roundtrip)
+- Preserve the `RepeatNode::infinite` livelock-guard bug reproducer, including its full
+  5-section doc comment
+- `tests/readme.md` — Responsibility Table
+
+## Out of Scope
+
+- No expose-or-exception decisions needed — crate is plain (non-`mod_interface`) with every item
+  `pub` at the root, so all tests relocated cleanly with no documented exceptions
 
 ## Verification
 

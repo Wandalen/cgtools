@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/helper/tiles_tools
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -43,6 +43,22 @@ change). Marker and doc must not end up contradicting each other.
 Per-marker outcomes follow task 038's triage contract. Verify with
 `cargo test -p tiles_tools --all-features` (via `longrun .launch`); doc updates must keep
 `docs/algorithm/004` and `docs/pitfall/002` consistent with whatever the code becomes.
+
+## In Scope
+
+- `module/helper/tiles_tools/src/geometry.rs` (+ `docs/algorithm/004`, renamed to
+  `..._geometry_generation.md`): resolved the 5 `aaa:` review-conversation markers (mesh→geometry
+  vocabulary purge, primitive-kind metadata docs, "no fans or loops" constraint reconciled with
+  the shipped triangulation, descriptive docs, naming cleanup)
+- `module/helper/tiles_tools/src/ecs/world.rs` and `src/ecs/systems.rs`: resolved the 3 `TODO:`
+  markers (implemented the type-safe movement queue, retiring `docs/pitfall/002`; made
+  pathfinding's obstacle/cost parameters caller-supplied by design)
+
+## Out of Scope
+
+- Full reconciliation of `roadmap.md`'s ECS-movement narrative — this task's own verification
+  (C7) found 4 `roadmap.md` locations still describing the old no-op gap after the Phase
+  3/Known-Gaps update; not independently re-swept in full here
 
 ## Verification
 

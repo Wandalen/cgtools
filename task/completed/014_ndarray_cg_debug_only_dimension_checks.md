@@ -26,6 +26,21 @@ re-confirm against current `module/math/ndarray_cg/src/` before touching**, and 
 whether each site should become a real runtime check (`Result`/panic) or is genuinely
 performance-critical-enough to justify staying debug-only with an explicit doc comment explaining why.
 
+## In Scope
+
+- `module/math/ndarray_cg/src/d2/arithmetics/{add,mul}.rs`, `src/d2/mat/access_{common,row_major,column_major}.rs`,
+  `src/quaternion/from.rs` — convert debug-only dimension/bounds checks to unconditional `assert!`/
+  `assert_eq!`, or remove where redundant/buggy, decided case-by-case per site
+- The 2 CRITICAL unsafe-guarded sites (`with_column_major`/`with_row_major`) — confirmed their size
+  guard is now unconditional immediately before the `unsafe { *ptr.add(...) }` read
+- 29 new regression tests across 5 files under `tests/` proving each site's release-mode behavior
+
+## Out of Scope
+
+- The 2 `raw_set` sites (`access_row_major.rs`/`access_column_major.rs`) — left debug-only; confirmed
+  already safe in every build profile via the subsequent unconditional `copy_from_slice` panic
+- Any file outside the 6 touched files — not audited or changed by this task
+
 ## Verification
 
 ### Checklist

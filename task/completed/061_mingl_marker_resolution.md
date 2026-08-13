@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/min/mingl
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -47,6 +47,24 @@ Per-marker outcomes follow task 038's triage contract: fix in code, or file evid
 stays, or delete if investigation proves it stale. Verify with
 `cargo test -p mingl --all-features` (via `longrun .launch`); readme claims must stay aligned with
 task 030's verified-claims rewrite.
+
+## In Scope
+
+- `module/min/mingl/src/data_type.rs` and `src/data_type/f32.rs`: resolved the 4 data-type
+  descriptor markers (`i32` vs `usize` decision, added verifying tests, corrected a stale
+  "f32-only" readme claim)
+- `module/min/mingl/Cargo.toml`, `src/mem.rs`, `src/derive.rs`: resolved the 2 dependency-decision
+  markers (bytemuck marker satisfied by existing `asbytes` adoption; `former` re-export
+  investigated and kept as load-bearing)
+- `module/min/mingl/src/web/file.rs`: resolved the typed-errors marker (implemented an `Error`
+  enum for web file loading)
+
+## Out of Scope
+
+- Corresponding changes in `module/min/minwebgl` — the paired bytemuck-dependency decision was
+  coordinated with, but implemented separately by, task 062
+- Removing `exposed use ::former;` from `derive.rs` — investigated and rejected as unsafe to
+  remove; only the marker comment itself was resolved
 
 ## Verification
 

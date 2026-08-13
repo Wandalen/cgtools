@@ -58,9 +58,10 @@ async fn app_run() -> Result< (), gl::WebGPUError >
   let presentation_format = gl::context::preferred_format();
   gl::context::configure( &device, &context, presentation_format )?;
 
-  // shader_source::assemble() prepends the shared shader_chunks_core chunks —
-  // the fullscreen-triangle vertex stage and the noise stack — ahead of
-  // its own fragment-only body, shader/scene_fragment.wgsl.
+  // shader_source::assemble() composes shader_source::SCENE_CHUNKS — the
+  // compile-time-selected shader_chunks_core chunks ( fullscreen-triangle
+  // vertex stage, noise stack ) plus the locally-defined
+  // shader/scene_fragment.wgsl chunk — dependency-before-dependent.
   let wgsl = shader_source::assemble();
   let shader = gl::ShaderModule::new( &wgsl ).create( &device );
 

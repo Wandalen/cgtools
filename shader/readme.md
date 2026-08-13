@@ -20,6 +20,11 @@ conventions (`name`/`description`/`tags`/`stage`/`depends_on`/`export`).
 | [fbm3/](fbm3/readme.md) | 3-octave fractal Brownian motion over `value_noise` | `value_noise` |
 | [fullscreen_triangle/](fullscreen_triangle/readme.md) | Big-triangle vertex stage covering the viewport | — |
 
+Row order above is load-bearing: `shader_chunks_core`'s `build.rs` takes
+`CHUNKS` registry order from this table — and fails the build if a chunk
+directory and a row here ever disagree — so reordering rows reorders every
+registry consumer's default output (e.g. the `sch` CLI's `sort::input`).
+
 Dependency order (also see `sch tree`, which derives this live from each
 chunk's `//@ depends_on:` header rather than from this table):
 

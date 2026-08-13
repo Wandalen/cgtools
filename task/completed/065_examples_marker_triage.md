@@ -51,6 +51,22 @@ Verification: after any code change, the touched example must still build
 RUSTFLAGS); after any crate deletion, `examples/index.md` and `demo_completeness.md` rows must be
 removed in the same change and the workspace must still resolve (`cargo metadata` exit 0).
 
+## In Scope
+
+- Triage of the 13 census markers across `examples/diamond`, `examples/make_cube_map`,
+  `examples/obj_load`, `examples/raycaster`, `examples/attributes_matrix`,
+  `examples/uniforms_ubo`, `examples/pbr_lighting` — re-derived live status (7/13 still live) and
+  made keep/delete/accept/defer decisions for each
+- Filing the resulting follow-up tasks: 094 (diamond), 095 (make_cube_map), 096
+  (attributes_matrix), 097 (obj_load, bundled), 098 (obj_viewer proposal, deferred Draft)
+
+## Out of Scope
+
+- Any actual code changes (crate deletions, obj_load helper adoption, marker deletions) — handed
+  off to the filed per-crate tasks 094-098, not performed by this task
+- `obj_load:41`'s obj_viewer example proposal — deferred per YAGNI as a Draft watch-item (task
+  098), not accepted as active work
+
 ## Outcomes
 
 Re-derivation at pickup (2026-08-12, per this task's own "re-derive at pickup" caveat) found the

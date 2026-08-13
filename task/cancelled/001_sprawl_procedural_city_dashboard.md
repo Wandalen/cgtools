@@ -22,6 +22,10 @@ Ship a working Rust→Wasm procedural city-generation engine — the `sprawl` cr
 
 **Scoped: not yet single-deliverable.** This goal currently bundles all 5 Development Milestones (Wasm bridge/canvas; terrain/hydrology/shoreline; hub placement/traffic/roads/bridges; parcel subdivision/labels; AI integration/segmentation/polish) as one deliverable — see `## Verification Findings` below, which is exactly the open question this normalization pass leaves unresolved (tracked as `Q-01` in `task/decisions.md`).
 
+Implement "SPRAWL", a high-performance web-based procedural city generation dashboard. The application simulates urban growth from terrain generation through traffic routing, culminating in an AI-generated photorealistic satellite map. The simulation engine runs entirely as Rust compiled to WebAssembly via `wasm-bindgen`, handling all math, procedural generation, graph routing, and spatial queries at near-native speed. A frontend UI (React or Svelte, TypeScript) provides the dashboard shell, sidebars, and state management. Rendering targets the HTML5 Canvas / WebGL pipeline driven by the Wasm module's state. An external AI layer (Gemini/OpenAI for text, Stable Diffusion/ControlNet for imagery) is orchestrated by the frontend.
+
+The project must maximally reuse existing cgtools workspace crates and dependencies. Where functionality is missing, new crates are created within the `module/` hierarchy following established patterns (`mod_interface`, `error_tools`, 2-space indent, `tests/` directory, etc.).
+
 ## In Scope
 
 - New crate `sprawl` at `module/helper/sprawl`, with internal modules: `terrain`, `hydrology`, `shoreline`, `hubs`, `traffic`, `roads`, `bridges`, `parcels`, `labels`, `segmentation`, `wasm_bridge`
@@ -36,12 +40,6 @@ Ship a working Rust→Wasm procedural city-generation engine — the `sprawl` cr
 - 3D satellite view via the `renderer` crate — listed as an optional use of an existing crate, not a required deliverable
 - Hydraulic erosion simulation in `sprawl::hydrology` — explicitly marked "optional stretch" under Milestone 2
 - Actual calls to external AI APIs (Gemini/OpenAI, Stable Diffusion/ControlNet) — orchestrated by the (out-of-scope) frontend; this task only produces the JSON/PNG payloads they would consume
-
-## Description
-
-Implement "SPRAWL", a high-performance web-based procedural city generation dashboard. The application simulates urban growth from terrain generation through traffic routing, culminating in an AI-generated photorealistic satellite map. The simulation engine runs entirely as Rust compiled to WebAssembly via `wasm-bindgen`, handling all math, procedural generation, graph routing, and spatial queries at near-native speed. A frontend UI (React or Svelte, TypeScript) provides the dashboard shell, sidebars, and state management. Rendering targets the HTML5 Canvas / WebGL pipeline driven by the Wasm module's state. An external AI layer (Gemini/OpenAI for text, Stable Diffusion/ControlNet for imagery) is orchestrated by the frontend.
-
-The project must maximally reuse existing cgtools workspace crates and dependencies. Where functionality is missing, new crates are created within the `module/` hierarchy following established patterns (`mod_interface`, `error_tools`, 2-space indent, `tests/` directory, etc.).
 
 ---
 

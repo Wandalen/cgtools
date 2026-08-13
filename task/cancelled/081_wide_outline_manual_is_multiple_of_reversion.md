@@ -52,6 +52,19 @@ task's own § Verification C10 first discovered and documented this regression b
 it unfixed as out of scope for that task's own file list ("Flagged for awareness; out of scope to
 fix here").
 
+## In Scope
+
+- `module/helper/renderer/src/webgl/post_processing/outline/wide_outline.rs` — convert the 2 reverted
+  sites (line 374 `i % 2 == 0`, line 441 `self.num_passes % 2 == 0`) back to `.is_multiple_of( 2 )`,
+  matching task 015's original conversion
+
+## Out of Scope
+
+- The other 5 already-converted sites from task 015 (`event_system_demo`, `stealth_game`,
+  `renderer/tests/skeleton_tests.rs`, `tilemap_renderer/.../svg.rs` ×2) — untouched, not regressed
+- Raising `renderer`'s `rust-version` MSRV pin to ≥ 1.87 to make the conversion legal — a separate
+  consumer-facing policy decision (resolution path (b) in History), not taken
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |

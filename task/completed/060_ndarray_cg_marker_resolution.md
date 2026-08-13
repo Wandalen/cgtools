@@ -10,7 +10,7 @@
 - **round:** 1
 - **state:** ✅ (Completed)
 - **closes:** null
-- **unit_type:** crate
+- **unit_type:** module
 - **unit:** module/math/ndarray_cg
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** 2026-08-10
@@ -46,6 +46,26 @@ stays, or delete if stale. Verify with `cargo test -p ndarray_cg --all-features`
 `longrun .launch`) — note the alias crate `ndarray_tools` now includes this suite by path (task 038
 enabled it), so donor-suite edits must keep both green:
 `cargo test -p ndarray_tools --all-features`.
+
+## In Scope
+
+- `src/vector/general.rs:5` — stale `document please` marker deleted (every public item already
+  documented); drive-by `"lenght"` → `"length"` typo fix
+- `src/vector/general.rs:152` — new `VectorLengthMismatch` typed-error struct (Debug/Clone/Copy/
+  PartialEq/Eq/Display/`std::error::Error`) replacing the `&'static str` error on `TryFrom<&[E]>`
+- `src/vector/general.rs:189,224` — `IntoVector` test coverage added
+  (`tests/inc/vector_conversion_test.rs`, 4 tests); the commented-out `FromVector` trait and dead
+  `From<E> for Vector` block deleted outright
+- `src/vector/arithmetics.rs:109` — stale `reuse` marker deleted (the requested
+  `reuse ::mdmath_core::vector::arithmetics;` directive was already wired, no duplicate logic remained)
+
+## Out of Scope
+
+- `Cargo.toml:82,84` (`missing_docs`/`missing_debug_implementations` lint markers) — explicitly
+  deferred to task 058's workspace-lint-inheritance pass; this task only confirms they were handled
+  when it closes
+- `tests/inc/d2_test/arithmetic_test/mul_test.rs:80` — matches marker grep but is a fix-doc comment
+  quoting a resolved TASK-014 marker, not live backlog; explicitly left untouched
 
 ## Verification
 

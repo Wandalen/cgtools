@@ -46,6 +46,14 @@ pickup:**
    than a text/font-specific one — re-examine why it was gated behind `font-processing` in the first
    place before choosing this path.
 
+## In Scope
+
+- `module/helper/primitive_generation/src/primitive.rs` — gate `contours_to_fill_geometry` behind
+  `#[cfg(feature = "font-processing")]`; split its `mod_interface!` export and `BoundingBox` import
+  into their own feature-gated blocks, mirroring the existing `path_to_points`/`text` precedent
+- `module/helper/primitive_generation/Cargo.toml` — add a `required-features = ["font-processing"]`
+  entry to the `contours_to_fill_geometry_test` `[[test]]` block
+
 ## Out of Scope
 
 - The two TASK-018 issues themselves (doc-contradicting silent failure on triangulation `Err`;

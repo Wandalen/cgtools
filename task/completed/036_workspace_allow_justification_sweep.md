@@ -27,6 +27,23 @@ lint is suppressed, or remove the attribute and fix the underlying lint if it's 
 **This is a large, mechanical, cross-cutting sweep — likely worth decomposing per-crate at pickup** rather
 than one giant diff, similar to task 035's own decomposition note.
 
+## In Scope
+
+- `module/helper/primitive_generation/src/text/ufo.rs`: swept all 8 blanket `#![allow(clippy::...)]` —
+  removed 3 stale, fixed 4 in code (`explicit_iter_loop`, `uninlined_format_args`, `needless_continue`,
+  `semicolon_if_nothing_returned`), re-justified 1 as a scoped `#[allow(clippy::too_many_lines)]` on
+  `from_glif`
+- Workspace-wide census of `#[allow(...)]`/`#![allow(...)]` sites (1905 across 102 crates) and the
+  lint-inheritance map, to size and inform the remainder of the sweep
+
+## Out of Scope
+
+- The remaining ~1897 `#[allow]` sites across the other 101 crates — decomposed into successor
+  `draft/058` (per-crate procedure), not fixed by this task
+- Unrelated pre-existing regressions surfaced during verification (`browser_log/panic.rs` missing a
+  lint-reason string; `mingl::BoundingBox` becoming `#[non_exhaustive]` and breaking `ufo.rs`'s own
+  struct-literal construction) — confirmed unrelated to this task's edits, left unfixed
+
 ## Verification
 
 ### Checklist

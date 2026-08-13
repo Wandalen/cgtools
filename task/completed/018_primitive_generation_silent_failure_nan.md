@@ -27,6 +27,24 @@ plan — exact file/line citations are not re-verified in this filing pass; re-c
 `ufo.rs` dead-code and doc-drift cleanup, a hygiene concern) and from BUG-007/task 008 (this crate's
 `csgrs`/`core2` dependency issue) — three separate concerns sharing one crate, keep them separate.
 
+## In Scope
+
+- `module/helper/primitive_generation/src/primitive.rs`: `contours_to_fill_geometry` — triangulation
+  failure (`earcutr::earcut` returning `Err`) now returns `None` instead of silently `continue`-ing
+  past the failed body, honoring the documented contract
+- `module/helper/primitive_generation/src/primitive.rs`: `curve_to_geometry` — added an upfront
+  degenerate/coincident-point precondition check (including the wrap-around closing segment) that
+  returns `None` instead of letting `.normalize()` produce `NaN`
+- New `tests/curve_to_geometry_test.rs` (3 tests) and `tests/contours_to_fill_geometry_test.rs`
+  (2 tests) regression coverage
+
+## Out of Scope
+
+- `src/text/ufo.rs` dead-code and doc-drift — separate concern, task 021
+- `csgrs`/`core2` dependency issue — separate concern, BUG-007/task 008
+- `contours_to_fill_geometry`'s missing `font-processing` feature gate on its `earcutr` usage —
+  observed but not one of this task's two named issues; filed separately as task 055
+
 ## Verification
 
 ### Checklist

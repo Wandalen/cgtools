@@ -7,5 +7,8 @@ description = "Manifest-driven WGSL shader-chunk composer — topologically sort
 [dependencies]
 mod_interface.workspace = true
 
+[dev-dependencies]
+trybuild = "1.0"
+
 [lints]
 workspace = true

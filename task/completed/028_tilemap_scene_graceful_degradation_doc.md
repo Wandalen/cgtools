@@ -26,6 +26,24 @@ P4 (rewrite bucket) — **the exact contradiction's specific claims were not pre
 this session's context compaction; re-derive by reading the current degradation-handling code against
 each doc instance before rewriting.**
 
+## In Scope
+
+- `docs/algorithm/002` — full "Missing-sprite handling" section rewritten to the verified 3-case behavior
+- `docs/api/001` — missing-sprite paragraph promoted to a numbered spec divergence ("three" → "four
+  divergences")
+- `docs/format/004` and `docs/format/005` — contrast clause and `External` row corrected (silent skip, no
+  warning; API name fixed to `set_external_sprite`)
+- `docs/invariant/001` — Out-of-Scope wording corrected (runtime semantics, not "fallback")
+- `roadmap.md` — dangling "§12.2 of the spec" pointer replaced with a live reference to
+  `docs/algorithm/002`
+
+## Out of Scope
+
+- Any `src/` code change — the crate's actual degradation behavior (silent `External` skip, hard
+  `UnresolvedRef` errors, non-optional autotile fallback) was verified against source but not modified
+- The warn + magenta-checkerboard placeholder behavior ("Story A") — deliberately not implemented; stays a
+  roadmap-tracked pending option, not documented as current behavior
+
 ## Verification
 
 ### Checklist
