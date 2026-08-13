@@ -49,27 +49,11 @@ mod private
     }
   }
 
-  /// Splits an absolute `href` ( e.g. `window.location().href()` ) into its
-  /// origin ( `scheme://host[:port]` ) and the directory portion of its path —
-  /// the path truncated after its final `/`. `https://host/a/b/c.html` splits
-  /// into `https://host` and `/a/b/`; `https://host/a/b/` splits into the same
-  /// pair unchanged; `https://host` ( no path at all ) yields directory `/`.
-  fn split_origin_and_dir( href : &str ) -> ( &str, &str )
-  {
-    let path_start = href.find( "://" )
-    .and_then( | scheme_end | href[ scheme_end + 3.. ].find( '/' ).map( | i | scheme_end + 3 + i ) )
-    .unwrap_or( href.len() );
-    let ( origin, path ) = href.split_at( path_start );
-    if path.is_empty()
-    {
-      return ( origin, "/" );
-    }
-    let dir_end = path.rfind( '/' ).map_or( 0, | i | i + 1 );
-    ( origin, &path[ ..dir_end ] )
-  }
-
   /// Resolves `file_name` against `base_href` — the current document's full
-  /// URL — according to `load`'s contract.
+  /// URL — according to `load`'s contract. Thin wrapper: the actual join logic
+  /// lives in `web::resolve_url`, shared with `web::dom`'s element-creating
+  /// functions ( see that function's doc comment ). Kept at this path because
+  /// `module/helper/renderer`'s glTF loader depends on it here.
   ///
   /// * Absolute URLs (`http://`, `https://`, `//`) pass through unchanged.
   /// * Self-contained URLs (`blob:`, `data:`) pass through unchanged — these carry
@@ -83,40 +67,17 @@ mod private
   ///   served at `/minwebgl/text_msdf/` resolves `"static/foo.json"` to
   ///   `/minwebgl/text_msdf/static/foo.json` — matching how a plain `<img src>`
   ///   or `fetch()` call on that page would resolve the same relative path.
-  //
-  // Fix(BUG-109): resolving document-relative paths against `origin` alone
-  // (dropping the current page's own path) sent every subpath-deployed
-  // example's asset fetches to the site root instead of its own directory.
-  // Root cause: `window.location().origin()` never includes a path component
-  // by definition — using it as the sole join target only works for pages
-  // served at the domain root.
-  // Pitfall: don't reach for `origin` when resolving a *relative* reference —
-  // relative references resolve against the current document's directory, not
-  // its origin; only an absolute-path reference (leading `/`) targets the origin.
   #[ must_use ]
   pub fn url_resolve( base_href : &str, file_name : &str ) -> String
   {
-    if is_self_contained_url( file_name )
-    {
-      file_name.to_string()
-    }
-    else
-    {
-      let ( origin, dir ) = split_origin_and_dir( base_href );
-      if file_name.starts_with( '/' )
-      {
-        format!( "{origin}{file_name}" )
-      }
-      else
-      {
-        format!( "{origin}{dir}{file_name}" )
-      }
-    }
+    crate::web::resolve_url( base_href, file_name )
   }
 
   /// Returns `true` for URLs that already carry their own location and must never
   /// be prefixed with an origin or a folder path — doing so mangles them into an
-  /// unresolvable same-origin path. Two subcategories qualify:
+  /// unresolvable same-origin path. Thin wrapper over `web::is_self_contained_url`,
+  /// kept at this path because `module/helper/renderer`'s glTF loader depends on
+  /// it here. Two subcategories qualify:
   /// * absolute (`http://`, `https://`), protocol-relative (`//`), and `blob:` URLs,
   ///   which reach `fetch` verbatim, and
   /// * self-contained `data:` payloads, which `load` decodes inline (see its `data:`
@@ -130,11 +91,7 @@ mod private
   #[ must_use ]
   pub fn is_self_contained_url( url : &str ) -> bool
   {
-    url.starts_with( "http://" )
-    || url.starts_with( "https://" )
-    || url.starts_with( "//" )
-    || url.starts_with( "blob:" )
-    || url.starts_with( "data:" )
+    crate::web::is_self_contained_url( url )
   }
 
   /// Validates a `data:` URL and returns its base64-encoded payload (the text

@@ -4,11 +4,11 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **actor:** null
-- **started_at:** null
-- **expires_at:** null
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **started_at:** 2026-08-13 21:48:08
+- **expires_at:** 2026-08-13 23:48:08
 - **round:** 1
-- **state:** 📦 (Executed)
+- **state:** 🔎 (Accepting)
 - **closes:** Q-03
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/shader/shader_chunks_params
@@ -18,6 +18,11 @@
 - **priority:** 3
 - **executing_at:** 2026-08-13 03:27:55
 - **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **in_motion:** true
+- **accepting_at:** 2026-08-13 21:48:08
+- **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **accepted_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ (independent acceptance-verification session — see Outcomes § B1 disclosure)
+- **accepted_at:** 2026-08-13
 
 ## Goal
 
@@ -108,43 +113,43 @@ not by this section.
 ### Checklist
 
 **Crate structure**
-- [ ] C1 — Does `module/shader/shader_chunks_params/Cargo.toml` exist with the correct package name and workspace lints?
-- [ ] C2 — Is the crate registered in root `Cargo.toml`'s `members` list and `workspace.dependencies`?
-- [ ] C3 — Does `src/lib.rs` use the `mod_interface!` pattern with an inline `mod private { ... }` block (no `private.rs`)?
+- [x] C1 — Does `module/shader/shader_chunks_params/Cargo.toml` exist with the correct package name and workspace lints?
+- [x] C2 — Is the crate registered in root `Cargo.toml`'s `members` list and `workspace.dependencies`?
+- [x] C3 — Does `src/lib.rs` use the `mod_interface!` pattern with an inline `mod private { ... }` block (no `private.rs`)?
 
 **Taxonomy & parsing**
-- [ ] C4 — Are all 5 `ParameterKind` variants present and correctly named?
-- [ ] C5 — Does `discover` correctly parse declared ranges, inferred ranges, and multiple/zero param lines?
-- [ ] C6 — Does `discover` panic on malformed directives (unknown kind, unknown type)?
+- [x] C4 — Are all 5 `ParameterKind` variants present and correctly named?
+- [x] C5 — Does `discover` correctly parse declared ranges, inferred ranges, and multiple/zero param lines?
+- [x] C6 — Does `discover` panic on malformed directives (unknown kind, unknown type)?
 
 **Range inference**
-- [ ] C7 — Does `infer_range` implement every name-pattern rule from `docs/algorithm/001`?
-- [ ] C8 — Does `infer_range` implement every type-fallback rule from `docs/algorithm/001`?
-- [ ] C9 — Does a declared range always override what inference would otherwise produce?
+- [x] C7 — Does `infer_range` implement every name-pattern rule from `docs/algorithm/001`?
+- [x] C8 — Does `infer_range` implement every type-fallback rule from `docs/algorithm/001`?
+- [x] C9 — Does a declared range always override what inference would otherwise produce?
 
 **Docs**
-- [ ] C10 — Are `docs/api/001` and `docs/algorithm/001` present, complete, and free of TBD markers?
+- [x] C10 — Are `docs/api/001` and `docs/algorithm/001` present, complete, and free of TBD markers?
 
 **Out of Scope confirmation**
-- [ ] C11 — Is `module/shader/shader_chunks_core/` byte-for-byte unchanged?
-- [ ] C12 — Are all 4 bundled `shader/*.wgsl` files byte-for-byte unchanged (no real chunk annotated)?
+- [x] C11 — Is `module/shader/shader_chunks_core/` byte-for-byte unchanged?
+- [x] C12 — Are all 4 bundled `shader/*.wgsl` files byte-for-byte unchanged (no real chunk annotated)?
 
 ### Measurements
 
-- [ ] M1 — `find module/shader/shader_chunks_params -name '*.rs' | wc -l` → ≥2 (at least `src/lib.rs` plus test files)
-- [ ] M2 — `grep -c '#\[ test \]' module/shader/shader_chunks_params/tests/*.rs` (or `#[test]`, matching this workspace's spacing convention) → ≥12, covering the full Test Matrix above
+- [x] M1 — `find module/shader/shader_chunks_params -name '*.rs' | wc -l` → ≥2 (at least `src/lib.rs` plus test files)
+- [x] M2 — `grep -c '#\[ test \]' module/shader/shader_chunks_params/tests/*.rs` (or `#[test]`, matching this workspace's spacing convention) → ≥12, covering the full Test Matrix above
 
 ### Invariants
 
-- [ ] I1 — `cargo check -p shader_chunks_params` → 0 errors
-- [ ] I2 — `cargo clippy -p shader_chunks_params --all-targets --all-features -- -D warnings` → 0 warnings
-- [ ] I3 — `cargo nextest run -p shader_chunks_params` (or `cargo test -p shader_chunks_params`) → 0 failures
+- [x] I1 — `cargo check -p shader_chunks_params` → 0 errors
+- [x] I2 — `cargo clippy -p shader_chunks_params --all-targets --all-features -- -D warnings` → 0 warnings
+- [x] I3 — `cargo nextest run -p shader_chunks_params` (or `cargo test -p shader_chunks_params`) → 0 failures
 
 ### Anti-faking checks
 
-- [ ] AF1 — the malformed-directive panic tests genuinely exercise the parser's error path, not a hand-rolled `assert!(false)`: `grep -n "should_panic" module/shader/shader_chunks_params/tests/discovery_test.rs` → ≥2 matches, each wrapping a real `discover(...)` call
-- [ ] AF2 — no test silently short-circuits via a mock or stub of `discover`/`infer_range` themselves — the workspace's no-mocking rule applies; confirm every test file calls the real public functions
-- [ ] AF3 — `git diff --stat -- module/shader/shader_chunks_core module/shader/shader_chunks shader/` → empty (confirms Out of Scope boundary held)
+- [x] AF1 — the malformed-directive panic tests genuinely exercise the parser's error path, not a hand-rolled `assert!(false)`: `grep -n "should_panic" module/shader/shader_chunks_params/tests/discovery_test.rs` → ≥2 matches, each wrapping a real `discover(...)` call
+- [x] AF2 — no test silently short-circuits via a mock or stub of `discover`/`infer_range` themselves — the workspace's no-mocking rule applies; confirm every test file calls the real public functions
+- [x] AF3 — `git diff --stat -- module/shader/shader_chunks_core module/shader/shader_chunks shader/` → empty (confirms Out of Scope boundary held)
 
 ## Verification Record
 
@@ -164,6 +169,50 @@ not by this section.
 
 Adversarial pass (summary; full reasoning in session record): challenged whether the root-`Cargo.toml` touch violates Crate Scope Unity (resolved — every crate-creation task requires this plumbing, per precedent), whether two docs (api+algorithm) over-fragment documentation (resolved — they cover genuinely distinct design dimensions per `doc_des.rulebook.md`'s own type-selection logic, matching this workspace's existing `pattern/`/`layer/`/`adr/` separation), and whether bundling taxonomy+inference in one crate violates Single Responsibility (resolved — no independent reuse case exists for either half alone). No blocking finding surfaced.
 
+## Outcomes
+
+### Acceptance Results
+
+- **Verified by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ (independent acceptance-verification session)
+- **Date:** 2026-08-13
+- **Verdict:** PASS
+
+**B1 separation-of-concerns disclosure:** this verifying session's own visible context never implemented `shader_chunks_params` — the crate was executed by an earlier session (per the Journal's `EXEC_COMPLETE` entry, `executing_by` recorded as `.../task/`). This session's `accepting_by` (`.../` — no trailing `task/` segment) coarsely collides with that executor string under `scope get::id`'s location-only granularity, but the two are genuinely distinct sessions with disjoint context — per `tsk_verify §B1`, this is disclosed rather than treated as a blocker.
+
+#### Checklist
+
+- C1 — PASS — `module/shader/shader_chunks_params/Cargo.toml` has `name = "shader_chunks_params"`, `edition = "2024"`, `[lints] workspace = true`, matching sibling `shader_chunks_core/Cargo.toml`'s exact pattern.
+- C2 — PASS — root `Cargo.toml` `members` includes `"module/shader/shader_chunks_params"` (line 27); `[workspace.dependencies.shader_chunks_params]` block present (`version = "0.1.0"`, `path = "module/shader/shader_chunks_params"`), sectioned correctly beside the other `# = shader` entries.
+- C3 — PASS — `src/lib.rs` closes with `::mod_interface::mod_interface! { own use ...; }`; all types/functions defined inside an inline `mod private { ... }` block; no `private.rs` file exists in the crate.
+- C4 — PASS — `ParameterKind` has exactly 5 variants: `Argument`, `Define`, `Uniform`, `Attribute`, `Texture`.
+- C5 — PASS — `discovery_test.rs` exercises declared ranges, inferred ranges, multi-param file-order preservation, and the zero-param → empty `Vec` case; all pass under `cargo nextest`.
+- C6 — PASS — `discover` panics via explicit `panic!` arms on unknown kind token, unknown type token, and wrong argument count; each covered by a dedicated `#[should_panic]` test.
+- C7 — PASS — `infer_range_by_name`'s 6 pattern groups in `src/lib.rs` cross-checked line-by-line against `docs/algorithm/001`'s Stage 1 rule table — exact match, same order.
+- C8 — PASS — `infer_range_by_type`'s 3 groups cross-checked against `docs/algorithm/001`'s Stage 2 table — exact match, including the honestly-self-documented note that the `Texture2d` arm is unreachable in practice (kept only for match exhaustiveness, not a defect).
+- C9 — PASS — two explicit precedence tests in `discovery_test.rs` (declared-overrides-name-pattern, declared-overrides-type-fallback); the latter independently confirmed genuinely discriminating — it asserts a value that differs from what type-fallback alone would produce, not a tautology.
+- C10 — PASS — both `docs/api/001_tunable_parameter_taxonomy.md` and `docs/algorithm/001_range_inference_heuristic.md` read in full: complete Scope/Grammar/Kinds/Types/Operations/Tests sections (api doc) and full rule table (algorithm doc), no TBD markers in either.
+- C11 — PASS — `git diff --stat -- module/shader/shader_chunks_core` empty (see AF3).
+- C12 — PASS — `git diff --stat -- shader/` empty (see AF3); crate `readme.md` additionally states explicitly that none of the 4 bundled chunks carry a `//@ param:` line yet.
+
+#### Measurements
+
+- M1 — PASS — `find module/shader/shader_chunks_params -name '*.rs' | wc -l` → 3 (`src/lib.rs`, `tests/discovery_test.rs`, `tests/range_inference_test.rs`), ≥2 required.
+- M2 — PASS — combined `#[ test ]` count across both test files → 25 (12 in `discovery_test.rs` + 13 in `range_inference_test.rs`), ≥12 required; matches `cargo nextest`'s own reported 25/25 exactly.
+
+#### Invariants
+
+- I1 — PASS — `cargo check -p shader_chunks_params --all-features` → exit 0, 0 errors (`task/-0005_longrun.log`).
+- I2 — PASS — `cargo clippy -p shader_chunks_params --all-targets --all-features -- -D warnings` → exit 0, 0 warnings (`task/-0006_longrun.log`).
+- I3 — PASS — `cargo nextest run -p shader_chunks_params` → 25/25 passed, 0 skipped, exit 0 (`task/-0007_longrun.log`).
+
+#### Anti-faking checks
+
+- AF1 — PASS — `grep -n "should_panic" module/shader/shader_chunks_params/tests/discovery_test.rs` → 3 matches (unknown type token, unknown kind token, wrong token count), each wrapping a real `discover(...)` call — ≥2 required.
+- AF2 — PASS — read both test files in full; every test calls the real public `discover`/`discover_chunk`/`infer_range` functions directly, no mock or stub of either.
+- AF3 — PASS (with disclosed context) — `git diff --stat -- module/shader/shader_chunks_core module/shader/shader_chunks shader/` is non-empty in the working tree, but the executor's own Journal due-diligence note traces every hunk to an unrelated concurrent actor's commit (`a0caefee`, `shader_chunks/docs/cli/**` restructuring + `examples/orrery/webgpu/**`) landing after this task's own edits — independently spot-checked against `git log` and confirmed disjoint from `module/shader/shader_chunks_params/**`, `task/readme.md`, `task/decisions.md`, and the root `Cargo.toml` member-registration line, which are this task's only real touches.
+
+**Adversarial pass (dedicated, beyond the per-item checks above):** actively hunted for (1) dead/unreachable code — found only the self-disclosed `Texture2d` match arm (C8), not a defect; (2) tautological tests — none found, C9's override test specifically confirmed non-tautological; (3) mocking — none found (AF2); (4) sibling-crate convention drift — `shader_chunks_params/Cargo.toml`'s `edition`/`[lints]` block diffed directly against `shader_chunks_core/Cargo.toml`'s, exact match. No blocking finding surfaced.
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |
@@ -174,3 +223,4 @@ Adversarial pass (summary; full reasoning in session record): challenged whether
 ## History
 
 - **2026-08-13** `FILED` — Task filed by user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/. Goal: new `shader_chunks_params` crate implementing the 5-kind tunable-parameter taxonomy, `//@ param:` discovery, and Q-03's range-inference heuristic, per explicit user request ("analyze, document, cover by tests and implement").
+| 2026-08-13 21:48:08 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_ACCEPT | acceptance claimed |

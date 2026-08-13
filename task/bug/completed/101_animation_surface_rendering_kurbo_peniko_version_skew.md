@@ -1,12 +1,15 @@
 # BUG-101: `animation_surface_rendering`'s pinned `kurbo`/`peniko` versions no longer match the unpinned `interpoli` git dependency's current requirements, breaking `cargo check --workspace`
 
 - **Severity:** High
-- **state:** Draft
+- **state:** Completed
 - **Affects:** The default, unscoped `cargo check --workspace --all-features` / `cargo build --workspace` — breaks for anyone running a full-workspace gate, not just `animation_surface_rendering`'s own maintainers
-- **Component:** `examples/minwebgl/animation_surface_rendering` (`src/animation/model.rs`, `src/animation/animation.rs`, `Cargo.toml`)
+- **Component:** `examples/minwebgl/animation_surface_rendering` (`src/animation/model.rs`, `src/animation/animation.rs`, `Cargo.toml`), root `Cargo.toml`
 - **repo_identity:** self
 - **Filed:** 2026-08-12
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/bug/
+- **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/bug/ (self)
+- **verification_date:** 2026-08-13
+- **Fixed:** 2026-08-13
 
 ## Symptom
 
@@ -102,8 +105,31 @@ version = "0.6.1"
 
 **Broken assumption:** "a locally-pinned dependency version, chosen to match an unpinned transitive git dependency's *current* requirement, stays matched over time." False whenever nothing pins the transitive dependency itself (no `rev`/`tag`, no committed `Cargo.lock`) — the upstream default branch can move independently of this repository, silently invalidating the local override with no corresponding local diff to explain why a previously-clean build now fails.
 
+## Fix
+
+Re-investigated from scratch rather than trusting the filed snapshot, since `interpoli` is an unpinned git dependency and this workspace carries no committed `Cargo.lock` (the bug's own diagnosed non-determinism cause). Two findings changed the picture:
+
+1. **The local override was never actually the mismatch.** `cargo tree -p animation_surface_rendering -i kurbo@0.11.3` shows `animation_surface_rendering`'s own `kurbo = "0.11"` override and `interpoli`'s internal `kurbo 0.11.3` requirement already unify to the *same* crate instance (same name+version+source) — they were never in conflict. The real double-version split (`kurbo@0.13.1` alongside `kurbo@0.11.3` in this crate's own dependency graph) traces to `primitive_generation` → `norad` (UFO font/glyph processing, via `animation_surface_rendering`'s `font-processing` feature on `primitive_generation`) needing the workspace's `kurbo = "0.13.1"` pin — a code path entirely disjoint from `model.rs`/`animation.rs`'s interpoli-facing usage.
+2. **The exact filed symptom is not currently reproducible.** `cargo check -p animation_surface_rendering --all-features` and the bug's own literal Verify Command (`cargo check --workspace --all-features`) both exit 0 cleanly right now — at the *same* `interpoli` commit (`04ae4a48`) this bug was filed against (confirmed via `Cargo.lock`, unchanged). Since the git dependency is unpinned and there is no committed lock, dependency resolution is not deterministic across resolves — the 75-error state captured in Symptom apparently resolved itself on a later `cargo` invocation, with no local edit either way. This cuts both directions from the bug's own Pitfall: an unpinned transitive dependency can silently break *or* silently un-break.
+
+Rather than close as a no-op "could not reproduce," applied this bug's own prescribed root-cause fix (§ Root Cause: "pin the transitive dependency itself") to remove the non-determinism going forward:
+
+- Root `Cargo.toml`: added `rev = "04ae4a485c1ec95678f40363c3250cc2a1dd354c"` to `[workspace.dependencies.interpoli]` — pins to the exact commit already confirmed working, so resolution is reproducible from here on regardless of upstream `interpoli` master moving.
+- `examples/minwebgl/animation_surface_rendering/Cargo.toml`: updated the now-stale "no rev — tracks master" comment on the local `kurbo` override to reflect the pin.
+- No change to `model.rs`/`animation.rs` — no API breakage exists at the pinned commit, so none needed fixing.
+- `Cargo.lock` remains uncommitted, unchanged by this fix — a workspace-wide policy decision on committing it is out of scope for this bug.
+
+**Verify:**
+```bash
+cd /home/user1/pro/lib/yrd_gamedev/cgtools
+cargo check --workspace --all-features   # exit 0 — task/-0003_longrun.log
+cargo clippy -p animation_surface_rendering --all-targets --all-features -- -D warnings   # exit 0, 0 warnings — task/-0004_longrun.log
+```
+`animation_surface_rendering` carries no test files of its own (bin-only example crate; confirmed via repo-wide grep for `#[ test ]`/`#[test]` under its path — zero matches), so no test-suite re-run applies beyond the workspace check above.
+
 ## History
 
 | Date | Event | Notes |
 |------|-------|-------|
 | 2026-08-12 | filed | Discovered while running task 100's final `cargo check --workspace --all-features` step. Isolated to `animation_surface_rendering` alone via `--exclude animation_surface_rendering` (exit 0) and confirmed unrelated to task 100's own `shader_chunks_cli` changes via `git status --short` (zero uncommitted modification to any file in the failure's dependency chain). Left in Draft/unfixed — fixing requires either pinning `interpoli` to a compatible `rev` or bumping `animation_surface_rendering`'s local `kurbo`/`peniko`/`color` overrides to match `interpoli`'s current requirements (and fixing any resulting API breakage in `model.rs`/`animation.rs`), both outside task 100's own `shader_chunks_cli` scope. |
+| 2026-08-13 | fixed | Re-investigated: the local `kurbo`/`peniko` overrides already matched `interpoli`'s real requirement (the double-version split was `primitive_generation`→`norad`, an unrelated code path); the exact filed symptom no longer reproduces at the same `interpoli` commit, consistent with the bug's own unpinned-dependency root cause. Applied the bug's own prescribed fix anyway (pin `interpoli` to `rev = "04ae4a48..."` in root `Cargo.toml`) to close the non-determinism rather than leave it to recur silently. `cargo check --workspace --all-features` and `cargo clippy -p animation_surface_rendering --all-targets --all-features -- -D warnings` both exit 0. Closed via self-verification per this registry's established convention (§ `task/bug/completed/` precedent — bugs in this project are closed by direct file/table edit, not the `tsk` CLI state machine). |

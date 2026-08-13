@@ -69,14 +69,13 @@ change and pass with it — run via `cargo nextest run -p scene_script`.
 
 - Extracting a reusable load-and-deserialize helper generalizing
   `SceneConfig::load()`'s inline `engine_build()` → `eval()` →
-  `from_dynamic()` sequence. No second concrete caller exists yet: the one
-  currently-planned second script-as-data consumer
-  (`codename_space_sandbox` task 007) uses that same inline sequence
-  directly rather than a shared helper (see that task's own Out of Scope),
-  so extracting an abstraction now would be premature generalization
+  `from_dynamic()` sequence. A second concrete caller now exists:
+  `codename_space_sandbox` task 007 (✅ Completed) uses that same inline
+  sequence directly rather than a shared helper (see that task's own Out
+  of Scope), so extracting an abstraction remains premature generalization
   validated by only one shape — orrery's own, which stays unmodified per
-  the next bullet. Revisit if and when a second real caller wants to share
-  the sequence.
+  the next bullet. Revisit if and when a real caller wants to share the
+  sequence.
 - Refactoring `examples/orrery/webgpu/src/scene.rs::SceneConfig::load()` to
   adopt the new purity check — `examples/orrery` is a separate crate outside
   `module/helper/scene_script`'s own roof; adopting it there is a follow-on
@@ -175,6 +174,7 @@ Desired answer for every question is YES.
 - **[2026-08-13]** `FILED` — Task filed by user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/. Goal: give `scene_script` a whole-AST purity check enforcing the script-as-data invariant `docs/pattern/004` documents but cannot currently check.
 - **[2026-08-13]** `NOTE` — Filing location corrected: originally left at `task/107_....md` (task-dir root) after VERIFY passed; `tsk.rulebook.md`'s state-directory table specifies `task/verified/` for 🎯 Verified, not root. Moved to `task/verified/107_harden_scene_script_for_second_consumer.md`, no content change.
 - **[2026-08-13]** `NOTE` — Step 7 (Task Quality Gate, TA122) compliance fix: added missing `repo_identity: self` to Execution State; added Checklist items C3 (top_level_lint regression), C5 (doc-count accuracy), C8-C10 (3 previously-unconfirmed Out of Scope bullets — color/easing, cross-repo non-wiring, non-call side channels). No change to Goal, Scope, or the Verification Record's gate verdicts.
+- **[2026-08-13]** `NOTE` — Cross-repo status correction: Out of Scope's first bullet said `codename_space_sandbox` task 007 was "currently-planned"; it is now ✅ Completed (confirmed via that repo's own task index). Updated the bullet's tense/status only — the underlying decision (no shared load-and-deserialize helper; task 007 uses the inline sequence directly, same as orrery) and its reasoning are unchanged. No change to Goal, Scope substance, or the Verification Record's gate verdicts.
 
 ## Related Documentation
 

@@ -4,7 +4,6 @@ use gl::GL;
 use minwebgl as gl;
 use ndarray_cg::{ mat::DescriptorOrderColumnMajor, F32x4x4 };
 use web_sys::wasm_bindgen::prelude::*;
-use minwebgl::dom::image_element_create;
 
 const LAYERS : i32 = 6;
 // Tile map raw data for texture with integer color channels
@@ -44,12 +43,18 @@ fn image_load
   on_load_callback : Box< dyn Fn( &web_sys::HtmlImageElement ) >,
 ) -> Result< web_sys::HtmlImageElement, minwebgl::JsValue >
 {
-  let image = image_element_create( "tileset.png" )?;
   let window = web_sys::window()
   .expect( "Should have a window" );
   let document = window
   .document()
   .expect( "Should have a document" );
+  // Created directly rather than via `image_element_create` — this function
+  // sets its own `src` below ( it needs `id`/style/`cross_origin` attached
+  // before the load fires ), so a first `image_element_create` call here
+  // would only have its `src` immediately overwritten.
+  let image = document
+  .create_element( "img" )?
+  .dyn_into::< web_sys::HtmlImageElement >()?;
   let body = document
   .body()
   .unwrap();
@@ -78,11 +83,16 @@ fn image_load
     )
   );
   on_load_callback.forget();
-  let origin = window
-  .location()
-  .origin()
-  .expect( "Should have an origin" );
-  let url = format!( "{origin}/{path}" );
+  // Fix(BUG-109): joined `path` against `window.location().origin()` alone,
+  // discarding the current page's own directory — resolved to the site root
+  // instead of this example's own subpath when deployed under one.
+  // Root cause: see `mingl::web::resolve_url`'s doc comment — origin never
+  // carries a path; relative references must resolve against the document's
+  // own directory.
+  // Pitfall: don't hand-roll this join — reuse `gl::web::file::url_resolve`,
+  // the same helper `gl::dom::image_element_create` now uses internally.
+  let href = window.location().href()?;
+  let url = gl::web::file::url_resolve( &href, path );
   image.set_src( &url );
   Ok( image )
 }
@@ -315,7 +325,14 @@ fn update()
   .unwrap();
 
   vertex_attributes_prepare();
-  texture_array_prepare( "tileset.png", LAYERS, GL::TEXTURE0 );
+  // Pre-existing defect found during BUG-109 live-reverification, distinct root
+  // cause: `image_load` ( see its call site in `load_callback_set` ) sets the
+  // created `<img>`'s DOM `id` to the full path it was given, `"static/tileset.png"`
+  // — but this lookup was passing the bare filename, `"tileset.png"`, which never
+  // matches. `get_element_by_id` returned `None`, and the leading `?` in
+  // `texture_array_prepare` silently skipped texture creation entirely before any
+  // GL call ran, leaving the tile map's texture unit unbound ( black canvas ).
+  texture_array_prepare( "static/tileset.png", LAYERS, GL::TEXTURE0 );
 
   let size = ( 16, 16 );
   texture1u_prepare( &DATA, size, GL::TEXTURE1 );

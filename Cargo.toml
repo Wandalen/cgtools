@@ -411,6 +411,7 @@ default-features = false
 
 [workspace.dependencies.interpoli]
 git = "https://github.com/linebender/interpoli"
+rev = "04ae4a485c1ec95678f40363c3250cc2a1dd354c"
 
 [workspace.dependencies.zune-hdr]
 git = "https://github.com/etemesi254/zune-image"

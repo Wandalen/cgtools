@@ -19,7 +19,7 @@ gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
 canvas_renderer = { workspace = true }
 primitive_generation = { workspace = true, features = [ "font-processing" ] }
-# interpoli (git, no rev — tracks master) requires kurbo ^0.11 — matched for type interop.
+# interpoli (git, pinned to rev 04ae4a48 in root Cargo.toml) requires kurbo ^0.11 — matched for type interop.
 kurbo = { version = "0.11" }
 zune-hdr = { workspace = true }
 interpoli = { workspace = true }
