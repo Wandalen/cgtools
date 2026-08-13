@@ -320,6 +320,18 @@ mod private
       false
     }
 
+    /// Returns `true` if this material exists purely to write depth (its
+    /// `color_write_mask()` is normally `(false,false,false,false)`) so that
+    /// later-drawn opaque geometry behind it is correctly hidden by the
+    /// standard depth test — e.g. a real-world object occluding part of a
+    /// virtual one in AR. The opaque pass sorts occluders first regardless
+    /// of `has_emission()`, since draw order (not just depth-test state)
+    /// determines whether an occluder can retract already-written color.
+    fn is_occluder( &self ) -> bool
+    {
+      false
+    }
+
     /// Returns `true` if the shader defines have changed and the shader
     /// program needs to be recompiled.
     fn needs_recompile( &self ) -> bool

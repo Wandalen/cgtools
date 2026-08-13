@@ -452,7 +452,7 @@ mod private
   type TransparentNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid );
   /// An opaque-pass draw-queue entry :
   /// ( node, primitive, primitive index, program UUID, has emission ).
-  type OpaqueNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid, bool );
+  type OpaqueNodeEntry = ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid, bool, bool );
 
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
   pub struct Renderer
@@ -833,7 +833,7 @@ mod private
           {
             AlphaMode::Blend
             => self.transparent_nodes.push( ( node.clone(), primitive_rc.clone(), i, program_uuid ) ),
-            _ => self.opaque_nodes.push( ( node.clone(), primitive_rc.clone(), i, program_uuid, material.has_emission() ) ),
+            _ => self.opaque_nodes.push( ( node.clone(), primitive_rc.clone(), i, program_uuid, material.has_emission(), material.is_occluder() ) ),
           }
         }
 
@@ -906,7 +906,7 @@ mod private
     ) -> Result< (), gl::WebglError >
     {
       let mut active_program_ids : FxHashSet< uuid::Uuid > = FxHashSet::default();
-      for ( _, _, _, pid, _ ) in &self.opaque_nodes
+      for ( _, _, _, pid, _, _ ) in &self.opaque_nodes
       {
         active_program_ids.insert( *pid );
       }
@@ -940,14 +940,19 @@ mod private
       camera : &Camera
     ) -> Result< (), gl::WebglError >
     {
-      self.opaque_nodes.sort_by_key( | ( _, _, _, pid, has_em ) | ( *has_em, *pid ) );
+      // Occluders (depth-only, no color output) MUST draw before anything they should
+      // hide — a later depth-only draw can't retract color a prior draw already wrote.
+      // Sorting `!is_occluder` first (so occluders land in the `false` bucket) makes
+      // that ordering guaranteed rather than an accident of the has_emission bucketing
+      // below (which is what non-occluder materials still fall back to).
+      self.opaque_nodes.sort_by_key( | ( _, _, _, pid, has_em, is_occ ) | ( !*is_occ, *has_em, *pid ) );
 
       let mut current_program_id : Option< uuid::Uuid > = None;
       let mut last_material_id : Option< uuid::Uuid > = None;
       let mut current_emission = false;
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
-      for ( node_rc, primitive_rc, prim_idx, program_id, has_em ) in &self.opaque_nodes
+      for ( node_rc, primitive_rc, prim_idx, program_id, has_em, _is_occ ) in &self.opaque_nodes
       {
         let need_emission = self.use_emission && *has_em;
         if need_emission != current_emission
