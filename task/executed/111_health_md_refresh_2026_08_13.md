@@ -8,7 +8,7 @@
 - **started_at:** null
 - **expires_at:** null
 - **round:** 2
-- **state:** 🎯 (Verified)
+- **state:** 📦 (Executed)
 - **closes:** null
 - **unit_type:** workspace
 - **unit:** lib/yrd_gamedev/cgtools
@@ -16,8 +16,8 @@
 - **verification_date:** 2026-08-13
 - **blocked_by:** null
 - **priority:** 2
-- **executing_at:** 2026-08-13
-- **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **executing_at:** 2026-08-14 16:58:34
+- **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 - **in_motion:** false
 - **accepting_at:** 2026-08-14 03:12:28
 - **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
@@ -267,6 +267,8 @@ Per verifier separation (tsk_verify Part B) neither defect is fixed here — rou
 | 2026-08-13 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | SELF_CORRECTION | Post-Gate-Check adversarial recheck (same session) found the Verification Record's 8/8 PASS was based on two undetected defects in this task file itself, both now fixed: (1) `**priority:** 3` in Execution State didn't match the Tasks Index row's Priority=2/Advisability=576 (4×8×9×2=576, not ×3=864) — corrected to `2`, matching the already-registered Index arithmetic. (2) Every "32 crates" claim (In Scope, Delivery Requirements, Test Matrix, Acceptance Criteria, C4, M1, this Journal's own EXEC_COMPLETE text) was wrong — mechanically re-verified via `awk` anchored between the `| Crate \| Tests` header and table end, cross-checked against a live `find module -mindepth 3 -maxdepth 3 -name Cargo.toml` filesystem listing: both agree on exactly 33 rows (30 previously-tabulated, not 29, + 3 shader/*), and the diff between the two listings is empty. M1's own measurement command was independently broken regardless of the count: `grep -c '^\| [a-z]' health.md` returns 34, not 33, because it also matches the unrelated regeneration-commands table's `\| docs/ \| ...` row (lowercase `d`) — replaced with an awk command anchored to the actual table boundaries. health.md itself needed no changes — its table was already correct at 33; only this task file's documentation of it was wrong. |
 | 2026-08-14 03:12:28 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_ACCEPT | acceptance claimed |
 | 2026-08-14 03:28:21 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | ACCEPTANCE_FAIL | acceptance failed |
+| 2026-08-14 16:58:34 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_EXEC | execution claimed |
+| 2026-08-14 16:59:34 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | EXEC_COMPLETE | Round 2: fixed both blocking findings from the round-1 acceptance walk, nothing else. (1) Replaced the factually false "resolved by deleting both crates" clause with the correct account (task 065 decided keep-crate; 094/095 deleted only the stale markers) — `grep -c "deleting both crates" health.md` → 0. (2) Replaced the copy-forwarded "72 demo crates" with a fresh count and its regeneration command — re-measured at edit time as 70, not the walk's 69, because task 112's `shader_chunk_preview` crate landed in between (`find examples -name Cargo.toml \| wc -l` → 70, live-matched against the documented text). No other line of health.md touched; no numeric table cell affected. Verification boxes left for the round-2 independent acceptance walk. |
 
 ## History
 

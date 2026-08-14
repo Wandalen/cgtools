@@ -65,11 +65,11 @@ zero). **Allows-column caveat (2026-08-13):** the regeneration command only matc
 since converted most or all of their justified suppressions to `#[expect(...)]` (fails loudly if the
 lint stops firing), which this column does not count — a low or zero Allows value no longer implies
 zero suppression attributes for those crates. To see the current expect-count for a crate:
-`grep -rn '#!\?\[ *expect(' <crate>/src <crate>/tests | wc -l`. Examples tree (72 demo crates — see
-examples/readme.md) is intentionally not tabulated per-crate: demos carry no tests/ requirement;
-their marker triage closed with task 065 (✅ Completed) — the two `rid of this crate` calls on
-`diamond` and `make_cube_map` were resolved by deleting both crates (tasks 094/095 removed the
-now-stale deletion markers left behind).
+`grep -rn '#!\?\[ *expect(' <crate>/src <crate>/tests | wc -l`. Examples tree (70 demo crates —
+recount: `find examples -name Cargo.toml | wc -l`) is intentionally not tabulated per-crate: demos
+carry no tests/ requirement; their marker triage closed with task 065 (✅ Completed) — task 065
+decided keep-crate for `diamond` and `make_cube_map`, and tasks 094/095 deleted the two stale
+`rid of this crate` markers from their manifests.
 
 ## Known issues (workspace level)
 
