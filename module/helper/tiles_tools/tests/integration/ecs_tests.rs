@@ -30,6 +30,7 @@ use tiles_tools::coordinates::{
 // Basic World and Entity Tests
 // =============================================================================
 
+#[ expect( clippy::float_cmp, reason = "a fresh world's elapsed time is the exact 0.0 initial value" ) ]
 #[ test ]
 fn test_world_creation()
 {
@@ -105,6 +106,7 @@ fn test_entity_builder_player()
   assert!(world.get::<Size>(player).is_ok());
 }
 
+#[ expect( clippy::float_cmp, reason = "the decision interval read back is the exact construction literal" ) ]
 #[ test ]
 fn test_entity_builder_enemy()
 {
@@ -126,6 +128,7 @@ fn test_entity_builder_enemy()
 // Component Functionality Tests
 // =============================================================================
 
+#[ expect( clippy::float_cmp, reason = "health percentages derive from whole-number ratios with exact float results" ) ]
 #[ test ]
 fn test_health_component()
 {
@@ -157,7 +160,7 @@ fn test_stats_component()
   let attacker_stats = Stats::new(20, 5, 12, 2);
   let defender_stats = Stats::new(15, 10, 8, 1);
   
-  let damage = attacker_stats.calculate_damage(defender_stats.defense);
+  let damage = attacker_stats.damage_calculate(defender_stats.defense);
   assert_eq!(damage, 15); // 20 - (10/2) = 15
 }
 
@@ -283,14 +286,14 @@ fn test_world_spatial_queries()
   ));
   
   // Test range queries
-  let nearby = world.find_entities_in_range(&center_pos, 2);
+  let nearby = world.entities_in_range_find(&center_pos, 2);
   assert_eq!(nearby.len(), 2); // center_entity and close_entity
-  
-  let all_in_range = world.find_entities_in_range(&center_pos, 15);
+
+  let all_in_range = world.entities_in_range_find(&center_pos, 15);
   assert_eq!(all_in_range.len(), 3); // All entities
-  
+
   // Test nearest entity query
-  let nearest = world.find_nearest_entity(&center_pos).unwrap();
+  let nearest = world.nearest_entity_find(&center_pos).unwrap();
   assert_eq!(nearest.2, 0); // Distance to nearest (self) should be 0
 }
 
@@ -366,7 +369,7 @@ fn test_movement_requests()
   ));
 
   // Request movement; the next update applies it to the Position component.
-  world.request_movement( entity, SquareCoord::< FourConnected >::new( 3, 3 ) );
+  world.movement_request( entity, SquareCoord::< FourConnected >::new( 3, 3 ) );
   world.update( 0.016 );
 
   {
@@ -392,8 +395,8 @@ fn test_movement_request_latest_wins()
   ));
 
   // Two requests before one update: the later one wins; exactly one move happens.
-  world.request_movement( entity, SquareCoord::< FourConnected >::new( 5, 5 ) );
-  world.request_movement( entity, SquareCoord::< FourConnected >::new( 2, 2 ) );
+  world.movement_request( entity, SquareCoord::< FourConnected >::new( 5, 5 ) );
+  world.movement_request( entity, SquareCoord::< FourConnected >::new( 2, 2 ) );
   world.update( 0.016 );
 
   {
@@ -414,7 +417,7 @@ fn test_movement_request_discard_cases()
 
   // A request whose coordinate type does not match the entity's Position< C >
   // component is discarded without effect and without an event.
-  world.request_movement( entity, HexCoord::< Axial, Pointy >::new( 4, 4 ) );
+  world.movement_request( entity, HexCoord::< Axial, Pointy >::new( 4, 4 ) );
   world.update( 0.016 );
   {
     let position = world.get::< Position< SquareCoord< FourConnected > > >( entity ).unwrap();
@@ -424,7 +427,7 @@ fn test_movement_request_discard_cases()
 
   // A request for a despawned entity is discarded without panic and without an event.
   world.despawn( entity ).unwrap();
-  world.request_movement( entity, SquareCoord::< FourConnected >::new( 9, 9 ) );
+  world.movement_request( entity, SquareCoord::< FourConnected >::new( 9, 9 ) );
   world.update( 0.016 );
   assert!( world.events().is_empty(), "a request for a despawned entity must not emit events" );
 }
@@ -443,7 +446,7 @@ fn test_movement_system_uses_caller_policies()
   requests.insert( entity, SquareCoord::< FourConnected >::new( 2, 0 ) );
 
   // Open field: movement succeeds and the position is written.
-  let results = MovementSystem::process_movement( &mut world.hecs_world, &requests, | _ | true, | _ | 1 );
+  let results = MovementSystem::movement_process( &mut world.hecs_world, &requests, | _ | true, | _ | 1 );
   assert!( matches!( results[ .. ], [ MovementResult::Success { .. } ] ) );
   {
     let position = world.get::< Position< SquareCoord< FourConnected > > >( entity ).unwrap();
@@ -456,7 +459,7 @@ fn test_movement_system_uses_caller_policies()
   // finite: the square grid is unbounded, so an unreachable goal with an
   // unbounded accessibility policy would never terminate. )
   requests.insert( entity, SquareCoord::< FourConnected >::new( 4, 0 ) );
-  let results = MovementSystem::process_movement
+  let results = MovementSystem::movement_process
   (
     &mut world.hecs_world,
     &requests,
@@ -471,7 +474,7 @@ fn test_movement_system_uses_caller_policies()
 
   // The caller's cost policy is honored: uniform cost 4 over a 2-step path
   // overruns the movement range of 5, yielding PathTooLong.
-  let results = MovementSystem::process_movement( &mut world.hecs_world, &requests, | _ | true, | _ | 4 );
+  let results = MovementSystem::movement_process( &mut world.hecs_world, &requests, | _ | true, | _ | 4 );
   assert!( matches!( results[ .. ], [ MovementResult::PathTooLong { .. } ] ) );
 }
 
@@ -534,12 +537,12 @@ fn test_component_combinations()
   assert!(world.get::<Size>(complex_entity).is_ok());
   
   // Test complex queries
-  let mut complex_query = world.query::<(
+  let mut complex_query = world.query::<(hecs::Entity, (
     &Position<SquareCoord<EightConnected>>,
     &Health,
     &Stats, 
     &Movable
-  )>();
+  ))>();
   
   for (entity, (_pos, health, _stats, movable)) in &mut complex_query {
     assert_eq!(entity, complex_entity);

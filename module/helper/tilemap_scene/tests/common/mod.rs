@@ -151,10 +151,7 @@ pub fn flatten_to_sprites( cmds : &[ RenderCommand ] ) -> Vec< RenderCommand >
 /// Count `RenderCommand::Sprite` entries after a single-shot flatten.
 /// For multi-render tests, route through [`BatchFlattener`] and count
 /// the per-call output.
-// `tests/common` is recompiled per integration-test binary; not every test file
-// that does `mod common;` calls this helper (only renderer_cache_test.rs /
-// renderer_test.rs do), so it reads as dead in the others.
-#[ allow( dead_code ) ]
+#[ allow( dead_code, reason = "tests/common is recompiled per integration-test binary; only renderer_cache_test.rs / renderer_test.rs call this helper, so it reads as dead in the other binaries — expect would be unfulfilled there" ) ]
 pub fn flat_sprite_count( cmds : &[ RenderCommand ] ) -> usize
 {
   flatten_to_sprites( cmds )
@@ -165,10 +162,7 @@ pub fn flat_sprite_count( cmds : &[ RenderCommand ] ) -> usize
 
 /// Extract just the `Sprite` payloads (world-space) from a single-shot
 /// flatten.
-// `tests/common` is recompiled per integration-test binary; not every test file
-// that does `mod common;` calls this helper (only sorted_batching_test.rs /
-// renderer_test.rs do), so it reads as dead in the others.
-#[ allow( dead_code ) ]
+#[ allow( dead_code, reason = "tests/common is recompiled per integration-test binary; only sorted_batching_test.rs / renderer_test.rs call this helper, so it reads as dead in the other binaries — expect would be unfulfilled there" ) ]
 pub fn flat_sprites( cmds : &[ RenderCommand ] ) -> Vec< Sprite >
 {
   flatten_to_sprites( cmds )
@@ -177,7 +171,5 @@ pub fn flat_sprites( cmds : &[ RenderCommand ] ) -> Vec< Sprite >
     .collect()
 }
 
-// Silence "unused" warnings for the `AddSpriteInstance` import when a
-// test file pulls common/mod.rs in but doesn't reference all helpers.
-#[ allow( dead_code ) ]
+#[ allow( dead_code, reason = "keeps the AddSpriteInstance import referenced when a test binary pulls common/mod.rs in without using every helper — expect would be unfulfilled in binaries that do use them all" ) ]
 fn _silence_unused() { let _ = core::mem::size_of::< AddSpriteInstance >(); }

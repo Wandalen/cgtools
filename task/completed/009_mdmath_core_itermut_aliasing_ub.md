@@ -135,6 +135,33 @@ not by this section.
 
 **Aggregate verdict:** PASS — all 15 dimensions clean on both the confirming and adversarial pass, no Blocking Findings. D1–D8 use `tsk` skill's Readiness dimensions; B1–B7 use the Bug-Fixing Task Quality Requirements (this task fixes a P1 soundness bug, so both apply). Verification independently re-executed (Miri + native nextest + clippy, all package-scoped, all this session) rather than solely trusted from the implementing pass's own prose, per this session's Stale Evidence Trust discipline. **Byproduct, out of this task's own scope:** the same full-crate Miri sweep that reconfirmed this fix also surfaced an entirely unrelated, pre-existing UB defect in `vector/slice.rs`'s `vector_mut` (wrong pointer accessor, not a shared-cursor aliasing pattern) — filed, fixed, and closed separately as `BUG-054`; noted here only for traceability, not part of this task's own deliverable.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Do `Tuple2IterMut`/`Tuple3IterMut`/`Tuple4IterMut` use independent `front`/`back` cursors instead of the original shared `index`? `grep -n "front : usize\|back : usize\|index : usize" module/math/mdmath_core/src/vector/tuple{2,3,4}.rs` → each `TupleNIterMut` struct declares `front : usize` and `back : usize`; the only remaining `index : usize` fields belong to the separate, immutable `TupleNIter` types (aliasing a shared `&E` is harmless), never to a `*IterMut` type.
+- [x] C2 — Does each fixed file carry the mandated `Fix(BUG-050)` 3-field comment directly above its `TupleNIterMut` struct? Direct read: `tuple2.rs:156-164` (struct at 165), `tuple3.rs:158-166` (struct at 167), `tuple4.rs:168-176` (struct at 177) — all three carry `Fix(BUG-050)` / `Root cause` / `Pitfall` fields.
+- [x] C3 — Is `Tuple1IterMut` still present and "left unchanged" as this task's own Out of Scope section claims? NO LONGER — direct read of current `tuple1.rs` shows `Tuple1IterMut` was deleted entirely (by a separate, later task, `059`, per its own History) and replaced with `core::iter::once`. This does not contradict 009's own work: 009's Scope never lists `tuple1.rs` as touched, and 059's own History independently confirms it, not 009, made that change. Recorded here so "left unchanged" isn't misread as still true of the crate today.
+- [x] C4 — Do the array/slice `VectorIterMut` impls remain untouched, still delegating to `core::slice::IterMut` as claimed Out of Scope? `array.rs:52-59` and `slice.rs:78-87` both call `<[E]>::iter_mut(self)` directly — no raw-pointer code, confirms neither was touched by this fix.
+- [x] C5 — Do the three T01-T03 reproducer tests still exist? `grep -n "bug_reproducer(BUG-050)"` → present at `tuple2_test.rs:94`, `tuple3_test.rs:105`, `tuple4_test.rs:116`.
+- [x] C6 — Are `Tuple2IterMut`/`Tuple3IterMut`/`Tuple4IterMut` still private, with no new public API (per Acceptance Criteria)? `grep -rn "Tuple2IterMut\|Tuple3IterMut\|Tuple4IterMut" module/math/mdmath_core/src/` → hits only inside each type's own defining file; zero references from any `mod_interface!` block or other file.
+
+### Measurements
+
+- [x] M1 — Shared `index : usize` cursor fields remaining across the three `*IterMut` types: `0` (was: `3`, one per type — `git show 9b71cf39^:module/math/mdmath_core/src/vector/tuple2.rs` lines 161-165 shows `struct Tuple2IterMut { tuple: ..., index: usize }`; `tuple3.rs`/`tuple4.rs` at the same parent commit carry the identical shape).
+- [x] M2 — Crate test count: `89` passed, this session's own fresh run (was: `76` immediately pre-fix per this task's own History; fix-neutral — this task's 3 new reproducers didn't move the 76 baseline, the later climb to 89 is task 059's unrelated additions, independently reconfirmed current in I1).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p mdmath_core --all-features` (via `longrun`) → exit 0, 89 tests run: 89 passed, 0 skipped, including all 3 BUG-050 reproducers (log `-0014_longrun.log`).
+- [x] I2 — Lints clean: `cargo clippy -p mdmath_core --all-targets --all-features -- -D warnings` (via `longrun`) → exit 0, zero warnings (log `-0018_longrun.log`).
+- [x] I3 — Miri Stacked Borrows (this task's own original acceptance criterion): `cargo +nightly miri test -p mdmath_core --all-features` (via `longrun`) → exit 0, 89 passed, 0 failed, zero UB detected crate-wide, including all 3 mixed-direction reproducers (log `-0019_longrun.log`); Miri's availability was confirmed first (`cargo +nightly miri --version` → `miri 0.1.0`), so this is a genuine re-run, not a substitute.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the shared-`index` aliasing pattern silently returning (e.g. a future refactor collapsing `front`/`back` back into one field): re-running C1's grep must keep showing `front`/`back` and zero `index` on all three `*IterMut` structs, and the 3 `bug_reproducer(BUG-050)` tests must keep passing under both native `cargo nextest` and `cargo +nightly miri test`.
+- [x] AF2 — Guards against `Tuple1IterMut`'s later deletion (task 059's work) being mistaken for part of *this* task's own deliverable, or vice versa: `git log --oneline -- module/math/mdmath_core/src/vector/tuple1.rs` cross-referenced against `task/completed/059_mdmath_core_marker_resolution.md`'s own History is the re-check if this attribution is ever disputed.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P1 (soundness bugs)

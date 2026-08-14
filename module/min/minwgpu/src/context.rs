@@ -32,7 +32,7 @@ mod private
       ContextBuilder
       {
         _state : PhantomData,
-        instance_descriptor : wgpu::InstanceDescriptor::default(),
+        instance_descriptor : wgpu::InstanceDescriptor::new_without_display_handle(),
         request_adapter_options : wgpu::RequestAdapterOptionsBase::default(),
         device_descriptor : wgpu::wgt::DeviceDescriptor::default(),
         instance : None,
@@ -41,20 +41,23 @@ mod private
       }
     }
 
-    /// Creates a new `ContextBuilder` with a provided `wgpu::Instance`.
-    ///
-    /// This is the entry point for the fluent builder pattern.
+    /// Test-support constructor: a `DeviceBuilder`-state builder with default descriptors
+    /// and no instance or adapter. Public only so the device-descriptor setter tests can
+    /// live in `tests/`; the type-state invariant ( an adapter is present in this state
+    /// when it is reached through the public chain ) is deliberately not upheld, so
+    /// calling `context_finish` on the result panics. Not part of the supported API.
+    #[ doc( hidden ) ]
     #[ inline ]
     #[ must_use ]
-    pub fn from_instance( instance : wgpu::Instance ) -> ContextBuilder< 'static, 'static, 'static, 'static, AdapterBuilder >
+    pub fn device_builder_for_tests() -> ContextBuilder< 'static, 'static, 'static, 'static, DeviceBuilder >
     {
       ContextBuilder
       {
         _state : PhantomData,
-        instance_descriptor : wgpu::InstanceDescriptor::default(),
+        instance_descriptor : wgpu::InstanceDescriptor::new_without_display_handle(),
         request_adapter_options : wgpu::RequestAdapterOptionsBase::default(),
         device_descriptor : wgpu::wgt::DeviceDescriptor::default(),
-        instance : Some( instance ),
+        instance : None,
         adapter : None,
         adapter_selector : None
       }
@@ -63,7 +66,7 @@ mod private
     /// Returns a reference to the `wgpu::Instance`.
     #[ inline ]
     #[ must_use ]
-    pub fn get_instance( &self ) -> &wgpu::Instance
+    pub fn instance_get( &self ) -> &wgpu::Instance
     {
       &self.instance
     }
@@ -71,7 +74,7 @@ mod private
     /// Returns a reference to the `wgpu::Adapter`.
     #[ inline ]
     #[ must_use ]
-    pub fn get_adapter( &self ) -> &wgpu::Adapter
+    pub fn adapter_get( &self ) -> &wgpu::Adapter
     {
       &self.adapter
     }
@@ -79,7 +82,7 @@ mod private
     /// Returns a reference to the `wgpu::Device`.
     #[ inline ]
     #[ must_use ]
-    pub fn get_device( &self ) -> &wgpu::Device
+    pub fn device_get( &self ) -> &wgpu::Device
     {
       &self.device
     }
@@ -87,9 +90,30 @@ mod private
     /// Returns a reference to the `wgpu::Queue`.
     #[ inline ]
     #[ must_use ]
-    pub fn get_queue( &self ) -> &wgpu::Queue
+    pub fn queue_get( &self ) -> &wgpu::Queue
     {
       &self.queue
+    }
+  }
+
+  impl From< wgpu::Instance > for ContextBuilder< 'static, 'static, 'static, 'static, AdapterBuilder >
+  {
+    /// Creates a new `ContextBuilder` with a provided `wgpu::Instance`.
+    ///
+    /// This is the entry point for the fluent builder pattern.
+    #[ inline ]
+    fn from( instance : wgpu::Instance ) -> Self
+    {
+      Self
+      {
+        _state : PhantomData,
+        instance_descriptor : wgpu::InstanceDescriptor::new_without_display_handle(),
+        request_adapter_options : wgpu::RequestAdapterOptionsBase::default(),
+        device_descriptor : wgpu::wgt::DeviceDescriptor::default(),
+        instance : Some( instance ),
+        adapter : None,
+        adapter_selector : None
+      }
     }
   }
 
@@ -129,12 +153,54 @@ mod private
     }
   }
 
+  /// Creates a ready-to-use headless `Context` on the primary backends.
+  ///
+  /// Equivalent to [`headless_with`] with [`wgpu::Backends::PRIMARY`] : an instance on the
+  /// primary backends, a high-performance adapter, and a device with the default
+  /// descriptor. Suited for offscreen rendering where no window surface is involved;
+  /// use [`Context::builder`] directly when extra features or limits are required.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error when no suitable adapter is found or the device request fails.
+  #[ inline ]
+  pub fn headless() -> Result< Context, crate::Error >
+  {
+    headless_with( wgpu::Backends::PRIMARY )
+  }
+
+  /// Creates a ready-to-use headless `Context` on the given backends.
+  ///
+  /// Builds an instance restricted to `backends`, requests a high-performance adapter,
+  /// and requests a device with the default descriptor.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error when no suitable adapter is found on the given backends or the
+  /// device request fails.
+  #[ inline ]
+  pub fn headless_with( backends : wgpu::Backends ) -> Result< Context, crate::Error >
+  {
+    Context::builder()
+    .backends( backends )
+    .instance_make()
+    .power_preference( wgpu::PowerPreference::HighPerformance )
+    .adapter_request()?
+    .context_finish()
+  }
+
   pub type AdapterSelector< 's > = Box< dyn FnMut( &wgpu::Instance ) -> Result< wgpu::Adapter, crate::Error > + 's >;
 
+  /// Type-state marker: the builder is configuring the `wgpu::Instance` ( the state
+  /// returned by [`Context::builder`] ).
   pub struct InstanceBuilder;
 
+  /// Type-state marker: the builder is selecting a `wgpu::Adapter` ( entered via
+  /// `instance_make` or the `From< wgpu::Instance >` impl ).
   pub struct AdapterBuilder;
 
+  /// Type-state marker: the builder is configuring the `wgpu::Device` request ( entered
+  /// via `adapter_request` / `adapter_request_async` ).
   pub struct DeviceBuilder;
 
   /// A type-state builder for creating a `wgpu` `Context`.
@@ -153,6 +219,41 @@ mod private
     pub( super ) adapter :  Option< wgpu::Adapter >,
 
     pub( super ) adapter_selector : Option< AdapterSelector< 's > >
+  }
+
+  impl< 'a, 'b, 'l, S > ContextBuilder< 'a, 'b, 'l, '_, S >
+  {
+    /// Returns the accumulated `wgpu::InstanceDescriptor`.
+    #[ inline ]
+    #[ must_use ]
+    pub fn instance_descriptor_get( &self ) -> &wgpu::InstanceDescriptor
+    {
+      &self.instance_descriptor
+    }
+
+    /// Returns the accumulated `wgpu::RequestAdapterOptions`.
+    #[ inline ]
+    #[ must_use ]
+    pub fn request_adapter_options_get( &self ) -> &wgpu::RequestAdapterOptions< 'a, 'b >
+    {
+      &self.request_adapter_options
+    }
+
+    /// Returns the accumulated `wgpu::DeviceDescriptor`.
+    #[ inline ]
+    #[ must_use ]
+    pub fn device_descriptor_get( &self ) -> &wgpu::DeviceDescriptor< 'l >
+    {
+      &self.device_descriptor
+    }
+
+    /// Returns `true` once a custom adapter selector has been provided.
+    #[ inline ]
+    #[ must_use ]
+    pub fn has_adapter_selector( &self ) -> bool
+    {
+      self.adapter_selector.is_some()
+    }
   }
 
   impl< 'a, 'b, 'l, 's > ContextBuilder< 'a, 'b, 'l, 's, InstanceBuilder >
@@ -196,9 +297,21 @@ mod private
     /// Creates the `wgpu::Instance` and transitions the builder to the next state for adapter selection.
     #[ inline ]
     #[ must_use ]
-    pub fn make_instance( mut self ) -> ContextBuilder< 'a, 'b, 'l, 's, AdapterBuilder >
+    pub fn instance_make( mut self ) -> ContextBuilder< 'a, 'b, 'l, 's, AdapterBuilder >
     {
-      self.instance = Some( wgpu::Instance::new( &self.instance_descriptor ) );
+      // wgpu 30 : `Instance::new` consumes the descriptor by value and the descriptor is
+      // no longer `Clone` (its `display` field boxes a handle). This builder never sets
+      // `display`, so rebuild the descriptor field-by-field and keep `self`'s copy intact
+      // for `instance_descriptor_get` introspection.
+      let descriptor = wgpu::InstanceDescriptor
+      {
+        backends : self.instance_descriptor.backends,
+        flags : self.instance_descriptor.flags,
+        memory_budget_thresholds : self.instance_descriptor.memory_budget_thresholds,
+        backend_options : self.instance_descriptor.backend_options.clone(),
+        display : None,
+      };
+      self.instance = Some( wgpu::Instance::new( descriptor ) );
 
       let Self
       {
@@ -275,10 +388,10 @@ mod private
     /// # Panics
     ///
     /// Panics if the instance was never set. This cannot happen through the public API: the
-    /// `AdapterBuilder` state is only reachable via `make_instance` or `from_instance`, both of
-    /// which populate `instance` before this method becomes callable.
+    /// `AdapterBuilder` state is only reachable via `instance_make` or the `From< wgpu::Instance >`
+    /// impl, both of which populate `instance` before this method becomes callable.
     #[ inline ]
-    pub async fn request_adapter_async( mut self ) -> Result< ContextBuilder< 'a, 'b, 'l, 's, DeviceBuilder >, crate::Error >
+    pub async fn adapter_request_async( mut self ) -> Result< ContextBuilder< 'a, 'b, 'l, 's, DeviceBuilder >, crate::Error >
     {
       let adapter = if let Some( adapter_selector ) = &mut self.adapter_selector
       {
@@ -323,9 +436,9 @@ mod private
     ///
     /// Return error in case of `Instance::request_adapter` returns error.
     #[ inline ]
-    pub fn request_adapter( self ) -> Result< ContextBuilder< 'a, 'b, 'l, 's, DeviceBuilder >, crate::Error >
+    pub fn adapter_request( self ) -> Result< ContextBuilder< 'a, 'b, 'l, 's, DeviceBuilder >, crate::Error >
     {
-      pollster::block_on( self.request_adapter_async() )
+      pollster::block_on( self.adapter_request_async() )
     }
   }
 
@@ -386,10 +499,10 @@ mod private
     /// # Panics
     ///
     /// Panics if the adapter was never set. This cannot happen through the public API: the
-    /// `DeviceBuilder` state is only reachable via `request_adapter`/`request_adapter_async`,
+    /// `DeviceBuilder` state is only reachable via `adapter_request`/`adapter_request_async`,
     /// which populate `adapter` before this method becomes callable.
     #[ inline ]
-    pub async fn finish_context_async( self ) -> Result< Context, crate::Error >
+    pub async fn context_finish_async( self ) -> Result< Context, crate::Error >
     {
       let ( device, queue ) = self.adapter.as_ref().unwrap().request_device( &self.device_descriptor ).await?;
       let Self {  instance, adapter, .. } = self;
@@ -408,129 +521,10 @@ mod private
     ///
     /// Returns error in case of `Adapter::request_device` returns error.
     #[ inline ]
-    pub fn finish_context( self ) -> Result< Context, crate::Error >
+    pub fn context_finish( self ) -> Result< Context, crate::Error >
     {
-      pollster::block_on( self.finish_context_async() )
+      pollster::block_on( self.context_finish_async() )
     }
-  }
-}
-
-// Documented exception (task 070) to the all-tests-in-tests/ convention: these tests stay
-// inline because they pin descriptor accumulation through `pub( super )` fields and construct
-// mid-state builders by struct literal -- impossible externally, where the fields are private
-// and the state markers (`AdapterBuilder`, `DeviceBuilder`) are not exported. The builder
-// exposes no descriptor getters, and the public observables (`request_adapter`,
-// `finish_context`) need a real adapter/device. Publishing getters or the state markers
-// solely for test placement would widen the API for no caller. Deterministic external
-// coverage of the adapter-request error surface lives in `tests/context_test.rs`.
-#[ cfg( test ) ]
-mod tests
-{
-  use super::private::*;
-  use core::marker::PhantomData;
-  use wgpu::{ Backends, InstanceFlags, PowerPreference, Features, Limits, MemoryHints };
-
-  // Helper to construct a builder in the AdapterBuilder state for testing
-  fn adapter_builder_state() -> ContextBuilder< 'static, 'static, 'static, 'static, AdapterBuilder >
-  {
-    ContextBuilder
-    {
-      _state: PhantomData,
-      instance_descriptor: wgpu::InstanceDescriptor::default(),
-      request_adapter_options: wgpu::RequestAdapterOptions::default(),
-      device_descriptor: wgpu::DeviceDescriptor::default(),
-      instance: None, // In a real scenario, this would be Some(wgpu::Instance)
-      adapter: None,
-      adapter_selector: None,
-    }
-  }
-
-  // Helper to construct a builder in the DeviceBuilder state for testing
-  fn device_builder_state() -> ContextBuilder< 'static, 'static, 'static, 'static, DeviceBuilder >
-  {
-    ContextBuilder
-    {
-      _state: PhantomData,
-      instance_descriptor: wgpu::InstanceDescriptor::default(),
-      request_adapter_options: wgpu::RequestAdapterOptions::default(),
-      device_descriptor: wgpu::DeviceDescriptor::default(),
-      instance: None,
-      adapter: None, // In a real scenario, this would be Some(wgpu::Adapter)
-      adapter_selector: None,
-    }
-  }
-
-  #[ test ]
-  fn instance_builder_sets_backends()
-  {
-    let builder = Context::builder().backends( Backends::VULKAN );
-    assert_eq!( builder.instance_descriptor.backends, Backends::VULKAN );
-  }
-
-  #[ test ]
-  fn instance_builder_sets_flags()
-  {
-    let flags = InstanceFlags::VALIDATION;
-    let builder = Context::builder().flags( flags );
-    assert_eq!( builder.instance_descriptor.flags, flags );
-  }
-
-  #[ test ]
-  fn adapter_builder_sets_power_preference()
-  {
-    let builder = adapter_builder_state().power_preference( PowerPreference::HighPerformance );
-    assert_eq!( builder.request_adapter_options.power_preference, PowerPreference::HighPerformance );
-  }
-
-  #[ test ]
-  fn adapter_builder_sets_force_fallback()
-  {
-    let builder = adapter_builder_state().force_fallback_adapter( true );
-    assert!( builder.request_adapter_options.force_fallback_adapter );
-  }
-
-  #[ test ]
-  fn adapter_builder_sets_selector()
-  {
-    let builder = adapter_builder_state().adapter_selector( |_| panic!( "should not be called" ) );
-    assert!( builder.adapter_selector.is_some() );
-  }
-
-  #[ test ]
-  fn device_builder_sets_label()
-  {
-    let label = String::from( "test_device" );
-    let builder = device_builder_state().label( &label );
-    assert_eq!( builder.device_descriptor.label, Some( "test_device" ) );
-  }
-
-  #[ test ]
-  fn device_builder_sets_features()
-  {
-    let features = Features::TEXTURE_COMPRESSION_BC;
-    let builder = device_builder_state().required_features( features );
-    assert_eq!( builder.device_descriptor.required_features, features );
-  }
-
-  #[ test ]
-  fn device_builder_sets_limits()
-  {
-    let limits = Limits { max_bind_groups: 4, ..Limits::downlevel_webgl2_defaults() };
-    let builder = device_builder_state().required_limits( limits.clone() );
-    assert_eq!( builder.device_descriptor.required_limits, limits );
-  }
-
-  #[ test ]
-  fn device_builder_sets_memory_hints()
-  {
-    let hints = MemoryHints::MemoryUsage;
-    let builder = device_builder_state().memory_hints( hints.clone() );
-
-    assert_eq!
-    (
-      core::mem::discriminant( &builder.device_descriptor.memory_hints ),
-      core::mem::discriminant( &hints )
-    );
   }
 }
 
@@ -538,4 +532,9 @@ mod_interface!
 {
   own use Context;
   own use ContextBuilder;
+  own use InstanceBuilder;
+  own use AdapterBuilder;
+  own use DeviceBuilder;
+  own use headless;
+  own use headless_with;
 }

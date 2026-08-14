@@ -98,12 +98,12 @@ Open the provided local server URL in your browser (e.g., `http://localhost:8080
 **Steps:**
 1. Scroll the mouse wheel up and down on the canvas
 2. Use trackpad two-finger scroll if available
-3. Call `clear_events()` and check scroll value
+3. Call `events_clear()` and check scroll value
 
 **Expected Behavior:**
 - Scroll delta accumulates in `scroll()` value
 - Scroll direction is correct (positive/negative)
-- `clear_events()` resets the scroll accumulator to zero
+- `events_clear()` resets the scroll accumulator to zero
 
 ### 6. Keyboard Input
 

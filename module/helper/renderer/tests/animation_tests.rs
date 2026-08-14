@@ -10,7 +10,7 @@ mod tests
   // Browser, not Node: every test here needs a real WebGL2 context.
   wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
-  use animation::{ Sequence, Tween, Sequencer, AnimatablePlayer };
+  use animation::{ Sequence, Tween, Sequencer };
   use renderer::webgl::
   {
     animation::base::
@@ -23,7 +23,7 @@ mod tests
     loaders::gltf::{ GLTF, load }
   };
 
-  async fn init_animation_test( gltf_path : &str ) -> GLTF
+  async fn animation_test_init( gltf_path : &str ) -> GLTF
   {
     gl::browser::setup( Default::default() );
     let options = gl::context::ContextOptions::default().antialias( false );
@@ -39,7 +39,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn test_animation_loading()
   {
-    let gltf = init_animation_test( "../../../../assets/gltf/animated/bug_bunny.glb" ).await;
+    let gltf = animation_test_init( "../../../../assets/gltf/animated/bug_bunny.glb" ).await;
 
     assert_eq!( gltf.animations.len(), 3 );
   }
@@ -47,7 +47,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn test_morph_target_animation_loading()
   {
-    let gltf = init_animation_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
+    let gltf = animation_test_init( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
 
     assert_eq!( gltf.animations.len(), 1 );
 

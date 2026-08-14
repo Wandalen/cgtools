@@ -29,7 +29,7 @@ use web_sys::wasm_bindgen::JsCast as _;
 let mut input = Input::new( Some( canvas.dyn_into().unwrap() ), CLIENT )?;
 
 // Inside the RAF loop:
-input.update_state();
+input.state_update();
 
 for browser_input::Event { event_type, ctrl, .. } in input.event_queue().iter()
 {
@@ -60,7 +60,7 @@ if pointers.len() >= 2
   // compute distance between p0 and p1 to derive scale delta
 }
 
-input.clear_events();
+input.events_clear();
 ```
 
 ## API
@@ -80,9 +80,9 @@ Creates the handler and attaches DOM listeners. `target` is the `EventTarget` fo
 ### Per-frame pattern
 
 ```rust
-input.update_state();   // apply queued events to internal state
+input.state_update();   // apply queued events to internal state
 // ... read event_queue() and active_pointers() ...
-input.clear_events();   // discard processed events
+input.events_clear();   // discard processed events
 ```
 
 ### Event types
@@ -112,7 +112,7 @@ input.is_key_down( KeyboardKey::KeyW )          // -> bool
 input.is_button_down( MouseButton::Main )        // -> bool  (tracks last press/release; not reference-counted across multiple touches)
 input.pointer_position()                         // -> I32x2   (last moved pointer; non-deterministic with multiple touches)
 input.active_pointers()                          // -> &[(i32, I32x2)]
-input.scroll()                                   // -> &F64x3  (accumulated wheel delta since last clear_events)
+input.scroll()                                   // -> &F64x3  (accumulated wheel delta since last events_clear)
 input.last_pointer_type()                        // -> PointerType  (Mouse/Touch/Pen/Unknown; Unknown until first event)
 ```
 

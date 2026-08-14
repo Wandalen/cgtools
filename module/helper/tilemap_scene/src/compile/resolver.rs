@@ -55,7 +55,7 @@ mod private
   /// Default resolver: wraps every asset's path in [`ImageSource::Path`].
   ///
   /// Appropriate for WebGL targets running in a browser — the adapter fetches
-  /// the image over the wire when `Backend::load_assets` runs. Not appropriate
+  /// the image over the wire when `Backend::assets_load` runs. Not appropriate
   /// for backends that need bytes synchronously (e.g. SVG, headless).
   #[ derive( Debug, Default, Clone, Copy ) ]
   pub struct PathResolver;

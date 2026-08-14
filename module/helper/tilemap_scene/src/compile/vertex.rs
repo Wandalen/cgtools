@@ -87,7 +87,7 @@ mod private
   // it via `tile_lookup()` in `neighbors.rs`); there is no existing or planned
   // caller passing a different hasher, so generalizing over `BuildHasher` would
   // add API surface for no current need.
-  #[ allow( clippy::implicit_hasher ) ]
+  #[ allow( clippy::implicit_hasher, reason = "tile_lookup is always this crate's FxHashMap alias; every caller builds it via tile_lookup() in neighbors.rs, so generalizing over BuildHasher would add API surface for no current need" ) ]
   pub fn resolve_corners
   (
     tri : &TriangleContext,

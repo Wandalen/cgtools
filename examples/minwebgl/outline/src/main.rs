@@ -114,7 +114,7 @@ impl_locations!
 /// * `texture` - The texture to bind.
 /// * `location` - The uniform location in the shader for the sampler.
 /// * `slot` - The texture unit to bind to ( e.g., `GL::TEXTURE0` ).
-fn upload_texture
+fn texture_upload
 (
   gl : &gl::WebGl2RenderingContext,
   texture : &WebGlTexture,
@@ -123,7 +123,7 @@ fn upload_texture
 )
 {
   gl.active_texture( slot );
-  gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
+  gl.bind_texture( GL::TEXTURE_2D, Some( texture ) );
   // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
   gl.uniform1i( Some( location ), ( slot - GL::TEXTURE0 ) as i32 );
 }
@@ -140,7 +140,7 @@ fn upload_texture
 ///
 /// An `Option< ( WebGlFramebuffer, WebGlTexture ) >` containing the created framebuffer and
 /// its color attachment texture, or `None` if creation fails.
-fn create_framebuffer
+fn framebuffer_create
 (
   gl : &gl::WebGl2RenderingContext,
   size : ( i32, i32 ),
@@ -202,7 +202,7 @@ fn create_framebuffer
 /// * `gl` - The WebGL2 rendering context.
 /// * `framebuffer` - The framebuffer to bind.
 /// * `size` - The size of the framebuffer ( width, height ).
-fn upload_framebuffer(
+fn framebuffer_upload(
   gl : &gl::WebGl2RenderingContext,
   framebuffer : &WebGlFramebuffer,
   size : ( i32, i32 )
@@ -226,19 +226,19 @@ impl Programs
   {
     // --- Load and Compile Shaders ---
 
-    let object_vs_src = include_str!( "../resources/shaders/object.vert" );
-    let object_fs_src = include_str!( "../resources/shaders/object.frag" );
-    let fullscreen_vs_src = include_str!( "../resources/shaders/fullscreen.vert" );
-    let jfa_init_fs_src = include_str!( "../resources/shaders/jfa_init.frag" );
-    let jfa_step_fs_src = include_str!( "../resources/shaders/jfa_step.frag" );
-    let outline_vs_src = include_str!( "../resources/shaders/outline.vert" );
-    let outline_fs_src = include_str!( "../resources/shaders/outline.frag" );
+    let object_vert_src = include_str!( "../resources/shaders/object.vert" );
+    let object_frag_src = include_str!( "../resources/shaders/object.frag" );
+    let fullscreen_vert_src = include_str!( "../resources/shaders/fullscreen.vert" );
+    let jfa_init_frag_src = include_str!( "../resources/shaders/jfa_init.frag" );
+    let jfa_step_frag_src = include_str!( "../resources/shaders/jfa_step.frag" );
+    let outline_vert_src = include_str!( "../resources/shaders/outline.vert" );
+    let outline_frag_src = include_str!( "../resources/shaders/outline.frag" );
 
     // Compile and link shader programs and store them
-    let object_program = gl::ProgramFromSources::new( object_vs_src, object_fs_src ).compile_and_link( gl ).unwrap();
-    let jfa_init_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_init_fs_src ).compile_and_link( gl ).unwrap();
-    let jfa_step_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_step_fs_src ).compile_and_link( gl ).unwrap();
-    let outline_program = gl::ProgramFromSources::new( outline_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
+    let object_program = gl::ProgramFromSources::new( object_vert_src, object_frag_src ).compile_and_link( gl ).unwrap();
+    let jfa_init_program = gl::ProgramFromSources::new( fullscreen_vert_src, jfa_init_frag_src ).compile_and_link( gl ).unwrap();
+    let jfa_step_program = gl::ProgramFromSources::new( fullscreen_vert_src, jfa_step_frag_src ).compile_and_link( gl ).unwrap();
+    let outline_program = gl::ProgramFromSources::new( outline_vert_src, outline_frag_src ).compile_and_link( gl ).unwrap();
 
     let object = JfaOutlineObjectShader::new( gl, &object_program );
     let jfa_init = JfaOutlineInitShader::new( gl, &jfa_init_program );
@@ -270,9 +270,9 @@ impl Renderer
 {
   /// Creates a new Renderer instance, initializes WebGL, loads resources,
   /// and prepares the scene for rendering.
-  async fn new() -> Self
+  fn new() -> Self
   {
-    gl::browser::setup( Default::default() );
+    gl::browser::setup( gl::browser::Config::default() );
     let canvas = gl::canvas::make().unwrap();
     let gl = gl::context::from_canvas( &canvas ).unwrap();
 
@@ -300,7 +300,7 @@ impl Renderer
       far
     );
 
-    camera.bind_controls( &canvas );
+    camera.controls_bind( &canvas );
 
     let programs = Programs::new( &gl );
 
@@ -320,12 +320,12 @@ impl Renderer
     // --- Create Framebuffers and Textures ---
 
     // Framebuffer for rendering the initial object silhouette
-    let ( object_fb, object_fb_color, object_fb_normal ) = create_framebuffer( gl, viewport, true ).unwrap();
+    let ( object_fb, object_fb_color, object_fb_normal ) = framebuffer_create( gl, viewport, true ).unwrap();
     // Framebuffer for the JFA initialization pass
-    let ( jfa_init_fb, jfa_init_fb_color, _ ) = create_framebuffer( gl, viewport, false ).unwrap();
+    let ( jfa_init_fb, jfa_init_fb_color, _ ) = framebuffer_create( gl, viewport, false ).unwrap();
     // Framebuffers for the JFA step passes ( ping-pong )
-    let ( jfa_step_fb_0, jfa_step_fb_color_0, _ ) = create_framebuffer( gl, viewport, false ).unwrap();
-    let ( jfa_step_fb_1, jfa_step_fb_color_1, _ ) = create_framebuffer( gl, viewport, false ).unwrap();
+    let ( jfa_step_fb_0, jfa_step_fb_color_0, _ ) = framebuffer_create( gl, viewport, false ).unwrap();
+    let ( jfa_step_fb_1, jfa_step_fb_color_1, _ ) = framebuffer_create( gl, viewport, false ).unwrap();
 
     // Store the color attachment textures
     renderer.textures.insert( "object_fb_color".to_string(), object_fb_color );
@@ -333,7 +333,7 @@ impl Renderer
     renderer.textures.insert( "jfa_init_fb_color".to_string(), jfa_init_fb_color );
     renderer.textures.insert( "jfa_step_fb_color_0".to_string(), jfa_step_fb_color_0 );
     renderer.textures.insert( "jfa_step_fb_color_1".to_string(), jfa_step_fb_color_1 );
-    renderer.textures.insert( "equirect_map".to_string(), gl::texture::d2::upload_image_from_path( gl, "static/skybox/pink_sunrise.jpg", true ) );
+    renderer.textures.insert( "equirect_map".to_string(), gl::texture::d2::image_upload_from_path( gl, "static/skybox/pink_sunrise.jpg", true ) );
 
     // Store the framebuffers
     renderer.framebuffers.insert( "object_fb".to_string(), object_fb );
@@ -349,7 +349,7 @@ impl Renderer
   /// # Arguments
   ///
   /// * `t` - The current time in milliseconds ( used for animation ).
-  fn render( &self, scene : Rc< RefCell< Scene > >, t : f64 )
+  fn render( &self, scene : &Rc< RefCell< Scene > >, t : f64 )
   {
     // 2. Object Rendering Pass: Render the object silhouette to a texture
     let _ = self.object_pass( scene );
@@ -376,7 +376,7 @@ impl Renderer
   /// # Arguments
   ///
   /// * `t` - The current time in milliseconds ( used for rotating the camera/view ).
-  fn object_pass( &self, scene : Rc< RefCell< Scene > > ) -> Result< (), WebglError >
+  fn object_pass( &self, scene : &Rc< RefCell< Scene > > ) -> Result< (), WebglError >
   {
     let gl = &self.gl;
 
@@ -388,7 +388,7 @@ impl Renderer
     let u_view_loc = locations.get( "u_view" ).unwrap().clone().unwrap();
     let u_model_loc = locations.get( "u_model" ).unwrap().clone().unwrap();
 
-    upload_framebuffer( gl, object_fb, self.viewport );
+    framebuffer_upload( gl, object_fb, self.viewport );
 
     gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
     gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 0.0 ] );
@@ -412,13 +412,13 @@ impl Renderer
       if let Object3D::Mesh( ref mesh ) = node.borrow().object
       {
         // Iterate over each primitive in the mesh.
-        for primitive_rc in mesh.borrow().primitives.iter()
+        for primitive_rc in &mesh.borrow().primitives
         {
           let primitive = primitive_rc.borrow();
 
-          gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array(), true ).unwrap();
-          gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &self.camera.get_view_matrix().to_array(), true ).unwrap();
-          gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &node.borrow().get_world_matrix().to_array(), true ).unwrap();
+          gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.projection_matrix_get().to_array(), true ).unwrap();
+          gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &self.camera.view_matrix_get().to_array(), true ).unwrap();
+          gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &node.borrow().world_matrix_get().to_array(), true ).unwrap();
 
           primitive.bind( gl );
           primitive.draw( gl );
@@ -454,9 +454,9 @@ impl Renderer
 
     let u_object_texture = locations.get( "u_object_texture" ).unwrap().clone().unwrap();
 
-    upload_framebuffer( gl, jfa_init_fb, self.viewport );
+    framebuffer_upload( gl, jfa_init_fb, self.viewport );
 
-    upload_texture( gl, object_fb_color, &u_object_texture, GL::TEXTURE0 );
+    texture_upload( gl, object_fb_color, &u_object_texture, GL::TEXTURE0 );
 
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
   }
@@ -470,7 +470,7 @@ impl Renderer
   ///
   /// * `i` - The current JFA step index ( 0, 1, 2, ... ).
   /// * `last` - A boolean flag. If true, the result of this step is rendered
-  ///            directly to the default framebuffer ( screen ) for debugging.
+  ///   directly to the default framebuffer ( screen ) for debugging.
   fn jfa_step_pass( &self, i : i32, t : f64 )
   {
     let gl = &self.gl;
@@ -491,18 +491,18 @@ impl Renderer
     // Ping-pong rendering: Determine input texture and output framebuffer based on step index `i`
     if i == 0 // First step uses the initialization result
     {
-      upload_framebuffer( gl, jfa_step_fb_0, self.viewport ); // Render to FB 0
-      upload_texture( gl, jfa_init_fb_color, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is JFA init texture
+      framebuffer_upload( gl, jfa_step_fb_0, self.viewport ); // Render to FB 0
+      texture_upload( gl, jfa_init_fb_color, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is JFA init texture
     }
     else if i % 2 == 0 // Even steps ( 2, 4, ... ) read from FB 1, render to FB 0
     {
-      upload_framebuffer( gl, jfa_step_fb_0, self.viewport ); // Render to FB 0
-      upload_texture( gl, &jfa_step_fb_color_1, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is texture from FB 1
+      framebuffer_upload( gl, jfa_step_fb_0, self.viewport ); // Render to FB 0
+      texture_upload( gl, jfa_step_fb_color_1, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is texture from FB 1
     }
     else // Odd steps ( 1, 3, ... ) read from FB 0, render to FB 1
     {
-      upload_framebuffer( gl, jfa_step_fb_1, self.viewport ); // Render to FB 1
-      upload_texture( gl, jfa_step_fb_color_0, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is texture from FB 0
+      framebuffer_upload( gl, jfa_step_fb_1, self.viewport ); // Render to FB 1
+      texture_upload( gl, jfa_step_fb_color_0, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is texture from FB 0
     }
 
     // Upload resolution uniform ( needed for distance calculations in the shader )
@@ -527,8 +527,8 @@ impl Renderer
   ///
   /// * `t` - The current time in milliseconds ( used for animating outline thickness ).
   /// * `num_passes` - The total number of JFA step passes performed. Used to determine
-  ///                which of the ping-pong textures ( `jfa_step_fb_color_0` or `jfa_step_fb_color_1` )
-  ///                holds the final JFA result.
+  ///   which of the ping-pong textures ( `jfa_step_fb_color_0` or `jfa_step_fb_color_1` )
+  ///   holds the final JFA result.
   fn outline_pass( &self, num_passes : i32 )
   {
     let gl = &self.gl;
@@ -573,7 +573,7 @@ impl Renderer
     (
       gl,
       Some( u_inv_projection.clone() ),
-      &self.camera.get_projection_matrix().inverse().unwrap().to_array(),
+      &self.camera.projection_matrix_get().inverse().unwrap().to_array(),
       true
     )
     .unwrap();
@@ -581,23 +581,23 @@ impl Renderer
     (
       gl,
       Some( u_inv_view.clone() ),
-      &self.camera.get_view_matrix().inverse().unwrap().to_array(),
+      &self.camera.view_matrix_get().inverse().unwrap().to_array(),
       true
     )
     .unwrap();
 
-    upload_texture( gl, equirect_map, &u_equirect_map, GL::TEXTURE0 );
-    upload_texture( gl, object_fb_color, &u_object_texture, GL::TEXTURE1 );
-    upload_texture( gl, object_fb_normal, &u_normal_texture, GL::TEXTURE2 );
+    texture_upload( gl, equirect_map, &u_equirect_map, GL::TEXTURE0 );
+    texture_upload( gl, object_fb_color, &u_object_texture, GL::TEXTURE1 );
+    texture_upload( gl, object_fb_normal, &u_normal_texture, GL::TEXTURE2 );
 
     // The final JFA result is in jfa_step_fb_color_0 if num_passes is even, otherwise in jfa_step_fb_color_1
     if num_passes % 2 == 0
     {
-      upload_texture( gl, jfa_step_fb_color_0, &u_jfa_step_texture, GL::TEXTURE3 );
+      texture_upload( gl, jfa_step_fb_color_0, &u_jfa_step_texture, GL::TEXTURE3 );
     }
     else
     {
-      upload_texture( gl, jfa_step_fb_color_1, &u_jfa_step_texture, GL::TEXTURE3 );
+      texture_upload( gl, jfa_step_fb_color_1, &u_jfa_step_texture, GL::TEXTURE3 );
     }
 
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
@@ -612,9 +612,9 @@ impl Renderer
 /// # Returns
 ///
 /// A `Result` indicating success or a WebGL error.
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
-  let renderer = Renderer::new().await;
+  let renderer = Renderer::new();
 
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -624,19 +624,19 @@ async fn run() -> Result< (), gl::WebglError >
   let scenes = gltf.scenes.clone();
   for node in &scenes[ 0 ].borrow().children
   {
-    node.borrow_mut().set_center_to_origin();
-    node.borrow_mut().normalize_scale();
-    let scale = node.borrow().get_scale();
-    node.borrow_mut().set_scale( scale * 30.0 );
+    node.borrow_mut().center_set_to_origin();
+    node.borrow_mut().scale_normalize();
+    let scale = node.borrow().scale_get();
+    node.borrow_mut().scale_set( scale * 30.0 );
   }
 
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  scenes[ 0 ].borrow_mut().world_matrix_update();
 
   let update_and_draw =
   {
     move | t : f64 |
     {
-      renderer.render( scenes[ 0 ].clone(), t );
+      renderer.render( &scenes[ 0 ], t );
       true
     }
   };
@@ -648,9 +648,9 @@ async fn run() -> Result< (), gl::WebglError >
 
 /// The main entry point of the application.
 ///
-/// Spawns the asynchronous `run` function using `gl::spawn_local` which is
+/// Spawns the asynchronous `app_run` function using `gl::spawn_local` which is
 /// suitable for WebAssembly targets in a browser environment.
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

@@ -13,7 +13,7 @@ use strum::EnumCount;
 /// - 3: Fourth button (usually "Browser Back")
 /// - 4: Fifth button (usually "Browser Forward")
 ///
-/// See: https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button
+/// See: <https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button>
 #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, EnumCount ) ]
 #[ non_exhaustive ]
 pub enum MouseButton
@@ -48,14 +48,6 @@ impl MouseButton
       4 => MouseButton::Forward,
       _ => MouseButton::Unknown,
     }
-  }
-
-  /// Convert a string representation to the corresponding MouseButton enum variant
-  #[ inline ]
-  #[ must_use ]
-  pub fn from_name( name : &str ) -> Self
-  {
-    MouseButton::from_str( name ).unwrap_or( MouseButton::Unknown )
   }
 
   /// Get the numeric button value for this MouseButton
@@ -164,5 +156,15 @@ impl From< i16 > for MouseButton
   fn from( value : i16 ) -> Self
   {
     MouseButton::from_button( value )
+  }
+}
+
+impl From< &str > for MouseButton
+{
+  /// Convert a string representation to the corresponding MouseButton enum variant
+  #[ inline ]
+  fn from( name : &str ) -> Self
+  {
+    MouseButton::from_str( name ).unwrap_or( MouseButton::Unknown )
   }
 }

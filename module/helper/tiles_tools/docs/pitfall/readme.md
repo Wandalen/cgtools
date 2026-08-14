@@ -14,5 +14,5 @@ A **pitfall** documents one way this crate's API can be misused or misunderstood
 | ID | Name | Purpose | Status |
 |----|------|---------|--------|
 | 001 | [Flow Field Algorithm Unimplemented](001_flow_field_algorithm_unimplemented.md) | Every `FlowField`/`IntegrationField` method returns a fixed stub value | ✅ |
-| 003 | [Save-File Compression Is a Fake Wrapper](003_savefile_compression_is_a_fake_wrapper.md) | `compress_data` adds a 7-byte header without shrinking anything | ✅ |
+| 003 | [Save-File Compression Is a Fake Wrapper](003_savefile_compression_is_a_fake_wrapper.md) | `data_compress` adds a 7-byte header without shrinking anything | ✅ |
 | 004 | [Hexagonal Axial Distance Method Ambiguity](004_hexagonal_axial_distance_method_ambiguity.md) | Two same-named `distance` methods resolve differently by argument shape | ✅ |

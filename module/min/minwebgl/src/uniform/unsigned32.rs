@@ -1,3 +1,4 @@
+#[ allow( clippy::wildcard_imports, reason = "crate-root prelude from mod_interface!; enumerating would break on every layer change" ) ]
 use crate::*;
 use core::any::type_name_of_val;
 
@@ -5,7 +6,8 @@ impl UniformUpload for u32
 {
   fn upload( &self, gl : &GL, uniform_location : Option< WebGlUniformLocation > ) -> Result< (), WebglError >
   {
-    Ok( gl.uniform1ui( uniform_location.as_ref(), *self ) )
+    gl.uniform1ui( uniform_location.as_ref(), *self );
+    Ok( () )
   }
 }
 
@@ -15,10 +17,10 @@ impl UniformUpload for [ u32 ]
   {
     match self.len()
     {
-      1 => Ok( gl.uniform1uiv_with_u32_array( uniform_location.as_ref(), self ) ),
-      2 => Ok( gl.uniform2uiv_with_u32_array( uniform_location.as_ref(), self ) ),
-      3 => Ok( gl.uniform3uiv_with_u32_array( uniform_location.as_ref(), self ) ),
-      4 => Ok( gl.uniform4uiv_with_u32_array( uniform_location.as_ref(), self ) ),
+      1 => { gl.uniform1uiv_with_u32_array( uniform_location.as_ref(), self ); Ok( () ) },
+      2 => { gl.uniform2uiv_with_u32_array( uniform_location.as_ref(), self ); Ok( () ) },
+      3 => { gl.uniform3uiv_with_u32_array( uniform_location.as_ref(), self ); Ok( () ) },
+      4 => { gl.uniform4uiv_with_u32_array( uniform_location.as_ref(), self ); Ok( () ) },
       _ => Err
       (
         WebglError::CantUploadUniform
@@ -39,10 +41,10 @@ impl< const N : usize > UniformUpload for [ u32 ; N ]
   {
     match self.len()
     {
-      1 => Ok( gl.uniform1uiv_with_u32_array( uniform_location.as_ref(), self ) ),
-      2 => Ok( gl.uniform2uiv_with_u32_array( uniform_location.as_ref(), self ) ),
-      3 => Ok( gl.uniform3uiv_with_u32_array( uniform_location.as_ref(), self ) ),
-      4 => Ok( gl.uniform4uiv_with_u32_array( uniform_location.as_ref(), self ) ),
+      1 => { gl.uniform1uiv_with_u32_array( uniform_location.as_ref(), self ); Ok( () ) },
+      2 => { gl.uniform2uiv_with_u32_array( uniform_location.as_ref(), self ); Ok( () ) },
+      3 => { gl.uniform3uiv_with_u32_array( uniform_location.as_ref(), self ); Ok( () ) },
+      4 => { gl.uniform4uiv_with_u32_array( uniform_location.as_ref(), self ); Ok( () ) },
       _ => Err
       (
         WebglError::CantUploadUniform
@@ -63,10 +65,10 @@ impl< const N : usize > UniformUpload for [ [ u32 ; N ] ]
   {
     match N
     {
-      1 => Ok( gl.uniform1uiv_with_u32_array( uniform_location.as_ref(), self.as_flattened() ) ),
-      2 => Ok( gl.uniform2uiv_with_u32_array( uniform_location.as_ref(), self.as_flattened() ) ),
-      3 => Ok( gl.uniform3uiv_with_u32_array( uniform_location.as_ref(), self.as_flattened() ) ),
-      4 => Ok( gl.uniform4uiv_with_u32_array( uniform_location.as_ref(), self.as_flattened() ) ),
+      1 => { gl.uniform1uiv_with_u32_array( uniform_location.as_ref(), self.as_flattened() ); Ok( () ) },
+      2 => { gl.uniform2uiv_with_u32_array( uniform_location.as_ref(), self.as_flattened() ); Ok( () ) },
+      3 => { gl.uniform3uiv_with_u32_array( uniform_location.as_ref(), self.as_flattened() ); Ok( () ) },
+      4 => { gl.uniform4uiv_with_u32_array( uniform_location.as_ref(), self.as_flattened() ); Ok( () ) },
       _ => Err
       (
         WebglError::CantUploadUniform

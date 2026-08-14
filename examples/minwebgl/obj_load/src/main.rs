@@ -1,16 +1,14 @@
 //! Just draw a large point in the middle of the screen.
 
-use std::io::{ BufReader, Cursor };
-
 use minwebgl as gl;
 use gl::
 {
   GL,
 };
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
 
   // Vertex and fragment shaders
@@ -21,28 +19,16 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Load model
   let obj_buffer = gl::file::load( "static/suzanne.obj" ).await.expect( "Failed to load the model" );
-  let obj_cursor = Cursor::new( obj_buffer );
-  let mut obj_reader = BufReader::new( obj_cursor );
-
-  // qqq : for Yevgen : introduce helper to show detailed diagnostic information, with argumenting verbosity controlling level of detauls and strcuture Report having all the diagnostic information in inside, Report might have 'lifetime if necessary
-
-  // qqq : for Yevgen : introduce helper to load from bytes slice
-  let suzanne = tobj::load_obj_buf
-  (
-    &mut obj_reader,
-    &tobj::GPU_LOAD_OPTIONS,
-    move | _p |
-    {
-      // qqq : for Yevgen : why error?
-      Err( tobj::LoadError::OpenFileFailed )
-    }
-  );
+  let ( models, materials ) = gl::model::obj::model_load_from_slice( &obj_buffer, "static", &tobj::GPU_LOAD_OPTIONS ).await.expect( "Failed to load OBJ file" );
+  let materials = materials.expect( "Failed to load materials" );
 
   // qqq : for Yevhen : implement a example obj_viewer, which allow upload any 3d model and see very detailed and full diagnostics information
 
-  let ( models, _materials ) = suzanne.expect( "Failed to load OBJ file" );
-  gl::log::info!( "# of models : {}", models.len() );
-  // gl::log::info!( "# of materials : {}", _materials.expect( "Failed to parse materials" ).len() );
+  for report in &gl::diagnostics::obj::reports_make( &models, &materials )
+  {
+    gl::log::info!( "{report}" );
+  }
+
   let model = &models[ 0 ];
   let mesh = &model.mesh;
   // gl::log::info!( "{:?}", &model );
@@ -115,5 +101,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

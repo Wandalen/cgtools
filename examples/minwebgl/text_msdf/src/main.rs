@@ -7,9 +7,9 @@ use minwebgl::{ self as gl, wasm_bindgen::prelude::Closure, JsCast };
 mod text;
 mod json;
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
 
   let canvas = gl::canvas::retrieve_or_make()?;
   let gl = gl::context::from_canvas( &canvas )?;
@@ -28,7 +28,7 @@ async fn run() -> Result< (), gl::WebglError >
   let font_str = String::from_utf8( gl::file::load( "static/font/Alike-Regular.json" ).await.unwrap() ).unwrap();
   //let font_str = include_str!( "../assets/font/Alike-Regular.json" );
   // Parse font from the provided file
-  let font = json::MSDFFontJSON::parse_font( &font_str );
+  let font = json::MSDFFontJSON::font_parse( &font_str );
   // Create render data from the text based on the font
   let fortmatted_text = font.format( text );
   let buffer = gl::buffer::create( &gl )?;
@@ -89,28 +89,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl::uniform::upload( &gl, tex_size_location, &font.scale[ .. ] )?;
   gl::uniform::upload( &gl, bounding_box_location, &fortmatted_text.bounding_box.to_array()[ .. ] )?;
 
-  // Load an image and upload it to the texture when it's loaded
-  let img = gl::dom::create_image_element( "static/font/Alike-Regular.png" ).unwrap();
-  img.style().set_property( "display", "none" ).unwrap();
-
-  let texture = gl.create_texture();
-  let load_texture : Closure< dyn Fn() > = Closure::new
-  (
-    {
-      let texture = texture.clone();
-      let gl = gl.clone();
-      let img = img.clone();
-      move ||
-      {
-        gl::texture::d2::upload_no_flip( &gl, texture.as_ref(), &img );
-        gl::texture::d2::default_parameters( &gl );
-        img.remove();
-      }
-    }
-  );
-
-  img.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
-  load_texture.forget();
+  font_texture_load( &gl );
 
   gl.enable( gl::DEPTH_TEST );
   gl.enable( gl::BLEND );
@@ -148,7 +127,33 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
+/// Loads the MSDF font atlas image and uploads it into a texture once the image is ready.
+fn font_texture_load( gl : &gl::WebGl2RenderingContext )
+{
+  let img = gl::dom::image_element_create( "static/font/Alike-Regular.png" ).unwrap();
+  img.style().set_property( "display", "none" ).unwrap();
+
+  let texture = gl.create_texture();
+  let load_texture : Closure< dyn Fn() > = Closure::new
+  (
+    {
+      let texture = texture.clone();
+      let gl = gl.clone();
+      let img = img.clone();
+      move ||
+      {
+        gl::texture::d2::upload_no_flip( &gl, texture.as_ref(), &img );
+        gl::texture::d2::default_parameters( &gl );
+        img.remove();
+      }
+    }
+  );
+
+  img.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+  load_texture.forget();
+}
+
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

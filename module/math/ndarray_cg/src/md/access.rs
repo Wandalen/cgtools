@@ -25,7 +25,7 @@ mod private
     ///
     /// # Returns
     /// - The modified collection with the new scalar data.
-    fn raw_set_slice( &mut self, scalars : &[ Self::Scalar ] );
+    fn raw_slice_set( &mut self, scalars : &[ Self::Scalar ] );
 
     /// Sets the underlying data from an array of scalars.
     ///

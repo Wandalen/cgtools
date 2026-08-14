@@ -8,7 +8,7 @@ State legend: 🔍 Unverified · ✔️ Verified · 🚧 Blocked · ✅ Decided 
 
 Format rule: ✅ Decided entries show only the selected option as a single collapsed statement with rationale — rejected alternatives are dropped. ✔️ Verified entries retain the full Options section byte-for-byte plus a Confirmed field citing verification evidence. 🔍 Unverified entries show either the full Options section with a recommendation, or (once an assumption is formulated) a single Assumed statement with a verification mechanism and contingency. 🚧 Blocked entries retain the full Options section plus mandatory Blocked-on/Blocks fields. ➖ Cancelled entries preserve the original analysis plus a mandatory Reason field.
 
-1 entry · 1 cancelled
+3 entries · 1 cancelled · 2 decided
 
 ---
 
@@ -17,6 +17,8 @@ Format rule: ✅ Decided entries show only the selected option as a single colla
 | ID | Question | State | Owner | Date | Gated by |
 |----|----------|-------|-------|------|----------|
 | Q-01 | Split, narrow, or plan-extract task 001? | ➖ Cancelled | i4@wbox.pro | 2026_08_08 | — |
+| Q-02 | How should `ImageSource::Encoded` decoding be implemented across `tilemap_renderer` backends? | ✅ Decided | user1@w002 | 2026_08_11 | — |
+| Q-03 | How should shader-chunk tunable parameters be declared, discovered, and range-resolved? | ✅ Decided | user1@w002 | 2026_08_13 | — |
 
 ---
 
@@ -52,5 +54,29 @@ Slim Task plus a `pln.rulebook.md`-compliant Plan with 5 Phases (the existing `#
 **Aggregate verdict:** PASS — Option A holds under adversarial challenge; no rejected finding. State → ✔️ Verified (superseded below).
 
 **Reason (➖ Cancelled, 2026-08-09):** Before the ENDORSE step above ever fired, the filer (i4@wbox.pro) cancelled the entire SPRAWL initiative outright — task 001 and its milestone split 002-006 alike — as exploratory/idea-stage work, not committed for implementation. This moots the question this decision resolved: Option A (split into 5) was the correct decomposition *if* SPRAWL were to proceed, and remains validly confirmed as that (40/40 gate passes stand unchanged) — but with no implementation proceeding at all, no split/narrow/plan-extract strategy is needed. All 6 tasks (001-006) moved to `task/cancelled/`; Tasks Index reindexed accordingly.
+
+---
+
+## Q-02 — `ImageSource::Encoded` decoding strategy across backends
+
+**✅ Decided · user1@w002 · 2026_08_11**
+How should `tilemap_renderer`'s `ImageSource::Encoded` (PNG/JPEG/etc. bytes) be decoded across backend families, closing the gap `roadmap.md`'s "webgl adapter gaps" section documents?
+
+**Reject bundling the full `image` crate into `adapter-webgl` (the assumed Option 1 from the prior unverified analysis); decode by backend family instead: web/wasm backends (`adapter-webgl`) decode via browser-native mechanisms — `minwebgl::create_blob` (bytes → Blob → object URL) feeding the existing `HtmlImageElement`-based async upload path already used for `ImageSource::Path`, reusing the already-proven Blob-upload pattern in `renderer/src/webgl/loaders/gltf.rs` — rather than reimplementing browser decoding in Rust; native (non-wasm) backends (`adapter-svg`) use a minimal dependency on a single image format's decoder (the `png` crate — the codebase's own current-evidence default; revisable if real production art pipelines need a different format) rather than the full multi-format `image` crate.** This also resolves a pre-existing over-dependency: `adapter-svg`'s `dep:image` pulled in every format codec `image` supports plus `rayon`, for a usage surface (header-only dimension parsing + PNG-only encoding) that never performed a full multi-format pixel decode. Non-PNG `Encoded` bytes on the native/`adapter-svg` path degrade gracefully after this change (dimension extraction returns `None`, same as today's malformed-bytes case) rather than the multi-format decoding the prior `image`-crate-backed `image_dimensions` supported — MIME-type detection (a separate, byte-pattern-only function) is unaffected and still recognizes PNG/JPEG/GIF/WebP/SVG regardless. Implemented by `task/completed/092_tilemap_renderer_webgl_encoded_image_decode.md` (web half) and `task/completed/093_tilemap_renderer_svg_minimal_png_decoder.md` (native half).
+
+---
+
+## Q-03 — Shader-chunk tunable-parameter declaration, discovery, and range-resolution strategy
+
+**✅ Decided · user1@w002 · 2026_08_13**
+How should chunk-level tunable parameters (function argument, compile-time define directive, uniform, attribute, texture — per user request) be declared and discovered by a new crate, and how should a parameter with no declared range get one?
+
+**Add a new repeatable `//@ param: <name> <kind> <type> [range(min, max)]` line to the existing flat manifest header block** (`shader_chunks_core`'s established `//@ name:`/`//@ description:`/`//@ tags:`/`//@ depends_on:`/`//@ export:` convention, confirmed by reading `shader/fbm3/fbm3.wgsl` and `shader/hash21/hash21.wgsl` directly — one comment block at the top of the file, `export` already proving the repeatable-line pattern) — rather than scattering inline annotations next to each individual declaration in the WGSL body, which would break the file's single-header-block shape and couple manifest position to body position. `kind` is one of the 5 requested literal spellings (`argument`, `define`, `uniform`, `attribute`, `texture`); `type` is the WGSL type token copied verbatim from the adjacent real declaration.
+
+**Reject pure syntactic inference** (scanning function signatures/bodies for anything that looks like a parameter) as the sole discovery mechanism: it cannot distinguish a genuine tunable knob (an octave count) from a structurally-required non-tunable argument (a sample coordinate) — chunks must explicitly opt a value into tunability via `//@ param:`, mirroring how `export` already requires explicit opt-in rather than exporting every function found.
+
+**Range resolution:** a declared `range(min, max)` always wins. When absent, a deterministic (no randomness) two-stage heuristic infers one — name-substring pattern match first (`octaves`/`count`/`steps`/`iterations` → `[1, 8]`; `seed` → `[0, 65535]`; `angle`/`rotation` → `[0.0, τ]`; `scale`/`frequency`/`freq` → `[0.1, 10.0]`; `amplitude`/`weight`/`opacity`/`alpha`/`mix`/`blend` → `[0.0, 1.0]`; `radius`/`size`/`width`/`height` → `[0.0, 100.0]`), falling back to a WGSL-type-keyed default (`bool`/`texture_*` → no numeric range; `u32`/vec-of-`u32` → `[0, 16]`; `i32`/vec-of-`i32` → `[-16, 16]`; `f32`/vec-of-`f32` → `[0.0, 1.0]`, matching this codebase's own noise chunks' unit-interval convention) when no name pattern matches. Every inferred range is tagged `RangeSource::Inferred` versus a declared range's `RangeSource::Declared`, so a consumer can always tell which happened.
+
+**Scope boundary:** discovery (`shader_chunks_params`, a new crate) and its CLI surface (`shader_chunks`'s `tunables` command) are the full extent of this decision — annotating the 4 existing bundled chunks with real `//@ param:` lines, and any live GPU-backed parameter-preview UI, are both explicitly out of scope (YAGNI — no `//@ param:` line exists anywhere yet to annotate against, and no windowed/interactive rendering path exists anywhere in this workspace to preview into; the mechanism is independently valuable and testable via self-contained fixtures without either).
 
 ---

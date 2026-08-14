@@ -6,7 +6,7 @@ mod private
   use error_tools::Error;
 
   /// Error returned by [`crate::spec::RenderSpec::load`] /
-  /// [`crate::scene::Scene::load`] and their `from_ron_str`
+  /// [`crate::snapshot::SceneSnapshot::load`] and their `from_ron_str`
   /// counterparts.
   ///
   /// Wraps I/O, RON parsing, and post-parse validation failures under a single
@@ -113,7 +113,7 @@ mod private
     /// Version 0.2.0 implements `HexFlatTop` and `HexPointyTop` only; the
     /// `Square4` / `Square8` values are reserved. This variant is declared
     /// for the future SPEC §16 tiling check but is not yet constructed —
-    /// square specs currently pass [`crate::load::load`] and fail at render
+    /// square specs currently pass [`crate::spec::RenderSpec::load`] and fail at render
     /// time with [`crate::compile::CompileError::UnsupportedAnchor`].
     UnsupportedTiling( String ),
     /// A sprite source is not valid for the declaring object's anchor type.

@@ -34,20 +34,21 @@
 //!     .with_style(GridStyle::Hexagonal);
 //!
 //! // Add some debug markers
-//! renderer.add_marker(Coordinate::<Axial, Pointy>::new(2, 3), "S", "Start position");
-//! renderer.add_marker(Coordinate::<Axial, Pointy>::new(7, 5), "G", "Goal position");
+//! renderer.marker_add(Coordinate::<Axial, Pointy>::new(2, 3), "S", "Start position");
+//! renderer.marker_add(Coordinate::<Axial, Pointy>::new(7, 5), "G", "Goal position");
 //!
 //! // Render as ASCII art
-//! println!("{}", renderer.render_ascii());
+//! println!("{}", renderer.ascii_render());
 //!
 //! // Export as SVG
-//! renderer.export_svg("-debug_grid.svg").expect("Failed to export SVG");
+//! renderer.svg_export("-debug_grid.svg").expect("Failed to export SVG");
 //! ```
 
 use std::collections::{HashMap, VecDeque};
 use std::time::{Instant, Duration};
 use std::fs::{File, create_dir_all};
 use std::io::{Write, BufWriter};
+use std::fmt::Write as _;
 use std::path::Path;
 
 /// Visual debugging renderer for coordinate grids.
@@ -183,8 +184,43 @@ impl GridRenderer
     self
   }
 
+  /// Returns the configured grid width.
+  #[ must_use ]
+  pub fn width( &self ) -> usize
+  {
+    self.width
+  }
+
+  /// Returns the configured grid height.
+  #[ must_use ]
+  pub fn height( &self ) -> usize
+  {
+    self.height
+  }
+
+  /// Returns the configured grid style.
+  #[ must_use ]
+  pub fn style( &self ) -> GridStyle
+  {
+    self.style
+  }
+
+  /// Returns how many markers are currently stored.
+  #[ must_use ]
+  pub fn marker_count( &self ) -> usize
+  {
+    self.markers.len()
+  }
+
+  /// Returns `true` when a marker is stored at `pos`.
+  #[ must_use ]
+  pub fn has_marker( &self, pos : ( i32, i32 ) ) -> bool
+  {
+    self.markers.contains_key( &pos )
+  }
+
   /// Adds a debug marker at the specified coordinate.
-  pub fn add_marker<C>(&mut self, coord: C, symbol: &str, description: &str)
+  pub fn marker_add<C>(&mut self, coord: C, symbol: &str, description: &str)
   where
     C: Into<(i32, i32)>,
   {
@@ -198,7 +234,7 @@ impl GridRenderer
   }
 
   /// Adds a colored marker with priority.
-  pub fn add_colored_marker<C>(
+  pub fn colored_marker_add<C>(
     &mut self, 
     coord: C, 
     symbol: &str, 
@@ -219,7 +255,7 @@ impl GridRenderer
   }
 
   /// Adds a path highlight.
-  pub fn add_path<C>(&mut self, path: Vec<C>, label: &str, color: DebugColor)
+  pub fn path_add<C>(&mut self, path: Vec<C>, label: &str, color: DebugColor)
   where
     C: Into<(i32, i32)>,
   {
@@ -233,7 +269,7 @@ impl GridRenderer
   }
 
   /// Adds an area highlight.
-  pub fn add_area<C>(&mut self, area: Vec<C>, label: &str, color: DebugColor, style: HighlightStyle)
+  pub fn area_add<C>(&mut self, area: Vec<C>, label: &str, color: DebugColor, style: HighlightStyle)
   where
     C: Into<(i32, i32)>,
   {
@@ -247,7 +283,7 @@ impl GridRenderer
   }
 
   /// Adds a text annotation.
-  pub fn add_annotation<C>(&mut self, coord: C, text: &str, color: DebugColor)
+  pub fn annotation_add<C>(&mut self, coord: C, text: &str, color: DebugColor)
   where
     C: Into<(i32, i32)>,
   {
@@ -262,20 +298,20 @@ impl GridRenderer
 
   /// Renders the grid as ASCII art.
   #[must_use]
-  pub fn render_ascii(&self) -> String {
+  pub fn ascii_render(&self) -> String {
     let mut output = String::new();
     
     // Add header with grid information
-    output.push_str(&format!("Debug Grid ({} x {}) - Style: {:?}\n", 
-      self.width, self.height, self.style));
+    let _ = writeln!(output, "Debug Grid ({} x {}) - Style: {:?}",
+      self.width, self.height, self.style);
     output.push_str(&"=".repeat(50));
     output.push('\n');
 
     match self.style {
-      GridStyle::Square4 | GridStyle::Square8 => self.render_square_ascii(&mut output),
-      GridStyle::Hexagonal => self.render_hexagonal_ascii(&mut output),
-      GridStyle::Triangular => self.render_triangular_ascii(&mut output),
-      GridStyle::Isometric => self.render_isometric_ascii(&mut output),
+      GridStyle::Square4 | GridStyle::Square8 => self.square_ascii_render(&mut output),
+      GridStyle::Hexagonal => self.hexagonal_ascii_render(&mut output),
+      GridStyle::Triangular => self.triangular_ascii_render(&mut output),
+      GridStyle::Isometric => self.isometric_ascii_render(&mut output),
     }
 
     // Add legend
@@ -286,15 +322,15 @@ impl GridRenderer
       markers.sort_by_key(|(_, marker)| marker.priority);
       
       for ((x, y), marker) in markers {
-        output.push_str(&format!("  {} ({}, {}) - {}\n", 
-          marker.symbol, x, y, marker.description));
+        let _ = writeln!(output, "  {} ({}, {}) - {}",
+          marker.symbol, x, y, marker.description);
       }
     }
 
     output
   }
 
-  fn render_square_ascii(&self, output: &mut String) {
+  fn square_ascii_render(&self, output: &mut String) {
     // Render square grid with coordinates and markers
     for y in 0..self.height as i32 {
       // Top border
@@ -309,7 +345,7 @@ impl GridRenderer
         
         let coord = (x, y);
         if let Some(marker) = self.markers.get(&coord) {
-          output.push_str(&format!(" {} ", marker.symbol));
+          let _ = write!(output, " {} ", marker.symbol);
         } else if self.is_highlighted(coord) {
           output.push_str(" # ");
         } else {
@@ -326,7 +362,7 @@ impl GridRenderer
     output.push_str("+\n");
   }
 
-  fn render_hexagonal_ascii(&self, output: &mut String) {
+  fn hexagonal_ascii_render(&self, output: &mut String) {
     // Simplified hexagonal grid representation
     output.push_str("Hexagonal Grid (simplified ASCII representation):\n");
     
@@ -338,7 +374,7 @@ impl GridRenderer
       for x in 0..self.width as i32 {
         let coord = (x, y);
         if let Some(marker) = self.markers.get(&coord) {
-          output.push_str(&format!("/{}\\ ", marker.symbol));
+          let _ = write!(output, "/{}\\ ", marker.symbol);
         } else if self.is_highlighted(coord) {
           output.push_str("/#\\ ");
         } else {
@@ -349,7 +385,7 @@ impl GridRenderer
     }
   }
 
-  fn render_triangular_ascii(&self, output: &mut String) {
+  fn triangular_ascii_render(&self, output: &mut String) {
     output.push_str("Triangular Grid (ASCII approximation):\n");
     
     for y in 0..self.height as i32 {
@@ -357,9 +393,9 @@ impl GridRenderer
         let coord = (x, y);
         if let Some(marker) = self.markers.get(&coord) {
           if (x + y) % 2 == 0 {
-            output.push_str(&format!("▲{} ", marker.symbol));
+            let _ = write!(output, "▲{} ", marker.symbol);
           } else {
-            output.push_str(&format!("▼{} ", marker.symbol));
+            let _ = write!(output, "▼{} ", marker.symbol);
           }
         } else if self.is_highlighted(coord) {
           output.push_str(if (x + y) % 2 == 0 { "▲# " } else { "▼# " });
@@ -371,7 +407,7 @@ impl GridRenderer
     }
   }
 
-  fn render_isometric_ascii(&self, output: &mut String) {
+  fn isometric_ascii_render(&self, output: &mut String) {
     output.push_str("Isometric Grid (ASCII approximation):\n");
     
     for y in 0..self.height as i32 {
@@ -381,7 +417,7 @@ impl GridRenderer
       for x in 0..self.width as i32 {
         let coord = (x, y);
         if let Some(marker) = self.markers.get(&coord) {
-          output.push_str(&format!("◊{} ", marker.symbol));
+          let _ = write!(output, "◊{} ", marker.symbol);
         } else if self.is_highlighted(coord) {
           output.push_str("◊# ");
         } else {
@@ -400,7 +436,7 @@ impl GridRenderer
   ///
   /// # Errors
   /// Returns an error when the output directory or file cannot be written.
-  pub fn export_svg<P: AsRef<Path>>(&self, path: P) -> Result<(), std::io::Error> {
+  pub fn svg_export<P: AsRef<Path>>(&self, path: P) -> Result<(), std::io::Error> {
     if let Some(parent) = path.as_ref().parent() {
       create_dir_all(parent)?;
     }
@@ -420,16 +456,16 @@ impl GridRenderer
     writeln!(writer, r#"<rect width="100%" height="100%" fill="white"/>"#)?;
 
     // Grid lines
-    self.render_svg_grid(&mut writer, cell_size)?;
+    self.svg_grid_render(&mut writer, cell_size)?;
 
     // Highlights
-    self.render_svg_highlights(&mut writer, cell_size)?;
+    self.svg_highlights_render(&mut writer, cell_size)?;
 
     // Markers
-    self.render_svg_markers(&mut writer, cell_size)?;
+    self.svg_markers_render(&mut writer, cell_size)?;
 
     // Annotations
-    self.render_svg_annotations(&mut writer, cell_size)?;
+    self.svg_annotations_render(&mut writer, cell_size)?;
 
     // SVG footer
     writeln!(writer, "</svg>")?;
@@ -438,7 +474,7 @@ impl GridRenderer
     Ok(())
   }
 
-  fn render_svg_grid(&self, writer: &mut BufWriter<File>, cell_size: usize) -> Result<(), std::io::Error> {
+  fn svg_grid_render(&self, writer: &mut BufWriter<File>, cell_size: usize) -> Result<(), std::io::Error> {
     let offset = 50;
     
     match self.style {
@@ -477,14 +513,14 @@ impl GridRenderer
       },
       _ => {
         // Default to square grid for other styles
-        self.render_svg_grid(writer, cell_size)?;
+        self.svg_grid_render(writer, cell_size)?;
       }
     }
 
     Ok(())
   }
 
-  fn render_svg_highlights(&self, writer: &mut BufWriter<File>, cell_size: usize) -> Result<(), std::io::Error> {
+  fn svg_highlights_render(&self, writer: &mut BufWriter<File>, cell_size: usize) -> Result<(), std::io::Error> {
     let offset = 50;
     
     for highlight in &self.highlights {
@@ -516,7 +552,7 @@ impl GridRenderer
     Ok(())
   }
 
-  fn render_svg_markers(&self, writer: &mut BufWriter<File>, cell_size: usize) -> Result<(), std::io::Error> {
+  fn svg_markers_render(&self, writer: &mut BufWriter<File>, cell_size: usize) -> Result<(), std::io::Error> {
     let offset = 50;
     
     for (&(x, y), marker) in &self.markers {
@@ -536,7 +572,7 @@ impl GridRenderer
     Ok(())
   }
 
-  fn render_svg_annotations(&self, writer: &mut BufWriter<File>, cell_size: usize) -> Result<(), std::io::Error> {
+  fn svg_annotations_render(&self, writer: &mut BufWriter<File>, cell_size: usize) -> Result<(), std::io::Error> {
     let offset = 50;
     
     for annotation in &self.annotations {
@@ -604,35 +640,35 @@ impl PathfindingDebugger {
   }
 
   /// Adds an obstacle at the specified coordinate.
-  pub fn add_obstacle<C>(&mut self, coord: C)
+  pub fn obstacle_add<C>(&mut self, coord: C)
   where
     C: Into<(i32, i32)>,
   {
     let pos = coord.into();
     self.obstacles.push(pos);
-    self.grid_renderer.add_colored_marker(pos, "X", "Obstacle", DebugColor::Red, 10);
+    self.grid_renderer.colored_marker_add(pos, "X", "Obstacle", DebugColor::Red, 10);
   }
 
   /// Sets the start position.
-  pub fn set_start<C>(&mut self, coord: C)
+  pub fn start_set<C>(&mut self, coord: C)
   where
     C: Into<(i32, i32)>,
   {
     let pos = coord.into();
-    self.grid_renderer.add_colored_marker(pos, "S", "Start", DebugColor::Green, 20);
+    self.grid_renderer.colored_marker_add(pos, "S", "Start", DebugColor::Green, 20);
   }
 
   /// Sets the goal position.
-  pub fn set_goal<C>(&mut self, coord: C)
+  pub fn goal_set<C>(&mut self, coord: C)
   where
     C: Into<(i32, i32)>,
   {
     let pos = coord.into();
-    self.grid_renderer.add_colored_marker(pos, "G", "Goal", DebugColor::Blue, 20);
+    self.grid_renderer.colored_marker_add(pos, "G", "Goal", DebugColor::Blue, 20);
   }
 
   /// Adds a path to visualize.
-  pub fn add_path<C>(&mut self, path: Vec<C>, label: &str)
+  pub fn path_add<C>(&mut self, path: Vec<C>, label: &str)
   where
     C: Into<(i32, i32)>,
   {
@@ -641,55 +677,55 @@ impl PathfindingDebugger {
     // Add path markers
     for (i, &coord) in path_coords.iter().enumerate() {
       if i > 0 && i < path_coords.len() - 1 {
-        self.grid_renderer.add_colored_marker(coord, "·", "Path point", DebugColor::Yellow, 5);
+        self.grid_renderer.colored_marker_add(coord, "·", "Path point", DebugColor::Yellow, 5);
       }
     }
 
-    self.grid_renderer.add_path(path_coords, label, DebugColor::Yellow);
+    self.grid_renderer.path_add(path_coords, label, DebugColor::Yellow);
   }
 
   /// Adds visited nodes from pathfinding algorithm.
-  pub fn add_visited_nodes<C>(&mut self, nodes: Vec<C>)
+  pub fn visited_nodes_add<C>(&mut self, nodes: Vec<C>)
   where
     C: Into<(i32, i32)>,
   {
     self.visited_nodes = nodes.into_iter().map(ndarray_cg::Into::into).collect();
-    self.grid_renderer.add_area(self.visited_nodes.clone(), "Visited", DebugColor::Gray, HighlightStyle::Fill);
+    self.grid_renderer.area_add(self.visited_nodes.clone(), "Visited", DebugColor::Gray, HighlightStyle::Fill);
   }
 
   /// Adds open nodes from pathfinding algorithm.
-  pub fn add_open_nodes<C>(&mut self, nodes: Vec<C>)
+  pub fn open_nodes_add<C>(&mut self, nodes: Vec<C>)
   where
     C: Into<(i32, i32)>,
   {
     self.open_nodes = nodes.into_iter().map(ndarray_cg::Into::into).collect();
-    self.grid_renderer.add_area(self.open_nodes.clone(), "Open", DebugColor::Orange, HighlightStyle::Dotted);
+    self.grid_renderer.area_add(self.open_nodes.clone(), "Open", DebugColor::Orange, HighlightStyle::Dotted);
   }
 
   /// Sets cost information for pathfinding visualization.
-  pub fn set_costs(&mut self, costs: HashMap<(i32, i32), u32>) {
+  pub fn costs_set(&mut self, costs: HashMap<(i32, i32), u32>) {
     self.path_costs = costs;
     
     // Add cost annotations
     for (&coord, &cost) in &self.path_costs {
       if cost > 1 && !self.obstacles.contains(&coord) {
-        self.grid_renderer.add_annotation(coord, &cost.to_string(), DebugColor::Purple);
+        self.grid_renderer.annotation_add(coord, &cost.to_string(), DebugColor::Purple);
       }
     }
   }
 
   /// Renders the pathfinding debug view as ASCII.
   #[must_use]
-  pub fn render_ascii(&self) -> String {
-    self.grid_renderer.render_ascii()
+  pub fn ascii_render(&self) -> String {
+    self.grid_renderer.ascii_render()
   }
 
   /// Exports the pathfinding debug view as SVG.
   ///
   /// # Errors
   /// Returns an error when the underlying grid export fails.
-  pub fn export_svg<P: AsRef<Path>>(&self, path: P) -> Result<(), std::io::Error> {
-    self.grid_renderer.export_svg(path)
+  pub fn svg_export<P: AsRef<Path>>(&self, path: P) -> Result<(), std::io::Error> {
+    self.grid_renderer.svg_export(path)
   }
 }
 
@@ -725,7 +761,7 @@ impl ECSInspector {
   }
 
   /// Records entity information.
-  pub fn record_entity(&mut self, entity: EntityDebugInfo) {
+  pub fn entity_record(&mut self, entity: EntityDebugInfo) {
     for component in &entity.components {
       *self.component_counts.entry(component.clone()).or_insert(0) += 1;
     }
@@ -733,7 +769,7 @@ impl ECSInspector {
   }
 
   /// Records system execution time.
-  pub fn record_system_timing(&mut self, system_name: String, duration: Duration) {
+  pub fn system_timing_record(&mut self, system_name: String, duration: Duration) {
     self.system_timings.insert(system_name, duration);
   }
 
@@ -745,7 +781,7 @@ impl ECSInspector {
 
   /// Gets entity information by ID.
   #[must_use]
-  pub fn get_entity(&self, id: u32) -> Option<&EntityDebugInfo> {
+  pub fn entity_get(&self, id: u32) -> Option<&EntityDebugInfo> {
     self.entity_data.get(&id)
   }
 
@@ -757,21 +793,21 @@ impl ECSInspector {
 
   /// Generates a debug report.
   #[must_use]
-  pub fn generate_report(&self) -> String {
+  pub fn report_generate(&self) -> String {
     let mut report = String::new();
     
     report.push_str("ECS Inspector Report\n");
     report.push_str("===================\n\n");
 
     // Entity summary
-    report.push_str(&format!("Total Entities: {}\n", self.entity_data.len()));
+    let _ = writeln!(report, "Total Entities: {}", self.entity_data.len());
     
     // Component statistics
     report.push_str("\nComponent Statistics:\n");
     let mut components: Vec<_> = self.component_counts.iter().collect();
     components.sort_by_key(|(_, count)| *count);
     for (component, count) in components.iter().rev() {
-      report.push_str(&format!("  {component}: {count} entities\n"));
+      let _ = writeln!(report, "  {component}: {count} entities");
     }
 
     // System timings
@@ -780,7 +816,7 @@ impl ECSInspector {
       let mut timings: Vec<_> = self.system_timings.iter().collect();
       timings.sort_by_key(|(_, duration)| *duration);
       for (system, duration) in timings.iter().rev() {
-        report.push_str(&format!("  {}: {:.2}ms\n", system, duration.as_secs_f64() * 1000.0));
+        let _ = writeln!(report, "  {}: {:.2}ms", system, duration.as_secs_f64() * 1000.0);
       }
     }
 
@@ -790,18 +826,18 @@ impl ECSInspector {
     entities.sort_by_key(|e| e.id);
     
     for entity in entities.iter().take(10) { // Limit to first 10 for readability
-      report.push_str(&format!("\nEntity {}:\n", entity.id));
-      report.push_str(&format!("  Components: {}\n", entity.components.join(", ")));
+      let _ = writeln!(report, "\nEntity {}:", entity.id);
+      let _ = writeln!(report, "  Components: {}", entity.components.join(", "));
       if let Some(pos) = entity.position {
-        report.push_str(&format!("  Position: ({}, {})\n", pos.0, pos.1));
+        let _ = writeln!(report, "  Position: ({}, {})", pos.0, pos.1);
       }
       for (key, value) in &entity.data {
-        report.push_str(&format!("  {key}: {value}\n"));
+        let _ = writeln!(report, "  {key}: {value}");
       }
     }
 
     if self.entity_data.len() > 10 {
-      report.push_str(&format!("\n... and {} more entities\n", self.entity_data.len() - 10));
+      let _ = writeln!(report, "\n... and {} more entities", self.entity_data.len() - 10);
     }
 
     report
@@ -809,10 +845,10 @@ impl ECSInspector {
 
   /// Exports entity data as JSON.
   #[must_use]
-  pub fn export_json(&self) -> String {
+  pub fn json_export(&self) -> String {
     // Simplified JSON export (in real implementation would use serde_json)
     let mut json = String::from("{\n");
-    json.push_str(&format!("  \"total_entities\": {},\n", self.entity_data.len()));
+    let _ = writeln!(json, "  \"total_entities\": {},", self.entity_data.len());
     
     json.push_str("  \"component_counts\": {\n");
     let component_entries: Vec<String> = self.component_counts.iter()
@@ -873,7 +909,7 @@ impl PerformanceProfiler {
   }
 
   /// Records a frame time.
-  pub fn record_frame_time(&mut self, duration: Duration) {
+  pub fn frame_time_record(&mut self, duration: Duration) {
     self.frame_times.push_back(duration);
     if self.frame_times.len() > 1000 {
       self.frame_times.pop_front();
@@ -882,7 +918,7 @@ impl PerformanceProfiler {
   }
 
   /// Records system execution time.
-  pub fn record_system_time(&mut self, system_name: String, duration: Duration) {
+  pub fn system_time_record(&mut self, system_name: String, duration: Duration) {
     let times = self.system_times.entry(system_name).or_insert_with(|| VecDeque::with_capacity(100));
     times.push_back(duration);
     if times.len() > 100 {
@@ -891,7 +927,7 @@ impl PerformanceProfiler {
   }
 
   /// Records memory usage sample.
-  pub fn record_memory_sample(&mut self, memory_usage: u64, entity_count: u32) {
+  pub fn memory_sample_record(&mut self, memory_usage: u64, entity_count: u32) {
     let sample = MemorySample {
       timestamp: self.start_time.elapsed(),
       memory_usage,
@@ -905,7 +941,7 @@ impl PerformanceProfiler {
 
   /// Gets current performance statistics.
   #[must_use]
-  pub fn get_stats(&self) -> PerformanceStats {
+  pub fn stats_get(&self) -> PerformanceStats {
     let avg_frame_time = if self.frame_times.is_empty() {
       Duration::ZERO
     } else {
@@ -938,23 +974,23 @@ impl PerformanceProfiler {
 
   /// Generates a performance report.
   #[must_use]
-  pub fn generate_report(&self) -> String {
-    let stats = self.get_stats();
+  pub fn report_generate(&self) -> String {
+    let stats = self.stats_get();
     let mut report = String::new();
 
     report.push_str("Performance Profile Report\n");
     report.push_str("=========================\n\n");
 
-    report.push_str(&format!("Uptime: {:.1}s\n", stats.uptime.as_secs_f64()));
-    report.push_str(&format!("Frame Count: {}\n", stats.frame_count));
-    report.push_str(&format!("Average FPS: {:.1}\n", stats.fps));
-    report.push_str(&format!("Frame Time: {:.2}ms (avg), {:.2}ms (min), {:.2}ms (max)\n",
+    let _ = writeln!(report, "Uptime: {:.1}s", stats.uptime.as_secs_f64());
+    let _ = writeln!(report, "Frame Count: {}", stats.frame_count);
+    let _ = writeln!(report, "Average FPS: {:.1}", stats.fps);
+    let _ = writeln!(report, "Frame Time: {:.2}ms (avg), {:.2}ms (min), {:.2}ms (max)",
       stats.avg_frame_time.as_secs_f64() * 1000.0,
       stats.min_frame_time.as_secs_f64() * 1000.0,
-      stats.max_frame_time.as_secs_f64() * 1000.0));
+      stats.max_frame_time.as_secs_f64() * 1000.0);
     
-    report.push_str(&format!("Memory Usage: {} KB\n", stats.current_memory / 1024));
-    report.push_str(&format!("Active Entities: {}\n", stats.current_entities));
+    let _ = writeln!(report, "Memory Usage: {} KB", stats.current_memory / 1024);
+    let _ = writeln!(report, "Active Entities: {}", stats.current_entities);
 
     if !self.system_times.is_empty() {
       report.push_str("\nSystem Performance:\n");
@@ -962,10 +998,10 @@ impl PerformanceProfiler {
         if !times.is_empty() {
           let avg = times.iter().sum::<Duration>() / times.len() as u32;
           let max = times.iter().max().copied().unwrap_or(Duration::ZERO);
-          report.push_str(&format!("  {}: {:.2}ms avg, {:.2}ms max\n",
+          let _ = writeln!(report, "  {}: {:.2}ms avg, {:.2}ms max",
             system, 
             avg.as_secs_f64() * 1000.0,
-            max.as_secs_f64() * 1000.0));
+            max.as_secs_f64() * 1000.0);
         }
       }
     }
@@ -977,7 +1013,7 @@ impl PerformanceProfiler {
   ///
   /// # Errors
   /// Returns an error when the CSV file cannot be created or written.
-  pub fn export_csv<P: AsRef<Path>>(&self, path: P) -> Result<(), std::io::Error> {
+  pub fn csv_export<P: AsRef<Path>>(&self, path: P) -> Result<(), std::io::Error> {
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
 
@@ -1063,7 +1099,7 @@ pub mod utils {
 
   /// Creates a simple ASCII art representation of a 2D boolean array.
   #[must_use]
-  pub fn render_bool_grid(grid: &[Vec<bool>], true_char: char, false_char: char) -> String {
+  pub fn bool_grid_render(grid: &[Vec<bool>], true_char: char, false_char: char) -> String {
     let mut output = String::new();
     for row in grid {
       for &cell in row {
@@ -1077,7 +1113,7 @@ pub mod utils {
 
   /// Formats a duration for human-readable display.
   #[must_use]
-  pub fn format_duration(duration: Duration) -> String {
+  pub fn duration_format(duration: Duration) -> String {
     let micros = duration.as_micros();
     if micros < 1000 {
       format!("{micros}μs")
@@ -1090,7 +1126,7 @@ pub mod utils {
 
   /// Formats memory usage for human-readable display.
   #[must_use]
-  pub fn format_memory(bytes: u64) -> String {
+  pub fn memory_format(bytes: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = KB * 1024;
     const GB: u64 = MB * 1024;
@@ -1104,40 +1140,5 @@ pub mod utils {
     } else {
       format!("{bytes} B")
     }
-  }
-}
-
-// Exception ( task 072 ) : the two tests below stay inline because they pin
-// `GridRenderer`'s private builder state -- `width`/`height`/`style` accumulation
-// and `markers` storage -- for which no public accessor exists. Rendering output
-// is the only public observable, and inferring storage from rendered ASCII would
-// test a different behavior ( a marker can be stored yet not rendered ). Rejected
-// alternative : exposing the fields or adding getters widens the API solely for
-// test placement ( zero external callers ). All other debug tests were relocated
-// to `tests/debug_test.rs` ( task 072 ).
-#[ cfg( test ) ]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn test_grid_renderer_creation() {
-    let renderer = GridRenderer::new()
-      .with_size(10, 8)
-      .with_style(GridStyle::Hexagonal);
-
-    assert_eq!(renderer.width, 10);
-    assert_eq!(renderer.height, 8);
-    assert!(matches!(renderer.style, GridStyle::Hexagonal));
-  }
-
-  #[test]
-  fn test_grid_renderer_markers() {
-    let mut renderer = GridRenderer::new();
-    renderer.add_marker((5, 3), "S", "Start position");
-    renderer.add_colored_marker((8, 6), "G", "Goal", DebugColor::Blue, 10);
-
-    assert_eq!(renderer.markers.len(), 2);
-    assert!(renderer.markers.contains_key(&(5, 3)));
-    assert!(renderer.markers.contains_key(&(8, 6)));
   }
 }

@@ -60,7 +60,7 @@ mod private
     /// Enables alpha-to-coverage.
     #[ inline ]
     #[ must_use ]
-    pub fn enable_alpha_to_coverage( mut self ) -> Self
+    pub fn alpha_to_coverage_enable( mut self ) -> Self
     {
       self.alpha_to_coverage_enabled = Some( true );
       self

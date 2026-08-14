@@ -37,8 +37,8 @@ impl< E > ArrayRef< E, 3 > for ( E, E, E )
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-    #[ allow( unsafe_code ) ]
-    let result : &[ E; 3 ] = unsafe { &*( ( self as *const ( E, E, E ) ).cast::< [ E; 3 ] >() ) };
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
+    let result : &[ E; 3 ] = unsafe { &*( std::ptr::from_ref::< ( E, E, E ) >( self ).cast::< [ E; 3 ] >() ) };
 
     // Check size and alignment of the whole collection
     debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
@@ -76,8 +76,8 @@ impl< E > ArrayMut< E, 3 > for ( E, E, E )
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-    #[ allow( unsafe_code ) ]
-    let result : &mut [ E; 3 ] = unsafe { &mut *( ( self as *mut ( E, E, E ) ).cast::< [ E; 3 ] >() ) };
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
+    let result : &mut [ E; 3 ] = unsafe { &mut *( std::ptr::from_mut::< ( E, E, E ) >( self ).cast::< [ E; 3 ] >() ) };
 
     // Perform checks under debug conditions
     #[ cfg( debug_assertions ) ]
@@ -193,19 +193,19 @@ impl< 'tuple_ref, E > Iterator for Tuple3IterMut< 'tuple_ref, E >
         // reborrowed at most once across the whole iteration — either here, from the
         // front, or in `next_back`, from the back, but never both — so this can never
         // alias a mutable reference already handed out by a previous call.
-        #[ allow( unsafe_code ) ]
+        #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
         unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.0) ) }
       },
       1 =>
       {
         // SAFETY: see the arm above.
-        #[ allow( unsafe_code ) ]
+        #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
         unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.1) ) }
       },
       2 =>
       {
         // SAFETY: see the arm above.
-        #[ allow( unsafe_code ) ]
+        #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
         unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.2) ) }
       },
       _ => unreachable!(),
@@ -235,17 +235,17 @@ impl< E > DoubleEndedIterator for Tuple3IterMut< '_, E >
       0 => {
         // SAFETY: see `next` — `front`/`back` never cross, so each field is reborrowed
         // at most once across the whole iteration.
-        #[ allow( unsafe_code ) ]
+        #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
         unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.0) ) }
       },
       1 => {
         // SAFETY: see the arm above.
-        #[ allow( unsafe_code ) ]
+        #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
         unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.1) ) }
       },
       2 => {
         // SAFETY: see the arm above.
-        #[ allow( unsafe_code ) ]
+        #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
         unsafe { Some( &mut *std::ptr::addr_of_mut!(self.tuple.2) ) }
       },
       _ => unreachable!(),

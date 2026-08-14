@@ -6,7 +6,7 @@ use mat3x3h::{rot, scale, translation};
 // homogeneous origin `[ 0, 0, 0, 1 ]` this reduces to `t_i * 1 + 0 * 0 + .. `, i.e. multiplying
 // by exactly 1.0 and adding exact zeros — both exact under IEEE-754 on every target, so the
 // result is always bit-identical to the input translation component.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 #[ test ]
 fn test_translation()
 {
@@ -49,7 +49,7 @@ fn test_rotation()
 // vector this reduces to `s_i * 1 + 0 * 1 + ..`, i.e. multiplying by exactly 1.0 and adding
 // exact zeros — both exact under IEEE-754 on every target, so the result is always
 // bit-identical to the input scale component.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 #[ test ]
 fn test_scale()
 {

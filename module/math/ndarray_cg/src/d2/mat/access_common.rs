@@ -12,7 +12,7 @@ where
   {
     // SAFETY: This is safe because the memory layout of [ [ E ; COLS ] ; ROWS ]
     // is contiguous and can be reinterpreted as a flat slice of E.
-    #[ allow( unsafe_code ) ]
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
     unsafe { std::slice::from_raw_parts( self.as_ptr(), ROWS * COLS ) }
   }
 

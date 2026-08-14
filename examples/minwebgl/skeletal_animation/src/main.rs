@@ -22,9 +22,9 @@ use animation::Sequencer;
 mod lil_gui;
 mod gui_setup;
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()?;
@@ -41,10 +41,10 @@ async fn run() -> Result< (), gl::WebglError >
   let gltf_path = "static/gltf/bug_bunny.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  scenes[ 0 ].borrow_mut().world_matrix_update();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
+  gl::info!( "Scene boudnig box: {scene_bounding_box:?}" );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let dist = scene_bounding_box.max.mag();
   let exponent =
@@ -53,7 +53,7 @@ async fn run() -> Result< (), gl::WebglError >
     let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
     exponent_field - 127
   };
-  gl::info!( "Exponent: {:?}", exponent );
+  gl::info!( "Exponent: {exponent:?}" );
 
   // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
@@ -68,11 +68,11 @@ async fn run() -> Result< (), gl::WebglError >
   let far = near * 100.0f32.powi( exponent.abs() ) / 100.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ width, height ].into() );
-  camera.bind_controls( &canvas );
+  camera.window_size_set( [ width, height ].into() );
+  camera.controls_bind( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
+  renderer.ibl_set( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -83,18 +83,18 @@ async fn run() -> Result< (), gl::WebglError >
 
   for node in &scenes[ 0 ].borrow().children
   {
-    let mut scale = node.borrow().get_scale();
+    let mut scale = node.borrow().scale_get();
     scale.0[ 0 ] *= -1.0;
-    node.borrow_mut().set_scale( scale );
+    node.borrow_mut().scale_set( scale );
   }
 
-  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341_171e-6, -0.015_823_878, 0.007_656_166] );
+  camera.controls_get().borrow_mut().eye = F32x3::from_array( [-5.341_171e-6, -0.015_823_878, 0.007_656_166] );
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
   let current_animation = Rc::new( RefCell::new( gltf.animations[ 0 ].clone() ) );
 
-  gui_setup::setup( gltf.animations.clone(), current_animation.clone() );
+  gui_setup::setup( gltf.animations.clone(), &current_animation );
 
   // Define the update and draw logic
   let update_and_draw =
@@ -125,15 +125,15 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.borrow().main_texture() );
+      swap_buffer.input_set( renderer.borrow().main_texture() );
 
-      let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render tonemapping pass" );
 
-      swap_buffer.set_output( t );
+      swap_buffer.output_set( t );
       swap_buffer.swap();
 
-      let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let _ = to_srgb.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render ToSrgbPass" );
 
       true
@@ -148,5 +148,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

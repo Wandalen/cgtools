@@ -41,7 +41,6 @@ mod private
   // construction is the deliberate public contract, pinned by dozens of call sites in
   // `tests/embroidery_file_test.rs` and `tests/pec_test.rs`, so `#[non_exhaustive]`
   // would break that contract (same precedent as `browser_log::panic::Config`).
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
   pub struct Stitch
   {

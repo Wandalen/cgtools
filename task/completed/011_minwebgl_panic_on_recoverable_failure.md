@@ -128,6 +128,33 @@ not by this section.
 - No caller outside `module/min/minwebgl/` broken (verified via repo-wide grep of both changed
   functions' names)
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Does `clean.rs`'s `convert_attachment_id` exist as a private helper returning `Result< u32, WebglError >`? Direct read confirms `fn convert_attachment_id< I, E >( id : I ) -> Result< u32, WebglError >` at `clean.rs:21`.
+- [x] C2 — Do both `framebuffer_texture_2d_array` and `framebuffer_renderbuffer_array` return `Result< (), WebglError >` and propagate via `convert_attachment_id( i )?` instead of a bare `.expect()`? Direct read confirms both signatures (`clean.rs:84`, `clean.rs:120`) and both bodies call `convert_attachment_id`; `grep -c "\.expect("` scoped to their bodies → `0`.
+- [x] C3 — Does `WebglError::IdOutOfRange( String )` exist, and did it not exist pre-fix? `grep -n IdOutOfRange context.rs` → present at line 48; `git show 1ada5219:module/min/minwebgl/src/context.rs | grep -c IdOutOfRange` → `0` (absent at the commit immediately before this fix landed).
+- [x] C4 — Is `geometry.rs`'s `Positions::new` half of this task's own `## In Scope`/`## Acceptance Criteria` (the `validate_natoms` extraction) still true today? Partially — `validate_natoms` is still called via `?` as the first statement of `Positions::new` (no panic path remains), but its accepted range has since been widened from `2`-only to `1..=4` by the later, separate TASK-062 (`git show 4469eafb:module/min/minwebgl/src/geometry.rs`). This task's own Test Matrix row T05 (`validate_natoms( 3 )` → `Err`) is consequently stale: `3` is now `Ok`. The core claim this task made — no panic, `Result`-propagated — still holds; T05's specific boundary value does not reflect current behavior.
+- [x] C5 — Are both new `clean.rs` unit tests present and passing? `convert_attachment_id_rejects_out_of_range_input` (`clean.rs:174`) and `convert_attachment_id_accepts_in_range_input` (`clean.rs:188`) both reported `ok` in a live `cargo test -p minwebgl --all-features` run.
+- [x] C6 — Zero external callers of the two changed functions outside `minwebgl`? Repo-wide `grep -rn "framebuffer_texture_2d_array\|framebuffer_renderbuffer_array" --include="*.rs" .` → every hit is inside `clean.rs` itself (definition, export, doc-comment); `texture_2d_array` (explicitly out of scope) is unchanged, still `.expect()`-based (`clean.rs:51`).
+
+### Measurements
+
+- [x] M1 — Raw panicking `.expect()` call sites inside `framebuffer_texture_2d_array`/`framebuffer_renderbuffer_array`: now `0` (was: `2`, one per function — `i.try_into().expect( "Attachment id is out of range" )` — cite `git show 1ada5219:module/min/minwebgl/src/clean.rs`).
+- [x] M2 — `WebglError::IdOutOfRange` usage sites: now `2` (both framebuffer functions) (was: variant did not exist — cite `git show 1ada5219:module/min/minwebgl/src/context.rs`, `0` hits).
+
+### Invariants
+
+- [x] I1 — Crate-scoped native test suite: `cargo test -p minwebgl --all-features` → exit `0`; `convert_attachment_id_rejects_out_of_range_input` and `convert_attachment_id_accepts_in_range_input` both report `ok` (full run: 7 passed — 4 unit + 2 integration + 1 doc — 7 doc-tests ignored, 0 failed).
+- [ ] I2 — Lint cleanliness, literal historically-cited command: `cargo clippy -p minwebgl --all-targets --all-features -- -D warnings` → exit `101` **today**, but not from this task's code — the build fails compiling the unrelated `browser_log` dependency (`module/helper/browser_log/src/panic.rs:82`, `clippy::allow_attributes_without_reason`), a regression from commit `5f33be66` ("...consolidate test infrastructure...", dated 2026-08-11 — one day *after* this task completed on 2026-08-10). Genuine current drift, unrelated to `clean.rs`/`context.rs`.
+- [x] I3 — Lint cleanliness, isolated to this crate's own code: `cargo clippy -p minwebgl --no-deps --all-targets --all-features -- -D warnings` still exits `101` crate-wide (124 pre-existing/unrelated errors elsewhere in the crate — see task 062's Verification for the one item attributable to this workspace's later drift), but zero of them are inside `convert_attachment_id`, `framebuffer_texture_2d_array`, or `framebuffer_renderbuffer_array`; `clean.rs`'s only 3 reported findings are a pre-existing top-level `use crate::*;` wildcard import (present since before this fix) and 2 missing-`# Panics`-doc findings inside the explicitly out-of-scope `texture_2d_array`.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against `convert_attachment_id` being inlined back into a bare `.expect()`: re-running C2's `grep -c "\.expect("` scoped to `framebuffer_texture_2d_array`/`framebuffer_renderbuffer_array` must stay `0`.
+- [x] AF2 — Guards against T05's now-stale claim being mistaken for current behavior: re-run `grep -n "1 ..= 4\|2 =>" module/min/minwebgl/src/geometry.rs` before trusting either this task's or BUG-052's literal Test-Matrix/Fix-Location code excerpts — the live boundary is whatever that grep currently shows, not what either document states.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P1 (soundness bugs)

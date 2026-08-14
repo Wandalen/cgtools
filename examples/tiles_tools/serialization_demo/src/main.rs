@@ -11,14 +11,14 @@
 
 use tiles_tools::serialization::{GameStateSerializer, Achievement, SerializationFormat, SaveManager, SaveVersion, ConfigManager, GameConfig, PlayerProgress, SerializableGameState};
 
-fn build_basic_game_state() -> SerializableGameState
+fn basic_game_state_build() -> SerializableGameState
 {
   // === BASIC SERIALIZATION ===
   println!("\n📄 Basic Game State Serialization");
   println!("----------------------------------");
 
   // Create a basic game state
-  let mut game_state = GameStateSerializer::create_basic_game_state("My First Save".to_string());
+  let mut game_state = GameStateSerializer::basic_game_state_create("My First Save".to_string());
 
   // Add some custom data
   game_state.progress.level = 5;
@@ -60,7 +60,7 @@ fn build_basic_game_state() -> SerializableGameState
   game_state
 }
 
-fn demonstrate_serialization_formats(game_state: &SerializableGameState)
+fn serialization_formats_demonstrate(game_state: &SerializableGameState)
 {
   // === MULTIPLE FORMATS DEMONSTRATION ===
   println!("\n🔄 Multiple Serialization Formats");
@@ -70,7 +70,7 @@ fn demonstrate_serialization_formats(game_state: &SerializableGameState)
   let json_serializer = GameStateSerializer::new()
   .with_format(SerializationFormat::Json);
 
-  let json_data = json_serializer.serialize_game_state(game_state)
+  let json_data = json_serializer.game_state_serialize(game_state)
   .expect("Failed to serialize to JSON");
   println!("JSON serialization: {} bytes", json_data.len());
 
@@ -78,7 +78,7 @@ fn demonstrate_serialization_formats(game_state: &SerializableGameState)
   let binary_serializer = GameStateSerializer::new()
   .with_format(SerializationFormat::Binary);
 
-  let binary_data = binary_serializer.serialize_game_state(game_state)
+  let binary_data = binary_serializer.game_state_serialize(game_state)
   .expect("Failed to serialize to binary");
   println!("Binary serialization: {} bytes", binary_data.len());
 
@@ -86,16 +86,16 @@ fn demonstrate_serialization_formats(game_state: &SerializableGameState)
   let ron_serializer = GameStateSerializer::new()
   .with_format(SerializationFormat::Ron);
 
-  let ron_data = ron_serializer.serialize_game_state(game_state)
+  let ron_data = ron_serializer.game_state_serialize(game_state)
   .expect("Failed to serialize to RON");
   println!("RON serialization: {} bytes", ron_data.len());
 
   // Verify deserialization works
-  let json_restored = json_serializer.deserialize_game_state(&json_data)
+  let json_restored = json_serializer.game_state_deserialize(&json_data)
   .expect("Failed to deserialize JSON");
-  let binary_restored = binary_serializer.deserialize_game_state(&binary_data)
+  let binary_restored = binary_serializer.game_state_deserialize(&binary_data)
   .expect("Failed to deserialize binary");
-  let ron_restored = ron_serializer.deserialize_game_state(&ron_data)
+  let ron_restored = ron_serializer.game_state_deserialize(&ron_data)
   .expect("Failed to deserialize RON");
 
   println!("✅ All formats successfully roundtrip serialized");
@@ -104,7 +104,7 @@ fn demonstrate_serialization_formats(game_state: &SerializableGameState)
   println!("  RON player level: {}", ron_restored.progress.level);
 }
 
-fn demonstrate_compression(game_state: &SerializableGameState)
+fn compression_demonstrate(game_state: &SerializableGameState)
 {
   // === COMPRESSION DEMONSTRATION ===
   println!("\n🗜️ Compression");
@@ -115,9 +115,9 @@ fn demonstrate_compression(game_state: &SerializableGameState)
   let compressed_serializer = GameStateSerializer::new()
   .with_compression(true);
 
-  let uncompressed = uncompressed_serializer.serialize_game_state(game_state)
+  let uncompressed = uncompressed_serializer.game_state_serialize(game_state)
   .expect("Failed to serialize uncompressed");
-  let compressed = compressed_serializer.serialize_game_state(game_state)
+  let compressed = compressed_serializer.game_state_serialize(game_state)
   .expect("Failed to serialize compressed");
 
   println!("Uncompressed size: {} bytes", uncompressed.len());
@@ -135,13 +135,13 @@ fn demonstrate_compression(game_state: &SerializableGameState)
   println!("Compression ratio: {ratio:.1}%");
 
   // Verify compressed data can be decompressed
-  let decompressed = compressed_serializer.deserialize_game_state(&compressed)
+  let decompressed = compressed_serializer.game_state_deserialize(&compressed)
   .expect("Failed to decompress data");
   println!("✅ Compression/decompression successful");
   println!("  Restored player level: {}", decompressed.progress.level);
 }
 
-fn demonstrate_save_manager(game_state: &SerializableGameState, temp_dir: &std::path::Path) -> SaveManager
+fn save_manager_demonstrate(game_state: &SerializableGameState, temp_dir: &std::path::Path) -> SaveManager
 {
   // === SAVE MANAGER DEMONSTRATION ===
   println!("\n💾 Save Manager");
@@ -151,7 +151,7 @@ fn demonstrate_save_manager(game_state: &SerializableGameState, temp_dir: &std::
   .with_serializer(GameStateSerializer::new().with_compression(true));
 
   // Save the game state
-  save_manager.save_game_state("demo_save", game_state)
+  save_manager.game_state_save("demo_save", game_state)
   .expect("Failed to save game state");
   println!("✅ Game saved as 'demo_save'");
 
@@ -161,7 +161,7 @@ fn demonstrate_save_manager(game_state: &SerializableGameState, temp_dir: &std::
   quick_save.progress.level = 6;
   quick_save.progress.experience = 3000;
 
-  save_manager.save_game_state("quick_save", &quick_save)
+  save_manager.game_state_save("quick_save", &quick_save)
   .expect("Failed to save quick save");
 
   let mut checkpoint = game_state.clone();
@@ -170,12 +170,12 @@ fn demonstrate_save_manager(game_state: &SerializableGameState, temp_dir: &std::
   checkpoint.progress.experience = 1800;
   checkpoint.metadata = checkpoint.metadata.with_tag("checkpoint".to_string());
 
-  save_manager.save_game_state("checkpoint_1", &checkpoint)
+  save_manager.game_state_save("checkpoint_1", &checkpoint)
   .expect("Failed to save checkpoint");
 
   // List all saves
   println!("\n📂 Available Saves:");
-  let saves = save_manager.list_saves()
+  let saves = save_manager.saves_list()
   .expect("Failed to list saves");
   for save_name in &saves {
   println!("  - {save_name}");
@@ -183,7 +183,7 @@ fn demonstrate_save_manager(game_state: &SerializableGameState, temp_dir: &std::
 
   // Get detailed save information
   println!("\n📊 Save Information:");
-  let saves_info = save_manager.get_saves_info()
+  let saves_info = save_manager.saves_info_get()
   .expect("Failed to get saves info");
 
   for (name, metadata) in &saves_info {
@@ -202,7 +202,7 @@ fn demonstrate_save_manager(game_state: &SerializableGameState, temp_dir: &std::
 
   // Load a specific save
   println!("🔄 Loading save 'demo_save'...");
-  let loaded_state = save_manager.load_game_state("demo_save")
+  let loaded_state = save_manager.game_state_load("demo_save")
   .expect("Failed to load save");
 
   println!("✅ Save loaded successfully:");
@@ -214,7 +214,7 @@ fn demonstrate_save_manager(game_state: &SerializableGameState, temp_dir: &std::
   save_manager
 }
 
-fn demonstrate_version_compatibility()
+fn version_compatibility_demonstrate()
 {
   // === VERSION COMPATIBILITY ===
   println!("\n🔄 Version Compatibility");
@@ -231,7 +231,7 @@ fn demonstrate_version_compatibility()
   println!("Incompatible version compatibility: {}", current_version.is_compatible_with(&incompatible_version));
 }
 
-fn demonstrate_configuration(temp_dir: &std::path::Path)
+fn configuration_demonstrate(temp_dir: &std::path::Path)
 {
   // === CONFIGURATION MANAGEMENT ===
   println!("\n⚙️ Configuration Management");
@@ -254,12 +254,12 @@ fn demonstrate_configuration(temp_dir: &std::path::Path)
   custom_config.controls.key_bindings.insert("inventory".to_string(), "Tab".to_string());
 
   // Save configuration
-  config_manager.save_config(&custom_config)
+  config_manager.config_save(&custom_config)
   .expect("Failed to save configuration");
   println!("✅ Configuration saved");
 
   // Load configuration
-  let loaded_config = config_manager.load_config()
+  let loaded_config = config_manager.config_load()
   .expect("Failed to load configuration");
   println!("✅ Configuration loaded:");
   println!("  Difficulty: {}", loaded_config.difficulty);
@@ -269,7 +269,7 @@ fn demonstrate_configuration(temp_dir: &std::path::Path)
   println!("  Key bindings: {}", loaded_config.controls.key_bindings.len());
 }
 
-fn demonstrate_player_progress()
+fn player_progress_demonstrate()
 {
   // === PLAYER PROGRESS TRACKING ===
   println!("\n👤 Player Progress Tracking");
@@ -336,18 +336,18 @@ fn demonstrate_player_progress()
   println!("    Deaths: {}", progress.statistics.deaths);
 }
 
-fn demonstrate_cleanup(save_manager: &SaveManager, temp_dir: &std::path::Path)
+fn cleanup_demonstrate(save_manager: &SaveManager, temp_dir: &std::path::Path)
 {
   // === CLEANUP DEMONSTRATION ===
   println!("\n🧹 Cleanup");
   println!("----------");
 
   // Demonstrate save deletion
-  save_manager.delete_save("checkpoint_1")
+  save_manager.save_delete("checkpoint_1")
   .expect("Failed to delete save");
   println!("✅ Deleted checkpoint_1 save");
 
-  let remaining_saves = save_manager.list_saves()
+  let remaining_saves = save_manager.saves_list()
   .expect("Failed to list remaining saves");
   println!("Remaining saves: {remaining_saves:?}");
 
@@ -356,7 +356,7 @@ fn demonstrate_cleanup(save_manager: &SaveManager, temp_dir: &std::path::Path)
   println!("✅ Cleaned up temporary files");
 }
 
-fn demonstrate_performance(game_state: &SerializableGameState)
+fn performance_demonstrate(game_state: &SerializableGameState)
 {
   // === PERFORMANCE DEMONSTRATION ===
   println!("\n⚡ Performance Test");
@@ -375,14 +375,14 @@ fn demonstrate_performance(game_state: &SerializableGameState)
   let start_time = std::time::Instant::now();
   let serialized_large = GameStateSerializer::new()
   .with_compression(true)
-  .serialize_game_state(&large_state)
+  .game_state_serialize(&large_state)
   .expect("Failed to serialize large state");
   let serialize_duration = start_time.elapsed();
 
   let start_time = std::time::Instant::now();
   let _deserialized_large = GameStateSerializer::new()
   .with_compression(true)
-  .deserialize_game_state(&serialized_large)
+  .game_state_deserialize(&serialized_large)
   .expect("Failed to deserialize large state");
   let deserialize_duration = start_time.elapsed();
 
@@ -397,22 +397,22 @@ fn main()
   println!("💾 Serialization System Demonstration");
   println!("=====================================");
 
-  let game_state = build_basic_game_state();
+  let game_state = basic_game_state_build();
 
-  demonstrate_serialization_formats(&game_state);
-  demonstrate_compression(&game_state);
+  serialization_formats_demonstrate(&game_state);
+  compression_demonstrate(&game_state);
 
   // Create a temporary directory for saves (in real usage, this would be a persistent directory)
   let temp_dir = std::env::temp_dir().join("tiles_tools_demo_saves");
   std::fs::create_dir_all(&temp_dir).expect("Failed to create saves directory");
 
-  let save_manager = demonstrate_save_manager(&game_state, &temp_dir);
+  let save_manager = save_manager_demonstrate(&game_state, &temp_dir);
 
-  demonstrate_version_compatibility();
-  demonstrate_configuration(&temp_dir);
-  demonstrate_player_progress();
-  demonstrate_cleanup(&save_manager, &temp_dir);
-  demonstrate_performance(&game_state);
+  version_compatibility_demonstrate();
+  configuration_demonstrate(&temp_dir);
+  player_progress_demonstrate();
+  cleanup_demonstrate(&save_manager, &temp_dir);
+  performance_demonstrate(&game_state);
 
   println!("\n✨ Serialization Demo Complete!");
   println!("\nKey features demonstrated:");

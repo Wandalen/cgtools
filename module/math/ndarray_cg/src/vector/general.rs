@@ -152,7 +152,6 @@ mod private
   // `#[ non_exhaustive ]` would break `tests/inc/vector_conversion_test.rs`, which constructs
   // this via full struct-literal syntax (`VectorLengthMismatch { expected, actual }`) from the
   // integration-test crate, external to this one.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
   pub struct VectorLengthMismatch
   {

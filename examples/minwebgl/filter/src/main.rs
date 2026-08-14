@@ -1,3 +1,4 @@
+//! Image filter example — applies post-processing filter shaders to a textured quad with WebGL2.
 
 use minwebgl as gl;
 use gl::GL;
@@ -12,11 +13,11 @@ use wasm_bindgen::prelude::*;
 
 fn main()
 {
-  gl::browser::setup( Default::default() );
-  run();
+  gl::browser::setup( gl::browser::Config::default() );
+  app_run();
 }
 
-fn run()
+fn app_run()
 {
   let image_path = "static/unnamed.png";
   let gl = gl::context::retrieve_or_make().expect( "Can't retrieve GL context" );
@@ -28,7 +29,7 @@ fn run()
     gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
     gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
 
-    gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, true as i32 );
+    gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, i32::from( true ) );
     gl.tex_image_2d_with_u32_and_u32_and_html_image_element
     (
       GL::TEXTURE_2D,
@@ -36,9 +37,9 @@ fn run()
       GL::RGBA as i32,
       GL::RGBA,
       GL::UNSIGNED_BYTE,
-      &img,
+      img,
     ).expect( "Can't load an image" );
-    gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, false as i32 );
+    gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, i32::from( false ) );
     gl.generate_mipmap( GL::TEXTURE_2D );
 
     let canvas = gl.canvas().expect( "Canvas should exist" ).dyn_into::< HtmlCanvasElement >().unwrap();
@@ -73,9 +74,11 @@ fn run()
         // `web_sys_unstable_apis` is active (see minwebgl/src/texture/d2.rs); the explicit
         // `as f64` before subtracting `rect.left()`/`.top()` (always `f64`) compiles in both
         // cases (`i32 as f64` widens, `f64 as f64` is an identity cast).
-        #[ allow( clippy::unnecessary_cast ) ]
+        #[ allow( clippy::unnecessary_cast, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is an identity only under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled in the default i32 build" ) ]
+        #[ allow( clippy::cast_lossless, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is a lossless i32→f64 widening only in the default i32 build; the f64::from alternative would be a useless_conversion under the web_sys_unstable_apis f64 signature, so the cast is the only form valid in both worlds" ) ]
         let x = ( e.client_x() as f64 - rect.left() ) as f32;
-        #[ allow( clippy::unnecessary_cast ) ]
+        #[ allow( clippy::unnecessary_cast, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is an identity only under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled in the default i32 build" ) ]
+        #[ allow( clippy::cast_lossless, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is a lossless i32→f64 widening only in the default i32 build; the f64::from alternative would be a useless_conversion under the web_sys_unstable_apis f64 signature, so the cast is the only form valid in both worlds" ) ]
         let y = ( e.client_y() as f64 - rect.top() ) as f32;
         let y = canvas.height() as f32 - y;
         gl::uniform::upload( &gl, cursor_pos_location.clone(), [ x, y ].as_slice() ).unwrap();
@@ -89,10 +92,10 @@ fn run()
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
   };
 
-  load_image( &image_path, Box::new( load ) );
+  image_load( image_path, Box::new( load ) );
 }
 
-fn load_image( path : &str, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )
+fn image_load( path : &str, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )
 {
   let window = web_sys::window().expect( "Should have a window" );
   let document = window.document().expect( "Should have a document" );
@@ -101,7 +104,15 @@ fn load_image( path : &str, on_load_callback : Box< dyn Fn( &HtmlImageElement ) 
   let on_load_callback : Closure< dyn Fn() > = Closure::new( move || on_load_callback( &img ) );
   image.set_onload( Some( on_load_callback.as_ref().unchecked_ref() ) );
   on_load_callback.forget();
-  let origin = window.location().origin().expect( "Should have an origin" );
-  let url = format!( "{origin}/{path}" );
+  // Fix(BUG-109): joined `path` against `window.location().origin()` alone,
+  // discarding the current page's own directory — resolved to the site root
+  // instead of this example's own subpath when deployed under one.
+  // Root cause: see `mingl::web::resolve_url`'s doc comment — origin never
+  // carries a path; relative references must resolve against the document's
+  // own directory.
+  // Pitfall: don't hand-roll this join — reuse `gl::web::file::url_resolve`,
+  // the same helper `gl::dom::image_element_create` now uses internally.
+  let href = window.location().href().expect( "Should have an href" );
+  let url = gl::web::file::url_resolve( &href, path );
   image.set_src( &url );
 }

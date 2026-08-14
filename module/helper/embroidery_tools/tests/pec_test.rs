@@ -9,7 +9,7 @@ use embroidery_tools::stitch_instruction::{ Instruction, Stitch };
 #[ test ]
 fn read_sample_stitches_match_reference_decoder()
 {
-  let emb = pec::read_file( "test_files/read_sample.pec" ).unwrap();
+  let emb = pec::file_read( "test_files/read_sample.pec" ).unwrap();
   let stitches = emb.stitches();
 
   // These instructions should match instructions when reading with pyembroidery.
@@ -37,7 +37,7 @@ fn read_sample_stitches_match_reference_decoder()
 #[ test ]
 fn read_sample_threads_resolve_from_default_palette()
 {
-  let emb = pec::read_file( "test_files/read_sample.pec" ).unwrap();
+  let emb = pec::file_read( "test_files/read_sample.pec" ).unwrap();
   let threads = emb.threads();
   let default_palette = pec::pec_threads();
 
@@ -60,8 +60,8 @@ fn encoding_roundtrip_preserves_stitches_and_threads()
   emb.end();
 
   let threads = pec::pec_threads();
-  emb.add_thread( threads[ 0 ].clone() );
-  emb.add_thread( threads[ 2 ].clone() );
+  emb.thread_add( threads[ 0 ].clone() );
+  emb.thread_add( threads[ 2 ].clone() );
 
   let mut memory = vec![ 0_u8; 2048 ];
 
@@ -70,7 +70,7 @@ fn encoding_roundtrip_preserves_stitches_and_threads()
     pec::write( &mut emb, &mut writer ).unwrap();
   }
 
-  let emb = pec::read_memory( &memory ).unwrap();
+  let emb = pec::memory_read( &memory ).unwrap();
 
   let stitches = emb.stitches();
   assert_eq!( stitches[ 0 ], Stitch { x : 0, y : 0, instruction : Instruction::Stitch } );

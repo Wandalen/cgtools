@@ -370,6 +370,30 @@ directly (turning the cfg off) AND at least one that runs with no `RUSTFLAGS` ov
 equivalent because one of them passed."
 ```
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Are the claimed dual `#[allow(...)]` pairs (`cast_possible_truncation` + `unnecessary_cast`) genuinely present on all 3 of `CLIENT`/`PAGE`/`SCREEN` in `input.rs`, each backed by a `Fix(BUG-053)` comment? Read in full: lines 201/206 (`CLIENT`), 214/219 (`PAGE`), 227/232 (`SCREEN`) — all 3 statics carry both allows plus a 4-line `Fix(BUG-053)` comment explaining the dual-signature mechanism.
+- [x] C2 — Does clippy pass clean under BOTH `web_sys_unstable_apis` cfg directions for `browser_input` — the exact mechanism this bug is about? `cargo clippy -p browser_input --all-targets --all-features -- -D warnings` (no `RUSTFLAGS` override — cfg ON via `.cargo/config.toml`) → exit 0; `RUSTFLAGS="-D warnings" cargo clippy -p browser_input --all-targets --all-features -- -D warnings` (cfg OFF — the override that silently drops `.cargo/config.toml`'s cfg) → exit 0. Both clean.
+- [x] C3 — Is the underlying `as i32` cast itself unchanged (the fix is the lint suppression, not a behavior change)? Confirmed present verbatim: `event.client_x() as i32`, `event.page_x() as i32`, `event.screen_x() as i32` (and their `_y` counterparts) in the current `CLIENT`/`PAGE`/`SCREEN` bodies.
+- [x] C4 — Does the fix comment correctly cite the dual-signature root cause rather than a generic suppression note? Confirmed: each comment states "`PointerEvent` derefs to `MouseEvent`, whose `client_x`/`client_y` return `i32` or `f64` depending on `web_sys_unstable_apis` ... `as i32` is a real truncating cast in the `f64` case and a same-type identity cast clippy calls 'unnecessary' in the `i32` case — both are the same source line" — matches `## Root Cause`'s explanation exactly.
+
+### Measurements
+
+- [x] M1 — `#[allow]` attribute count across `CLIENT`/`PAGE`/`SCREEN` combined: `6` now (2 each × 3 statics) vs `3` before the fix commit (`git show 9b71cf39^:module/helper/browser_input/src/input.rs` shows only `#[ allow( clippy::cast_possible_truncation ) ]` on each of the 3, no `unnecessary_cast`).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo test -p browser_input --all-features` → exit 0; unittests 0/0, `active_pointers_test` 7/7, `pointer_type_test` 6/6, doc-tests 0/0.
+- [x] I2 — Compiler/lints clean, cfg ON direction (default — no override, `.cargo/config.toml`'s `web_sys_unstable_apis` active): `cargo clippy -p browser_input --all-targets --all-features -- -D warnings` → exit 0, zero warnings.
+- [x] I3 — Compiler/lints clean, cfg OFF direction (this bug's own mechanism — an explicit `RUSTFLAGS` replaces, not merges with, `.cargo/config.toml`'s cfg): `RUSTFLAGS="-D warnings" cargo clippy -p browser_input --all-targets --all-features -- -D warnings` → exit 0, zero warnings.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a future edit "cleaning up" one of the two `#[allow]` attributes as apparently-redundant (a very plausible-looking wrong simplification, since each is dead code under exactly one of the two directions and live under the other): re-running I2 AND I3 together after any edit to `CLIENT`/`PAGE`/`SCREEN` — a single-direction clippy pass cannot detect this regression by definition, which is precisely the failure mode behind the original 8-commit flip-flop history (`## History`).
+- [x] AF2 — Guards against this same defect class recurring at a different, not-yet-fixed call site: the `## Prevention` section's detection invariant (any `--cfg NAME` set via `.cargo/config.toml`'s `[build] rustflags` needs verification exercising both the flag-on and flag-off direction) is a workspace-wide policy, not a one-time fix — a new `browser_input` call site added against a `web_sys_unstable_apis`-gated web-sys method without a dual-cfg branch or a widening cast reintroduces this exact bug under a new location.
+
 ## History
 
 | Date       | Event  | Notes                                                                                                     |

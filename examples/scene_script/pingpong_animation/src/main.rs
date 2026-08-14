@@ -1,55 +1,12 @@
-//! Simulates a Pong-style scene entirely from Rhai (loops + branches +
-//! `F32x2` vector arithmetic), then uses `animation::Tween< F32x2 >` (via
-//! `scene_script::register_tween_f32x2`) to smoothly interpolate between
-//! two recorded ball positions — the animation-glue layer reuses the real
-//! `animation` crate, not placeholder lerp math.
+//! Runs the Pong-style simulation from `pingpong_animation::simulate`, prints
+//! its recorded frames, and demos `animation::Tween< F32x2 >` interpolation
+//! between two of them. With `adapter-svg` enabled, also compiles each frame
+//! via `pingpong_animation::render::frame_to_commands` and submits it to a
+//! `tilemap_renderer` `SvgBackend`. With `adapter-webgl` enabled (wasm32
+//! target only), does the same against a `WebGlBackend` bound to a
+//! browser-provided canvas instead.
 
-use ndarray_cg::F32x2;
-use scene_script::build_engine;
-use std::{ cell::RefCell, rc::Rc };
-
-#[ derive( Debug, Clone, PartialEq ) ]
-struct Frame
-{
-  tick : i64,
-  ball : F32x2,
-  paddle_left_y : f64,
-  paddle_right_y : f64,
-}
-
-/// Builds a fresh engine, evaluates the bundled script, and returns every
-/// emitted frame — the entire simulation as a pure function of the script's
-/// own hardcoded inputs, no external state in or out. Off-screen (no GPU, no
-/// browser) and, per L5's contract, deterministic: see
-/// `simulation_is_deterministic` below.
-fn simulate() -> Result< Vec< Frame >, Box< rhai::EvalAltResult > >
-{
-  let mut engine = build_engine();
-
-  let frames : Rc< RefCell< Vec< Frame > > > = Rc::new( RefCell::new( Vec::new() ) );
-  let frames_sink = frames.clone();
-
-  engine.register_fn
-  (
-    "emit_frame",
-    move | tick : i64, ball : F32x2, paddle_left_y : f64, paddle_right_y : f64 |
-    {
-      frames_sink.borrow_mut().push( Frame { tick, ball, paddle_left_y, paddle_right_y } );
-    }
-  );
-
-  let script = include_str!( "pingpong_animation.rhai" );
-  let _ : rhai::Dynamic = engine.eval( script )?;
-
-  // `engine` still holds a clone of `frames_sink` inside the registered
-  // closure at this point, so `Rc::try_unwrap` would see 2 strong refs and
-  // fail — clone the `Vec` out of the shared `RefCell` instead. Bound to a
-  // local first: inlined into `Ok( frames.borrow().clone() )`, the `Ref`
-  // guard's temporary-scope extension to the end of the block conflicts
-  // with `frames` itself dropping there too (E0597).
-  let recorded_frames = frames.borrow().clone();
-  Ok( recorded_frames )
-}
+use pingpong_animation::simulate;
 
 fn main() -> Result< (), Box< rhai::EvalAltResult > >
 {
@@ -72,7 +29,7 @@ fn main() -> Result< (), Box< rhai::EvalAltResult > >
 
     let start = frames[ 0 ].ball;
     let end = frames[ 1 ].ball;
-    let mut tween = Tween::new( start, end, 1.0, Linear::new() );
+    let mut tween = Tween::new( start, end, 1.0, Linear::build() );
 
     println!( "\nsub-frame interpolation between tick 0 and tick 1 (animation::Tween):" );
     for step in 1..=4
@@ -82,28 +39,110 @@ fn main() -> Result< (), Box< rhai::EvalAltResult > >
     }
   }
 
+  frames_render( &frames );
+
   Ok( () )
 }
 
-#[ cfg( test ) ]
-mod tests
+/// Compiles each frame via [`pingpong_animation::render::frame_to_commands`]
+/// and submits it to a fresh `SvgBackend`, printing the resulting SVG's size.
+#[ cfg( feature = "adapter-svg" ) ]
+fn frames_render( frames : &[ pingpong_animation::Frame ] )
 {
-  use super::*;
-
-  /// Off-screen (no GPU, no browser) determinism proof for L5's contract —
-  /// see `docs/layer/006_l5_scene_script_and_runners.md`'s "same script +
-  /// same seed → same frame sequence" Contract bullet. Runs the simulation
-  /// twice from the script's own fixed, hardcoded inputs and asserts the
-  /// two frame sequences are exactly equal; formalizes what was previously
-  /// only a one-off manual rebuild-and-diff into a regression-suite-visible
-  /// check.
-  #[ test ]
-  fn simulation_is_deterministic()
+  use pingpong_animation::render::{ frame_to_commands, render_assets };
+  use tilemap_renderer::
   {
-    let run_1 = simulate().expect( "pingpong_animation.rhai is bundled at compile time and must evaluate" );
-    let run_2 = simulate().expect( "pingpong_animation.rhai is bundled at compile time and must evaluate" );
+    adapters::svg::SvgBackend,
+    backend::{ Backend, Output },
+    types::RenderConfig,
+  };
 
-    assert_eq!( run_1.len(), 40, "script hardcodes ticks = 40" );
-    assert_eq!( run_1, run_2, "same script + same hardcoded inputs must produce the same frame sequence" );
+  let mut backend = SvgBackend::new( RenderConfig::default() );
+  if let Err( error ) = backend.assets_load( &render_assets() )
+  {
+    eprintln!( "failed to load render assets: {error}" );
+    return;
+  }
+
+  for frame in frames
+  {
+    if let Err( error ) = backend.submit( &frame_to_commands( frame ) )
+    {
+      eprintln!( "failed to submit frame {}: {error}", frame.tick );
+      return;
+    }
+  }
+
+  match backend.output()
+  {
+    Ok( Output::String( svg ) ) => println!( "\nrendered {} frame(s) to SVG ({} bytes)", frames.len(), svg.len() ),
+    Ok( _ ) => {}
+    Err( error ) => eprintln!( "failed to retrieve SVG output: {error}" ),
   }
 }
+
+/// Compiles each frame via [`pingpong_animation::render::frame_to_commands`]
+/// and submits it to a fresh `WebGlBackend`, bound to a WebGL2 context
+/// retrieved (or created) from the page via `minwebgl::context::retrieve_or_make`.
+/// `tilemap_renderer`'s own `adapter-webgl` feature requires the
+/// wasm32-unknown-unknown target (no native windowing exists to source a real
+/// `web_sys::WebGl2RenderingContext` from) — matching this task's own Testable
+/// clause, which tests this feature "on the wasm32 target" rather than via a
+/// plain native `cargo run`.
+#[ cfg( all( feature = "adapter-webgl", not( feature = "adapter-svg" ) ) ) ]
+fn frames_render( frames : &[ pingpong_animation::Frame ] )
+{
+  use pingpong_animation::render::{ frame_to_commands, render_assets };
+  use tilemap_renderer::
+  {
+    adapters::webgl::WebGlBackend,
+    backend::{ Backend, Output },
+    types::RenderConfig,
+  };
+
+  let commands : Vec< _ > = frames.iter().map( frame_to_commands ).collect();
+  let assets = render_assets();
+  let tick_count = frames.len();
+
+  minwebgl::browser::setup( minwebgl::browser::Config::default() );
+  minwebgl::spawn_local( async move
+  {
+    let gl = match minwebgl::context::retrieve_or_make()
+    {
+      Ok( gl ) => gl,
+      Err( error ) => { minwebgl::warn!( "failed to retrieve WebGL2 context: {error}" ); return; }
+    };
+
+    let mut backend = match WebGlBackend::new( RenderConfig::default(), gl )
+    {
+      Ok( backend ) => backend,
+      Err( error ) => { minwebgl::warn!( "failed to construct WebGlBackend: {error}" ); return; }
+    };
+
+    if let Err( error ) = backend.assets_load( &assets )
+    {
+      minwebgl::warn!( "failed to load render assets: {error}" );
+      return;
+    }
+
+    for frame_commands in &commands
+    {
+      if let Err( error ) = backend.submit( frame_commands )
+      {
+        minwebgl::warn!( "failed to submit frame: {error}" );
+        return;
+      }
+    }
+
+    match backend.output()
+    {
+      Ok( Output::Presented ) => minwebgl::info!( "rendered {tick_count} frame(s) via WebGL2 (presented to canvas)" ),
+      Ok( _ ) => {}
+      Err( error ) => minwebgl::warn!( "failed to retrieve WebGL2 output: {error}" ),
+    }
+  } );
+}
+
+/// No-op when no adapter feature is enabled — the default (console-only) build.
+#[ cfg( not( any( feature = "adapter-svg", feature = "adapter-webgl" ) ) ) ]
+fn frames_render( _frames : &[ pingpong_animation::Frame ] ) {}

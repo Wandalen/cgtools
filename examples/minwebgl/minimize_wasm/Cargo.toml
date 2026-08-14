@@ -15,3 +15,6 @@ wee_alloc = { workspace = true }
 
 [package.metadata.action]
 tags = ["runtime:browser", "api:webgl"]
+
+[lints]
+workspace = true

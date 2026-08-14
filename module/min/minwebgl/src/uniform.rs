@@ -5,6 +5,7 @@
 mod private
 {
 
+  #[ allow( clippy::wildcard_imports, reason = "crate-root prelude from mod_interface!; enumerating would break on every layer change" ) ]
   use crate::*;
   use core::any::type_name_of_val;
   pub use web_sys::WebGlUniformLocation;
@@ -20,6 +21,11 @@ mod private
     ///
     /// * `gl` - The WebGL context.
     /// * `uniform_location` - The location of the uniform variable in the shader.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the implementing type cannot upload its data (e.g. an
+    /// unsupported array length for the uniform's vector/matrix arity).
     ///
     /// # Returns
     ///
@@ -46,6 +52,11 @@ mod private
     /// * `uniform_location` - The location of the uniform variable in the shader.
     /// * `column_major` - Whether the matrix is in column-major order.
     ///
+    /// # Errors
+    ///
+    /// Returns `WebglError::NotSupportedForType` by default; implementers that support
+    /// matrix uniform upload override this and return an error only if the upload itself fails.
+    ///
     /// # Returns
     ///
     /// * `Result<(), WebglError>` - Result indicating success or failure.
@@ -69,6 +80,10 @@ mod private
   /// * `gl` - The WebGL context.
   /// * `uniform_location` - The location of the uniform variable in the shader.
   /// * `data` - The data to upload.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError` if `data`'s `UniformUpload` implementation fails to upload.
   ///
   /// # Returns
   ///
@@ -94,6 +109,10 @@ mod private
   /// * `uniform_location` - The location of the uniform variable in the shader.
   /// * `data` - The matrix data to upload.
   /// * `column_major` - Whether the matrix is in column-major order.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError` if `data`'s `UniformMatrixUpload` implementation fails to upload.
   ///
   /// # Returns
   ///

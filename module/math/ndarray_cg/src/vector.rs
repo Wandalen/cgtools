@@ -9,7 +9,6 @@ mod private
   // `#[ non_exhaustive ]` would break external tuple-construction/destructuring call sites
   // across the workspace (e.g. `tiles_tools`, `examples/minwebgl/hexagonal_map`, and this
   // crate's own `tests/`), which build and match `Vector( [ ... ] )` directly.
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Clone, Copy, PartialEq, Hash, Debug ) ]
   pub struct Vector< E, const LEN : usize >( pub [ E; LEN ] )
   where E : MatEl;
@@ -80,6 +79,8 @@ crate::mod_interface!
 
   // /// Conversions from `Array` type to `Vector`
   // layer array;
+  /// Functionality related to 1D vectors
+  layer vec1;
   /// Functionality related to 2D vectors
   layer vec2;
   /// Functionality related to 3D vectors

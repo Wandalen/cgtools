@@ -2,7 +2,7 @@ mod private
 {
   use crate::{vector, Add, Vector, MatNum, AddAssign};
 // use vector::arithmetics::inner_product::*;
-  use vector::{ sum, sum_scalar };
+  use vector::{ sum, scalar_sum };
 
   impl< E, const LEN : usize > Add for Vector< E, LEN >
   where
@@ -32,7 +32,7 @@ mod private
     #[ inline ]
     fn add( self, rhs : E ) -> Self::Output
     {
-        sum_scalar( &self, rhs )
+        scalar_sum( &self, rhs )
     }
   }
 

@@ -39,13 +39,13 @@ browser_log = { workspace = true }
 use browser_log::*;
 
 // Initialize logging + panic handling (call once at startup)
-fn init_logging() {
+fn logging_init() {
   // One call sets up both the logger and the panic hook
   browser_log::setup(browser_log::Config::default());
 }
 
 // Or set up each part separately
-fn init_logging_separately() {
+fn logging_init_separately() {
   panic::setup(panic::Config::default());
   log::setup::setup(log::setup::Config::default());
 }
@@ -65,7 +65,7 @@ fn example_logging() {
 use browser_log::*;
 use browser_log::log::console;
 
-fn setup_advanced_logging() {
+fn advanced_logging_setup() {
   // Custom panic handler configuration
   let config = panic::Config {
     with_location: true,
@@ -184,7 +184,7 @@ fn debug_log(message: &str) {
 }
 
 // Log with context information
-fn log_with_context(operation: &str, data: &impl std::fmt::Debug) {
+fn with_context_log(operation: &str, data: &impl std::fmt::Debug) {
   ::log::info!("[{}] Data: {:?}", operation, data);
 }
 ```

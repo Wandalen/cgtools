@@ -16,7 +16,7 @@ use web_sys::{ wasm_bindgen::{ JsCast as _, prelude::Closure }, EventTarget };
 /// (`add_event_listener_with_callback` returning `Err`) — not expected to happen for a
 /// valid, live `EventTarget`.
 #[ inline ]
-pub fn prevent_rightclick( target : &EventTarget )
+pub fn rightclick_prevent( target : &EventTarget )
 {
   let prevent_default = | e : web_sys::Event | e.prevent_default();
   let prevent_default = Closure::< dyn Fn( _ ) >::new( prevent_default );

@@ -22,7 +22,7 @@ mod private
   /// Panics if no adapter is available (e.g. WebGPU is unsupported or disabled), or if the
   /// value the browser returns does not cast to `web_sys::GpuAdapter`.
   #[ inline ]
-  pub async fn request_adapter() -> web_sys::GpuAdapter
+  pub async fn adapter_request() -> web_sys::GpuAdapter
   {
     let navigator = navigator();
     let gpu = navigator.gpu();
@@ -37,7 +37,7 @@ mod private
   /// Panics if the device request is rejected by the browser, or if the returned value
   /// does not cast to `web_sys::GpuDevice`.
   #[ inline ]
-  pub async fn request_device( adapter : &web_sys::GpuAdapter ) -> web_sys::GpuDevice
+  pub async fn device_request( adapter : &web_sys::GpuAdapter ) -> web_sys::GpuDevice
   {
     let device = JsFuture::from( adapter.request_device() ).await.unwrap();
     device.dyn_into().unwrap()
@@ -116,7 +116,7 @@ mod private
   /// The objects produced by the one-shot [`setup`] convenience.
   ///
   /// Every field is the plain native `web_sys` type you would have gotten by
-  /// calling [`from_canvas`], [`request_adapter`], [`request_device`] and
+  /// calling [`from_canvas`], [`adapter_request`], [`device_request`] and
   /// [`preferred_format`] yourself — this struct only aggregates their
   /// results, it does not wrap or hide them.
   #[ non_exhaustive ]
@@ -135,8 +135,8 @@ mod private
   }
 
   /// Runs the common "get a WebGPU device and a configured canvas context"
-  /// sequence in one call: [`from_canvas`], [`request_adapter`],
-  /// [`request_device`], [`preferred_format`], then [`configure`].
+  /// sequence in one call: [`from_canvas`], [`adapter_request`],
+  /// [`device_request`], [`preferred_format`], then [`configure`].
   ///
   /// This is pure sequencing — nothing is defaulted beyond what those
   /// functions already do on their own. Call them individually instead when
@@ -150,8 +150,8 @@ mod private
   pub async fn setup( canvas : &web_sys::HtmlCanvasElement ) -> Result< GpuSetup, WebGPUError >
   {
     let context = from_canvas( canvas )?;
-    let adapter = request_adapter().await;
-    let device = request_device( &adapter ).await;
+    let adapter = adapter_request().await;
+    let device = device_request( &adapter ).await;
     let queue = device.queue();
     let format = preferred_format();
     configure( &device, &context, format )?;
@@ -164,8 +164,8 @@ crate::mod_interface!
 {
   own use
   {
-    request_adapter,
-    request_device,
+    adapter_request,
+    device_request,
     from_canvas,
     navigator,
     preferred_format,

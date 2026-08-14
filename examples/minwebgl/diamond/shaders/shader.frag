@@ -7,7 +7,7 @@ const float EPSILON = 1e-4;
 const vec3 F0 = vec3( 0.1724 );
 // Max distance to the surface in cubeNormalMap
 // This value was calculated during generation of the map
-const float MAX_DISTANCE = 5.7610855;
+const float MAX_DISTANCE = 5.758010773285889;
 const int RAY_BOUNCES = 5;
 
 uniform samplerCube envMap;

@@ -1,5 +1,11 @@
 
-use super::*;
+use super::
+{
+  FilterRenderer,
+  gl,
+  GL,
+  Filter,
+};
 use serde::{ Serialize, Deserialize };
 
 #[ derive( Clone ) ]
@@ -23,7 +29,7 @@ impl< T > Blur< T >
     Self { size, _marker: std::marker::PhantomData }
   }
 
-  fn draw( &self, renderer : &impl FilterRenderer )
+  fn draw( renderer : &impl FilterRenderer )
   {
     let gl = renderer.gl();
     let texel_size = [ 1.0 / gl.drawing_buffer_width() as f32, 1.0 / gl.drawing_buffer_height() as f32 ];
@@ -95,10 +101,10 @@ impl Filter for Blur< Box >
     let gl = renderer.gl();
 
     let box_size_location = gl.get_uniform_location( renderer.get_program(), "u_box_size" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, box_size_location, &self.size ).unwrap();
 
-    self.draw( renderer );
+    Self::draw( renderer );
   }
 }
 
@@ -146,10 +152,10 @@ impl Filter for Blur< Gaussian >
     let gl = renderer.gl();
 
     let sigma_location = gl.get_uniform_location( renderer.get_program(), "u_sigma" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, sigma_location, &self.size ).unwrap();
 
-    self.draw( renderer );
+    Self::draw( renderer );
   }
 }
 
@@ -187,9 +193,9 @@ impl Filter for Blur< Stack >
     let gl = renderer.gl();
 
     let radius_location = gl.get_uniform_location( renderer.get_program(), "u_radius" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, radius_location, &self.size ).unwrap();
 
-    self.draw( renderer );
+    Self::draw( renderer );
   }
 }

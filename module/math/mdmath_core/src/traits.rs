@@ -20,7 +20,7 @@ mod private
   ///
   /// ```rust
   /// use mdmath_core::ToRef;
-  /// fn print_length< T : ToRef< String > >( input : T )
+  /// fn length_print< T : ToRef< String > >( input : T )
   /// {
   ///   let reference = input.to_ref();
   ///   println!( "Length: {}", reference.len() );
@@ -29,12 +29,12 @@ mod private
   /// let mut owned = String::from( "Hello" );
   ///
   /// let borrowed = &owned;
-  /// print_length( borrowed );
+  /// length_print( borrowed );
   ///
   /// let mut mutable_borrowed = &mut owned;
-  /// print_length( mutable_borrowed );
+  /// length_print( mutable_borrowed );
   ///
-  /// print_length( owned );
+  /// length_print( owned );
   /// ```
   pub trait ToRef< T : ?Sized >
   {

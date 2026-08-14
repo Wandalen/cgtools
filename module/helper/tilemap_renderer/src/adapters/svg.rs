@@ -31,6 +31,7 @@ mod private
     PixelFormat,
     Source,
     SpriteAsset,
+    image_mime_detect,
   };
   use crate::backend::
   {
@@ -136,17 +137,17 @@ mod private
       self.batches.get( &id )
     }
 
-    fn store_image( &mut self, id : ResourceId< asset::Image >, img : SvgImage )
+    fn image_store( &mut self, id : ResourceId< asset::Image >, img : SvgImage )
     {
       self.images.insert( id, img );
     }
 
-    fn store_geometry( &mut self, id : ResourceId< asset::Geometry >, geom : SvgGeometry )
+    fn geometry_store( &mut self, id : ResourceId< asset::Geometry >, geom : SvgGeometry )
     {
       self.geometries.insert( id, geom );
     }
 
-    fn store_batch( &mut self, id : ResourceId< Batch >, batch : SvgBatch )
+    fn batch_store( &mut self, id : ResourceId< Batch >, batch : SvgBatch )
     {
       self.batches.insert( id, batch );
     }
@@ -199,7 +200,7 @@ mod private
   ///
   /// ```ignore
   /// let mut svg = SvgBackend::new( 800, 600 );
-  /// svg.load_assets( &assets )?;
+  /// svg.assets_load( &assets )?;
   /// svg.submit( &commands )?;
   /// let Output::String( doc ) = svg.output()? else { unreachable!() };
   /// ```
@@ -207,7 +208,7 @@ mod private
   /// # Known limitations
   ///
   /// - **Font assets are currently ignored.** `Assets.fonts` is accepted by
-  ///   `load_assets` but no `@font-face`/`<font-face>` definitions are emitted,
+  ///   `assets_load` but no `@font-face`/`<font-face>` definitions are emitted,
   ///   and `<text>` elements carry no `font-family`. All text renders in the
   ///   SVG viewer's default font regardless of the fonts supplied.
   ///   `Capabilities::text` stays `true` because text *rendering* works —
@@ -267,10 +268,10 @@ mod private
     /// Immediately updates the top-level `<g transform>` wrapper so all already-rendered
     /// elements reflect the new position without re-submission.
     #[ inline ]
-    pub fn set_viewport_offset( &mut self, offset : [ f32; 2 ] )
+    pub fn viewport_offset_set( &mut self, offset : [ f32; 2 ] )
     {
       self.viewport_offset = offset;
-      self.content.update_viewport_transform( self.viewport_offset, self.viewport_scale );
+      self.content.viewport_transform_update( self.viewport_offset, self.viewport_scale );
     }
 
     /// Returns the current viewport scale (zoom factor).
@@ -283,10 +284,10 @@ mod private
     /// Immediately updates the top-level `<g transform>` wrapper so all already-rendered
     /// elements reflect the new zoom without re-submission.
     #[ inline ]
-    pub fn set_viewport_scale( &mut self, scale : f32 )
+    pub fn viewport_scale_set( &mut self, scale : f32 )
     {
       self.viewport_scale = scale;
-      self.content.update_viewport_transform( self.viewport_offset, self.viewport_scale );
+      self.content.viewport_transform_update( self.viewport_offset, self.viewport_scale );
     }
 
     fn shape_rendering_attr( antialias : Antialias ) -> &'static str
@@ -303,7 +304,6 @@ mod private
     {
       // f32-to-u8 `as` cast saturates: values < 0.0 clamp to 0, values > 1.0 clamp to 255.
       // No explicit range check is needed; out-of-range input saturates silently.
-      #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
       let ( r, g, b, a ) =
       (
         ( color[ 0 ] * 255.0 ) as u8,
@@ -350,7 +350,9 @@ mod private
     /// Handles the Y-up → Y-down coordinate flip only. Viewport pan/zoom is applied
     /// by the top-level `<g>` wrapper managed by [`SvgContentManager`], so it must
     /// **not** be baked into individual element transforms.
-    fn transform_to_svg_static( t : &Transform, height : u32 ) -> String
+    #[ doc( hidden ) ] // implementation detail, public only so its tests can live in tests/
+    #[ must_use ]
+    pub fn transform_to_svg_static( t : &Transform, height : u32 ) -> String
     {
       let mut parts = Vec::new();
 
@@ -359,7 +361,6 @@ mod private
       // `height` is a viewport/surface dimension in pixels; f32's 23-bit mantissa
       // only loses precision above 2^24 (16,777,216px) tall, which is not a
       // representable rendering surface, so the cast is lossless in practice.
-      #[ allow( clippy::cast_precision_loss ) ]
       let pos_y = height as f32 - t.position[ 1 ];
 
       if pos_x != 0.0 || pos_y != 0.0
@@ -394,7 +395,9 @@ mod private
 
     /// Emits a raw local transform — no viewport Y-flip.
     /// Used for instances inside an already Y-flipped `<g>` parent group.
-    fn transform_to_svg_local( t : &Transform ) -> String
+    #[ doc( hidden ) ] // implementation detail, public only so its tests can live in tests/
+    #[ must_use ]
+    pub fn transform_to_svg_local( t : &Transform ) -> String
     {
       let mut parts = Vec::new();
 
@@ -490,7 +493,10 @@ mod private
       }
     }
 
-    fn anchor_to_svg( anchor : TextAnchor ) -> ( &'static str, &'static str )
+    /// Maps a [`TextAnchor`] to the SVG `text-anchor`/`dominant-baseline` value pair.
+    #[ doc( hidden ) ] // implementation detail, public only so its tests can live in tests/
+    #[ must_use ]
+    pub fn anchor_to_svg( anchor : TextAnchor ) -> ( &'static str, &'static str )
     {
       let h = match anchor
       {
@@ -509,70 +515,54 @@ mod private
 
     /// Encodes raw pixel bytes into a PNG file in memory.
     /// Returns `None` if the dimensions don't match the byte count.
-    fn bitmap_to_png( bytes : &[ u8 ], width : u32, height : u32, format : PixelFormat ) -> Option< Vec< u8 > >
+    #[ must_use ]
+    pub fn bitmap_to_png( bytes : &[ u8 ], width : u32, height : u32, format : PixelFormat ) -> Option< Vec< u8 > >
     {
-      use image::DynamicImage;
-
-      let dynamic = match format
+      let color_type = match format
       {
-        PixelFormat::Rgba8 =>
-          DynamicImage::ImageRgba8( image::RgbaImage::from_raw( width, height, bytes.to_vec() )? ),
-        PixelFormat::Rgb8 =>
-          DynamicImage::ImageRgb8( image::RgbImage::from_raw( width, height, bytes.to_vec() )? ),
-        PixelFormat::Gray8 =>
-          DynamicImage::ImageLuma8( image::GrayImage::from_raw( width, height, bytes.to_vec() )? ),
-        PixelFormat::GrayAlpha8 =>
-          DynamicImage::ImageLumaA8( image::GrayAlphaImage::from_raw( width, height, bytes.to_vec() )? ),
+        PixelFormat::Rgba8 => png::ColorType::Rgba,
+        PixelFormat::Rgb8 => png::ColorType::Rgb,
+        PixelFormat::Gray8 => png::ColorType::Grayscale,
+        PixelFormat::GrayAlpha8 => png::ColorType::GrayscaleAlpha,
       };
 
-      let mut png = Vec::new();
-      // `core::io` is unstable (feature `core_io`, rust-lang/rust#154046) on this
-      // toolchain's stable channel, so clippy's suggested `core::` swap does not
-      // compile here; `std::io::Cursor` is the only usable path.
-      #[ allow( clippy::std_instead_of_core ) ]
-      dynamic.write_to( &mut std::io::Cursor::new( &mut png ), image::ImageFormat::Png ).ok()?;
-      Some( png )
+      let mut png_bytes = Vec::new();
+      let mut encoder = png::Encoder::new( &mut png_bytes, width, height );
+      encoder.set_color( color_type );
+      encoder.set_depth( png::BitDepth::Eight );
+      let mut writer = encoder.write_header().ok()?;
+      // `write_image_data` returns `Err` (never panics) on a byte-count that
+      // doesn't match `width * height * bytes_per_pixel( color_type )`, which
+      // is what preserves the dimension-mismatch-returns-`None` contract.
+      writer.write_image_data( bytes ).ok()?;
+      // `Writer::finish` performs the real IEND write/flush and surfaces
+      // encode errors; `Drop` alone would silently swallow them instead.
+      writer.finish().ok()?;
+      Some( png_bytes )
     }
 
-    /// Extracts width and height from a PNG byte buffer by reading the IHDR chunk.
-    /// Returns `None` if the buffer is too short or does not start with the PNG signature.
-    /// Extracts (width, height) from an encoded image buffer using the `image`
-    /// crate's format guesser. Supports any format the crate can decode the
-    /// dimensions of — PNG, JPEG, GIF, WebP, BMP, TIFF, etc. Returns `None`
-    /// when the format is unrecognized or the header is malformed.
+    /// Extracts width and height from a PNG byte buffer by reading its header
+    /// chunk (no full pixel decode). Returns `None` if the buffer is not a
+    /// valid PNG or the header is malformed. PNG-only: unlike the crate's
+    /// previous `image`-backed implementation, non-PNG bytes (JPEG, GIF,
+    /// WebP, BMP, TIFF) no longer resolve dimensions — callers already
+    /// handle `None` via their existing `(0, 0)` fallback.
     // `core::io` is unstable (feature `core_io`, rust-lang/rust#154046) on this
-    // toolchain's stable channel, so clippy's suggested `core::` swap does not
-    // compile here; `std::io::Cursor` is the only usable path. Attribute is at
-    // function level because the call is this function's tail expression,
-    // where item-level attributes (not statement-level) are required on stable.
-    #[ allow( clippy::std_instead_of_core ) ]
+    // toolchain's stable channel; `std::io::Cursor` is the only usable path.
     fn image_dimensions( bytes : &[ u8 ] ) -> Option< ( u32, u32 ) >
     {
-      image::ImageReader::new( std::io::Cursor::new( bytes ) )
-        .with_guessed_format()
-        .ok()?
-        .into_dimensions()
-        .ok()
+      let mut decoder = png::Decoder::new( std::io::Cursor::new( bytes ) );
+      let info = decoder.read_header_info().ok()?;
+      Some( ( info.width, info.height ) )
     }
 
-    /// Detects the MIME type of an encoded image by inspecting its magic bytes.
-    /// Falls back to `image/png` when the signature is unknown, which matches
-    /// the prior behavior for well-formed PNG inputs.
-    fn detect_image_mime( bytes : &[ u8 ] ) -> &'static str
-    {
-      if bytes.starts_with( &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ] ) { return "image/png"; }
-      if bytes.starts_with( &[ 0xff, 0xd8, 0xff ] ) { return "image/jpeg"; }
-      if bytes.starts_with( b"GIF87a" ) || bytes.starts_with( b"GIF89a" ) { return "image/gif"; }
-      if bytes.len() >= 12 && bytes.starts_with( b"RIFF" ) && &bytes[ 8..12 ] == b"WEBP" { return "image/webp"; }
-      if bytes.starts_with( b"<svg" ) || bytes.starts_with( b"<?xml" ) { return "image/svg+xml"; }
-      "image/png"
-    }
-
-    // Legacy PNG-only IHDR reader. Production code uses `image_dimensions` for
-    // all formats; retained for its unit tests which exercise the hand-rolled
-    // path as a sanity check on the `image` crate's behavior for PNG inputs.
-    #[ cfg( test ) ]
-    fn png_dimensions( bytes : &[ u8 ] ) -> Option< ( u32, u32 ) >
+    /// Legacy PNG-only IHDR reader: extracts `( width, height )` from a PNG byte
+    /// stream, or returns `None` for non-PNG input. Production code uses
+    /// `image_dimensions` for all formats; retained for its tests, which exercise
+    /// the hand-rolled path as a sanity check on the `image` crate's behavior
+    /// for PNG inputs.
+    #[ must_use ]
+    pub fn png_dimensions( bytes : &[ u8 ] ) -> Option< ( u32, u32 ) >
     {
       // PNG layout: 8-byte signature + 4-byte chunk length + 4-byte "IHDR" + 4-byte width + 4-byte height
       const SIG : &[ u8 ] = &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ];
@@ -595,7 +585,7 @@ mod private
     /// Errors on `u32::MAX` overflow — would otherwise produce duplicate filter
     /// IDs (wrapping) or panic (debug). The limit is effectively unreachable
     /// (~4B filters in one `submit`), but a clean error beats silent invalid XML.
-    fn bump_filter_counter( counter : &mut u32 ) -> Result< u32, RenderError >
+    fn filter_counter_bump( counter : &mut u32 ) -> Result< u32, RenderError >
     {
       let id = *counter;
       *counter = counter.checked_add( 1 ).ok_or_else( ||
@@ -622,14 +612,14 @@ mod private
         return Ok( String::new() );
       }
 
-      let id = Self::bump_filter_counter( counter )?;
+      let id = Self::filter_counter_bump( counter )?;
 
       let filter_def = format!
       (
         "<filter id=\"tint_{}\"><feColorMatrix type=\"matrix\" values=\"{} 0 0 0 0 0 {} 0 0 0 0 0 {} 0 0 0 0 0 {} 0\"/></filter>",
         id, tint[ 0 ], tint[ 1 ], tint[ 2 ], tint[ 3 ]
       );
-      content.push_frame_def( &filter_def );
+      content.frame_def_push( &filter_def );
 
       Ok( format!( " filter=\"url(#tint_{id})\"" ) )
     }
@@ -659,7 +649,7 @@ mod private
               "<pattern id=\"{}\" width=\"{}\" height=\"{}\" patternUnits=\"userSpaceOnUse\"><use href=\"#img_{}\" width=\"{}\" height=\"{}\"/></pattern>",
               pat_id, img.width, img.height, img_id.inner(), img.width, img.height
             );
-            content.push_frame_def( &pat_def );
+            content.frame_def_push( &pat_def );
             return format!( "url(#{pat_id})" );
           }
       Self::fill_to_svg( fill )
@@ -688,7 +678,7 @@ mod private
     }
 
     /// Flushes current path buffer into SVG.
-    fn flush_path( &mut self )
+    fn path_flush( &mut self )
     {
       let Some( style ) = self.path_style.take() else
       {
@@ -725,12 +715,12 @@ mod private
         clip,
         blend,
       );
-      self.content.push_body( &path );
+      self.content.body_push( &path );
       self.path_data.clear();
     }
 
     /// Flushes current text buffer into SVG.
-    fn flush_text( &mut self )
+    fn text_flush( &mut self )
     {
       let Some( style ) = self.text_style.take() else
       {
@@ -747,7 +737,7 @@ mod private
 
       // Escape XML special chars so a character stream like '<','s','c','r','i','p','t','>'
       // cannot close the <text> element and inject arbitrary SVG markup or <script>.
-      let escaped = Self::escape_xml_text( &self.text_buf );
+      let escaped = Self::xml_text_escape( &self.text_buf );
 
       if let Some( path_id ) = style.along_path
       {
@@ -757,7 +747,7 @@ mod private
           style.size, fill, fill_opacity, anchor, baseline, transform, clip,
           path_id.inner(), escaped,
         );
-        self.content.push_body( &text );
+        self.content.body_push( &text );
       }
       else
       {
@@ -767,7 +757,7 @@ mod private
           style.size, fill, fill_opacity, anchor, baseline, transform, clip,
           escaped,
         );
-        self.content.push_body( &text );
+        self.content.body_push( &text );
       }
       self.text_buf.clear();
     }
@@ -780,7 +770,8 @@ mod private
     /// - yields a valid URI reference (browsers require e.g. space → `%20`)
     /// - neutralizes attribute-injection payloads (quote, `<`, `>`, `&` are
     ///   encoded and cannot close the attribute or inject markup)
-    fn path_to_href( s : &str ) -> String
+    #[ must_use ]
+    pub fn path_to_href( s : &str ) -> String
     {
       use core::fmt::Write as _;
       let mut out = String::with_capacity( s.len() );
@@ -813,7 +804,7 @@ mod private
 
     /// Escapes the five XML predefined entities so that arbitrary character
     /// content can safely be inserted as PCDATA or attribute values.
-    fn escape_xml_text( s : &str ) -> String
+    fn xml_text_escape( s : &str ) -> String
     {
       let mut out = String::with_capacity( s.len() );
       for c in s.chars()
@@ -833,7 +824,7 @@ mod private
 
     // ---- Asset loaders ----
 
-    fn load_gradients( &mut self, gradients : &[ GradientAsset ] )
+    fn gradients_load( &mut self, gradients : &[ GradientAsset ] )
     {
       for grad in gradients
       {
@@ -884,11 +875,11 @@ mod private
           }
         }
         let _ = write!( grad_def, "</{grad_type}>" );
-        self.content.push_asset_def( &grad_def );
+        self.content.asset_def_push( &grad_def );
       }
     }
 
-    fn load_patterns( &mut self, patterns : &[ PatternAsset ] )
+    fn patterns_load( &mut self, patterns : &[ PatternAsset ] )
     {
       for pat in patterns
       {
@@ -897,11 +888,11 @@ mod private
           "<pattern id=\"pat_{}\" width=\"{}\" height=\"{}\" patternUnits=\"userSpaceOnUse\"><use href=\"#img_{}\" width=\"{}\" height=\"{}\"/></pattern>",
           pat.id.inner(), pat.width, pat.height, pat.content.inner(), pat.width, pat.height,
         );
-        self.content.push_asset_def( &pat_def );
+        self.content.asset_def_push( &pat_def );
       }
     }
 
-    fn load_clip_masks( &mut self, clip_masks : &[ ClipMaskAsset ] )
+    fn clip_masks_load( &mut self, clip_masks : &[ ClipMaskAsset ] )
     {
       for mask in clip_masks
       {
@@ -915,11 +906,11 @@ mod private
           "<clipPath id=\"clip_{}\"><path d=\"{}\"/></clipPath>",
           mask.id.inner(), d.trim()
         );
-        self.content.push_asset_def( &clip_def );
+        self.content.asset_def_push( &clip_def );
       }
     }
 
-    fn load_paths( &mut self, paths : &[ PathAsset ] )
+    fn paths_load( &mut self, paths : &[ PathAsset ] )
     {
       for path in paths
       {
@@ -933,7 +924,7 @@ mod private
           "<path id=\"path_{}\" d=\"{}\"/>",
           path.id.inner(), d.trim()
         );
-        self.content.push_asset_def( &path_def );
+        self.content.asset_def_push( &path_def );
       }
     }
 
@@ -950,7 +941,7 @@ mod private
       }
     }
 
-    fn load_images( &mut self, images : &[ ImageAsset ] )
+    fn images_load( &mut self, images : &[ ImageAsset ] )
     {
       // NOTE: `ImageAsset.wrap` (WrapMode::Clamp / Repeat / Mirror) is intentionally
       // ignored in the SVG backend for now.
@@ -959,12 +950,12 @@ mod private
       // exactly once at the given size and clamps outside. Repeat / Mirror can
       // in principle be approximated via `<pattern>` defs filled into a larger
       // `<rect>`, which is what the format's `PatternAsset` path already does
-      // (see `load_patterns` below). However, applying that per-image wrapping
+      // (see `patterns_load` below). However, applying that per-image wrapping
       // to every sprite draw call would change the command-emission pipeline in
       // ways that are out of scope for the feature that introduced
       // `WrapMode` — so for now all SVG output behaves as `Clamp` regardless of
       // the asset's declared wrap mode. GPU backends honour the field fully
-      // (see `adapters/webgl.rs` → `apply_texture_wrap`).
+      // (see `adapters/webgl.rs` → `texture_wrap_apply`).
       //
       // If / when a backend implements `Repeat` / `Mirror` here, adjust this
       // comment and update SPEC §4.1's note about SVG graceful degradation.
@@ -983,42 +974,42 @@ mod private
                 "<symbol id=\"img_{}\" viewBox=\"0 0 {} {}\"><image href=\"data:image/png;base64,{}\" width=\"{}\" height=\"{}\"{}/></symbol>",
                 img.id.inner(), width, height, encoded, width, height, filter
               );
-              self.content.push_asset_def( &img_def );
-              self.resources.store_image( img.id, SvgImage { width : *width, height : *height } );
+              self.content.asset_def_push( &img_def );
+              self.resources.image_store( img.id, SvgImage { width : *width, height : *height } );
             }
           }
           ImageSource::Encoded( bytes ) =>
           {
-            // Decode dimensions for any format the `image` crate recognizes (PNG,
-            // JPEG, GIF, WebP, ...) so that sprites using this sheet can render
-            // with correct viewBox/use sizing.
+            // Decode dimensions from a PNG header (non-PNG bytes fall back to
+            // (0, 0) below) so that sprites using this sheet can render with
+            // correct viewBox/use sizing.
             let ( w, h ) = Self::image_dimensions( bytes ).unwrap_or( ( 0, 0 ) );
-            let mime = Self::detect_image_mime( bytes );
+            let mime = image_mime_detect( bytes );
             let encoded = base64::prelude::BASE64_STANDARD.encode( bytes );
             // Per SVG 1.1 §11.5, `<image>` without width/height renders at 0×0.
             // Emit viewBox + explicit dimensions so `<use>` references resolve.
             // If dimensions could not be decoded (w == 0 || h == 0), fall through
-            // with zero dims: `load_sprites` emits a diagnostic for that case.
+            // with zero dims: `sprites_load` emits a diagnostic for that case.
             let img_def = format!
             (
               "<symbol id=\"img_{}\" viewBox=\"0 0 {} {}\"><image href=\"data:{mime};base64,{encoded}\" width=\"{}\" height=\"{}\"{}/></symbol>",
               img.id.inner(), w, h, w, h, filter
             );
-            self.content.push_asset_def( &img_def );
-            self.resources.store_image( img.id, SvgImage { width : w, height : h } );
+            self.content.asset_def_push( &img_def );
+            self.resources.image_store( img.id, SvgImage { width : w, height : h } );
           }
           ImageSource::Path( path ) =>
           {
             let href = Self::path_to_href( &path.display().to_string() );
             let img_def = format!( "<symbol id=\"img_{}\"><image href=\"{}\"{}/></symbol>", img.id.inner(), href, filter );
-            self.content.push_asset_def( &img_def );
-            self.resources.store_image( img.id, SvgImage { width : 0, height : 0 } );
+            self.content.asset_def_push( &img_def );
+            self.resources.image_store( img.id, SvgImage { width : 0, height : 0 } );
           }
         }
       }
     }
 
-    fn load_sprites( &mut self, sprites : &[ SpriteAsset ] )
+    fn sprites_load( &mut self, sprites : &[ SpriteAsset ] )
     {
       for sprite in sprites
       {
@@ -1040,7 +1031,7 @@ mod private
               "<!-- sprite_{} skipped: image_{} has unknown dimensions (ImageSource::Path cannot extract without I/O) -->",
               sprite.id.inner(), sprite.sheet.inner()
             );
-            self.content.push_asset_def( &comment );
+            self.content.asset_def_push( &comment );
             continue;
           }
           let img_def = format!
@@ -1051,12 +1042,12 @@ mod private
             sprite.sheet.inner(),
             sheet.width, sheet.height
           );
-          self.content.push_asset_def( &img_def );
+          self.content.asset_def_push( &img_def );
         }
       }
     }
 
-    fn load_geometries( &mut self, geometries : &[ GeometryAsset ] )
+    fn geometries_load( &mut self, geometries : &[ GeometryAsset ] )
     {
       for geom in geometries
       {
@@ -1065,12 +1056,12 @@ mod private
         // loud-skip diagnostics as a missing file — a stderr warning plus a
         // diagnostic HTML comment, mirroring the `ImageSource::Path` sprite
         // case above. Async `fetch()` loading is a roadmap item.
-        let positions_bytes = match Self::resolve_source( &geom.positions )
+        let positions_bytes = match Self::source_resolve( &geom.positions )
         {
           Ok( bytes ) => bytes,
           Err( error ) =>
           {
-            self.skip_geometry( geom.id, "positions", &error );
+            self.geometry_skip( geom.id, "positions", &error );
             continue;
           }
         };
@@ -1081,7 +1072,7 @@ mod private
 
         let indices = match &geom.indices
         {
-          Some( source ) => match Self::resolve_source( source )
+          Some( source ) => match Self::source_resolve( source )
           {
             Ok( ibytes ) => match geom.data_type
             {
@@ -1094,20 +1085,20 @@ mod private
             // unindexed drawing would silently render different topology.
             Err( error ) =>
             {
-              self.skip_geometry( geom.id, "indices", &error );
+              self.geometry_skip( geom.id, "indices", &error );
               continue;
             }
           },
           None => None,
         };
 
-        self.resources.store_geometry( geom.id, SvgGeometry { positions, indices } );
+        self.resources.geometry_store( geom.id, SvgGeometry { positions, indices } );
       }
     }
 
     /// Resolves a geometry `Source` to owned bytes — `Bytes` verbatim, `Path`
     /// via a blocking `std::fs` read.
-    fn resolve_source( source : &Source ) -> Result< std::borrow::Cow< '_, [ u8 ] >, String >
+    fn source_resolve( source : &Source ) -> Result< std::borrow::Cow< '_, [ u8 ] >, String >
     {
       match source
       {
@@ -1123,7 +1114,7 @@ mod private
     /// HTML comment in the SVG defs. The comment interpolates only the numeric
     /// id and a static field name — never the error text, whose path content
     /// could otherwise terminate the comment early (`-->` injection).
-    fn skip_geometry( &mut self, id : ResourceId< asset::Geometry >, field : &str, error : &str )
+    fn geometry_skip( &mut self, id : ResourceId< asset::Geometry >, field : &str, error : &str )
     {
       eprintln!
       (
@@ -1131,10 +1122,10 @@ mod private
         id.inner()
       );
       let comment = format!( "<!-- geometry_{} skipped: {field} source unavailable -->", id.inner() );
-      self.content.push_asset_def( &comment );
+      self.content.asset_def_push( &comment );
     }
 
-    fn generate_mesh_def( &mut self, geom_id : ResourceId< asset::Geometry >, topology : Topology ) -> Option< String >
+    fn mesh_def_generate( &mut self, geom_id : ResourceId< asset::Geometry >, topology : Topology ) -> Option< String >
     {
       let id_u64 : u64 = u64::from( geom_id.inner() );
       let packed_key : u64 = ( id_u64 << 8 ) | u64::from( topology as u8 );
@@ -1211,7 +1202,7 @@ mod private
       }
 
       def_content.push_str( "</symbol>" );
-      self.content.push_frame_def( &def_content );
+      self.content.frame_def_push( &def_content );
       self.resources.mesh_defs.insert( packed_key, def_id.clone() );
 
       Some( def_id )
@@ -1222,7 +1213,7 @@ mod private
       let color = Self::color_to_svg( &c.color );
       let opacity = Self::opacity_attr( "fill-opacity", &c.color );
       let rect = format!( "<rect width=\"100%\" height=\"100%\" fill=\"{color}\"{opacity}/>" );
-      self.content.push_body( &rect );
+      self.content.body_push( &rect );
     }
 
     fn cmd_begin_path( &mut self, bp : &BeginPath )
@@ -1263,7 +1254,7 @@ mod private
 
     fn cmd_end_path( &mut self )
     {
-      self.flush_path();
+      self.path_flush();
     }
 
     fn cmd_begin_text( &mut self, bt : &BeginText )
@@ -1279,7 +1270,7 @@ mod private
 
     fn cmd_end_text( &mut self )
     {
-      self.flush_text();
+      self.text_flush();
     }
 
     fn cmd_mesh( &mut self, m : &Mesh )
@@ -1288,7 +1279,7 @@ mod private
       let def_id = match self.resources.mesh_defs.get( &packed_key )
       {
         Some( id ) => id.clone(),
-        None => match self.generate_mesh_def( m.geometry, m.topology )
+        None => match self.mesh_def_generate( m.geometry, m.topology )
         {
           Some( id ) => id,
           None => return,
@@ -1309,7 +1300,7 @@ mod private
       (
         "<use href=\"#{def_id}\" fill=\"{fill}\" stroke=\"{fill}\"{transform}{clip}{blend}/>"
       );
-      self.content.push_body( &mesh );
+      self.content.body_push( &mesh );
     }
 
     fn cmd_sprite( &mut self, s : &Sprite ) -> Result< (), RenderError >
@@ -1319,18 +1310,18 @@ mod private
       let blend = Self::blend_to_svg( s.blend );
       let tint = self.tint_filter_attr( &s.tint )?;
       let sprite = format!( "<use href=\"#sprite_{}\"{}{}{}{}/>", s.sprite.inner(), transform, clip, tint, blend );
-      self.content.push_body( &sprite );
+      self.content.body_push( &sprite );
       Ok( () )
     }
 
     fn cmd_create_sprite_batch( &mut self, cb : &CreateSpriteBatch )
     {
-      self.resources.store_batch( cb.batch, SvgBatch::Sprite { instances : Vec::new(), params : cb.params } );
+      self.resources.batch_store( cb.batch, SvgBatch::Sprite { instances : Vec::new(), params : cb.params } );
     }
 
     fn cmd_create_mesh_batch( &mut self, cb : &CreateMeshBatch )
     {
-      self.resources.store_batch( cb.batch, SvgBatch::Mesh { instances : Vec::new(), params : cb.params } );
+      self.resources.batch_store( cb.batch, SvgBatch::Mesh { instances : Vec::new(), params : cb.params } );
     }
 
     fn cmd_bind_batch( &mut self, bb : BindBatch )
@@ -1386,11 +1377,7 @@ mod private
           {
             if ( ri.index as usize ) < instances.len() { instances.swap_remove( ri.index as usize ); }
           }
-          // Collapsing into a match guard (`Some(Mesh{..}) if cond => ..`) would
-          // make this arm's pattern not count toward exhaustiveness (verified:
-          // E0004 "match arms with guards don't count towards exhaustivity"),
-          // since `SvgBatch` has only Sprite/Mesh variants and no wildcard arm.
-          #[ allow( clippy::collapsible_match ) ]
+          #[ expect( clippy::collapsible_match, reason = "collapsing into a match guard ( `Some( Mesh{ .. } ) if cond => ..` ) would stop this arm counting toward exhaustiveness ( E0004 : match arms with guards don't count towards exhaustivity ); `SvgBatch` has only Sprite/Mesh variants and no wildcard arm" ) ]
           Some( SvgBatch::Mesh { instances, .. } ) =>
           {
             if ( ri.index as usize ) < instances.len() { instances.swap_remove( ri.index as usize ); }
@@ -1434,7 +1421,7 @@ mod private
         if !self.resources.mesh_defs.contains_key( &packed_key )
         {
           let ( geom_id, topology ) = ( params.geometry, params.topology );
-          self.generate_mesh_def( geom_id, topology );
+          self.mesh_def_generate( geom_id, topology );
         }
       }
 
@@ -1450,7 +1437,7 @@ mod private
           let clip = Self::clip_attr( params.clip.as_ref() );
           let blend = Self::blend_to_svg( params.blend );
 
-          content.push_body( &format!( "<g{parent_transform}{clip}>" ) );
+          content.body_push( &format!( "<g{parent_transform}{clip}>" ) );
           for inst in instances
           {
             let inst_transform = Self::transform_to_svg_local( &inst.transform );
@@ -1460,9 +1447,9 @@ mod private
               "<use href=\"#sprite_{}\"{}{}{}/>",
               inst.sprite.inner(), inst_transform, tint, blend
             );
-            content.push_body( &sprite );
+            content.body_push( &sprite );
           }
-          content.push_body( "</g>" );
+          content.body_push( "</g>" );
         }
         Some( SvgBatch::Mesh { instances, params } ) =>
         {
@@ -1474,7 +1461,7 @@ mod private
             let blend = Self::blend_to_svg( params.blend );
             let fill = Self::texture_or_fill_split( params.texture, &params.fill, resources, content );
 
-            content.push_body( &format!( "<g{parent_transform}{clip}>" ) );
+            content.body_push( &format!( "<g{parent_transform}{clip}>" ) );
             for inst in instances
             {
               let inst_transform = Self::transform_to_svg_local( &inst.transform );
@@ -1482,9 +1469,9 @@ mod private
               (
                 "<use href=\"#{def_id}\" fill=\"{fill}\" stroke=\"{fill}\"{inst_transform}{blend}/>"
               );
-              content.push_body( &mesh );
+              content.body_push( &mesh );
             }
-            content.push_body( "</g>" );
+            content.body_push( "</g>" );
           }
         }
         None => {}
@@ -1507,14 +1494,14 @@ mod private
         Some( Effect::Opacity( a ) ) => format!( " opacity=\"{a}\"" ),
         Some( Effect::Blur { radius } ) =>
         {
-          let fid = Self::bump_filter_counter( &mut self.filter_counter )?;
+          let fid = Self::filter_counter_bump( &mut self.filter_counter )?;
           let def = format!( "<filter id=\"fx_{fid}\"><feGaussianBlur stdDeviation=\"{radius}\"/></filter>" );
-          self.content.push_frame_def( &def );
+          self.content.frame_def_push( &def );
           format!( " filter=\"url(#fx_{fid})\"" )
         }
         Some( Effect::DropShadow { dx, dy, blur, color } ) =>
         {
-          let fid = Self::bump_filter_counter( &mut self.filter_counter )?;
+          let fid = Self::filter_counter_bump( &mut self.filter_counter )?;
           let c = Self::color_to_svg( color );
           let flood_opacity = Self::opacity_attr( "flood-opacity", color );
           // `feDropShadow` is an SVG 2 primitive. We emit an equivalent SVG 1.1
@@ -1538,22 +1525,22 @@ mod private
             fid, fid,
             fid,
           );
-          self.content.push_frame_def( &def );
+          self.content.frame_def_push( &def );
           format!( " filter=\"url(#fx_{fid})\"" )
         }
         Some( Effect::ColorMatrix( values ) ) =>
         {
-          let fid = Self::bump_filter_counter( &mut self.filter_counter )?;
+          let fid = Self::filter_counter_bump( &mut self.filter_counter )?;
           let vals : String = values.iter().map( std::string::ToString::to_string ).collect::< Vec< _ > >().join( " " );
           let def = format!( "<filter id=\"fx_{fid}\"><feColorMatrix type=\"matrix\" values=\"{vals}\"/></filter>" );
-          self.content.push_frame_def( &def );
+          self.content.frame_def_push( &def );
           format!( " filter=\"url(#fx_{fid})\"" )
         }
         None => String::new(),
       };
 
       let group = format!( "<g{transform}{clip}{effect_attr}>" );
-      self.content.push_body( &group );
+      self.content.body_push( &group );
       self.group_depth += 1;
       Ok( () )
     }
@@ -1564,7 +1551,7 @@ mod private
       // would produce malformed XML that some parsers reject.
       if self.group_depth > 0
       {
-        self.content.push_body( "</g>" );
+        self.content.body_push( "</g>" );
         self.group_depth -= 1;
       }
     }
@@ -1577,18 +1564,18 @@ mod private
   impl Backend for SvgBackend
   {
     #[ inline ]
-    fn load_assets( &mut self, assets : &Assets ) -> Result< (), RenderError >
+    fn assets_load( &mut self, assets : &Assets ) -> Result< (), RenderError >
     {
-      self.content.clear_defs();
+      self.content.defs_clear();
       self.resources = SvgResources::new();
 
-      self.load_gradients( &assets.gradients );
-      self.load_patterns( &assets.patterns );
-      self.load_clip_masks( &assets.clip_masks );
-      self.load_paths( &assets.paths );
-      self.load_images( &assets.images );
-      self.load_sprites( &assets.sprites );
-      self.load_geometries( &assets.geometries );
+      self.gradients_load( &assets.gradients );
+      self.patterns_load( &assets.patterns );
+      self.clip_masks_load( &assets.clip_masks );
+      self.paths_load( &assets.paths );
+      self.images_load( &assets.images );
+      self.sprites_load( &assets.sprites );
+      self.geometries_load( &assets.geometries );
 
       Ok( () )
     }
@@ -1596,8 +1583,8 @@ mod private
     #[ inline ]
     fn submit( &mut self, commands : &[ RenderCommand ] ) -> Result< (), RenderError >
     {
-      self.content.clear_frame_defs();
-      self.content.clear_body();
+      self.content.frame_defs_clear();
+      self.content.body_clear();
       self.resources.mesh_defs.clear();
       self.filter_counter = 0;
       self.group_depth = 0;
@@ -1658,7 +1645,7 @@ mod private
     {
       self.config.width = width;
       self.config.height = height;
-      self.content.update_header( width, height, Self::shape_rendering_attr( self.config.antialias ) );
+      self.content.header_update( width, height, Self::shape_rendering_attr( self.config.antialias ) );
     }
 
     #[ inline ]
@@ -1704,14 +1691,15 @@ mod private
   // ============================================================================
 
   /// Manages a single SVG string buffer with indexed sections to avoid full reallocations.
+  #[ doc( hidden ) ] // implementation detail, public only so its tests can live in tests/
   #[ derive( Debug, Clone ) ]
-  struct SvgContentManager
+  pub struct SvgContentManager
   {
     buffer : String,
     defs_start : usize,
     defs_end : usize,
     /// Byte offset of the first frame-time def inside `<defs>`.
-    /// Asset defs (from `load_assets`) live before this point;
+    /// Asset defs (from `assets_load`) live before this point;
     /// frame defs (from `submit`: filters, tints, mesh symbols, mesh-tex patterns) live after.
     /// Cleared at the start of each `submit()` so defs never accumulate across frames.
     frame_defs_start : usize,
@@ -1740,6 +1728,7 @@ mod private
     }
 
     /// Creates a newly formatted SVG buffer layout empty with `<defs>` and `body` sections.
+    #[ must_use ]
     pub fn new( width : u32, height : u32, shape_rendering : &str ) -> Self
     {
       let mut buffer = String::new();
@@ -1785,7 +1774,12 @@ mod private
     }
 
     /// Updates the SVG header attributes dynamically like changing width/height bounds.
-    pub fn update_header( &mut self, width : u32, height : u32, shape_rendering : &str )
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the internal offset-shift invariant is violated ( an internal
+    /// bookkeeping bug in this type ), never for any caller-supplied input.
+    pub fn header_update( &mut self, width : u32, height : u32, shape_rendering : &str )
     {
       let header = format!
       (
@@ -1816,7 +1810,12 @@ mod private
     ///
     /// This modifies the single `transform` attribute in-place so all previously
     /// rendered elements immediately reflect the new viewport without re-submission.
-    pub fn update_viewport_transform( &mut self, offset : [ f32; 2 ], scale : f32 )
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the internal offset-shift invariant is violated ( an internal
+    /// bookkeeping bug in this type ), never for any caller-supplied input.
+    pub fn viewport_transform_update( &mut self, offset : [ f32; 2 ], scale : f32 )
     {
       let new_transform = Self::initial_vp_transform( offset, scale );
       let old_end = self.vp_transform_start + self.vp_transform_len;
@@ -1826,7 +1825,7 @@ mod private
       {
         // `elements_start`/`body_end` both sit at or after the old transform's
         // end, so shifting by `diff` can never underflow — same reasoning as
-        // `update_header` above. `checked_add_signed` turns that invariant into
+        // `header_update` above. `checked_add_signed` turns that invariant into
         // an explicit runtime check instead of a silenced cast.
         const MSG : &str = "SvgContentManager offset shift underflowed despite the transform-relative invariant";
         let diff = new_transform.len().cast_signed() - self.vp_transform_len.cast_signed();
@@ -1837,7 +1836,7 @@ mod private
     }
 
     /// Clears the `<defs>` content scope entirely (both asset and frame defs).
-    pub fn clear_defs( &mut self )
+    pub fn defs_clear( &mut self )
     {
       let inner_start = self.defs_start + Self::DEFS_OPEN.len();
       let inner_end   = self.defs_end   - Self::DEFS_CLOSE.len();
@@ -1853,10 +1852,10 @@ mod private
       self.body_end           -= removed;
     }
 
-    /// Inlines an asset-time def (from `load_assets`) into the definitions section.
+    /// Inlines an asset-time def (from `assets_load`) into the definitions section.
     ///
     /// Advances `frame_defs_start` so that the asset/frame boundary stays accurate.
-    pub fn push_asset_def( &mut self, def : &str )
+    pub fn asset_def_push( &mut self, def : &str )
     {
       let insert_at = self.defs_end - Self::DEFS_CLOSE.len();
       self.buffer.insert_str( insert_at, def );
@@ -1873,8 +1872,8 @@ mod private
     /// Inlines a frame-time def (from `submit`) into the definitions section.
     ///
     /// Does **not** advance `frame_defs_start` — these defs are cleared by
-    /// [`clear_frame_defs`] at the start of each `submit()`.
-    pub fn push_frame_def( &mut self, def : &str )
+    /// [`Self::frame_defs_clear`] at the start of each `submit()`.
+    pub fn frame_def_push( &mut self, def : &str )
     {
       let insert_at = self.defs_end - Self::DEFS_CLOSE.len();
       self.buffer.insert_str( insert_at, def );
@@ -1887,10 +1886,10 @@ mod private
       self.body_end           += added;
     }
 
-    /// Clears all frame-time defs added since the last `load_assets` call.
+    /// Clears all frame-time defs added since the last `assets_load` call.
     ///
-    /// Called at the start of each `submit()` together with `clear_body`.
-    pub fn clear_frame_defs( &mut self )
+    /// Called at the start of each `submit()` together with `body_clear`.
+    pub fn frame_defs_clear( &mut self )
     {
       let inner_end = self.defs_end - Self::DEFS_CLOSE.len();
       if inner_end <= self.frame_defs_start { return; }
@@ -1906,7 +1905,7 @@ mod private
     }
 
     /// Clears only the dynamic render paths payload.
-    pub fn clear_body( &mut self )
+    pub fn body_clear( &mut self )
     {
       let inner_end = self.body_end - Self::BODY_CLOSE.len();
 
@@ -1917,7 +1916,7 @@ mod private
     }
 
     /// Pushes SVG command sequence nodes inside the viewport wrapper.
-    pub fn push_body( &mut self, content : &str )
+    pub fn body_push( &mut self, content : &str )
     {
       let insert_at = self.body_end - Self::BODY_CLOSE.len();
       self.buffer.insert_str( insert_at, content );
@@ -1925,405 +1924,10 @@ mod private
     }
 
     /// Reference handle access to underlying payload SVG.
+    #[ must_use ]
     pub fn buffer( &self ) -> &str
     {
       &self.buffer
-    }
-  }
-
-  // ============================================================================
-  // Tests
-  // ============================================================================
-
-  // Documented exception (task 071) to the all-tests-in-tests/ convention: the tests below
-  // pin private formatting/encoding helpers -- `transform_to_svg_static`/`transform_to_svg_local`
-  // (Y-flip math), `anchor_to_svg`, `path_to_href`, `png_dimensions`, `detect_image_mime`,
-  // `bitmap_to_png`, and `SvgContentManager` -- none of which are in the `mod_interface`
-  // exports; publishing them solely for test placement would widen the API for no caller.
-  // (`image_encoded_png_stores_dimensions` additionally builds its PNG fixture via the private
-  // encoder.) The adapter's public-surface behavior tests live in `tests/svg_backend_test.rs`;
-  // the small driving helpers (`svg800x600`, `render`, `defs`) are intentionally present on
-  // both sides -- an inline module cannot import from `tests/helpers`.
-  #[ cfg( test ) ]
-  mod tests
-  {
-    use super::*;
-    use crate::backend::{ Backend, Output };
-    use crate::types::{ MipmapMode, WrapMode };
-
-    fn svg800x600() -> SvgBackend
-    {
-      SvgBackend::new( RenderConfig { width : 800, height : 600, ..Default::default() } )
-    }
-
-    fn empty_assets() -> Assets
-    {
-      Assets
-      {
-        fonts : vec![],
-        images : vec![],
-        sprites : vec![],
-        geometries : vec![],
-        gradients : vec![],
-        patterns : vec![],
-        clip_masks : vec![],
-        paths : vec![],
-      }
-    }
-
-    fn render( svg : &SvgBackend ) -> String
-    {
-      match svg.output().unwrap()
-      {
-        Output::String( s ) => s,
-        _ => panic!( "expected string output" ),
-      }
-    }
-
-    fn defs( svg : &SvgBackend ) -> String
-    {
-      let full = render( svg );
-      let start = full.find( "<defs>" ).unwrap() + "<defs>".len();
-      let end = full.find( "</defs>" ).unwrap();
-      full[ start..end ].to_string()
-    }
-
-    // -- transform Y-up --
-
-    #[ test ]
-    fn transform_y_up_bottom_left_origin()
-    {
-      // Position (0,0) in Y-up should map to SVG (0, height=600)
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform { position : [ 0.0, 0.0 ], ..Default::default() },
-        600,
-      );
-      assert!( s.contains( "translate(0,600)" ), "got: {s}" );
-    }
-
-    #[ test ]
-    fn transform_y_up_top_right()
-    {
-      // Position (800,600) should map to SVG (800, 0)
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform { position : [ 800.0, 600.0 ], ..Default::default() },
-        600,
-      );
-      assert!( s.contains( "translate(800,0)" ), "got: {s}" );
-    }
-
-    #[ test ]
-    fn transform_y_up_center()
-    {
-      // Position (400,300) should map to SVG (400, 300)
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform { position : [ 400.0, 300.0 ], ..Default::default() },
-        600,
-      );
-      assert!( s.contains( "translate(400,300)" ), "got: {s}" );
-    }
-
-    #[ test ]
-    fn transform_rotation_negated()
-    {
-      let angle = core::f32::consts::FRAC_PI_4; // 45° CCW in Y-up
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform { rotation : angle, ..Default::default() },
-        600,
-      );
-      // Should emit negative degrees in SVG
-      assert!( s.contains( "rotate(-45" ), "got: {s}" );
-    }
-
-    #[ test ]
-    fn transform_scale_y_negated()
-    {
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform { scale : [ 2.0, 3.0 ], ..Default::default() },
-        600,
-      );
-      // scale Y should be negated: 3.0 → -3.0
-      assert!( s.contains( "scale(2,-3)" ), "got: {s}" );
-    }
-
-    #[ test ]
-    fn transform_identity_scale_emits_y_flip()
-    {
-      // Default scale (1,1) should still emit scale(1,-1) for Y-flip
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform::default(),
-        600,
-      );
-      assert!( s.contains( "scale(1,-1)" ), "got: {s}" );
-    }
-
-    /// Verify that zoom=1.0 does NOT inject scale(1) noise into per-element transforms.
-    #[ test ]
-    fn transform_no_zoom_in_per_element_transform()
-    {
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform::default(),
-        600,
-      );
-      // Only scale(1,-1) for Y-flip should be present; no zoom prefix
-      assert!( !s.contains( "scale(1) " ), "got: {s}" );
-    }
-
-    #[ test ]
-    fn transform_skew_negated()
-    {
-      let angle = core::f32::consts::FRAC_PI_6; // 30°
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform { skew : [ angle, 0.0 ], ..Default::default() },
-        600,
-      );
-      assert!( s.contains( "skewX(-30" ), "got: {s}" );
-    }
-
-    // -- local transform (for batch instances inside Y-flipped group) --
-
-    #[ test ]
-    fn local_transform_no_y_flip()
-    {
-      let s = SvgBackend::transform_to_svg_local( &Transform
-      {
-        position : [ 10.0, 20.0 ],
-        rotation : 0.5,
-        scale : [ 2.0, 3.0 ],
-        ..Default::default()
-      });
-      // Position is raw, no Y-flip
-      assert!( s.contains( "translate(10,20)" ), "got: {s}" );
-      // Rotation is raw (positive), not negated
-      let deg = 0.5_f32.to_degrees();
-      assert!( s.contains( &format!( "rotate({deg})" ) ), "got: {s}" );
-      // Scale is raw, no Y negation
-      assert!( s.contains( "scale(2,3)" ), "got: {s}" );
-    }
-
-    // -- content manager --
-
-    #[ test ]
-    fn content_manager_push_clear_cycle()
-    {
-      let mut cm = SvgContentManager::new( 100, 100, "" );
-      cm.push_asset_def( "<test-def/>" );
-      cm.push_body( "<test-body/>" );
-
-      let buf = cm.buffer();
-      assert!( buf.contains( "<test-def/>" ) );
-      assert!( buf.contains( "<test-body/>" ) );
-
-      cm.clear_body();
-      let buf = cm.buffer();
-      assert!( buf.contains( "<test-def/>" ) );
-      assert!( !buf.contains( "<test-body/>" ) );
-
-      cm.clear_defs();
-      let buf = cm.buffer();
-      assert!( !buf.contains( "<test-def/>" ) );
-    }
-
-    // -- png_dimensions --
-
-    /// Verifies that `png_dimensions` extracts correct width/height from valid PNG bytes.
-    #[ test ]
-    fn png_dimensions_valid()
-    {
-      // Generate a real 3×5 PNG via bitmap_to_png, then extract dimensions from its header.
-      let bytes = vec![ 0u8; 3 * 5 * 4 ];
-      let png = SvgBackend::bitmap_to_png( &bytes, 3, 5, PixelFormat::Rgba8 ).unwrap();
-      assert_eq!( SvgBackend::png_dimensions( &png ), Some( ( 3, 5 ) ) );
-    }
-
-    /// Verifies MIME type detection from magic bytes.
-    #[ test ]
-    fn detect_image_mime_by_magic()
-    {
-      // PNG
-      assert_eq!( SvgBackend::detect_image_mime( &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0 ] ), "image/png" );
-      // JPEG
-      assert_eq!( SvgBackend::detect_image_mime( &[ 0xff, 0xd8, 0xff, 0xe0 ] ), "image/jpeg" );
-      // GIF
-      assert_eq!( SvgBackend::detect_image_mime( b"GIF89a..." ), "image/gif" );
-      // WebP
-      let mut webp = Vec::from( *b"RIFF\0\0\0\0WEBP" );
-      webp.push( 0 );
-      assert_eq!( SvgBackend::detect_image_mime( &webp ), "image/webp" );
-      // Unknown falls back to PNG
-      assert_eq!( SvgBackend::detect_image_mime( &[ 0, 0, 0, 0 ] ), "image/png" );
-    }
-
-    /// Verifies that `path_to_href` produces a valid URI reference:
-    /// spaces become %20 and Windows backslashes become forward slashes.
-    #[ test ]
-    fn image_path_produces_valid_uri_reference()
-    {
-      assert_eq!( SvgBackend::path_to_href( "images/tile set/floor.png" ), "images/tile%20set/floor.png" );
-      assert_eq!( SvgBackend::path_to_href( r"images\tiles\floor.png" ), "images/tiles/floor.png" );
-      assert_eq!( SvgBackend::path_to_href( "safe-name_1.2.png" ), "safe-name_1.2.png" );
-      // All URI-reserved and XML-unsafe characters are percent-encoded.
-      let e = SvgBackend::path_to_href( "a\"b<c>d&e#f?g%h" );
-      assert!( !e.contains( '"' ) && !e.contains( '<' ) && !e.contains( '>' ) && !e.contains( '&' ), "unsafe char leaked: {e}" );
-    }
-
-    /// Verifies that a short / non-PNG buffer returns None.
-    #[ test ]
-    fn png_dimensions_invalid()
-    {
-      assert_eq!( SvgBackend::png_dimensions( &[] ), None );
-      assert_eq!( SvgBackend::png_dimensions( &[ 0u8; 24 ] ), None ); // no PNG signature
-    }
-
-    /// Verifies that `load_assets` extracts PNG dimensions from `ImageSource::Encoded`
-    /// so that a sprite symbol uses the correct sheet size.
-    #[ test ]
-    fn image_encoded_png_stores_dimensions()
-    {
-      let png = SvgBackend::bitmap_to_png( &[ 0u8; 8 * 4 * 4 ], 8, 4, PixelFormat::Rgba8 ).unwrap();
-      let mut svg = svg800x600();
-      let assets = Assets
-      {
-        images : vec![ ImageAsset
-        {
-          id : ResourceId::new( 0 ),
-          source : ImageSource::Encoded( png ),
-          filter : SamplerFilter::Linear,
-          mipmap : MipmapMode::Off,
-          wrap : WrapMode::Clamp,
-        }],
-        sprites : vec![ SpriteAsset
-        {
-          id : ResourceId::new( 0 ),
-          sheet : ResourceId::new( 0 ),
-          region : [ 0.0, 0.0, 4.0, 4.0 ],
-        }],
-        ..empty_assets()
-      };
-      svg.load_assets( &assets ).unwrap();
-      let d = defs( &svg );
-      // The sprite symbol's <use> must reference width="8" height="4" (the sheet size)
-      assert!( d.contains( "width=\"8\"" ), "defs: {d}" );
-      assert!( d.contains( "height=\"4\"" ), "defs: {d}" );
-    }
-
-    const PNG_MAGIC : &[ u8 ] = &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ];
-
-    /// Verifies that a 1×1 Rgba8 pixel buffer produces valid PNG output
-    /// (starts with the PNG magic bytes).
-    #[ test ]
-    fn bitmap_to_png_rgba8_valid()
-    {
-      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 128, 255 ], 1, 1, PixelFormat::Rgba8 );
-      let bytes = png.expect( "expected Some for valid 1x1 Rgba8" );
-      assert!( bytes.starts_with( PNG_MAGIC ), "not PNG: {:?}", &bytes[ ..8.min( bytes.len() ) ] );
-    }
-
-    /// Verifies that a 1×1 Rgb8 pixel buffer encodes successfully.
-    #[ test ]
-    fn bitmap_to_png_rgb8_valid()
-    {
-      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 128 ], 1, 1, PixelFormat::Rgb8 );
-      assert!( png.is_some(), "expected Some for valid 1x1 Rgb8" );
-    }
-
-    /// Verifies that a 1×1 Gray8 pixel buffer encodes successfully.
-    #[ test ]
-    fn bitmap_to_png_gray8_valid()
-    {
-      let png = SvgBackend::bitmap_to_png( &[ 128 ], 1, 1, PixelFormat::Gray8 );
-      assert!( png.is_some(), "expected Some for valid 1x1 Gray8" );
-    }
-
-    /// Verifies that a 1×1 `GrayAlpha8` pixel buffer encodes successfully.
-    #[ test ]
-    fn bitmap_to_png_gray_alpha8_valid()
-    {
-      let png = SvgBackend::bitmap_to_png( &[ 128, 255 ], 1, 1, PixelFormat::GrayAlpha8 );
-      assert!( png.is_some(), "expected Some for valid 1x1 GrayAlpha8" );
-    }
-
-    /// Verifies that mismatched dimensions (too few bytes for the declared size) return None.
-    #[ test ]
-    fn bitmap_to_png_dimension_mismatch_returns_none()
-    {
-      // 2×2 Rgba8 needs 16 bytes; supplying only 4 must return None
-      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 0, 255 ], 2, 2, PixelFormat::Rgba8 );
-      assert!( png.is_none(), "expected None for undersized buffer" );
-    }
-
-    // anchor_to_svg — 9 variants (private method, must stay inline)
-
-    #[ test ]
-    fn anchor_top_left()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::TopLeft );
-      assert_eq!( h, "start" );
-      assert_eq!( v, "hanging" );
-    }
-
-    #[ test ]
-    fn anchor_top_center()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::TopCenter );
-      assert_eq!( h, "middle" );
-      assert_eq!( v, "hanging" );
-    }
-
-    #[ test ]
-    fn anchor_top_right()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::TopRight );
-      assert_eq!( h, "end" );
-      assert_eq!( v, "hanging" );
-    }
-
-    #[ test ]
-    fn anchor_center_left()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::CenterLeft );
-      assert_eq!( h, "start" );
-      assert_eq!( v, "central" );
-    }
-
-    #[ test ]
-    fn anchor_center()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::Center );
-      assert_eq!( h, "middle" );
-      assert_eq!( v, "central" );
-    }
-
-    #[ test ]
-    fn anchor_center_right()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::CenterRight );
-      assert_eq!( h, "end" );
-      assert_eq!( v, "central" );
-    }
-
-    #[ test ]
-    fn anchor_bottom_left()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::BottomLeft );
-      assert_eq!( h, "start" );
-      assert_eq!( v, "baseline" );
-    }
-
-    #[ test ]
-    fn anchor_bottom_center()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::BottomCenter );
-      assert_eq!( h, "middle" );
-      assert_eq!( v, "baseline" );
-    }
-
-    #[ test ]
-    fn anchor_bottom_right()
-    {
-      let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::BottomRight );
-      assert_eq!( h, "end" );
-      assert_eq!( v, "baseline" );
     }
   }
 }
@@ -2331,4 +1935,5 @@ mod private
 mod_interface::mod_interface!
 {
   own use SvgBackend;
+  own use SvgContentManager;
 }

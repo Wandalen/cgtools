@@ -86,12 +86,11 @@ pub enum PointerType
   Unknown,
 }
 
-impl PointerType
+impl From< &str > for PointerType
 {
   /// Convert from the DOM `PointerEvent.pointerType` string.
   #[ inline ]
-  #[ must_use ]
-  pub fn from_dom_str( s : &str ) -> Self
+  fn from( s : &str ) -> Self
   {
     match s
     {
@@ -198,12 +197,11 @@ impl Default for State
 
 /// A function to get pointer coordinates relative to the client area (the viewport).
 // Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
-#[ allow( clippy::cast_possible_truncation ) ]
 // Fix(BUG-053): `PointerEvent` derefs to `MouseEvent`, whose `client_x`/`client_y` return `i32`
 // or `f64` depending on `web_sys_unstable_apis` (see minwebgl/src/texture/d2.rs); `as i32` is a
 // real truncating cast in the `f64` case and a same-type identity cast clippy calls
 // "unnecessary" in the `i32` case — both are the same source line.
-#[ allow( clippy::unnecessary_cast ) ]
+#[ allow( clippy::unnecessary_cast, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is real under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled there" ) ]
 pub static CLIENT : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.client_x() as i32, event.client_y() as i32 ] )
@@ -211,12 +209,11 @@ pub static CLIENT : fn( &PointerEvent ) -> I32x2 = | event |
 
 /// A function to get pointer coordinates relative to the entire page, including scrolled-out areas.
 // Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
-#[ allow( clippy::cast_possible_truncation ) ]
 // Fix(BUG-053): `PointerEvent` derefs to `MouseEvent`, whose `page_x`/`page_y` return `i32` or
 // `f64` depending on `web_sys_unstable_apis` (see minwebgl/src/texture/d2.rs); `as i32` is a
 // real truncating cast in the `f64` case and a same-type identity cast clippy calls
 // "unnecessary" in the `i32` case — both are the same source line.
-#[ allow( clippy::unnecessary_cast ) ]
+#[ allow( clippy::unnecessary_cast, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is real under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled there" ) ]
 pub static PAGE : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.page_x() as i32, event.page_y() as i32 ] )
@@ -224,12 +221,11 @@ pub static PAGE : fn( &PointerEvent ) -> I32x2 = | event |
 
 /// A function to get pointer coordinates relative to the user's screen.
 // Browser pointer coordinates are conceptually integer pixel values; truncation is not expected in practice.
-#[ allow( clippy::cast_possible_truncation ) ]
 // Fix(BUG-053): `PointerEvent` derefs to `MouseEvent`, whose `screen_x`/`screen_y` return `i32`
 // or `f64` depending on `web_sys_unstable_apis` (see minwebgl/src/texture/d2.rs); `as i32` is a
 // real truncating cast in the `f64` case and a same-type identity cast clippy calls
 // "unnecessary" in the `i32` case — both are the same source line.
-#[ allow( clippy::unnecessary_cast ) ]
+#[ allow( clippy::unnecessary_cast, reason = "cfg-dependent per the Fix(BUG-053) note above — the cast is real under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled there" ) ]
 pub static SCREEN : fn( &PointerEvent ) -> I32x2 = | event |
 {
   I32x2::from_array( [ event.screen_x() as i32, event.screen_y() as i32 ] )
@@ -276,11 +272,7 @@ impl Input
   /// # Errors
   /// Returns `BrowserInputError` if browser APIs are unavailable or event listener registration fails.
   #[ inline ]
-  // Sets up 5 independent event closures (pointer button/cancel/move, wheel, keyboard) that
-  // share captured state (`event_queue`, `get_coords`, `last_pointer_type`) via `Rc::clone`.
-  // Splitting each closure into its own function would require threading that shared state
-  // through extra parameters for no behavioral change — a real refactor, not a mechanical one.
-  #[ allow( clippy::too_many_lines ) ]
+  #[ expect( clippy::too_many_lines, reason = "sets up 5 independent event closures sharing captured state ( event_queue, get_coords, last_pointer_type ) via Rc::clone; splitting each into its own function would thread that shared state through extra parameters for no behavioral change" ) ]
   pub fn new< F >
   (
     pointer_event_target : Option< EventTarget >,
@@ -306,7 +298,7 @@ impl Input
         let pos = ( *get_coords )( &event );
         let button = MouseButton::from_button( event.button() );
         let action = if event.type_() == "pointerdown" { Action::Press } else { Action::Release };
-        last_pointer_type.set( PointerType::from_dom_str( &event.pointer_type() ) );
+        last_pointer_type.set( PointerType::from( event.pointer_type().as_str() ) );
 
         // On press, capture the pointer so drag events keep arriving even when the
         // finger or cursor moves outside the target element's bounding box.
@@ -338,7 +330,7 @@ impl Input
         // The Pointer Events spec does not guarantee valid coordinates or button data
         // for pointercancel.
         let pointer_id = event.pointer_id();
-        last_pointer_type.set( PointerType::from_dom_str( &event.pointer_type() ) );
+        last_pointer_type.set( PointerType::from( event.pointer_type().as_str() ) );
         let event_type = EventType::PointerCancel( pointer_id );
         let alt = event.alt_key();
         let ctrl = event.ctrl_key();
@@ -355,7 +347,7 @@ impl Input
       {
         let pointer_id = event.pointer_id();
         let position = ( *get_coords )( &event );
-        last_pointer_type.set( PointerType::from_dom_str( &event.pointer_type() ) );
+        last_pointer_type.set( PointerType::from( event.pointer_type().as_str() ) );
         let event_type = EventType::PointerMove( pointer_id, position );
         let alt = event.alt_key();
         let ctrl = event.ctrl_key();
@@ -385,7 +377,7 @@ impl Input
       let event_queue = event_queue.clone();
       move | event : KeyboardEvent |
       {
-        let code = KeyboardKey::from_code( &event.code() );
+        let code = KeyboardKey::from( event.code().as_str() );
         let action = if event.type_() == "keydown" { Action::Press } else { Action::Release };
         let event_type = EventType::KeyboardKey( code, action );
         let alt = event.alt_key();
@@ -528,7 +520,7 @@ impl Input
   /// whether any pointer is currently active, use [`Input::active_pointers`].
   ///
   /// # Test coverage
-  /// The string-to-variant mapping is covered by the `from_dom_str` pins in
+  /// The string-to-variant mapping is covered by the `From< &str >` pins in
   /// `tests/pointer_type_test.rs`.
   /// End-to-end wiring through DOM callbacks requires a `wasm-bindgen-test` environment
   /// and is not covered on the native target.
@@ -553,14 +545,14 @@ impl Input
 
   /// Processes all pending events in the queue and updates the internal input state.
   #[ inline ]
-  pub fn update_state( &mut self )
+  pub fn state_update( &mut self )
   {
-    apply_events_to_state( &mut self.state, &self.event_queue.borrow() );
+    events_apply_to_state( &mut self.state, &self.event_queue.borrow() );
   }
 
   /// Clears all events from the event queue.
   #[ inline ]
-  pub fn clear_events( &mut self )
+  pub fn events_clear( &mut self )
   {
     self.event_queue.borrow_mut().clear();
     self.state.scroll = F64x3::default();
@@ -569,7 +561,7 @@ impl Input
 
 /// Applies a slice of events to the given state, updating it accordingly.
 #[ inline ]
-pub fn apply_events_to_state( state : &mut State, events : &[ Event ] )
+pub fn events_apply_to_state( state : &mut State, events : &[ Event ] )
 {
   for Event { event_type, .. } in events
   {

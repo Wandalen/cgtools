@@ -17,7 +17,7 @@
 /// Parses `source` as WGSL and runs naga's full IR validation over it,
 /// panicking with a span-annotated report on any defect. `name` labels the
 /// failure so the offending file is identifiable from the assertion alone.
-fn validate_wgsl( name : &str, source : &str )
+fn wgsl_validate( name : &str, source : &str )
 {
   let module = match naga::front::wgsl::parse_str( source )
   {
@@ -40,11 +40,11 @@ fn validate_wgsl( name : &str, source : &str )
 #[ test ]
 fn main_wgsl_parses_and_validates()
 {
-  validate_wgsl( "main.wgsl", include_str!( "../src/webgpu/shaders/main.wgsl" ) );
+  wgsl_validate( "main.wgsl", include_str!( "../src/webgpu/shaders/main.wgsl" ) );
 }
 
 #[ test ]
 fn tonemap_wgsl_parses_and_validates()
 {
-  validate_wgsl( "tonemap.wgsl", include_str!( "../src/webgpu/shaders/tonemap.wgsl" ) );
+  wgsl_validate( "tonemap.wgsl", include_str!( "../src/webgpu/shaders/tonemap.wgsl" ) );
 }

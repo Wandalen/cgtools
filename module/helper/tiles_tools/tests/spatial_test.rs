@@ -65,7 +65,7 @@ fn test_quadtree_basic_operations() {
 
   // Query specific region
   let query_bounds = SpatialBounds::new(0, 0, 50, 50);
-  let region_entities = quadtree.query_region(&query_bounds);
+  let region_entities = quadtree.region_query(&query_bounds);
   assert_eq!(region_entities.len(), 1);
   assert_eq!(region_entities[0].id, 1);
 }
@@ -97,7 +97,7 @@ fn test_quadtree_circular_query() {
   quadtree.insert(SpatialEntity::new(3, SquareCoord::<FourConnected>::new(80, 80), 1)); // Far
 
   // Query circle around center
-  let nearby = quadtree.query_circle(50, 50, 5);
+  let nearby = quadtree.circle_query(50, 50, 5);
   assert_eq!(nearby.len(), 2); // Should find entities 1 and 2, not 3
 }
 

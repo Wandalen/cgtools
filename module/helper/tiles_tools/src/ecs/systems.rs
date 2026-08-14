@@ -44,7 +44,7 @@ impl MovementSystem
   /// forwarded verbatim to [ `astar` ]: the ECS deliberately defines no obstacle or
   /// terrain component to derive them from, so the caller owns both. Pass
   /// `| _ | true` and `| _ | 1` for an open field with uniform cost.
-  pub fn process_movement< C, Fa, Fc >
+  pub fn movement_process< C, Fa, Fc >
   (
     world : &mut hecs::World,
     movement_requests : &HashMap< hecs::Entity, C >,
@@ -62,7 +62,7 @@ impl MovementSystem
     {
       if let Ok( ( pos, movable ) ) = world.query_one_mut::< ( &mut Position< C >, &Movable ) >( *entity )
       {
-        let movement_result = Self::calculate_movement( &pos.coord, target, *movable, &mut is_accessible, &mut cost );
+        let movement_result = Self::movement_calculate( &pos.coord, target, *movable, &mut is_accessible, &mut cost );
 
         match movement_result
         {
@@ -81,7 +81,7 @@ impl MovementSystem
 
   /// Calculates movement path and validates movement request, using the caller's
   /// `is_accessible`/`cost` policies for pathfinding.
-  fn calculate_movement< C, Fa, Fc >
+  fn movement_calculate< C, Fa, Fc >
   (
     current : &C,
     target : &C,
@@ -172,14 +172,14 @@ pub struct CombatSystem;
 impl CombatSystem {
   /// Processes combat between all entities within attack range.
   /// Note: Simplified implementation for demonstration
-  pub fn process_combat(world: &mut hecs::World) -> Vec<CombatEvent> {
+  pub fn combat_process(world: &mut hecs::World) -> Vec<CombatEvent> {
     let mut combat_events = Vec::new();
     
     // Simplified combat processing - in a real game this would handle
     // position-based combat with specific coordinate systems
     // For now, we just check for defeated entities
     
-    for (entity, health) in &mut world.query::<&Health>() {
+    for (entity, health) in &mut world.query::<(hecs::Entity, &Health)>() {
       if !health.is_alive() {
         combat_events.push(CombatEvent::Defeated { entity });
       }
@@ -220,13 +220,13 @@ pub struct AISystem;
 impl AISystem {
   /// Updates AI for all AI-controlled entities.
   /// Note: Simplified implementation for demonstration
-  pub fn update_ai(world: &mut hecs::World, dt: f32) {
-    for (_entity, ai) in world.query_mut::<&mut AI>() {
+  pub fn ai_update(world: &mut hecs::World, dt: f32) {
+    for ai in world.query_mut::<&mut AI>() {
       ai.update(dt);
-      
+
       if ai.should_make_decision() {
         // Simplified AI decision making
-        ai.reset_decision_timer();
+        ai.decision_timer_reset();
       }
     }
   }
@@ -276,8 +276,8 @@ pub struct AnimationSystem;
 
 impl AnimationSystem {
   /// Updates all animations by the specified time delta.
-  pub fn update_animations(world: &mut hecs::World, dt: f32) {
-    for (_entity, animation) in world.query_mut::<&mut Animation>() {
+  pub fn animations_update(world: &mut hecs::World, dt: f32) {
+    for animation in world.query_mut::<&mut Animation>() {
       animation.update(dt);
     }
   }
@@ -292,11 +292,11 @@ pub struct CleanupSystem;
 
 impl CleanupSystem {
   /// Removes entities that have died or should be cleaned up.
-  pub fn cleanup_defeated_entities(world: &mut hecs::World) -> Vec<hecs::Entity> {
+  pub fn defeated_entities_cleanup(world: &mut hecs::World) -> Vec<hecs::Entity> {
     let mut entities_to_remove = Vec::new();
 
     // Find entities with 0 health
-    for (entity, health) in &mut world.query::<&Health>() {
+    for (entity, health) in &mut world.query::<(hecs::Entity, &Health)>() {
       if !health.is_alive() {
         entities_to_remove.push(entity);
       }
@@ -318,7 +318,7 @@ impl CleanupSystem {
 // =============================================================================
 
 /// Finds all entities within a specified range of a position.
-pub fn find_entities_in_range<C>(
+pub fn entities_in_range_find<C>(
   world: &hecs::World,
   center: &Position<C>,
   range: u32,
@@ -328,7 +328,7 @@ where
 {
   let mut entities = Vec::new();
 
-  for (entity, pos) in &mut world.query::<&Position<C>>() {
+  for (entity, pos) in &mut world.query::<(hecs::Entity, &Position<C>)>() {
     if center.distance_to(pos) <= range {
       entities.push((entity, pos.clone()));
     }
@@ -338,7 +338,7 @@ where
 }
 
 /// Finds the nearest entity to a given position.
-pub fn find_nearest_entity<C>(
+pub fn nearest_entity_find<C>(
   world: &hecs::World,
   center: &Position<C>,
 ) -> Option<(hecs::Entity, Position<C>, u32)>
@@ -348,7 +348,7 @@ where
   let mut nearest = None;
   let mut nearest_distance = u32::MAX;
 
-  for (entity, pos) in &mut world.query::<&Position<C>>() {
+  for (entity, pos) in &mut world.query::<(hecs::Entity, &Position<C>)>() {
     let distance = center.distance_to(pos);
     if distance < nearest_distance {
       nearest_distance = distance;
@@ -368,15 +368,15 @@ pub struct CollisionSystem;
 
 impl CollisionSystem {
   /// Detects collisions between all entities with collision components.
-  #[allow(clippy::similar_names)] // Pairwise collision loop — numbered pair bindings are the clearest naming.
-  pub fn detect_collisions<C>(
+  #[ expect( clippy::similar_names, reason = "pairwise collision loop; numbered pair bindings are the clearest naming" ) ]
+  pub fn collisions_detect<C>(
     world: &hecs::World,
   ) -> Vec<CollisionEvent<C>>
   where
     C: Distance + Clone + PartialEq + Send + Sync + 'static,
   {
     let mut collisions = Vec::new();
-    let mut query = world.query::<(&Position<C>, &Collision)>();
+    let mut query = world.query::<(hecs::Entity, (&Position<C>, &Collision))>();
     let entities_with_collision: Vec<_> = query.iter().collect();
 
     // Check all pairs of entities for collisions
@@ -385,7 +385,7 @@ impl CollisionSystem {
         let (entity1, (pos1, collision1)) = entities_with_collision[i];
         let (entity2, (pos2, collision2)) = entities_with_collision[j];
 
-        if Self::check_collision(pos1, collision1, pos2, collision2) {
+        if Self::collision_check(pos1, collision1, pos2, collision2) {
           collisions.push(CollisionEvent {
             entity1,
             entity2,
@@ -400,7 +400,7 @@ impl CollisionSystem {
   }
 
   /// Checks if two entities are colliding based on their positions and collision properties.
-  fn check_collision<C>(
+  fn collision_check<C>(
     pos1: &Position<C>,
     collision1: &Collision,
     pos2: &Position<C>, 
@@ -415,7 +415,7 @@ impl CollisionSystem {
   }
 
   /// Resolves collisions by separating overlapping entities.
-  pub fn resolve_collisions<C>(
+  pub fn collisions_resolve<C>(
     world: &mut hecs::World,
     collisions: &[CollisionEvent<C>],
   )
@@ -504,7 +504,7 @@ pub struct SpatialQuerySystem;
 
 impl SpatialQuerySystem {
   /// Finds all entities within a circular area.
-  pub fn query_circle<C>(
+  pub fn circle_query<C>(
     world: &hecs::World,
     center: &Position<C>,
     radius: u32,
@@ -512,11 +512,11 @@ impl SpatialQuerySystem {
   where
     C: Distance + Clone + Send + Sync + 'static,
   {
-    find_entities_in_range(world, center, radius)
+    entities_in_range_find(world, center, radius)
   }
 
   /// Finds all entities along a line between two points.
-  pub fn query_line<C>(
+  pub fn line_query<C>(
     world: &hecs::World,
     start: &Position<C>,
     end: &Position<C>,
@@ -525,13 +525,13 @@ impl SpatialQuerySystem {
     C: Distance + Neighbors + Clone + PartialEq + std::hash::Hash + Send + Sync + 'static,
   {
     let mut entities = Vec::new();
-    
+
     // Get line positions using simplified line tracing
-    let line_positions = Self::trace_line(&start.coord, &end.coord);
+    let line_positions = Self::line_trace(&start.coord, &end.coord);
     
     // Find entities at each position along the line
     for line_pos in line_positions {
-      for (entity, pos) in &mut world.query::<&Position<C>>() {
+      for (entity, pos) in &mut world.query::<(hecs::Entity, &Position<C>)>() {
         if pos.coord == line_pos {
           entities.push((entity, pos.clone()));
         }
@@ -542,7 +542,7 @@ impl SpatialQuerySystem {
   }
 
   /// Finds all entities within a rectangular area.
-  pub fn query_rectangle<C>(
+  pub fn rectangle_query<C>(
     world: &hecs::World,
     center: &Position<C>,
     width: u32,
@@ -554,7 +554,7 @@ impl SpatialQuerySystem {
     let mut entities = Vec::new();
     let max_distance = ((width * width + height * height) as f32).sqrt() as u32;
 
-    for (entity, pos) in &mut world.query::<&Position<C>>() {
+    for (entity, pos) in &mut world.query::<(hecs::Entity, &Position<C>)>() {
       let distance = center.distance_to(pos);
       if distance <= max_distance {
         // Additional filtering could be added here for precise rectangular bounds
@@ -566,7 +566,7 @@ impl SpatialQuerySystem {
   }
 
   /// Finds entities by team affiliation within a range.
-  pub fn query_by_team<C>(
+  pub fn by_team_query<C>(
     world: &hecs::World,
     center: &Position<C>,
     radius: u32,
@@ -577,7 +577,7 @@ impl SpatialQuerySystem {
   {
     let mut entities = Vec::new();
 
-    for (entity, (pos, team)) in &mut world.query::<(&Position<C>, &Team)>() {
+    for (entity, (pos, team)) in &mut world.query::<(hecs::Entity, (&Position<C>, &Team))>() {
       if center.distance_to(pos) <= radius && team_filter(team) {
         entities.push((entity, pos.clone(), *team));
       }
@@ -587,7 +587,7 @@ impl SpatialQuerySystem {
   }
 
   /// Simplified line tracing for spatial queries.
-  fn trace_line<C>(start: &C, end: &C) -> Vec<C>
+  fn line_trace<C>(start: &C, end: &C) -> Vec<C>
   where
     C: Distance + Neighbors + Clone + PartialEq,
   {

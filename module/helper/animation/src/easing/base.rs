@@ -33,8 +33,8 @@ mod private
     T : EasingFunction< AnimatableType = A >,
     A : Animatable,
   {
-    /// Creates a new `Box` containing an instance of the easing function.
-    fn new() -> Box< T >;
+    /// Builds a `Box` containing an instance of the easing function.
+    fn build() -> Box< T >;
   }
 
   /// A basic linear easing function.
@@ -58,7 +58,7 @@ mod private
   impl< A > EasingBuilder< Linear< A >, A > for Linear< A >
   where A : Animatable
   {
-    fn new() -> Box< Linear< A > >
+    fn build() -> Box< Linear< A > >
     {
       Box::new( Linear( PhantomData ) )
     }
@@ -82,6 +82,7 @@ mod private
     A : Animatable,
   {
     /// Init [`Step`] easing function
+    #[must_use]
     pub fn new( steps : f64 ) -> Self
     {
       Self

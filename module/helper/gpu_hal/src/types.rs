@@ -2,7 +2,6 @@ mod private
 {
   #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   use minwebgpu as gl;
-  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   use crate::Error;
 
   /// Buffer usage bit flags ( WebGPU bit values ).
@@ -97,24 +96,59 @@ mod private
     Depth24Plus
   }
 
-  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
   impl TextureFormat
   {
-    /// The equivalent raw WebGPU format.
-    pub fn to_webgpu( self ) -> gl::GpuTextureFormat
+    /// Bytes occupied by one texel, for `bytes_per_row` computation on a
+    /// tightly-packed ( unpadded ) CPU-side upload buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] for `Depth24Plus`, whose CPU-side
+    /// byte layout is platform-defined and not a portable upload target.
+    pub fn bytes_per_texel( self ) -> Result< u32, Error >
     {
       match self
       {
-        Self::Rgba8Unorm => gl::GpuTextureFormat::Rgba8unorm,
-        Self::Rgba8UnormSrgb => gl::GpuTextureFormat::Rgba8unormSrgb,
-        Self::Bgra8Unorm => gl::GpuTextureFormat::Bgra8unorm,
-        Self::Rgba16Float => gl::GpuTextureFormat::Rgba16float,
-        Self::Depth24Plus => gl::GpuTextureFormat::Depth24plus
+        Self::Rgba8Unorm | Self::Rgba8UnormSrgb | Self::Bgra8Unorm => Ok( 4 ),
+        Self::Rgba16Float => Ok( 8 ),
+        Self::Depth24Plus =>
+        {
+          Err( Error::Unsupported( "depth24plus has no portable CPU-side texel layout".to_string() ) )
+        }
       }
     }
+  }
+
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+  impl From< TextureFormat > for gl::GpuTextureFormat
+  {
+    /// The equivalent raw WebGPU format.
+    fn from( value : TextureFormat ) -> Self
+    {
+      match value
+      {
+        TextureFormat::Rgba8Unorm => gl::GpuTextureFormat::Rgba8unorm,
+        TextureFormat::Rgba8UnormSrgb => gl::GpuTextureFormat::Rgba8unormSrgb,
+        TextureFormat::Bgra8Unorm => gl::GpuTextureFormat::Bgra8unorm,
+        TextureFormat::Rgba16Float => gl::GpuTextureFormat::Rgba16float,
+        TextureFormat::Depth24Plus => gl::GpuTextureFormat::Depth24plus
+      }
+    }
+  }
+
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+  impl TryFrom< gl::GpuTextureFormat > for TextureFormat
+  {
+    /// The error type returned if the conversion fails.
+    type Error = Error;
 
     /// The HAL equivalent of a raw WebGPU format, when the v0 surface has one.
-    pub fn from_webgpu( format : gl::GpuTextureFormat ) -> Result< Self, Error >
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] when `format` has no equivalent in the
+    /// v0 surface.
+    fn try_from( format : gl::GpuTextureFormat ) -> Result< Self, Self::Error >
     {
       match format
       {
@@ -141,16 +175,16 @@ mod private
   }
 
   #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
-  impl VertexFormat
+  impl From< VertexFormat > for gl::GpuVertexFormat
   {
     /// The equivalent raw WebGPU format.
-    pub fn to_webgpu( self ) -> gl::GpuVertexFormat
+    fn from( value : VertexFormat ) -> Self
     {
-      match self
+      match value
       {
-        Self::Float32x2 => gl::GpuVertexFormat::Float32x2,
-        Self::Float32x3 => gl::GpuVertexFormat::Float32x3,
-        Self::Float32x4 => gl::GpuVertexFormat::Float32x4
+        VertexFormat::Float32x2 => gl::GpuVertexFormat::Float32x2,
+        VertexFormat::Float32x3 => gl::GpuVertexFormat::Float32x3,
+        VertexFormat::Float32x4 => gl::GpuVertexFormat::Float32x4
       }
     }
   }
@@ -164,14 +198,14 @@ mod private
   }
 
   #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
-  impl IndexFormat
+  impl From< IndexFormat > for gl::GpuIndexFormat
   {
     /// The equivalent raw WebGPU format.
-    pub fn to_webgpu( self ) -> gl::GpuIndexFormat
+    fn from( value : IndexFormat ) -> Self
     {
-      match self
+      match value
       {
-        Self::Uint32 => gl::GpuIndexFormat::Uint32
+        IndexFormat::Uint32 => gl::GpuIndexFormat::Uint32
       }
     }
   }

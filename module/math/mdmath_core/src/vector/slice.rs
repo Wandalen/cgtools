@@ -27,7 +27,7 @@ impl< E, const N : usize > ArrayRef< E, N > for [ E ]
   {
     assert!( self.len() >= N, "Slice must have at least {N} element" );
     // SAFETY: This is safe if the slice has at least 1 element.
-    #[ allow( unsafe_code ) ]
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
     unsafe { &*self.as_ptr().cast::<[ E ; N ]>() }
   }
 }
@@ -39,7 +39,7 @@ impl< E, const N : usize > ArrayRef< E, N > for &[ E ]
   {
     assert!( ( *self ).len() >= N, "Slice must have at least {N} element" );
     // SAFETY: This is safe if the slice has at least 1 element.
-    #[ allow( unsafe_code ) ]
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
     unsafe { &*( *self ).as_ptr().cast::<[ E ; N ]>() }
   }
 }
@@ -58,7 +58,7 @@ impl< E, const N : usize > ArrayMut< E, N > for [ E ]
     // never upgrades a pointer's borrow provenance — the source accessor
     // must already be the mutable one.
     // SAFETY: This is safe if the slice has at least N element.
-    #[ allow( unsafe_code ) ]
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
     unsafe { &mut *self.as_mut_ptr().cast::<[ E ; N ]>() }
   }
 }

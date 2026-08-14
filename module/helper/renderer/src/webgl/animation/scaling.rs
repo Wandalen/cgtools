@@ -144,7 +144,7 @@ mod private
     /// * `node` - The node to apply the rotation to
     /// * `name` - The name identifier for the node's rotation animation
     /// * `scale` - The scaling factor to apply to the rotation angle
-    fn apply_scaled_rotation
+    fn scaled_rotation_apply
     (
       &self,
       node : &Rc< RefCell< Node > >,
@@ -191,7 +191,7 @@ mod private
       {
         let rotation = tween.value_get();
         let rotation = QuatF32::from( rotation.0.map( | v | v as f32 ) );
-        node.borrow_mut().set_rotation( rotation );
+        node.borrow_mut().rotation_set( rotation );
       }
     }
 
@@ -201,7 +201,7 @@ mod private
     ///
     /// * `node` - The node to apply transforms to
     /// * `name` - The name identifier for the node's animations
-    fn apply_unscaled_transforms
+    fn unscaled_transforms_apply
     (
       &self,
       node : &Rc< RefCell< Node > >,
@@ -216,7 +216,7 @@ mod private
         if let Some( translation ) = translation.current_get()
         {
           let translation = translation.value_get().0.map( | v | v as f32 );
-          node.borrow_mut().set_translation( F32x3::from_array( translation ) );
+          node.borrow_mut().translation_set( F32x3::from_array( translation ) );
         }
       }
 
@@ -228,7 +228,7 @@ mod private
         if let Some( rotation ) = rotation.current_get()
         {
           let rotation = rotation.value_get().0.map( | v | v as f32 );
-          node.borrow_mut().set_rotation( QuatF32::from( rotation ) );
+          node.borrow_mut().rotation_set( QuatF32::from( rotation ) );
         }
       }
 
@@ -240,7 +240,7 @@ mod private
         if let Some( scale ) = scale.current_get()
         {
           let scale = scale.value_get().0.map( | v | v as f32 );
-          node.borrow_mut().set_scale( F32x3::from_array( scale ) );
+          node.borrow_mut().scale_set( F32x3::from_array( scale ) );
         }
       }
     }
@@ -284,7 +284,7 @@ mod private
           };
 
           used_nodes.insert( name.clone() );
-          self.apply_scaled_rotation( node, name, scales.y() );
+          self.scaled_rotation_apply( node, name, scales.y() );
         }
       }
 
@@ -293,7 +293,7 @@ mod private
       {
         if !used_nodes.contains( name )
         {
-          self.apply_unscaled_transforms( node, name );
+          self.unscaled_transforms_apply( node, name );
         }
       }
     }

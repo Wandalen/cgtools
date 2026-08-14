@@ -1,5 +1,10 @@
-use crate::*;
-use filters::*;
+use crate::
+{
+  filters,
+  framebuffer,
+  wasm_bindgen,
+};
+use filters::{ FilterRenderer, Filter };
 use framebuffer::Framebuffer;
 use minwebgl as gl;
 use gl::GL;
@@ -45,17 +50,17 @@ impl Renderer
     }
   }
 
-  pub fn set_image_texture( &mut self, image_texture : Option< WebGlTexture > )
+  pub fn image_texture_set( &mut self, image_texture : Option< WebGlTexture > )
   {
     self.image_texture = image_texture;
   }
 
-  pub fn set_original_texture( &mut self, original_texture : Option< WebGlTexture > )
+  pub fn original_texture_set( &mut self, original_texture : Option< WebGlTexture > )
   {
     self.original_texture = original_texture;
   }
 
-  pub fn restore_original_texture( &mut self )
+  pub fn original_texture_restore( &mut self )
   {
     if let Some( original ) = &self.original_texture
     {
@@ -63,7 +68,7 @@ impl Renderer
     }
   }
 
-  pub fn save_previous_texture( &mut self )
+  pub fn previous_texture_save( &mut self )
   {
     self.previous_texture = self.image_texture.clone();
     // Save current canvas dimensions so they can be restored on cancel
@@ -76,7 +81,7 @@ impl Renderer
     }
   }
 
-  pub fn restore_previous_texture( &mut self )
+  pub fn previous_texture_restore( &mut self )
   {
     if let Some( previous ) = self.previous_texture.take()
     {
@@ -96,18 +101,18 @@ impl Renderer
     }
   }
 
-  pub fn clear_previous_state( &mut self )
+  pub fn previous_state_clear( &mut self )
   {
     self.previous_texture = None;
     self.previous_canvas_size = None;
   }
 
-  pub fn update_framebuffer_size( &mut self, width : i32, height : i32 )
+  pub fn framebuffer_size_update( &mut self, width : i32, height : i32 )
   {
     self.framebuffer = Framebuffer::new( &self.gl, width, height ).expect( "Can't create framebuffer" );
   }
 
-  pub fn apply_filter( &mut self, filter : &impl Filter )
+  pub fn filter_apply( &mut self, filter : &impl Filter )
   {
     if self.image_texture.is_none()
     {
@@ -118,7 +123,7 @@ impl Renderer
     if self.current_filter_source != filter_source
     {
       // Recompile program
-      self.program = Some( Self::create_program( &self.gl, &filter_source ) );
+      self.program = Some( Self::program_create( &self.gl, &filter_source ) );
       self.current_filter_source = filter_source;
     }
 
@@ -134,16 +139,16 @@ impl Renderer
         let h = canvas.height() as i32;
         if w != self.framebuffer.width() || h != self.framebuffer.height()
         {
-          self.update_framebuffer_size( w, h );
+          self.framebuffer_size_update( w, h );
         }
       }
     }
   }
 
-  fn create_program( gl : &GL, filter_source : &str ) -> WebGlProgram
+  fn program_create( gl : &GL, filter_source : &str ) -> WebGlProgram
   {
     gl::ProgramFromSources::new( Self::VERTEX_SOURCE, filter_source )
-    .compile_and_link( &gl )
+    .compile_and_link( gl )
     .expect( "Unable to compile program" )
   }
 }

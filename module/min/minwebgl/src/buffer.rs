@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::{ web_sys, data_type, GL, WebglError, mem, AsBytes, VectorDataType, StrideTrait, IntoVectorDataType };
+  use crate::{ web_sys, data_type, GL, WebglError, mem, VectorDataType, IntoVectorDataType };
   pub use web_sys::WebGlBuffer;
   use data_type::Const;
 

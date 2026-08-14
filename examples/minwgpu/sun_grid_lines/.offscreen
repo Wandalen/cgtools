@@ -1,3 +1,0 @@
-Marker file: presence tells `action run list` to categorize this example as
-"offscreen" — renders once to a file and exits, no window opens. See
-action/run's _discover().

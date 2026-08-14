@@ -48,7 +48,7 @@ mod private
     ///
     /// # Returns
     /// - The rotated vector.
-    fn rotate_vector< V >( &self, vec : &mut V )
+    fn vector_rotate< V >( &self, vec : &mut V )
     where
       V : VectorSpace< SIZE > + Collection< Scalar = < Self as Collection >::Scalar >;
 

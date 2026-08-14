@@ -11,3 +11,6 @@ lol_alloc = "0.4.1"
 
 [package.metadata.action]
 tags = ["runtime:browser", "api:webgl"]
+
+[lints]
+workspace = true

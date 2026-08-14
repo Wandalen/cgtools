@@ -5,12 +5,21 @@
 mod tests
 {
   use wasm_bindgen_test::wasm_bindgen_test;
+
+  // Fix(BUG-110): this suite had no `wasm_bindgen_test_configure!( run_in_browser )` call, so
+  // its one test binary defaulted to Node.js, where `web_sys::window()` is always `None`.
+  // Root cause: file created without the configure! line every sibling suite in this directory
+  // (animation_tests.rs, pmrem_tests.rs, skeleton_tests.rs) already carries.
+  // Pitfall: a missing `run_in_browser` config doesn't fail to compile — it fails at runtime
+  // with an unrelated-looking `CanvasRetrievingError("Failed to get window")`, which reads like
+  // a `minwebgl`/`mingl` regression rather than the test's own harness misconfiguration.
+  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
   use gl::GL;
   use renderer::webgl::{ Geometry, AttributeInfo };
 
   /// Creates a headless WebGL2 context for structural tests.
-  async fn init_gl() -> GL
+  async fn gl_init() -> GL
   {
     gl::browser::setup( Default::default() );
     let canvas = gl::canvas::make().unwrap();
@@ -58,13 +67,13 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn add_attribute_duplicate_name_returns_err_not_panic()
   {
-    let gl = init_gl().await;
+    let gl = gl_init().await;
     let mut geometry = Geometry::new( &gl ).expect( "Geometry::new should succeed" );
 
-    geometry.add_attribute( &gl, "positions", make_attribute_info( &gl ) )
+    geometry.attribute_add( &gl, "positions", make_attribute_info( &gl ) )
     .expect( "first add_attribute call with a fresh name should succeed" );
 
-    let result = geometry.add_attribute( &gl, "positions", make_attribute_info( &gl ) );
+    let result = geometry.attribute_add( &gl, "positions", make_attribute_info( &gl ) );
 
     assert!
     (

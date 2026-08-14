@@ -1,3 +1,4 @@
+//! Object picking example — selects rendered objects under the mouse cursor with WebGL2.
 
 mod shaders;
 
@@ -10,7 +11,7 @@ use ndarray_cg::
   vector::F32x3,
 };
 use d2::mat3x3h;
-use rand::Rng as _;
+use rand::RngExt as _;
 use web_sys::
 {
   js_sys,
@@ -22,11 +23,11 @@ use web_sys::
 
 fn main()
 {
-  gl::browser::setup( Default::default() );
-  gl::spawn_local( async { gl::info!( "{:?}", run().await ) } );
+  gl::browser::setup( gl::browser::Config::default() );
+  gl::spawn_local( async { gl::info!( "{:?}", app_run().await ) } );
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   let width =  1280;
   let height = 720;
@@ -41,11 +42,11 @@ async fn run() -> Result< (), gl::WebglError >
   gl.enable( GL::CULL_FACE );
 
   let obj = gl::file::load( "static/cat/Cat.obj" ).await.unwrap();
-  let ( models, materials ) = gl::model::load_model_from_slice( &obj, "static/cat", &tobj::GPU_LOAD_OPTIONS )
+  let ( models, materials ) = gl::model::model_load_from_slice( &obj, "static/cat", &tobj::GPU_LOAD_OPTIONS )
   .await
   .expect( "Can't read model" );
   let materials = materials.expect( "Can't load materials" );
-  let meshes : Box< [ _ ] > = load_meshes( &models, &materials, &gl ).await.into();
+  let meshes : Box< [ _ ] > = meshes_load( &models, &materials, &gl ).await.into();
 
   // create framebuffer for id texture
   let id_texture = empty_texture2d( &gl, GL::R32I, width, height );
@@ -62,7 +63,7 @@ async fn run() -> Result< (), gl::WebglError >
   // shader for drawing outline
   let outline_shader = shaders::OutlineShader::new( &gl );
 
-  let objects : Box< [ _ ] > = create_objects().into();
+  let objects : Box< [ _ ] > = objects_create().into();
 
   let aspect_ratio = width as f32 / height as f32;
   let projection = mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000.0 );
@@ -81,7 +82,7 @@ async fn run() -> Result< (), gl::WebglError >
     let mvp = projection * object.transform;
     gl::uniform::matrix_upload( &gl, id_shader.mvp.clone(), mvp.raw_slice(), true ).unwrap();
     gl::uniform::upload( &gl, id_shader.id.clone(), &object.id ).unwrap();
-    draw_meshes( &meshes, &gl );
+    meshes_draw( &meshes, &gl );
   }
 
   gl.bind_framebuffer( GL::FRAMEBUFFER, None );
@@ -97,7 +98,7 @@ async fn run() -> Result< (), gl::WebglError >
   ).unwrap();
 
   // draw all the objects
-  draw_objects( &objects, &object_shader, &meshes, &gl );
+  objects_draw( &objects, &object_shader, &meshes, &gl );
 
   let id = web_sys::js_sys::Int32Array::new_with_length( 1 );
   let mut selected = -1;
@@ -115,14 +116,14 @@ async fn run() -> Result< (), gl::WebglError >
       // `web_sys_unstable_apis` is active (see minwebgl/src/texture/d2.rs); the explicit `f64`
       // annotation makes `.into()` resolve correctly in both cases (`i32: Into<f64>` widens,
       // `f64: Into<f64>` is identity), matching `canvas_x`/`canvas_y` (`rect.left()`/`.top()`).
-      #[ allow( clippy::useless_conversion ) ]
+      #[ allow( clippy::useless_conversion, reason = "cfg-dependent per the Fix(BUG-053) note above — the conversion is an identity only under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled in the default i32 build" ) ]
       let x : f64 = e.client_x().into();
-      #[ allow( clippy::useless_conversion ) ]
+      #[ allow( clippy::useless_conversion, reason = "cfg-dependent per the Fix(BUG-053) note above — the conversion is an identity only under the web_sys_unstable_apis f64 signature, so expect would be unfulfilled in the default i32 build" ) ]
       let y : f64 = e.client_y().into();
 
       let x = x - canvas_x;
       let y = y - canvas_y;
-      let y = height as f64 - y;
+      let y = f64::from( height ) - y;
 
       let pos = [ x, y ];
 
@@ -148,8 +149,8 @@ async fn run() -> Result< (), gl::WebglError >
       if id != selected && id != -1
       {
         selected = id;
-        draw_objects( &objects, &object_shader, &meshes, &gl );
-        draw_outline( &objects, &object_shader, &outline_shader, &meshes, selected, projection, &gl );
+        objects_draw( &objects, &object_shader, &meshes, &gl );
+        outline_draw( &objects, &object_shader, &outline_shader, &meshes, selected, projection, &gl );
       }
     }
   };
@@ -160,7 +161,7 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
-fn draw_outline
+fn outline_draw
 (
   objects : &[ Object ],
   object_shader : &shaders::ObjectShader,
@@ -184,20 +185,20 @@ fn draw_outline
   gl.use_program( Some( &outline_shader.program ) );
   gl::uniform::matrix_upload
   (
-    &gl,
+    gl,
     outline_shader.mvp.clone(),
     ( projection * transform ).raw_slice(),
     true
   ).unwrap();
 
   gl.disable( GL::DEPTH_TEST );
-  draw_meshes( meshes.as_ref(), &gl );
+  meshes_draw( meshes, gl );
 
   // draw object
   gl.use_program( Some( &object_shader.program ) );
   gl::uniform::matrix_upload
   (
-    &gl,
+    gl,
     object_shader.model.clone(),
     transform.raw_slice(),
     true
@@ -205,10 +206,10 @@ fn draw_outline
 
   gl.enable( GL::DEPTH_TEST );
   gl.clear( GL::DEPTH_BUFFER_BIT );
-  draw_meshes( meshes.as_ref(), &gl );
+  meshes_draw( meshes, gl );
 }
 
-fn draw_objects( objects : &[ Object ], object_shader : &shaders::ObjectShader, meshes : &[ Mesh ], gl : &GL )
+fn objects_draw( objects : &[ Object ], object_shader : &shaders::ObjectShader, meshes : &[ Mesh ], gl : &GL )
 {
   for object in objects
   {
@@ -220,11 +221,11 @@ fn draw_objects( objects : &[ Object ], object_shader : &shaders::ObjectShader, 
       true
     ).unwrap();
 
-    draw_meshes( meshes.as_ref(), gl );
+    meshes_draw( meshes, gl );
   }
 }
 
-fn draw_meshes( meshes : &[ Mesh ], gl : &GL )
+fn meshes_draw( meshes : &[ Mesh ], gl : &GL )
 {
   for mesh in meshes
   {
@@ -234,7 +235,7 @@ fn draw_meshes( meshes : &[ Mesh ], gl : &GL )
   }
 }
 
-async fn load_meshes( models : &[ tobj::Model ], materials : &[ tobj::Material ], gl : &GL ) -> Vec< Mesh >
+async fn meshes_load( models : &[ tobj::Model ], materials : &[ tobj::Material ], gl : &GL ) -> Vec< Mesh >
 {
   let mut meshes = vec![];
   for ( model, material ) in models.iter().zip( materials )
@@ -272,7 +273,7 @@ async fn load_meshes( models : &[ tobj::Model ], materials : &[ tobj::Material ]
 
     let texture = if let Some( name ) = &material.diffuse_texture
     {
-      let img = gl::dom::create_image_element( &format!( "static/cat/{}", name ) ).unwrap();
+      let img = gl::dom::image_element_create( &format!( "static/cat/{name}" ) ).unwrap();
       // tried to do texture uploading in on_load callback
       // but i had visual artifacts on the texture
       // like, some black spots for some reason
@@ -314,7 +315,7 @@ async fn load_meshes( models : &[ tobj::Model ], materials : &[ tobj::Material ]
   meshes
 }
 
-fn create_objects() -> Vec< Object >
+fn objects_create() -> Vec< Object >
 {
   let transforms =
   [
@@ -344,9 +345,9 @@ fn create_objects() -> Vec< Object >
 
 fn random_rotation() -> ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >
 {
-  let rot_x = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
-  let rot_y = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
-  let rot_z = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
+  let rot_x = rand::rng().random_range( 0. .. std::f32::consts::PI * 2. );
+  let rot_y = rand::rng().random_range( 0. .. std::f32::consts::PI * 2. );
+  let rot_z = rand::rng().random_range( 0. .. std::f32::consts::PI * 2. );
   mat3x3h::rot( rot_x, rot_y, rot_z )
 }
 

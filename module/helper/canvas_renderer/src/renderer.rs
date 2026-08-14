@@ -40,7 +40,7 @@ mod private
   ///
   /// An `Option< ( WebGlFramebuffer, WebGlTexture ) >` containing the created framebuffer and
   /// its color attachment texture, or `None` if creation fails.
-  fn create_framebuffer
+  fn framebuffer_create
   (
     gl : &gl::GL,
     width : u32,
@@ -98,6 +98,11 @@ mod private
   ///
   /// One resolved color per mesh encountered, in traversal order. A mesh beyond the end of
   /// `colors` resolves to `default_color()`.
+  ///
+  /// # Panics
+  ///
+  /// Panics only if [`Scene::traverse`] reports an error, which cannot happen here : the
+  /// visitor passed to it is infallible.
   // Fix(TASK-016): index `colors` by `resolved.len()` -- the count of meshes already resolved
   // -- instead of a counter shared with every traversed node.
   // Root cause: the lookup index previously advanced once per traversed node (mesh or not),
@@ -106,7 +111,8 @@ mod private
   // Pitfall: when a lookup index is shared between a filtered consumer (only meshes read it)
   // and an unfiltered traversal (every node advances it), the two silently drift apart the
   // moment a "skipped" item actually occurs -- count only what is actually consumed.
-  pub fn resolve_mesh_colors( scene : &Scene, colors : &[ F32x4 ] ) -> Vec< F32x4 >
+  #[ must_use ]
+  pub fn mesh_colors_resolve( scene : &Scene, colors : &[ F32x4 ] ) -> Vec< F32x4 >
   {
     let mut resolved = Vec::new();
 
@@ -162,15 +168,15 @@ mod private
     /// * `width` - Width of the render target in pixels
     /// * `height` - Height of the render target in pixels
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// Returns `Ok(CanvasRenderer)` on success, or `Err(WebglError)` if initialization fails.
+    /// Returns `WebglError` if shader compilation or program linking fails.
     pub fn new( gl : &GL, width : u32, height : u32 ) -> Result< Self, gl::WebglError >
     {
       let vertex_shader_src = include_str!( "../shaders/canvas.vert" );
       let fragment_shader_src = include_str!( "../shaders/canvas.frag" );
       let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src )
-      .compile_and_link( &gl )?;
+      .compile_and_link( gl )?;
 
       let mut uniforms = FxHashMap::default();
       let mut add_location =
@@ -188,7 +194,7 @@ mod private
       add_location( "viewMatrix" );
       add_location( "projectionMatrix" );
 
-      let Some( ( framebuffer, output_texture ) ) = create_framebuffer( gl, width, height )
+      let Some( ( framebuffer, output_texture ) ) = framebuffer_create( gl, width, height )
       else
       {
         return Err( gl::WebglError::FailedToAllocateResource( "Framebuffer" ) );
@@ -208,21 +214,21 @@ mod private
     }
 
     /// Uploads the camera's view and projection matrices to the shader uniforms.
-    fn upload_camera( &self, gl : &GL, camera : &Camera )
+    fn camera_upload( &self, gl : &GL, camera : &Camera )
     {
       gl::uniform::matrix_upload
       (
-        &gl,
+        gl,
         self.uniforms.get( "viewMatrix" ).unwrap().clone(),
-        &camera.get_view_matrix().to_array(),
+        &camera.view_matrix_get().to_array(),
         true
       ).unwrap();
 
       gl::uniform::matrix_upload
       (
-        &gl,
+        gl,
         self.uniforms.get( "projectionMatrix" ).unwrap().clone(),
-        &camera.get_projection_matrix().to_array(),
+        &camera.projection_matrix_get().to_array(),
         true
       ).unwrap();
     }
@@ -235,7 +241,11 @@ mod private
     ///
     /// * `gl` - The WebGL2 rendering context
     /// * `node` - The scene node whose world matrix will be uploaded
-    pub fn upload_node
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `worldMatrix` uniform location is missing or the matrix upload fails.
+    pub fn node_upload
     (
       &self,
       gl : &GL,
@@ -244,9 +254,9 @@ mod private
     {
       gl::uniform::matrix_upload
       (
-        &gl,
+        gl,
         self.uniforms.get( "worldMatrix" ).unwrap().clone(),
-        node.borrow().get_world_matrix().to_array().as_slice(),
+        node.borrow().world_matrix_get().to_array().as_slice(),
         true
       ).unwrap();
     }
@@ -263,9 +273,14 @@ mod private
     /// * `camera` - The camera defining view and projection matrices
     /// * `colors` - Array of colors to apply to scene nodes in order
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// Returns `Ok(())` on successful rendering, or `Err(WebglError)` if rendering fails.
+    /// Returns `WebglError` if a mesh upload or draw step fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a required uniform location was not registered at construction, or if scene
+    /// traversal or a uniform upload fails.
     pub fn render
     (
       &self,
@@ -275,7 +290,7 @@ mod private
       colors : &[ F32x4 ]
     ) -> Result< (), gl::WebglError >
     {
-      scene.update_world_matrix();
+      scene.world_matrix_update();
 
       gl.enable( gl::DEPTH_TEST );
       gl.disable( gl::BLEND );
@@ -292,9 +307,9 @@ mod private
 
       gl.use_program( Some( &self.program ) );
 
-      // Resolved once, up front, in mesh-encounter order -- see `resolve_mesh_colors` for why
+      // Resolved once, up front, in mesh-encounter order -- see `mesh_colors_resolve` for why
       // this can't be a counter shared with the node-traversal below.
-      let mesh_colors = resolve_mesh_colors( scene, colors );
+      let mesh_colors = mesh_colors_resolve( scene, colors );
       let mut mesh_i = 0;
 
       // Define a closure to handle the drawing of each node in the scene.
@@ -308,7 +323,7 @@ mod private
         {
           gl::uniform::upload
           (
-            &gl,
+            gl,
             self.uniforms.get( "color" ).unwrap().clone(),
             mesh_colors.get( mesh_i ).unwrap_or( &default_color() ).as_slice()
           ).unwrap();
@@ -316,12 +331,12 @@ mod private
           mesh_i += 1;
 
           // Iterate over each primitive in the mesh.
-          for primitive_rc in mesh.borrow().primitives.iter()
+          for primitive_rc in &mesh.borrow().primitives
           {
             let primitive = primitive_rc.borrow();
 
-            self.upload_camera( gl, camera );
-            self.upload_node( gl, &node );
+            self.camera_upload( gl, camera );
+            self.node_upload( gl, &node );
 
             primitive.geometry.borrow().bind( gl );
             primitive.draw( gl );
@@ -346,7 +361,7 @@ mod private
     ///
     /// * `gl` - The WebGL2 rendering context
     /// * `output_texture` - The new texture to use as the color attachment
-    pub fn set_texture
+    pub fn texture_set
     (
       &mut self,
       gl : &GL,
@@ -369,118 +384,11 @@ mod private
     /// # Returns
     ///
     /// A clone of the WebGlTexture that serves as the color attachment.
-    pub fn get_texture( &self ) -> WebGlTexture
+    #[must_use]
+    pub fn texture_get( &self ) -> WebGlTexture
     {
       self.output_texture.clone()
     }
-  }
-}
-
-// Documented exception (task 068) to the all-tests-in-tests/ convention: this test stays
-// inline because it needs `super::private::*` by design. `resolve_mesh_colors` is
-// deliberately internal -- it exists precisely so the mesh-to-color correspondence can be
-// verified WITHOUT a live WebGL context, and publishing it solely for test placement would
-// widen the API for no caller. Testing through the public surface instead is not an option
-// either: every `CanvasRenderer` method takes `&GL`, so a native `tests/` suite would have
-// nothing it could exercise -- browser-side testing waits on the workspace's wasm
-// test-runner infrastructure (see tilemap_renderer's roadmap for that gap).
-#[ cfg( test ) ]
-mod tests
-{
-  use super::private::*;
-  use renderer::webgl::{ Mesh, Node, Object3D, Scene };
-  use minwebgl::F32x4;
-  use std::cell::RefCell;
-  use std::rc::Rc;
-
-  /// Builds a non-mesh node -- a transform-only group, matching how
-  /// `primitive_generation::primitives_data_to_gltf` creates "parent" nodes for
-  /// `PrimitiveData` entries that carry no attributes.
-  fn group_node() -> Rc< RefCell< Node > >
-  {
-    Rc::new( RefCell::new( Node::new() ) )
-  }
-
-  /// Builds a mesh node with no primitives -- `resolve_mesh_colors` only inspects whether the
-  /// node is `Object3D::Mesh`, never `Mesh::primitives`.
-  fn mesh_node() -> Rc< RefCell< Node > >
-  {
-    let node = Rc::new( RefCell::new( Node::new() ) );
-    node.borrow_mut().object = Object3D::Mesh( Rc::new( RefCell::new( Mesh::new() ) ) );
-    node
-  }
-
-  /// ## Root Cause
-  /// `CanvasRenderer::render` looked up each mesh's color using a counter that advanced once
-  /// per *traversed scene node* (mesh or not), while `colors` holds one entry per *mesh*, in
-  /// mesh-encounter order (per `render`'s own doc comment: "renders all mesh nodes with their
-  /// corresponding colors from the colors array"). Any non-mesh node visited before or between
-  /// mesh nodes -- a transform-only group being the common case in a real scene graph -- shifted
-  /// the counter, so every mesh after it silently read the wrong `colors` entry, or, once the
-  /// counter ran past the end of `colors`, fell back to the magenta default. No panic, no
-  /// error: just a wrong-colored mesh.
-  ///
-  /// ## Why Not Caught
-  /// Every existing caller (the `animation_surface_rendering`, `lottie_surface_rendering`, and
-  /// `curve_surface_rendering` examples) happens to build scenes where every node is a mesh
-  /// node, so the traversal-position counter and the mesh-encounter counter were always
-  /// numerically identical and the desync never manifested. Nothing exercised a scene mixing
-  /// mesh and non-mesh nodes.
-  ///
-  /// ## Fix Applied
-  /// Extracted the mesh-to-color resolution into `resolve_mesh_colors`, which indexes `colors`
-  /// by `resolved.len()` -- a count that only grows when a mesh is actually pushed -- instead
-  /// of a counter shared with every traversed node. `render` now calls this function once up
-  /// front and walks its result in lockstep with a mesh-only counter during the real
-  /// GL-drawing traversal.
-  ///
-  /// ## Prevention
-  /// This test builds a scene with two top-level groups, each owning one mesh child, so a
-  /// non-mesh node sits between the first and second mesh in traversal order -- exactly the
-  /// shape that desyncs a traversal-position counter from a mesh-position counter. It fails
-  /// immediately if the counter regresses to counting every node again.
-  ///
-  /// ## Pitfall
-  /// When a lookup index is shared between a filtered consumer (only meshes read it) and an
-  /// unfiltered traversal (every node advances it), the two stay accidentally in sync only
-  /// while the "skipped" case never actually occurs in test data. Count only what is actually
-  /// consumed, never everything visited.
-  #[ test ]
-  fn resolve_mesh_colors_stays_in_sync_across_non_mesh_siblings()
-  {
-    // scene
-    // |- group_1 (non-mesh)
-    // |   `- mesh_1
-    // `- group_2 (non-mesh)
-    //     `- mesh_2
-    let mut scene = Scene::new();
-
-    let group_1 = group_node();
-    group_1.borrow_mut().add_child( mesh_node() );
-
-    let group_2 = group_node();
-    group_2.borrow_mut().add_child( mesh_node() );
-
-    scene.add( group_1 );
-    scene.add( group_2 );
-
-    let color_for_mesh_1 = F32x4::from_array( [ 1.0, 0.0, 0.0, 1.0 ] );
-    let color_for_mesh_2 = F32x4::from_array( [ 0.0, 1.0, 0.0, 1.0 ] );
-    let colors = [ color_for_mesh_1, color_for_mesh_2 ];
-
-    let resolved = resolve_mesh_colors( &scene, &colors );
-
-    assert_eq!( resolved.len(), 2, "expected exactly one resolved color per mesh" );
-    assert_eq!
-    (
-      resolved[ 0 ], color_for_mesh_1,
-      "first mesh encountered must get colors[0], not a color shifted by the preceding non-mesh group"
-    );
-    assert_eq!
-    (
-      resolved[ 1 ], color_for_mesh_2,
-      "second mesh encountered must get colors[1], not fall back to the default color"
-    );
   }
 }
 
@@ -489,5 +397,10 @@ crate::mod_interface!
   orphan use
   {
     CanvasRenderer
+  };
+
+  own use
+  {
+    mesh_colors_resolve
   };
 }

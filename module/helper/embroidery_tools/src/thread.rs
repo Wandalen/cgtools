@@ -15,7 +15,6 @@ mod private
   // struct-literal construction is the deliberate public contract, pinned by
   // `tests/pes_test.rs` and documented in `readme.md`, so `#[non_exhaustive]`
   // would break that contract (same precedent as `browser_log::panic::Config`).
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Default, Clone, Copy, PartialEq, Eq, Hash ) ]
   pub struct Color
   {
@@ -33,7 +32,6 @@ mod private
   // construction (including `..Default::default()`) is the deliberate public
   // contract, pinned by `tests/pes_test.rs` and documented in `readme.md`, so
   // `#[non_exhaustive]` would break that contract (same precedent as `Color` above).
-  #[ allow( clippy::exhaustive_structs ) ]
   #[ derive( Debug, Default, Clone, PartialEq, Eq, Hash ) ]
   pub struct Thread
   {
@@ -60,14 +58,14 @@ mod private
   /// Panics if `palette` is empty, since `chart` is then empty too and every
   /// lookup in `threadlist` has no candidate index to resolve to.
   #[ inline ]
-  pub fn build_unique_palette( palette : &[ Thread ], threadlist : &[ Thread ] ) -> Vec< usize >
+  pub fn unique_palette_build( palette : &[ Thread ], threadlist : &[ Thread ] ) -> Vec< usize >
   {
     let mut chart = vec![ None; palette.len() ];
     let mut palette : Vec< _ > = palette.iter().map( Some ).collect();
 
     for thread in threadlist.iter().unique()
     {
-      let index = find_nearest_color( &thread.color, &palette );
+      let index = nearest_color_find( &thread.color, &palette );
       if let Some( index ) = index
       {
         palette[ index ] = None;
@@ -82,7 +80,7 @@ mod private
     let mut palette = vec![];
     for thread in threadlist
     {
-      palette.push( find_nearest_color( &thread.color, &chart ).unwrap() );
+      palette.push( nearest_color_find( &thread.color, &chart ).unwrap() );
     }
 
     palette
@@ -94,7 +92,7 @@ mod private
   /// otherwise returns index of closest color
   #[ must_use ]
   #[ inline ]
-  pub fn find_nearest_color( color : &Color, palette : &[ Option< &Thread > ] ) -> Option< usize >
+  pub fn nearest_color_find( color : &Color, palette : &[ Option< &Thread > ] ) -> Option< usize >
   {
     let mut closest_index = None;
     let mut current_distance = i32::MAX;
@@ -140,7 +138,7 @@ mod private
   /// yields `Some`.
   #[ must_use ]
   #[ inline ]
-  pub fn get_random_thread() -> Thread
+  pub fn random_thread_get() -> Thread
   {
     #[ cfg( feature = "random" ) ]
     {
@@ -157,8 +155,8 @@ crate::mod_interface!
 {
   own use Thread;
   own use Color;
-  own use build_unique_palette;
-  own use find_nearest_color;
+  own use unique_palette_build;
+  own use nearest_color_find;
   own use color_distance_red_mean;
-  own use get_random_thread;
+  own use random_thread_get;
 }

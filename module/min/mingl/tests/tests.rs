@@ -25,4 +25,8 @@ mod tests
   /// Tests for camera orbit controls
   #[ cfg( feature = "camera_orbit_controls" ) ]
   mod camera_orbit_controls;
+
+  /// Verifies `web::file` URL resolution and data-URL payload helpers.
+  #[ cfg( feature = "web" ) ]
+  mod web_file_test;
 }

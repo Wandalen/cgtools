@@ -2,12 +2,12 @@
 
 Integration and unit test suite for the `tilemap_scene` crate. All tests live here — `src/` carries
 no inline test modules (task 073 relocated the last 38; every tested item is reachable through the
-crate's `mod_interface` root re-exports, so no documented exceptions were needed).
+crate's `mod_interface` root re-exports).
 
 Two levels coexist:
 
 - **Unit level** — `compile_units_test.rs` and `hash_test.rs` call individual exposed functions
-  directly (`evaluate_condition`, `canonical_edge`, `resolve_animation_frame`, `hash_coord`, …).
+  directly (`evaluate_condition`, `canonical_edge`, `resolve_animation_frame`, `coord_hash`, …).
 - **Integration level** — the remaining files drive whole subsystems (`compile_assets` /
   `compile_frame`, `Scene::tick`, `Renderer`, `Catalog`) and assert on emitted command streams or
   event streams. `edge_rotation`, for example, is covered at BOTH levels on purpose: the unit table

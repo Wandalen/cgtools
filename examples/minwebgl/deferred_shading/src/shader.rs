@@ -5,7 +5,7 @@ use gl::GL;
 use crate::types::Shaders;
 
 /// Load all shader programs
-pub fn load_shaders( gl : &GL ) -> Result< Shaders, gl::WebglError >
+pub fn shaders_load( gl : &GL ) -> Result< Shaders, gl::WebglError >
 {
   let vert = include_str!( "../shaders/light_volume.vert" );
   let frag = include_str!( "../shaders/deferred.frag" );

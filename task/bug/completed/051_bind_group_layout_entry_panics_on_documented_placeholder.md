@@ -476,6 +476,33 @@ every infallible `From` conversion consuming that enum either has a valid mappin
 or does not exist (i.e. the conversion is TryFrom, not From).
 ```
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is the root-cause fix (same site task `010` fixed) present: `TryFrom` conversion returning `Err( BindGroupError::TypeNotSet(..) )` instead of panicking on `BindingType::Other`? Confirmed via direct read of `module/min/minwebgpu/src/descriptor/bind_group_layout_entry.rs:125-146` — identical evidence to task `010`'s own C1 (this bug and that task converge on the same fix, filed independently the same day).
+- [x] C2 — Do all 7 claimed `Fix(BUG-051)` sites (6 files, 2 sites in `deffered_rendering/main.rs`) carry the mandated 3-field comment? `grep -rn "Fix(BUG-051)" --include="*.rs" .` → exactly 7 matches: `bind_group_layout_entry.rs:113`, `error.rs:102`, `binding_type.rs:22`, `bind_group_layout.rs:90`, `transform.rs:38`, `gpu_hal/device.rs:571`, `deffered_rendering/main.rs:108,139` — all 7 present.
+- [x] C3 — Path-citation drift check: this bug's own `## Fix Location`/`## Fix Applied`/`## Refs: src/` sections all cite `module/blank/gpu_hal/src/device.rs:396`. `git log --follow --diff-filter=R -- module/helper/gpu_hal/src/device.rs` shows commit `4469eafb` (2026-08-10, same day, after this bug's fix landed) renamed `module/{blank => helper}/gpu_hal/src/device.rs`. The fix content is present and correct at the current path (`module/helper/gpu_hal/src/device.rs:571-579`) — only this bug's own prose citation is now stale; not corrected here per this insertion's pure-insertion scope.
+- [x] C4 — Is the documented, still-open `getrandom`/wasm32 gap (`## Prevention`, `## Why Not Caught`) still genuinely open (not silently fixed, not silently broken further)? `grep -n "getrandom" module/min/minwebgpu/Cargo.toml` → no match (override still absent, as documented). Live re-run: `cargo check -p minwebgpu --target wasm32-unknown-unknown --all-features --tests` → exit `101`, reproduces the exact same `getrandom` `compile_error!` ("the wasm*-unknown-unknown targets are not supported by default...") this bug's `## Why Not Caught` documents.
+- [x] C5 — Does the regression test (`tests/bind_group_layout_entry_tests.rs`) carry the mandated `bug_reproducer(BUG-051)` marker and 5-section doc comment? Confirmed via direct read: `// test_kind: bug_reproducer(BUG-051)` at line 14; the doc comment on `entry_without_ty_yields_type_not_set_err_test` carries all 5 mandated sections (`## Root Cause`, `## Why Not Caught`, `## Fix Applied`, `## Prevention`, `## Pitfall`).
+
+### Measurements
+
+- [x] M1 — `BindGroupError` occurrences in `error.rs`: `3` (enum declaration, `#[ from ]` wiring into `WebGPUError`, doc-comment reference) (was: `0` — `git show 67cea248:module/min/minwebgpu/src/error.rs | grep -c "BindGroupError"` → `0`; `67cea248` is the last commit predating this fix).
+
+### Invariants
+
+- [x] I1 — `cargo check -p minwebgpu --target wasm32-unknown-unknown --all-features` → exit `0`, clean — real compile of the actual fixed, wasm32-gated code this bug's `## Fix Applied` section cites as its primary evidence.
+- [x] I2 — `cargo clippy -p minwebgpu --target wasm32-unknown-unknown --all-features -- -D warnings` → exit `101`, **FAILS** — this is a **drift** from this bug's own recorded `## Fix Applied` result ("exit 0, zero warnings", captured 2026-08-10). Root cause: identical to task `010`'s I2 — the unrelated `browser_log` dependency (`module/helper/browser_log/src/panic.rs:82`) now violates `clippy::allow_attributes_without_reason`, introduced by commit `5f33be66` (2026-08-11 09:30:53, this morning), well after this bug's fix and its own verification pass. Not a regression of this bug's own fix: `cargo clippy -p minwebgpu --no-deps --all-targets --all-features -- -D warnings` → exit `0`, clean.
+- [x] I3 — `cargo nextest run -p minwebgpu --all-features` → exit `4`, "no tests to run" (0 tests collected) — expected, crate-wide wasm32 gating (reused from task `010`'s I1, same crate, same verification pass).
+- [x] I4 — `cargo check -p minwebgpu --target wasm32-unknown-unknown --all-features --tests` → exit `101` — expected; reproduces the still-open `getrandom` gap documented in `## Why Not Caught` (see C4); not a new failure, not caused by this bug's own fix.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the root-cause fix silently reverting: `grep -c "panic!" module/min/minwebgpu/src/descriptor/bind_group_layout_entry.rs` must stay `0` (same guard as task `010`'s AF1 — both files fix the identical site).
+- [x] AF2 — Guards against trusting a stale path citation in a future edit: this workspace has already renamed `gpu_hal` once (`module/blank` → `module/helper`) after this bug was filed; any future citation of a file/line in this bug's body must be re-verified against `git log --follow` before being trusted, not copied forward.
+- [x] AF3 — Guards against conflating I2's `browser_log` failure with this bug reopening: before treating a red I2 as a regression, confirm `error: could not compile` names `browser_log`, and re-run the `--no-deps` variant to isolate minwebgpu's own code, exactly as this pass did.
+
 ## History
 
 | Date       | Event  | Notes                                                                                                     |

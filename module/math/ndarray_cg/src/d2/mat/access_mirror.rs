@@ -37,9 +37,9 @@ where
   /// # Arguments
   /// - `scalars`: A slice of scalars to set the data.
   #[ inline( always ) ]
-  pub fn set_raw_slice( &mut self, scalars : &[ < Self as Collection >::Scalar ] )
+  pub fn raw_slice_set( &mut self, scalars : &[ < Self as Collection >::Scalar ] )
   {
-    < Self as RawSliceMut >::raw_set_slice( self, scalars );
+    < Self as RawSliceMut >::raw_slice_set( self, scalars );
   }
 
   /// Sets the underlying data from an array of scalars.
@@ -60,7 +60,7 @@ where
   /// - `scalars`: An array of scalars to set the data.
   #[ inline( always ) ]
   #[ must_use ]
-  pub fn set_data< const N : usize >( self, scalars : [ < Self as Collection >::Scalar ; N ] ) -> Self
+  pub fn data_set< const N : usize >( self, scalars : [ < Self as Collection >::Scalar ; N ] ) -> Self
   {
     < Self as RawSliceMut >::set( self, scalars )
   }
@@ -72,7 +72,7 @@ where
   /// - `scalars`: An array of scalars to set the data.
   #[ inline( always ) ]
   #[ must_use ]
-  pub fn set_row_major( self, scalars : &[ < Self as Collection >::Scalar ] ) -> Self
+  pub fn row_major_set( self, scalars : &[ < Self as Collection >::Scalar ] ) -> Self
   {
     < Self as RawSliceMut >::with_row_major( self, scalars )
   }
@@ -84,7 +84,7 @@ where
   /// - `scalars`: An array of scalars to set the data.
   #[ inline( always ) ]
   #[ must_use ]
-  pub fn set_column_major( self, scalars : &[ < Self as Collection >::Scalar ] ) -> Self
+  pub fn column_major_set( self, scalars : &[ < Self as Collection >::Scalar ] ) -> Self
   {
     < Self as RawSliceMut >::with_column_major( self, scalars )
   }

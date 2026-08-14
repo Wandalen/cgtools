@@ -6,11 +6,11 @@ use gl::GL;
 use minwebgl as gl;
 
 static POSITION_DATA: [f32; 6] = [
-  -0.86602545, // Left
+  -0.866_025_45, // Left
   -0.5,
   0.0, // Top
   1.0,
-  0.86602545, // Right
+  0.866_025_45, // Right
   -0.5,
 ];
 
@@ -23,8 +23,8 @@ static COLOR_DATA: [f32; 9] = [
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc<'_> = wee_alloc::WeeAlloc::INIT;
 
-fn run() -> Result<(), gl::WebglError> {
-  gl::browser::setup(Default::default());
+fn app_run() -> Result<(), gl::WebglError> {
+  gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
 
   // Vertex and fragment shader source code
@@ -106,5 +106,5 @@ fn run() -> Result<(), gl::WebglError> {
 }
 
 fn main() {
-  run().unwrap()
+  app_run().unwrap();
 }

@@ -7,13 +7,13 @@
 # panics or uncaught JS exceptions in the piped console. This is execution
 # proof (page boots, wasm runs, no panics) — not pixel proof: WebGPU frame
 # presentation is impossible in headless chromium on this host (see
-# examples/minwebgpu/sun_grid_lines/readme.md), and WebGL2 runs on
+# examples/orrery/webgpu/readme.md), and WebGL2 runs on
 # SwiftShader, so visual verdicts stay with windowed `browsee .launch`
 # sessions and per-example showcase images.
 #
 # usage:
 #   script/example_smoke.sh [example_dir ...]
-# defaults: both sun_grid_lines twins plus the canonical WebGPU-path pair
+# defaults: orrery/webgpu plus the canonical WebGPU-path pair
 # (hello_triangle, renderer_pbr_scene)
 #
 # Verify any verdict yourself by replaying the printed browsee line, e.g.:
@@ -28,8 +28,7 @@ examples=( "$@" )
 if [ "${#examples[@]}" -eq 0 ]
 then
   examples=(
-    examples/minwebgl/sun_grid_lines
-    examples/minwebgpu/sun_grid_lines
+    examples/orrery/webgpu
     examples/minwebgpu/hello_triangle
     examples/minwebgpu/renderer_pbr_scene
   )
@@ -49,11 +48,12 @@ do
     continue
   fi
 
-  # minwebgpu examples need the WebGPU flag preset; everything else renders
-  # through WebGL2, which only needs the software-GL opt-in on this host.
-  backend=$( basename "$( dirname "$dir" )" )
+  # minwebgpu-dependent examples need the WebGPU flag preset; everything
+  # else renders through WebGL2, which only needs the software-GL opt-in on
+  # this host. Detected from the crate's own Cargo.toml, not the parent
+  # directory name, so this stays correct across category moves.
   features=software_gl
-  [ "$backend" = "minwebgpu" ] && features=webgpu,software_gl
+  grep -q "minwebgpu" "$dir/Cargo.toml" && features=webgpu,software_gl
 
   echo "=== $name (features::$features) ==="
   if ! ( cd "$dir" && trunk build --release > /dev/null 2>&1 )

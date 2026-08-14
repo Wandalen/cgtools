@@ -147,6 +147,31 @@ not by this section.
 
 **Aggregate verdict:** PASS — all 8 dimensions 🟢 on both passes after one Fix-and-Recheck round.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Are `min_mut`/`min`/`max_mut`/`max` no longer bound by `NdFloat`? `grep -n "NdFloat" module/math/mdmath_core/src/vector/arithmetics.rs` → 9 hits, none inside these 4 functions (lines 555-620); those functions instead show `E : Scalar + PartialOrd` (at lines 559, 577, 596, 614).
+- [x] C2 — Do the 4 functions use explicit comparisons rather than `Float::min`/`max` or `Ord::min`/`max`? Direct read of `arithmetics.rs` around `min_mut`/`max_mut` → `*r = if *a < *r { *a } else { *r };` and `*r = if *a > *r { *a } else { *r };` — no `.min(`/`.max(` method call present anywhere in the 4 bodies.
+- [x] C3 — Do `min`/`max`/`min_mut`/`max_mut` compile and produce correct componentwise results for `i32`/`i64`/`u32`/`u64`? `module/math/mdmath_core/tests/inc/vector_test/min_max_test.rs` (7 test fns: `integer_i32`, `integer_i64`, `integer_u32`, `integer_u64`, `float_regression`, `float_nan_tie_break`, `mut_variants`) — all 7 pass in this session's fresh run (see I1).
+- [x] C4 — Is existing `f32`/`f64` behavior unchanged except for the documented NaN tie-break wording? `float_regression` asserts the unchanged `[1.0,1.0,0.0]`/`[3.0,5.0,2.0]` results; `float_nan_tie_break` independently pins the newly-documented tie-break (accumulator `r` wins whenever either operand is NaN) — both pass.
+- [x] C5 — Is the new test module actually wired into the suite? `module/math/mdmath_core/tests/inc/vector_test.rs` → `mod min_max_test;` present; confirmed NOT present in the pre-fix parent commit (`git show 9b71cf39^:module/math/mdmath_core/tests/inc/vector_test.rs` has no such line).
+
+### Measurements
+
+- [x] M1 — `NdFloat`-bound occurrences across `min_mut`/`min`/`max_mut`/`max`: `0` (was: `4`, one per function — `git show 9b71cf39^:module/math/mdmath_core/src/vector/arithmetics.rs` lines 548/563/577/592 each show `E : NdFloat,` directly inside these 4 functions).
+- [x] M2 — Test functions exercising `min`/`max`/`min_mut`/`max_mut`: `7` in `min_max_test.rs` (was: `0` — `git show 9b71cf39^:module/math/mdmath_core/tests/inc/vector_test.rs` confirms no `min_max_test` module existed at all pre-fix).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p mdmath_core --all-features` (via `longrun`) → exit 0, 89 tests run: 89 passed, 0 skipped, including 7/7 `min_max_test::*` (log `-0014_longrun.log`).
+- [x] I2 — Lints clean: `cargo clippy -p mdmath_core --all-targets --all-features -- -D warnings` (via `longrun`) → exit 0, zero warnings (log `-0018_longrun.log`).
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against a future change re-narrowing the bound back to `NdFloat`/`Float`/`Ord`: re-run C1's grep — the 4 functions' `where` clauses must still show `Scalar + PartialOrd`, never `NdFloat`, `Float`, or a bare `Ord` bound.
+- [x] AF2 — Guards against the integer coverage being silently deleted while the bound stays relaxed (untested API widening): `grep -c "^fn " module/math/mdmath_core/tests/inc/vector_test/min_max_test.rs` must stay ≥ 7, and `mod min_max_test;` must remain registered in `vector_test.rs`.
+
 ## History
 
 *(append-only — newest entry last; never edit or remove past entries)*

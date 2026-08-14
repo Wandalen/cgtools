@@ -13,7 +13,7 @@ The core library and SVG adapter are functional; the WebGL2 adapter is partially
 - **Core types** — `Transform`, `ResourceId<T>`, `RenderConfig` (incl. configurable `max_depth`), blend modes, topology, coordinate system (Y-up)
 - **Command system** — all POD commands: Clear, Path (moveto/lineto/quad/cubic/arc/close), Text, Mesh, Sprite, Batch lifecycle, Groups with effects
 - **Asset system** — images (bitmap/encoded/path), sprites, geometries, gradients, patterns, clip masks, paths, validation
-- **Backend trait** — `load_assets`, `submit`, `output`, `resize`, `capabilities`
+- **Backend trait** — `assets_load`, `submit`, `output`, `resize`, `capabilities`
 - **SVG adapter** — implemented across every command and asset family: paths, text, sprites, meshes, batches, groups, effects, gradients, patterns, blend modes, bitmap PNG encoding, viewport pan/zoom wrapper, `Source::Path` geometry loading via blocking `std::fs` (loud skip with stderr warning + diagnostic comment on read failure, incl. on wasm32 where no filesystem exists). Not complete, though — see "svg adapter gaps" below (font selection unimplemented, image Y-flip, no `Transform::depth` ordering)
 - **WebGL2 adapter (partial)** — hardware-accelerated sprites, meshes, and instanced batches on wasm32:
   - Split across `adapters/webgl.rs` (backend + renderers + async image loader) and
@@ -66,16 +66,15 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 - Path rendering (tessellation or GPU-based curves) — path commands are currently silent no-ops
 - Text rendering (glyph atlas or SDF fonts) — text commands are currently silent no-ops
 - Group commands (`BeginGroup`/`EndGroup`) — currently ignored
-- `ImageSource::Encoded` decoding — skipped with a console warning; needs a decoder (the `image` crate, or a browser-side `createImageBitmap` path)
+- `ImageSource::Encoded` decoding — skipped with a console warning; decision made (`task/decisions.md` Q-02) to decode via browser-native Blob/object-URL mechanisms rather than a bundled Rust decoder, tracked as `task/completed/092_tilemap_renderer_webgl_encoded_image_decode.md`
 - Gradient/pattern/clip-mask asset loading — not loaded into GPU resources
 - Effects (blur, drop shadow — requires FBO post-processing)
 - `BlendMode::Overlay` — Photoshop-style (Multiply where dst<0.5, Screen where dst>0.5) cannot be expressed as a single `blend_func` call; currently falls back to Normal; requires a custom shader or separate FBO read-back pass. The Multiply/Screen approximations likewise diverge from the reference formulas when `src_alpha < 1` (see the `BlendMode::Multiply` doc); the same FBO / custom-shader pass would make them exact
-- WebGL context loss handling (`webglcontextlost` / `webglcontextrestored` events)
 
 ### svg adapter gaps
 
 - Font loading and rendering (currently no font resolution)
-- `Source::Path` geometry loading is blocking `std::fs` only — works natively; on wasm32 the read fails at runtime and the geometry is skipped loudly (stderr warning + diagnostic SVG comment). An async `fetch()` path would need a redesign of the sync `load_assets` contract
+- `Source::Path` geometry loading is blocking `std::fs` only — works natively; on wasm32 the read fails at runtime and the geometry is skipped loudly (stderr warning + diagnostic SVG comment). An async `fetch()` path would need a redesign of the sync `assets_load` contract
 - `Transform::depth` ordering — the adapter emits in submission order and ignores `depth`; callers must pre-sort (future: stable sort by `depth` before emission)
 - Image Y-flip: SVG `<image>` elements are Y-down natively; sprites rendered from them may appear flipped
 
@@ -98,7 +97,11 @@ pending, starting with the basics:
 
 ### future backends
 
-- WebGPU via `minwebgpu` (compute shaders, advanced instancing)
+- WebGPU / native / no-op via `gpu_hal` (`adapter-webgpu`, `adapter-native`, `adapter-none`) —
+  adopted in `docs/adr/003_d2_stack_hal_adoption.md` (supersedes the earlier direct-`minwebgpu`
+  idea); tracked as `task/completed/084_tilemap_renderer_adapter_none_backend.md`,
+  `task/completed/086_tilemap_renderer_adapter_webgpu_backend.md`,
+  `task/completed/087_tilemap_renderer_adapter_native_backend.md`
 - Interactive SVG with JavaScript events
 
 ## design decisions
@@ -114,4 +117,4 @@ pending, starting with the basics:
 | SVG uses `<g>` for batch parent transform | Natural SVG composition, avoids double Y-flip on instances |
 | SVG viewport in top-level `<g transform>` | Single `replace_range` updates pan/zoom without re-submitting commands |
 | Mesh `<symbol>` defs generated lazily | Only topologies actually used appear in `<defs>`, keeping output lean |
-| Bitmap images encoded to PNG via `image` crate | Browsers require real PNG format inside `data:image/png` URIs, not raw bytes |
+| Bitmap images encoded to PNG via `png` crate | Browsers require real PNG format inside `data:image/png` URIs, not raw bytes; `png` is a minimal single-format dependency vs the full multi-format `image` crate (Q-02) |

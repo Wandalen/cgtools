@@ -14,6 +14,10 @@ mod private
   /// * `texture` - An optional reference to the WebGL texture to bind to.
   /// * `mip_level` - The mipmap level to upload the data to.
   /// * `path` - The file path to the HDR image.
+  ///
+  /// # Panics
+  ///
+  /// Panics if loading or decoding the HDR image fails.
   pub async fn load_to_mip_cube
   (
     gl : &gl::WebGl2RenderingContext,
@@ -79,6 +83,10 @@ mod private
   /// * `texture` - An optional reference to the WebGL texture to bind to.
   /// * `mip_level` - The mipmap level to upload the data to.
   /// * `path` - The file path to the HDR image.
+  ///
+  /// # Panics
+  ///
+  /// Panics if loading or decoding the HDR image fails.
   pub async fn load_to_mip_d2
   (
     gl : &gl::WebGl2RenderingContext,

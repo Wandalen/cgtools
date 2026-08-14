@@ -23,7 +23,6 @@ mod tests
   // `point_count` is always a small handful of test points (never anywhere
   // near 2^24), so the usize -> f32 cast below cannot lose precision in
   // practice.
-  #[ allow( clippy::cast_precision_loss ) ]
   fn contour_with_non_finite_coordinate( point_count : usize, bad_coord : f32 ) -> Vec< [ f32; 2 ] >
   {
     let mut contour = Vec::with_capacity( point_count );

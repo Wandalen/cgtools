@@ -61,7 +61,7 @@ where
 /// # Panics
 /// Panics if `a`'s column count does not equal `ROWS`.
 #[ inline ]
-pub fn mul_mat_vec< E, A, B, R, const ROWS : usize >( r : &mut R, a : &A, b : &B )
+pub fn mat_vec_mul< E, A, B, R, const ROWS : usize >( r : &mut R, a : &A, b : &B )
 where
   E : MatNum,
   R : VectorIterMut< E, ROWS >,
@@ -166,7 +166,7 @@ where
   fn mul( self, rhs : Vector< E, COLS > ) -> Self::Output
   {
     let mut result = Self::Output::default();
-    mul_mat_vec( &mut result, &self, &rhs );
+    mat_vec_mul( &mut result, &self, &rhs );
     result
   }
 }
@@ -188,7 +188,7 @@ where
   fn mul( self, rhs : &Vector< E, COLS > ) -> Self::Output
   {
     let mut result = Self::Output::default();
-    mul_mat_vec( &mut result, self, rhs );
+    mat_vec_mul( &mut result, self, rhs );
     result
   }
 }

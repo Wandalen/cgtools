@@ -5,6 +5,8 @@
 //! to the emitted `RenderCommand`s, and `Scene::from_snapshot` materialises
 //! to a render result byte-equal with the snapshot-driven baseline.
 
+#![ expect( clippy::float_cmp, reason = "assertions check exact pass-through of constant tints/coordinates; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+
 extern crate alloc;
 use alloc::sync::Arc;
 use rustc_hash::FxHashMap as HashMap;
@@ -33,6 +35,7 @@ use tilemap_scene::
   RenderPipeline,
   RenderSpec,
   Scene,
+  SortYSource,
   SceneSnapshot,
   SortMode,
   SpriteRef,
@@ -150,7 +153,7 @@ fn build_spec() -> RenderSpec
         anchor : Anchor::Hex,
         global_layer : "terrain".into(),
         priority : None,
-        sort_y_source : Default::default(),
+        sort_y_source : SortYSource::default(),
         pivot : ( 0.5, 0.5 ),
         default_state : "default".into(),
         states : grass_states,
@@ -161,7 +164,7 @@ fn build_spec() -> RenderSpec
         anchor : Anchor::Hex,
         global_layer : "terrain".into(),
         priority : None,
-        sort_y_source : Default::default(),
+        sort_y_source : SortYSource::default(),
         pivot : ( 0.5, 0.5 ),
         default_state : "idle".into(),
         states : knight_states,
@@ -172,7 +175,7 @@ fn build_spec() -> RenderSpec
         anchor : Anchor::Hex,
         global_layer : "terrain".into(),
         priority : None,
-        sort_y_source : Default::default(),
+        sort_y_source : SortYSource::default(),
         pivot : ( 0.5, 0.5 ),
         default_state : "default".into(),
         states : external_states,

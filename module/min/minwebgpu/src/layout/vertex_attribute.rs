@@ -67,7 +67,6 @@ mod private
     {
       // `size_of::<T>()` reflects a single Rust type's compile-time byte size, which will
       // never approach f64's 2^52 exact-integer limit — the precision loss is unreachable.
-      #[ allow( clippy::cast_precision_loss ) ]
       let offset = std::mem::size_of::< T >() as f64;
       self.offset = offset;
       self

@@ -18,5 +18,9 @@ mod_interface!
   layer buffer;
   layer context;
   layer texture;
+  layer bind;
+  layer pipeline;
+  layer pass;
+  layer readback;
   layer error;
 }

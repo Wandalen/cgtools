@@ -52,4 +52,4 @@ Fits when a caller wants to author one rendering-command stream and target more 
 
 | File | Relationship |
 |------|--------------|
-| `tests/backend_test.rs` | `Backend` trait contract (`load_assets`/`submit`/`output`/`resize`/`Capabilities::default`), all `RenderError` variants, exercised against local test-double backends |
+| `tests/backend_test.rs` | `Backend` trait contract (`assets_load`/`submit`/`output`/`resize`/`Capabilities::default`), all `RenderError` variants, exercised against local test-double backends |

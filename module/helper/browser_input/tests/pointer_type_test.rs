@@ -1,4 +1,4 @@
-//! Unit pins for [`browser_input::PointerType::from_dom_str`] — the DOM
+//! Unit pins for [`browser_input::PointerType`]'s `From< &str >` conversion — the DOM
 //! `pointerType` string → variant mapping ( mouse / touch / pen, with every
 //! unrecognised or empty string collapsing to `Unknown` ) — and the `Unknown`
 //! default. End-to-end wiring through DOM callbacks needs a
@@ -9,33 +9,33 @@
 use browser_input::PointerType;
 
 #[ test ]
-fn from_dom_str_mouse()
+fn from_mouse()
 {
-  assert_eq!( PointerType::from_dom_str( "mouse" ), PointerType::Mouse );
+  assert_eq!( PointerType::from( "mouse" ), PointerType::Mouse );
 }
 
 #[ test ]
-fn from_dom_str_touch()
+fn from_touch()
 {
-  assert_eq!( PointerType::from_dom_str( "touch" ), PointerType::Touch );
+  assert_eq!( PointerType::from( "touch" ), PointerType::Touch );
 }
 
 #[ test ]
-fn from_dom_str_pen()
+fn from_pen()
 {
-  assert_eq!( PointerType::from_dom_str( "pen" ), PointerType::Pen );
+  assert_eq!( PointerType::from( "pen" ), PointerType::Pen );
 }
 
 #[ test ]
-fn from_dom_str_empty_string_is_unknown()
+fn from_empty_string_is_unknown()
 {
-  assert_eq!( PointerType::from_dom_str( "" ), PointerType::Unknown );
+  assert_eq!( PointerType::from( "" ), PointerType::Unknown );
 }
 
 #[ test ]
-fn from_dom_str_unrecognised_is_unknown()
+fn from_unrecognised_is_unknown()
 {
-  assert_eq!( PointerType::from_dom_str( "stylus" ), PointerType::Unknown );
+  assert_eq!( PointerType::from( "stylus" ), PointerType::Unknown );
 }
 
 #[ test ]

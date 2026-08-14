@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::{ From, mem, GL, WebGlBuffer, AsBytes, Into, WebGlProgram, IntoEnumIterator, VariantIterator, js_sys, JsValue };
+  use crate::{ From, mem, GL, WebGlBuffer, Into, WebGlProgram, js_sys, JsValue };
 
   /// Upload data to a uniform block object.
   #[ inline ]
@@ -77,7 +77,6 @@ mod private
   // UNIFORM_BLOCK_*/UNIFORM_* parameter definitions -- realistic values never approach
   // i32::MAX, so this single narrow conversion point is safe by construction.
   #[ cfg( feature = "diagnostics" ) ]
-  #[ allow( clippy::cast_possible_truncation ) ]
   fn param_as_i32( value : f64 ) -> i32
   {
     value as i32
@@ -88,7 +87,6 @@ mod private
   // driver-bounded counts per the WebGL2 spec -- realistic values never approach `u32::MAX`,
   // so this single narrow conversion point is safe by construction.
   #[ cfg( feature = "diagnostics" ) ]
-  #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
   fn param_as_u32( value : f64 ) -> u32
   {
     value as u32
@@ -137,7 +135,7 @@ mod private
   /// uniform within a UBO.
   #[ cfg( feature = "diagnostics" ) ]
   #[ inline ]
-  fn collect_uniform_info( gl : &GL, program : &WebGlProgram, index : u32 ) -> UboInfo
+  fn uniform_info_collect( gl : &GL, program : &WebGlProgram, index : u32 ) -> UboInfo
   {
     let index_js_value = js_sys::Array::of1( &JsValue::from( index ) );
 
@@ -162,7 +160,7 @@ mod private
   /// Resolves a `BlockId` to its `( block_index, block_name )` pair.
   #[ cfg( feature = "diagnostics" ) ]
   #[ inline ]
-  fn resolve_block_id( gl : &GL, program : &WebGlProgram, block_id : BlockId ) -> ( u32, String )
+  fn block_id_resolve( gl : &GL, program : &WebGlProgram, block_id : BlockId ) -> ( u32, String )
   {
     match block_id
     {
@@ -173,7 +171,7 @@ mod private
       },
       BlockId::BlockIndex( block_index ) =>
       {
-        let block_name = gl.get_active_uniform_block_name( program, block_index ).unwrap_or_else( String::new );
+        let block_name = gl.get_active_uniform_block_name( program, block_index ).unwrap_or_default();
         ( block_index, block_name )
       },
     }
@@ -211,7 +209,7 @@ mod private
   where
     IntoBlockId : Into< BlockId >,
   {
-    let ( block_index, block_name ) = resolve_block_id( gl, program, block_id.into() );
+    let ( block_index, block_name ) = block_id_resolve( gl, program, block_id.into() );
 
     let block_binding_point = param_as_i32( block_param_f64( gl, program, block_index, GL::UNIFORM_BLOCK_BINDING ) );
     let block_size = param_as_i32( block_param_f64( gl, program, block_index, GL::UNIFORM_BLOCK_DATA_SIZE ) );
@@ -225,7 +223,7 @@ mod private
     .map( | x | param_as_u32( x.as_f64().unwrap() ) )
     .collect();
 
-    let uniforms = indices.iter().map( | &index | collect_uniform_info( gl, program, index ) ).collect();
+    let uniforms = indices.iter().map( | &index | uniform_info_collect( gl, program, index ) ).collect();
 
     UbosInfo
     {

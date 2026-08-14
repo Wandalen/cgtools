@@ -1,5 +1,6 @@
 //! Integration tests related to `EasingFunction` and `EasingBuilder`
 //! traits and structs that implements them
+#![ expect( clippy::float_cmp, reason = "assertions check deterministic easing-curve arithmetic against exact endpoint values" ) ]
 
 #[ cfg( test ) ]
 mod tests
@@ -42,9 +43,9 @@ mod tests
   fn test_linear_function()
   {
     // Linear easing should return the input value directly
-    assert_eq!( Linear::new().apply( 0.0, 1.0, 0.5 ), 0.5_f32 );
-    assert_eq!( Linear::new().apply( 0.0, 1.0, 0.0 ), 0.0_f32 );
-    assert_eq!( Linear::new().apply( 0.0, 1.0, 1.0 ), 1.0_f32 );
+    assert_eq!( Linear::build().apply( 0.0, 1.0, 0.5 ), 0.5_f32 );
+    assert_eq!( Linear::build().apply( 0.0, 1.0, 0.0 ), 0.0_f32 );
+    assert_eq!( Linear::build().apply( 0.0, 1.0, 1.0 ), 1.0_f32 );
   }
 
   fn assert_f_eq( first : f64, second : f64, eps : f64 )
@@ -73,30 +74,30 @@ mod tests
     // A list of all cubic easing functions to test common properties
     let cubic_functions : Vec< Box< dyn EasingFunction< AnimatableType = f32 > > > = vec!
     [
-      EaseInSine::new(),
-      EaseOutSine::new(),
-      EaseInOutSine::new(),
-      EaseInQuad::new(),
-      EaseOutQuad::new(),
-      EaseInOutQuad::new(),
-      EaseInCubic::new(),
-      EaseOutCubic::new(),
-      EaseInOutCubic::new(),
-      EaseInQuart::new(),
-      EaseOutQuart::new(),
-      EaseInOutQuart::new(),
-      EaseInQuint::new(),
-      EaseOutQuint::new(),
-      EaseInOutQuint::new(),
-      EaseInExpo::new(),
-      EaseOutExpo::new(),
-      EaseInOutExpo::new(),
-      EaseInCirc::new(),
-      EaseOutCirc::new(),
-      EaseInOutCirc::new(),
-      EaseInBack::new(),
-      EaseOutBack::new(),
-      EaseInOutBack::new(),
+      EaseInSine::build(),
+      EaseOutSine::build(),
+      EaseInOutSine::build(),
+      EaseInQuad::build(),
+      EaseOutQuad::build(),
+      EaseInOutQuad::build(),
+      EaseInCubic::build(),
+      EaseOutCubic::build(),
+      EaseInOutCubic::build(),
+      EaseInQuart::build(),
+      EaseOutQuart::build(),
+      EaseInOutQuart::build(),
+      EaseInQuint::build(),
+      EaseOutQuint::build(),
+      EaseInOutQuint::build(),
+      EaseInExpo::build(),
+      EaseOutExpo::build(),
+      EaseInOutExpo::build(),
+      EaseInCirc::build(),
+      EaseOutCirc::build(),
+      EaseInOutCirc::build(),
+      EaseInBack::build(),
+      EaseOutBack::build(),
+      EaseInOutBack::build(),
     ];
 
     // All cubic functions should return 0.0 at t = 0.0 and 1.0 at t = 1.0
@@ -111,20 +112,20 @@ mod tests
   fn test_back_easing_overshoot()
   {
     // Back easing functions should have values outside the [ 0.0, 1.0 ] range
-    assert!( EaseInBack::new().apply( 0.0, 1.0, 0.1 ) < 0.0 );
-    assert!( EaseOutBack::new().apply( 0.0, 1.0, 0.9 ) > 1.0 );
-    assert!( EaseInOutBack::new().apply( 0.0, 1.0, 0.1 ) < 0.0 );
-    assert!( EaseInOutBack::new().apply( 0.0, 1.0, 0.9 ) > 1.0 );
+    assert!( EaseInBack::build().apply( 0.0, 1.0, 0.1 ) < 0.0 );
+    assert!( EaseOutBack::build().apply( 0.0, 1.0, 0.9 ) > 1.0 );
+    assert!( EaseInOutBack::build().apply( 0.0, 1.0, 0.1 ) < 0.0 );
+    assert!( EaseInOutBack::build().apply( 0.0, 1.0, 0.9 ) > 1.0 );
   }
 
   #[ test ]
   fn test_specific_easing_behaviors()
   {
     // EaseInQuad should be slower than linear at the start
-    assert!( EaseInQuad::new().apply( 0.0, 1.0, 0.2 ) < Linear::new().apply( 0.0, 1.0, 0.2 ) );
+    assert!( EaseInQuad::build().apply( 0.0, 1.0, 0.2 ) < Linear::build().apply( 0.0, 1.0, 0.2 ) );
 
     // EaseOutQuad should be faster than linear at the start
-    assert!( EaseOutQuad::new().apply( 0.0, 1.0, 0.2 ) > Linear::new().apply( 0.0, 1.0, 0.2 ) );
+    assert!( EaseOutQuad::build().apply( 0.0, 1.0, 0.2 ) > Linear::build().apply( 0.0, 1.0, 0.2 ) );
   }
 
   // test_kind: bug_reproducer(TASK-041)
@@ -151,8 +152,8 @@ mod tests
   fn test_cubic_mid_curve_accuracy()
   {
     let eps = 0.001;
-    assert_f_eq( EaseInSine::new().apply( 0.0, 1.0, 0.5 ), 0.300_338, eps );
-    assert_f_eq( EaseOutQuad::new().apply( 0.0, 1.0, 0.5 ), 0.749_269, eps );
+    assert_f_eq( EaseInSine::build().apply( 0.0, 1.0, 0.5 ), 0.300_338, eps );
+    assert_f_eq( EaseOutQuad::build().apply( 0.0, 1.0, 0.5 ), 0.749_269, eps );
   }
 
   // test_kind: bug_reproducer(TASK-041)

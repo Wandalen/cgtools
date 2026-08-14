@@ -2,7 +2,7 @@ mod private
 {
   use crate::{vector, Sub, Vector, MatNum, SubAssign};
   // use vector::arithmetics::inner_product::*;
-  use vector::{ sub, sub_scalar };
+  use vector::{ sub, scalar_sub };
 
   // Vector - Vector
   impl< E, const LEN : usize > Sub for Vector< E, LEN >
@@ -70,7 +70,7 @@ mod private
     #[ inline ]
     fn sub( self, rhs : E ) -> Self::Output
     {
-      sub_scalar( &self, rhs )
+      scalar_sub( &self, rhs )
     }
   }
 }

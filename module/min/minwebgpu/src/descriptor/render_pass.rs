@@ -28,7 +28,7 @@ mod private
     max_draw_count : Option< f64 >
   }
 
-  impl< 'a > Default for RenderPassDescriptor< 'a >
+  impl Default for RenderPassDescriptor< '_ >
   {
     #[ inline ]
     fn default() -> Self

@@ -54,7 +54,6 @@ mod private
     // Create buffer descriptor
     // GPU buffer sizes stay far below f64's 2^52 exact-integer limit (4 petabytes) for any
     // realistic allocation, so this precision loss is unreachable.
-    #[ allow( clippy::cast_precision_loss ) ]
     let padded_size_f64 = padded_size as f64;
     let desc = web_sys::GpuBufferDescriptor::new_with_f64( padded_size_f64, init_desc.usage );
     desc.set_mapped_at_creation( true );

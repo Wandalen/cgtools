@@ -48,10 +48,10 @@ mod private
     ) -> Result< Self, Error >
     {
       let vertex_count = ( positions.len() / 3 ) as u32;
-      let position_buffer = device.create_buffer_init( bytemuck::cast_slice( positions ), BufferUsage::VERTEX )?;
-      let normal_buffer = device.create_buffer_init( bytemuck::cast_slice( normals ), BufferUsage::VERTEX )?;
-      let uv_buffer = device.create_buffer_init( bytemuck::cast_slice( uvs ), BufferUsage::VERTEX )?;
-      let color_buffer = device.create_buffer_init( bytemuck::cast_slice( colors ), BufferUsage::VERTEX )?;
+      let position_buffer = device.buffer_init_create( bytemuck::cast_slice( positions ), BufferUsage::VERTEX )?;
+      let normal_buffer = device.buffer_init_create( bytemuck::cast_slice( normals ), BufferUsage::VERTEX )?;
+      let uv_buffer = device.buffer_init_create( bytemuck::cast_slice( uvs ), BufferUsage::VERTEX )?;
+      let color_buffer = device.buffer_init_create( bytemuck::cast_slice( colors ), BufferUsage::VERTEX )?;
 
       let mut index_count = 0;
       let index_buffer = match indices
@@ -59,7 +59,7 @@ mod private
         Some( data ) =>
         {
           index_count = data.len() as u32;
-          Some( device.create_buffer_init( bytemuck::cast_slice( &data ), BufferUsage::INDEX )? )
+          Some( device.buffer_init_create( bytemuck::cast_slice( &data ), BufferUsage::INDEX )? )
         }
         None => None
       };

@@ -8,5 +8,11 @@ authors = [
 ]
 license = "MIT"
 
+[lints]
+workspace = true
+
+[dependencies]
+wasm-bindgen = "0.2"
+
 [package.metadata.action]
 tags = ["runtime:browser"]

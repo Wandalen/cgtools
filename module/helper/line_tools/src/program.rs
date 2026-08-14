@@ -1,7 +1,7 @@
 mod private
 {
   use minwebgl as gl;
-  use crate::*;
+  use crate::{UniformStorage, Uniform};
 
   /// Represents a complete WebGL shader program and its drawing configuration.
   #[ derive( Clone, Debug, Default ) ]
@@ -60,11 +60,19 @@ mod private
     }
 
     /// Copies all active uniform values from this program to another program.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if reading an active uniform or uploading it fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the GL active-uniform-count query returns a non-numeric value.
     pub fn uniforms_copy_to_gl( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Result< (), gl::WebglError >
     {
       if let Some( own_program ) = self.program.as_ref()
       {
-        let active_uniforms_count = gl.get_program_parameter( &own_program, gl::ACTIVE_UNIFORMS ).as_f64().unwrap() as u32;
+        let active_uniforms_count = gl.get_program_parameter( own_program, gl::ACTIVE_UNIFORMS ).as_f64().unwrap() as u32;
 
         for i in 0..active_uniforms_count
         {
@@ -74,7 +82,7 @@ mod private
 
           let location = gl.get_uniform_location( program, uniform_name.as_str() );
 
-          gl.use_program( Some( &program ) );
+          gl.use_program( Some( program ) );
 
           match active_uniform.type_()
           {
@@ -107,6 +115,10 @@ mod private
     }
 
     /// Copies uniforms from the current program to the other
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if uploading the copied uniforms fails.
     pub fn uniforms_copy_to( &self, gl : &gl::WebGl2RenderingContext, program : &mut Self ) -> Result< (), gl::WebglError >
     {
       self.uniforms.copy_to( &mut program.uniforms );
@@ -115,6 +127,10 @@ mod private
     }
 
     /// Uploads a uniform value to the current program.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the uniform upload fails.
     pub fn upload< D : Into< Uniform > + Copy >( &mut self, gl : &gl::WebGl2RenderingContext, name : &str, data : &D  ) -> Result< (), gl::WebglError >
     {
       self.uniforms.uniform_set( name, data.into() );
@@ -127,6 +143,14 @@ mod private
     }
 
     /// Uploads a uniform matrix to the current program.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the matrix upload fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if no program is set.
     pub fn matrix_upload< D >( &self, gl : &gl::WebGl2RenderingContext, name : &str, data : &D  ) -> Result< (), gl::WebglError >
     where
       D : gl::UniformMatrixUpload + ?Sized
@@ -187,6 +211,10 @@ mod private
     }
 
     /// Upload the current set of uniform to the program
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if any uniform upload fails.
     pub fn all_uniforms_upload( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       if let Some( program ) = self.program.as_ref()

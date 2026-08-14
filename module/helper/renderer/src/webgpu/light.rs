@@ -107,7 +107,7 @@ mod private
     /// Adds a point light. Returns `false` — dropping the light — when the
     /// array is already at `MAX_POINT_LIGHTS`.
     #[ must_use ]
-    pub fn push_point( &mut self, position : [ f32; 3 ], color : [ f32; 3 ], strength : f32, range : f32 ) -> bool
+    pub fn point_push( &mut self, position : [ f32; 3 ], color : [ f32; 3 ], strength : f32, range : f32 ) -> bool
     {
       let i = self.raw.counts[ 0 ] as usize;
       if i >= MAX_POINT_LIGHTS
@@ -127,7 +127,7 @@ mod private
     /// the light ( the WebGL uniform semantic ); normalized internally.
     /// Returns `false` — dropping the light — when the array is full.
     #[ must_use ]
-    pub fn push_direct( &mut self, direction : [ f32; 3 ], color : [ f32; 3 ], strength : f32 ) -> bool
+    pub fn direct_push( &mut self, direction : [ f32; 3 ], color : [ f32; 3 ], strength : f32 ) -> bool
     {
       let i = self.raw.counts[ 1 ] as usize;
       if i >= MAX_DIRECT_LIGHTS
@@ -148,11 +148,9 @@ mod private
     /// light; normalized internally. Cone angles are radians from the axis,
     /// `inner_cone_angle <= outer_cone_angle`. Returns `false` — dropping the
     /// light — when the array is full.
-    // Seven physical parameters : a spot light irreducibly needs position, axis, color,
-    // strength, range, and both cone angles; a params struct would only rename them.
-    #[ allow( clippy::too_many_arguments ) ]
+    #[ expect( clippy::too_many_arguments, reason = "a spot light irreducibly needs position, axis, color, strength, range, and both cone angles" ) ]
     #[ must_use ]
-    pub fn push_spot
+    pub fn spot_push
     (
       &mut self,
       position : [ f32; 3 ],

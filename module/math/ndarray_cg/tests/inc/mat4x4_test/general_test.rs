@@ -17,7 +17,7 @@ use the_module::
 
 // `determinant` on these small-integer-valued matrices only sums/subtracts products of
 // exactly-representable integers — no rounding is possible, so exact equality is correct.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn test_determinant_generic< Descriptor : mat::Descriptor >()
 where
   Mat4< f32, Descriptor > :

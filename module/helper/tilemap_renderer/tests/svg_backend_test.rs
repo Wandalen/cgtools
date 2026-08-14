@@ -1,17 +1,18 @@
-#![ cfg( feature = "adapter-svg" ) ]
+//! `SvgBackend` adapter tests, relocated from inline `src/adapters/svg.rs` by
+//! task 071. Behavior tests drive the backend through its public surface --
+//! `SvgBackend::new` / `viewport_scale_set` / `viewport_offset_set` plus the `Backend`
+//! trait -- and assert on the rendered SVG string from `output()`. The
+//! formatting/encoding helper tests at the bottom exercise the helpers the adapter
+//! exports for exactly this placement ( the internal ones marked `#[ doc( hidden ) ]` ),
+//! completing the all-tests-in-tests/ convention for this module.
 
-//! `SvgBackend` adapter behavior tests, relocated from inline `src/adapters/svg.rs` by
-//! task 071. Every test drives the backend purely through its public surface --
-//! `SvgBackend::new` / `set_viewport_scale` / `set_viewport_offset` plus the `Backend`
-//! trait -- and asserts on the rendered SVG string from `output()`. Tests of the
-//! adapter's private formatting/encoding helpers remain inline in `src/adapters/svg.rs`
-//! as a documented exception (see the comment on that module).
+#![ cfg( feature = "adapter-svg" ) ]
 
 use tilemap_renderer::assets::*;
 use tilemap_renderer::backend::*;
 use tilemap_renderer::commands::*;
 use tilemap_renderer::types::*;
-use tilemap_renderer::adapters::svg::SvgBackend;
+use tilemap_renderer::adapters::svg::{ SvgBackend, SvgContentManager };
 
 mod helpers;
 use helpers::empty_assets;
@@ -58,7 +59,7 @@ fn defs( svg : &SvgBackend ) -> String
 fn clear_emits_rect()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[ RenderCommand::Clear( Clear { color : [ 1.0, 0.0, 0.0, 1.0 ] } ) ] ).unwrap();
   let b = body( &svg );
   assert!( b.contains( "fill=\"rgb(255,0,0)\"" ), "body: {b}" );
@@ -66,23 +67,23 @@ fn clear_emits_rect()
 }
 
 /// Zoom is now applied via the viewport `<g>` wrapper, not per-element.
-/// Verify that `set_viewport_scale` updates the wrapper transform.
+/// Verify that `viewport_scale_set` updates the wrapper transform.
 #[ test ]
 fn viewport_zoom_updates_wrapper()
 {
   let mut svg = svg800x600();
-  svg.set_viewport_scale( 2.0 );
+  svg.viewport_scale_set( 2.0 );
   let full = render( &svg );
   assert!( full.contains( "scale(2)" ), "wrapper: {full}" );
 }
 
 /// Viewport offset is now applied via the `<g>` wrapper, not per-element.
-/// `set_viewport_offset` should update the wrapper transform attribute.
+/// `viewport_offset_set` should update the wrapper transform attribute.
 #[ test ]
 fn viewport_offset_updates_wrapper()
 {
   let mut svg = svg800x600();
-  svg.set_viewport_offset( [ 10.0, 20.0 ] );
+  svg.viewport_offset_set( [ 10.0, 20.0 ] );
   let full = render( &svg );
   // In the wrapper: offset Y is negated (Y-up → SVG Y-down flip)
   assert!( full.contains( "translate(10,-20)" ), "wrapper: {full}" );
@@ -94,7 +95,7 @@ fn viewport_offset_updates_wrapper()
 fn path_emits_svg_path()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[
     RenderCommand::BeginPath( BeginPath
     {
@@ -128,7 +129,7 @@ fn path_emits_svg_path()
 fn path_emits_quad_cubic_arc()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[
     RenderCommand::BeginPath( BeginPath
     {
@@ -180,7 +181,7 @@ fn image_viewbox_origin_zero()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
 
   let d = defs( &svg );
   // Should use "0 0 w h" viewBox, not center-origin
@@ -210,7 +211,7 @@ fn linear_gradient_emits_userspace_coords_and_stops()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
 
   let d = defs( &svg );
   assert!( d.contains( "<linearGradient id=\"grad_0\"" ), "defs: {d}" );
@@ -254,7 +255,7 @@ fn radial_gradient_emits_center_radius_focal()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
 
   let d = defs( &svg );
   assert!( d.contains( "<radialGradient id=\"grad_7\"" ), "defs: {d}" );
@@ -293,7 +294,7 @@ fn pattern_emits_userspace_tile_size_and_image_ref()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
 
   let d = defs( &svg );
   assert!( d.contains( "<pattern id=\"pat_9\"" ), "defs: {d}" );
@@ -326,7 +327,7 @@ fn clip_mask_emits_clip_path_with_path_segments()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
 
   let d = defs( &svg );
   assert!( d.contains( "<clipPath id=\"clip_4\">" ), "defs: {d}" );
@@ -363,7 +364,7 @@ fn sprite_white_tint_no_filter()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   svg.submit( &[
     RenderCommand::Sprite( Sprite
     {
@@ -405,7 +406,7 @@ fn screen_space_sprite_renders_through_sprite_path()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   svg.submit( &[
     RenderCommand::ScreenSpaceSprite( Sprite
     {
@@ -447,7 +448,7 @@ fn sprite_colored_tint_creates_filter()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   svg.submit( &[
     RenderCommand::Sprite( Sprite
     {
@@ -488,7 +489,7 @@ fn two_tinted_sprites_get_distinct_filter_ids()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   let s = Sprite
   {
     transform : Transform::default(),
@@ -528,7 +529,7 @@ fn sprite_batch_create_draw()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
 
   let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
   svg.submit( &[
@@ -590,7 +591,7 @@ fn mesh_batch_create_draw()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
 
   let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
   svg.submit( &[
@@ -630,7 +631,7 @@ fn mesh_batch_create_draw()
 fn batch_set_and_remove_instance()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
 
   let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
   // First submit: create batch with 2 instances
@@ -683,7 +684,7 @@ fn batch_set_and_remove_instance()
 fn delete_batch()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
 
   let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
   svg.submit( &[
@@ -713,7 +714,7 @@ fn delete_batch()
 fn effect_blur()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[
     RenderCommand::BeginGroup( BeginGroup
     {
@@ -735,7 +736,7 @@ fn effect_blur()
 fn effect_drop_shadow_y_flipped()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[
     RenderCommand::BeginGroup( BeginGroup
     {
@@ -765,7 +766,7 @@ fn effect_drop_shadow_y_flipped()
 fn effect_color_matrix()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   let mut values = [ 0.0f32; 20 ];
   values[ 0 ] = 1.0; // r->r
   values[ 6 ] = 1.0; // g->g
@@ -790,7 +791,7 @@ fn effect_color_matrix()
 fn effect_opacity()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[
     RenderCommand::BeginGroup( BeginGroup
     {
@@ -811,7 +812,7 @@ fn effect_opacity()
 fn nested_groups()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[
     RenderCommand::BeginGroup( BeginGroup { transform : Transform::default(), clip : None, effect : None } ),
     RenderCommand::BeginGroup( BeginGroup { transform : Transform::default(), clip : None, effect : None } ),
@@ -828,7 +829,7 @@ fn nested_groups()
 fn unmatched_end_group_does_not_emit_closing_tag()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[ RenderCommand::EndGroup( EndGroup ) ]).unwrap();
 
   let b = body( &svg );
@@ -854,7 +855,7 @@ fn mesh_triangle_list()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
 
   svg.submit( &[
     RenderCommand::Mesh( Mesh
@@ -895,7 +896,7 @@ fn geometry_u8_indices_loaded()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   svg.submit( &[
     RenderCommand::Mesh( Mesh
     {
@@ -934,7 +935,7 @@ fn geometry_oob_index_no_panic()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   // Must not panic
   svg.submit( &[
     RenderCommand::Mesh( Mesh
@@ -969,7 +970,7 @@ fn mesh_svg( topology : Topology, positions : &[ f32 ] ) -> ( String, String )
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   svg.submit( &[
     RenderCommand::Mesh( Mesh
     {
@@ -1111,7 +1112,7 @@ fn capabilities_all_true()
 fn blend_mode_multiply()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[
     RenderCommand::BeginPath( BeginPath
     {
@@ -1153,7 +1154,7 @@ fn image_path_escapes_attribute_injection()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   let d = defs( &svg );
   // Raw unescaped injection must not appear.
   assert!( !d.contains( r#"onload="alert(1)""# ), "event handler leaked: {d}" );
@@ -1186,7 +1187,7 @@ fn sprite_on_path_sheet_is_skipped_with_comment()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   let d = defs( &svg );
   // No sprite_7 symbol was emitted.
   assert!( !d.contains( "id=\"sprite_7\"" ), "sprite should be skipped: {d}" );
@@ -1221,7 +1222,7 @@ fn geometry_path_source_loads_from_disk()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
 
   svg.submit( &[
     RenderCommand::Mesh( Mesh
@@ -1265,7 +1266,7 @@ fn geometry_on_missing_path_is_skipped_with_comment()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
 
   svg.submit( &[
     RenderCommand::Mesh( Mesh
@@ -1305,7 +1306,7 @@ fn geometry_on_missing_index_path_is_skipped_whole()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   let d = defs( &svg );
   assert!( d.contains( "geometry_4 skipped" ), "diagnostic comment missing: {d}" );
 }
@@ -1328,7 +1329,7 @@ fn image_encoded_jpeg_emits_jpeg_mime()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   let d = defs( &svg );
   assert!( d.contains( "data:image/jpeg;base64," ), "defs: {d}" );
   assert!( !d.contains( "data:image/png;base64," ), "should not emit PNG mime: {d}" );
@@ -1358,7 +1359,7 @@ fn image_bitmap_emits_png_data_uri()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   let d = defs( &svg );
   assert!( d.contains( "data:image/png;base64," ), "defs: {d}" );
 }
@@ -1387,7 +1388,7 @@ fn image_bitmap_bad_dimensions_emits_nothing()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   let d = defs( &svg );
   assert!( !d.contains( "data:image/png;base64," ), "expected no image def, defs: {d}" );
 }
@@ -1412,7 +1413,7 @@ fn begin_text_cmd( anchor : TextAnchor, position : [ f32; 2 ] ) -> RenderCommand
 fn text_basic_flow_emits_text_element()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[
     begin_text_cmd( TextAnchor::TopLeft, [ 10.0, 20.0 ] ),
     RenderCommand::Char( Char( 'H' ) ),
@@ -1432,7 +1433,7 @@ fn text_basic_flow_emits_text_element()
 fn color_emits_svg11_rgb_plus_opacity_not_rgba()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[ RenderCommand::Clear( Clear { color : [ 1.0, 0.0, 0.0, 0.5 ] } ) ] ).unwrap();
   let b = body( &svg );
   assert!( !b.contains( "rgba(" ), "rgba() notation leaked (not SVG 1.1): {b}" );
@@ -1445,7 +1446,7 @@ fn color_emits_svg11_rgb_plus_opacity_not_rgba()
 fn opaque_color_omits_opacity_attribute()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[ RenderCommand::Clear( Clear { color : [ 0.0, 1.0, 0.0, 1.0 ] } ) ] ).unwrap();
   let b = body( &svg );
   assert!( b.contains( "fill=\"rgb(0,255,0)\"" ), "expected opaque rgb: {b}" );
@@ -1458,7 +1459,7 @@ fn opaque_color_omits_opacity_attribute()
 fn text_escapes_xml_special_characters()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   let injection = "</text><script>x</script>";
   let mut cmds : Vec< RenderCommand > = vec![ begin_text_cmd( TextAnchor::TopLeft, [ 0.0, 0.0 ] ) ];
   cmds.extend( injection.chars().map( | c | RenderCommand::Char( Char( c ) ) ) );
@@ -1478,7 +1479,7 @@ fn text_escapes_xml_special_characters()
 fn text_end_without_begin_is_noop()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[ RenderCommand::EndText( EndText ) ] ).unwrap();
   assert!( !body( &svg ).contains( "<text" ) );
 }
@@ -1488,7 +1489,7 @@ fn text_end_without_begin_is_noop()
 fn text_emits_font_size()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[
     RenderCommand::BeginText( BeginText
     {
@@ -1513,7 +1514,7 @@ fn text_emits_font_size()
 fn text_anchor_attrs_in_output()
 {
   let mut svg = svg800x600();
-  svg.load_assets( &empty_assets() ).unwrap();
+  svg.assets_load( &empty_assets() ).unwrap();
   svg.submit( &[
     begin_text_cmd( TextAnchor::BottomRight, [ 0.0, 0.0 ] ),
     RenderCommand::Char( Char( 'X' ) ),
@@ -1541,7 +1542,7 @@ fn text_along_path_emits_text_path()
     }],
     ..empty_assets()
   };
-  svg.load_assets( &assets ).unwrap();
+  svg.assets_load( &assets ).unwrap();
   svg.submit( &[
     RenderCommand::BeginText( BeginText
     {
@@ -1562,4 +1563,376 @@ fn text_along_path_emits_text_path()
   assert!( b.contains( "<textPath" ), "body: {b}" );
   assert!( b.contains( "href=\"#path_3\"" ), "body: {b}" );
   assert!( b.contains( "AB" ), "body: {b}" );
+}
+
+// ============================================================================
+// Formatting/encoding helper tests, relocated from inline `src/adapters/svg.rs`
+// per the all-tests-in-tests/ convention ( the helpers are exported for exactly
+// this purpose; `#[ doc( hidden ) ]` marks the internal ones ).
+// ============================================================================
+
+// -- transform Y-up --
+
+#[ test ]
+fn transform_y_up_bottom_left_origin()
+{
+  // Position (0,0) in Y-up should map to SVG (0, height=600)
+  let s = SvgBackend::transform_to_svg_static(
+    &Transform { position : [ 0.0, 0.0 ], ..Default::default() },
+    600,
+  );
+  assert!( s.contains( "translate(0,600)" ), "got: {s}" );
+}
+
+#[ test ]
+fn transform_y_up_top_right()
+{
+  // Position (800,600) should map to SVG (800, 0)
+  let s = SvgBackend::transform_to_svg_static(
+    &Transform { position : [ 800.0, 600.0 ], ..Default::default() },
+    600,
+  );
+  assert!( s.contains( "translate(800,0)" ), "got: {s}" );
+}
+
+#[ test ]
+fn transform_y_up_center()
+{
+  // Position (400,300) should map to SVG (400, 300)
+  let s = SvgBackend::transform_to_svg_static(
+    &Transform { position : [ 400.0, 300.0 ], ..Default::default() },
+    600,
+  );
+  assert!( s.contains( "translate(400,300)" ), "got: {s}" );
+}
+
+#[ test ]
+fn transform_rotation_negated()
+{
+  let angle = core::f32::consts::FRAC_PI_4; // 45° CCW in Y-up
+  let s = SvgBackend::transform_to_svg_static(
+    &Transform { rotation : angle, ..Default::default() },
+    600,
+  );
+  // Should emit negative degrees in SVG
+  assert!( s.contains( "rotate(-45" ), "got: {s}" );
+}
+
+#[ test ]
+fn transform_scale_y_negated()
+{
+  let s = SvgBackend::transform_to_svg_static(
+    &Transform { scale : [ 2.0, 3.0 ], ..Default::default() },
+    600,
+  );
+  // scale Y should be negated: 3.0 → -3.0
+  assert!( s.contains( "scale(2,-3)" ), "got: {s}" );
+}
+
+#[ test ]
+fn transform_identity_scale_emits_y_flip()
+{
+  // Default scale (1,1) should still emit scale(1,-1) for Y-flip
+  let s = SvgBackend::transform_to_svg_static(
+    &Transform::default(),
+    600,
+  );
+  assert!( s.contains( "scale(1,-1)" ), "got: {s}" );
+}
+
+/// Verify that zoom=1.0 does NOT inject scale(1) noise into per-element transforms.
+#[ test ]
+fn transform_no_zoom_in_per_element_transform()
+{
+  let s = SvgBackend::transform_to_svg_static(
+    &Transform::default(),
+    600,
+  );
+  // Only scale(1,-1) for Y-flip should be present; no zoom prefix
+  assert!( !s.contains( "scale(1) " ), "got: {s}" );
+}
+
+#[ test ]
+fn transform_skew_negated()
+{
+  let angle = core::f32::consts::FRAC_PI_6; // 30°
+  let s = SvgBackend::transform_to_svg_static(
+    &Transform { skew : [ angle, 0.0 ], ..Default::default() },
+    600,
+  );
+  assert!( s.contains( "skewX(-30" ), "got: {s}" );
+}
+
+// -- local transform (for batch instances inside Y-flipped group) --
+
+#[ test ]
+fn local_transform_no_y_flip()
+{
+  let s = SvgBackend::transform_to_svg_local( &Transform
+  {
+    position : [ 10.0, 20.0 ],
+    rotation : 0.5,
+    scale : [ 2.0, 3.0 ],
+    ..Default::default()
+  });
+  // Position is raw, no Y-flip
+  assert!( s.contains( "translate(10,20)" ), "got: {s}" );
+  // Rotation is raw (positive), not negated
+  let deg = 0.5_f32.to_degrees();
+  assert!( s.contains( &format!( "rotate({deg})" ) ), "got: {s}" );
+  // Scale is raw, no Y negation
+  assert!( s.contains( "scale(2,3)" ), "got: {s}" );
+}
+
+// -- content manager --
+
+#[ test ]
+fn content_manager_push_clear_cycle()
+{
+  let mut cm = SvgContentManager::new( 100, 100, "" );
+  cm.asset_def_push( "<test-def/>" );
+  cm.body_push( "<test-body/>" );
+
+  let buf = cm.buffer();
+  assert!( buf.contains( "<test-def/>" ) );
+  assert!( buf.contains( "<test-body/>" ) );
+
+  cm.body_clear();
+  let buf = cm.buffer();
+  assert!( buf.contains( "<test-def/>" ) );
+  assert!( !buf.contains( "<test-body/>" ) );
+
+  cm.defs_clear();
+  let buf = cm.buffer();
+  assert!( !buf.contains( "<test-def/>" ) );
+}
+
+// -- png_dimensions --
+
+/// Verifies that `png_dimensions` extracts correct width/height from valid PNG bytes.
+#[ test ]
+fn png_dimensions_valid()
+{
+  // Generate a real 3×5 PNG via bitmap_to_png, then extract dimensions from its header.
+  let bytes = vec![ 0u8; 3 * 5 * 4 ];
+  let png = SvgBackend::bitmap_to_png( &bytes, 3, 5, PixelFormat::Rgba8 ).unwrap();
+  assert_eq!( SvgBackend::png_dimensions( &png ), Some( ( 3, 5 ) ) );
+}
+
+/// Verifies MIME type detection from magic bytes.
+#[ test ]
+fn detect_image_mime_by_magic()
+{
+  // PNG
+  assert_eq!( image_mime_detect( &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0 ] ), "image/png" );
+  // JPEG
+  assert_eq!( image_mime_detect( &[ 0xff, 0xd8, 0xff, 0xe0 ] ), "image/jpeg" );
+  // GIF
+  assert_eq!( image_mime_detect( b"GIF89a..." ), "image/gif" );
+  // WebP
+  let mut webp = Vec::from( *b"RIFF\0\0\0\0WEBP" );
+  webp.push( 0 );
+  assert_eq!( image_mime_detect( &webp ), "image/webp" );
+  // Unknown falls back to PNG
+  assert_eq!( image_mime_detect( &[ 0, 0, 0, 0 ] ), "image/png" );
+}
+
+/// Verifies that `path_to_href` produces a valid URI reference:
+/// spaces become %20 and Windows backslashes become forward slashes.
+#[ test ]
+fn image_path_produces_valid_uri_reference()
+{
+  assert_eq!( SvgBackend::path_to_href( "images/tile set/floor.png" ), "images/tile%20set/floor.png" );
+  assert_eq!( SvgBackend::path_to_href( r"images\tiles\floor.png" ), "images/tiles/floor.png" );
+  assert_eq!( SvgBackend::path_to_href( "safe-name_1.2.png" ), "safe-name_1.2.png" );
+  // All URI-reserved and XML-unsafe characters are percent-encoded.
+  let e = SvgBackend::path_to_href( "a\"b<c>d&e#f?g%h" );
+  assert!( !e.contains( '"' ) && !e.contains( '<' ) && !e.contains( '>' ) && !e.contains( '&' ), "unsafe char leaked: {e}" );
+}
+
+/// Verifies that a short / non-PNG buffer returns None.
+#[ test ]
+fn png_dimensions_invalid()
+{
+  assert_eq!( SvgBackend::png_dimensions( &[] ), None );
+  assert_eq!( SvgBackend::png_dimensions( &[ 0u8; 24 ] ), None ); // no PNG signature
+}
+
+/// Verifies that `assets_load` extracts PNG dimensions from `ImageSource::Encoded`
+/// so that a sprite symbol uses the correct sheet size.
+#[ test ]
+fn image_encoded_png_stores_dimensions()
+{
+  let png = SvgBackend::bitmap_to_png( &[ 0u8; 8 * 4 * 4 ], 8, 4, PixelFormat::Rgba8 ).unwrap();
+  let mut svg = svg800x600();
+  let assets = Assets
+  {
+    images : vec![ ImageAsset
+    {
+      id : ResourceId::new( 0 ),
+      source : ImageSource::Encoded( png ),
+      filter : SamplerFilter::Linear,
+      mipmap : MipmapMode::Off,
+      wrap : WrapMode::Clamp,
+    }],
+    sprites : vec![ SpriteAsset
+    {
+      id : ResourceId::new( 0 ),
+      sheet : ResourceId::new( 0 ),
+      region : [ 0.0, 0.0, 4.0, 4.0 ],
+    }],
+    ..empty_assets()
+  };
+  svg.assets_load( &assets ).unwrap();
+  let d = defs( &svg );
+  // The sprite symbol's <use> must reference width="8" height="4" (the sheet size)
+  assert!( d.contains( "width=\"8\"" ), "defs: {d}" );
+  assert!( d.contains( "height=\"4\"" ), "defs: {d}" );
+}
+
+const PNG_MAGIC : &[ u8 ] = &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ];
+
+/// Verifies that a 1×1 Rgba8 pixel buffer produces valid PNG output
+/// (starts with the PNG magic bytes).
+#[ test ]
+fn bitmap_to_png_rgba8_valid()
+{
+  let png = SvgBackend::bitmap_to_png( &[ 255, 0, 128, 255 ], 1, 1, PixelFormat::Rgba8 );
+  let bytes = png.expect( "expected Some for valid 1x1 Rgba8" );
+  assert!( bytes.starts_with( PNG_MAGIC ), "not PNG: {:?}", &bytes[ ..8.min( bytes.len() ) ] );
+}
+
+/// Verifies that a 1×1 Rgb8 pixel buffer encodes successfully.
+#[ test ]
+fn bitmap_to_png_rgb8_valid()
+{
+  let png = SvgBackend::bitmap_to_png( &[ 255, 0, 128 ], 1, 1, PixelFormat::Rgb8 );
+  assert!( png.is_some(), "expected Some for valid 1x1 Rgb8" );
+}
+
+/// Verifies that a 1×1 Gray8 pixel buffer encodes successfully.
+#[ test ]
+fn bitmap_to_png_gray8_valid()
+{
+  let png = SvgBackend::bitmap_to_png( &[ 128 ], 1, 1, PixelFormat::Gray8 );
+  assert!( png.is_some(), "expected Some for valid 1x1 Gray8" );
+}
+
+/// Verifies that a 1×1 `GrayAlpha8` pixel buffer encodes successfully.
+#[ test ]
+fn bitmap_to_png_gray_alpha8_valid()
+{
+  let png = SvgBackend::bitmap_to_png( &[ 128, 255 ], 1, 1, PixelFormat::GrayAlpha8 );
+  assert!( png.is_some(), "expected Some for valid 1x1 GrayAlpha8" );
+}
+
+/// Verifies that mismatched dimensions (too few bytes for the declared size) return None.
+#[ test ]
+fn bitmap_to_png_dimension_mismatch_returns_none()
+{
+  // 2×2 Rgba8 needs 16 bytes; supplying only 4 must return None
+  let png = SvgBackend::bitmap_to_png( &[ 255, 0, 0, 255 ], 2, 2, PixelFormat::Rgba8 );
+  assert!( png.is_none(), "expected None for undersized buffer" );
+}
+
+/// Verifies pixel-for-pixel round-trip fidelity through `bitmap_to_png` for
+/// all 4 `PixelFormat` variants — the tests above only check
+/// magic-bytes/`is_some()`, not that the encoded pixel data is correct.
+#[ test ]
+fn bitmap_to_png_round_trip_pixel_fidelity()
+{
+  let cases : &[ ( PixelFormat, u32, u32, &[ u8 ] ) ] =
+  &[
+    ( PixelFormat::Rgba8, 2, 2, &[ 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160 ] ),
+    ( PixelFormat::Rgb8, 3, 1, &[ 10, 20, 30, 40, 50, 60, 70, 80, 90 ] ),
+    ( PixelFormat::Gray8, 2, 2, &[ 10, 20, 30, 40 ] ),
+    ( PixelFormat::GrayAlpha8, 3, 1, &[ 10, 20, 30, 40, 50, 60 ] ),
+  ];
+
+  for &( format, width, height, pixels ) in cases
+  {
+    let png = SvgBackend::bitmap_to_png( pixels, width, height, format )
+      .unwrap_or_else( || panic!( "expected Some for valid {width}x{height} {format:?}" ) );
+
+    let decoder = png::Decoder::new( std::io::Cursor::new( png ) );
+    let mut reader = decoder.read_info().expect( "valid PNG should decode" );
+    let mut buf = vec![ 0u8; reader.output_buffer_size().expect( "png output buffer size should fit in usize" ) ];
+    let info = reader.next_frame( &mut buf ).expect( "should decode frame" );
+
+    assert_eq!( &buf[ ..info.buffer_size() ], pixels, "pixel mismatch for {format:?}" );
+  }
+}
+
+// anchor_to_svg — 9 variants
+
+#[ test ]
+fn anchor_top_left()
+{
+  let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::TopLeft );
+  assert_eq!( h, "start" );
+  assert_eq!( v, "hanging" );
+}
+
+#[ test ]
+fn anchor_top_center()
+{
+  let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::TopCenter );
+  assert_eq!( h, "middle" );
+  assert_eq!( v, "hanging" );
+}
+
+#[ test ]
+fn anchor_top_right()
+{
+  let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::TopRight );
+  assert_eq!( h, "end" );
+  assert_eq!( v, "hanging" );
+}
+
+#[ test ]
+fn anchor_center_left()
+{
+  let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::CenterLeft );
+  assert_eq!( h, "start" );
+  assert_eq!( v, "central" );
+}
+
+#[ test ]
+fn anchor_center()
+{
+  let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::Center );
+  assert_eq!( h, "middle" );
+  assert_eq!( v, "central" );
+}
+
+#[ test ]
+fn anchor_center_right()
+{
+  let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::CenterRight );
+  assert_eq!( h, "end" );
+  assert_eq!( v, "central" );
+}
+
+#[ test ]
+fn anchor_bottom_left()
+{
+  let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::BottomLeft );
+  assert_eq!( h, "start" );
+  assert_eq!( v, "baseline" );
+}
+
+#[ test ]
+fn anchor_bottom_center()
+{
+  let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::BottomCenter );
+  assert_eq!( h, "middle" );
+  assert_eq!( v, "baseline" );
+}
+
+#[ test ]
+fn anchor_bottom_right()
+{
+  let ( h, v ) = SvgBackend::anchor_to_svg( TextAnchor::BottomRight );
+  assert_eq!( h, "end" );
+  assert_eq!( v, "baseline" );
 }

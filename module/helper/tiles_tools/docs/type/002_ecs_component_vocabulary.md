@@ -24,7 +24,7 @@ All 13 items below live in `src/ecs/components.rs` and are re-exported via `ecs:
 | Component | Fields | Notes |
 |-----------|--------|-------|
 | `Health` | `current: u32`, `maximum: u32` | See Validation below — the one component with a self-enforced numeric invariant. |
-| `Stats` | `attack: u32`, `defense: u32`, `speed: u32`, `level: u32` | `calculate_damage(target_defense)` = `(attack - target_defense/2).max(1)` (saturating) — a pure helper method, not itself wired into `CombatSystem` (see `pitfall/002`). |
+| `Stats` | `attack: u32`, `defense: u32`, `speed: u32`, `level: u32` | `damage_calculate(target_defense)` = `(attack - target_defense/2).max(1)` (saturating) — a pure helper method, not itself wired into `CombatSystem` (see `pitfall/002`). |
 | `Team` | `id: u32`, `default_hostile: bool` | `is_allied_with`/`is_hostile_to` — same `id` is never hostile regardless of `default_hostile`. |
 
 **Visual:**

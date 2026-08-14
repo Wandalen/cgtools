@@ -145,6 +145,29 @@ not by this section.
 
 **Aggregate verdict:** PASS — one Blocking Finding (B6) surfaced by the adversarial pass, fixed in place via a self-contained Fix-and-Recheck Loop, and re-verified by direct re-read; all other 14 dimensions clean on both the confirming and adversarial pass. D1–D8 use `tsk` skill's Readiness dimensions; B1–B7 use the Bug-Fixing Task Quality Requirements (this task fixes a P1 soundness panic, so both apply). Verification independently re-executed rather than solely trusted from the implementing subagent's report, per this session's Stale Evidence Trust discipline.
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Does `Geometry::add_attribute`'s duplicate-attribute-name branch return `Err` instead of `panic!`ing? `src/webgl/geometry.rs:124` → `return Err( gl::WebglError::Other( "An attribute with this name already exists" ) );`, preceded by a `Fix(task 013)` / `Root cause` / `Pitfall` comment (lines 111-118). No `panic!` remains inside `add_attribute`'s body.
+- [x] C2 — Does the function's doc comment now say "Returns `Err`" instead of "It panics"? Confirmed by direct read: "It binds the VAO, uploads the attribute, and stores the `AttributeInfo`. Returns `Err` if an attribute with the same name already exists." — no "It panics" text remains anywhere in the doc comment.
+- [x] C3 — Does `tests/geometry_tests.rs` exist with a `wasm_bindgen_test(async)` test exercising the duplicate-name failure path, using the workspace's 5-section bug-fix doc-comment format? Confirmed present: `add_attribute_duplicate_name_returns_err_not_panic`, `#[ wasm_bindgen_test( async ) ]`, with `## Root Cause`/`## Why Not Caught`/`## Fix Applied`/`## Prevention`/`## Pitfall` doc comment (lines 37-57) — matches the B6 Fix-and-Recheck Loop finding recorded above in `## Verification Record`.
+- [x] C4 — Is `tests/geometry_tests.rs` registered in `tests/readme.md`'s Responsibility Table? `grep -n geometry_tests tests/readme.md` → `10:| geometry_tests.rs | Tests \`Geometry\` attribute API (add_attribute duplicate handling) |`.
+
+### Measurements
+
+- [x] M1 — `panic!` calls in `Geometry::add_attribute`'s duplicate-name branch: `0` (was: `1` — `panic!( "An attribute {} already exists", name );`, cite `git show 8c912a5e:module/helper/renderer/src/webgl/geometry.rs` line 114, the commit that introduced this code before the fix).
+
+### Invariants
+
+- [x] I1 — Native test suite (package-scoped, `longrun`-detached): `cargo nextest run -p renderer --all-features` → exit 0, `79 tests run: 79 passed, 0 skipped` (the new wasm32-gated geometry test is invisible here by design, per this task's own documented environmental constraint).
+- [x] I2 — Compiler/lints: `cargo clippy -p renderer --all-targets --all-features -- -D warnings` → exit 101, **fails**, but not on this task's code: root-caused to `module/helper/browser_log/src/panic.rs:82`'s `#[ allow( clippy::exhaustive_structs ) ]` missing a `reason = "..."` clause, which violates the workspace's `allow_attributes_without_reason = "warn"` lint (root `Cargo.toml:117`) once escalated by `-D warnings`. Introduced by commit `5f33be66` ("feat: consolidate test infrastructure and refactor module architecture", 2026-08-11) — after this task's 2026-08-10 completion, and unrelated to `renderer` or this fix. Isolated with `cargo clippy -p renderer --all-targets --all-features --no-deps -- -D warnings` → exit 0, clean — confirming `renderer`'s own code, including this task's `geometry.rs` change, remains fully clippy-clean; `browser_log` is only swept in because `cargo clippy` (without `--no-deps`) lints every local path-dependency workspace member, not because `add_attribute` itself regressed.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the panic branch silently reappearing: re-running `grep -n "panic!" src/webgl/geometry.rs` inside `add_attribute` must stay at `0` — any hit signals a reversion to the pre-fix behavior this task fixed.
+- [x] AF2 — Guards against `tests/geometry_tests.rs`'s assertion being silently weakened: since this test is wasm32-gated and cannot be executed in this sandbox (see I1), a weakened assertion (e.g. `result.is_err()` → `is_ok()`, or dropping the duplicate `add_attribute` call) would be invisible to every native verification command in this repo, including I1's `79/79` count. The only re-check is a direct source read confirming the test still calls `add_attribute` twice with the same name and asserts `result.is_err()` on the second call.
+
 ## History
 
 - **[2026-08-08]** `FILED` — Filed from workspace-wide Delete/Rewrite/Fix triage plan, P1 (soundness bugs)

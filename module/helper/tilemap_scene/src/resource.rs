@@ -9,7 +9,7 @@ mod private
   use serde::{ Deserialize, Serialize };
   use rustc_hash::FxHashMap as HashMap;
   pub use tilemap_renderer::types::BlendMode;
-  use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
+  pub use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
 
   // ============================================================================
   // Reference wrappers
@@ -335,7 +335,7 @@ mod private
     #[ default ]
     None,
     /// Offset derived deterministically from the instance's grid
-    /// coordinate (via [`crate::hash::hash_coord`]). Requires a
+    /// coordinate (via [`crate::hash::coord_hash`]). Requires a
     /// grid-anchored placement (`Hex`, `Multihex`, `Edge`).
     ///
     /// For placements without a hex coord (`FreePos`, `Viewport`),
@@ -454,6 +454,9 @@ mod_interface::mod_interface!
   exposed use SheetLayout;
   exposed use Tint;
   exposed use BlendMode;
+  exposed use SamplerFilter;
+  exposed use MipmapMode;
+  exposed use WrapMode;
   exposed use Animation;
   exposed use AnimationTiming;
   exposed use TimedFrame;

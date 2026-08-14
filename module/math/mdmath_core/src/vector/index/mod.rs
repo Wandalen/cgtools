@@ -77,8 +77,8 @@ impl ArrayRef< usize, 1 > for Ix1
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-    #[ allow( unsafe_code ) ]
-    let result : &[ Ix ; 1 ] = unsafe { &*( ( self as *const Ix1 ).cast::< [ Ix ; 1 ] >() ) };
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
+    let result : &[ Ix ; 1 ] = unsafe { &*( std::ptr::from_ref::< Ix1 >( self ).cast::< [ Ix ; 1 ] >() ) };
 
     // Check size and alignment of the whole collection
     debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
@@ -112,8 +112,8 @@ impl ArrayMut< usize, 1 > for Ix1
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-    #[ allow( unsafe_code ) ]
-    let result : &mut [ Ix ; 1 ] = unsafe { &mut *( ( self as *mut Ix1 ).cast::< [ Ix ; 1 ] >() ) };
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
+    let result : &mut [ Ix ; 1 ] = unsafe { &mut *( std::ptr::from_mut::< Ix1 >( self ).cast::< [ Ix ; 1 ] >() ) };
 
     // Perform checks under debug conditions
     #[ cfg( debug_assertions ) ]
@@ -160,8 +160,8 @@ impl ArrayRef< usize, 2 > for Ix2
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-    #[ allow( unsafe_code ) ]
-    let result : &[ Ix ; 2 ] = unsafe { &*( ( self as *const Ix2 ).cast::< [ Ix ; 2 ] >() ) };
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
+    let result : &[ Ix ; 2 ] = unsafe { &*( std::ptr::from_ref::< Ix2 >( self ).cast::< [ Ix ; 2 ] >() ) };
 
     // Check size and alignment of the whole collection
     debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
@@ -195,8 +195,8 @@ impl ArrayMut< usize, 2 > for Ix2
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-    #[ allow( unsafe_code ) ]
-    let result : &mut [ Ix ; 2 ] = unsafe { &mut *( ( self as *mut Ix2 ).cast::< [ Ix ; 2 ] >() ) };
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
+    let result : &mut [ Ix ; 2 ] = unsafe { &mut *( std::ptr::from_mut::< Ix2 >( self ).cast::< [ Ix ; 2 ] >() ) };
 
     // Perform checks under debug conditions
     #[ cfg( debug_assertions ) ]
@@ -243,8 +243,8 @@ impl ArrayRef< usize, 3 > for Ix3
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-    #[ allow( unsafe_code ) ]
-    let result : &[ Ix ; 3 ] = unsafe { &*( ( self as *const Ix3 ).cast::< [ Ix ; 3 ] >() ) };
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
+    let result : &[ Ix ; 3 ] = unsafe { &*( std::ptr::from_ref::< Ix3 >( self ).cast::< [ Ix ; 3 ] >() ) };
 
     // Check size and alignment of the whole collection
     debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
@@ -278,8 +278,8 @@ impl ArrayMut< usize, 3 > for Ix3
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-    #[ allow( unsafe_code ) ]
-    let result : &mut [ Ix ; 3 ] = unsafe { &mut *( ( self as *mut Ix3 ).cast::< [ Ix ; 3 ] >() ) };
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
+    let result : &mut [ Ix ; 3 ] = unsafe { &mut *( std::ptr::from_mut::< Ix3 >( self ).cast::< [ Ix ; 3 ] >() ) };
 
     // Perform checks under debug conditions
     #[ cfg( debug_assertions ) ]
@@ -326,8 +326,8 @@ impl ArrayRef< usize, 4 > for Ix4
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-    #[ allow( unsafe_code ) ]
-    let result : &[ Ix ; 4 ] = unsafe { &*( ( self as *const Ix4 ).cast::< [ Ix ; 4 ] >() ) };
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
+    let result : &[ Ix ; 4 ] = unsafe { &*( std::ptr::from_ref::< Ix4 >( self ).cast::< [ Ix ; 4 ] >() ) };
 
     // Check size and alignment of the whole collection
     debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
@@ -357,8 +357,8 @@ impl ArrayMut< usize, 4 > for Ix4
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-    #[ allow( unsafe_code ) ]
-    let result : &mut [ Ix ; 4 ] = unsafe { &mut *( ( self as *mut Ix4 ).cast::< [ Ix ; 4 ] >() ) };
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
+    let result : &mut [ Ix ; 4 ] = unsafe { &mut *( std::ptr::from_mut::< Ix4 >( self ).cast::< [ Ix ; 4 ] >() ) };
 
     // Perform checks under debug conditions
     #[ cfg( debug_assertions ) ]

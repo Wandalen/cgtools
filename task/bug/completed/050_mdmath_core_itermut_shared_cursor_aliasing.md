@@ -380,6 +380,32 @@ calling .next() k times then .next_back() m times yields k+m pairwise-distinct
 memory addresses, matching what an independent front/back-cursor traversal would produce
 ```
 
+## Verification
+
+### Checklist
+
+- [x] C1 — Is the root cause (shared `index` field misinterpreted across `next()`/`next_back()`) fixed in exactly the 3 files claimed, matching the documented `## Fix Location` "After" shape? Direct read of `tuple2.rs`/`tuple3.rs`/`tuple4.rs` — all three now declare independent `front`/`back : usize` cursors instead of the original shared `index : usize`, matching the documented shape exactly.
+- [x] C2 — Does the fixed source still reproduce as UB-free under Miri (the `## Symptom` section's "once fixed" expectation)? This session's own fresh `cargo +nightly miri test -p mdmath_core --all-features` shows `test_vector_iter_mut_mixed_direction_no_aliasing_tuple2`, `test_vector_iter_mut_next_and_next_back_disjoint_tuple3`, and `test_vector_iter_mut_next_and_next_back_disjoint_tuple4` all `... ok` with zero Stacked-Borrows errors reported anywhere in the run (see I3).
+- [x] C3 — Is the `Fix(BUG-050)` 3-field comment present at (approximately) the cited line ranges? Direct read finds it at `tuple2.rs:156-164` (struct 165), `tuple3.rs:158-166` (struct 167), `tuple4.rs:168-176` (struct 177) — a few lines earlier than this bug file's own `## Refs: src/` citation (161-169/163-171/173-181), consistent with minor unrelated line-shift elsewhere in each file since filing; content and position (immediately above each struct) match.
+- [x] C4 — Is the "zero live callers" Magnitude claim (no production call mixes `.next()`/`.next_back()` or uses `.rev()` on a `vector_iter_mut()` result) still true today? Workspace-wide `grep -rn "vector_iter_mut" --include="*.rs" . | grep -E "\.rev\(\)|next_back"` → every hit is inside `mdmath_core/tests/`; zero production call sites.
+- [x] C5 — Are the 3 reproducer tests still tagged `bug_reproducer(BUG-050)` and passing? `grep -n "bug_reproducer(BUG-050)"` → present in all 3 test files; all pass natively and under Miri (I1, I3).
+
+### Measurements
+
+- [x] M1 — Shared `index : usize` cursor fields remaining in the three `*IterMut` types: `0` (was: `3` — `git show 9b71cf39^:module/math/mdmath_core/src/vector/tuple2.rs` lines 161-165 shows the original one-field shape; `tuple3.rs`/`tuple4.rs` identical at the same commit).
+- [x] M2 — Miri UB errors on the crate's full test suite: `0` (was: `1` reported failure reproduced in `## Symptom`, `error: Undefined Behavior: attempting a write access ... tag does not exist in the borrow stack`, at `tuple2.rs:226` pre-fix — this session's fresh run against current source shows the same class of test now passing clean).
+
+### Invariants
+
+- [x] I1 — Test suite (crate-scoped): `cargo nextest run -p mdmath_core --all-features` (via `longrun`) → exit 0, 89 tests run: 89 passed, 0 skipped (log `-0014_longrun.log`).
+- [x] I2 — Lints clean: `cargo clippy -p mdmath_core --all-targets --all-features -- -D warnings` (via `longrun`) → exit 0, zero warnings (log `-0018_longrun.log`).
+- [x] I3 — Miri Stacked Borrows (this bug's own primary evidence mechanism): `cargo +nightly miri test -p mdmath_core --all-features` (via `longrun`) → exit 0, 89 passed, 0 failed, zero UB anywhere in the crate, including all 3 named reproducers (log `-0019_longrun.log`); Miri's availability confirmed first (`cargo +nightly miri --version` → `miri 0.1.0`) rather than assumed.
+
+### Anti-faking checks
+
+- [x] AF1 — Guards against the shared-cursor aliasing pattern returning in any of the 3 files: re-run C1's read — all three structs must keep independent `front`/`back` fields, never a shared `index`.
+- [x] AF2 — Guards against a future edit re-introducing a mixed-direction alias undetected by native (non-Miri) tests: periodic `cargo +nightly miri test -p mdmath_core --all-features` re-runs remain the only tool in this toolchain that actually proves absence of UB (per this bug's own `## Prevention` section) — a green native `cargo nextest` alone is not a sufficient re-check for this specific regression class.
+
 ## History
 
 | Date       | Event  | Notes                                                                                                     |

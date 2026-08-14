@@ -10,23 +10,23 @@ const TRANSLATION_PREFIX: &str = "_translation";
 const ROTATION_PREFIX: &str = "_rotation";
 
 /// Helper to create a simple rotation tween sequence
-fn create_rotation_sequence( start : QuatF64, end : QuatF64, duration : f64 ) -> Sequence< Tween< QuatF64 > >
+fn rotation_sequence_create( start : QuatF64, end : QuatF64, duration : f64 ) -> Sequence< Tween< QuatF64 > >
 {
   let tweens =
   vec![
-    Tween::new( start, end, duration / 2.0, Linear::new() ),
-    Tween::new( end, start, duration / 2.0, Linear::new() )
+    Tween::new( start, end, duration / 2.0, Linear::build() ),
+    Tween::new( end, start, duration / 2.0, Linear::build() )
   ];
   Sequence::new( tweens ).unwrap()
 }
 
 /// Helper to create a simple translation tween sequence
-fn create_translation_sequence( start : F64x3, end : F64x3, duration : f64 ) -> Sequence< Tween< F64x3 > >
+fn translation_sequence_create( start : F64x3, end : F64x3, duration : f64 ) -> Sequence< Tween< F64x3 > >
 {
   let tweens =
   vec![
-    Tween::new( start, end, duration / 2.0, Linear::new() ),
-    Tween::new( end, start, duration / 2.0, Linear::new() )
+    Tween::new( start, end, duration / 2.0, Linear::build() ),
+    Tween::new( end, start, duration / 2.0, Linear::build() )
   ];
   Sequence::new( tweens ).unwrap()
 }
@@ -70,9 +70,7 @@ fn test_scaler_remove_group()
 }
 
 #[ test ]
-// Compared values are read back unmodified through a getter right after being written via
-// the exact same literal (no arithmetic in between), so strict float equality is safe.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "values read back through a getter are the exact literals just written; no arithmetic in between" ) ]
 fn test_scaler_scale_get_mut()
 {
   let sequencer = Sequencer::new();
@@ -106,9 +104,7 @@ fn test_scaler_clear()
 }
 
 #[ test ]
-// Compared values are read back unmodified through a getter right after being written via
-// the exact same literal (no arithmetic in between), so strict float equality is safe.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "values read back through a getter are the exact literals just written; no arithmetic in between" ) ]
 fn test_grouped_nodes_independence()
 {
   let mut sequencer = Sequencer::new();
@@ -116,12 +112,12 @@ fn test_grouped_nodes_independence()
   // Add two rotation animations with different angles
   let rot1_start = QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] );
   let rot1_end = QuatF64::from_axis_angle( F64x3::new( 0.0, 0.0, 1.0 ), PI / 2.0 );
-  let seq1 = create_rotation_sequence( rot1_start, rot1_end, 1.0 );
+  let seq1 = rotation_sequence_create( rot1_start, rot1_end, 1.0 );
   sequencer.insert( format!( "node1{ROTATION_PREFIX}" ).as_str(), seq1 );
 
   let rot2_start = QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] );
   let rot2_end = QuatF64::from_axis_angle( F64x3::new( 1.0, 0.0, 0.0 ), PI );
-  let seq2 = create_rotation_sequence( rot2_start, rot2_end, 1.0 );
+  let seq2 = rotation_sequence_create( rot2_start, rot2_end, 1.0 );
   sequencer.insert( format!( "node2{ROTATION_PREFIX}" ).as_str(), seq2 );
 
   let mut scaler = Scaler::new( sequencer );
@@ -146,7 +142,7 @@ fn test_animatable_composition_update()
   // Add a simple translation animation
   let start = F64x3::new( 0.0, 0.0, 0.0 );
   let end = F64x3::new( 1.0, 1.0, 1.0 );
-  let seq = create_translation_sequence( start, end, 1.0 );
+  let seq = translation_sequence_create( start, end, 1.0 );
   sequencer.insert( format!( "node1{TRANSLATION_PREFIX}" ).as_str(), seq );
 
   let mut scaler = Scaler::new( sequencer );
@@ -156,9 +152,7 @@ fn test_animatable_composition_update()
 }
 
 #[ test ]
-// Compared values are read back unmodified through a getter right after being written via
-// the exact same literal (no arithmetic in between), so strict float equality is safe.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "values read back through a getter are the exact literals just written; no arithmetic in between" ) ]
 fn test_scaler_weights_structure()
 {
   let sequencer = Sequencer::new();

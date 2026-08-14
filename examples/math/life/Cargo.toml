@@ -10,5 +10,8 @@ license = "MIT"
 # mdmath_core = { workspace = true }
 ndarray_cg = { workspace = true }
 
+[lints]
+workspace = true
+
 [package.metadata.action]
 tags = ["runtime:native"]

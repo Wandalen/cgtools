@@ -5,7 +5,7 @@ use std::{ rc::Rc, cell::RefCell };
 use renderer::webgl::
 {
   Node,
-  animation::{ AnimatableComposition, Blender, normalize_weights }
+  animation::{ AnimatableComposition, Blender, weights_normalize }
 };
 use animation::{ Tween, Sequence, Sequencer, easing::{ EasingBuilder, Linear } };
 use mingl::{ F64x3, QuatF64 };
@@ -18,40 +18,40 @@ const ROTATION_PREFIX: &str = "_rotation";
 const SCALE_PREFIX: &str = "_scale";
 
 /// Helper to create a simple translation tween sequence
-fn create_translation_sequence( start : F64x3, end : F64x3, duration : f64 ) -> Sequence< Tween< F64x3 > >
+fn translation_sequence_create( start : F64x3, end : F64x3, duration : f64 ) -> Sequence< Tween< F64x3 > >
 {
   let tweens =
   vec![
-    Tween::new( start, end, duration / 2.0, Linear::new() ),
-    Tween::new( end, start, duration / 2.0, Linear::new() )
+    Tween::new( start, end, duration / 2.0, Linear::build() ),
+    Tween::new( end, start, duration / 2.0, Linear::build() )
   ];
   Sequence::new( tweens ).unwrap()
 }
 
 /// Helper to create a simple rotation tween sequence
-fn create_rotation_sequence( start : QuatF64, end : QuatF64, duration : f64 ) -> Sequence< Tween< QuatF64 > >
+fn rotation_sequence_create( start : QuatF64, end : QuatF64, duration : f64 ) -> Sequence< Tween< QuatF64 > >
 {
   let tweens =
   vec![
-    Tween::new( start, end, duration / 2.0, Linear::new() ),
-    Tween::new( end, start, duration / 2.0, Linear::new() )
+    Tween::new( start, end, duration / 2.0, Linear::build() ),
+    Tween::new( end, start, duration / 2.0, Linear::build() )
   ];
   Sequence::new( tweens ).unwrap()
 }
 
 /// Helper to create a simple scale tween sequence
-fn create_scale_sequence( start : F64x3, end : F64x3, duration : f64 ) -> Sequence< Tween< F64x3 > >
+fn scale_sequence_create( start : F64x3, end : F64x3, duration : f64 ) -> Sequence< Tween< F64x3 > >
 {
   let tweens =
   vec![
-    Tween::new( start, end, duration / 2.0, Linear::new() ),
-    Tween::new( end, start, duration / 2.0, Linear::new() )
+    Tween::new( start, end, duration / 2.0, Linear::build() ),
+    Tween::new( end, start, duration / 2.0, Linear::build() )
   ];
   Sequence::new( tweens ).unwrap()
 }
 
 #[ test ]
-fn test_normalize_weights_basic()
+fn test_weights_normalize_basic()
 {
   let mut values = vec!
   [
@@ -59,7 +59,7 @@ fn test_normalize_weights_basic()
     ( 2.0, 0.5_f32 ),
   ];
 
-  normalize_weights( &mut values );
+  weights_normalize( &mut values );
 
   // Sum should be 1.0
   let sum : f32 = values.iter().map( | ( _, w ) | w ).sum();
@@ -67,7 +67,7 @@ fn test_normalize_weights_basic()
 }
 
 #[ test ]
-fn test_normalize_weights_unequal()
+fn test_weights_normalize_unequal()
 {
   let mut values = vec!
   [
@@ -75,7 +75,7 @@ fn test_normalize_weights_unequal()
     ( 2.0, 0.7_f32 ),
   ];
 
-  normalize_weights( &mut values );
+  weights_normalize( &mut values );
 
   // Sum should be 1.0
   let sum : f32 = values.iter().map( | ( _, w ) | w ).sum();
@@ -87,10 +87,8 @@ fn test_normalize_weights_unequal()
 }
 
 #[ test ]
-// Weights are never touched by `normalize_weights` when their sum is zero, so the
-// retrieved value is the exact input literal, not a computed/rounded result.
-#[ allow( clippy::float_cmp ) ]
-fn test_normalize_weights_zero_sum()
+#[ expect( clippy::float_cmp, reason = "weights with zero sum are untouched by `weights_normalize`; the retrieved value is the exact input literal" ) ]
+fn test_weights_normalize_zero_sum()
 {
   let mut values = vec!
   [
@@ -99,7 +97,7 @@ fn test_normalize_weights_zero_sum()
   ];
 
   // Should not panic with zero sum
-  normalize_weights( &mut values );
+  weights_normalize( &mut values );
 
   // Weights should remain zero
   assert_eq!( values[ 0 ].1, 0.0 );
@@ -107,9 +105,7 @@ fn test_normalize_weights_zero_sum()
 }
 
 #[ test ]
-// These assert the exact weight literal written via `weights_get_mut` round-trips
-// unchanged through `weights_get` (no arithmetic in between), so exact equality is correct.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
 fn test_blender_weights_get_mut()
 {
   let mut blender = Blender::new();
@@ -117,7 +113,7 @@ fn test_blender_weights_get_mut()
   sequencer.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   blender.add( "anim1".into(), sequencer, F64x3::new( 0.5, 0.5, 0.5 ) );
@@ -127,7 +123,7 @@ fn test_blender_weights_get_mut()
 
   let mut nodes = FxHashMap::default();
   let node = Rc::new( RefCell::new( Node::new() ) );
-  node.borrow_mut().set_name( "node1" );
+  node.borrow_mut().name_set( "node1" );
   nodes.insert( "node1".to_string().into_boxed_str(), node );
   blender.set( &nodes );
 
@@ -150,9 +146,7 @@ fn test_blender_animation_get()
 }
 
 #[ test ]
-// These assert the exact weight literal passed to `add` round-trips unchanged through
-// `weights_get` (no arithmetic in between), so exact equality is correct.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
 fn test_blender_multiple_animations_with_different_weights()
 {
   let mut blender = Blender::new();
@@ -161,14 +155,14 @@ fn test_blender_multiple_animations_with_different_weights()
   seq1.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
   );
 
   blender.add( "anim1".into(), seq1, F64x3::new( 0.7, 0.0, 0.0 ) );
@@ -176,7 +170,7 @@ fn test_blender_multiple_animations_with_different_weights()
 
   let mut nodes = FxHashMap::default();
   let node = Rc::new( RefCell::new( Node::new() ) );
-  node.borrow_mut().set_name( "node1" );
+  node.borrow_mut().name_set( "node1" );
   nodes.insert( "node1".to_string().into_boxed_str(), node );
   blender.set( &nodes );
 
@@ -197,14 +191,14 @@ fn test_blender_normalization_enabled()
   seq1.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 2.0, 0.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 2.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 2.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 2.0, 0.0 ), 1.0 )
   );
 
   // Weights don't sum to 1.0
@@ -213,7 +207,7 @@ fn test_blender_normalization_enabled()
 
   let mut nodes = FxHashMap::default();
   let node = Rc::new( RefCell::new( Node::new() ) );
-  node.borrow_mut().set_name( "node1" );
+  node.borrow_mut().name_set( "node1" );
   nodes.insert( "node1".to_string().into_boxed_str(), node );
   blender.set( &nodes );
 
@@ -221,9 +215,7 @@ fn test_blender_normalization_enabled()
 }
 
 #[ test ]
-// These assert the exact weight literal passed to `add` round-trips unchanged through
-// `weights_get` (no arithmetic in between), so exact equality is correct.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
 fn test_blender_independent_transform_blend()
 {
   let mut blender = Blender::new();
@@ -232,12 +224,12 @@ fn test_blender_independent_transform_blend()
   seq1.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
   seq1.insert
   (
     format!( "node1{ROTATION_PREFIX}" ).as_str(),
-    create_rotation_sequence
+    rotation_sequence_create
     (
       QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] ),
       QuatF64::from_axis_angle( F64x3::new( 0.0, 0.0, 1.0 ), PI / 2.0 ),
@@ -247,7 +239,7 @@ fn test_blender_independent_transform_blend()
   seq1.insert
   (
     format!( "node1{SCALE_PREFIX}" ).as_str(),
-    create_scale_sequence( F64x3::new( 1.0, 1.0, 1.0 ), F64x3::new( 2.0, 2.0, 2.0 ), 1.0 )
+    scale_sequence_create( F64x3::new( 1.0, 1.0, 1.0 ), F64x3::new( 2.0, 2.0, 2.0 ), 1.0 )
   );
 
   // Different weights for translation, rotation, and scale
@@ -256,7 +248,7 @@ fn test_blender_independent_transform_blend()
 
   let mut nodes = FxHashMap::default();
   let node = Rc::new( RefCell::new( Node::new() ) );
-  node.borrow_mut().set_name( "node1" );
+  node.borrow_mut().name_set( "node1" );
   nodes.insert( "node1".to_string().into_boxed_str(), node );
   blender.set( &nodes );
 
@@ -267,9 +259,7 @@ fn test_blender_independent_transform_blend()
 }
 
 #[ test ]
-// These assert the exact weight literal passed to `add` round-trips unchanged through
-// `weights_get` (no arithmetic in between), so exact equality is correct.
-#[ allow( clippy::float_cmp ) ]
+#[ expect( clippy::float_cmp, reason = "weight literals round-trip unchanged through `weights_get`; no arithmetic in between" ) ]
 fn test_blender_scale_blend_independence()
 {
   let mut blender = Blender::new();
@@ -278,14 +268,14 @@ fn test_blender_scale_blend_independence()
   seq1.insert
   (
     format!( "node1{SCALE_PREFIX}" ).as_str(),
-    create_scale_sequence( F64x3::new( 1.0, 1.0, 1.0 ), F64x3::new( 2.0, 2.0, 2.0 ), 1.0 )
+    scale_sequence_create( F64x3::new( 1.0, 1.0, 1.0 ), F64x3::new( 2.0, 2.0, 2.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
     format!( "node1{SCALE_PREFIX}" ).as_str(),
-    create_scale_sequence( F64x3::new( 1.0, 1.0, 1.0 ), F64x3::new( 0.5, 0.5, 0.5 ), 1.0 )
+    scale_sequence_create( F64x3::new( 1.0, 1.0, 1.0 ), F64x3::new( 0.5, 0.5, 0.5 ), 1.0 )
   );
 
   blender.add( "anim1".into(), seq1, F64x3::new( 0.0, 0.0, 0.6 ) );
@@ -293,7 +283,7 @@ fn test_blender_scale_blend_independence()
 
   let mut nodes = FxHashMap::default();
   let node = Rc::new( RefCell::new( Node::new() ) );
-  node.borrow_mut().set_name( "node1" );
+  node.borrow_mut().name_set( "node1" );
   nodes.insert( "node1".to_string().into_boxed_str(), node );
   blender.set( &nodes );
 
@@ -313,7 +303,7 @@ fn test_blender_reset()
   sequencer.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   blender.add( "anim1".into(), sequencer, F64x3::splat( 1.0 ) );
@@ -334,7 +324,7 @@ fn test_blender_update()
   sequencer.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   blender.add( "anim1".into(), sequencer, F64x3::splat( 1.0 ) );
@@ -361,7 +351,7 @@ fn test_is_completed_single_animation_not_completed()
   sequencer.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   blender.add( "anim1".into(), sequencer, F64x3::splat( 1.0 ) );
@@ -381,7 +371,7 @@ fn test_is_completed_single_animation_completed()
   sequencer.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   blender.add( "anim1".into(), sequencer, F64x3::splat( 1.0 ) );
@@ -401,14 +391,14 @@ fn test_is_completed_multiple_animations_same_time_not_completed()
   seq1.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
     format!( "node2{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
   );
 
   blender.add( "anim1".into(), seq1, F64x3::new( 0.5, 0.0, 0.0 ) );
@@ -429,14 +419,14 @@ fn test_is_completed_multiple_animations_same_time_completed()
   seq1.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
     format!( "node2{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
   );
 
   blender.add( "anim1".into(), seq1, F64x3::new( 0.5, 0.0, 0.0 ) );
@@ -457,14 +447,14 @@ fn test_is_completed_multiple_animations_different_times()
   seq1.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
     format!( "node2{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 2.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 2.0 )
   );
 
   blender.add( "anim1".into(), seq1, F64x3::new( 0.5, 0.0, 0.0 ) );
@@ -485,14 +475,14 @@ fn test_is_completed_multiple_animations_different_durations()
   seq1.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
   seq2.insert
   (
     format!( "node2{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 2.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 2.0 )
   );
 
   blender.add( "anim1".into(), seq1, F64x3::new( 0.5, 0.0, 0.0 ) );
@@ -514,7 +504,7 @@ fn test_is_completed_after_reset()
   sequencer.insert
   (
     format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
-    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   blender.add( "anim1".into(), sequencer, F64x3::splat( 1.0 ) );

@@ -20,7 +20,7 @@ fn assumptions()
   assert_eq!( [ 3, 1 ], data.strides() );
   // `data[ [ 1, 2 ] ]` only retrieves an element stored verbatim from the `array!` literal —
   // no arithmetic occurs, so the result is bit-identical to the literal `6.`.
-  #[ allow( clippy::float_cmp ) ]
+  #[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
   { assert_eq!( 6., data[ [ 1, 2 ] ] ); }
 }
 

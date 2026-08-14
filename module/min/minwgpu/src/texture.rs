@@ -5,6 +5,35 @@ use mingl::mod_interface;
 
 mod private
 {
+  /// Creates a 2D render-target [`Texture`] of the given `( width, height )` size and format.
+  ///
+  /// The texture is created with `RENDER_ATTACHMENT | COPY_SRC` usage, one mip level and
+  /// no multisampling, so it can serve as a color attachment and later be copied out —
+  /// e.g. by `readback::rgba8`. The bundled view and sampler are default-configured.
+  #[ must_use ]
+  pub fn render_target_2d( device : &wgpu::Device, size : ( u32, u32 ), format : wgpu::TextureFormat ) -> Texture
+  {
+    let ( width, height ) = size;
+    let extend = wgpu::Extent3d { width, height, depth_or_array_layers : 1 };
+    let texture = device.create_texture
+    (
+      &wgpu::TextureDescriptor
+      {
+        label : Some( "render_target_2d" ),
+        size : extend,
+        mip_level_count : 1,
+        sample_count : 1,
+        dimension : wgpu::TextureDimension::D2,
+        format,
+        usage : wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats : &[],
+      }
+    );
+    let view = texture.create_view( &wgpu::TextureViewDescriptor::default() );
+    let sampler = device.create_sampler( &wgpu::SamplerDescriptor::default() );
+    Texture::new( texture, extend, view, sampler )
+  }
+
   /// A struct that bundles a `wgpu::Texture` with its associated view, sampler, and extent.
   ///
   /// This provides a convenient way to manage all the components of a texture as a single unit.
@@ -49,4 +78,5 @@ mod private
 mod_interface!
 {
   own use Texture;
+  own use render_target_2d;
 }

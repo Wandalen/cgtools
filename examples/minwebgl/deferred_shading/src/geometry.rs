@@ -6,7 +6,7 @@ use renderer::webgl::{ loaders::gltf, AttributeInfo, IndexInfo };
 use crate::types::RenderGeometry;
 
 /// Setup geometry for light volumes and visualization spheres
-pub fn create_geometry
+pub fn geometry_create
 (
   gl : &GL,
   sphere : &gltf::GLTF,
@@ -14,7 +14,7 @@ pub fn create_geometry
   radius_buffer : &gl::WebGlBuffer,
 ) -> Result< RenderGeometry, gl::WebglError >
 {
-  let mut light_volume = create_light_volume( gl )?;
+  let mut light_volume = light_volume_create( gl )?;
 
   let translation_attribute = AttributeInfo
   {
@@ -23,7 +23,7 @@ pub fn create_geometry
     descriptor : BufferDescriptor::new::< [ f32; 3 ] >().divisor( 1 ),
     bounding_box : BoundingBox::default(),
   };
-  light_volume.add_attribute( gl, "a_translation", translation_attribute )?;
+  light_volume.attribute_add( gl, "a_translation", translation_attribute )?;
 
   let radius_attribute = AttributeInfo
   {
@@ -32,7 +32,7 @@ pub fn create_geometry
     descriptor : BufferDescriptor::new::< f32 >().divisor( 1 ),
     bounding_box : BoundingBox::default(),
   };
-  light_volume.add_attribute( gl, "a_radius", radius_attribute )?;
+  light_volume.attribute_add( gl, "a_radius", radius_attribute )?;
 
   // Setup sphere geometry
   let sphere_mesh = &sphere.meshes[ 0 ];
@@ -46,13 +46,13 @@ pub fn create_geometry
     descriptor : BufferDescriptor::new::< [ f32; 3 ] >().divisor( 1 ),
     bounding_box : BoundingBox::default(),
   };
-  light_sphere.borrow_mut().add_attribute( gl, "a_translation", sphere_translation_attribute )?;
+  light_sphere.borrow_mut().attribute_add( gl, "a_translation", sphere_translation_attribute )?;
 
   Ok( RenderGeometry { light_volume, light_sphere } )
 }
 
 /// Creates the geometry for a light volume (a unit cube).
-pub fn create_light_volume( gl : &GL ) -> Result< renderer::webgl::Geometry, WebglError >
+pub fn light_volume_create( gl : &GL ) -> Result< renderer::webgl::Geometry, WebglError >
 {
   // Define cube vertices
   static CUBE_VERTICES : &[ f32 ] =
@@ -90,7 +90,7 @@ pub fn create_light_volume( gl : &GL ) -> Result< renderer::webgl::Geometry, Web
   gl.bind_vertex_array( None );
 
   // Create a new Geometry object
-  let mut light_volume = renderer::webgl::Geometry::new( &gl )?;
+  let mut light_volume = renderer::webgl::Geometry::new( gl )?;
 
   // Create and upload the position buffer
   let position_buffer = gl::buffer::create( gl )?;
@@ -103,7 +103,7 @@ pub fn create_light_volume( gl : &GL ) -> Result< renderer::webgl::Geometry, Web
     descriptor : BufferDescriptor::new::< [ f32; 3 ] >(), // Non-instanced attribute
     bounding_box : BoundingBox::default(),
   };
-  light_volume.add_attribute( &gl, "position", attribute )?;
+  light_volume.attribute_add( gl, "position", attribute )?;
 
   // Create and upload the index buffer
   let index_buffer = gl::buffer::create( gl )?;
@@ -116,7 +116,7 @@ pub fn create_light_volume( gl : &GL ) -> Result< renderer::webgl::Geometry, Web
     offset : 0,
     data_type : GL::UNSIGNED_INT,
   };
-  light_volume.add_index( &gl, index )?;
+  light_volume.index_add( gl, index )?;
 
   Ok( light_volume )
 }

@@ -27,7 +27,7 @@ mod private
   #[ derive( Debug ) ]
   pub struct CompiledAssets
   {
-    /// Assets ready to pass to `Backend::load_assets`.
+    /// Assets ready to pass to `Backend::assets_load`.
     pub assets : Assets,
     /// Allocated resource ids for use during frame compilation.
     pub ids : IdMap,

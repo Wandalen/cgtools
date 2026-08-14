@@ -34,7 +34,7 @@ struct AchievementUnlocked {
   points: u32,
 }
 
-fn demonstrate_basic_events(event_bus: &mut EventBus)
+fn basic_events_demonstrate(event_bus: &mut EventBus)
 {
   // === BASIC SUBSCRIPTION DEMONSTRATION ===
   println!("\n📡 Basic Event Subscription");
@@ -102,7 +102,7 @@ fn demonstrate_basic_events(event_bus: &mut EventBus)
   // Process all events
   println!("\n⚡ Processing Events");
   println!("-------------------");
-  event_bus.process_events();
+  event_bus.events_process();
 
   println!("📊 Events processed: {}", event_bus.statistics().events_processed);
   println!("📊 UI updates received: {}", *ui_updates.lock().unwrap());
@@ -116,7 +116,7 @@ fn demonstrate_basic_events(event_bus: &mut EventBus)
   drop(log_entries); // Release lock
 }
 
-fn demonstrate_combat_events(event_bus: &mut EventBus)
+fn combat_events_demonstrate(event_bus: &mut EventBus)
 {
   // === HEALTH AND COMBAT EVENTS ===
   println!("\n⚔️ Combat Event System");
@@ -197,7 +197,7 @@ fn demonstrate_combat_events(event_bus: &mut EventBus)
   });
 
   // Process combat events
-  event_bus.process_events();
+  event_bus.events_process();
 
   println!("\n📜 Combat Log:");
   let combat_entries = combat_log.lock().unwrap();
@@ -207,7 +207,7 @@ fn demonstrate_combat_events(event_bus: &mut EventBus)
   drop(combat_entries);
 }
 
-fn demonstrate_event_consumption(event_bus: &mut EventBus)
+fn event_consumption_demonstrate(event_bus: &mut EventBus)
 {
   // === EVENT CONSUMPTION DEMONSTRATION ===
   println!("\n🔄 Event Consumption");
@@ -249,13 +249,13 @@ fn demonstrate_event_consumption(event_bus: &mut EventBus)
   });
   }
 
-  event_bus.process_events();
+  event_bus.events_process();
 
   println!("📊 Death events processed: {}", *consume_count.lock().unwrap());
   println!("📊 Respawn events processed: {}", *respawn_count.lock().unwrap());
 }
 
-fn demonstrate_auto_unsubscribe(event_bus: &mut EventBus)
+fn auto_unsubscribe_demonstrate(event_bus: &mut EventBus)
 {
   // === AUTO-UNSUBSCRIBE DEMONSTRATION ===
   println!("\n🔄 Auto-Unsubscribe");
@@ -285,13 +285,13 @@ fn demonstrate_auto_unsubscribe(event_bus: &mut EventBus)
     points: i * 10,
   });
 
-  event_bus.process_events();
+  event_bus.events_process();
   println!("  Active achievement subscribers: {}",
     event_bus.subscriber_count::<AchievementUnlocked>());
   }
 }
 
-fn demonstrate_batch_publishing(event_bus: &mut EventBus)
+fn batch_publishing_demonstrate(event_bus: &mut EventBus)
 {
   // === BATCH PUBLISHING ===
   println!("\n📦 Batch Publishing");
@@ -319,11 +319,11 @@ fn demonstrate_batch_publishing(event_bus: &mut EventBus)
   ];
 
   println!("📤 Publishing batch of {} movement events", batch_events.len());
-  event_bus.publish_batch(batch_events);
-  event_bus.process_events();
+  event_bus.batch_publish(batch_events);
+  event_bus.events_process();
 }
 
-fn demonstrate_game_state_events(event_bus: &mut EventBus)
+fn game_state_events_demonstrate(event_bus: &mut EventBus)
 {
   // === GAME STATE EVENTS ===
   println!("\n🎮 Game State Management");
@@ -354,10 +354,10 @@ fn demonstrate_game_state_events(event_bus: &mut EventBus)
   });
   }
 
-  event_bus.process_events();
+  event_bus.events_process();
 }
 
-fn print_final_statistics(event_bus: &EventBus)
+fn final_statistics_print(event_bus: &EventBus)
 {
   // === PERFORMANCE STATISTICS ===
   println!("\n📊 Final Statistics");
@@ -390,11 +390,11 @@ fn main()
 
   let mut event_bus = EventBus::new();
 
-  demonstrate_basic_events(&mut event_bus);
-  demonstrate_combat_events(&mut event_bus);
-  demonstrate_event_consumption(&mut event_bus);
-  demonstrate_auto_unsubscribe(&mut event_bus);
-  demonstrate_batch_publishing(&mut event_bus);
-  demonstrate_game_state_events(&mut event_bus);
-  print_final_statistics(&event_bus);
+  basic_events_demonstrate(&mut event_bus);
+  combat_events_demonstrate(&mut event_bus);
+  event_consumption_demonstrate(&mut event_bus);
+  auto_unsubscribe_demonstrate(&mut event_bus);
+  batch_publishing_demonstrate(&mut event_bus);
+  game_state_events_demonstrate(&mut event_bus);
+  final_statistics_print(&event_bus);
 }

@@ -65,6 +65,10 @@ mod private
   impl ToneMappingPass< ToneMappingAces >
   {
     /// Creates an ACES tone mapping pass.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the tone-mapping shader fails to compile or link.
     pub fn new( gl : &gl::WebGl2RenderingContext ) -> Result< Self, gl::WebglError >
     {
       let fs_shader = include_str!( "../shaders/tonemapping/aces.frag" );

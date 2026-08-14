@@ -35,11 +35,11 @@
 //! (
 //!   vec!
 //!   [
-//!     set_blackboard( "target_x", 10 ),
-//!     set_blackboard( "target_y", 10 ),
+//!     blackboard_set( "target_x", 10 ),
+//!     blackboard_set( "target_y", 10 ),
 //!     wait( 2.0 ), // Wait 2 seconds
-//!     set_blackboard( "target_x", 5 ),
-//!     set_blackboard( "target_y", 5 ),
+//!     blackboard_set( "target_x", 5 ),
+//!     blackboard_set( "target_y", 5 ),
 //!     wait( 2.0 ),
 //!   ]
 //! )
@@ -121,7 +121,7 @@ impl BehaviorContext
 
   /// Sets a value in the blackboard.
   #[ inline ]
-  pub fn set_blackboard< T : Into< BehaviorValue > >( &mut self, key : &str, value : T )
+  pub fn blackboard_set< T : Into< BehaviorValue > >( &mut self, key : &str, value : T )
   {
     self.blackboard.insert( key.to_string(), value.into() );
   }
@@ -129,14 +129,14 @@ impl BehaviorContext
   /// Gets a value from the blackboard.
   #[ inline ]
   #[ must_use ]
-  pub fn get_blackboard( &self, key : &str ) -> Option< &BehaviorValue >
+  pub fn blackboard_get( &self, key : &str ) -> Option< &BehaviorValue >
   {
     self.blackboard.get( key )
   }
 
   /// Sets a property value.
   #[ inline ]
-  pub fn set_property< T : Into< BehaviorValue > >( &mut self, key : &str, value : T )
+  pub fn property_set< T : Into< BehaviorValue > >( &mut self, key : &str, value : T )
   {
     self.properties.insert( key.to_string(), value.into() );
   }
@@ -144,7 +144,7 @@ impl BehaviorContext
   /// Gets a property value.
   #[ inline ]
   #[ must_use ]
-  pub fn get_property( &self, key : &str ) -> Option< &BehaviorValue >
+  pub fn property_get( &self, key : &str ) -> Option< &BehaviorValue >
   {
     self.properties.get( key )
   }
@@ -796,7 +796,7 @@ impl BehaviorNode for BlackboardCondition
   #[ inline ]
   fn execute( &mut self, context : &mut BehaviorContext ) -> BehaviorStatus
   {
-    if let Some( value ) = context.get_blackboard( &self.key )
+    if let Some( value ) = context.blackboard_get( &self.key )
     {
       if *value == self.expected_value
       {
@@ -918,7 +918,7 @@ impl BehaviorNode for SetBlackboardAction
   #[ inline ]
   fn execute( &mut self, context : &mut BehaviorContext ) -> BehaviorStatus
   {
-    context.set_blackboard( &self.key, self.value.clone() );
+    context.blackboard_set( &self.key, self.value.clone() );
     BehaviorStatus::Success
   }
 
@@ -1092,7 +1092,7 @@ pub fn condition< T : Into< BehaviorValue > >( key : &str, expected : T ) -> Box
 /// Creates a set blackboard action.
 #[ inline ]
 #[ must_use ]
-pub fn set_blackboard< T : Into< BehaviorValue > >( key : &str, value : T ) -> Box< dyn BehaviorNode >
+pub fn blackboard_set< T : Into< BehaviorValue > >( key : &str, value : T ) -> Box< dyn BehaviorNode >
 {
   Box::new( SetBlackboardAction::new( key, value ) )
 }

@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate::{Program, Uniform};
   use minwebgl as gl;
   use std::collections::HashMap;
 
@@ -17,6 +17,10 @@ mod private
   impl Mesh
   {
     /// Uploads a uniform value to all programs associated with the mesh.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a uniform upload fails in any program.
     pub fn upload< D : Into< Uniform > + Copy >( &mut self, gl : &gl::WebGl2RenderingContext, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
     {
       for p in self.program_map.values_mut()
@@ -28,6 +32,10 @@ mod private
     }
 
     /// Uploads a uniform value to a single, named program.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if no program named `program_name` exists or the upload fails.
     pub fn upload_to< D : Into< Uniform > + Copy >( &mut self, gl : &gl::WebGl2RenderingContext, program_name : &str, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
     {
       self.program_map.get_mut( program_name ).ok_or( gl::WebglError::Other( "Program with a specified name does not exist" ) )?
@@ -43,12 +51,21 @@ mod private
     }
 
     /// Retrieves a reference to a program by its name.
+    ///
+    /// # Panics
+    ///
+    /// Panics if no program named `name` exists.
+    #[must_use]
     pub fn program_get( &self, name : &str ) -> &Program
     {
       self.program_map.get( name ).expect( "Program with the specified name does not exist" )
     }
 
     /// Retrieves a mutable reference to a program by its name.
+    ///
+    /// # Panics
+    ///
+    /// Panics if no program named `name` exists.
     pub fn program_get_mut( &mut self, name : &str ) -> &mut Program
     {
       self.program_map.get_mut( name ).expect( "Program with the specified name does not exist" )
@@ -73,6 +90,11 @@ mod private
     }
 
     /// Retrieves a reference to a WebGL buffer by its name.
+    ///
+    /// # Panics
+    ///
+    /// Panics if no buffer named `name` exists.
+    #[must_use]
     pub fn buffer_get( &self, name : &str ) -> &gl::WebGlBuffer
     {
       self.buffers.get( name ).expect( "Buffer with the specified name does not exist" )

@@ -18,12 +18,12 @@ fn test_behavior_context_creation()
 fn test_behavior_context_blackboard()
 {
   let mut context = BehaviorContext::new();
-  context.set_blackboard( "health", 100 );
-  context.set_blackboard( "position", ( 5, 10 ) );
+  context.blackboard_set( "health", 100 );
+  context.blackboard_set( "position", ( 5, 10 ) );
 
-  assert_eq!( context.get_blackboard( "health" ), Some( &BehaviorValue::Int( 100 ) ) );
-  assert_eq!( context.get_blackboard( "position" ), Some( &BehaviorValue::Position2D { x : 5, y : 10 } ) );
-  assert_eq!( context.get_blackboard( "missing" ), None );
+  assert_eq!( context.blackboard_get( "health" ), Some( &BehaviorValue::Int( 100 ) ) );
+  assert_eq!( context.blackboard_get( "position" ), Some( &BehaviorValue::Position2D { x : 5, y : 10 } ) );
+  assert_eq!( context.blackboard_get( "missing" ), None );
 }
 
 #[ test ]
@@ -32,9 +32,9 @@ fn test_behavior_context_for_entity_and_properties()
   let mut context = BehaviorContext::for_entity( 7 );
   assert_eq!( context.entity_id, Some( 7 ) );
 
-  context.set_property( "speed", 3 );
-  assert_eq!( context.get_property( "speed" ), Some( &BehaviorValue::Int( 3 ) ) );
-  assert_eq!( context.get_property( "missing" ), None );
+  context.property_set( "speed", 3 );
+  assert_eq!( context.property_get( "speed" ), Some( &BehaviorValue::Int( 3 ) ) );
+  assert_eq!( context.property_get( "missing" ), None );
 }
 
 #[ test ]
@@ -53,8 +53,8 @@ fn test_sequence_node_success()
   let status = sequence.execute( &mut context );
 
   assert_eq!( status, BehaviorStatus::Success );
-  assert_eq!( context.get_blackboard( "step1" ), Some( &BehaviorValue::Bool( true ) ) );
-  assert_eq!( context.get_blackboard( "step2" ), Some( &BehaviorValue::Bool( true ) ) );
+  assert_eq!( context.blackboard_get( "step1" ), Some( &BehaviorValue::Bool( true ) ) );
+  assert_eq!( context.blackboard_get( "step2" ), Some( &BehaviorValue::Bool( true ) ) );
 }
 
 #[ test ]
@@ -73,7 +73,7 @@ fn test_sequence_node_running()
   let status = sequence.execute( &mut context );
 
   assert_eq!( status, BehaviorStatus::Running );
-  assert_eq!( context.get_blackboard( "step1" ), Some( &BehaviorValue::Bool( true ) ) );
+  assert_eq!( context.blackboard_get( "step1" ), Some( &BehaviorValue::Bool( true ) ) );
 }
 
 #[ test ]
@@ -89,12 +89,12 @@ fn test_selector_node()
   );
 
   let mut context = BehaviorContext::new();
-  context.set_blackboard( "should_fail", false ); // Make first condition fail
+  context.blackboard_set( "should_fail", false ); // Make first condition fail
 
   let status = selector.execute( &mut context );
 
   assert_eq!( status, BehaviorStatus::Success );
-  assert_eq!( context.get_blackboard( "executed" ), Some( &BehaviorValue::Bool( true ) ) );
+  assert_eq!( context.blackboard_get( "executed" ), Some( &BehaviorValue::Bool( true ) ) );
 }
 
 #[ test ]
@@ -113,8 +113,8 @@ fn test_parallel_node()
   let status = parallel.execute( &mut context );
 
   assert_eq!( status, BehaviorStatus::Success );
-  assert_eq!( context.get_blackboard( "action1" ), Some( &BehaviorValue::Bool( true ) ) );
-  assert_eq!( context.get_blackboard( "action2" ), Some( &BehaviorValue::Bool( true ) ) );
+  assert_eq!( context.blackboard_get( "action1" ), Some( &BehaviorValue::Bool( true ) ) );
+  assert_eq!( context.blackboard_get( "action2" ), Some( &BehaviorValue::Bool( true ) ) );
 }
 
 #[ test ]
@@ -143,7 +143,7 @@ fn test_invert_node()
   );
 
   let mut context = BehaviorContext::new();
-  context.set_blackboard( "should_succeed", false ); // Make condition fail
+  context.blackboard_set( "should_succeed", false ); // Make condition fail
 
   let status = invert.execute( &mut context );
   assert_eq!( status, BehaviorStatus::Success ); // Inverted failure becomes success
@@ -178,11 +178,11 @@ fn test_blackboard_condition()
   assert_eq!( condition.execute( &mut context ), BehaviorStatus::Failure );
 
   // Condition should fail when value doesn't match
-  context.set_blackboard( "health_low", false );
+  context.blackboard_set( "health_low", false );
   assert_eq!( condition.execute( &mut context ), BehaviorStatus::Failure );
 
   // Condition should succeed when value matches
-  context.set_blackboard( "health_low", true );
+  context.blackboard_set( "health_low", true );
   assert_eq!( condition.execute( &mut context ), BehaviorStatus::Success );
 }
 
@@ -210,7 +210,7 @@ fn test_convenience_functions()
   (
     vec!
     [
-      set_blackboard( "init", true ),
+      blackboard_set( "init", true ),
       selector
       (
         vec!
@@ -224,8 +224,8 @@ fn test_convenience_functions()
   );
 
   let mut context = BehaviorContext::new();
-  context.set_blackboard( "enemy_near", false );
-  context.set_blackboard( "health_full", false );
+  context.blackboard_set( "enemy_near", false );
+  context.blackboard_set( "health_full", false );
 
   // We can't easily test the full execution without more setup,
   // but we can verify the node was created

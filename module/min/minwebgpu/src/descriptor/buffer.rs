@@ -49,7 +49,6 @@ mod private
     {
       // `size_of::<T>()` reflects a single Rust type's compile-time byte size, which will
       // never approach f64's 2^52 exact-integer limit — the precision loss is unreachable.
-      #[ allow( clippy::cast_precision_loss ) ]
       let size = std::mem::size_of::< T >() as f64;
       self.size = size;
       self
@@ -62,7 +61,6 @@ mod private
     {
       // `size_of_val` reflects a single in-memory value's byte size, which will never
       // approach f64's 2^52 exact-integer limit — the precision loss is unreachable.
-      #[ allow( clippy::cast_precision_loss ) ]
       let size = std::mem::size_of_val( var ) as f64;
       self.size = size;
       self

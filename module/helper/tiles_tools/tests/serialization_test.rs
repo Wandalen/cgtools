@@ -52,10 +52,10 @@ fn test_game_state_serializer() {
     .with_format(SerializationFormat::Json)
     .with_compression(false);
 
-  let game_state = GameStateSerializer::create_basic_game_state("Test Game".to_string());
+  let game_state = GameStateSerializer::basic_game_state_create("Test Game".to_string());
 
-  let bytes_out = serializer.serialize_game_state(&game_state).unwrap();
-  let restored = serializer.deserialize_game_state(&bytes_out).unwrap();
+  let bytes_out = serializer.game_state_serialize(&game_state).unwrap();
+  let restored = serializer.game_state_deserialize(&bytes_out).unwrap();
 
   assert_eq!(game_state.metadata.description, restored.metadata.description);
   assert_eq!(game_state.world_data.len(), restored.world_data.len());
@@ -66,10 +66,10 @@ fn test_compression() {
   let serializer = GameStateSerializer::new()
     .with_compression(true);
 
-  let game_state = GameStateSerializer::create_basic_game_state("Compression Test".to_string());
+  let game_state = GameStateSerializer::basic_game_state_create("Compression Test".to_string());
 
-  let compressed = serializer.serialize_game_state(&game_state).unwrap();
-  let decompressed = serializer.deserialize_game_state(&compressed).unwrap();
+  let compressed = serializer.game_state_serialize(&game_state).unwrap();
+  let decompressed = serializer.game_state_deserialize(&compressed).unwrap();
 
   assert_eq!(game_state.metadata.description, decompressed.metadata.description);
 }
@@ -79,31 +79,31 @@ fn test_save_manager() {
   let temp_dir = TempDir::new().unwrap();
   let save_manager = SaveManager::new(temp_dir.path());
 
-  let game_state = GameStateSerializer::create_basic_game_state("Test Save".to_string());
+  let game_state = GameStateSerializer::basic_game_state_create("Test Save".to_string());
 
   // Save the game state
-  save_manager.save_game_state("test_save", &game_state).unwrap();
+  save_manager.game_state_save("test_save", &game_state).unwrap();
 
   // Load it back
-  let loaded_state = save_manager.load_game_state("test_save").unwrap();
+  let loaded_state = save_manager.game_state_load("test_save").unwrap();
   assert_eq!(game_state.metadata.description, loaded_state.metadata.description);
 
   // Test listing saves
-  let saves = save_manager.list_saves().unwrap();
+  let saves = save_manager.saves_list().unwrap();
   assert!(saves.contains(&"test_save".to_string()));
 
   // Test metadata loading
-  let metadata = save_manager.load_save_metadata("test_save").unwrap();
+  let metadata = save_manager.save_metadata_load("test_save").unwrap();
   assert_eq!(metadata.description, "Test Save");
 
   // Test saves info
-  let saves_info = save_manager.get_saves_info().unwrap();
+  let saves_info = save_manager.saves_info_get().unwrap();
   assert_eq!(saves_info.len(), 1);
   assert_eq!(saves_info[0].0, "test_save");
 
   // Test deletion
-  save_manager.delete_save("test_save").unwrap();
-  let saves_after_delete = save_manager.list_saves().unwrap();
+  save_manager.save_delete("test_save").unwrap();
+  let saves_after_delete = save_manager.saves_list().unwrap();
   assert!(!saves_after_delete.contains(&"test_save".to_string()));
 }
 
@@ -115,15 +115,15 @@ fn test_config_manager() {
 
   // Save default config
   let config = GameConfig::default();
-  config_manager.save_config(&config).unwrap();
+  config_manager.config_save(&config).unwrap();
 
   // Load it back
-  let loaded_config = config_manager.load_config().unwrap();
+  let loaded_config = config_manager.config_load().unwrap();
   assert_eq!(config.difficulty, loaded_config.difficulty);
 
   // Test reset
-  config_manager.reset_config().unwrap();
-  let reset_config = config_manager.load_config().unwrap();
+  config_manager.config_reset().unwrap();
+  let reset_config = config_manager.config_load().unwrap();
   assert_eq!(reset_config.difficulty, 1);
 }
 
@@ -156,10 +156,10 @@ fn test_error_handling() {
   let save_manager = SaveManager::new(temp_dir.path());
 
   // Test loading non-existent save
-  let result = save_manager.load_game_state("nonexistent");
+  let result = save_manager.game_state_load("nonexistent");
   assert!(matches!(result, Err(SerializationError::SaveNotFound(_))));
 
   // Test loading non-existent metadata
-  let result = save_manager.load_save_metadata("nonexistent");
+  let result = save_manager.save_metadata_load("nonexistent");
   assert!(matches!(result, Err(SerializationError::MetadataNotFound(_))));
 }

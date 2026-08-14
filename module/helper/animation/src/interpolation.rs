@@ -263,7 +263,6 @@ mod private
         // `elapsed_repeats` counts whole durations crossed within one frame's delta time —
         // bounded in practice by plausible delta_time magnitudes; reaching i32::MAX would need
         // thousands of repeats to elapse within a single `update()` call.
-        #[ allow( clippy::cast_possible_truncation ) ]
         let repeats : i32 = elapsed_repeats as i32;
         self.current_repeat += repeats;
         self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).max( 0.0 );
@@ -273,7 +272,6 @@ mod private
       {
         // Finite repeat
         // See the infinite-repeat branch above for why this narrowing is bounded in practice.
-        #[ allow( clippy::cast_possible_truncation ) ]
         let repeats : i32 = elapsed_repeats as i32;
         self.current_repeat += repeats;
         self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).max( 0.0 );
@@ -481,7 +479,6 @@ mod private
     {
       // `time` is the normalized [0, 1] interpolation factor; narrowing to f32 loses precision
       // but stays representable and visually indistinguishable at animation-frame granularity.
-      #[ allow( clippy::cast_possible_truncation ) ]
       let time = time as f32;
       self + ( other - self ) * time
     }
@@ -501,9 +498,8 @@ mod private
     {
       // Intentionally truncates the fractional part of the blended value to sample a discrete
       // integer; magnitude stays bounded by `self`/`other` for `time` within the intended [0, 1].
-      #[ allow( clippy::cast_possible_truncation ) ]
-      let result = ( f64::from( *self ) + ( f64::from( *other ) - f64::from( *self ) ) * time ) as i32;
-      result
+      
+      ( f64::from( *self ) + ( f64::from( *other ) - f64::from( *self ) ) * time ) as i32
     }
   }
 

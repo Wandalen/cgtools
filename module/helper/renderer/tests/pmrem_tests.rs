@@ -18,7 +18,7 @@ mod tests
   use renderer::webgl::loaders::pmrem;
 
   /// Creates a headless WebGL2 context with the float-render-target extension PMREM needs.
-  async fn init_gl() -> GL
+  async fn gl_init() -> GL
   {
     gl::browser::setup( Default::default() );
     let options = gl::context::ContextOptions::default().antialias( false );
@@ -37,7 +37,7 @@ mod tests
   /// Minimal equirectangular source. Contents are irrelevant to a structural test, so the
   /// 4x2 RGBA8 storage is left uninitialized; `RGBA8` + `LINEAR` is filterable everywhere and
   /// avoids depending on `OES_texture_float_linear`.
-  fn make_equirect( gl : &GL ) -> gl::web_sys::WebGlTexture
+  fn equirect_make( gl : &GL ) -> gl::web_sys::WebGlTexture
   {
     let texture = gl.create_texture().unwrap();
     gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
@@ -53,8 +53,8 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn generate_returns_all_textures()
   {
-    let gl = init_gl().await;
-    let equirect = make_equirect( &gl );
+    let gl = gl_init().await;
+    let equirect = equirect_make( &gl );
 
     let ibl = pmrem::generate( &gl, &equirect, 64 ).expect( "PMREM generate should succeed" );
 
@@ -68,8 +68,8 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn generate_single_mip_resolution()
   {
-    let gl = init_gl().await;
-    let equirect = make_equirect( &gl );
+    let gl = gl_init().await;
+    let equirect = equirect_make( &gl );
 
     let ibl = pmrem::generate( &gl, &equirect, 1 ).expect( "PMREM generate should succeed for a 1x1 cubemap" );
 
@@ -82,8 +82,8 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn generate_non_power_of_two_resolution()
   {
-    let gl = init_gl().await;
-    let equirect = make_equirect( &gl );
+    let gl = gl_init().await;
+    let equirect = equirect_make( &gl );
 
     let ibl = pmrem::generate( &gl, &equirect, 96 ).expect( "PMREM generate should succeed for an NPOT cubemap" );
 
