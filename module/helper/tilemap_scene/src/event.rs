@@ -24,9 +24,9 @@ mod private
     /// instance during the most recent `tick` call.
     ///
     /// Fires exactly once per crossing.
-    /// [`crate::scene::Scene::set_state`] resets `state_entered_time`
+    /// [`crate::scene::Scene::state_set`] resets `state_entered_time`
     /// to the current clock, restarting the `OneShot` from frame 0 and
-    /// re-arming the event — calling `set_state` is the correct way to
+    /// re-arming the event — calling `state_set` is the correct way to
     /// replay attack / death / pulse animations on long-lived instances.
     AnimationCompleted
     {

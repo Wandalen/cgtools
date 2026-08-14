@@ -27,3 +27,4 @@ chromium --enable-unsafe-webgpu --enable-features=Vulkan http://127.0.0.1:8080
 | `hello_triangle_quickstart/` | Same triangle via minwebgpu's `context::setup`/`render_pass::draw_to` helpers |
 | `orrery/` | Symlink to [`../orrery/webgpu`](../orrery/readme.md) — the orrery scene family's WebGPU member |
 | `renderer_pbr_scene/` | Canonical `gpu_hal` PBR scene via `renderer::webgpu` — WebGPU with WebGL2 fallback |
+| `shader_chunk_preview/` | Composed `shader_chunks` set rendered live, with `//@ param:` uniforms wired to slider UI |

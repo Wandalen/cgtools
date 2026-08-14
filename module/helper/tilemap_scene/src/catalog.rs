@@ -39,8 +39,8 @@ mod private
     /// # Panics
     ///
     /// Panics if `id` was not declared via
-    /// [`CatalogBuilder::require_object`] (or implicitly via
-    /// [`CatalogBuilder::require_state`]) before `build()` was called.
+    /// [`CatalogBuilder::object_require`] (or implicitly via
+    /// [`CatalogBuilder::state_require`]) before `build()` was called.
     /// Forgetting to declare an id is a programmer error — the missing
     /// case is the whole reason `Catalog` exists.
     #[ inline ]
@@ -58,7 +58,7 @@ mod private
     /// # Panics
     ///
     /// Panics if `(obj, state)` was not declared via
-    /// [`CatalogBuilder::require_state`] before `build()` was called.
+    /// [`CatalogBuilder::state_require`] before `build()` was called.
     #[ inline ]
     #[ must_use ]
     pub fn state( &self, obj : &str, state : &str ) -> StateHandle
@@ -156,7 +156,7 @@ mod private
 
     /// Declare that the catalog must resolve the object id `id`.
     #[ must_use ]
-    pub fn require_object( mut self, id : impl Into< String > ) -> Self
+    pub fn object_require( mut self, id : impl Into< String > ) -> Self
     {
       self.objects.push( id.into() );
       self
@@ -164,9 +164,9 @@ mod private
 
     /// Declare that the catalog must resolve `state` on object `obj`.
     /// Implicitly also requires `obj` itself; callers do not need a
-    /// separate `require_object` for the same id.
+    /// separate `object_require` for the same id.
     #[ must_use ]
-    pub fn require_state
+    pub fn state_require
     (
       mut self,
       obj : impl Into< String >,

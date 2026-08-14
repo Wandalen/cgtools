@@ -58,8 +58,8 @@ from the chunk directories, row order taken from the collection-index
 table in `shader/readme.md`, the two cross-validated both ways so neither
 can drift — so adding a chunk to the collection needs no Rust edit here,
 and the drift-guard test (`chunks_table_matches_each_manifest`) holds
-every generated row equal to what the parsers read from its manifest. `parse_name`/`parse_description`/
-`parse_tags`/`parse_depends_on`/`parse_stage`/`parse_exports` each read
+every generated row equal to what the parsers read from its manifest. `name_parse`/`description_parse`/
+`tags_parse`/`depends_on_parse`/`stage_parse`/`exports_parse` each read
 one manifest field directly from arbitrary chunk text, without going
 through `compose`. Two tests keep the header
 honest against the code it describes:
@@ -76,7 +76,7 @@ and can define its own chunks beside them, composing both sources as one
 set:
 
 ```rust
-use shader_chunks_core::{ ChunkDescriptor, chunk, dependency_closed, compose_set };
+use shader_chunks_core::{ ChunkDescriptor, chunk, dependency_closed, set_compose };
 
 // A locally-defined chunk: same descriptor shape as the bundled rows,
 // mirroring the `//@` manifest at the top of its own WGSL file.
@@ -104,7 +104,7 @@ fn shader_source() -> String
 {
   // Dependency-before-dependent across both sources, straight from
   // descriptor fields — no manifest parsing at runtime.
-  compose_set( MY_CHUNKS )
+  set_compose( MY_CHUNKS )
 }
 ```
 
@@ -113,7 +113,7 @@ unknown name in `const` position is a compile error; `chunk_get_from(
 set, name )` is the same `const` lookup over any caller-supplied set, for
 selecting out of a mixed set; `dependency_closed( set )` const-asserts
 that every `depends_on` entry is present in the set —
-`compose_set`/`try_compose_set`'s success precondition. A crate
+`set_compose`/`set_try_compose`'s success precondition. A crate
 defining local chunks keeps each descriptor and its manifest in sync the
 same way this crate does: one test per chunk asserting
 `manifest_mismatches( &CHUNK )` is empty. Verify the compile-time claims

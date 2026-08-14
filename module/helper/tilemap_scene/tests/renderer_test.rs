@@ -88,7 +88,7 @@ fn external_layer( slot : &str ) -> ObjectLayer
   }
 }
 
-fn build_spec() -> RenderSpec
+fn spec_build() -> RenderSpec
 {
   let mut grass_states = HashMap::default();
   grass_states.insert( "default".into(), vec![ static_layer( "terrain", "0" ) ] );
@@ -206,7 +206,7 @@ fn build_spec() -> RenderSpec
 #[ test ]
 fn renderer_assets_compile_once()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer builds" );
   // Three objects but only one image asset (the terrain atlas). Animation
   // frames are sprite refs into that atlas, so we expect the four animation
@@ -219,12 +219,12 @@ fn renderer_assets_compile_once()
 #[ test ]
 fn per_instance_tint_multiplies_into_sprite()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec.clone() ) );
   let grass = scene.object( "grass" ).unwrap();
   let h = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
-  scene.set_tint( h, Some( [ 0.5, 0.75, 1.0, 1.0 ] ) );
+  scene.tint_set( h, Some( [ 0.5, 0.75, 1.0, 1.0 ] ) );
 
   let mut flat = common::BatchFlattener::new();
   let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" );
@@ -234,7 +234,7 @@ fn per_instance_tint_multiplies_into_sprite()
   assert_eq!( sprite.tint, [ 0.5, 0.75, 1.0, 1.0 ], "per-instance tint reaches sprite payload" );
 
   // Clearing the tint restores the default (global * layer_alpha — both are identity here).
-  scene.set_tint( h, None );
+  scene.tint_set( h, None );
   let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" );
   let flat_cmds = flat.apply( cmds );
   let sprite = *flat_cmds.iter().find_map( | c | if let RenderCommand::Sprite( s ) = c { Some( s ) } else { None } )
@@ -248,7 +248,7 @@ fn per_instance_phase_offset_overrides_animation_phase()
   // Two instances at the same coord, both running the same animation at
   // the same clock; one gets a half-period phase offset → emits a
   // different frame than the other.
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec.clone() ) );
   let knight = scene.object( "knight" ).unwrap();
@@ -256,7 +256,7 @@ fn per_instance_phase_offset_overrides_animation_phase()
   let _h_a = scene.spawn( knight, Placement::Hex { q : 0, r : 0 } );
   let h_b = scene.spawn( knight, Placement::Hex { q : 1, r : 0 } );
   // Animation has 4 frames at 4 fps → one period = 1.0 s. Half period = 0.5 s.
-  scene.set_phase_offset( h_b, Some( 0.5 ) );
+  scene.phase_offset_set( h_b, Some( 0.5 ) );
 
   let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" );
   let sprites = common::flat_sprites( cmds );
@@ -272,7 +272,7 @@ fn per_instance_phase_offset_overrides_animation_phase()
 #[ test ]
 fn external_sprite_slot_resolves()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec.clone() ) );
   let obj = scene.object( "external_object" ).unwrap();
@@ -287,21 +287,21 @@ fn external_sprite_slot_resolves()
   assert_eq!( sprite_count, 0, "unset External slot must not emit any Sprite" );
 
   // Populate the slot — now we get exactly one sprite.
-  scene.set_external_sprite( h, "body", SpriteRef { asset : "terrain".into(), frame : "2".into() } );
+  scene.external_sprite_set( h, "body", SpriteRef { asset : "terrain".into(), frame : "2".into() } );
   let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" );
   let flat_cmds = flat.apply( cmds );
   let sprite_count = flat_cmds.iter().filter( | c | matches!( c, RenderCommand::Sprite( _ ) ) ).count();
   assert_eq!( sprite_count, 1, "populated External slot emits one sprite" );
   let sprite = *flat_cmds.iter().find_map( | c | if let RenderCommand::Sprite( s ) = c { Some( s ) } else { None } )
     .expect( "Sprite after flatten" );
-  // Frame "2" is the third allocated sprite in build_spec (after "0", "1").
+  // Frame "2" is the third allocated sprite in spec_build (after "0", "1").
   assert_eq!( sprite.sprite, renderer.assets().sprites.iter().find( | s | s.region[ 0 ] == 144.0 ).unwrap().id );
 }
 
 #[ test ]
 fn invisible_instances_skipped()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec.clone() ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -316,7 +316,7 @@ fn invisible_instances_skipped()
     1,
   );
 
-  scene.set_visible( h, false );
+  scene.visible_set( h, false );
   let cmds = renderer.render( &scene, &Camera::default() ).expect( "render" );
   let flat_cmds = flat.apply( cmds );
   assert_eq!
@@ -333,7 +333,7 @@ fn scene_from_snapshot_round_trip()
   // Snapshot with three grass tiles. Rendering via `Scene::from_snapshot`
   // produces the same Sprite count as constructing the Scene directly via
   // `spawn`.
-  let spec = build_spec();
+  let spec = spec_build();
 
   let snap = SceneSnapshot
   {

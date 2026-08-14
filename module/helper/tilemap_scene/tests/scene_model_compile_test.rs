@@ -1,5 +1,5 @@
 //! Integration tests for the Slice-1 compile layer
-//! (`tilemap_scene::compile::compile_assets` + `compile_frame`).
+//! (`tilemap_scene::compile::assets_compile` + `compile_frame`).
 
 #![ expect( clippy::float_cmp, reason = "assertions check exact pass-through of constant tints/coordinates; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 
@@ -64,7 +64,7 @@ use tilemap_scene::
   ViewportInstance,
   ViewportTiling,
   WrapMode,
-  compile_assets,
+  assets_compile,
 };
 
 extern crate alloc;
@@ -178,14 +178,14 @@ fn minimal_scene_3x3() -> SceneSnapshot
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// compile_assets tests.
+// assets_compile tests.
 // ────────────────────────────────────────────────────────────────────────────
 
 #[ test ]
 fn compile_assets_allocates_one_image_and_one_sprite()
 {
   let spec = minimal_spec();
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "compile" );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "compile" );
 
   assert_eq!( compiled.assets.images.len(), 1, "one atlas = one image" );
   assert_eq!( compiled.assets.sprites.len(), 1, "one sprite ref = one sprite" );
@@ -217,7 +217,7 @@ fn compile_assets_atlas_region_indexing()
   );
   spec.objects[ 0 ].states = anims;
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "compile" );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "compile" );
   let sprite = &compiled.assets.sprites[ 0 ];
   assert_eq!( sprite.region, [ 72.0, 64.0, 72.0, 64.0 ], "frame 3 at (col 1, row 1)" );
 }
@@ -233,7 +233,7 @@ fn compile_assets_single_kind_region_matches_size()
   spec.objects[ 0 ].states.get_mut( "default" ).unwrap()[ 0 ].sprite_source
     = SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "terrain".into() } );
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "Single should resolve" );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "Single should resolve" );
   assert_eq!( compiled.assets.sprites.len(), 1 );
   assert_eq!( compiled.assets.sprites[ 0 ].region, [ 0.0, 0.0, 256.0, 128.0 ] );
 }
@@ -260,7 +260,7 @@ fn compile_assets_rejects_numeric_frame_past_image_size()
   spec.objects[ 0 ].states.get_mut( "default" ).unwrap()[ 0 ].sprite_source
     = SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "64".into() } );
 
-  let err = compile_assets( &spec, &PathResolver ).expect_err( "frame 64 is out of bounds" );
+  let err = assets_compile( &spec, &PathResolver ).expect_err( "frame 64 is out of bounds" );
   match err
   {
     CompileError::FrameOutOfBounds { asset, frame, cell, image_size, .. } =>
@@ -293,7 +293,7 @@ fn compile_assets_accepts_last_in_bounds_frame()
   spec.objects[ 0 ].states.get_mut( "default" ).unwrap()[ 0 ].sprite_source
     = SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "63".into() } );
 
-  let _ = compile_assets( &spec, &PathResolver ).expect( "frame 63 is in bounds" );
+  let _ = assets_compile( &spec, &PathResolver ).expect( "frame 63 is in bounds" );
 }
 
 #[ test ]
@@ -316,7 +316,7 @@ fn compile_assets_skips_bounds_check_when_image_size_missing()
   spec.objects[ 0 ].states.get_mut( "default" ).unwrap()[ 0 ].sprite_source
     = SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "64".into() } );
 
-  let _ = compile_assets( &spec, &PathResolver )
+  let _ = assets_compile( &spec, &PathResolver )
     .expect( "no bounds check when image_size is unset" );
 }
 
@@ -333,7 +333,7 @@ fn compile_assets_accepts_named_atlas_frame()
   }
   spec.objects[ 0 ].states.get_mut( "default" ).unwrap()[ 0 ].sprite_source =
     SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "grass_01".into() } );
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "named frames should compile" );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "named frames should compile" );
   let id = compiled.ids.sprite( "terrain", "grass_01" ).expect( "sprite allocated" );
   let sprite = compiled.assets.sprites.iter().find( | s | s.id == id ).unwrap();
   // (col=1, row=2) × (72, 64) → x=72, y=128.
@@ -367,7 +367,7 @@ impl AssetResolver for BlackPixelResolver
 fn compile_assets_custom_resolver()
 {
   let spec = minimal_spec();
-  let compiled = compile_assets( &spec, &BlackPixelResolver ).expect( "compile" );
+  let compiled = assets_compile( &spec, &BlackPixelResolver ).expect( "compile" );
   assert!( matches!( compiled.assets.images[ 0 ].source, ImageSource::Bitmap { .. } ) );
 }
 
@@ -383,19 +383,19 @@ fn compile( spec : &RenderSpec, snap : &SceneSnapshot, camera : &Camera ) -> Vec
   // Step 4b: tests written before batching assert on `RenderCommand::Sprite`
   // entries directly. Flatten the batch stream back to the per-sprite shape
   // so those assertions keep working without touching every fixture.
-  common::flatten_to_sprites( raw )
+  common::commands_to_sprites( raw )
 }
 
 /// Variant of `compile` that runs the scene at a non-zero clock — used
 /// by animation-frame and phase-offset tests that originally passed a
 /// `time_seconds` to `compile_frame`.
-fn compile_at_time( spec : &RenderSpec, snap : &SceneSnapshot, camera : &Camera, t : f32 ) -> Vec< RenderCommand >
+fn at_time_compile( spec : &RenderSpec, snap : &SceneSnapshot, camera : &Camera, t : f32 ) -> Vec< RenderCommand >
 {
   let mut renderer = Renderer::new( spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::from_snapshot( snap, Arc::new( spec.clone() ) ).expect( "scene" );
   scene.tick( t );
   let raw = renderer.render( &scene, camera ).expect( "render" );
-  common::flatten_to_sprites( raw )
+  common::commands_to_sprites( raw )
 }
 
 /// Try to render. Returns a `Result` so error-path tests can assert on
@@ -405,7 +405,7 @@ fn try_compile( spec : &RenderSpec, snap : &SceneSnapshot, camera : &Camera ) ->
   let mut renderer = Renderer::new( spec, &PathResolver )?;
   let scene = Scene::from_snapshot( snap, Arc::new( spec.clone() ) ).expect( "snap valid" );
   let raw = renderer.render( &scene, camera )?;
-  Ok( common::flatten_to_sprites( raw ) )
+  Ok( common::commands_to_sprites( raw ) )
 }
 
 #[ test ]
@@ -587,7 +587,7 @@ fn rejects_multihex_anchor()
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
   let err = try_compile( &spec, &scene, &Camera::default() ).unwrap_err();
   assert!
   (
@@ -678,14 +678,14 @@ fn variant_fixed_always_picks_that_index()
     }
   );
 
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
   let scene = SceneSnapshot
   {
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let sprite_id = cmds.iter().find_map( | c |
     if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
   ).unwrap();
@@ -721,7 +721,7 @@ fn variant_random_deterministic_across_frames()
     }
   );
 
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
   let scene = SceneSnapshot
   {
     tiles : vec!
@@ -734,8 +734,8 @@ fn variant_random_deterministic_across_frames()
     ..minimal_scene_3x3()
   };
 
-  let ids_a = sprite_ids_from( compile_at_time( &spec, &scene, &Camera::default(), 0.0 ) );
-  let ids_b = sprite_ids_from( compile_at_time( &spec, &scene, &Camera::default(), 1.5 ) );
+  let ids_a = sprite_ids_from( at_time_compile( &spec, &scene, &Camera::default(), 0.0 ) );
+  let ids_b = sprite_ids_from( at_time_compile( &spec, &scene, &Camera::default(), 1.5 ) );
   assert_eq!( ids_a, ids_b, "Random selection must be deterministic for the same seed + coord" );
 }
 
@@ -775,15 +775,15 @@ fn animation_frame_advances_with_time()
   );
   spec.objects[ 0 ] = grass_with_source( SpriteSource::Animation( AnimationRef( "water_flow".into() ) ) );
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
   let scene = SceneSnapshot
   {
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
     ..minimal_scene_3x3()
   };
 
-  let cmds_t0 = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
-  let cmds_t1 = compile_at_time( &spec, &scene, &Camera::default(), 0.15 );
+  let cmds_t0 = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
+  let cmds_t1 = at_time_compile( &spec, &scene, &Camera::default(), 0.15 );
 
   let spr_of = | cmds : &[ tilemap_renderer::commands::RenderCommand ] |
   {
@@ -827,12 +827,12 @@ fn phase_offset_hashcoord_spreads_frames_across_tiles()
 
   // Sixteen tiles at the same global time. Phase offset should scatter them
   // across the period so at least a couple of different frames are visible.
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
   let tiles : Vec< Tile > =
     ( 0..16 ).map( | q | Tile { pos : ( q, 0 ), objects : vec![ "grass".into() ] } ).collect();
   let scene = SceneSnapshot { tiles, ..minimal_scene_3x3() };
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
 
   let sprites : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
     if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite.inner() ) } else { None }
@@ -922,8 +922,8 @@ fn autotile_isolated_cell_mask_zero()
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "stone_wall".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let sprite_id = cmds.iter().find_map( | c |
     if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
   ).unwrap();
@@ -948,8 +948,8 @@ fn autotile_two_cell_line()
     ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let sprite_ids : Vec< _ > = cmds.iter().filter_map( | c |
     if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
   ).collect();
@@ -976,8 +976,8 @@ fn autotile_connects_with_void_at_map_edge()
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "stone_wall".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let sprite_id = cmds.iter().find_map( | c |
     if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
   ).unwrap();
@@ -1069,8 +1069,8 @@ fn neighbor_condition_skirt_on_water_side()
     ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
 
   let sprite_ids : Vec< _ > = cmds.iter().filter_map( | c |
     if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
@@ -1188,8 +1188,8 @@ fn neighbor_condition_priority_lower_blends_grass_over_sand()
     ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
 
   let sprite_ids : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
     if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
@@ -1325,8 +1325,8 @@ fn vertex_corners_three_way_blend()
     ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
 
   let sprite_ids : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
     if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
@@ -1417,8 +1417,8 @@ fn vertex_corners_wildcard_edge_fade()
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into(), "fade".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
 
   let emitted : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
     if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
@@ -1520,8 +1520,8 @@ fn edge_instance_emits_single_sprite()
     ..minimal_scene_3x3()
   };
 
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let commands = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites.len(), 1, "canonicalisation should dedupe both declarations" );
 }
@@ -1564,9 +1564,9 @@ fn edge_rotation_matches_direction()
       ],
       ..minimal_scene_3x3()
     };
-    let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-    let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+    let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+    let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let commands = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
     let sprites = sprite_commands( &commands );
     assert_eq!( sprites.len(), 1 );
     assert!(
@@ -1635,8 +1635,8 @@ fn edge_connected_bitmask_isolated()
     ..minimal_scene_3x3()
   };
 
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let commands = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites.len(), 1 );
   let mask_zero_id = compiled.ids.sprite( "terrain", "0" ).unwrap();
@@ -1669,8 +1669,8 @@ fn free_pos_emits_at_instance_position()
   };
 
   let camera = Camera { world_center : ( 0.0, 0.0 ), zoom : 1.0, viewport_size : ( 800, 600 ) };
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let commands = compile_at_time( &spec, &scene, &camera, 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let commands = at_time_compile( &spec, &scene, &camera, 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites.len(), 1 );
   // Camera project: (wx - 0) * 1 + 400 = 437.5; pivot (0.5, 0.5) over 72x64
@@ -1734,7 +1734,7 @@ fn free_pos_rejects_neighbour_aware_source()
     ..minimal_scene_3x3()
   };
 
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
   let err = try_compile( &spec, &scene, &Camera::default() ).unwrap_err();
   assert!(
     matches!( err, CompileError::UnsupportedSource { .. } ),
@@ -1788,8 +1788,8 @@ fn viewport_center_emits_screen_space_sprite()
     ..minimal_scene_3x3()
   };
 
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let commands = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let screen = screen_space_commands( &commands );
   assert_eq!( screen.len(), 1 );
   // Y-up: TopLeft on a 72x64 sprite in an 800x600 viewport places the
@@ -1845,8 +1845,8 @@ fn viewport_stretch_scales_to_viewport()
   };
 
   let camera = Camera { world_center : ( 0.0, 0.0 ), zoom : 1.0, viewport_size : ( 800, 600 ) };
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let commands = compile_at_time( &spec, &scene, &camera, 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let commands = at_time_compile( &spec, &scene, &camera, 0.0 );
   let screen = screen_space_commands( &commands );
   assert_eq!( screen.len(), 1 );
   // Sprite is 72x64; viewport 800x600 → scale = (800/72, 600/64).
@@ -1902,8 +1902,8 @@ fn viewport_repeat2d_tiles_to_cover_viewport()
 
   // Viewport 800x600 with 72x64 tiles → ceil(800/72)+1 = 13 cols, ceil(600/64)+1 = 11 rows.
   let camera = Camera { world_center : ( 0.0, 0.0 ), zoom : 1.0, viewport_size : ( 800, 600 ) };
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let commands = compile_at_time( &spec, &scene, &camera, 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let commands = at_time_compile( &spec, &scene, &camera, 0.0 );
   let screen = screen_space_commands( &commands );
   assert_eq!( screen.len(), 13 * 11, "expected full grid of screen-space sprites" );
 }
@@ -1929,8 +1929,8 @@ fn global_tint_multiplies_into_every_sprite()
     ..minimal_scene_3x3()
   };
 
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let commands = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites.len(), 1 );
   let tint = sprites[ 0 ].tint;
@@ -1950,8 +1950,8 @@ fn global_tint_none_is_identity()
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let commands = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites[ 0 ].tint, [ 1.0, 1.0, 1.0, 1.0 ] );
 }
@@ -1973,8 +1973,8 @@ fn layer_behaviour_blend_reaches_sprite_command()
     ..minimal_scene_3x3()
   };
 
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let commands = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites.len(), 1 );
   assert!
@@ -2001,8 +2001,8 @@ fn layer_behaviour_alpha_multiplies_into_sprite_tint()
     ..minimal_scene_3x3()
   };
 
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let commands = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites.len(), 1 );
   let tint = sprites[ 0 ].tint;
@@ -2038,8 +2038,8 @@ fn layer_behaviour_alpha_composes_with_global_tint()
     ..minimal_scene_3x3()
   };
 
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let commands = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &commands );
   let tint = sprites[ 0 ].tint;
   assert!( ( tint[ 0 ] - 1.0 ).abs() < 1e-5, "red preserved: {tint:?}" );
@@ -2105,8 +2105,8 @@ fn viewport_layer_behaviour_propagates_to_screen_space_sprite()
     ..minimal_scene_3x3()
   };
 
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let commands = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let commands = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let screen = screen_space_commands( &commands );
   assert_eq!( screen.len(), 1 );
   assert!

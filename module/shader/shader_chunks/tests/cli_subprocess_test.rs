@@ -234,13 +234,13 @@ fn sch_alias_binary_produces_identical_output_to_shader_chunks()
 ///
 /// ## Why Not Caught
 /// The only help-path test exercised the bare no-argument invocation, which
-/// short-circuits to `print_help()` before the pipeline; every other test
+/// short-circuits to `help_print()` before the pipeline; every other test
 /// ran a real command whose routine printed its own stdout, so the
 /// outputs-dropping dispatch path never produced a visible difference.
 ///
 /// ## Fix Applied
 /// `main` now prints `result.outputs` after a successful dispatch, routes
-/// the top-level spellings (`help`, `.`, `.help`) to `print_help()`, and
+/// the top-level spellings (`help`, `.`, `.help`) to `help_print()`, and
 /// renders `help <command>` / `<command> help` with `cli_fmt` from the
 /// command's registered definition — an unknown target falls through to
 /// the `.{target}.help` rewrite, keeping the loud unknown-command failure.
@@ -432,10 +432,10 @@ fn command_output_prints_exactly_once()
 /// exits first, which made the panic look intermittent instead of certain.
 ///
 /// ## Fix Applied
-/// `cli.rs` routes all stdout writes through `print_stdout` — `writeln!` to
+/// `cli.rs` routes all stdout writes through `stdout_print` — `writeln!` to
 /// the locked handle, mapping `BrokenPipe` to a quiet `exit( 0 )` (the Unix
 /// convention for a reader that hung up) and any other write error to exit
-/// 2 — and all stderr writes through `print_stderr`, which discards write
+/// 2 — and all stderr writes through `stderr_print`, which discards write
 /// errors so error reporting can never itself become a second failure.
 ///
 /// ## Prevention

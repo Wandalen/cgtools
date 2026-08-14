@@ -2,7 +2,7 @@
 
 ### Description
 
-Lists every tunable parameter `shader_chunks_params::discover_chunk` finds
+Lists every tunable parameter `shader_chunks_params::chunk_discover` finds
 declared on one bundled chunk's `//@ param:` lines — name, kind, WGSL
 type, range, and range source (declared vs. inferred). A chunk that
 declares none (true for all 4 bundled chunks today — see Notes) prints an
@@ -53,7 +53,7 @@ for a worked example against a fixture chunk.
   distinct from a hypothetical zero-row table.
 - `range`/`source` render `-`/`-` for a parameter with no numeric range
   (a `texture`-kind parameter, or a `bool`-typed one) — see
-  `shader_chunks_params::infer_range`.
+  `shader_chunks_params::range_infer`.
 - Output format: [`table_plain`](../format/01_table_plain.md) (same
   rendering pipeline as `list`/`get`/`tags`) when at least one parameter
   is declared.

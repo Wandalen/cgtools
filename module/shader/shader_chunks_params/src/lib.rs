@@ -5,7 +5,7 @@
 //! A tunable parameter is one of 5 kinds — function argument, compile-time
 //! define directive, uniform, attribute, or texture — each carrying either
 //! a declared `range(min, max)` or, when absent, a range resolved by
-//! [`infer_range`]'s deterministic two-stage heuristic ( see
+//! [`range_infer`]'s deterministic two-stage heuristic ( see
 //! `docs/algorithm/001_range_inference_heuristic.md` ): name-substring
 //! pattern match first, WGSL-type fallback second.
 //!
@@ -69,13 +69,13 @@ mod private
   }
 
   /// Whether a [`Parameter`]'s [`Range`] came from an explicit `range(min,
-  /// max)` clause or from [`infer_range`]'s heuristic.
+  /// max)` clause or from [`range_infer`]'s heuristic.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
   pub enum RangeSource
   {
     /// Read directly from the `//@ param:` line's own `range(min, max)` clause.
     Declared,
-    /// Produced by [`infer_range`] because the line declared no range.
+    /// Produced by [`range_infer`] because the line declared no range.
     Inferred,
   }
 
@@ -106,7 +106,7 @@ mod private
 
   /// Parses every `//@ param: <name> <kind> <type> [range(min, max)]` line
   /// in `wgsl`, in file order, resolving each line's range via
-  /// [`infer_range`] when no `range(min, max)` clause is present. Returns an
+  /// [`range_infer`] when no `range(min, max)` clause is present. Returns an
   /// empty `Vec` when `wgsl` declares no `//@ param:` lines.
   ///
   /// # Panics
@@ -120,7 +120,7 @@ mod private
   #[ must_use ]
   pub fn discover( wgsl : &str ) -> Vec< Parameter >
   {
-    param_lines( wgsl ).map( parse_param_line ).collect()
+    param_lines( wgsl ).map( param_line_parse ).collect()
   }
 
   /// [`discover`] over a [`shader_chunks_core::ChunkDescriptor`]'s own WGSL
@@ -131,7 +131,7 @@ mod private
   ///
   /// Same panic contract as [`discover`].
   #[ must_use ]
-  pub fn discover_chunk( chunk : &shader_chunks_core::ChunkDescriptor ) -> Vec< Parameter >
+  pub fn chunk_discover( chunk : &shader_chunks_core::ChunkDescriptor ) -> Vec< Parameter >
   {
     discover( chunk.wgsl )
   }
@@ -142,17 +142,17 @@ mod private
   /// range; otherwise a name-substring pattern is tried first, falling back
   /// to a WGSL-type-keyed default when no pattern matches `name`.
   #[ must_use ]
-  pub fn infer_range( kind : ParameterKind, value_type : ValueType, name : &str ) -> Option< Range >
+  pub fn range_infer( kind : ParameterKind, value_type : ValueType, name : &str ) -> Option< Range >
   {
     if kind == ParameterKind::Texture || value_type == ValueType::Bool
     {
       return None;
     }
 
-    infer_range_by_name( name ).or_else( || infer_range_by_type( value_type ) )
+    range_by_name_infer( name ).or_else( || range_by_type_infer( value_type ) )
   }
 
-  fn infer_range_by_name( name : &str ) -> Option< Range >
+  fn range_by_name_infer( name : &str ) -> Option< Range >
   {
     let patterns : &[ ( &[ &str ], Range ) ] =
     &[
@@ -168,7 +168,7 @@ mod private
     .map( | ( _, range ) | *range )
   }
 
-  fn infer_range_by_type( value_type : ValueType ) -> Option< Range >
+  fn range_by_type_infer( value_type : ValueType ) -> Option< Range >
   {
     match value_type
     {
@@ -186,7 +186,7 @@ mod private
     .map( str::trim )
   }
 
-  fn parse_param_line( line : &str ) -> Parameter
+  fn param_line_parse( line : &str ) -> Parameter
   {
     let mut parts = line.splitn( 4, ' ' );
     let name = parts.next().unwrap_or( "" );
@@ -198,22 +198,22 @@ mod private
 
     assert!( !name.is_empty(), "malformed `//@ param:` line (expected `<name> <kind> <type> [range(min, max)]`): {line:?}" );
 
-    let kind = parse_kind( kind_tok, line );
-    let value_type = parse_value_type( type_tok, line );
+    let kind = kind_parse( kind_tok, line );
+    let value_type = value_type_parse( type_tok, line );
 
     let range = if rest.is_empty()
     {
-      infer_range( kind, value_type, name ).map( | range | ( range, RangeSource::Inferred ) )
+      range_infer( kind, value_type, name ).map( | range | ( range, RangeSource::Inferred ) )
     }
     else
     {
-      Some( ( parse_range_clause( rest, line ), RangeSource::Declared ) )
+      Some( ( range_clause_parse( rest, line ), RangeSource::Declared ) )
     };
 
     Parameter { name : name.to_string(), kind, value_type, range }
   }
 
-  fn parse_kind( token : &str, line : &str ) -> ParameterKind
+  fn kind_parse( token : &str, line : &str ) -> ParameterKind
   {
     match token
     {
@@ -226,7 +226,7 @@ mod private
     }
   }
 
-  fn parse_value_type( token : &str, line : &str ) -> ValueType
+  fn value_type_parse( token : &str, line : &str ) -> ValueType
   {
     match token
     {
@@ -248,7 +248,7 @@ mod private
     }
   }
 
-  fn parse_range_clause( rest : &str, line : &str ) -> Range
+  fn range_clause_parse( rest : &str, line : &str ) -> Range
   {
     let inner = rest.strip_prefix( "range(" )
       .and_then( | s | s.strip_suffix( ')' ) )
@@ -272,6 +272,6 @@ mod private
   own use Range;
   own use Parameter;
   own use discover;
-  own use discover_chunk;
-  own use infer_range;
+  own use chunk_discover;
+  own use range_infer;
 }

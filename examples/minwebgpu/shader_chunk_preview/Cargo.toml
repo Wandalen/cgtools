@@ -1,0 +1,46 @@
+[package]
+name = "minwebgpu_shader_chunk_preview"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lints]
+workspace = true
+
+# shader_source.rs ( composition ) has no wasm/WebGPU dependency and is
+# unit-tested natively, so shader_chunks_core is unconditional, not
+# target-gated.
+[dependencies]
+shader_chunks_core = { workspace = true }
+
+# Native WGSL parse + validation of the assembled shader ( tests/
+# shader_source_test.rs ), plus chunk_discover()'s tunable-parameter
+# discovery over the same local chunk.
+[dev-dependencies]
+naga = { workspace = true }
+shader_chunks_params = { workspace = true }
+
+# Only include WebGPU and DOM/JS-interop dependencies for wasm32 targets.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+serde = { workspace = true, features = [ "derive" ] }
+serde-wasm-bindgen = { workspace = true }
+bytemuck = { workspace = true, features = [ "derive" ] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.minwebgpu]
+workspace = true
+features = [
+  'future'
+]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+workspace = true
+features = [
+  "Window",
+]
+
+# Stub dependency for other targets to allow compilation
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# No minwebgpu dependency for native targets
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgpu"]

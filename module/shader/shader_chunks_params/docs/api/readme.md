@@ -1,6 +1,6 @@
 # API Doc Definition
 
-An **api** documents a public programmatic interface exposed to external callers. In `shader_chunks_params`, this collection is the navigational hub for the crate's entire public surface: the `//@ param:` grammar, the 5-kind taxonomy, and the `discover`/`discover_chunk`/`infer_range` functions. This collection holds one instance per distinct interface; the table below is the index into them.
+An **api** documents a public programmatic interface exposed to external callers. In `shader_chunks_params`, this collection is the navigational hub for the crate's entire public surface: the `//@ param:` grammar, the 5-kind taxonomy, and the `discover`/`chunk_discover`/`range_infer` functions. This collection holds one instance per distinct interface; the table below is the index into them.
 
 ### Scope
 

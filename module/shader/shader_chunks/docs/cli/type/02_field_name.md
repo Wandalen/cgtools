@@ -17,7 +17,7 @@ validate step.
 - Duplicates and arbitrary order are allowed — projection renders columns
   as given
 
-**Parsing:** `query_chunks` (`src/lib.rs`) checks every requested field
+**Parsing:** `chunks_query` (`src/lib.rs`) checks every requested field
 against `QUERY_FIELDS` before any rendering. No match →
 `CliError::UnknownField(field)`, reported as `` unknown field: `<field>`
 (valid fields: name, description, stage, tags, depends_on, exports,
@@ -28,7 +28,7 @@ source) `` on stderr with a non-zero exit — never a silently empty column.
   field's value for one chunk; `stage`/`depends_on`/`exports` render
   `(none)` when absent, `source` is the raw WGSL body
 - `is_valid(field) -> bool` — conceptually
-  `QUERY_FIELDS.contains(&field)`; realized inside `query_chunks`'s
+  `QUERY_FIELDS.contains(&field)`; realized inside `chunks_query`'s
   up-front validation loop
 
 ---

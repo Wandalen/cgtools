@@ -7,17 +7,21 @@
 - **actor:** null
 - **started_at:** null
 - **expires_at:** null
-- **round:** 1
-- **state:** 📦 (Executed)
+- **round:** 2
+- **state:** 🎯 (Verified)
 - **closes:** null
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/examples/minwebgl/obj_load
-- **verified_by:** self (Tier 2 Dual-Role Self-Check)
+- **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 - **verification_date:** 2026-08-12
 - **blocked_by:** null
 - **priority:** 2
 - **executing_at:** 2026-08-13 02:22:14
 - **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **in_motion:** false
+- **accepting_at:** 2026-08-14 03:33:54
+- **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **verified_at:** 2026-08-14 03:41:35
 
 ## Goal
 
@@ -83,28 +87,28 @@ not by this section.
 ### Checklist
 
 **main.rs**
-- [ ] C1 — Does the model-loading block call `gl::model::obj::load_model_from_slice` instead of `tobj::load_obj_buf`?
-- [ ] C2 — Is `use std::io::{ BufReader, Cursor };` absent?
-- [ ] C3 — Are markers `:27`, `:29`, `:36` all absent from the file?
-- [ ] C4 — Does the diagnostic logging use `gl::model::obj::make_reports` instead of the bare `models.len()` call?
+- [x] C1 — Does the model-loading block call `gl::model::obj::load_model_from_slice` instead of `tobj::load_obj_buf`?
+- [x] C2 — Is `use std::io::{ BufReader, Cursor };` absent?
+- [x] C3 — Are markers `:27`, `:29`, `:36` all absent from the file?
+- [x] C4 — Does the diagnostic logging use `gl::model::obj::make_reports` instead of the bare `models.len()` call?
 
 **Out of Scope confirmation**
-- [ ] C5 — Is marker `:41` still present (untouched — deferred to task 098, not deleted here)?
-- [ ] C6 — Are the shader/buffer/VAO/camera/render-loop sections byte-for-byte unchanged from the pre-edit file?
+- [x] C5 — Is marker `:41` still present (untouched — deferred to task 098, not deleted here)?
+- [x] C6 — Are the shader/buffer/VAO/camera/render-loop sections byte-for-byte unchanged from the pre-edit file?
 
 ### Measurements
 
-- [ ] M1 — grep count: `grep -cE "for Yevgen" examples/minwebgl/obj_load/src/main.rs` → 0 (was: 3)
-- [ ] M2 — grep count: `grep -c "load_model_from_slice" examples/minwebgl/obj_load/src/main.rs` → ≥1 (was: 0)
+- [x] M1 — grep count: `grep -cE "for Yevgen" examples/minwebgl/obj_load/src/main.rs` → 0 (was: 3)
+- [x] M2 — grep count: `grep -c "load_model_from_slice" examples/minwebgl/obj_load/src/main.rs` → ≥1 (was: 0)
 
 ### Invariants
 
-- [ ] I1 — `cargo check -p minwebgl_obj_load` (wasm32 target) → 0 errors
-- [ ] I2 — `cargo clippy -p minwebgl_obj_load --target wasm32-unknown-unknown -- -D warnings` → 0 warnings
+- [x] I1 — `cargo check -p minwebgl_obj_load` (wasm32 target) → 0 errors
+- [x] I2 — `cargo clippy -p minwebgl_obj_load --target wasm32-unknown-unknown -- -D warnings` → 0 warnings
 
 ### Anti-faking checks
 
-- [ ] AF1 — the replaced block genuinely calls the library function (not a re-implementation of the same logic under a different name): `grep -n "tobj::load_obj_buf\b" examples/minwebgl/obj_load/src/main.rs` → no match (only `load_obj_buf_async` inside mingl itself, not duplicated here)
+- [x] AF1 — the replaced block genuinely calls the library function (not a re-implementation of the same logic under a different name): `grep -n "tobj::load_obj_buf\b" examples/minwebgl/obj_load/src/main.rs` → no match (only `load_obj_buf_async` inside mingl itself, not duplicated here)
 - [ ] AF2 — manual browser load of the example confirms Suzanne renders — a passing `cargo check` alone does not prove the runtime behavior is unchanged
 
 ## Verification Record
@@ -125,12 +129,86 @@ not by this section.
 
 Adversarial pass: the strongest challenge here is "are you sure `load_model_from_slice` and `make_reports` are actually already correct/complete, or would adopting them just move the bug?" — checked by reading `load_model_from_slice`'s full body (not just its signature): it already handles the async `.mtl` fetch-and-log-and-fail path the example's stub was missing, and is exported via `mod_interface!`'s `orphan use` block, confirming it's genuinely part of the public API, not a private helper this task would be reaching past. Checked `materials` field type (`Result<Vec<Material>, LoadError>`) is correctly called out in In Scope as a named open point rather than glossed over. No blocking finding surfaced.
 
+## Outcomes
+
+### Acceptance Results
+
+- **Verified by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ (acceptance walk per tsk_verify Part B / PROC16; session distinct from the executor's)
+- **Date:** 2026-08-14
+- **Verdict:** FAIL (1 issue)
+
+**Separation-of-concerns disclosure (tsk_verify B1):** verifier and executor share the coarse
+`user1@w002` user@host identity (executor `.../cgtools/task/`, verifier `.../cgtools/`); the
+verifying session did not author the implementation. Disclosed, not a walk blocker; the FAIL
+verdict routes through `.acceptance_fail`, which carries no same-session guard.
+
+#### Checklist
+
+- C1 🟢 (by intent) — main.rs:22 calls
+  `gl::model::obj::model_load_from_slice( &obj_buffer, "static", &tobj::GPU_LOAD_OPTIONS ).await` —
+  the task text's `load_model_from_slice` drifted noun-first per the executor's EXEC_COMPLETE
+  disclosure; argument list matches In Scope exactly; no raw `tobj::load_obj_buf` remains.
+- C2 🟢 — `use std::io::{ BufReader, Cursor };` absent (removed in 6390aeb4's first hunk).
+- C3 🟢 — all three deleted markers spelled `for Yevgen`; parent of 6390aeb4 carries exactly 3
+  such hits, current file 0.
+- C4 🟢 (by intent) — bare `models.len()` log replaced by a per-report loop over
+  `gl::diagnostics::obj::reports_make( &models, &materials )` (main.rs:27-30). Double drift
+  disclosed here: name `make_reports`→`reports_make` (executor-disclosed) AND module path
+  `gl::model::obj`→`gl::diagnostics::obj` (not in the executor's disclosure; the green wasm32
+  compile gate proves it is the real current API path). The materials half is handled explicitly
+  (`materials.expect(...)`, main.rs:23) and the old commented-out materials line is deleted, per
+  In Scope.
+- C5 🟢 — the `:41` obj_viewer marker survives (spelled `for Yevhen`, drifted to line 25; parent
+  had 1 such hit, current has 1) — untouched, deferred to task 098 as required.
+- C6 🟢 — 6390aeb4's diff for the file is exactly two hunks (`@@ -1,7 +1,5 @@` imports,
+  `@@ -21,28 +19,16 @@` loading/logging block); shaders/buffers/VAO/camera/render loop
+  byte-identical.
+
+#### Measurements
+
+- M1 🟢 — `grep -cE "for Yevgen"` → 0 (was 3, per parent-revision count).
+- M2 🟢 (by intent) — the item's literal `grep -c "load_model_from_slice"` → 0 solely because of
+  the disclosed noun-first rename; the drift-corrected `grep -c "model_load_from_slice"` → 1
+  (was 0 pre-edit). The item's intent — the library slice-loader is adopted — holds.
+
+#### Invariants
+
+- I1 🟢 — `cargo check -p minwebgl_obj_load --target wasm32-unknown-unknown` → exit 0 (detached
+  run, Completion Marker `exit 0 · pid 3953999`, log `-0003_longrun.log` in session scratchpad,
+  `T097_I1_CHECK=0`).
+- I2 🟢 — `cargo clippy -p minwebgl_obj_load --target wasm32-unknown-unknown -- -D warnings` →
+  exit 0 (`T097_I2_CLIPPY=0`, same log).
+
+#### Anti-faking checks
+
+- AF1 🟢 — `grep "tobj::load_obj_buf"` → no match; both helpers are genuine mingl library code
+  (`module/min/mingl/src/web/model/obj.rs`), with zero local re-implementations in the example
+  (`fn model_load_from_slice|fn reports_make` under the example → 0 hits).
+- AF2 🔴 — NOT PERFORMED, and not performable in this environment: the item requires a manual
+  browser load confirming Suzanne still renders. The executor disclosed "no browser available";
+  this machine's known verification ceiling is console-tier (no pixel-level browser confirmation
+  possible), and a green compile gate cannot substantiate a runtime-render claim. Blocking —
+  round 2's sole remaining work is this human-gated browser smoke-test.
+
+**Adversarial pass:** challenged whether AF2 could be down-judged non-blocking given every
+mechanical gate is green — rejected as written, but the sharpest runtime-regression vector was
+probed and retired: the new code `.expect()`s the materials `Result` where the old stub ignored
+it, which would panic at startup if `suzanne.obj` referenced an unfetchable `.mtl`; direct
+inspection shows `assets/obj/suzanne.obj` is a self-authored placeholder whose geometry contains
+no `mtllib`/`usemtl` statements (its header comment states no material library is emitted), and
+`index.html`'s trunk `copy-file` link is what materializes it under `static/` at build time — so
+the materials expect cannot fire for the shipped asset. What remains genuinely unverified is only
+the visual render itself. Also probed the undisclosed `gl::diagnostics::obj` module-path drift for
+stray second consumers — none; compile gates green.
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |
 |---------------------|----------------------|-------|--------------|
 | 2026-08-13 02:22:14 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
 | 2026-08-13 02:22:16 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | EXEC_COMPLETE | execution complete — API drift from spec: helpers are named `model_load_from_slice`/`reports_make` (noun-first), not the task text's `load_model_from_slice`/`make_reports`; re-derived call site against current `mingl/src/web/model/obj.rs` and the already-working `obj_viewer` example precedent. wasm32 check + clippy (`-D warnings`) both exit 0; AF2 (manual browser render) not performed — no browser available in this environment. |
+| 2026-08-14 03:33:54 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_ACCEPT | acceptance claimed |
+| 2026-08-14 03:41:35 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | ACCEPTANCE_FAIL | acceptance failed |
 
 ## History
 

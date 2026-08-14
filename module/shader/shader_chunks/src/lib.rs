@@ -73,7 +73,7 @@ mod private
     }
   }
 
-  fn find_chunk( name : &str ) -> Result< &'static shader_chunks_core::ChunkDescriptor, CliError >
+  fn chunk_find( name : &str ) -> Result< &'static shader_chunks_core::ChunkDescriptor, CliError >
   {
     shader_chunks_core::chunk_get( name )
     .ok_or_else( || CliError::UnknownChunk( name.to_string() ) )
@@ -116,7 +116,7 @@ mod private
   /// column data, recursing into each `depends_on` entry. `TreeFormatter`'s
   /// `format_aligned` renders a node's `ColumnData` (not its bare `name`
   /// field) for every non-root row, so `name` must be column 0 for it to
-  /// appear at all — see `tree_chunk`, which also compensates for
+  /// appear at all — see `chunk_tree`, which also compensates for
   /// `format_aligned`'s default `show_root: false` by wrapping each root in
   /// an invisible parent so it renders as a normal (column-bearing) row
   /// rather than being skipped as the tree's root. A dependency name that
@@ -130,7 +130,7 @@ mod private
     let mut node = TreeNode::new( name.to_string(), Some( ColumnData::new( vec![ name.to_string(), tags_string( chunk ) ] ) ) );
     for &dep_name in chunk.depends_on
     {
-      if let Ok( dep ) = find_chunk( dep_name )
+      if let Ok( dep ) = chunk_find( dep_name )
       {
         node.children.push( dep_tree( dep ) );
       }
@@ -313,7 +313,7 @@ mod private
   }
 
   /// The full parameter surface shared by `list` and `get` — one struct, one
-  /// engine ([`query_chunks`]). The two commands differ only in the defaults
+  /// engine ([`chunks_query`]). The two commands differ only in the defaults
   /// [`QueryParams::list_defaults`] and [`QueryParams::get_defaults`] supply.
   #[ derive( Debug, Clone ) ]
   pub struct QueryParams
@@ -416,7 +416,7 @@ mod private
 
   /// Substring test honoring the `case::` switch — case-insensitive by
   /// default, exact when `case_sensitive` is set.
-  fn contains_pattern( haystack : &str, needle : &str, case_sensitive : bool ) -> bool
+  fn pattern_contains( haystack : &str, needle : &str, case_sensitive : bool ) -> bool
   {
     if case_sensitive
     { haystack.contains( needle ) }
@@ -426,7 +426,7 @@ mod private
 
   /// One `tag::` selector against one chunk: `group:tag` demands the exact
   /// pair; a bare `tag` matches that tag under any group.
-  fn matches_tag_selector( chunk : &shader_chunks_core::ChunkDescriptor, selector : &str ) -> bool
+  fn tag_selector_matches( chunk : &shader_chunks_core::ChunkDescriptor, selector : &str ) -> bool
   {
     match selector.split_once( ':' )
     {
@@ -481,13 +481,13 @@ mod private
     depended_on : &std::collections::HashSet< &str >,
   ) -> bool
   {
-    if !params.pattern.is_empty() && !contains_pattern( chunk.name, &params.pattern, params.case_sensitive )
+    if !params.pattern.is_empty() && !pattern_contains( chunk.name, &params.pattern, params.case_sensitive )
     {
       return false;
     }
     if !params.tags.is_empty()
     {
-      let matched = | selector : &String | matches_tag_selector( chunk, selector );
+      let matched = | selector : &String | tag_selector_matches( chunk, selector );
       let ok = match params.tags_mode
       {
         TagsMode::Any => params.tags.iter().any( matched ),
@@ -518,7 +518,7 @@ mod private
     if !params.exports.is_empty()
     {
       let hit = chunk.exports.iter()
-      .any( | signature | contains_pattern( signature, &params.exports, params.case_sensitive ) );
+      .any( | signature | pattern_contains( signature, &params.exports, params.case_sensitive ) );
       if !hit
       {
         return false;
@@ -537,7 +537,7 @@ mod private
 
   /// Renders an already-selected chunk sequence per the projection and
   /// formatting parameters.
-  fn render_chunks
+  fn chunks_render
   (
     chunks : &[ &'static shader_chunks_core::ChunkDescriptor ],
     params : &QueryParams,
@@ -598,7 +598,7 @@ mod private
   /// - [`CliError::UnknownChunk`] — a `names` entry or `depends_on` naming no
   ///   bundled chunk.
   /// - [`CliError::Render`] — a `data_fmt` formatter failure.
-  pub fn query_chunks( params : &QueryParams ) -> Result< String, CliError >
+  pub fn chunks_query( params : &QueryParams ) -> Result< String, CliError >
   {
     for field in &params.fields
     {
@@ -609,7 +609,7 @@ mod private
     }
     if !params.depends_on.is_empty()
     {
-      find_chunk( &params.depends_on )?;
+      chunk_find( &params.depends_on )?;
     }
 
     let mut chunks : Vec< &'static shader_chunks_core::ChunkDescriptor > = if params.names.is_empty()
@@ -618,7 +618,7 @@ mod private
     }
     else
     {
-      params.names.iter().map( | name | find_chunk( name ) ).collect::< Result< _, _ > >()?
+      params.names.iter().map( | name | chunk_find( name ) ).collect::< Result< _, _ > >()?
     };
 
     let depended_on = depended_on_set();
@@ -644,7 +644,7 @@ mod private
     let limit = if params.limit == 0 { usize::MAX } else { params.limit };
     let chunks : Vec< _ > = chunks.into_iter().skip( params.offset ).take( limit ).collect();
 
-    render_chunks( &chunks, params )
+    chunks_render( &chunks, params )
   }
 
   /// Table of every distinct `group:tag` pair and the chunk(s) carrying it.
@@ -652,7 +652,7 @@ mod private
   /// # Errors
   ///
   /// Returns [`CliError::Render`] if the `data_fmt` table formatter fails.
-  pub fn list_tags() -> Result< String, CliError >
+  pub fn tags_list() -> Result< String, CliError >
   {
     let mut pairs : Vec< ( String, Vec< &'static str > ) > = Vec::new();
     for chunk in shader_chunks_core::CHUNKS
@@ -687,11 +687,11 @@ mod private
   /// # Errors
   ///
   /// Returns [`CliError::UnknownChunk`] when `name` is `Some` and not found.
-  pub fn tree_chunk( name : Option< &str > ) -> Result< String, CliError >
+  pub fn chunk_tree( name : Option< &str > ) -> Result< String, CliError >
   {
     let roots : Vec< &'static shader_chunks_core::ChunkDescriptor > = match name
     {
-      Some( name ) => vec![ find_chunk( name )? ],
+      Some( name ) => vec![ chunk_find( name )? ],
       None => dependents_free_roots(),
     };
 
@@ -711,25 +711,25 @@ mod private
 
   /// Composes already-resolved WGSL chunk bodies via
   /// [`shader_chunks_core::try_compose`]. Exposed separately from
-  /// [`compose_chunks`] so tests can exercise cyclic/missing-dependency
+  /// [`chunks_compose`] so tests can exercise cyclic/missing-dependency
   /// failures with synthetic fixtures — the real bundled chunk set is fixed
   /// and acyclic, so it can never produce a `CyclicDependency` through the
-  /// name-based [`compose_chunks`] path.
+  /// name-based [`chunks_compose`] path.
   ///
   /// # Errors
   ///
   /// Returns [`CliError::Compose`] on a cyclic or unresolved dependency.
-  pub fn try_compose_wgsl( chunks : &[ &str ] ) -> Result< String, CliError >
+  pub fn wgsl_try_compose( chunks : &[ &str ] ) -> Result< String, CliError >
   {
     shader_chunks_core::try_compose( chunks ).map_err( CliError::Compose )
   }
 
   /// Resolves `names` via [`shader_chunks_core::chunk_get`] and composes
   /// them. With `transitive` set, the named set is first widened to its full
-  /// dependency closure — `compose_chunks( &[ "fbm3" ], true )` pulls in
+  /// dependency closure — `chunks_compose( &[ "fbm3" ], true )` pulls in
   /// `value_noise` and `hash21` unasked — so one root name suffices instead
   /// of spelling out its whole chain; with it unset the named set must
-  /// already be dependency-complete or [`try_compose_wgsl`] fails loudly.
+  /// already be dependency-complete or [`wgsl_try_compose`] fails loudly.
   /// Either way [`shader_chunks_core::try_compose`]'s topological sort
   /// orders the output, so the closure of a set and the same set written out
   /// explicitly compose to identical text.
@@ -739,10 +739,10 @@ mod private
   /// Returns [`CliError::UnknownChunk`] if any name (or, under
   /// `transitive`, any reachable dependency name) is not bundled, or
   /// [`CliError::Compose`] on a missing dependency.
-  pub fn compose_chunks( names : &[ String ], transitive : bool ) -> Result< String, CliError >
+  pub fn chunks_compose( names : &[ String ], transitive : bool ) -> Result< String, CliError >
   {
     let mut selected : Vec< &shader_chunks_core::ChunkDescriptor > = names.iter()
-    .map( | name | find_chunk( name ) )
+    .map( | name | chunk_find( name ) )
     .collect::< Result< _, _ > >()?;
     if transitive
     {
@@ -752,17 +752,17 @@ mod private
       {
         if seen.insert( name )
         {
-          let chunk = find_chunk( name )?;
+          let chunk = chunk_find( name )?;
           queue.extend( chunk.depends_on.iter().copied() );
           selected.push( chunk );
         }
       }
     }
     let chunks : Vec< &str > = selected.iter().map( | chunk | chunk.wgsl ).collect();
-    try_compose_wgsl( &chunks )
+    wgsl_try_compose( &chunks )
   }
 
-  /// Table of every tunable parameter [`shader_chunks_params::discover_chunk`]
+  /// Table of every tunable parameter [`shader_chunks_params::chunk_discover`]
   /// finds in `chunk`'s WGSL — name, kind, type, range, and range source
   /// ( declared vs. inferred ). Exposed separately from [`tunables`] so tests
   /// can exercise a chunk descriptor carrying `//@ param:` lines without any
@@ -774,7 +774,7 @@ mod private
   /// Returns [`CliError::Render`] if the `data_fmt` table formatter fails.
   pub fn tunables_of_chunk( chunk : &shader_chunks_core::ChunkDescriptor ) -> Result< String, CliError >
   {
-    let params = shader_chunks_params::discover_chunk( chunk );
+    let params = shader_chunks_params::chunk_discover( chunk );
     if params.is_empty()
     {
       return Ok( format!( "chunk `{}` declares no tunable parameters", chunk.name ) );
@@ -803,7 +803,7 @@ mod private
     .map_err( | e | CliError::Render( e.to_string() ) )
   }
 
-  /// Table of every tunable parameter [`shader_chunks_params::discover_chunk`]
+  /// Table of every tunable parameter [`shader_chunks_params::chunk_discover`]
   /// finds declared on bundled chunk `name`. See [`tunables_of_chunk`] for
   /// the rendering itself.
   ///
@@ -813,7 +813,7 @@ mod private
   /// [`CliError::Render`] if the `data_fmt` table formatter fails.
   pub fn tunables( name : &str ) -> Result< String, CliError >
   {
-    tunables_of_chunk( find_chunk( name )? )
+    tunables_of_chunk( chunk_find( name )? )
   }
 }
 
@@ -828,11 +828,11 @@ mod private
   own use SortOrder;
   own use OutputFormat;
   own use QueryParams;
-  own use query_chunks;
-  own use list_tags;
-  own use tree_chunk;
-  own use try_compose_wgsl;
-  own use compose_chunks;
+  own use chunks_query;
+  own use tags_list;
+  own use chunk_tree;
+  own use wgsl_try_compose;
+  own use chunks_compose;
   own use tunables_of_chunk;
   own use tunables;
 }

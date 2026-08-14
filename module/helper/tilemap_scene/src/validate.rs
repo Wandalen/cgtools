@@ -98,7 +98,7 @@ mod private
               });
             }
 
-            visit_asset_refs( &layer.sprite_source, &mut | asset, where_ |
+            asset_refs_visit( &layer.sprite_source, &mut | asset, where_ |
             {
               if !asset_ids.contains( asset )
               {
@@ -202,14 +202,14 @@ mod private
   /// every asset id directly named by a node. `Animation` and `External`
   /// nodes are leaves of this walk — animation bodies are validated
   /// separately, external sources are runtime-supplied.
-  fn visit_asset_refs( source : &SpriteSource, f : &mut impl FnMut( &str, &str ) )
+  fn asset_refs_visit( source : &SpriteSource, f : &mut impl FnMut( &str, &str ) )
   {
     match source
     {
       SpriteSource::Static( sr ) => f( &sr.asset, "Static.sprite.asset" ),
       SpriteSource::Variant { variants, .. } =>
       {
-        for v in variants { visit_asset_refs( &v.sprite, f ); }
+        for v in variants { asset_refs_visit( &v.sprite, f ); }
       },
       SpriteSource::NeighborCondition { asset, .. } =>
         f( asset, "NeighborCondition.asset" ),
@@ -222,15 +222,15 @@ mod private
         {
           NeighborBitmaskSource::ByMapping { mapping, fallback } =>
           {
-            for inner in mapping.values() { visit_asset_refs( inner, f ); }
-            visit_asset_refs( fallback, f );
+            for inner in mapping.values() { asset_refs_visit( inner, f ); }
+            asset_refs_visit( fallback, f );
           },
           NeighborBitmaskSource::ByAtlas { asset, .. } =>
             f( asset, "NeighborBitmaskSource::ByAtlas.asset" ),
         }
       },
       SpriteSource::ViewportTiled { content, .. } =>
-        visit_asset_refs( content, f ),
+        asset_refs_visit( content, f ),
       SpriteSource::Animation( _ ) | SpriteSource::External { .. } => {},
     }
   }

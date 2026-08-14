@@ -4,8 +4,8 @@
 
 use shader_chunks_core::
 {
-  compose, try_compose, compose_set, try_compose_set, parse_depends_on, parse_description, parse_stage,
-  parse_exports, parse_tags, ComposeError, ChunkDescriptor, CHUNKS, chunk_get, chunk, chunk_get_from,
+  compose, try_compose, set_compose, set_try_compose, depends_on_parse, description_parse, stage_parse,
+  exports_parse, tags_parse, ComposeError, ChunkDescriptor, CHUNKS, chunk_get, chunk, chunk_get_from,
   dependency_closed, manifest_mismatches,
 };
 
@@ -70,7 +70,7 @@ fn depends_on_covers_every_actual_wgsl_call_to_another_chunk()
   for chunk in CHUNKS
   {
     let name = chunk.name;
-    let declared = parse_depends_on( chunk.wgsl );
+    let declared = depends_on_parse( chunk.wgsl );
     for other in CHUNKS
     {
       let other_name = other.name;
@@ -94,7 +94,7 @@ fn export_names_match_a_real_declaration_in_the_wgsl_body()
 {
   for chunk in CHUNKS
   {
-    for signature in parse_exports( chunk.wgsl )
+    for signature in exports_parse( chunk.wgsl )
     {
       let name = exported_name( signature );
       let declared = chunk.wgsl.contains( &format!( "fn {name}(" ) ) || chunk.wgsl.contains( &format!( "struct {name}" ) );
@@ -133,13 +133,13 @@ fn compose_panics_on_cyclic_dependency()
 #[ test ]
 fn parse_depends_on_handles_empty_value()
 {
-  assert_eq!( parse_depends_on( "//@ name: x\n//@ depends_on:\n" ), Vec::< &str >::new() );
+  assert_eq!( depends_on_parse( "//@ name: x\n//@ depends_on:\n" ), Vec::< &str >::new() );
 }
 
 #[ test ]
 fn parse_depends_on_handles_multiple_entries()
 {
-  assert_eq!( parse_depends_on( "//@ depends_on: a, b\n" ), vec![ "a", "b" ] );
+  assert_eq!( depends_on_parse( "//@ depends_on: a, b\n" ), vec![ "a", "b" ] );
 }
 
 #[ test ]
@@ -237,7 +237,7 @@ fn dependency_closed_is_false_when_a_dependency_is_missing_from_the_set()
 #[ test ]
 fn compose_set_orders_a_mixed_set_dependency_before_dependent()
 {
-  let composed = compose_set( MIXED_SET );
+  let composed = set_compose( MIXED_SET );
   let hash21_pos = composed.find( "fn hash21" ).expect( "hash21 present" );
   let value_noise_pos = composed.find( "fn value_noise" ).expect( "value_noise present" );
   let glow_pos = composed.find( "fn glow" ).expect( "local glow chunk present" );
@@ -248,7 +248,7 @@ fn compose_set_orders_a_mixed_set_dependency_before_dependent()
 #[ test ]
 fn try_compose_set_reports_missing_dependency()
 {
-  let err = try_compose_set( &[ chunk( "fbm3" ) ] ).expect_err( "should fail" );
+  let err = set_try_compose( &[ chunk( "fbm3" ) ] ).expect_err( "should fail" );
   assert!( matches!( err, ComposeError::MissingDependency { .. } ), "expected MissingDependency, got {err:?}" );
 }
 
@@ -262,12 +262,12 @@ fn local_chunk_descriptor_matches_its_manifest()
 #[ test ]
 fn parse_description_reads_every_bundled_chunk()
 {
-  assert_eq!( parse_description( wgsl( "hash21" ) ), "Single-value hash of a 2D point into [0, 1)." );
-  assert_eq!( parse_description( wgsl( "value_noise" ) ), "Bilinear-interpolated value noise sampled at a 2D point, in [0, 1)." );
-  assert_eq!( parse_description( wgsl( "fbm3" ) ), "Fixed 3-octave fractal Brownian motion built on value_noise, in [0, 0.875]." );
+  assert_eq!( description_parse( wgsl( "hash21" ) ), "Single-value hash of a 2D point into [0, 1)." );
+  assert_eq!( description_parse( wgsl( "value_noise" ) ), "Bilinear-interpolated value noise sampled at a 2D point, in [0, 1)." );
+  assert_eq!( description_parse( wgsl( "fbm3" ) ), "Fixed 3-octave fractal Brownian motion built on value_noise, in [0, 0.875]." );
   assert_eq!
   (
-    parse_description( wgsl( "fullscreen_triangle" ) ),
+    description_parse( wgsl( "fullscreen_triangle" ) ),
     "Fullscreen-triangle vertex stage: 3 vertices, no vertex buffer, vertex_index alone picks the corner."
   );
 }
@@ -275,35 +275,35 @@ fn parse_description_reads_every_bundled_chunk()
 #[ test ]
 fn parse_stage_is_some_only_for_the_vertex_chunk()
 {
-  assert_eq!( parse_stage( wgsl( "hash21" ) ), None );
-  assert_eq!( parse_stage( wgsl( "value_noise" ) ), None );
-  assert_eq!( parse_stage( wgsl( "fbm3" ) ), None );
-  assert_eq!( parse_stage( wgsl( "fullscreen_triangle" ) ), Some( "vertex" ) );
+  assert_eq!( stage_parse( wgsl( "hash21" ) ), None );
+  assert_eq!( stage_parse( wgsl( "value_noise" ) ), None );
+  assert_eq!( stage_parse( wgsl( "fbm3" ) ), None );
+  assert_eq!( stage_parse( wgsl( "fullscreen_triangle" ) ), Some( "vertex" ) );
 }
 
 #[ test ]
 fn parse_exports_counts_match_each_chunk()
 {
-  assert_eq!( parse_exports( wgsl( "hash21" ) ).len(), 1 );
-  assert_eq!( parse_exports( wgsl( "value_noise" ) ).len(), 1 );
-  assert_eq!( parse_exports( wgsl( "fbm3" ) ).len(), 1 );
-  assert_eq!( parse_exports( wgsl( "fullscreen_triangle" ) ).len(), 2 );
+  assert_eq!( exports_parse( wgsl( "hash21" ) ).len(), 1 );
+  assert_eq!( exports_parse( wgsl( "value_noise" ) ).len(), 1 );
+  assert_eq!( exports_parse( wgsl( "fbm3" ) ).len(), 1 );
+  assert_eq!( exports_parse( wgsl( "fullscreen_triangle" ) ).len(), 2 );
 }
 
 #[ test ]
 fn parse_tags_reads_every_bundled_chunk()
 {
-  assert_eq!( parse_tags( wgsl( "hash21" ) ), vec![ ( "category", "hash" ) ] );
-  assert_eq!( parse_tags( wgsl( "value_noise" ) ), vec![ ( "category", "noise" ) ] );
-  assert_eq!( parse_tags( wgsl( "fbm3" ) ), vec![ ( "category", "noise" ), ( "technique", "fractal" ) ] );
-  assert_eq!( parse_tags( wgsl( "fullscreen_triangle" ) ), vec![ ( "category", "vertex" ) ] );
+  assert_eq!( tags_parse( wgsl( "hash21" ) ), vec![ ( "category", "hash" ) ] );
+  assert_eq!( tags_parse( wgsl( "value_noise" ) ), vec![ ( "category", "noise" ) ] );
+  assert_eq!( tags_parse( wgsl( "fbm3" ) ), vec![ ( "category", "noise" ), ( "technique", "fractal" ) ] );
+  assert_eq!( tags_parse( wgsl( "fullscreen_triangle" ) ), vec![ ( "category", "vertex" ) ] );
 }
 
 #[ test ]
 #[ should_panic( expected = "malformed `//@ tags:` entry" ) ]
 fn parse_tags_panics_on_malformed_entry()
 {
-  let _ = parse_tags( "//@ name: x\n//@ tags: not_a_pair\n" );
+  let _ = tags_parse( "//@ name: x\n//@ tags: not_a_pair\n" );
 }
 
 #[ test ]

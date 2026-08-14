@@ -4,7 +4,7 @@
 
 Queries the bundled shader chunks: filter, sort, project, and format —
 every chunk by default. `list` and [`get`](02_get.md) run the *same*
-engine (`query_chunks` behind `query_routine`) with the same 20-parameter
+engine (`chunks_query` behind `query_routine`) with the same 20-parameter
 surface; `list`'s defaults lean overview (all chunks, 4 columns, plain
 table), `get`'s lean detail. Use it to discover chunks by name fragment,
 tag, stage, dependency relationship, or export signature.

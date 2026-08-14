@@ -1,7 +1,7 @@
 //! Integration tests for the retained-mode [`tilemap_scene::Scene`] API.
 //!
-//! Covers `spawn` / `despawn` / `move_to` / `set_state` / `set_tint` /
-//! `set_visible` / `set_phase_offset` / `set_external_sprite`, plus the
+//! Covers `spawn` / `despawn` / `placement_move` / `state_set` / `tint_set` /
+//! `visible_set` / `phase_offset_set` / `external_sprite_set`, plus the
 //! handle-resolution helpers (`object`, `state`, `default_state`,
 //! `state_name`) and the spatial indexes (`instances_at_hex`, per-anchor
 //! lists).
@@ -38,7 +38,7 @@ use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
 // cross-object state validation and sorted-state-name resolution.
 // ────────────────────────────────────────────────────────────────────────────
 
-fn make_layer( asset : &str, frame : &str ) -> ObjectLayer
+fn layer_make( asset : &str, frame : &str ) -> ObjectLayer
 {
   ObjectLayer
   {
@@ -53,14 +53,14 @@ fn make_layer( asset : &str, frame : &str ) -> ObjectLayer
   }
 }
 
-fn build_spec() -> Arc< RenderSpec >
+fn spec_build() -> Arc< RenderSpec >
 {
   let mut grass_states = HashMap::default();
-  grass_states.insert( "default".into(), vec![ make_layer( "terrain", "0" ) ] );
+  grass_states.insert( "default".into(), vec![ layer_make( "terrain", "0" ) ] );
 
   let mut knight_states = HashMap::default();
-  knight_states.insert( "idle".into(), vec![ make_layer( "terrain", "0" ) ] );
-  knight_states.insert( "walk".into(), vec![ make_layer( "terrain", "1" ) ] );
+  knight_states.insert( "idle".into(), vec![ layer_make( "terrain", "0" ) ] );
+  knight_states.insert( "walk".into(), vec![ layer_make( "terrain", "1" ) ] );
 
   let spec = RenderSpec
   {
@@ -136,7 +136,7 @@ fn build_spec() -> Arc< RenderSpec >
 #[ test ]
 fn object_handle_resolves_for_declared_object_only()
 {
-  let scene = Scene::new( build_spec() );
+  let scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).expect( "grass declared" );
   let knight = scene.object( "knight" ).expect( "knight declared" );
   assert_ne!( grass, knight );
@@ -148,7 +148,7 @@ fn state_lookup_uses_sorted_order()
 {
   // knight has states { "idle", "walk" }. Sorted alphabetically, "idle"
   // comes before "walk", so default ("idle") is index 0.
-  let scene = Scene::new( build_spec() );
+  let scene = Scene::new( spec_build() );
   let knight = scene.object( "knight" ).unwrap();
   let idle = scene.state( knight, "idle" ).unwrap();
   let walk = scene.state( knight, "walk" ).unwrap();
@@ -166,7 +166,7 @@ fn state_lookup_uses_sorted_order()
 #[ test ]
 fn spawn_then_despawn_invalidates_handle()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
   let h = scene.spawn( grass, Placement::Hex { q : 1, r : 2 } );
 
@@ -186,7 +186,7 @@ fn spawn_then_despawn_invalidates_handle()
 #[ test ]
 fn spawn_records_clock_in_spawn_time()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
 
   scene.tick( 2.5 );
@@ -195,13 +195,13 @@ fn spawn_records_clock_in_spawn_time()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// move_to + spatial-index maintenance
+// placement_move + spatial-index maintenance
 // ────────────────────────────────────────────────────────────────────────────
 
 #[ test ]
 fn move_to_updates_spatial_index()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
   let h = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
 
@@ -209,7 +209,7 @@ fn move_to_updates_spatial_index()
   assert_eq!( scene.instances_at_hex( 0, 0 ).count(), 1 );
   assert_eq!( scene.instances_at_hex( 3, 1 ).count(), 0 );
 
-  scene.move_to( h, Placement::Hex { q : 3, r : 1 } );
+  scene.placement_move( h, Placement::Hex { q : 3, r : 1 } );
   // Old cell is empty, new cell has the instance.
   assert_eq!( scene.instances_at_hex( 0, 0 ).count(), 0 );
   let at_new : Vec< _ > = scene.instances_at_hex( 3, 1 ).collect();
@@ -224,14 +224,14 @@ fn move_to_changes_anchor_kind()
   // out of the hex_instances list, into free_instances. (Even though the
   // owning Object declares anchor: Hex — the renderer is what dispatches
   // by Placement variant; Scene is anchor-agnostic.)
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
   let h = scene.spawn( grass, Placement::Hex { q : 2, r : 2 } );
 
   assert_eq!( scene.hex_instances().len(), 1 );
   assert_eq!( scene.free_instances().len(), 0 );
 
-  scene.move_to( h, Placement::FreePos { x : 100.0, y : 50.0 } );
+  scene.placement_move( h, Placement::FreePos { x : 100.0, y : 50.0 } );
   assert_eq!( scene.hex_instances().len(), 0 );
   assert_eq!( scene.free_instances(), &[ h ] );
   // No longer indexed by hex.
@@ -243,7 +243,7 @@ fn instances_at_hex_returns_only_matching()
 {
   // Two instances on (0,0), one on (1,1). instances_at_hex must yield
   // only the two on (0,0), in spawn order; the other cell is independent.
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
   let knight = scene.object( "knight" ).unwrap();
 
@@ -264,22 +264,22 @@ fn instances_at_hex_returns_only_matching()
 #[ test ]
 fn set_state_persists_for_same_object()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let knight = scene.object( "knight" ).unwrap();
   let h = scene.spawn( knight, Placement::Hex { q : 0, r : 0 } );
   let walk = scene.state( knight, "walk" ).unwrap();
-  scene.set_state( h, walk );
+  scene.state_set( h, walk );
   assert_eq!( scene.instance( h ).unwrap().state, walk );
 }
 
 #[ test ]
 fn set_visible_toggles()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
   let h = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
   assert!( scene.instance( h ).unwrap().visible );
-  scene.set_visible( h, false );
+  scene.visible_set( h, false );
   assert!( !scene.instance( h ).unwrap().visible );
   // Hidden instances stay in spatial index for cheap toggle-back.
   assert_eq!( scene.instances_at_hex( 0, 0 ).count(), 1 );
@@ -288,29 +288,29 @@ fn set_visible_toggles()
 #[ test ]
 fn set_tint_and_phase_offset_persist()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
   let h = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
 
   assert_eq!( scene.instance( h ).unwrap().tint, None );
-  scene.set_tint( h, Some( [ 1.0, 0.5, 0.25, 1.0 ] ) );
+  scene.tint_set( h, Some( [ 1.0, 0.5, 0.25, 1.0 ] ) );
   assert_eq!( scene.instance( h ).unwrap().tint, Some( [ 1.0, 0.5, 0.25, 1.0 ] ) );
 
-  scene.set_phase_offset( h, Some( 0.4 ) );
+  scene.phase_offset_set( h, Some( 0.4 ) );
   assert_eq!( scene.instance( h ).unwrap().phase_offset, Some( 0.4 ) );
-  scene.set_phase_offset( h, None );
+  scene.phase_offset_set( h, None );
   assert_eq!( scene.instance( h ).unwrap().phase_offset, None );
 }
 
 #[ test ]
 fn external_sprite_round_trip()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
   let h = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
 
   let body = SpriteRef { asset : "terrain".into(), frame : "1".into() };
-  scene.set_external_sprite( h, "body", body.clone() );
+  scene.external_sprite_set( h, "body", body.clone() );
 
   let inst = scene.instance( h ).unwrap();
   let got = inst.external_sprites.get( "body" ).expect( "body slot populated" );
@@ -332,14 +332,14 @@ fn external_sprite_round_trip()
 #[ cfg( not( debug_assertions ) ) ]
 fn set_state_rejects_foreign_state_in_release()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
   let knight = scene.object( "knight" ).unwrap();
   let h_grass = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
   let knight_walk = scene.state( knight, "walk" ).unwrap();
 
   let before = scene.instance( h_grass ).unwrap().state;
-  scene.set_state( h_grass, knight_walk );
+  scene.state_set( h_grass, knight_walk );
   let after = scene.instance( h_grass ).unwrap().state;
   assert_eq!( before, after, "foreign state must be ignored, not applied" );
 }
@@ -349,12 +349,12 @@ fn set_state_rejects_foreign_state_in_release()
 #[ should_panic( expected = "does not belong to instance" ) ]
 fn set_state_rejects_foreign_state_in_debug()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
   let knight = scene.object( "knight" ).unwrap();
   let h_grass = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
   let knight_walk = scene.state( knight, "walk" ).unwrap();
-  scene.set_state( h_grass, knight_walk );
+  scene.state_set( h_grass, knight_walk );
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -364,7 +364,7 @@ fn set_state_rejects_foreign_state_in_debug()
 #[ test ]
 fn per_anchor_lists_track_spawn_order()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
 
   let a = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
@@ -387,14 +387,14 @@ fn per_anchor_lists_track_spawn_order()
 #[ test ]
 fn fresh_scene_has_zero_revision()
 {
-  let scene = Scene::new( build_spec() );
+  let scene = Scene::new( spec_build() );
   assert_eq!( scene.revision(), 0 );
 }
 
 #[ test ]
 fn every_mutator_bumps_revision_exactly_once()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
   let knight = scene.object( "knight" ).unwrap();
   let knight_walk = scene.state( knight, "walk" ).unwrap();
@@ -417,38 +417,38 @@ fn every_mutator_bumps_revision_exactly_once()
   let h_knight = scene.spawn( knight, Placement::Hex { q : 1, r : 0 } );
   check( &scene, "spawn (2nd)" );
 
-  // move_to
-  scene.move_to( h, Placement::Hex { q : 2, r : 0 } );
-  check( &scene, "move_to" );
+  // placement_move
+  scene.placement_move( h, Placement::Hex { q : 2, r : 0 } );
+  check( &scene, "placement_move" );
 
-  // set_state (valid)
-  scene.set_state( h_knight, knight_walk );
-  check( &scene, "set_state" );
+  // state_set (valid)
+  scene.state_set( h_knight, knight_walk );
+  check( &scene, "state_set" );
 
-  // set_visible
-  scene.set_visible( h, false );
-  check( &scene, "set_visible" );
+  // visible_set
+  scene.visible_set( h, false );
+  check( &scene, "visible_set" );
 
-  // set_tint
-  scene.set_tint( h, Some( [ 0.5, 1.0, 1.0, 1.0 ] ) );
-  check( &scene, "set_tint" );
+  // tint_set
+  scene.tint_set( h, Some( [ 0.5, 1.0, 1.0, 1.0 ] ) );
+  check( &scene, "tint_set" );
 
-  // set_phase_offset
-  scene.set_phase_offset( h, Some( 0.25 ) );
-  check( &scene, "set_phase_offset" );
+  // phase_offset_set
+  scene.phase_offset_set( h, Some( 0.25 ) );
+  check( &scene, "phase_offset_set" );
 
-  // set_external_sprite
+  // external_sprite_set
   let body = SpriteRef { asset : "terrain".into(), frame : "1".into() };
-  scene.set_external_sprite( h, "body", body );
-  check( &scene, "set_external_sprite" );
+  scene.external_sprite_set( h, "body", body );
+  check( &scene, "external_sprite_set" );
 
-  // set_global_tint
-  scene.set_global_tint( Some( tilemap_scene::TintRef( "foo".into() ) ) );
-  check( &scene, "set_global_tint" );
+  // global_tint_set
+  scene.global_tint_set( Some( tilemap_scene::TintRef( "foo".into() ) ) );
+  check( &scene, "global_tint_set" );
 
-  // set_seed
-  scene.set_seed( 42 );
-  check( &scene, "set_seed" );
+  // seed_set
+  scene.seed_set( 42 );
+  check( &scene, "seed_set" );
 
   // despawn
   scene.despawn( h_knight );
@@ -458,7 +458,7 @@ fn every_mutator_bumps_revision_exactly_once()
 #[ test ]
 fn tick_does_not_bump_revision()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
   let _h = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
   let r_before = scene.revision();
@@ -472,7 +472,7 @@ fn tick_does_not_bump_revision()
 #[ test ]
 fn query_getters_do_not_bump_revision()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
   let h = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
   let r = scene.revision();
@@ -495,17 +495,17 @@ fn query_getters_do_not_bump_revision()
 #[ test ]
 fn set_state_with_foreign_state_does_not_bump_revision()
 {
-  let mut scene = Scene::new( build_spec() );
+  let mut scene = Scene::new( spec_build() );
   let grass = scene.object( "grass" ).unwrap();
   let knight = scene.object( "knight" ).unwrap();
   let h_grass = scene.spawn( grass, Placement::Hex { q : 0, r : 0 } );
   let knight_walk = scene.state( knight, "walk" ).unwrap();
   let r = scene.revision();
 
-  scene.set_state( h_grass, knight_walk );
+  scene.state_set( h_grass, knight_walk );
   assert_eq!
   (
     scene.revision(), r,
-    "rejected set_state must not bump revision",
+    "rejected state_set must not bump revision",
   );
 }

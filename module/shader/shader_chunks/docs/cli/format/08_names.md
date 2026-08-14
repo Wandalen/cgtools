@@ -6,7 +6,7 @@
 | Output context | `list`/`get` under `format::names` |
 | Trigger | `format::names` on either query command |
 | Structure | One chunk name per line, nothing else — no header, no alignment, no placeholders |
-| Rendering mechanism | Direct join of the result's `name` fields in `render_chunks` (`src/lib.rs`) — no `data_fmt` pipeline needed for a bare line list |
+| Rendering mechanism | Direct join of the result's `name` fields in `chunks_render` (`src/lib.rs`) — no `data_fmt` pipeline needed for a bare line list |
 | Example | See below |
 
 ### Example

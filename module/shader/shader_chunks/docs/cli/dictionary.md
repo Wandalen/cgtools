@@ -30,7 +30,7 @@ Domain terms used throughout `docs/cli/`, alphabetical.
   middle stage of the query pipeline.
 - **Query** — A `list`/`get` invocation: select a candidate set, filter
   it, project fields, and render — one shared engine
-  (`query_chunks`) behind both commands, differing only in defaults.
+  (`chunks_query`) behind both commands, differing only in defaults.
 - **Registry** — The compiled-in, static table of every chunk
   (`shader_chunks_core::CHUNKS`) this CLI inspects; never runtime-discovered
   or loaded from the filesystem.
@@ -48,4 +48,4 @@ Domain terms used throughout `docs/cli/`, alphabetical.
   `//@ param:` comment line, carrying a name, kind, WGSL type, and range;
   the range's source is either *declared* (an explicit `range(min, max)`
   clause) or *inferred* (heuristic, via
-  `shader_chunks_params::infer_range`). Listed by `tunables`.
+  `shader_chunks_params::range_infer`). Listed by `tunables`.

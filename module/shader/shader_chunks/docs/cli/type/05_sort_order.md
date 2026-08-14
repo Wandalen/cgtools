@@ -19,7 +19,7 @@ non-zero exit.
 **Methods:**
 - `as_str() -> &'static str` — canonical spelling, round-trips with
   `from_str`
-- Semantics (`query_chunks`): `Desc` is an exact `reverse()` of the fully
+- Semantics (`chunks_query`): `Desc` is an exact `reverse()` of the fully
   sorted sequence — applied after tie-breaking, and equally to
   `sort::input` (reversed selection order)
 

@@ -52,9 +52,9 @@ const _ : () = assert!
 
 /// Returns the complete WGSL shader source: [`SCENE_CHUNKS`] — bundled
 /// imports and the local fragment chunk alike — concatenated
-/// dependency-before-dependent by [`shader_chunks_core::compose_set`].
+/// dependency-before-dependent by [`shader_chunks_core::set_compose`].
 #[ must_use ]
 pub fn assemble() -> String
 {
-  shader_chunks_core::compose_set( SCENE_CHUNKS )
+  shader_chunks_core::set_compose( SCENE_CHUNKS )
 }

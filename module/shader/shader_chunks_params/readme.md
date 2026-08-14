@@ -21,7 +21,7 @@ I/O, no execution — pure text processing over raw WGSL strings.
 `<type>` is a WGSL type token copied verbatim from the adjacent real
 declaration (`bool`, `u32`, `i32`, `f32`, `vec2f`..`vec4u`, `texture_2d`).
 The optional trailing `range(min, max)` always wins when present. When
-absent, [`infer_range`](docs/algorithm/001_range_inference_heuristic.md)
+absent, [`range_infer`](docs/algorithm/001_range_inference_heuristic.md)
 resolves one deterministically — a name-substring pattern first (e.g.
 `seed` → `[0, 65535]`), a WGSL-type-keyed default second (e.g. bare `u32`
 → `[0, 16]`) — never a random guess. Full grammar and taxonomy:
@@ -45,7 +45,7 @@ assert_eq!( params[ 0 ].name, "octaves" ); // declared range: (1.0, 8.0)
 assert_eq!( params[ 1 ].name, "seed" );    // inferred range: (0.0, 65535.0)
 ```
 
-`discover_chunk( &chunk )` is the same parse applied to a
+`chunk_discover( &chunk )` is the same parse applied to a
 [`shader_chunks_core::ChunkDescriptor`]'s own `.wgsl` field — this crate's
 only dependency on `shader_chunks_core`; `discover` itself has none.
 

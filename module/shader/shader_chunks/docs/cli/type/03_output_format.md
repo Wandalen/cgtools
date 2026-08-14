@@ -22,7 +22,7 @@ yaml, names) `` on stderr with a non-zero exit.
 - `as_str() -> &'static str` — canonical lowercase spelling; round-trips
   with `from_str`, and supplies the `[default: …]` text in help screens
 - `from_str(s) -> Result<Self, CliError>` — the parse above
-- Dispatch: `render_chunks` (`src/lib.rs`) matches on the variant to
+- Dispatch: `chunks_render` (`src/lib.rs`) matches on the variant to
   select the `data_fmt` pipeline (see [`../format/`](../format/readme.md))
 
 ---

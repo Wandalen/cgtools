@@ -19,7 +19,7 @@ mod private
   ///
   /// The two map fields are `pub(crate)` so the asset compile pass can
   /// iterate them in `compile/assets.rs`. External callers go through
-  /// [`Self::alloc_image`] / [`Self::alloc_sprite`] / [`Self::image`] /
+  /// [`Self::image_alloc`] / [`Self::sprite_alloc`] / [`Self::image`] /
   /// [`Self::sprite`] so the next-id counters remain consistent with the
   /// recorded entries.
   #[ derive( Debug, Default ) ]
@@ -46,7 +46,7 @@ mod private
     ///
     /// Panics if the image id counter overflows `u32::MAX`.
     #[ inline ]
-    pub fn alloc_image( &mut self, asset_id : &str ) -> ResourceId< asset::Image >
+    pub fn image_alloc( &mut self, asset_id : &str ) -> ResourceId< asset::Image >
     {
       if let Some( id ) = self.images.get( asset_id ).copied()
       {
@@ -64,7 +64,7 @@ mod private
     ///
     /// Panics if the sprite id counter overflows `u32::MAX`.
     #[ inline ]
-    pub fn alloc_sprite
+    pub fn sprite_alloc
     (
       &mut self,
       asset_id : &str,

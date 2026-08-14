@@ -6,7 +6,7 @@ An **algorithm** documents a HOW — a step-by-step computational procedure with
 
 - **Purpose**: Navigational hub for `shader_chunks_params`'s step-by-step computational procedures.
 - **Responsibility**: Document each algorithm's abstract behavior and concrete step-by-step procedure.
-- **In Scope**: The range-inference heuristic `infer_range` implements.
+- **In Scope**: The range-inference heuristic `range_infer` implements.
 - **Out of Scope**: The `//@ param:` grammar and taxonomy this algorithm's result feeds into (see `api/001`).
 
 ### Overview Table

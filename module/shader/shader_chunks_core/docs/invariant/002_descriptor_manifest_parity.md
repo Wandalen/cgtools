@@ -16,8 +16,8 @@ the file are one fact, not two.
 
 For every `ChunkDescriptor` `c`, and for each of the six metadata fields,
 the field's value equals what the corresponding `parse_*` function
-(`parse_name`, `parse_description`, `parse_tags`, `parse_stage`,
-`parse_depends_on`, `parse_exports`) returns for `c.wgsl`. This always
+(`name_parse`, `description_parse`, `tags_parse`, `stage_parse`,
+`depends_on_parse`, `exports_parse`) returns for `c.wgsl`. This always
 holds — for every bundled row, and for every local row in a crate that
 carries the pattern's guard test.
 
