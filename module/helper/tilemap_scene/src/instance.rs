@@ -13,7 +13,7 @@
 //!   are debug-detectable.
 //! - [`Placement`] — anchor-specific position payload supplied at spawn
 //!   time. The variant determines which rendering path applies to the
-//!   instance; an explicit `move_to` is required to switch variants.
+//!   instance; an explicit `placement_move` is required to switch variants.
 //! - [`Instance`] — the per-instance runtime state mutated by `Scene`
 //!   methods. Exposed read-only via [`crate::scene::Scene::instance`] for
 //!   game / debug queries.
@@ -69,7 +69,7 @@ mod private
   /// Anchor-specific position payload for an instance.
   ///
   /// The variant determines what rendering path applies. Switching variants
-  /// requires an explicit `move_to` call — the renderer rejects a placement
+  /// requires an explicit `placement_move` call — the renderer rejects a placement
   /// whose variant is incompatible with the owning object's declared
   /// sprite sources (e.g. `Placement::FreePos` paired with
   /// `SpriteSource::NeighborBitmask`).
@@ -163,13 +163,13 @@ mod private
     /// Scene clock value captured every time the instance enters a new
     /// state — set by [`crate::scene::Scene::spawn`] (to the same value
     /// as `spawn_time`) and updated by every successful
-    /// [`crate::scene::Scene::set_state`]. This is the origin used for
+    /// [`crate::scene::Scene::state_set`]. This is the origin used for
     /// `OneShot` animation timing and completion events, so calling
-    /// `set_state` on an existing instance restarts its `OneShot`
+    /// `state_set` on an existing instance restarts its `OneShot`
     /// animation from frame 0.
     pub state_entered_time : f32,
     /// External-source sprite overrides keyed by slot name. Populated via
-    /// `Scene::set_external_sprite`; consumed by `SpriteSource::External`
+    /// `Scene::external_sprite_set`; consumed by `SpriteSource::External`
     /// layers during rendering.
     ///
     /// Stored on the instance (not in a separate scene-level map) so

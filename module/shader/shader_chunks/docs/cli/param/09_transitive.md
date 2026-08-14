@@ -27,7 +27,7 @@ list transitive::maybe   # unilang boolean coercion failure, non-zero exit
 ```
 
 ### Notes
-- Both closure walks (`reaches` and `compose_chunks` in `src/lib.rs`) are
+- Both closure walks (`reaches` and `chunks_compose` in `src/lib.rs`) are
   cycle-safe — a `seen` set guards each worklist, so even a hypothetical
   cyclic registry cannot hang them.
 - On `.compose` the widened set feeds the same

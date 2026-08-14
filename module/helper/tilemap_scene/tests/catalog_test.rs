@@ -28,7 +28,7 @@ use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
 // Same two-object fixture (`grass`, `knight` with idle / walk) as
 // `scene_state_test.rs`. Inlined here to keep tests independent.
 
-fn make_layer( asset : &str, frame : &str ) -> ObjectLayer
+fn layer_make( asset : &str, frame : &str ) -> ObjectLayer
 {
   ObjectLayer
   {
@@ -43,14 +43,14 @@ fn make_layer( asset : &str, frame : &str ) -> ObjectLayer
   }
 }
 
-fn build_spec() -> Arc< RenderSpec >
+fn spec_build() -> Arc< RenderSpec >
 {
   let mut grass_states = HashMap::default();
-  grass_states.insert( "default".into(), vec![ make_layer( "terrain", "0" ) ] );
+  grass_states.insert( "default".into(), vec![ layer_make( "terrain", "0" ) ] );
 
   let mut knight_states = HashMap::default();
-  knight_states.insert( "idle".into(), vec![ make_layer( "terrain", "0" ) ] );
-  knight_states.insert( "walk".into(), vec![ make_layer( "terrain", "1" ) ] );
+  knight_states.insert( "idle".into(), vec![ layer_make( "terrain", "0" ) ] );
+  knight_states.insert( "walk".into(), vec![ layer_make( "terrain", "1" ) ] );
 
   let spec = RenderSpec
   {
@@ -122,18 +122,18 @@ fn build_spec() -> Arc< RenderSpec >
 #[ test ]
 fn catalog_resolves_required_object_and_state_handles()
 {
-  let scene = Scene::new( build_spec() );
+  let scene = Scene::new( spec_build() );
   let cat = scene.catalog()
-    .require_object( "grass" )
-    .require_state( "knight", "idle" )
-    .require_state( "knight", "walk" )
+    .object_require( "grass" )
+    .state_require( "knight", "idle" )
+    .state_require( "knight", "walk" )
     .build()
     .expect( "all ids declared in spec" );
 
   // Object handles round-trip with Scene::object.
   assert_eq!( cat.object( "grass" ), scene.object( "grass" ).unwrap() );
   let knight = scene.object( "knight" ).unwrap();
-  assert_eq!( cat.object( "knight" ), knight, "require_state implies object" );
+  assert_eq!( cat.object( "knight" ), knight, "state_require implies object" );
 
   // State handles round-trip with Scene::state.
   assert_eq!( cat.state( "knight", "idle" ), scene.state( knight, "idle" ).unwrap() );
@@ -143,11 +143,11 @@ fn catalog_resolves_required_object_and_state_handles()
 #[ test ]
 fn catalog_build_reports_every_missing_object_together()
 {
-  let scene = Scene::new( build_spec() );
+  let scene = Scene::new( spec_build() );
   let err = scene.catalog()
-    .require_object( "grass" )       // declared
-    .require_object( "wizard" )      // missing
-    .require_object( "dragon" )      // missing
+    .object_require( "grass" )       // declared
+    .object_require( "wizard" )      // missing
+    .object_require( "dragon" )      // missing
     .build()
     .expect_err( "two ids are missing" );
 
@@ -160,10 +160,10 @@ fn catalog_build_reports_every_missing_object_together()
 #[ test ]
 fn catalog_build_reports_missing_state_on_declared_object()
 {
-  let scene = Scene::new( build_spec() );
+  let scene = Scene::new( spec_build() );
   let err = scene.catalog()
-    .require_state( "knight", "idle" )    // declared
-    .require_state( "knight", "attack" )  // missing state
+    .state_require( "knight", "idle" )    // declared
+    .state_require( "knight", "attack" )  // missing state
     .build()
     .expect_err( "one state missing" );
 
@@ -182,9 +182,9 @@ fn catalog_build_does_not_double_report_state_when_object_missing()
   // Requesting a state on a missing object surfaces the object miss
   // once and skips the state miss — partial repair: the user fixes
   // the object id, re-runs, then sees any state misses.
-  let scene = Scene::new( build_spec() );
+  let scene = Scene::new( spec_build() );
   let err = scene.catalog()
-    .require_state( "wizard", "fireball" )
+    .state_require( "wizard", "fireball" )
     .build()
     .expect_err( "object missing" );
 
@@ -201,9 +201,9 @@ fn catalog_build_does_not_double_report_state_when_object_missing()
 #[ test ]
 fn catalog_try_lookups_return_none_for_unrequired_ids()
 {
-  let scene = Scene::new( build_spec() );
+  let scene = Scene::new( spec_build() );
   let cat = scene.catalog()
-    .require_object( "grass" )
+    .object_require( "grass" )
     .build()
     .unwrap();
   assert!( cat.try_object( "knight" ).is_none(), "knight was not requested" );
@@ -216,7 +216,7 @@ fn catalog_try_lookups_return_none_for_unrequired_ids()
 #[ should_panic( expected = "was not required at build time" ) ]
 fn catalog_object_panics_for_unrequired_id()
 {
-  let scene = Scene::new( build_spec() );
+  let scene = Scene::new( spec_build() );
   let cat = scene.catalog().build().unwrap();
   // No objects required at build time — every lookup panics.
   let _ = cat.object( "grass" );

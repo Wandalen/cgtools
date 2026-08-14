@@ -105,7 +105,7 @@ fn object( id : &str, asset : &str, frame : &str, pipeline_layer : &str ) -> Obj
   }
 }
 
-fn build_spec() -> RenderSpec
+fn spec_build() -> RenderSpec
 {
   RenderSpec
   {
@@ -141,12 +141,12 @@ fn build_spec() -> RenderSpec
   }
 }
 
-fn count_draw_batches( cmds : &[ RenderCommand ] ) -> usize
+fn draw_batches_count( cmds : &[ RenderCommand ] ) -> usize
 {
   cmds.iter().filter( | c | matches!( c, RenderCommand::DrawBatch( _ ) ) ).count()
 }
 
-fn count_sprite_commands( cmds : &[ RenderCommand ] ) -> usize
+fn sprite_commands_count( cmds : &[ RenderCommand ] ) -> usize
 {
   cmds.iter().filter( | c | matches!( c, RenderCommand::Sprite( _ ) ) ).count()
 }
@@ -158,7 +158,7 @@ fn count_sprite_commands( cmds : &[ RenderCommand ] ) -> usize
 #[ test ]
 fn single_key_sorted_bucket_emits_drawbatch_no_sprites()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let knight = scene.object( "knight_a" ).unwrap();
@@ -172,11 +172,11 @@ fn single_key_sorted_bucket_emits_drawbatch_no_sprites()
 
   assert_eq!
   (
-    count_sprite_commands( cmds ), 0,
+    sprite_commands_count( cmds ), 0,
     "single-key sorted bucket must not fall back to per-sprite Sprite commands",
   );
   // 1 DrawBatch for the units bucket (no terrain/effects instances spawned).
-  assert_eq!( count_draw_batches( cmds ), 1, "exactly one DrawBatch for the sorted bucket" );
+  assert_eq!( draw_batches_count( cmds ), 1, "exactly one DrawBatch for the sorted bucket" );
 
   let sprites = common::flat_sprites( cmds );
   assert_eq!( sprites.len(), 3, "three knights flatten to three sprites" );
@@ -193,7 +193,7 @@ fn single_key_sorted_bucket_emits_drawbatch_no_sprites()
 #[ test ]
 fn batch_instance_order_matches_sort_order_yasc()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let knight = scene.object( "knight_a" ).unwrap();
@@ -225,7 +225,7 @@ fn batch_instance_order_matches_sort_order_yasc()
 #[ test ]
 fn multi_sheet_sorted_bucket_falls_back_to_per_sprite()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let knight_a = scene.object( "knight_a" ).unwrap();
@@ -239,13 +239,13 @@ fn multi_sheet_sorted_bucket_falls_back_to_per_sprite()
 
   assert_eq!
   (
-    count_sprite_commands( cmds ), 2,
+    sprite_commands_count( cmds ), 2,
     "multi-sheet sorted bucket must emit one Sprite per emit (fallback path)",
   );
   // No `DrawBatch` for the units bucket itself (terrain / effects also empty).
   assert_eq!
   (
-    count_draw_batches( cmds ), 0,
+    draw_batches_count( cmds ), 0,
     "no batches in pipeline when only the units bucket has instances and it falls back",
   );
 }
@@ -261,7 +261,7 @@ fn multi_sheet_sorted_bucket_falls_back_to_per_sprite()
 #[ test ]
 fn mixed_pipeline_drawbatches_in_pipeline_order()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -281,11 +281,11 @@ fn mixed_pipeline_drawbatches_in_pipeline_order()
   assert_eq!( draw_positions.len(), 3, "three batched buckets → three DrawBatches" );
 
   // No per-sprite fallback in this pipeline.
-  assert_eq!( count_sprite_commands( &cmds ), 0 );
+  assert_eq!( sprite_commands_count( &cmds ), 0 );
 
   // Each DrawBatch's batch resolves through the BatchFlattener to one sprite
   // and the order across DrawBatches is the pipeline order.
-  let flat = common::flatten_to_sprites( &cmds );
+  let flat = common::commands_to_sprites( &cmds );
   let sprites : Vec< &Sprite > = flat.iter()
     .filter_map( | c | if let RenderCommand::Sprite( s ) = c { Some( s ) } else { None } )
     .collect();
@@ -294,7 +294,7 @@ fn mixed_pipeline_drawbatches_in_pipeline_order()
   // The sprite resource ids monotonically follow first-emit order — the test
   // therefore asserts strict ordering via sprite id, not via frame name.
   // (Resource ids are assigned in compile order, which mirrors the
-  // declaration order in `build_spec`.)
+  // declaration order in `spec_build`.)
   assert!
   (
     sprites[ 0 ].sprite.inner() < sprites[ 1 ].sprite.inner()
@@ -313,7 +313,7 @@ fn mixed_pipeline_drawbatches_in_pipeline_order()
 #[ test ]
 fn fallback_sprite_commands_sit_between_pipeline_drawbatches()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -348,8 +348,8 @@ fn fallback_sprite_commands_sit_between_pipeline_drawbatches()
     last_sprite < last_draw,
     "effects DrawBatch must follow the units Sprite fallback in command order",
   );
-  assert_eq!( count_draw_batches( &cmds ), 2, "terrain + effects = 2 batches" );
-  assert_eq!( count_sprite_commands( &cmds ), 2, "two units in the fallback path" );
+  assert_eq!( draw_batches_count( &cmds ), 2, "terrain + effects = 2 batches" );
+  assert_eq!( sprite_commands_count( &cmds ), 2, "two units in the fallback path" );
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -359,7 +359,7 @@ fn fallback_sprite_commands_sit_between_pipeline_drawbatches()
 #[ test ]
 fn idle_replay_byte_equal_for_sorted_batch()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let knight = scene.object( "knight_a" ).unwrap();
@@ -382,7 +382,7 @@ fn idle_replay_byte_equal_for_sorted_batch()
 #[ test ]
 fn sorted_batch_reused_across_move()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let knight = scene.object( "knight_a" ).unwrap();
@@ -397,7 +397,7 @@ fn sorted_batch_reused_across_move()
 
   // Move one unit — must invalidate cache, but reuse the same batch (no
   // CreateSpriteBatch / DeleteBatch in the new stream).
-  scene.move_to( h0, Placement::Hex { q : 5, r : 5 } );
+  scene.placement_move( h0, Placement::Hex { q : 5, r : 5 } );
   let second = renderer.render( &scene, &camera ).expect( "after move" ).to_vec();
 
   let creates_second = second.iter().filter( | c | matches!( c, RenderCommand::CreateSpriteBatch( _ ) ) ).count();

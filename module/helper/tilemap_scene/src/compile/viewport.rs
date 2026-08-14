@@ -40,7 +40,7 @@ mod private
         // Fill the whole viewport, non-uniform scale allowed.
         let sx = vw / sprite_size.0.max( 1.0 );
         let sy = vh / sprite_size.1.max( 1.0 );
-        Some( make_transform( ( 0.0, 0.0 ), ( sx, sy ) ) )
+        Some( transform_make( ( 0.0, 0.0 ), ( sx, sy ) ) )
       },
       ViewportTiling::Fit =>
       {
@@ -50,13 +50,13 @@ mod private
         let s = sx.min( sy );
         let scaled = ( sprite_size.0 * s, sprite_size.1 * s );
         let pos = anchor_position( anchor, scaled, ( vw, vh ) );
-        Some( make_transform( pos, ( s, s ) ) )
+        Some( transform_make( pos, ( s, s ) ) )
       },
       ViewportTiling::Center =>
       {
         // Native pixel size, positioned per anchor.
         let pos = anchor_position( anchor, sprite_size, ( vw, vh ) );
-        Some( make_transform( pos, ( 1.0, 1.0 ) ) )
+        Some( transform_make( pos, ( 1.0, 1.0 ) ) )
       },
       ViewportTiling::Repeat2D
       | ViewportTiling::RepeatX
@@ -65,7 +65,7 @@ mod private
         // Repeat modes emit multiple sprites — the caller uses
         // `tiled_positions` for per-tile offsets. Returning the first tile
         // at origin is convenient for callers that want the common case.
-        Some( make_transform( ( 0.0, 0.0 ), ( 1.0, 1.0 ) ) )
+        Some( transform_make( ( 0.0, 0.0 ), ( 1.0, 1.0 ) ) )
       },
     }
   }
@@ -162,7 +162,7 @@ mod private
   }
 
   #[ inline ]
-  fn make_transform( pos : ( f32, f32 ), scale : ( f32, f32 ) ) -> Transform
+  fn transform_make( pos : ( f32, f32 ), scale : ( f32, f32 ) ) -> Transform
   {
     Transform
     {

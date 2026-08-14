@@ -3,7 +3,7 @@
 //!
 //! `Scene` owns the *render-world*: which instances exist, where they are,
 //! in what state. Game / adapter code mutates the scene through
-//! `spawn` / `despawn` / `move_to` / `set_state` / `set_*` methods and reads
+//! `spawn` / `despawn` / `placement_move` / `state_set` / `set_*` methods and reads
 //! it back through `instance` / `instances_at_hex` / `instances`. The
 //! retained representation eliminates per-frame `Vec< String >` allocations
 //! (handles are `Copy`), supports per-instance phase / tint overrides, and
@@ -72,7 +72,7 @@ mod private
     /// Master clock — advances via [`Self::tick`] (which also emits any
     /// [`SceneEvent`]s triggered by the elapsed interval). Captured into
     /// `Instance.spawn_time` on `spawn` and into
-    /// `Instance.state_entered_time` on every `spawn` and `set_state`.
+    /// `Instance.state_entered_time` on every `spawn` and `state_set`.
     /// `OneShot` animation timing is rooted in
     /// `state_entered_time`, not `spawn_time`.
     clock : f32,
@@ -86,9 +86,9 @@ mod private
     seed : u64,
 
     /// Monotonic mutation counter. Bumped exactly once per successful
-    /// state-changing call (`spawn` / `despawn` / `move_to` / `set_state` /
-    /// `set_visible` / `set_tint` / `set_phase_offset` /
-    /// `set_external_sprite` / `set_global_tint` / `set_seed`). `tick`
+    /// state-changing call (`spawn` / `despawn` / `placement_move` / `state_set` /
+    /// `visible_set` / `tint_set` / `phase_offset_set` /
+    /// `external_sprite_set` / `global_tint_set` / `seed_set`). `tick`
     /// does NOT bump — clock advance is a separate signal exposed via
     /// [`Self::clock`].
     revision : u64,
@@ -140,7 +140,7 @@ mod private
       let owned_tiles;
       let tiles_iter : &[ crate::snapshot::Tile ] = if snap.tiles.is_empty()
       {
-        owned_tiles = snap.expand_palette()?;
+        owned_tiles = snap.palette_expand()?;
         &owned_tiles
       }
       else
@@ -217,11 +217,11 @@ mod private
 
       if let Some( tint_id ) = snap.initial_global_tint.as_ref()
       {
-        scene.set_global_tint( Some( crate::resource::TintRef( tint_id.clone() ) ) );
+        scene.global_tint_set( Some( crate::resource::TintRef( tint_id.clone() ) ) );
       }
       if let Some( seed ) = snap.seed
       {
-        scene.set_seed( seed );
+        scene.seed_set( seed );
       }
 
       Ok( scene )
@@ -429,12 +429,12 @@ mod private
     /// Move an existing instance to a new placement. The new placement
     /// MAY use a different variant than the previous one (e.g. `Hex` →
     /// `FreePos`); spatial indexes are updated accordingly.
-    pub fn move_to( &mut self, h : InstanceHandle, placement : Placement )
+    pub fn placement_move( &mut self, h : InstanceHandle, placement : Placement )
     {
       let Some( inst ) = self.instances.get_mut( h )
       else
       {
-        debug_assert!( false, "move_to on stale handle {h:?}" );
+        debug_assert!( false, "placement_move on stale handle {h:?}" );
         return;
       };
       let old = inst.placement;
@@ -452,19 +452,19 @@ mod private
     /// frame 0. `Loop` and `PingPong` animations continue to ride the
     /// master clock with their declared `PhaseOffset` (see
     /// `state_entered_time` doc for the rationale).
-    pub fn set_state( &mut self, h : InstanceHandle, state : StateHandle )
+    pub fn state_set( &mut self, h : InstanceHandle, state : StateHandle )
     {
       let Some( inst ) = self.instances.get_mut( h )
       else
       {
-        debug_assert!( false, "set_state on stale handle {h:?}" );
+        debug_assert!( false, "state_set on stale handle {h:?}" );
         return;
       };
       let inst_object = inst.object;
       debug_assert_eq!
       (
         inst_object, state.object,
-        "set_state: state {state:?} does not belong to instance's object {inst_object:?}",
+        "state_set: state {state:?} does not belong to instance's object {inst_object:?}",
       );
       if inst_object == state.object
       {
@@ -476,42 +476,42 @@ mod private
 
     /// Toggle instance visibility. Hidden instances stay in spatial indexes
     /// so flipping back is O(1).
-    pub fn set_visible( &mut self, h : InstanceHandle, on : bool )
+    pub fn visible_set( &mut self, h : InstanceHandle, on : bool )
     {
       if let Some( inst ) = self.instances.get_mut( h )
       {
         inst.visible = on;
         self.revision += 1;
       }
-      else { debug_assert!( false, "set_visible on stale handle {h:?}" ); }
+      else { debug_assert!( false, "visible_set on stale handle {h:?}" ); }
     }
 
     /// Override the instance's tint multiplier. `None` clears any prior override.
-    pub fn set_tint( &mut self, h : InstanceHandle, tint : Option< [ f32; 4 ] > )
+    pub fn tint_set( &mut self, h : InstanceHandle, tint : Option< [ f32; 4 ] > )
     {
       if let Some( inst ) = self.instances.get_mut( h )
       {
         inst.tint = tint;
         self.revision += 1;
       }
-      else { debug_assert!( false, "set_tint on stale handle {h:?}" ); }
+      else { debug_assert!( false, "tint_set on stale handle {h:?}" ); }
     }
 
     /// Override the animation phase offset for this instance in seconds.
     /// `None` falls back to the animation's declared `PhaseOffset`.
-    pub fn set_phase_offset( &mut self, h : InstanceHandle, t : Option< f32 > )
+    pub fn phase_offset_set( &mut self, h : InstanceHandle, t : Option< f32 > )
     {
       if let Some( inst ) = self.instances.get_mut( h )
       {
         inst.phase_offset = t;
         self.revision += 1;
       }
-      else { debug_assert!( false, "set_phase_offset on stale handle {h:?}" ); }
+      else { debug_assert!( false, "phase_offset_set on stale handle {h:?}" ); }
     }
 
     /// Populate an `SpriteSource::External` slot for this instance.
     /// `slot` is the source's declared slot name.
-    pub fn set_external_sprite
+    pub fn external_sprite_set
     (
       &mut self,
       h : InstanceHandle,
@@ -526,14 +526,14 @@ mod private
       }
       else
       {
-        debug_assert!( false, "set_external_sprite on stale handle {h:?}" );
+        debug_assert!( false, "external_sprite_set on stale handle {h:?}" );
       }
     }
 
     /// Override the scene-wide global tint. `None` falls back to the spec's
     /// declared `pipeline.global_tint`.
     #[ inline ]
-    pub fn set_global_tint( &mut self, t : Option< TintRef > )
+    pub fn global_tint_set( &mut self, t : Option< TintRef > )
     {
       self.global_tint_override = t;
       self.revision += 1;
@@ -542,7 +542,7 @@ mod private
     /// Set the seed consumed by `VariantSelection::Random`. Stays stable
     /// across frames so variant choices don't flicker.
     #[ inline ]
-    pub fn set_seed( &mut self, seed : u64 )
+    pub fn seed_set( &mut self, seed : u64 )
     {
       self.seed = seed;
       self.revision += 1;
@@ -556,7 +556,7 @@ mod private
     /// has `AnimationMode::OneShot` and whose effective local time
     /// crossed the animation's total duration during this tick.
     ///
-    /// **Visibility.** Hidden instances (`set_visible(_, false)`) do
+    /// **Visibility.** Hidden instances (`visible_set(_, false)`) do
     /// NOT emit events — visibility gates both rendering and event
     /// emission so a paused / preview unit doesn't churn the
     /// consumer's event loop with completions it can't see.
@@ -647,7 +647,7 @@ mod private
 
           // For non-hex placements (`FreePos`, `Viewport`) the fallback
           // is `(0, 0)` — this is the degenerate-stagger case noted on
-          // `PhaseOffset::HashCoord`. Override with `set_phase_offset`
+          // `PhaseOffset::HashCoord`. Override with `phase_offset_set`
           // if per-instance stagger is needed there.
           let pos = inst.placement.hex_coord().unwrap_or( ( 0, 0 ) );
 
@@ -681,7 +681,7 @@ mod private
             // OneShot is per-instance — its local time is the elapsed
             // since the instance *entered the current state*, tracked
             // on `inst.state_entered_time` (set by `Scene::spawn` and
-            // re-set by every `Scene::set_state`). Subtract it so
+            // re-set by every `Scene::state_set`). Subtract it so
             // completion fires `duration` seconds after the state
             // entry, not at the absolute clock time `duration`, and
             // so re-entering a OneShot state re-arms the event.

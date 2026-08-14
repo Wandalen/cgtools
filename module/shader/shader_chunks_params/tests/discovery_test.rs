@@ -1,4 +1,4 @@
-//! Tests for [`discover`] and [`discover_chunk`] — `//@ param:` line
+//! Tests for [`discover`] and [`chunk_discover`] — `//@ param:` line
 //! parsing, file-order/empty-input handling, malformed-directive panics,
 //! and declared-range precedence over inference. All fixtures are
 //! self-contained WGSL strings owned by this file — no real bundled
@@ -6,7 +6,7 @@
 
 use shader_chunks_params::
 {
-  discover, discover_chunk, Parameter, ParameterKind, Range, RangeSource, ValueType,
+  discover, chunk_discover, Parameter, ParameterKind, Range, RangeSource, ValueType,
 };
 
 #[ test ]
@@ -172,5 +172,5 @@ const LOCAL_GLOW : shader_chunks_core::ChunkDescriptor = shader_chunks_core::Chu
 #[ test ]
 fn discover_chunk_matches_discover_on_wgsl_field()
 {
-  assert_eq!( discover_chunk( &LOCAL_GLOW ), discover( LOCAL_GLOW_WGSL ) );
+  assert_eq!( chunk_discover( &LOCAL_GLOW ), discover( LOCAL_GLOW_WGSL ) );
 }

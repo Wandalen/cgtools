@@ -3,15 +3,16 @@
 ### Pattern
 
 Tunable-surface introspection: parse a chunk's `//@ param:` manifest
-lines via `shader_chunks_params::discover_chunk` and print the parsed
+lines via `shader_chunks_params::chunk_discover` and print the parsed
 result — one row per declared parameter, kind/type/range/source — rather
 than a filtered set of chunk records or the dependency graph itself.
 
 ### Purpose
 
-Let a shader author (or an eventual UI/tooling layer) discover which
-values on a chunk are meant to be tuned — and by what range — without
-reading the chunk's WGSL source directly.
+Let a shader author (or a UI/tooling layer — see
+`examples/minwebgpu/shader_chunk_preview/readme.md` for a live browser
+consumer) discover which values on a chunk are meant to be tuned — and by
+what range — without reading the chunk's WGSL source directly.
 
 ### Semantic Coherence Test
 
@@ -26,7 +27,7 @@ The [Query](01_query.md) group's own stated invariant is that only
 `shader_chunks_core::CHUNKS` is consulted — no filesystem, environment,
 or network access beyond the compiled-in registry. `.tunables` breaks
 that invariant by construction: it calls
-`shader_chunks_params::discover_chunk`, a second crate that parses
+`shader_chunks_params::chunk_discover`, a second crate that parses
 `//@ param:` lines out of the chunk's own WGSL text via its own grammar,
 independent of any of Query's 19 filter/projection/formatting
 parameters. Its output rows are parameters, not chunk records — none of
@@ -40,7 +41,7 @@ single-crate-dependency command inside a group whose entire contract is
 - No side effects outside stdout content and process exit code.
 - `shader_chunks_core::CHUNKS` (for chunk lookup) and the resolved
   chunk's own `wgsl` field (for parameter discovery, via
-  `shader_chunks_params::discover_chunk`) are consulted — no filesystem,
+  `shader_chunks_params::chunk_discover`) are consulted — no filesystem,
   environment, or network access beyond what's already compiled in.
 - A chunk with zero declared `//@ param:` lines renders an explicit
   message, never a blank table or a false error.
@@ -67,7 +68,9 @@ command count.
 
 Inspect with [Query](01_query.md) or [Graph](02_graph.md) to find a
 chunk of interest, then `tunables <name>` to see what on it is meant to
-be tuned before wiring a UI slider or a compile-time override to it.
+be tuned before wiring a UI slider or a compile-time override to it —
+`examples/minwebgpu/shader_chunk_preview/` is exactly this workflow
+carried through to a live browser UI.
 
 ### Referenced User Stories
 

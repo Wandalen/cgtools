@@ -2,14 +2,14 @@
 
 One sort core turns any chunk set into a single WGSL source, concatenated
 dependency-before-dependent regardless of the order the chunks were passed
-in. Every composition entry point — `compose`, `try_compose`, `compose_set`,
-`try_compose_set` — is a front door onto this same procedure.
+in. Every composition entry point — `compose`, `try_compose`, `set_compose`,
+`set_try_compose` — is a front door onto this same procedure.
 
 ### Scope
 
 - **Purpose**: Guarantee that a caller never has to know or maintain the correct concatenation order of the chunks it selects.
 - **Responsibility**: Describe the normalization step, the depth-first sort, its ordering and failure properties, and a worked example.
-- **In Scope**: The `sort_and_join`/`visit` core, both input paths onto it (raw text and descriptors), and the panic-vs-`Result` twin contract.
+- **In Scope**: The `entries_sort_and_join`/`visit` core, both input paths onto it (raw text and descriptors), and the panic-vs-`Result` twin contract.
 - **Out of Scope**: The set-completeness precondition and its compile-time check (see [../invariant/001_dependency_closure.md](../invariant/001_dependency_closure.md)); where the composed sets come from (see [../pattern/002_crate_local_chunk.md](../pattern/002_crate_local_chunk.md)).
 
 ### Abstract
@@ -22,8 +22,8 @@ is what WGSL requires of the concatenated result. The procedure is
 deterministic: same set, same output, every run.
 
 Two input paths normalize into the same core: `compose`/`try_compose` take
-raw WGSL texts and parse each one's manifest; `compose_set`/
-`try_compose_set` take `ChunkDescriptor`s and read the fields directly, with
+raw WGSL texts and parse each one's manifest; `set_compose`/
+`set_try_compose` take `ChunkDescriptor`s and read the fields directly, with
 no manifest parsing at runtime. Each path has a panicking form (for sets the
 caller trusts — a failure is an authoring bug) and a `Result` form returning
 `ComposeError` (for untrusted sets, e.g. a CLI taking user input).
@@ -32,7 +32,7 @@ caller trusts — a failure is an authoring bug) and a `Result` form returning
 
 1. **Normalize**: reduce each input chunk to `( name, depends_on, wgsl )` —
    parsed from the text on the `compose` path, copied from descriptor fields
-   on the `compose_set` path.
+   on the `set_compose` path.
 2. **Visit in given order**: for each entry, run a depth-first `visit` of
    its name.
 3. **`visit( name )`**: if the chunk is already emitted, return. If it is on
@@ -79,7 +79,7 @@ in the orrery consumer, e.g.
 
 | File | Relationship |
 |------|--------------|
-| `src/lib.rs` | `compose`/`try_compose`, `compose_set`/`try_compose_set`, and the shared `sort_and_join`/`visit` core |
+| `src/lib.rs` | `compose`/`try_compose`, `set_compose`/`set_try_compose`, and the shared `entries_sort_and_join`/`visit` core |
 | `examples/orrery/webgpu/src/shader_source.rs` (repo root) | Live call site: `assemble()` composes the mixed scene set |
 
 ### Tests

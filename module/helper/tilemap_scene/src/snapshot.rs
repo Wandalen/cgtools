@@ -120,7 +120,7 @@ mod private
     ///
     /// Returns [`crate::error::SnapshotLoadError::UnknownPaletteChar`]
     /// when an ASCII `map` row uses a character missing from `palette`.
-    pub fn expand_palette( &self ) -> Result< Vec< Tile >, crate::error::SnapshotLoadError >
+    pub fn palette_expand( &self ) -> Result< Vec< Tile >, crate::error::SnapshotLoadError >
     {
       use crate::error::SnapshotLoadError;
       let mut out = Vec::new();

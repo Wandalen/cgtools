@@ -10,7 +10,7 @@ as the `depends_on::` filter value.
 wrapper struct exists — `shader_chunks` is one small, read-only
 inspection CLI with exactly one string-shaped identifying concept, so the
 validation this type performs is realized as a runtime lookup
-(`find_chunk` in `src/lib.rs`) rather than a compile-time-distinct newtype.
+(`chunk_find` in `src/lib.rs`) rather than a compile-time-distinct newtype.
 Documented here as a semantic type because it carries real constraints and
 a real parse/validate step — not because a `ChunkName` struct exists in the
 source.
@@ -22,7 +22,7 @@ source.
 - The valid set is closed and enumerable: run `list` to see every accepted
   value (currently `hash21`, `value_noise`, `fbm3`, `fullscreen_triangle`)
 
-**Parsing:** `find_chunk(name: &str)` (`src/lib.rs`) resolves the name via
+**Parsing:** `chunk_find(name: &str)` (`src/lib.rs`) resolves the name via
 `shader_chunks_core::chunk_get` — an O(1) lookup into the
 `shader_chunks_core::CHUNKS` descriptor table, no scan, no manifest
 parsing. No match →
@@ -34,9 +34,9 @@ never a panic.
 - `get() -> &str` — the raw name string is the value itself; no separate
   accessor exists, matching there being no wrapper struct (see Fundamental
   Type above)
-- `is_known(name) -> bool` — conceptually, `find_chunk(name).is_ok()`;
+- `is_known(name) -> bool` — conceptually, `chunk_find(name).is_ok()`;
   realized as the `Result` returned by every routine that resolves a name
-  (`query_chunks`, `tree_chunk`, `compose_chunks`, `tunables`), not as a
+  (`chunks_query`, `chunk_tree`, `chunks_compose`, `tunables`), not as a
   standalone boolean-returning method
 
 ---

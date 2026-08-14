@@ -5,7 +5,7 @@
 
 **Fundamental Type:** `String` (element of unilang
 `Kind::List(String, ',')`). No wrapper type — the pair/bare distinction
-is a `split_once(':')` at match time (`matches_tag_selector` in
+is a `split_once(':')` at match time (`tag_selector_matches` in
 `src/lib.rs`), not a parse into a struct.
 
 **Constraints:**
@@ -15,7 +15,7 @@ is a `split_once(':')` at match time (`matches_tag_selector` in
   tag name compared against the tag part of every declared `group:tag`
 - Comparison is exact and case-sensitive on both sides
 
-**Parsing:** `matches_tag_selector(selector, chunk_tags)`
+**Parsing:** `tag_selector_matches(selector, chunk_tags)`
 (`src/lib.rs`): `split_once(':')` present → exact match against the full
 declared pair; absent → match against the tag part under any group.
 Multiple selectors combine per [`TagsMode`](06_tags_mode.md).

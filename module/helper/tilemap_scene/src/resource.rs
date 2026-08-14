@@ -162,7 +162,7 @@ mod private
       #[ serde( default ) ]
       frame_rects : HashMap< String, FrameSpec >,
       /// Pixel dimensions of the source image, when authored. When set,
-      /// `compile_assets` validates that every named-cell and numeric
+      /// `assets_compile` validates that every named-cell and numeric
       /// frame resolves to a rect fully inside `( width, height )` and
       /// raises `CompileError::FrameOutOfBounds` otherwise. Leave
       /// `None` (the default) to skip the check — for example when
@@ -344,7 +344,7 @@ mod private
     /// every non-hex instance hashes to the same value. When stagger
     /// matters on those placements, set an explicit
     /// [`PhaseOffset::Fixed`] per instance via
-    /// [`crate::scene::Scene::set_phase_offset`].
+    /// [`crate::scene::Scene::phase_offset_set`].
     HashCoord,
     /// Constant offset in seconds.
     Fixed( f32 ),

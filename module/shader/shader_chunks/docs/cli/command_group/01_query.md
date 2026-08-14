@@ -6,7 +6,7 @@ Set-shaped questions over the compiled-in chunk registry
 (`shader_chunks_core::CHUNKS`): select rows, filter them, project columns,
 and render the result in a chosen output format. `.list` and `.get` are
 literally the same engine — one shared routine
-(`query_chunks`/`query_routine` in `src/lib.rs`/`src/cli.rs`) behind both
+(`chunks_query`/`query_routine` in `src/lib.rs`/`src/cli.rs`) behind both
 commands, with an identical 20-parameter surface differing only in
 defaults and in whether `names` is required. `.tags` is the tag-axis pivot
 of the same metadata.

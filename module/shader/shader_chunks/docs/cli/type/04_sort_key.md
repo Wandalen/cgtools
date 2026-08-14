@@ -20,7 +20,7 @@ stderr with a non-zero exit.
 **Methods:**
 - `as_str() -> &'static str` — canonical spelling, round-trips with
   `from_str`
-- Sort semantics (`query_chunks`): `Input` is a no-op (selection order
+- Sort semantics (`chunks_query`): `Input` is a no-op (selection order
   kept); `Name` sorts by chunk name; `Stage` and `Description` sort by
   `(field, name)` tuples — the name tie-break makes both deterministic,
   and stage-less chunks (empty stage) sort first

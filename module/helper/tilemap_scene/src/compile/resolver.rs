@@ -25,7 +25,7 @@ mod private
   /// Turns a declared asset path into a concrete [`ImageSource`] the backend
   /// can load.
   ///
-  /// Called once per asset at `compile_assets` time.
+  /// Called once per asset at `assets_compile` time.
   pub trait AssetResolver
   {
     /// Resolve one asset.

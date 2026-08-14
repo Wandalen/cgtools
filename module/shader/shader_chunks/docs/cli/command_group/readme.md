@@ -22,7 +22,7 @@
 
 **Complete partition:** every one of the 6 commands belongs to exactly one
 group — no command is outside the partition, none is in two groups. The
-help screen (`src/cli.rs`, `print_help`) renders exactly these 4 groups
+help screen (`src/cli.rs`, `help_print`) renders exactly these 4 groups
 with exactly this membership; a drift between this table and the help
 output is a documentation bug.
 

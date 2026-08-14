@@ -6,10 +6,10 @@
 //!
 //! Two halves:
 //!
-//! - [`enumerate_triangles`] walks `scene.tiles` and yields each unique
+//! - [`triangles_enumerate`] walks `scene.tiles` and yields each unique
 //!   triangle of the dual mesh exactly once (a triangle is shared by three
 //!   hexes; dedup via `HashSet<TriCoord>`).
-//! - [`canonicalize`] + [`find_matching_pattern`] implement the lexicographic
+//! - [`canonicalize`] + [`matching_pattern_find`] implement the lexicographic
 //!   sort + wildcard specificity matching from SPEC §5.6 / §9.
 
 mod private
@@ -40,7 +40,7 @@ mod private
   /// in the scene. Each triangle is yielded once even though three hexes
   /// share it.
   #[ must_use ]
-  pub fn enumerate_triangles( tiles : &[ Tile ], tiling : TilingStrategy ) -> Vec< TriangleContext >
+  pub fn triangles_enumerate( tiles : &[ Tile ], tiling : TilingStrategy ) -> Vec< TriangleContext >
   {
     match tiling
     {
@@ -88,7 +88,7 @@ mod private
   // caller passing a different hasher, so generalizing over `BuildHasher` would
   // add API surface for no current need.
   #[ allow( clippy::implicit_hasher, reason = "tile_lookup is always this crate's FxHashMap alias; every caller builds it via tile_lookup() in neighbors.rs, so generalizing over BuildHasher would add API surface for no current need" ) ]
-  pub fn resolve_corners
+  pub fn corners_resolve
   (
     tri : &TriangleContext,
     tile_lookup : &HashMap< ( i32, i32 ), &Tile >,
@@ -149,7 +149,7 @@ mod private
   ///
   /// Returns `None` if no pattern matches — the triangle emits no sprite.
   #[ must_use ]
-  pub fn find_matching_pattern< 'p >
+  pub fn matching_pattern_find< 'p >
   (
     patterns : &'p [ TriBlendPattern ],
     canonical : &[ String; 3 ],
@@ -228,8 +228,8 @@ mod private
 mod_interface::mod_interface!
 {
   exposed use TriangleContext;
-  exposed use enumerate_triangles;
-  exposed use resolve_corners;
+  exposed use triangles_enumerate;
+  exposed use corners_resolve;
   exposed use canonicalize;
-  exposed use find_matching_pattern;
+  exposed use matching_pattern_find;
 }

@@ -20,6 +20,7 @@ The current scope is deliberately narrow in what remains: no color type, and no 
 | [001_top_level_bindings_convention.md](../invariant/001_top_level_bindings_convention.md) | The structural shape every script must satisfy |
 | [002_f32x2_f64x2_type_distinctness.md](../invariant/002_f32x2_f64x2_type_distinctness.md) | Non-interchangeability between the two vector precisions |
 | [003_rhai_facing_names_mirror_rust_identifiers.md](../invariant/003_rhai_facing_names_mirror_rust_identifiers.md) | The naming rule linking every registered name to its Rust identifier |
+| [004_script_as_data_purity.md](../invariant/004_script_as_data_purity.md) | The whole-AST no-call guarantee the script-as-data form requires |
 
 ### Pitfalls
 
@@ -93,6 +94,7 @@ The current scope is deliberately narrow in what remains: no color type, and no 
 | `src/vector_binding.rs` | Vector bindings |
 | `src/tween_binding.rs` | Tween bindings |
 | `src/top_level_lint.rs` | Top-level shape checker |
+| `src/purity_lint.rs` | Whole-AST purity checker |
 
 ### Tests
 
@@ -100,3 +102,4 @@ The current scope is deliberately narrow in what remains: no color type, and no 
 |------|--------------|
 | `tests/engine_test.rs` | Binding smoke tests |
 | `tests/example_convention_test.rs` | Checker edge cases and real example-script conformance |
+| `tests/purity_lint_test.rs` | Whole-AST purity checker accept/reject cases |

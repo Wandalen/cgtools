@@ -41,7 +41,7 @@ get                     # "The required argument 'names' is missing", non-zero e
   `unilang`'s `multiple: true` attribute collects every trailing positional
   token into a single `Value::List`. All three consuming routines flatten
   the nested list-of-lists unilang produces for positional multiples
-  (`flatten_names` in `src/cli.rs`).
+  (`names_flatten` in `src/cli.rs`).
 - Selection semantics differ from filter semantics: for `list`/`get`,
   `names` fixes *which chunks enter* the query in *which order*
   (`sort::input` preserves it) — the named-parameter filters then narrow

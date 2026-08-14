@@ -4,7 +4,7 @@
 //!
 //! ```ignore
 //! mod common;
-//! use common::flatten_to_sprites;
+//! use common::commands_to_sprites;
 //! ```
 //!
 //! Cargo does NOT treat `tests/common/mod.rs` as a test target on its
@@ -42,7 +42,7 @@ struct BatchState
 ///
 /// Use this when a test issues more than one `render()` call against
 /// the same `Renderer` — the stateless free-function form
-/// [`flatten_to_sprites`] only handles a single frame's command stream.
+/// [`commands_to_sprites`] only handles a single frame's command stream.
 pub struct BatchFlattener
 {
   batches : HashMap< ResourceId< Batch >, BatchState >,
@@ -143,7 +143,7 @@ impl Default for BatchFlattener
 /// Single-shot flattener equivalent to `BatchFlattener::new().apply(cmds)`.
 /// Use only for tests that issue one render call against a fresh
 /// renderer; multi-render tests need the stateful form above.
-pub fn flatten_to_sprites( cmds : &[ RenderCommand ] ) -> Vec< RenderCommand >
+pub fn commands_to_sprites( cmds : &[ RenderCommand ] ) -> Vec< RenderCommand >
 {
   BatchFlattener::new().apply( cmds )
 }
@@ -154,7 +154,7 @@ pub fn flatten_to_sprites( cmds : &[ RenderCommand ] ) -> Vec< RenderCommand >
 #[ allow( dead_code, reason = "tests/common is recompiled per integration-test binary; only renderer_cache_test.rs / renderer_test.rs call this helper, so it reads as dead in the other binaries — expect would be unfulfilled there" ) ]
 pub fn flat_sprite_count( cmds : &[ RenderCommand ] ) -> usize
 {
-  flatten_to_sprites( cmds )
+  commands_to_sprites( cmds )
     .iter()
     .filter( | c | matches!( c, RenderCommand::Sprite( _ ) ) )
     .count()
@@ -165,7 +165,7 @@ pub fn flat_sprite_count( cmds : &[ RenderCommand ] ) -> usize
 #[ allow( dead_code, reason = "tests/common is recompiled per integration-test binary; only sorted_batching_test.rs / renderer_test.rs call this helper, so it reads as dead in the other binaries — expect would be unfulfilled there" ) ]
 pub fn flat_sprites( cmds : &[ RenderCommand ] ) -> Vec< Sprite >
 {
-  flatten_to_sprites( cmds )
+  commands_to_sprites( cmds )
     .into_iter()
     .filter_map( | c | if let RenderCommand::Sprite( s ) = c { Some( s ) } else { None } )
     .collect()

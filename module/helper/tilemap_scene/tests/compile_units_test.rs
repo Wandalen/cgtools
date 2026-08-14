@@ -3,7 +3,7 @@
 //! pattern matching, viewport placement, animation frame resolution, and
 //! hex → world-pixel coordinate mapping. Each section exercises one exposed
 //! function or type directly, at unit level; the integration-level compile
-//! pipeline ( `compile_assets` / `compile_frame` ) is covered by
+//! pipeline ( `assets_compile` / `compile_frame` ) is covered by
 //! `scene_model_compile_test.rs`.
 //!
 //! Relocated from inline `#[ cfg( test ) ]` modules across `src/compile/*` by
@@ -36,11 +36,11 @@ use tilemap_scene::
   canonical_edge,
   canonicalize,
   edge_rotation,
-  evaluate_condition,
-  find_matching_pattern,
+  condition_evaluate,
+  matching_pattern_find,
   hex_to_world_pixel_flat,
   hex_to_world_pixel_pointy,
-  resolve_animation_frame,
+  animation_frame_resolve,
   tiled_positions,
   viewport_transform,
 };
@@ -51,9 +51,9 @@ use tilemap_scene::
 fn images_are_deterministic()
 {
   let mut m = IdMap::new();
-  let a = m.alloc_image( "terrain_atlas" );
-  let b = m.alloc_image( "transitions_atlas" );
-  let a_again = m.alloc_image( "terrain_atlas" );
+  let a = m.image_alloc( "terrain_atlas" );
+  let b = m.image_alloc( "transitions_atlas" );
+  let a_again = m.image_alloc( "terrain_atlas" );
   assert_eq!( a.inner(), 0 );
   assert_eq!( b.inner(), 1 );
   assert_eq!( a, a_again, "re-allocating same id returns the same handle" );
@@ -63,15 +63,15 @@ fn images_are_deterministic()
 fn sprites_namespace_by_atlas()
 {
   let mut m = IdMap::new();
-  let grass = m.alloc_sprite( "terrain", "0" );
-  let sand  = m.alloc_sprite( "terrain", "1" );
-  let grass_other_atlas = m.alloc_sprite( "other", "0" );
+  let grass = m.sprite_alloc( "terrain", "0" );
+  let sand  = m.sprite_alloc( "terrain", "1" );
+  let grass_other_atlas = m.sprite_alloc( "other", "0" );
   assert_ne!( grass, sand, "different frames get different ids" );
   assert_ne!( grass, grass_other_atlas, "same frame name in different atlases is distinct" );
   assert_eq!( Some( grass ), m.sprite( "terrain", "0" ) );
 }
 
-// === compile/conditions.rs — evaluate_condition ===
+// === compile/conditions.rs — condition_evaluate ===
 
 fn state( ids : &[ &str ], max_priority : Option< i32 > ) -> ( Vec< String >, Option< i32 > )
 {
@@ -83,15 +83,15 @@ fn neighbour_is_matches_any_present_id()
 {
   let ( ids, _ ) = state( &[ "water" ], None );
   let n = NeighborState { object_ids : &ids, max_priority : None };
-  assert!( evaluate_condition( &Condition::NeighborIs( vec![ "water".into() ] ), &n, None ) );
-  assert!( !evaluate_condition( &Condition::NeighborIs( vec![ "lava".into() ] ), &n, None ) );
+  assert!( condition_evaluate( &Condition::NeighborIs( vec![ "water".into() ] ), &n, None ) );
+  assert!( !condition_evaluate( &Condition::NeighborIs( vec![ "lava".into() ] ), &n, None ) );
 }
 
 #[ test ]
 fn neighbour_is_void_matches_empty()
 {
   let n = NeighborState { object_ids : &[], max_priority : None };
-  assert!( evaluate_condition( &Condition::NeighborIs( vec![ "void".into() ] ), &n, None ) );
+  assert!( condition_evaluate( &Condition::NeighborIs( vec![ "void".into() ] ), &n, None ) );
 }
 
 #[ test ]
@@ -99,11 +99,11 @@ fn no_neighbor_matches_empty()
 {
   let ( ids, _ ) = state( &[], None );
   let n = NeighborState { object_ids : &ids, max_priority : None };
-  assert!( evaluate_condition( &Condition::NoNeighbor, &n, None ) );
+  assert!( condition_evaluate( &Condition::NoNeighbor, &n, None ) );
 
   let ( ids, _ ) = state( &[ "grass" ], None );
   let n = NeighborState { object_ids : &ids, max_priority : None };
-  assert!( !evaluate_condition( &Condition::NoNeighbor, &n, None ) );
+  assert!( !condition_evaluate( &Condition::NoNeighbor, &n, None ) );
 }
 
 #[ test ]
@@ -111,9 +111,9 @@ fn priority_lower_only_with_both_priorities()
 {
   let ( ids, _ ) = state( &[ "sand" ], Some( 5 ) );
   let n = NeighborState { object_ids : &ids, max_priority : Some( 5 ) };
-  assert!( evaluate_condition( &Condition::NeighborPriorityLower, &n, Some( 10 ) ) );
-  assert!( !evaluate_condition( &Condition::NeighborPriorityLower, &n, Some( 5 ) ) );
-  assert!( !evaluate_condition( &Condition::NeighborPriorityLower, &n, None ) );
+  assert!( condition_evaluate( &Condition::NeighborPriorityLower, &n, Some( 10 ) ) );
+  assert!( !condition_evaluate( &Condition::NeighborPriorityLower, &n, Some( 5 ) ) );
+  assert!( !condition_evaluate( &Condition::NeighborPriorityLower, &n, None ) );
 }
 
 #[ test ]
@@ -126,10 +126,10 @@ fn any_of_and_not_compose()
     Condition::NeighborIs( vec![ "lava".into() ] ),
     Condition::NeighborIs( vec![ "water".into() ] ),
   ]);
-  assert!( evaluate_condition( &cond, &n, None ) );
+  assert!( condition_evaluate( &cond, &n, None ) );
 
   let negated = Condition::Not( Box::new( cond ) );
-  assert!( !evaluate_condition( &negated, &n, None ) );
+  assert!( !condition_evaluate( &negated, &n, None ) );
 }
 
 // === compile/camera.rs — Camera ===
@@ -191,7 +191,7 @@ fn edge_rotation_flat_top_table()
   assert!( ( edge_rotation( EdgeDirection::S,  t ) - PI ).abs() < 1e-5 );
 }
 
-// === compile/vertex.rs — canonicalize / find_matching_pattern ===
+// === compile/vertex.rs — canonicalize / matching_pattern_find ===
 
 fn pattern( a : &str, b : &str, c : &str, priority : i32, sprite : &str ) -> TriBlendPattern
 {
@@ -216,7 +216,7 @@ fn exact_beats_wildcard()
 {
   let patterns = [ pattern( "*", "*", "void", 0, "edge_fade" ), pattern( "grass", "sand", "water", 5, "tri_g_s_w" ) ];
   let canonical = [ "grass".into(), "sand".into(), "water".into() ];
-  let found = find_matching_pattern( &patterns, &canonical );
+  let found = matching_pattern_find( &patterns, &canonical );
   assert!( matches!( found, Some( p ) if p.sprite_pattern == "tri_g_s_w" ) );
 }
 
@@ -225,7 +225,7 @@ fn priority_tiebreaks_same_specificity()
 {
   let patterns = [ pattern( "grass", "grass", "water", 1, "low" ), pattern( "grass", "grass", "water", 10, "high" ) ];
   let canonical = [ "grass".into(), "grass".into(), "water".into() ];
-  let found = find_matching_pattern( &patterns, &canonical );
+  let found = matching_pattern_find( &patterns, &canonical );
   assert!( matches!( found, Some( p ) if p.sprite_pattern == "high" ) );
 }
 
@@ -234,7 +234,7 @@ fn wildcard_fallback_when_nothing_specific()
 {
   let patterns = [ pattern( "*", "*", "void", 0, "edge_fade" ) ];
   let canonical = [ "grass".into(), "sand".into(), "void".into() ];
-  let found = find_matching_pattern( &patterns, &canonical );
+  let found = matching_pattern_find( &patterns, &canonical );
   assert!( matches!( found, Some( p ) if p.sprite_pattern == "edge_fade" ) );
 }
 
@@ -243,7 +243,7 @@ fn no_match_returns_none()
 {
   let patterns = [ pattern( "grass", "grass", "grass", 0, "pure_grass" ) ];
   let canonical = [ "grass".into(), "grass".into(), "water".into() ];
-  assert!( find_matching_pattern( &patterns, &canonical ).is_none() );
+  assert!( matching_pattern_find( &patterns, &canonical ).is_none() );
 }
 
 // === compile/viewport.rs — viewport_transform / tiled_positions ===
@@ -345,7 +345,7 @@ fn fit_preserves_aspect()
   assert!( ( t.position[ 1 ] - 100.0 ).abs() < 1e-5 );
 }
 
-// === compile/animation.rs — resolve_animation_frame ===
+// === compile/animation.rs — animation_frame_resolve ===
 
 fn regular( id : &str, frames : &[ &str ], fps : f32, mode : AnimationMode ) -> Animation
 {
@@ -366,7 +366,7 @@ fn regular( id : &str, frames : &[ &str ], fps : f32, mode : AnimationMode ) -> 
 fn regular_loop_wraps()
 {
   let a = regular( "w", &[ "0", "1", "2" ], 10.0, AnimationMode::Loop );
-  let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
+  let pick = | t | animation_frame_resolve( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
   assert_eq!( pick( 0.0 ), "0" );
   assert_eq!( pick( 0.1 ), "1" );
   assert_eq!( pick( 0.25 ), "2" );
@@ -377,7 +377,7 @@ fn regular_loop_wraps()
 fn one_shot_clamps()
 {
   let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::OneShot );
-  let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
+  let pick = | t | animation_frame_resolve( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
   assert_eq!( pick( 0.0 ), "a" );
   assert_eq!( pick( 100.0 ), "c", "past end → stuck on last frame" );
 }
@@ -389,7 +389,7 @@ fn one_shot_origin_resets_local_time()
   // `time_seconds - oneshot_origin`, so a 0.05 s delta after the
   // origin must pick the first frame, not the clamped last frame.
   let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::OneShot );
-  let pick = | t, origin | resolve_animation_frame( &a, t, origin, ( 0, 0 ), None ).unwrap().frame;
+  let pick = | t, origin | animation_frame_resolve( &a, t, origin, ( 0, 0 ), None ).unwrap().frame;
   assert_eq!( pick( 5.05, 5.0 ), "a", "0.05 s after origin → first frame" );
   assert_eq!( pick( 5.15, 5.0 ), "b" );
   assert_eq!( pick( 5.25, 5.0 ), "c" );
@@ -400,7 +400,7 @@ fn one_shot_origin_resets_local_time()
 fn pingpong_reflects()
 {
   let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::PingPong );
-  let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
+  let pick = | t | animation_frame_resolve( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
   // Period = 2 * (3 - 1) = 4 ticks. Sequence: a b c b | a b c b | ...
   assert_eq!( pick( 0.00 ), "a" );
   assert_eq!( pick( 0.10 ), "b" );
@@ -416,12 +416,12 @@ fn phase_offset_hashcoord_spreads_neighbours()
   a.phase_offset = PhaseOffset::HashCoord;
   // Two neighbouring tiles, same global time — their local times should
   // differ (practically always) and so can their frames.
-  let f_00 = resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ), None ).unwrap().frame;
-  let f_10 = resolve_animation_frame( &a, 0.0, 0.0, ( 1, 0 ), None ).unwrap().frame;
+  let f_00 = animation_frame_resolve( &a, 0.0, 0.0, ( 0, 0 ), None ).unwrap().frame;
+  let f_10 = animation_frame_resolve( &a, 0.0, 0.0, ( 1, 0 ), None ).unwrap().frame;
   // We can't assert inequality rigorously (hash could collide) but we can
   // sample many coords and check that at least SOME produce different frames.
   let samples : Vec< String > =
-    ( 0..16 ).map( | q | resolve_animation_frame( &a, 0.0, 0.0, ( q, 0 ), None ).unwrap().frame ).collect();
+    ( 0..16 ).map( | q | animation_frame_resolve( &a, 0.0, 0.0, ( q, 0 ), None ).unwrap().frame ).collect();
   let unique_count = samples.iter().collect::< std::collections::HashSet< _ > >().len();
   assert!
   (
@@ -442,7 +442,7 @@ fn phase_offset_instance_spreads_seeds()
   let mut a = regular( "w", &[ "0", "1", "2", "3" ], 4.0, AnimationMode::Loop );
   a.phase_offset = PhaseOffset::Instance;
   let samples : Vec< String > = ( 0..16_u32 )
-    .map( | seed | resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ), Some( seed ) ).unwrap().frame )
+    .map( | seed | animation_frame_resolve( &a, 0.0, 0.0, ( 0, 0 ), Some( seed ) ).unwrap().frame )
     .collect();
   let unique_count = samples.iter().collect::< std::collections::HashSet< _ > >().len();
   assert!
@@ -460,7 +460,7 @@ fn phase_offset_instance_falls_back_when_seed_missing()
   // master clock instead.
   let mut a = regular( "w", &[ "0", "1", "2" ], 10.0, AnimationMode::Loop );
   a.phase_offset = PhaseOffset::Instance;
-  let frame = resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ), None ).unwrap().frame;
+  let frame = animation_frame_resolve( &a, 0.0, 0.0, ( 0, 0 ), None ).unwrap().frame;
   assert_eq!( frame, "0", "no seed → no phase shift" );
 }
 
@@ -470,7 +470,7 @@ fn phase_offset_fixed_shifts_timeline()
   let mut a = regular( "w", &[ "0", "1", "2" ], 10.0, AnimationMode::Loop );
   a.phase_offset = PhaseOffset::Fixed( 0.1 );
   // At global t=0, with phase=0.1s, we're 1 frame in.
-  let frame = resolve_animation_frame( &a, 0.0, 0.0, ( 0, 0 ), None ).unwrap().frame;
+  let frame = animation_frame_resolve( &a, 0.0, 0.0, ( 0, 0 ), None ).unwrap().frame;
   assert_eq!( frame, "1" );
 }
 
@@ -504,7 +504,7 @@ fn irregular_timing_honours_durations()
     mode : AnimationMode::OneShot,
     phase_offset : PhaseOffset::None,
   };
-  let pick = | t | resolve_animation_frame( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
+  let pick = | t | animation_frame_resolve( &a, t, 0.0, ( 0, 0 ), None ).unwrap().frame;
   assert_eq!( pick( 0.0  ), "wind_up" );
   assert_eq!( pick( 0.05 ), "wind_up" );
   assert_eq!( pick( 0.15 ), "impact" );

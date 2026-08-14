@@ -63,6 +63,7 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 |:-------------------------:|:-------------------------:|
 |<img width="500px" src="./minwebgpu/deffered_rendering/showcase.webp"><br>[Deffered rendering](./minwebgpu/deffered_rendering/readme.md) |<img width="500px" src="./minwebgpu/hello_triangle/showcase.webp"><br>[Hello triangle](./minwebgpu/hello_triangle/readme.md) |
 |<img width="500px" src="./minwebgpu/hello_triangle_quickstart/showcase.webp"><br>[Hello triangle quickstart](./minwebgpu/hello_triangle_quickstart/readme.md) |[PBR scene (gpu_hal)](./minwebgpu/renderer_pbr_scene/readme.md)<br>*(No showcase yet)* |
+|[Shader chunk preview](./minwebgpu/shader_chunk_preview/readme.md)<br>*(No showcase — see readme for why)* | |
 
 ## WGPU Examples
 
@@ -108,7 +109,7 @@ One scene — a sun-and-orbits HUD diagram — implemented once per backend/laye
 | index.md | Markdown-formatted examples list |
 | math/ | Math-based examples directory (1 demo) |
 | minwebgl/ | WebGL examples directory (47 demos) |
-| minwebgpu/ | WebGPU examples directory (4 demos) |
+| minwebgpu/ | WebGPU examples directory (5 demos) |
 | minwgpu/ | WGPU examples directory (2 demos) |
 | non_developer_how_to_run.md | Beginner-friendly step-by-step guide for running examples with no prior Rust experience |
 | orrery/ | Orrery scene-family examples — one implementation per backend/layer (1 demo) |

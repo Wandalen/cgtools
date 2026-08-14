@@ -776,7 +776,12 @@ pub mod ufo
 
     let start_transform = transform.clone();
     let mut transform = start_transform.clone();
-    transform.scale = [ 0.003, 0.003, 0.05 ];
+    transform.scale =
+    [
+      start_transform.scale[ 0 ] * 0.003,
+      start_transform.scale[ 1 ] * 0.003,
+      start_transform.scale[ 2 ] * 0.05
+    ];
     let max_x = font.max_size.max[ 0 ] - font.max_size.min[ 0 ];
     let max_y = font.max_size.max[ 1 ] - font.max_size.min[ 1 ];
     let half_x = max_x * transform.scale[ 0 ];
@@ -1040,7 +1045,12 @@ pub mod ttf
 
     let start_transform = transform.clone();
     let mut transform = start_transform.clone();
-    transform.scale = [ 0.003, 0.003, 0.05 ];
+    transform.scale =
+    [
+      start_transform.scale[ 0 ] * 0.003,
+      start_transform.scale[ 1 ] * 0.003,
+      start_transform.scale[ 2 ] * 0.05
+    ];
     let max_x = font.max_size.max[ 0 ] - font.max_size.min[ 0 ];
     let max_y = font.max_size.max[ 1 ] - font.max_size.min[ 1 ];
     let half_x = max_x * transform.scale[ 0 ];
@@ -1093,5 +1103,44 @@ pub mod ttf
     }
 
     mesh
+  }
+
+  /// Total horizontal advance width `text_to_mesh` will lay `text` out to, at `transform.scale[ 0 ]`. Lets callers size decoration ( e.g. an underline quad ) to match without duplicating the glyph placement pass.
+  #[ must_use ]
+  pub fn text_advance_width( text : &str, font : &Font3D, transform : &Transform ) -> f32
+  {
+    let scale_x = transform.scale[ 0 ] * 0.003;
+    let max_x = font.max_size.max[ 0 ] - font.max_size.min[ 0 ];
+    let half_x = max_x * scale_x;
+
+    let mut width = 0.0;
+    for char in text.chars()
+    {
+      let Some( glyph ) = font.glyphs.get( &char )
+      else
+      {
+        width += half_x;
+        continue;
+      };
+
+      let glyph_x = glyph.bounding_box.width() * scale_x;
+      width += if glyph_x < half_x / 4.0 { half_x } else { glyph_x };
+    }
+
+    width
+  }
+
+  /// Worst-case vertical drop from `transform.translation[ 1 ]` down to any
+  /// glyph's own baseline that `text_to_mesh` could possibly place, at
+  /// `transform.scale[ 1 ]` -- derived from the font's own union bounding
+  /// box, which by construction is at least as tall as every individual
+  /// glyph `text_to_mesh` actually places. Lets callers clear rendered text
+  /// vertically ( e.g. an underline offset ) without duplicating or guessing
+  /// at the glyph placement pass's own per-glyph vertical math.
+  #[ must_use ]
+  pub fn text_max_height( font : &Font3D, transform : &Transform ) -> f32
+  {
+    let scale_y = transform.scale[ 1 ] * 0.003;
+    ( font.max_size.max[ 1 ] - font.max_size.min[ 1 ] ) * scale_y
   }
 }

@@ -1,13 +1,13 @@
 //! Direct-call tests for `shader_chunks`'s command logic — no
 //! subprocess; see `tests/cli_subprocess_test.rs` for end-to-end argv and
-//! exit-code coverage. The `query_*` tests cover [`query_chunks`], the
+//! exit-code coverage. The `query_*` tests cover [`chunks_query`], the
 //! single engine behind both `list` and `get`: selection, every filter,
 //! projection, every output format, sorting, paging, and each loud error.
 
 use shader_chunks::
 {
   CliError, OutputFormat, QUERY_FIELDS, QueryParams, SortKey, SortOrder, TagsMode,
-  compose_chunks, list_tags, query_chunks, tree_chunk, try_compose_wgsl, tunables, tunables_of_chunk,
+  chunks_compose, tags_list, chunks_query, chunk_tree, wgsl_try_compose, tunables, tunables_of_chunk,
 };
 
 /// Runs `params` with `format::names` forced and returns the matched chunk
@@ -17,14 +17,14 @@ fn names_of( params : &QueryParams ) -> Vec< String >
 {
   let mut params = params.clone();
   params.format = OutputFormat::Names;
-  let output = query_chunks( &params ).expect( "names query should succeed" );
+  let output = chunks_query( &params ).expect( "names query should succeed" );
   output.lines().map( str::to_string ).collect()
 }
 
 #[ test ]
 fn query_list_defaults_renders_all_four_chunks_as_plain_table()
 {
-  let output = query_chunks( &QueryParams::list_defaults() ).expect( "default list query should succeed" );
+  let output = chunks_query( &QueryParams::list_defaults() ).expect( "default list query should succeed" );
   for name in [ "hash21", "value_noise", "fbm3", "fullscreen_triangle" ]
   {
     assert!( output.contains( name ), "list output missing chunk `{name}`:\n{output}" );
@@ -41,7 +41,7 @@ fn query_get_defaults_renders_expanded_records_with_detail_fields()
 {
   let mut params = QueryParams::get_defaults();
   params.names = vec![ "hash21".to_string() ];
-  let output = query_chunks( &params ).expect( "get query should succeed" );
+  let output = chunks_query( &params ).expect( "get query should succeed" );
   assert!( output.contains( "-[ RECORD 1 ]" ), "{output}" );
   assert!( output.contains( "| hash21" ), "{output}" );
   assert!( output.contains( "stage" ), "{output}" );
@@ -62,7 +62,7 @@ fn query_unknown_name_reports_unknown_chunk_error()
 {
   let mut params = QueryParams::list_defaults();
   params.names = vec![ "bogus_chunk".to_string() ];
-  let err = query_chunks( &params ).expect_err( "unknown chunk name should fail" );
+  let err = chunks_query( &params ).expect_err( "unknown chunk name should fail" );
   assert!
   (
     matches!( &err, CliError::UnknownChunk( name ) if name == "bogus_chunk" ),
@@ -154,7 +154,7 @@ fn query_depends_on_unknown_chunk_fails_loudly()
 {
   let mut params = QueryParams::list_defaults();
   params.depends_on = "bogus_chunk".to_string();
-  let err = query_chunks( &params ).expect_err( "unknown depends_on target should fail" );
+  let err = chunks_query( &params ).expect_err( "unknown depends_on target should fail" );
   assert!( matches!( err, CliError::UnknownChunk( _ ) ), "expected UnknownChunk, got {err:?}" );
 }
 
@@ -187,10 +187,10 @@ fn query_count_reports_filtered_total_before_paging()
   let mut params = QueryParams::list_defaults();
   params.count = true;
   params.limit = 1;
-  assert_eq!( query_chunks( &params ).expect( "count query should succeed" ), "4" );
+  assert_eq!( chunks_query( &params ).expect( "count query should succeed" ), "4" );
 
   params.pattern = "noise".to_string();
-  assert_eq!( query_chunks( &params ).expect( "filtered count should succeed" ), "1" );
+  assert_eq!( chunks_query( &params ).expect( "filtered count should succeed" ), "1" );
 }
 
 #[ test ]
@@ -199,7 +199,7 @@ fn query_fields_projects_only_the_named_columns()
   let mut params = QueryParams::get_defaults();
   params.names = vec![ "hash21".to_string() ];
   params.fields = vec![ "name".to_string() ];
-  let output = query_chunks( &params ).expect( "projection query should succeed" );
+  let output = chunks_query( &params ).expect( "projection query should succeed" );
   assert!( output.contains( "| hash21" ), "{output}" );
   assert!( !output.contains( "description" ), "projection must drop unrequested fields:\n{output}" );
 }
@@ -210,7 +210,7 @@ fn query_every_declared_field_renders_including_source()
   let mut params = QueryParams::get_defaults();
   params.names = vec![ "hash21".to_string() ];
   params.fields = QUERY_FIELDS.iter().map( | field | ( *field ).to_string() ).collect();
-  let output = query_chunks( &params ).expect( "all-fields query should succeed" );
+  let output = chunks_query( &params ).expect( "all-fields query should succeed" );
   for field in QUERY_FIELDS
   {
     assert!( output.contains( field ), "all-fields output missing `{field}`:\n{output}" );
@@ -223,7 +223,7 @@ fn query_unknown_field_fails_loudly()
 {
   let mut params = QueryParams::list_defaults();
   params.fields = vec![ "bogus".to_string() ];
-  let err = query_chunks( &params ).expect_err( "unknown field should fail" );
+  let err = chunks_query( &params ).expect_err( "unknown field should fail" );
   assert!
   (
     matches!( &err, CliError::UnknownField( field ) if field == "bogus" ),
@@ -240,12 +240,12 @@ fn query_json_and_yaml_formats_carry_row_content()
   params.fields = vec![ "name".to_string(), "depends_on".to_string() ];
 
   params.format = OutputFormat::Json;
-  let json = query_chunks( &params ).expect( "json query should succeed" );
+  let json = chunks_query( &params ).expect( "json query should succeed" );
   assert!( json.contains( "\"name\": \"hash21\"" ), "{json}" );
   assert!( json.contains( "\"depends_on\": \"(none)\"" ), "{json}" );
 
   params.format = OutputFormat::Yaml;
-  let yaml = query_chunks( &params ).expect( "yaml query should succeed" );
+  let yaml = chunks_query( &params ).expect( "yaml query should succeed" );
   assert!( yaml.contains( "name: hash21" ), "{yaml}" );
   assert!( yaml.contains( "depends_on: (none)" ), "{yaml}" );
 }
@@ -257,7 +257,7 @@ fn query_markdown_format_renders_pipe_table_with_heading_and_width()
   params.format = OutputFormat::Markdown;
   params.heading = "Chunks".to_string();
   params.width = 30;
-  let output = query_chunks( &params ).expect( "markdown query should succeed" );
+  let output = chunks_query( &params ).expect( "markdown query should succeed" );
   assert!( output.contains( "| name" ), "{output}" );
   assert!( output.contains( "|---" ), "{output}" );
   assert!( output.contains( "Chunks" ), "heading line missing:\n{output}" );
@@ -271,7 +271,7 @@ fn query_names_format_ignores_fields_projection()
   params.names = vec![ "fbm3".to_string() ];
   params.fields = vec![ "source".to_string() ];
   params.format = OutputFormat::Names;
-  assert_eq!( query_chunks( &params ).expect( "names query should succeed" ), "fbm3" );
+  assert_eq!( chunks_query( &params ).expect( "names query should succeed" ), "fbm3" );
 }
 
 #[ test ]
@@ -365,15 +365,15 @@ fn query_list_and_get_defaults_share_engine_and_agree_under_equal_params()
   }
   assert_eq!
   (
-    query_chunks( &list_params ).expect( "list-defaults query should succeed" ),
-    query_chunks( &get_params ).expect( "get-defaults query should succeed" ),
+    chunks_query( &list_params ).expect( "list-defaults query should succeed" ),
+    chunks_query( &get_params ).expect( "get-defaults query should succeed" ),
   );
 }
 
 #[ test ]
 fn list_tags_lists_every_distinct_group_tag_pair_and_its_chunks()
 {
-  let output = list_tags().expect( "list_tags should not fail" );
+  let output = tags_list().expect( "tags_list should not fail" );
   for pair in [ "category:hash", "category:noise", "technique:fractal", "category:vertex" ]
   {
     assert!( output.contains( pair ), "tags output missing `{pair}`:\n{output}" );
@@ -385,7 +385,7 @@ fn list_tags_lists_every_distinct_group_tag_pair_and_its_chunks()
 #[ test ]
 fn tree_chunk_shows_fbm3_dependency_chain_in_order()
 {
-  let output = tree_chunk( Some( "fbm3" ) ).expect( "tree_chunk should succeed for a real chunk" );
+  let output = chunk_tree( Some( "fbm3" ) ).expect( "chunk_tree should succeed for a real chunk" );
   let fbm3_pos = output.find( "fbm3" ).expect( "fbm3 present" );
   let value_noise_pos = output.find( "value_noise" ).expect( "value_noise present" );
   let hash21_pos = output.find( "hash21" ).expect( "hash21 present" );
@@ -396,7 +396,7 @@ fn tree_chunk_shows_fbm3_dependency_chain_in_order()
 #[ test ]
 fn tree_chunk_with_no_name_shows_forest_of_every_root_chunk()
 {
-  let output = tree_chunk( None ).expect( "tree_chunk should succeed with no name" );
+  let output = chunk_tree( None ).expect( "chunk_tree should succeed with no name" );
   assert!( output.contains( "fbm3" ), "forest missing root `fbm3`:\n{output}" );
   assert!( output.contains( "fullscreen_triangle" ), "forest missing root `fullscreen_triangle`:\n{output}" );
 }
@@ -404,14 +404,14 @@ fn tree_chunk_with_no_name_shows_forest_of_every_root_chunk()
 #[ test ]
 fn tree_chunk_reports_unknown_chunk_error_for_bogus_name()
 {
-  let err = tree_chunk( Some( "bogus_chunk" ) ).expect_err( "tree_chunk should fail for an unknown name" );
+  let err = chunk_tree( Some( "bogus_chunk" ) ).expect_err( "chunk_tree should fail for an unknown name" );
   assert!( matches!( err, CliError::UnknownChunk( _ ) ), "expected UnknownChunk, got {err:?}" );
 }
 
 #[ test ]
 fn compose_chunks_orders_hash21_before_value_noise_regardless_of_input_order()
 {
-  let output = compose_chunks( &[ "value_noise".to_string(), "hash21".to_string() ], false ).expect( "compose_chunks should succeed" );
+  let output = chunks_compose( &[ "value_noise".to_string(), "hash21".to_string() ], false ).expect( "chunks_compose should succeed" );
   let hash21_pos = output.find( "fn hash21" ).expect( "hash21 present" );
   let value_noise_pos = output.find( "fn value_noise" ).expect( "value_noise present" );
   assert!( hash21_pos < value_noise_pos, "hash21 must precede value_noise:\n{output}" );
@@ -420,7 +420,7 @@ fn compose_chunks_orders_hash21_before_value_noise_regardless_of_input_order()
 #[ test ]
 fn compose_chunks_reports_unknown_chunk_error_for_bogus_name()
 {
-  let err = compose_chunks( &[ "bogus_chunk".to_string() ], false ).expect_err( "compose_chunks should fail for an unknown name" );
+  let err = chunks_compose( &[ "bogus_chunk".to_string() ], false ).expect_err( "chunks_compose should fail for an unknown name" );
   assert!
   (
     matches!( &err, CliError::UnknownChunk( name ) if name == "bogus_chunk" ),
@@ -431,7 +431,7 @@ fn compose_chunks_reports_unknown_chunk_error_for_bogus_name()
 #[ test ]
 fn compose_chunks_reports_missing_dependency_error_when_hash21_is_omitted()
 {
-  let err = compose_chunks( &[ "value_noise".to_string() ], false ).expect_err( "compose_chunks should fail on a missing dependency" );
+  let err = chunks_compose( &[ "value_noise".to_string() ], false ).expect_err( "chunks_compose should fail on a missing dependency" );
   assert!
   (
     matches!( &err, CliError::Compose( shader_chunks_core::ComposeError::MissingDependency { .. } ) ),
@@ -443,9 +443,9 @@ fn compose_chunks_reports_missing_dependency_error_when_hash21_is_omitted()
 #[ test ]
 fn compose_chunks_transitive_closure_equals_the_explicit_full_set()
 {
-  let closure = compose_chunks( &[ "fbm3".to_string() ], true )
+  let closure = chunks_compose( &[ "fbm3".to_string() ], true )
   .expect( "transitive compose of a single root should pull its whole chain" );
-  let explicit = compose_chunks
+  let explicit = chunks_compose
   (
     &[ "hash21".to_string(), "value_noise".to_string(), "fbm3".to_string() ],
     false,
@@ -468,7 +468,7 @@ fn compose_chunks_transitive_reports_unknown_chunk_error_for_bogus_name()
   // The closure walk resolves every reachable dependency through the same
   // loud lookup as directly-named chunks — a bogus root fails identically
   // under both modes rather than the transitive path masking it.
-  let err = compose_chunks( &[ "bogus_chunk".to_string() ], true )
+  let err = chunks_compose( &[ "bogus_chunk".to_string() ], true )
   .expect_err( "transitive compose should fail for an unknown name" );
   assert!
   (
@@ -482,7 +482,7 @@ fn try_compose_wgsl_reports_cyclic_dependency_error_on_synthetic_fixture()
 {
   const A : &str = "//@ name: a\n//@ depends_on: b\nfn a() {}";
   const B : &str = "//@ name: b\n//@ depends_on: a\nfn b() {}";
-  let err = try_compose_wgsl( &[ A, B ] ).expect_err( "try_compose_wgsl should fail on a cyclic dependency" );
+  let err = wgsl_try_compose( &[ A, B ] ).expect_err( "wgsl_try_compose should fail on a cyclic dependency" );
   assert!
   (
     matches!( &err, CliError::Compose( shader_chunks_core::ComposeError::CyclicDependency( _ ) ) ),

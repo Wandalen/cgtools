@@ -4,7 +4,7 @@
 
 Queries *named* chunks with the same engine and parameters as
 [`list`](01_list.md) — detail columns and expanded records by default.
-The two commands share one routine (`query_chunks` behind
+The two commands share one routine (`chunks_query` behind
 `query_routine`) and one 20-parameter surface; `get` differs only in its
 defaults (`fields::` gains `stage`+`exports`, `format::` starts at
 `expanded`) and in requiring at least one chunk name. Use it once `list`

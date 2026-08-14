@@ -8,14 +8,22 @@
 - **started_at:** null
 - **expires_at:** null
 - **round:** 1
-- **state:** 🎯 (Verified)
+- **state:** ✅ (Completed)
 - **closes:** null
 - **unit_type:** module
 - **unit:** module/helper/scene_script
 - **repo_identity:** self
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **verification_date:** 2026-08-13
+- **verification_date:** 2026-08-14 04:12:22
 - **blocked_by:** null
+- **executing_at:** 2026-08-14 03:13:11
+- **executing_by:** wandalen
+- **in_motion:** false
+- **accepting_at:** 2026-08-14 04:02:26
+- **accepting_by:** wandalen
+- **priority:** 0
+- **completed_at:** 2026-08-14 04:12:22
+- **completed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## Goal
 
@@ -169,6 +177,12 @@ Desired answer for every question is YES.
 - [ ] AF1 — T02-T05 actually exercise nested (non-top-level) impurity, not a restatement of `top_level_lint`'s existing top-level-only cases: `grep -n "fn.*nested\|fn.*t0[2345]" tests/*.rs` → each test's script fixture has the call embedded inside a `let`/array/object-map/control-flow body, confirmed by reading the fixture, not just the test name
 - [ ] AF2 — No load-and-deserialize helper was added under a different name as a disguised re-inclusion of the cut Out-of-Scope item: `git diff --stat` reviewed for any new function calling `rhai::serde::from_dynamic`
 
+## Journal
+
+| Timestamp           | Actor                | Event | Note         |
+|---------------------|----------------------|-------|--------------|
+| 2026-08-14 03:13:11 | wandalen | CLAIM_EXEC | execution claimed |
+
 ## History
 
 - **[2026-08-13]** `FILED` — Task filed by user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/. Goal: give `scene_script` a whole-AST purity check enforcing the script-as-data invariant `docs/pattern/004` documents but cannot currently check.
@@ -201,3 +215,42 @@ Desired answer for every question is YES.
 | D7 | Crate Locality | — | 🟢 | — | — |
 | D8 | Crate Single Responsibility | — | 🟢 | — | — |
 | **Total** | | 🔴 | 🟢 | 2 issues, both fixed | 2/2 |
+| 2026-08-14 04:02:16 | wandalen | EXEC_COMPLETE | execution complete |
+| 2026-08-14 04:02:26 | wandalen | CLAIM_ACCEPT | acceptance claimed |
+
+## Outcomes
+
+### Acceptance Results
+
+- **Verified by:** independent acceptance verifier (fresh subagent dispatch, no prior involvement in execution)
+- **Date:** 2026-08-14
+- **Verdict:** PASS
+
+#### Checklist
+
+- [x] C1 — Does the new purity-check function recurse into `let` initializers, array elements, and object-map values, not just top-level statements? — YES: `check_whole_ast_is_pure()` (`src/purity_lint.rs:67-91`) delegates to `rhai::AST::walk`. Verified directly against the `rhai` 1.25.1 crate source (`~/.cargo/registry/.../rhai-1.25.1/src/`): `Stmt::Var` (a `let`/`const` binding) walks its initializer expression (`ast/stmt.rs:983-985`); `Expr::Array`/`Expr::Map` each walk every element/value (`ast/expr.rs:879-889`); `AST::_walk` covers both `statements()` and every `iter_fn_def()` body (`ast/ast.rs:783-793`). Confirmed in practice: array element rejected by `rejects_a_named_call_nested_inside_an_array_element` (`tests/purity_lint_test.rs:47-54`), map value rejected by `rejects_an_operator_call_nested_inside_a_map_value` (lines 30-44) and `rejects_a_method_call_nested_inside_a_map_value` (lines 57-64), function-body/control-flow depth rejected by `rejects_a_call_two_blocks_deep_inside_a_function_body` (lines 67-107).
+- [x] C2 — Does it reject operator calls (not only named calls) as impure? — YES: `call_in_node()` (`src/purity_lint.rs:37-46`) matches `FnCall`/`MethodCall` unconditionally — no `is_operator_call()` exception, unlike `top_level_lint.rs:118`'s explicit `Role::PlainExpression` reclassification of operator calls. Test `rejects_an_operator_call_nested_inside_a_map_value` asserts `violation.name == "+"` and passes (verified via `cargo nextest run -p scene_script`).
+- [x] C3 — Does `top_level_lint.rs`'s existing test suite remain green and unmodified, confirming this task's change is additive only (T06)? — YES: `git status --porcelain -- module/helper/scene_script/src/top_level_lint.rs` → empty (file untouched); `cargo nextest run -p scene_script` → all 11 `example_convention_test` cases PASS (`checker_rejects_a_top_level_loop`, `checker_rejects_a_premature_top_level_call`, `checker_rejects_a_trailing_call_to_something_other_than_main`, `checker_accepts_bindings_plus_trailing_main_call`, `checker_rejects_a_trailing_non_main_call_without_semicolon`, `checker_rejects_a_trailing_non_main_method_call`, `checker_rejects_a_top_level_if`, `checker_accepts_a_const_binding`, `checker_accepts_bindings_plus_bare_trailing_expression_with_no_call`, `checker_accepts_multiple_top_level_function_definitions`, `example_scripts_follow_declarative_top_level_convention`), 0 failures.
+- [x] C4 — Does `docs/invariant/004_script_as_data_purity.md` name a real enforcement mechanism (the shipped function, not a TBD)? — YES: `### Enforcement Mechanism` (lines 25-53) names `check_whole_ast_is_pure()` in `src/purity_lint.rs`, describes the actual `AST::walk` delegation and traversal order in detail; no `TBD` anywhere in the file.
+- [x] C5 — Does `docs/definition/readme.md`'s registered `invariant/` instance count accurately reflect the new file (3 → 4)? — YES: `docs/definition/readme.md:13` states `4`; `ls docs/invariant/*.md` excluding `readme.md` → 4 files (`001_top_level_bindings_convention.md`, `002_f32x2_f64x2_type_distinctness.md`, `003_rhai_facing_names_mirror_rust_identifiers.md`, `004_script_as_data_purity.md`).
+- [x] C6 — Is `examples/orrery/webgpu/src/scene.rs` unmodified? — YES: `git status --porcelain -- examples/orrery/webgpu/src/scene.rs` → empty output. Last commit touching the file (`6ca5206`, 2026-08-12, "refactor: consolidate examples under orrery directory structure") predates and is unrelated to this task.
+- [x] C7 — Does `scene_script`'s public surface gain no new load-and-deserialize helper (only the purity-check function)? — YES: `grep -rn "pub fn\|pub struct\|pub enum" src/purity_lint.rs` → only `ImpureCall` (struct) and `check_whole_ast_is_pure` (fn); `grep -rn "from_dynamic" module/helper/scene_script/src/ module/helper/scene_script/tests/` → 0 matches.
+- [x] C8 — Is there no new script-facing color type or Squad easing-curve support added? — YES: `git status --porcelain -- module/helper/scene_script/` → exactly 5 modified files (4 docs + `src/lib.rs`) + 3 new files (`src/purity_lint.rs`, `tests/purity_lint_test.rs`, `docs/invariant/004_script_as_data_purity.md`); none relate to color or easing.
+- [x] C9 — Does this task's diff avoid touching or wiring any consumer in `codename_space_sandbox` (a separate repository — task 007 there is unaffected either direction)? — YES: `codename_space_sandbox` is a separate repository, structurally unreachable from this repo's `git diff`/`git status`.
+- [x] C10 — Does the purity check limit itself to `FnCall`/`MethodCall` detection only, with no added non-call side-channel detection (e.g., a `const` referencing an engine-registered constant)? — YES: `call_in_node()` (`src/purity_lint.rs:37-46`) matches only `Stmt::FnCall`/`Expr::FnCall`/`Expr::MethodCall`; full read of the 102-line file confirms no `const`/constant-reference detection logic exists anywhere.
+
+#### Measurements
+
+- [x] M1 — Test count: `cargo nextest run -p scene_script 2>&1 | tail -5` → `56 tests run: 56 passed, 0 skipped` — MET (expected T01-T06 all present and passing: all 5 `purity_lint_test` cases (T01-T05) and all 11 `example_convention_test` cases (T06 regression) confirmed present by name in output; was 0 purity tests before this task, per `purity_lint.rs`/`purity_lint_test.rs` both being untracked/new in `git status`).
+- [x] M2 — Doc instance count: `docs/definition/readme.md`'s invariant row count matches `ls docs/invariant/` count exactly — `4` vs `4` — MET.
+
+#### Invariants
+
+- [x] I1 — test suite: `verb/test` → 0 failures — HOLD: spot-checked the pre-existing durable log `/home/user1/pro/lib/yrd_gamedev/cgtools/-0029_longrun.log` (completion marker `exit 0 · pid 4157049 · 2026-08-14 · 03:57:46 · elapsed 1237s`, predating this verification dispatch). `grep -c 'FAILED\|panicked'` → `0`; `grep -c 'error\['` → `0`; `grep -n 'Summary'` → `1705: Summary [9.249s] 1695 tests run: 1695 passed, 0 skipped`. Independently confirmed all 56 `scene_script` tests, including all 5 `purity_lint_test` cases, appear as `PASS` within that same run (log lines ~1018-1046). Exactly 4 `warning:` lines total in the entire log; all 4 traced (log lines 2666-2687) to the same pre-existing, unrelated `mingl` crate warning `unused import: is_self_contained_url` (`module/min/mingl/src/web.rs:102:42`) — none reference `scene_script`.
+- [x] I2 — compiler clean: `RUSTFLAGS="-D warnings" cargo check -p scene_script` → 0 warnings — HOLD: output `Finished \`dev\` profile [unoptimized + debuginfo] target(s) in 0.42s`, no warning or error lines emitted.
+
+#### Anti-faking checks
+
+- [x] AF1 — T02-T05 actually exercise nested (non-top-level) impurity, not a restatement of `top_level_lint`'s existing top-level-only cases — PASS: the task's literal command (`grep -n "fn.*nested\|fn.*t0[2345]" tests/*.rs`) matches only 3 of the 4 target tests by name text (`rejects_an_operator_call_nested_inside_a_map_value`, `rejects_a_named_call_nested_inside_an_array_element`, `rejects_a_method_call_nested_inside_a_map_value`) — T05's name (`rejects_a_call_two_blocks_deep_inside_a_function_body`) contains neither literal substring, a minor imprecision in the check's own regex, not a defect in the code. Per the check's own instruction ("confirmed by reading the fixture, not just the test name"), all four fixtures were read directly: T02 `"fn one() { 1 } #{ x: one() + 2 }"` — call embedded inside a map value; T03 `"fn compute( n ) { n } [ 1, compute( 2 ), 3 ]"` — call embedded inside an array element; T04 `"#{ value: \"seed\".len() }"` — call embedded inside a map value; T05 nested `for`/`if`/`trigger()` — call embedded two control-flow blocks deep inside a function body. All four are genuinely nested, non-top-level fixtures, corroborated by the `rhai::AST::walk` source semantics confirmed under C1.
+- [x] AF2 — No load-and-deserialize helper was added under a different name as a disguised re-inclusion of the cut Out-of-Scope item — PASS: `git diff --stat` reviewed in full; `grep -rn "from_dynamic" module/helper/scene_script/src/ module/helper/scene_script/tests/` → 0 matches.
+| 2026-08-14 04:12:22 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | ACCEPTANCE_PASS | acceptance passed |

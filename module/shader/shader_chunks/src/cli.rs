@@ -27,8 +27,8 @@ mod private
   /// [`CliError::exit_code`]: crate::CliError::exit_code
   static EXIT_CODE : AtomicI32 = AtomicI32::new( 1 );
 
-  // Fix(BUG-108): every user-facing write goes through `print_stdout` /
-  // `print_stderr` instead of `println!`/`eprintln!`.
+  // Fix(BUG-108): every user-facing write goes through `stdout_print` /
+  // `stderr_print` instead of `println!`/`eprintln!`.
   // Root cause: the std print macros panic on any write error — including
   // `EPIPE` once a pipeline reader like `head` has exited — and `Stdout`'s
   // line buffering makes the first post-hangup write fail deterministically,
@@ -42,7 +42,7 @@ mod private
   /// Writes one line to stdout, pipe-safely: a closed pipe (`EPIPE`) ends
   /// the process quietly with exit 0; any other write failure reports on
   /// stderr (best-effort) and exits 2.
-  fn print_stdout( content : &str )
+  fn stdout_print( content : &str )
   {
     use std::io::Write;
     let mut stdout = std::io::stdout().lock();
@@ -52,14 +52,14 @@ mod private
       {
         std::process::exit( 0 );
       }
-      print_stderr( &format!( "failed writing to stdout: {error}" ) );
+      stderr_print( &format!( "failed writing to stdout: {error}" ) );
       std::process::exit( 2 );
     }
   }
 
   /// Writes one line to stderr, discarding write errors — error reporting
   /// must never itself become a second failure path (see BUG-108).
-  fn print_stderr( content : &str )
+  fn stderr_print( content : &str )
   {
     use std::io::Write;
     let _ = writeln!( std::io::stderr(), "{content}" );
@@ -96,12 +96,12 @@ mod private
   /// one might expect — flattening here is what makes both shapes (and the
   /// comma-delimited named lists `tag::`/`fields::`) resolve to the same
   /// `Vec<String>`.
-  fn flatten_names( value : &Value ) -> Vec< String >
+  fn names_flatten( value : &Value ) -> Vec< String >
   {
     match value
     {
       Value::String( s ) => vec![ s.clone() ],
-      Value::List( values ) => values.iter().flat_map( flatten_names ).collect(),
+      Value::List( values ) => values.iter().flat_map( names_flatten ).collect(),
       _ => vec![],
     }
   }
@@ -192,7 +192,7 @@ mod private
 
   fn arg_list( cmd : &VerifiedCommand, key : &str ) -> Vec< String >
   {
-    cmd.arguments.get( key ).map( flatten_names ).unwrap_or_default()
+    cmd.arguments.get( key ).map( names_flatten ).unwrap_or_default()
   }
 
   /// Builds [`crate::QueryParams`] from a verified command's bound
@@ -234,14 +234,14 @@ mod private
   }
 
   /// The one routine body behind both `list` and `get` — both commands execute
-  /// exactly this function over [`crate::query_chunks`], differing
+  /// exactly this function over [`crate::chunks_query`], differing
   /// only in the `defaults` constructor passed in.
   fn query_routine( defaults : fn() -> crate::QueryParams ) -> CommandRoutine
   {
     Box::new( move | cmd, _ctx |
     {
       let params = query_params_from( &cmd, defaults() )?;
-      let content = crate::query_chunks( &params ).map_err( | e | cli_error( &e ) )?;
+      let content = crate::chunks_query( &params ).map_err( | e | cli_error( &e ) )?;
       Ok( text_output( content ) )
     })
   }
@@ -323,7 +323,7 @@ mod private
 
     let routine : CommandRoutine = Box::new( | _cmd, _ctx |
     {
-      let content = crate::list_tags().map_err( | e | cli_error( &e ) )?;
+      let content = crate::tags_list().map_err( | e | cli_error( &e ) )?;
       Ok( text_output( content ) )
     });
 
@@ -364,7 +364,7 @@ mod private
         Some( Value::String( name ) ) => Some( name.as_str() ),
         _ => None,
       };
-      let content = crate::tree_chunk( name ).map_err( | e | cli_error( &e ) )?;
+      let content = crate::chunk_tree( name ).map_err( | e | cli_error( &e ) )?;
       Ok( text_output( content ) )
     });
 
@@ -407,11 +407,11 @@ mod private
     {
       let names : Vec< String > = match cmd.arguments.get( "names" )
       {
-        Some( value ) => flatten_names( value ),
+        Some( value ) => names_flatten( value ),
         None => unreachable!( "argument 'names' is declared Kind::List, multiple, and required" ),
       };
       let transitive = arg_bool( &cmd, "transitive", false );
-      let content = crate::compose_chunks( &names, transitive ).map_err( | e | cli_error( &e ) )?;
+      let content = crate::chunks_compose( &names, transitive ).map_err( | e | cli_error( &e ) )?;
       Ok( text_output( content ) )
     });
 
@@ -459,7 +459,7 @@ mod private
     ( def, routine )
   }
 
-  fn build_registry() -> CommandRegistry
+  fn registry_build() -> CommandRegistry
   {
     let mut registry = CommandRegistry::new();
     for ( def, routine ) in [ cmd_list(), cmd_get(), cmd_tags(), cmd_tree(), cmd_compose(), cmd_tunables() ]
@@ -469,7 +469,7 @@ mod private
     registry
   }
 
-  fn print_help()
+  fn help_print()
   {
     let mut data = CliHelpData::default();
     data.binary = "shader_chunks".to_string();
@@ -522,18 +522,18 @@ mod private
     ];
 
     let template = CliHelpTemplate::new( CliHelpStyle::default(), data );
-    print_stdout( &template.render() );
+    stdout_print( &template.render() );
   }
 
   /// Renders per-command help for `command` (bare name, no leading dot) from
   /// its registered [`CommandDefinition`], through the same `cli_fmt` template
-  /// and style as the top-level [`print_help`] screen. The first declared
+  /// and style as the top-level [`help_print`] screen. The first declared
   /// argument is the command's positional one and is spelled by shape
   /// (`<name>` required, `[name]` optional, `...` repeatable); every further
   /// argument is named-only and rendered as a `key::` row carrying its hint
   /// and declared default, with a `[param::value ...]` marker appended to the
   /// usage line. Examples come from the definition itself.
-  fn print_command_help( command : &str, def : &CommandDefinition )
+  fn command_help_print( command : &str, def : &CommandDefinition )
   {
     let mut syntax = command.to_string();
     let mut argument_rows = Vec::new();
@@ -576,7 +576,7 @@ mod private
     .collect();
 
     let template = CliHelpTemplate::new( CliHelpStyle::default(), data );
-    print_stdout( &template.render() );
+    stdout_print( &template.render() );
   }
 
   /// The whole CLI: parses argv, routes help spellings, dispatches through
@@ -606,7 +606,7 @@ mod private
     // `sch`, `sch .`, `sch help`, `sch .help` — all spell "top-level help".
     if argv.is_empty() || ( argv.len() == 1 && matches!( argv[ 0 ].as_str(), "." | "help" | ".help" ) )
     {
-      print_help();
+      help_print();
       return;
     }
 
@@ -629,19 +629,19 @@ mod private
       None
     };
 
-    let registry = build_registry();
+    let registry = registry_build();
 
     if let Some( target ) = help_target
     {
       let target = target.strip_prefix( '.' ).unwrap_or( target.as_str() );
       if target.is_empty() || target == "help"
       {
-        print_help();
+        help_print();
         return;
       }
       if let Some( def ) = registry.commands().get( &format!( ".{target}" ) )
       {
-        print_command_help( target, def );
+        command_help_print( target, def );
         return;
       }
       argv = vec![ format!( ".{target}.help" ) ];
@@ -664,7 +664,7 @@ mod private
     {
       if let Some( error ) = &result.error
       {
-        print_stderr( error );
+        stderr_print( error );
       }
       std::process::exit( EXIT_CODE.load( Ordering::Relaxed ) );
     }
@@ -673,7 +673,7 @@ mod private
     {
       if !output.content.is_empty()
       {
-        print_stdout( &output.content );
+        stdout_print( &output.content );
       }
     }
   }

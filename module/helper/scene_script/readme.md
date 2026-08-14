@@ -20,8 +20,10 @@ implementation.
 | `src/tween_binding.rs` | Registers `animation::Tween< T >` for every registered vector type `T` into a `rhai::Engine`: `tween(...)` constructor (3-arg Linear, 4-arg named-easing, 5-arg direct-tangent `CubicHermite`), `.update`/`.value`/`.is_completed`/`.progress`/`.duration`/`.delay`/`.time`/`.current_repeat`/`.state`, `.pause`/`.resume`/`.reset`, and `.with_delay`/`.with_duration`/`.with_repeat`/`.with_yoyo` builders. |
 | `src/engine.rs` | `engine_build()` — a `rhai::Engine` with all 16 bindings pre-registered. |
 | `src/top_level_lint.rs` | `check_top_level_is_declarative()` — rejects imperative code sitting outside of a function. |
+| `src/purity_lint.rs` | `check_whole_ast_is_pure()` — rejects any function/method call anywhere in the AST, top-level or nested. |
 | `tests/engine_test.rs` | Smoke tests for all 16 registrations, feature tests for the extended vector-math and Tween operations, plus a distinctness check between `F32x2` and `F64x2`. |
 | `tests/example_convention_test.rs` | Checks every `examples/scene_script/*/src/*.rhai` script against `check_top_level_is_declarative()`, plus the checker's own accept/reject cases. |
+| `tests/purity_lint_test.rs` | Accept/reject cases for `check_whole_ast_is_pure()`, including calls nested in map/array/function-body positions. |
 | `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
 
 Worked examples live at the workspace root, not under this crate — see
@@ -44,6 +46,18 @@ semantically — see
 for the precise statement and enforcement mechanism, and
 [`docs/pitfall/`](docs/pitfall/readme.md) for the convention's known gaps
 and Rhai's outer-scope-visibility surprise.
+
+## Script-as-data purity convention
+
+A stricter, opt-in convention for scripts meant to be pure data documents
+(see [`docs/pattern/004_script_as_data.md`](../../../docs/pattern/004_script_as_data.md)):
+no function or method call anywhere in the script, top-level or nested, not
+even a desugared operator. `check_whole_ast_is_pure()` enforces this by
+walking the entire AST — including script-defined function bodies — via
+`rhai::AST::walk`, unlike `check_top_level_is_declarative()`, which only
+inspects the top-level statement list. See
+[`docs/invariant/004_script_as_data_purity.md`](docs/invariant/004_script_as_data_purity.md)
+for the precise statement and enforcement mechanism.
 
 ## Naming convention
 
