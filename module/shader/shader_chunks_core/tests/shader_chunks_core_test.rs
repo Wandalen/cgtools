@@ -4,9 +4,9 @@
 
 use shader_chunks_core::
 {
-  compose, try_compose, set_compose, set_try_compose, depends_on_parse, description_parse, stage_parse,
-  exports_parse, tags_parse, ComposeError, ChunkDescriptor, CHUNKS, chunk_get, chunk, chunk_get_from,
-  dependency_closed, manifest_mismatches,
+  compose, try_compose, set_compose, set_try_compose, set_resolve, depends_on_parse, description_parse,
+  stage_parse, exports_parse, tags_parse, ComposeError, ResolveError, ChunkDescriptor, CHUNKS, chunk_get,
+  chunk, chunk_get_from, dependency_closed, manifest_mismatches,
 };
 
 /// Test-only: pulls the declared symbol name out of an `export` line's
@@ -145,7 +145,7 @@ fn parse_depends_on_handles_multiple_entries()
 #[ test ]
 fn chunks_table_lists_every_bundled_chunk()
 {
-  assert_eq!( CHUNKS.len(), 4 );
+  assert_eq!( CHUNKS.len(), 50 );
 }
 
 #[ test ]
@@ -328,4 +328,43 @@ fn try_compose_returns_err_on_cyclic_dependency()
   const B : &str = "//@ name: b\n//@ depends_on: a\nfn b() {}";
   let err = try_compose( &[ A, B ] ).expect_err( "should fail" );
   assert!( matches!( err, ComposeError::CyclicDependency( _ ) ), "expected CyclicDependency, got {err:?}" );
+}
+
+#[ test ]
+fn set_resolve_returns_named_chunks_in_given_order()
+{
+  let resolved = set_resolve( &[ "fbm3", "hash21" ], false ).expect( "both names are bundled" );
+  let names : Vec< &str > = resolved.iter().map( | chunk | chunk.name ).collect();
+  assert_eq!( names, vec![ "fbm3", "hash21" ] );
+}
+
+#[ test ]
+fn set_resolve_transitive_widens_to_full_dependency_closure()
+{
+  let resolved = set_resolve( &[ "fbm3" ], true ).expect( "fbm3 and its closure are bundled" );
+  let names : Vec< &str > = resolved.iter().map( | chunk | chunk.name ).collect();
+  assert_eq!( names[ 0 ], "fbm3", "named chunks come first, in given order" );
+  assert!( names.contains( &"value_noise" ) && names.contains( &"hash21" ), "closure must pull in fbm3's whole chain, got {names:?}" );
+  assert_eq!( names.len(), 3, "each closure member appears exactly once" );
+}
+
+#[ test ]
+fn set_resolve_rejects_unknown_name()
+{
+  let err = set_resolve( &[ "bogus_chunk" ], false ).expect_err( "should fail" );
+  assert_eq!( err, ResolveError::UnknownChunk( "bogus_chunk".to_string() ) );
+}
+
+#[ test ]
+fn set_resolve_feeds_set_try_compose_identically_to_explicit_selection()
+{
+  let closure = set_resolve( &[ "fbm3" ], true ).expect( "resolves" );
+  let closure : Vec< ChunkDescriptor > = closure.into_iter().copied().collect();
+  let explicit = [ chunk( "hash21" ), chunk( "value_noise" ), chunk( "fbm3" ) ];
+  assert_eq!
+  (
+    set_try_compose( &closure ).expect( "composes" ),
+    set_try_compose( &explicit ).expect( "composes" ),
+    "topological sort makes closure-selected and explicitly-selected sets compose to identical text"
+  );
 }

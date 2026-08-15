@@ -1,277 +1,228 @@
-//! Discovers tunable parameters declared in a shader chunk's `//@ param:`
-//! manifest lines — a new repeatable line in the same flat `//@`-prefixed
-//! header block `shader_chunks_core` already uses for `name`/`description`/
-//! `tags`/`depends_on`/`export` ( see `docs/api/001_tunable_parameter_taxonomy.md` ).
-//! A tunable parameter is one of 5 kinds — function argument, compile-time
-//! define directive, uniform, attribute, or texture — each carrying either
-//! a declared `range(min, max)` or, when absent, a range resolved by
-//! [`range_infer`]'s deterministic two-stage heuristic ( see
-//! `docs/algorithm/001_range_inference_heuristic.md` ): name-substring
-//! pattern match first, WGSL-type fallback second.
-//!
-//! This crate only discovers and describes declared tunables from raw WGSL
-//! text — it does not execute, bind, or animate anything, and it does not
-//! modify `shader_chunks_core` or any bundled chunk file.
+//! Parameters utility CLI: the `tunables` command rendering
+//! `shader_chunks_params_core`'s discovery as a table. Exposes its command
+//! set, help group, and help examples as data — parameterized by binary
+//! name — so the `shader_chunks` aggregator folds them in unchanged, while
+//! [`run`] serves the same command as the standalone `shader_chunks_params`
+//! binary.
 
 mod private
 {
+  use core::fmt;
+  use unilang::prelude::*;
+  use cli_fmt::prelude::*;
+  use data_fmt::{ Format, RowBuilder, TableConfig, TableFormatter };
+  use shader_chunks_cli_core::{ CliApp, CommandSet, error_report, text_output };
 
-  /// The 5 tunable-parameter kinds a `//@ param:` line may declare, spelled
-  /// to match the grammar's `<kind>` token verbatim.
-  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
-  pub enum ParameterKind
+  /// This utility's standalone binary name.
+  pub const BINARY : &str = "shader_chunks_params";
+
+  /// Error returned by the tunables command functions.
+  #[ derive( Debug ) ]
+  pub enum ParamsCliError
   {
-    /// A plain WGSL function argument.
-    Argument,
-    /// A compile-time `override`-style define directive.
-    Define,
-    /// A uniform-buffer field.
-    Uniform,
-    /// A vertex-stage attribute.
-    Attribute,
-    /// A bound texture.
-    Texture,
+    /// The command named a chunk not present in
+    /// [`shader_chunks_core::CHUNKS`].
+    UnknownChunk( String ),
+    /// A `data_fmt` render call failed.
+    Render( String ),
   }
 
-  /// The WGSL type token a `//@ param:` line's `<type>` position may carry,
-  /// copied verbatim from the adjacent real declaration.
-  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
-  pub enum ValueType
+  impl fmt::Display for ParamsCliError
   {
-    /// WGSL `bool`.
-    Bool,
-    /// WGSL `u32`.
-    U32,
-    /// WGSL `i32`.
-    I32,
-    /// WGSL `f32`.
-    F32,
-    /// WGSL `vec2f`.
-    Vec2F,
-    /// WGSL `vec3f`.
-    Vec3F,
-    /// WGSL `vec4f`.
-    Vec4F,
-    /// WGSL `vec2i`.
-    Vec2I,
-    /// WGSL `vec3i`.
-    Vec3I,
-    /// WGSL `vec4i`.
-    Vec4I,
-    /// WGSL `vec2u`.
-    Vec2U,
-    /// WGSL `vec3u`.
-    Vec3U,
-    /// WGSL `vec4u`.
-    Vec4U,
-    /// WGSL `texture_2d`.
-    Texture2d,
-  }
-
-  /// Whether a [`Parameter`]'s [`Range`] came from an explicit `range(min,
-  /// max)` clause or from [`range_infer`]'s heuristic.
-  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
-  pub enum RangeSource
-  {
-    /// Read directly from the `//@ param:` line's own `range(min, max)` clause.
-    Declared,
-    /// Produced by [`range_infer`] because the line declared no range.
-    Inferred,
-  }
-
-  /// An inclusive numeric range, either declared or inferred.
-  #[ derive( Debug, Clone, Copy, PartialEq ) ]
-  pub struct Range
-  {
-    /// The range's lower bound.
-    pub min : f64,
-    /// The range's upper bound.
-    pub max : f64,
-  }
-
-  /// One `//@ param:` line, fully parsed.
-  #[ derive( Debug, Clone, PartialEq ) ]
-  pub struct Parameter
-  {
-    /// The parameter's name, as declared.
-    pub name : String,
-    /// The parameter's kind.
-    pub kind : ParameterKind,
-    /// The parameter's WGSL type.
-    pub value_type : ValueType,
-    /// The parameter's range and where it came from — `None` when neither
-    /// declared nor inferable ( e.g. a texture or a `bool` ).
-    pub range : Option< ( Range, RangeSource ) >,
-  }
-
-  /// Parses every `//@ param: <name> <kind> <type> [range(min, max)]` line
-  /// in `wgsl`, in file order, resolving each line's range via
-  /// [`range_infer`] when no `range(min, max)` clause is present. Returns an
-  /// empty `Vec` when `wgsl` declares no `//@ param:` lines.
-  ///
-  /// # Panics
-  ///
-  /// Panics with a message naming the offending line when a `//@ param:`
-  /// line has the wrong argument count, an unknown kind token, an unknown
-  /// WGSL type token, or a malformed `range(min, max)` clause — chunk
-  /// manifests are trusted authored content, not adversarial input,
-  /// mirroring `shader_chunks_core::manifest_field`'s panic-on-malformed
-  /// idiom.
-  #[ must_use ]
-  pub fn discover( wgsl : &str ) -> Vec< Parameter >
-  {
-    param_lines( wgsl ).map( param_line_parse ).collect()
-  }
-
-  /// [`discover`] over a [`shader_chunks_core::ChunkDescriptor`]'s own WGSL
-  /// source — this crate's only dependency on `shader_chunks_core`;
-  /// [`discover`] itself has none.
-  ///
-  /// # Panics
-  ///
-  /// Same panic contract as [`discover`].
-  #[ must_use ]
-  pub fn chunk_discover( chunk : &shader_chunks_core::ChunkDescriptor ) -> Vec< Parameter >
-  {
-    discover( chunk.wgsl )
-  }
-
-  /// Resolves a range for a parameter that declared none, per the two-stage
-  /// heuristic in `docs/algorithm/001_range_inference_heuristic.md`:
-  /// `kind == Texture` or `value_type == Bool` never carries a numeric
-  /// range; otherwise a name-substring pattern is tried first, falling back
-  /// to a WGSL-type-keyed default when no pattern matches `name`.
-  #[ must_use ]
-  pub fn range_infer( kind : ParameterKind, value_type : ValueType, name : &str ) -> Option< Range >
-  {
-    if kind == ParameterKind::Texture || value_type == ValueType::Bool
+    fn fmt( &self, f : &mut fmt::Formatter< '_ > ) -> fmt::Result
     {
-      return None;
-    }
-
-    range_by_name_infer( name ).or_else( || range_by_type_infer( value_type ) )
-  }
-
-  fn range_by_name_infer( name : &str ) -> Option< Range >
-  {
-    let patterns : &[ ( &[ &str ], Range ) ] =
-    &[
-      ( &[ "octaves", "count", "steps", "iterations" ], Range { min : 1.0, max : 8.0 } ),
-      ( &[ "seed" ], Range { min : 0.0, max : 65535.0 } ),
-      ( &[ "angle", "rotation" ], Range { min : 0.0, max : std::f64::consts::TAU } ),
-      ( &[ "scale", "frequency", "freq" ], Range { min : 0.1, max : 10.0 } ),
-      ( &[ "amplitude", "weight", "opacity", "alpha", "mix", "blend" ], Range { min : 0.0, max : 1.0 } ),
-      ( &[ "radius", "size", "width", "height" ], Range { min : 0.0, max : 100.0 } ),
-    ];
-    patterns.iter()
-    .find( | ( needles, _ ) | needles.iter().any( | needle | name.contains( needle ) ) )
-    .map( | ( _, range ) | *range )
-  }
-
-  fn range_by_type_infer( value_type : ValueType ) -> Option< Range >
-  {
-    match value_type
-    {
-      ValueType::U32 | ValueType::Vec2U | ValueType::Vec3U | ValueType::Vec4U => Some( Range { min : 0.0, max : 16.0 } ),
-      ValueType::I32 | ValueType::Vec2I | ValueType::Vec3I | ValueType::Vec4I => Some( Range { min : -16.0, max : 16.0 } ),
-      ValueType::F32 | ValueType::Vec2F | ValueType::Vec3F | ValueType::Vec4F => Some( Range { min : 0.0, max : 1.0 } ),
-      ValueType::Bool | ValueType::Texture2d => None,
+      match self
+      {
+        Self::UnknownChunk( name ) => write!( f, "unknown chunk: `{name}` (see `list` for valid names)" ),
+        Self::Render( msg ) => write!( f, "render error: {msg}" ),
+      }
     }
   }
 
-  fn param_lines( wgsl : &str ) -> impl Iterator< Item = &str >
+  impl std::error::Error for ParamsCliError {}
+
+  impl ParamsCliError
   {
-    wgsl.lines()
-    .filter_map( | line | line.trim_start().strip_prefix( "//@ param:" ) )
-    .map( str::trim )
+    /// Maps this error to a process exit code: `1` for a bad chunk name
+    /// ( validation-style, caller-fixable ), `2` for a render failure
+    /// ( internal ).
+    #[ must_use ]
+    pub fn exit_code( &self ) -> i32
+    {
+      match self
+      {
+        Self::UnknownChunk( _ ) => 1,
+        Self::Render( _ ) => 2,
+      }
+    }
   }
 
-  fn param_line_parse( line : &str ) -> Parameter
+  fn params_error( err : &ParamsCliError ) -> ErrorData
   {
-    let mut parts = line.splitn( 4, ' ' );
-    let name = parts.next().unwrap_or( "" );
-    let kind_tok = parts.next()
-      .unwrap_or_else( || panic!( "malformed `//@ param:` line (expected `<name> <kind> <type> [range(min, max)]`): {line:?}" ) );
-    let type_tok = parts.next()
-      .unwrap_or_else( || panic!( "malformed `//@ param:` line (expected `<name> <kind> <type> [range(min, max)]`): {line:?}" ) );
-    let rest = parts.next().unwrap_or( "" ).trim();
-
-    assert!( !name.is_empty(), "malformed `//@ param:` line (expected `<name> <kind> <type> [range(min, max)]`): {line:?}" );
-
-    let kind = kind_parse( kind_tok, line );
-    let value_type = value_type_parse( type_tok, line );
-
-    let range = if rest.is_empty()
+    let code = match err
     {
-      range_infer( kind, value_type, name ).map( | range | ( range, RangeSource::Inferred ) )
-    }
-    else
-    {
-      Some( ( range_clause_parse( rest, line ), RangeSource::Declared ) )
+      ParamsCliError::UnknownChunk( _ ) => ErrorCode::ValidationRuleFailed,
+      ParamsCliError::Render( _ ) => ErrorCode::InternalError,
     };
-
-    Parameter { name : name.to_string(), kind, value_type, range }
+    error_report( err.exit_code(), code, err.to_string() )
   }
 
-  fn kind_parse( token : &str, line : &str ) -> ParameterKind
+  /// Table of every tunable parameter
+  /// [`shader_chunks_params_core::chunk_discover`] finds in `chunk`'s WGSL
+  /// — name, kind, type, range, and range source ( declared vs. inferred ).
+  /// Exposed separately from [`tunables`] so tests can exercise a chunk
+  /// descriptor carrying `//@ param:` lines without any bundled chunk
+  /// needing to declare one. A chunk with none renders an explicit
+  /// message instead of a blank table or an error.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`ParamsCliError::Render`] if the `data_fmt` table formatter
+  /// fails.
+  pub fn tunables_of_chunk( chunk : &shader_chunks_core::ChunkDescriptor ) -> Result< String, ParamsCliError >
   {
-    match token
+    let params = shader_chunks_params_core::chunk_discover( chunk );
+    if params.is_empty()
     {
-      "argument" => ParameterKind::Argument,
-      "define" => ParameterKind::Define,
-      "uniform" => ParameterKind::Uniform,
-      "attribute" => ParameterKind::Attribute,
-      "texture" => ParameterKind::Texture,
-      _ => panic!( "malformed `//@ param:` line: unknown kind token `{token}`: {line:?}" ),
+      return Ok( format!( "chunk `{}` declares no tunable parameters", chunk.name ) );
     }
-  }
 
-  fn value_type_parse( token : &str, line : &str ) -> ValueType
-  {
-    match token
+    let mut builder = RowBuilder::new( vec!
+    [
+      "name".to_string(), "kind".to_string(), "type".to_string(),
+      "range".to_string(), "source".to_string(),
+    ]);
+    for param in params
     {
-      "bool" => ValueType::Bool,
-      "u32" => ValueType::U32,
-      "i32" => ValueType::I32,
-      "f32" => ValueType::F32,
-      "vec2f" => ValueType::Vec2F,
-      "vec3f" => ValueType::Vec3F,
-      "vec4f" => ValueType::Vec4F,
-      "vec2i" => ValueType::Vec2I,
-      "vec3i" => ValueType::Vec3I,
-      "vec4i" => ValueType::Vec4I,
-      "vec2u" => ValueType::Vec2U,
-      "vec3u" => ValueType::Vec3U,
-      "vec4u" => ValueType::Vec4U,
-      "texture_2d" => ValueType::Texture2d,
-      _ => panic!( "malformed `//@ param:` line: unknown WGSL type token `{token}`: {line:?}" ),
+      let ( range, source ) = match param.range
+      {
+        Some( ( range, source ) ) => ( format!( "{}..{}", range.min, range.max ), format!( "{source:?}" ) ),
+        None => ( "-".to_string(), "-".to_string() ),
+      };
+      builder.add_row_mut( vec!
+      [
+        param.name.into(), format!( "{:?}", param.kind ).into(), format!( "{:?}", param.value_type ).into(),
+        range.into(), source.into(),
+      ]);
     }
+    let view = builder.build_view();
+    Format::format( &TableFormatter::with_config( TableConfig::plain() ), &view )
+    .map_err( | e | ParamsCliError::Render( e.to_string() ) )
   }
 
-  fn range_clause_parse( rest : &str, line : &str ) -> Range
+  /// Table of every tunable parameter
+  /// [`shader_chunks_params_core::chunk_discover`] finds declared on
+  /// bundled chunk `name`. See [`tunables_of_chunk`] for the rendering
+  /// itself.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`ParamsCliError::UnknownChunk`] if `name` is not bundled, or
+  /// [`ParamsCliError::Render`] if the `data_fmt` table formatter fails.
+  pub fn tunables( name : &str ) -> Result< String, ParamsCliError >
   {
-    let inner = rest.strip_prefix( "range(" )
-      .and_then( | s | s.strip_suffix( ')' ) )
-      .unwrap_or_else( || panic!( "malformed `//@ param:` range clause (expected `range(min, max)`): {line:?}" ) );
-    let ( min_str, max_str ) = inner.split_once( ',' )
-      .unwrap_or_else( || panic!( "malformed `//@ param:` range clause (expected `range(min, max)`): {line:?}" ) );
-    let min = min_str.trim().parse::< f64 >()
-      .unwrap_or_else( | _ | panic!( "malformed `//@ param:` range min (not a number): {min_str:?}" ) );
-    let max = max_str.trim().parse::< f64 >()
-      .unwrap_or_else( | _ | panic!( "malformed `//@ param:` range max (not a number): {max_str:?}" ) );
-    Range { min, max }
+    let chunk = shader_chunks_core::chunk_get( name )
+    .ok_or_else( || ParamsCliError::UnknownChunk( name.to_string() ) )?;
+    tunables_of_chunk( chunk )
   }
 
+  fn cmd_tunables( binary : &str ) -> ( CommandDefinition, CommandRoutine )
+  {
+    let def = CommandDefinition::former()
+    .name( ".tunables" )
+    .namespace( String::new() )
+    .description( "List every tunable parameter a chunk declares via `//@ param:` lines.".to_string() )
+    .hint( "name, kind, type, range, and range source for one chunk's declared tunables" )
+    .status( "stable" )
+    .version( "1.0.0".to_string() )
+    .aliases( vec![] )
+    .tags( vec![] )
+    .permissions( vec![] )
+    .idempotent( true )
+    .deprecation_message( String::new() )
+    .http_method_hint( String::new() )
+    .examples( vec![ format!( "{binary} tunables fbm3" ) ] )
+    .arguments( vec!
+    [
+      ArgumentDefinition::former()
+      .name( "name" )
+      .kind( Kind::String )
+      .hint( "Chunk name (see `list`)." )
+      .attributes( ArgumentAttributes::default() )
+      .end(),
+    ])
+    .end();
+
+    let routine : CommandRoutine = Box::new( | cmd, _ctx |
+    {
+      let name = match cmd.arguments.get( "name" )
+      {
+        Some( Value::String( name ) ) => name.clone(),
+        _ => unreachable!( "argument 'name' is declared Kind::String and required" ),
+      };
+      let content = tunables( &name ).map_err( | e | params_error( &e ) )?;
+      Ok( text_output( content ) )
+    });
+
+    ( def, routine )
+  }
+
+  /// This utility's command set — the single `tunables` command — with
+  /// example invocations spelled against `binary`.
+  #[ must_use ]
+  pub fn commands( binary : &str ) -> CommandSet
+  {
+    vec![ cmd_tunables( binary ) ]
+  }
+
+  /// This utility's help-screen group: `Parameters` — same name and
+  /// membership as `docs/cli/command_group/` documents for the aggregator.
+  #[ must_use ]
+  pub fn help_groups() -> Vec< CommandGroup >
+  {
+    vec!
+    [
+      CommandGroup
+      {
+        name : "Parameters".to_string(),
+        entries : vec!
+        [
+          CommandEntry { name : "tunables <name>".to_string(), desc : "List a chunk's tunable parameters: kind, type, range, source.".to_string() },
+        ],
+      },
+    ]
+  }
+
+  /// This utility's help-screen example invocations, spelled against
+  /// `binary`.
+  #[ must_use ]
+  pub fn help_examples( binary : &str ) -> Vec< ExampleEntry >
+  {
+    vec![ ExampleEntry { invocation : format!( "{binary} tunables fbm3" ), desc : None } ]
+  }
+
+  /// Standalone entry point for the `shader_chunks_params` binary.
+  pub fn run()
+  {
+    shader_chunks_cli_core::run( CliApp
+    {
+      binary : BINARY.to_string(),
+      tagline : "Inspect tunable `//@ param:` parameters of shader_chunks_core's bundled WGSL chunks.".to_string(),
+      groups : help_groups(),
+      examples : help_examples( BINARY ),
+      commands : commands( BINARY ),
+    });
+  }
 }
 
 ::mod_interface::mod_interface!
 {
-  own use ParameterKind;
-  own use ValueType;
-  own use RangeSource;
-  own use Range;
-  own use Parameter;
-  own use discover;
-  own use chunk_discover;
-  own use range_infer;
+  own use BINARY;
+  own use ParamsCliError;
+  own use tunables_of_chunk;
+  own use tunables;
+  own use commands;
+  own use help_groups;
+  own use help_examples;
+  own use run;
 }

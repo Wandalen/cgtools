@@ -7,8 +7,8 @@ re-run the command to refresh a number instead of trusting the table. Live work 
 - **Snapshot date:** 2026-08-13
 - **Workspace build:** ✅ `cargo check --workspace --all-features` — exit 0, 108s, all crates
   (module/ + examples/) compile clean.
-- **Task system:** 76 completed · 2 draft · 7 cancelled · 6 executed · 1 accepting · 1 verified (see
-  task/readme.md for the live table).
+- **Task system:** 85 completed · 2 draft · 8 cancelled (see task/readme.md for the
+  live table).
 
 ## Regeneration commands
 
@@ -21,7 +21,7 @@ re-run the command to refresh a number instead of trusting the table. Live work 
 | Markers | `grep -rn "xxx :\|xxx:\|qqq :\|qqq:\|aaa :\|aaa:\|TODO:" <crate> --include="*.rs" --include="*.toml" \| wc -l` |
 | Allows | `grep -rn "#!\?\[ *allow(" <crate>/src <crate>/tests \| wc -l` |
 
-## Per-crate state (module/, snapshot 2026-08-13)
+## Per-crate state (module/, snapshot 2026-08-14 for the shader/ rows, 2026-08-13 for the rest)
 
 | Crate | Tests (files/fns) | Inline tests | docs/ | Markers | Allows | Notes |
 |-------|-------------------|--------------|-------|---------|--------|-------|
@@ -55,9 +55,17 @@ re-run the command to refresh a number instead of trusting the table. Live work 
 | min/minwebgl | 3 / 6 | 0 | yes | 0 | 11 | Markers resolved by task 062 · Runnability story + native data_type tests by task 069; 4 inline previously kept as documented exceptions — since relocated (0 inline remain, 2026-08-13) · Sweep landed 2026-08-11, verified by draft 058 gates (host --all-targets + wasm32 --lib); unexpected_cfgs allow replaced by workspace check-cfg declaration; 11 reasoned allows remain |
 | min/minwebgpu | 1 / 0 | 0 | yes | 0 | 0 | Sweep landed 2026-08-11, verified by draft 058 gates (wasm32 --lib + host; 3 findings fixed incl. copy-paste FailedToCreateRenderPipeline → FailedToCreateComputePipeline in compute_pipeline.rs); 6 stale cast duplicates deleted → 0 attrs; wasm32 --all-targets still BUG-079-blocked (getrandom) |
 | min/minwgpu | 4 / 30 | 0 | yes | 0 | 0 | Deterministic adapter-error tests/ established by task 070; 21 inline previously kept as documented exceptions (pub(super) builder internals) — since relocated (0 inline remain, 2026-08-13) |
-| shader/shader_chunks | 2 / 68 | 0 | yes | 0 | 0 | WGSL chunk library + `sch`/`shader_chunks` unilang CLI (renamed from `shader_chunks_cli` by task 102). Bundles hash21/value_noise/fbm3/fullscreen_triangle, each its own subdirectory with a per-chunk readme.md (task ~165-168 restructure). CLI gained a `tunables` command (task 106, discovers `//@ param:` lines via shader_chunks_params) |
-| shader/shader_chunks_core | 4 / 29 | 0 | yes | 0 | 0 | Shared chunk-manifest parsing (`//@ name:`/`description:`/`tags:`/`depends_on:`/`export:`) extracted out of shader_chunks into its own crate so shader_chunks_params could reuse the same header-comment parser without duplicating it |
-| shader/shader_chunks_params | 2 / 25 | 0 | yes | 0 | 0 | New crate (task 105, Q-03 decision): discovers repeatable `//@ param: <name> <kind> <type> [range(min,max)]` lines; resolves a missing range via a deterministic 2-stage heuristic (name-substring pattern, then WGSL-type-keyed default), tagging each result `RangeSource::Declared`/`Inferred` |
+| shader/shader_chunks | 1 / 32 | 0 | yes | 0 | 0 | Aggregation only (2026-08-14 CLI split, was one monolithic crate): `run()` concatenates query→compose→params→preview command sets/help and hands off to shader_chunks_cli_core::run; `src/bin/{shader_chunks,sch}.rs` are one-line delegates. Monolithic `shader_chunks_test.rs` removed, replaced by `cli_subprocess_test.rs` (aggregation-order + help-screen pins). Still bundles hash21/value_noise/fbm3/fullscreen_triangle WGSL chunks, each its own subdirectory with a per-chunk readme.md. See [module/shader/readme.md](module/shader/readme.md) for the full family map |
+| shader/shader_chunks_cli_core | 1 / 2 | 0 | — | 0 | 0 | New crate (2026-08-14 CLI split): shared unilang dispatch/help/exit-code layer used by all 5 CLI crates (aggregator + query/compose/params/preview) — `CommandSet`, `CliApp`, `run` (help-spelling routing, exit-code mapping per BUG-103), EPIPE-safe `stdout_print`/`stderr_print` (BUG-108), `names_flatten` (works around unilang's nested List-of-List binding quirk) |
+| shader/shader_chunks_compose | 1 / 6 | 0 | — | 0 | 0 | New crate (2026-08-14, split out of the old monolithic shader_chunks CLI): CLI and logic for the `compose` command in one file — deliberately has no separate `_core`, since shader_chunks_core itself is thin enough to serve as this utility's core. `ComposeCliError` (UnknownChunk/Compose, both exit 1) |
+| shader/shader_chunks_core | 4 / 33 | 0 | yes | 0 | 0 | Shared chunk-manifest parsing (`//@ name:`/`description:`/`tags:`/`depends_on:`/`export:`), reused by shader_chunks_params_core/query_core/preview_core without duplicating the header-comment parser. +4 tests (2026-08-14): gained `set_resolve` (name-set → descriptors, optional transitive-dependency closure), a shared resolver consolidating logic that would otherwise be duplicated between shader_chunks_compose and shader_chunks_preview_core |
+| shader/shader_chunks_params | 1 / 3 | 0 | — | 0 | 0 | Thinned 2026-08-14 from the former combined discovery+CLI crate down to CLI wiring only for the `tunables` command — `ParamsCliError` (UnknownChunk exit 1, Render exit 2) over shader_chunks_params_core below. Its former 2/25 engine tests moved wholesale to that new crate, not lost |
+| shader/shader_chunks_params_core | 2 / 25 | 0 | yes | 0 | 0 | New crate (2026-08-14, split out of the old shader_chunks_params): `//@ param:` tunable-parameter discovery engine, carrying forward that crate's full test suite and `docs/` (`algorithm/` + `api/`, migrated intact). Task 105/Q-03 range-inference heuristic unchanged: declared range wins, else a 2-stage heuristic (name-substring pattern, then WGSL-type-keyed default), tagging each result `RangeSource::Declared`/`Inferred` |
+| shader/shader_chunks_preview | 1 / 8 | 0 | — | 0 | 0 | New crate (2026-08-14): CLI wiring for `preview` — `bundle_prepare` (build via shader_chunks_preview_core, then naga-validate before any write) → `bundle_write` → serve (browser dev-server, default) or summary-only. Generalizes the 3-slider live-preview capability task 112 first delivered as a hardcoded single-purpose example (that example is now superseded and deleted, see task 112's closing NOTE) to any bundled or `file::`-supplied chunk. Disclosed test gaps (see `tests/docs/cli/command/cmd_007_preview.md`): no test exercises a successful `file::` target read, and none covers giving both `name` and `file::` together (only the neither-given arm is tested) |
+| shader/shader_chunks_preview_core | 1 / 11 | 0 | — | 0 | 0 | New crate (2026-08-14): builds a composed, slider-annotated preview bundle from one chunk — two modes (declared-param fragment chunk, or synthesized-harness value chunk); `resolution_index` computes the 16-byte-boundary uniform layout shared with the wasm runner below. None of the 4 bundled chunks are fragment-mode today; that path is exercised only by this crate's own fixture tests |
+| shader/shader_chunks_preview_web | 0 / 0 | 0 | — | 0 | 0 | New crate (2026-08-14): wasm32-only WebGPU browser runner — every real dependency gated under `[target.'cfg(target_arch = "wasm32")'.dependencies]`, native `main()` is a stub. 0/0 tests and 0 host-visible deps are expected here, not a defect: nothing in this crate is unit-testable on the host; verify via `cargo check -p shader_chunks_preview_web --target wasm32-unknown-unknown` |
+| shader/shader_chunks_query | 0 / 0 | 0 | — | 0 | 0 | New crate (2026-08-14, split out of the old monolithic shader_chunks CLI): CLI wiring only for `list`/`get`/`tags`/`tree` over shader_chunks_query_core below. 0/0 tests is by design, not a gap — this crate carries no logic of its own to unit-test; query_core's 30 tests cover the rendering logic directly, and this crate's dispatch is exercised end-to-end via shader_chunks's `cli_subprocess_test.rs` |
+| shader/shader_chunks_query_core | 1 / 30 | 0 | — | 0 | 0 | New crate (2026-08-14, split out of the old monolithic shader_chunks CLI): filter/project/sort/page/render query engine over bundled chunks — `QueryParams` (19 named fields), `chunks_query` pipeline (select→filter→count-shortcut→sort/order→offset/limit→render), `tags_list`, `chunk_tree` |
 
 Notes column links go through task/readme.md; `—` in Allows = not in the top-count sweep (small or
 zero). **Allows-column caveat (2026-08-13):** the regeneration command only matches literal
@@ -65,7 +73,7 @@ zero). **Allows-column caveat (2026-08-13):** the regeneration command only matc
 since converted most or all of their justified suppressions to `#[expect(...)]` (fails loudly if the
 lint stops firing), which this column does not count — a low or zero Allows value no longer implies
 zero suppression attributes for those crates. To see the current expect-count for a crate:
-`grep -rn '#!\?\[ *expect(' <crate>/src <crate>/tests | wc -l`. Examples tree (70 demo crates —
+`grep -rn '#!\?\[ *expect(' <crate>/src <crate>/tests | wc -l`. Examples tree (69 demo crates —
 recount: `find examples -name Cargo.toml | wc -l`) is intentionally not tabulated per-crate: demos
 carry no tests/ requirement; their marker triage closed with task 065 (✅ Completed) — task 065
 decided keep-crate for `diamond` and `make_cube_map`, and tasks 094/095 deleted the two stale
@@ -92,21 +100,14 @@ files — verified clean 2026-08-13.)*
 - **056** — vectorizer revival watch item (📝 Draft; explicitly YAGNI-deferred, no action unless a
   real consumer emerges).
 - **098** — obj_viewer example proposal watch item (📝 Draft; same YAGNI-deferred pattern).
-- **094, 095, 096, 097, 106** — 📦 Executed, implementation complete and self-verified, but blocked
-  on independent acceptance: `tsk .acceptance_pass` mechanically refuses same-session
-  self-acceptance (Separation of Concerns, TA142/BUG-197) — needs a human (or a genuinely separate
-  actor identity) to run the acceptance gate before these reach ✅ Completed.
-- **105** — 🔎 Accepting, one step further than the group above: the acceptance walk itself is
-  already complete (`## Outcomes` — Verdict PASS, 20/20 Checklist/Measurements/Invariants/
-  Anti-faking items, with a B1 disclosure on the coarse actor-identity collision). `tsk
-  .acceptance_pass 105` was attempted directly and confirmed still mechanically refused
-  ("self-verification forbidden (actor matches executing_by)") — same root cause as the group
-  above, just already past the walk and waiting only on the CLI transition itself.
-- **107** — `scene_script` whole-AST purity check, 🎯 Verified. Filed and verified by a different
-  concurrent actor in this same workspace (not this session) — as of this snapshot it has fresh
-  uncommitted edits (a cross-repo status correction), so treat it as actively owned rather than
-  free to claim.
 
-*(058 and 065, previously listed here, are now ✅ Completed — dropped from this list; see their
-Notes-column entries in the per-crate table above for what each one closed.)*
+No other tasks are currently open. The 058/065/094-097/099/105/106/107 cluster, previously listed
+here across earlier snapshots, is now entirely ✅ Completed — dropped from this list; see each
+task's own entry in task/readme.md's Tasks Index, or its Notes-column mention in the per-crate table
+above, for what it closed. *(A separate, large shader-chunk CLI-split and rendering restructuring is
+visibly in progress in this working tree — dozens of uncommitted changes under `module/shader/`,
+`docs/layer/`, `docs/pattern/`, plus 30+ new untracked `shader/<name>/` chunk directories — but it
+carries no task/ entry as of this snapshot, so it has no line item to list here; two of its crates,
+`shader_chunks_render` and `shader_chunks_render_core`, exist on disk but are not yet rows in the
+per-crate table above.)*
 

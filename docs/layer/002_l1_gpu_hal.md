@@ -56,6 +56,19 @@ the offscreen-render-plus-readback path with no browser involved. Its existing
 `adapter-webgl` keeps its direct `minwebgl` dependency for now, on the same
 accepted-until-strangled posture.
 
+### ADRs
+
+| File | Relationship |
+|------|--------------|
+| [../adr/002_gpu_hal_in_house.md](../adr/002_gpu_hal_in_house.md) | Build-vs-buy decision — closed in-house; `gpu_hal` is the L1 HAL |
+| [../adr/003_d2_stack_hal_adoption.md](../adr/003_d2_stack_hal_adoption.md) | Extends L1 adoption to the d2 stack ( `tilemap_renderer` ) |
+
+### Explorations
+
+| File | Relationship |
+|------|--------------|
+| [../explorations/001_gpu_hal_buy_vs_build.md](../explorations/001_gpu_hal_buy_vs_build.md) | The comparison and spike evidence behind ADR-002 ( closed ) |
+
 ### Layers
 
 | File | Relationship |
@@ -63,13 +76,11 @@ accepted-until-strangled posture.
 | [001_l0_drivers.md](001_l0_drivers.md) | The only layer L1 may depend on |
 | [003_l2_frame_orchestration.md](003_l2_frame_orchestration.md) | The first layer that should consume L1 |
 
-### Explorations
+### Patterns
 
 | File | Relationship |
 |------|--------------|
-| [../adr/002_gpu_hal_in_house.md](../adr/002_gpu_hal_in_house.md) | Build-vs-buy decision — closed in-house; `gpu_hal` is the L1 HAL |
-| [../explorations/001_gpu_hal_buy_vs_build.md](../explorations/001_gpu_hal_buy_vs_build.md) | The comparison and spike evidence behind ADR-002 ( closed ) |
-| [../adr/003_d2_stack_hal_adoption.md](../adr/003_d2_stack_hal_adoption.md) | Extends L1 adoption to the d2 stack ( `tilemap_renderer` ) |
+| [../pattern/003_cross_stack_bridge_via_foundation_resources.md](../pattern/003_cross_stack_bridge_via_foundation_resources.md) | The HAL is the backend-agnostic layer a cross-stack bridge crate composes foundation resources through |
 
 ### Sources
 

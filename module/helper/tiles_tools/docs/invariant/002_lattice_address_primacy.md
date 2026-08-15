@@ -53,18 +53,18 @@ runtime check:
   `square::Coordinate` documents Y-up (see `type/001`'s validation notes) —
   arithmetic across the boundary silently inverts vertical direction.
 
+### Algorithms
+
+| File | Relationship |
+|------|--------------|
+| [algorithm/005_coordinate_system_conversion.md](../algorithm/005_coordinate_system_conversion.md) | The sanctioned crossing points between lattice and pixel space, exact one way, approximate the other |
+
 ### Types
 
 | File | Relationship |
 |------|--------------|
 | [type/001_coordinate_system_type_model.md](../type/001_coordinate_system_type_model.md) | The phantom-typed coordinate families, and `Pixel`'s documented lack of `Serialize`/`Deserialize` |
 | [type/002_ecs_component_vocabulary.md](../type/002_ecs_component_vocabulary.md) | `Position<C>` — spatial state componentized over lattice coordinates |
-
-### Algorithms
-
-| File | Relationship |
-|------|--------------|
-| [algorithm/005_coordinate_system_conversion.md](../algorithm/005_coordinate_system_conversion.md) | The sanctioned crossing points between lattice and pixel space, exact one way, approximate the other |
 
 ### Sources
 

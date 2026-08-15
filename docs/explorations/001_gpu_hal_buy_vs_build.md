@@ -1,6 +1,6 @@
 # Exploration: GPU HAL — Buy vs Build
 
-- **Status**: Closed — decided in-house; recorded as [ADR-002](../adr/002_gpu_hal_in_house.md)
+- **Status**: Closed — decided in-house; recorded as [ADR-002](../adr/002_gpu_hal_in_house.md); the layer this closed is documented at [layer/002_l1_gpu_hal.md](../layer/002_l1_gpu_hal.md)
 - **Opened**: 2026-08-08
 - **Closed**: 2026-08-10
 

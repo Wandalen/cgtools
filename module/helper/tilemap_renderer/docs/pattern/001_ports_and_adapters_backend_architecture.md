@@ -17,7 +17,7 @@ The crate is structured as **Ports and Adapters** (hexagonal architecture):
 
 - **Core** (`types`, `commands`, `assets`, `backend`) is platform-independent and carries zero graphics dependencies. It defines the "port": a flat, ordered command stream (`&[RenderCommand]`) of POD (`Copy + Clone + Debug`) command structs — path, text, mesh, sprite, batch-lifecycle, and group commands — plus an `Assets` container (images, sprites, geometries, gradients, patterns, clip masks, paths) loaded once before rendering.
 - The **`Backend` trait** is the single seam between core and adapters. Conceptually it exposes five operations: load assets into backend-native resources, submit a command slice for processing, retrieve the rendered output, resize the target, and report a `Capabilities` value so callers can discover at runtime which command/asset features a given backend actually honors (rather than only discovering gaps by trial and error). One trait with a single `submit(&[RenderCommand])` entry point was chosen over a per-command-type dispatch interface (e.g. separate `draw_path`/`draw_text`/... methods) to keep the seam small and let the command stream itself, not the trait, carry the vocabulary.
-- **Adapters** (SVG, WebGL2, Terminal) each implement `Backend` for one rendering technology and are feature-gated (`adapter-svg`, `adapter-webgl`, `adapter-terminal`) rather than published as separate crates — see the Features reference section below for each adapter's actual implementation status.
+- **Adapters** (SVG, WebGL2, Terminal, None, WebGPU, Native) each implement `Backend` for one rendering technology — or, for None, no technology at all — and are feature-gated (`adapter-svg`, `adapter-webgl`, `adapter-terminal`, `adapter-none`, `adapter-webgpu`, `adapter-native`) rather than published as separate crates — see the Features reference section below for each adapter's actual implementation status. The latter two route through the L1 HAL (`gpu_hal`) rather than a driver crate directly ([../../../../../docs/adr/003_d2_stack_hal_adoption.md](../../../../../docs/adr/003_d2_stack_hal_adoption.md)).
 
 ### Applicability
 
@@ -37,6 +37,9 @@ Fits when a caller wants to author one rendering-command stream and target more 
 | [feature/001_svg_backend_adapter.md](../feature/001_svg_backend_adapter.md) | Implements `Backend` for SVG 1.1 document generation |
 | [feature/002_webgl2_backend_adapter.md](../feature/002_webgl2_backend_adapter.md) | Implements `Backend` for hardware-accelerated WebGL2 rendering (partial) |
 | [feature/003_terminal_backend_adapter.md](../feature/003_terminal_backend_adapter.md) | Implements `Backend` for terminal output (stub only) |
+| [feature/004_none_backend_adapter.md](../feature/004_none_backend_adapter.md) | Implements `Backend` as a complete no-op (math-only simulation) |
+| [feature/005_webgpu_backend_adapter.md](../feature/005_webgpu_backend_adapter.md) | Implements `Backend` for WebGPU rendering via `gpu_hal` (partial — no real pixel upload yet) |
+| [feature/006_native_backend_adapter.md](../feature/006_native_backend_adapter.md) | Implements `Backend` for offscreen native `wgpu` rendering via `gpu_hal`, pixel-verified |
 
 ### Sources
 

@@ -15,17 +15,17 @@ Backend selection happens once, at construction, through three separate construc
 
 Every subsequent HAL call is backend-agnostic; `Device`, `Queue`, and `Surface` are the only types a caller constructs differently per backend.
 
-### Patterns
-
-| File | Relationship |
-|------|--------------|
-| [pattern/001_enum_per_backend_dispatch_one_step_drilldown.md](../pattern/001_enum_per_backend_dispatch_one_step_drilldown.md) | `Device`/`Queue`/`Surface` are the first enums a caller constructs |
-
 ### Invariants
 
 | File | Relationship |
 |------|--------------|
 | [invariant/001_result_based_error_handling_scoped_panics.md](../invariant/001_result_based_error_handling_scoped_panics.md) | All three constructors return `Result<(Device, Queue, Surface), Error>` — `new_native` surfaces adapter/device-context failure as `Error::Native`, `new_webgl` surfaces context/extension failure as `Error::WebGl`/`Error::Unsupported` |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [pattern/001_enum_per_backend_dispatch_one_step_drilldown.md](../pattern/001_enum_per_backend_dispatch_one_step_drilldown.md) | `Device`/`Queue`/`Surface` are the first enums a caller constructs |
 
 ### Pitfalls
 

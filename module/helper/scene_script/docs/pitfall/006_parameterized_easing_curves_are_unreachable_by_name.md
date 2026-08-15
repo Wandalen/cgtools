@@ -25,17 +25,23 @@ Every curve `easing_from_name` *does* recognize implements `EasingBuilder`, whos
 
 `Squad` remains fully blocked. It would need the same shape of fix — a `tween(start, end, duration, in_tangent, out_tangent)` overload accepting two quaternion tangents — but no script-facing quaternion type is registered at all today, so there is no argument type such an overload could even accept yet. Until one exists, `Squad` still requires a host-side workaround: construct the `Tween` in Rust with the desired `Squad` instance and drive it from host code, passing only the resulting values into the script rather than letting the script construct the tween itself.
 
-### Patterns
-
-| File | Relationship |
-|------|--------------|
-| [../pattern/002_dual_precision_side_by_side_registration.md](../pattern/002_dual_precision_side_by_side_registration.md) | The registration technique the completed easing-selector work already extended; a further extension for parameterized curves would need a new argument-passing shape, not just this pattern repeated |
-
 ### Data Structures
 
 | File | Relationship |
 |------|--------------|
 | [../data_structure/001_tween_script_facing_type.md](../data_structure/001_tween_script_facing_type.md) | The opaque shape whose 4-arg named-curve overload can select any zero-argument curve but not these two; its separate 5-arg overload now reaches `CubicHermite` directly (see Mitigation) |
+
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [../feature/001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this pitfall's warning serves |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [../pattern/002_dual_precision_side_by_side_registration.md](../pattern/002_dual_precision_side_by_side_registration.md) | The registration technique the completed easing-selector work already extended; a further extension for parameterized curves would need a new argument-passing shape, not just this pattern repeated |
 
 ### Sources
 

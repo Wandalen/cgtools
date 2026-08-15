@@ -13,17 +13,17 @@ Two buffer constructors mirror the empty-vs-initialized split seen in sibling HA
 
 `TextureFormat` covers the v0 surface's five formats (`Rgba8Unorm`, `Rgba8UnormSrgb`, `Bgra8Unorm`, `Rgba16Float`, `Depth24Plus`); `bytes_per_texel()` returns the tightly-packed CPU-side byte width for the first four, and `Error::Unsupported` for `Depth24Plus`, whose CPU-side layout is platform-defined and not a portable upload target — the same distinction `feature/005`'s `texture_write` relies on.
 
-### Patterns
-
-| File | Relationship |
-|------|--------------|
-| [pattern/001_enum_per_backend_dispatch_one_step_drilldown.md](../pattern/001_enum_per_backend_dispatch_one_step_drilldown.md) | Every handle type returned here is a backend-tagged enum with `as_webgpu`/`as_webgl`/`as_native` drill-downs |
-
 ### Invariants
 
 | File | Relationship |
 |------|--------------|
 | [invariant/001_result_based_error_handling_scoped_panics.md](../invariant/001_result_based_error_handling_scoped_panics.md) | All four constructors return `Result<_, Error>` |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [pattern/001_enum_per_backend_dispatch_one_step_drilldown.md](../pattern/001_enum_per_backend_dispatch_one_step_drilldown.md) | Every handle type returned here is a backend-tagged enum with `as_webgpu`/`as_webgl`/`as_native` drill-downs |
 
 ### Sources
 

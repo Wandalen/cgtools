@@ -13,17 +13,17 @@ A `GpuCommandEncoder`, acquired from the device, begins a render pass via a desc
 
 **Gap versus the original specification**: the pre-migration specification's Public Contract (FR-6.4/FR-6.5) called for a wrapped `GpuComputePassEncoder` — begin a compute pass, set pipeline/bind groups, `dispatch_workgroups()`. No such wrapper exists anywhere in `src/` (verified: no `ComputePass`/`compute_pass`/`dispatch_workgroups` hits crate-wide). `feature/003`'s `ComputePipeline` can be created, but this crate currently provides no way to actually record and dispatch it — only render passes are wired end-to-end.
 
-### Patterns
-
-| File | Relationship |
-|------|--------------|
-| [pattern/001_facade_over_descriptor_builders.md](../pattern/001_facade_over_descriptor_builders.md) | Render pass recording follows the crate's descriptor-plus-explicit-device shape |
-
 ### Invariants
 
 | File | Relationship |
 |------|--------------|
 | [invariant/001_result_based_error_handling.md](../invariant/001_result_based_error_handling.md) | All fallible functions here return `Result<_, WebGPUError>` |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [pattern/001_facade_over_descriptor_builders.md](../pattern/001_facade_over_descriptor_builders.md) | Render pass recording follows the crate's descriptor-plus-explicit-device shape |
 
 ### Sources
 

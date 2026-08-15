@@ -11,17 +11,17 @@
 
 Resource binding is split into layout description and instance binding: the layout builders describe a `GpuBindGroupLayout`'s binding-slot types and shader stages (buffer, sampler, texture, storage-texture, external-texture — see `binding_type/`), while the bind-group builders bind concrete resources (a `GpuBuffer`, `GpuSampler`, or `GpuTextureView`) to those slots to produce a `GpuBindGroup`. A separate layout builder combines one or more bind group layouts into a `GpuPipelineLayout` consumed by pipeline creation (see `feature/003`). The library performs no automatic shader reflection — callers must define every layout explicitly to match their WGSL shader's `@group`/`@binding` declarations.
 
-### Patterns
-
-| File | Relationship |
-|------|--------------|
-| [pattern/001_facade_over_descriptor_builders.md](../pattern/001_facade_over_descriptor_builders.md) | Bind group construction follows the crate's descriptor-plus-explicit-device shape |
-
 ### Invariants
 
 | File | Relationship |
 |------|--------------|
 | [invariant/001_result_based_error_handling.md](../invariant/001_result_based_error_handling.md) | All fallible functions here return `Result<_, WebGPUError>` |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [pattern/001_facade_over_descriptor_builders.md](../pattern/001_facade_over_descriptor_builders.md) | Bind group construction follows the crate's descriptor-plus-explicit-device shape |
 
 ### Sources
 

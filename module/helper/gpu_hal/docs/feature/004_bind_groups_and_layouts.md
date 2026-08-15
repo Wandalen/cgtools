@@ -13,18 +13,18 @@
 
 The WebGL backend resolves bindings by GLSL name convention rather than an explicit numeric slot: a uniform block is named `ub_{group}_{binding}`, a sampler uniform `tex_{group}_{binding}` (see `invariant/003`). Within one group, a `Sampler` entry pairs with the **nearest preceding** `Texture` entry — entry order in the slice passed to both constructors is therefore load-bearing on WebGL specifically, not just a bookkeeping convenience (see `invariant/003`).
 
-### Patterns
-
-| File | Relationship |
-|------|--------------|
-| [pattern/001_enum_per_backend_dispatch_one_step_drilldown.md](../pattern/001_enum_per_backend_dispatch_one_step_drilldown.md) | `BindGroupLayout`/`BindGroup` are backend-tagged enums like every other handle |
-
 ### Invariants
 
 | File | Relationship |
 |------|--------------|
 | [invariant/001_result_based_error_handling_scoped_panics.md](../invariant/001_result_based_error_handling_scoped_panics.md) | Both constructors return `Result<_, Error>` |
 | [invariant/003_webgl_bind_group_entry_order.md](../invariant/003_webgl_bind_group_entry_order.md) | This feature's entry slice is exactly what that ordering invariant constrains |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [pattern/001_enum_per_backend_dispatch_one_step_drilldown.md](../pattern/001_enum_per_backend_dispatch_one_step_drilldown.md) | `BindGroupLayout`/`BindGroup` are backend-tagged enums like every other handle |
 
 ### Sources
 

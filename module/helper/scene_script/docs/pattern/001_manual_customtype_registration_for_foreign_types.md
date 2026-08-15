@@ -28,6 +28,24 @@ Applies to every type currently exposed to scripts — the full `F32x1`/`F32x2`/
 - **No compiler-checked completeness**: omitting a `register_get` call for a field simply makes that field silently unreachable from scripts — there is no compile error the way a missing trait method would produce.
 - **Works within the orphan-rule constraint at zero dependency cost**: no wrapper newtype, no upstream trait implementation request, no extra crate — the technique is entirely local to `scene_script`.
 
+### APIs
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_scripting_surface.md](../api/001_rhai_scripting_surface.md) | The full set of operations registered using this technique |
+
+### Data Structures
+
+| File | Relationship |
+|------|--------------|
+| [001_tween_script_facing_type.md](../data_structure/001_tween_script_facing_type.md) | The shape this pattern produces for the tween type, across all 8 vector types |
+
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this pattern's registrations all serve |
+
 ### Types
 
 | File | Relationship |
@@ -40,18 +58,6 @@ Applies to every type currently exposed to scripts — the full `F32x1`/`F32x2`/
 | [006_f64x3_script_facing_vector_value.md](../type/006_f64x3_script_facing_vector_value.md) | The value this pattern produces for the double-precision 3D vector type |
 | [007_f32x4_script_facing_vector_value.md](../type/007_f32x4_script_facing_vector_value.md) | The value this pattern produces for the single-precision 4D vector type |
 | [008_f64x4_script_facing_vector_value.md](../type/008_f64x4_script_facing_vector_value.md) | The value this pattern produces for the double-precision 4D vector type |
-
-### Data Structures
-
-| File | Relationship |
-|------|--------------|
-| [001_tween_script_facing_type.md](../data_structure/001_tween_script_facing_type.md) | The shape this pattern produces for the tween type, across all 8 vector types |
-
-### APIs
-
-| File | Relationship |
-|------|--------------|
-| [001_rhai_scripting_surface.md](../api/001_rhai_scripting_surface.md) | The full set of operations registered using this technique |
 
 ### Sources
 

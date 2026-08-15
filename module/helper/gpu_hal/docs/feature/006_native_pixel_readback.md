@@ -13,17 +13,17 @@
 
 The native implementation, `native::texture_rgba8_read(device, queue, texture)`, first checks `texture.format() == Rgba8Unorm`, returning `Error::Unsupported` for any other format. It computes `bytes_per_row = width * 4`, then pads that up to `wgpu::COPY_BYTES_PER_ROW_ALIGNMENT` (256 bytes) via `div_ceil` — `wgpu` buffer-copy destinations require row alignment, so a copy into a plain tightly-packed staging buffer would be rejected. The staging buffer is sized to the *padded* row width, then de-padded back to tightly-packed bytes before the function returns — the alignment is an internal implementation detail, invisible to the caller's `Result<Vec<u8>, Error>`. `Error::Native` covers a failure of the device poll, the readback map callback, or the GPU-side buffer mapping.
 
-### Patterns
-
-| File | Relationship |
-|------|--------------|
-| [pattern/001_enum_per_backend_dispatch_one_step_drilldown.md](../pattern/001_enum_per_backend_dispatch_one_step_drilldown.md) | `texture_rgba8_read` is `native.rs`'s raw-`wgpu`-typed free function, reachable through `Surface::pixels_read` or directly once a caller already holds raw `wgpu` handles via `as_native()` |
-
 ### Invariants
 
 | File | Relationship |
 |------|--------------|
 | [invariant/001_result_based_error_handling_scoped_panics.md](../invariant/001_result_based_error_handling_scoped_panics.md) | Both the format check and the browser-backend `Unsupported` case return `Result`, never panic |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [pattern/001_enum_per_backend_dispatch_one_step_drilldown.md](../pattern/001_enum_per_backend_dispatch_one_step_drilldown.md) | `texture_rgba8_read` is `native.rs`'s raw-`wgpu`-typed free function, reachable through `Surface::pixels_read` or directly once a caller already holds raw `wgpu` handles via `as_native()` |
 
 ### Pitfalls
 

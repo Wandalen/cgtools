@@ -1,12 +1,12 @@
 # Pitfall Doc Definition
 
-A **pitfall** documents one way this crate's API can be misused or misunderstood — the trap, why it happens, and how to avoid it. In `tiles_tools`, that covers known traps in the current implementation — unimplemented flow fields, no-op ECS movement requests, non-functional save-file compression, and hexagonal distance method ambiguity — each written down with its failure mode and mitigation. This collection holds one instance per known pitfall; the table below is the index into them.
+A **pitfall** documents one way this crate's API can be misused or misunderstood — the trap, why it happens, and how to avoid it. In `tiles_tools`, that covers known traps in the current implementation — unimplemented flow fields, non-functional save-file compression, and hexagonal distance method ambiguity — each written down with its failure mode and mitigation. This collection holds one instance per known pitfall; the table below is the index into them.
 
 ### Scope
 
 - **Purpose**: Navigational hub for known traps in `tiles_tools`' current implementation.
 - **Responsibility**: Document each trap's failure mode and mitigation.
-- **In Scope**: Unimplemented flow fields, no-op ECS movement requests, non-functional save-file compression, hexagonal distance method ambiguity.
+- **In Scope**: Unimplemented flow fields, non-functional save-file compression, hexagonal distance method ambiguity.
 - **Out of Scope**: Working alternatives to each trap — cross-referenced from each individual pitfall file, not duplicated here.
 
 ### Overview Table

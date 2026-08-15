@@ -13,22 +13,17 @@
 
 `render_pipeline_create(&RenderPipelineDesc)` takes a shader, vertex/fragment entry point names, a `VertexBufferLayout` slice (`stride` plus a `Vec<VertexAttribute>` of `{ location, format: VertexFormat, offset }`), the bind group layouts the pipeline's shader references, the target `color_format`, an optional `DepthState` (format plus the v0 fixed function set: depth test `less`, depth write on), and a `cull_back` flag. It fails with `Error::WebGpu` on a WebGPU pipeline-creation failure, or `Error::WebGl` if the vertex/fragment GLSL pair fails to compile and link — native never fails this call.
 
-### Patterns
-
-| File | Relationship |
-|------|--------------|
-| [pattern/001_enum_per_backend_dispatch_one_step_drilldown.md](../pattern/001_enum_per_backend_dispatch_one_step_drilldown.md) | `ShaderModule`/`RenderPipeline` are backend-tagged enums like every other handle |
-
 ### Invariants
 
 | File | Relationship |
 |------|--------------|
 | [invariant/001_result_based_error_handling_scoped_panics.md](../invariant/001_result_based_error_handling_scoped_panics.md) | Both constructors return `Result<_, Error>`, including the WebGL missing-GLSL-slot case |
 
-### Cross-References
+### Patterns
 
 | File | Relationship |
 |------|--------------|
+| [pattern/001_enum_per_backend_dispatch_one_step_drilldown.md](../pattern/001_enum_per_backend_dispatch_one_step_drilldown.md) | `ShaderModule`/`RenderPipeline` are backend-tagged enums like every other handle |
 | [../../../../../docs/pattern/002_strict_layering_one_step_drilldown.md](../../../../../docs/pattern/002_strict_layering_one_step_drilldown.md) | Named `ShaderSource` before this crate existed: "the future HAL carries canonical WGSL plus a per-backend override slot for the same reason" |
 
 ### Sources

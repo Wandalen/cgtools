@@ -11,17 +11,17 @@
 
 `minwebgpu` retrieves or creates an `HtmlCanvasElement`, obtains a `GpuCanvasContext` from it, requests a `GpuAdapter` from the browser navigator, and requests a `GpuDevice`/`GpuQueue` pair from the adapter — then configures the canvas context with the device and the browser's preferred `GpuTextureFormat` (queried via a dedicated helper rather than hardcoded). None of these objects are retained as global state by the library (see `pattern/001`); the caller owns and threads `Device`/`Queue` through subsequent calls. Shader modules are compiled from raw WGSL source strings via a single `GpuDevice`-scoped function — the library performs no WGSL parsing, reflection, or validation of its own; compilation/validation errors surface from the browser's WebGPU implementation through `WebGPUError::DeviceError`/`ContexError` variants (see `invariant/001`).
 
-### Patterns
-
-| File | Relationship |
-|------|--------------|
-| [pattern/001_facade_over_descriptor_builders.md](../pattern/001_facade_over_descriptor_builders.md) | This feature acquires the Device/Queue the pattern threads explicitly |
-
 ### Invariants
 
 | File | Relationship |
 |------|--------------|
 | [invariant/001_result_based_error_handling.md](../invariant/001_result_based_error_handling.md) | All fallible functions here return `Result<_, WebGPUError>` |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [pattern/001_facade_over_descriptor_builders.md](../pattern/001_facade_over_descriptor_builders.md) | This feature acquires the Device/Queue the pattern threads explicitly |
 
 ### Pitfalls
 

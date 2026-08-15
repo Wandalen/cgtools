@@ -32,6 +32,24 @@ For each top-level statement, in source order:
 
 The algorithm never descends into a called function's body — `rhai::AST::statements()` itself only returns the top-level list, so imperative code nested inside `fn main() { .. }` is structurally invisible to this pass, which is precisely why it is permitted there.
 
+### Dependencies
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_internals_feature.md](../dependency/001_rhai_internals_feature.md) | The `internals` feature that exposes the `Stmt`/`Expr` AST shapes this algorithm pattern-matches on |
+
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this classification algorithm supports |
+
+### Integrations
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_engine_boundary.md](../integration/001_rhai_engine_boundary.md) | The Rust/Rhai runtime boundary whose AST this algorithm classifies |
+
 ### Invariants
 
 | File | Relationship |

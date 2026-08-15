@@ -2,7 +2,7 @@
 
 Backend-agnostic 2D rendering engine with adapter support.
 
-Define rendering commands once, render to any backend — SVG and WebGL2 today; terminal planned.
+Define rendering commands once, render to any backend — SVG, WebGL2, WebGPU, and native `wgpu` today (the latter two via the `gpu_hal` HAL), plus a no-op backend for math-only simulation; terminal planned.
 
 ## coordinate system
 
@@ -17,7 +17,7 @@ All backends use a **Y-up** convention:
 The crate follows **Ports & Adapters** (hexagonal) architecture:
 
 - **Core** (`types`, `commands`, `assets`, `backend`) — platform-independent, no graphics dependencies
-- **Adapters** (`adapters::SvgBackend`, `adapters::WebGlBackend`) — feature-gated backend implementations; the `adapter-terminal` feature gate exists but is a stub with no backend type yet
+- **Adapters** (`adapters::SvgBackend`, `adapters::WebGlBackend`, `adapters::WebGpuBackend`, `adapters::NativeBackend`, `adapters::NoneBackend`) — feature-gated backend implementations; the `adapter-terminal` feature gate exists but is a stub with no backend type yet
 
 All rendering commands are **POD** (`Copy`, `Clone`) — no allocations, no lifetimes. Commands form a flat sequential stream processed by backends.
 
@@ -32,7 +32,10 @@ tilemap_renderer/
     ├── webgl.rs    # WebGL2 hardware-accelerated rendering (wasm32)
     ├── webgl/
     │   └── webgl_helpers.rs  # Self-contained WebGL types (ArrayBuffer, GPU handles, GL mappers)
-    └── terminal.rs # stub — no implementation yet (planned: ASCII/Unicode output)
+    ├── terminal.rs # stub — no implementation yet (planned: ASCII/Unicode output)
+    ├── none.rs     # complete no-op — math-only simulation, no rendering
+    ├── webgpu.rs   # WebGPU rendering via gpu_hal (browser, sprites only)
+    └── native.rs   # offscreen native wgpu rendering via gpu_hal (sprites only, pixel-verified)
 ```
 
 ## features
@@ -42,6 +45,9 @@ tilemap_renderer/
 | `adapter-svg` | partial | SVG backend — generates SVG 1.1 documents; every command/asset family implemented, but font selection is not (`Assets.fonts` ignored — viewer default font) |
 | `adapter-webgl` | partial | WebGL2 backend — sprites, meshes, instanced batches (wasm32); paths/text/effects pending |
 | `adapter-terminal` | stub | Terminal backend — feature gate compiles; no `Backend` implementation exists yet |
+| `adapter-none` | complete | No-op backend — accepts and discards everything; for math-only simulation with no rendering |
+| `adapter-webgpu` | partial | WebGPU backend via `gpu_hal` — sprites only (wasm32); real pixel upload not yet supported by `gpu_hal`'s WebGPU surface |
+| `adapter-native` | complete | Native `wgpu` backend via `gpu_hal` — offscreen sprite rendering with pixel readback; sprites only, but pixel-verified end-to-end |
 
 Default: no features enabled (core only, zero backend dependencies).
 
@@ -78,17 +84,17 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 
 ## backend capabilities
 
-| Feature | SVG | WebGL | Terminal |
-|---------|-----|-------|----------|
-| Paths | yes | — | — |
-| Text | yes¹ | — | — |
-| Sprites | yes | yes | — |
-| Meshes | yes | yes | — |
-| Batches | yes | yes | — |
-| Gradients | yes | — | — |
-| Effects | yes | — | — |
-| Blend modes | yes | partial² | — |
-| Viewport pan/zoom | yes | partial | — |
+| Feature | SVG | WebGL | Terminal | None | WebGPU | Native |
+|---------|-----|-------|----------|------|--------|--------|
+| Paths | yes | — | — | — | — | — |
+| Text | yes¹ | — | — | — | — | — |
+| Sprites | yes | yes | — | — | yes³ | yes⁴ |
+| Meshes | yes | yes | — | — | — | — |
+| Batches | yes | yes | — | — | — | — |
+| Gradients | yes | — | — | — | — | — |
+| Effects | yes | — | — | — | — | — |
+| Blend modes | yes | partial² | — | — | —⁵ | —⁵ |
+| Viewport pan/zoom | yes | partial | — | — | — | — |
 
 > **Terminal** column is all-empty because the adapter is a stub — the `adapter-terminal`
 > feature gate compiles an empty module; no `Backend` implementation or type exists yet.
@@ -115,6 +121,25 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > opaque draws — submit translucent content back-to-front as you would for a
 > painter's-algorithm renderer. The SVG adapter still emits in submission order
 > and ignores `depth` / `max_depth`.
+>
+> **None** column is all-empty by design, not incompleteness — `NoneBackend` is a
+> complete, working no-op (`Capabilities::default()`), used to drive a command stream
+> for math-only simulation with no rendering at all. See
+> `docs/feature/004_none_backend_adapter.md`.
+>
+> ³ WebGPU sprites: the pipeline, transform math, and command classification are real
+> and tested, but `gpu_hal`'s WebGPU surface has no pixel-upload call yet (`Device`
+> offers `texture_create` allocation only, no `texture_write`) — loaded images are
+> allocated but never populated with real pixels. See
+> `docs/feature/005_webgpu_backend_adapter.md`.
+>
+> ⁴ Native sprites: unlike WebGPU, `gpu_hal`'s native surface does support pixel
+> upload (`Queue::texture_write`), so this path renders real image content — verified
+> by exact-byte pixel readback tests (`tests/native_backend_test.rs`), the only
+> pixel-verified adapter in this crate. See `docs/feature/006_native_backend_adapter.md`.
+>
+> ⁵ Neither the WebGPU nor the native adapter reads `Sprite::blend` — the field is
+> accepted but not yet applied by either pipeline.
 
 ## known issues / TODO
 

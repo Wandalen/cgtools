@@ -29,6 +29,7 @@ Bug reports for the cgtools workspace. IDs share the tsk Unified ID namespace tr
 
 | ID | Title | Severity | Component | Filed | State |
 |----|-------|----------|-----------|-------|-------|
+| BUG-114 | [`diamond` example's uv `BufferDescriptor` uses `.stride( 3 )` on tightly-packed 2-component texture-coordinate data](./unverified/114_diamond_uv_buffer_stride_mismatch.md) | High | examples/minwebgl/diamond | 2026-08-15 | ❓ Unverified |
 
 ## Closed Bugs
 

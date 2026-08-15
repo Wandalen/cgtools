@@ -1,0 +1,18 @@
+[package]
+name = "shader_chunks_preview_core"
+version = "0.1.0"
+edition = "2024"
+description = "Builds self-contained preview bundles (composed WGSL + slider parameter list) from shader chunks — pure text processing, wasm-clean, shared by the preview CLI and the browser runner"
+
+[dependencies]
+shader_chunks_core.workspace = true
+shader_chunks_params_core.workspace = true
+serde = { workspace = true, features = [ "derive" ] }
+mod_interface.workspace = true
+
+[dev-dependencies]
+naga = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

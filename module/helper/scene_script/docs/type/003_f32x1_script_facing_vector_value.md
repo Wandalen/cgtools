@@ -26,6 +26,18 @@ No construction is ever rejected. `f32x1(x)` accepts any value Rhai can supply a
 - `Tween<F32x1>` — `tween(start, end, duration)` accepts two `F32x1` values as its `start`/`end` arguments, producing a `Tween` that interpolates between them (see [`data_structure/001`](../data_structure/001_tween_script_facing_type.md)).
 - [`pattern/002`](../pattern/002_dual_precision_side_by_side_registration.md) documents the registration technique that keeps `F32x1` and `F64x1` distinct, non-interchangeable, side-by-side names, and how the same technique extended the pre-existing `F32x2`/`F64x2` pair down to this arity.
 
+### APIs
+
+| File | Relationship |
+|------|--------------|
+| [../api/001_rhai_scripting_surface.md](../api/001_rhai_scripting_surface.md) | Full operational contract (signatures, error handling) for every operation this type participates in |
+
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [../feature/001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this type serves |
+
 ### Invariants
 
 | File | Relationship |
@@ -33,17 +45,18 @@ No construction is ever rejected. `f32x1(x)` accepts any value Rhai can supply a
 | [../invariant/002_f32x2_f64x2_type_distinctness.md](../invariant/002_f32x2_f64x2_type_distinctness.md) | `F32x1` never implicitly converts to/from `F64x1` |
 | [../invariant/003_rhai_facing_names_mirror_rust_identifiers.md](../invariant/003_rhai_facing_names_mirror_rust_identifiers.md) | Why the registered name is exactly `"F32x1"` / `"f32x1"` |
 
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [../pattern/001_manual_customtype_registration_for_foreign_types.md](../pattern/001_manual_customtype_registration_for_foreign_types.md) | The registration technique that produces this type |
+| [../pattern/002_dual_precision_side_by_side_registration.md](../pattern/002_dual_precision_side_by_side_registration.md) | The side-by-side registration shape keeping this type distinct from its precision/arity siblings |
+
 ### Pitfalls
 
 | File | Relationship |
 |------|--------------|
 | [../pitfall/004_f32_boundary_cast_truncates_precision.md](../pitfall/004_f32_boundary_cast_truncates_precision.md) | The precision-narrowing consequence of this type's `f32` element width |
-
-### APIs
-
-| File | Relationship |
-|------|--------------|
-| [../api/001_rhai_scripting_surface.md](../api/001_rhai_scripting_surface.md) | Full operational contract (signatures, error handling) for every operation this type participates in |
 
 ### Sources
 

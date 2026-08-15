@@ -30,6 +30,12 @@ Applies to every public handle type `gpu_hal` exposes today, and to any future o
 
 Callers get one flat, backend-agnostic API surface plus a one-step escape hatch to the raw driver object; adding a fourth backend means adding one `#[cfg]`-gated variant to every enum and one arm to every match — mechanical, and the compiler's exhaustiveness check catches anything missed — rather than restructuring a trait hierarchy. The tradeoff, shared with the workspace pattern this instantiates, is verbosity: every method on every handle type is a per-backend match arm (see `device.rs`, `resource.rs`, `pass.rs`), so the crate's line count scales with `backends × operations` rather than `operations` alone.
 
+### ADRs
+
+| File | Relationship |
+|------|--------------|
+| [../../../../../docs/adr/002_gpu_hal_in_house.md](../../../../../docs/adr/002_gpu_hal_in_house.md) | The decision (build in-house over adopting `wgpu` wholesale as the HAL) this pattern implements |
+
 ### Features
 
 | File | Relationship |
@@ -41,18 +47,17 @@ Callers get one flat, backend-agnostic API surface plus a one-step escape hatch 
 | [feature/005_command_recording_and_submission.md](../feature/005_command_recording_and_submission.md) | `CommandEncoder`/`RenderPass` follow this pattern |
 | [feature/006_native_pixel_readback.md](../feature/006_native_pixel_readback.md) | `texture_rgba8_read` is the raw-`wgpu`-typed function this pattern's drill-down reaches |
 
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [../../../../../docs/pattern/002_strict_layering_one_step_drilldown.md](../../../../../docs/pattern/002_strict_layering_one_step_drilldown.md) | The workspace-level ancestor pattern this one instantiates at the resource-handle level |
+
 ### Pitfalls
 
 | File | Relationship |
 |------|--------------|
 | [pitfall/001_backend_availability_compile_time_not_runtime.md](../pitfall/001_backend_availability_compile_time_not_runtime.md) | The `#[cfg]`-gated variant mechanism this pattern relies on is exactly what that pitfall is a consequence of |
-
-### Cross-References
-
-| File | Relationship |
-|------|--------------|
-| [../../../../../docs/pattern/002_strict_layering_one_step_drilldown.md](../../../../../docs/pattern/002_strict_layering_one_step_drilldown.md) | The workspace-level ancestor pattern this one instantiates at the resource-handle level |
-| [../../../../../docs/adr/002_gpu_hal_in_house.md](../../../../../docs/adr/002_gpu_hal_in_house.md) | The decision (build in-house over adopting `wgpu` wholesale as the HAL) this pattern implements |
 
 ### Sources
 

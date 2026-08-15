@@ -35,7 +35,7 @@ HAL. `tilemap_renderer`'s new adapters go further: rather than dissolving an
 existing direct dependency, they adopt the HAL from the start — the same
 trait seam now multiplying backends *through* L1 instead of around it.
 
-### Explorations
+### ADRs
 
 | File | Relationship |
 |------|--------------|

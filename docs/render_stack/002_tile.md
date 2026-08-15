@@ -34,6 +34,12 @@ this table — nothing more.
 The stack's L0–L3 are the d2 stack's own layers, reused as-is —
 `tilemap_scene` depends on `tilemap_renderer`, never on anything below it.
 
+### Layers
+
+| File | Relationship |
+|------|--------------|
+| [../layer/006_l5_scene_script_and_runners.md](../layer/006_l5_scene_script_and_runners.md) | The script layer `tilemap_scene` fully realizes for this stack |
+
 ### Patterns
 
 | File | Relationship |

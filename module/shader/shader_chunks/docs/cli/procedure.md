@@ -24,7 +24,8 @@ exactly one `command_group/` instance (the partition is complete and
 non-overlapping); a new named query parameter registers in exactly one
 `param_group/` instance and in *both* query commands' Parameters tables —
 `list` and `get` share one `query_arguments` declaration in
-`src/cli.rs`, so a parameter cannot exist on only one of them.
+`shader_chunks_query/src/lib.rs`, so a parameter cannot exist on only one
+of them.
 
 ### Inapplicable Operations
 
@@ -32,14 +33,18 @@ These entity types are deliberately absent from this CLI (see
 [`readme.md` § Scope Decisions](readme.md#scope-decisions)) — their
 Add/Remove operations do not apply until the underlying condition changes:
 
-- **User Story** (`OC065`/`OC066`) — this CLI has only 6 commands total,
+- **User Story** (`OC065`/`OC066`) — this CLI has only 8 commands total,
   not enough distinct user stories to warrant the collection.
 - **Command Noun** (`OC069`/`OC070`) — only one domain noun (`chunk`)
   exists; the collection requires ≥3.
 - **Command Verb** (`OC071`/`OC072`) — same reasoning as Command Noun.
 - **Environment Parameter / Config Parameter** — this CLI reads zero
-  environment variables and zero config file parameters (pure argv); both
-  are conditional L3 blockers that do not apply here.
+  environment variables and zero config file parameters at runtime (pure
+  argv); both are conditional L3 blockers that do not apply here.
+  `shader_chunks_preview` resolves two paths via compile-time
+  `env!("CARGO_MANIFEST_DIR")`, but that is a build-time constant baked
+  into the binary, not a runtime environment read, so it does not
+  constitute an Environment Parameter in the L3 sense.
 
 *(Parameter Group moved from this list to Applicable Operations when
 `list`/`get` unified behind the shared query engine — they now co-occur

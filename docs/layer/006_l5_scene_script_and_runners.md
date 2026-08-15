@@ -41,18 +41,25 @@ needed. A future d3 script layer should make the same per-script choice
 deliberately — the patterns record the criteria and the default
 recommendation.
 
-### Patterns
+### Invariants
 
 | File | Relationship |
 |------|--------------|
-| [../pattern/004_script_as_data.md](../pattern/004_script_as_data.md) | The declarative script form and when to choose it |
-| [../pattern/005_script_as_glue.md](../pattern/005_script_as_glue.md) | The imperative script form and when to choose it |
+| [../../module/helper/scene_script/docs/invariant/001_top_level_bindings_convention.md](../../module/helper/scene_script/docs/invariant/001_top_level_bindings_convention.md) | The convention `scene_script` enforces to realize this layer as script-as-glue |
+| [../../module/helper/scene_script/docs/invariant/004_script_as_data_purity.md](../../module/helper/scene_script/docs/invariant/004_script_as_data_purity.md) | The purity invariant `scene_script` enforces to realize this layer as script-as-data |
 
 ### Layers
 
 | File | Relationship |
 |------|--------------|
 | [005_l4_scene_model.md](005_l4_scene_model.md) | The declarative data scripts are built from |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [../pattern/004_script_as_data.md](../pattern/004_script_as_data.md) | The declarative script form and when to choose it |
+| [../pattern/005_script_as_glue.md](../pattern/005_script_as_glue.md) | The imperative script form and when to choose it |
 
 ### Render Stacks
 

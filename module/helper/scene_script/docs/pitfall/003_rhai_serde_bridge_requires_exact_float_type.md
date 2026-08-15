@@ -53,6 +53,12 @@ struct field at the narrower type "to save the cast" — the cast has to
 happen somewhere, and doing it inside `serde` instead of after it turns a
 one-line `as f32` into a hard deserialization failure.
 
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [../feature/001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this pitfall's warning serves |
+
 ### Patterns
 
 | File | Relationship |

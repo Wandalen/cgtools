@@ -49,9 +49,10 @@ fractal-looking detail than a single `value_noise` octave.
 
 - **Depends on:** [`value_noise`](../value_noise/readme.md) (called three
   times, at increasing frequency and decreasing amplitude).
-- **Depended on by:** none within this collection — consumed directly by
-  downstream fragment shaders (e.g. `examples/orrery/webgpu`'s
-  `shader/scene_fragment.wgsl`), not by another bundled chunk.
+- **Depended on by:** [`domain_warp`](../domain_warp/readme.md) (samples
+  it twice for the warp offsets); also consumed directly by downstream
+  fragment shaders (e.g. `examples/orrery/webgpu`'s
+  `shader/scene_fragment.wgsl`).
 - **Collection index:** [shader/](../readme.md)
 - **Bundled by:** [`shader_chunks_core`](../../module/shader/shader_chunks_core/readme.md)
 - **Inspect/compose via CLI:** [`shader_chunks`](../../module/shader/shader_chunks/readme.md)

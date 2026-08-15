@@ -62,17 +62,23 @@ program the engine runs.
   `check_whole_ast_is_pure()` wherever a loader calls it, before any value
   is ever read out of the compiled `AST`.
 
-### Patterns
+### Features
 
 | File | Relationship |
 |------|--------------|
-| [../../../../../docs/pattern/004_script_as_data.md](../../../../../docs/pattern/004_script_as_data.md) | The pattern this invariant gives a checkable, enforced form to |
+| [001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this invariant constrains |
 
 ### Layers
 
 | File | Relationship |
 |------|--------------|
 | [../../../../../docs/layer/006_l5_scene_script_and_runners.md](../../../../../docs/layer/006_l5_scene_script_and_runners.md) | The L5 layer contract `scene_script` realizes as script-as-data |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [../../../../../docs/pattern/004_script_as_data.md](../../../../../docs/pattern/004_script_as_data.md) | The pattern this invariant gives a checkable, enforced form to |
 
 ### Sources
 

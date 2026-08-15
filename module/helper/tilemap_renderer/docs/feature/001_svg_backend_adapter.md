@@ -7,7 +7,7 @@
 - **Purpose**: Let a command stream produce a static, standards-compliant SVG 1.1 document.
 - **Responsibility**: Cross-reference the SVG adapter's source, the invariants it must uphold, and its known pitfalls and gaps.
 - **In Scope**: SVG document generation for all command families (paths, text, sprites, meshes, batches, groups/effects) and asset handling (images, geometries, gradients, patterns, clip masks).
-- **Out of Scope**: WebGL2 and Terminal adapters (see [feature/002_webgl2_backend_adapter.md](002_webgl2_backend_adapter.md), [feature/003_terminal_backend_adapter.md](003_terminal_backend_adapter.md)); the Y-up→Y-down conversion mechanics themselves (see [invariant/001](../invariant/001_y_up_coordinate_system.md)); the injection-safety guarantee mechanics themselves (see [invariant/002](../invariant/002_svg_injection_safe_output.md)).
+- **Out of Scope**: WebGL2, Terminal, None, WebGPU, and Native adapters (see [002](002_webgl2_backend_adapter.md), [003](003_terminal_backend_adapter.md), [004](004_none_backend_adapter.md), [005](005_webgpu_backend_adapter.md), [006](006_native_backend_adapter.md)); the Y-up→Y-down conversion mechanics themselves (see [invariant/001](../invariant/001_y_up_coordinate_system.md)); the injection-safety guarantee mechanics themselves (see [invariant/002](../invariant/002_svg_injection_safe_output.md)).
 
 ### Design
 
@@ -33,17 +33,14 @@ Given the font gap, this adapter's status is tracked as partial (⚠️) rather 
 |------|--------------|
 | [invariant/001_y_up_coordinate_system.md](../invariant/001_y_up_coordinate_system.md) | This adapter performs the only active Y-up → Y-down conversion among shipped backends |
 | [invariant/002_svg_injection_safe_output.md](../invariant/002_svg_injection_safe_output.md) | This adapter is the only backend that emits caller-controlled strings into a markup document |
+| [invariant/003_z_layer_draw_ordering.md](../invariant/003_z_layer_draw_ordering.md) | No depth buffer exists here; submission order is this backend's entire ordering contract |
+| [invariant/004_vector_representability_of_commands.md](../invariant/004_vector_representability_of_commands.md) | This adapter's completeness across the full command set is the invariant's living proof |
 
 ### Patterns
 
 | File | Relationship |
 |------|--------------|
 | [pattern/001_ports_and_adapters_backend_architecture.md](../pattern/001_ports_and_adapters_backend_architecture.md) | This adapter is one `Backend` implementation within the crate's hexagonal architecture |
-
-### Pitfalls
-
-| File | Relationship |
-|------|--------------|
 
 ### Sources
 

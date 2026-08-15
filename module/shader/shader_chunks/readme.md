@@ -1,27 +1,56 @@
 # shader_chunks
 
-**Keywords:** WGSL, Shader Composition, CLI, Terminal Tooling
+**Keywords:** WGSL, Shader Composition, CLI, Terminal Tooling, Aggregator
 
-Terminal CLI for querying, inspecting, and composing the WGSL shader chunks
-bundled in [`shader_chunks_core`](../shader_chunks_core/readme.md). Read-only
-inspection tool: it never modifies a chunk, only reads and renders the
-manifest data `shader_chunks_core`'s `CHUNKS` descriptor table already
-carries as compile-time fields — no manifest is parsed at CLI runtime.
+Aggregated terminal CLI for the whole `shader_chunks` utility family —
+query, compose, params, preview, and render — under one binary
+(`shader_chunks`, short alias `sch`). Read-only/artifact-producing
+inspection tool: it never modifies a chunk, only reads the manifest data
+[`shader_chunks_core`](../shader_chunks_core/readme.md)'s `CHUNKS`
+descriptor table already carries as compile-time fields, composes it,
+builds a live preview from it, or renders a static PNG frame of it — no
+manifest is parsed at CLI runtime.
 
-Dispatch is real `unilang` (`CommandRegistry` + `Pipeline`, `src/cli.rs`);
-tables, records, and the `tree` dependency view are rendered by `data_fmt`;
-the help screens — top-level (no arguments, `help`, or `.`) and per-command
-(`<command> help`, `help <command>`) — are rendered by `cli_fmt`. Every
-command's logic lives in `src/lib.rs` as a plain
-`Result<String, CliError>`-returning function, independent of `unilang` —
-the `cli` layer only wires argv in and an exit code out, and the two
-`src/bin/` entry points (`shader_chunks`, `sch`) are one-line delegates to
-it.
+**This crate is aggregation only.** `src/lib.rs`'s `run()` concatenates
+each utility's command set, help groups, and help examples — query, then
+compose, then params, then preview, then render, the order every help
+screen and aggregation test pins — and hands the result to
+[`shader_chunks_cli_core::run`](../shader_chunks_cli_core/readme.md). All
+command logic, argument wiring, and rendering live in the five utility
+crates themselves; the two `src/bin/` entry points (`shader_chunks`,
+`sch`) are one-line delegates to `shader_chunks::run()`.
+
+## Structure
+
+| Path | Responsibility |
+|---|---|
+| `src/` | Thin aggregation — concatenates each utility's command set, help groups, and help examples; `src/bin/` delegates |
+| `tests/` | [`cli_subprocess_test.rs`](tests/cli_subprocess_test.rs) (aggregation-level) plus the [`docs/cli/`](docs/cli/readme.md) specification mirror at [`tests/docs/cli/`](tests/docs/cli/readme.md) |
+| `docs/` | CLI documentation family index — see [`docs/cli/`](docs/cli/readme.md) |
+| `Cargo.toml` | Crate manifest and dependencies |
+
+## The utility family
+
+| Crate | Command(s) | Engine crate |
+|---|---|---|
+| [`shader_chunks_query`](../shader_chunks_query/readme.md) | `list`, `get`, `tags`, `tree` | [`shader_chunks_query_core`](../shader_chunks_query_core/readme.md) |
+| [`shader_chunks_compose`](../shader_chunks_compose/readme.md) | `compose` | — (`shader_chunks_core` itself) |
+| [`shader_chunks_params`](../shader_chunks_params/readme.md) | `tunables` | [`shader_chunks_params_core`](../shader_chunks_params_core/readme.md) |
+| [`shader_chunks_preview`](../shader_chunks_preview/readme.md) | `preview` | [`shader_chunks_preview_core`](../shader_chunks_preview_core/readme.md) |
+| [`shader_chunks_render`](../shader_chunks_render/readme.md) | `render` | [`shader_chunks_render_core`](../shader_chunks_render_core/readme.md) |
+
+Every utility also ships its own standalone binary (e.g.
+`cargo run -p shader_chunks_query`) with byte-identical behavior for its
+own commands — this crate's aggregator binary is a convenience, not the
+only way to reach any given command. Dispatch, help rendering, and
+exit-code plumbing are shared by every utility (including this
+aggregator) through
+[`shader_chunks_cli_core`](../shader_chunks_cli_core/readme.md).
 
 ## Commands
 
-Commands are partitioned into four groups
-([`docs/cli/command_group/`](docs/cli/command_group/readme.md)):
+Commands are partitioned into six groups, documented per leaf crate
+([`docs/cli/readme.md`](docs/cli/readme.md)):
 
 | Group | Command | Purpose |
 |---|---|---|
@@ -31,6 +60,8 @@ Commands are partitioned into four groups
 | Graph | `tree [name]` | Dependency tree for one chunk, or a forest of every chunk nothing depends on |
 | Compose | `compose <names...>` | Preview WGSL composed from the given chunks, dependency-ordered; `transitive::1` widens to the full dependency closure |
 | Parameters | `tunables <name>` | One chunk's declared tunable parameters: name, kind, WGSL type, range, range source |
+| Preview | `preview [name] [file::<path>] [serve::0\|1]` | Build, naga-validate, and (by default) live-serve a browser preview of one chunk |
+| Render | `render [name] [file::<path>] [out::<path>] [size::<n>\|<w>x<h>] [time::<s>]` | Render one headless-GPU frame of a chunk to a static PNG, parameters at defaults |
 | — | `help` / `<command> help` | Top-level usage / per-command help (`help <command>` works too) |
 
 `list` and `get` are one routine behind two names: both accept the same
@@ -57,14 +88,20 @@ cargo run -p shader_chunks -- tree fbm3
 cargo run -p shader_chunks -- tunables fbm3
 cargo run -p shader_chunks -- compose hash21 value_noise
 cargo run -p shader_chunks -- compose fbm3 transitive::1
+cargo run -p shader_chunks -- preview fbm3
+cargo run -p shader_chunks -- preview fbm3 serve::0
+cargo run -p shader_chunks -- render fbm3
+cargo run -p shader_chunks -- render fbm3 out::fbm3_far.png size::512 time::2.5
 ```
 
 An unknown chunk name or field, an invalid enum or negative integer value,
-or an unresolvable `compose` dependency exits non-zero with a message on
-stderr — never a panic. Unmatched open filters (`pattern::`, `tag::`,
-`stage::`, `exports::`) yield empty output with exit 0. A pipeline reader
-hanging up early (`sch list | head -1`) ends the process quietly with exit
-0, per Unix convention — never a broken-pipe panic.
+an unresolvable `compose` dependency, a chunk that fails naga validation,
+a malformed `render` `size::`, or a machine without a usable headless GPU
+exits non-zero with a message on stderr — never a panic.
+Unmatched open filters (`pattern::`, `tag::`, `stage::`, `exports::`)
+yield empty output with exit 0. A pipeline reader hanging up early
+(`sch list | head -1`) ends the process quietly with exit 0, per Unix
+convention — never a broken-pipe panic.
 
 See [`docs/cli/`](docs/cli/readme.md) for the full
 command/parameter/type/format reference and

@@ -5,7 +5,7 @@
 - **Purpose**: Define the fixed set of `hecs` components `tiles_tools` ships, as the vocabulary game code composes onto entities.
 - **Responsibility**: Document every component/enum's fields, construction, and any self-enforced invariant (e.g. `Health` clamping). Group by the four categories the source itself declares (Spatial, Gameplay, Visual, Behavioral).
 - **In Scope**: `Position<C>`, `Movable`, `Size` (Spatial); `Health`, `Stats`, `Team` (Gameplay); `Sprite`, `Animation` (Visual); `PlayerControlled`, `AI`/`AIState`, `Trigger`/`TriggerType` (Behavioral).
-- **Out of Scope**: The systems that read/write these components at runtime (see `api/001`); which of those systems are functional vs. stub (see `pitfall/002`).
+- **Out of Scope**: The systems that read/write these components at runtime (see `api/001`); which of those systems are functional vs. stub.
 
 ### Definition
 
@@ -16,7 +16,7 @@ All 13 items below live in `src/ecs/components.rs` and are re-exported via `ecs:
 | Component | Fields | Notes |
 |-----------|--------|-------|
 | `Position<C>` | `coord: C` | Generic over any coordinate type in `type/001`'s table; gains `distance_to`/`neighbors`/`is_adjacent_to` when `C: Distance`/`C: Neighbors`. |
-| `Movable` | `range: u32`, `diagonal_movement: bool`, `can_pass_through_entities: bool`, `can_pass_through_obstacles: bool` | Builder methods (`with_diagonal`, `with_entity_passthrough`, `with_obstacle_passthrough`) set the three bools; data only — nothing in `api/001`'s `World` currently reads these flags to constrain movement (see `pitfall/002`). |
+| `Movable` | `range: u32`, `diagonal_movement: bool`, `can_pass_through_entities: bool`, `can_pass_through_obstacles: bool` | Builder methods (`with_diagonal`, `with_entity_passthrough`, `with_obstacle_passthrough`) set the three bools; data only — nothing in `api/001`'s `World` currently reads these flags to constrain movement. |
 | `Size` | `width: u32`, `height: u32` | `area()` helper; `single()`/`square(n)` constructors. |
 
 **Gameplay:**
@@ -24,7 +24,7 @@ All 13 items below live in `src/ecs/components.rs` and are re-exported via `ecs:
 | Component | Fields | Notes |
 |-----------|--------|-------|
 | `Health` | `current: u32`, `maximum: u32` | See Validation below — the one component with a self-enforced numeric invariant. |
-| `Stats` | `attack: u32`, `defense: u32`, `speed: u32`, `level: u32` | `damage_calculate(target_defense)` = `(attack - target_defense/2).max(1)` (saturating) — a pure helper method, not itself wired into `CombatSystem` (see `pitfall/002`). |
+| `Stats` | `attack: u32`, `defense: u32`, `speed: u32`, `level: u32` | `damage_calculate(target_defense)` = `(attack - target_defense/2).max(1)` (saturating) — a pure helper method, not itself wired into `CombatSystem`. |
 | `Team` | `id: u32`, `default_hostile: bool` | `is_allied_with`/`is_hostile_to` — same `id` is never hostile regardless of `default_hostile`. |
 
 **Visual:**
@@ -39,7 +39,7 @@ All 13 items below live in `src/ecs/components.rs` and are re-exported via `ecs:
 | Component | Fields | Notes |
 |-----------|--------|-------|
 | `PlayerControlled` | `player_id: u32` | Marker-with-data; identifies player-owned entities. |
-| `AI` | `state: AIState`, `target: Option<hecs::Entity>`, `decision_timer: f32`, `decision_interval: f32` | `AIState` enum: `Idle`, `Patrolling`, `Pursuing`, `Attacking`, `Fleeing`, `Guarding`. `update(dt)` accumulates `decision_timer`; `should_make_decision()` compares it to `decision_interval`. The timer bookkeeping is real — what happens *at* a decision point is not (see `pitfall/002`). |
+| `AI` | `state: AIState`, `target: Option<hecs::Entity>`, `decision_timer: f32`, `decision_interval: f32` | `AIState` enum: `Idle`, `Patrolling`, `Pursuing`, `Attacking`, `Fleeing`, `Guarding`. `update(dt)` accumulates `decision_timer`; `should_make_decision()` compares it to `decision_interval`. The timer bookkeeping is real — what happens *at* a decision point is not. |
 | `Trigger` | `trigger_type: TriggerType`, `repeatable: bool`, `activated: bool`, `cooldown: f32`, `cooldown_timer: f32` | `TriggerType` enum: `OnEnter`, `OnExit`, `OnProximity`, `OnInteract`, `OnTimer(u32)`. `can_activate()`/`activate()` implement real repeatable/cooldown gating logic. |
 
 ### Validation
@@ -54,16 +54,23 @@ All 13 items below live in `src/ecs/components.rs` and are re-exported via `ecs:
 |------|--------------|
 | [api/001_ecs_world_runtime_api.md](../api/001_ecs_world_runtime_api.md) | `World::update`'s per-system pass reads/writes these components; `spawn`/`EntityBuilder` attach them |
 
+### Invariants
+
+| File | Relationship |
+|------|--------------|
+| [invariant/002_lattice_address_primacy.md](../invariant/002_lattice_address_primacy.md) | `Position<C>`, defined here, is the ECS componentization of this invariant's lattice-address-only rule |
+
+### Persistences
+
+| File | Relationship |
+|------|--------------|
+| [persistence/001_save_file_model.md](../persistence/001_save_file_model.md) | These components are the eventual (currently unbuilt) source data for that format's `world_data` field |
+
 ### Types
 
 | File | Relationship |
 |------|--------------|
 | [type/001_coordinate_system_type_model.md](../type/001_coordinate_system_type_model.md) | `Position<C>`'s `C` is any coordinate type from that doc's table; `C`'s `Serialize`/`Deserialize` availability propagates into `Position<C>`'s own derive |
-
-### Pitfalls
-
-| File | Relationship |
-|------|--------------|
 
 ### Sources
 
