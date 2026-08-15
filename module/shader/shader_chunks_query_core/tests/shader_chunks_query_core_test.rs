@@ -310,6 +310,36 @@ fn query_json_and_yaml_formats_carry_row_content()
   assert!( yaml.contains( "depends_on: (none)" ), "{yaml}" );
 }
 
+// test_kind: bug_reproducer(BUG-115)
+/// ## Root Cause
+/// `render_table` (`shader_chunks_query_core/src/lib.rs`) set `with_max_column_width` whenever
+/// `width::` was requested, but never disabled `data_fmt`'s independent `auto_wrap` (default
+/// `true` in both `TableConfig::plain()`/`::markdown()`). `should_auto_wrap` silently overrides
+/// truncation whenever the sum of already-capped column widths exceeds the resolved terminal
+/// width (hardcoded `120` fallback in this workspace, since `terminal_size` isn't compiled in) —
+/// the real 4-column `name`/`description`/`tags`/`depends_on` view at `width::30` crosses that.
+/// ## Why Not Caught
+/// No test exercised markdown/table output against the full, real `shader_chunks_core` dataset
+/// with `width::` set until this test was added — and it began failing immediately, with no
+/// passing baseline. Prior width-adjacent coverage used tables narrow enough to never cross the
+/// 120-column auto-wrap threshold.
+/// ## Fix Applied
+/// Chained `.with_auto_wrap( false )` alongside `.with_max_column_width` in `render_table`,
+/// restoring the documented (`docs/cli/param/21_width.md`) single-line truncate contract — scoped
+/// to the `Markdown` call site only via a new `truncate: bool` closure parameter. `Table`
+/// (plain)'s own documented contract (`docs/cli/format/01_table_plain.md`) is wrap-onto-
+/// continuation-lines, not truncate, so its call site passes `truncate: false` and leaves
+/// `auto_wrap` at its default. An initial blanket (both-format) version was caught and narrowed
+/// same-day; see the bug file's Fix Location correction note.
+/// ## Prevention
+/// `grep -n 'with_max_column_width' module/shader/*/src/lib.rs` — do NOT assume every hit should
+/// pair with `.with_auto_wrap( false )`; check each call site's own format-specific documented
+/// contract in `docs/cli/` first (truncate vs. wrap are both legitimate, per format).
+/// ## Pitfall
+/// When a formatting library exposes two independent knobs that can both reshape output
+/// (truncate-via-cap vs. wrap-via-fit), setting one without checking the other's default leaves
+/// a silent, condition-dependent behavior switch — always audit sibling config knobs for
+/// interaction, not just the one you're directly setting.
 #[ test ]
 fn query_markdown_format_renders_pipe_table_with_heading_and_width()
 {

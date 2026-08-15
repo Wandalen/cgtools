@@ -554,7 +554,7 @@ mod private
     }
     let view = builder.build_view();
 
-    let render_table = | config : TableConfig | -> Result< String, QueryError >
+    let render_table = | config : TableConfig, truncate : bool | -> Result< String, QueryError >
     {
       let mut config = config;
       if !params.heading.is_empty()
@@ -564,6 +564,13 @@ mod private
       if params.width > 0
       {
         config = config.with_max_column_width( Some( params.width ) );
+        if truncate
+        {
+          // Fix(BUG-115): with_max_column_width alone doesn't guarantee truncation
+          // Root cause: data_fmt's auto_wrap (default true) silently wraps instead of truncating once total capped row width exceeds the resolved terminal width (120 fallback) — markdown's documented contract (docs/cli/param/21_width.md) is truncate, so auto_wrap must be disabled here; table_plain's documented contract (docs/cli/format/01_table_plain.md) is wrap-onto-continuation-lines, so it must keep auto_wrap at its default (a separate, pre-existing data_fmt gap keeps table_plain from actually achieving that wrap today — tracked as BUG-116, out of this fix's scope)
+          // Pitfall: a formatting library's independent config knobs can silently interact — always check whether disabling one (auto_wrap) is correct for every call site sharing the code path, not just the one that surfaced the bug
+          config = config.with_auto_wrap( false );
+        }
       }
       Format::format( &TableFormatter::with_config( config ), &view )
       .map_err( | e | QueryError::Render( e.to_string() ) )
@@ -571,8 +578,8 @@ mod private
 
     match params.format
     {
-      OutputFormat::Table => render_table( TableConfig::plain() ),
-      OutputFormat::Markdown => render_table( TableConfig::markdown() ),
+      OutputFormat::Table => render_table( TableConfig::plain(), false ),
+      OutputFormat::Markdown => render_table( TableConfig::markdown(), true ),
       OutputFormat::Expanded => Format::format( &ExpandedFormatter::new(), &view )
       .map_err( | e | QueryError::Render( e.to_string() ) ),
       OutputFormat::Json => Format::format( &JsonFormatter::new(), &view )

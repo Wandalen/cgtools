@@ -30,6 +30,8 @@ Bug reports for the cgtools workspace. IDs share the tsk Unified ID namespace tr
 | ID | Title | Severity | Component | Filed | State |
 |----|-------|----------|-----------|-------|-------|
 | BUG-114 | [`diamond` example's uv `BufferDescriptor` uses `.stride( 3 )` on tightly-packed 2-component texture-coordinate data](./unverified/114_diamond_uv_buffer_stride_mismatch.md) | High | examples/minwebgl/diamond | 2026-08-15 | ❓ Unverified |
+| BUG-115 | [`shader_chunks_query_core`'s documented `width::` truncation is silently overridden by `data_fmt`'s auto-wrap once a query's total row width exceeds 120 columns](./verified/115_query_markdown_width_truncation_overridden_by_auto_wrap.md) | Medium | module/shader/shader_chunks_query_core | 2026-08-15 | 🎯 Verified |
+| BUG-116 | [`shader_chunks_query_core`'s `format::table` (plain) output truncates at `width::`, contradicting `docs/cli/format/01_table_plain.md`'s documented wrap-onto-continuation-lines contract](./unverified/116_query_table_plain_width_wraps_documentation_mismatch.md) | Medium | module/shader/shader_chunks_query_core | 2026-08-15 | ❓ Unverified |
 
 ## Closed Bugs
 

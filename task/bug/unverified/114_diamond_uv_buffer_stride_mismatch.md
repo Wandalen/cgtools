@@ -37,7 +37,8 @@ trunk serve --release
 # open the served URL in a browser, check devtools console
 ```
 **Expected:** diamond model renders with skybox reflection/refraction, no console errors.
-**Actual:** not yet empirically confirmed for this crate — see `## How Discovered` and `## Impact`.
+**Actual:** Live attempt made 2026-08-15 — inconclusive, see `## Impact`'s live-verification-attempt note.
+The stride hypothesis itself remains neither confirmed nor refuted.
 
 ## Impact
 
@@ -59,6 +60,26 @@ already-fixed, live-confirmed defect (task 097: same `BufferDescriptor::new::<[f
 pattern, same causal mechanism, same predicted error class). A live browser reproduction specifically for
 `diamond` has not been performed this session — filing captures the code-level defect now rather than
 deferring it; live confirmation is left to whoever verifies/fixes this bug.
+
+**Live-verification attempt (2026-08-15) — inconclusive, environment gap:** `trunk serve --release` was
+launched for this crate and reached a real browser (`browsee`, chromium, port 45231) successfully — build
+succeeded, page served 200. But the page crashed before reaching the buffer/attribute-pointer code at all:
+`panicked at examples/minwebgl/diamond/src/main.rs:226:49: called \`Result::unwrap()\` on an \`Err\` value:
+DomError(ContextRetrievingError("No webgl2 context"))` — `gl::context::retrieve_or_make()` (main.rs:94)
+never obtained a WebGL2 context, so execution never reached line 124. A control test against the
+already-fixed, already-known-working `obj_load` crate (served from its own prebuilt `dist/`) hit the
+**identical** `ContextRetrievingError("No webgl2 context")` panic in the same browsee session — strongly
+indicating (single control test, same shared `gl::context::retrieve_or_make` library call in both crates,
+not application code) the failure is an environment-wide WebGL2-context-acquisition gap in that particular sandboxed
+browser/X11/GPU session (plausibly swiftshader/GPU resource contention from other concurrent browser
+processes on this shared host), not anything specific to `diamond`'s code. This neither confirms nor
+refutes the stride hypothesis — Dimension 2 (MRE Validity & Reproducibility) of the bug VERIFY Gate cannot
+be marked PASS from this attempt; the byte-math argument above remains the only evidence for this bug.
+State is left at Unverified rather than advanced, per `bugs/file.rulebook.md § Report New Bug : Step 9 -
+VERIFY Gate` Substep 5's outcome (b) (tool/environment unavailable → surface the gap, never fabricate a
+verdict). Whoever next attempts live verification should first confirm a real WebGL2 context is obtainable
+in their environment at all (e.g. via a known-good example) before treating a blank canvas as confirmation
+of this bug.
 
 ## How Discovered
 
@@ -105,3 +126,4 @@ with no console errors, matching the example's documented refraction/reflection 
 | Date | Event | Notes |
 |------|-------|-------|
 | 2026-08-15 | filed | Filed as a disclosed follow-up from task 097's round-3 adversarial pass; root cause identified via byte-math re-derivation and structural match to the already-fixed `obj_load` defect, not yet live-reproduced for this crate. |
+| 2026-08-15 | live-verify attempted (inconclusive) | `trunk serve` + browsee reached the page but hit `ContextRetrievingError("No webgl2 context")` before the buffer code ran; control test against known-good `obj_load` hit the identical error, strongly indicating an environment-wide WebGL2-context gap in that browsee session, not a diamond-specific finding. State left at Unverified; stride hypothesis still untested live. |
