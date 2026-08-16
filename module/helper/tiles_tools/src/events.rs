@@ -179,8 +179,19 @@ impl<T> EventChannel<T> {
         match (listener.listener)(&event) {
           EventResult::Continue => {}
           EventResult::Consume => break,
+          // Fix(BUG-137)
+          // Root cause: this arm queued the listener for removal but never
+          // `break`, so the same event kept propagating to lower-priority
+          // listeners in this loop -- contradicting `EventResult::Unsubscribe`'s
+          // own doc comment ("Stop processing and remove this listener"),
+          // whose "stop processing" half was never implemented.
+          // Pitfall: `Unsubscribe` must halt propagation for the CURRENT event
+          // exactly like `Consume` does -- removal from `self.listeners` is a
+          // separate, deferred concern (handled below, after the loop) and must
+          // not be conflated with whether the current event keeps propagating.
           EventResult::Unsubscribe => {
             listeners_to_remove.push(listener.id);
+            break;
           }
         }
       }

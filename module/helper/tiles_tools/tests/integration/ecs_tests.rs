@@ -19,7 +19,8 @@
 
 use tiles_tools::ecs::{
   World, Position, Health, Movable, Stats, Team, AI, PlayerControlled,
-  EntityBuilder, Animation, Sprite, Size, GameEvent, MovementSystem, MovementResult
+  EntityBuilder, Animation, Sprite, Size, GameEvent, MovementSystem, MovementResult,
+  SpatialQuerySystem
 };
 use tiles_tools::coordinates::{
   square::{Coordinate as SquareCoord, FourConnected, EightConnected},
@@ -203,26 +204,47 @@ fn test_position_component_with_neighbors()
   }
 }
 
+// test_kind: bug_reproducer(BUG-132)
+/// ## Root Cause
+/// `Animation::update` used a single `if` to detect a frame_duration
+/// crossing, consuming at most one frame per call and unconditionally
+/// resetting frame_timer to 0.0 -- discarding any elapsed time beyond the
+/// first threshold instead of carrying it into the next frame.
+/// ## Why Not Caught
+/// This test already exercised the exact scenario (a dt spanning multiple
+/// frame_durations) but pinned the buggy result itself, with a comment
+/// acknowledging the discrepancy ("Actually frame 2 due to animation
+/// timing") instead of the value its own preceding comment already derived
+/// as correct ("0.05s into the next cycle = frame 0").
+/// ## Fix Applied
+/// `update` now loops, subtracting frame_duration (not resetting to 0.0)
+/// each crossing, consuming every full frame_duration elapsed in one call.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// Silently wrong only when a single `update` call spans more than one
+/// frame_duration (a large dt, e.g. after a stalled render loop) -- calling
+/// `update` every frame with dt << frame_duration never exposes it.
 #[ test ]
 fn test_animation_component()
 {
   let mut anim = Animation::new(4, 0.25); // 4 frames, 0.25s per frame
   assert_eq!(anim.current_frame, 0);
   assert!(anim.playing);
-  
+
   // Update for half a frame duration
   anim.update(0.1);
   assert_eq!(anim.current_frame, 0);
-  
+
   // Update to complete first frame
   anim.update(0.2); // Total 0.3s > 0.25s
   assert_eq!(anim.current_frame, 1);
-  
+
   // Complete full cycle - from frame 1 at 0.3s, add 0.75s = 1.05s total
-  // This means 4.2 frames total, which loops to frame 0 + remainder  
+  // This means 4.2 frames total, which loops to frame 0 + remainder
   anim.update(0.75);
   // After 4 full frames (1.0s) we loop back, 0.05s into the next cycle = frame 0
-  assert_eq!(anim.current_frame, 2); // Actually frame 2 due to animation timing
+  assert_eq!(anim.current_frame, 0);
 }
 
 // =============================================================================
@@ -295,6 +317,59 @@ fn test_world_spatial_queries()
   // Test nearest entity query
   let nearest = world.nearest_entity_find(&center_pos).unwrap();
   assert_eq!(nearest.2, 0); // Distance to nearest (self) should be 0
+}
+
+// test_kind: bug_reproducer(BUG-136)
+/// ## Root Cause
+/// `SpatialQuerySystem::rectangle_query` filtered by
+/// `distance_to <= sqrt(width^2 + height^2)` -- a circular region of radius
+/// equal to the rectangle's FULL diagonal, always a strict superset of the
+/// true axis-aligned rectangle -- instead of a per-axis (x, y) bounds check.
+/// Copy-pasted from `circle_query`'s distance-threshold shape without being
+/// adapted to a genuinely rectangular test.
+/// ## Why Not Caught
+/// `SpatialQuerySystem` had zero existing tests for any of its methods
+/// (`circle_query`, `line_query`, `rectangle_query`, `by_team_query`).
+/// ## Fix Applied
+/// Narrowed to `Position<square::Coordinate<Connectivity>>` and replaced the
+/// distance-threshold filter with a genuine
+/// `|dx| <= width/2 && |dy| <= height/2` axis-aligned bounds check.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// The over-inclusion only becomes visible for entities positioned well
+/// outside the rectangle along one axis but still within the full-diagonal
+/// circular radius -- entities near the rectangle's own corners are handled
+/// correctly by both the buggy and fixed versions, so a corner-only test
+/// would not have caught this.
+#[ test ]
+fn test_rectangle_query_excludes_entity_outside_axis_aligned_bounds()
+{
+  let mut world = World::new();
+
+  let center = Position::new(SquareCoord::<FourConnected>::new(0, 0));
+  world.spawn((center, Health::new(100)));
+
+  let inside = Position::new(SquareCoord::<FourConnected>::new(1, 1));
+  world.spawn((inside, Health::new(100)));
+
+  // Well outside a 4x4 rectangle on the x-axis (dx=5 > half_width=2), but
+  // within the buggy circular radius (Manhattan distance 5 <= floor(sqrt(32))=5).
+  let outside = Position::new(SquareCoord::<FourConnected>::new(5, 0));
+  world.spawn((outside, Health::new(100)));
+
+  let results = SpatialQuerySystem::rectangle_query(&world.hecs_world, &center, 4, 4);
+
+  assert_eq!(
+    results.len(), 2,
+    "rectangle_query included an entity outside its axis-aligned bounds"
+  );
+  assert!(results.iter().any(|(_, pos)| pos.coord == center.coord));
+  assert!(results.iter().any(|(_, pos)| pos.coord == inside.coord));
+  assert!(
+    !results.iter().any(|(_, pos)| pos.coord == outside.coord),
+    "entity at (5,0) is outside a 4x4 rectangle centered at (0,0) but was included"
+  );
 }
 
 // =============================================================================

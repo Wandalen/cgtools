@@ -14,7 +14,7 @@ The rendering ecosystem is built as a ladder of **layers**, L0 through L5, each 
 | ID | Name | Purpose | Crates | Status |
 |----|------|---------|--------|--------|
 | 001 | [L0 Drivers](001_l0_drivers.md) | Thin, backend-faithful wrappers over raw GPU APIs | `minwebgl`, `minwebgpu`, `minwgpu` (+ `mingl` substrate below) | ✅ |
-| 002 | [L1 GPU Hardware Abstraction](002_l1_gpu_hal.md) | One API over all drivers — v0 backs `renderer`'s canonical path and `tilemap_renderer`'s adapters on WebGPU, WebGL2, and native `wgpu` ( pixel-verified ) | `gpu_hal` | 🔄 v0 |
+| 002 | [L1 GPU Hardware Abstraction](002_l1_gpu_hal.md) | One API over all drivers — v0 backs `renderer`'s canonical path and `tilemap_renderer`'s adapters on WebGPU, WebGL2, and native `wgpu` ( pixel-verified on native only; browser-side runtime pixel tests still to run ) | `gpu_hal` | 🔄 v0 |
 | 003 | [L2 Frame Orchestration](003_l2_frame_orchestration.md) | Pass scheduling and render-target management | `frame_graph` (reserved); logic embedded in `renderer`, `tilemap_renderer` | 🔄 embedded |
 | 004 | [L3 Stack Engine](004_l3_stack_engine.md) | Per-stack engines turning stack vocabulary into GPU work | `tilemap_renderer` (d2), `renderer` (d3) | ✅ |
 | 005 | [L4 Scene Model](005_l4_scene_model.md) | Declarative, serializable scene data | `tilemap_scene` (tile); glTF via `renderer` loaders (d3); `d3_scene` (reserved) | 🔄 partial |

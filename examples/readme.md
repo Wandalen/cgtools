@@ -69,6 +69,7 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 | | |
 |:-------------------------:|:-------------------------:|
 |<img width="500px" src="./minwgpu/grid_render/showcase.webp"><br>[Grid renderer](./minwgpu/grid_render/readme.md) |<img width="500px" src="./minwgpu/hello_triangle/showcase.webp"><br>[Hello triangle](./minwgpu/hello_triangle/readme.md) |
+|<img width="500px" src="./minwgpu/flecs_bouncing_circles/showcase.webp"><br>[Flecs bouncing circles](./minwgpu/flecs_bouncing_circles/readme.md) | |
 
 ## Orrery Examples
 
@@ -104,12 +105,12 @@ One scene — a sun-and-orbits HUD diagram — implemented once per backend/laye
 | demo_todo_categorized.md | Categorized todo list for examples |
 | example_requirements.md | Requirements documentation for examples |
 | how_to_run.md | Setup and execution instructions for examples |
-| index.html | Interactive HTML gallery with 69 example showcases |
+| index.html | Interactive HTML gallery with 70 example showcases |
 | index.md | Markdown-formatted examples list |
 | math/ | Math-based examples directory (1 demo) |
 | minwebgl/ | WebGL examples directory (47 demos) |
 | minwebgpu/ | WebGPU examples directory (4 demos) |
-| minwgpu/ | WGPU examples directory (2 demos) |
+| minwgpu/ | WGPU examples directory (3 demos) |
 | non_developer_how_to_run.md | Beginner-friendly step-by-step guide for running examples with no prior Rust experience |
 | orrery/ | Orrery scene-family examples — one implementation per backend/layer (1 demo) |
 | readme.md | Root documentation for examples directory |

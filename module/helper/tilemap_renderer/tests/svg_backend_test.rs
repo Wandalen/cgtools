@@ -955,6 +955,67 @@ fn geometry_oob_index_no_panic()
   assert!( d.contains( "<polygon" ), "valid polygon missing from defs: {d}" );
 }
 
+// test_kind: bug_reproducer(BUG-153)
+/// ## Root Cause
+/// `mesh_def_generate`'s `TriangleList` arm chunks the index buffer by 3
+/// (`( 0..count ).step_by( 3 )`) without first rounding `count` down to a multiple of 3, and
+/// indexed the buffer directly (`v[ i + j ]`) instead of via bounds-checked `.get()`. On a
+/// trailing partial triangle (`count % 3 != 0`), `i + j` reaches `v.len()` and panics.
+/// ## Why Not Caught
+/// The only existing malformed-index test (`geometry_oob_index_no_panic`) used an index
+/// buffer whose *length* was already a multiple of 3 (6 indices, 2 full triangles), with an
+/// out-of-*range* value inside it -- a different failure mode already guarded by the
+/// bounds-checked position lookups two lines below. No existing test used an index buffer
+/// whose *length itself* isn't a multiple of 3.
+/// ## Fix Applied
+/// Changed `v[ i + j ]` to `v.get( i + j )`, mapping a miss to the same `valid = false; break;`
+/// the two position lookups already use. See `src/adapters/svg.rs`, `mesh_def_generate`.
+/// ## Prevention
+/// This test supplies a 4-index buffer (one full triangle plus a trailing single index) and
+/// asserts `submit` does not panic and the valid leading triangle still renders.
+/// ## Pitfall
+/// The position lookups two lines below were already bounds-checked against malformed
+/// *vertex* indices -- but the index-*buffer* lookup that produces those vertex indices in
+/// the first place was not, so a short trailing chunk panicked before those checks ever ran.
+#[ test ]
+fn geometry_index_count_not_multiple_of_three_no_panic()
+{
+  let mut svg = svg800x600();
+  let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0, 50.0, 100.0 ]; // 3 vertices
+  // 4 indices: one full triangle (0,1,2) plus a trailing partial triangle (just index 0).
+  let indices : Vec< u32 > = vec![ 0, 1, 2, 0 ];
+  let assets = Assets
+  {
+    geometries : vec![ GeometryAsset
+    {
+      id : ResourceId::new( 0 ),
+      positions : Source::Bytes( bytemuck::cast_slice( positions ).to_vec() ),
+      uvs : None,
+      indices : Some( Source::Bytes( bytemuck::cast_slice( &indices ).to_vec() ) ),
+      data_type : DataType::U32,
+    }],
+    ..empty_assets()
+  };
+  svg.assets_load( &assets ).unwrap();
+  // Must not panic
+  svg.submit( &[
+    RenderCommand::Mesh( Mesh
+    {
+      transform : Transform::default(),
+      geometry : ResourceId::new( 0 ),
+      fill : FillRef::Solid( [ 1.0, 0.0, 0.0, 1.0 ] ),
+      texture : None,
+      topology : Topology::TriangleList,
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+  ]).unwrap();
+
+  let d = defs( &svg );
+  // The valid leading triangle should still appear
+  assert!( d.contains( "<polygon" ), "valid polygon missing from defs: {d}" );
+}
+
 fn mesh_svg( topology : Topology, positions : &[ f32 ] ) -> ( String, String )
 {
   let mut svg = svg800x600();

@@ -14,14 +14,35 @@
 //!   preview's fragment stage. Must export entry point `fs_main`, and its
 //!   `//@ param:` lines ( each `uniform f32` ) become the sliders. Its own
 //!   uniform struct must follow the layout convention.
-//! - **Value chunk** ( any chunk exporting `fn NAME(p: vec2f) -> T` for
-//!   `T` in `f32`/`vec2f`/`vec3f` ): a fragment harness is synthesized
-//!   around the export — aspect-corrected, slowly time-drifting, written
-//!   out as grayscale ( `f32` ), blue-padded 2-channel ( `vec2f` ), or
-//!   direct RGB ( `vec3f` ) — with one synthesized `preview_scale` slider.
-//!   No rescaling is applied regardless of shape: the raw value is written
-//!   and clamped to `[0, 1]` by the render target, same as an unbounded
-//!   SDF value already is in the `f32` case.
+//! - **Value chunk** ( any chunk exporting `fn NAME(p: vec2f, ...) -> T` for
+//!   `T` in `f32`/`vec2f`/`vec3f`, with zero or more trailing `f32`
+//!   arguments ): a fragment harness is synthesized around the export. Each
+//!   trailing argument becomes a real slider when the chunk also declares a
+//!   matching `//@ param: NAME argument f32 range(min, max)` line — the
+//!   harness reads it from its own uniform buffer and passes it positionally
+//!   into the export, so the target chunk's own code never touches a
+//!   uniform directly ( see `harness_synthesize`'s doc comment ). A
+//!   synthesized `preview_scale` slider is always added on top. The harness
+//!   also overlays a world-space reference grid ( unit-spaced minor lines,
+//!   emphasized axes through the origin ) on every shape so the previewed
+//!   region's scale and center stay legible. A `category:sdf`-tagged
+//!   chunk's `f32` shape gets a filled-inside / distance-banded-outside /
+//!   crisp-zero-isoline treatment with a stationary sample point — a raw
+//!   value clamped straight to `[0, 1]` blurs out fine geometric detail
+//!   ( e.g. corner rounding ), and an unbounded time-driven pan eventually
+//!   drifts a finite shape out of frame. Every other shape/tag combination
+//!   keeps the original convention: aspect-corrected, slowly time-drifting,
+//!   the raw value written and clamped to `[0, 1]` by the render target —
+//!   grayscale ( `f32` ), blue-padded 2-channel ( `vec2f` ), or direct RGB
+//!   ( `vec3f` ).
+//!
+//! Composed WGSL is banner-commented per section — `// ==== dependency
+//! chunk: NAME ====`, `// ==== previewing: NAME ... ====`, `// ====
+//! auto-generated preview harness ... ====` — so the concatenated text
+//! ( what both `render` and the live browser editor show ) makes clear
+//! which part is a dependency, which part is the chunk under preview, and
+//! which part ( if any ) is synthesized scaffolding with no hand-written
+//! counterpart.
 //!
 //! **Uniform layout convention** ( what the browser runner writes, and what
 //! a fragment-mode chunk's own `struct Params` must therefore declare ):
@@ -32,12 +53,12 @@
 
 mod private
 {
-  use core::fmt;
+  use core::fmt::{ self, Write };
   use serde::{ Deserialize, Serialize };
   use shader_chunks_core::
   {
     ChunkDescriptor, ComposeError, ResolveError, depends_on_parse, exports_parse, name_parse,
-    set_resolve, stage_parse, try_compose,
+    set_resolve, stage_parse, tags_parse, try_compose,
   };
   use shader_chunks_params_core::{ Parameter, ParameterKind, ValueType, discover };
 
@@ -142,20 +163,6 @@ mod private
 
   impl ValueFnKind
   {
-    /// The composed harness's final `vec4f` write-out expression for this
-    /// shape. No rescaling is applied for any shape — the raw value is
-    /// written and clamped to `[0, 1]` by the render target, same
-    /// convention the `F32` shape already used for unbounded SDF values.
-    fn write_expr( self ) -> &'static str
-    {
-      match self
-      {
-        Self::F32 => "vec4f( vec3f( value ), 1.0 )",
-        Self::Vec2 => "vec4f( value, 0.5, 1.0 )",
-        Self::Vec3 => "vec4f( value, 1.0 )",
-      }
-    }
-
     /// Short label for the harness's synthesized `//@ description:` line.
     fn describe( self ) -> &'static str
     {
@@ -169,11 +176,16 @@ mod private
   }
 
   /// Extracts the exported symbol name from a value-function export
-  /// signature of a previewable shape — one `vec2f` argument, and a
+  /// signature of a previewable shape — a first `vec2f` argument ( the
+  /// sample point ), zero or more trailing `f32` arguments ( the chunk's
+  /// own tunables — see [`bundle_build`]'s value-chunk branch ), and a
   /// return type of `f32`, `vec2f`, or `vec3f` ( see [`ValueFnKind`] ).
-  /// Anything else ( other arities, other types, structs, entry points )
-  /// returns `None`.
-  fn value_fn_of( export : &str ) -> Option< ( &str, ValueFnKind ) >
+  /// Anything else ( a non-`vec2f` first argument, a trailing argument
+  /// that isn't `f32`, other return types, structs, entry points )
+  /// returns `None`. Trailing argument names are returned in signature
+  /// order so [`bundle_build`] can pair each one, positionally, with its
+  /// declared `//@ param: NAME argument f32 range(min, max)` line.
+  fn value_fn_of( export : &str ) -> Option< ( &str, ValueFnKind, Vec< String > ) >
   {
     let rest = export.trim().strip_prefix( "fn " )?;
     let open = rest.find( '(' )?;
@@ -198,16 +210,22 @@ mod private
     }
     let mut parts = args.split( ',' );
     let first = parts.next()?.trim();
-    if parts.next().is_some()
+    let ( _, first_type ) = first.rsplit_once( ':' )?;
+    if first_type.trim() != "vec2f"
     {
       return None;
     }
-    let ( _, arg_type ) = first.rsplit_once( ':' )?;
-    if arg_type.trim() != "vec2f"
+    let mut extra_args = Vec::new();
+    for part in parts
     {
-      return None;
+      let ( arg_name, arg_type ) = part.trim().rsplit_once( ':' )?;
+      if arg_type.trim() != "f32"
+      {
+        return None;
+      }
+      extra_args.push( arg_name.trim().to_string() );
     }
-    Some( ( name, kind ) )
+    Some( ( name, kind, extra_args ) )
   }
 
   /// `"noise_scale"` → `"Noise scale"`: slider label from a parameter name.
@@ -222,30 +240,98 @@ mod private
     }
   }
 
-  /// The synthesized fragment harness for a value chunk: samples
-  /// `value_fn` from `target` over an aspect-corrected, slowly-drifting
-  /// plane and writes the result per `kind` ( see [`ValueFnKind`] ).
-  /// Carries its own `//@` manifest ( so raw-text composition orders it
-  /// correctly ) and its own synthesized `preview_scale` parameter.
-  fn harness_synthesize( target : &str, value_fn : &str, kind : ValueFnKind ) -> String
+  /// The synthesized fragment harness for a value chunk: samples `value_fn`
+  /// from `target` over an aspect-corrected plane and writes the result per
+  /// `kind` ( see [`ValueFnKind`] ), then overlays a world-space reference
+  /// grid — unit-spaced minor lines plus emphasized axes through the origin
+  /// — so the previewed region's scale and center stay legible regardless
+  /// of `preview_scale`.
+  ///
+  /// `is_sdf` ( true when the target chunk carries the `category:sdf` tag )
+  /// switches the `F32` shape to a filled-inside / distance-banded-outside
+  /// / crisp-zero-isoline treatment instead of the raw clamped value: an
+  /// unbounded signed distance clamped straight to `[0, 1]` blurs out
+  /// exactly the fine geometric detail ( e.g. corner rounding ) an SDF
+  /// preview exists to show. `is_sdf` also holds the sample point
+  /// stationary rather than drifting it with time — a finite-footprint
+  /// shape panned by an unbounded time-driven offset eventually drifts out
+  /// of frame and stays blank forever, unlike a noise/color field that is
+  /// defined ( and worth watching pan ) everywhere. Non-`F32` shapes and
+  /// non-SDF `F32` chunks are unaffected by `is_sdf` and keep the original
+  /// raw-value write with time drift. Carries its own `//@` manifest ( so
+  /// raw-text composition orders it correctly ) and its own synthesized
+  /// `preview_scale` parameter.
+  ///
+  /// `own_params` are the target chunk's own tunables — each one declared
+  /// in the target's manifest as `//@ param: NAME argument f32 range(min,
+  /// max)` *and* present as a trailing `f32` argument on `value_fn`'s own
+  /// signature ( [`bundle_build`]'s value-chunk branch resolves and orders
+  /// `own_params` to match that signature, erroring via
+  /// [`PreviewError::UnsupportedParam`] on any mismatch ). Each becomes one
+  /// extra `struct Params` field and one extra synthesized `//@ param:
+  /// ... uniform f32 ...` manifest line — from the harness's own
+  /// perspective these genuinely are uniform-buffer fields, since the
+  /// harness is what the browser's uniform buffer actually binds to — Ordered
+  /// before `preview_scale` ( `time`, then `own_params` in signature order,
+  /// then `preview_scale`, then `resolution` — matching
+  /// [`PreviewBundle::parameters`]'s own order, since the browser runner
+  /// writes the uniform buffer positionally over that list ). The harness's
+  /// `fs_main` body reads each `params.NAME` itself and passes it as a
+  /// positional trailing argument — `{value_fn}( p, params.NAME1,
+  /// params.NAME2, ... )` — so the *target chunk's own* value-function stays
+  /// a plain pure function with no uniform access of its own; nothing
+  /// depends on WGSL's module-scope declaration order.
+  fn harness_synthesize( target : &str, value_fn : &str, kind : ValueFnKind, is_sdf : bool, own_params : &[ PreviewParameter ] ) -> String
   {
-    let write_expr = kind.write_expr();
     let shape = kind.describe();
+    let own_param_manifest = own_params.iter().fold( String::new(), | mut acc, p |
+    {
+      writeln!( acc, "//@ param: {} uniform f32 range({}, {})", p.property, p.min, p.max ).unwrap();
+      acc
+    });
+    let own_param_fields = own_params.iter().fold( String::new(), | mut acc, p |
+    {
+      writeln!( acc, "  {} : f32,", p.property ).unwrap();
+      acc
+    });
+    let own_param_call_args = own_params.iter().fold( String::new(), | mut acc, p |
+    {
+      write!( acc, ", params.{}", p.property ).unwrap();
+      acc
+    });
+    let sdf_suffix = if is_sdf { ", filled/banded/outlined as a signed distance, sample point held stationary" } else { "" };
+    let p_expr = if is_sdf
+    {
+      "q * params.preview_scale"
+    }
+    else
+    {
+      "q * params.preview_scale + vec2f( params.time * 0.05, 0.0 )"
+    };
+    let color_block : String = match ( kind, is_sdf )
+    {
+      ( ValueFnKind::F32, true ) => "\
+  let aa = px * 1.5;
+  var color = select( vec3f( 0.92, 0.93, 0.96 ), vec3f( 0.30, 0.55, 0.95 ), value < 0.0 );
+  color = color * ( 0.85 + 0.15 * cos( value * 40.0 ) );
+  color = mix( color, vec3f( 0.05, 0.05, 0.05 ), 1.0 - smoothstep( 0.0, aa, abs( value ) ) );"
+      .to_string(),
+      ( ValueFnKind::F32, false ) => "  let color = vec3f( value );".to_string(),
+      ( ValueFnKind::Vec2, _ ) => "  let color = vec3f( value, 0.5 );".to_string(),
+      ( ValueFnKind::Vec3, _ ) => "  let color = value;".to_string(),
+    };
     format!( r"//@ name: preview_harness
-//@ description: Synthesized preview harness rendering `{value_fn}` from chunk `{target}` as a time-drifting {shape} field.
+//@ description: Synthesized preview harness rendering `{value_fn}` from chunk `{target}` as a {shape} field{sdf_suffix}.
 //@ tags: category:preview
 //@ stage: fragment
 //@ depends_on: {target}, fullscreen_triangle
 //@ export: fn fs_main(in: VertexOutput) -> @location(0) vec4f
-//@ param: preview_scale uniform f32 range(1.0, 32.0)
-
-// Synthesized by shader_chunks_preview_core::bundle_build for a value
-// chunk: no hand-written WGSL corresponds to this text.
+{own_param_manifest}//@ param: preview_scale uniform f32 range(1.0, 32.0)
 
 struct Params
 {{
   time : f32,
-  preview_scale : f32,
+{own_param_fields}  preview_scale : f32,
   resolution : vec4f, // .xy = physical pixels, .zw unused
 }}
 
@@ -256,9 +342,16 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
 {{
   let aspect = params.resolution.x / max( params.resolution.y, 1.0 );
   let q = ( in.uv - vec2f( 0.5, 0.5 ) ) * vec2f( aspect, 1.0 );
-  let p = q * params.preview_scale + vec2f( params.time * 0.05, 0.0 );
-  let value = {value_fn}( p );
-  return {write_expr};
+  let p = {p_expr};
+  let value = {value_fn}( p{own_param_call_args} );
+  let px = params.preview_scale / max( params.resolution.y, 1.0 );
+{color_block}
+  let cell = abs( fract( p - vec2f( 0.5 ) ) - vec2f( 0.5 ) );
+  let minor_grid = 1.0 - smoothstep( 0.0, px * 1.5, min( cell.x, cell.y ) );
+  let axis_grid = 1.0 - smoothstep( 0.0, px * 2.5, min( abs( p.x ), abs( p.y ) ) );
+  let grid = max( minor_grid * 0.15, axis_grid * 0.35 );
+  let shaded = mix( color, vec3f( 0.0, 0.0, 0.0 ), grid );
+  return vec4f( clamp( shaded, vec3f( 0.0 ), vec3f( 1.0 ) ), 1.0 );
 }}
 " )
   }
@@ -291,17 +384,22 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
   }
 
   /// Converts one discovered `//@ param:` into its slider, enforcing the
-  /// preview's uniform convention: kind `uniform`, type `f32`, resolvable
-  /// range. Initial value is the range midpoint; step is 1/200 of the span.
-  fn slider_of( chunk : &str, param : &Parameter ) -> Result< PreviewParameter, PreviewError >
+  /// preview's uniform convention: kind `expected_kind`, type `f32`,
+  /// resolvable range. Initial value is the range midpoint; step is 1/200 of
+  /// the span. `expected_kind` is `Uniform` for a fragment chunk's own
+  /// directly-read params and `Argument` for a value chunk's own tunables,
+  /// which the synthesized harness passes positionally into the value
+  /// function rather than the target chunk reading a uniform itself — see
+  /// [`harness_synthesize`]'s doc comment.
+  fn slider_of( chunk : &str, param : &Parameter, expected_kind : ParameterKind ) -> Result< PreviewParameter, PreviewError >
   {
-    if param.kind != ParameterKind::Uniform
+    if param.kind != expected_kind
     {
       return Err( PreviewError::UnsupportedParam
       {
         chunk : chunk.to_string(),
         param : param.name.clone(),
-        reason : format!( "kind `{:?}` cannot back a live slider — only `uniform` parameters are wired into the preview's uniform buffer", param.kind ),
+        reason : format!( "kind `{:?}` cannot back a live slider here — only `{:?}` parameters are wired into the preview's uniform buffer in this position", param.kind, expected_kind ),
       });
     }
     if param.value_type != ValueType::F32
@@ -331,6 +429,105 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
       max : range.max,
       step : ( range.max - range.min ) / 200.0,
     })
+  }
+
+  /// Resolves a fragment-mode target's own `//@ param:` uniforms into
+  /// sliders — the fragment branch of [`bundle_build`].
+  fn fragment_chunk_parameters( name : &str, target_wgsl : &str, exports : &[ &str ] ) -> Result< Vec< PreviewParameter >, PreviewError >
+  {
+    if !exports.iter().any( | export | export.contains( "fn fs_main(" ) )
+    {
+      return Err( PreviewError::Unpreviewable
+      {
+        chunk : name.to_string(),
+        reason : "a fragment chunk must export entry point `fs_main` for the preview pipeline to target it".to_string(),
+      });
+    }
+    let discovered = discover( target_wgsl );
+    if discovered.is_empty()
+    {
+      return Err( PreviewError::Unpreviewable
+      {
+        chunk : name.to_string(),
+        reason : "a fragment chunk must declare at least one `//@ param:` uniform — the preview drives the `time`/params/`resolution` uniform convention and has nothing to wire".to_string(),
+      });
+    }
+    discovered.iter()
+    .map( | param | slider_of( name, param, ParameterKind::Uniform ) )
+    .collect()
+  }
+
+  /// Resolves a value-chunk target's chosen preview export, its own
+  /// tunables, and the synthesized harness wrapping it — the value-chunk
+  /// branch of [`bundle_build`].
+  fn value_chunk_harness_and_parameters( name : &str, target_wgsl : &str, exports : &[ &str ] ) -> Result< ( String, Vec< PreviewParameter > ), PreviewError >
+  {
+    // A value chunk: prefer the export named like the chunk itself, fall
+    // back to the first previewable export ( in file order ), regardless
+    // of which ValueFnKind either one is — no shape preference.
+    let candidates : Vec< ( &str, ValueFnKind, Vec< String > ) > = exports.iter()
+    .filter_map( | export | value_fn_of( export ) )
+    .collect();
+    let discovered = discover( target_wgsl );
+    // A candidate is previewable only when every trailing `f32` argument
+    // in its own signature has a matching `//@ param: NAME argument f32
+    // range(min, max)` declaration. An export that merely happens to
+    // structurally match Stage 0 ( e.g. a plain SDF primitive's own real
+    // parameters — `d2_sdf_circle(p: vec2f, radius: f32) -> f32` is not a
+    // preview wrapper, it is the chunk's actual API, called by dependents
+    // with real values ) is not a viable candidate at all; this is not an
+    // error, it just means that export isn't the one to preview. This
+    // matters most for the same-name tie-break just below: a chunk named
+    // like its own undeclared primitive export ( e.g. `domain_warp`,
+    // matching `fn domain_warp(p: vec2f, strength: f32) -> vec2f` ) must
+    // still fall through to its dedicated `NAME_preview(p: vec2f) -> T`
+    // wrapper when one exists, not get stuck on the unannotated primitive
+    // just because the names match. A chunk that DOES declare a
+    // `//@ param:` for a name with no matching signature argument, or
+    // with the wrong kind/type/range, still fails loudly — see
+    // `own_params` below, which re-validates the export actually chosen.
+    let is_viable = | extra_args : &[ String ] | extra_args.iter()
+    .all( | arg_name | discovered.iter().any( | p | p.name == *arg_name && p.kind == ParameterKind::Argument ) );
+    let ( value_fn, kind, extra_args ) = candidates.iter()
+    .filter( | ( _, _, extra_args ) | is_viable( extra_args ) )
+    .find( | ( found, _, _ ) | *found == name )
+    .or_else( || candidates.iter().find( | ( _, _, extra_args ) | is_viable( extra_args ) ) )
+    .cloned()
+    .ok_or_else( || PreviewError::Unpreviewable
+    {
+      chunk : name.to_string(),
+      reason : format!
+      (
+        "exports contain neither a fragment entry point nor a `fn NAME(p: vec2f, ...) -> f32|vec2f|vec3f` value function with every trailing argument backed by a matching `//@ param: NAME argument f32 range(min, max)` line; exports: [{}]",
+        exports.join( "; " )
+      ),
+    })?;
+    // `value_fn`'s own trailing `f32` arguments ( `extra_args`, in
+    // signature order — see `value_fn_of`'s doc comment ) are the chosen
+    // export's own tunables. `own_params` is built in signature order
+    // ( not manifest declaration order, which need not match ) so the
+    // synthesized harness can pass each one positionally into `value_fn`
+    // itself. See `harness_synthesize`'s doc comment for why the target
+    // chunk's own WGSL never touches a uniform directly. `is_viable`
+    // above already confirmed a same-named, same-kinded declaration
+    // exists for each name; `slider_of` here re-validates type and range,
+    // which `is_viable` deliberately does not check.
+    let own_params : Vec< PreviewParameter > = extra_args.iter()
+    .map( | arg_name |
+    {
+      let param = discovered.iter().find( | candidate | &candidate.name == arg_name ).ok_or_else( || PreviewError::UnsupportedParam
+      {
+        chunk : name.to_string(),
+        param : arg_name.clone(),
+        reason : format!( "`{value_fn}` declares this as a trailing argument but the chunk has no matching `//@ param: {arg_name} argument f32 range(min, max)` line" ),
+      })?;
+      slider_of( name, param, ParameterKind::Argument )
+    })
+    .collect::< Result< Vec< _ >, _ > >()?;
+    let is_sdf = tags_parse( target_wgsl ).iter().any( | &( group, tag ) | group == "category" && tag == "sdf" );
+    let harness = harness_synthesize( name, value_fn, kind, is_sdf, &own_params );
+    let parameters = own_params.into_iter().chain( std::iter::once( preview_scale_parameter() ) ).collect();
+    Ok( ( harness, parameters ) )
   }
 
   /// Builds a [`PreviewBundle`] from one target chunk's raw WGSL text
@@ -375,65 +572,15 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
 
     let mut selected : Vec< &'static ChunkDescriptor > = resolve( &deps )?;
 
-    let mut texts : Vec< &str > = Vec::new();
-    let harness;
-    let parameters;
-
-    if stage == Some( "fragment" )
+    let ( harness, parameters ) = if stage == Some( "fragment" )
     {
-      if !exports.iter().any( | export | export.contains( "fn fs_main(" ) )
-      {
-        return Err( PreviewError::Unpreviewable
-        {
-          chunk : name.to_string(),
-          reason : "a fragment chunk must export entry point `fs_main` for the preview pipeline to target it".to_string(),
-        });
-      }
-      let discovered = discover( target_wgsl );
-      if discovered.is_empty()
-      {
-        return Err( PreviewError::Unpreviewable
-        {
-          chunk : name.to_string(),
-          reason : "a fragment chunk must declare at least one `//@ param:` uniform — the preview drives the `time`/params/`resolution` uniform convention and has nothing to wire".to_string(),
-        });
-      }
-      parameters = discovered.iter()
-      .map( | param | slider_of( name, param ) )
-      .collect::< Result< Vec< _ >, _ > >()?;
-      harness = None;
+      ( None, fragment_chunk_parameters( name, target_wgsl, &exports )? )
     }
     else
     {
-      // A value chunk: prefer the export named like the chunk itself, fall
-      // back to the first previewable export ( in file order ), regardless
-      // of which ValueFnKind either one is — no shape preference.
-      let candidates : Vec< ( &str, ValueFnKind ) > = exports.iter().filter_map( | export | value_fn_of( export ) ).collect();
-      let ( value_fn, kind ) = candidates.iter().copied()
-      .find( | &( found, _ ) | found == name )
-      .or_else( || candidates.first().copied() )
-      .ok_or_else( || PreviewError::Unpreviewable
-      {
-        chunk : name.to_string(),
-        reason : format!
-        (
-          "exports contain neither a fragment entry point nor a `fn NAME(p: vec2f) -> f32|vec2f|vec3f` value function; exports: [{}]",
-          exports.join( "; " )
-        ),
-      })?;
-      let discovered = discover( target_wgsl );
-      if let Some( param ) = discovered.first()
-      {
-        return Err( PreviewError::UnsupportedParam
-        {
-          chunk : name.to_string(),
-          param : param.name.clone(),
-          reason : "the synthesized harness owns the preview's uniform struct; a value chunk's own `//@ param:` declarations are not wired into it".to_string(),
-        });
-      }
-      harness = Some( harness_synthesize( name, value_fn, kind ) );
-      parameters = vec![ preview_scale_parameter() ];
-    }
+      let ( harness, parameters ) = value_chunk_harness_and_parameters( name, target_wgsl, &exports )?;
+      ( Some( harness ), parameters )
+    };
 
     // Ensure the set carries a vertex stage: value-chunk harnesses always
     // depend on `fullscreen_triangle`; a fragment chunk normally names it in
@@ -450,12 +597,23 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
       }
     }
 
-    texts.extend( selected.iter().map( | chunk | chunk.wgsl ) );
-    texts.push( target_wgsl );
+    // Banner comments mark which part of the composed text is a dependency,
+    // which part is the chunk actually being previewed, and which part ( if
+    // any ) is synthesized scaffolding with no hand-written counterpart --
+    // without them, the concatenated wall of text gives no visual signal of
+    // where one chunk ends and the next begins, or that the harness is not
+    // itself a chunk. `//`-prefixed, so `try_compose`'s own `name_parse`
+    // ( which scans every line for the `//@ name:` prefix regardless of
+    // position ) still finds each entry's real manifest header beneath it.
+    let mut owned_texts : Vec< String > = selected.iter()
+    .map( | chunk | format!( "// ==== dependency chunk: {} ====\n{}", chunk.name, chunk.wgsl ) )
+    .collect();
+    owned_texts.push( format!( "// ==== previewing: {name} -- the chunk you opened ====\n{target_wgsl}" ) );
     if let Some( harness ) = &harness
     {
-      texts.push( harness );
+      owned_texts.push( format!( "// ==== auto-generated preview harness -- not part of any chunk ====\n{harness}" ) );
     }
+    let texts : Vec< &str > = owned_texts.iter().map( String::as_str ).collect();
 
     let wgsl = try_compose( &texts ).map_err( PreviewError::Compose )?;
 

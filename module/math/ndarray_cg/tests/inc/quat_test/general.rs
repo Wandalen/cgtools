@@ -109,3 +109,96 @@ fn test_quat_from_slice_wrong_length()
 
   let _ = QuatF64::from( [ 1.0, 2.0, 3.0 ].as_slice() );
 }
+
+/// ## Root Cause
+/// `Quat::from(Mat3)`'s final array literal wrote the trace-derived `w` term (`n0`) into the
+/// `x` slot instead of `w`'s own slot -- a cyclic shift of all four components, since this
+/// crate stores quaternion components as `[x,y,z,w]` (confirmed by `from_angle_x`/`from_angle_y`/
+/// `from_angle_z`).
+///
+/// ## Why Not Caught
+/// No test constructed a `Mat3` and converted it to a `Quat` before this task.
+///
+/// ## Fix Applied
+/// BUG-119 reordered the array literal from `[n0,n1,n2,n3]` to `[n1,n2,n3,n0]`, matching
+/// each term to the storage slot its own algebraic identity corresponds to.
+///
+/// ## Prevention
+/// This test hand-derives the expected quaternion for an exact, closed-form 90 degree
+/// rotation about Z and asserts the full quaternion matches -- the pre-fix cyclic shift
+/// fails this immediately (`x` and `w` both nonzero, `z` zero, instead of `z` and `w`
+/// nonzero, `x` zero).
+///
+/// ## Pitfall
+/// A derivation's intermediate-term computation order (trace term first, for algebraic
+/// convenience) can silently diverge from the target type's storage order -- always map each
+/// term back to its named component before assembling the final array.
+#[ test ]
+fn test_from_mat3_recovers_known_axis_angle_rotation()
+{
+  use the_module::{ Mat3, Quat, mat::DescriptorOrderColumnMajor };
+
+  // Exactly 90 deg about Z: r11=cos90=0, r12=-sin90=-1, r21=sin90=1, r22=cos90=0, r33=1.
+  let m = Mat3::< f64, DescriptorOrderColumnMajor >::from_column_major
+  (
+    [
+      0.0, 1.0, 0.0,
+      -1.0, 0.0, 0.0,
+      0.0, 0.0, 1.0,
+    ]
+  );
+
+  let got : Quat< f64 > = m.into();
+  let exp = Quat::< f64 >::from( [ 0.0, 0.0, std::f64::consts::FRAC_1_SQRT_2, std::f64::consts::FRAC_1_SQRT_2 ] );
+  assert_abs_diff_eq!( got, exp );
+}
+
+/// ## Root Cause
+/// See `test_from_mat3_recovers_known_axis_angle_rotation` above (BUG-119).
+///
+/// ## Why Not Caught
+/// No round-trip test existed comparing `Quat::from(Mat3::from_quat(q))` against the
+/// original `q` -- this would have caught any non-identity-preserving defect in either
+/// conversion direction.
+///
+/// ## Fix Applied
+/// See BUG-119's fix in `src/quaternion/from.rs`.
+///
+/// ## Prevention
+/// This test builds a `Mat3` from a generic, non-axis-aligned quaternion via the
+/// already-correct `Mat3::from_quat`, converts it back via `Quat::from(Mat3)`, and asserts
+/// the round trip recovers the original quaternion. A positive-`w` input quaternion is used
+/// so the comparison doesn't need to account for the `q`/`-q` double-cover ambiguity.
+///
+/// ## Pitfall
+/// A round-trip test against an independently-verified reverse conversion is a strong, cheap
+/// regression guard for any bidirectional representation conversion.
+fn test_from_mat3_round_trips_through_from_quat_generic< Descriptor >()
+where
+  Descriptor : the_module::mat::Descriptor,
+  the_module::Mat3< f64, Descriptor > :
+    the_module::RawSliceMut< Scalar = f64 > +
+    the_module::ScalarMut< Scalar = f64, Index = the_module::Ix2 > +
+    the_module::ConstLayout< Index = the_module::Ix2 > +
+    the_module::IndexingMut< Scalar = f64, Index = the_module::Ix2 >
+{
+  use the_module::{ Mat3, Quat, QuatF64 };
+
+  let q = QuatF64::from( [ -5.0, 4.0, 1.0, 10.0 ] ).normalize();
+  let m = Mat3::< f64, Descriptor >::from_quat( q );
+  let got : Quat< f64 > = m.into();
+
+  assert_abs_diff_eq!( got, q );
+}
+
+#[ test ]
+fn test_from_mat3_round_trips_through_from_quat_row_major()
+{
+  test_from_mat3_round_trips_through_from_quat_generic::< the_module::mat::DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+fn test_from_mat3_round_trips_through_from_quat_column_major()
+{
+  test_from_mat3_round_trips_through_from_quat_generic::< the_module::mat::DescriptorOrderColumnMajor >();
+}

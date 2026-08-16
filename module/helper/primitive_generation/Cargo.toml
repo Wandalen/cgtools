@@ -78,12 +78,29 @@ features = [
 
 [dev-dependencies]
 test_tools = { workspace = true }
+kurbo = { workspace = true }
 
 # Exercises `contours_to_fill_geometry`, which is gated behind `font-processing`
 # (TASK-055) -- without `required-features`, this test binary would fail to
 # *compile* (not just skip) whenever the feature is off.
 [[test]]
 name = "contours_to_fill_geometry_test"
+required-features = ["font-processing"]
+
+# Exercises `path_to_points`, gated behind `text` -- same required-features
+# rationale as above.
+[[test]]
+name = "path_to_points_test"
+required-features = ["text"]
+
+# Exercise the UFO glyph pipeline (`Glyph::from_glif`, `text_to_mesh`,
+# `text_to_countour_mesh`), gated behind `font-processing`.
+[[test]]
+name = "ufo_glif_point_type_test"
+required-features = ["font-processing"]
+
+[[test]]
+name = "ufo_text_advance_test"
 required-features = ["font-processing"]
 
 # Metadata for crates.io

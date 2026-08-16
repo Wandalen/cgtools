@@ -157,6 +157,58 @@ fn test_auto_unsubscribe() {
   assert_eq!(bus.subscriber_count::<TestEvent>(), 0);
 }
 
+// test_kind: bug_reproducer(BUG-137)
+/// ## Root Cause
+/// `EventChannel::events_process` queued a listener returning
+/// `EventResult::Unsubscribe` for removal but never broke out of the
+/// `for listener in &self.listeners` loop, so the same event kept
+/// propagating to lower-priority listeners -- contradicting the variant's
+/// own doc comment ("Stop processing and remove this listener").
+///
+/// ## Why Not Caught
+/// `test_unsubscribe` only exercises the manual `bus.unsubscribe(id)` API
+/// path, never `EventResult::Unsubscribe`. `test_auto_unsubscribe` uses a
+/// single listener, so it confirms that listener stops receiving future
+/// events but never checks whether a *different*, lower-priority listener
+/// still receives the *same* event after the first one unsubscribes.
+///
+/// ## Fix Applied
+/// Added `break;` to the `EventResult::Unsubscribe` arm in
+/// `EventChannel::events_process`, matching the existing `Consume` arm.
+///
+/// ## Prevention
+/// Any new `EventResult` variant whose doc comment implies "stop
+/// processing" must be checked against `events_process`'s match arms for a
+/// `break`, and covered by a multi-listener test, not a single-listener one.
+///
+/// ## Pitfall
+/// Unsubscription (removal from `self.listeners`) and propagation halting
+/// (whether the current event still reaches lower-priority listeners) are
+/// separate concerns -- a single-listener test can confirm the former while
+/// staying completely blind to the latter.
+#[test]
+fn test_unsubscribe_halts_propagation_to_lower_priority_listeners() {
+  let mut bus = EventBus::new();
+  let low_priority_called = Arc::new(Mutex::new(false));
+
+  bus.subscribe_with_priority(|_: &TestEvent| EventResult::Unsubscribe, EventPriority::High);
+
+  let low_priority_called_clone = low_priority_called.clone();
+  bus.subscribe_with_priority(move |_: &TestEvent| {
+    *low_priority_called_clone.lock().unwrap() = true;
+    EventResult::Continue
+  }, EventPriority::Low);
+
+  bus.publish(TestEvent { id: 1, message: "test".to_string() });
+  bus.events_process();
+
+  assert!(
+    !*low_priority_called.lock().unwrap(),
+    "lower-priority listener was invoked after a higher-priority listener returned EventResult::Unsubscribe"
+  );
+  assert_eq!(bus.subscriber_count::<TestEvent>(), 1);
+}
+
 #[test]
 fn test_batch_publishing() {
   let mut bus = EventBus::new();

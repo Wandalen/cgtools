@@ -22,10 +22,22 @@ and resolve mechanics are the same shape of problem.
 
 ### Embedded Instances Today
 
-- `renderer` (`src/webgl/renderer.rs`): the MSAA `RGBA16F` target set
-  (main / emission / transparent accumulate / revealage), the opaque →
-  transparent → `resolve` → post-chain ordering, and the
-  `post_processing/pass.rs` pass composition.
+- `renderer` (`src/webgl/renderer.rs`, legacy path): the MSAA main /
+  emission / transparent-accumulate target set (`RGBA16F`) plus a
+  transparent-revealage target (`R16F`), the opaque → transparent →
+  `resolve` → post-chain ordering, and the `post_processing/pass.rs` pass
+  composition.
+- `renderer` (`src/webgl/shadow.rs`, legacy path): a separate shadow-map
+  render-target and pass cycle, run before the main scene pass.
+- `renderer` (`src/webgl/post_processing/gbuffer.rs`, legacy path): a
+  G-buffer target set and its own fill/composite pass cycle, feeding the
+  post-processing chain.
+- `renderer` (`src/webgl/loaders/pmrem.rs`): a PMREM-prefiltering render
+  cycle over a cubemap target set, run at load time rather than per frame.
+- `renderer` (`src/webgpu/renderer.rs`, canonical `gpu_hal`-backed path): a
+  further independent embedded instance — `frame_targets_create()` builds
+  the HDR target set and `render()` runs the opaque → tonemap ordering,
+  pixel-verified end-to-end by `opaque_path_renders_lit_quad`.
 - `tilemap_renderer` (WebGL2 adapter): per-batch VAO lifecycle and
   draw-time state management inside `src/adapters/webgl.rs`.
 
@@ -50,3 +62,6 @@ name and a documented home.
 | `module/blank/frame_graph/` | The reserved crate slot |
 | `module/helper/renderer/src/webgl/renderer.rs` | The richest embedded instance: target zoo + pass ordering + resolve |
 | `module/helper/renderer/src/webgl/post_processing/pass.rs` | Pass composition machinery |
+| `module/helper/renderer/src/webgl/shadow.rs` | Shadow-map target and pass cycle |
+| `module/helper/renderer/src/webgl/post_processing/gbuffer.rs` | G-buffer target set and fill/composite pass cycle |
+| `module/helper/renderer/src/webgl/loaders/pmrem.rs` | PMREM-prefiltering render cycle over a cubemap target set |

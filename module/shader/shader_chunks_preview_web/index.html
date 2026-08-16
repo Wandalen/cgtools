@@ -9,8 +9,12 @@
     <script data-trunk type="module" src="controls.js"></script>
   </head>
   <body>
-    <div id="controls-container" class="controls-container"></div>
+    <div id="controls-container" class="controls-container">
+      <div id="chunk-title" class="chunk-title"></div>
+      <div class="controls-hint">Sliders below are this preview's tunable parameters. For anything not listed here, edit the shader source on the left — it recompiles live.</div>
+    </div>
     <div class="editor-container">
+      <div class="editor-heading">Shader source — live-edit to recompile</div>
       <textarea id="shader-source" class="shader-editor" spellcheck="false"></textarea>
       <div id="shader-diagnostics" class="shader-diagnostics" hidden></div>
     </div>

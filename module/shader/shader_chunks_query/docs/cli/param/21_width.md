@@ -8,23 +8,31 @@
 - **Default:** `0` — the reserved "auto" value: columns size to their
   widest cell
 - **Purpose:** Caps every column's width in `table` and `markdown`
-  output, truncating longer cells — keeps wide fields (`description`,
-  `source`) terminal-friendly.
+  output — keeps wide fields (`description`, `source`) terminal-friendly.
+  The cap is enforced differently per format: `table` wraps longer cells
+  onto continuation lines; `markdown` truncates them with `...`.
 
 ### Examples
 ```bash
 # Valid values
-list width::12               # cells longer than 12 chars truncate with `...`
-list format::markdown width::30
-list format::json width::12  # accepted, ignored (documented no-op)
+list width::12                # table (default): cells longer than 12 chars wrap
+list format::markdown width::30  # markdown: cells longer than 30 chars truncate with `...`
+list format::json width::12   # accepted, ignored (documented no-op)
 
 # Invalid values (rejected with error)
 list width::-1   # "invalid `width` value: `-1` (allowed: a non-negative integer)"
 ```
 
 ### Notes
-- Truncation is `data_fmt`'s `with_max_column_width` behavior — an
-  ellipsis marks cut cells; the underlying data is untouched.
+- The cap itself is `data_fmt`'s `with_max_column_width` behavior in
+  both formats, but each format decides differently what to do with a
+  cell that exceeds it: `table` pre-wraps every cell via `WrapFormatter`
+  (continuation lines, no data loss); `markdown` disables `data_fmt`'s
+  auto-wrap and lets `truncate_cell` cut with an ellipsis (the
+  underlying data is untouched either way). See
+  [`01_table_plain.md`](../format/01_table_plain.md) and
+  [`04_markdown.md`](../format/04_markdown.md) for each format's
+  rendering contract.
 - Shapes only the `table` and `markdown` formats; under `expanded`,
   `json`, `yaml`, and `names` it is accepted and ignored — machine
   formats must carry full values.

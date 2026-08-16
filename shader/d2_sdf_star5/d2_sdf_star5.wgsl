@@ -3,7 +3,9 @@
 //@ tags: category:sdf, dim:2d
 //@ depends_on:
 //@ export: fn d2_sdf_star5(p: vec2f, r: f32, rf: f32) -> f32
-//@ export: fn d2_sdf_star5_preview(p: vec2f) -> f32
+//@ export: fn d2_sdf_star5_preview(p: vec2f, outer_radius: f32, inner_radius_factor: f32) -> f32
+//@ param: outer_radius argument f32 range(0.1, 0.45)
+//@ param: inner_radius_factor argument f32 range(0.2, 0.8)
 
 fn d2_sdf_star5( p_in : vec2f, r : f32, rf : f32 ) -> f32
 {
@@ -20,7 +22,7 @@ fn d2_sdf_star5( p_in : vec2f, r : f32, rf : f32 ) -> f32
   return length( p - ba * h ) * sign( p.y * ba.x - p.x * ba.y );
 }
 
-fn d2_sdf_star5_preview( p : vec2f ) -> f32
+fn d2_sdf_star5_preview( p : vec2f, outer_radius : f32, inner_radius_factor : f32 ) -> f32
 {
-  return d2_sdf_star5( p, 0.3, 0.5 );
+  return d2_sdf_star5( p, outer_radius, inner_radius_factor );
 }

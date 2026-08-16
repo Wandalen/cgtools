@@ -400,6 +400,14 @@ mod private
   /// # Returns
   ///
   /// A `Vec<[f32; 2]>` containing the flattened 2D points of the path.
+  // Fix(BUG-127)
+  // Root cause: `kurbo::flatten` also emits `PathEl::ClosePath` (confirmed directly
+  // against `kurbo` 0.13.1's `flatten` source) whenever the input path closes a
+  // subpath, but this closure only matched `MoveTo`/`LineTo` and treated every other
+  // variant -- including the always-reachable `ClosePath` -- as `unreachable!()`.
+  // Pitfall: a local assumption about what a dependency "can only return" is not
+  // proof; verify against the dependency's own source before writing an
+  // `unreachable!()` arm over its output.
   #[ cfg( feature = "text" ) ]
   #[ must_use ]
   pub fn path_to_points( path : Vec< PathEl > ) -> Vec< [ f32; 2 ] >
@@ -412,15 +420,15 @@ mod private
       0.25,
       | el |
       {
-        let point = match el
+        match el
         {
           PathEl::MoveTo( p ) | PathEl::LineTo( p ) =>
           {
-            [ p.x as f32, p.y as f32 ]
+            points.push( [ p.x as f32, p.y as f32 ] );
           },
-          _ => unreachable!( "kurbo::flatten can only return MoveTo and LineTo PathEls" )
-        };
-        points.push( point );
+          PathEl::ClosePath => {}
+          _ => unreachable!( "kurbo::flatten can only return MoveTo, LineTo, and ClosePath PathEls" )
+        }
       }
     );
 

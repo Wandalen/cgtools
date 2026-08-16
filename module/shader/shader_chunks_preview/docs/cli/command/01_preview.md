@@ -47,7 +47,7 @@ shader_chunks preview fbm3
 shader_chunks preview fbm3 serve::0
 # same summary, printed once, no browser hand-off — process exits after printing
 
-shader_chunks preview file::module/shader/fbm3/src/lib.wgsl serve::0
+shader_chunks preview file::shader/fbm3/fbm3.wgsl serve::0
 # previews a local WGSL file instead of a bundled chunk name
 
 shader_chunks preview

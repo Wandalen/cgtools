@@ -3,7 +3,8 @@
 //@ tags: category:filter
 //@ depends_on:
 //@ export: fn gaussian_weight(offset: f32, sigma: f32) -> f32
-//@ export: fn gaussian_weight_preview(p: vec2f) -> f32
+//@ export: fn gaussian_weight_preview(p: vec2f, sigma: f32) -> f32
+//@ param: sigma argument f32 range(0.1, 2.0)
 
 fn gaussian_weight( offset : f32, sigma : f32 ) -> f32
 {
@@ -13,7 +14,7 @@ fn gaussian_weight( offset : f32, sigma : f32 ) -> f32
   return exp( -0.5 * x * x );
 }
 
-fn gaussian_weight_preview( p : vec2f ) -> f32
+fn gaussian_weight_preview( p : vec2f, sigma : f32 ) -> f32
 {
-  return gaussian_weight( length( p ), 1.0 );
+  return gaussian_weight( length( p ), sigma );
 }

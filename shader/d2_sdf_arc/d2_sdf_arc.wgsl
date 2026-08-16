@@ -3,7 +3,10 @@
 //@ tags: category:sdf, dim:2d
 //@ depends_on:
 //@ export: fn d2_sdf_arc(p: vec2f, sc: vec2f, ra: f32, rb: f32) -> f32
-//@ export: fn d2_sdf_arc_preview(p: vec2f) -> f32
+//@ export: fn d2_sdf_arc_preview(p: vec2f, half_aperture: f32, arc_radius: f32, stroke_half_thickness: f32) -> f32
+//@ param: half_aperture argument f32 range(0.1, 3.0)
+//@ param: arc_radius argument f32 range(0.05, 0.45)
+//@ param: stroke_half_thickness argument f32 range(0.01, 0.15)
 
 fn d2_sdf_arc( p_in : vec2f, sc : vec2f, ra : f32, rb : f32 ) -> f32
 {
@@ -23,7 +26,7 @@ fn d2_sdf_arc( p_in : vec2f, sc : vec2f, ra : f32, rb : f32 ) -> f32
   return d - rb;
 }
 
-fn d2_sdf_arc_preview( p : vec2f ) -> f32
+fn d2_sdf_arc_preview( p : vec2f, half_aperture : f32, arc_radius : f32, stroke_half_thickness : f32 ) -> f32
 {
-  return d2_sdf_arc( p, vec2f( 1.0, 0.0 ), 0.28, 0.05 );
+  return d2_sdf_arc( p, vec2f( sin( half_aperture ), cos( half_aperture ) ), arc_radius, stroke_half_thickness );
 }

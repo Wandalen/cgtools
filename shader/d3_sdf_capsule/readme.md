@@ -29,7 +29,7 @@ This demo is now wired in as a permanent `d3_sdf_capsule_preview` export, so the
 | `tags` | `category:sdf, dim:3d` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn d3_sdf_capsule(p: vec3f, a: vec3f, b: vec3f, r: f32) -> f32`, `fn d3_sdf_capsule_preview(p: vec2f) -> f32` |
+| `export` | `fn d3_sdf_capsule(p: vec3f, a: vec3f, b: vec3f, r: f32) -> f32`, `fn d3_sdf_capsule_preview(p: vec2f, z_slice: f32, a_x: f32, a_y: f32, a_z: f32, b_x: f32, b_y: f32, b_z: f32, radius: f32) -> f32` |
 
 ## Nuances
 

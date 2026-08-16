@@ -30,7 +30,7 @@ export, so the chunk is directly previewable via
 | `tags` | `category:sdf, dim:2d` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn d2_sdf_circle(p: vec2f, radius: f32) -> f32`, `fn d2_sdf_circle_preview(p: vec2f) -> f32` |
+| `export` | `fn d2_sdf_circle(p: vec2f, radius: f32) -> f32`, `fn d2_sdf_circle_preview(p: vec2f, radius: f32) -> f32` |
 
 ## Nuances
 

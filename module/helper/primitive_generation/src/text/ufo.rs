@@ -114,9 +114,21 @@ mod private
       self.bounding_box.max = [ x2 * scale, y2 * scale, 0.0 ].into();
     }
 
+    /// Returns the glyph's flattened contours, each a sequence of 2D points.
+    #[ must_use ]
+    pub fn contours( &self ) -> &[ Vec< [ f32; 2 ] > ]
+    {
+      &self.contours
+    }
+
     /// Creates a `Glyph` from a `.glif` file's byte data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `glif_bytes` is not valid UTF-8.
     #[ expect( clippy::too_many_lines, reason = "the glif XML event loop is one linear state machine; splitting it into helpers would scatter the per-event state transitions without shrinking the logic" ) ]
-    fn from_glif( glif_bytes : &[ u8 ], character : char ) -> Option< Self >
+    #[ must_use ]
+    pub fn from_glif( glif_bytes : &[ u8 ], character : char ) -> Option< Self >
     {
       let glif_str = std::str::from_utf8( glif_bytes ).unwrap();
       let mut reader = Reader::from_str( glif_str );
@@ -157,7 +169,17 @@ mod private
               {
                 b"x" => x = value.parse::< f64 >().ok(),
                 b"y" => y = value.parse::< f64 >().ok(),
-                b"typ" =>
+                // Fix(BUG-128)
+                // Root cause: the UFO/glif spec's point element attribute is named
+                // `type` (confirmed against `norad` 0.18.4's own glif parser, which
+                // reads exactly `b"type"`), but this match arm looked for `b"typ"` --
+                // a one-letter typo that can never match a real `.glif` file, so
+                // every point silently kept the loop's `PointType::Move` default.
+                // Pitfall: an unmatched byte-string arm in a `match` with a `_ => {}`
+                // catch-all fails silently -- it never panics or errors, it just never
+                // fires. Cross-check attribute names against the format spec or a
+                // reference parser, not just internal self-consistency.
+                b"type" =>
                 {
                   let Ok( t ) = PointType::from_str( &value )
                   else
@@ -263,6 +285,37 @@ mod private
 
   impl Font
   {
+    /// Builds a `Font` directly from pre-built glyphs, computing `max_size` as the
+    /// union of each glyph's own bounding box (mirroring `Font::new`'s union-box
+    /// step). Unlike `Font::new`, this skips the UFO-loading pipeline's automatic
+    /// rescale-to-a-common-em-size step -- primarily useful for constructing
+    /// synthetic fonts (e.g. in tests) from glyphs built via `Glyph::from_glif`.
+    #[ must_use ]
+    pub fn from_glyphs( glyphs : impl IntoIterator< Item = ( char, Glyph ) > ) -> Self
+    {
+      let glyphs : FxHashMap< char, Glyph > = glyphs.into_iter().collect();
+
+      let mut min = F32x3::MAX;
+      let mut max = F32x3::MIN;
+      for glyph in glyphs.values()
+      {
+        if min > glyph.bounding_box.min
+        {
+          min = glyph.bounding_box.min;
+        }
+        if max < glyph.bounding_box.max
+        {
+          max = glyph.bounding_box.max;
+        }
+      }
+
+      Self
+      {
+        glyphs,
+        max_size : BoundingBox::new( min, max )
+      }
+    }
+
     /// Asynchronously loads a new `Font` from a UFO directory path.
     //
     // Fix: the 3 glyph-fetch loops below used `.expect(...)`, panicking the
@@ -444,19 +497,25 @@ mod private
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
       transform.translation[ 1 ] -= diff;
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] += if glyph_x < half_x / 4.0
-      {
-        half_x
-      }
-      else
-      {
-        glyph_x
-      };
+      // Fix(BUG-129)
+      // Root cause: this advanced by the glyph's *full* slot width before placing
+      // it, expecting the next glyph's leading step to land it correctly -- but
+      // pass 1 above only ever subtracts a HALF slot-width per glyph, so this
+      // pass's full-width single step over-advances by exactly one half
+      // slot-width per glyph, compounding across the string.
+      // Pitfall: pass 1 and pass 2 must advance by symmetric half-steps around
+      // each glyph's placement (step, place, step) to keep glyphs centered in
+      // contiguous slots -- splitting the advance asymmetrically (a whole step
+      // here, an implicit half step there) silently drifts every glyph after the
+      // first.
+      let step = if glyph_x < half_x / 4.0 { half_x / 2.0 } else { glyph_x / 2.0 };
+      transform.translation[ 0 ] += step;
       if let Some( mut geometry ) = glyph.body.clone()
       {
         geometry.transform = transform.clone();
         mesh.push( geometry );
       }
+      transform.translation[ 0 ] += step;
     }
 
     mesh
@@ -514,14 +573,17 @@ mod private
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
       transform.translation[ 1 ] -= diff;
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] += if glyph_x < half_x / 4.0
-      {
-        half_x
-      }
-      else
-      {
-        glyph_x
-      };
+      // Fix(BUG-129)
+      // Root cause: same as `text_to_mesh` above -- this advanced by the glyph's
+      // *full* slot width before placing it, over-advancing by exactly one half
+      // slot-width per glyph relative to pass 1's half-step-only subtraction,
+      // compounding across the string.
+      // Pitfall: pass 1 and pass 2 must advance by symmetric half-steps around
+      // each glyph's placement (step, place, step) to keep glyphs centered in
+      // contiguous slots -- splitting the advance asymmetrically silently drifts
+      // every glyph after the first.
+      let step = if glyph_x < half_x / 4.0 { half_x / 2.0 } else { glyph_x / 2.0 };
+      transform.translation[ 0 ] += step;
 
       for curve in glyph.contours
       {
@@ -534,6 +596,7 @@ mod private
         geometry.transform = transform.clone();
         mesh.push( geometry );
       }
+      transform.translation[ 0 ] += step;
     }
 
     mesh

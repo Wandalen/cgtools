@@ -26,7 +26,7 @@ previewable via `sch preview domain_warp`.
 | `tags` | `category:noise`, `technique:warp` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | `fbm3` |
-| `export` | `fn domain_warp(p: vec2f, strength: f32) -> vec2f`, `fn domain_warp_preview(p: vec2f) -> f32` |
+| `export` | `fn domain_warp(p: vec2f, strength: f32) -> vec2f`, `fn domain_warp_preview(p: vec2f, strength: f32) -> f32` |
 
 ## Nuances
 

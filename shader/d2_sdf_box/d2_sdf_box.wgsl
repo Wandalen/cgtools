@@ -3,7 +3,9 @@
 //@ tags: category:sdf, dim:2d
 //@ depends_on:
 //@ export: fn d2_sdf_box(p: vec2f, half_extents: vec2f) -> f32
-//@ export: fn d2_sdf_box_preview(p: vec2f) -> f32
+//@ export: fn d2_sdf_box_preview(p: vec2f, half_extent_x: f32, half_extent_y: f32) -> f32
+//@ param: half_extent_x argument f32 range(0.05, 0.45)
+//@ param: half_extent_y argument f32 range(0.05, 0.45)
 
 fn d2_sdf_box( p : vec2f, half_extents : vec2f ) -> f32
 {
@@ -11,7 +13,7 @@ fn d2_sdf_box( p : vec2f, half_extents : vec2f ) -> f32
   return length( max( d, vec2f( 0.0 ) ) ) + min( max( d.x, d.y ), 0.0 );
 }
 
-fn d2_sdf_box_preview( p : vec2f ) -> f32
+fn d2_sdf_box_preview( p : vec2f, half_extent_x : f32, half_extent_y : f32 ) -> f32
 {
-  return d2_sdf_box( p, vec2f( 0.28, 0.18 ) );
+  return d2_sdf_box( p, vec2f( half_extent_x, half_extent_y ) );
 }

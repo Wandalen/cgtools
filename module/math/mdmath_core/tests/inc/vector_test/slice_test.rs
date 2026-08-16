@@ -130,3 +130,44 @@ fn test_vector_iter_mut_slice()
   }
   assert_eq!( slice, &[ 10, 20, 30 ] );
 }
+
+// test_kind: bug_reproducer(BUG-123)
+/// ## Root Cause
+/// `VectorIterMut<E,N>::vector_iter_mut` for `[E]` (`vector/slice.rs`) asserted
+/// `self.len() >= N` (the same "first N of a possibly-longer slice" contract its
+/// `VectorIter` sibling upholds) but then returned the full, unbounded
+/// `<[E]>::iter_mut(self)` instead of taking only the first `N` elements —
+/// silently letting mutation through this trait reach elements at index `>= N`
+/// whenever the backing slice is longer than the logical vector length `N`.
+/// ## Why Not Caught
+/// Every existing `vector_iter_mut` slice test used a slice whose length
+/// exactly equals `N` (0, 1, or 3 elements sliced with matching `N`), so
+/// `.take(N)` and no-`.take(N)` are indistinguishable — the defect only
+/// surfaces when the slice is strictly longer than `N`, never exercised before.
+/// ## Fix Applied
+/// Added `.take(N)` to `vector_iter_mut`, matching `vector_iter`'s existing
+/// `<[E]>::iter(self).take(N)`.
+/// ## Prevention
+/// This test uses a slice longer than `N` and asserts elements at index `>= N`
+/// are left untouched after mutating every element the iterator yields.
+/// ## Pitfall
+/// An `>=`-style length assertion documents "first N of possibly more" — every
+/// accessor built on that contract must independently bound its own traversal
+/// to `N`; a sibling method already doing so is not evidence this one does too.
+#[ test ]
+fn test_vector_iter_mut_slice_longer_than_n_leaves_tail_untouched()
+{
+  use the_module::VectorIterMut;
+  let data : &mut [ i32 ] = &mut [ 1, 2, 3, 4, 5 ];
+  {
+    let iter = <[ i32 ] as VectorIterMut< i32, 3 >>::vector_iter_mut( data );
+    let mut count = 0;
+    for x in iter
+    {
+      *x += 100;
+      count += 1;
+    }
+    assert_eq!( count, 3, "iterator bounded by N=3 must yield exactly 3 elements, not the full slice" );
+  }
+  assert_eq!( data, &[ 101, 102, 103, 4, 5 ], "elements at index >= N must be left untouched" );
+}

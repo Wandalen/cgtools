@@ -42,8 +42,10 @@ renderer's canonical opaque path itself also runs on this backend
 ( renderer feature `native`, `GpuContext::new_native` ) and is
 pixel-verified end-to-end in the terminal by `opaque_path_renders_lit_quad`. The v0 surface
 covers the opaque path only: buffers, 2d textures, samplers, shader modules,
-bind groups, one-color-attachment render passes. Not yet covered: texture
-upload, mipmaps, MSAA, compute.
+bind groups, one-color-attachment render passes, and a depth attachment
+( `DepthState`, honored by all backends ). Texture upload is now
+covered too ( `texture_write()`, proven by the `texture_write_readback`
+render test — task 089 ). Not yet covered: mipmaps, MSAA, compute.
 `renderer`'s legacy `webgl` tree keeps its accepted direct-to-L0 dependency
 until strangled onto the HAL. `tilemap_renderer` (d2) is the second targeted
 consumer — its `adapter-webgpu` / `adapter-native` adopt the HAL per
@@ -88,4 +90,4 @@ accepted-until-strangled posture.
 |------|--------------|
 | `module/helper/gpu_hal/` | The v0 implementation |
 | `module/helper/renderer/src/webgpu/` | First consumer — the canonical opaque path on both backends |
-| `module/helper/tilemap_renderer/src/backend.rs` | Second targeted consumer — `adapter-webgpu` / `adapter-native` ( [ADR-003](../adr/003_d2_stack_hal_adoption.md) ) |
+| `module/helper/tilemap_renderer/src/adapters/webgpu.rs`, `src/adapters/native.rs` | Second targeted consumer — `adapter-webgpu` / `adapter-native` ( [ADR-003](../adr/003_d2_stack_hal_adoption.md) ) |

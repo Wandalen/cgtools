@@ -73,12 +73,26 @@ mod private
 
       let half = E::from( 0.5 ).unwrap();
 
+      // Fix(BUG-119): reordered the array from `[n0,n1,n2,n3]` to `[n1,n2,n3,n0]`-based slots.
+      // Root cause: `n0` is the trace-derived term (proportional to `w²`), while `n1`/`n2`/`n3`
+      // are proportional to `x²`/`y²`/`z²` respectively (standard Shepperd's-method algebra) —
+      // but this crate's `Quat` stores components in `[x,y,z,w]` order (confirmed by
+      // `from_angle_x`/`from_angle_z` and the reverse conversion `Mat3::from_quat`, both of
+      // which put the axis component first and the scalar/cosine term last). Building the
+      // array as `[n0,n1,n2,n3]` and storing it directly therefore wrote `w` into the `x`
+      // slot, `x` into the `y` slot, `y` into the `z` slot, and `z` into the `w` slot — a
+      // cyclic shift, not a random scramble, which made it easy to miss by inspection.
+      // Pitfall: when a derivation names its intermediate terms `n0..n3` in the order they're
+      // *computed* (trace term first, purely for algebraic convenience), that order can
+      // silently diverge from the order the target type actually *stores* its components in
+      // — always map each intermediate back to its named component before assembling the
+      // final array, rather than assuming computation order matches storage order.
       let q =
       [
-        half * n0.sqrt(),
         half * n1.sqrt() * ( r32 - r23 ).signum(),
         half * n2.sqrt() * ( r13 - r31 ).signum(),
-        half * n3.sqrt() * ( r21 - r12 ).signum()
+        half * n3.sqrt() * ( r21 - r12 ).signum(),
+        half * n0.sqrt()
       ];
 
       Self( Vector::< E, 4 >::from( q ) )

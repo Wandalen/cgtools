@@ -59,14 +59,30 @@ where
 /// `E`'s range.
 ///
 /// # Panics
-/// Panics if `a`'s column count does not equal `ROWS`.
+/// Panics if `a`'s row count does not equal `OUT` or its column count does not equal `IN`.
 #[ inline ]
-pub fn mat_vec_mul< E, A, B, R, const ROWS : usize >( r : &mut R, a : &A, b : &B )
+// Fix(BUG-121): split the single `const ROWS : usize` generic into `IN`/`OUT`, and changed
+// the dimension check from `adim[ 1 ] == ROWS` to `adim[ 0 ] == OUT && adim[ 1 ] == IN`.
+// Root cause: a matrix-vector product's input length (matrix column count) and output
+// length (matrix row count) are independent quantities for a non-square matrix, but both
+// `R : VectorIterMut< E, ROWS >` (output) and `B : VectorIter< E, ROWS >` (input) reused the
+// SAME const generic — every existing caller only ever instantiates square matrices, where
+// input length == output length == ROWS coincidentally, so this went unnoticed. For a real
+// `Mat<M,N>` with `M != N`, the old signature forced the output vector to have the same
+// length as the input vector (matrix columns), silently dropping any output rows beyond
+// that length instead of producing the correct `M`-length result.
+// Pitfall: two conceptually independent lengths (here: input dimension vs. output dimension
+// of a linear map) that happen to coincide for every currently-existing caller (square
+// matrices) can be safely, silently unified into one const generic — until a non-square
+// instantiation is attempted, which the type system cannot catch because nothing in the
+// signature says the two lengths must differ or must match; check the *general* shape
+// (M x N, not just the N x N callers that exist today), not just currently-reachable cases.
+pub fn mat_vec_mul< E, A, B, R, const IN : usize, const OUT : usize >( r : &mut R, a : &A, b : &B )
 where
   E : MatNum,
-  R : VectorIterMut< E, ROWS >,
+  R : VectorIterMut< E, OUT >,
   A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
-  B : VectorIter< E, ROWS >,
+  B : VectorIter< E, IN >,
 {
   // Fix(TASK-014): removed `#[ cfg( debug_assertions ) ]` so this dimension check runs
   // unconditionally instead of only in debug builds.
@@ -83,8 +99,8 @@ where
     // Check if dimensions are compatible for multiplication
     assert!
     (
-      adim[ 1 ] == ROWS,
-      "Incompatible dimensions for matrix-vector multiplication : a : {adim:?}, b : {ROWS:?}, r : {ROWS:?}"
+      adim[ 0 ] == OUT && adim[ 1 ] == IN,
+      "Incompatible dimensions for matrix-vector multiplication : a : {adim:?}, b : {IN:?}, r : {OUT:?}"
     );
   }
 
@@ -156,7 +172,14 @@ where
   E : MatNum,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
 {
-  type Output = Vector< E, COLS >;
+  // Fix(BUG-121): changed `Output` from `Vector< E, COLS >` to `Vector< E, ROWS >`.
+  // Root cause: a matrix-vector product's result has one component per matrix ROW, not per
+  // column — `Vector<E,COLS>` was only accidentally right for square (ROWS==COLS) matrices,
+  // this crate's only current instantiations. See `mat_vec_mul`'s own fix comment for the
+  // full mechanism (this Output type is what caused `mat_vec_mul`'s IN/OUT to both bind to
+  // COLS instead of the correct COLS/ROWS pair).
+  // Pitfall: see `mat_vec_mul`'s comment above.
+  type Output = Vector< E, ROWS >;
 
   /// # Overflow
   /// For integer `E` the inner-product accumulation is not overflow-checked: it
@@ -178,7 +201,9 @@ where
   E : MatNum,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
 {
-  type Output = Vector< E, COLS >;
+  // Fix(BUG-121): changed `Output` from `Vector< E, COLS >` to `Vector< E, ROWS >` — see the
+  // owned `Mat * Vector` impl above for the full `Fix(BUG-121)`/`Root cause`/`Pitfall` comment.
+  type Output = Vector< E, ROWS >;
 
   /// # Overflow
   /// For integer `E` the inner-product accumulation is not overflow-checked: it

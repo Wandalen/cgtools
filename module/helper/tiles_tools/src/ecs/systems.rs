@@ -20,6 +20,7 @@
 
 use crate::ecs::components::{Position, Movable, Health, AI, Animation, Team};
 use crate::coordinates::{Distance, Neighbors};
+use crate::coordinates::square::Coordinate as SquareCoordinate;
 use crate::pathfind::astar;
 use std::collections::HashMap;
 
@@ -542,22 +543,38 @@ impl SpatialQuerySystem {
   }
 
   /// Finds all entities within a rectangular area.
-  pub fn rectangle_query<C>(
+  ///
+  /// The rectangle is axis-aligned and centered on `center`, spanning `width` total
+  /// units along x and `height` total units along y.
+  pub fn rectangle_query<Connectivity>(
     world: &hecs::World,
-    center: &Position<C>,
+    center: &Position<SquareCoordinate<Connectivity>>,
     width: u32,
     height: u32,
-  ) -> Vec<(hecs::Entity, Position<C>)>
+  ) -> Vec<(hecs::Entity, Position<SquareCoordinate<Connectivity>>)>
   where
-    C: Distance + Clone + Send + Sync + 'static,
+    Connectivity: Clone + Send + Sync + 'static,
   {
     let mut entities = Vec::new();
-    let max_distance = ((width * width + height * height) as f32).sqrt() as u32;
+    let half_width = (width / 2) as i32;
+    let half_height = (height / 2) as i32;
 
-    for (entity, pos) in &mut world.query::<(hecs::Entity, &Position<C>)>() {
-      let distance = center.distance_to(pos);
-      if distance <= max_distance {
-        // Additional filtering could be added here for precise rectangular bounds
+    // Fix(BUG-136)
+    // Root cause: filtered by `distance_to <= sqrt(width^2 + height^2)` -- a
+    // circular region of radius equal to the rectangle's FULL diagonal (not
+    // even its own half-diagonal), always a strict superset of the true
+    // axis-aligned rectangle. Copy-pasted from `circle_query`'s
+    // distance-threshold shape without adapting it to a per-axis test.
+    // Pitfall: a rectangle is a per-axis bounds check, not a distance-metric
+    // threshold -- no single scalar "distance" can express it, so this needed
+    // concrete x/y field access instead of the generic `Distance` bound this
+    // file's sibling queries use, narrowing the function to square coordinates
+    // specifically (the only coordinate system here with an unambiguous
+    // Cartesian width/height rectangle concept).
+    for (entity, pos) in &mut world.query::<(hecs::Entity, &Position<SquareCoordinate<Connectivity>>)>() {
+      let dx = (pos.coord.x - center.coord.x).abs();
+      let dy = (pos.coord.y - center.coord.y).abs();
+      if dx <= half_width && dy <= half_height {
         entities.push((entity, pos.clone()));
       }
     }

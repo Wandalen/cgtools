@@ -13,8 +13,8 @@ mod private
   use error_tools::Error;
   use data_fmt::
   {
-    ColumnData, ExpandedFormatter, Format, Heading, JsonFormatter, RowBuilder, TableConfig,
-    TableFormatter, TreeFormatter, TreeNode, YamlFormatter,
+    ColumnData, DecoratedText, ExpandedFormatter, Format, Heading, JsonFormatter, RowBuilder,
+    TableConfig, TableFormatter, TreeFormatter, TreeNode, WrapConfig, WrapFormatter, YamlFormatter,
   };
 
   /// Error returned by every query function.
@@ -544,42 +544,73 @@ mod private
       return Ok( chunks.iter().map( | chunk | chunk.name ).collect::< Vec< _ > >().join( "\n" ) );
     }
 
-    let mut builder = RowBuilder::new( params.fields.clone() );
-    for chunk in chunks
-    {
-      builder.add_row_mut
-      (
-        params.fields.iter().map( | field | field_value( chunk, field ).into() ).collect()
-      );
-    }
-    let view = builder.build_view();
+    let rows : Vec< Vec< DecoratedText > > = chunks.iter().map( | chunk |
+      params.fields.iter().map( | field | field_value( chunk, field ).into() ).collect()
+    ).collect();
 
-    let render_table = | config : TableConfig, truncate : bool | -> Result< String, QueryError >
+    let build_view = | rows : &[ Vec< DecoratedText > ] |
     {
-      let mut config = config;
+      let mut builder = RowBuilder::new( params.fields.clone() );
+      for row in rows
+      {
+        builder.add_row_mut( row.clone() );
+      }
+      builder.build_view()
+    };
+    let view = build_view( &rows );
+
+    let with_heading = | mut config : TableConfig |
+    {
       if !params.heading.is_empty()
       {
         config = config.with_heading( Heading::new( params.heading.clone() ) );
       }
-      if params.width > 0
-      {
-        config = config.with_max_column_width( Some( params.width ) );
-        if truncate
-        {
-          // Fix(BUG-115): with_max_column_width alone doesn't guarantee truncation
-          // Root cause: data_fmt's auto_wrap (default true) silently wraps instead of truncating once total capped row width exceeds the resolved terminal width (120 fallback) — markdown's documented contract (docs/cli/param/21_width.md) is truncate, so auto_wrap must be disabled here; table_plain's documented contract (docs/cli/format/01_table_plain.md) is wrap-onto-continuation-lines, so it must keep auto_wrap at its default (a separate, pre-existing data_fmt gap keeps table_plain from actually achieving that wrap today — tracked as BUG-116, out of this fix's scope)
-          // Pitfall: a formatting library's independent config knobs can silently interact — always check whether disabling one (auto_wrap) is correct for every call site sharing the code path, not just the one that surfaced the bug
-          config = config.with_auto_wrap( false );
-        }
-      }
-      Format::format( &TableFormatter::with_config( config ), &view )
-      .map_err( | e | QueryError::Render( e.to_string() ) )
+      config
     };
 
     match params.format
     {
-      OutputFormat::Table => render_table( TableConfig::plain(), false ),
-      OutputFormat::Markdown => render_table( TableConfig::markdown(), true ),
+      OutputFormat::Table =>
+      {
+        let mut config = with_heading( TableConfig::plain() );
+        // Fix(BUG-116): with_max_column_width alone doesn't guarantee wrap onto continuation lines
+        // Root cause: data_fmt's auto_wrap only pre-wraps cells when the CAPPED total row width exceeds the resolved terminal width (120 fallback) — a cell exceeding max_column_width does NOT trigger wrap when the rest of the row stays narrow (e.g. a short `name` column), so table_plain's documented wrap contract (docs/cli/format/01_table_plain.md) silently degraded to truncate_cell's `...` truncation for exactly that case; pre-wrap every cell directly via WrapFormatter (the same primitive auto_wrap uses internally) to bypass the terminal-width gate entirely
+        // Pitfall: a formatting library's "auto" behavior may be conditioned on more than the one config knob (`max_column_width`) that looks responsible — check the actual trigger condition in source, not just the knob's name, before trusting it
+        let table_view = if params.width > 0
+        {
+          config = config.with_max_column_width( Some( params.width ) );
+          let wrapper = WrapFormatter::with_config( WrapConfig::new().width( params.width ) );
+          let wrapped_rows : Vec< Vec< DecoratedText > > = rows.iter().map( | row |
+            row.iter().map( | cell |
+            {
+              let mut cell = cell.clone();
+              cell.text = wrapper.wrap_joined( &cell.text );
+              cell
+            } ).collect()
+          ).collect();
+          build_view( &wrapped_rows )
+        }
+        else
+        {
+          build_view( &rows )
+        };
+        Format::format( &TableFormatter::with_config( config ), &table_view )
+        .map_err( | e | QueryError::Render( e.to_string() ) )
+      }
+      OutputFormat::Markdown =>
+      {
+        let mut config = with_heading( TableConfig::markdown() );
+        if params.width > 0
+        {
+          config = config.with_max_column_width( Some( params.width ) );
+          // Fix(BUG-115): with_max_column_width alone doesn't guarantee truncation
+          // Root cause: data_fmt's auto_wrap (default true) silently wraps instead of truncating once total capped row width exceeds the resolved terminal width (120 fallback) — markdown's documented contract (docs/cli/param/21_width.md) is truncate, so auto_wrap must be disabled here
+          // Pitfall: a formatting library's independent config knobs can silently interact — always check whether disabling one (auto_wrap) is correct for every call site sharing the code path, not just the one that surfaced the bug
+          config = config.with_auto_wrap( false );
+        }
+        Format::format( &TableFormatter::with_config( config ), &view )
+        .map_err( | e | QueryError::Render( e.to_string() ) )
+      }
       OutputFormat::Expanded => Format::format( &ExpandedFormatter::new(), &view )
       .map_err( | e | QueryError::Render( e.to_string() ) ),
       OutputFormat::Json => Format::format( &JsonFormatter::new(), &view )

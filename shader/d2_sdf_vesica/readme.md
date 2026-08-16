@@ -26,7 +26,7 @@ This demo is now wired in as a permanent `d2_sdf_vesica_preview` export, so the 
 | `tags` | `category:sdf, dim:2d` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn d2_sdf_vesica(p: vec2f, r: f32, d: f32) -> f32`, `fn d2_sdf_vesica_preview(p: vec2f) -> f32` |
+| `export` | `fn d2_sdf_vesica(p: vec2f, r: f32, d: f32) -> f32`, `fn d2_sdf_vesica_preview(p: vec2f, radius: f32, offset: f32) -> f32` |
 
 ## Nuances
 

@@ -29,7 +29,7 @@ This demo is now wired in as a permanent `d3_sdf_ellipsoid_preview` export, so t
 | `tags` | `category:sdf, dim:3d` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn d3_sdf_ellipsoid(p: vec3f, r: vec3f) -> f32`, `fn d3_sdf_ellipsoid_preview(p: vec2f) -> f32` |
+| `export` | `fn d3_sdf_ellipsoid(p: vec3f, r: vec3f) -> f32`, `fn d3_sdf_ellipsoid_preview(p: vec2f, radius_x: f32, radius_y: f32, radius_z: f32, z_slice: f32) -> f32` |
 
 ## Nuances
 

@@ -27,7 +27,7 @@ This demo is now wired in as a permanent `sdf_op_onion_preview` export, so the c
 | `tags` | `category:sdf, technique:operator` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | `d2_sdf_box` |
-| `export` | `fn sdf_op_onion(d: f32, thickness: f32) -> f32`, `fn sdf_op_onion_preview(p: vec2f) -> f32` |
+| `export` | `fn sdf_op_onion(d: f32, thickness: f32) -> f32`, `fn sdf_op_onion_preview(p: vec2f, box_half_extent_x: f32, box_half_extent_y: f32, thickness: f32) -> f32` |
 
 ## Nuances
 

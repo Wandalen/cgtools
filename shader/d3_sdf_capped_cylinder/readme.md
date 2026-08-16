@@ -29,7 +29,7 @@ This demo is now wired in as a permanent `d3_sdf_capped_cylinder_preview` export
 | `tags` | `category:sdf, dim:3d` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn d3_sdf_capped_cylinder(p: vec3f, h: f32, r: f32) -> f32`, `fn d3_sdf_capped_cylinder_preview(p: vec2f) -> f32` |
+| `export` | `fn d3_sdf_capped_cylinder(p: vec3f, h: f32, r: f32) -> f32`, `fn d3_sdf_capped_cylinder_preview(p: vec2f, half_height: f32, radius: f32, z_slice: f32) -> f32` |
 
 ## Nuances
 

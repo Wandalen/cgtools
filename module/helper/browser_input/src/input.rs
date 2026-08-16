@@ -166,6 +166,12 @@ pub struct State
   /// Updated on press, move, and release. Useful for multi-touch (e.g., pinch-to-zoom).
   /// On desktop this usually has at most one entry; on touch screens one per finger.
   pub active_pointers : Vec< ( i32, I32x2 ) >,
+  /// Internal bookkeeping: which buttons each currently-active pointer id holds,
+  /// as a bitmask (bit `n` set means the `MouseButton` whose `as usize` is `n`
+  /// is held by that pointer). `mouse_buttons` and `active_pointers` are the
+  /// public derived view, unioned/gated from this per-pointer source of truth --
+  /// not exposed directly since it is a bookkeeping detail, not a queryable input.
+  held_buttons : std::collections::HashMap< i32, u32 >,
 }
 
 impl State
@@ -182,6 +188,7 @@ impl State
       pointer_position : I32x2::default(),
       scroll : F64x3::default(),
       active_pointers : Vec::new(),
+      held_buttons : std::collections::HashMap::new(),
     }
   }
 }
@@ -573,11 +580,26 @@ pub fn events_apply_to_state( state : &mut State, events : &[ Event ] )
       }
       EventType::PointerButton( pointer_id, pos, mouse_button, action ) =>
       {
-        state.mouse_buttons[ *mouse_button as usize ] = *action == Action::Press;
+        let bit = 1u32 << ( *mouse_button as u32 );
+        // Fix(BUG-130)
+        // Root cause: `mouse_buttons` was a flat last-writer-wins toggle keyed only
+        // by button, and `active_pointers` evicted a pointer id on ANY release --
+        // both assume exactly one button is ever in play per pointer at a time.
+        // That is true for a single touch contact (whose `button` is always
+        // `Main` per the Pointer Events spec) but false for two simultaneous
+        // pointers sharing a button value, or one physical mouse holding two
+        // buttons under one shared `pointer_id`. `held_buttons` now tracks each
+        // pointer's own held-button bitmask so both derived views only change
+        // once that pointer's actual contribution changes.
+        // Pitfall: global input state that is "set" per event instead of
+        // "derived from all current sources" silently breaks the instant two
+        // sources can overlap -- verify against the *simultaneous* case, not
+        // just sequential press/release pairs.
         match action
         {
           Action::Press =>
           {
+            *state.held_buttons.entry( *pointer_id ).or_insert( 0 ) |= bit;
             if !state.active_pointers.iter().any( | ( id, _ ) | *id == *pointer_id )
               && state.active_pointers.len() < MAX_ACTIVE_POINTERS
             {
@@ -586,9 +608,25 @@ pub fn events_apply_to_state( state : &mut State, events : &[ Event ] )
           }
           Action::Release =>
           {
-            state.active_pointers.retain( | ( id, _ ) | *id != *pointer_id );
+            if let Some( mask ) = state.held_buttons.get_mut( pointer_id )
+            {
+              *mask &= !bit;
+              if *mask == 0
+              {
+                state.held_buttons.remove( pointer_id );
+                state.active_pointers.retain( | ( id, _ ) | *id != *pointer_id );
+              }
+            }
+            else
+            {
+              // No tracked press for this id (e.g. it arrived before state was
+              // reset) -- still don't leave a stale active_pointers entry.
+              state.active_pointers.retain( | ( id, _ ) | *id != *pointer_id );
+            }
           }
         }
+        state.mouse_buttons[ *mouse_button as usize ] =
+          state.held_buttons.values().any( | mask | mask & bit != 0 );
       }
       EventType::PointerMove( pointer_id, pos ) =>
       {
@@ -601,10 +639,28 @@ pub fn events_apply_to_state( state : &mut State, events : &[ Event ] )
       EventType::Wheel( delta ) => state.scroll += *delta,
       EventType::PointerCancel( pointer_id ) =>
       {
+        // Fix(BUG-130)
+        // Root cause: this cleared ALL buttons whenever `active_pointers` happened
+        // to become empty, instead of only the cancelled pointer's own buttons --
+        // wrong whenever a different pointer (e.g. a mouse button held alongside a
+        // cancelled touch) is still legitimately active. Now that `held_buttons`
+        // tracks per-pointer state, only the cancelled pointer's own bits are
+        // removed, and only the buttons it actually held are re-derived.
+        // Pitfall: "if the aggregate is empty, reset everything" is only correct
+        // when the aggregate and the thing being reset are updated by the exact
+        // same events -- here `active_pointers` (per-pointer) and `mouse_buttons`
+        // (per-button) diverge as soon as more than one pointer can be active.
         state.active_pointers.retain( | ( id, _ ) | *id != *pointer_id );
-        if state.active_pointers.is_empty()
+        if let Some( mask ) = state.held_buttons.remove( pointer_id )
         {
-          state.mouse_buttons.fill( false );
+          for i in 0 .. MouseButton::COUNT
+          {
+            if mask & ( 1u32 << i ) != 0
+            {
+              state.mouse_buttons[ i ] =
+                state.held_buttons.values().any( | m | m & ( 1u32 << i ) != 0 );
+            }
+          }
         }
       }
     }

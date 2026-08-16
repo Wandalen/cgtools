@@ -9,10 +9,19 @@
 // Also hosts the Shadertoy-style live source editor: initEditor() seeds the
 // textarea and wires a debounced input listener, onEdit() registers the
 // callback that listener fires, and setDiagnostics()/clearDiagnostics()
-// show or hide the last compile/pipeline error underneath it.
+// show or hide the last compile/pipeline error underneath it. setChunkTitle()
+// sets the page title and on-page heading to the previewed chunk's name.
 
 let sliders = [];
 let changeCallback = null;
+
+// Set the page title and the on-page heading to the previewed chunk's name,
+// so it's always clear which chunk a given preview session is showing.
+export function setChunkTitle(name) {
+  document.title = `${name} — Shader Chunk Preview`;
+  const el = document.getElementById('chunk-title');
+  if (el) el.textContent = name;
+}
 
 let editorTextarea = null;
 let editCallback = null;

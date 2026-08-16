@@ -25,7 +25,7 @@ through the classic Gaussian shoulders. Directly previewable via
 | `tags` | `category:filter` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn gaussian_weight(x: f32, sigma: f32) -> f32`, `fn gaussian_weight_preview(p: vec2f) -> f32` |
+| `export` | `fn gaussian_weight(x: f32, sigma: f32) -> f32`, `fn gaussian_weight_preview(p: vec2f, sigma: f32) -> f32` |
 
 ## Nuances
 

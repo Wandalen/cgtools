@@ -77,6 +77,7 @@ Example | Description
 
 Example | Description
 --- | ---
+[Flecs Bouncing Circles (wgpu)](./minwgpu/flecs_bouncing_circles/readme.md) | This demo drives a basic 2D physics simulation with the flecs Entity Component System and renders the result with wgpu. Ten circles with distinct colors, radii, positions, and initial velocities fall under gravity and bounce off the arena walls with a fixed restitution coefficient.
 [Grid Rendering (wgpu)](./minwgpu/grid_render/readme.md) | This demo demonstrates grid rendering using wgpu, the Rust graphics library. It shows how to render grid patterns efficiently in native Rust applications using modern GPU APIs.
 [Hello Triangle (wgpu)](./minwgpu/hello_triangle/readme.md) | This demo is the classic "Hello Triangle" using wgpu in Rust. It demonstrates the minimum code needed for native GPU rendering, serving as an introduction to wgpu fundamentals.
 
@@ -142,6 +143,7 @@ Example | Description
 Example | Description
 --- | ---
 [Conway's Game of Life](./math/life/readme.md) | This demo implements Conway's Game of Life using the ndarray_cg crate. It demonstrates cellular automaton simulation with efficient grid-based computation, showcasing emergent complexity from simple rules.
+[Flecs Bouncing Circles (wgpu)](./minwgpu/flecs_bouncing_circles/readme.md) | This demo drives a basic 2D physics simulation with the flecs Entity Component System and renders the result with wgpu. Ten circles with distinct colors, radii, positions, and initial velocities fall under gravity and bounce off the arena walls with a fixed restitution coefficient.
 [F32x2 Vector Arithmetic](./scene_script/f32x2_vector_arithmetic/readme.md) | This demo runs a `.rhai` scene script that constructs two `F32x2` vectors and combines them with ordinary `+`/`*` operators, returning the result back to the host as a typed value. It demonstrates the declarative half of `scene_script`'s two scripting patterns: a script as a *data format*, building a value purely from expressions and returning it, as opposed to driving the host imperatively.
 [Pingpong Animation](./scene_script/pingpong_animation/readme.md) | This demo runs a Pong-style scene entirely from a `.rhai` script — loops, branches, and `F32x2` vector arithmetic simulate ball and paddle motion over 40 ticks, calling back into the host once per tick via a registered `emit_frame` function. It demonstrates the imperative half of `scene_script`'s two scripting patterns: a script driving the host by side effect, as opposed to a script that only builds and returns a value.
 [Advanced Pathfinding Demo](./tiles_tools/advanced_pathfinding_demo/readme.md) | This demo drives `tiles_tools::pathfind`'s A* family — `astar`, `astar_multi_goal`, `astar_with_edge_costs`, and `astar_advanced` — across obstacle avoidance, variable terrain costs, and multi-goal search, printing each result to the console. The same searches are repeated over square, hexagonal, triangular, and isometric coordinate systems to show the pathfinding API working identically regardless of grid topology.

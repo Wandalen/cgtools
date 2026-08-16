@@ -27,7 +27,20 @@ mod private
     where
       T : VectorIter< E, 3 >
     {
-        let ( s, c ) = angle.sin_cos();
+        // Fix(BUG-120): changed `angle.sin_cos()` to `(angle / two).sin_cos()`.
+        // Root cause: the axis-angle-to-quaternion formula requires the HALF angle
+        // (`q = (axis * sin(angle/2), cos(angle/2))`) — this function used the full angle
+        // directly, unlike its sibling constructors `from_angle_x`/`from_angle_y`/
+        // `from_angle_z` (all three correctly halve via `let two = E::one() + E::one(); (x /
+        // two).sin_cos()`), so a caller requesting a rotation of `angle` radians about a given
+        // axis actually got a rotation of `2 * angle` radians instead.
+        // Pitfall: sibling constructors that should share an invariant (here: "always
+        // half-angle the input") can drift independently when each is implemented as its own
+        // free-standing function instead of being built on one shared half-angle helper —
+        // cross-check new constructors against already-correct siblings for the same class of
+        // input, not just against the formula in isolation.
+        let two = E::one() + E::one();
+        let ( s, c ) = ( angle / two ).sin_cos();
 
         let mut iter = axis.vector_iter();
         let x = *iter.next().unwrap() * s;

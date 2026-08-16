@@ -51,7 +51,7 @@ current working directory.
 ```sh
 cargo run -p shader_chunks_preview -- preview fbm3            # builds, validates, serves live
 cargo run -p shader_chunks_preview -- preview fbm3 serve::0   # builds, validates, writes, prints summary, exits
-cargo run -p shader_chunks_preview -- preview file::module/shader/fbm3/src/lib.wgsl serve::0
+cargo run -p shader_chunks_preview -- preview file::shader/fbm3/fbm3.wgsl serve::0
 ```
 
 ```rust

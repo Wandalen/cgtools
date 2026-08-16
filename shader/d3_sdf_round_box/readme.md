@@ -27,7 +27,7 @@ This demo is now wired in as a permanent `d3_sdf_round_box_preview` export, so t
 | `tags` | `category:sdf, dim:3d` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | `d3_sdf_box` |
-| `export` | `fn d3_sdf_round_box(p: vec3f, half_extents: vec3f, r: f32) -> f32`, `fn d3_sdf_round_box_preview(p: vec2f) -> f32` |
+| `export` | `fn d3_sdf_round_box(p: vec3f, half_extents: vec3f, r: f32) -> f32`, `fn d3_sdf_round_box_preview(p: vec2f, half_extent_x: f32, half_extent_y: f32, half_extent_z: f32, round_radius: f32, z_slice: f32) -> f32` |
 
 ## Nuances
 

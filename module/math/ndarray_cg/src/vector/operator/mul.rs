@@ -5,16 +5,28 @@ mod private
 
   use crate::{MulAssign, Mat, Vector, mat, MatNum, Indexable, Ix2, IndexingRef, Mul};
 
-  // Vector * Matrix
-  impl< E, const ROWS : usize, const COLS : usize, Descriptor > MulAssign< Mat< ROWS, COLS, E, Descriptor > >
-  for  Vector< E, COLS >
+  // Fix(BUG-121): narrowed the matrix's independent `ROWS`/`COLS` generics to a single `N`
+  // (i.e. `Mat<N,N,..>`), matching the `Vector<E,N>` this impl mutates in place.
+  // Root cause: `MulAssign` has no separate `Output` type -- `*self = rhs * *self` requires
+  // the product's type to equal `Self` exactly. With independent `ROWS`/`COLS` generics this
+  // impl only type-checked because `Mat<ROWS,COLS> * Vector<COLS>`'s `Output` was itself
+  // wrongly pinned to `Vector<E,COLS>` (the very defect BUG-121 fixes elsewhere in this
+  // crate, see `src/d2/arithmetics/mul.rs`); once that `Output` was corrected to the
+  // mathematically-real `Vector<E,ROWS>`, `*self = rhs * *self` no longer matched `Self`
+  // (`Vector<E,COLS>`) for any non-square instantiation, and the impl failed to compile.
+  // Pitfall: `v *= M` is only dimensionally sound in the first place when `M` is square --
+  // a non-square matrix produces a result vector of a different length than its input,
+  // which `MulAssign`'s in-place contract cannot express. Never parameterize this kind of
+  // impl over independent row/column generics; require one shared `N` up front.
+  impl< E, const N : usize, Descriptor > MulAssign< Mat< N, N, E, Descriptor > >
+  for  Vector< E, N >
   where
     Descriptor : mat::Descriptor,
     E : MatNum,
-    Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
+    Mat< N, N, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   {
     #[ inline ]
-    fn mul_assign( &mut self, rhs : Mat< ROWS, COLS, E, Descriptor > )
+    fn mul_assign( &mut self, rhs : Mat< N, N, E, Descriptor > )
     {
       *self = rhs * *self;
     }

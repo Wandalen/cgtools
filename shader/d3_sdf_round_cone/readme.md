@@ -29,7 +29,7 @@ This demo is now wired in as a permanent `d3_sdf_round_cone_preview` export, so 
 | `tags` | `category:sdf, dim:3d` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn d3_sdf_round_cone(p: vec3f, r1: f32, r2: f32, h: f32) -> f32`, `fn d3_sdf_round_cone_preview(p: vec2f) -> f32` |
+| `export` | `fn d3_sdf_round_cone(p: vec3f, r1: f32, r2: f32, h: f32) -> f32`, `fn d3_sdf_round_cone_preview(p: vec2f, radius_bottom: f32, radius_top: f32, height: f32, z_slice: f32) -> f32` |
 
 ## Nuances
 

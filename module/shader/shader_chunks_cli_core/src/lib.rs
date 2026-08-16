@@ -311,8 +311,9 @@ mod private
     // first, then render known-command help via `cli_fmt` and route only
     // unknown targets through `.{target}.help` so they still fail loudly.
 
-    // `sch`, `sch .`, `sch help`, `sch .help` — all spell "top-level help".
-    if argv.is_empty() || ( argv.len() == 1 && matches!( argv[ 0 ].as_str(), "." | "help" | ".help" ) )
+    // `sch`, `sch .`, `sch help`, `sch .help`, `sch --help`, `sch -h` — all
+    // spell "top-level help".
+    if argv.is_empty() || ( argv.len() == 1 && matches!( argv[ 0 ].as_str(), "." | "help" | ".help" | "--help" | "-h" ) )
     {
       help_print( &binary, &tagline, &groups, &examples );
       return;
@@ -322,13 +323,13 @@ mod private
     // rendered by `cli_fmt` from the command's own registered definition; an
     // unknown target falls through to the `.{target}.help` rewrite so it
     // still fails loudly through the unknown-command path.
-    // Only a token that is exactly `help` is a help request — named-argument
-    // spellings (`name::help`) pass through untouched.
-    let help_target = if matches!( argv[ 0 ].as_str(), "help" | ".help" )
+    // Only a token that is exactly `help`/`--help`/`-h` is a help request —
+    // named-argument spellings (`name::help`) pass through untouched.
+    let help_target = if matches!( argv[ 0 ].as_str(), "help" | ".help" | "--help" | "-h" )
     {
       Some( argv[ 1 ].clone() )
     }
-    else if argv.len() >= 2 && argv[ argv.len() - 1 ] == "help"
+    else if argv.len() >= 2 && matches!( argv[ argv.len() - 1 ].as_str(), "help" | "--help" | "-h" )
     {
       Some( argv[ 0 ].clone() )
     }

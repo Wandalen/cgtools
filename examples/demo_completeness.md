@@ -57,6 +57,7 @@
 | orrery (webgpu) | no | yes | yes | no | | | |
 | grid_render | yes | yes | yes | yes | | | |
 | hello_triangle (wgpu) | yes | yes | yes | yes | | | |
+| flecs_bouncing_circles | yes | yes | yes | yes | | | |
 | f32x2_vector_arithmetic | no | yes | yes | no | | | |
 | pingpong_animation | no | yes | yes | no | | | |
 | advanced_pathfinding_demo | no | yes | yes | no | | | |

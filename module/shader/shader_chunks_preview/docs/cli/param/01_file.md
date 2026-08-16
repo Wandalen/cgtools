@@ -15,7 +15,7 @@
 ### Examples
 ```bash
 # Valid values
-preview file::module/shader/fbm3/src/lib.wgsl serve::0   # previews a local file
+preview file::shader/fbm3/fbm3.wgsl serve::0   # previews a local file
 preview file::./scratch/draft_chunk.wgsl                 # relative path, any location
 
 # Invalid values (rejected with error)

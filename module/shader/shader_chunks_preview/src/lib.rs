@@ -56,7 +56,7 @@ mod private
     {
       match self
       {
-        Self::UnknownChunk( name ) => write!( f, "unknown chunk: `{name}` (see `list` for valid names)" ),
+        Self::UnknownChunk( name ) => write!( f, "unknown chunk: `{name}` (see `shader_chunks list` for valid names)" ),
         Self::Preview( err ) => write!( f, "{err}" ),
         Self::Validation( msg ) => write!( f, "composed WGSL failed validation:\n{msg}" ),
         Self::Io( msg ) => write!( f, "io error: {msg}" ),
@@ -240,7 +240,7 @@ mod private
       ArgumentDefinition::former()
       .name( "name" )
       .kind( Kind::String )
-      .hint( "Bundled chunk name (see `list`); omit when passing `file::`." )
+      .hint( "Bundled chunk name (see `shader_chunks list`); omit when passing `file::`." )
       .attributes( ArgumentAttributes { optional : true, ..ArgumentAttributes::default() } )
       .end(),
       named_arg( "file", Kind::String, "Path to a local `.wgsl` chunk file (manifest header included), instead of a bundled name.", None ),
@@ -260,7 +260,7 @@ mod private
         (
           1,
           ErrorCode::ValidationRuleFailed,
-          "preview needs exactly one target: a chunk name (see `list`) or `file::<path>`".to_string(),
+          "preview needs exactly one target: a chunk name (see `shader_chunks list`) or `file::<path>`".to_string(),
         )),
       };
       let serve_bundle = arg_bool( &cmd, "serve", true );

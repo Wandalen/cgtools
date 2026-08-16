@@ -87,11 +87,20 @@ mod private
     }
 
     /// Inserts a [`AnimatablePlayer`] to the Sequencer.
+    // Fix(BUG-147)
+    // Root cause: the revival guard only checked `state == Pending`, so once a Sequencer
+    // finished a prior batch and reached `Completed`, inserting a fresh player left `state`
+    // stuck there -- `update()` early-returns while not `Running`, so the new player never ran.
+    // Pitfall: `Paused` is deliberately NOT included here -- a caller-requested pause must stay
+    // paused across inserts; only `Completed`, which is reached automatically rather than
+    // requested, should be silently superseded by fresh incomplete work.
     pub fn insert< T >( &mut self, name : &str, player : T )
     where T : AnimatablePlayer + 'static
     {
       self.players.insert( name.to_string().into(), Box::new( player ) );
-      if self.state == AnimationState::Pending && !self.players.is_empty()
+      if
+        ( self.state == AnimationState::Pending || self.state == AnimationState::Completed )
+        && !self.players.is_empty()
       {
         self.state = AnimationState::Running;
       }
@@ -439,9 +448,20 @@ mod private
         }
       );
 
+      // Fix(BUG-138)
+      // Root cause: `Err( id )` from `binary_search_by` is the index of the first player whose
+      // `delay_get()` has NOT yet been reached (the insertion point) -- the player that should
+      // actually be active is the one just before it, `id - 1`, since that's the last player
+      // whose delay has already passed. Using `id` directly selected one player too far ahead,
+      // in the common case (no player's delay exactly equals `elapsed`) skipping the correct
+      // active player entirely.
+      // Pitfall: `Ok( id )` and `Err( id )` are NOT interchangeable here -- `Ok( id )` already
+      // points at the exact match (delay_get() == elapsed, correct as-is), only `Err`'s
+      // insertion-point semantics need the `- 1` adjustment.
       let index = match index
       {
-        Ok( id ) | Err( id ) => id
+        Ok( id ) => id,
+        Err( id ) => id.saturating_sub( 1 ),
       };
 
       let mut current_id = index;
@@ -460,8 +480,20 @@ mod private
           {
             return;
           };
-          let old_elapsed = current.delay_get() + ( current.progress() * current.duration_get() );
-          current.update( old_elapsed + delta_time );
+          // Fix(BUG-139)
+          // Root cause: reconstructed an absolute "elapsed since this player started" value
+          // (`delay_get() + progress() * duration_get()`) and passed `old_elapsed + delta_time`
+          // to `update`, whose contract is a pure incremental delta (`AnimatablePlayer::update`
+          // -- see e.g. `Tween::update`'s `self.elapsed += remaining_time`). Every steady-state
+          // frame, this re-fed the player's own already-accumulated progress back into itself on
+          // top of the real delta, causing the player to complete many times faster than its
+          // declared duration.
+          // Pitfall: this arm runs when the SAME player is still active across frames (unlike
+          // the `Less` arm below, which runs exactly once when switching to a fresh player whose
+          // internal elapsed genuinely starts at 0) -- only a fresh player can correctly be
+          // fast-forwarded with an absolute-time-shaped call; a continuing player must only ever
+          // receive the new frame's own delta.
+          current.update( delta_time );
         },
         core::cmp::Ordering::Less =>
         {

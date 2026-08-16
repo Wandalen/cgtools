@@ -77,6 +77,21 @@ mod private
   }
 
   /// Normalizes a vector to unit length.
+  ///
+  /// # Panics
+  /// Panics if `a`'s iterator yields fewer than `SIZE` elements.
+  // Fix(BUG-124): the write loop now reads `a`'s own elements (`*aiter.next().unwrap() / mag`)
+  // instead of dividing whatever `r` already held.
+  // Root cause: the loop only ever touched `r.vector_iter_mut()`, never `a`'s iterator beyond
+  // the single aggregate `mag(a)` call — so this computed `r / |a|`, not `a / |a|`, silently
+  // correct only when the caller had pre-set `r` equal to `a` (as the sole in-crate caller
+  // `normalized()` does via `r = a.clone()`), despite `R`/`A` being independent, unconstrained
+  // generic parameters with no `r == a` precondition documented anywhere in the signature.
+  // Pitfall: when a "write into `r`, derived from `a`" function's loop body only reads `r`,
+  // check whether it was ever meant to read `a` too — the sibling `project_on(r,b)` a few
+  // lines below shows the correct pattern (`*elem = *biter.next().unwrap() * scalar`); a
+  // same-crate sibling function is often the cheapest oracle for "should this dereference the
+  // *other* argument."
   #[ inline ]
   pub fn normalize< E, R, A, const SIZE : usize >( r : &mut R, a : &A )
   where
@@ -85,9 +100,10 @@ mod private
     E : NdFloat,
   {
     let mag = mag( a );
+    let mut aiter = a.vector_iter();
     for elem in r.vector_iter_mut()
     {
-      *elem /= mag;
+      *elem = *aiter.next().unwrap() / mag;
     }
   }
 

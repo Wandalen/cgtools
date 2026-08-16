@@ -3,7 +3,10 @@
 //@ tags: category:sdf, dim:3d
 //@ depends_on:
 //@ export: fn d3_sdf_torus(p: vec3f, t: vec2f) -> f32
-//@ export: fn d3_sdf_torus_preview(p: vec2f) -> f32
+//@ export: fn d3_sdf_torus_preview(p: vec2f, major_radius: f32, tube_radius: f32, z_slice: f32) -> f32
+//@ param: major_radius argument f32 range(0.1, 0.4)
+//@ param: tube_radius argument f32 range(0.02, 0.15)
+//@ param: z_slice argument f32 range(-0.3, 0.3)
 
 fn d3_sdf_torus( p : vec3f, t : vec2f ) -> f32
 {
@@ -12,7 +15,7 @@ fn d3_sdf_torus( p : vec3f, t : vec2f ) -> f32
   return length( q ) - t.y;
 }
 
-fn d3_sdf_torus_preview( p : vec2f ) -> f32
+fn d3_sdf_torus_preview( p : vec2f, major_radius : f32, tube_radius : f32, z_slice : f32 ) -> f32
 {
-  return d3_sdf_torus( vec3f( p, 0.0 ), vec2f( 0.22, 0.08 ) );
+  return d3_sdf_torus( vec3f( p, z_slice ), vec2f( major_radius, tube_radius ) );
 }

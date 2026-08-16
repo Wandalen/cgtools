@@ -49,16 +49,21 @@ assert_eq!( params[ 1 ].name, "seed" );    // inferred range: (0.0, 65535.0)
 [`shader_chunks_core::ChunkDescriptor`]'s own `.wgsl` field — this crate's
 only dependency on `shader_chunks_core`; `discover` itself has none.
 
-## No real chunk annotated yet
+## Chunk annotations
 
-None of the 4 bundled chunks (`hash21`, `value_noise`, `fbm3`,
-`fullscreen_triangle`) carry a `//@ param:` line today — this crate is
+Most bundled `shader/*.wgsl` chunks carry `//@ param:` lines today — each
+`_preview` browser-demo wrapper's former hardcoded literals are now real
+`argument`-kind tunables driving a slider (see
+[`shader_chunks_preview_core`](../shader_chunks_preview_core/readme.md)). A
+handful of leaf/infrastructure chunks — `hash21`, `value_noise`, `fbm3`,
+`fullscreen_triangle` among them — still carry none; this crate remains
 independently valuable and fully testable via self-contained fixture WGSL
-strings without one (see `tests/`). Its consumers are
+strings regardless of real-chunk adoption (see `tests/`). Its consumers are
 [`shader_chunks_params`](../shader_chunks_params/readme.md) (the `tunables`
 CLI over this discovery) and
 [`shader_chunks_preview_core`](../shader_chunks_preview_core/readme.md)
-(which turns discovered uniform-kind parameters into live browser sliders).
+(which turns discovered uniform/argument-kind parameters into live browser
+sliders).
 
 ## Design documentation
 

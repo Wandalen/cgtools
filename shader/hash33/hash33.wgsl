@@ -3,7 +3,8 @@
 //@ tags: category:hash
 //@ depends_on:
 //@ export: fn hash33(p: vec3f) -> vec3f
-//@ export: fn hash33_preview(p: vec2f) -> vec3f
+//@ export: fn hash33_preview(p: vec2f, z: f32) -> vec3f
+//@ param: z argument f32 range(0.0, 100.0)
 
 fn hash33( p : vec3f ) -> vec3f
 {
@@ -12,7 +13,7 @@ fn hash33( p : vec3f ) -> vec3f
   return fract( ( p3.xxy + p3.yxx ) * p3.zyx );
 }
 
-fn hash33_preview( p : vec2f ) -> vec3f
+fn hash33_preview( p : vec2f, z : f32 ) -> vec3f
 {
-  return hash33( vec3f( p, 42.0 ) );
+  return hash33( vec3f( p, z ) );
 }

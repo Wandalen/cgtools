@@ -234,10 +234,34 @@ where
     }
 
     /// Inserts an entity into the quadtree.
-    pub fn insert(&mut self, entity: SpatialEntity<C>) {
+    ///
+    /// Returns `false` (and leaves the quadtree unchanged) if the entity's position falls
+    /// outside the quadtree's own bounds.
+    #[must_use]
+    pub fn insert(&mut self, entity: SpatialEntity<C>) -> bool {
+        // Fix(BUG-134)
+        // Root cause: insert_recursive_static's quadrant routing always finds
+        // SOME quadrant via unbounded center-point comparisons, with no check
+        // that the entity's position actually falls within the tree's own
+        // bounds -- an out-of-bounds entity got filed into a leaf whose real
+        // bounds don't contain it, then region_query's node_bounds
+        // intersects() pruning (walked from the tree's fixed self.bounds,
+        // which never grows) silently excluded it from every spatially-scoped
+        // query while it remained visible via all_entities().
+        // Pitfall: this check must live here, once, at the entry point -- the
+        // recursive quadrant split (bounds.center() then >=/<= comparison)
+        // already preserves containment correctly for any position that
+        // starts inside bounds, so duplicating a bounds check at every
+        // recursion level would be redundant, not defensive.
+        let (x, y) = entity.position.to_spatial_coords();
+        if !self.bounds.contains_point(x, y) {
+            return false;
+        }
+
         let bounds = self.bounds;
         let max_entities = self.max_entities;
         Self::insert_recursive_static(&mut self.root, entity, &bounds, 0, max_entities, &mut self.max_depth);
+        true
     }
 
     /// Removes all entities with the specified ID from the quadtree.

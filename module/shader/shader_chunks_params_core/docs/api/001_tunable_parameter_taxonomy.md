@@ -5,7 +5,7 @@
 - **Purpose**: Define the 5-kind tunable-parameter taxonomy, the `//@ param:` grammar chunk authors write to declare a tunable, and the Rust types/functions this crate exposes for discovering them.
 - **Responsibility**: Document `ParameterKind`, `ValueType`, `RangeSource`, `Range`, `Parameter`, and the `discover`/`chunk_discover` functions — the complete public surface for turning `//@ param:` manifest lines into structured data.
 - **In Scope**: The `//@ param:` line grammar; every public type and function in `src/lib.rs`; the malformed-directive panic contract.
-- **Out of Scope**: How a range is chosen when a line declares none (see [`algorithm/001`](../algorithm/001_range_inference_heuristic.md), which states the HOW this API's `range` field relies on); annotating any real bundled `shader/*.wgsl` chunk (no consumer does so yet — see this crate's [`readme.md`](../../readme.md)).
+- **Out of Scope**: How a range is chosen when a line declares none (see [`algorithm/001`](../algorithm/001_range_inference_heuristic.md), which states the HOW this API's `range` field relies on); annotating any real bundled `shader/*.wgsl` chunk is a `shader/` collection concern, not this crate's (see this crate's [`readme.md`](../../readme.md) for current adoption).
 
 ### Abstract
 

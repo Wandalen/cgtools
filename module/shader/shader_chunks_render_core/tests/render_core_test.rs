@@ -160,3 +160,32 @@ fn render_time_advances_the_synthesized_drift()
     "the synthesized harness drifts the sample plane with time, so distinct times must yield distinct frames"
   );
 }
+
+#[ test ]
+fn render_of_a_converted_chunk_changes_with_its_own_argument_parameter()
+{
+  // d2_sdf_circle's `radius` is a real `argument`-kind tunable ( not a
+  // synthesized harness value like `fbm3`'s ) -- this proves the full
+  // slider path end to end: bundle parameter value -> packed uniform
+  // float -> positional preview-wrapper argument -> the chunk's own
+  // WGSL body -> different rendered pixels.
+  let chunk = shader_chunks_core::chunk_get( "d2_sdf_circle" ).expect( "d2_sdf_circle is bundled" );
+  let mut bundle = bundle_build( chunk.wgsl ).expect( "d2_sdf_circle is previewable" );
+  assert_eq!
+  (
+    bundle.parameters[ 0 ].property, "radius",
+    "the chunk's own declared argument-kind parameter must be positioned before any synthesized slider"
+  );
+
+  let at_default = render( &bundle, ( 32, 32 ), 0.0 ).expect( "renders at the default radius" );
+
+  bundle.parameters[ 0 ].value = bundle.parameters[ 0 ].min;
+  let at_min = render( &bundle, ( 32, 32 ), 0.0 ).expect( "renders at the minimum radius" );
+
+  assert_ne!
+  (
+    at_default.pixels, at_min.pixels,
+    "moving the chunk's own argument-kind parameter across its declared range must change the \
+    rendered pixels -- the slider is not cosmetic, it drives the actual chunk body"
+  );
+}

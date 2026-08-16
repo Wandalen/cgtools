@@ -28,7 +28,7 @@ This demo is now wired in as a permanent `d3_sdf_plane_preview` export, so the c
 | `tags` | `category:sdf, dim:3d` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn d3_sdf_plane(p: vec3f, n: vec3f, h: f32) -> f32`, `fn d3_sdf_plane_preview(p: vec2f) -> f32` |
+| `export` | `fn d3_sdf_plane(p: vec3f, n: vec3f, h: f32) -> f32`, `fn d3_sdf_plane_preview(p: vec2f, offset: f32, z_slice: f32) -> f32` |
 
 ## Nuances
 

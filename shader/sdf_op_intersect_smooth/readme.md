@@ -28,7 +28,7 @@ This demo is now wired in as a permanent `sdf_op_intersect_smooth_preview` expor
 | `tags` | `category:sdf, technique:operator` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | `d2_sdf_circle`, `d2_sdf_box` |
-| `export` | `fn sdf_op_intersect_smooth(d1: f32, d2: f32, k: f32) -> f32`, `fn sdf_op_intersect_smooth_preview(p: vec2f) -> f32` |
+| `export` | `fn sdf_op_intersect_smooth(d1: f32, d2: f32, k: f32) -> f32`, `fn sdf_op_intersect_smooth_preview(p: vec2f, circle_offset_x: f32, circle_radius: f32, box_offset_x: f32, box_half_extent: f32, blend_radius: f32) -> f32` |
 
 ## Nuances
 

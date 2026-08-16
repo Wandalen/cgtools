@@ -37,8 +37,8 @@ trunk serve --release
 # open the served URL in a browser, check devtools console
 ```
 **Expected:** diamond model renders with skybox reflection/refraction, no console errors.
-**Actual:** Live attempt made 2026-08-15 — inconclusive, see `## Impact`'s live-verification-attempt note.
-The stride hypothesis itself remains neither confirmed nor refuted.
+**Actual:** Two live attempts made 2026-08-15 — both inconclusive, see `## Impact`'s live-verification-attempt
+notes. The stride hypothesis itself remains neither confirmed nor refuted.
 
 ## Impact
 
@@ -80,6 +80,24 @@ VERIFY Gate` Substep 5's outcome (b) (tool/environment unavailable → surface t
 verdict). Whoever next attempts live verification should first confirm a real WebGL2 context is obtainable
 in their environment at all (e.g. via a known-good example) before treating a blank canvas as confirmation
 of this bug.
+
+**Second live-verification attempt (2026-08-15) — same failure, "other browsee sessions" hypothesis ruled
+out:** Re-attempted after first confirming via `browsee .list` that every previously-launched browsee
+session on this host was already `dead` — i.e., no other browsee-managed browser held a live GPU context
+at launch time, which the first attempt's causal guess above hadn't ruled out. A fully fresh `trunk serve
+--release` (port 47331) plus a fresh `browsee` chromium session against a clean URL hit the
+**byte-identical** panic: `DomError(ContextRetrievingError("No webgl2 context"))` at the same
+`main.rs:226:49` site. Since no other browsee session was alive this time, sibling-browsee-session
+contention specifically is ruled out as the cause. The host was running very high general load at the time
+(`uptime` load average ~8.3/8.8/9.7, 34 concurrent `claude` processes, many active `cargo test`/build
+jobs per `ps`) — consistent with broader host-level resource exhaustion affecting GPU/EGL context
+acquisition, but this session did not directly test that narrower hypothesis either (e.g. by freeing host
+load and retrying under confirmed-light conditions); it is the best available explanation given what's now
+ruled out, not a directly confirmed one. Two independent, freshly-cleaned attempts reproducing the
+identical error is a reasonable stopping point — a third immediate attempt was judged unlikely to add new
+information and was not made. Both browsee session and trunk server were torn down and confirmed dead
+afterward (`browsee .list`, `ss -ltn`). Whoever retries next should do so when overall host load is
+confirmed materially lower, not merely when other browsee sessions are dead.
 
 ## How Discovered
 
@@ -127,3 +145,5 @@ with no console errors, matching the example's documented refraction/reflection 
 |------|-------|-------|
 | 2026-08-15 | filed | Filed as a disclosed follow-up from task 097's round-3 adversarial pass; root cause identified via byte-math re-derivation and structural match to the already-fixed `obj_load` defect, not yet live-reproduced for this crate. |
 | 2026-08-15 | live-verify attempted (inconclusive) | `trunk serve` + browsee reached the page but hit `ContextRetrievingError("No webgl2 context")` before the buffer code ran; control test against known-good `obj_load` hit the identical error, strongly indicating an environment-wide WebGL2-context gap in that browsee session, not a diamond-specific finding. State left at Unverified; stride hypothesis still untested live. |
+| 2026-08-15 | live-verify retried (same result, cause narrowed) | Second attempt on a fresh trunk server + fresh browsee session, after confirming all prior browsee sessions were dead, hit the byte-identical `ContextRetrievingError`. Rules out "other browsee sessions" as the cause; points to broad host-level load (uptime ~8-9, 34 concurrent claude processes) as the more likely explanation, though not directly confirmed. Stopped after 2 clean attempts rather than retrying further. State left at Unverified; stride hypothesis still untested live. |
+| 2026-08-16 | fix applied, live verification still blocked | Independently re-confirmed the byte-math root cause against current `module/min/minwebgl/src/buffer.rs:162-213` (`self.stride * sz` passed as WebGL's byte stride, `sz=4` for `f32`) and current `main.rs:124` (defect still present, unchanged from filing). Checked host load before considering a third live-verification attempt: `uptime` showed load average 34.27/29.10/29.16 with 90 concurrent `claude` processes and 39 concurrent `cargo test/build/nextest` jobs — materially *worse* than both prior attempts (~8.3 avg, 34 processes), so per this file's own guidance a third live attempt was deliberately not made (would very likely reproduce the same environment-caused `ContextRetrievingError` inconclusively, adding no information). Applied the documented Fix Location fix (`.stride( 3 )` → `.stride( 2 )` on the uv attribute only) with a `Fix(BUG-114)`/Root cause/Pitfall source comment; `cargo check`/`cargo clippy --all-features -- -D warnings` for `minwebgl_diamond` on `wasm32-unknown-unknown` both clean post-fix — the only verification achievable without a live WebGL2 context. Live pixel/console confirmation remains unavailable in this environment; state deliberately left at Unverified rather than fabricating a VERIFY Gate PASS for Dimension 2 (MRE Validity & Reproducibility), per `bugs/file.rulebook.md § Report New Bug : Step 9 - VERIFY Gate` Substep 5 outcome (b). Whoever next confirms a real WebGL2 context is obtainable (host load materially lower than 34.27) should complete the live before/after check this file's Fix Location section already specifies. |

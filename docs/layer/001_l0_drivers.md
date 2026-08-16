@@ -27,24 +27,30 @@ to hide it — cross-backend abstraction is exactly what L0 must not do
 
 | Crate | Backend | State |
 |-------|---------|-------|
-| `minwebgl` | WebGL2 (web) | Mature — the workspace's primary driver |
+| `minwebgl` | WebGL2 (web) | Mature (primary driver) for pure-logic surface — its live-`WebGl2RenderingContext` surface has zero automated coverage, the same accepted browser-test-infrastructure gap named for WebGPU/WebGL2 elsewhere in this layer (see [002_l1_gpu_hal.md](002_l1_gpu_hal.md)) |
 | `minwebgpu` | WebGPU (web) | Functional |
-| `minwgpu` | `wgpu` (native) | Embryonic — helper/buffer/context/texture layers exist |
+| `minwgpu` | `wgpu` (native) | Embryonic — helper/buffer/context/texture/bind/pipeline/pass/readback/error layers exist |
 
 **`mingl` is not a layer.** All three drivers depend on it as a shared
-substrate of backend-independent helpers — it sits *below* L0, which is why
-it cannot become the HAL (dependency arrow points the wrong way; ADR-001,
+substrate of backend-independent helpers — math, an orbit-camera controller
+(`CameraOrbitControls`), and a WASD-plus-mouse-look character controller
+(`CharacterControls`) among them — it sits *below* L0, which is why it
+cannot become the HAL (dependency arrow points the wrong way; ADR-001,
 alternatives).
 
 ### Current Direct Consumers (pre-HAL)
 
 [L1](002_l1_gpu_hal.md) exists as v0 and `renderer`'s canonical opaque path
-routes through it; the remaining code still reaching L0 directly is:
-`renderer`'s legacy `webgl` tree, `tilemap_renderer`'s WebGL2 adapter
-(optional `dep:minwebgl`) — both L3 stack engines — and `line_tools`
-(optional `dep:minwebgl`; straddles d2/d3, stack classification pending,
-see [rulebook.md](../../rulebook.md#rendering-layer-placement)). These are
-the accepted violations named in
+routes through it — but the same `webgpu`/`native` Cargo features that pull
+in `gpu_hal` also declare a direct, optional dependency on `minwebgpu`
+(`module/helper/renderer/Cargo.toml`), so even the canonical path reaches L0
+directly alongside going through L1. The remaining code reaching L0 directly
+with no L1 involvement at all is: `renderer`'s legacy `webgl` tree,
+`tilemap_renderer`'s WebGL2 adapter (optional `dep:minwebgl`) — both L3
+stack engines — and `line_tools` (optional `dep:minwebgl`; straddles
+d2/d3, stack classification pending, see
+[rulebook.md](../../rulebook.md#rendering-layer-placement)). These are the
+accepted violations named in
 [../pattern/002](../pattern/002_strict_layering_one_step_drilldown.md),
 scheduled to strangle onto L1.
 
@@ -60,6 +66,31 @@ not to portray a stack-vocabulary scene across backends. These are **not**
 scheduled to migrate onto L1 — see
 [rulebook.md](../../rulebook.md#rendering-layer-placement)'s "beside the
 ladder" list.
+
+### Beside-the-Ladder Consumers
+
+Some L0 consumers are neither stack code awaiting HAL migration nor
+single-backend tooling — they are horizontal capabilities or cross-stack
+bridges that
+[rulebook.md](../../rulebook.md#rendering-layer-placement)'s placement
+table places explicitly beside the ladder rather than on it:
+
+- `canvas_renderer` (optional `dep:minwebgl`) — cross-stack bridge via
+  textures, composing foundation resources across stack boundaries (see
+  [../pattern/003](../pattern/003_cross_stack_bridge_via_foundation_resources.md)).
+- `animation` (required `dep:minwebgl`) — value interpolation, easing, and
+  multi-animation sequencing, feature-gated to `minwebgl`/`mingl`'s
+  math/future/diagnostics utilities only, never their GL-context layers;
+  feeds `scene_script`'s tween bindings.
+
+`primitive_generation` (optional `dep:minwebgl`, same `future`/`math`/
+`diagnostics` feature gate as `animation`) is a harder call: despite the
+math-only feature gate, `src/primitive_data.rs` also imports GL-context
+types directly (`WebGl2RenderingContext`, `GL`, `BufferDescriptor`), so it
+does not cleanly match `animation`'s horizontal-capability shape. It is not
+named in rulebook.md's placement table at all — its ladder position (or
+beside-the-ladder status) is an open classification gap, not a resolved
+one.
 
 ### Layers
 

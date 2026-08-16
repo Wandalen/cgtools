@@ -24,7 +24,7 @@ previewable via `sch preview hash33`.
 | `tags` | `category:hash` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn hash33(p: vec3f) -> vec3f`, `fn hash33_preview(p: vec2f) -> vec3f` |
+| `export` | `fn hash33(p: vec3f) -> vec3f`, `fn hash33_preview(p: vec2f, z: f32) -> vec3f` |
 
 ## Nuances
 

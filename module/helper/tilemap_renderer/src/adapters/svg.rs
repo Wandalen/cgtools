@@ -1146,7 +1146,16 @@ mod private
             let mut valid = true;
             for j in 0..3
             {
-              let v_idx = idx.map_or( i + j, | v | v[ i + j ] as usize );
+              // Fix(BUG-153)
+              // Root cause: `count` (an index-buffer length) isn't rounded down to a multiple
+              // of 3, and `v[ i + j ]` indexed the index buffer directly -- on a trailing
+              // partial triangle (`count % 3 != 0`), `i + j` could reach `v.len()`, panicking.
+              // Pitfall: the two position lookups right below already use bounds-checked
+              // `.get()` for malformed *vertex* indices; the index-*buffer* lookup that
+              // produces `v_idx` in the first place needs the same treatment, not just its
+              // downstream consumers.
+              let Some( v_idx ) = idx.map_or( Some( i + j ), | v | v.get( i + j ).map( | &v | v as usize ) )
+              else { valid = false; break; };
               let Some( &x ) = geom.positions.get( v_idx * 2 )     else { valid = false; break; };
               let Some( &y ) = geom.positions.get( v_idx * 2 + 1 ) else { valid = false; break; };
               let _ = write!( pts, "{x},{y} " );

@@ -64,6 +64,7 @@ async fn app_run() -> Result< (), gl::WebGPUError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let bundle = bundle_fetch().await;
+  controls::chunk_title_set( &bundle.target );
 
   // Fill-parent canvas: mingl's make() sizes the drawing buffer to the CSS
   // box ( at devicePixelRatio ) and keeps it sized via ResizeObserver; the

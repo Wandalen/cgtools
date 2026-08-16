@@ -35,6 +35,46 @@ mod tests
     assert_eq!( start.interpolate( &end, 0.5 ), 10 );
   }
 
+  #[ test ]
+  fn test_vec_interpolation()
+  {
+    let start = vec![ 0.0_f32, 10.0_f32 ];
+    let end = vec![ 10.0_f32, 20.0_f32 ];
+    assert_eq!( start.interpolate( &end, 0.0 ), start );
+    assert_eq!( start.interpolate( &end, 1.0 ), end );
+    assert_eq!( start.interpolate( &end, 0.5 ), vec![ 5.0_f32, 15.0_f32 ] );
+  }
+
+  // test_kind: bug_reproducer(BUG-148)
+  /// ## Root Cause
+  /// `Vec<E>::interpolate` used `self.iter().zip( other.iter() )`, which silently truncates to
+  /// the shorter of the two Vecs whenever their lengths differ, instead of surfacing the
+  /// mismatch -- the same defect shape `CubicHermite::new`/`apply` already guard against via
+  /// `assert_eq!` (see `test_cubic_hermite_new_panics_on_mismatched_tangent_lengths` in
+  /// `easing_test.rs`), which this sibling `Animatable` impl had never been brought into line
+  /// with.
+  /// ## Why Not Caught
+  /// No existing test exercised `Vec<E>::interpolate` at all -- not even the equal-length happy
+  /// path, let alone a length mismatch.
+  /// ## Fix Applied
+  /// Added an `assert_eq!` on `self.len() == other.len()` before the `.zip()`, matching
+  /// `CubicHermite`'s established convention. See `interpolation.rs`.
+  /// ## Prevention
+  /// This test constructs two `Vec<f32>` of differing length and asserts `interpolate` panics
+  /// naming both lengths, rather than silently returning a shorter-than-expected result.
+  /// ## Pitfall
+  /// A silently truncated result is a plausible-looking `Vec` of the wrong length -- nothing
+  /// about the return value itself signals that trailing elements from the longer side were
+  /// dropped; only a length assertion against a known-correct expectation catches it.
+  #[ test ]
+  #[ should_panic( expected = "self and other must have the same length" ) ]
+  fn test_vec_interpolate_panics_on_mismatched_lengths()
+  {
+    let start = vec![ 0.0_f32, 1.0_f32, 2.0_f32 ];
+    let end = vec![ 10.0_f32, 20.0_f32 ];
+    let _ = start.interpolate( &end, 0.5 );
+  }
+
   // --- Tween Core Logic Tests ---
 
   #[ test ]
@@ -83,6 +123,73 @@ mod tests
     let val3 = tween.update( 0.5 );
     assert_eq!( tween.state(), AnimationState::Running );
     assert_eq!( val3, 5.0 );
+  }
+
+  // test_kind: bug_reproducer(BUG-140)
+  /// ## Root Cause
+  /// `Tween::progress()` computed `( elapsed - delay ) / duration`, but `update` only ever adds
+  /// to `elapsed` AFTER the delay countdown has been fully consumed -- `elapsed` is already
+  /// delay-exclusive by construction (mirrors `value_get`'s own `elapsed / duration`, which
+  /// performs no such subtraction). Subtracting `delay` a second time undercounted progress.
+  /// ## Why Not Caught
+  /// `progress()` was only ever exercised with zero-delay tweens (where the subtraction is a
+  /// no-op) in `test_tween_initial_state`/`test_tween_progress_and_completion`;
+  /// `test_tween_with_delay_behavior` uses a nonzero delay but never calls `.progress()`.
+  /// ## Fix Applied
+  /// Changed `( self.elapsed - self.delay ) / self.duration` to `self.elapsed / self.duration`,
+  /// matching `value_get`'s `normalized_time` formula exactly. See `interpolation.rs`.
+  /// ## Prevention
+  /// Added this test, which drives a delayed tween all the way to `Completed` and checks
+  /// `progress()` reports `1.0` there, not undercounted by the delay.
+  /// ## Pitfall
+  /// Invisible for zero-delay tweens (the subtraction is a no-op) and even for a
+  /// still-`Running`, not-yet-`Completed` delayed tween checked only via `value_get()` (which
+  /// never had the bug) -- only checking `progress()` itself, on a delayed tween, exposes it.
+  #[ test ]
+  fn test_tween_progress_with_delay_reaches_full_completion()
+  {
+    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_delay( 0.5 );
+
+    tween.update( 0.5 ); // consumes the delay entirely
+    tween.update( 1.0 ); // full duration elapsed -> Completed
+
+    assert_eq!( tween.state(), AnimationState::Completed );
+    assert_eq!( tween.value_get(), 10.0 );
+    assert_eq!
+    (
+      tween.progress(), 1.0,
+      "a fully-completed delayed tween must report progress 1.0, not undercounted by a second delay subtraction"
+    );
+  }
+
+  // test_kind: bug_reproducer(BUG-142)
+  /// ## Root Cause
+  /// `with_duration` clamped its argument with `.max( 0.0 )` instead of the `.max( 0.001 )` floor
+  /// `Tween::new` itself uses ("Minimum duration to avoid division by zero") -- `with_duration(
+  /// 0.0 )` reintroduced exactly the `elapsed / duration` == `0.0 / 0.0` == NaN case `new`'s own
+  /// clamp exists to prevent.
+  /// ## Why Not Caught
+  /// `with_duration` had zero existing test coverage of any kind, zero-duration or otherwise.
+  /// ## Fix Applied
+  /// Changed `with_duration`'s clamp from `.max( 0.0 )` to `.max( 0.001 )`, matching `new`'s own
+  /// floor exactly. See `interpolation.rs`.
+  /// ## Prevention
+  /// Added this test, which drives a `with_duration( 0.0 )` tween through one `update()` and
+  /// asserts the returned value is finite, not NaN.
+  /// ## Pitfall
+  /// A builder method re-deriving a sibling constructor's documented invariant must copy the
+  /// sibling's actual clamp value, not just its direction (`.max`) -- `0.0` still satisfies
+  /// "non-negative" while silently reintroducing the exact division-by-zero the invariant exists
+  /// to prevent.
+  #[ test ]
+  fn test_tween_with_duration_zero_does_not_produce_nan()
+  {
+    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_duration( 0.0 );
+
+    let value = tween.update( 0.1 );
+
+    assert!( !value.is_nan(), "Tween::update produced NaN after with_duration( 0.0 )" );
+    assert_eq!( tween.state(), AnimationState::Completed );
   }
 
   #[ test ]
@@ -213,6 +320,39 @@ mod tests
 
     assert_eq!( tweens.delay_get(), 0.5 );
     assert_eq!( tweens.duration_get(), 2.5 ); // ( 2.0 + 1.0 ) - 0.5
+  }
+
+  // test_kind: bug_reproducer(BUG-143)
+  /// ## Root Cause
+  /// `[Tween<T>; N]::progress()` reconstructed "elapsed since the group's own start" from
+  /// `self[ 0 ].time() - self.delay_get()` -- omitting `self[ 0 ]`'s own delay entirely, so the
+  /// result is wrong from the very first tick whenever element 0's delay differs from the
+  /// group's earliest delay (`delay_get()`), regardless of whether anything has completed yet.
+  /// ## Why Not Caught
+  /// No existing test called `.progress()` on a `[Tween<T>; N]` array at all.
+  /// ## Fix Applied
+  /// Changed the numerator to reconstruct elapsed time from the element that determines the
+  /// group's own end (`max` by `delay + duration`, matching `duration_get()`'s own aggregation),
+  /// including that element's `delay`. See `interpolation.rs`.
+  /// ## Prevention
+  /// Added this test: two tweens with different delays and durations, checked mid-animation
+  /// (before either completes) against the true global-elapsed-time answer.
+  /// ## Pitfall
+  /// The wrong formula doesn't panic or return an out-of-range value -- it silently returns a
+  /// plausible-looking but wrong fraction, and the error is present immediately, not only once
+  /// some array element individually completes.
+  #[ test ]
+  fn test_tween_array_progress_uses_last_to_finish_element()
+  {
+    let mut tweens : [ Tween< f32 >; 2 ] =
+    [
+      Tween::new( 0.0_f32, 1.0_f32, 2.0, Linear::build() ).with_delay( 2.0 ), // ends at t = 4.0
+      Tween::new( 0.0_f32, 1.0_f32, 6.0, Linear::build() ),                   // ends at t = 6.0
+    ];
+
+    tweens.update( 3.0 ); // global t = 3.0 out of the group's 6.0 span -- neither tween completed yet
+
+    assert_eq!( tweens.progress(), 0.5 );
   }
 
   #[ test ]

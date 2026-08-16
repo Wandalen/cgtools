@@ -517,3 +517,94 @@ fn test_pan_negative_horizontal_is_opposite()
   assert_abs_diff_eq!( exp_center, controls.center );
   assert_abs_diff_eq!( exp_up, controls.up );
 }
+
+// test_kind: bug_reproducer(BUG-125)
+/// ## Root Cause
+/// `CameraOrbitControls::update` treated its `delta_time` parameter as milliseconds inside the
+/// `/10.0` and `/1000.0` smoothing-decay formulas, but the parameter's own doc contract (and
+/// every real caller, traced to the `t / 1000.0` rAF-timestamp conversion in
+/// `examples/minwebgl/skeletal_animation`) supplies seconds — scaling both `decay_percentage`
+/// and `current_rotation_angle` down by exactly 1000x.
+/// ## Why Not Caught
+/// No existing test exercised `update()` with `movement_smoothing_enabled = true` at all — the
+/// buggy branch is dead code under the type's own `Default` (`movement_smoothing_enabled:
+/// false`), so a plain `cargo test` run never touches it.
+/// ## Fix Applied
+/// `update` now converts `delta_time` to milliseconds once (`delta_time_ms = delta_time *
+/// 1000.0`) before applying the existing `/10.0` and `/1000.0` formulas, unchanged.
+/// ## Prevention
+/// This test drives `rotate()` then `update()` with smoothing enabled and a realistic 60fps
+/// `delta_time` (seconds), and asserts the camera's swept rotation angle matches the
+/// milliseconds-correct formula rather than the 1000x-too-small buggy one.
+/// ## Pitfall
+/// A doc comment naming a time unit ("every 10 milliseconds") is not proof the formula beneath
+/// it actually receives that unit — verify the two independently.
+#[ test ]
+fn test_update_applies_smoothed_rotation_at_correct_time_scale()
+{
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls { eye: F32x3::new( 1.0, 0.0, 0.0 ), up: F32x3::new( 0.0, 1.0, 0.0 ), center: F32x3::new( 0.0, 0.0, 0.0 ), ..Default::default() };
+  controls.rotation.movement_smoothing_enabled = true;
+  controls.rotation.speed = 1.0;
+
+  // Accumulate angular speed without applying it yet (smoothing defers application to update()).
+  controls.rotate( [ 1.0, 0.0 ] );
+  let eye_before = controls.eye;
+
+  // A realistic 60fps frame delta, in seconds, per this function's own documented contract.
+  controls.update( 0.016 );
+
+  // Pure-longitude rotation (screen_d.y == 0) preserves eye.y() and rotates only x/z — measure
+  // the swept angle via atan2 so the assertion doesn't depend on from_angle_y's sign convention.
+  let angle_before = eye_before.z().atan2( eye_before.x() );
+  let angle_after = controls.eye.z().atan2( controls.eye.x() );
+  let swept = ( angle_after - angle_before ).abs();
+
+  // Fixed formula: current_angular_speed(1.0) * delta_time_ms(16.0) / 1000.0 == 0.016 rad.
+  // The buggy formula would have produced 0.016 / 1000.0 == 0.000016 rad instead — 1000x smaller.
+  assert_abs_diff_eq!( 0.016_f32, swept, epsilon = 1e-4 );
+}
+
+// test_kind: bug_reproducer(BUG-126)
+/// ## Root Cause
+/// `CameraOrbitControls::zoom`'s zoom-out branch computed `k = 1.0 - delta_y.abs()` with no
+/// lower bound — a single event whose `|delta_y|` (post `/speed`) reaches 1.0 drives `k` to
+/// exactly 0.0 (division by zero, `eye_new` becomes non-finite), and beyond 1.0 drives `k`
+/// negative (dividing by a negative number flips the camera through the `center` pivot to the
+/// opposite side, the geometric opposite of "zoom out").
+/// ## Why Not Caught
+/// Every existing zoom-out test kept `|delta_y| < speed` (max tested: `delta_y=0.8` against
+/// `speed=1.0`), never reaching the `k <= 0` boundary; `zoom.max_distance`/`min_distance` both
+/// default to `None`, so no downstream clamp masks the corruption in default configuration.
+/// Reachable via real input: a fast pinch gesture's raw `screen_x`/`screen_y` pixel-distance
+/// delta, or a high-precision mouse wheel's `DOM_DELTA_PIXEL` event, both plausibly reach the
+/// default `zoom.speed` of 1000.0 in a single event.
+/// ## Fix Applied
+/// The zoom-out branch's divisor is now `( 1.0 - delta_y.abs() ).max( f32::EPSILON )`, matching
+/// the zoom-in branch's already-safe-by-construction `1.0 + delta_y.abs()` in spirit — a floor
+/// that only changes behavior in the previously-broken `|delta_y| >= 1.0` region, leaving every
+/// already-correct case (including all pre-existing passing tests) bit-for-bit unchanged.
+/// ## Prevention
+/// This test drives `delta_y` to exactly the `k == 0.0` boundary and past it into `k < 0.0`,
+/// asserting the resulting eye position stays finite and on the original side of the pivot.
+/// ## Pitfall
+/// A divisor derived as `1.0 - x.abs()` is only safe while `x` is known to stay inside the unit
+/// interval — an external, unbounded input (screen pixels, wheel events) can never be assumed to
+/// satisfy that on its own; clamp at the boundary, don't trust the caller.
+#[ test ]
+fn test_zoom_out_extreme_delta_does_not_corrupt_or_flip_eye()
+{
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls { eye: F32x3::new( 1.0, 0.0, 0.0 ), up: F32x3::new( 0.0, 1.0, 0.0 ), center: F32x3::new( 0.0, 0.0, 0.0 ), ..Default::default() };
+  controls.zoom.speed = 1.0;
+
+  // delta_y == 1.0 drives the raw divisor `1.0 - delta_y.abs()` to exactly 0.0 (division by zero).
+  controls.zoom( 1.0 );
+  assert!( controls.eye.x().is_finite(), "zoom-out to the divisor's zero point must not produce a non-finite eye position, got {}", controls.eye.x() );
+  assert!( controls.eye.x() > 0.0, "zoom-out must move the camera further along its original direction, not flip through the pivot, got {}", controls.eye.x() );
+
+  controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
+
+  // delta_y == 1.5 drives the raw divisor negative (-0.5), flipping eye_new's sign.
+  controls.zoom( 1.5 );
+  assert!( controls.eye.x().is_finite(), "zoom-out past the divisor's zero point must not produce a non-finite eye position, got {}", controls.eye.x() );
+  assert!( controls.eye.x() > 0.0, "zoom-out must never flip the camera through the pivot to the opposite side, got {}", controls.eye.x() );
+}

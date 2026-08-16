@@ -25,6 +25,7 @@ Two layers:
 | `field_of_view_test.rs` | Direct `VisibilityMap` construction and mutation API |
 | `flowfield_test.rs` | Flowfield public construction surface |
 | `game_systems_test.rs` | Turn management, state machine, resources, quests, effects |
+| `layout_test.rs` | `RectangularGrid` bounds/center calculation |
 | `serialization_test.rs` | Save/config round-trips, compression, managers, error variants |
 | `spatial_test.rs` | Bounds arithmetic, spatial entities, quadtree operations |
 

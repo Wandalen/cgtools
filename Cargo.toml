@@ -519,8 +519,18 @@ version = "0.6.1"
 [workspace.dependencies.hecs]
 version = "0.11"
 
+[workspace.dependencies.flecs_ecs]
+# crates.io 0.2.2 hardcodes `as *const i8` in world.rs's ecs_lookup_symbol call, which fails
+# to compile on aarch64 (plain `char` is unsigned there, so bindgen emits `*const u8`). Fixed
+# upstream via `as *const _` inference but not yet published as a new crates.io version.
+git = "https://github.com/Indra-db/Flecs-Rust"
+rev = "bf956db99b69d41ee142c9d52054911af28d7e93"
+
 [workspace.dependencies.wgpu]
 version = "30.0.0"
+
+[workspace.dependencies.winit]
+version = "0.30"
 
 [workspace.dependencies.pollster]
 version = "1.0.1"

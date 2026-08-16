@@ -26,7 +26,7 @@ This demo is now wired in as a permanent `d2_sdf_star5_preview` export, so the c
 | `tags` | `category:sdf, dim:2d` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn d2_sdf_star5(p: vec2f, r: f32, rf: f32) -> f32`, `fn d2_sdf_star5_preview(p: vec2f) -> f32` |
+| `export` | `fn d2_sdf_star5(p: vec2f, r: f32, rf: f32) -> f32`, `fn d2_sdf_star5_preview(p: vec2f, outer_radius: f32, inner_radius_factor: f32) -> f32` |
 
 ## Nuances
 

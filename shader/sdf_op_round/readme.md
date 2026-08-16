@@ -8,14 +8,20 @@ generic version of the shrink-and-offset trick `d2_sdf_round_box` and
 
 ![sdf_op_round preview](preview.png)
 
-Rendered via the chunk-preview harness's synthesized grayscale field:
-the wrapper applies `sdf_op_round( ·, 0.08 )` to `d2_sdf_box( p, vec2f(
-0.22, 0.22 ) )`'s value, writing the result straight to `vec3f( value
-)`, clamped to `[0, 1]`, at `preview_scale = 8`. Since `d2_sdf_box` is
-already an exact field, subtracting `r` from it inflates the shape
-outward by `r` everywhere, including at the corners — the field is
-visually the same shape as `d2_sdf_round_box` with matching parameters,
-confirming this operator is the general mechanism that chunk builds on.
+Rendered via the chunk-preview harness's synthesized field: the wrapper
+applies `sdf_op_round( ·, 0.08 )` to `d2_sdf_box( p, vec2f( 0.22, 0.22
+) )`'s value, sampled at a stationary point (this chunk carries
+`category:sdf`, so the harness fills the inside, distance-bands the
+outside, and holds the sample point still instead of raw-clamping and
+drifting it — see
+[`shader_chunks_preview_core`](../../module/shader/shader_chunks_preview_core/readme.md)),
+at `preview_scale = 8`, with a unit-spaced reference grid (emphasized
+axes at the origin) overlaid so scale and center stay legible. Since
+`d2_sdf_box` is already an exact field, subtracting `r` from it inflates
+the shape outward by `r` everywhere, including at the corners — the
+field is visually the same shape as `d2_sdf_round_box` with matching
+parameters, confirming this operator is the general mechanism that
+chunk builds on.
 
 This demo is now wired in as a permanent `sdf_op_round_preview` export, so the chunk is directly previewable via `sch preview sdf_op_round` — no wrapper file needed.
 
@@ -28,7 +34,7 @@ This demo is now wired in as a permanent `sdf_op_round_preview` export, so the c
 | `tags` | `category:sdf, technique:operator` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | `d2_sdf_box` |
-| `export` | `fn sdf_op_round(d: f32, r: f32) -> f32`, `fn sdf_op_round_preview(p: vec2f) -> f32` |
+| `export` | `fn sdf_op_round(d: f32, r: f32) -> f32`, `fn sdf_op_round_preview(p: vec2f, box_half_extent: f32, round_radius: f32) -> f32` |
 
 ## Nuances
 

@@ -3,7 +3,8 @@
 //@ tags: category:noise
 //@ depends_on: hash13
 //@ export: fn value_noise3(p: vec3f) -> f32
-//@ export: fn value_noise3_preview(p: vec2f) -> f32
+//@ export: fn value_noise3_preview(p: vec2f, z: f32) -> f32
+//@ param: z argument f32 range(0.0, 10.0)
 
 fn value_noise3( p : vec3f ) -> f32
 {
@@ -23,7 +24,7 @@ fn value_noise3( p : vec3f ) -> f32
   return mix( z0, z1, u.z );
 }
 
-fn value_noise3_preview( p : vec2f ) -> f32
+fn value_noise3_preview( p : vec2f, z : f32 ) -> f32
 {
-  return value_noise3( vec3f( p, 1.7 ) );
+  return value_noise3( vec3f( p, z ) );
 }

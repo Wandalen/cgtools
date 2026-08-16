@@ -3,14 +3,18 @@
 //! registers the single callback fired (with every slider's current value,
 //! as a JS object keyed by `property`) whenever any slider moves;
 //! `initEditor`/`onEdit` are the same shape for the Shadertoy-style WGSL
-//! textarea, and `setDiagnostics`/`clearDiagnostics` show or hide the last
-//! compile/pipeline error underneath it.
+//! textarea, `setDiagnostics`/`clearDiagnostics` show or hide the last
+//! compile/pipeline error underneath it, and `setChunkTitle` sets the page
+//! title and on-page heading to the previewed chunk's name.
 
 use web_sys::wasm_bindgen::{ self, prelude::* };
 
 #[ wasm_bindgen( module = "/controls.js" ) ]
 extern "C"
 {
+  #[ wasm_bindgen( js_name = setChunkTitle ) ]
+  pub fn chunk_title_set( name : &str );
+
   #[ wasm_bindgen( js_name = addSlider ) ]
   pub fn slider_add( label : &str, property : &str, value : f64, min : f64, max : f64, step : f64 );
 

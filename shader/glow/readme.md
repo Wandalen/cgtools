@@ -24,7 +24,7 @@ via `sch preview glow`.
 | `tags` | `category:shading` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn glow(d: f32, radius: f32) -> f32`, `fn glow_preview(p: vec2f) -> f32` |
+| `export` | `fn glow(d: f32, radius: f32) -> f32`, `fn glow_preview(p: vec2f, radius: f32) -> f32` |
 
 ## Nuances
 

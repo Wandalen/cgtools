@@ -3,7 +3,10 @@
 //@ tags: category:sdf, dim:3d
 //@ depends_on:
 //@ export: fn d3_sdf_hex_prism(p: vec3f, h: vec2f) -> f32
-//@ export: fn d3_sdf_hex_prism_preview(p: vec2f) -> f32
+//@ export: fn d3_sdf_hex_prism_preview(p: vec2f, circumradius: f32, half_depth: f32, z_slice: f32) -> f32
+//@ param: circumradius argument f32 range(0.1, 0.4)
+//@ param: half_depth argument f32 range(0.05, 0.4)
+//@ param: z_slice argument f32 range(-0.3, 0.3)
 
 fn d3_sdf_hex_prism( p_in : vec3f, h : vec2f ) -> f32
 {
@@ -19,7 +22,7 @@ fn d3_sdf_hex_prism( p_in : vec3f, h : vec2f ) -> f32
   return min( max( d.x, d.y ), 0.0 ) + length( max( d, vec2f( 0.0 ) ) );
 }
 
-fn d3_sdf_hex_prism_preview( p : vec2f ) -> f32
+fn d3_sdf_hex_prism_preview( p : vec2f, circumradius : f32, half_depth : f32, z_slice : f32 ) -> f32
 {
-  return d3_sdf_hex_prism( vec3f( p, 0.0 ), vec2f( 0.26, 0.2 ) );
+  return d3_sdf_hex_prism( vec3f( p, z_slice ), vec2f( circumradius, half_depth ) );
 }

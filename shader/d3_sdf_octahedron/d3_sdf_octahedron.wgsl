@@ -3,7 +3,9 @@
 //@ tags: category:sdf, dim:3d
 //@ depends_on:
 //@ export: fn d3_sdf_octahedron(p: vec3f, s: f32) -> f32
-//@ export: fn d3_sdf_octahedron_preview(p: vec2f) -> f32
+//@ export: fn d3_sdf_octahedron_preview(p: vec2f, size: f32, z_slice: f32) -> f32
+//@ param: size argument f32 range(0.1, 0.45)
+//@ param: z_slice argument f32 range(-0.3, 0.3)
 
 fn d3_sdf_octahedron( p_in : vec3f, s : f32 ) -> f32
 {
@@ -30,7 +32,7 @@ fn d3_sdf_octahedron( p_in : vec3f, s : f32 ) -> f32
   return length( vec3f( q.x, q.y - s + k, q.z - k ) );
 }
 
-fn d3_sdf_octahedron_preview( p : vec2f ) -> f32
+fn d3_sdf_octahedron_preview( p : vec2f, size : f32, z_slice : f32 ) -> f32
 {
-  return d3_sdf_octahedron( vec3f( p, 0.0 ), 0.32 );
+  return d3_sdf_octahedron( vec3f( p, z_slice ), size );
 }

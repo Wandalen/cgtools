@@ -273,6 +273,68 @@ fn test_from_scale_rotation_translation_column_major()
   test_from_scale_rotation_translation_generic::< mat::DescriptorOrderColumnMajor >();
 }
 
+/// ## Root Cause
+/// `decompose()` divided by `inv_scale` (already a reciprocal) instead of multiplying,
+/// re-squaring scale into the rotation matrix passed to `Quat::from` (BUG-118); separately,
+/// `Quat::from(Mat3)` wrote its trace-derived `w` term into the `x` slot, cyclically
+/// shifting all four components (BUG-119).
+///
+/// ## Why Not Caught
+/// No test called `.decompose()` at all before this task — `test_from_scale_rotation_
+/// translation_generic` only exercises the forward (build) direction, never the round trip.
+///
+/// ## Fix Applied
+/// BUG-118 changed `decompose()`'s `rot_mat` column construction from `/ inv_scale` to `*
+/// inv_scale`. BUG-119 reordered `Quat::from(Mat3)`'s final array literal to match the
+/// crate's `[x,y,z,w]` storage convention. This test round-trips a matrix built with
+/// deliberately non-uniform scale through `from_scale_rotation_translation` then
+/// `.decompose()`, asserting the recovered scale/rotation/translation match the originals.
+///
+/// ## Prevention
+/// A uniform or identity scale would not have exposed either bug (see each bug's own `##
+/// Why Not Caught`) — this fixture uses `(2.0, 3.0, 0.5)` specifically to distinguish them.
+///
+/// ## Pitfall
+/// A "build" test alone does not verify its own inverse ("decompose") operation — round-trip
+/// coverage is required whenever both directions of a conversion exist. A round trip through
+/// `decompose()` chains sqrt/reciprocal/quaternion-conversion arithmetic (unlike the single-pass
+/// `test_from_scale_rotation_translation_generic` above, which compares against hand-computed
+/// literals), so it accumulates a few ULP of rounding — comparing at the default epsilon
+/// (`f64::EPSILON`) is too tight and fails on noise, not a real defect; `epsilon = 1e-9` is
+/// loose enough to absorb that noise while remaining far tighter than any real bug's error.
+fn test_decompose_recovers_scale_rotation_translation_generic< Descriptor : mat::Descriptor >()
+where
+  Mat4< f64, Descriptor > :
+      RawSlice< Scalar = f64 > +
+      RawSliceMut< Scalar = f64 > +
+      ScalarMut< Scalar = f64, Index = Ix2 > +
+      ConstLayout< Index = Ix2 > +
+      IndexingMut< Scalar = f64, Index = Ix2 >
+{
+  let s = [ 2.0, 3.0, 0.5 ];
+  let r = QuatF64::from( [ -5.0, 4.0, 1.0, 10.0 ] ).normalize();
+  let t = [ 1.0, -10.0, 30.0 ];
+
+  let mat = Mat4::< f64, Descriptor >::from_scale_rotation_translation( s, r, t );
+  let ( got_t, got_r, got_s ) = mat.decompose().expect( "decompose should succeed for a valid TRS matrix" );
+
+  assert_abs_diff_eq!( got_s, the_module::Vector::< f64, 3 >::from_array( s ), epsilon = 1e-9 );
+  assert_abs_diff_eq!( got_r, r, epsilon = 1e-9 );
+  assert_abs_diff_eq!( got_t, the_module::Vector::< f64, 3 >::from_array( t ) );
+}
+
+#[ test ]
+fn test_decompose_recovers_scale_rotation_translation_row_major()
+{
+  test_decompose_recovers_scale_rotation_translation_generic::< mat::DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+fn test_decompose_recovers_scale_rotation_translation_column_major()
+{
+  test_decompose_recovers_scale_rotation_translation_generic::< mat::DescriptorOrderColumnMajor >();
+}
+
 fn test_identity_generic< Descriptor : mat::Descriptor >()
 where 
   Mat4< f32, Descriptor > : 

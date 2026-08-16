@@ -3,7 +3,8 @@
 //@ tags: category:sdf, dim:2d
 //@ depends_on:
 //@ export: fn d2_sdf_ring(p: vec2f, radius: f32) -> f32
-//@ export: fn d2_sdf_ring_preview(p: vec2f) -> f32
+//@ export: fn d2_sdf_ring_preview(p: vec2f, radius: f32) -> f32
+//@ param: radius argument f32 range(0.05, 0.45)
 
 fn d2_sdf_ring( p : vec2f, radius : f32 ) -> f32
 {
@@ -12,7 +13,7 @@ fn d2_sdf_ring( p : vec2f, radius : f32 ) -> f32
   return abs( length( p ) - radius );
 }
 
-fn d2_sdf_ring_preview( p : vec2f ) -> f32
+fn d2_sdf_ring_preview( p : vec2f, radius : f32 ) -> f32
 {
-  return d2_sdf_ring( p, 0.30 );
+  return d2_sdf_ring( p, radius );
 }

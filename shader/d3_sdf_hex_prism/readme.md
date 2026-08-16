@@ -28,7 +28,7 @@ This demo is now wired in as a permanent `d3_sdf_hex_prism_preview` export, so t
 | `tags` | `category:sdf, dim:3d` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn d3_sdf_hex_prism(p: vec3f, h: vec2f) -> f32`, `fn d3_sdf_hex_prism_preview(p: vec2f) -> f32` |
+| `export` | `fn d3_sdf_hex_prism(p: vec3f, h: vec2f) -> f32`, `fn d3_sdf_hex_prism_preview(p: vec2f, circumradius: f32, half_depth: f32, z_slice: f32) -> f32` |
 
 ## Nuances
 

@@ -156,6 +156,33 @@ mod tests
     assert_f_eq( EaseOutQuad::build().apply( 0.0, 1.0, 0.5 ), 0.749_269, eps );
   }
 
+  // test_kind: bug_reproducer(BUG-141)
+  /// ## Root Cause
+  /// `apply`'s Newton-Raphson `slope` computed the three Bezier terms' derivatives as if
+  /// independent (`3(1-t)^2*P1 + 6(1-t)*t*P2 + 3t^2`) instead of the true product-rule
+  /// derivative of `x_get` (`3(1-t)^2*(P1-P0) + 6(1-t)*t*(P2-P1) + 3t^2*(P3-P2)`, P0=0, P3=1).
+  /// ## Why Not Caught
+  /// `test_cubic_mid_curve_accuracy` above only exercises curves/times where the two formulas
+  /// happen to nearly agree within its `eps = 0.001` tolerance; `EaseInExpo` at `time = 0.9`
+  /// diverges by ~0.04, an order of magnitude past that tolerance.
+  /// ## Fix Applied
+  /// Corrected `slope` to the standard cubic-Bezier tangent formula. See `easing/cubic/bezier.rs`.
+  /// ## Prevention
+  /// Added this test, pinning `EaseInExpo::build().apply( 0.0, 1.0, 0.9 )` against a value
+  /// independently verified via 200-iteration bisection (a derivative-free root-finding method,
+  /// immune to this class of bug).
+  /// ## Pitfall
+  /// Newton-Raphson with a wrong-but-not-wildly-wrong derivative estimate still converges to the
+  /// correct root given enough iterations -- it just converges slower. At the crate's fixed
+  /// 8-iteration budget (no convergence check), that shows up as a silently inaccurate result
+  /// whose magnitude depends on the specific curve and `time`, not a clean pass/fail signal.
+  #[ test ]
+  fn test_cubic_newton_raphson_slope_matches_true_derivative()
+  {
+    let eps = 0.001;
+    assert_f_eq( EaseInExpo::build().apply( 0.0, 1.0, 0.9 ), 0.505_609, eps );
+  }
+
   // test_kind: bug_reproducer(TASK-041)
   /// ## Root Cause
   /// `CubicHermite::<Vec<E>>::new` silently `.resize()`d `m1`/`m2` down to the shorter of the two

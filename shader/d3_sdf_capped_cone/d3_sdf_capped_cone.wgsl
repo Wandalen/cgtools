@@ -3,7 +3,11 @@
 //@ tags: category:sdf, dim:3d
 //@ depends_on:
 //@ export: fn d3_sdf_capped_cone(p: vec3f, h: f32, r1: f32, r2: f32) -> f32
-//@ export: fn d3_sdf_capped_cone_preview(p: vec2f) -> f32
+//@ export: fn d3_sdf_capped_cone_preview(p: vec2f, half_height: f32, radius_bottom: f32, radius_top: f32, z_slice: f32) -> f32
+//@ param: half_height argument f32 range(0.05, 0.4)
+//@ param: radius_bottom argument f32 range(0.02, 0.4)
+//@ param: radius_top argument f32 range(0.0, 0.4)
+//@ param: z_slice argument f32 range(-0.3, 0.3)
 
 fn d3_sdf_capped_cone( p : vec3f, h : f32, r1 : f32, r2 : f32 ) -> f32
 {
@@ -25,7 +29,7 @@ fn d3_sdf_capped_cone( p : vec3f, h : f32, r1 : f32, r2 : f32 ) -> f32
   return s * sqrt( min( dot( ca, ca ), dot( cb, cb ) ) );
 }
 
-fn d3_sdf_capped_cone_preview( p : vec2f ) -> f32
+fn d3_sdf_capped_cone_preview( p : vec2f, half_height : f32, radius_bottom : f32, radius_top : f32, z_slice : f32 ) -> f32
 {
-  return d3_sdf_capped_cone( vec3f( p, 0.0 ), 0.22, 0.22, 0.08 );
+  return d3_sdf_capped_cone( vec3f( p, z_slice ), half_height, radius_bottom, radius_top );
 }

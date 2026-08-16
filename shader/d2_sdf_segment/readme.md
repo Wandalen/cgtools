@@ -28,7 +28,7 @@ This demo is now wired in as a permanent `d2_sdf_segment_preview` export, so the
 | `tags` | `category:sdf, dim:2d` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn d2_sdf_segment(p: vec2f, a: vec2f, b: vec2f) -> f32`, `fn d2_sdf_segment_preview(p: vec2f) -> f32` |
+| `export` | `fn d2_sdf_segment(p: vec2f, a: vec2f, b: vec2f) -> f32`, `fn d2_sdf_segment_preview(p: vec2f, a_x: f32, a_y: f32, b_x: f32, b_y: f32) -> f32` |
 
 ## Nuances
 

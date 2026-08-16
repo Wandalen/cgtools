@@ -94,11 +94,24 @@ impl< E > ArrayMut< E, 3 > for ( E, E, E )
   }
 }
 
+// Fix(BUG-122): `index : usize` was shared between `next()` and `next_back()`, whose match
+// arms were hardcoded per-direction — after any `next()` call, `next_back()` reinterpreted
+// the resulting `index` as if it were counted from the back, yielding the wrong field (or,
+// for the tuple2 sibling, the same field twice while dropping the other entirely) instead of
+// the true back of the remaining range.
+// Root cause: same shared-single-cursor shape as the already-fixed `Tuple3IterMut` (BUG-050),
+// just never itself updated when that fix landed — aliasing `&E` is safe here, so the
+// consequence is wrong values rather than UB, but the logic defect is identical.
+// Pitfall: a hand-rolled `DoubleEndedIterator` needs independent front/back cursors (mirrors
+// `core::slice::Iter`) even when the yielded references are shared and aliasing-safe — a
+// single shared counter is a correctness bug, not just a soundness one, under mixed
+// `.next()`/`.next_back()` sequences; pure-forward or pure-`.rev()` alone cannot catch it.
 #[ derive( Clone ) ]
 struct Tuple3Iter< 'tuple_ref, E >
 {
   tuple : &'tuple_ref ( E, E, E ),
-  index : usize,
+  front : usize,
+  back : usize,
 }
 
 impl< 'tuple_ref, E > Iterator for Tuple3Iter< 'tuple_ref, E >
@@ -107,26 +120,25 @@ impl< 'tuple_ref, E > Iterator for Tuple3Iter< 'tuple_ref, E >
 
   fn next( &mut self ) -> Option< Self::Item >
   {
-    match self.index {
-      0 => {
-        self.index += 1;
-        Some( &self.tuple.0 )
-      },
-      1 => {
-        self.index += 1;
-        Some( &self.tuple.1 )
-      },
-      2 => {
-        self.index += 1;
-        Some( &self.tuple.2 )
-      },
-      _ => None,
+    if self.front >= self.back
+    {
+      return None;
+    }
+
+    let index = self.front;
+    self.front += 1;
+
+    match index {
+      0 => Some( &self.tuple.0 ),
+      1 => Some( &self.tuple.1 ),
+      2 => Some( &self.tuple.2 ),
+      _ => unreachable!(),
     }
   }
 
   fn size_hint( &self ) -> ( usize, Option< usize > )
   {
-    let remaining = 3 - self.index;
+    let remaining = self.back - self.front;
     ( remaining, Some( remaining ) )
   }
 }
@@ -137,20 +149,18 @@ impl< E > DoubleEndedIterator for Tuple3Iter< '_, E >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
-    match self.index {
-      0 => {
-        self.index += 1;
-        Some( &self.tuple.2 )
-      },
-      1 => {
-        self.index += 1;
-        Some( &self.tuple.1 )
-      },
-      2 => {
-        self.index += 1;
-        Some( &self.tuple.0 )
-      },
-      _ => None,
+    if self.front >= self.back
+    {
+      return None;
+    }
+
+    self.back -= 1;
+
+    match self.back {
+      0 => Some( &self.tuple.0 ),
+      1 => Some( &self.tuple.1 ),
+      2 => Some( &self.tuple.2 ),
+      _ => unreachable!(),
     }
   }
 }
@@ -263,7 +273,8 @@ impl< E: Clone > VectorIter< E, 3 > for ( E, E, E )
     Tuple3Iter
     {
       tuple : self,
-      index : 0,
+      front : 0,
+      back : 3,
     }
   }
 }

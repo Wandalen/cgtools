@@ -31,7 +31,7 @@ wrapper file needed.
 | `tags` | `category:sdf, dim:2d` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn d2_sdf_arc(p: vec2f, sc: vec2f, ra: f32, rb: f32) -> f32`, `fn d2_sdf_arc_preview(p: vec2f) -> f32` |
+| `export` | `fn d2_sdf_arc(p: vec2f, sc: vec2f, ra: f32, rb: f32) -> f32`, `fn d2_sdf_arc_preview(p: vec2f, half_aperture: f32, arc_radius: f32, stroke_half_thickness: f32) -> f32` |
 
 ## Nuances
 

@@ -3,7 +3,11 @@
 //@ tags: category:sdf, dim:3d
 //@ depends_on:
 //@ export: fn d3_sdf_ellipsoid(p: vec3f, r: vec3f) -> f32
-//@ export: fn d3_sdf_ellipsoid_preview(p: vec2f) -> f32
+//@ export: fn d3_sdf_ellipsoid_preview(p: vec2f, radius_x: f32, radius_y: f32, radius_z: f32, z_slice: f32) -> f32
+//@ param: radius_x argument f32 range(0.05, 0.45)
+//@ param: radius_y argument f32 range(0.05, 0.45)
+//@ param: radius_z argument f32 range(0.05, 0.45)
+//@ param: z_slice argument f32 range(-0.3, 0.3)
 
 fn d3_sdf_ellipsoid( p : vec3f, r : vec3f ) -> f32
 {
@@ -13,7 +17,7 @@ fn d3_sdf_ellipsoid( p : vec3f, r : vec3f ) -> f32
   return k0 * ( k0 - 1.0 ) / k1;
 }
 
-fn d3_sdf_ellipsoid_preview( p : vec2f ) -> f32
+fn d3_sdf_ellipsoid_preview( p : vec2f, radius_x : f32, radius_y : f32, radius_z : f32, z_slice : f32 ) -> f32
 {
-  return d3_sdf_ellipsoid( vec3f( p, 0.0 ), vec3f( 0.32, 0.18, 0.24 ) );
+  return d3_sdf_ellipsoid( vec3f( p, z_slice ), vec3f( radius_x, radius_y, radius_z ) );
 }

@@ -94,11 +94,21 @@ impl< E > ArrayMut< E, 2 > for ( E, E )
   }
 }
 
+// Fix(BUG-122): `index : usize` was shared between `next()` and `next_back()`, whose match
+// arms were hardcoded per-direction — after a `next()` call, `next_back()` reinterpreted the
+// resulting `index` as if counted from the back, returning the same field `next()` already
+// returned (as a second, harmless-but-wrong `&E`) while the other field was never yielded.
+// Root cause: same shared-single-cursor shape as the already-fixed `Tuple2IterMut` (BUG-050),
+// just never itself updated when that fix landed.
+// Pitfall: a hand-rolled `DoubleEndedIterator` needs independent front/back cursors even when
+// the yielded references are shared and aliasing-safe — a single shared counter is a
+// correctness bug, not just a soundness one, under mixed `.next()`/`.next_back()` sequences.
 #[ derive( Clone ) ]
 struct Tuple2Iter< 'tuple_ref, E >
 {
   tuple : &'tuple_ref ( E, E ),
-  index : usize,
+  front : usize,
+  back : usize,
 }
 
 impl< 'tuple_ref, E > Iterator for Tuple2Iter< 'tuple_ref, E >
@@ -107,25 +117,25 @@ impl< 'tuple_ref, E > Iterator for Tuple2Iter< 'tuple_ref, E >
 
   fn next( &mut self ) -> Option< Self::Item >
   {
-    match self.index
+    if self.front >= self.back
     {
-      0 =>
-      {
-        self.index += 1;
-        Some( &self.tuple.0 )
-      },
-      1 =>
-      {
-        self.index += 1;
-        Some( &self.tuple.1 )
-      },
-      _ => None,
+      return None;
+    }
+
+    let index = self.front;
+    self.front += 1;
+
+    match index
+    {
+      0 => Some( &self.tuple.0 ),
+      1 => Some( &self.tuple.1 ),
+      _ => unreachable!(),
     }
   }
 
   fn size_hint( &self ) -> ( usize, Option< usize > )
   {
-    let remaining = 2 - self.index;
+    let remaining = self.back - self.front;
     ( remaining, Some( remaining ) )
   }
 }
@@ -136,19 +146,18 @@ impl< E > DoubleEndedIterator for Tuple2Iter< '_, E >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
-    match self.index
+    if self.front >= self.back
     {
-      0 =>
-      {
-        self.index += 1;
-        Some( &self.tuple.1 )
-      },
-      1 =>
-      {
-        self.index += 1;
-        Some( &self.tuple.0 )
-      },
-      _ => None,
+      return None;
+    }
+
+    self.back -= 1;
+
+    match self.back
+    {
+      0 => Some( &self.tuple.0 ),
+      1 => Some( &self.tuple.1 ),
+      _ => unreachable!(),
     }
   }
 }
@@ -254,7 +263,8 @@ impl< E: Clone > VectorIter< E, 2 > for ( E, E )
     Tuple2Iter
     {
       tuple : self,
-      index : 0,
+      front : 0,
+      back : 2,
     }
   }
 }

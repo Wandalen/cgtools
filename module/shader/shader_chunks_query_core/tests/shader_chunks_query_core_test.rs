@@ -354,6 +354,62 @@ fn query_markdown_format_renders_pipe_table_with_heading_and_width()
   assert!( output.contains( "..." ), "width::30 must truncate long descriptions:\n{output}" );
 }
 
+// test_kind: bug_reproducer(BUG-116)
+/// ## Root Cause
+/// `chunks_render`'s `Table` (plain) branch relied on `data_fmt`'s `auto_wrap` ( default `true` )
+/// to achieve its documented wrap-onto-continuation-lines contract, but `auto_wrap` only fires
+/// when the *capped total row width* exceeds the resolved terminal width ( `120` fallback ) — not
+/// when any single cell's content exceeds `max_column_width`. Real chunk rows with a short `name`
+/// ( e.g. `hash21`, 6 chars ) keep the capped total row width under `120` even with a long
+/// `description`, so `auto_wrap` never fires and `truncate_cell` silently `...`-truncates instead
+/// of wrapping.
+/// ## Why Not Caught
+/// BUG-115's own width coverage ( `query_markdown_format_renders_pipe_table_with_heading_and_width` )
+/// exercises the full default dataset, but only asserts on `Markdown` format, whose documented
+/// contract is truncate — so a truncated cell there is correct, not a symptom. No test asserted
+/// on `Table` ( plain ) format's wrap contract against a short-name/long-description row, the one
+/// shape that exposes `auto_wrap`'s threshold gate.
+/// ## Fix Applied
+/// `chunks_render`'s `Table` branch now manually pre-wraps every cell's text via
+/// `WrapFormatter::with_config( WrapConfig::new().width( params.width ) ).wrap_joined( &cell.text )`
+/// — the same primitive `data_fmt`'s own `auto_wrap` uses internally — before building the view,
+/// bypassing `should_auto_wrap`'s terminal-width gate entirely. `Markdown`'s BUG-115 fix
+/// ( `with_auto_wrap( false )` ) is unchanged.
+/// ## Prevention
+/// When testing a formatter's documented per-format contract ( wrap vs. truncate ), assert against
+/// a row shape where over-width content sits in a non-first/short-neighbor column, not only rows
+/// where every column is independently over-width — an "auto" behavior gated on an aggregate
+/// ( total row width ) rather than a per-cell condition only misbehaves on the
+/// aggregate-under-threshold shape.
+/// ## Pitfall
+/// Reusing a config knob's own default across two format branches with different documented
+/// contracts ( wrap vs. truncate ) is only safe if you've confirmed the knob's trigger condition
+/// matches both contracts' assumptions — here `auto_wrap`'s default worked for one branch by
+/// coincidence ( real data mostly crosses `120` ) and silently failed the other whenever it didn't.
+#[ test ]
+fn query_table_format_wraps_short_name_long_description_row_instead_of_truncating()
+{
+  let mut params = QueryParams::list_defaults();
+  params.names = vec![ "hash21".to_string() ];
+  params.format = OutputFormat::Table;
+  params.width = 30;
+  let output = chunks_query( &params ).expect( "table query should succeed" );
+  assert!( !output.contains( "..." ), "width::30 must wrap, not truncate, table_plain output:\n{output}" );
+  assert!( output.contains( "Single-value hash of a 2D" ), "wrapped first line missing:\n{output}" );
+  assert!( output.contains( "point into [0, 1)." ), "wrapped continuation line missing:\n{output}" );
+  assert!( output.lines().count() > 3, "expected a wrapped continuation line, got:\n{output}" );
+}
+
+#[ test ]
+fn query_table_format_full_dataset_never_truncates_at_width()
+{
+  let mut params = QueryParams::list_defaults();
+  params.format = OutputFormat::Table;
+  params.width = 30;
+  let output = chunks_query( &params ).expect( "table query should succeed" );
+  assert!( !output.contains( "..." ), "table_plain must always wrap at width::30, never truncate:\n{output}" );
+}
+
 #[ test ]
 fn query_names_format_ignores_fields_projection()
 {

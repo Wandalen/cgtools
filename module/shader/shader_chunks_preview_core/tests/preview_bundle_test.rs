@@ -69,7 +69,7 @@ fn vec2_value_chunk_gets_a_synthesized_harness()
 
   assert_eq!( bundle.target, "hash22" );
   assert_eq!( code_occurrences( &bundle.wgsl, "hash22( p )" ), 1, "candidate selection must pick hash22 itself by name match, no wrapper needed" );
-  assert_eq!( code_occurrences( &bundle.wgsl, "vec4f( value, 0.5, 1.0 )" ), 1, "the Vec2 shape writes red/green from value with a fixed blue pad, no rescaling" );
+  assert_eq!( code_occurrences( &bundle.wgsl, "let color = vec3f( value, 0.5 );" ), 1, "the Vec2 shape writes red/green from value with a fixed blue pad, no rescaling" );
   naga_validate( &bundle.wgsl );
 }
 
@@ -82,11 +82,86 @@ fn vec3_value_chunk_gets_a_synthesized_harness()
   assert_eq!( bundle.target, "palette_cosine" );
   assert_eq!
   (
-    code_occurrences( &bundle.wgsl, "palette_cosine_preview( p )" ), 1,
-    "candidate selection must fall back to the first previewable export, since none is named exactly `palette_cosine`"
+    code_occurrences( &bundle.wgsl, "palette_cosine_preview( p, params.base, params.amplitude, params.frequency, params.phase_r, params.phase_g, params.phase_b )" ), 1,
+    "candidate selection must fall back to the first previewable export, since none is named exactly `palette_cosine`; \
+    the chunk's own six tunables are now real arguments, positioned before the synthesized preview_scale slider"
   );
-  assert_eq!( code_occurrences( &bundle.wgsl, "vec4f( value, 1.0 )" ), 1, "the Vec3 shape writes a direct RGB passthrough, no rescaling" );
+  assert_eq!( code_occurrences( &bundle.wgsl, "let color = value;" ), 1, "the Vec3 shape writes a direct RGB passthrough, no rescaling" );
   naga_validate( &bundle.wgsl );
+}
+
+#[ test ]
+fn sdf_tagged_value_chunk_gets_filled_banded_visualization_and_stationary_sampling()
+{
+  let target = shader_chunks_core::chunk_get( "sdf_op_round" ).expect( "sdf_op_round is bundled" );
+  let bundle = bundle_build( target.wgsl ).expect( "sdf_op_round exports a previewable value function" );
+
+  assert_eq!( bundle.target, "sdf_op_round" );
+  assert_eq!
+  (
+    code_occurrences( &bundle.wgsl, "select( vec3f( 0.92, 0.93, 0.96 ), vec3f( 0.30, 0.55, 0.95 ), value < 0.0 )" ), 1,
+    "a category:sdf chunk must get the filled/banded distance visualization, not the raw clamped grayscale"
+  );
+  assert_eq!
+  (
+    code_occurrences( &bundle.wgsl, "let p = q * params.preview_scale;" ), 1,
+    "a category:sdf chunk's sample point must stay stationary -- a time-drifting offset eventually pans a finite shape out of frame"
+  );
+
+  // sdf_op_round's own hardcoded box-extent/round-radius literals are real
+  // sliders now, not baked constants -- see `shader/sdf_op_round/sdf_op_round.wgsl`'s
+  // `//@ param: ... argument f32 ...` declarations.
+  let properties : Vec< &str > = bundle.parameters.iter().map( | p | p.property.as_str() ).collect();
+  assert_eq!
+  (
+    properties, vec![ "box_half_extent", "round_radius", "preview_scale" ],
+    "the chunk's own declared tunables precede the synthesized preview_scale slider, in signature order"
+  );
+  assert_eq!( ( bundle.parameters[ 0 ].min, bundle.parameters[ 0 ].max ), ( 0.05, 0.4 ) );
+  assert_eq!( ( bundle.parameters[ 1 ].min, bundle.parameters[ 1 ].max ), ( 0.0, 0.2 ) );
+  assert!
+  (
+    bundle.wgsl.contains( "let value = sdf_op_round_preview( p, params.box_half_extent, params.round_radius );" ),
+    "the harness must pass both uniforms positionally into the chunk's own pure wrapper:\n{}", bundle.wgsl
+  );
+
+  naga_validate( &bundle.wgsl );
+}
+
+#[ test ]
+fn non_sdf_value_chunk_keeps_raw_grayscale_and_time_drift()
+{
+  let target = shader_chunks_core::chunk_get( "fbm3" ).expect( "fbm3 is bundled" );
+  let bundle = bundle_build( target.wgsl ).expect( "fbm3 exports a previewable value function" );
+
+  assert_eq!( code_occurrences( &bundle.wgsl, "let color = vec3f( value );" ), 1, "a non-sdf f32 chunk keeps the original raw-clamped grayscale write" );
+  assert_eq!
+  (
+    code_occurrences( &bundle.wgsl, "params.time * 0.05" ), 1,
+    "a non-sdf value chunk keeps the time-drifting sample point -- it has no finite footprint to drift out of"
+  );
+}
+
+#[ test ]
+fn every_value_chunk_preview_carries_a_reference_grid()
+{
+  let target = shader_chunks_core::chunk_get( "sdf_op_round" ).expect( "sdf_op_round is bundled" );
+  let bundle = bundle_build( target.wgsl ).expect( "previewable" );
+  assert_eq!
+  (
+    code_occurrences( &bundle.wgsl, "let grid = max( minor_grid" ), 1,
+    "every value-chunk harness overlays a world-space reference grid so scale/center stay legible"
+  );
+}
+
+#[ test ]
+fn composed_bundle_marks_dependency_target_and_harness_sections()
+{
+  let target = shader_chunks_core::chunk_get( "sdf_op_round" ).expect( "sdf_op_round is bundled" );
+  let bundle = bundle_build( target.wgsl ).expect( "previewable" );
+  assert!( bundle.wgsl.contains( "// ==== dependency chunk: d2_sdf_box ====" ), "dependency section must be banner-marked" );
+  assert!( bundle.wgsl.contains( "// ==== previewing: sdf_op_round" ), "target section must be banner-marked" );
+  assert!( bundle.wgsl.contains( "// ==== auto-generated preview harness" ), "synthesized harness section must be banner-marked" );
 }
 
 #[ test ]
@@ -160,17 +235,67 @@ fn local_probe( p : vec2f ) -> f32 { return 0.0; }
 }
 
 #[ test ]
-fn value_chunk_declaring_params_is_rejected()
+fn value_chunk_with_matching_argument_param_gets_a_real_slider()
 {
   let wgsl = "\
 //@ name: local_probe
 //@ description: Probe.
 //@ tags: category:test
 //@ depends_on:
-//@ export: fn local_probe(p: vec2f) -> f32
+//@ export: fn local_probe(p: vec2f, spread: f32) -> f32
+//@ param: spread argument f32 range(1.0, 8.0)
+
+fn local_probe( p : vec2f, spread : f32 ) -> f32 { return spread; }
+";
+  let bundle = bundle_build( wgsl ).expect( "a trailing f32 argument with a matching `argument` declaration is previewable" );
+
+  let properties : Vec< &str > = bundle.parameters.iter().map( | p | p.property.as_str() ).collect();
+  assert_eq!( properties, vec![ "spread", "preview_scale" ], "the chunk's own tunable comes before the synthesized preview_scale slider" );
+  assert_eq!( ( bundle.parameters[ 0 ].min, bundle.parameters[ 0 ].max ), ( 1.0, 8.0 ) );
+  assert!
+  (
+    bundle.wgsl.contains( "let value = local_probe( p, params.spread );" ),
+    "the harness must call the value function with the uniform passed positionally, not read as a global inside the target's own body:\n{}", bundle.wgsl
+  );
+  naga_validate( &bundle.wgsl );
+}
+
+#[ test ]
+fn value_chunk_trailing_argument_without_declaration_is_unpreviewable()
+{
+  // Mirrors a real, previously-observed regression: a chunk's own raw
+  // primitive export ( name-matching the chunk, per Stage 1's tie-break )
+  // structurally satisfies Stage 0 once it carries a trailing `f32`
+  // argument, even when that argument was never meant to be a preview
+  // slider — the primitive is real API surface other chunks call with real
+  // values, not a `_preview` wrapper. With no matching `//@ param:`
+  // declaration at all, and no other candidate export, the chunk must be
+  // reported `Unpreviewable`, not crash with `UnsupportedParam`.
+  let wgsl = "\
+//@ name: local_probe
+//@ description: Probe.
+//@ tags: category:test
+//@ depends_on:
+//@ export: fn local_probe(p: vec2f, strength: f32) -> f32
+
+fn local_probe( p : vec2f, strength : f32 ) -> f32 { return strength; }
+";
+  let err = bundle_build( wgsl ).expect_err( "an undeclared trailing argument must not be silently treated as previewable" );
+  assert!( matches!( &err, PreviewError::Unpreviewable { .. } ), "expected Unpreviewable, got {err:?}" );
+}
+
+#[ test ]
+fn value_chunk_declared_param_with_wrong_type_still_fails_loudly()
+{
+  let wgsl = "\
+//@ name: local_probe
+//@ description: Probe.
+//@ tags: category:test
+//@ depends_on:
+//@ export: fn local_probe(p: vec2f, octaves: f32) -> f32
 //@ param: octaves argument u32 range(1, 8)
 
-fn local_probe( p : vec2f, octaves : u32 ) -> f32 { return 0.0; }
+fn local_probe( p : vec2f, octaves : f32 ) -> f32 { return octaves; }
 ";
   let err = bundle_build( wgsl ).expect_err( "should fail" );
   assert!

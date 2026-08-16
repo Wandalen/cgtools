@@ -67,3 +67,38 @@ fn as_command_blocks_splits_at_instruction_changes()
   assert_eq!( blocks[ 1 ], vec![ Stitch { x : 2, y : 2, instruction : Instruction::Jump } ] );
   assert_eq!( blocks[ 2 ], vec![ Stitch { x : 3, y : 3, instruction : Instruction::Stitch } ] );
 }
+
+// test_kind: bug_reproducer(BUG-150)
+/// ## Root Cause
+/// `duplicate_color_interpolate_as_stop`'s guard compared `self.threads().get( thread_index )`
+/// against `self.threads().get( thread_index - 1 )` with no bounds check. When there are more
+/// color-change-delimited stitch runs than recorded threads, both `.get()` calls return `None`,
+/// and `None == None` is `true` in Rust, so the guard was satisfied and
+/// `self.threads.remove( thread_index )` ran on an out-of-range index.
+/// ## Why Not Caught
+/// No existing test called `duplicate_color_interpolate_as_stop` at all, and its sibling
+/// `stop_interpolate_as_duplicate_color` already has the correct `thread_index < len` guard, so
+/// there was no precedent failure to compare against.
+/// ## Fix Applied
+/// Added a `thread_index < self.threads().len()` guard before the `.get()` comparison,
+/// mirroring `stop_interpolate_as_duplicate_color`'s existing bounds-check pattern. See
+/// `embroidery_file.rs`.
+/// ## Prevention
+/// This test constructs a file with more color-change-delimited stitch runs than threads (zero
+/// threads at all), which is exactly the shape `pec::content_read` can produce from a malformed
+/// or unusual PEC/PES file, since it calls this function automatically on every read.
+/// ## Pitfall
+/// `None == None` reads as "these two threads are equal" instead of "neither index is valid" --
+/// any `Option`-returning `.get()` comparison used as an equality check must first confirm at
+/// least one side is genuinely in-bounds, or two absences will silently compare as a match.
+#[ test ]
+fn duplicate_color_interpolate_as_stop_does_not_panic_with_fewer_threads_than_color_changes()
+{
+  let mut emb = EmbroideryFile::new();
+  emb.color_change( 0, 0 );
+  emb.stitch( 1, 1 );
+  emb.color_change( 0, 0 );
+  emb.stitch( 1, 1 );
+
+  emb.duplicate_color_interpolate_as_stop();
+}

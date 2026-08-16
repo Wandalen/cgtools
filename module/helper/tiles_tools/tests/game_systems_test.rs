@@ -153,6 +153,53 @@ fn test_quest_system() {
   assert_eq!(quest_manager.completed_quests().len(), 1);
 }
 
+// test_kind: bug_reproducer(BUG-133)
+/// ## Root Cause
+/// `turn_order_rebuild` only clamped `current_turn_index` numerically against
+/// the new `turn_order`'s length -- it never remapped the index to the same
+/// entity_id. Any `participant_add`/`participant_remove` call mid-round
+/// silently reassigned "whose turn it is" to whichever entity happened to
+/// land on that numeric slot after re-sorting, with no `turn_end()` call in
+/// between.
+/// ## Why Not Caught
+/// The existing `test_turn_based_participants` only ever calls
+/// `participant_add` before any `turn_end()`, and never calls
+/// `participant_remove` at all -- it never exercises a rebuild that happens
+/// while `current_turn_index` already points partway through the order.
+/// ## Fix Applied
+/// `turn_order_rebuild` now captures the current entity_id before rebuilding,
+/// then looks up that entity's new position in the freshly-sorted order --
+/// falling back to the original numeric clamp only when that entity no
+/// longer exists (i.e. it was itself the one removed).
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// Invisible whenever every `participant_add`/`participant_remove` call
+/// happens before the first `turn_end()`, or whenever removed/added entities
+/// never precede the current turn holder in initiative order -- both leave
+/// the numeric index and the identity-correct index coincidentally equal.
+#[test]
+fn test_turn_order_rebuild_preserves_current_entity_across_removal()
+{
+  let mut game = TurnBasedGame::new();
+  game.participant_add(1, 100);
+  game.participant_add(2, 90);
+  game.participant_add(3, 80);
+  assert_eq!(game.current_turn(), Some(1)); // Initiative 100
+
+  game.turn_end();
+  assert_eq!(game.current_turn(), Some(2)); // Initiative 90
+
+  // Removing an unrelated, earlier-ordered participant mid-round must not
+  // change whose turn it currently is.
+  game.participant_remove(1);
+  assert_eq!(
+    game.current_turn(), Some(2),
+    "removing participant 1 shifted the current turn away from participant 2, \
+     who was never removed and never had turn_end() called"
+  );
+}
+
 #[test]
 fn test_status_effects() {
   let mut game = TurnBasedGame::new();

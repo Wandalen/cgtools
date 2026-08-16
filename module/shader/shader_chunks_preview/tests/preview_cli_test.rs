@@ -25,7 +25,7 @@ fn unknown_name_is_rejected_with_the_shared_unknown_chunk_text()
   let err = bundle_prepare( &PreviewTarget::Name( "bogus_chunk".to_string() ) ).expect_err( "should fail" );
   assert!( matches!( &err, PreviewCliError::UnknownChunk( name ) if name == "bogus_chunk" ), "expected UnknownChunk, got {err:?}" );
   assert_eq!( err.exit_code(), 1 );
-  assert_eq!( err.to_string(), "unknown chunk: `bogus_chunk` (see `list` for valid names)" );
+  assert_eq!( err.to_string(), "unknown chunk: `bogus_chunk` (see `shader_chunks list` for valid names)" );
 }
 
 #[ test ]
@@ -138,6 +138,19 @@ fn subprocess_help_lists_the_preview_group()
   .output()
   .expect( "runs" );
   assert!( output.status.success() );
+  let stdout = String::from_utf8_lossy( &output.stdout );
+  assert!( stdout.contains( "Preview" ), "stdout: {stdout}" );
+  assert!( stdout.contains( "preview [name]" ), "stdout: {stdout}" );
+}
+
+#[ test ]
+fn subprocess_dash_dash_help_lists_the_preview_group()
+{
+  let output = Command::cargo_bin( "shader_chunks_preview" ).expect( "binary builds" )
+  .args( [ "--help" ] )
+  .output()
+  .expect( "runs" );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
   let stdout = String::from_utf8_lossy( &output.stdout );
   assert!( stdout.contains( "Preview" ), "stdout: {stdout}" );
   assert!( stdout.contains( "preview [name]" ), "stdout: {stdout}" );

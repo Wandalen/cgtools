@@ -26,6 +26,18 @@ canvas {
   color: #eee;
 }
 
+.chunk-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.controls-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0.65;
+}
+
 .control-group {
   display: flex;
   flex-direction: column;
@@ -64,6 +76,13 @@ canvas {
   flex-direction: column;
   gap: 12px;
   width: min(480px, 40vw);
+}
+
+.editor-heading {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.8;
+  letter-spacing: 0.02em;
 }
 
 .shader-editor {

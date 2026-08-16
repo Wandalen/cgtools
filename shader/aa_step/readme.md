@@ -25,7 +25,7 @@ a single-pixel antialiased gradient. Directly previewable via
 | `tags` | `category:antialiasing` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn aa_step(edge: f32, x: f32) -> f32`, `fn aa_step_preview(p: vec2f) -> f32` |
+| `export` | `fn aa_step(edge: f32, x: f32) -> f32`, `fn aa_step_preview(p: vec2f, edge: f32) -> f32` |
 
 ## Nuances
 

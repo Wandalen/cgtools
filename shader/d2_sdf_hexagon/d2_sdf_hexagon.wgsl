@@ -3,7 +3,8 @@
 //@ tags: category:sdf, dim:2d
 //@ depends_on:
 //@ export: fn d2_sdf_hexagon(p: vec2f, r: f32) -> f32
-//@ export: fn d2_sdf_hexagon_preview(p: vec2f) -> f32
+//@ export: fn d2_sdf_hexagon_preview(p: vec2f, circumradius: f32) -> f32
+//@ param: circumradius argument f32 range(0.05, 0.45)
 
 fn d2_sdf_hexagon( p_in : vec2f, r : f32 ) -> f32
 {
@@ -14,7 +15,7 @@ fn d2_sdf_hexagon( p_in : vec2f, r : f32 ) -> f32
   return length( p ) * sign( p.y );
 }
 
-fn d2_sdf_hexagon_preview( p : vec2f ) -> f32
+fn d2_sdf_hexagon_preview( p : vec2f, circumradius : f32 ) -> f32
 {
-  return d2_sdf_hexagon( p, 0.26 );
+  return d2_sdf_hexagon( p, circumradius );
 }
