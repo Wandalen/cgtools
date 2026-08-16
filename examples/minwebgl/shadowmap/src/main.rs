@@ -42,7 +42,7 @@ fn camera_setup( canvas : &HtmlCanvasElement, width : i32, height : i32 ) -> ren
     45.0_f32.to_radians(),
     0.1,
     100.0
-  );
+  ).expect( "camera parameters are valid" );
   camera.window_size_set( [ width as f32, height as f32 ].into() );
   camera.controls_bind( canvas );
 

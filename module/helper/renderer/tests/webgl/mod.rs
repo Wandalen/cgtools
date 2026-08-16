@@ -7,5 +7,8 @@ mod node;
 /// Scene related tests
 mod scene;
 
+/// Camera related tests
+mod camera;
+
 /// PBR material tests
 mod pbr_material;

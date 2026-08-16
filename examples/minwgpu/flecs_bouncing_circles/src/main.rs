@@ -206,7 +206,8 @@ fn graphics_init( event_loop : &ActiveEventLoop ) -> Graphics
     context.adapter_get(),
     render_surface,
     ( window_size.width.max( 1 ), window_size.height.max( 1 ) ),
-  );
+  )
+  .expect( "size is clamped to at least 1x1, so surface_configure cannot see a zero size here" );
 
   let shader = context.device_get().create_shader_module( wgpu::include_wgsl!( "../shaders/circle.wgsl" ) );
 
@@ -256,7 +257,8 @@ fn graphics_resize( graphics : &mut Graphics, size : ( u32, u32 ) )
   graphics.surface_config = surface::surface_configure
   (
     graphics.context.device_get(), graphics.context.adapter_get(), graphics.render_surface, size,
-  );
+  )
+  .expect( "zero sizes are filtered out by the guard above, so surface_configure cannot see one here" );
 }
 
 /// Advances the simulation by the real time elapsed since the previous frame, then renders

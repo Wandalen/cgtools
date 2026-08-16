@@ -30,11 +30,12 @@ mod private
   use slotmap::SlotMap;
   use crate::anchor::EdgeDirection;
   use crate::compile::animation::{ animation_duration_seconds, declared_phase_seconds };
+  use crate::compile::edges::canonical_edge;
   use crate::error::SnapshotLoadError;
   use crate::event::SceneEvent;
   use crate::instance::{ Instance, InstanceHandle, ObjectHandle, Placement, StateHandle };
   use crate::resource::{ Animation, AnimationMode, SpriteRef, TintRef };
-  use crate::snapshot::SceneSnapshot;
+  use crate::snapshot::{ EdgePosition, SceneSnapshot };
   use crate::source::SpriteSource;
   use crate::spec::RenderSpec;
 
@@ -649,7 +650,28 @@ mod private
           // is `(0, 0)` — this is the degenerate-stagger case noted on
           // `PhaseOffset::HashCoord`. Override with `phase_offset_set`
           // if per-instance stagger is needed there.
-          let pos = inst.placement.hex_coord().unwrap_or( ( 0, 0 ) );
+          //
+          // Fix(BUG-157)
+          // Root cause: `Placement::Edge{hex,dir}` may be authored from either
+          // side of a shared edge -- `hex_coord()` returns that raw, possibly
+          // non-canonical hex verbatim. The render path (`edge_pass_scene_compile`
+          // -> `edge_sprite_source_resolve`) canonicalizes via `canonical_edge`
+          // before computing phase, but this event-detection path did not, so
+          // `declared_phase_seconds`'s documented "agrees byte-for-byte with what
+          // `animation_frame_resolve` would show on screen" promise broke for
+          // `PhaseOffset::HashCoord`/`Linear` (both depend on `pos`) whenever an
+          // edge instance was declared on its non-canonical side.
+          // Pitfall: two code paths reading the same `Instance` field can silently
+          // diverge when only one of them applies a normalization step the field's
+          // own doc comment defers to "the renderer" -- grep every reader of a
+          // field whose doc says "canonicalized elsewhere", not just the obvious
+          // rendering one.
+          let pos = match inst.placement
+          {
+            Placement::Edge { hex, dir } => canonical_edge( EdgePosition { hex, dir }, self.spec.pipeline.hex.tiling )
+              .map_or( hex, | canon | canon.0 ),
+            _ => inst.placement.hex_coord().unwrap_or( ( 0, 0 ) ),
+          };
 
           for ( layer_index, layer ) in layers.iter().enumerate()
           {

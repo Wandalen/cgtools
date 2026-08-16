@@ -56,7 +56,7 @@ shader_chunks render
 # error: render needs exactly one target: a chunk name (see `list`) or `file::<path>`, exit 1
 
 shader_chunks render bogus_chunk
-# error: unknown chunk: `bogus_chunk` (see `list` for valid names), exit 1
+# error: unknown chunk: `bogus_chunk` (see `shader_chunks list` for valid names), exit 1
 
 shader_chunks render fbm3 size::0
 # error: invalid `size` value: `0` (allowed: `<n>` or `<width>x<height>`, each side at least 1), exit 1

@@ -96,21 +96,21 @@ mod private
   #[ must_use ]
   pub async fn compilation_messages_get( module : &web_sys::GpuShaderModule ) -> Vec< CompilationMessage >
   {
-    let info = match JsFuture::from( module.get_compilation_info() ).await
+    let Ok( info ) = JsFuture::from( module.get_compilation_info() ).await else
     {
-      Ok( info ) => info,
-      Err( _ ) => return Vec::new(),
+      return Vec::new();
     };
 
     info.messages().iter().map( | message |
     {
       let kind = match message.type_()
       {
-        web_sys::GpuCompilationMessageType::Error => CompilationMessageKind::Error,
         web_sys::GpuCompilationMessageType::Warning => CompilationMessageKind::Warning,
         web_sys::GpuCompilationMessageType::Info => CompilationMessageKind::Info,
         // `GpuCompilationMessageType` is `#[non_exhaustive]` (wasm-bindgen JS string enum) --
-        // treat any future/unrecognized severity as blocking rather than silently as benign.
+        // `Error` and any future/unrecognized severity both fold into this wildcard, treating
+        // unrecognized values as blocking rather than silently benign (clippy::match_same_arms
+        // forbids a separate `Error => ...` arm identical to this one).
         _ => CompilationMessageKind::Error,
       };
 

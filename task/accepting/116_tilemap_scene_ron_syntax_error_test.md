@@ -4,11 +4,11 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/
-- **actor:** null
-- **started_at:** null
-- **expires_at:** null
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **started_at:** 2026-08-16 05:56:50
+- **expires_at:** 2026-08-16 07:56:50
 - **round:** 1
-- **state:** 🎯 (Verified)
+- **state:** 🔎 (Accepting)
 - **closes:** null
 - **repo_identity:** self
 - **unit_type:** module
@@ -16,6 +16,11 @@
 - **verified_by:** null
 - **verification_date:** null
 - **blocked_by:** null
+- **executing_at:** 2026-08-16 05:47:51
+- **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **in_motion:** true
+- **accepting_at:** 2026-08-16 05:56:50
+- **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## Goal
 
@@ -152,6 +157,14 @@ Desired answer for every question is YES.
 | D8 | Crate Single Responsibility | — | 🟢 | — | — |
 | **Total** | | — | 🟢 | — | — |
 
+## Journal
+
+| Timestamp           | Actor                | Event | Note         |
+|---------------------|----------------------|-------|--------------|
+| 2026-08-16 05:47:51 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_EXEC | execution claimed |
+| 2026-08-16 05:56:50 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | EXEC_COMPLETE | execution complete |
+| 2026-08-16 05:56:50 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_ACCEPT | acceptance claimed |
+
 ## History
 
 *(append-only — newest entry last; never edit or remove past entries)*
@@ -163,3 +176,33 @@ Desired answer for every question is YES.
 - `module/helper/tilemap_scene/src/error.rs` — `LoadError` enum, the type under test
 - `module/helper/tilemap_scene/src/load.rs` — `from_ron_str`/`load`, the functions under test
 - `docs/layer/005_l4_scene_model.md` — `tilemap_scene`'s declarative-model layer entry, RON as canonical form
+
+## Outcomes
+
+### Acceptance Results
+
+- **Verified by:** independent verifier session (fresh dispatch, no prior context of the implementation)
+- **Date:** 2026-08-16
+- **Verdict:** PASS
+
+#### Checklist
+
+- **C1** — PASS. `tests/ron_syntax_error_test.rs` exists with 3 distinct `#[test]` functions: `from_ron_str_unclosed_paren_yields_ron_error` (T01), `from_ron_str_bare_token_yields_ron_error` (T02), `syntactically_valid_ron_failing_validation_is_not_a_ron_error` (T03).
+- **C2** — PASS. T01 and T02 each assert via `matches!( result, Err( LoadError::Ron( _ ) ) )` — not a bare `is_err()`.
+- **C3** — PASS. `git diff --stat module/helper/tilemap_scene/src/` shows changes only in `compile/frame.rs` and `scene.rs`; `error.rs`/`load.rs`/`validate.rs` show zero diff (mtimes 2026-08-14, two days stale — untouched). The `frame.rs`/`scene.rs` diffs are pre-existing `Fix(BUG-156)`/`Fix(BUG-157)` changes with mtimes (05:05:35 / 05:06:42) predating this task's own execution window (05:47:51–05:56:50 per Execution State) — unrelated concurrent work, not introduced by this task's execution.
+- **C4** — PASS. Full read of the test file confirms no `LoadError::Io` case is constructed anywhere.
+- **C5** — PASS. Full read confirms `SnapshotLoadError` is never referenced (import list is `LoadError, RenderSpec, SceneSnapshot, Validate, ValidationError` only).
+- **C6** — PASS. All 3 test cases call `from_ron_str` directly; no `.load( path )` call appears anywhere in the file.
+
+#### Measurements
+
+- **M1** — PASS. `RUSTFLAGS="--cfg web_sys_unstable_apis -D warnings" cargo test -p tilemap_scene --test ron_syntax_error_test 2>&1 | grep -c "test result: ok"` → `1` (3 tests passed, 0 failed, 0 ignored).
+
+#### Invariants
+
+- **I1** — PASS. Full workspace `verb/test` run to completion via `longrun` (exit 0; wrapped-command completion marker pid 883466, elapsed 300s; log `-0044_longrun.log`): nextest native summary `1848 tests run: 1848 passed, 0 skipped`; every `Doc-tests <crate>` block shows `0 failed`; wasm32 summary `3 crate(s) tested, 0 failed`; whole-log sweep for any nonzero `N failed` pattern and for `^error` compiler-error lines returned no matches. `tilemap_scene::ron_syntax_error_test`'s 3 tests specifically appear and show `PASS`: `from_ron_str_bare_token_yields_ron_error`, `from_ron_str_unclosed_paren_yields_ron_error`, `syntactically_valid_ron_failing_validation_is_not_a_ron_error`.
+- **I2** — PASS. `RUSTFLAGS="--cfg web_sys_unstable_apis -D warnings" cargo check -p tilemap_scene --all-features` → exit 0, output contains only `Checking`/`Finished` lines, zero warnings.
+
+#### Anti-faking checks
+
+- **AF1** — PASS. `UNCLOSED_PAREN_SPEC` (`r"RenderSpec( assets: ["`) and `BARE_TOKEN_SCENE` (`r"totally_not_a_struct"`) are genuinely distinct string literals from each other; `grep -rn` across the whole `tests/` directory finds each literal occurring only inside `ron_syntax_error_test.rs` itself — no duplication against any other fixture in the suite. Note (informational, not a failure): T03's `GHOST_LAYER_SPEC` is a byte-for-byte mirror of `scene_model_test.rs`'s `validate_rejects_unknown_pipeline_layer` fixture — transparently disclosed via an explicit code comment and matching the Test Matrix's own stated design ("mirroring an existing Validation-test fixture"); AF1's own criterion scopes explicitly to T01/T02 only, so this is not a violation.

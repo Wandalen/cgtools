@@ -423,6 +423,86 @@ fn one_sprite_per_tile()
   assert_eq!( sprite_count, 9, "3x3 grid = 9 sprites" );
 }
 
+/// # What
+/// Two layers on one object, declared with `z_in_object` reversed relative to
+/// their declaration order, confirm the emitted `Sprite` commands are ordered
+/// by ascending `z_in_object` rather than by stack declaration order.
+///
+/// # How
+/// Push layer "top" (frame "1", `z_in_object: 1`) FIRST in the stack, then
+/// layer "bottom" (frame "0", `z_in_object: 0`) SECOND. `SortMode::None` on
+/// the pipeline layer means `sort_mode_apply` never reorders the bucket, so
+/// the emitted order exposes exactly what the compile pass gathered.
+///
+/// # Root Cause
+/// `ObjectLayer::z_in_object` is documented (layer.rs, object.rs,
+/// docs/format/001) and specified by docs/algorithm/002's own pseudocode as
+/// the draw order within one object's layer stack, but every compile-pass call
+/// site iterated `stack` in raw declaration order — the field was read nowhere
+/// in the compile pipeline. Before this fix, this test would observe frame
+/// "1" drawn before frame "0" (declaration order) instead of the documented
+/// ascending-`z_in_object` order.
+///
+/// # Fix
+/// Added `layers_in_z_order` (compile/frame.rs) and wired it into all 5 call
+/// sites that previously iterated `stack` directly.
+///
+/// # Notes
+/// bug_reproducer(BUG-156)
+#[ test ]
+fn object_layers_draw_in_ascending_z_in_object_order()
+{
+  let mut spec = minimal_spec();
+  let mut states = HashMap::default();
+  states.insert
+  (
+    "default".into(),
+    vec!
+    [
+      // Declared FIRST but z_in_object 1 — must draw SECOND.
+      ObjectLayer
+      {
+        id : Some( "top".into() ),
+        sprite_source : SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "1".into() } ),
+        behaviour : LayerBehaviour::default(),
+        z_in_object : 1,
+        pipeline_layer : None,
+      },
+      // Declared SECOND but z_in_object 0 — must draw FIRST.
+      ObjectLayer
+      {
+        id : Some( "bottom".into() ),
+        sprite_source : SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ),
+        behaviour : LayerBehaviour::default(),
+        z_in_object : 0,
+        pipeline_layer : None,
+      },
+    ],
+  );
+  spec.objects[ 0 ].states = states;
+
+  let scene = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile( &spec, &scene, &Camera::default() );
+
+  let sprite_ids : Vec< _ > = cmds.iter().filter_map( | c |
+    if let RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
+  ).collect();
+  let bottom_id = compiled.ids.sprite( "terrain", "0" ).expect( "bottom sprite allocated" );
+  let top_id = compiled.ids.sprite( "terrain", "1" ).expect( "top sprite allocated" );
+
+  assert_eq!
+  (
+    sprite_ids,
+    vec![ bottom_id, top_id ],
+    "layers must draw in ascending z_in_object order regardless of declaration order; saw {sprite_ids:?}",
+  );
+}
+
 fn sprite_x( cmd : &RenderCommand ) -> f32
 {
   if let RenderCommand::Sprite( s ) = cmd { s.transform.position[ 0 ] } else { panic!( "not Sprite" ) }

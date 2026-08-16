@@ -147,10 +147,10 @@ mod private
     ) -> Result< ( Device, Queue, Surface ), Error >
     {
       let context = gl::context::from_canvas( canvas ).map_err( gl::WebGPUError::from )?;
-      let adapter = gl::context::adapter_request().await;
-      let device = gl::context::device_request( &adapter ).await;
+      let adapter = gl::context::adapter_request().await?;
+      let device = gl::context::device_request( &adapter ).await?;
       let queue = device.queue();
-      let raw_format = gl::context::preferred_format();
+      let raw_format = gl::context::preferred_format()?;
       gl::context::configure( &device, &context, raw_format )?;
       let format = TextureFormat::try_from( raw_format )?;
 

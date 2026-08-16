@@ -30,7 +30,12 @@ mod private
     /// * `fov` - The field of view in degrees.
     /// * `near` - The distance to the near clipping plane.
     /// * `far` - The distance to the far clipping plane.
-    #[ must_use ]
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if `aspect_ratio`, `fov`, `near`, or `far` is non-finite or outside
+    /// the domain `perspective_rh_gl` requires to produce a valid, invertible projection matrix
+    /// ( `aspect_ratio > 0`, `0 < fov < PI`, `near > 0`, `far > near` ).
     pub fn new
     (
       eye : gl::F32x3,
@@ -40,8 +45,36 @@ mod private
       fov : f32,
       near : f32,
       far : f32
-    ) -> Self
+    ) -> Result< Self, gl::WebglError >
     {
+      // Fix(BUG-174): `perspective_rh_gl` divides by `aspect_ratio`, `tan( fov / 2.0 )`, and
+      // `near - far` with no guard -- a zero/negative/non-finite value on any of these 4
+      // parameters baked an Inf/NaN-poisoned matrix into `self.projection_matrix` with no error
+      // signal, or ( for the narrow `near == 0.0` xor `far == 0.0` case ) produced a matrix whose
+      // determinant is exactly zero, deferring the actual panic to an unrelated
+      // `.inverse().unwrap()` call several frames later in `Renderer::skybox_draw`.
+      // Root cause: no validation existed anywhere between the caller and `perspective_rh_gl`.
+      // Pitfall: `aspect_ratio` is routinely computed as `canvas.width() / canvas.height()` ( see
+      // this crate's own readme.md example ) -- a transiently zero canvas height ( hidden tab,
+      // not yet laid out ) used to silently corrupt every subsequent frame's projection instead
+      // of surfacing as a recoverable, attributable error at the point of construction.
+      if !aspect_ratio.is_finite() || aspect_ratio <= 0.0
+      {
+        return Err( gl::WebglError::Other( "Camera::new: aspect_ratio must be finite and > 0.0" ) );
+      }
+      if !fov.is_finite() || fov <= 0.0 || fov >= std::f32::consts::PI
+      {
+        return Err( gl::WebglError::Other( "Camera::new: fov must be finite and within ( 0.0, PI ) radians" ) );
+      }
+      if !near.is_finite() || near <= 0.0
+      {
+        return Err( gl::WebglError::Other( "Camera::new: near must be finite and > 0.0" ) );
+      }
+      if !far.is_finite() || far <= near
+      {
+        return Err( gl::WebglError::Other( "Camera::new: far must be finite and > near" ) );
+      }
+
       let projection_matrix = gl::math::mat3x3h::perspective_rh_gl
       (
         fov,
@@ -59,13 +92,16 @@ mod private
 
       let controls = Rc::new( RefCell::new( controls ) );
 
-      Self
-      {
-        controls,
-        near,
-        far,
-        projection_matrix
-      }
+      Ok
+      (
+        Self
+        {
+          controls,
+          near,
+          far,
+          projection_matrix
+        }
+      )
     }
 
     /// Binds mouse and pointer events to the camera controls for interaction.

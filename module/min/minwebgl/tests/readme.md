@@ -12,3 +12,5 @@ runnability story.
 | data_type_test.rs | DataType ↔ Const WebGL-constant pinning and roundtrip |
 | clean_test.rs | Verifies attachment-id conversion rejects out-of-range ids |
 | geometry_test.rs | Verifies natoms validation accepts 1-4, rejects the rest |
+| drawbuffers_test.rs | Verifies color-attachment index validation rejects out-of-range indices (BUG-159) |
+| sprite_upload_test.rs | Verifies sprite mip-level count and row/col position helpers (BUG-160, BUG-161) |

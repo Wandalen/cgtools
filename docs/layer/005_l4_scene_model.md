@@ -26,9 +26,9 @@ to an L3/L5 consumer produces pixels.
 
 | Stack | Model | State |
 |-------|-------|-------|
-| tile | `tilemap_scene`'s RON scene model (`RenderSpec`/`SceneSnapshot` — layers, palettes, variants; not the in-memory `Scene` runtime graph, which has no `Serialize`/`Deserialize` derive, see Sources below) | ✅ Dedicated crate; GPU-free by dependency surface once task 117 lands — currently `tiles_tools` pulls in `minwebgl` transitively through its default-on but unused `animation` feature ([`tilemap_scene` invariant/003](../../module/helper/tilemap_scene/docs/invariant/003_compiles_to_renderer_commands_only.md)) |
+| tile | `tilemap_scene`'s RON scene model (`RenderSpec`/`SceneSnapshot` — layers, palettes, variants; not the in-memory `Scene` runtime graph, which has no `Serialize`/`Deserialize` derive, see Sources below) | ✅ Dedicated crate; GPU-free by dependency surface — `tiles_tools`' default-on `animation` feature, which transitively pulled in `minwebgl` while going unused, was removed (task 117) ([`tilemap_scene` invariant/003](../../module/helper/tilemap_scene/docs/invariant/003_compiles_to_renderer_commands_only.md)) |
 | d2 (general) | None dedicated — content arrives as direct `tilemap_renderer` commands or via `scene_script` | 🔄 Gap accepted; no committed need yet |
-| d3 | glTF, consumed through `renderer`'s loaders | 🔄 De facto: the format is standard, but there is no cgtools-owned model crate wrapping it; unlike `tilemap_scene`, its `load()` requires a live `WebGl2RenderingContext` to parse — not off-GPU-validatable |
+| d3 | glTF, consumed through `renderer`'s loaders | 🔄 De facto: the format is standard, but there is no cgtools-owned model crate wrapping it; unlike `tilemap_scene`, its `load()` as a whole requires a live `WebGl2RenderingContext` to parse — not off-GPU-validatable end-to-end, though pure sub-surfaces are: light-extraction (`light_list_get`) is now natively tested off-GPU (task 118) |
 
 `d3_scene` (`module/blank/d3_scene/`) reserves the slot for a d3-owned
 scene model + script, gated on a committed scene-file requirement.

@@ -90,7 +90,7 @@ async fn setup() -> Result< (), gl::WebglError >
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
   let aspect = canvas.width() as f32 / canvas.height() as f32;
-  let mut camera = Camera::new( eye, up, center, aspect, 70.0f32.to_radians(), 0.1, 1000.0 );
+  let mut camera = Camera::new( eye, up, center, aspect, 70.0f32.to_radians(), 0.1, 1000.0 )?;
   camera.window_size_set( [ canvas.width() as f32, canvas.height() as f32 ].into() );
 
   // Renderer with 4x MSAA, then a first frame into its internal HDR buffer

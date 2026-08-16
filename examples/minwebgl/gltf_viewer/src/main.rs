@@ -86,7 +86,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   let far = 100.0;
   let aspect_ratio = pixel_w as f32 / pixel_h as f32;
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far )?;
   camera.window_size_set( [ pixel_w as f32, pixel_h as f32 ].into() );
   camera.controls_bind( &canvas );
 

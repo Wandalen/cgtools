@@ -298,7 +298,7 @@ impl Renderer
       fov,
       near,
       far
-    );
+    ).unwrap();
 
     camera.controls_bind( &canvas );
 

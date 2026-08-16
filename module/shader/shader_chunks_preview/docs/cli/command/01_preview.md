@@ -54,7 +54,7 @@ shader_chunks preview
 # error: preview needs exactly one target: a chunk name (see `list`) or `file::<path>`, exit 1
 
 shader_chunks preview bogus_chunk
-# error: unknown chunk: `bogus_chunk` (see `list` for valid names), exit 1
+# error: unknown chunk: `bogus_chunk` (see `shader_chunks list` for valid names), exit 1
 ```
 
 ### Notes

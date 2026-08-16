@@ -64,6 +64,33 @@ fn name_target_renders_a_png_of_the_requested_size()
   let _ = std::fs::remove_file( &out );
 }
 
+// test_kind: bug_reproducer(BUG-155)
+/// ## Root Cause
+/// This test's expected string dropped the `shader_chunks ` prefix that
+/// `shader_chunks_preview::PreviewCliError::UnknownChunk` actually produces
+/// (`shader_chunks_preview/src/lib.rs`) -- the exact error `render_to_png`
+/// returns verbatim via `bundle_prepare`, since neither the `render` nor
+/// `preview` standalone binary has a local `list` command of its own to
+/// point users at (only the `shader_chunks`/`sch` aggregator and the
+/// `shader_chunks_query` binary do).
+/// ## Why Not Caught
+/// No compile-time link exists between this test's hardcoded string and
+/// the sibling `shader_chunks_preview::tests::unknown_name_is_rejected_with_the_shared_unknown_chunk_text`
+/// test that already asserts the correct (prefixed) text for the same
+/// shared `PreviewCliError::UnknownChunk` value -- the two tests' names
+/// promise identical expectations but nothing enforced it.
+/// ## Fix Applied
+/// Added the missing `shader_chunks ` prefix so this assertion matches
+/// `shader_chunks_preview`'s own passing assertion for the same error.
+/// ## Prevention
+/// None added -- fixing the existing assertion to match the one shared
+/// error text is the whole fix; no new test needed since a test already
+/// exists on both sides of the "shared" text once corrected.
+/// ## Pitfall
+/// A test name that says "shared" with a sibling test is only a comment,
+/// not a guarantee -- two independently hardcoded string literals can
+/// still silently drift out of sync when one crate's doc/CLI convention
+/// changes and the other's copy isn't updated alongside it.
 #[ test ]
 fn unknown_name_is_rejected_with_the_shared_unknown_chunk_text()
 {
@@ -71,7 +98,7 @@ fn unknown_name_is_rejected_with_the_shared_unknown_chunk_text()
   let err = render_to_png( &PreviewTarget::Name( "bogus_chunk".to_string() ), ( 8, 8 ), 0.0, &out )
   .expect_err( "should fail" );
   assert_eq!( err.exit_code(), 1 );
-  assert_eq!( err.to_string(), "unknown chunk: `bogus_chunk` (see `list` for valid names)" );
+  assert_eq!( err.to_string(), "unknown chunk: `bogus_chunk` (see `shader_chunks list` for valid names)" );
   assert!( !out.exists(), "no PNG may be written on failure" );
 }
 

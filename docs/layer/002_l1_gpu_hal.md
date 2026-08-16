@@ -56,7 +56,10 @@ test suite ( same browser-side-pixel-test gap noted above for `renderer` );
 suite mirroring `gpu_hal`'s own `triangle_render_readback` precedent, proving
 the offscreen-render-plus-readback path with no browser involved. Its existing
 `adapter-webgl` keeps its direct `minwebgl` dependency for now, on the same
-accepted-until-strangled posture.
+accepted-until-strangled posture — it now also has its own
+compile-and-construct-level test suite (`webgl_backend_test.rs` +
+`command_consistency_test.rs`, task 114), the same shape of coverage as
+`adapter-webgpu`'s, without adopting the HAL itself.
 
 ### ADRs
 

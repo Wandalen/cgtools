@@ -204,8 +204,17 @@ mod private
           self.geometry.points[ index ]
         }
 
+        // Fix(BUG-154)
+        // Root cause: doc comment claimed "Will panic if index is out of range", copy-pasted
+        // from `point_get`'s doc (which does panic, via direct `Index` on the backing
+        // `VecDeque`) -- but this method reads the index via `.get_mut()` guarded by
+        // `if let Some(..)`, which silently no-ops on an out-of-range index instead.
+        // Pitfall: a doc comment copied from a sibling method must be re-verified against the
+        // copy's own implementation, not assumed to still apply -- `point_get`'s direct
+        // indexing and `point_set`'s `.get_mut()` guard are different access patterns despite
+        // near-identical doc wording.
         /// Sets the points at the specified position.
-        /// Will panic if index is out of range
+        /// Silently does nothing if index is out of range.
         pub fn point_set< P : gl::VectorIter< $primitive_type, $dimensions > >( &mut self, point : P, index : usize )
         {
           if let Some( p ) = self.geometry.points.get_mut( index )
@@ -221,8 +230,12 @@ mod private
           }
         }
 
+        // Fix(BUG-154)
+        // Root cause: same doc/code mismatch as `point_set` above -- doc claimed a panic this
+        // method's `.get_mut()`-guarded body never produces.
+        // Pitfall: see `point_set`'s comment above for the full explanation.
         /// Sets the points at the specified position.
-        /// Will panic if index is out of range
+        /// Silently does nothing if index is out of range.
         pub fn color_set< C : gl::VectorIter< $primitive_type, 3 > >( &mut self, color : C, index : usize )
         {
           if let Some( c ) = self.geometry.colors.get_mut( index )

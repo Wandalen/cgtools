@@ -274,10 +274,22 @@ mod private
     }
 
     /// Sets the world transformation matrix for the node.
+    ///
+    /// If the matrix's linear part is singular (e.g. a zero scale on some axis), the normal
+    /// matrix falls back to identity instead of panicking -- see BUG-171.
     fn world_matrix_set( &mut self, matrix : F32x4x4 )
     {
       self.world_matrix = matrix;
-      self.normal_matrix = matrix.truncate().inverse().unwrap().transpose();
+      // Fix(BUG-171): `.unwrap()` on a singular 3x3 linear part panicked every frame a node's
+      // accumulated world scale had a zero on any axis (a common glTF "flatten"/hide trick, or
+      // an animation channel interpolating scale through 0.0).
+      // Root cause: `inverse()` returns `None` exactly when `determinant() == 0`, which
+      // `world_matrix_update` reaches unconditionally for every node whose transform changed --
+      // there was no fallback for the degenerate case.
+      // Pitfall: a per-frame hot path computing a normal matrix via inverse-transpose must
+      // handle non-invertible input gracefully (identity fallback), not assume every caller-
+      // supplied transform is well-conditioned.
+      self.normal_matrix = matrix.truncate().inverse().map_or_else( gl::math::mat3x3::identity, | m | m.transpose() );
       self.bounding_box_compute();
       self.needs_world_matrix_update = false;
     }
@@ -391,11 +403,14 @@ mod private
 
       if let Some( inverse_world_matrix_loc ) = locations.get( "inverseWorldMatrix" )
       {
+        // Fix(BUG-171): same singular-matrix panic as `world_matrix_set` -- falls back to
+        // identity instead of unwrapping `None` when the world matrix isn't invertible.
+        let inverse_world_matrix = self.world_matrix.inverse().unwrap_or_else( gl::math::mat4x4::identity );
         let _ = gl::uniform::matrix_upload
         (
           gl,
           inverse_world_matrix_loc.clone(),
-          self.world_matrix.inverse().unwrap().to_array().as_slice(),
+          inverse_world_matrix.to_array().as_slice(),
           true
         );
       }
@@ -517,15 +532,17 @@ mod private
     /// combines the hierarchical bounding boxes of all its children. This creates a
     /// single bounding box that encapsulates the entire sub-tree.
     ///
-    /// # Panics
-    ///
-    /// Panics if the node's world matrix is not invertible.
+    /// If the node's world matrix is not invertible (e.g. a zero scale on some axis), the
+    /// world-to-local step is skipped rather than panicking -- see BUG-171.
     #[ must_use ]
     pub fn local_bounding_box_hierarchical( &self ) -> BoundingBox
     {
       let mut bbox = self.bounding_box_hierarchical();
 
-      bbox.transform_apply_mut( self.world_matrix_get().inverse().unwrap() );
+      // Fix(BUG-171): same singular-matrix panic as `world_matrix_set` -- falls back to identity
+      // (skipping the world-space removal step) instead of unwrapping `None`.
+      let inverse_world_matrix = self.world_matrix_get().inverse().unwrap_or_else( gl::math::mat4x4::identity );
+      bbox.transform_apply_mut( inverse_world_matrix );
       bbox.transform_apply_mut( self.local_matrix_get() );
 
       bbox

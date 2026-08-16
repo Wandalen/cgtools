@@ -4,11 +4,11 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **actor:** null
-- **started_at:** null
-- **expires_at:** null
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **started_at:** 2026-08-16 05:45:09
+- **expires_at:** 2026-08-16 07:45:09
 - **round:** 1
-- **state:** 🎯 (Verified)
+- **state:** 🔎 (Accepting)
 - **closes:** null
 - **repo_identity:** self
 - **unit_type:** module
@@ -16,6 +16,11 @@
 - **verified_by:** user1@w002
 - **verification_date:** 2026-08-16
 - **blocked_by:** null
+- **executing_at:** 2026-08-16 05:24:13
+- **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/
+- **in_motion:** true
+- **accepting_at:** 2026-08-16 05:45:09
+- **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## Goal
 
@@ -174,6 +179,14 @@ Desired answer for every question is YES.
 | D7 | Crate Locality | — | 🟢 | — | — |
 | D8 | Crate Single Responsibility | — | 🟢 | — | — |
 | **Total** | | — | 🟢 | — | — |
+
+## Journal
+
+| Timestamp           | Actor                | Event | Note         |
+|---------------------|----------------------|-------|--------------|
+| 2026-08-16 05:24:13 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | CLAIM_EXEC | execution claimed |
+| 2026-08-16 05:45:03 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | EXEC_COMPLETE | execution complete |
+| 2026-08-16 05:45:09 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_ACCEPT | acceptance claimed |
 
 ## History
 

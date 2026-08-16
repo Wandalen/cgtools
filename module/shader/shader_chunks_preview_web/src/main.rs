@@ -59,6 +59,11 @@ struct PipelineState
   bind_group : web_sys::GpuBindGroup
 }
 
+// Pre-existing debt surfaced by this crate's first-ever wasm32-target clippy sweep (this
+// function is `target_arch = "wasm32"`-gated, so a native-only clippy pass never compiled it,
+// let alone linted it -- see BUG-162's verification). A straight-line WebGPU pipeline setup
+// sequence like this one doesn't gain clarity from being split into single-call helpers.
+#[ allow( clippy::too_many_lines, reason = "straight-line WebGPU pipeline setup sequence; splitting into single-call helpers reduces clarity" ) ]
 #[cfg(target_arch = "wasm32")]
 async fn app_run() -> Result< (), gl::WebGPUError >
 {
@@ -72,10 +77,10 @@ async fn app_run() -> Result< (), gl::WebGPUError >
   let canvas = gl::canvas::retrieve_or_make()?;
 
   let context = gl::context::from_canvas( &canvas )?;
-  let adapter = gl::context::adapter_request().await;
-  let device = gl::context::device_request( &adapter ).await;
+  let adapter = gl::context::adapter_request().await?;
+  let device = gl::context::device_request( &adapter ).await?;
   let queue = device.queue();
-  let presentation_format = gl::context::preferred_format();
+  let presentation_format = gl::context::preferred_format()?;
   gl::context::configure( &device, &context, presentation_format )?;
 
   // The bundle's WGSL is already composed, dependency-ordered, and

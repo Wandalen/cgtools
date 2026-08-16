@@ -44,14 +44,27 @@ mod private
     ConfigurationError( String )
   }
 
-  /// Errors that can occur while retrieving state from an already-configured WebGPU canvas context.
+  /// Errors that can occur while acquiring a WebGPU adapter/device, or while retrieving state
+  /// from an already-configured WebGPU canvas context.
   #[ derive( Debug, error::typed::Error ) ]
   #[ non_exhaustive ]
   pub enum ContextError
   {
     /// Indicates a failure to get the current texture from the context.
     #[ error( "Failed to get current texture: {0}" )]
-    FailedToGetCurrentTextureError( String )
+    FailedToGetCurrentTextureError( String ),
+    /// Indicates `navigator.gpu.requestAdapter()` resolved to `null` — a spec-defined outcome
+    /// meaning no compatible `GPUAdapter` is available on this system, not a JS exception.
+    #[ error( "No WebGPU adapter available on this system" )]
+    NoAdapterAvailable,
+    /// Indicates `GPUAdapter.requestDevice()`'s returned promise was rejected.
+    #[ error( "WebGPU device request was rejected: {0}" )]
+    DeviceRequestRejected( String ),
+    /// Indicates `navigator.gpu` itself is absent -- this browser has no WebGPU support at all,
+    /// as distinct from [`ContextError::NoAdapterAvailable`]'s "supported but no compatible
+    /// adapter" outcome.
+    #[ error( "WebGPU is not supported by this browser (navigator.gpu is undefined)" )]
+    WebGpuUnsupported
   }
 
   /// Errors that can occur while creating a view of a WebGPU texture.

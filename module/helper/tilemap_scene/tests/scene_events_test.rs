@@ -21,6 +21,7 @@ use tilemap_scene::
   AnimationTiming,
   Asset,
   AssetKind,
+  EdgeDirection,
   HexConfig,
   LayerBehaviour,
   Object,
@@ -395,6 +396,94 @@ fn hash_coord_phase_can_separate_completions()
   let SceneEvent::AnimationCompleted { instance, .. } = &evs2[ 0 ]
     else { panic!( "non-AnimationCompleted: {:?}", evs2[ 0 ] ); };
   assert_eq!( *instance, b );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Edge canonicalization phase agreement
+// ────────────────────────────────────────────────────────────────────────────
+
+/// # What
+/// Two instances placed on the same physical hex edge, but declared from
+/// opposite (one canonical, one non-canonical) sides, must complete their
+/// `OneShot` animation on the exact same tick — the edge is a single shared
+/// entity and its declared side is not meaningful, per `Placement::Edge`'s
+/// own doc ("the canonical-side decision is made by the renderer").
+///
+/// # How
+/// `hex=(0,0), dir=N` and `hex=(0,-1), dir=S` are the two declarations of the
+/// one edge between hex `(0,0)` and hex `(0,-1)` under `HexFlatTop` tiling
+/// (`N`'s offset is `(0,-1)`; canonicalization picks the lexicographically
+/// smaller hex, `(0,-1)`, with dir `S`). `PhaseOffset::Linear{per_r: -0.2}`
+/// makes phase depend on `pos.1`, so an uncanonicalized reader sees raw pos
+/// `(0,0)` (phase 0.0) for the first instance and raw pos `(0,-1)` (phase
+/// 0.2) for the second — two different phases for what is meant to be one
+/// shared edge.
+///
+/// # Root Cause
+/// `Scene::tick_into` computed `OneShot` completion phase from
+/// `inst.placement.hex_coord()`, which returns `Placement::Edge`'s raw,
+/// possibly non-canonical `hex` verbatim. The render path
+/// (`edge_pass_scene_compile` → `edge_sprite_source_resolve`) canonicalizes
+/// via `canonical_edge` before resolving phase, so event-detection could
+/// diverge from what would actually appear on screen — breaking
+/// `declared_phase_seconds`'s own documented "agrees byte-for-byte" promise.
+/// Before this fix, this test's two instances (same canonical edge, opposite
+/// declared sides) would complete 0.2s apart instead of simultaneously.
+///
+/// # Fix
+/// `tick_into` now canonicalizes `Placement::Edge{hex,dir}` via
+/// `canonical_edge`/`self.spec.pipeline.hex.tiling` before computing phase,
+/// falling back to the raw hex only if canonicalization itself fails.
+///
+/// # Notes
+/// bug_reproducer(BUG-157)
+#[ test ]
+fn edge_instances_on_opposite_sides_of_same_edge_complete_together()
+{
+  let anim = regular_animation
+  (
+    "spawn_fx",
+    5,
+    10.0,
+    AnimationMode::OneShot,
+    PhaseOffset::Linear { per_q : 0.0, per_r : -0.2 },
+  );
+  let spec = spec_build( vec![ anim ], vec![ animation_layer( "spawn_fx" ) ] );
+  let mut scene = Scene::new( spec );
+  let actor = scene.object( "actor" ).unwrap();
+
+  // Non-canonical side: raw hex (0,0), pre-fix phase 0.0.
+  let a = scene.spawn( actor, Placement::Edge { hex : ( 0, 0 ), dir : EdgeDirection::N } );
+  // Canonical side: raw hex (0,-1), phase 0.2 — same physical edge as `a`.
+  let b = scene.spawn( actor, Placement::Edge { hex : ( 0, -1 ), dir : EdgeDirection::S } );
+
+  // Below either candidate crossing point (0.3s canonical, 0.5s if `a`
+  // were still using its uncanonicalized phase 0.0) — no events yet.
+  let evs_early = scene.tick( 0.25 );
+  assert!( evs_early.is_empty(), "below the shared 0.3s crossing point: {evs_early:?}" );
+
+  // Crosses 0.3s (cumulative clock 0.25 -> 0.35). With correct
+  // canonicalization both `a` and `b` share phase 0.2 and cross together.
+  let evs = scene.tick( 0.10 );
+  assert_eq!
+  (
+    evs.len(), 2,
+    "instances on opposite sides of the same edge must share one canonical \
+    phase and complete in the same tick; saw {evs:?} (a build that reads \
+    the raw, non-canonical hex would fire only the already-canonical \
+    instance here, with the other arriving 0.2s later)",
+  );
+  let completed : std::collections::HashSet< _ > = evs.iter().map( | ev |
+  {
+    let SceneEvent::AnimationCompleted { instance, .. } = ev
+      else { panic!( "non-AnimationCompleted: {ev:?}" ); };
+    *instance
+  }).collect();
+  assert!( completed.contains( &a ) && completed.contains( &b ), "both instances must be in {evs:?}" );
+
+  // No further/duplicate firing once both have completed.
+  let evs_after = scene.tick( 0.5 );
+  assert!( evs_after.is_empty(), "no repeat firing after completion: {evs_after:?}" );
 }
 
 // ────────────────────────────────────────────────────────────────────────────

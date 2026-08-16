@@ -128,6 +128,13 @@ mod private
 
   impl TransformsData
   {
+    /// Returns a slice of the resolved joint nodes, in skin-joint-array order.
+    #[ must_use ]
+    pub fn joints_get( &self ) -> &[ Rc< RefCell< Node > > ]
+    {
+      self.joints.as_slice()
+    }
+
     /// Creates [`TransformsData`]
     #[ must_use ]
     pub fn new( joints : Vec< ( Rc< RefCell< Node > >, F32x4x4 ) > ) -> Self

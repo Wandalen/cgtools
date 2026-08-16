@@ -15,4 +15,5 @@ it needs a real adapter/device.
 | buffer_test.rs | Buffer and vertex-buffer builder state accumulation via getters |
 | context_test.rs | Context builder state accumulation, adapter-request error paths, selector priority |
 | helper_test.rs | helper attr field mapping and adapter_request shortcut error path |
-| readback_test.rs | Pure row-padding and padding-strip math behind readback::rgba8 |
+| readback_test.rs | Pure row-padding/strip math and BGRA→RGBA swizzle behind readback::rgba8 (BUG-166) |
+| surface_test.rs | Pure format-selection and zero-size validation behind surface::surface_configure (BUG-165) |

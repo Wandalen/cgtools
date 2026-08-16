@@ -17,6 +17,11 @@ tests/
   backend_test.rs       — Backend trait contract, RenderError, Capabilities
   commands_test.rs      — RenderCommand Copy invariant, size, stream construction
   svg_backend_test.rs   — SvgBackend adapter behavior via public surface (feature adapter-svg)
+  none_backend_test.rs  — NoneBackend no-op contract (feature adapter-none)
+  native_backend_test.rs — NativeBackend real-GPU pixel-readback contract (feature adapter-native)
+  webgpu_backend_test.rs — WebGpuBackend compile-and-construct-level contract (feature adapter-webgpu, wasm32)
+  webgl_backend_test.rs — WebGlBackend::declared_capabilities pure-function contract (feature adapter-webgl)
+  command_consistency_test.rs — cross-backend capabilities-vs-submit() consistency (none/svg/native)
   types_test.rs         — Transform, ResourceId, RenderConfig
 ```
 
@@ -29,6 +34,11 @@ tests/
 | `assets_test.rs` | Asset validation | Empty set, no-duplicate ok, per-type duplicate errors, cross-type id independence |
 | `backend_test.rs` | Backend trait | `assets_load`, `submit`, `output`, `resize`, `Capabilities::default`, all `RenderError` variants |
 | `svg_backend_test.rs` | SvgBackend adapter (relocated from inline by task 071) | Clear/viewport wrapper, paths, gradients, patterns, clip masks, sprite tint/batches, mesh topologies, effects, blend modes, groups, disk/encoded/bitmap image loading, text flow/anchors/on-path, plus the former private helpers ( transforms, anchors, PNG probing, `SvgContentManager` ) now exposed as documented or `doc( hidden )` pub — `src/` carries no inline test modules |
+| `none_backend_test.rs` | NoneBackend adapter | `Capabilities::default` field-by-field pin, unconditional `Ok` on `submit`/`assets_load` regardless of command/asset content |
+| `native_backend_test.rs` | NativeBackend adapter | Real `gpu_hal` device construct/load/submit/output, exact pixel readback, resize |
+| `webgpu_backend_test.rs` | WebGpuBackend adapter | `declared_capabilities` honest subset, `sprite_draw_params` anti-hardcoding, `command_classify` family rejection (wasm32 only) |
+| `webgl_backend_test.rs` | WebGlBackend adapter | `declared_capabilities` honest-subset pin and `max_texture_size` anti-hardcoding pin — no live `WebGl2RenderingContext` |
+| `command_consistency_test.rs` | Cross-backend command/capabilities consistency | `none`/`svg`/`native` each accept a `Sprite` (all declare `sprites: true`); `none`/`native` each reject or gracefully skip a `paths`-family command they declare `false` (never panic) |
 
 ## Adding new tests
 

@@ -79,7 +79,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   // Far plane: extends 100^|exponent| times beyond near plane for large scale range
   let far = near * 100.0f32.powi( exponent.abs() );
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far )?;
   camera.window_size_set( [ width, height ].into() );
   camera.controls_bind( &canvas );
 

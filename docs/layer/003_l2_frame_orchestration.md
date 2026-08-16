@@ -26,7 +26,13 @@ and resolve mechanics are the same shape of problem.
   emission / transparent-accumulate target set (`RGBA16F`) plus a
   transparent-revealage target (`R16F`), the opaque → transparent →
   `resolve` → post-chain ordering, and the `post_processing/pass.rs` pass
-  composition.
+  composition. The attachment-selection branch — which of `[0]` / `[0,1]` /
+  `[0,2,3]` / `[0,1,2,3]` color attachments to enable per frame — is
+  extracted into a pure `frame_attachments()` function, natively unit-tested
+  across all 4 branch combinations by `webgl_frame_orchestration_test.rs`
+  (no live `WebGl2RenderingContext` needed for this one piece; the rest of
+  the embedded instance still has no test citation — the same
+  browser-test-infrastructure gap named elsewhere in this layer).
 - `renderer` (`src/webgl/shadow.rs`, legacy path): a separate shadow-map
   render-target and pass cycle, run before the main scene pass.
 - `renderer` (`src/webgl/post_processing/gbuffer.rs`, legacy path): a
@@ -61,6 +67,7 @@ name and a documented home.
 |------|--------------|
 | `module/blank/frame_graph/` | The reserved crate slot |
 | `module/helper/renderer/src/webgl/renderer.rs` | The richest embedded instance: target zoo + pass ordering + resolve |
+| `module/helper/renderer/tests/webgl_frame_orchestration_test.rs` | Native unit coverage for the attachment-selection branch (task 115) |
 | `module/helper/renderer/src/webgl/post_processing/pass.rs` | Pass composition machinery |
 | `module/helper/renderer/src/webgl/shadow.rs` | Shadow-map target and pass cycle |
 | `module/helper/renderer/src/webgl/post_processing/gbuffer.rs` | G-buffer target set and fill/composite pass cycle |

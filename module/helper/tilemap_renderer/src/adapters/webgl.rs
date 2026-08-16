@@ -1092,6 +1092,34 @@ mod private
 
       Ok( () )
     }
+
+    /// Computes this backend's declared `Capabilities` from its one
+    /// hardware-dependent input -- `max_texture_size` -- touching no
+    /// `WebGl2RenderingContext`/`web_sys` state, so it is testable without a
+    /// live GL context.
+    #[ must_use ]
+    pub fn declared_capabilities( max_texture_size : u32 ) -> Capabilities
+    {
+      Capabilities
+      {
+        paths : false,       // needs tessellation / GPU curves
+        text : false,        // needs a glyph atlas / SDF fonts
+        meshes : true,
+        sprites : true,
+        batches : true,
+        gradients : false,   // not yet loaded or rendered
+        patterns : false,    // not yet loaded or rendered
+        clip_masks : false,  // not yet loaded or rendered
+        effects : false,     // needs FBO post-processing
+        // `blend_modes` means "all variants correct"; Overlay silently falls back
+        // to Normal in `blend_apply` (needs FBO / custom shader), so this is false.
+        // Callers needing per-mode info should check `supported_blend_modes`.
+        blend_modes : false,
+        supported_blend_modes : &[ BlendMode::Normal, BlendMode::Add, BlendMode::Multiply, BlendMode::Screen ],
+        text_on_path : false,
+        max_texture_size,
+      }
+    }
   }
 
   // ============================================================================
@@ -1230,25 +1258,7 @@ mod private
 
     fn capabilities( &self ) -> Capabilities
     {
-      Capabilities
-      {
-        paths : false,       // needs tessellation / GPU curves
-        text : false,        // needs a glyph atlas / SDF fonts
-        meshes : true,
-        sprites : true,
-        batches : true,
-        gradients : false,   // not yet loaded or rendered
-        patterns : false,    // not yet loaded or rendered
-        clip_masks : false,  // not yet loaded or rendered
-        effects : false,     // needs FBO post-processing
-        // `blend_modes` means "all variants correct"; Overlay silently falls back
-        // to Normal in `blend_apply` (needs FBO / custom shader), so this is false.
-        // Callers needing per-mode info should check `supported_blend_modes`.
-        blend_modes : false,
-        supported_blend_modes : &[ BlendMode::Normal, BlendMode::Add, BlendMode::Multiply, BlendMode::Screen ],
-        text_on_path : false,
-        max_texture_size : self.max_texture_size,
-      }
+      Self::declared_capabilities( self.max_texture_size )
     }
   }
 
