@@ -347,12 +347,37 @@ mod private
     ///
     /// # Errors
     ///
-    /// Returns [`Error::WebGpu`] if the underlying WebGPU texture-creation
-    /// call fails. Returns [`Error::WebGl`] if `desc.format` has no WebGL
-    /// internal-format mapping, or if the WebGL context fails to allocate
-    /// the texture. The native backend never fails this call.
+    /// Returns [`Error::InvalidInput`] if any of `desc.size`'s three
+    /// components is `0`. Returns [`Error::WebGpu`] if the underlying WebGPU
+    /// texture-creation call fails. Returns [`Error::WebGl`] if
+    /// `desc.format` has no WebGL internal-format mapping, or if the WebGL
+    /// context fails to allocate the texture. The native backend never
+    /// fails this call for reasons other than an invalid `desc.size`.
     pub fn texture_create( &self, desc : &TextureDesc ) -> Result< Texture, Error >
     {
+      // Fix(BUG-176): `desc.size` reached every backend unguarded. WebGPU
+      // rejects a zero-sized descriptor via an uncaught validation error;
+      // WebGL's `tex_storage_2d` silently no-ops on `INVALID_VALUE` ( its
+      // error is never surfaced through this Result, so the function
+      // returned `Ok` for a texture that was never actually allocated );
+      // native `wgpu::Device::create_texture` panics outright — the same
+      // zero-size validation panic already fixed for `Surface::configure`
+      // ( BUG-165 ). A live canvas can transiently report `width()`/
+      // `height()` as `0` ( hidden tab, not yet laid out ), so this is
+      // reachable with no malformed caller input at all.
+      // Root cause: no validation existed between the caller and any of
+      // the three backend-specific texture-creation calls.
+      // Pitfall: this function's own doc comment claimed "the native
+      // backend never fails this call" — true in the narrow sense that it
+      // never returns `Err`, false in the sense that mattered: it panics.
+      if desc.size[ 0 ] == 0 || desc.size[ 1 ] == 0 || desc.size[ 2 ] == 0
+      {
+        return Err( Error::InvalidInput( format!
+        (
+          "texture_create: size must be non-zero on all 3 components, got {:?}", desc.size
+        ) ) );
+      }
+
       match self
       {
         #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]

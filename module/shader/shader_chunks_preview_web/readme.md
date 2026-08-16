@@ -54,8 +54,12 @@ pipeline rebuild is even attempted. A blocking compile error, or a
 declaration), shows the diagnostic text in the panel under the editor and
 returns without touching the render state; the last-good pipeline and bind
 group — held in one combined `Rc<RefCell<PipelineState>>` cell so they
-always swap together — keep rendering every frame in the meantime. Success
-clears the diagnostics and swaps the new pipeline/bind-group pair in.
+always swap together — keep rendering every frame in the meantime. A
+successful recompile always swaps the new pipeline/bind-group pair in; the
+diagnostics panel clears only if `getCompilationInfo()` came back with zero
+messages, and otherwise shows the surviving non-blocking Warning/Info
+messages instead — a shader that compiles with warnings still renders, but
+the warnings aren't silently dropped.
 
 The uniform buffer's own layout (parameter count/order, the `resolution`
 slot) is fixed from the bundle loaded at page load — an edit changes only
@@ -64,6 +68,32 @@ struct shape incompatibly surfaces as a pipeline validation error in the
 diagnostics panel rather than being auto-accommodated; re-composing which
 chunks/params are in play is `shader_chunks preview`'s job, not this
 runner's.
+
+By default the editor shows and edits only the previewed chunk's own text —
+not its dependencies or the auto-generated preview harness (see
+[`shader_chunks_preview_core`](../shader_chunks_preview_core/readme.md)'s
+module docs for what composes the full bundle). Two checkboxes above the
+editor ("Show dependencies" / "Show generated harness") reveal the rest as
+read-only reference panels, split from the bundle's own banner comments
+(`// ==== dependency chunk: ... ====` etc.) client-side in `controls.js` —
+either checkbox is hidden entirely when the previewed chunk has none of that
+kind (a leaf chunk with no dependencies, or a fragment-mode chunk with no
+synthesized harness). Showing a panel never changes what compiles: every
+recompile reassembles dependencies + the target editor's current text +
+harness, in that fixed order, regardless of which are currently visible —
+only the target chunk's own text is ever actually edited.
+
+The editor textarea also overrides native Tab/Shift+Tab handling
+(`controls.js`): plain Tab/Shift+Tab in a `<textarea>` shifts focus to the
+next/previous focusable element by default, which is unusable for editing
+2-space-indented WGSL, so a `keydown` listener splices indentation in
+instead and dispatches a synthetic `input` event to keep the debounced
+recompile wired up (programmatic `.value` writes don't fire a native
+`input` event on their own). With a collapsed cursor, Tab/Shift+Tab
+inserts/removes 2 spaces right at the cursor; with an active selection, it
+indents/outdents every line the selection touches instead — matching every
+mainstream editor's convention — rather than replacing the selected text,
+which would otherwise silently delete it.
 
 ## Usage
 

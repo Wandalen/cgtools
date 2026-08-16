@@ -77,6 +77,21 @@ cargo nextest run -p gpu_hal --features native
 `triangle_render_readback` draws through the full public surface and asserts
 on pixels read back from the offscreen target.
 
+The `webgpu` and `webgl` backends have no offscreen readback to assert on —
+they present to a browser canvas instead — so they're verified with a real
+browser via `browsee` against `examples/gpu_hal/triangle_browser/`:
+
+```bash
+cd examples/gpu_hal/triangle_browser
+trunk serve --release --port 8080                                        # webgpu
+# or: trunk serve --release --no-default-features --features webgl --port 8080
+browsee .launch session::gpu_hal_tri url::http://127.0.0.1:8080/ features::webgpu window::800x600
+browsee .wait for::render timeout::60 session::gpu_hal_tri
+```
+
+Full command sequence, exact pixel readings, and the `region::center` /
+window-chrome caveat: `tests/manual/readme.md`.
+
 ## Context
 
 - `docs/definition/readme.md` — this crate's own feature / invariant / pattern / pitfall documentation
@@ -90,5 +105,5 @@ on pixels read back from the offscreen target.
 |------|----------------|
 | `src/` | Crate source — device/queue/surface, resource, pipeline, pass, and error wrappers over three backends |
 | `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
-| `tests/` | Integration tests (native backend only) |
+| `tests/` | Native integration tests, plus `manual/` for browser-side pixel verification |
 | `readme.md` | This file — user-facing entry point |

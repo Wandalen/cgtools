@@ -6,7 +6,7 @@ use std::sync::Arc;
 use winit::
 {
   application::ApplicationHandler,
-  event::WindowEvent,
+  event::{ ElementState, MouseButton, WindowEvent },
   event_loop::{ ActiveEventLoop, ControlFlow, EventLoop },
   window::{ Window, WindowId },
 };
@@ -47,6 +47,15 @@ const RESTITUTION : f32 = 0.72;
 /// ( window drag, OS scheduling hiccup ) produces one slow-motion frame instead of a large
 /// simulation jump that could tunnel a fast circle through a wall.
 const MAX_DT : f32 = 0.05;
+
+/// Ceiling on the arena-space speed `drag_apply` derives from cursor position delta. `MAX_DT`
+/// only bounds `dt` from above; a stall right before a `CursorMoved` still lets `dt` land
+/// arbitrarily close to zero on the very next frame, so `1.0 / dt` can spike without limit even
+/// though the cursor only moved a normal amount — this bounds the resulting velocity directly
+/// instead, so a frame hitch during a drag can never launch the held circle ( and everything it
+/// hits ) at an unphysical speed. Comfortably above any speed reached by gravity/bounce alone,
+/// so a real fast throw is never clipped.
+const MAX_DRAG_SPEED : f32 = 8.0;
 
 /// ( x, y, vx, vy, radius, [ r, g, b ] ).
 type CircleSpec = ( f32, f32, f32, f32, f32, [ f32; 3 ] );
@@ -102,6 +111,20 @@ fn main()
   event_loop.run_app( &mut app ).expect( "event loop exited with an error" );
 }
 
+/// Runtime state for a circle currently held by the mouse. `offset` is captured at grab time
+/// ( circle center minus cursor position, both in arena space ) so the circle keeps its grabbed
+/// point under the cursor instead of snapping its center there; `last_pos` is this circle's
+/// arena-space position as of the previous frame, letting `drag_apply` derive a real per-frame
+/// velocity from cursor motion instead of just teleporting the circle with no momentum to carry
+/// into `circles_collide` or into the throw on release.
+struct Drag
+{
+  entity : Entity,
+  offset : ( f32, f32 ),
+  last_pos : ( f32, f32 ),
+  radius : f32,
+}
+
 /// Everything created once the window exists: the windowed GPU context, the window's own
 /// presentation surface and its current configuration, the render pipeline, the static quad
 /// mesh, and the flecs world driving the simulation. Held as `App::graphics : Option< _ >`
@@ -119,6 +142,11 @@ struct Graphics
   instance_count : u32,
   clear_color : wgpu::Color,
   last_frame : std::time::Instant,
+  /// Latest cursor position in arena space, updated on every `CursorMoved`. Tracked separately
+  /// because `winit` has no synchronous cursor-position query — `MouseInput` events carry no
+  /// position of their own, so a press handler needs the last reported one.
+  cursor_pos : ( f32, f32 ),
+  dragging : Option< Drag >,
 }
 
 /// `winit`'s `ApplicationHandler` entry point. Starts with no window; `resumed` creates one
@@ -149,6 +177,8 @@ impl ApplicationHandler for App
     {
       WindowEvent::CloseRequested => event_loop.exit(),
       WindowEvent::Resized( size ) => graphics_resize( graphics, ( size.width, size.height ) ),
+      WindowEvent::CursorMoved { position, .. } => cursor_moved( graphics, ( position.x, position.y ) ),
+      WindowEvent::MouseInput { state, button, .. } => mouse_input( graphics, state, button ),
       WindowEvent::RedrawRequested => frame_render( graphics ),
       _ => {}
     }
@@ -241,6 +271,8 @@ fn graphics_init( event_loop : &ActiveEventLoop ) -> Graphics
     instance_count,
     clear_color : wgpu::Color { r : 0.05, g : 0.05, b : 0.08, a : 1.0 },
     last_frame : std::time::Instant::now(),
+    cursor_pos : ( 0.0, 0.0 ),
+    dragging : None,
   }
 }
 
@@ -261,6 +293,90 @@ fn graphics_resize( graphics : &mut Graphics, size : ( u32, u32 ) )
   .expect( "zero sizes are filtered out by the guard above, so surface_configure cannot see one here" );
 }
 
+/// Converts a cursor position from physical window pixels ( origin top-left, `y` growing
+/// downward ) into the same coordinate space the vertex shader places circles in: `vs_main`
+/// writes `clip_position` straight from `center`/`corner` with no view or projection matrix, so
+/// arena space and NDC are identical. Mirrors that mapping exactly ( including its lack of
+/// aspect-ratio correction ) so hit-testing and dragging always land under the cursor, even on a
+/// resized non-square window.
+fn cursor_to_arena( position : ( f64, f64 ), surface_size : ( u32, u32 ) ) -> ( f32, f32 )
+{
+  let width = f64::from( surface_size.0.max( 1 ) );
+  let height = f64::from( surface_size.1.max( 1 ) );
+  let ndc_x = ( position.0 / width ) * 2.0 - 1.0;
+  let ndc_y = 1.0 - ( position.1 / height ) * 2.0;
+  ( ndc_x as f32, ndc_y as f32 )
+}
+
+/// Tracks the latest cursor position. Called on every `WindowEvent::CursorMoved`.
+fn cursor_moved( graphics : &mut Graphics, position : ( f64, f64 ) )
+{
+  let size = ( graphics.surface_config.width, graphics.surface_config.height );
+  graphics.cursor_pos = cursor_to_arena( position, size );
+  eprintln!( "DIAG cursor_moved: physical={position:?} size={size:?} arena={:?}", graphics.cursor_pos );
+}
+
+/// Starts or ends a drag on left-button press/release. Press hit-tests every circle against the
+/// last known cursor position; release just clears `dragging` regardless of where the cursor is,
+/// leaving the circle's last drag-frame velocity to carry into ordinary physics as a throw.
+fn mouse_input( graphics : &mut Graphics, state : ElementState, button : MouseButton )
+{
+  if button != MouseButton::Left
+  {
+    return;
+  }
+  match state
+  {
+    ElementState::Pressed =>
+    {
+      graphics.dragging = circle_hit_test( &graphics.world, graphics.cursor_pos )
+      .map( | ( entity, pos, radius ) | Drag
+      {
+        entity,
+        offset : ( pos.0 - graphics.cursor_pos.0, pos.1 - graphics.cursor_pos.1 ),
+        last_pos : pos,
+        radius,
+      } );
+      eprintln!( "DIAG mouse_pressed: cursor={:?} hit={}", graphics.cursor_pos, graphics.dragging.is_some() );
+    }
+    ElementState::Released =>
+    {
+      eprintln!( "DIAG mouse_released: was_dragging={}", graphics.dragging.is_some() );
+      graphics.dragging = None;
+    }
+  }
+}
+
+/// Finds the circle under `cursor` ( arena space ), if any — the one whose center is closest
+/// among every circle whose radius actually contains the cursor point. Returns its `Entity`,
+/// current center, and radius so `mouse_input` can seed a `Drag` without a second query.
+fn circle_hit_test( world : &World, cursor : ( f32, f32 ) ) -> Option< ( Entity, ( f32, f32 ), f32 ) >
+{
+  let mut best : Option< ( Entity, ( f32, f32 ), f32, f32 ) > = None;
+  world
+  .new_query::< ( &Position, &Radius ) >()
+  .each_entity( | entity, ( pos, radius ) |
+  {
+    let dx = cursor.0 - pos.x;
+    let dy = cursor.1 - pos.y;
+    let dist_sq = dx * dx + dy * dy;
+    if dist_sq > radius.value * radius.value
+    {
+      return;
+    }
+    let is_closer = match &best
+    {
+      Some( ( _, _, _, best_dist_sq ) ) => dist_sq < *best_dist_sq,
+      None => true,
+    };
+    if is_closer
+    {
+      best = Some( ( *entity, ( pos.x, pos.y ), radius.value, dist_sq ) );
+    }
+  } );
+  best.map( | ( entity, pos, radius, _ ) | ( entity, pos, radius ) )
+}
+
 /// Advances the simulation by the real time elapsed since the previous frame, then renders
 /// and presents the current state. Called once per `WindowEvent::RedrawRequested`.
 fn frame_render( graphics : &mut Graphics )
@@ -269,7 +385,8 @@ fn frame_render( graphics : &mut Graphics )
   let dt = now.duration_since( graphics.last_frame ).as_secs_f32().min( MAX_DT );
   graphics.last_frame = now;
   graphics.world.progress_time( dt );
-  circles_collide( &graphics.world );
+  drag_apply( &graphics.world, graphics.cursor_pos, graphics.dragging.as_mut(), dt );
+  circles_collide( &graphics.world, graphics.dragging.as_ref().map( | drag | drag.entity ) );
 
   let instance_data = instance_data_collect( &graphics.world );
   let instance_buffer = instance_buffer_build( graphics.context.device_get(), &instance_data );
@@ -377,11 +494,51 @@ fn systems_register( world : &World )
   } );
 }
 
-/// Resolves overlaps left after `GravityIntegrate` and `WallBounce` have moved and wall-clamped
+/// While a circle is held by the mouse, pins its position to the cursor ( offset by the grab
+/// point captured at press time, clamped to the same arena bounds `WallBounce` enforces for
+/// every other circle ) and sets its velocity from the frame-to-frame position delta, so a fast
+/// drag carries real momentum into `circles_collide` and — once released — into
+/// `GravityIntegrate`/`WallBounce` as a natural throw. A no-op when nothing is currently dragged.
+/// Called once per frame from `frame_render`, immediately after `world.progress_time( dt )`.
+fn drag_apply( world : &World, cursor : ( f32, f32 ), drag : Option< &mut Drag >, dt : f32 )
+{
+  let Some( drag ) = drag else { return };
+
+  let new_pos =
+  (
+    ( cursor.0 + drag.offset.0 ).clamp( -ARENA_HALF + drag.radius, ARENA_HALF - drag.radius ),
+    ( cursor.1 + drag.offset.1 ).clamp( -ARENA_HALF + drag.radius, ARENA_HALF - drag.radius ),
+  );
+  let inv_dt = if dt > 0.0 { 1.0 / dt } else { 0.0 };
+  let mut vel =
+  (
+    ( new_pos.0 - drag.last_pos.0 ) * inv_dt,
+    ( new_pos.1 - drag.last_pos.1 ) * inv_dt,
+  );
+  let speed = vel.0.hypot( vel.1 );
+  if speed > MAX_DRAG_SPEED
+  {
+    let scale = MAX_DRAG_SPEED / speed;
+    vel = ( vel.0 * scale, vel.1 * scale );
+  }
+
+  world.entity_from_id( drag.entity )
+  .set( Position { x : new_pos.0, y : new_pos.1 } )
+  .set( Velocity { x : vel.0, y : vel.1 } );
+
+  drag.last_pos = new_pos;
+}
+
+/// Resolves overlaps left after `GravityIntegrate`, `WallBounce`, and `drag_apply` have moved
 /// every circle this frame: for each overlapping pair, pushes the two circles apart along the
-/// line between their centers and applies an elastic velocity response scaled by `RESTITUTION`,
-/// treating every circle as equal mass since no mass component exists. Called once per frame
-/// from `frame_render`, immediately after `world.progress_time( dt )`.
+/// line between their centers and applies a restitution-scaled velocity impulse along that same
+/// normal, treating every circle as equal mass since no mass component exists — except `pinned`
+/// ( the circle currently held by the mouse, if any ), which is treated as infinite mass: it
+/// receives none of the position correction or velocity impulse, and the other circle in the
+/// pair receives all of it, the same single-sided reflection `WallBounce` already applies against
+/// the arena walls. Both weightings fall out of one inverse-mass split ( `0` for a pinned circle,
+/// `1` otherwise ) that reduces to the original equal-mass 50/50 split when `pinned` is `None`.
+/// Called once per frame from `frame_render`, immediately after `drag_apply`.
 ///
 /// A plain function rather than a third `system_named` registration: the O( n² ) pairwise scan
 /// needs every circle's state gathered before any of it is resolved, which `each`/`each_iter`'s
@@ -389,7 +546,7 @@ fn systems_register( world : &World )
 /// `each_entity` ( the `EntityView` it hands the callback is only valid for that single call, so
 /// only its underlying `Entity` — a plain `Copy` id with no such restriction — is kept ),
 /// resolved locally, then written back through `World::entity_from_id`.
-fn circles_collide( world : &World )
+fn circles_collide( world : &World, pinned : Option< Entity > )
 {
   struct Circle
   {
@@ -425,20 +582,31 @@ fn circles_collide( world : &World )
       let dist = dist_sq.sqrt();
       let ( nx, ny ) = ( dx / dist, dy / dist );
 
+      let inv_mass_i = if pinned == Some( circles[ i ].entity ) { 0.0 } else { 1.0 };
+      let inv_mass_j = if pinned == Some( circles[ j ].entity ) { 0.0 } else { 1.0 };
+      let inv_mass_sum = inv_mass_i + inv_mass_j;
+      if inv_mass_sum <= 0.0
+      {
+        // Both sides pinned: impossible with a single drag target ( `i` and `j` are always
+        // distinct entities, and `pinned` can equal at most one of them ), but stay safe.
+        continue;
+      }
+      let ( wi, wj ) = ( inv_mass_i / inv_mass_sum, inv_mass_j / inv_mass_sum );
+
       let penetration = min_dist - dist;
-      circles[ i ].x -= nx * penetration * 0.5;
-      circles[ i ].y -= ny * penetration * 0.5;
-      circles[ j ].x += nx * penetration * 0.5;
-      circles[ j ].y += ny * penetration * 0.5;
+      circles[ i ].x -= nx * penetration * wi;
+      circles[ i ].y -= ny * penetration * wi;
+      circles[ j ].x += nx * penetration * wj;
+      circles[ j ].y += ny * penetration * wj;
 
       let rel_vel_n = ( circles[ j ].vx - circles[ i ].vx ) * nx + ( circles[ j ].vy - circles[ i ].vy ) * ny;
       if rel_vel_n < 0.0
       {
-        let impulse = -( 1.0 + RESTITUTION ) * rel_vel_n * 0.5;
-        circles[ i ].vx -= impulse * nx;
-        circles[ i ].vy -= impulse * ny;
-        circles[ j ].vx += impulse * nx;
-        circles[ j ].vy += impulse * ny;
+        let impulse = -( 1.0 + RESTITUTION ) * rel_vel_n / inv_mass_sum;
+        circles[ i ].vx -= impulse * inv_mass_i * nx;
+        circles[ i ].vy -= impulse * inv_mass_i * ny;
+        circles[ j ].vx += impulse * inv_mass_j * nx;
+        circles[ j ].vy += impulse * inv_mass_j * ny;
       }
     }
   }

@@ -1,0 +1,16 @@
+[package]
+name = "minwebgl_context_triangle_smoke"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+
+[dependencies]
+
+minwebgl = { workspace = true }
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]
+
+[lints]
+workspace = true

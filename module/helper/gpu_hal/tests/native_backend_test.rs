@@ -321,3 +321,88 @@ fn texture_write_readback()
   scene.queue.texture_write( &scene.texture, &green ).expect( "green texture_write failed" );
   assert_eq!( center_sample( &scene ), [ 0, 255, 0, 255 ], "sampled color should be the overwritten green" );
 }
+
+/// ## Root Cause
+/// `Device::texture_create` ( `src/device.rs` ) forwarded `desc.size` to every backend
+/// unvalidated. The native backend's `wgpu::Device::create_texture` panics outright on a
+/// zero-sized `Extent3d` — the same zero-size validation panic already fixed for
+/// `Surface::configure` in BUG-165 — while WebGPU raises an uncaught validation error and WebGL's
+/// `tex_storage_2d` silently no-ops on `INVALID_VALUE`, returning `Ok` for a texture that was
+/// never actually allocated.
+/// ## Why Not Caught
+/// `texture_create` had no test exercising a zero-sized dimension on any backend prior to this
+/// bug.
+/// ## Fix Applied
+/// `texture_create` now rejects any zero component of `desc.size` with `Error::InvalidInput`
+/// before dispatching to any backend.
+/// ## Prevention
+/// This test constructs a `TextureDesc` with a zero width and asserts `texture_create` returns
+/// `Err` instead of panicking — this crate's native backend previously panicked here, which
+/// `#[ test ]` alone cannot distinguish from a hang without the process actually aborting.
+/// ## Pitfall
+/// A live browser canvas can transiently report `width()`/`height()` as `0` ( hidden tab, not yet
+/// laid out ) — this is reachable with no malformed caller input at all, not just a theoretical
+/// edge case.
+#[ test ]
+fn texture_create_rejects_zero_width()
+{
+  let ( device, _queue, _surface ) = Device::new_native( 64, 64 )
+  .expect( "no native wgpu adapter available" );
+
+  let result = device.texture_create( &TextureDesc
+  {
+    size : [ 0, 64, 1 ],
+    format : TextureFormat::Rgba8Unorm,
+    usage : TextureUsage::TEXTURE_BINDING
+  } );
+
+  assert!( matches!( result, Err( Error::InvalidInput( _ ) ) ), "zero width must be rejected with InvalidInput, got {result:?}" );
+}
+
+#[ test ]
+fn texture_create_rejects_zero_height()
+{
+  let ( device, _queue, _surface ) = Device::new_native( 64, 64 )
+  .expect( "no native wgpu adapter available" );
+
+  let result = device.texture_create( &TextureDesc
+  {
+    size : [ 64, 0, 1 ],
+    format : TextureFormat::Rgba8Unorm,
+    usage : TextureUsage::TEXTURE_BINDING
+  } );
+
+  assert!( matches!( result, Err( Error::InvalidInput( _ ) ) ), "zero height must be rejected with InvalidInput, got {result:?}" );
+}
+
+#[ test ]
+fn texture_create_rejects_zero_depth_or_array_layers()
+{
+  let ( device, _queue, _surface ) = Device::new_native( 64, 64 )
+  .expect( "no native wgpu adapter available" );
+
+  let result = device.texture_create( &TextureDesc
+  {
+    size : [ 64, 64, 0 ],
+    format : TextureFormat::Rgba8Unorm,
+    usage : TextureUsage::TEXTURE_BINDING
+  } );
+
+  assert!( matches!( result, Err( Error::InvalidInput( _ ) ) ), "zero depth/array-layers must be rejected with InvalidInput, got {result:?}" );
+}
+
+#[ test ]
+fn texture_create_accepts_well_formed_size()
+{
+  let ( device, _queue, _surface ) = Device::new_native( 64, 64 )
+  .expect( "no native wgpu adapter available" );
+
+  let result = device.texture_create( &TextureDesc
+  {
+    size : [ 64, 64, 1 ],
+    format : TextureFormat::Rgba8Unorm,
+    usage : TextureUsage::TEXTURE_BINDING
+  } );
+
+  assert!( result.is_ok(), "a well-formed size must still succeed — got {result:?}" );
+}

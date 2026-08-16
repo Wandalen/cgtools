@@ -27,7 +27,7 @@ to hide it — cross-backend abstraction is exactly what L0 must not do
 
 | Crate | Backend | State |
 |-------|---------|-------|
-| `minwebgl` | WebGL2 (web) | Mature (primary driver) for pure-logic surface — its live-`WebGl2RenderingContext` surface has zero automated coverage, the same accepted browser-test-infrastructure gap named for WebGPU/WebGL2 elsewhere in this layer (see [002_l1_gpu_hal.md](002_l1_gpu_hal.md)) |
+| `minwebgl` | WebGL2 (web) | Mature (primary driver) for pure-logic surface — its live-`WebGl2RenderingContext` entry point (`context::from_canvas` + a minimal shader/buffer/draw sequence) is now browser-pixel-verified too (proven by the `context_triangle_smoke` example via `browsee` — task 192, mirroring gpu_hal's own [002_l1_gpu_hal.md](002_l1_gpu_hal.md) coverage); broader GL-context/DOM surface (shaders, VAOs, textures, uniforms, file/fetch beyond this one path) remains a separate, not-yet-filed gap |
 | `minwebgpu` | WebGPU (web) | Functional |
 | `minwgpu` | `wgpu` (native) | Embryonic — helper/buffer/context/texture/bind/pipeline/pass/readback/error layers exist |
 
@@ -83,14 +83,19 @@ table places explicitly beside the ladder rather than on it:
   math/future/diagnostics utilities only, never their GL-context layers;
   feeds `scene_script`'s tween bindings.
 
-`primitive_generation` (optional `dep:minwebgl`, same `future`/`math`/
-`diagnostics` feature gate as `animation`) is a harder call: despite the
-math-only feature gate, `src/primitive_data.rs` also imports GL-context
-types directly (`WebGl2RenderingContext`, `GL`, `BufferDescriptor`), so it
-does not cleanly match `animation`'s horizontal-capability shape. It is not
-named in rulebook.md's placement table at all — its ladder position (or
-beside-the-ladder status) is an open classification gap, not a resolved
-one.
+`primitive_generation` (`dep:minwebgl` with the same `future`/`math`/
+`diagnostics` feature gate as `animation`) is **not** a beside-the-ladder
+consumer, despite that surface similarity — resolved via
+[task/decisions.md Q-04](../../task/decisions.md#q-04--primitive_generations-l0-l5-ladder-placement).
+Unlike `animation`, its `minwebgl` usage is not math-only: `src/primitive_data.rs`
+unconditionally imports `WebGl2RenderingContext` and real `renderer` (L3)
+scene types (`Mesh`, `Node`, `Scene`, `PbrMaterial`), and its
+`primitives_data_to_gltf` function creates/uploads GL buffers directly and
+returns a `renderer::webgl::loaders::gltf::GLTF` — the same struct type
+produced by `renderer`'s own glTF loaders. It is now named in
+[rulebook.md](../../rulebook.md#rendering-layer-placement)'s L4 (scene
+model) row as a second, procedural producer of that same artifact type,
+alongside `renderer`'s file-based loaders — not listed beside the ladder.
 
 ### Layers
 

@@ -311,17 +311,39 @@ async fn recompile
   if generation.get() == my_generation
   {
     *pipeline_state.borrow_mut() = PipelineState { pipeline, bind_group };
-    controls::diagnostics_clear();
+    // `has_blocking_error` was false above, but `messages` can still hold non-blocking
+    // Warning/Info entries ( e.g. an unused binding ) -- surface those instead of
+    // unconditionally clearing, so a successful recompile never silently swallows them.
+    if messages.is_empty()
+    {
+      controls::diagnostics_clear();
+    }
+    else
+    {
+      controls::diagnostics_set( &format_messages( &messages ) );
+    }
   }
 }
 
 /// Renders `GpuShaderModule.getCompilationInfo()` messages as one line per message --
-/// `line:column: text` -- for the diagnostics panel.
+/// `line:column: kind: text` -- for the diagnostics panel. The `kind` prefix ( matching
+/// rustc/clippy's own "error:"/"warning:" convention ) matters once a blocking error and
+/// non-blocking warnings can appear side by side in the same message list -- without it,
+/// nothing distinguishes the one line that actually blocked compilation from the rest.
 #[cfg(target_arch = "wasm32")]
 fn format_messages( messages : &[ gl::CompilationMessage ] ) -> String
 {
   messages.iter()
-  .map( | message | format!( "{}:{}: {}", message.line, message.column, message.text ) )
+  .map( | message |
+  {
+    let kind = match message.kind
+    {
+      gl::CompilationMessageKind::Error => "error",
+      gl::CompilationMessageKind::Warning => "warning",
+      gl::CompilationMessageKind::Info => "info",
+    };
+    format!( "{}:{}: {}: {}", message.line, message.column, kind, message.text )
+  })
   .collect::< Vec< _ > >()
   .join( "\n" )
 }

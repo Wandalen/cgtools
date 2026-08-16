@@ -37,6 +37,7 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 |<img width="500px" src="./minwebgl/area_light/showcase.webp"><br>[Area light](./minwebgl/area_light/readme.md) |<img width="500px" src="./minwebgl/attributes_instanced/showcase.webp"><br>[Attributes instanced](./minwebgl/attributes_instanced/readme.md) |
 |<img width="500px" src="./minwebgl/attributes_matrix/showcase.webp"><br>[Attributes matrix](./minwebgl/attributes_matrix/readme.md) |<img width="500px" src="./minwebgl/attributes_vao/showcase.webp"><br>[Attributes VAO](./minwebgl/attributes_vao/readme.md) |
 |<img width="500px" src="./minwebgl/character_control/showcase.webp"><br>[Character control](./minwebgl/character_control/readme.md) |<img width="500px" src="./minwebgl/color_space_conversions/showcase.webp"><br>[Color space conversions](./minwebgl/color_space_conversions/readme.md) |
+|[Context triangle smoke](./minwebgl/context_triangle_smoke/readme.md)<br>*(No showcase — see readme for pixel-verification detail)* | |
 |<img width="500px" src="./minwebgl/curve_surface_rendering/showcase.webp"><br>[Curve rendering on surface](./minwebgl/curve_surface_rendering/readme.md) |<img width="500px" src="./minwebgl/deferred_shading/showcase.webp"><br>[Deferred shading](./minwebgl/deferred_shading/readme.md) |
 |<img width="500px" src="./minwebgl/diamond/showcase.webp"><br>[Diamond](./minwebgl/diamond/readme.md) |<img width="500px" src="./minwebgl/filter/showcase.webp"><br>[Image filter](./minwebgl/filter/readme.md) |
 |<img width="500px" src="./minwebgl/filters/showcase.webp"><br>[Image filters](./minwebgl/filters/readme.md) |<img width="500px" src="./minwebgl/gltf_viewer/showcase.webp"><br>[GLTF viewer](./minwebgl/gltf_viewer/readme.md) |
@@ -71,6 +72,16 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 |<img width="500px" src="./minwgpu/grid_render/showcase.webp"><br>[Grid renderer](./minwgpu/grid_render/readme.md) |<img width="500px" src="./minwgpu/hello_triangle/showcase.webp"><br>[Hello triangle](./minwgpu/hello_triangle/readme.md) |
 |<img width="500px" src="./minwgpu/flecs_bouncing_circles/showcase.webp"><br>[Flecs bouncing circles](./minwgpu/flecs_bouncing_circles/readme.md) | |
 
+## gpu_hal Examples
+
+One triangle, drawn through `gpu_hal`'s portable surface against both the WebGPU and
+WebGL2 backends (separate cargo features) — the browser-side pixel-verification
+counterpart to `gpu_hal/tests/native_backend_test.rs`'s native readback test.
+
+| | |
+|:-------------------------:|:-------------------------:|
+|[Triangle (browser)](./gpu_hal/triangle_browser/readme.md)<br>*(No showcase — see readme for pixel-verification detail)* | |
+
 ## Orrery Examples
 
 One scene — a sun-and-orbits HUD diagram — implemented once per backend/layer; see the [family readme](./orrery/readme.md).
@@ -104,11 +115,12 @@ One scene — a sun-and-orbits HUD diagram — implemented once per backend/laye
 | demo_readme_example.md | Template for creating demo readme files |
 | demo_todo_categorized.md | Categorized todo list for examples |
 | example_requirements.md | Requirements documentation for examples |
+| gpu_hal/ | gpu_hal HAL examples directory (1 demo) |
 | how_to_run.md | Setup and execution instructions for examples |
-| index.html | Interactive HTML gallery with 70 example showcases |
+| index.html | Interactive HTML gallery with 72 example showcases |
 | index.md | Markdown-formatted examples list |
 | math/ | Math-based examples directory (1 demo) |
-| minwebgl/ | WebGL examples directory (47 demos) |
+| minwebgl/ | WebGL examples directory (48 demos) |
 | minwebgpu/ | WebGPU examples directory (4 demos) |
 | minwgpu/ | WGPU examples directory (3 demos) |
 | non_developer_how_to_run.md | Beginner-friendly step-by-step guide for running examples with no prior Rust experience |

@@ -202,3 +202,61 @@ fn test_from_mat3_round_trips_through_from_quat_column_major()
 {
   test_from_mat3_round_trips_through_from_quat_generic::< the_module::mat::DescriptorOrderColumnMajor >();
 }
+
+/// ## Root Cause
+/// `Quat::slerp` computed a hemisphere-corrected copy `q2` of `other` whenever
+/// `cos_half_theta` ( `self.dot(other)` ) was negative -- `self` and `other` are more than 90
+/// degrees apart as 4D vectors even though `q` and `-q` represent the identical rotation, so a
+/// short-path blend requires interpolating towards `-other`, not `other`. Both return branches
+/// kept blending against the original, un-flipped `*other` instead of the corrected `q2` --
+/// pairing the short-path angle ( derived from the now-positive `cos_half_theta` ) with the
+/// long-path quaternion value produced a non-unit-length result rotated the wrong way.
+///
+/// ## Why Not Caught
+/// The existing `test_slerp` above only exercises quaternion pairs with a strictly positive
+/// dot product ( both hand-picked pairs happen to start under 90 degrees apart ), so the
+/// `cos_half_theta < 0` branch -- and therefore `q2` -- was never exercised by any test.
+///
+/// ## Fix Applied
+/// BUG-194 replaced every use of `*other` after the hemisphere-correction block with `q2`
+/// (`src/quaternion/arithmetics.rs`'s `slerp`), so the short-path angle is now always paired
+/// with the correspondingly-corrected quaternion value.
+///
+/// ## Prevention
+/// `q1` is the identity rotation and `q2_long` is a 270 degree rotation about Z -- the physical
+/// rotation this represents is equivalent to a -90 degree rotation about Z, so the correct
+/// halfway ( `s = 0.5` ) point is a -45 degree rotation about Z, not the +135 degree point a
+/// naive long-path blend would produce. This test asserts the exact expected quaternion
+/// (hand-derived via the corrected algorithm, confirmed unit-length) and, separately, that the
+/// result is unit-length at all -- the pre-fix defect produced a magnitude around 0.41 for this
+/// exact input, not 1.0.
+///
+/// ## Pitfall
+/// A hemisphere-correction block that computes a corrected value into a new binding but never
+/// routes that binding into the function's actual return expressions is a silent no-op --
+/// nothing type-checks or panics, the corrected value is simply discarded. Any test suite
+/// exercising only same-hemisphere inputs cannot detect this, since the correction path is
+/// never taken at all in that regime.
+// test_kind: bug_reproducer(BUG-194)
+#[ test ]
+fn test_slerp_negative_dot_product_takes_short_path()
+{
+  use the_module::QuatF64;
+
+  // Identity rotation.
+  let q1 = QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] );
+  // 270 degree rotation about Z -- physically equivalent to -90 degrees about Z.
+  let half = 270.0_f64.to_radians() / 2.0;
+  let q2_long = QuatF64::from( [ 0.0, 0.0, half.sin(), half.cos() ] );
+  assert!( q1.dot( &q2_long ) < 0.0, "fixture must exercise the negative-dot-product branch" );
+
+  let got = q1.slerp( &q2_long, 0.5 );
+
+  // Halfway along the short path ( 0 deg -> -90 deg ) is -45 degrees about Z.
+  let neg45_half = -45.0_f64.to_radians() / 2.0;
+  let exp = QuatF64::from( [ 0.0, 0.0, neg45_half.sin(), neg45_half.cos() ] );
+  assert_abs_diff_eq!( got, exp, epsilon = 1e-9 );
+
+  let len_sq = got.dot( &got );
+  assert!( ( len_sq - 1.0 ).abs() < 1e-9, "slerp result must be unit-length, got squared length {len_sq}" );
+}

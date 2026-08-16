@@ -244,9 +244,36 @@ mod private
       }
 
       // NLERP
-      let mut rotation = QuatF32::default();
-      for ( r, w ) in values
+      // Fix(BUG-183): a quaternion `q` and its negation `-q` represent the identical rotation,
+      // but summing them naively does not -- if two blended clips' current rotations land in
+      // opposite hemispheres ( dot product negative ), adding them cancels components instead of
+      // blending, producing a wrong or near-zero result after normalize. Align each quaternion's
+      // hemisphere to the running sum before accumulating it.
+      //
+      // Fix(BUG-196): the accumulator used to start from `QuatF32::default()`, which is the
+      // IDENTITY quaternion `[0,0,0,1]` ( see `Quat::default()` ), not the additive zero
+      // `[0,0,0,0]` a weighted-sum-then-normalize accumulator needs. Starting from identity
+      // silently mixed an extra, unweighted "stay at identity" term into every blend -- even a
+      // single fully-weighted clip no longer normalized back to its own rotation, it normalized
+      // to a blend between its own rotation and identity. Seeding the accumulator from the first
+      // entry itself ( scaled by its own weight ) sidesteps the question of what a "zero
+      // rotation" would even mean here, and needs no hemisphere check of its own since there is
+      // nothing to align against yet.
+      let mut values_iter = values.into_iter();
+      let Some( ( first_r, first_w ) ) = values_iter.next()
+      else
       {
+        node.borrow_mut().rotation_set( QuatF32::default() );
+        return;
+      };
+
+      let mut rotation = first_r * first_w;
+      for ( mut r, w ) in values_iter
+      {
+        if rotation.dot( &r ) < 0.0
+        {
+          r *= -1.0;
+        }
         rotation += r * w;
       }
       node.borrow_mut().rotation_set( rotation.normalize() );

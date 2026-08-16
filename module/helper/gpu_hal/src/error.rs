@@ -12,7 +12,11 @@ mod private
     Native( String ),
     /// The requested operation or value is not supported by the active
     /// backend.
-    Unsupported( String )
+    Unsupported( String ),
+    /// The caller-supplied descriptor is invalid independent of which
+    /// backend is active ( e.g. a zero-sized texture dimension ) — rejected
+    /// before any backend is touched.
+    InvalidInput( String )
   }
 
   impl std::fmt::Display for Error
@@ -24,7 +28,8 @@ mod private
         Error::WebGpu( message ) => write!( f, "WebGPU backend error :: {message}" ),
         Error::WebGl( message ) => write!( f, "WebGL backend error :: {message}" ),
         Error::Native( message ) => write!( f, "Native backend error :: {message}" ),
-        Error::Unsupported( message ) => write!( f, "Unsupported :: {message}" )
+        Error::Unsupported( message ) => write!( f, "Unsupported :: {message}" ),
+        Error::InvalidInput( message ) => write!( f, "Invalid input :: {message}" )
       }
     }
   }

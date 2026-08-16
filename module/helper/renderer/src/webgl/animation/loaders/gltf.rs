@@ -161,6 +161,16 @@ mod private
       tweens.push( tween );
     }
 
+    // Fix(BUG-188): a channel with exactly one keyframe produces exactly one tween here
+    // ( r1 == r2, duration == 0.0, since there's no prior keyframe to interpolate from ) --
+    // `Sequence::new` rejects fewer than 2 players, silently dropping the whole channel via
+    // the `.ok()` below with no diagnostic anywhere. Duplicating the lone tween satisfies the
+    // minimum-2 requirement while preserving the exact intended meaning: hold that one value.
+    if tweens.len() == 1
+    {
+      tweens.push( tweens[ 0 ].clone() );
+    }
+
     Sequence::new( tweens ).ok()
   }
 
@@ -247,6 +257,13 @@ mod private
       tweens.push( tween );
     }
 
+    // Fix(BUG-188): see the identical guard in `quat_sequence` -- a single-keyframe channel
+    // must not be silently dropped by `Sequence::new`'s minimum-2 requirement.
+    if tweens.len() == 1
+    {
+      tweens.push( tweens[ 0 ].clone() );
+    }
+
     Sequence::new( tweens ).ok()
   }
 
@@ -330,6 +347,13 @@ mod private
       let tween = Tween::new( v1, v2, duration, easing )
       .with_delay( delay );
       tweens.push( tween );
+    }
+
+    // Fix(BUG-188): see the identical guard in `quat_sequence` -- a single-keyframe channel
+    // must not be silently dropped by `Sequence::new`'s minimum-2 requirement.
+    if tweens.len() == 1
+    {
+      tweens.push( tweens[ 0 ].clone() );
     }
 
     Sequence::new( tweens ).ok()

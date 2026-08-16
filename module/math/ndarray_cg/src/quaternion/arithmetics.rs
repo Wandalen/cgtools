@@ -173,6 +173,14 @@ mod private
 
       let mut cos_half_theta = self.dot( other );
 
+      // Fix(BUG-194): `q2` is the hemisphere-corrected copy of `other` -- when `cos_half_theta`
+      // is negative, `self` and `other` are more than 90 degrees apart as 4D vectors even though
+      // they represent rotations less than 180 degrees apart ( `q` and `-q` encode the identical
+      // rotation ). Both branches below previously kept blending against the original, un-flipped
+      // `*other` instead of this corrected `q2` -- pairing the short-path angle ( derived from
+      // the now-positive `cos_half_theta` ) with the long-path quaternion value produced a
+      // non-unit-length result rotated the wrong way whenever the two inputs started in opposite
+      // hemispheres. Every use of `*other` below is replaced with `q2`.
       if cos_half_theta < E::zero()
       {
         cos_half_theta = -cos_half_theta;
@@ -191,7 +199,7 @@ mod private
       let sqr_sin_half_theta = E::one() - cos_half_theta * cos_half_theta;
       if sqr_sin_half_theta <= E::epsilon()
       {
-        return ( self * ( E::one() - s ) + *other * s ).normalize();
+        return ( self * ( E::one() - s ) + q2 * s ).normalize();
       }
 
       let sin_half_theta = sqr_sin_half_theta.sqrt();
@@ -200,7 +208,7 @@ mod private
       let ratio_a = ( ( E::one() - s ) * half_theta ).sin() / sin_half_theta;
       let ratio_b = ( s * half_theta ).sin() / sin_half_theta;
 
-      self * ratio_a + *other * ratio_b
+      self * ratio_a + q2 * ratio_b
     }
 
     /// Performs spherical linear interpolation (slerp) in-place.

@@ -67,7 +67,7 @@ those cards.
 | Layer | In plain words | Crates today | Reserved slot |
 |-------|----------------|--------------|---------------|
 | L5 — scene script + runners | Scenes as scripts you can parse, interpret, and rerun — same script, same frames | `tilemap_scene` (compiled scenes), `scene_script` (Rhai glue) | `d3_scene` |
-| L4 — scene model | What exists, as data files — loadable and checkable without any GPU | `tilemap_scene` (RON model); glTF via `renderer` loaders | `d3_scene` |
+| L4 — scene model | What exists, as data files — loadable and checkable without any GPU | `tilemap_scene` (RON model); glTF via `renderer` loaders; procedural glTF assembly via `primitive_generation` | `d3_scene` |
 | L3 — stack engine | Turns one stack's vocabulary into draw work; one engine per stack | `tilemap_renderer` (d2), `renderer` (d3) | — |
 | L2 — frame orchestration | Which passes run, in what order, into which render targets | embedded in `renderer` and `tilemap_renderer` today | `frame_graph` |
 | L1 — GPU abstraction | One GPU API over all backends, so code is written once per stack instead of once per backend | `gpu_hal` (v0: WebGPU + WebGL2 + native `wgpu`, serving `renderer`'s canonical path) | — |

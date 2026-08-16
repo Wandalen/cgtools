@@ -13,6 +13,7 @@
 | attributes_vao | yes | yes | yes | yes | | | |
 | character_control | no | yes | yes | yes | | | |
 | color_space_conversions | yes | yes | yes | yes | | | |
+| context_triangle_smoke | yes | yes | yes | no | | | |
 | curve_surface_rendering | yes | yes | yes | yes | | | |
 | deferred_shading | yes | yes | yes | yes | | | |
 | diamond | yes | yes | yes | yes | | | |
@@ -72,3 +73,4 @@
 | simple_collision_demo | no | yes | yes | no | | | |
 | stealth_game | no | yes | yes | no | | | |
 | tactical_rpg | no | yes | yes | no | | | |
+| triangle_browser | yes | yes | yes | no | | | |

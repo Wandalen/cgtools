@@ -5,17 +5,17 @@ use std::{ rc::Rc, cell::RefCell };
 use renderer::webgl::
 {
   Node,
-  animation::{ AnimatableComposition, Blender, weights_normalize }
+  animation::
+  {
+    AnimatableComposition, Blender, weights_normalize,
+    base::{ TRANSLATION_PREFIX, ROTATION_PREFIX, SCALE_PREFIX }
+  }
 };
 use animation::{ Tween, Sequence, Sequencer, easing::{ EasingBuilder, Linear } };
-use mingl::{ F64x3, QuatF64 };
+use mingl::{ F64x3, QuatF32, QuatF64 };
 use core::f64;
 use std::f64::consts::PI;
 use rustc_hash::FxHashMap;
-
-const TRANSLATION_PREFIX: &str = "_translation";
-const ROTATION_PREFIX: &str = "_rotation";
-const SCALE_PREFIX: &str = "_scale";
 
 /// Helper to create a simple translation tween sequence
 fn translation_sequence_create( start : F64x3, end : F64x3, duration : f64 ) -> Sequence< Tween< F64x3 > >
@@ -518,4 +518,92 @@ fn test_is_completed_after_reset()
 
   // After reset, should not be completed
   assert!( !blender.is_completed(), "Should not be completed after reset" );
+}
+
+/// ## Root Cause
+/// `Blender::rotation_blend` summed each blended clip's current rotation quaternion directly
+/// ( `rotation += r * w` ) with no hemisphere check. A quaternion `q` and its negation `-q`
+/// represent the identical rotation, but naive addition does not respect that equivalence --
+/// blending two clips whose current rotations land in opposite hemispheres ( negative dot
+/// product ) walks the long way around between them instead of the short way, producing a
+/// result up to 180 degrees away from the intended blend.
+///
+/// ## Why Not Caught
+/// Every pre-existing `Blender` test used a single weighted animation, or multiple animations
+/// blending independent transform channels ( translation/scale ) rather than two rotation
+/// clips whose sampled quaternions actually land in opposite hemispheres -- so the
+/// dot-product-negative branch was never exercised.
+///
+/// ## Fix Applied
+/// `rotation_blend`'s accumulation loop now checks `rotation.dot( &r ) < 0.0` before summing
+/// each entry, negating `r` first when the check fires ( BUG-183, `blending.rs` ).
+///
+/// ## Prevention
+/// This test blends two rotation clips whose ( unadvanced, `Pending`-state ) current values
+/// are 0 degrees and 270 degrees about the same axis -- a negative-dot-product pair -- and
+/// asserts the blended result matches the short-path ( -45 degree ) blend rather than the
+/// long-path ( 135 degree ) blend a naive sum would produce.
+///
+/// ## Pitfall
+/// `Blender` stores its clips in an `FxHashMap`, so the order `rotation_blend` visits them is
+/// not guaranteed -- flipping which clip is "first" flips the overall sign of the accumulated
+/// result ( `q` and `-q` are the same rotation, but not the same quaternion components ).
+/// Assertions here compare via `|dot( got, expected )|` rather than direct component equality
+/// so the test passes regardless of iteration order.
+// test_kind: bug_reproducer(BUG-183)
+#[ test ]
+fn test_blender_rotation_blend_aligns_hemisphere_across_clips()
+{
+  let mut blender = Blender::new();
+
+  let q_a = QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] );
+  let half_270 = 270.0_f64.to_radians() / 2.0;
+  let q_b = QuatF64::from( [ 0.0, 0.0, half_270.sin(), half_270.cos() ] );
+  assert!( q_a.dot( &q_b ) < 0.0, "fixture must exercise the negative-dot-product branch" );
+
+  let mut seq_a = Sequencer::new();
+  seq_a.insert
+  (
+    format!( "node1{ROTATION_PREFIX}" ).as_str(),
+    rotation_sequence_create( q_a, q_a, 1.0 )
+  );
+  blender.add( "anim_a".into(), seq_a, F64x3::new( 0.0, 0.5, 0.0 ) );
+
+  let mut seq_b = Sequencer::new();
+  seq_b.insert
+  (
+    format!( "node1{ROTATION_PREFIX}" ).as_str(),
+    rotation_sequence_create( q_b, q_b, 1.0 )
+  );
+  blender.add( "anim_b".into(), seq_b, F64x3::new( 0.0, 0.5, 0.0 ) );
+
+  let mut nodes = FxHashMap::default();
+  let node = Rc::new( RefCell::new( Node::new() ) );
+  node.borrow_mut().name_set( "node1" );
+  nodes.insert( "node1".to_string().into_boxed_str(), node.clone() );
+
+  blender.set( &nodes );
+
+  let got = node.borrow().rotation_get();
+
+  let len_sq = got.dot( &got );
+  assert!( ( len_sq - 1.0 ).abs() < 1e-5, "blended rotation must be unit-length, got squared length {len_sq}" );
+
+  let neg45_half = ( -45.0_f64.to_radians() / 2.0 ) as f32;
+  let expected = QuatF32::from( [ 0.0, 0.0, neg45_half.sin(), neg45_half.cos() ] );
+  let dot_expected = ( got.x() * expected.x() + got.y() * expected.y() + got.z() * expected.z() + got.w() * expected.w() ).abs();
+  assert!
+  (
+    dot_expected > 0.999,
+    "blended rotation should match the short-path -45 degree blend up to sign, got {got:?} ( |dot| with expected = {dot_expected} )"
+  );
+
+  let half_135 = ( 135.0_f64.to_radians() / 2.0 ) as f32;
+  let buggy = QuatF32::from( [ 0.0, 0.0, half_135.sin(), half_135.cos() ] );
+  let dot_buggy = ( got.x() * buggy.x() + got.y() * buggy.y() + got.z() * buggy.z() + got.w() * buggy.w() ).abs();
+  assert!
+  (
+    dot_buggy < 0.5,
+    "blended rotation must not match the pre-fix long-path 135 degree blend, got {got:?} ( |dot| with buggy = {dot_buggy} )"
+  );
 }

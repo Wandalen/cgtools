@@ -20,6 +20,7 @@ canvas {
   flex-direction: column;
   gap: 12px;
   padding: 12px 16px;
+  width: min(260px, 38vw);
   background: rgba(20, 20, 24, 0.75);
   border-radius: 8px;
   font-family: system-ui, sans-serif;
@@ -85,6 +86,20 @@ canvas {
   letter-spacing: 0.02em;
 }
 
+.editor-toggles {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.editor-toggles label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
 .shader-editor {
   flex: 1;
   resize: none;
@@ -101,6 +116,13 @@ canvas {
 
 .shader-editor:focus {
   outline: 1px solid rgba(238, 238, 238, 0.35);
+}
+
+.shader-editor-readonly {
+  flex: 0 0 auto;
+  max-height: 25%;
+  overflow-y: auto;
+  opacity: 0.7;
 }
 
 .shader-diagnostics {

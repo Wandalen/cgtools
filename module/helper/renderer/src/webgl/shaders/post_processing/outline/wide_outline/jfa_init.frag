@@ -16,10 +16,19 @@ uniform sampler2D objectColorTexture;
 void main()
 {
   // Check if the pixel corresponds to the object silhouette in the input texture.
-  // The object_pass renders object pixels as white ( r=1.0 ).
-  float objectPresent = texture( objectColorTexture, vUv ).r;
+  // Fix(BUG-181): `gbuffer.rs`'s `GBuffer::render` clears every color attachment, including
+  // OBJECT_COLOR, to ( -1, -1, -1, 1 ) before drawing, and `gbuffer.frag` writes a real object
+  // color to every rasterized object pixel ( `FragObjectColor = objectColor;` -- r/g/b always
+  // move together, in both the clear and the write ). This used to check `> 0.01`, which only
+  // matched objects whose red channel happened to be close to 1.0 ( true only by coincidence of
+  // the one caller that existed at the time always using red ); any object with a different
+  // color -- pure green/blue/cyan, or even ordinary black -- had `r <= 0.01` and was silently
+  // treated as background, so that object never seeded the JFA and received no outline at all.
+  // The red channel alone is still enough to test: any non-negative value can only come from a
+  // real ( always non-negative ) object color, never from the negative sentinel clear value.
+  float objectColorR = texture( objectColorTexture, vUv ).r;
 
-  if ( objectPresent > 0.01 ) // If pixel is part of the object ( check > 0.0 for robustness )
+  if ( objectColorR >= 0.0 ) // Any non-negative red channel means a real object color was written here.
   {
     // These are the "seeds" for the JFA. Store the pixel's own normalized texture coordinates ( 0-1 ).
     // We store them in the first two components ( xy ) of the output vec4.

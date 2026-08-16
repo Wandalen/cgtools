@@ -33,8 +33,11 @@ WebGL2 + native wgpu backends ); build-vs-buy is closed in-house by
 v0 implemented in `module/helper/gpu_hal` — the exploration's spike extracted
 it from the webgl-vs-webgpu diff of `renderer`'s canonical opaque path, which
 now builds against it on both browser backends ( `webgpu` / `webgl`
-features; browser-side runtime pixel tests still to run ). A third, native
-backend ( `native` feature, `minwgpu` + raw `wgpu` ) renders into an
+features ). `gpu_hal`'s own webgpu/webgl backends are now
+browser-pixel-verified too ( proven by the `triangle_browser` example via
+`browsee` — task 191 ); `renderer`'s own opaque-path browser-side pixel tests
+remain a separate, not-yet-filed gap. A third, native backend ( `native`
+feature, `minwgpu` + raw `wgpu` ) renders into an
 offscreen texture with pixel readback, and is proven by an in-repo render
 test ( `triangle_render_readback` ) that draws through the full public
 surface and asserts on the bytes read back — no browser involved. The

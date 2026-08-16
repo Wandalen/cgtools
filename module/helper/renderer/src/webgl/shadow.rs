@@ -442,7 +442,16 @@ mod private
       let radius = spot.outer_cone_angle * 2.0;
       let max_radius = 135.0_f32.to_radians();
 
-      let light_size = ( ( radius / max_radius ).min( 1.0 ) * 1.7 ).min( 0.01 );
+      // Fix(BUG-175): `.min( 0.01 )` on the last line made this a ceiling, not a floor -- since
+      // the preceding `( radius / max_radius ).min( 1.0 ) * 1.7` term is >= 0.01 for every
+      // `outer_cone_angle` above ~0.4 degrees ( i.e. every realistic spot light ), `.min` always
+      // picked the constant 0.01 and the entire angle-dependent scaling above it was dead code --
+      // every spot light baked identically soft shadows regardless of cone angle.
+      // Root cause: `.min` used where a lower-bound floor ( `.max` ) was intended.
+      // Pitfall: a `.min( FLOOR )`/`.max( FLOOR )` mixup silently reads as a working line -- it
+      // still compiles and always returns *a* value in range, it just discards a preceding
+      // computation. Check which direction the clamp actually needs before trusting it compiled.
+      let light_size = ( ( radius / max_radius ).min( 1.0 ) * 1.7 ).max( 0.01 );
 
       let projection = gl::math::mat3x3h::perspective_rh_gl( fov, 1.0, near, far );
 
