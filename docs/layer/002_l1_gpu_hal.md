@@ -1,9 +1,10 @@
 # Layer: L1 GPU Hardware Abstraction
 
-The keystone layer — one API over all three drivers, so everything above is
+The keystone layer — one API over all drivers, so everything above is
 written once per stack instead of once per backend. The *contract* is
 decided and an in-house *v0 implementation* exists in `gpu_hal` ( WebGPU +
-WebGL2 + native wgpu backends ); build-vs-buy is closed in-house by
+WebGL2 + native wgpu backends, plus a fourth `wgpu`-free native Vulkan
+backend — see Status ); build-vs-buy is closed in-house by
 [../adr/002_gpu_hal_in_house.md](../adr/002_gpu_hal_in_house.md).
 
 ### Scope
@@ -36,7 +37,8 @@ now builds against it on both browser backends ( `webgpu` / `webgl`
 features ). `gpu_hal`'s own webgpu/webgl backends are now
 browser-pixel-verified too ( proven by the `triangle_browser` example via
 `browsee` — task 191 ); `renderer`'s own opaque-path browser-side pixel tests
-remain a separate, not-yet-filed gap. A third, native backend ( `native`
+are now covered the same way ( proven by the `opaque_path_browser` example via
+`browsee` — task 197 ). A third, native backend ( `native`
 feature, `minwgpu` + raw `wgpu` ) renders into an
 offscreen texture with pixel readback, and is proven by an in-repo render
 test ( `triangle_render_readback` ) that draws through the full public
@@ -54,15 +56,37 @@ until strangled onto the HAL. `tilemap_renderer` (d2) is the second targeted
 consumer — its `adapter-webgpu` / `adapter-native` adopt the HAL per
 [../adr/003_d2_stack_hal_adoption.md](../adr/003_d2_stack_hal_adoption.md).
 `adapter-webgpu` now builds and passes its own compile-and-construct-level
-test suite ( same browser-side-pixel-test gap noted above for `renderer` );
+test suite, and is also browser-pixel-verified via the `adapter_browser`
+example and `browsee` ( task 198 ) — proving a real, correctly-bounded opaque
+**black** quad, its own documented unpopulated-texture behavior, not the
+clear color, at the sprite's exact configured location.
 `adapter-native` now also builds and passes an in-repo pixel-readback test
 suite mirroring `gpu_hal`'s own `triangle_render_readback` precedent, proving
 the offscreen-render-plus-readback path with no browser involved. Its existing
 `adapter-webgl` keeps its direct `minwebgl` dependency for now, on the same
 accepted-until-strangled posture — it now also has its own
 compile-and-construct-level test suite (`webgl_backend_test.rs` +
-`command_consistency_test.rs`, task 114), the same shape of coverage as
+`command_consistency_test.rs`, task 114) and is browser-pixel-verified too, via
+the same `adapter_browser` example ( task 198 ) — proving a real solid-red
+sprite paint, unlike `adapter-webgpu`'s unpopulated-texture black, since
+`adapter-webgl` uploads real pixel bytes — the same shape of coverage as
 `adapter-webgpu`'s, without adopting the HAL itself.
+
+A fourth backend, `vulkan` ( `minvulkan` via `ash`, no `wgpu` dependency ),
+is now implemented — [ADR-004](../adr/004_native_vulkan_hal_backend.md) adds
+it so `examples/orrery/flexible` can offer a Vulkan option that does not link
+`wgpu`, distinct from `native`'s existing `wgpu`-picks-its-own-backend
+behavior. Same v0 opaque-path surface as `native` ( buffers, 2d textures,
+samplers, shader modules — WGSL compiled to SPIR-V via `naga` — bind groups,
+one-color-attachment render passes ), proven the same way : an in-repo
+offscreen-render-plus-readback test ( `triangle_render_readback` in
+`tests/vulkan_backend_test.rs`, task 202 ) draws through the full public
+surface and asserts on the bytes read back, no browser involved, mirroring
+`native`'s own `triangle_render_readback` precedent. Resources use dedicated
+( non-suballocated ) memory — one `vkAllocateMemory` call per buffer/image,
+matching the crate's v0 "minimum resource support" tradeoff elsewhere.
+Tracked by tasks 201 ( `minvulkan` driver ), 202 ( this crate's `vulkan`
+backend variant ), 203 ( the consuming example ).
 
 ### ADRs
 
@@ -70,6 +94,7 @@ compile-and-construct-level test suite (`webgl_backend_test.rs` +
 |------|--------------|
 | [../adr/002_gpu_hal_in_house.md](../adr/002_gpu_hal_in_house.md) | Build-vs-buy decision — closed in-house; `gpu_hal` is the L1 HAL |
 | [../adr/003_d2_stack_hal_adoption.md](../adr/003_d2_stack_hal_adoption.md) | Extends L1 adoption to the d2 stack ( `tilemap_renderer` ) |
+| [../adr/004_native_vulkan_hal_backend.md](../adr/004_native_vulkan_hal_backend.md) | Adds a fourth, `wgpu`-free `vulkan` backend via `minvulkan` — implemented ( task 202 ) |
 
 ### Explorations
 

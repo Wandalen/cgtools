@@ -78,6 +78,33 @@ browsee .pixel region::100x100x0,0 session::gpu_hal_tri
 **Expected Behavior:** reads back the configured clear color (this example's
 clear is `[0.0, 0.0, 0.0, 1.0]` — pure black), not the triangle's red.
 
+### 4. `buffer_write` rejects oversized WebGL data (BUG-200)
+
+**Objective:** confirm `Queue::buffer_write`'s WebGL arm returns `Err` instead of silently
+no-op'ing when `data` exceeds the destination buffer's allocated size — `bufferSubData`
+(`buffer_sub_data_with_i32_and_u8_array`) returns `()` and cannot surface the underlying
+`INVALID_VALUE` itself, so this guard is the only signal available.
+
+**Steps:** with the `webgl` build served (Scenario 2's `trunk serve` invocation), the example
+itself performs the check on every load — it attempts a 16-byte write into a 4-byte buffer and
+switches the clear color to cyan if that write does *not* return `Err`:
+```bash
+trunk serve --release --no-default-features --features webgl --port 8080 &
+browsee .launch session::gpu_hal_tri url::http://127.0.0.1:8080/ features::webgpu window::800x600
+browsee .wait for::render timeout::60 session::gpu_hal_tri
+browsee .pixel region::40x40x300,150 session::gpu_hal_tri   # sample well inside the clear band, away from window chrome
+```
+
+**Expected Behavior:** the clear band reads pure black (`0, 0, 0`) — the guard fired, the
+oversized write returned `Err`, and the example proceeded to its normal render. A cyan reading
+(`0, 255, 255`) means the guard did not fire and `buffer_write` silently accepted data too large
+for the buffer.
+
+**Verified** 2026-08-16: guard reverted (temporary source edit) → clear band read pure cyan
+`(0, 255, 255)`, reproducing the pre-fix defect in a real Firefox/WebGL2 context; guard restored
+→ clear band read black (`4, 0, 0`, negligible antialiasing residue) with the triangle intact
+(`255, 0, 0`), confirmed by both `.pixel` sampling and a full `.shot` screenshot.
+
 ### Reading exact pixel values (`region::center` caveat)
 
 `browsee .pixel region::center` measures the center of the **window**, not the
@@ -133,6 +160,7 @@ browsee .kill session::gpu_hal_tri purge::1
 | Render completes (`.wait for::render` exits 0) | ✓ | ✓ |
 | Triangle reads configured color (`255, 0, 0`) | ✓ | ✓ |
 | Corner reads configured clear color (`0, 0, 0`) | ✓ | ✓ |
+| Oversized `buffer_write` rejected, no cyan clear (BUG-200) | n/a — WebGPU validates writes itself | ✓ |
 
 Native regression coverage and the wasm32 compile check are automated —
 `cargo nextest run -p gpu_hal --features native` and

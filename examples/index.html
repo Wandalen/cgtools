@@ -433,11 +433,11 @@
     <div class="stats">
         <!-- GALLERY:STATS:BEGIN -->
         <div class="stat-card" aria-live="polite" aria-atomic="true">
-            <div class="stat-number" id="totalDemos">72</div>
+            <div class="stat-number" id="totalDemos">75</div>
             <div class="stat-label">Total Examples</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number" id="completedDemos">54</div>
+            <div class="stat-number" id="completedDemos">56</div>
             <div class="stat-label">Live Demos</div>
         </div>
         <div class="stat-card">
@@ -457,7 +457,7 @@
         <section class="category-section" data-category="api:webgl">
             <div class="category-header">
                 <h2>API · WebGL</h2>
-                <span class="category-badge">48 demos</span>
+                <span class="category-badge">50 demos</span>
             </div>
             <div class="demo-grid">
                 <article class="demo-card" role="article" data-name="triangle browser" data-path="gpu_hal/triangle_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
@@ -1131,6 +1131,34 @@
                     </div>
                 </article>
 
+                <article class="demo-card" role="article" data-name="opaque path browser" data-path="renderer/opaque_path_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">renderer Opaque Path (Browser)</h3>
+                        <p class="demo-desc">Renders the same lit-quad scene as renderer/tests/native_render_test.rs's opaque_path_renders_lit_quad — one Geometry quad, one red PbrMaterial, one directional light, one Frame — through renderer::webgpu's canonical opaque path (GpuContext, WebGpuRenderer), proving both browser backends paint real pixels. The native test proves the same render path through an offscreen wgpu readback instead of a browser canvas; this crate reuses its exact vertex data, material, light, and camera.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./renderer/opaque_path_browser/" class="demo-link" aria-label="View renderer Opaque Path (Browser) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="adapter browser" data-path="tilemap_renderer/adapter_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">tilemap_renderer Adapter Browser Pixel Verification</h3>
+                        <p class="demo-desc">Drives tilemap_renderer's adapter-webgpu / adapter-webgl Backend impls through a real browser canvas — one Clear plus one centered Sprite, mirroring tilemap_renderer/tests/native_backend_test.rs's exact 8x8 solid-red sprite asset. That test proves the same construct → assets_load → submit → output flow on the native backend through an offscreen GPU readback; this crate proves it through a real canvas instead.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./tilemap_renderer/adapter_browser/" class="demo-link" aria-label="View tilemap_renderer Adapter Browser Pixel Verification demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
             </div>
         </section>
 
@@ -1138,7 +1166,7 @@
         <section class="category-section" data-category="api:webgpu">
             <div class="category-header">
                 <h2>API · WebGPU</h2>
-                <span class="category-badge">6 demos</span>
+                <span class="category-badge">8 demos</span>
             </div>
             <div class="demo-grid">
                 <article class="demo-card" role="article" data-name="triangle browser" data-path="gpu_hal/triangle_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
@@ -1224,6 +1252,34 @@
                     </div>
                 </article>
 
+                <article class="demo-card" role="article" data-name="opaque path browser" data-path="renderer/opaque_path_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">renderer Opaque Path (Browser)</h3>
+                        <p class="demo-desc">Renders the same lit-quad scene as renderer/tests/native_render_test.rs's opaque_path_renders_lit_quad — one Geometry quad, one red PbrMaterial, one directional light, one Frame — through renderer::webgpu's canonical opaque path (GpuContext, WebGpuRenderer), proving both browser backends paint real pixels. The native test proves the same render path through an offscreen wgpu readback instead of a browser canvas; this crate reuses its exact vertex data, material, light, and camera.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./renderer/opaque_path_browser/" class="demo-link" aria-label="View renderer Opaque Path (Browser) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="adapter browser" data-path="tilemap_renderer/adapter_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">tilemap_renderer Adapter Browser Pixel Verification</h3>
+                        <p class="demo-desc">Drives tilemap_renderer's adapter-webgpu / adapter-webgl Backend impls through a real browser canvas — one Clear plus one centered Sprite, mirroring tilemap_renderer/tests/native_backend_test.rs's exact 8x8 solid-red sprite asset. That test proves the same construct → assets_load → submit → output flow on the native backend through an offscreen GPU readback; this crate proves it through a real canvas instead.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./tilemap_renderer/adapter_browser/" class="demo-link" aria-label="View tilemap_renderer Adapter Browser Pixel Verification demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
             </div>
         </section>
 
@@ -1283,7 +1339,7 @@
         <section class="category-section" data-category="runtime:browser">
             <div class="category-header">
                 <h2>Runtime · Browser</h2>
-                <span class="category-badge">54 demos</span>
+                <span class="category-badge">56 demos</span>
             </div>
             <div class="demo-grid">
                 <article class="demo-card" role="article" data-name="triangle browser" data-path="gpu_hal/triangle_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
@@ -2040,6 +2096,34 @@
                     </div>
                 </article>
 
+                <article class="demo-card" role="article" data-name="opaque path browser" data-path="renderer/opaque_path_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">renderer Opaque Path (Browser)</h3>
+                        <p class="demo-desc">Renders the same lit-quad scene as renderer/tests/native_render_test.rs's opaque_path_renders_lit_quad — one Geometry quad, one red PbrMaterial, one directional light, one Frame — through renderer::webgpu's canonical opaque path (GpuContext, WebGpuRenderer), proving both browser backends paint real pixels. The native test proves the same render path through an offscreen wgpu readback instead of a browser canvas; this crate reuses its exact vertex data, material, light, and camera.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./renderer/opaque_path_browser/" class="demo-link" aria-label="View renderer Opaque Path (Browser) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="adapter browser" data-path="tilemap_renderer/adapter_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">tilemap_renderer Adapter Browser Pixel Verification</h3>
+                        <p class="demo-desc">Drives tilemap_renderer's adapter-webgpu / adapter-webgl Backend impls through a real browser canvas — one Clear plus one centered Sprite, mirroring tilemap_renderer/tests/native_backend_test.rs's exact 8x8 solid-red sprite asset. That test proves the same construct → assets_load → submit → output flow on the native backend through an offscreen GPU readback; this crate proves it through a real canvas instead.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./tilemap_renderer/adapter_browser/" class="demo-link" aria-label="View tilemap_renderer Adapter Browser Pixel Verification demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
             </div>
         </section>
 
@@ -2319,9 +2403,23 @@
         <section class="category-section" data-category="scene:orrery">
             <div class="category-header">
                 <h2>Scene · Orrery</h2>
-                <span class="category-badge">1 demo</span>
+                <span class="category-badge">2 demos</span>
             </div>
             <div class="demo-grid">
+                <article class="demo-card" role="article" data-name="flexible" data-path="orrery/flexible" data-tags="scene:orrery">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Orrery (Flexible)</h3>
+                        <p class="demo-desc">The same orrery scene behind one Cargo-feature-selectable backend — webgl, webgpu, wgpu, or vulkan — through the in-house gpu_hal abstraction. Only the wgpu feature links the wgpu crate; the other three (including vulkan, via the new minvulkan L0 driver) do not, even transitively. Browser features (webgl/webgpu) present live to a canvas; native features (wgpu/vulkan) render one offscreen frame and save it as a PNG.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="https://github.com/Wandalen/cgtools/blob/master/examples/orrery/flexible/readme.md" class="demo-link" aria-label="View Orrery (Flexible) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
                 <article class="demo-card" role="article" data-name="webgpu" data-path="orrery/webgpu" data-tags="runtime:browser,api:webgpu,scene:orrery">
                     <div class="demo-image">
                         <span>No showcase yet</span>

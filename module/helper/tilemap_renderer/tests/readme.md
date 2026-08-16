@@ -13,6 +13,8 @@ and what the expected outcome is.
 tests/
   helpers/
     mod.rs              — shared fixtures (empty_assets, …)
+  manual/
+    readme.md            — scripted browsee browser pixel-verification procedure (adapter-webgpu, adapter-webgl)
   assets_test.rs        — Assets validation domain
   backend_test.rs       — Backend trait contract, RenderError, Capabilities
   commands_test.rs      — RenderCommand Copy invariant, size, stream construction

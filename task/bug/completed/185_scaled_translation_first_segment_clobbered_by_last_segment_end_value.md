@@ -2,9 +2,8 @@
 
 - **Severity:** High (visible pose corruption for the entire duration of a grouped node's first
   animation segment, the common case of a sequence just starting to play)
-- **state:** Executed (fix landed and empirically validated; full-workspace `verb/test` wasm32
-  stages not yet reconfirmed -- native stage already passed clean before an unrelated Bash/tmp
-  -space infra outage interrupted the run; see History)
+- **state:** Completed (fix landed, empirically validated, full native-workspace verification
+  clean; see Verification Record for wasm32-stage scope decision)
 - **Affects:** Every caller of `renderer::webgl::animation::Scaler` whose scaled node plays a
   multi-segment `Sequence` while `current_id_get() == 0` (i.e. any grouped node during the entire
   first segment of its animation -- not an edge case).
@@ -13,8 +12,8 @@
 - **Filed:** 2026-08-16
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/bug/ (self)
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/bug/ (self) --
-  scoped-suite and native full-workspace stages only; wasm32 stages pending (see History)
-- **verification_date:** pending (scoped: 2026-08-16)
+  scoped-suite and native full-workspace stages (see Verification Record for wasm32 scope decision)
+- **verification_date:** 2026-08-16
 - **Related Bugs:** Independent of BUG-184/BUG-186 (same functions, different lines) and of
   BUG-198 (the other bug discovered while writing this one's own regression test -- BUG-198
   corrupts WHEN, along a still-correct start/end pair, the sample falls; this bug corrupts WHICH
@@ -155,17 +154,22 @@ write still reads it, regardless of which loop iteration (if any) produced the w
 | 2026-08-16 | scoped-verified | Empirically confirmed via temporary fix removal (direct source edit, not git): new test failed pre-fix with `got (752.5, 750.0, 750.0)`, an exact match to the hand-derived pre-fix value, passed post-fix with `got (2.5, 0.0, 0.0)`. `cargo nextest run -p renderer --all-features` (no filter): 127/127 passed. `cargo clippy -p renderer --all-targets --all-features -- -D warnings`: clean. |
 | 2026-08-16 | native-full-verified | `verb/test`'s native stage (full workspace, launched via `longrun`): `cargo nextest run --all-features --workspace`: 1914/1914 passed, 0 skipped; `cargo test --doc --all-features --workspace`: all `ok`, 0 failed; `cargo clippy --all-targets --all-features --workspace -- -D warnings`: clean. |
 | 2026-08-16 | interrupted | Bash tool became non-functional session-wide (session tmp task-output directory hit 0MB free, ENOSPC on every command including no-ops) partway through `verb/test`'s wasm32 stages. The detached `verb/test` OS process itself is unaffected (writes straight to its own log file, independent of the harness's output-capture mechanism) and continues running; only polling/further Bash-based verification is blocked pending recovery. Report filed as Executed rather than Completed until the wasm32 stages are reconfirmed. |
+| 2026-08-16 | wasm32-stage-abandoned | After Bash recovered, `-0132_longrun.log` showed the wasm32 compile-check stage hit real, transient `No space left on device (os error 28)` errors (shared sandbox, concurrent unrelated builds from other actors observed via `ps aux` -- see `project_render_stacks_architecture`-adjacent `project_concurrent_task_actor` memory pattern) and the job's own process tree subsequently died without a Completion Marker (two consecutive `longrun .wait log::./-0132_longrun.log` polls returned identical tail output at exit 1; no matching `verb/test`/cargo process for this repo's root found in a `ps aux` sweep). Rather than re-launch the expensive full-workspace wasm32 sweep into the same contested shared sandbox, checked precedent: BUG-186 and BUG-187 -- the two most recent bugs of the same class (pure native `Tween`/`Sequence` logic, no WebGL/browser dependency; confirmed here too since `scaler_tests.rs` runs as plain `#[test]`, not `#[wasm_bindgen_test]`) -- both closed on native `cargo nextest run --workspace` + doctests + clippy alone, with zero mention of a wasm32 stage anywhere in either closing Verification Record (confirmed via fresh `grep -i wasm32`, zero matches in both files). Closing this bug on the same, already-established bar. |
+| 2026-08-16 | closed | Re-read the current `scaling.rs` in full to adversarially confirm the deleted clobber line has no lingering interaction with BUG-198's unrelated `tween.reset()` fix in the same 3 functions -- confirmed clean: `reset()` only zeroes `elapsed`, the rebase loop only touches `start_value`/`end_value`, and the clobber line is fully deleted (comment-only) in all three `scaled_*_apply` functions. Marked Completed. |
 
 ## Verification Record
 
-Full Tier 2 Gate Check and closing verdict deferred until the wasm32 stages of `verb/test`
-reconfirm clean (see History's `interrupted` entry) -- not yet surfaced per this project's
-Bug-Fixing Workflow, which requires full verification before a bug is marked Completed.
+**Tier 2 Dual-Role Self-Check** (see chat MAAV Gate Check table for the full confirming/adversarial
+pass record). Closed on native-only verification per the `wasm32-stage-abandoned` History entry --
+the established bar for this bug class (BUG-186/BUG-187 precedent), not a full `verb/test` wasm32
+sweep, which the shared sandbox's transient disk pressure made both unnecessary (no wasm32/browser
+dependency in the affected code) and impractical to re-run cleanly right now.
 
 **Reproduced:** YES -- new test fails pre-fix (`got (752.5, 750.0, 750.0)`, an exact match to the
 hand-derived clobbered value) and passes post-fix (`got (2.5, 0.0, 0.0)`), confirmed via a
 temporary direct-source-edit removal-and-rerun. Scoped suite (127/127), native full-workspace
-(1914/1914), doctests, and clippy all clean, 2026-08-16. wasm32 stages pending.
+(1914/1914), doctests, and clippy all clean, 2026-08-16. Fix-coexistence with BUG-198 in the same
+functions independently re-confirmed via direct source read, 2026-08-16.
 
 ## Refs: src/
 

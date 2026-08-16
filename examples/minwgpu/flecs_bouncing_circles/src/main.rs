@@ -313,7 +313,6 @@ fn cursor_moved( graphics : &mut Graphics, position : ( f64, f64 ) )
 {
   let size = ( graphics.surface_config.width, graphics.surface_config.height );
   graphics.cursor_pos = cursor_to_arena( position, size );
-  eprintln!( "DIAG cursor_moved: physical={position:?} size={size:?} arena={:?}", graphics.cursor_pos );
 }
 
 /// Starts or ends a drag on left-button press/release. Press hit-tests every circle against the
@@ -337,11 +336,9 @@ fn mouse_input( graphics : &mut Graphics, state : ElementState, button : MouseBu
         last_pos : pos,
         radius,
       } );
-      eprintln!( "DIAG mouse_pressed: cursor={:?} hit={}", graphics.cursor_pos, graphics.dragging.is_some() );
     }
     ElementState::Released =>
     {
-      eprintln!( "DIAG mouse_released: was_dragging={}", graphics.dragging.is_some() );
       graphics.dragging = None;
     }
   }

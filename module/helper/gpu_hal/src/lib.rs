@@ -42,13 +42,22 @@ mod private {}
   #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
   layer native;
 
+  /// Native Vulkan ( `ash` ) backend mappings, resource creation and readback
+  /// internals. Deliberately independent of `native`/`wgpu` — see
+  /// docs/adr/004_native_vulkan_hal_backend.md.
+  #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+  #[ allow( unsafe_code, reason = "raw Vulkan FFI backend module -- every `ash` call is inherently \
+unsafe ; each call site carries its own `// SAFETY:` comment" ) ]
+  layer vulkan;
+
   /// GPU resource handles: buffers, textures, samplers, shaders, bindings,
   /// pipelines.
   #[ cfg( any
   (
     all( feature = "webgpu", target_arch = "wasm32" ),
     all( feature = "webgl", target_arch = "wasm32" ),
-    all( feature = "native", not( target_arch = "wasm32" ) )
+    all( feature = "native", not( target_arch = "wasm32" ) ),
+    all( feature = "vulkan", not( target_arch = "wasm32" ) )
   ) ) ]
   layer resource;
 
@@ -57,7 +66,8 @@ mod private {}
   (
     all( feature = "webgpu", target_arch = "wasm32" ),
     all( feature = "webgl", target_arch = "wasm32" ),
-    all( feature = "native", not( target_arch = "wasm32" ) )
+    all( feature = "native", not( target_arch = "wasm32" ) ),
+    all( feature = "vulkan", not( target_arch = "wasm32" ) )
   ) ) ]
   layer device;
 
@@ -66,7 +76,8 @@ mod private {}
   (
     all( feature = "webgpu", target_arch = "wasm32" ),
     all( feature = "webgl", target_arch = "wasm32" ),
-    all( feature = "native", not( target_arch = "wasm32" ) )
+    all( feature = "native", not( target_arch = "wasm32" ) ),
+    all( feature = "vulkan", not( target_arch = "wasm32" ) )
   ) ) ]
   layer pass;
 }

@@ -45,6 +45,28 @@ mod private
   use wgpu::util::DeviceExt;
   #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
   use crate::native::texture_rgba8_read;
+  #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+  use crate::vulkan::
+  {
+    DeviceVulkan,
+    QueueVulkan,
+    SurfaceVulkan,
+    TextureViewVulkan,
+    surface_create,
+    buffer_create as vulkan_buffer_create,
+    buffer_init_create as vulkan_buffer_init_create,
+    buffer_write as vulkan_buffer_write,
+    texture_create as vulkan_texture_create,
+    texture_write as vulkan_texture_write,
+    sampler_create as vulkan_sampler_create,
+    shader_module_create as vulkan_shader_module_create,
+    bind_group_layout_create as vulkan_bind_group_layout_create,
+    bind_group_create as vulkan_bind_group_create,
+    render_pipeline_create as vulkan_render_pipeline_create,
+    command_encoder_create as vulkan_command_encoder_create,
+    pixels_read as vulkan_pixels_read,
+    submit as vulkan_submit
+  };
   use crate::
   {
     Error,
@@ -80,7 +102,14 @@ mod private
     WebGl( glw::GL ),
     /// Native backend device.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    Native( wgpu::Device )
+    Native( wgpu::Device ),
+    /// Native Vulkan backend device — see docs/adr/004_native_vulkan_hal_backend.md.
+    /// Boxed : `DeviceVulkan` embeds the instance/physical-device/logical-device
+    /// handles directly, dwarfing every other variant ( `large_enum_variant` )
+    /// -- unboxed, every WebGPU/WebGL/native `Device` would pay that size in
+    /// padding regardless of which backend is active.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    Vulkan( Box< DeviceVulkan > )
   }
 
   /// The command queue of a device.
@@ -95,7 +124,12 @@ mod private
     WebGl( glw::GL ),
     /// Native backend queue.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    Native( wgpu::Queue )
+    Native( wgpu::Queue ),
+    /// Native Vulkan backend queue. Boxed alongside `Device::Vulkan` -- see
+    /// its doc comment ( `large_enum_variant` ); `QueueVulkan` carries a full
+    /// `DeviceVulkan` clone.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    Vulkan( Box< QueueVulkan > )
   }
 
   /// The canvas presentation surface of a device.
@@ -127,7 +161,11 @@ mod private
       texture : wgpu::Texture,
       /// Format the target is created with.
       format : TextureFormat
-    }
+    },
+    /// Native Vulkan backend surface : an offscreen render target, readable
+    /// through `pixels_read` — there is no window to present to.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    Vulkan( SurfaceVulkan )
   }
 
   impl Device
@@ -204,11 +242,31 @@ mod private
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] if `width` or `height` is `0`.
     /// Returns [`Error::Native`] if requesting a wgpu adapter or finishing
     /// the device context fails.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     pub fn new_native( width : u32, height : u32 ) -> Result< ( Device, Queue, Surface ), Error >
     {
+      // Fix(BUG-199): `width`/`height` reached `wgpu::Device::create_texture`
+      // unguarded -- a zero-component `Extent3d` panics outright, the same
+      // defect class already fixed for `Surface::configure` (BUG-165) and
+      // `Device::texture_create` (BUG-176) in this same crate, just missed
+      // at this third call site. `width`/`height` are plain public `u32`
+      // parameters with no caller-side guarantee of non-zero, so this is
+      // reachable with entirely ordinary caller input (e.g. a size derived
+      // from a not-yet-laid-out viewport or an unloaded image).
+      // Root cause: no validation existed between the caller and
+      // `create_texture`, unlike this file's other two texture-creation
+      // paths.
+      if width == 0 || height == 0
+      {
+        return Err( Error::InvalidInput( format!
+        (
+          "new_native: width and height must be non-zero, got ( {width}, {height} )"
+        ) ) );
+      }
+
       let context = minwgpu::context::Context::builder()
       .instance_make()
       .adapter_request()?
@@ -236,8 +294,54 @@ mod private
       ))
     }
 
+    /// Requests a native Vulkan context ( instance, physical device, logical
+    /// device, one graphics queue ) directly via `minvulkan` + `ash`, and
+    /// builds an offscreen rgba8 surface of the given size, readable through
+    /// `Surface::pixels_read` — the Vulkan counterpart of `new_native`,
+    /// deliberately independent of `wgpu`/`minwgpu` ( see
+    /// docs/adr/004_native_vulkan_hal_backend.md ).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] if `width` or `height` is `0`.
+    /// Returns [`Error::Vulkan`] if creating the Vulkan instance/device or
+    /// the offscreen surface fails.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    pub fn new_vulkan( width : u32, height : u32 ) -> Result< ( Device, Queue, Surface ), Error >
+    {
+      // Mirrors `new_native`'s BUG-199 zero-size guard : `width`/`height`
+      // are plain public `u32` parameters with no caller-side non-zero
+      // guarantee, and `image_allocate`'s `VkExtent3D` carries the same
+      // zero-size hazard `wgpu::Device::create_texture` panics on natively.
+      if width == 0 || height == 0
+      {
+        return Err( Error::InvalidInput( format!
+        (
+          "new_vulkan: width and height must be non-zero, got ( {width}, {height} )"
+        ) ) );
+      }
+
+      let ( device_vulkan, queue_vulkan, surface_vulkan ) = vulkan_handles_create( width, height )?;
+
+      Ok
+      ((
+        Device::Vulkan( Box::new( device_vulkan ) ),
+        Queue::Vulkan( Box::new( queue_vulkan ) ),
+        Surface::Vulkan( surface_vulkan )
+      ))
+    }
+
     /// Clip-space depth range the backend's projection matrices must target.
     #[must_use]
+    // `native` and `vulkan` are independent, orthogonal features -- an
+    // `Self::Native( _ ) | Self::Vulkan( _ )` merged arm would fail to
+    // compile whenever exactly one is enabled, since the other variant
+    // would not exist on `Self` at all. The identical bodies reflect that
+    // both backends target the same Vulkan/D3D/Metal-family [0,1] NDC depth
+    // convention, not duplicated logic.
+    #[ allow( clippy::match_same_arms, reason = "native/vulkan are independently feature-gated -- \
+merging via `|` would not compile with exactly one enabled ; the shared [0,1] NDC convention is \
+coincidental to the two backend families, not duplicated logic" ) ]
     pub fn depth_range( &self ) -> DepthRange
     {
       match self
@@ -247,7 +351,9 @@ mod private
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( _ ) => DepthRange::NegOneToOne,
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native( _ ) => DepthRange::ZeroToOne
+        Self::Native( _ ) => DepthRange::ZeroToOne,
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => DepthRange::ZeroToOne
       }
     }
 
@@ -282,7 +388,7 @@ mod private
           .ok_or_else( || Error::WebGl( "failed to allocate buffer".to_string() ) )?;
           context.bind_buffer( target, Some( &buffer ) );
           context.buffer_data_with_f64( target, size_f64, webgl_buffer_hint( usage ) );
-          Ok( Buffer::WebGl( BufferWebGl { buffer, target } ) )
+          Ok( Buffer::WebGl( BufferWebGl { buffer, target, size } ) )
         }
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
         Self::Native( device ) =>
@@ -294,6 +400,11 @@ mod private
             usage : wgpu::BufferUsages::from( usage ),
             mapped_at_creation : false
           } ) ) )
+        }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) =>
+        {
+          Ok( Buffer::Vulkan( vulkan_buffer_create( device_vulkan, size, usage )? ) )
         }
       }
     }
@@ -326,7 +437,7 @@ mod private
           .ok_or_else( || Error::WebGl( "failed to allocate buffer".to_string() ) )?;
           context.bind_buffer( target, Some( &buffer ) );
           context.buffer_data_with_u8_array( target, data, webgl_buffer_hint( usage ) );
-          Ok( Buffer::WebGl( BufferWebGl { buffer, target } ) )
+          Ok( Buffer::WebGl( BufferWebGl { buffer, target, size : data.len() as u64 } ) )
         }
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
         Self::Native( device ) =>
@@ -339,6 +450,11 @@ mod private
             contents : data,
             usage : wgpu::BufferUsages::from( usage )
           } ) ) )
+        }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) =>
+        {
+          Ok( Buffer::Vulkan( vulkan_buffer_init_create( device_vulkan, data, usage )? ) )
         }
       }
     }
@@ -446,6 +562,11 @@ mod private
             view_formats : &[]
           } ) ) )
         }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) =>
+        {
+          Ok( Texture::Vulkan( Box::new( vulkan_texture_create( device_vulkan, desc )? ) ) )
+        }
       }
     }
 
@@ -509,6 +630,11 @@ mod private
             ..wgpu::SamplerDescriptor::default()
           } ) ) )
         }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) =>
+        {
+          Ok( Sampler::Vulkan( vulkan_sampler_create( device_vulkan, desc )? ) )
+        }
       }
     }
 
@@ -557,6 +683,11 @@ mod private
             label : None,
             source : wgpu::ShaderSource::Wgsl( source.wgsl.into() )
           } ) ) )
+        }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) =>
+        {
+          Ok( ShaderModule::Vulkan( vulkan_shader_module_create( device_vulkan, source.wgsl )? ) )
         }
       }
     }
@@ -639,6 +770,11 @@ mod private
             entries : &raw_entries
           } ) ) )
         }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) =>
+        {
+          Ok( BindGroupLayout::Vulkan( vulkan_bind_group_layout_create( device_vulkan, entries )? ) )
+        }
       }
     }
 
@@ -651,6 +787,7 @@ mod private
     /// backbuffer cannot be sampled. The WebGPU and native backends never
     /// fail this call.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
+    #[ allow( clippy::too_many_lines, reason = "one match arm per backend, each performing genuinely distinct resource-creation calls; splitting would scatter closely-related backend-dispatch logic across helper functions with no comprehension benefit" ) ]
     pub fn bind_group_create
     (
       &self,
@@ -755,6 +892,11 @@ mod private
             entries : &raw_entries
           } ) ) )
         }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) =>
+        {
+          Ok( BindGroup::Vulkan( vulkan_bind_group_create( device_vulkan, layout.expect_vulkan(), resources )? ) )
+        }
       }
     }
 
@@ -840,11 +982,25 @@ mod private
           } ) ) )
         }
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native( device ) => Ok( native_render_pipeline_create( device, desc ) )
+        Self::Native( device ) => Ok( native_render_pipeline_create( device, desc ) ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) =>
+        {
+          Ok( RenderPipeline::Vulkan( vulkan_render_pipeline_create( device_vulkan, desc )? ) )
+        }
       }
     }
 
     /// Creates a command encoder for one frame's passes.
+    ///
+    /// # Panics
+    ///
+    /// On the Vulkan backend, panics if the underlying `vkCreateCommandPool`/
+    /// `vkAllocateCommandBuffers`/`vkBeginCommandBuffer` calls fail — every
+    /// other backend's own `create_command_encoder` equivalent is already
+    /// infallible, so this method's signature stays infallible too rather
+    /// than rippling a `Result` through every caller across the crate; see
+    /// `vulkan::submit`'s own doc comment for the same tradeoff.
     #[must_use]
     pub fn command_encoder_create( &self ) -> CommandEncoder
     {
@@ -860,6 +1016,18 @@ mod private
           CommandEncoder::Native
           (
             device.create_command_encoder( &wgpu::CommandEncoderDescriptor::default() )
+          )
+        }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) =>
+        {
+          CommandEncoder::Vulkan
+          (
+            Box::new
+            (
+              vulkan_command_encoder_create( device_vulkan )
+              .unwrap_or_else( | e | panic!( "command_encoder_create: Vulkan backend failed :: {e}" ) )
+            )
           )
         }
       }
@@ -898,7 +1066,9 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => Some( raw )
+        Self::Native( raw ) => Some( raw ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => None
       }
     }
 
@@ -907,8 +1077,55 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => raw
+        Self::Native( raw ) => raw,
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => panic!( "expect_native called on a Device::Vulkan handle" )
       }
+    }
+
+    /// The raw Vulkan device, when the handle belongs to the Vulkan backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[must_use]
+    pub fn as_vulkan( &self ) -> Option< &DeviceVulkan >
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => Some( raw ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => None
+      }
+    }
+
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    pub( crate ) fn expect_vulkan( &self ) -> &DeviceVulkan
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => raw,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => panic!( "expect_vulkan called on a Device::Native handle" )
+      }
+    }
+  }
+
+  // `expect_vulkan` is `pub( crate )`, unreachable from `tests/` ( which only
+  // ever sees the public API ) — this is the one test in this crate that
+  // must live beside its target instead of in `tests/`, since it exercises a
+  // crate-private panic contract no external caller can reach. See task
+  // 202's T04. Requires both backends compiled in, since constructing a
+  // "non-vulkan-constructed `Device`" needs `Device::new_native`.
+  #[ cfg( all( test, feature = "native", feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+  mod device_expect_vulkan_tests
+  {
+    use super::Device;
+
+    #[ test ]
+    #[ should_panic( expected = "expect_vulkan called on a Device::Native handle" ) ]
+    fn expect_vulkan_panics_on_native_device()
+    {
+      let ( device, _queue, _surface ) = Device::new_native( 4, 4 )
+      .expect( "no native wgpu adapter available" );
+      let _ = device.expect_vulkan();
     }
   }
 
@@ -918,8 +1135,10 @@ mod private
     ///
     /// # Errors
     ///
-    /// Returns [`Error::WebGpu`] if the underlying WebGPU write call
-    /// fails. The WebGL and native backends never fail this call.
+    /// Returns [`Error::InvalidInput`] if `data` is longer than the WebGL
+    /// backend's `buffer` was allocated with. Returns [`Error::WebGpu`] if
+    /// the underlying WebGPU write call fails. The native backend never
+    /// fails this call.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
     pub fn buffer_write( &self, buffer : &Buffer, data : &[ u8 ] ) -> Result< (), Error >
     {
@@ -932,18 +1151,17 @@ mod private
           Ok( () )
         }
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
-        Self::WebGl( context ) =>
-        {
-          let raw = buffer.expect_webgl();
-          context.bind_buffer( raw.target, Some( &raw.buffer ) );
-          context.buffer_sub_data_with_i32_and_u8_array( raw.target, 0, data );
-          Ok( () )
-        }
+        Self::WebGl( context ) => webgl_buffer_write( context, buffer.expect_webgl(), data ),
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
         Self::Native( queue ) =>
         {
           queue.write_buffer( buffer.expect_native(), 0, data );
           Ok( () )
+        }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( queue_vulkan ) =>
+        {
+          vulkan_buffer_write( &queue_vulkan.device, buffer.expect_vulkan(), data )
         }
       }
     }
@@ -1024,6 +1242,35 @@ mod private
           // enum would just re-derive what wgpu already knows.
           let bytes_per_row = width * raw.format().block_copy_size( None )
           .ok_or_else( || Error::Unsupported( format!( "{:?} has no portable CPU-side texel layout", raw.format() ) ) )?;
+          let depth_or_array_layers = raw.depth_or_array_layers();
+
+          // Fix(BUG-204): `wgpu::Queue::write_texture` is itself documented
+          // ( `wgpu-30.0.0/src/api/queue.rs` ) to "fail... if `data` is too
+          // short" -- but the method returns `()`, not `Result`, so that
+          // failure has nowhere to go except wgpu's own error sink. This
+          // crate's `Device`/`Queue` never install a custom
+          // `on_uncaptured_error` handler, so an undersized `data` here
+          // reaches wgpu-core's `default_error_handler`
+          // ( `wgpu-core-30.0.0/src/backend/wgpu_core.rs` ), which
+          // unconditionally panics: "Handling wgpu errors as fatal by
+          // default". Confirmed by direct inspection of both crates'
+          // sources, not assumed from the panic message alone. This is the
+          // same "unguarded native panic on bad input" class already fixed
+          // at `Surface::configure` ( BUG-165 ), `texture_create`
+          // ( BUG-176 ) and `new_native` ( BUG-199 ) in this file -- just
+          // reached through a 4th call site.
+          // Root cause: no validation existed between the caller's `data`
+          // and wgpu's own fallible ( but `()`-returning ) write call.
+          let required = u64::from( bytes_per_row ) * u64::from( height ) * u64::from( depth_or_array_layers );
+          if ( data.len() as u64 ) < required
+          {
+            return Err( Error::InvalidInput( format!
+            (
+              "texture_write: data is {} bytes, but the {width}×{height} region ( {depth_or_array_layers} layer(s), \
+               {bytes_per_row} bytes/row ) requires {required} bytes",
+              data.len()
+            ) ) );
+          }
 
           queue.write_texture
           (
@@ -1041,14 +1288,27 @@ mod private
               bytes_per_row : Some( bytes_per_row ),
               rows_per_image : Some( height )
             },
-            wgpu::Extent3d { width, height, depth_or_array_layers : raw.depth_or_array_layers() }
+            wgpu::Extent3d { width, height, depth_or_array_layers }
           );
           Ok( () )
+        }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( queue_vulkan ) =>
+        {
+          vulkan_texture_write( &queue_vulkan.device, queue_vulkan.queue, texture.expect_vulkan(), data )
         }
       }
     }
 
     /// Finishes `encoder` and submits its command buffer.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a cross-backend mismatch : an `encoder` produced by one
+    /// backend's `Device` ( e.g. Vulkan ) submitted through a different
+    /// backend's `Queue` ( e.g. native ). Callers that always pair a
+    /// `Device`/`Queue`/`CommandEncoder` from the same `Device::new_*` call
+    /// never hit this.
     #[ allow( clippy::needless_pass_by_value, reason = "submitting consumes the encoder -- WebGPU's and wgpu's finish() both take ownership, and a submitted encoder must not be reusable afterward" ) ]
     pub fn submit( &self, encoder : CommandEncoder )
     {
@@ -1067,19 +1327,13 @@ mod private
           let _ = encoder;
           context.flush();
         }
+        // Finishing needs ownership of the raw encoder, so each drill-down
+        // happens by value here rather than through `expect_native`/
+        // `expect_vulkan`.
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native( queue ) =>
-        {
-          // Finishing needs ownership of the raw encoder, so the drill-down
-          // happens by value here rather than through `expect_native`.
-          match encoder
-          {
-            CommandEncoder::Native( raw ) =>
-            {
-              queue.submit( core::iter::once( raw.finish() ) );
-            }
-          }
-        }
+        Self::Native( queue ) => native_submit( queue, encoder ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( queue_vulkan ) => vulkan_queue_submit( queue_vulkan, encoder )
       }
     }
 
@@ -1116,7 +1370,9 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => Some( raw )
+        Self::Native( raw ) => Some( raw ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => None
       }
     }
 
@@ -1125,7 +1381,33 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => raw
+        Self::Native( raw ) => raw,
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => panic!( "expect_native called on a Queue::Vulkan handle" )
+      }
+    }
+
+    /// The raw Vulkan queue, when the handle belongs to the Vulkan backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[must_use]
+    pub fn as_vulkan( &self ) -> Option< &QueueVulkan >
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => Some( raw ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => None
+      }
+    }
+
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    pub( crate ) fn expect_vulkan( &self ) -> &QueueVulkan
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => raw,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => panic!( "expect_vulkan called on a Queue::Native handle" )
       }
     }
   }
@@ -1145,7 +1427,9 @@ mod private
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl { .. } => TextureFormat::Rgba8Unorm,
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native { format, .. } => *format
+        Self::Native { format, .. } => *format,
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( surface ) => surface.format
       }
     }
 
@@ -1175,6 +1459,17 @@ mod private
         Self::Native { texture, .. } =>
         {
           Ok( TextureView::Native( texture.create_view( &wgpu::TextureViewDescriptor::default() ) ) )
+        }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( surface ) =>
+        {
+          Ok( TextureView::Vulkan( TextureViewVulkan
+          {
+            view : surface.view,
+            format : surface.format,
+            vulkan_format : surface.vulkan_format,
+            size : surface.size
+          } ) )
         }
       }
     }
@@ -1249,6 +1544,11 @@ mod private
         {
           texture_rgba8_read( device.expect_native(), queue.expect_native(), texture )
         }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( surface ) =>
+        {
+          vulkan_pixels_read( device.expect_vulkan(), queue.expect_vulkan().queue, surface )
+        }
       }
     }
 
@@ -1260,7 +1560,23 @@ mod private
     {
       match self
       {
-        Self::Native { texture, .. } => Some( texture )
+        Self::Native { texture, .. } => Some( texture ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => None
+      }
+    }
+
+    /// The raw Vulkan surface, when the handle belongs to the Vulkan
+    /// backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[must_use]
+    pub fn as_vulkan( &self ) -> Option< &SurfaceVulkan >
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => Some( raw ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native { .. } => None
       }
     }
   }
@@ -1453,6 +1769,98 @@ mod private
       cache : None
     } );
     RenderPipeline::Native( pipeline )
+  }
+
+  /// Builds a fresh Vulkan instance/device/queue/offscreen-surface set.
+  #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+  fn vulkan_handles_create( width : u32, height : u32 ) -> Result< ( DeviceVulkan, QueueVulkan, SurfaceVulkan ), Error >
+  {
+    let context = minvulkan::context::Context::builder()
+    .instance_make()?
+    .context_finish()?;
+
+    let device_vulkan = DeviceVulkan
+    {
+      instance : context.instance_get().clone(),
+      physical_device : context.physical_device_get(),
+      device : context.device_get().clone(),
+      queue_family_index : context.queue_family_index_get()
+    };
+    let queue_vulkan = QueueVulkan
+    {
+      device : device_vulkan.clone(),
+      queue : context.queue_get()
+    };
+    let surface_vulkan = surface_create( &device_vulkan, width, height )?;
+
+    // SAFETY: `device_vulkan`/`queue_vulkan` hold clones of `context`'s own
+    // `ash::Instance`/`ash::Device` handles, not new Vulkan objects — letting
+    // `context`'s `Drop` destroy the originals here would leave those clones
+    // dangling. Forgetting `context` leaks it deliberately, matching every
+    // other long-lived Vulkan handle this backend hands back ( see the v0
+    // "no Drop-based cleanup" tradeoff documented in `vulkan.rs`'s module
+    // doc comment ).
+    std::mem::forget( context );
+
+    Ok( ( device_vulkan, queue_vulkan, surface_vulkan ) )
+  }
+
+  /// Validates `data` against `raw`'s allocated size, then writes it via `bufferSubData`.
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+  fn webgl_buffer_write( context : &glw::GL, raw : &BufferWebGl, data : &[ u8 ] ) -> Result< (), Error >
+  {
+    // Fix(BUG-200): `bufferSubData` ( called via
+    // `buffer_sub_data_with_i32_and_u8_array`, which returns `()` and has no
+    // way to surface a GL error ) silently no-ops per the WebGL2 spec when
+    // `data` would overflow the destination's allocated size — the buffer
+    // keeps its old contents while this still returned `Ok(())`.
+    // Root cause: no validation existed between `data` and the buffer's own
+    // allocated size, and the underlying WebGL call cannot report overflow.
+    if data.len() as u64 > raw.size
+    {
+      return Err( Error::InvalidInput( format!
+      (
+        "buffer_write: data is {} bytes, buffer was allocated with {} bytes",
+        data.len(), raw.size
+      ) ) );
+    }
+    context.bind_buffer( raw.target, Some( &raw.buffer ) );
+    context.buffer_sub_data_with_i32_and_u8_array( raw.target, 0, data );
+    Ok( () )
+  }
+
+  /// Finishes `encoder`'s raw native command buffer and submits it.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_submit( queue : &wgpu::Queue, encoder : CommandEncoder )
+  {
+    match encoder
+    {
+      CommandEncoder::Native( raw ) =>
+      {
+        queue.submit( core::iter::once( raw.finish() ) );
+      }
+      #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+      CommandEncoder::Vulkan( _ ) =>
+      panic!( "backend mismatch : Queue::Native received a Device::Vulkan CommandEncoder" )
+    }
+  }
+
+  /// Finishes `encoder`'s raw Vulkan command buffer and submits it.
+  #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+  fn vulkan_queue_submit( queue_vulkan : &QueueVulkan, encoder : CommandEncoder )
+  {
+    match encoder
+    {
+      CommandEncoder::Vulkan( raw ) =>
+      {
+        // `Box<CommandEncoderVulkan>`'s deref-move lets `*raw` hand
+        // `vulkan_submit` the owned value its by-value signature needs.
+        vulkan_submit( &queue_vulkan.device, queue_vulkan.queue, *raw );
+      }
+      #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+      CommandEncoder::Native( _ ) =>
+      panic!( "backend mismatch : Queue::Vulkan received a Device::Native CommandEncoder" )
+    }
   }
 }
 

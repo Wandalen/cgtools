@@ -92,7 +92,11 @@ mod private
     /// Raw GL buffer object.
     pub buffer : web_sys::WebGlBuffer,
     /// GL bind target the buffer was created for.
-    pub target : u32
+    pub target : u32,
+    /// Size in bytes the buffer was allocated with ( `Fix(BUG-200)` : needed
+    /// to validate a write against the buffer's actual capacity before
+    /// calling `bufferSubData`, which silently no-ops past this size ).
+    pub size : u64
   }
 
   /// WebGL backend data of a texture handle.

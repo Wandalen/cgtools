@@ -55,6 +55,20 @@ terminal on the native backend:
 cargo nextest run -p renderer --features native
 ```
 
+The `webgpu` and `webgl` backends paint to a browser canvas instead — so
+they're verified with a real browser via `browsee` against
+`examples/renderer/opaque_path_browser/`:
+
+```bash
+cd examples/renderer/opaque_path_browser
+trunk serve --release --port 8080                                        # webgpu
+# or: trunk serve --release --no-default-features --features webgl --port 8080
+browsee .launch session::renderer_opaque url::http://127.0.0.1:8080/ features::webgpu window::800x600
+browsee .wait for::render timeout::60 session::renderer_opaque
+```
+
+Full command sequence and exact pixel readings: `tests/manual/readme.md`.
+
 Scope today is the direct-lit opaque slice — IBL, shadows, skinning and the
 loaders stay with the `webgl` renderer until strangled onto the HAL.
 

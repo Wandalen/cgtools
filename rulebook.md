@@ -70,8 +70,8 @@ those cards.
 | L4 — scene model | What exists, as data files — loadable and checkable without any GPU | `tilemap_scene` (RON model); glTF via `renderer` loaders; procedural glTF assembly via `primitive_generation` | `d3_scene` |
 | L3 — stack engine | Turns one stack's vocabulary into draw work; one engine per stack | `tilemap_renderer` (d2), `renderer` (d3) | — |
 | L2 — frame orchestration | Which passes run, in what order, into which render targets | embedded in `renderer` and `tilemap_renderer` today | `frame_graph` |
-| L1 — GPU abstraction | One GPU API over all backends, so code is written once per stack instead of once per backend | `gpu_hal` (v0: WebGPU + WebGL2 + native `wgpu`, serving `renderer`'s canonical path) | — |
-| L0 — drivers | Thin Rust wrappers over the raw GPU APIs, one per backend | `minwebgl`, `minwebgpu`, `minwgpu` | — |
+| L1 — GPU abstraction | One GPU API over all backends, so code is written once per stack instead of once per backend | `gpu_hal` (v0: WebGPU + WebGL2 + native `wgpu`, serving `renderer`'s canonical path; `vulkan` reserved — see [ADR-004](docs/adr/004_native_vulkan_hal_backend.md)) | — |
+| L0 — drivers | Thin Rust wrappers over the raw GPU APIs, one per backend | `minwebgl`, `minwebgpu`, `minwgpu`, `minvulkan` (reserved — skeleton only) | — |
 | (substrate) | Shared helpers the drivers build on — below the ladder, not a layer | `mingl` | — |
 
 Beside the ladder: `canvas_renderer` (cross-stack bridge via textures — see

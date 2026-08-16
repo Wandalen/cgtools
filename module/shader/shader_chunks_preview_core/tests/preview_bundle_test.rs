@@ -285,6 +285,38 @@ fn local_probe( p : vec2f, strength : f32 ) -> f32 { return strength; }
 }
 
 #[ test ]
+fn value_chunk_prefers_dedicated_preview_wrapper_over_same_named_primitive_sharing_an_argument_name()
+{
+  // Mirrors a real regression in `shader/domain_warp/domain_warp.wgsl`:
+  // its raw primitive `domain_warp(p: vec2f, strength: f32) -> vec2f`
+  // and its dedicated `domain_warp_preview(p: vec2f, strength: f32) ->
+  // f32` wrapper both declare a trailing argument named `strength`, and
+  // the chunk's single `//@ param: strength ...` line matches either one
+  // by name alone -- `is_viable` doesn't check which export a
+  // declaration was written for, so it accepted the primitive too. The
+  // same-name tie-break then preferred the primitive ( it matches the
+  // chunk's own name ) over the dedicated wrapper, so the harness
+  // rendered the raw vec2f warp displacement as a color swatch instead
+  // of `domain_warp_preview`'s intended scalar noise value.
+  let target = shader_chunks_core::chunk_get( "domain_warp" ).expect( "domain_warp is bundled" );
+  let bundle = bundle_build( target.wgsl ).expect( "domain_warp_preview exports a previewable f32 value function" );
+
+  assert_eq!( bundle.target, "domain_warp" );
+  assert_eq!
+  (
+    code_occurrences( &bundle.wgsl, "let value = domain_warp_preview( p, params.strength );" ), 1,
+    "candidate selection must prefer the dedicated `domain_warp_preview` wrapper over the raw \
+    `domain_warp` primitive, even though both are viable under the shared `strength` argument name:\n{}", bundle.wgsl
+  );
+  assert_eq!
+  (
+    code_occurrences( &bundle.wgsl, "let color = vec3f( value );" ), 1,
+    "the chosen export returns f32, so the harness must use the grayscale write, not the Vec2 blue-padded write"
+  );
+  naga_validate( &bundle.wgsl );
+}
+
+#[ test ]
 fn value_chunk_declared_param_with_wrong_type_still_fails_loudly()
 {
   let wgsl = "\

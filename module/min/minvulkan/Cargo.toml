@@ -1,0 +1,13 @@
+[package]
+name = "minvulkan"
+version = "0.1.0"
+edition = "2024"
+description = "Minimal, opinionated native Vulkan toolkit via ash — no wgpu dependency"
+
+[dependencies]
+ash = { workspace = true, features = [ "loaded" ] }
+mingl.workspace = true
+error_tools.workspace = true
+
+[lints]
+workspace = true

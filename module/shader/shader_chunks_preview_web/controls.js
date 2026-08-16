@@ -174,6 +174,12 @@ function fullSourceGet() {
 // (a leaf chunk with no dependencies, or a fragment chunk with no
 // synthesized harness) the toggle itself is hidden too, rather than leaving
 // a control with nothing to reveal.
+//
+// Syncs panel.hidden to the checkbox's actual .checked value immediately,
+// rather than trusting the textarea's static `hidden` HTML attribute: on a
+// same-document reload (F5), Firefox/Chromium restore a checkbox's checked
+// state from history without dispatching a `change` event, which would
+// otherwise leave the panel stuck hidden behind a visibly-checked box.
 function editorPanelWire(panelId, toggleId, text) {
   const panel = document.getElementById(panelId);
   const toggle = document.getElementById(toggleId);
@@ -184,6 +190,7 @@ function editorPanelWire(panelId, toggleId, text) {
     return;
   }
   panel.value = text;
+  panel.hidden = !toggle.checked;
   toggle.addEventListener('change', () => {
     panel.hidden = !toggle.checked;
   });

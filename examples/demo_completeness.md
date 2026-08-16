@@ -74,3 +74,5 @@
 | stealth_game | no | yes | yes | no | | | |
 | tactical_rpg | no | yes | yes | no | | | |
 | triangle_browser | yes | yes | yes | no | | | |
+| opaque_path_browser | yes | yes | yes | no | | | |
+| tilemap_renderer_adapter_browser | yes | yes | yes | no | | | |

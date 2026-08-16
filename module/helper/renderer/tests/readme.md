@@ -2,6 +2,7 @@
 
 | File | Responsibility |
 |------|----------------|
+| manual/readme.md | Scripted browsee browser pixel-verification procedure (opaque path, webgpu/webgl) |
 | webgl/node.rs | Tests Node structure functionality |
 | webgl/scene.rs | Tests Scene structure functionality |
 | webgl/camera.rs | Tests `Camera::new` parameter validation |

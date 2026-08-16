@@ -82,6 +82,30 @@ counterpart to `gpu_hal/tests/native_backend_test.rs`'s native readback test.
 |:-------------------------:|:-------------------------:|
 |[Triangle (browser)](./gpu_hal/triangle_browser/readme.md)<br>*(No showcase — see readme for pixel-verification detail)* | |
 
+## renderer Examples
+
+The same lit-quad scene `renderer/tests/native_render_test.rs`'s
+`opaque_path_renders_lit_quad` renders natively, drawn through `renderer`'s
+canonical opaque path (`GpuContext`, `WebGpuRenderer`) against both the WebGPU
+and WebGL2 backends (separate cargo features) — the browser-side
+pixel-verification counterpart to that native readback test.
+
+| | |
+|:-------------------------:|:-------------------------:|
+|[Opaque path (browser)](./renderer/opaque_path_browser/readme.md)<br>*(No showcase — see readme for pixel-verification detail)* | |
+
+## tilemap_renderer Examples
+
+One `Clear` plus one centered `Sprite`, drawn through `tilemap_renderer`'s
+`adapter-webgpu` and `adapter-webgl` `Backend` impls (separate cargo
+features) against a real canvas — the browser-side pixel-verification
+counterpart to `tilemap_renderer/tests/native_backend_test.rs`'s own
+offscreen-readback proof on `adapter-native`.
+
+| | |
+|:-------------------------:|:-------------------------:|
+|[Adapter browser pixel verification](./tilemap_renderer/adapter_browser/readme.md)<br>*(No showcase — see readme for pixel-verification detail)* | |
+
 ## Orrery Examples
 
 One scene — a sun-and-orbits HUD diagram — implemented once per backend/layer; see the [family readme](./orrery/readme.md).
@@ -126,5 +150,7 @@ One scene — a sun-and-orbits HUD diagram — implemented once per backend/laye
 | non_developer_how_to_run.md | Beginner-friendly step-by-step guide for running examples with no prior Rust experience |
 | orrery/ | Orrery scene-family examples — one implementation per backend/layer (1 demo) |
 | readme.md | Root documentation for examples directory |
+| renderer/ | renderer opaque-path examples directory (1 demo) |
 | scene_script/ | Rhai scripting examples directory (2 demos) |
+| tilemap_renderer/ | tilemap_renderer adapter browser examples directory (1 demo) |
 | tiles_tools/ | tiles_tools game-dev examples directory (12 demos) |

@@ -14,8 +14,23 @@ mod private
     TextureViewWebGl,
     BindGroupEntryWebGl,
     RenderPassWebGl,
+    RenderPipelineWebGl,
     webgl::to_i32,
     webgl::to_u32
+  };
+  #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+  use crate::vulkan::
+  {
+    CommandEncoderVulkan,
+    RenderPassVulkan,
+    render_pass_begin as vulkan_render_pass_begin,
+    pipeline_set as vulkan_pipeline_set,
+    bind_group_set as vulkan_bind_group_set,
+    vertex_buffer_set as vulkan_vertex_buffer_set,
+    index_buffer_set as vulkan_index_buffer_set,
+    draw as vulkan_draw,
+    draw_indexed as vulkan_draw_indexed,
+    render_pass_end as vulkan_render_pass_end
   };
   use crate::
   {
@@ -60,7 +75,10 @@ mod private
     WebGl( glw::GL ),
     /// Native backend command encoder.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    Native( wgpu::CommandEncoder )
+    Native( wgpu::CommandEncoder ),
+    /// Native Vulkan backend command encoder.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    Vulkan( Box< CommandEncoderVulkan > )
   }
 
   impl CommandEncoder
@@ -170,7 +188,12 @@ mod private
           // Untying the pass from the encoder borrow lets the HAL hand it
           // out as a plain value, like the browser passes; wgpu then checks
           // the encode-before-finish ordering at runtime instead.
-          Ok( RenderPass::Native( pass.forget_lifetime() ) )
+          Ok( RenderPass::Native( Box::new( pass.forget_lifetime() ) ) )
+        }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( encoder ) =>
+        {
+          Ok( RenderPass::Vulkan( Box::new( vulkan_render_pass_begin( encoder, color, depth )? ) ) )
         }
       }
     }
@@ -219,7 +242,22 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => Some( raw )
+        Self::Native( raw ) => Some( raw ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => None
+      }
+    }
+
+    /// The raw Vulkan object, when the handle belongs to the Vulkan backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[must_use]
+    pub fn as_vulkan( &self ) -> Option< &CommandEncoderVulkan >
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => Some( raw ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => None
       }
     }
   }
@@ -244,7 +282,10 @@ mod private
     WebGl( RenderPassWebGl ),
     /// Native backend render pass, untied from its encoder's borrow.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-    Native( wgpu::RenderPass< 'static > )
+    Native( Box< wgpu::RenderPass< 'static > > ),
+    /// Native Vulkan backend render pass.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    Vulkan( Box< RenderPassVulkan > )
   }
 
   impl RenderPass
@@ -260,43 +301,16 @@ mod private
           pass.set_pipeline( pipeline.expect_webgpu() );
         }
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
-        Self::WebGl( pass ) =>
-        {
-          let raw = Rc::clone( pipeline.expect_webgl() );
-          pass.gl.use_program( Some( &raw.program ) );
-          // Attribute arrays enabled by a previous pipeline would otherwise
-          // leak into this one ( GL state is global ), breaking attributeless
-          // draws such as a fullscreen triangle. 16 is the WebGL2
-          // MAX_VERTEX_ATTRIBS floor — every location a layout could enable.
-          for location in 0u32..16
-          {
-            pass.gl.disable_vertex_attrib_array( location );
-          }
-          if raw.depth.is_some()
-          {
-            pass.gl.enable( glw::GL::DEPTH_TEST );
-            pass.gl.depth_func( glw::GL::LESS );
-            pass.gl.depth_mask( true );
-          }
-          else
-          {
-            pass.gl.disable( glw::GL::DEPTH_TEST );
-          }
-          if raw.cull_back
-          {
-            pass.gl.enable( glw::GL::CULL_FACE );
-            pass.gl.cull_face( glw::GL::BACK );
-          }
-          else
-          {
-            pass.gl.disable( glw::GL::CULL_FACE );
-          }
-          pass.current_pipeline_set( raw );
-        }
+        Self::WebGl( pass ) => webgl_pipeline_set( pass, Rc::clone( pipeline.expect_webgl() ) ),
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
         Self::Native( pass ) =>
         {
           pass.set_pipeline( pipeline.expect_native() );
+        }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( pass ) =>
+        {
+          vulkan_pipeline_set( pass, pipeline.expect_vulkan() );
         }
       }
     }
@@ -365,6 +379,11 @@ mod private
         {
           pass.set_bind_group( index, group.expect_native(), &[] );
         }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( pass ) =>
+        {
+          vulkan_bind_group_set( pass, index, group.expect_vulkan() );
+        }
       }
     }
 
@@ -414,6 +433,11 @@ mod private
         {
           pass.set_vertex_buffer( slot, buffer.expect_native().slice( .. ) );
         }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( pass ) =>
+        {
+          vulkan_vertex_buffer_set( pass, slot, buffer.expect_vulkan() );
+        }
       }
     }
 
@@ -440,6 +464,11 @@ mod private
         {
           pass.set_index_buffer( buffer.expect_native().slice( .. ), wgpu::IndexFormat::from( format ) );
         }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( pass ) =>
+        {
+          vulkan_index_buffer_set( pass, buffer.expect_vulkan(), format );
+        }
       }
     }
 
@@ -456,7 +485,9 @@ mod private
           pass.gl.draw_arrays( glw::GL::TRIANGLES, 0, to_i32( vertex_count ) );
         }
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native( pass ) => pass.draw( 0..vertex_count, 0..1 )
+        Self::Native( pass ) => pass.draw( 0..vertex_count, 0..1 ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( pass ) => vulkan_draw( pass, vertex_count )
       }
     }
 
@@ -479,7 +510,9 @@ mod private
           );
         }
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native( pass ) => pass.draw_indexed( 0..index_count, 0, 0..1 )
+        Self::Native( pass ) => pass.draw_indexed( 0..index_count, 0, 0..1 ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( pass ) => vulkan_draw_indexed( pass, index_count )
       }
     }
 
@@ -501,7 +534,12 @@ mod private
         }
         // Dropping the raw pass is wgpu's own end-of-pass signal.
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native( pass ) => drop( pass )
+        Self::Native( pass ) => drop( pass ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        // `Box<RenderPassVulkan>`'s own compiler-blessed deref-move lets `*pass`
+        // hand `vulkan_render_pass_end` the owned value its by-value signature
+        // needs, straight out of the box, with no extra clone.
+        Self::Vulkan( pass ) => vulkan_render_pass_end( *pass )
       }
     }
 
@@ -538,9 +576,60 @@ mod private
     {
       match self
       {
-        Self::Native( raw ) => Some( raw )
+        Self::Native( raw ) => Some( raw ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => None
       }
     }
+
+    /// The Vulkan backend data, when the handle belongs to the Vulkan backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[ must_use ]
+    pub fn as_vulkan( &self ) -> Option< &RenderPassVulkan >
+    {
+      match self
+      {
+        Self::Vulkan( raw ) => Some( raw ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => None
+      }
+    }
+  }
+
+  /// Binds `raw`'s program, resets the attribute-array/depth/cull-face GL
+  /// state for it, and records it as `pass`'s active pipeline.
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+  fn webgl_pipeline_set( pass : &mut RenderPassWebGl, raw : Rc< RenderPipelineWebGl > )
+  {
+    pass.gl.use_program( Some( &raw.program ) );
+    // Attribute arrays enabled by a previous pipeline would otherwise leak
+    // into this one ( GL state is global ), breaking attributeless draws
+    // such as a fullscreen triangle. 16 is the WebGL2 MAX_VERTEX_ATTRIBS
+    // floor — every location a layout could enable.
+    for location in 0u32..16
+    {
+      pass.gl.disable_vertex_attrib_array( location );
+    }
+    if raw.depth.is_some()
+    {
+      pass.gl.enable( glw::GL::DEPTH_TEST );
+      pass.gl.depth_func( glw::GL::LESS );
+      pass.gl.depth_mask( true );
+    }
+    else
+    {
+      pass.gl.disable( glw::GL::DEPTH_TEST );
+    }
+    if raw.cull_back
+    {
+      pass.gl.enable( glw::GL::CULL_FACE );
+      pass.gl.cull_face( glw::GL::BACK );
+    }
+    else
+    {
+      pass.gl.disable( glw::GL::CULL_FACE );
+    }
+    pass.current_pipeline_set( raw );
   }
 
   /// Begins a pass on the canvas backbuffer : the default framebuffer,

@@ -106,6 +106,33 @@ fn triangle_draw( device : &Device, queue : &Queue, surface : &Surface )
   queue.buffer_write( &uniform_buffer, &as_bytes( &[ 1.0, 0.0, 0.0, 1.0 ] ) )
   .expect( "uniform write failed" );
 
+  // Fix(BUG-200) verification: an oversized `buffer_write` against a WebGL
+  // buffer too small to hold it must return `Err`, not silently no-op --
+  // WebGL2's `bufferSubData` has no way to surface the underlying
+  // `INVALID_VALUE` itself, so this guard is the only thing standing between
+  // silent data corruption and a clean error. A cyan clear below means the
+  // guard did NOT fire and this example's own render output can no longer
+  // be trusted. WebGPU's `writeBuffer` validates out-of-bounds writes itself
+  // ( a different failure mode, not this bug ), so this check only applies
+  // to the `webgl` build.
+  #[ cfg( feature = "webgl" ) ]
+  let clear =
+  {
+    let small_buffer = device.buffer_create( 4, BufferUsage::UNIFORM | BufferUsage::COPY_DST )
+    .expect( "small buffer creation failed" );
+    let oversized = as_bytes( &[ 1.0, 2.0, 3.0, 4.0 ] ); // 16 bytes into a 4-byte buffer
+    if queue.buffer_write( &small_buffer, &oversized ).is_ok()
+    {
+      [ 0.0, 1.0, 1.0, 1.0 ] // cyan -- BUG-200 guard missing/regressed
+    }
+    else
+    {
+      [ 0.0, 0.0, 0.0, 1.0 ]
+    }
+  };
+  #[ cfg( not( feature = "webgl" ) ) ]
+  let clear = [ 0.0, 0.0, 0.0, 1.0 ];
+
   let layout = device.bind_group_layout_create
   (
     &[ BindGroupLayoutEntry { visibility : ShaderStages::FRAGMENT, ty : BindingType::UniformBuffer } ]
@@ -138,7 +165,7 @@ fn triangle_draw( device : &Device, queue : &Queue, surface : &Surface )
   let mut encoder = device.command_encoder_create();
   let mut pass = encoder.render_pass_begin
   (
-    &ColorAttachmentDesc { view : &view, clear : [ 0.0, 0.0, 0.0, 1.0 ] },
+    &ColorAttachmentDesc { view : &view, clear },
     None
   )
   .expect( "render pass failed to begin" );

@@ -406,3 +406,84 @@ fn texture_create_accepts_well_formed_size()
 
   assert!( result.is_ok(), "a well-formed size must still succeed — got {result:?}" );
 }
+
+/// ## Root Cause
+/// `Device::new_native` ( `src/device.rs` ) forwarded `width`/`height` straight into
+/// `wgpu::Device::create_texture`'s `Extent3d` unvalidated — the same zero-size validation panic
+/// already fixed for `Surface::configure` ( BUG-165 ) and `Device::texture_create` ( BUG-176 ) in
+/// this same crate, just missed at this third call site.
+/// ## Why Not Caught
+/// `new_native` had no test exercising a zero `width`/`height` prior to this bug — every existing
+/// call site in this file passes a hardcoded nonzero size.
+/// ## Fix Applied
+/// `new_native` now rejects a zero `width` or `height` with `Error::InvalidInput` before
+/// constructing the offscreen surface texture.
+/// ## Prevention
+/// This test calls `new_native` with a zero component and asserts it returns `Err` instead of
+/// panicking — this crate's native backend previously panicked here, which `#[ test ]` alone
+/// cannot distinguish from a hang without the process actually aborting.
+/// ## Pitfall
+/// `width`/`height` are plain public `u32` parameters with no caller-side guarantee of non-zero —
+/// reachable with entirely ordinary caller input ( e.g. a size derived from a not-yet-laid-out
+/// viewport or an unloaded image ), not just a theoretical edge case.
+#[ test ]
+fn new_native_rejects_zero_width()
+{
+  let result = Device::new_native( 0, 64 );
+
+  assert!( matches!( result, Err( Error::InvalidInput( _ ) ) ), "zero width must be rejected with InvalidInput, got {result:?}" );
+}
+
+#[ test ]
+fn new_native_rejects_zero_height()
+{
+  let result = Device::new_native( 64, 0 );
+
+  assert!( matches!( result, Err( Error::InvalidInput( _ ) ) ), "zero height must be rejected with InvalidInput, got {result:?}" );
+}
+
+/// ## Root Cause
+/// `Queue::texture_write` ( `src/device.rs` ) forwarded `data` to `wgpu::Queue::write_texture`
+/// unvalidated. That method is documented ( `wgpu-30.0.0/src/api/queue.rs` ) to "fail... if `data`
+/// is too short", but its signature returns `()`, not `Result` — the failure can only reach wgpu's
+/// own error sink. This crate installs no custom `on_uncaptured_error` handler, so wgpu-core's
+/// `default_error_handler` takes over and panics unconditionally ( confirmed by reading
+/// `wgpu-core-30.0.0/src/backend/wgpu_core.rs`: "Handling wgpu errors as fatal by default" ) — the
+/// same "unguarded native panic on bad input" class already fixed for `Surface::configure`
+/// ( BUG-165 ), `texture_create` ( BUG-176 ) and `new_native` ( BUG-199 ) in this file.
+/// ## Why Not Caught
+/// `texture_write_readback` only ever wrote exactly-sized data ( `64 * 64 * 4` bytes for a
+/// `64×64` `Rgba8Unorm` texture ) — no existing test exercised an undersized write.
+/// ## Fix Applied
+/// `texture_write`'s native arm now computes the region's required byte count from the same
+/// `bytes_per_row`/`height`/`depth_or_array_layers` it already derives for the write call itself,
+/// and rejects a shorter `data` with `Error::InvalidInput` before calling
+/// `wgpu::Queue::write_texture`.
+/// ## Prevention
+/// This test writes 4 bytes into a `2×2` `Rgba8Unorm` texture ( which needs 16 ) and asserts
+/// `texture_write` returns `Err` instead of panicking — this crate's native backend previously
+/// panicked here, which `#[ test ]` alone cannot distinguish from a hang without the process
+/// actually aborting.
+/// ## Pitfall
+/// `data`'s length is caller-supplied with no compile-time link to the texture it's written into —
+/// e.g. a texture resized after its upload buffer was sized, or a format change ( more bytes/texel )
+/// without a matching resize of the source data — is reachable with entirely ordinary caller input,
+/// not just a theoretical edge case.
+#[ test ]
+fn texture_write_rejects_undersized_data()
+{
+  let ( device, queue, _surface ) = Device::new_native( 64, 64 )
+  .expect( "no native wgpu adapter available" );
+  let texture = device.texture_create( &TextureDesc
+  {
+    size : [ 2, 2, 1 ],
+    format : TextureFormat::Rgba8Unorm,
+    usage : TextureUsage::COPY_DST
+  } )
+  .expect( "texture creation failed" );
+
+  // 2×2 Rgba8Unorm needs 2 * 2 * 4 = 16 bytes; this is 4.
+  let result = queue.texture_write( &texture, &[ 0u8, 0, 0, 255 ] );
+
+  assert!( matches!( result, Err( Error::InvalidInput( _ ) ) ), "undersized data must be rejected with InvalidInput, got {result:?}" );
+}

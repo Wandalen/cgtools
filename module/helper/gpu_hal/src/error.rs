@@ -10,6 +10,8 @@ mod private
     WebGl( String ),
     /// Underlying native wgpu driver error.
     Native( String ),
+    /// Underlying native Vulkan ( `minvulkan` / `ash` ) driver error.
+    Vulkan( String ),
     /// The requested operation or value is not supported by the active
     /// backend.
     Unsupported( String ),
@@ -28,6 +30,7 @@ mod private
         Error::WebGpu( message ) => write!( f, "WebGPU backend error :: {message}" ),
         Error::WebGl( message ) => write!( f, "WebGL backend error :: {message}" ),
         Error::Native( message ) => write!( f, "Native backend error :: {message}" ),
+        Error::Vulkan( message ) => write!( f, "Vulkan backend error :: {message}" ),
         Error::Unsupported( message ) => write!( f, "Unsupported :: {message}" ),
         Error::InvalidInput( message ) => write!( f, "Invalid input :: {message}" )
       }
@@ -60,6 +63,15 @@ mod private
     fn from( error : minwgpu::Error ) -> Self
     {
       Self::Native( error.to_string() )
+    }
+  }
+
+  #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+  impl From< minvulkan::Error > for Error
+  {
+    fn from( error : minvulkan::Error ) -> Self
+    {
+      Self::Vulkan( error.to_string() )
     }
   }
 }

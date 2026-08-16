@@ -462,9 +462,10 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
   /// branch of [`bundle_build`].
   fn value_chunk_harness_and_parameters( name : &str, target_wgsl : &str, exports : &[ &str ] ) -> Result< ( String, Vec< PreviewParameter > ), PreviewError >
   {
-    // A value chunk: prefer the export named like the chunk itself, fall
-    // back to the first previewable export ( in file order ), regardless
-    // of which ValueFnKind either one is — no shape preference.
+    // A value chunk: prefer a dedicated `NAME_preview` export when one is
+    // viable, else the export named like the chunk itself, else the first
+    // previewable export ( in file order ) — regardless of which
+    // ValueFnKind any of them is; no shape preference.
     let candidates : Vec< ( &str, ValueFnKind, Vec< String > ) > = exports.iter()
     .filter_map( | export | value_fn_of( export ) )
     .collect();
@@ -476,21 +477,31 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
     // parameters — `d2_sdf_circle(p: vec2f, radius: f32) -> f32` is not a
     // preview wrapper, it is the chunk's actual API, called by dependents
     // with real values ) is not a viable candidate at all; this is not an
-    // error, it just means that export isn't the one to preview. This
-    // matters most for the same-name tie-break just below: a chunk named
-    // like its own undeclared primitive export ( e.g. `domain_warp`,
-    // matching `fn domain_warp(p: vec2f, strength: f32) -> vec2f` ) must
-    // still fall through to its dedicated `NAME_preview(p: vec2f) -> T`
-    // wrapper when one exists, not get stuck on the unannotated primitive
-    // just because the names match. A chunk that DOES declare a
-    // `//@ param:` for a name with no matching signature argument, or
-    // with the wrong kind/type/range, still fails loudly — see
-    // `own_params` below, which re-validates the export actually chosen.
+    // error, it just means that export isn't the one to preview. A chunk
+    // that DOES declare a `//@ param:` for a name with no matching
+    // signature argument, or with the wrong kind/type/range, still fails
+    // loudly — see `own_params` below, which re-validates the export
+    // actually chosen.
     let is_viable = | extra_args : &[ String ] | extra_args.iter()
     .all( | arg_name | discovered.iter().any( | p | p.name == *arg_name && p.kind == ParameterKind::Argument ) );
+    // Fix(BUG-205): `//@ param:` declarations are not scoped to one export
+    // -- a single `//@ param: strength argument f32 range(...)` line makes
+    // ANY candidate with a trailing `strength: f32` argument viable,
+    // including both a primitive ( `domain_warp(p, strength) -> vec2f` )
+    // and its dedicated `NAME_preview(p, strength) -> f32` wrapper when
+    // they happen to share an argument name -- a natural pattern, since
+    // both conceptually take the same parameter. The tie-break below used
+    // to check only "viable candidate named like the chunk itself", which
+    // matches the primitive ( it always shares the chunk's own name ) and
+    // never reaches the wrapper. Checking for a viable `NAME_preview`
+    // candidate first restores the intended fall-through: prefer the
+    // dedicated wrapper when one is viable, then the chunk's own primitive
+    // export, then the first viable export in file order.
+    let preview_name = format!( "{name}_preview" );
     let ( value_fn, kind, extra_args ) = candidates.iter()
     .filter( | ( _, _, extra_args ) | is_viable( extra_args ) )
-    .find( | ( found, _, _ ) | *found == name )
+    .find( | ( found, _, _ ) | *found == preview_name )
+    .or_else( || candidates.iter().filter( | ( _, _, extra_args ) | is_viable( extra_args ) ).find( | ( found, _, _ ) | *found == name ) )
     .or_else( || candidates.iter().find( | ( _, _, extra_args ) | is_viable( extra_args ) ) )
     .cloned()
     .ok_or_else( || PreviewError::Unpreviewable
