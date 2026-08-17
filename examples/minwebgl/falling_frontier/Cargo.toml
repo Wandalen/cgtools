@@ -22,6 +22,7 @@ features = [
   'HtmlInputElement',
   'HtmlSelectElement',
   'HtmlButtonElement',
+  'HtmlHeadElement',
   'Event',
   'Navigator',
   'Clipboard',

@@ -34,6 +34,8 @@ enum ShipKind
 struct ShipSpec
 {
   kind : ShipKind,
+  name : &'static str,
+  commander : &'static str,
   position : [ f32; 3 ],
   rotation_y : f32,
   /// Patrol waypoints (XZ - every point sits at `SHIP_Y`, same as
@@ -63,25 +65,29 @@ const FLEET : [ ShipSpec; 4 ] =
 [
   ShipSpec
   {
-    kind : ShipKind::Frigate, position : [ -41.55, SHIP_Y, 57.63 ], rotation_y : -1.56,
+    kind : ShipKind::Frigate, name : "TDF RELIANT", commander : "NOLAN ADAMS",
+    position : [ -41.55, SHIP_Y, 57.63 ], rotation_y : -1.56,
     path : &[ [ -41.55, 57.63 ], [ -61.55, 32.63 ], [ -86.55, 2.63 ], [ -71.55, -42.37 ], [ -31.55, -67.37 ] ],
     speed : 0.0008, trajectory_color : TRAJECTORY_CYAN, sensor_radius : Some( 45.0 ),
   },
   ShipSpec
   {
-    kind : ShipKind::Cruiser, position : [ -58.26, SHIP_Y, -145.5 ], rotation_y : -0.85,
+    kind : ShipKind::Cruiser, name : "TDF PINNACLE", commander : "CAPTAIN STERLING",
+    position : [ -58.26, SHIP_Y, -145.5 ], rotation_y : -0.85,
     path : &[ [ -58.26, -145.5 ], [ -38.26, -195.5 ], [ -8.26, -245.5 ] ],
     speed : 0.0005, trajectory_color : TRAJECTORY_CYAN_DEEP, sensor_radius : Some( 65.0 ),
   },
   ShipSpec
   {
-    kind : ShipKind::Corvette, position : [ 25.06, SHIP_Y, -15.2 ], rotation_y : -1.02,
+    kind : ShipKind::Corvette, name : "TDF VALIANT", commander : "LT. CHEN",
+    position : [ 25.06, SHIP_Y, -15.2 ], rotation_y : -1.02,
     path : &[ [ 25.06, -15.2 ], [ 5.06, -45.2 ], [ 35.06, -75.2 ] ],
     speed : 0.0012, trajectory_color : TRAJECTORY_CYAN, sensor_radius : None,
   },
   ShipSpec
   {
-    kind : ShipKind::Scout, position : [ 87.85, SHIP_Y, -34.42 ], rotation_y : -1.08,
+    kind : ShipKind::Scout, name : "TDF OSPREY", commander : "ENS. REYES",
+    position : [ 87.85, SHIP_Y, -34.42 ], rotation_y : -1.08,
     path : &[ [ 87.85, -34.42 ], [ 107.85, -64.42 ], [ 67.85, -84.42 ] ],
     speed : 0.001, trajectory_color : TRAJECTORY_CYAN, sensor_radius : None,
   },
@@ -208,6 +214,33 @@ impl Ships
   pub fn sensor_radius( &self, index : usize ) -> Option< f32 >
   {
     FLEET[ index ].sensor_radius
+  }
+
+  /// M8: the HUD's unit-info card reads name/commander/class off a
+  /// selected ship, ported from `fleet.js`'s own `name`/`commander` and
+  /// `ships.js`'s `userData.type`.
+  #[ expect( clippy::unused_self, reason = "reads static FLEET spec data, but kept as a method (not an associated fn) for call-site consistency with position()/rotation_y() and friends, which do need self" ) ]
+  pub fn name( &self, index : usize ) -> &'static str
+  {
+    FLEET[ index ].name
+  }
+
+  #[ expect( clippy::unused_self, reason = "reads static FLEET spec data, but kept as a method (not an associated fn) for call-site consistency with position()/rotation_y() and friends, which do need self" ) ]
+  pub fn commander( &self, index : usize ) -> &'static str
+  {
+    FLEET[ index ].commander
+  }
+
+  #[ expect( clippy::unused_self, reason = "reads static FLEET spec data, but kept as a method (not an associated fn) for call-site consistency with position()/rotation_y() and friends, which do need self" ) ]
+  pub fn class_label( &self, index : usize ) -> &'static str
+  {
+    match FLEET[ index ].kind
+    {
+      ShipKind::Frigate => "FRIGATE",
+      ShipKind::Corvette => "CORVETTE",
+      ShipKind::Scout => "SCOUT",
+      ShipKind::Cruiser => "CRUISER",
+    }
   }
 
   /// Advances ship `index` along its patrol path by `delta_progress`

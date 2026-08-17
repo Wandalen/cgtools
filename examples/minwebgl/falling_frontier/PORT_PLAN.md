@@ -6,9 +6,10 @@ current conversation.
 
 ## Resume here
 
-M0-M7 are done, verified (see their checklist entries below for what/how -
-M7's own verification hit a real testing-environment limit, see its entry),
-and **committed**:
+**All milestones (M0-M8) are done, verified, and committed.** This port is
+feature-complete against its own plan - see each checklist entry below for
+what/how (M7's verification hit a real testing-environment limit worth
+reading before touching fleet motion again; M8's is the last entry).
 - `851dd9df` on `space-game-demo` — M0-M3 ("feat: add Falling Frontier
   tactical grid, dev panel, and view-zone ribbon")
 - `6c71a5c8` on `space-game-demo` — M4 ("feat: add Falling Frontier ships,
@@ -19,26 +20,25 @@ and **committed**:
   transform gizmo (M6)")
 - `5971b6a0` on `space-game-demo` — M7 ("feat: add Falling Frontier fleet
   motion and trajectories (M7)")
+- M8 ("feat: add Falling Frontier tactical HUD (M8)") — commit this one
+  along with this doc update; see checklist entry below for full scope.
 
 All with no `Co-Authored-By` trailer, per the standing repo rule (see memory
-`feedback_commit_trailers`). Nothing else in this crate is uncommitted as of
-this note. `examples/minwebgl/falling_frontier/Untitled.png` is an untracked
-debug screenshot the user pasted in during the M4 starfield investigation
-(see Notes section below) — left untracked on purpose, safe to delete once
-no longer needed, not part of the deliverable.
+`feedback_commit_trailers`). `examples/minwebgl/falling_frontier/Untitled.png`
+is an untracked debug screenshot the user pasted in during the M4 starfield
+investigation (see Notes section below) — left untracked on purpose, safe to
+delete once no longer needed, not part of the deliverable.
 
-**Next task: M8** — HUD/DOM overlay + polish (status bar, unit-info card,
-toolbar, CRT scanline post-pass). The last milestone. Some things M7 left
-sitting in the dev panel that a real toolbar should absorb: the "Animate
-Ships"/"Show Trajectories"/"Show Sensor Rings" checkboxes (currently in
-`GridTuning`'s Playback section - see M7's checklist entry) map directly to
-the JS reference's `toggle-animate`/`toggle-trajectories`/`toggle-ranges`
-toolbar buttons in `uiControls.js`; a real toolbar should read/write the
-same `GridTuning` fields rather than inventing new state. `uiControls.js`
-also has `btn-pause`/`btn-play`/`btn-fast` (a `shipSpeedMultiplier` control)
-and `btn-reset-cam` (camera reset) - neither exists yet; M7 deliberately
-kept `speed_multiplier` fixed at `1.0` (no fast-forward), since a
-play/pause/fast-forward transport is UI-chrome, not core motion logic.
+**If picking this back up**: there's no "next task" - re-read the gap audit
+(`research/falling_frontier_cgtools_audit.md`) against what actually landed
+to decide what (if anything) is still worth doing. Candidates already
+flagged in this file as deliberately cut, in case priorities change:
+per-axis gizmo handles instead of one free-drag handle each for translate/
+rotate (M6), waypoint ring markers + height-guide-lines on the trajectory
+ribbon (M7), and the JS reference's inert decoration - mission objectives,
+fake resources readout, tactical-module buttons, hull/shield/thrust status
+bars, subsystem-matrix footer, bottom toolbar icons (M8, all of it dead
+weight with zero wired behavior even in the JS reference itself).
 
 Reference material:
 - Gap audit: `research/falling_frontier_cgtools_audit.md` (76-feature comparison,
@@ -259,10 +259,77 @@ Reference material:
       facing along their path's initial tangent, selection/gizmo/drag
       (M5/M6) all continue to work unmodified with animation enabled, and
       no console errors across extensive interaction.
-- [ ] **M8** — HUD/DOM overlay + polish (status bar, unit-info card, toolbar,
-      CRT scanline post-pass, camera reset). Lowest priority, pure UI
-      chrome - see "Next task" above for how it should absorb M7's dev-panel
-      playback checkboxes rather than inventing parallel state.
+- [x] **M8** — tactical HUD: status bar, unit-info card, view-layer toolbar,
+      CRT scanline overlay, camera reset. Files: `src/hud.rs` (all of it -
+      built via raw DOM calls, same as `debug/grid_tuning_panel.rs`, for the
+      same reason). Ported from `index.html` + `src/style.css` +
+      `interaction/uiControls.js` + `ui/unitPanel.js`, with a real CDN
+      dependency dropped and a large chunk of the JS reference's own markup
+      deliberately cut - both explained in full in `hud.rs`'s own module
+      doc, summarized here:
+      - The JS reference pulls Tailwind and Google Fonts from CDNs
+        (`<script src="https://cdn.tailwindcss.com">` et al.); this crate
+        stays self-contained (no CDN dependency, consistent with everything
+        else in it), so `hud.rs` ships its own plain-CSS `<style>` block
+        reproducing just the classes the ported markup actually uses, with a
+        system font stack standing in for `Rajdhani`/`Share Tech Mono`.
+      - Cut entirely: mission-objectives checklist, fake resources/credits
+        readout *content* (the readout's static text is kept, see below),
+        unit card tactical-module buttons (uplink/jammer/targeting/
+        torpedo), hull/shield/thrust status bars, subsystem-matrix footer,
+        bottom toolbar's category icons - **none of these are wired to any
+        real state even in the JS reference itself** (`uiControls.js`/
+        `unitPanel.js` never attach a listener to any of them), so porting
+        them would just be inert decoration with zero behavior.
+      - Kept as static flavor text despite being non-functional: the date/
+        stardate and location/resources readout in the top bar - equally
+        static in the JS reference (never updated by any code), ported 1:1
+        anyway since a "status bar" was explicitly asked for and these cost
+        nothing to keep.
+      `ships.rs` gained `name`/`commander` spec fields + `name()`/
+      `commander()`/`class_label()` accessors (ported from `fleet.js`);
+      `station.rs` gained the equivalent `STATION_NAME`/`STATION_COMMANDER`
+      consts + accessors (from `spaceStation.js`'s `STATION_SPEC`).
+      Asteroids have no JS-side name/commander at all (the JS reference's
+      own `selectUnit` is only ever called for objects with a
+      `userData.name`, which asteroids never get - selecting one there
+      doesn't open the unit card); this port shows a generic "ASTEROID n"
+      contact instead of hiding the card for asteroids specifically, since
+      M5/M6 already treat all three pickable kinds uniformly everywhere
+      else and hiding the card only here would be a pointless
+      inconsistency (`main.rs`'s `unit_info_for`). `GridTuning` gained
+      `show_grid` (default `true`) and `speed_multiplier` (default `1.0`,
+      set to `2.5` by the HUD's Fast button) - the render loop now gates
+      `grid.draw` behind `show_grid` and scales each ship's per-frame
+      progress step by `speed_multiplier`. The HUD's own toggle
+      buttons read/write the *same* `GridTuning` fields the M7 dev-panel
+      checkboxes already used (`animate_ships`/`show_trajectories`/
+      `show_sensor_rings`), not parallel state - but the two DOM surfaces
+      don't sync each other's button labels if driven from both places (see
+      `hud.rs`'s module doc for why that's an accepted, not overlooked,
+      gap). The scanline overlay is pure CSS/DOM (a repeating
+      `linear-gradient`, exactly matching `style.css`'s own `.scanlines`
+      class) - not a WebGL post-process shader, despite "CRT scanline
+      post-pass" sounding like one; the JS reference implements it the same
+      way, so there was never a shader pass to port. One real layout bug
+      caught and fixed live: the unit-info card and the dev panel both
+      wanted the same right-hand screen region and rendered on top of each
+      other, illegibly - fixed by pinning the unit card to
+      `right: 240px` (clear of the dev panel's own `right: 12px; width:
+      220px`) instead of its initial flexbox-driven position. Verified
+      live: every toggle (grid/trajectories/ranges/scanlines/animate)
+      flips its own button state and the underlying behavior correctly;
+      selecting a ship/the station shows the correct name/commander/class
+      in the unit card (asteroids show the generic contact); deselecting
+      (via Escape, the dev panel's Deselect button, or clicking empty
+      space) hides the card again; Reset Camera restores the exact default
+      view after an orbit drag; no console errors across extensive
+      interaction. Not re-verified live (low-risk, simple field writes):
+      the Play/Fast buttons' `speed_multiplier` effect specifically, for
+      the same reason M7's own continuous-motion behavior couldn't be
+      watched live in this environment (see M7's entry) - the *wiring*
+      (button click -> correct `GridTuning` field values) was confirmed by
+      reading the code, not by watching motion speed up on screen.
 
 ## Notes / gotchas hit so far
 
@@ -504,6 +571,20 @@ Reference material:
   visible frame (e.g. right after a checkbox toggle) as confirmation the
   *wiring* is connected, not as confirmation of the ongoing behavior over
   time.
+- **Two independent DOM overlays claiming the same screen region** (M8 bug,
+  caught live). `hud.rs`'s unit-info card was originally laid out via
+  flexbox `space-between` inside the HUD's full-width root, which put it
+  flush against the right edge of the viewport - exactly where
+  `debug/grid_tuning_panel.rs`'s dev panel already lives
+  (`position: fixed; right: 12px`). Both panels rendered, stacked on top of
+  each other, illegible. Two separately-built DOM trees with no shared
+  layout system don't know about each other's space unless something makes
+  them - fixed by pulling the unit card out of flex flow entirely
+  (`position: fixed; right: 240px`, clearing the dev panel's own 220px
+  width + margin) rather than trying to coordinate the two panels' layout
+  systems. Worth remembering if a third floating panel ever gets added:
+  fixed-position DOM overlays in this crate don't self-arrange, whoever
+  adds the next one needs to explicitly avoid the existing ones' rectangles.
 
 ## Verification pattern used so far
 

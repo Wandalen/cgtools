@@ -10,9 +10,12 @@ use gl::math::{ F32x3, F32x4x4, mat3x3h };
 use crate::hull::{ HullPart, upload_mesh, AMBIENT_LIT, AMBIENT_GLOW };
 use crate::primitives::{ box_mesh, cylinder_mesh, torus_mesh, icosphere };
 
-// STATION_SPEC.position from spaceStation.js - negative Y sits it below the
-// tactical grid plane (y = 0), same as the JS reference.
+// STATION_SPEC from spaceStation.js - negative Y sits it below the tactical
+// grid plane (y = 0), same as the JS reference.
 const STATION_POSITION : [ f32; 3 ] = [ -89.6, -15.0, 17.32 ];
+// M8: the HUD's unit-info card reads these off a selected station.
+const STATION_NAME : &str = "OUTPOST ALPHA-7";
+const STATION_COMMANDER : &str = "ADMIRAL VANCE";
 
 // COLORS.shipDark / shipHull / engineGlow, matching ships.rs.
 const DARK : [ f32; 3 ] = [ 0.3373, 0.4392, 0.4902 ];
@@ -79,6 +82,18 @@ impl Station
   pub fn parts( &self ) -> &[ HullPart ]
   {
     &self.parts
+  }
+
+  #[ expect( clippy::unused_self, reason = "reads a static const, but kept as a method for call-site consistency with position()/rotation_y() and friends, which do need self" ) ]
+  pub fn name( &self ) -> &'static str
+  {
+    STATION_NAME
+  }
+
+  #[ expect( clippy::unused_self, reason = "reads a static const, but kept as a method for call-site consistency with position()/rotation_y() and friends, which do need self" ) ]
+  pub fn commander( &self ) -> &'static str
+  {
+    STATION_COMMANDER
   }
 
   /// The station's current world transform - what the gizmo (M6) draws its

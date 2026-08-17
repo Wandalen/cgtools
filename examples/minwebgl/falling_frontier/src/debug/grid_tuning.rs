@@ -61,6 +61,14 @@ pub struct GridTuning
   pub animate_ships : bool,
   pub show_trajectories : bool,
   pub show_sensor_rings : bool,
+
+  // M8: HUD toolbar state. `show_grid` defaults to `true` (JS's own
+  // `toggle-grid` button starts `active`/`[ON]`); `speed_multiplier` scales
+  // `animate_ships`'s per-frame progress step - the HUD's Play/Fast buttons
+  // set it to `1.0`/`2.5` (matching `playbackState.shipSpeedMultiplier` in
+  // the JS reference), Pause leaves it alone and just clears `animate_ships`.
+  pub show_grid : bool,
+  pub speed_multiplier : f32,
 }
 
 impl Default for GridTuning
@@ -98,6 +106,9 @@ impl Default for GridTuning
       animate_ships : false,
       show_trajectories : false,
       show_sensor_rings : false,
+
+      show_grid : true,
+      speed_multiplier : 1.0,
     }
   }
 }

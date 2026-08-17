@@ -8,6 +8,7 @@
 //! list and porting notes.
 
 mod debug;
+mod hud;
 mod boundary;
 mod hull;
 mod primitives;
@@ -25,6 +26,7 @@ use gl::GL;
 use renderer::webgl::Camera;
 use std::{ cell::{ Cell, RefCell }, rc::Rc };
 use debug::{ GridTuning, setup_grid_tuning_panel, refresh_selection_status };
+use hud::{ setup_hud, refresh_unit_panel, bind_reset_camera };
 use boundary::{ build_boundary_polyline, MAX_BOUNDARY_PTS };
 use hull::HullProgram;
 use picking::{ IdProgram, PickBuffer };
@@ -83,6 +85,39 @@ fn selection_status_text( kind : Option< PickedKind > ) -> String
     Some( PickedKind::Station ) => "selected: station".to_string(),
     Some( PickedKind::Asteroid( i ) ) => format!( "selected: asteroid {i}" ),
     None => "selected: none (click a ship, station, or asteroid)".to_string(),
+  }
+}
+
+/// M8: what the HUD's unit-info card shows for `kind`, or `None` to hide the
+/// card entirely (nothing selected). Asteroids have no `fleet.js`/
+/// `spaceStation.js`-style name/commander in the JS reference either (JS's
+/// own `selectUnit` is only ever called for objects with a `userData.name`,
+/// which asteroids never get) - shown here as a generic "ASTEROID n"
+/// contact instead of hiding the card, since this port's own selection
+/// (M5/M6) already treats all three kinds uniformly and hiding the card
+/// only for asteroids would be a pointless inconsistency.
+fn unit_info_for( kind : PickedKind, ships : &Ships, station : &Station ) -> hud::UnitInfo
+{
+  match kind
+  {
+    PickedKind::Ship( i ) => hud::UnitInfo
+    {
+      name : ships.name( i ).to_string(),
+      commander : ships.commander( i ).to_string(),
+      class_label : ships.class_label( i ).to_string(),
+    },
+    PickedKind::Station => hud::UnitInfo
+    {
+      name : station.name().to_string(),
+      commander : station.commander().to_string(),
+      class_label : "STATION".to_string(),
+    },
+    PickedKind::Asteroid( i ) => hud::UnitInfo
+    {
+      name : format!( "ASTEROID {i}" ),
+      commander : "UNASSIGNED".to_string(),
+      class_label : "ASTEROID".to_string(),
+    },
   }
 }
 
@@ -565,6 +600,23 @@ fn app_run() -> Result< (), gl::WebglError >
       {
         ctx.selected_id.set( None );
         refresh_selection_status( &ctx.document, &selection_status_text( None ) );
+        refresh_unit_panel( &ctx.document, None );
+      }
+    );
+  }
+
+  setup_hud( &document, &tuning );
+  {
+    let ctx = ctx.clone();
+    bind_reset_camera
+    (
+      &document,
+      move ||
+      {
+        let mut controls = ctx.camera_controls.borrow_mut();
+        controls.eye = eye;
+        controls.up = up;
+        controls.center = center;
       }
     );
   }
@@ -619,7 +671,7 @@ fn app_run() -> Result< (), gl::WebglError >
         for i in 0 .. ships::SHIP_COUNT
         {
           if Some( SHIP_ID_BASE + i as i32 ) == selected { continue; }
-          let speed = ships.speed( i );
+          let speed = ships.speed( i ) * tuning_snapshot.speed_multiplier;
           ships.advance( i, speed );
         }
       }
@@ -670,11 +722,14 @@ fn app_run() -> Result< (), gl::WebglError >
         );
       }
 
-      grid.draw
-      (
-        &gl, view_proj, camera.eye_get(), &tuning_snapshot, &focus_snapshot,
-        &boundary_buf[ .. boundary_count ], &glow
-      );
+      if tuning_snapshot.show_grid
+      {
+        grid.draw
+        (
+          &gl, view_proj, camera.eye_get(), &tuning_snapshot, &focus_snapshot,
+          &boundary_buf[ .. boundary_count ], &glow
+        );
+      }
 
       // M6: the gizmo handle, drawn on top of everything at whatever is
       // currently selected (translate cross or rotate ring, per
@@ -811,7 +866,10 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
 
         let picked = pick_at_client( &ctx, x, y );
         ctx.selected_id.set( picked );
-        refresh_selection_status( &ctx.document, &selection_status_text( picked.and_then( classify_pick ) ) );
+        let kind = picked.and_then( classify_pick );
+        refresh_selection_status( &ctx.document, &selection_status_text( kind ) );
+        let info = kind.map( | k | unit_info_for( k, &ctx.ships.borrow(), &ctx.station.borrow() ) );
+        refresh_unit_panel( &ctx.document, info.as_ref() );
       }
     );
     window.add_event_listener_with_callback( "pointerup", closure.as_ref().unchecked_ref() ).unwrap();
@@ -833,6 +891,7 @@ fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
           {
             ctx.selected_id.set( None );
             refresh_selection_status( &ctx.document, &selection_status_text( None ) );
+            refresh_unit_panel( &ctx.document, None );
           }
           _ => {}
         }
