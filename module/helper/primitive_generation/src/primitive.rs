@@ -15,7 +15,7 @@ mod private
   };
 
   #[ cfg( feature = "font-processing" ) ]
-  use gl::geometry::BoundingBox;
+  use gl::{ geometry::BoundingBox, F32x3 };
 
   #[ cfg( feature = "text" ) ]
   use kurbo::PathEl;
@@ -65,9 +65,19 @@ mod private
 
     let mut positions = Vec::new();
     let mut indices = Vec::new();
+    let mut normals = Vec::new();
 
     let half_width = width / 2.0;
 
+    // Fix(BUG-217)
+    // Root cause: see `AttributesData::normals`'s doc comment. This
+    // function's winding is direction-independent: for any unit direction
+    // `(dx,dy)`, the segment quad's face normal ( computed via the cross
+    // product of its own edges ) algebraically reduces to
+    // `(0, 0, -2 * half_width * segment_length)`, always negative for a
+    // non-degenerate segment ( `half_width`, `segment_length` > 0 ) --
+    // so every vertex this function emits gets the same constant
+    // `(0, 0, -1)` normal.
     let mut add_segment =
     | end_point : &F32x2, start_point : &F32x2 |
     {
@@ -86,6 +96,8 @@ mod private
       positions.push( [ p1.x(), p1.y(), 0.0 ] );
       positions.push( [ p2.x(), p2.y(), 0.0 ] );
       positions.push( [ p3.x(), p3.y(), 0.0 ] );
+
+      normals.extend( [ [ 0.0, 0.0, -1.0 ]; 4 ] );
 
       indices.push( base_idx );
       indices.push( base_idx + 1 );
@@ -112,7 +124,8 @@ mod private
     let attributes = AttributesData
     {
       positions,
-      indices
+      indices,
+      normals
     };
 
     Some(
@@ -285,6 +298,7 @@ mod private
 
     let mut positions = vec![];
     let mut indices = vec![];
+    let mut normals = vec![];
 
     for contours in bodies
     {
@@ -318,7 +332,36 @@ mod private
       .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
       .collect::< Vec< _ > >();
 
+      // Fix(BUG-217)
+      // Root cause: see `AttributesData::normals`'s doc comment. Unlike
+      // `plane_to_geometry`/`curve_to_geometry`, this function's winding
+      // depends on the caller-supplied contour's own orientation --
+      // `earcutr` preserves, never reorders, the input winding -- so the
+      // normal is derived from this body's own first triangle rather than
+      // assumed, then broadcast to every vertex in the body since the
+      // whole body is coplanar ( Z = 0 ) and `earcutr` keeps one
+      // consistent winding throughout a single body. Falls back to
+      // `(0,0,1)` both when a body triangulates to zero triangles and
+      // when the first triangle is degenerate ( zero-area, e.g. from
+      // coincident input points ) -- the latter guards against
+      // `normalize` of a zero vector reintroducing the exact NaN defect
+      // this fix removes, one call site later.
+      let body_normal = body_indices.chunks_exact( 3 ).next().map
+      (
+        | tri |
+        {
+          let p0 : F32x3 = body_positions[ tri[ 0 ] as usize ].into();
+          let p1 : F32x3 = body_positions[ tri[ 1 ] as usize ].into();
+          let p2 : F32x3 = body_positions[ tri[ 2 ] as usize ].into();
+          ( p1 - p0 ).cross( p2 - p0 )
+        }
+      )
+      .filter( | raw | *raw != F32x3::new( 0.0, 0.0, 0.0 ) )
+      .map_or( F32x3::new( 0.0, 0.0, 1.0 ), F32x3::normalize )
+      .0;
+
       let positions_count = positions.len();
+      normals.extend( std::iter::repeat( body_normal ).take( body_positions.len() ) );
       positions.extend( body_positions );
       indices.extend
       (
@@ -331,6 +374,7 @@ mod private
     {
       positions,
       indices,
+      normals,
     };
 
     let primitive_data = PrimitiveData
@@ -368,10 +412,17 @@ mod private
       0, 2, 3
     ];
 
+    // Fix(BUG-217): see `AttributesData::normals`'s doc comment. This
+    // quad's own winding ( `0,1,2` = CCW as seen from +Z, confirmed by
+    // direct cross product of its own edges ) gives a face normal of
+    // `(0,0,1)` via the right-hand rule.
+    let normals = vec![ [ 0.0, 0.0, 1.0 ]; 4 ];
+
     let attributes = AttributesData
     {
       positions,
-      indices
+      indices,
+      normals
     };
 
     Some

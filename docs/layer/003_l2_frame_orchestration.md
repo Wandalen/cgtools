@@ -34,18 +34,34 @@ and resolve mechanics are the same shape of problem.
   the embedded instance still has no test citation — the same
   browser-test-infrastructure gap named elsewhere in this layer).
 - `renderer` (`src/webgl/shadow.rs`, legacy path): a separate shadow-map
-  render-target and pass cycle, run before the main scene pass.
+  render-target and pass cycle, run before the main scene pass. Its
+  `tests/webgl/shadow.rs` (3 tests) covers only the `SpotLight`→`Light`
+  size-parameterization helper, not the FBO/pass-cycle machinery itself,
+  which remains untested — the same browser-test-infrastructure gap named
+  elsewhere in this layer.
 - `renderer` (`src/webgl/post_processing/gbuffer.rs`, legacy path): a
   G-buffer target set and its own fill/composite pass cycle, feeding the
   post-processing chain.
 - `renderer` (`src/webgl/loaders/pmrem.rs`): a PMREM-prefiltering render
   cycle over a cubemap target set, run at load time rather than per frame.
+  Structurally tested end-to-end against a real headless WebGL2 context by
+  `tests/pmrem_tests.rs` (3 tests: full-output-set, single-mip, and
+  non-power-of-two resolution) — signature regressions, panics, and
+  incomplete-framebuffer failures are caught, though not pixel-level
+  correctness (still visual-only, via the `gltf_viewer` example).
 - `renderer` (`src/webgpu/renderer.rs`, canonical `gpu_hal`-backed path): a
   further independent embedded instance — `frame_targets_create()` builds
   the HDR target set and `render()` runs the opaque → tonemap ordering,
   pixel-verified end-to-end by `opaque_path_renders_lit_quad`.
 - `tilemap_renderer` (WebGL2 adapter): per-batch VAO lifecycle and
   draw-time state management inside `src/adapters/webgl.rs`.
+- `tilemap_renderer` (WebGPU adapter): `submit()` in `src/adapters/webgpu.rs`
+  runs its own independent per-frame cycle — `command_encoder_create()` →
+  `render_pass_begin()` → `pipeline_set()` → a per-command dispatch loop →
+  `pass.end()` → `queue.submit()`.
+- `tilemap_renderer` (native adapter): `submit()` in `src/adapters/native.rs`
+  runs the same encoder/pass/pipeline/dispatch-loop/end/submit shape as the
+  WebGPU adapter, over an offscreen surface with pixel readback.
 
 ### Extraction Trigger
 
@@ -70,5 +86,10 @@ name and a documented home.
 | `module/helper/renderer/tests/webgl_frame_orchestration_test.rs` | Native unit coverage for the attachment-selection branch (task 115) |
 | `module/helper/renderer/src/webgl/post_processing/pass.rs` | Pass composition machinery |
 | `module/helper/renderer/src/webgl/shadow.rs` | Shadow-map target and pass cycle |
+| `module/helper/renderer/tests/webgl/shadow.rs` | Covers only the `SpotLight`→`Light` size helper, not the FBO/pass-cycle machinery |
 | `module/helper/renderer/src/webgl/post_processing/gbuffer.rs` | G-buffer target set and fill/composite pass cycle |
 | `module/helper/renderer/src/webgl/loaders/pmrem.rs` | PMREM-prefiltering render cycle over a cubemap target set |
+| `module/helper/renderer/tests/pmrem_tests.rs` | Structural coverage of `pmrem::generate()` against a real headless WebGL2 context |
+| `module/helper/tilemap_renderer/src/adapters/webgl.rs` | Per-batch VAO lifecycle and draw-time state management |
+| `module/helper/tilemap_renderer/src/adapters/webgpu.rs` | Per-frame encoder/pass/pipeline/dispatch-loop/end/submit cycle in `submit()` |
+| `module/helper/tilemap_renderer/src/adapters/native.rs` | Same per-frame cycle as the WebGPU adapter, over an offscreen surface with pixel readback |

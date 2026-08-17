@@ -72,7 +72,15 @@ mod private
 
   impl GBufferAttachment
   {
-    fn attribute_info( self, buffers : &[ web_sys::WebGlBuffer ] ) -> Vec< AttributeInfo >
+    /// Builds the vertex-attribute descriptor(s) this attachment needs, pairing each with a
+    /// buffer from `buffers` in slot order. Returns an empty `Vec` if `buffers` is empty or if
+    /// this attachment ( e.g. [`GBufferAttachment::Albedo`] ) has no dedicated vertex attribute.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `buffers` is non-empty but has fewer entries than this attachment needs.
+    #[ must_use ]
+    pub fn attribute_info( self, buffers : &[ web_sys::WebGlBuffer ] ) -> Vec< AttributeInfo >
     {
       if buffers.is_empty()
       {
@@ -137,7 +145,9 @@ mod private
       attribute_infos
     }
 
-    fn define_const( self ) -> String
+    /// The fragment-shader `#define` name identifying this attachment ( see [`into_defines`] ).
+    #[ must_use ]
+    pub fn define_const( self ) -> String
     {
       match self
       {

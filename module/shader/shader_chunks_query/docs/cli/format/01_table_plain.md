@@ -23,7 +23,7 @@ value_noise          Bilinear-interpolated value noise  category:noise          
                      sampled at a 2D point, in [0, 1).
 fbm3                 Fixed 3-octave fractal Brownian    category:noise, technique:fractal  value_noise
                      motion built on value_noise, in
-                     [0, 0.875].
+                     [0, 0.5*(1+gain+gain^2)].
 fullscreen_triangle  Fullscreen-triangle vertex stage:  category:vertex                    (none)
                      3 vertices, no vertex buffer,
                      vertex_index alone picks the

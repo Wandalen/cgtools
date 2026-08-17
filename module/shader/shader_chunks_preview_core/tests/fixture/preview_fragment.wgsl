@@ -42,10 +42,10 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
   // would have nothing to multiply and the picture would just be plain fbm.
   let warp = vec2f
   (
-    fbm3( p + drift ),
-    fbm3( p + vec2f( 5.2, 1.3 ) + drift ),
+    fbm3( p + drift, 2.0, 0.5 ),
+    fbm3( p + vec2f( 5.2, 1.3 ) + drift, 2.0, 0.5 ),
   );
-  let n = fbm3( p + ( warp - 0.4375 ) * params.warp_strength * 4.0 );
+  let n = fbm3( p + ( warp - 0.4375 ) * params.warp_strength * 4.0, 2.0, 0.5 );
 
   let color = vec3f( n ) * params.brightness;
   return vec4f( color, 1.0 );

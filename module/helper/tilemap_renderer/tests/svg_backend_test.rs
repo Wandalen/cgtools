@@ -351,7 +351,7 @@ fn sprite_white_tint_no_filter()
     images : vec![ ImageAsset
     {
       id : ResourceId::new( 0 ),
-      source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 16 * 16 * 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
@@ -393,7 +393,7 @@ fn screen_space_sprite_renders_through_sprite_path()
     images : vec![ ImageAsset
     {
       id : ResourceId::new( 0 ),
-      source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 16 * 16 * 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
@@ -435,7 +435,7 @@ fn sprite_colored_tint_creates_filter()
     images : vec![ ImageAsset
     {
       id : ResourceId::new( 0 ),
-      source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 16 * 16 * 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
@@ -476,7 +476,7 @@ fn two_tinted_sprites_get_distinct_filter_ids()
     images : vec![ ImageAsset
     {
       id : ResourceId::new( 0 ),
-      source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 16 * 16 * 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
@@ -676,6 +676,146 @@ fn batch_set_and_remove_instance()
   assert_eq!( b.matches( "#sprite_0" ).count(), 1, "body: {b}" );
   assert!( b.contains( "translate(3,4)" ), "body: {b}" );
   assert!( !b.contains( "translate(1,2)" ), "body: {b}" );
+}
+
+// -- BUG-209 / BUG-211 error-path regressions --
+
+/// BUG-209: a `Sprite` command referencing a sprite id `assets_load` was
+/// never given returns `RenderError::MissingAsset` instead of silently
+/// emitting a dangling `<use href="#sprite_N">`.
+#[ test ]
+fn sprite_command_missing_asset_returns_error()
+{
+  let mut svg = svg800x600();
+  svg.assets_load( &empty_assets() ).unwrap();
+  let result = svg.submit( &[
+    RenderCommand::Sprite( Sprite
+    {
+      transform : Transform::default(),
+      sprite : ResourceId::new( 0 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+  ]);
+  assert!( matches!( result, Err( RenderError::MissingAsset( 0 ) ) ), "result: {result:?}" );
+}
+
+/// BUG-209: a `Mesh` command referencing a geometry id `assets_load` was
+/// never given -- not merely one whose disk source failed to resolve, see
+/// `geometry_on_missing_path_is_skipped_with_comment` -- returns
+/// `RenderError::MissingAsset` instead of silently drawing nothing.
+#[ test ]
+fn mesh_command_missing_asset_returns_error()
+{
+  let mut svg = svg800x600();
+  svg.assets_load( &empty_assets() ).unwrap();
+  let result = svg.submit( &[
+    RenderCommand::Mesh( Mesh
+    {
+      transform : Transform::default(),
+      geometry : ResourceId::new( 0 ),
+      fill : FillRef::Solid( [ 1.0, 0.0, 0.0, 1.0 ] ),
+      texture : None,
+      topology : Topology::TriangleList,
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+  ]);
+  assert!( matches!( result, Err( RenderError::MissingAsset( 0 ) ) ), "result: {result:?}" );
+}
+
+/// BUG-211: `SetSpriteInstance` with an out-of-bounds `index` returns
+/// `RenderError::BackendError` instead of the previous silent `if`-guarded
+/// no-op that dropped the update without telling the caller.
+#[ test ]
+fn set_sprite_instance_out_of_bounds_returns_error()
+{
+  let mut svg = svg800x600();
+  svg.assets_load( &empty_assets() ).unwrap();
+
+  let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
+  let result = svg.submit( &[
+    RenderCommand::CreateSpriteBatch( CreateSpriteBatch
+    {
+      batch : batch_id,
+      params : SpriteBatchParams
+      {
+        transform : Transform::default(),
+        sheet : ResourceId::new( 0 ),
+        blend : BlendMode::Normal,
+        clip : None,
+      },
+    }),
+    RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
+    RenderCommand::AddSpriteInstance( AddSpriteInstance
+    {
+      transform : Transform::default(),
+      sprite : ResourceId::new( 0 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+    }),
+    RenderCommand::SetSpriteInstance( SetSpriteInstance
+    {
+      index : 5,
+      transform : Transform::default(),
+      sprite : ResourceId::new( 0 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+    }),
+  ]);
+  assert!( matches!( result, Err( RenderError::BackendError( _ ) ) ), "result: {result:?}" );
+}
+
+/// BUG-211: `SetMeshInstance` with an out-of-bounds `index` returns
+/// `RenderError::BackendError` instead of a silent no-op.
+#[ test ]
+fn set_mesh_instance_out_of_bounds_returns_error()
+{
+  let mut svg = svg800x600();
+  let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0, 50.0, 100.0 ];
+  let assets = Assets
+  {
+    geometries : vec![ GeometryAsset
+    {
+      id : ResourceId::new( 0 ),
+      positions : Source::Bytes( bytemuck::cast_slice( positions ).to_vec() ),
+      uvs : None,
+      indices : None,
+      data_type : DataType::U16,
+    }],
+    ..empty_assets()
+  };
+  svg.assets_load( &assets ).unwrap();
+
+  let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
+  let result = svg.submit( &[
+    RenderCommand::CreateMeshBatch( CreateMeshBatch
+    {
+      batch : batch_id,
+      params : MeshBatchParams
+      {
+        transform : Transform::default(),
+        geometry : ResourceId::new( 0 ),
+        fill : FillRef::Solid( [ 0.0, 1.0, 0.0, 1.0 ] ),
+        texture : None,
+        topology : Topology::TriangleList,
+        blend : BlendMode::Normal,
+        clip : None,
+      },
+    }),
+    RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
+    RenderCommand::AddMeshInstance( AddMeshInstance
+    {
+      transform : Transform::default(),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+    }),
+    RenderCommand::SetMeshInstance( SetMeshInstance
+    {
+      index : 5,
+      transform : Transform::default(),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+    }),
+  ]);
+  assert!( matches!( result, Err( RenderError::BackendError( _ ) ) ), "result: {result:?}" );
 }
 
 // -- delete batch --

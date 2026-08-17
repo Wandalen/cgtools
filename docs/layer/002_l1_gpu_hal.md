@@ -56,10 +56,16 @@ until strangled onto the HAL. `tilemap_renderer` (d2) is the second targeted
 consumer — its `adapter-webgpu` / `adapter-native` adopt the HAL per
 [../adr/003_d2_stack_hal_adoption.md](../adr/003_d2_stack_hal_adoption.md).
 `adapter-webgpu` now builds and passes its own compile-and-construct-level
-test suite, and is also browser-pixel-verified via the `adapter_browser`
-example and `browsee` ( task 198 ) — proving a real, correctly-bounded opaque
-**black** quad, its own documented unpopulated-texture behavior, not the
-clear color, at the sprite's exact configured location.
+test suite, and was browser-pixel-verified via the `adapter_browser` example
+and `browsee` ( task 198 ) — at that time proving a real, correctly-bounded
+opaque **black** quad, the adapter's then-unpopulated-texture behavior, not
+the clear color, at the sprite's exact configured location. `assets_load` now
+uploads real pixel data instead ( task 218, sharing `to_rgba8` with
+`adapter-native` rather than duplicating it ), so that black-quad reading is
+stale — task 198's live browser verification predates the fix and needs a
+fresh run to confirm what the adapter actually paints now ( predicted:
+solid red, matching `adapter-webgl`, since both now upload the same asset
+bytes — not yet browser-confirmed ).
 `adapter-native` now also builds and passes an in-repo pixel-readback test
 suite mirroring `gpu_hal`'s own `triangle_render_readback` precedent, proving
 the offscreen-render-plus-readback path with no browser involved. Its existing
@@ -68,9 +74,12 @@ accepted-until-strangled posture — it now also has its own
 compile-and-construct-level test suite (`webgl_backend_test.rs` +
 `command_consistency_test.rs`, task 114) and is browser-pixel-verified too, via
 the same `adapter_browser` example ( task 198 ) — proving a real solid-red
-sprite paint, unlike `adapter-webgpu`'s unpopulated-texture black, since
-`adapter-webgl` uploads real pixel bytes — the same shape of coverage as
-`adapter-webgpu`'s, without adopting the HAL itself.
+sprite paint, since `adapter-webgl` uploads real pixel bytes — the same shape
+of coverage as `adapter-webgpu`'s, without adopting the HAL itself. The two
+adapters' upload paths are no longer asymmetric in kind ( both now upload real
+pixel bytes via a shared conversion helper ), only in browser-verification
+recency ( `adapter-webgl`'s reading is current; `adapter-webgpu`'s predates
+task 218 and awaits re-verification, per the note above ).
 
 A fourth backend, `vulkan` ( `minvulkan` via `ash`, no `wgpu` dependency ),
 is now implemented — [ADR-004](../adr/004_native_vulkan_hal_backend.md) adds
@@ -122,3 +131,4 @@ backend variant ), 203 ( the consuming example ).
 | `module/helper/gpu_hal/` | The v0 implementation |
 | `module/helper/renderer/src/webgpu/` | First consumer — the canonical opaque path on both backends |
 | `module/helper/tilemap_renderer/src/adapters/webgpu.rs`, `src/adapters/native.rs` | Second targeted consumer — `adapter-webgpu` / `adapter-native` ( [ADR-003](../adr/003_d2_stack_hal_adoption.md) ) |
+| `examples/orrery/flexible/src/main.rs` | Reference/comparison consumer, not an L3 stack engine — depends only on `gpu_hal` (no direct `minwebgl`/`minwebgpu`/`minwgpu`/`minvulkan`/`renderer`) and reaches all four backends through the unified `gpu_hal::Device::new(...)` constructor, which itself dispatches to whichever backend the crate's own Cargo feature ( `webgl`/`webgpu`/`wgpu`/`vulkan` ) selected — bypassing L3 entirely, unlike this table's other two rows |

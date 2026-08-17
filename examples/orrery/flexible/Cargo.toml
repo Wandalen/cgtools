@@ -21,7 +21,6 @@ features = [ "web" ]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen-futures]
 workspace = true
-optional = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.gpu_hal]
 workspace = true
@@ -43,15 +42,25 @@ orrery_webgpu = { path = "../webgpu" }
 # Only needed to translate the shared WGSL into GLSL ES 300 at build time for
 # the `webgl` feature ( gpu_hal's WebGL backend cannot consume WGSL directly,
 # unlike the other three backends ) — never a dependency of the built
-# artifact itself, native or wasm32.
+# artifact itself, native or wasm32. Cargo rejects depending on the same
+# package twice under different local names ( even build vs normal/target ),
+# so this reuses the plain `gpu_hal` name rather than a `package = "gpu_hal"`
+# rename — see the `webgl` feature below for the consequence this has on
+# `gpu_hal/webgl`'s cross-reference.
 [build-dependencies]
 orrery_webgpu = { path = "../webgpu", optional = true }
-naga = { workspace = true, features = [ "glsl-out" ], optional = true }
+gpu_hal = { workspace = true, features = [ "webgl-glsl-build" ], optional = true }
 
 [features]
 default = [ "wgpu" ]
-webgl = [ "gpu_hal/webgl", "dep:naga", "dep:orrery_webgpu" ]
-webgpu = [ "gpu_hal/webgpu", "dep:wasm-bindgen-futures" ]
+# `gpu_hal/webgl` activates gpu_hal's `webgl` cargo feature on BOTH the
+# wasm32-target dependency above and this host-side build-dependency ( Cargo
+# unifies by package name across dependency kinds ) — harmless here: gpu_hal
+# itself gates its `webgl` layer ( and the `minwebgl`/`web-sys` deps it pulls
+# in ) behind `target_arch = "wasm32"` in addition to the feature, so on the
+# host build-dependency compile the extra feature activates no extra code.
+webgl = [ "gpu_hal/webgl", "dep:gpu_hal", "dep:orrery_webgpu" ]
+webgpu = [ "gpu_hal/webgpu" ]
 wgpu = [ "gpu_hal/native" ]
 vulkan = [ "gpu_hal/vulkan" ]
 

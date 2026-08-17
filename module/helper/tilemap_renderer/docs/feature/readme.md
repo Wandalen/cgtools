@@ -17,5 +17,5 @@ A **feature** instance documents one cohesive slice of the crate's public API. I
 | 002 | [WebGL2 Backend Adapter](002_webgl2_backend_adapter.md) | Hardware-accelerated sprite/mesh/batch rendering on `wasm32` | ⚠️ |
 | 003 | [Terminal Backend Adapter](003_terminal_backend_adapter.md) | ASCII/Unicode terminal rendering | ⏸️ |
 | 004 | [None Backend Adapter](004_none_backend_adapter.md) | Complete no-op — math-only simulation, no rendering | ✅ |
-| 005 | [WebGPU Backend Adapter](005_webgpu_backend_adapter.md) | Sprite rendering in-browser via `gpu_hal`'s WebGPU surface | ⚠️ |
+| 005 | [WebGPU Backend Adapter](005_webgpu_backend_adapter.md) | Sprite rendering in-browser via `gpu_hal`'s WebGPU surface | ✅ |
 | 006 | [Native Backend Adapter](006_native_backend_adapter.md) | Offscreen sprite rendering via `gpu_hal`'s native `wgpu` surface, pixel-verified | ✅ |

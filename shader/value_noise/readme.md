@@ -13,7 +13,8 @@ the four integer lattice corners surrounding each sample point and blends
 them, which is what turns uncorrelated noise into the smooth, blobby pattern
 shown here. The faint grid-cell boundaries still visible are an inherent
 property of value noise (only the four corner values are randomized, not a
-gradient) — not a bug in this implementation.
+gradient) — not a bug in this implementation. Drag `seed` away from `0` for
+a different arrangement of blobs entirely, same lattice.
 
 ## Parameters
 
@@ -24,7 +25,7 @@ gradient) — not a bug in this implementation.
 | `tags` | `category:noise` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | `hash21` |
-| `export` | `fn value_noise(p: vec2f) -> f32` |
+| `export` | `fn value_noise(p: vec2f, seed: f32) -> f32` |
 
 ## Nuances
 
@@ -38,6 +39,12 @@ gradient) — not a bug in this implementation.
   integer grid line.
 - Output stays within the same `[0, 1)` range as `hash21`, since a weighted
   blend (`mix`) of values already in `[0, 1)` can never leave that range.
+- `seed` (`//@ param:`, range `[-50, 50]`) offsets the integer lattice
+  coordinate fed into each corner's `hash21`, reshuffling which value lands
+  at which corner — same technique as `voronoi`'s and `gradient_noise`'s
+  `seed`. `0` (this range's midpoint) reproduces the original, unseeded
+  pattern exactly. Panning `p` itself would only relabel the same corner →
+  value mapping; offsetting the hashed coordinate genuinely decorrelates it.
 
 ## Relatives
 

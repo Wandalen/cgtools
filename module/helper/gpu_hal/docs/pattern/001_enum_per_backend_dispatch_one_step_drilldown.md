@@ -9,7 +9,7 @@
 
 ### Problem
 
-WebGPU, WebGL, and native `wgpu` expose genuinely different underlying objects for the same HAL concept (`web_sys::GpuBuffer` vs. a crate-local `BufferWebGl` vs. `wgpu::Buffer`), with different capabilities across backends (WebGL requires GLSL shader source; only native can read pixels back). A trait-object design would force every method down to the lowest common denominator all three backends support, or grow an unwieldy set of associated types; a design generic over a backend type parameter would monomorphize the whole call graph per backend and leak a backend type parameter into every caller's function signatures — directly against the "shader-access, not stack-vocabulary" contract `docs/layer/002_l1_gpu_hal.md` sets for this layer.
+WebGPU, WebGL, native `wgpu`, and native Vulkan expose genuinely different underlying objects for the same HAL concept (`web_sys::GpuBuffer` vs. a crate-local `BufferWebGl` vs. `wgpu::Buffer` vs. `ash::vk::Buffer`), with different capabilities across backends (WebGL requires GLSL shader source; only native and Vulkan can read pixels back). A trait-object design would force every method down to the lowest common denominator all four backends support, or grow an unwieldy set of associated types; a design generic over a backend type parameter would monomorphize the whole call graph per backend and leak a backend type parameter into every caller's function signatures — directly against the "shader-access, not stack-vocabulary" contract `docs/layer/002_l1_gpu_hal.md` sets for this layer.
 
 ### Solution
 
@@ -17,8 +17,8 @@ Every resource and handle type — `Device`, `Queue`, `Surface`, `Buffer`, `Text
 
 Two accessor families exist side by side, with deliberately different failure behavior:
 
-- **Public, non-panicking**: `pub fn as_webgpu(&self) -> Option<&Raw>` / `as_webgl` / `as_native`, present on every handle type, returning `None` on a backend mismatch rather than panicking — the one-step escape hatch to the raw driver object for anything the portable surface doesn't cover.
-- **Internal, panicking**: `pub(crate) fn expect_webgpu(&self) -> &Raw` / `expect_webgl` / `expect_native`, used only inside `gpu_hal`'s own per-backend match arms so internal dispatch code can assume "this handle matches the device's active backend" without re-threading a `Result`. A caller can never observe a mismatched-backend handle through the public API, so `expect_*`'s panic (`"backend mismatch : expected a WebGPU <thing>"`) is unreachable except by a bug in the crate's own dispatch (see `invariant/001`).
+- **Public, non-panicking**: `pub fn as_webgpu(&self) -> Option<&Raw>` / `as_webgl` / `as_native` / `as_vulkan`, present on every handle type, returning `None` on a backend mismatch rather than panicking — the one-step escape hatch to the raw driver object for anything the portable surface doesn't cover.
+- **Internal, panicking**: `pub(crate) fn expect_webgpu(&self) -> &Raw` / `expect_webgl` / `expect_native` / `expect_vulkan`, used only inside `gpu_hal`'s own per-backend match arms so internal dispatch code can assume "this handle matches the device's active backend" without re-threading a `Result`. A caller can never observe a mismatched-backend handle through the public API, so `expect_*`'s panic (`"backend mismatch : expected a WebGPU <thing>"`) is unreachable except by a bug in the crate's own dispatch — exact panic-site count and the pairwise `#[cfg]`-gated match shape live in `invariant/001`, not here.
 
 This directly instantiates the workspace's one-step-drill-down pattern (`docs/pattern/002_strict_layering_one_step_drilldown.md`) at the resource-handle level: each layer hands the caller the layer below rather than sealing it away, reachable in exactly one step from any handle.
 
@@ -28,7 +28,7 @@ Applies to every public handle type `gpu_hal` exposes today, and to any future o
 
 ### Consequences
 
-Callers get one flat, backend-agnostic API surface plus a one-step escape hatch to the raw driver object; adding a fourth backend means adding one `#[cfg]`-gated variant to every enum and one arm to every match — mechanical, and the compiler's exhaustiveness check catches anything missed — rather than restructuring a trait hierarchy. The tradeoff, shared with the workspace pattern this instantiates, is verbosity: every method on every handle type is a per-backend match arm (see `device.rs`, `resource.rs`, `pass.rs`), so the crate's line count scales with `backends × operations` rather than `operations` alone.
+Callers get one flat, backend-agnostic API surface plus a one-step escape hatch to the raw driver object; adding a backend means adding one `#[cfg]`-gated variant to every enum and one arm to every match — mechanical, and the compiler's exhaustiveness check catches anything missed — rather than restructuring a trait hierarchy. Vulkan is this pattern's one realized instance of that claim, not just a hypothetical: it landed as a fourth variant across every enum with no trait-hierarchy rework. The tradeoff, shared with the workspace pattern this instantiates, is verbosity: every method on every handle type is a per-backend match arm (see `device.rs`, `resource.rs`, `pass.rs`, `vulkan.rs`), so the crate's line count scales with `backends × operations` rather than `operations` alone.
 
 ### ADRs
 
@@ -69,4 +69,4 @@ Callers get one flat, backend-agnostic API surface plus a one-step escape hatch 
 
 ### Tests
 
-`tests/native_backend_test.rs` exercises the enum surface throughout but never calls `as_native()`/`expect_native()` directly, since native is the only backend compiled into that test's feature set — the drill-down accessors themselves have no dedicated test.
+`tests/native_backend_test.rs` and `tests/vulkan_backend_test.rs` each exercise their own enum surface throughout but never call `as_native()`/`expect_native()` or `as_vulkan()`/`expect_vulkan()` directly, since each test's feature set compiles in only its own backend — the drill-down accessors themselves have no dedicated test on any backend.

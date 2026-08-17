@@ -30,7 +30,7 @@ to hide it — cross-backend abstraction is exactly what L0 must not do
 | `minwebgl` | WebGL2 (web) | Mature (primary driver) for pure-logic surface — its live-`WebGl2RenderingContext` entry point (`context::from_canvas` + a minimal shader/buffer/draw sequence) is now browser-pixel-verified too (proven by the `context_triangle_smoke` example via `browsee` — task 192, mirroring gpu_hal's own [002_l1_gpu_hal.md](002_l1_gpu_hal.md) coverage); broader GL-context/DOM surface (shaders, VAOs, textures, uniforms, file/fetch beyond this one path) remains a separate, not-yet-filed gap |
 | `minwebgpu` | WebGPU (web) | Functional |
 | `minwgpu` | `wgpu` (native) | Embryonic — helper/buffer/context/texture/bind/pipeline/pass/readback/error layers exist |
-| `minvulkan` | Vulkan via `ash` (native, `wgpu`-free) | Reserved — skeleton only, no implementation yet ([ADR-004](../adr/004_native_vulkan_hal_backend.md), task 201) |
+| `minvulkan` | Vulkan via `ash` (native, `wgpu`-free) | `Context::builder()` produces a real `ash::Instance`, `PhysicalDevice`, `Device`, and graphics `Queue` — tested against a live Vulkan ICD (task 201); surface/swapchain presentation and resource construction (buffers, images, pipelines) not yet implemented ([ADR-004](../adr/004_native_vulkan_hal_backend.md)) |
 
 **`mingl` is not a layer.** All three drivers depend on it as a shared
 substrate of backend-independent helpers — math, an orbit-camera controller
@@ -98,6 +98,21 @@ produced by `renderer`'s own glTF loaders. It is now named in
 model) row as a second, procedural producer of that same artifact type,
 alongside `renderer`'s file-based loaders — not listed beside the ladder.
 
+### Example / Reference-Implementation Consumers
+
+Some L0 consumers are neither pre-HAL migration debt nor authoring
+tooling nor beside-the-ladder library crates — they are `examples/`
+crates that deliberately reach a driver directly as a permanent,
+by-design reference or comparison implementation, not code awaiting
+migration onto L1:
+
+- `orrery_webgpu` (`examples/orrery/webgpu/`, `dep:minwebgpu`,
+  wasm32-gated) — depends only on `minwebgpu`; no `gpu_hal` or
+  `renderer` dependency at all. The `orrery` family's single-backend
+  reference implementation, kept intentionally direct-to-L0 for
+  comparison against `orrery_flexible`'s L1-mediated, multi-backend
+  path (see [002_l1_gpu_hal.md](002_l1_gpu_hal.md)'s Sources table).
+
 ### Layers
 
 | File | Relationship |
@@ -118,4 +133,4 @@ alongside `renderer`'s file-based loaders — not listed beside the ladder.
 | `module/min/minwebgl/` | WebGL2 driver |
 | `module/min/minwebgpu/` | WebGPU driver |
 | `module/min/minwgpu/` | Native `wgpu` driver (embryonic) |
-| `module/min/minvulkan/` | Native Vulkan driver via `ash`, `wgpu`-free (reserved — skeleton only) |
+| `module/min/minvulkan/` | Native Vulkan driver via `ash`, `wgpu`-free — real Instance/Device/Queue, tested against a live ICD; surface/swapchain and resource construction not yet implemented |

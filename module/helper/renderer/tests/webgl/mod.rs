@@ -16,6 +16,9 @@ mod pbr_material;
 /// Shadow-baking Light tests
 mod shadow;
 
+/// G-buffer attachment metadata (shader `#define` names, vertex-attribute descriptors) tests
+mod gbuffer;
+
 /// Color-grading white balance tint-direction tests
 mod white_balance;
 

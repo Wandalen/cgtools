@@ -36,13 +36,32 @@ _REPO_ROOT="$( cd "$_SCRIPT_DIR/.." && pwd )"
 cd "$_REPO_ROOT"
 
 printf '=== native: cargo nextest run --all-features --workspace ===\n'
-cargo nextest run --all-features --workspace
+cargo nextest run --all-features --workspace --exclude orrery_flexible
 
 printf '=== native: cargo test --doc --all-features --workspace ===\n'
-cargo test --doc --all-features --workspace
+cargo test --doc --all-features --workspace --exclude orrery_flexible
 
 printf '=== native: cargo clippy --all-targets --all-features --workspace ===\n'
-cargo clippy --all-targets --all-features --workspace -- -D warnings
+cargo clippy --all-targets --all-features --workspace --exclude orrery_flexible -- -D warnings
+
+# orrery_flexible's 4 backend features (webgl, webgpu, wgpu, vulkan) are
+# mutually exclusive by design (compile_error! guard, see
+# docs/adr/004_native_vulkan_hal_backend.md) -- --all-features --workspace
+# above would enable all 4 at once and fail to compile, so it's excluded
+# there and checked per-feature here instead, mirroring the crate's own
+# readme.md Verify section. webgl/webgpu are wasm32-only browser backends,
+# covered by the wasm32 stages below instead of here.
+printf '=== native: cargo nextest run -p orrery_flexible --features wgpu ===\n'
+cargo nextest run -p orrery_flexible --features wgpu
+
+printf '=== native: cargo clippy -p orrery_flexible --all-targets --features wgpu ===\n'
+cargo clippy -p orrery_flexible --all-targets --features wgpu -- -D warnings
+
+printf '=== native: cargo nextest run -p orrery_flexible --no-default-features --features vulkan ===\n'
+cargo nextest run -p orrery_flexible --no-default-features --features vulkan
+
+printf '=== native: cargo clippy -p orrery_flexible --all-targets --no-default-features --features vulkan ===\n'
+cargo clippy -p orrery_flexible --all-targets --no-default-features --features vulkan -- -D warnings
 
 printf '=== wasm32: rustup target add wasm32-unknown-unknown ===\n'
 rustup target add wasm32-unknown-unknown
@@ -58,6 +77,24 @@ _failed=0
 while IFS='|' read -r _id _relpath _kind _tags
 do
   [[ "$_kind" == "browser" ]] || continue
+  if [[ "$_relpath" == "examples/orrery/flexible" ]]
+  then
+    # Default feature (wgpu) is native-only; this crate's 2 wasm32 backends
+    # (webgl, webgpu) must be selected explicitly -- see the --exclude
+    # orrery_flexible comment in the native stages above.
+    for _feat in webgl webgpu
+    do
+      printf '=== wasm32 check: %s (--features %s) ===\n' "$_relpath" "$_feat"
+      if ( cd "$_REPO_ROOT/$_relpath" && cargo check --target wasm32-unknown-unknown --no-default-features --features "$_feat" )
+      then
+        _checked=$(( _checked + 1 ))
+      else
+        _failed=$(( _failed + 1 ))
+        printf 'error: wasm32 check failed for %s (--features %s)\n' "$_relpath" "$_feat" >&2
+      fi
+    done
+    continue
+  fi
   printf '=== wasm32 check: %s ===\n' "$_relpath"
   if ( cd "$_REPO_ROOT/$_relpath" && cargo check --target wasm32-unknown-unknown )
   then

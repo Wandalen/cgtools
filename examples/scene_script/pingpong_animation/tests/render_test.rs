@@ -7,12 +7,12 @@
 #![ expect( clippy::float_cmp, reason = "assertions check exact pass-through of ball coordinates into mesh transforms; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 
 use ndarray_cg::F32x2;
-use pingpong_animation::{ render::{ frame_to_commands, render_assets }, Frame };
+use pingpong_animation::{ render::{ frame_to_commands, render_assets, BALL_GEOMETRY }, Frame };
 use tilemap_renderer::
 {
   adapters::svg::SvgBackend,
   assets::Assets,
-  backend::Backend,
+  backend::{ Backend, RenderError },
   commands::RenderCommand,
   types::RenderConfig,
 };
@@ -108,34 +108,27 @@ fn t05_adapter_svg_only_build_renders_full_pipeline()
 }
 
 /// AF2 — verifies real (not faked) resource threading between `frame_to_commands`'
-/// geometry ids and the backend, using `SvgBackend`'s actual, verified contract:
-/// `grep -rn "RenderError::MissingAsset" src/` across `tilemap_renderer` (both this
-/// crate's git history and the installed source) has zero construction sites — no
-/// shipped backend (`SvgBackend`, `WebGlBackend`, ...) currently returns
-/// `RenderError::MissingAsset` for a command-time unresolved resource. `SvgBackend`
-/// specifically resolves a `Mesh`'s geometry via `Option`, and on `None` its
-/// `cmd_mesh` returns early *before* calling `self.content.body_push`
-/// (`src/adapters/svg.rs` — `cmd_mesh`/`mesh_def_generate`) — i.e. `Ok(())` with the
-/// draw silently skipped, not `Err`. `RenderError::MissingAsset` is a documented but
-/// currently-unreachable variant of this dependency crate, not a bug this task owns
-/// (fixing it would be new cross-crate behavior, out of this task's Cargo-forwarding-
-/// only scope). This test instead proves the same thing AF2 actually cares about —
-/// that `frame_to_commands`' geometry ids are real, correctly-threaded references,
-/// not coincidentally-succeeding garbage — by asserting output *presence* when
-/// assets are loaded (see `t03`/`t05`) versus *absence* when they are not.
+/// geometry ids and the backend, using `SvgBackend`'s actual, current contract
+/// (BUG-209, fixed 2026-08-16/17, `task/bug/completed/209_...md`): `cmd_mesh` now
+/// checks the referenced geometry id against `geometries_load`'s own bookkeeping
+/// *before* generating output, returning `RenderError::MissingAsset` for a `Mesh`
+/// whose geometry was never loaded at all (`src/adapters/svg.rs` —
+/// `cmd_mesh`/`geometry_known`), matching `svg_backend_test.rs`'s own
+/// `mesh_command_missing_asset_returns_error`. This proves the same thing AF2 always
+/// cared about — that `frame_to_commands`' geometry ids are real, correctly-threaded
+/// references, not coincidentally-succeeding garbage — even more directly than the
+/// pre-BUG-209 silent-skip contract did: an explicit `Err` naming the exact
+/// unresolved id is harder to satisfy by accident than an absent `<use>` tag. Output
+/// *presence* when assets are loaded is covered separately by `t03`/`t05`.
 #[ test ]
-fn af2_submit_without_loaded_assets_silently_skips_the_draw()
+fn af2_submit_without_loaded_assets_returns_missing_asset_error()
 {
   let mut backend = SvgBackend::new( RenderConfig::default() );
   backend.assets_load( &empty_assets() ).expect( "loading an empty (but real) Assets value must itself succeed" );
 
   let result = backend.submit( &frame_to_commands( &sample_frame( 0.0, 0.0 ) ) );
-  assert!( result.is_ok(), "SvgBackend silently skips unresolved Mesh geometry rather than erroring: {result:?}" );
-
-  let Ok( tilemap_renderer::backend::Output::String( svg ) ) = backend.output()
-  else { panic!( "SvgBackend::output() must return Output::String" ) };
   assert!(
-    !svg.contains( "<use" ),
-    "no mesh <use> tag should appear when its geometry was never loaded: {svg}"
+    matches!( result, Err( RenderError::MissingAsset( id ) ) if id == BALL_GEOMETRY.inner() ),
+    "ball Mesh command references a geometry id `empty_assets()` never loaded, must report it by id: {result:?}"
   );
 }

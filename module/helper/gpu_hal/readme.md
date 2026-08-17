@@ -7,9 +7,13 @@ knowing which backend they run on.
 ## Surface ( v0 )
 
 - `Device` / `Queue` / `Surface` — backend selection happens once, at
-  construction ( `Device::new_webgpu( canvas )`, `Device::new_webgl( canvas )`
-  or `Device::new_native( width, height )` ); everything downstream is
-  backend-agnostic.
+  construction ( `Device::new_webgpu( canvas )`, `Device::new_webgl( canvas )`,
+  `Device::new_native( width, height )` or `Device::new_vulkan( width, height )`
+  to pin one specific backend; the unified `Device::new( canvas )` /
+  `Device::new( width, height )` overloads pick whichever browser/native
+  feature is active for callers that don't need to name one ); everything
+  downstream is backend-agnostic. `Device::backend_name()` reports which
+  backend actually ran.
 - Resource handles ( `Buffer`, `Texture`, `TextureView`, `Sampler`,
   `ShaderModule`, `BindGroupLayout`, `BindGroup`, `RenderPipeline` ) — enum
   dispatch over backends, each with one-step `as_webgpu()` / `as_webgl()` /
@@ -31,6 +35,7 @@ knowing which backend they run on.
 | WebGPU ( `minwebgpu` ) | `webgpu` | implemented |
 | WebGL2 ( `minwebgl` ) | `webgl` | implemented |
 | Native wgpu ( `minwgpu` ) | `native` | implemented |
+| Native Vulkan ( `minvulkan` / `ash`, no `wgpu` ) | `vulkan` | implemented |
 
 Backends materialize per target : the browser pair exists only on `wasm32`,
 the native backend only elsewhere. A build where no backend fits its target
@@ -103,7 +108,7 @@ window-chrome caveat: `tests/manual/readme.md`.
 
 | Path | Responsibility |
 |------|----------------|
-| `src/` | Crate source — device/queue/surface, resource, pipeline, pass, and error wrappers over three backends |
+| `src/` | Crate source — device/queue/surface, resource, pipeline, pass, and error wrappers over four backends |
 | `docs/` | Design documentation as typed doc definitions — see [docs/definition/readme.md](docs/definition/readme.md) |
 | `tests/` | Native integration tests, plus `manual/` for browser-side pixel verification |
 | `readme.md` | This file — user-facing entry point |

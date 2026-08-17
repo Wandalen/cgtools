@@ -6,10 +6,10 @@
 //! webgl/webgpu present live to a browser canvas, driven by
 //! `mingl::web::exec_loop`, the same loop `orrery_webgpu` itself uses.
 //! wgpu/vulkan have no windowing support in `gpu_hal` today
-//! ( `Device::new_native`/`new_vulkan` only ever build an offscreen surface
-//! — see `gpu_hal/tests/native_backend_test.rs` ), so those two render one
-//! frame offscreen and save it as a PNG, the same pattern
-//! `minwgpu/hello_triangle` uses.
+//! ( the native `Device::new` only ever builds an offscreen surface — see
+//! `gpu_hal/tests/native_backend_test.rs` ), so those two render one frame
+//! offscreen and save it as a PNG, the same pattern `minwgpu/hello_triangle`
+//! uses.
 //!
 //! Every color/opacity/radius comes from `orrery_webgpu`'s own
 //! `scene.rhai`, reused unchanged; task 203 explicitly defers
@@ -25,9 +25,11 @@
 compile_error!( "orrery_flexible: select exactly one backend feature — webgl, webgpu, wgpu, or vulkan" );
 
 // `wgpu` is the default feature, so selecting a different one also needs
-// --no-default-features — otherwise both are active at once and the
-// per-backend items below ( BACKEND_NAME / device_create ) collide with a
-// confusing E0428 instead of this message.
+// --no-default-features — otherwise both are active at once and, even
+// though `gpu_hal::Device::new` itself disambiguates via a priority
+// tie-break, the built binary would still transitively link `wgpu`
+// whenever `vulkan` is also selected, violating the dependency-purity
+// invariant this module's own top doc comment states ( ADR-004 ).
 #[ cfg( any(
   all( feature = "webgl", feature = "webgpu" ),
   all( feature = "webgl", feature = "wgpu" ),
@@ -71,7 +73,6 @@ fn browser_loop
   surface : Surface,
   canvas : web_sys::HtmlCanvasElement,
   base_uniforms : UniformsRaw,
-  glsl : Option< ( &'static str, &'static str ) >,
 )
 {
   let update_and_draw = move | t : f64 |
@@ -91,7 +92,7 @@ fn browser_loop
 
     let time = ( t / 1000.0 ) as f32;
     let raw = base_uniforms.with_frame( time, SEED, NODE_COUNT, GRID_DENSITY, ( w, h ) );
-    orrery_flexible::scene_render( &device, &queue, &surface, &raw.to_bytes(), glsl )
+    orrery_flexible::scene_render( &device, &queue, &surface, &raw.to_bytes() )
     .expect( "scene render failed" );
 
     true
@@ -100,78 +101,36 @@ fn browser_loop
   mingl::web::exec_loop::run( update_and_draw );
 }
 
-/// `webgpu` build: async device creation, presented to the canvas
-/// automatically once submitted — no explicit present call exists on `Surface`.
-#[ cfg( all( target_arch = "wasm32", feature = "webgpu" ) ) ]
+/// Device creation is always awaited here : `gpu_hal::Device::new` really
+/// awaits on the `webgpu` feature ( adapter/device request ) and resolves
+/// immediately with no true await point on `webgl` — one call shape covers
+/// both, so this crate never branches on which browser backend is active.
+#[ cfg( all( target_arch = "wasm32", any( feature = "webgpu", feature = "webgl" ) ) ) ]
 async fn app_run()
 {
   let canvas = mingl::web::canvas::retrieve_or_make().expect( "canvas retrieval failed" );
-  let ( device, queue, surface ) = Device::new_webgpu( &canvas ).await
-  .expect( "webgpu device creation failed — does this browser support WebGPU?" );
+  let ( device, queue, surface ) = Device::new( &canvas ).await
+  .expect( "device creation failed — does this browser support the selected backend?" );
 
   let scene = scene::SceneConfig::load();
   let base_uniforms = UniformsRaw::from( &scene );
 
-  browser_loop( device, queue, surface, canvas, base_uniforms, None );
+  browser_loop( device, queue, surface, canvas, base_uniforms );
 }
 
-/// `webgl` build: synchronous device creation over a WebGL2 context, plus
-/// the GLSL override pair `build.rs` translated from the shared WGSL at
-/// build time.
-#[ cfg( all( target_arch = "wasm32", feature = "webgl" ) ) ]
-fn app_run()
-{
-  let canvas = mingl::web::canvas::retrieve_or_make().expect( "canvas retrieval failed" );
-  let ( device, queue, surface ) = Device::new_webgl( &canvas )
-  .expect( "webgl device creation failed — does this browser support WebGL2?" );
-
-  let scene = scene::SceneConfig::load();
-  let base_uniforms = UniformsRaw::from( &scene );
-
-  let glsl_vertex = include_str!( concat!( env!( "OUT_DIR" ), "/scene_vertex.glsl" ) );
-  let glsl_fragment = include_str!( concat!( env!( "OUT_DIR" ), "/scene_fragment.glsl" ) );
-
-  browser_loop( device, queue, surface, canvas, base_uniforms, Some( ( glsl_vertex, glsl_fragment ) ) );
-}
-
-#[ cfg( all( target_arch = "wasm32", feature = "webgpu" ) ) ]
+#[ cfg( all( target_arch = "wasm32", any( feature = "webgpu", feature = "webgl" ) ) ) ]
 fn main()
 {
   wasm_bindgen_futures::spawn_local( app_run() );
 }
 
-#[ cfg( all( target_arch = "wasm32", feature = "webgl" ) ) ]
-fn main()
-{
-  app_run();
-}
-
 // ==================== Native backends ( wgpu / vulkan ) ====================
 
 /// Offscreen surface size — arbitrary; there is no window to size to.
-#[ cfg( all( not( target_arch = "wasm32" ), any( feature = "wgpu", feature = "vulkan" ) ) ) ]
-const WIDTH : u32 = 800;
-#[ cfg( all( not( target_arch = "wasm32" ), any( feature = "wgpu", feature = "vulkan" ) ) ) ]
-const HEIGHT : u32 = 600;
-
-#[ cfg( all( not( target_arch = "wasm32" ), feature = "wgpu" ) ) ]
-const BACKEND_NAME : &str = "wgpu";
-#[ cfg( all( not( target_arch = "wasm32" ), feature = "vulkan" ) ) ]
-const BACKEND_NAME : &str = "vulkan";
-
-#[ cfg( all( not( target_arch = "wasm32" ), feature = "wgpu" ) ) ]
-fn device_create() -> ( gpu_hal::Device, gpu_hal::Queue, gpu_hal::Surface )
-{
-  gpu_hal::Device::new_native( WIDTH, HEIGHT )
-  .expect( "native wgpu device creation failed — is a Vulkan ICD installed ( a software one such as lavapipe suffices )?" )
-}
-
-#[ cfg( all( not( target_arch = "wasm32" ), feature = "vulkan" ) ) ]
-fn device_create() -> ( gpu_hal::Device, gpu_hal::Queue, gpu_hal::Surface )
-{
-  gpu_hal::Device::new_vulkan( WIDTH, HEIGHT )
-  .expect( "native vulkan device creation failed — is a Vulkan ICD installed ( a software one such as lavapipe suffices )?" )
-}
+/// Defined for every backend; the wasm32 backends size to the canvas
+/// instead and leave this unused.
+#[ allow( dead_code, reason = "only the wgpu/vulkan native backends read this -- the wasm32 backends size to the canvas instead" ) ]
+const OFFSCREEN_SIZE : ( u32, u32 ) = ( 800, 600 );
 
 /// Renders one offscreen frame and saves it as `-orrery_{backend}.png` —
 /// `gpu_hal`'s native/Vulkan backends have no windowing support, so this is
@@ -179,19 +138,21 @@ fn device_create() -> ( gpu_hal::Device, gpu_hal::Queue, gpu_hal::Surface )
 #[ cfg( all( not( target_arch = "wasm32" ), any( feature = "wgpu", feature = "vulkan" ) ) ) ]
 fn main()
 {
-  let ( device, queue, surface ) = device_create();
+  let ( device, queue, surface ) = gpu_hal::Device::new( OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1 )
+  .expect( "native device creation failed — is a Vulkan ICD installed ( a software one such as lavapipe suffices )?" );
 
   let scene = scene::SceneConfig::load();
   let base_uniforms = UniformsRaw::from( &scene );
-  let raw = base_uniforms.with_frame( 0.0, SEED, NODE_COUNT, GRID_DENSITY, ( WIDTH, HEIGHT ) );
+  let raw = base_uniforms.with_frame( 0.0, SEED, NODE_COUNT, GRID_DENSITY, OFFSCREEN_SIZE );
 
-  orrery_flexible::scene_render( &device, &queue, &surface, &raw.to_bytes(), None )
+  orrery_flexible::scene_render( &device, &queue, &surface, &raw.to_bytes() )
   .expect( "scene render failed" );
 
   let pixels = surface.pixels_read( &device, &queue ).expect( "pixel readback failed" );
 
-  let path = format!( "-orrery_{BACKEND_NAME}.png" );
-  image::save_buffer( &path, &pixels, WIDTH, HEIGHT, image::ColorType::Rgba8 )
+  let backend = device.backend_name();
+  let path = format!( "-orrery_{backend}.png" );
+  image::save_buffer( &path, &pixels, OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1, image::ColorType::Rgba8 )
   .unwrap_or_else( | e | panic!( "failed to save {path} :: {e}" ) );
-  println!( "orrery_flexible ( {BACKEND_NAME} ): wrote {path}" );
+  println!( "orrery_flexible ( {backend} ): wrote {path}" );
 }

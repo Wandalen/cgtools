@@ -44,16 +44,31 @@ use gpu_hal::
   Surface,
 };
 
+/// The `build.rs`-translated GLSL override pair, on the `webgl` feature
+/// only — the WebGL backend cannot consume WGSL directly ( `build.rs`
+/// translates the shared WGSL to GLSL ES 300 at build time ).
+#[ cfg( feature = "webgl" ) ]
+#[ allow( clippy::unnecessary_wraps, reason = "fires only in a webgl-only build where this arm always returns Some -- the other arm always returns None, so the Option return type is genuinely needed once every feature build is considered" ) ]
+fn glsl_source() -> Option< ( &'static str, &'static str ) >
+{
+  let vertex = include_str!( concat!( env!( "OUT_DIR" ), "/scene_vertex.glsl" ) );
+  let fragment = include_str!( concat!( env!( "OUT_DIR" ), "/scene_fragment.glsl" ) );
+  Some( ( vertex, fragment ) )
+}
+
+/// Every feature but `webgl` has no GLSL translation step — the shader
+/// module carries WGSL alone.
+#[ cfg( not( feature = "webgl" ) ) ]
+fn glsl_source() -> Option< ( &'static str, &'static str ) >
+{
+  None
+}
+
 /// Uploads `uniform_bytes` and draws one fullscreen-triangle frame of the
 /// shared orrery scene ( `orrery_webgpu::shader_source::assemble()`,
 /// `vertex_buffers : &[]` — the shader's vertex stage reads only
 /// `@builtin(vertex_index)`, the same technique `orrery_webgpu`'s own
 /// WebGPU render loop uses ) into `surface`'s current view.
-///
-/// `glsl` is `Some( ( vertex, fragment ) )` on the `webgl` feature only —
-/// the WebGL backend cannot consume WGSL directly ( see `build.rs`, which
-/// translates the shared WGSL at build time ); every other feature passes
-/// `None` and the shader module carries WGSL alone.
 ///
 /// # Errors
 ///
@@ -65,11 +80,10 @@ pub fn scene_render
   queue : &Queue,
   surface : &Surface,
   uniform_bytes : &[ u8 ],
-  glsl : Option< ( &str, &str ) >,
 ) -> Result< (), Error >
 {
   let wgsl = orrery_webgpu::shader_source::assemble();
-  let ( glsl_vertex, glsl_fragment ) = match glsl
+  let ( glsl_vertex, glsl_fragment ) = match glsl_source()
   {
     Some( ( vertex, fragment ) ) => ( Some( vertex ), Some( fragment ) ),
     None => ( None, None ),

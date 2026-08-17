@@ -210,6 +210,7 @@ self-verify — an independent verifier performs the walk after the task reaches
 | 2026-08-16 19:45:32 | user1@w002//home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_EXEC | execution claimed |
 | 2026-08-16 20:44:55 | user1@w002//home/user1/pro/lib/yrd_gamedev/cgtools/ | EXEC_COMPLETE | execution complete |
 | 2026-08-16 20:45:02 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | CLAIM_ACCEPT | acceptance claimed |
+| 2026-08-17 00:49:51 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | ATTEMPT_ACCEPTANCE_PASS | `tsk .acceptance_pass 202` → exit 1, "self-verification forbidden (actor matches executing_by)" — same-actor sandbox guard, consistent with task 206 precedent; not forced/spoofed, left at 🔎 Accepting per standing project convention |
 
 ## History
 

@@ -10,10 +10,12 @@ natural shape for displacement and flow fields.
 
 ![gradient_noise preview](preview.png)
 
-256×256, `gradient_noise( in.uv * 8.0 ) * 0.5 + 0.5` mapped to grayscale —
-8 lattice cells across, remapped from the centered range into `[0, 1]` for
-display. Compared with the `value_noise` preview at the same scale, the
-blobs are rounder and the underlying grid is much harder to spot.
+256×256, `gradient_noise( in.uv * 8.0, 0.0 ) * 0.5 + 0.5` mapped to
+grayscale — 8 lattice cells across, remapped from the centered range into
+`[0, 1]` for display. Compared with the `value_noise` preview at the same
+scale, the blobs are rounder and the underlying grid is much harder to
+spot. Drag `seed` away from `0` for a different arrangement of gradients
+entirely, same lattice.
 
 ## Parameters
 
@@ -24,7 +26,7 @@ blobs are rounder and the underlying grid is much harder to spot.
 | `tags` | `category:noise`, `technique:gradient` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | `hash22` |
-| `export` | `fn gradient_noise(p: vec2f) -> f32` |
+| `export` | `fn gradient_noise(p: vec2f, seed: f32) -> f32` |
 
 ## Nuances
 
@@ -39,6 +41,12 @@ blobs are rounder and the underlying grid is much harder to spot.
 - Output is **centered on 0**, unlike the `[0, 1)` value-noise chunks —
   remap with `* 0.5 + 0.5` before using it as a color, or use it directly
   as a signed offset.
+- `seed` (`//@ param:`, range `[-50, 50]`) offsets the integer lattice
+  coordinate fed into each corner's `hash22`, reshuffling which gradient
+  lands at which corner — same technique as `voronoi`'s `seed`. `0` (this
+  range's midpoint) reproduces the original, unseeded pattern exactly.
+  Panning `p` itself would only relabel the same corner → gradient mapping;
+  offsetting the hashed coordinate genuinely decorrelates it.
 
 ## Relatives
 

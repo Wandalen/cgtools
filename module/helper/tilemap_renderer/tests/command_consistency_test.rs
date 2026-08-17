@@ -101,17 +101,46 @@ mod none_backend
 mod svg_backend
 {
   use tilemap_renderer::adapters::svg::SvgBackend;
+  use tilemap_renderer::assets::{ Assets, ImageAsset, ImageSource, PixelFormat, SpriteAsset };
   use tilemap_renderer::backend::Backend;
-  use tilemap_renderer::types::RenderConfig;
+  use tilemap_renderer::types::{ MipmapMode, RenderConfig, ResourceId, SamplerFilter, WrapMode };
+
+  /// Builds an 8x8 solid-white `Assets` set -- one image, one sprite
+  /// covering the full sheet -- so `ResourceId::new(0)` (this file's shared
+  /// `sprite_command()` fixture) resolves to a real, loaded sprite instead
+  /// of a dangling reference. Mirrors `native_backend`'s own
+  /// `loaded_sprite_assets()`; needed since `Fix(BUG-209)` made
+  /// `SvgBackend::cmd_sprite` return `RenderError::MissingAsset` for an
+  /// unloaded sprite id instead of silently accepting it.
+  fn loaded_sprite_assets() -> Assets
+  {
+    let mut assets = crate::helpers::empty_assets();
+    assets.images.push( ImageAsset
+    {
+      id : ResourceId::new( 0 ),
+      source : ImageSource::Bitmap
+      {
+        bytes : [ 255u8, 255, 255, 255 ].repeat( 8 * 8 ),
+        width : 8,
+        height : 8,
+        format : PixelFormat::Rgba8,
+      },
+      filter : SamplerFilter::default(),
+      mipmap : MipmapMode::default(),
+      wrap : WrapMode::default(),
+    });
+    assets.sprites.push( SpriteAsset { id : ResourceId::new( 0 ), sheet : ResourceId::new( 0 ), region : [ 0.0, 0.0, 8.0, 8.0 ] } );
+    assets
+  }
 
   /// T03 -- `SvgBackend` declares every family `true` (including
-  /// `sprites`); submitting one `Sprite` returns `Ok`. See this file's own
-  /// top doc comment for why `svg` has no T04 case.
+  /// `sprites`); submitting one loaded `Sprite` returns `Ok`. See this
+  /// file's own top doc comment for why `svg` has no T04 case.
   #[ test ]
   fn sprite_command_returns_ok()
   {
     let mut svg = SvgBackend::new( RenderConfig { width : 64, height : 64, ..Default::default() } );
-    svg.assets_load( &crate::helpers::empty_assets() ).unwrap();
+    svg.assets_load( &loaded_sprite_assets() ).unwrap();
     assert!( svg.submit( &[ super::sprite_command() ] ).is_ok() );
   }
 }

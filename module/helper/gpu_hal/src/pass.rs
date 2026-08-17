@@ -99,7 +99,8 @@ mod private
     /// a depth attachment is paired with the canvas backbuffer (as the
     /// color target or as the depth view itself), or [`Error::WebGl`] if
     /// the backing framebuffer fails to allocate. The native backend
-    /// never fails this call.
+    /// never fails this call. On Vulkan, returns [`Error::Vulkan`] if the
+    /// underlying render pass or framebuffer creation fails.
     pub fn render_pass_begin
     (
       &mut self,
@@ -110,24 +111,7 @@ mod private
       match self
       {
         #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
-        Self::WebGpu( encoder ) =>
-        {
-          let mut desc = gl::render_pass::desc()
-          .color_attachment
-          (
-            gl::ColorAttachment::new( color.view.expect_webgpu() ).clear_value( color.clear )
-          );
-          if let Some( depth ) = depth
-          {
-            desc = desc.depth_stencil_attachment
-            (
-              gl::DepthStencilAttachment::new( depth.view.expect_webgpu() )
-            );
-          }
-          let pass = encoder.begin_render_pass( &desc.into() )
-          .map_err( | e | Error::WebGpu( format!( "failed to begin render pass : {e:?}" ) ) )?;
-          Ok( RenderPass::WebGpu( pass ) )
-        }
+        Self::WebGpu( encoder ) => webgpu_render_pass_begin( encoder, color, depth ),
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( context ) =>
         {
@@ -144,52 +128,7 @@ mod private
           }
         }
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native( encoder ) =>
-        {
-          let depth_stencil_attachment = depth.map
-          (
-            | depth |
-            wgpu::RenderPassDepthStencilAttachment
-            {
-              view : depth.view.expect_native(),
-              depth_ops : Some( wgpu::Operations
-              {
-                load : wgpu::LoadOp::Clear( 1.0 ),
-                store : wgpu::StoreOp::Store
-              } ),
-              stencil_ops : None
-            }
-          );
-          let pass = encoder.begin_render_pass( &wgpu::RenderPassDescriptor
-          {
-            label : None,
-            color_attachments : &[ Some( wgpu::RenderPassColorAttachment
-            {
-              view : color.view.expect_native(),
-              depth_slice : None,
-              resolve_target : None,
-              ops : wgpu::Operations
-              {
-                load : wgpu::LoadOp::Clear( wgpu::Color
-                {
-                  r : f64::from( color.clear[ 0 ] ),
-                  g : f64::from( color.clear[ 1 ] ),
-                  b : f64::from( color.clear[ 2 ] ),
-                  a : f64::from( color.clear[ 3 ] )
-                } ),
-                store : wgpu::StoreOp::Store
-              }
-            } ) ],
-            depth_stencil_attachment,
-            timestamp_writes : None,
-            occlusion_query_set : None,
-            multiview_mask : None
-          } );
-          // Untying the pass from the encoder borrow lets the HAL hand it
-          // out as a plain value, like the browser passes; wgpu then checks
-          // the encode-before-finish ordering at runtime instead.
-          Ok( RenderPass::Native( Box::new( pass.forget_lifetime() ) ) )
-        }
+        Self::Native( encoder ) => Ok( native_render_pass_begin( encoder, color, depth ) ),
         #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
         Self::Vulkan( encoder ) =>
         {
@@ -330,50 +269,7 @@ mod private
           pass.set_bind_group( index, Some( group.expect_webgpu() ) );
         }
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
-        Self::WebGl( pass ) =>
-        {
-          let Some( pipeline ) = pass.current_pipeline()
-          else
-          {
-            return;
-          };
-          let mut last_unit = None;
-          for ( binding_index, entry ) in group.expect_webgl().entries.iter().enumerate()
-          {
-            let key = ( index, to_u32( binding_index ) );
-            match entry
-            {
-              BindGroupEntryWebGl::Buffer( buffer ) =>
-              {
-                if let Some( ( _, point ) ) = pipeline.ubo_points.iter().find( | ( k, _ ) | *k == key )
-                {
-                  pass.gl.bind_buffer_base( glw::GL::UNIFORM_BUFFER, *point, Some( buffer ) );
-                }
-              }
-              BindGroupEntryWebGl::Texture( texture ) =>
-              {
-                if let Some( ( _, unit ) ) = pipeline.texture_units.iter().find( | ( k, _ ) | *k == key )
-                {
-                  pass.gl.active_texture( glw::GL::TEXTURE0 + *unit );
-                  pass.gl.bind_texture( glw::GL::TEXTURE_2D, Some( texture ) );
-                  last_unit = Some( *unit );
-                }
-                else
-                {
-                  last_unit = None;
-                }
-              }
-              BindGroupEntryWebGl::Sampler( sampler ) =>
-              {
-                // A sampler pairs with the nearest preceding texture entry.
-                if let Some( unit ) = last_unit
-                {
-                  pass.gl.bind_sampler( unit, Some( sampler ) );
-                }
-              }
-            }
-          }
-        }
+        Self::WebGl( pass ) => webgl_bind_group_set( pass, index, group ),
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
         Self::Native( pass ) =>
         {
@@ -429,10 +325,7 @@ mod private
           }
         }
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native( pass ) =>
-        {
-          pass.set_vertex_buffer( slot, buffer.expect_native().slice( .. ) );
-        }
+        Self::Native( pass ) => native_vertex_buffer_set( pass, slot, buffer ),
         #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
         Self::Vulkan( pass ) =>
         {
@@ -462,7 +355,14 @@ mod private
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
         Self::Native( pass ) =>
         {
-          pass.set_index_buffer( buffer.expect_native().slice( .. ), wgpu::IndexFormat::from( format ) );
+          let raw = buffer.expect_native();
+          // Fix(BUG-208): see vertex_buffer_set's Native arm above -- same
+          // wgpu zero-size BufferSlice panic ( size_expect_nonzero() ),
+          // same root cause, same no-op-when-empty fix shape.
+          if raw.size() > 0
+          {
+            pass.set_index_buffer( raw.slice( .. ), wgpu::IndexFormat::from( format ) );
+          }
         }
         #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
         Self::Vulkan( pass ) =>
@@ -680,31 +580,7 @@ mod private
       Some( texture ),
       0
     );
-    let mut clear_bits = glw::GL::COLOR_BUFFER_BIT;
-    if let Some( depth ) = depth
-    {
-      let TextureViewWebGl::Texture { texture : depth_texture, .. } = depth.view.expect_webgl()
-      else
-      {
-        context.bind_framebuffer( glw::GL::FRAMEBUFFER, None );
-        context.delete_framebuffer( Some( &fbo ) );
-        return Err( Error::Unsupported
-        (
-          "the canvas backbuffer cannot serve as a depth attachment".to_string()
-        ) );
-      };
-      context.framebuffer_texture_2d
-      (
-        glw::GL::FRAMEBUFFER,
-        glw::GL::DEPTH_ATTACHMENT,
-        glw::GL::TEXTURE_2D,
-        Some( depth_texture ),
-        0
-      );
-      context.depth_mask( true );
-      context.clear_depth( 1.0 );
-      clear_bits |= glw::GL::DEPTH_BUFFER_BIT;
-    }
+    let clear_bits = glw::GL::COLOR_BUFFER_BIT | webgl_texture_pass_depth_attach( context, &fbo, depth )?;
     let status = context.check_framebuffer_status( glw::GL::FRAMEBUFFER );
     if status != glw::GL::FRAMEBUFFER_COMPLETE
     {
@@ -717,6 +593,212 @@ mod private
     context.clear_color( clear[ 0 ], clear[ 1 ], clear[ 2 ], clear[ 3 ] );
     context.clear( clear_bits );
     Ok( RenderPass::WebGl( RenderPassWebGl::new( context.clone(), Some( fbo ) ) ) )
+  }
+
+  /// Attaches `depth`'s texture to `fbo`'s depth slot, if present, and
+  /// returns the additional clear-bit mask to OR into the pass's clear
+  /// call. On failure, unbinds and deletes `fbo` before returning the
+  /// error — the caller has no other cleanup path for it at that point.
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+  fn webgl_texture_pass_depth_attach
+  (
+    context : &glw::GL,
+    fbo : &glw::web_sys::WebGlFramebuffer,
+    depth : Option< &DepthAttachmentDesc< '_ > >
+  ) -> Result< u32, Error >
+  {
+    let Some( depth ) = depth
+    else
+    {
+      return Ok( 0 );
+    };
+    let TextureViewWebGl::Texture { texture : depth_texture, .. } = depth.view.expect_webgl()
+    else
+    {
+      context.bind_framebuffer( glw::GL::FRAMEBUFFER, None );
+      context.delete_framebuffer( Some( fbo ) );
+      return Err( Error::Unsupported
+      (
+        "the canvas backbuffer cannot serve as a depth attachment".to_string()
+      ) );
+    };
+    context.framebuffer_texture_2d
+    (
+      glw::GL::FRAMEBUFFER,
+      glw::GL::DEPTH_ATTACHMENT,
+      glw::GL::TEXTURE_2D,
+      Some( depth_texture ),
+      0
+    );
+    context.depth_mask( true );
+    context.clear_depth( 1.0 );
+    Ok( glw::GL::DEPTH_BUFFER_BIT )
+  }
+
+  /// Begins a WebGPU render pass with `color`'s view attached, and
+  /// `depth`'s view attached if present.
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+  fn webgpu_render_pass_begin
+  (
+    encoder : &mut web_sys::GpuCommandEncoder,
+    color : &ColorAttachmentDesc< '_ >,
+    depth : Option< &DepthAttachmentDesc< '_ > >
+  ) -> Result< RenderPass, Error >
+  {
+    let mut desc = gl::render_pass::desc()
+    .color_attachment
+    (
+      gl::ColorAttachment::new( color.view.expect_webgpu() ).clear_value( color.clear )
+    );
+    if let Some( depth ) = depth
+    {
+      desc = desc.depth_stencil_attachment
+      (
+        gl::DepthStencilAttachment::new( depth.view.expect_webgpu() )
+      );
+    }
+    let pass = encoder.begin_render_pass( &desc.into() )
+    .map_err( | e | Error::WebGpu( format!( "failed to begin render pass : {e:?}" ) ) )?;
+    Ok( RenderPass::WebGpu( pass ) )
+  }
+
+  /// Builds `depth`'s wgpu depth-stencil attachment description, if
+  /// present.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_depth_stencil_attachment_build< 'a >
+  (
+    depth : Option< &DepthAttachmentDesc< 'a > >
+  ) -> Option< wgpu::RenderPassDepthStencilAttachment< 'a > >
+  {
+    depth.map
+    (
+      | depth |
+      wgpu::RenderPassDepthStencilAttachment
+      {
+        view : depth.view.expect_native(),
+        depth_ops : Some( wgpu::Operations
+        {
+          load : wgpu::LoadOp::Clear( 1.0 ),
+          store : wgpu::StoreOp::Store
+        } ),
+        stencil_ops : None
+      }
+    )
+  }
+
+  /// Begins a native render pass with `color`'s view attached, and
+  /// `depth`'s view attached if present.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_render_pass_begin
+  (
+    encoder : &mut wgpu::CommandEncoder,
+    color : &ColorAttachmentDesc< '_ >,
+    depth : Option< &DepthAttachmentDesc< '_ > >
+  ) -> RenderPass
+  {
+    let depth_stencil_attachment = native_depth_stencil_attachment_build( depth );
+    let pass = encoder.begin_render_pass( &wgpu::RenderPassDescriptor
+    {
+      label : None,
+      color_attachments : &[ Some( wgpu::RenderPassColorAttachment
+      {
+        view : color.view.expect_native(),
+        depth_slice : None,
+        resolve_target : None,
+        ops : wgpu::Operations
+        {
+          load : wgpu::LoadOp::Clear( wgpu::Color
+          {
+            r : f64::from( color.clear[ 0 ] ),
+            g : f64::from( color.clear[ 1 ] ),
+            b : f64::from( color.clear[ 2 ] ),
+            a : f64::from( color.clear[ 3 ] )
+          } ),
+          store : wgpu::StoreOp::Store
+        }
+      } ) ],
+      depth_stencil_attachment,
+      timestamp_writes : None,
+      occlusion_query_set : None,
+      multiview_mask : None
+    } );
+    // Untying the pass from the encoder borrow lets the HAL hand it
+    // out as a plain value, like the browser passes; wgpu then checks
+    // the encode-before-finish ordering at runtime instead.
+    RenderPass::Native( Box::new( pass.forget_lifetime() ) )
+  }
+
+  /// Binds `buffer` at vertex buffer `slot` on the native backend, skipping
+  /// the bind for a zero-size buffer.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_vertex_buffer_set( pass : &mut wgpu::RenderPass< 'static >, slot : u32, buffer : &Buffer )
+  {
+    let raw = buffer.expect_native();
+    // Fix(BUG-208): wgpu::RenderPass::set_vertex_buffer panics via
+    // BufferSlice::size_expect_nonzero()'s
+    // .expect("buffer slice can not be empty") whenever the bound
+    // buffer's own allocated size is 0 -- reachable with ordinary
+    // input (e.g. an all-empty Geometry, traced end-to-end from
+    // renderer::webgpu::Geometry::new through renderer.rs's per-slot
+    // vertex_buffer_set loop, which applies no vertex_count>0 guard).
+    // Root cause: no size check existed between the caller's buffer
+    // and wgpu's own panicking slice() call.
+    // A zero-size buffer has nothing to read regardless of whether
+    // it's bound, so skipping the native bind call is a safe no-op --
+    // mirroring this same function's WebGL arm above, which already
+    // no-ops when there's nothing meaningful to bind yet.
+    if raw.size() > 0
+    {
+      pass.set_vertex_buffer( slot, raw.slice( .. ) );
+    }
+  }
+
+  /// Binds `group`'s entries into `pass`'s active pipeline's introspected
+  /// uniform-block/texture-unit maps; a no-op before `pipeline_set`.
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+  fn webgl_bind_group_set( pass : &mut RenderPassWebGl, index : u32, group : &BindGroup )
+  {
+    let Some( pipeline ) = pass.current_pipeline()
+    else
+    {
+      return;
+    };
+    let mut last_unit = None;
+    for ( binding_index, entry ) in group.expect_webgl().entries.iter().enumerate()
+    {
+      let key = ( index, to_u32( binding_index ) );
+      match entry
+      {
+        BindGroupEntryWebGl::Buffer( buffer ) =>
+        {
+          if let Some( ( _, point ) ) = pipeline.ubo_points.iter().find( | ( k, _ ) | *k == key )
+          {
+            pass.gl.bind_buffer_base( glw::GL::UNIFORM_BUFFER, *point, Some( buffer ) );
+          }
+        }
+        BindGroupEntryWebGl::Texture( texture ) =>
+        {
+          if let Some( ( _, unit ) ) = pipeline.texture_units.iter().find( | ( k, _ ) | *k == key )
+          {
+            pass.gl.active_texture( glw::GL::TEXTURE0 + *unit );
+            pass.gl.bind_texture( glw::GL::TEXTURE_2D, Some( texture ) );
+            last_unit = Some( *unit );
+          }
+          else
+          {
+            last_unit = None;
+          }
+        }
+        BindGroupEntryWebGl::Sampler( sampler ) =>
+        {
+          // A sampler pairs with the nearest preceding texture entry.
+          if let Some( unit ) = last_unit
+          {
+            pass.gl.bind_sampler( unit, Some( sampler ) );
+          }
+        }
+      }
+    }
   }
 }
 

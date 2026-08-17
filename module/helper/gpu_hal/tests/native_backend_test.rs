@@ -487,3 +487,140 @@ fn texture_write_rejects_undersized_data()
 
   assert!( matches!( result, Err( Error::InvalidInput( _ ) ) ), "undersized data must be rejected with InvalidInput, got {result:?}" );
 }
+
+/// ## Root Cause
+/// `Queue::buffer_write` ( `src/device.rs` ) forwarded `data` to `wgpu::Queue::write_buffer`
+/// unvalidated. That method is documented ( `wgpu-30.0.0/src/api/queue.rs` ) to require the
+/// write stay fully in-bounds and — per wgpu-core's own `validate_write_buffer_impl`
+/// ( `wgpu-core-30.0.0/src/device/queue.rs` ) — that `data.len()` be a multiple of
+/// `wgpu::COPY_BUFFER_ALIGNMENT` ( 4 bytes ), but the method's signature returns `()`, not
+/// `Result` — a violation can only reach wgpu's own error sink. This crate installs no custom
+/// `on_uncaptured_error` handler, so wgpu-core's `default_error_handler` takes over and panics
+/// unconditionally — the same "unguarded native panic on bad input" class already fixed for
+/// `Surface::configure` ( BUG-165 ), `texture_create` ( BUG-176 ), `new_native` ( BUG-199 ) and
+/// `texture_write` ( BUG-204 ) in this file, just reached through a 5th call site.
+/// ## Why Not Caught
+/// Every existing call site writes a hardcoded, correctly-sized/aligned payload ( e.g. the
+/// 16-byte uniform write in `triangle_render_readback` ) — no test exercised a misaligned or
+/// oversized write.
+/// ## Fix Applied
+/// `buffer_write`'s native arm now rejects a `data` whose length isn't a multiple of
+/// `wgpu::COPY_BUFFER_ALIGNMENT`, or that overruns the destination buffer's own allocated size,
+/// with `Error::InvalidInput` before calling `wgpu::Queue::write_buffer`.
+/// ## Prevention
+/// This test writes 3 bytes ( not a multiple of the 4-byte `COPY_BUFFER_ALIGNMENT` ) into an
+/// 8-byte buffer and asserts `buffer_write` returns `Err` instead of panicking — this crate's
+/// native backend previously panicked here, which `#[ test ]` alone cannot distinguish from a
+/// hang without the process actually aborting.
+/// ## Pitfall
+/// `data`'s length is caller-supplied with no compile-time link to either wgpu's own alignment
+/// requirement or the destination buffer's allocated size — e.g. a caller serializing a
+/// non-4-byte-aligned struct, or writing a buffer sized for a since-shrunk resource — is
+/// reachable with entirely ordinary caller input, not just a theoretical edge case.
+#[ test ]
+fn buffer_write_rejects_misaligned_data()
+{
+  let ( device, queue, _surface ) = Device::new_native( 64, 64 )
+  .expect( "no native wgpu adapter available" );
+  let buffer = device.buffer_create( 8, BufferUsage::UNIFORM | BufferUsage::COPY_DST )
+  .expect( "buffer creation failed" );
+
+  // 3 bytes is not a multiple of wgpu's 4-byte COPY_BUFFER_ALIGNMENT.
+  let result = queue.buffer_write( &buffer, &[ 0u8, 0, 0 ] );
+
+  assert!( matches!( result, Err( Error::InvalidInput( _ ) ) ), "misaligned data must be rejected with InvalidInput, got {result:?}" );
+}
+
+#[ test ]
+fn buffer_write_rejects_oversized_data()
+{
+  let ( device, queue, _surface ) = Device::new_native( 64, 64 )
+  .expect( "no native wgpu adapter available" );
+  let buffer = device.buffer_create( 8, BufferUsage::UNIFORM | BufferUsage::COPY_DST )
+  .expect( "buffer creation failed" );
+
+  // 12 bytes ( a valid 4-byte-aligned length ) overruns the 8-byte buffer.
+  let result = queue.buffer_write( &buffer, &as_bytes( &[ 1.0, 2.0, 3.0 ] ) );
+
+  assert!( matches!( result, Err( Error::InvalidInput( _ ) ) ), "oversized data must be rejected with InvalidInput, got {result:?}" );
+}
+
+/// ## Root Cause
+/// `RenderPass::vertex_buffer_set`/`index_buffer_set` ( `src/pass.rs` ) forwarded a zero-size
+/// buffer straight into `wgpu::RenderPass::set_vertex_buffer`/`set_index_buffer`, which slice
+/// the buffer via `BufferSlice::size_expect_nonzero()` ( `wgpu-30.0.0/src/api/render_pass.rs` ) —
+/// documented to panic ( "# Panics ... if the buffer's size is zero" ) whenever the bound
+/// buffer's own allocated size is 0. Reachable with ordinary input: an all-empty
+/// `renderer::webgpu::Geometry` traces end-to-end through `renderer.rs`'s per-slot
+/// `vertex_buffer_set` loop, which applies no `vertex_count > 0` guard before binding.
+/// ## Why Not Caught
+/// Every existing render test ( e.g. `triangle_render_readback` ) binds a buffer holding real
+/// vertex/index data — no test exercised binding a buffer created with size 0.
+/// ## Fix Applied
+/// `vertex_buffer_set`'s and `index_buffer_set`'s native arms now skip the
+/// `wgpu::RenderPass::set_vertex_buffer`/`set_index_buffer` call entirely when the bound
+/// buffer's own allocated size is 0 — a zero-size buffer has nothing to read regardless of
+/// whether it's bound, so the skip is a safe no-op, mirroring the WebGL arm's own existing
+/// no-op convention in the same function.
+/// ## Prevention
+/// This test binds a buffer created with `device.buffer_create( 0, ... )` as the vertex/index
+/// buffer mid-pass and asserts the pass still ends and submits without panicking — this crate's
+/// native backend previously panicked here, which `#[ test ]` alone cannot distinguish from a
+/// hang without the process actually aborting.
+/// ## Pitfall
+/// A buffer's size-zero-ness is a runtime property of caller-supplied geometry data ( e.g. an
+/// empty mesh ), not something the type system tracks — reachable with entirely ordinary caller
+/// input, not just a theoretical edge case.
+#[ test ]
+fn vertex_buffer_set_accepts_zero_size_buffer()
+{
+  let ( device, queue, surface ) = Device::new_native( 4, 4 )
+  .expect( "no native wgpu adapter available" );
+  let buffer = device.buffer_create( 0, BufferUsage::VERTEX )
+  .expect( "zero-size buffer creation failed" );
+
+  let view = surface.current_view().expect( "surface view unavailable" );
+  let mut encoder = device.command_encoder_create();
+  let mut pass = encoder.render_pass_begin
+  (
+    &ColorAttachmentDesc
+    {
+      view : &view,
+      clear : [ 0.0, 0.0, 0.0, 1.0 ]
+    },
+    None
+  )
+  .expect( "render pass failed to begin" );
+
+  // Previously panicked here via wgpu's BufferSlice::size_expect_nonzero().
+  pass.vertex_buffer_set( 0, &buffer );
+  pass.end();
+  queue.submit( encoder );
+}
+
+#[ test ]
+fn index_buffer_set_accepts_zero_size_buffer()
+{
+  let ( device, queue, surface ) = Device::new_native( 4, 4 )
+  .expect( "no native wgpu adapter available" );
+  let buffer = device.buffer_create( 0, BufferUsage::INDEX )
+  .expect( "zero-size buffer creation failed" );
+
+  let view = surface.current_view().expect( "surface view unavailable" );
+  let mut encoder = device.command_encoder_create();
+  let mut pass = encoder.render_pass_begin
+  (
+    &ColorAttachmentDesc
+    {
+      view : &view,
+      clear : [ 0.0, 0.0, 0.0, 1.0 ]
+    },
+    None
+  )
+  .expect( "render pass failed to begin" );
+
+  // Previously panicked here via wgpu's BufferSlice::size_expect_nonzero().
+  pass.index_buffer_set( &buffer, IndexFormat::Uint32 );
+  pass.end();
+  queue.submit( encoder );
+}

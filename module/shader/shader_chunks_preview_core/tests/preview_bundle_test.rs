@@ -50,8 +50,13 @@ fn value_chunk_gets_a_synthesized_grayscale_harness()
 #[ test ]
 fn value_chunk_bundle_carries_exactly_the_synthesized_preview_scale_slider()
 {
-  let target = shader_chunks_core::chunk_get( "value_noise" ).expect( "value_noise is bundled" );
-  let bundle = bundle_build( target.wgsl ).expect( "value_noise exports a previewable value function" );
+  // hash21, not value_noise: this test proves a chunk with zero *own*
+  // `//@ param:` lines gets exactly one synthesized slider. value_noise
+  // now declares its own `seed` param, so it no longer fits; hash21 is a
+  // stable zero-param example -- hash chunks' magic constants are
+  // deliberately excluded from ever becoming user-tunable.
+  let target = shader_chunks_core::chunk_get( "hash21" ).expect( "hash21 is bundled" );
+  let bundle = bundle_build( target.wgsl ).expect( "hash21 exports a previewable value function" );
 
   assert_eq!( bundle.parameters.len(), 1 );
   let param = &bundle.parameters[ 0 ];
@@ -304,7 +309,7 @@ fn value_chunk_prefers_dedicated_preview_wrapper_over_same_named_primitive_shari
   assert_eq!( bundle.target, "domain_warp" );
   assert_eq!
   (
-    code_occurrences( &bundle.wgsl, "let value = domain_warp_preview( p, params.strength );" ), 1,
+    code_occurrences( &bundle.wgsl, "let value = domain_warp_preview( p, params.strength, params.lacunarity, params.gain, params.seed );" ), 1,
     "candidate selection must prefer the dedicated `domain_warp_preview` wrapper over the raw \
     `domain_warp` primitive, even though both are viable under the shared `strength` argument name:\n{}", bundle.wgsl
   );

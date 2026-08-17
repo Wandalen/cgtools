@@ -407,36 +407,56 @@ mod private
       self.gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
     }
 
-    fn cmd_mesh( &self, m : &Mesh, viewport : [ f32; 2 ] )
+    // Fix(BUG-209): `res.geometry`/`res.sprite` lookups here used to fail
+    // silently ( `if let Some(..) = .. { .. }` with no `else`, or `else {
+    // return }` ) instead of surfacing `RenderError::MissingAsset` the way
+    // `native.rs`/`webgpu.rs`'s sibling sprite-draw functions already do --
+    // a caller referencing a never-loaded sprite/mesh got a silently
+    // dropped draw instead of a diagnosable error. Root cause: these two
+    // functions predate `submit`'s command loop propagating `?`, and were
+    // never updated to match once every other fallible command handler in
+    // this file adopted `Result`.
+    fn cmd_mesh( &self, m : &Mesh, viewport : [ f32; 2 ] ) -> Result< (), RenderError >
     {
       let res = self.resources.borrow();
-      if let Some( geom ) = res.geometry( m.geometry )
+      let Some( geom ) = res.geometry( m.geometry ) else
       {
-        let mat = m.transform.to_mat3();
-        let color = match m.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
-        blend_apply( &self.gl, &m.blend );
+        return Err( RenderError::MissingAsset( m.geometry.inner() ) );
+      };
 
-        let mut use_texture = false;
-        if let Some( tex_id ) = m.texture && let Some( gpu_tex ) = res.texture( tex_id )
-        {
-          self.gl.active_texture( gl::TEXTURE0 );
-          self.gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
-          use_texture = true;
-        }
+      let mat = m.transform.to_mat3();
+      let color = match m.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
+      blend_apply( &self.gl, &m.blend );
 
-        self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport, use_texture, m.transform.depth, self.config.max_depth );
+      let mut use_texture = false;
+      if let Some( tex_id ) = m.texture && let Some( gpu_tex ) = res.texture( tex_id )
+      {
+        self.gl.active_texture( gl::TEXTURE0 );
+        self.gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
+        use_texture = true;
       }
+
+      self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport, use_texture, m.transform.depth, self.config.max_depth );
+      Ok( () )
     }
 
-    fn cmd_sprite( &self, s : &Sprite, viewport : [ f32; 2 ] )
+    fn cmd_sprite( &self, s : &Sprite, viewport : [ f32; 2 ] ) -> Result< (), RenderError >
     {
       let res = self.resources.borrow();
-      let Some( gpu_sprite ) = res.sprite( s.sprite ) else { return };
-      let Some( gpu_tex ) = res.texture( gpu_sprite.sheet ) else { return };
+      let Some( gpu_sprite ) = res.sprite( s.sprite ) else
+      {
+        return Err( RenderError::MissingAsset( s.sprite.inner() ) );
+      };
+      let Some( gpu_tex ) = res.texture( gpu_sprite.sheet ) else
+      {
+        return Err( RenderError::MissingAsset( gpu_sprite.sheet.inner() ) );
+      };
 
       let tw = gpu_tex.width.get();
       let th = gpu_tex.height.get();
-      if tw == 0 || th == 0 { return; } // image not loaded yet
+      // Not a caller bug -- the sheet is loaded but its async decode ( the
+      // `ImageSource::Path` -> `HtmlImageElement` path ) hasn't landed yet.
+      if tw == 0 || th == 0 { return Ok( () ); }
 
       self.gl.active_texture( gl::TEXTURE0 );
       self.gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
@@ -446,6 +466,7 @@ mod private
       let mat = s.transform.to_mat3();
       blend_apply( &self.gl, &s.blend );
       self.sprite.draw( &self.gl, &mat, &gpu_sprite.region, tex_size, &s.tint, viewport, s.transform.depth, self.config.max_depth );
+      Ok( () )
     }
 
     fn cmd_create_sprite_batch( &mut self, cmd : &CreateSpriteBatch ) -> Result< (), RenderError >
@@ -1179,14 +1200,14 @@ mod private
           RenderCommand::Clear( c ) => self.cmd_clear( c ),
 
           // Mesh & sprite
-          RenderCommand::Mesh( m ) => self.cmd_mesh( m, viewport ),
-          RenderCommand::Sprite( s ) => self.cmd_sprite( s, viewport ),
+          RenderCommand::Mesh( m ) => self.cmd_mesh( m, viewport )?,
+          RenderCommand::Sprite( s ) => self.cmd_sprite( s, viewport )?,
           // ScreenSpaceSprite uses the same draw path as Sprite — the compile
           // layer already emits coordinates in screen-space (no camera
           // project), so the adapter does not need to branch further. The
           // distinction matters only to callers that post-process the command
           // stream.
-          RenderCommand::ScreenSpaceSprite( s ) => self.cmd_sprite( s, viewport ),
+          RenderCommand::ScreenSpaceSprite( s ) => self.cmd_sprite( s, viewport )?,
 
           // Batch lifecycle
           RenderCommand::CreateSpriteBatch( c ) => self.cmd_create_sprite_batch( c )?,
@@ -1357,6 +1378,17 @@ mod private
     // RGBA8 and for the CPU-expanded grayscale paths above.
     if unpack_alignment != 4 { gl.pixel_storei( gl::UNPACK_ALIGNMENT, unpack_alignment ); }
 
+    // Fix(BUG-210): `image_upload_from_path` below uploads through
+    // `minwebgl::texture::d2::upload`, which sets `UNPACK_FLIP_Y_WEBGL=1` --
+    // an invariant `sprite.vert`/`sprite_batch.vert` rely on directly
+    // ( "uploaded with UNPACK_FLIP_Y_WEBGL=1 so uv.y=1 samples image row 0" ).
+    // This sync Bitmap path left the flag at its GL default of 0, so a
+    // Bitmap-sourced image rendered upside-down through sprite commands --
+    // documented but never fixed in this crate's own readme.md ( "WebGL
+    // texture upload Y-flip asymmetry" ). Root cause: the two upload paths
+    // set unrelated GL state for the same shader-side convention.
+    gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 1 );
+
     let upload_bytes : &[ u8 ] = bytes_owned.as_deref().unwrap_or( bytes );
 
     gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
@@ -1370,8 +1402,9 @@ mod private
       format!( "tex_image_2d failed for image {id:?}: {e:?}" )
     ))?;
 
-    // Restore default so later uploads aren't surprised by residual state.
+    // Restore defaults so later uploads aren't surprised by residual state.
     if unpack_alignment != 4 { gl.pixel_storei( gl::UNPACK_ALIGNMENT, 4 ); }
+    gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
 
     Ok( tex )
   }

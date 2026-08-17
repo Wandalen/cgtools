@@ -232,6 +232,40 @@ mod private
       ))
     }
 
+    /// Creates a device for whichever browser backend feature is active —
+    /// `webgpu` if enabled, `webgl` otherwise ( see `new_webgpu`/`new_webgl`
+    /// above for what each backend requires ). Callers that don't care
+    /// which backend actually ran should prefer this over naming a specific
+    /// backend constructor directly.
+    ///
+    /// # Errors
+    ///
+    /// Returns whichever [`Error`] the selected backend's own constructor
+    /// reports — see `new_webgpu`/`new_webgl`.
+    #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+    pub async fn new
+    (
+      canvas : &web_sys::HtmlCanvasElement
+    ) -> Result< ( Device, Queue, Surface ), Error >
+    {
+      Self::new_webgpu( canvas ).await
+    }
+
+    /// See the `webgpu` arm above.
+    ///
+    /// # Errors
+    ///
+    /// Returns whichever [`Error`] `new_webgl` reports.
+    #[ cfg( all( feature = "webgl", target_arch = "wasm32", not( feature = "webgpu" ) ) ) ]
+    #[ allow( clippy::unused_async, reason = "keeps the same async call shape as the webgpu arm above, so callers never have to branch on which backend is active" ) ]
+    pub async fn new
+    (
+      canvas : &web_sys::HtmlCanvasElement
+    ) -> Result< ( Device, Queue, Surface ), Error >
+    {
+      Self::new_webgl( canvas )
+    }
+
     /// Requests a wgpu adapter and device ( default options — any adapter
     /// qualifies, software rasterizers included ) and builds an offscreen
     /// rgba8 surface of the given size, readable through
@@ -331,6 +365,35 @@ mod private
       ))
     }
 
+    /// Creates a device for whichever native backend feature is active —
+    /// `native` ( wgpu ) if enabled, `vulkan` otherwise ( see
+    /// `new_native`/`new_vulkan` above for what each backend requires ).
+    /// Callers that don't care which backend actually ran should prefer
+    /// this over naming a specific backend constructor directly.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] if `width` or `height` is `0`.
+    /// Returns whichever other [`Error`] the selected backend's own
+    /// constructor reports — see `new_native`/`new_vulkan`.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    pub fn new( width : u32, height : u32 ) -> Result< ( Device, Queue, Surface ), Error >
+    {
+      Self::new_native( width, height )
+    }
+
+    /// See the `native` arm above.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] if `width` or `height` is `0`.
+    /// Returns whichever other [`Error`] `new_vulkan` reports.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ), not( feature = "native" ) ) ) ]
+    pub fn new( width : u32, height : u32 ) -> Result< ( Device, Queue, Surface ), Error >
+    {
+      Self::new_vulkan( width, height )
+    }
+
     /// Clip-space depth range the backend's projection matrices must target.
     #[must_use]
     // `native` and `vulkan` are independent, orthogonal features -- an
@@ -357,13 +420,33 @@ coincidental to the two backend families, not duplicated logic" ) ]
       }
     }
 
+    /// Lowercase name of the active backend — `"webgpu"`, `"webgl"`,
+    /// `"native"`, or `"vulkan"`.
+    #[must_use]
+    pub fn backend_name( &self ) -> &'static str
+    {
+      match self
+      {
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu( _ ) => "webgpu",
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( _ ) => "webgl",
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => "native",
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => "vulkan"
+      }
+    }
+
     /// Creates an uninitialized buffer of `size` bytes.
     ///
     /// # Errors
     ///
     /// Returns [`Error::WebGpu`] if the underlying WebGPU buffer-creation
     /// call fails, or [`Error::WebGl`] if the WebGL context fails to
-    /// allocate the buffer. The native backend never fails this call.
+    /// allocate the buffer, or [`Error::Vulkan`] if the underlying Vulkan
+    /// memory allocation or buffer creation fails. The native backend never
+    /// fails this call.
     pub fn buffer_create( &self, size : u64, usage : BufferUsage ) -> Result< Buffer, Error >
     {
       // Browser buffer allocations sit far below f64's exact integer
@@ -415,7 +498,9 @@ coincidental to the two backend families, not duplicated logic" ) ]
     ///
     /// Returns [`Error::WebGpu`] if the underlying WebGPU buffer-creation
     /// call fails, or [`Error::WebGl`] if the WebGL context fails to
-    /// allocate the buffer. The native backend never fails this call.
+    /// allocate the buffer, or on Vulkan whichever [`Error`] the underlying
+    /// `buffer_create` or `buffer_write` call reports. The native backend
+    /// never fails this call.
     pub fn buffer_init_create( &self, data : &[ u8 ], usage : BufferUsage ) -> Result< Buffer, Error >
     {
       match self
@@ -467,8 +552,10 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// components is `0`. Returns [`Error::WebGpu`] if the underlying WebGPU
     /// texture-creation call fails. Returns [`Error::WebGl`] if
     /// `desc.format` has no WebGL internal-format mapping, or if the WebGL
-    /// context fails to allocate the texture. The native backend never
-    /// fails this call for reasons other than an invalid `desc.size`.
+    /// context fails to allocate the texture. Returns [`Error::Vulkan`] if
+    /// Vulkan format resolution or the underlying image allocation fails.
+    /// The native backend never fails this call for reasons other than an
+    /// invalid `desc.size`.
     pub fn texture_create( &self, desc : &TextureDesc ) -> Result< Texture, Error >
     {
       // Fix(BUG-176): `desc.size` reached every backend unguarded. WebGPU
@@ -497,71 +584,11 @@ coincidental to the two backend families, not duplicated logic" ) ]
       match self
       {
         #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
-        Self::WebGpu( device ) =>
-        {
-          let mut builder = gl::texture::desc()
-          .size( desc.size )
-          .format( gl::GpuTextureFormat::from( desc.format ) );
-          if desc.usage.contains( TextureUsage::COPY_DST )
-          {
-            builder = builder.copy_dst();
-          }
-          if desc.usage.contains( TextureUsage::TEXTURE_BINDING )
-          {
-            builder = builder.texture_binding();
-          }
-          if desc.usage.contains( TextureUsage::RENDER_ATTACHMENT )
-          {
-            builder = builder.render_attachment();
-          }
-          Ok( Texture::WebGpu( builder.create( device )? ) )
-        }
+        Self::WebGpu( device ) => webgpu_texture_create( device, desc ),
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
-        Self::WebGl( context ) =>
-        {
-          let internal_format = desc.format.webgl_internal_format()?;
-          let texture = context.create_texture()
-          .ok_or_else( || Error::WebGl( "failed to allocate texture".to_string() ) )?;
-          context.bind_texture( glw::GL::TEXTURE_2D, Some( &texture ) );
-          context.tex_storage_2d
-          (
-            glw::GL::TEXTURE_2D,
-            1,
-            internal_format,
-            to_i32( desc.size[ 0 ] ),
-            to_i32( desc.size[ 1 ] )
-          );
-          // Sampler-less binds ( e.g. texelFetch passes ) must not depend on
-          // the mipmap-filtering defaults of a single-level texture.
-          context.tex_parameteri( glw::GL::TEXTURE_2D, glw::GL::TEXTURE_MIN_FILTER, to_i32( glw::GL::NEAREST ) );
-          context.tex_parameteri( glw::GL::TEXTURE_2D, glw::GL::TEXTURE_MAG_FILTER, to_i32( glw::GL::NEAREST ) );
-          Ok( Texture::WebGl( TextureWebGl
-          {
-            texture,
-            size : desc.size,
-            format : desc.format
-          } ) )
-        }
+        Self::WebGl( context ) => webgl_texture_create( context, desc ),
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native( device ) =>
-        {
-          Ok( Texture::Native( device.create_texture( &wgpu::TextureDescriptor
-          {
-            label : None,
-            size : wgpu::Extent3d
-            {
-              width : desc.size[ 0 ],
-              height : desc.size[ 1 ],
-              depth_or_array_layers : desc.size[ 2 ]
-            },
-            mip_level_count : 1,
-            sample_count : 1,
-            dimension : wgpu::TextureDimension::D2,
-            format : wgpu::TextureFormat::from( desc.format ),
-            usage : wgpu::TextureUsages::from( desc.usage ),
-            view_formats : &[]
-          } ) ) )
-        }
+        Self::Native( device ) => Ok( native_texture_create( device, desc ) ),
         #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
         Self::Vulkan( device_vulkan ) =>
         {
@@ -575,7 +602,8 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// # Errors
     ///
     /// Returns [`Error::WebGl`] if the WebGL context fails to allocate the
-    /// sampler. The WebGPU and native backends never fail this call.
+    /// sampler, or [`Error::Vulkan`] if the underlying `vkCreateSampler`
+    /// call fails. The WebGPU and native backends never fail this call.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
     pub fn sampler_create( &self, desc : SamplerDesc ) -> Result< Sampler, Error >
     {
@@ -596,26 +624,7 @@ coincidental to the two backend families, not duplicated logic" ) ]
           Ok( Sampler::WebGpu( gl::sampler::create( device, builder ) ) )
         }
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
-        Self::WebGl( context ) =>
-        {
-          let sampler = context.create_sampler()
-          .ok_or_else( || Error::WebGl( "failed to allocate sampler".to_string() ) )?;
-          let filter = match desc.filter
-          {
-            FilterMode::Nearest => glw::GL::NEAREST,
-            FilterMode::Linear => glw::GL::LINEAR
-          };
-          let address = match desc.address
-          {
-            AddressMode::ClampToEdge => glw::GL::CLAMP_TO_EDGE,
-            AddressMode::Repeat => glw::GL::REPEAT
-          };
-          context.sampler_parameteri( &sampler, glw::GL::TEXTURE_MIN_FILTER, to_i32( filter ) );
-          context.sampler_parameteri( &sampler, glw::GL::TEXTURE_MAG_FILTER, to_i32( filter ) );
-          context.sampler_parameteri( &sampler, glw::GL::TEXTURE_WRAP_S, to_i32( address ) );
-          context.sampler_parameteri( &sampler, glw::GL::TEXTURE_WRAP_T, to_i32( address ) );
-          Ok( Sampler::WebGl( sampler ) )
-        }
+        Self::WebGl( context ) => webgl_sampler_create( context, desc ),
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
         Self::Native( device ) =>
         {
@@ -646,7 +655,9 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// # Errors
     ///
     /// Returns [`Error::Unsupported`] on the WebGL backend if `source` is
-    /// missing either GLSL override slot. The WebGPU and native backends
+    /// missing either GLSL override slot, or [`Error::Vulkan`] on the
+    /// Vulkan backend if WGSL-to-SPIR-V compilation or the underlying
+    /// `vkCreateShaderModule` call fails. The WebGPU and native backends
     /// never fail this call.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in the webgpu-only build, whose infallibility is incidental; the WebGL arm fails for real, so the signature stays fallible" ) ]
     pub fn shader_module_create( &self, source : &ShaderSource< '_ > ) -> Result< ShaderModule, Error >
@@ -697,8 +708,9 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// # Errors
     ///
     /// Returns [`Error::WebGpu`] if the underlying WebGPU layout-entry or
-    /// layout-creation call fails. The WebGL and native backends never
-    /// fail this call.
+    /// layout-creation call fails, or [`Error::Vulkan`] if the underlying
+    /// `vkCreateDescriptorSetLayout` call fails. The WebGL and native
+    /// backends never fail this call.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
     pub fn bind_group_layout_create
     (
@@ -709,38 +721,7 @@ coincidental to the two backend families, not duplicated logic" ) ]
       match self
       {
         #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
-        Self::WebGpu( device ) =>
-        {
-          let mut builder = gl::BindGroupLayoutDescriptor::new().auto_bindings();
-          for entry in entries
-          {
-            let mut raw_entry = gl::BindGroupLayoutEntry::new();
-            if entry.visibility.contains( ShaderStages::VERTEX )
-            {
-              raw_entry = raw_entry.vertex();
-            }
-            if entry.visibility.contains( ShaderStages::FRAGMENT )
-            {
-              raw_entry = raw_entry.fragment();
-            }
-            let raw_entry = match entry.ty
-            {
-              BindingType::UniformBuffer => raw_entry.ty( gl::binding_type::buffer_type() ),
-              BindingType::Texture => raw_entry.ty( gl::binding_type::texture_type() ),
-              BindingType::Sampler => raw_entry.ty( gl::binding_type::sampler_type() )
-            };
-            // Fix(BUG-051): `BindGroupLayoutDescriptor::entry` became fallible (returns
-            // `Result<Self, WebGPUError>`) once its underlying `TryFrom` conversion stopped
-            // panicking on an unset binding type — propagate with `?` instead of a plain
-            // assignment.
-            // Root cause: caller written against the old infallible `entry` signature.
-            // Pitfall: a downstream `From`-to-`TryFrom` signature change is a silent type
-            // error at every call site, not a panic — the compiler catches it immediately,
-            // but only once this crate is actually rebuilt against the new minwebgpu.
-            builder = builder.entry( raw_entry )?;
-          }
-          Ok( BindGroupLayout::WebGpu( builder.create( device )? ) )
-        }
+        Self::WebGpu( device ) => webgpu_bind_group_layout_create( device, entries ),
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( _ ) =>
         {
@@ -784,10 +765,11 @@ coincidental to the two backend families, not duplicated logic" ) ]
     ///
     /// Returns [`Error::Unsupported`] on the WebGL backend if `resources`
     /// includes the canvas backbuffer as a sampled texture view — the
-    /// backbuffer cannot be sampled. The WebGPU and native backends never
-    /// fail this call.
+    /// backbuffer cannot be sampled, or [`Error::Vulkan`] if the underlying
+    /// descriptor pool creation or descriptor set allocation fails. The
+    /// WebGPU and native backends never fail this call.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
-    #[ allow( clippy::too_many_lines, reason = "one match arm per backend, each performing genuinely distinct resource-creation calls; splitting would scatter closely-related backend-dispatch logic across helper functions with no comprehension benefit" ) ]
+    #[ allow( unused_variables, reason = "fires only in a webgl-only build -- the WebGl arm ignores `layout` ( the GL context takes no separate layout object ), but the webgpu/native/vulkan arms all read it" ) ]
     pub fn bind_group_create
     (
       &self,
@@ -798,100 +780,11 @@ coincidental to the two backend families, not duplicated logic" ) ]
       match self
       {
         #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
-        Self::WebGpu( device ) =>
-        {
-          let raw_layout = layout.expect_webgpu();
-          let mut builder = gl::BindGroupDescriptor::new( raw_layout ).auto_bindings();
-          for resource in resources
-          {
-            builder = match resource
-            {
-              BindingResource::Buffer( buffer ) =>
-              {
-                builder.entry_from_resource( &gl::BufferBinding::new( buffer.expect_webgpu() ) )
-              }
-              BindingResource::TextureView( view ) =>
-              {
-                builder.entry_from_resource( view.expect_webgpu() )
-              }
-              BindingResource::Sampler( sampler ) =>
-              {
-                builder.entry_from_resource( sampler.expect_webgpu() )
-              }
-            };
-          }
-          Ok( BindGroup::WebGpu( builder.create( device ) ) )
-        }
+        Self::WebGpu( device ) => Ok( BindGroup::WebGpu( webgpu_bind_group_create( device, layout.expect_webgpu(), resources ) ) ),
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
-        Self::WebGl( _ ) =>
-        {
-          let _ = layout;
-          let mut entries = Vec::with_capacity( resources.len() );
-          for resource in resources
-          {
-            match resource
-            {
-              BindingResource::Buffer( buffer ) =>
-              {
-                entries.push( BindGroupEntryWebGl::Buffer( buffer.expect_webgl().buffer.clone() ) );
-              }
-              BindingResource::TextureView( view ) =>
-              {
-                match view.expect_webgl()
-                {
-                  TextureViewWebGl::Texture { texture, .. } =>
-                  {
-                    entries.push( BindGroupEntryWebGl::Texture( texture.clone() ) );
-                  }
-                  TextureViewWebGl::CanvasBackbuffer =>
-                  {
-                    return Err( Error::Unsupported
-                    (
-                      "the canvas backbuffer cannot be sampled on the WebGL backend".to_string()
-                    ) );
-                  }
-                }
-              }
-              BindingResource::Sampler( sampler ) =>
-              {
-                entries.push( BindGroupEntryWebGl::Sampler( sampler.expect_webgl().clone() ) );
-              }
-            }
-          }
-          Ok( BindGroup::WebGl( BindGroupWebGl { entries } ) )
-        }
+        Self::WebGl( _ ) => webgl_bind_group_create( resources ),
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native( device ) =>
-        {
-          let raw_entries : Vec< wgpu::BindGroupEntry< '_ > > = resources.iter().enumerate()
-          .map
-          (
-            | ( index, resource ) |
-            wgpu::BindGroupEntry
-            {
-              binding : u32::try_from( index ).unwrap_or( u32::MAX ),
-              resource : match resource
-              {
-                BindingResource::Buffer( buffer ) => buffer.expect_native().as_entire_binding(),
-                BindingResource::TextureView( view ) =>
-                {
-                  wgpu::BindingResource::TextureView( view.expect_native() )
-                }
-                BindingResource::Sampler( sampler ) =>
-                {
-                  wgpu::BindingResource::Sampler( sampler.expect_native() )
-                }
-              }
-            }
-          )
-          .collect();
-          Ok( BindGroup::Native( device.create_bind_group( &wgpu::BindGroupDescriptor
-          {
-            label : None,
-            layout : layout.expect_native(),
-            entries : &raw_entries
-          } ) ) )
-        }
+        Self::Native( device ) => Ok( BindGroup::Native( native_bind_group_create( device, layout.expect_native(), resources ) ) ),
         #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
         Self::Vulkan( device_vulkan ) =>
         {
@@ -906,61 +799,16 @@ coincidental to the two backend families, not duplicated logic" ) ]
     ///
     /// Returns [`Error::WebGpu`] if the underlying WebGPU pipeline-creation
     /// call fails, or [`Error::WebGl`] if the vertex/fragment shader pair
-    /// fails to compile and link. The native backend never fails this
-    /// call.
+    /// fails to compile and link, or [`Error::Vulkan`] if an entry point
+    /// name contains an interior nul byte, or if the underlying pipeline
+    /// layout, render pass, or graphics pipeline creation fails. The
+    /// native backend never fails this call.
     pub fn render_pipeline_create( &self, desc : &RenderPipelineDesc< '_ > ) -> Result< RenderPipeline, Error >
     {
       match self
       {
         #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
-        Self::WebGpu( device ) =>
-        {
-          let shader = desc.shader.expect_webgpu();
-
-          let mut layout_builder = gl::layout::pipeline::desc();
-          for layout in desc.bind_group_layouts
-          {
-            layout_builder = layout_builder.bind_group( layout.expect_webgpu() );
-          }
-          let pipeline_layout = layout_builder.create( device );
-
-          let mut vertex_state = gl::VertexState::new( shader ).entry_point( desc.vertex_entry );
-          for layout in desc.vertex_buffers
-          {
-            let mut raw_layout = gl::VertexBufferLayout::new()
-            .stride_from_value( f64::from( layout.stride ) );
-            for attribute in &layout.attributes
-            {
-              raw_layout = raw_layout.attribute
-              (
-                gl::VertexAttribute::new()
-                .location( attribute.location )
-                .format( gl::GpuVertexFormat::from( attribute.format ) )
-                .offset_from_value( f64::from( attribute.offset ) )
-              );
-            }
-            let web_layout : web_sys::GpuVertexBufferLayout = raw_layout.into();
-            vertex_state = vertex_state.buffer( &web_layout );
-          }
-
-          let fragment_state = gl::FragmentState::new( shader )
-          .entry_point( desc.fragment_entry )
-          .target( gl::ColorTargetState::new().format( gl::GpuTextureFormat::from( desc.color_format ) ) );
-
-          let mut pipeline_desc = gl::render_pipeline::desc( vertex_state )
-          .layout( &pipeline_layout )
-          .fragment( fragment_state );
-          if desc.cull_back
-          {
-            pipeline_desc = pipeline_desc.primitive( gl::PrimitiveState::new().cull_back() );
-          }
-          if let Some( depth ) = desc.depth
-          {
-            pipeline_desc = pipeline_desc
-            .depth_stencil( gl::DepthStencilState::new().format( gl::GpuTextureFormat::from( depth.format ) ) );
-          }
-          Ok( RenderPipeline::WebGpu( pipeline_desc.create( device )? ) )
-        }
+        Self::WebGpu( device ) => webgpu_render_pipeline_create( device, desc ),
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( context ) =>
         {
@@ -1136,10 +984,14 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] if `data` is longer than the WebGL
-    /// backend's `buffer` was allocated with. Returns [`Error::WebGpu`] if
-    /// the underlying WebGPU write call fails. The native backend never
-    /// fails this call.
-    #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
+    /// backend's `buffer` was allocated with, or — on the native backend —
+    /// if `data`'s length isn't a multiple of wgpu's `COPY_BUFFER_ALIGNMENT`
+    /// or overruns the buffer's own allocated size ( BUG-207 ), or — on
+    /// Vulkan — if `data` is longer than the buffer's allocated size.
+    /// Returns [`Error::WebGpu`] if the underlying WebGPU write call
+    /// fails, or [`Error::Vulkan`] if Vulkan's underlying `vkMapMemory`
+    /// call fails.
+    #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backends' arms fail for real, so the signature stays fallible" ) ]
     pub fn buffer_write( &self, buffer : &Buffer, data : &[ u8 ] ) -> Result< (), Error >
     {
       match self
@@ -1155,7 +1007,9 @@ coincidental to the two backend families, not duplicated logic" ) ]
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
         Self::Native( queue ) =>
         {
-          queue.write_buffer( buffer.expect_native(), 0, data );
+          let raw = buffer.expect_native();
+          native_buffer_write_len_validate( data, raw.size() )?;
+          queue.write_buffer( raw, 0, data );
           Ok( () )
         }
         #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
@@ -1181,33 +1035,7 @@ coincidental to the two backend families, not duplicated logic" ) ]
       match self
       {
         #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
-        Self::WebGpu( queue ) =>
-        {
-          let raw = texture.expect_webgpu();
-          let width = raw.width();
-          let height = raw.height();
-          let depth_or_array_layers = raw.depth_or_array_layers();
-          let format = TextureFormat::try_from( raw.format() )?;
-          let bytes_per_row = width * format.bytes_per_texel()?;
-
-          let data_layout = web_sys::GpuTexelCopyBufferLayout::new();
-          data_layout.set_bytes_per_row( bytes_per_row );
-          data_layout.set_rows_per_image( height );
-
-          let size = web_sys::GpuExtent3dDict::new( width );
-          size.set_height( height );
-          size.set_depth_or_array_layers( depth_or_array_layers );
-
-          gl::queue::texture_write
-          (
-            queue,
-            &web_sys::GpuTexelCopyTextureInfo::new( raw ),
-            data,
-            &data_layout,
-            &size
-          )?;
-          Ok( () )
-        }
+        Self::WebGpu( queue ) => webgpu_texture_write( queue, texture, data ),
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl( context ) =>
         {
@@ -1230,68 +1058,7 @@ coincidental to the two backend families, not duplicated logic" ) ]
           Ok( () )
         }
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native( queue ) =>
-        {
-          let raw = texture.expect_native();
-          let width = raw.width();
-          let height = raw.height();
-          // Native queries wgpu's own authoritative format-size table
-          // directly, rather than routing through `TextureFormat::
-          // bytes_per_texel` — `raw.format()` is already a
-          // `wgpu::TextureFormat`, so a round trip through the HAL's own
-          // enum would just re-derive what wgpu already knows.
-          let bytes_per_row = width * raw.format().block_copy_size( None )
-          .ok_or_else( || Error::Unsupported( format!( "{:?} has no portable CPU-side texel layout", raw.format() ) ) )?;
-          let depth_or_array_layers = raw.depth_or_array_layers();
-
-          // Fix(BUG-204): `wgpu::Queue::write_texture` is itself documented
-          // ( `wgpu-30.0.0/src/api/queue.rs` ) to "fail... if `data` is too
-          // short" -- but the method returns `()`, not `Result`, so that
-          // failure has nowhere to go except wgpu's own error sink. This
-          // crate's `Device`/`Queue` never install a custom
-          // `on_uncaptured_error` handler, so an undersized `data` here
-          // reaches wgpu-core's `default_error_handler`
-          // ( `wgpu-core-30.0.0/src/backend/wgpu_core.rs` ), which
-          // unconditionally panics: "Handling wgpu errors as fatal by
-          // default". Confirmed by direct inspection of both crates'
-          // sources, not assumed from the panic message alone. This is the
-          // same "unguarded native panic on bad input" class already fixed
-          // at `Surface::configure` ( BUG-165 ), `texture_create`
-          // ( BUG-176 ) and `new_native` ( BUG-199 ) in this file -- just
-          // reached through a 4th call site.
-          // Root cause: no validation existed between the caller's `data`
-          // and wgpu's own fallible ( but `()`-returning ) write call.
-          let required = u64::from( bytes_per_row ) * u64::from( height ) * u64::from( depth_or_array_layers );
-          if ( data.len() as u64 ) < required
-          {
-            return Err( Error::InvalidInput( format!
-            (
-              "texture_write: data is {} bytes, but the {width}×{height} region ( {depth_or_array_layers} layer(s), \
-               {bytes_per_row} bytes/row ) requires {required} bytes",
-              data.len()
-            ) ) );
-          }
-
-          queue.write_texture
-          (
-            wgpu::TexelCopyTextureInfo
-            {
-              texture : raw,
-              mip_level : 0,
-              origin : wgpu::Origin3d::ZERO,
-              aspect : wgpu::TextureAspect::All
-            },
-            data,
-            wgpu::TexelCopyBufferLayout
-            {
-              offset : 0,
-              bytes_per_row : Some( bytes_per_row ),
-              rows_per_image : Some( height )
-            },
-            wgpu::Extent3d { width, height, depth_or_array_layers }
-          );
-          Ok( () )
-        }
+        Self::Native( queue ) => native_texture_write( queue, texture.expect_native(), data ),
         #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
         Self::Vulkan( queue_vulkan ) =>
         {
@@ -1308,7 +1075,10 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// backend's `Device` ( e.g. Vulkan ) submitted through a different
     /// backend's `Queue` ( e.g. native ). Callers that always pair a
     /// `Device`/`Queue`/`CommandEncoder` from the same `Device::new_*` call
-    /// never hit this.
+    /// never hit this. On the Vulkan backend specifically, also panics if
+    /// the underlying `vkEndCommandBuffer`/`vkQueueSubmit`/`vkQueueWaitIdle`
+    /// calls fail — see `vulkan::submit`'s own doc comment for the same
+    /// infallible-signature tradeoff `command_encoder_create` documents.
     #[ allow( clippy::needless_pass_by_value, reason = "submitting consumes the encoder -- WebGPU's and wgpu's finish() both take ownership, and a submitted encoder must not be reusable afterward" ) ]
     pub fn submit( &self, encoder : CommandEncoder )
     {
@@ -1581,6 +1351,441 @@ coincidental to the two backend families, not duplicated logic" ) ]
     }
   }
 
+  /// Creates a WebGPU texture from `desc`.
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+  fn webgpu_texture_create( device : &web_sys::GpuDevice, desc : &TextureDesc ) -> Result< Texture, Error >
+  {
+    let mut builder = gl::texture::desc()
+    .size( desc.size )
+    .format( gl::GpuTextureFormat::from( desc.format ) );
+    if desc.usage.contains( TextureUsage::COPY_DST )
+    {
+      builder = builder.copy_dst();
+    }
+    if desc.usage.contains( TextureUsage::TEXTURE_BINDING )
+    {
+      builder = builder.texture_binding();
+    }
+    if desc.usage.contains( TextureUsage::RENDER_ATTACHMENT )
+    {
+      builder = builder.render_attachment();
+    }
+    Ok( Texture::WebGpu( builder.create( device )? ) )
+  }
+
+  /// Creates a WebGL texture from `desc`.
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+  fn webgl_texture_create( context : &glw::GL, desc : &TextureDesc ) -> Result< Texture, Error >
+  {
+    let internal_format = desc.format.webgl_internal_format()?;
+    let texture = context.create_texture()
+    .ok_or_else( || Error::WebGl( "failed to allocate texture".to_string() ) )?;
+    context.bind_texture( glw::GL::TEXTURE_2D, Some( &texture ) );
+    context.tex_storage_2d
+    (
+      glw::GL::TEXTURE_2D,
+      1,
+      internal_format,
+      to_i32( desc.size[ 0 ] ),
+      to_i32( desc.size[ 1 ] )
+    );
+    // Sampler-less binds ( e.g. texelFetch passes ) must not depend on
+    // the mipmap-filtering defaults of a single-level texture.
+    context.tex_parameteri( glw::GL::TEXTURE_2D, glw::GL::TEXTURE_MIN_FILTER, to_i32( glw::GL::NEAREST ) );
+    context.tex_parameteri( glw::GL::TEXTURE_2D, glw::GL::TEXTURE_MAG_FILTER, to_i32( glw::GL::NEAREST ) );
+    Ok( Texture::WebGl( TextureWebGl
+    {
+      texture,
+      size : desc.size,
+      format : desc.format
+    } ) )
+  }
+
+  /// Creates a native wgpu texture from `desc`.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_texture_create( device : &wgpu::Device, desc : &TextureDesc ) -> Texture
+  {
+    Texture::Native( device.create_texture( &wgpu::TextureDescriptor
+    {
+      label : None,
+      size : wgpu::Extent3d
+      {
+        width : desc.size[ 0 ],
+        height : desc.size[ 1 ],
+        depth_or_array_layers : desc.size[ 2 ]
+      },
+      mip_level_count : 1,
+      sample_count : 1,
+      dimension : wgpu::TextureDimension::D2,
+      format : wgpu::TextureFormat::from( desc.format ),
+      usage : wgpu::TextureUsages::from( desc.usage ),
+      view_formats : &[]
+    } ) )
+  }
+
+  /// Creates a WebGL sampler from `desc`.
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+  fn webgl_sampler_create( context : &glw::GL, desc : SamplerDesc ) -> Result< Sampler, Error >
+  {
+    let sampler = context.create_sampler()
+    .ok_or_else( || Error::WebGl( "failed to allocate sampler".to_string() ) )?;
+    let filter = match desc.filter
+    {
+      FilterMode::Nearest => glw::GL::NEAREST,
+      FilterMode::Linear => glw::GL::LINEAR
+    };
+    let address = match desc.address
+    {
+      AddressMode::ClampToEdge => glw::GL::CLAMP_TO_EDGE,
+      AddressMode::Repeat => glw::GL::REPEAT
+    };
+    context.sampler_parameteri( &sampler, glw::GL::TEXTURE_MIN_FILTER, to_i32( filter ) );
+    context.sampler_parameteri( &sampler, glw::GL::TEXTURE_MAG_FILTER, to_i32( filter ) );
+    context.sampler_parameteri( &sampler, glw::GL::TEXTURE_WRAP_S, to_i32( address ) );
+    context.sampler_parameteri( &sampler, glw::GL::TEXTURE_WRAP_T, to_i32( address ) );
+    Ok( Sampler::WebGl( sampler ) )
+  }
+
+  /// Creates a WebGPU bind group layout from `entries`.
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+  fn webgpu_bind_group_layout_create( device : &web_sys::GpuDevice, entries : &[ BindGroupLayoutEntry ] ) -> Result< BindGroupLayout, Error >
+  {
+    let mut builder = gl::BindGroupLayoutDescriptor::new().auto_bindings();
+    for entry in entries
+    {
+      let mut raw_entry = gl::BindGroupLayoutEntry::new();
+      if entry.visibility.contains( ShaderStages::VERTEX )
+      {
+        raw_entry = raw_entry.vertex();
+      }
+      if entry.visibility.contains( ShaderStages::FRAGMENT )
+      {
+        raw_entry = raw_entry.fragment();
+      }
+      let raw_entry = match entry.ty
+      {
+        BindingType::UniformBuffer => raw_entry.ty( gl::binding_type::buffer_type() ),
+        BindingType::Texture => raw_entry.ty( gl::binding_type::texture_type() ),
+        BindingType::Sampler => raw_entry.ty( gl::binding_type::sampler_type() )
+      };
+      // Fix(BUG-051): `BindGroupLayoutDescriptor::entry` became fallible (returns
+      // `Result<Self, WebGPUError>`) once its underlying `TryFrom` conversion stopped
+      // panicking on an unset binding type — propagate with `?` instead of a plain
+      // assignment.
+      // Root cause: caller written against the old infallible `entry` signature.
+      // Pitfall: a downstream `From`-to-`TryFrom` signature change is a silent type
+      // error at every call site, not a panic — the compiler catches it immediately,
+      // but only once this crate is actually rebuilt against the new minwebgpu.
+      builder = builder.entry( raw_entry )?;
+    }
+    Ok( BindGroupLayout::WebGpu( builder.create( device )? ) )
+  }
+
+  /// Creates a WebGPU bind group from `resources`, in layout entry order.
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+  fn webgpu_bind_group_create( device : &web_sys::GpuDevice, raw_layout : &web_sys::GpuBindGroupLayout, resources : &[ BindingResource< '_ > ] ) -> web_sys::GpuBindGroup
+  {
+    let mut builder = gl::BindGroupDescriptor::new( raw_layout ).auto_bindings();
+    for resource in resources
+    {
+      builder = match resource
+      {
+        BindingResource::Buffer( buffer ) =>
+        {
+          builder.entry_from_resource( &gl::BufferBinding::new( buffer.expect_webgpu() ) )
+        }
+        BindingResource::TextureView( view ) =>
+        {
+          builder.entry_from_resource( view.expect_webgpu() )
+        }
+        BindingResource::Sampler( sampler ) =>
+        {
+          builder.entry_from_resource( sampler.expect_webgpu() )
+        }
+      };
+    }
+    builder.create( device )
+  }
+
+  /// Creates a WebGL bind group from `resources`. GL has no layout objects,
+  /// so unlike the other backends this ignores the layout entirely.
+  #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+  fn webgl_bind_group_create( resources : &[ BindingResource< '_ > ] ) -> Result< BindGroup, Error >
+  {
+    let mut entries = Vec::with_capacity( resources.len() );
+    for resource in resources
+    {
+      match resource
+      {
+        BindingResource::Buffer( buffer ) =>
+        {
+          entries.push( BindGroupEntryWebGl::Buffer( buffer.expect_webgl().buffer.clone() ) );
+        }
+        BindingResource::TextureView( view ) =>
+        {
+          match view.expect_webgl()
+          {
+            TextureViewWebGl::Texture { texture, .. } =>
+            {
+              entries.push( BindGroupEntryWebGl::Texture( texture.clone() ) );
+            }
+            TextureViewWebGl::CanvasBackbuffer =>
+            {
+              return Err( Error::Unsupported
+              (
+                "the canvas backbuffer cannot be sampled on the WebGL backend".to_string()
+              ) );
+            }
+          }
+        }
+        BindingResource::Sampler( sampler ) =>
+        {
+          entries.push( BindGroupEntryWebGl::Sampler( sampler.expect_webgl().clone() ) );
+        }
+      }
+    }
+    Ok( BindGroup::WebGl( BindGroupWebGl { entries } ) )
+  }
+
+  /// Creates a native wgpu bind group from `resources`, in layout entry order.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_bind_group_create( device : &wgpu::Device, layout : &wgpu::BindGroupLayout, resources : &[ BindingResource< '_ > ] ) -> wgpu::BindGroup
+  {
+    let raw_entries : Vec< wgpu::BindGroupEntry< '_ > > = resources.iter().enumerate()
+    .map
+    (
+      | ( index, resource ) |
+      wgpu::BindGroupEntry
+      {
+        binding : u32::try_from( index ).unwrap_or( u32::MAX ),
+        resource : match resource
+        {
+          BindingResource::Buffer( buffer ) => buffer.expect_native().as_entire_binding(),
+          BindingResource::TextureView( view ) =>
+          {
+            wgpu::BindingResource::TextureView( view.expect_native() )
+          }
+          BindingResource::Sampler( sampler ) =>
+          {
+            wgpu::BindingResource::Sampler( sampler.expect_native() )
+          }
+        }
+      }
+    )
+    .collect();
+    device.create_bind_group( &wgpu::BindGroupDescriptor
+    {
+      label : None,
+      layout,
+      entries : &raw_entries
+    } )
+  }
+
+  /// Creates a WebGPU render pipeline from `desc`.
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+  fn webgpu_render_pipeline_create( device : &web_sys::GpuDevice, desc : &RenderPipelineDesc< '_ > ) -> Result< RenderPipeline, Error >
+  {
+    let shader = desc.shader.expect_webgpu();
+
+    let mut layout_builder = gl::layout::pipeline::desc();
+    for layout in desc.bind_group_layouts
+    {
+      layout_builder = layout_builder.bind_group( layout.expect_webgpu() );
+    }
+    let pipeline_layout = layout_builder.create( device );
+
+    let mut vertex_state = gl::VertexState::new( shader ).entry_point( desc.vertex_entry );
+    for layout in desc.vertex_buffers
+    {
+      let mut raw_layout = gl::VertexBufferLayout::new()
+      .stride_from_value( f64::from( layout.stride ) );
+      for attribute in &layout.attributes
+      {
+        raw_layout = raw_layout.attribute
+        (
+          gl::VertexAttribute::new()
+          .location( attribute.location )
+          .format( gl::GpuVertexFormat::from( attribute.format ) )
+          .offset_from_value( f64::from( attribute.offset ) )
+        );
+      }
+      let web_layout : web_sys::GpuVertexBufferLayout = raw_layout.into();
+      vertex_state = vertex_state.buffer( &web_layout );
+    }
+
+    let fragment_state = gl::FragmentState::new( shader )
+    .entry_point( desc.fragment_entry )
+    .target( gl::ColorTargetState::new().format( gl::GpuTextureFormat::from( desc.color_format ) ) );
+
+    let mut pipeline_desc = gl::render_pipeline::desc( vertex_state )
+    .layout( &pipeline_layout )
+    .fragment( fragment_state );
+    if desc.cull_back
+    {
+      pipeline_desc = pipeline_desc.primitive( gl::PrimitiveState::new().cull_back() );
+    }
+    if let Some( depth ) = desc.depth
+    {
+      pipeline_desc = pipeline_desc
+      .depth_stencil( gl::DepthStencilState::new().format( gl::GpuTextureFormat::from( depth.format ) ) );
+    }
+    Ok( RenderPipeline::WebGpu( pipeline_desc.create( device )? ) )
+  }
+
+  /// Writes `data` into a WebGPU `texture`.
+  #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+  fn webgpu_texture_write( queue : &web_sys::GpuQueue, texture : &Texture, data : &[ u8 ] ) -> Result< (), Error >
+  {
+    let raw = texture.expect_webgpu();
+    let width = raw.width();
+    let height = raw.height();
+    let depth_or_array_layers = raw.depth_or_array_layers();
+    let format = TextureFormat::try_from( raw.format() )?;
+    let bytes_per_row = width * format.bytes_per_texel()?;
+
+    let data_layout = web_sys::GpuTexelCopyBufferLayout::new();
+    data_layout.set_bytes_per_row( bytes_per_row );
+    data_layout.set_rows_per_image( height );
+
+    let size = web_sys::GpuExtent3dDict::new( width );
+    size.set_height( height );
+    size.set_depth_or_array_layers( depth_or_array_layers );
+
+    gl::queue::texture_write
+    (
+      queue,
+      &web_sys::GpuTexelCopyTextureInfo::new( raw ),
+      data,
+      &data_layout,
+      &size
+    )?;
+    Ok( () )
+  }
+
+  /// Validates `data`'s length against wgpu's alignment requirement and
+  /// `buffer_size` before a native `write_buffer` call.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_buffer_write_len_validate( data : &[ u8 ], buffer_size : u64 ) -> Result< (), Error >
+  {
+    // Fix(BUG-207): `wgpu::Queue::write_buffer` is documented
+    // ( `wgpu-30.0.0/src/api/queue.rs` ) to require "written fully
+    // in-bounds, that is, `offset + data.len() <= buffer.len()`" --
+    // but the method returns `()`, not `Result`, so a violation has
+    // nowhere to go except wgpu's own error sink. As already
+    // confirmed for `texture_write` ( BUG-204 ), this crate installs
+    // no custom `on_uncaptured_error` handler, so wgpu-core's
+    // `validate_write_buffer_impl`
+    // ( `wgpu-core-30.0.0/src/device/queue.rs` ) rejecting an
+    // oversized or misaligned write reaches wgpu-core's
+    // `default_error_handler`
+    // ( `wgpu-core-30.0.0/src/backend/wgpu_core.rs` ), which
+    // unconditionally panics -- the same "unguarded native panic on
+    // bad input" class already fixed at `Surface::configure`
+    // ( BUG-165 ), `texture_create` ( BUG-176 ), `new_native`
+    // ( BUG-199 ) and `texture_write` ( BUG-204 ) in this file -- just
+    // reached through a 5th call site.
+    // Root cause: no validation existed between the caller's `data`
+    // and wgpu's own fallible ( but `()`-returning ) write call.
+    let len = data.len() as u64;
+    if len % wgpu::COPY_BUFFER_ALIGNMENT != 0
+    {
+      return Err( Error::InvalidInput( format!
+      (
+        "buffer_write: data is {len} bytes, not a multiple of wgpu's {}-byte COPY_BUFFER_ALIGNMENT",
+        wgpu::COPY_BUFFER_ALIGNMENT
+      ) ) );
+    }
+    if len > buffer_size
+    {
+      return Err( Error::InvalidInput( format!
+      (
+        "buffer_write: data is {len} bytes, but the buffer was only allocated with {buffer_size} bytes"
+      ) ) );
+    }
+    Ok( () )
+  }
+
+  /// Validates that `data` is large enough for a `width`×`height` native
+  /// texture write with `depth_or_array_layers` layers at `bytes_per_row`
+  /// stride.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_texture_write_data_len_validate
+  (
+    width : u32,
+    height : u32,
+    depth_or_array_layers : u32,
+    bytes_per_row : u32,
+    data : &[ u8 ]
+  ) -> Result< (), Error >
+  {
+    // Fix(BUG-204): `wgpu::Queue::write_texture` is itself documented
+    // ( `wgpu-30.0.0/src/api/queue.rs` ) to "fail... if `data` is too
+    // short" -- but the method returns `()`, not `Result`, so that
+    // failure has nowhere to go except wgpu's own error sink. This
+    // crate's `Device`/`Queue` never install a custom
+    // `on_uncaptured_error` handler, so an undersized `data` here
+    // reaches wgpu-core's `default_error_handler`
+    // ( `wgpu-core-30.0.0/src/backend/wgpu_core.rs` ), which
+    // unconditionally panics: "Handling wgpu errors as fatal by
+    // default". Confirmed by direct inspection of both crates'
+    // sources, not assumed from the panic message alone. This is the
+    // same "unguarded native panic on bad input" class already fixed
+    // at `Surface::configure` ( BUG-165 ), `texture_create`
+    // ( BUG-176 ) and `new_native` ( BUG-199 ) in this file -- just
+    // reached through a 4th call site.
+    // Root cause: no validation existed between the caller's `data`
+    // and wgpu's own fallible ( but `()`-returning ) write call.
+    let required = u64::from( bytes_per_row ) * u64::from( height ) * u64::from( depth_or_array_layers );
+    if ( data.len() as u64 ) < required
+    {
+      return Err( Error::InvalidInput( format!
+      (
+        "texture_write: data is {} bytes, but the {width}×{height} region ( {depth_or_array_layers} layer(s), \
+         {bytes_per_row} bytes/row ) requires {required} bytes",
+        data.len()
+      ) ) );
+    }
+    Ok( () )
+  }
+
+  /// Writes `data` into a native wgpu `texture`.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_texture_write( queue : &wgpu::Queue, texture : &wgpu::Texture, data : &[ u8 ] ) -> Result< (), Error >
+  {
+    let width = texture.width();
+    let height = texture.height();
+    // Native queries wgpu's own authoritative format-size table
+    // directly, rather than routing through `TextureFormat::
+    // bytes_per_texel` — `texture.format()` is already a
+    // `wgpu::TextureFormat`, so a round trip through the HAL's own
+    // enum would just re-derive what wgpu already knows.
+    let bytes_per_row = width * texture.format().block_copy_size( None )
+    .ok_or_else( || Error::Unsupported( format!( "{:?} has no portable CPU-side texel layout", texture.format() ) ) )?;
+    let depth_or_array_layers = texture.depth_or_array_layers();
+
+    native_texture_write_data_len_validate( width, height, depth_or_array_layers, bytes_per_row, data )?;
+
+    queue.write_texture
+    (
+      wgpu::TexelCopyTextureInfo
+      {
+        texture,
+        mip_level : 0,
+        origin : wgpu::Origin3d::ZERO,
+        aspect : wgpu::TextureAspect::All
+      },
+      data,
+      wgpu::TexelCopyBufferLayout
+      {
+        offset : 0,
+        bytes_per_row : Some( bytes_per_row ),
+        rows_per_image : Some( height )
+      },
+      wgpu::Extent3d { width, height, depth_or_array_layers }
+    );
+    Ok( () )
+  }
+
   /// Resolves the binding name convention of a linked program : uniform
   /// blocks named `ub_{group}_{binding}` and sampler uniforms named
   /// `tex_{group}_{binding}` receive sequential binding points and texture
@@ -1678,20 +1883,37 @@ coincidental to the two backend families, not duplicated logic" ) ]
   ) -> RenderPipeline
   {
     let shader = desc.shader.expect_native();
+    let pipeline_layout = native_pipeline_layout_create( device, desc );
+    // Two passes because wgpu's slot layout borrows its attribute
+    // slice — the attributes must outlive the layouts referencing them.
+    let attributes = native_vertex_attributes_build( desc );
+    let vertex_buffers = native_vertex_buffers_build( desc, &attributes );
+    let depth_stencil = native_depth_stencil_state( desc );
+    let pipeline = native_pipeline_create_raw( device, desc, shader, &pipeline_layout, &vertex_buffers, depth_stencil );
+    RenderPipeline::Native( pipeline )
+  }
 
+  /// Builds the pipeline layout from `desc`'s bind group layouts.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_pipeline_layout_create( device : &wgpu::Device, desc : &RenderPipelineDesc< '_ > ) -> wgpu::PipelineLayout
+  {
     let raw_layouts : Vec< Option< &wgpu::BindGroupLayout > > = desc.bind_group_layouts.iter()
     .map( | layout | Some( layout.expect_native() ) )
     .collect();
-    let pipeline_layout = device.create_pipeline_layout( &wgpu::PipelineLayoutDescriptor
+    device.create_pipeline_layout( &wgpu::PipelineLayoutDescriptor
     {
       label : None,
       bind_group_layouts : &raw_layouts,
       immediate_size : 0
-    } );
+    } )
+  }
 
-    // Two passes because wgpu's slot layout borrows its attribute
-    // slice — the attributes must outlive the layouts referencing them.
-    let attributes : Vec< Vec< wgpu::VertexAttribute > > = desc.vertex_buffers.iter()
+  /// Converts `desc`'s per-buffer vertex attributes into wgpu's own type,
+  /// one `Vec` per vertex buffer layout.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_vertex_attributes_build( desc : &RenderPipelineDesc< '_ > ) -> Vec< Vec< wgpu::VertexAttribute > >
+  {
+    desc.vertex_buffers.iter()
     .map
     (
       | layout |
@@ -1708,9 +1930,20 @@ coincidental to the two backend families, not duplicated logic" ) ]
       )
       .collect()
     )
-    .collect();
-    let vertex_buffers : Vec< Option< wgpu::VertexBufferLayout< '_ > > > = desc.vertex_buffers.iter()
-    .zip( &attributes )
+    .collect()
+  }
+
+  /// Pairs each vertex buffer layout with its own attribute slice, borrowed
+  /// from `attributes` so the layouts can outlive this call.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_vertex_buffers_build< 'a >
+  (
+    desc : &RenderPipelineDesc< '_ >,
+    attributes : &'a [ Vec< wgpu::VertexAttribute > ]
+  ) -> Vec< Option< wgpu::VertexBufferLayout< 'a > > >
+  {
+    desc.vertex_buffers.iter()
+    .zip( attributes )
     .map
     (
       | ( layout, attributes ) |
@@ -1722,36 +1955,57 @@ coincidental to the two backend families, not duplicated logic" ) ]
       }
     )
     .map( Some )
-    .collect();
+    .collect()
+  }
 
-    let pipeline = device.create_render_pipeline( &wgpu::RenderPipelineDescriptor
+  /// Builds the always-on depth/stencil state, when `desc` requests a depth
+  /// attachment.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_depth_stencil_state( desc : &RenderPipelineDesc< '_ > ) -> Option< wgpu::DepthStencilState >
+  {
+    desc.depth.map
+    (
+      | depth |
+      wgpu::DepthStencilState
+      {
+        format : wgpu::TextureFormat::from( depth.format ),
+        depth_write_enabled : Some( true ),
+        depth_compare : Some( wgpu::CompareFunction::Less ),
+        stencil : wgpu::StencilState::default(),
+        bias : wgpu::DepthBiasState::default()
+      }
+    )
+  }
+
+  /// Assembles the final `wgpu::RenderPipeline` from its already-built parts.
+  #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+  fn native_pipeline_create_raw
+  (
+    device : &wgpu::Device,
+    desc : &RenderPipelineDesc< '_ >,
+    shader : &wgpu::ShaderModule,
+    pipeline_layout : &wgpu::PipelineLayout,
+    vertex_buffers : &[ Option< wgpu::VertexBufferLayout< '_ > > ],
+    depth_stencil : Option< wgpu::DepthStencilState >
+  ) -> wgpu::RenderPipeline
+  {
+    device.create_render_pipeline( &wgpu::RenderPipelineDescriptor
     {
       label : None,
-      layout : Some( &pipeline_layout ),
+      layout : Some( pipeline_layout ),
       vertex : wgpu::VertexState
       {
         module : shader,
         entry_point : Some( desc.vertex_entry ),
         compilation_options : wgpu::PipelineCompilationOptions::default(),
-        buffers : &vertex_buffers
+        buffers : vertex_buffers
       },
       primitive : wgpu::PrimitiveState
       {
         cull_mode : if desc.cull_back { Some( wgpu::Face::Back ) } else { None },
         ..wgpu::PrimitiveState::default()
       },
-      depth_stencil : desc.depth.map
-      (
-        | depth |
-        wgpu::DepthStencilState
-        {
-          format : wgpu::TextureFormat::from( depth.format ),
-          depth_write_enabled : Some( true ),
-          depth_compare : Some( wgpu::CompareFunction::Less ),
-          stencil : wgpu::StencilState::default(),
-          bias : wgpu::DepthBiasState::default()
-        }
-      ),
+      depth_stencil,
       multisample : wgpu::MultisampleState::default(),
       fragment : Some( wgpu::FragmentState
       {
@@ -1767,8 +2021,7 @@ coincidental to the two backend families, not duplicated logic" ) ]
       } ),
       multiview_mask : None,
       cache : None
-    } );
-    RenderPipeline::Native( pipeline )
+    } )
   }
 
   /// Builds a fresh Vulkan instance/device/queue/offscreen-surface set.

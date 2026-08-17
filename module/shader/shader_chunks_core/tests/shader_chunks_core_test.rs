@@ -40,7 +40,7 @@ const LOCAL_GLOW_WGSL : &str = "\
 
 fn glow( p : vec2f ) -> f32
 {
-  return value_noise( p ) * 2.0;
+  return value_noise( p, 0.0 ) * 2.0;
 }
 ";
 
@@ -264,7 +264,7 @@ fn parse_description_reads_every_bundled_chunk()
 {
   assert_eq!( description_parse( wgsl( "hash21" ) ), "Single-value hash of a 2D point into [0, 1)." );
   assert_eq!( description_parse( wgsl( "value_noise" ) ), "Bilinear-interpolated value noise sampled at a 2D point, in [0, 1)." );
-  assert_eq!( description_parse( wgsl( "fbm3" ) ), "Fixed 3-octave fractal Brownian motion built on value_noise, in [0, 0.875]." );
+  assert_eq!( description_parse( wgsl( "fbm3" ) ), "Fixed 3-octave fractal Brownian motion built on value_noise, in [0, 0.5*(1+gain+gain^2)]." );
   assert_eq!
   (
     description_parse( wgsl( "fullscreen_triangle" ) ),

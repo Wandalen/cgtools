@@ -154,7 +154,7 @@ const LOCAL_GLOW_WGSL : &str = "\
 
 fn glow( p : vec2f, octaves : u32, seed : u32 ) -> f32
 {
-  return value_noise( p ) * 2.0;
+  return value_noise( p, 0.0 ) * 2.0;
 }
 ";
 

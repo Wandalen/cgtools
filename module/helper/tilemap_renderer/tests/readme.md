@@ -33,7 +33,7 @@ tests/
 |---|---|---|
 | `types_test.rs` | Core value types | `Transform` identity/translation/scale/rotation, `ResourceId` equality, `RenderConfig` defaults |
 | `commands_test.rs` | Command types | `Copy` invariant (compile-time), enum size bound, stream construction, batch params |
-| `assets_test.rs` | Asset validation | Empty set, no-duplicate ok, per-type duplicate errors, cross-type id independence |
+| `assets_test.rs` | Asset validation | Empty set, no-duplicate ok, per-type duplicate errors, cross-type id independence; `to_rgba8` `PixelFormat` conversion (feature `adapter-native`, task 218) |
 | `backend_test.rs` | Backend trait | `assets_load`, `submit`, `output`, `resize`, `Capabilities::default`, all `RenderError` variants |
 | `svg_backend_test.rs` | SvgBackend adapter (relocated from inline by task 071) | Clear/viewport wrapper, paths, gradients, patterns, clip masks, sprite tint/batches, mesh topologies, effects, blend modes, groups, disk/encoded/bitmap image loading, text flow/anchors/on-path, plus the former private helpers ( transforms, anchors, PNG probing, `SvgContentManager` ) now exposed as documented or `doc( hidden )` pub — `src/` carries no inline test modules |
 | `none_backend_test.rs` | NoneBackend adapter | `Capabilities::default` field-by-field pin, unconditional `Ok` on `submit`/`assets_load` regardless of command/asset content |

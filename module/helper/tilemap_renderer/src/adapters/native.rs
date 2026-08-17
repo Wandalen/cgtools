@@ -10,7 +10,7 @@
 
 mod private
 {
-  use crate::assets::{ Assets, ImageSource, PixelFormat };
+  use crate::assets::{ Assets, ImageSource, to_rgba8 };
   use crate::backend::{ Backend, Bitmap, Capabilities, Output, RenderError };
   use crate::commands::{ RenderCommand, Sprite };
   use crate::types::{ RenderConfig, Transform };
@@ -344,20 +344,6 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
       out[ i * 4 + 3 ] = ( region[ 1 ] + fy * region[ 3 ] ) / sh;
     }
     out
-  }
-
-  /// Expands any `PixelFormat` into tightly-packed RGBA8 bytes -- the only
-  /// texture format this backend uploads into (`gpu_hal` has no narrower
-  /// GPU-side format for the v0 surface).
-  fn to_rgba8( bytes : &[ u8 ], format : PixelFormat ) -> Vec< u8 >
-  {
-    match format
-    {
-      PixelFormat::Rgba8 => bytes.to_vec(),
-      PixelFormat::Rgb8 => bytes.chunks_exact( 3 ).flat_map( | p | [ p[ 0 ], p[ 1 ], p[ 2 ], 255 ] ).collect(),
-      PixelFormat::Gray8 => bytes.iter().flat_map( | &g | [ g, g, g, 255 ] ).collect(),
-      PixelFormat::GrayAlpha8 => bytes.chunks_exact( 2 ).flat_map( | p | [ p[ 0 ], p[ 0 ], p[ 0 ], p[ 1 ] ] ).collect(),
-    }
   }
 
   /// Byte-reinterprets a `f32` slice as tightly-packed little-endian bytes,

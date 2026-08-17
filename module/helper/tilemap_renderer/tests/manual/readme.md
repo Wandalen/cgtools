@@ -29,12 +29,21 @@ trunk serve --release --port 8080                                        # webgp
 trunk serve --release --no-default-features --features webgl --port 8080 # webgl
 ```
 
-**The two backends are NOT expected to paint the same pixel.** `adapter-webgl`
-uploads real pixel bytes (`tex_image_2d_with_...`) and paints the sprite's
-configured solid red; `adapter-webgpu` has no texture-upload path wired yet
-(see `src/adapters/webgpu.rs:9-13`'s module doc comment) and paints an opaque
-**black** quad instead — this crate proves each backend's own honest, distinct
-current behavior rather than a uniform claim neither could back up.
+**Historical note (superseded by task 218):** at the time this guide and its
+recorded readings below were written, the two backends were NOT expected to
+paint the same pixel — `adapter-webgl` uploaded real pixel bytes
+(`tex_image_2d_with_...`) and painted the sprite's configured solid red, while
+`adapter-webgpu` had no texture-upload path wired and painted an opaque
+**black** quad instead (see `src/adapters/webgpu.rs:9-13`'s then-current module
+doc comment). Task 218 has since wired `adapter-webgpu`'s own real pixel
+upload through `gpu_hal::Queue::texture_write`, sharing the same `to_rgba8`
+conversion helper `adapter-native` uses — sourced, unit-tested, and confirmed
+by direct source reading, but **not yet re-verified live in a browser**. Both
+backends are now predicted to paint the same solid red (the asset content is
+identical), but Scenario 2 and the Test Matrix below still show the pre-218
+black reading until this manual procedure is re-run. Treat every `rgb 0 0 0`
+reading below as stale pending that re-run, not as this adapter's current
+behavior.
 
 **Gotcha for anyone editing `centered_sprite_command`:** `Transform::position`
 is the sprite quad's *starting corner*, not its center, and `Transform::scale`
@@ -73,12 +82,12 @@ browsee .shot out::./-tmr_webgl.png session::tmr_adapter_webgl
   `native_backend_test.rs`'s own `SPRITE_RGBA`. Verified reading on this build:
   `rgb 255 0 0`.
 
-### 2. WebGPU backend renders an opaque black quad
+### 2. WebGPU backend renders its sprite (⚠️ reading predates task 218, needs re-run)
 
 **Objective:** `WebGpuBackend::new` + `assets_load` + `submit` + `output`
-paints a real, correctly-centered — but unpopulated-texture — quad through a
-real WebGPU context, confirming the round-trip bounds a real draw call rather
-than silently no-op'ing.
+paints a real, correctly-centered quad through a real WebGPU context,
+confirming the round-trip bounds a real draw call rather than silently
+no-op'ing.
 
 **Steps:** identical shape, against the `webgpu` (default-feature) build:
 ```bash
@@ -89,17 +98,26 @@ browsee .pixel region::20x20x314,270 session::tmr_adapter   # chrome-corrected �
 browsee .shot out::./-tmr_webgpu.png session::tmr_adapter
 ```
 
-**Expected Behavior:** the corrected offset reads pure opaque black
-(`rgb 0 0 0`) — the adapter's own documented current behavior (zero-initialized
-texture × tint through `gpu_hal`'s opaque, no-blend v0 pipeline), not the clear
-color. Verified reading on this build: `rgb 0 0 0`.
+**Expected Behavior (pre-task-218, recorded when this guide was written):** the
+corrected offset read pure opaque black (`rgb 0 0 0`) — `WebGpuBackend` had no
+texture-upload path wired at the time, so the fragment shader sampled a
+zero-initialized texture through `gpu_hal`'s opaque, no-blend v0 pipeline.
+
+**Expected Behavior (post-task-218, predicted but NOT yet live-confirmed):**
+`WebGpuBackend::assets_load` now uploads the sprite's real pixel bytes (same
+solid-red 8x8 bitmap, same `to_rgba8` conversion `adapter-native` uses), so
+the corrected offset should now read pure solid red (`rgb 255 0 0`), matching
+Scenario 1. This has not been re-measured live since the fix landed — re-run
+the steps above and update both this line and the Test Matrix below with the
+actual reading before trusting it.
 
 ### 3. Bounded draw — clear color outside the sprite
 
 **Objective:** confirm each render pass only painted the sprite, not the whole
 canvas (guards against a test that would pass even if the draw call painted the
-whole canvas), and that `adapter-webgpu`'s black quad is a bounded shape, not a
-full-canvas clear-to-black.
+whole canvas) — pre-task-218 this also confirmed `adapter-webgpu`'s black quad
+was a bounded shape, not a full-canvas clear-to-black; post-task-218 it confirms
+the same for whatever the sprite now actually paints.
 
 **Steps:** with either session from Scenario 1/2 still open, sample well
 inside the canvas but away from the sprite:
@@ -108,9 +126,11 @@ browsee .pixel region::20x20x100,150 session::tmr_adapter_webgl
 browsee .pixel region::20x20x100,150 session::tmr_adapter
 ```
 
-**Expected Behavior:** both read the configured clear color (`rgb 0 0 255`),
-distinct from both the sprite's solid red (webgl) and opaque black (webgpu).
-Verified identical on both backends.
+**Expected Behavior:** both should read the configured clear color
+(`rgb 0 0 255`), distinct from the sprite's solid red. Verified identical on
+both backends **pre-task-218** (when `adapter-webgpu`'s own sprite color was
+still black, also distinct from the clear color); not yet re-verified against
+the predicted post-task-218 red sprite.
 
 ### `region::center` needs a chrome-corrected offset here
 
@@ -146,8 +166,8 @@ browsee .kill session::tmr_adapter_webgl purge::1
 | Scenario | webgpu | webgl |
 |----------|--------|-------|
 | Render completes (`.wait for::render` exits 0) | ✓ | ✓ |
-| Sprite-center reads configured color | ✓ opaque black (`0,0,0`) | ✓ solid red (`255,0,0`) |
-| Background reads configured clear color, distinct from sprite | ✓ (`0,0,255`) | ✓ (`0,0,255`) |
+| Sprite-center reads configured color | ⚠️ stale: opaque black (`0,0,0`), recorded pre-task-218 — predicted `255,0,0` post-fix, not yet re-measured | ✓ solid red (`255,0,0`) |
+| Background reads configured clear color, distinct from sprite | ✓ (`0,0,255`), pre-task-218 | ✓ (`0,0,255`) |
 
 Native regression coverage and the wasm32 compile check are automated —
 `cargo nextest run -p tilemap_renderer --features adapter-native` and

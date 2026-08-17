@@ -14,14 +14,16 @@
 //! trunk serve --release --no-default-features --features webgl  # webgl
 //! ```
 //!
-//! The two backends are NOT expected to paint the same pixel: `adapter-webgl`
-//! uploads real pixel bytes and paints the sprite's configured solid red;
-//! `adapter-webgpu`'s own module doc comment
-//! (`tilemap_renderer/src/adapters/webgpu.rs:9-13`) records that loaded
-//! images are allocated but never populated with real pixels, so it paints
-//! an opaque **black** quad instead. This example proves each backend's own
-//! honest, distinct current behavior — see the governing task file's MOST
-//! Goal for why that asymmetry is intentional, not a bug.
+//! **Historical note (superseded by task 218):** at the time this example was
+//! written, the two backends were NOT expected to paint the same pixel —
+//! `adapter-webgl` uploaded real pixel bytes and painted the sprite's
+//! configured solid red, while `adapter-webgpu` had no texture-upload path
+//! wired and painted an opaque **black** quad instead. Task 218 wired
+//! `adapter-webgpu`'s own real pixel upload
+//! (`tilemap_renderer::assets::to_rgba8`, shared with `adapter-native`), so
+//! both backends are now predicted to paint the same solid red — not yet
+//! re-confirmed live in a browser; see
+//! `tilemap_renderer/tests/manual/readme.md` Scenario 2.
 
 #[ cfg( target_arch = "wasm32" ) ]
 use tilemap_renderer::assets::{ Assets, ImageAsset, ImageSource, PixelFormat, SpriteAsset };
@@ -33,15 +35,19 @@ use tilemap_renderer::commands::{ Clear, RenderCommand, Sprite };
 use tilemap_renderer::types::{ BlendMode, MipmapMode, RenderConfig, ResourceId, SamplerFilter, Transform, WrapMode };
 
 /// Clear color — **not** black, unlike `native_backend_test.rs`'s own
-/// `CLEAR`: `adapter-webgpu`'s sprite itself renders black (see the module
-/// doc comment on `WebGpuBackend`), so a black clear would make the corner
-/// (clear) and center (sprite) pixels indistinguishable there, defeating the
-/// bounded-draw check (`AF2` in the governing task file).
+/// `CLEAR`: at authoring time `adapter-webgpu`'s sprite itself rendered
+/// black (see the module doc comment on `WebGpuBackend`), so a black clear
+/// would have made the corner (clear) and center (sprite) pixels
+/// indistinguishable there, defeating the bounded-draw check (`AF2` in the
+/// governing task file). Left blue rather than reverted after task 218 wired
+/// real pixel upload — blue stays distinct from the now-predicted solid-red
+/// sprite too, and re-deriving offsets/colors for a live-unconfirmed change
+/// is unwarranted churn.
 #[ cfg( target_arch = "wasm32" ) ]
 const CLEAR : [ f32; 4 ] = [ 0.0, 0.0, 1.0, 1.0 ];
-/// Sprite source color — solid red, distinct from `CLEAR` and from
-/// `adapter-webgpu`'s black. Matches `native_backend_test.rs`'s own
-/// `SPRITE_RGBA` exactly.
+/// Sprite source color — solid red, distinct from `CLEAR`. Matches
+/// `native_backend_test.rs`'s own `SPRITE_RGBA` exactly; since task 218,
+/// `adapter-webgpu` uploads these exact bytes too (previously ignored).
 #[ cfg( target_arch = "wasm32" ) ]
 const SPRITE_RGBA : [ u8; 4 ] = [ 255, 0, 0, 255 ];
 /// Proportion of the viewport's extent the centered sprite should visually

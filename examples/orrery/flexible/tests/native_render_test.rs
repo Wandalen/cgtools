@@ -33,7 +33,7 @@ fn scene_render_produces_expected_landmarks()
   let base_uniforms = UniformsRaw::from( &scene_config );
   let raw = base_uniforms.with_frame( 0.0, 0.0, 4, 10.0, ( width, height ) );
 
-  orrery_flexible::scene_render( &device, &queue, &surface, &raw.to_bytes(), None )
+  orrery_flexible::scene_render( &device, &queue, &surface, &raw.to_bytes() )
   .expect( "scene render failed" );
 
   let pixels = surface.pixels_read( &device, &queue ).expect( "pixel readback failed" );

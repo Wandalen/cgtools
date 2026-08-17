@@ -11,11 +11,12 @@ genuinely evolves instead of scrolling.
 ![value_noise3 preview](preview.png)
 
 Rendered via the chunk-preview harness's synthesized grayscale
-field: `value_noise3( vec3f( p, 1.7 ) )` — a fixed-`z` slice
+field: `value_noise3( vec3f( p, 1.7 ), 0.0 )` — a fixed-`z` slice
 through the 3D field — is written straight to `vec3f( value )`,
 clamped to `[0, 1]`, at `preview_scale = 8`. Smooth blobs like the
 2D chunk's preview; a different `z` slides through entirely new
-blobs. Directly previewable via `sch preview value_noise3`.
+blobs, and `seed` reshuffles the same slice independently of `z`.
+Directly previewable via `sch preview value_noise3`.
 
 ## Parameters
 
@@ -26,7 +27,7 @@ blobs. Directly previewable via `sch preview value_noise3`.
 | `tags` | `category:noise` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | `hash13` |
-| `export` | `fn value_noise3(p: vec3f) -> f32`, `fn value_noise3_preview(p: vec2f, z: f32) -> f32` |
+| `export` | `fn value_noise3(p: vec3f, seed: f32) -> f32`, `fn value_noise3_preview(p: vec2f, z: f32, seed: f32) -> f32` |
 
 ## Nuances
 
@@ -38,6 +39,11 @@ blobs. Directly previewable via `sch preview value_noise3`.
   used (animation, volume slicing).
 - Corner naming `c000..c111` follows binary xyz offsets; the two bilinear
   layers (`z0`, `z1`) mix along z last.
+- `seed` (`//@ param:`, range `[-50, 50]`) offsets the integer lattice
+  coordinate fed into all eight corners' `hash13`, same technique as
+  `value_noise`'s `seed` extended to 3D via WGSL's per-component
+  `vec3f + f32` broadcast. `0` (this range's midpoint) reproduces the
+  original, unseeded pattern exactly.
 
 ## Relatives
 

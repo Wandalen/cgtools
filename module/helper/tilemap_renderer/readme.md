@@ -154,32 +154,31 @@ all yet (see the features table), so this variant — like every other
 command — is not rendered there; cover it when the terminal backend is
 actually built and a use-case needs HUD / overlay rendering.
 
-### WebGL texture upload Y-flip asymmetry
+### WebGL texture upload Y-flip asymmetry (fixed, BUG-210)
 
-The two image-upload paths in `adapters::webgl` flip differently:
+The two image-upload paths in `adapters::webgl` used to flip differently:
 
 - **`ImageSource::Path`** (async, via `HtmlImageElement`) — uploads through
   `minwebgl::texture::d2::upload`, which sets `UNPACK_FLIP_Y_WEBGL=1`. Images
   are stored vertically flipped in texture memory.
-- **`ImageSource::Bitmap`** (sync, raw bytes) — uploads via
-  `tex_image_2d_with_..._opt_u8_array` without touching `pixel_storei`, so
-  `UNPACK_FLIP_Y_WEBGL` stays at its default `0`. Images are stored
-  un-flipped.
+- **`ImageSource::Bitmap`** (sync, raw bytes, `bitmap_texture_upload`) —
+  previously uploaded via `tex_image_2d_with_..._opt_u8_array` without
+  touching `pixel_storei`, so `UNPACK_FLIP_Y_WEBGL` stayed at its default
+  `0`. Images were stored un-flipped.
 
 The sprite shaders (`sprite.vert` / `sprite_batch.vert`) compensate for the
 Path-path flip: `v_uv.y = 1 - ( region.y + ( 1 - quad.y ) * region.h ) / tex.y`.
-This gives correct rendering for Path-loaded sprites but means the **same
-image loaded via `Bitmap` renders upside-down** through sprite commands. The
+This gave correct rendering for Path-loaded sprites but meant the **same
+image loaded via `Bitmap` rendered upside-down** through sprite commands. The
 `mesh.vert` shader passes `a_uv` through unchanged, so meshes "work" for both
 upload paths only when callers author UVs in GL (Y-up) convention — which
-matches the flipped Path upload but mismatches the un-flipped Bitmap upload.
+matches the flipped Path upload but mismatched the un-flipped Bitmap upload.
 
-**Fix**: pick one convention and enforce it in the upload path (simplest:
-also set `UNPACK_FLIP_Y_WEBGL=1` in the sync `Bitmap` branch in
-`webgl.rs`). If we instead drop the flip everywhere, every existing example
-authoring UVs in GL convention (e.g. `examples/minwebgl/hexagonal_map`)
-needs its UVs re-authored in image convention, and the sprite shader's
-outer `1 - ...` can be removed.
+**Fixed**: `bitmap_texture_upload` now also sets `UNPACK_FLIP_Y_WEBGL=1`
+before its `tex_image_2d` call (and restores it to `0` afterward, matching
+the function's existing `UNPACK_ALIGNMENT` restore convention) — see
+BUG-210. Both upload paths now agree on the flipped/GL-convention UV
+contract the sprite shaders already assume.
 
 ## Directory Layout
 

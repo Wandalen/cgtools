@@ -2,6 +2,10 @@
 //! bookkeeping — covers BUG-130: `mouse_buttons`/`active_pointers` were updated
 //! as if exactly one button is ever held by one pointer at a time, breaking as
 //! soon as two pointers share a button or one pointer holds two buttons.
+//! Also covers BUG-212 (`held_buttons` grew without the same cap
+//! `active_pointers` already enforced) and BUG-213's mouse half (the
+//! `MouseButton::Unknown` fallback variant aliasing two distinct real buttons
+//! onto one flat bit).
 
 use browser_input::*;
 use browser_input::mouse::MouseButton;
@@ -186,4 +190,122 @@ fn cancel_only_clears_the_cancelled_pointers_own_buttons()
     state.mouse_buttons[ MouseButton::Secondary as usize ],
     "pointer 2's unrelated button must be untouched by pointer 1's cancel"
   );
+}
+
+// test_kind: bug_reproducer(BUG-212)
+/// ## Root Cause
+/// `held_buttons` inserted a new pointer id on every `Press` unconditionally,
+/// while `active_pointers` already gated new insertions behind
+/// `MAX_ACTIVE_POINTERS` (32) -- once more than the cap's worth of distinct
+/// pointer ids had pressed a button, `held_buttons` kept growing (and kept
+/// contributing to `mouse_buttons`) even for ids `active_pointers` had already
+/// started silently ignoring.
+///
+/// ## Why Not Caught
+/// `tests/manual/readme.md`'s "Excessive Pointer Flood" scenario only checked
+/// `active_pointers().length` capping -- `held_buttons` is a private field with
+/// no existing test observing its effect on `mouse_buttons` under a flood.
+///
+/// ## Fix Applied
+/// `held_buttons` insertion on `Press` is now gated behind the identical
+/// "already tracked or under `MAX_ACTIVE_POINTERS`" check `active_pointers`
+/// already used (`src/input.rs`) -- a pointer id beyond the cap is now
+/// invisible to both collections consistently, not just one of them.
+///
+/// ## Prevention
+/// Two collections meant to track the same conceptual set (currently-active
+/// pointer ids) must share the exact same admission check -- a cap added to
+/// one sibling collection is not automatically inherited by another.
+///
+/// ## Pitfall
+/// `held_buttons` is a private field, so this can only be observed indirectly
+/// through `mouse_buttons` -- with `MAX_ACTIVE_POINTERS` or fewer pointers
+/// live, `held_buttons` and `active_pointers` always agreed, hiding the
+/// missing cap until a flood actually exceeded it.
+#[ test ]
+fn held_buttons_respects_the_same_cap_as_active_pointers()
+{
+  let mut state = State::new();
+
+  // Fill up to the cap (32), then press one more distinct pointer id on top.
+  let presses : Vec< Event > = ( 1_i32 ..= 33 )
+    .map( | id | press( id, MouseButton::Main, id, id ) )
+    .collect();
+  events_apply_to_state( &mut state, &presses );
+
+  assert_eq!( state.active_pointers.len(), 32, "active_pointers correctly caps at MAX_ACTIVE_POINTERS" );
+  assert!( state.mouse_buttons[ MouseButton::Main as usize ], "Main is held by the 32 tracked pointers" );
+
+  // Release every pointer id that active_pointers actually admitted (1..=32).
+  // Pointer 33 was beyond the cap -- active_pointers never tracked it, so no
+  // caller iterating active_pointers would ever know it needs releasing.
+  let releases : Vec< Event > = ( 1_i32 ..= 32 )
+    .map( | id | release( id, MouseButton::Main, id, id ) )
+    .collect();
+  events_apply_to_state( &mut state, &releases );
+
+  assert!( state.active_pointers.is_empty(), "all admitted pointers released" );
+  assert!
+  (
+    !state.mouse_buttons[ MouseButton::Main as usize ],
+    "Main must now read as released -- pointer 33 was never admitted into \
+     tracked state in the first place, so it cannot keep Main stuck held \
+     (buggy code would have left this true forever, since held_buttons kept \
+     an untracked entry for pointer 33 that active_pointers never exposed)"
+  );
+}
+
+// test_kind: bug_reproducer(BUG-213)
+/// ## Root Cause
+/// `MouseButton::from_button` maps every DOM button value outside `0..=4` to
+/// the single fallback variant `Unknown` -- a flat `held_buttons` bit keyed by
+/// that one collapsed discriminant cannot tell "one aliased button held" from
+/// "two DIFFERENT aliased buttons held": releasing either one cleared the
+/// shared bit, falsely dropping the other's still-held state.
+///
+/// ## Why Not Caught
+/// No existing test pressed `MouseButton::Unknown` twice under one pointer id
+/// before releasing once -- every existing multi-button test used two
+/// individually-addressable variants (`Main`/`Secondary`), which don't alias.
+///
+/// ## Fix Applied
+/// A per-pointer `unknown_button_counts` map now counts how many aliased
+/// presses are outstanding (`src/input.rs`); an `Unknown` release only clears
+/// the shared bit once the count reaches zero.
+///
+/// ## Prevention
+/// Any many-to-one fallback variant (a "catch-all" enum case) breaks a flat
+/// bit/bool the instant two distinct real inputs alias to it simultaneously --
+/// such variants need a hold-COUNT, not a hold-bit.
+///
+/// ## Pitfall
+/// Indistinguishable from the ordinary single-button case as long as only one
+/// exotic/unmapped button is ever held at a time -- only two SIMULTANEOUS
+/// aliased buttons under the same pointer expose the false-clear.
+#[ test ]
+fn releasing_one_aliased_unknown_button_does_not_clear_another_still_held()
+{
+  let mut state = State::new();
+
+  // Two distinct real DOM buttons (e.g. browser button values 5 and 6) both
+  // alias to MouseButton::Unknown -- events_apply_to_state cannot and must
+  // not need to tell them apart, only count how many are outstanding.
+  events_apply_to_state
+  (
+    &mut state,
+    &[ press( 1, MouseButton::Unknown, 0, 0 ), press( 1, MouseButton::Unknown, 0, 0 ) ]
+  );
+  assert!( state.mouse_buttons[ MouseButton::Unknown as usize ], "both aliased presses register as held" );
+
+  events_apply_to_state( &mut state, &[ release( 1, MouseButton::Unknown, 0, 0 ) ] );
+  assert!
+  (
+    state.mouse_buttons[ MouseButton::Unknown as usize ],
+    "one aliased button is still physically held -- releasing the other must \
+     not clear the shared Unknown bit \
+     (buggy code would have set this false after the first release)"
+  );
+
+  events_apply_to_state( &mut state, &[ release( 1, MouseButton::Unknown, 0, 0 ) ] );
+  assert!( !state.mouse_buttons[ MouseButton::Unknown as usize ], "both released -- now correctly false" );
 }

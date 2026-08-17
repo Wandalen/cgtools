@@ -103,6 +103,12 @@ required-features = ["font-processing"]
 name = "ufo_text_advance_test"
 required-features = ["font-processing"]
 
+# Exercises `Font::max_size`'s bounding-box union, gated behind `font-processing`
+# (same rationale as the UFO glyph pipeline tests above).
+[[test]]
+name = "font_bounding_box_union_test"
+required-features = ["font-processing"]
+
 # Metadata for crates.io
 [package.metadata.docs.rs]
 all-features = true

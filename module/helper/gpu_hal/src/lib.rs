@@ -38,6 +38,13 @@ mod private {}
   #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
   layer webgl;
 
+  /// Build-time-only WGSL→GLSL ES 300 translation for gpu_hal's WebGL
+  /// backend, for use as a `build.rs` build-dependency. Independent of the
+  /// `webgl` feature and its wasm32-only deps, so it compiles on any host
+  /// regardless of the final target.
+  #[ cfg( feature = "webgl-glsl-build" ) ]
+  layer webgl_build;
+
   /// Native wgpu backend mappings and readback internals.
   #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
   layer native;
