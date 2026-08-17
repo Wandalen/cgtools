@@ -20,14 +20,15 @@ reading before touching fleet motion again; M8's is the last entry).
   transform gizmo (M6)")
 - `5971b6a0` on `space-game-demo` — M7 ("feat: add Falling Frontier fleet
   motion and trajectories (M7)")
-- M8 ("feat: add Falling Frontier tactical HUD (M8)") — commit this one
-  along with this doc update; see checklist entry below for full scope.
+- `50ef62de` on `space-game-demo` — M8 ("feat: add Falling Frontier
+  tactical HUD (M8)")
 
 All with no `Co-Authored-By` trailer, per the standing repo rule (see memory
-`feedback_commit_trailers`). `examples/minwebgl/falling_frontier/Untitled.png`
-is an untracked debug screenshot the user pasted in during the M4 starfield
-investigation (see Notes section below) — left untracked on purpose, safe to
-delete once no longer needed, not part of the deliverable.
+`feedback_commit_trailers`). Nothing else in this crate is uncommitted as of
+this note. `examples/minwebgl/falling_frontier/Untitled.png` is an untracked
+debug screenshot the user pasted in during the M4 starfield investigation
+(see Notes section below) — left untracked on purpose, safe to delete once
+no longer needed, not part of the deliverable.
 
 **If picking this back up**: there's no "next task" - re-read the gap audit
 (`research/falling_frontier_cgtools_audit.md`) against what actually landed
