@@ -83,7 +83,7 @@ name and a documented home.
 |------|--------------|
 | `module/blank/frame_graph/` | The reserved crate slot |
 | `module/helper/renderer/src/webgl/renderer.rs` | The richest embedded instance: target zoo + pass ordering + resolve |
-| `module/helper/renderer/tests/webgl_frame_orchestration_test.rs` | Native unit coverage for the attachment-selection branch (task 115) |
+| `module/helper/renderer/tests/webgl_frame_orchestration_test.rs` | Native unit coverage for the attachment-selection branch (task 247) |
 | `module/helper/renderer/src/webgl/post_processing/pass.rs` | Pass composition machinery |
 | `module/helper/renderer/src/webgl/shadow.rs` | Shadow-map target and pass cycle |
 | `module/helper/renderer/tests/webgl/shadow.rs` | Covers only the `SpotLight`→`Light` size helper, not the FBO/pass-cycle machinery |

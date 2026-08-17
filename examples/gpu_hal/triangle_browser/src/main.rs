@@ -15,7 +15,12 @@
 //! ```
 
 #[ cfg( target_arch = "wasm32" ) ]
-use gpu_hal::*;
+use gpu_hal::
+{
+  Device, Queue, Surface, ShaderSource, BufferUsage, BindGroupLayoutEntry, ShaderStages,
+  BindingType, BindingResource, RenderPipelineDesc, VertexBufferLayout, VertexAttribute,
+  VertexFormat, ColorAttachmentDesc, IndexFormat,
+};
 
 /// Bytes of a `f32` slice, little-endian — mirrors
 /// `native_backend_test.rs::as_bytes`.
@@ -27,57 +32,23 @@ fn as_bytes( values : &[ f32 ] ) -> Vec< u8 >
 
 /// Uniform-colored triangle, the same WGSL `native_backend_test.rs`'s
 /// `triangle_render_readback` uses — the WebGPU and native backends consume
-/// this directly.
+/// this directly; the WebGL backend's GLSL override ( below ) is generated
+/// from it at build time by `build.rs`, not hand-ported.
 #[ cfg( target_arch = "wasm32" ) ]
-const WGSL : &str = "
-struct Color
-{
-  value : vec4f
-}
+const WGSL : &str = include_str!( "triangle.wgsl" );
 
-@group( 0 ) @binding( 0 ) var< uniform > color : Color;
-
-@vertex
-fn vs_main( @location( 0 ) position : vec2f ) -> @builtin( position ) vec4f
-{
-  return vec4f( position, 0.0, 1.0 );
-}
-
-@fragment
-fn fs_main() -> @location( 0 ) vec4f
-{
-  return color.value;
-}
-";
-
-/// GLSL ES 300 equivalent of `WGSL`'s vertex stage. Attribute location `0`
-/// matches the `VertexAttribute.location` wired in `triangle_draw` below.
+/// GLSL ES 300 vertex stage, generated from `WGSL` by gpu_hal's `webgl_build`
+/// kit ( `build.rs` ).
 #[ cfg( target_arch = "wasm32" ) ]
-const GLSL_VERTEX : &str = "#version 300 es
-layout( location = 0 ) in vec2 position;
-void main()
-{
-  gl_Position = vec4( position, 0.0, 1.0 );
-}
-";
+const GLSL_VERTEX : &str = include_str!( concat!( env!( "OUT_DIR" ), "/triangle.vert.glsl" ) );
 
-/// GLSL ES 300 equivalent of `WGSL`'s fragment stage. The uniform block name
-/// `ub_0_0` follows `webgl_bindings_introspect`'s `ub_{group}_{binding}`
+/// GLSL ES 300 fragment stage, generated from `WGSL` by gpu_hal's
+/// `webgl_build` kit ( `build.rs` ) — the uniform block is renamed to
+/// `ub_0_0` per `webgl_bindings_introspect`'s `ub_{group}_{binding}`
 /// convention ( `gpu_hal/src/device.rs` ), matching `WGSL`'s
 /// `@group(0) @binding(0)`.
 #[ cfg( target_arch = "wasm32" ) ]
-const GLSL_FRAGMENT : &str = "#version 300 es
-precision highp float;
-layout( std140 ) uniform ub_0_0
-{
-  vec4 value;
-};
-out vec4 out_color;
-void main()
-{
-  out_color = value;
-}
-";
+const GLSL_FRAGMENT : &str = include_str!( concat!( env!( "OUT_DIR" ), "/triangle.frag.glsl" ) );
 
 /// Builds the pipeline and resources shared by both backends and issues one
 /// render pass drawing a red triangle over a black clear — device creation

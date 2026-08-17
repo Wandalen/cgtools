@@ -19,7 +19,7 @@
 |---|------|---------|--------|--------|
 | 1 | [01_preview.md](01_preview.md) | `.preview` | 3 | ✅ |
 
-**Total:** 1 command (of 8 across the `shader_chunks` family)
+**Total:** 1 command (of 9 across the `shader_chunks` family)
 
 ### Commands Table
 

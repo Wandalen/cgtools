@@ -18,12 +18,12 @@
 | 1 | [01_query.md](01_query.md) | Query | ✅ |
 | 2 | [02_graph.md](02_graph.md) | Graph | ✅ |
 
-**Total:** 2 command group test specs (of 6 across the `shader_chunks` family)
+**Total:** 2 command group test specs (of 7 across the `shader_chunks` family)
 
 The rendered-grouping invariant —
-[`../../../../shader_chunks/tests/cli_subprocess_test.rs`](../../../../shader_chunks/tests/cli_subprocess_test.rs)`::top_level_help_groups_commands_by_responsibility`
+[`../../../../../shader_chunks/tests/cli_subprocess_test.rs`](../../../../../shader_chunks/tests/cli_subprocess_test.rs)`::top_level_help_groups_commands_by_responsibility`
 — asserts the help screen's group order and membership matches the
-documented partition across all 6 groups.
+documented partition across all 7 groups.
 
 ### Docs
 

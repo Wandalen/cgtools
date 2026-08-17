@@ -171,6 +171,7 @@ Desired answer for every question is YES.
 *(append-only — newest entry last; never edit or remove past entries)*
 
 - **[2026-08-15]** `FILED` — Task filed via `/doc_tsk` Phase 2 (docs/layer gap audit): add malformed-RON-syntax `LoadError::Ron` test coverage to `tilemap_scene`.
+- **[2026-08-17]** `RENUMBERED` — 116 → 248, resolving a bug/task ID collision with `BUG-116` (`task/bug/completed/116_query_table_plain_width_wraps_documentation_mismatch.md`), both filed independently under the shared tsk ID namespace. File and Tasks Index row renamed; no other cross-references existed.
 
 ## Related Documentation
 

@@ -4,16 +4,14 @@ use std::cell::RefCell;
 use minwebgl as gl;
 use gl::
 {
-  texture::d2::image_upload_from_path,
   F32x4,
   math::mat4x4::identity,
-  GL,
   WebGl2RenderingContext,
   web_sys::HtmlCanvasElement
 };
 use renderer::webgl::
 {
-  Camera, MagFilterMode, Material, MinFilterMode, Node, Object3D, Renderer, Sampler, Scene, Texture, TextureInfo, WrappingMode, cast_unchecked_material_to_ref_mut, loaders::gltf::GLTF, material::PbrMaterial, post_processing::
+  Camera, Material, Node, Object3D, Renderer, Scene, Texture, TextureInfo, cast_unchecked_material_to_ref_mut, loaders::gltf::GLTF, material::PbrMaterial, post_processing::
   {
     self, Pass, SwapFramebuffer
   }
@@ -33,20 +31,7 @@ fn texture_create
 ) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = image_upload_from_path( gl, &image_path, false );
-
-  let sampler = Sampler::former()
-  .min_filter( MinFilterMode::Linear )
-  .mag_filter( MagFilterMode::Linear )
-  .wrap_s( WrappingMode::Repeat )
-  .wrap_t( WrappingMode::Repeat )
-  .end();
-
-  let texture = Texture::former()
-  .target( GL::TEXTURE_2D )
-  .source( texture_id )
-  .sampler( sampler )
-  .end();
+  let texture = Texture::load_from_path( gl, &image_path, false );
 
   TextureInfo
   {

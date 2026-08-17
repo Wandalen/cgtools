@@ -6,7 +6,7 @@
   across this crate's commands.
 - **Responsibility:** One dedicated file per group — membership,
   co-occurrence rationale, interaction rules.
-- **In Scope:** The 3 groups partitioning the 19 named query parameters
+- **In Scope:** The 3 groups partitioning the 20 named query parameters
   shared verbatim by `.list` and `.get`.
 - **Out of Scope:** Per-parameter type/constraint/default detail (→ [`../param/`](../param/readme.md)).
 
@@ -16,13 +16,13 @@
 
 | # | File | Group | Parameters | Status |
 |---|------|-------|------------|--------|
-| 1 | [01_filtering.md](01_filtering.md) | filtering | 10 (`pattern` … `leaves`) | ✅ |
+| 1 | [01_filtering.md](01_filtering.md) | filtering | 11 (`pattern` … `source`) | ✅ |
 | 2 | [02_projection.md](02_projection.md) | projection | 2 (`fields`, `count`) | ✅ |
 | 3 | [03_formatting.md](03_formatting.md) | formatting | 7 (`format` … `width`) | ✅ |
 
 **Total:** 3 parameter groups
 
-**Partition note:** the 3 groups cover the 19 *named* query parameters
+**Partition note:** the 3 groups cover the 20 *named* query parameters
 exactly once each. The positional [`names`](../param/02_names.md) selects
 the candidate set before any group applies, and [`name`](../param/01_name.md)
 (also declared by `.tree` here, and by `.tunables`/`.preview`/`.render`

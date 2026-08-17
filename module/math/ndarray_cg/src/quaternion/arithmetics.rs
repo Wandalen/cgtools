@@ -317,8 +317,28 @@ mod private
       let one = E::one();
       let eps = E::from( 1e-6 ).unwrap();
 
+      // Fix(BUG-270): corrected the sign of the cross term in all three trig formulas (`w*y -
+      // z*x` -> `w*y + z*x` for pitch; `w*x + y*z` -> `w*x - y*z` for roll; `w*z + x*y` -> `w*z
+      // - x*y` for yaw), and corrected the gimbal-lock branch's yaw denominator (`y*y + z*z` ->
+      // `x*x + z*z`).
+      // Root cause: the matrix-to-Euler-angle extraction formulas were transcribed with the
+      // wrong sign on each cross term (and the wrong pair of squared components in the gimbal
+      // lock denominator), so the function only happened to look correct for single-axis
+      // rotations (where the mismatched cross term is a product against an always-zero
+      // component) or very small angles (where the loose pre-existing test epsilon of 1e-1
+      // hid the error) -- any genuine multi-axis rotation returned wrong roll/pitch/yaw, and
+      // true gimbal lock (pitch = +/-90 degrees) was neither reliably detected by `sinp` nor
+      // handled correctly by the collapsed-yaw branch (whose denominator was identically 0.5
+      // -> 0 regardless of the actual combined angle).
+      // Pitfall: a matrix/quaternion-to-Euler decomposition formula with several structurally
+      // similar terms (here: `w*y +/- z*x`, `w*x +/- y*z`, `w*z +/- x*y`) needs each sign
+      // verified independently against a derivation or ground truth (matrix product, or the
+      // crate's own verified-correct forward conversion) -- copying the "shape" of a sibling
+      // term without re-deriving its specific sign lets a single transcription slip silently
+      // propagate across every term that shares the pattern, and single-axis/small-angle test
+      // inputs cannot detect it because the buggy cross term evaluates to (near) zero either way.
       // Pitch ( Y )
-      let sinp = two * ( w * y - z * x );
+      let sinp = two * ( w * y + z * x );
       let sinp = sinp.max( - one ).min( one );
       let pitch = sinp.asin();
 
@@ -326,15 +346,15 @@ mod private
       if ( sinp.abs() - one ).abs() < eps
       {
         // Collapse roll into yaw
-        let yaw = two * ( x * y + w * z ).atan2( one - two * ( y * y + z * z ) );
+        let yaw = two * ( x * y + w * z ).atan2( one - two * ( x * x + z * z ) );
         return [ E::zero(), pitch, wrap_pi( yaw ) ].into();
       }
 
       // Roll ( X )
-      let mut roll = ( two * ( w * x + y * z ) ).atan2( one - two * ( x * x + y * y ) );
+      let mut roll = ( two * ( w * x - y * z ) ).atan2( one - two * ( x * x + y * y ) );
 
       // Yaw ( Z )
-      let mut yaw = ( two * ( w * z + x * y ) ).atan2( one - two * ( y * y + z * z ) );
+      let mut yaw = ( two * ( w * z - x * y ) ).atan2( one - two * ( y * y + z * z ) );
 
       roll = wrap_pi( roll );
       yaw  = wrap_pi( yaw );

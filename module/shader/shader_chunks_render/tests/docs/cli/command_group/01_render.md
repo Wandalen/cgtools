@@ -13,6 +13,7 @@ Source: [`../../../../docs/cli/command_group/01_render.md`](../../../../docs/cli
 | CG-5 | Validation precedes GPU work and the write — a rejected chunk (unknown, or outside the previewable shapes) leaves the `out::` path untouched | `shader_chunks_render/tests/render_cli_test.rs::unpreviewable_chunk_is_rejected_before_any_gpu_work`; `shader_chunks_render/tests/render_cli_test.rs::unknown_name_is_rejected_with_the_shared_unknown_chunk_text` |
 | CG-6 | The help screen renders this group with exactly its documented membership (`render`) | `shader_chunks_render/tests/render_cli_test.rs::subprocess_help_lists_the_render_group`; `cli_subprocess_test.rs::top_level_help_groups_commands_by_responsibility` (asserts `Preview` < `Render` group order in the aggregator) |
 | CG-7 | The aggregated `shader_chunks` binary carries the full behavior — a PNG written end to end, and a loud non-panic failure | `cli_subprocess_test.rs::render_writes_a_png_through_the_aggregated_binary`; `cli_subprocess_test.rs::render_unknown_chunk_exits_non_zero_without_a_panic_backtrace` |
+| CG-8 | Under `all::1`, one chunk's skip (unpreviewable shape) or failure never aborts the batch — every chunk is attempted, the summary reports per-chunk outcomes plus totals, and the batch's own exit code reflects only true failures, never a mere skip | `shader_chunks_render/tests/render_cli_test.rs::render_all_to_png_creates_the_out_dir_and_covers_every_bundled_chunk_with_no_failures`; `shader_chunks_render/tests/render_cli_test.rs::render_all_to_png_skips_the_known_unpreviewable_chunk_without_writing_a_file`; `shader_chunks_render/tests/render_cli_test.rs::subprocess_render_all_writes_a_png_per_chunk_into_a_freshly_created_dir_and_reports_totals` |
 
 Engine-level determinism behind CG-1 — exact constant-color pixels on
 any conformant adapter, grayscale harness structure, padding-requiring
@@ -52,8 +53,8 @@ Filed as a disclosed gap rather than a fabricated WF row, matching
 
 | Metric | Value |
 |--------|-------|
-| Group cases | 7 |
-| Behaviorally tested | 7 |
+| Group cases | 8 |
+| Behaviorally tested | 8 |
 | Structurally verified | 0 |
 | Workflow compositions | 0 (conceptual only — see above) |
 | Membership coverage | 1/1 commands |

@@ -20,7 +20,7 @@
 |---|------|--------|-------|--------|
 | 1 | [cmd_001_tunables.md](cmd_001_tunables.md) | `.tunables` | [Parameters](../command_group/01_parameters.md) | ✅ |
 
-**Total:** 1 per-command file (of 8 across the `shader_chunks` family)
+**Total:** 1 per-command file (of 9 across the `shader_chunks` family)
 
 ### Docs
 

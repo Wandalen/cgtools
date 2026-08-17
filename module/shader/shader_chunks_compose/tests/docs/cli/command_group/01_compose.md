@@ -11,6 +11,8 @@ Source: [`../../../../docs/cli/command_group/01_compose.md`](../../../../docs/cl
 | CG-3 | Cyclic dependencies fail loudly, never hang or panic | `shader_chunks_compose/tests/shader_chunks_compose_test.rs::try_compose_wgsl_reports_cyclic_dependency_error_on_synthetic_fixture` |
 | CG-4 | An unknown chunk name fails loudly, never a panic | `shader_chunks_compose/tests/shader_chunks_compose_test.rs::compose_chunks_reports_unknown_chunk_error_for_bogus_name` |
 | CG-5 | The help screen renders this group with exactly its documented membership (`compose`) | `cli_subprocess_test.rs::top_level_help_groups_commands_by_responsibility` |
+| CG-6 | With `out::` given, the composed WGSL is written to the file and stdout carries only the summary; without it, stdout still carries the composed text as before | `shader_chunks_compose/tests/shader_chunks_compose_test.rs::subprocess_compose_writes_the_file_and_prints_the_summary`; `subprocess_compose_without_out_prints_composed_text_to_stdout` |
+| CG-7 | A write-side failure at `out::` (missing parent directory) is a distinct `Io` error, exit 2, and never leaves a partial file | `shader_chunks_compose/tests/shader_chunks_compose_test.rs::compose_write_to_an_unwritable_path_is_an_io_error_with_exit_code_2`; `subprocess_compose_out_to_unwritable_path_fails_with_exit_2` |
 
 ### Membership Coverage
 
@@ -36,8 +38,8 @@ and idempotent, so no dedicated multi-invocation test is needed):
 
 | Metric | Value |
 |--------|-------|
-| Group cases | 5 |
-| Behaviorally tested | 5 |
+| Group cases | 7 |
+| Behaviorally tested | 7 |
 | Structurally verified | 0 |
 | Workflow compositions | 1 (cross-group, with Graph) |
 | Membership coverage | 1/1 commands |

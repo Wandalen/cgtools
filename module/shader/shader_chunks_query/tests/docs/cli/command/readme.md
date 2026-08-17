@@ -23,7 +23,7 @@
 | 3 | [cmd_003_tags.md](cmd_003_tags.md) | `.tags` | [Query](../command_group/01_query.md) | ✅ |
 | 4 | [cmd_004_tree.md](cmd_004_tree.md) | `.tree` | [Graph](../command_group/02_graph.md) | ✅ |
 
-**Total:** 4 per-command files (of 8 across the `shader_chunks` family)
+**Total:** 4 per-command files (of 9 across the `shader_chunks` family)
 
 Cross-command workflow compositions live with the group whose semantics
 they exercise: [`../command_group/01_query.md`](../command_group/01_query.md)

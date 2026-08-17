@@ -106,6 +106,31 @@ mod private
     4.0_f32.powf( ( data_size as f32 ).sqrt().log( 4.0 ).ceil() ) as u32
   }
 
+  /// Computes the `( width, height )`, in texels, of a displacement texture holding
+  /// `data_len` floats, keeping each row a whole multiple of `vertex_displacement_len`
+  /// ( texels-per-vertex, i.e. `attributes_count * targets_count` ) so a single vertex's
+  /// texel block never spans two rows.
+  #[ must_use ]
+  pub fn displacement_texture_size_compute( data_len : usize, vertex_displacement_len : usize ) -> ( u32, u32 )
+  {
+    let v = vertex_displacement_len as f32;
+    // Fix(BUG-252): plain `floor()` could round `i` down to `0` whenever
+    // `sqrt(data_len) < v` (small vertex counts relative to attributes*targets), collapsing
+    // the texture width `a` to `0` and forcing `b = data_len / 0 == +inf`, which saturates
+    // to `u32::MAX` and always exceeds the caller's size-limit check -- so the update
+    // silently and permanently failed every frame with a misleading "texture too large"
+    // error instead of ever writing real displacement data.
+    // Root cause: rounding the row width down to the nearest multiple of
+    // `vertex_displacement_len` can legitimately round all the way down to zero multiples
+    // when `data_len` is small; `.max( 1.0 )` guarantees at least one.
+    // Pitfall: `a.max( b ) > max_size` looks like it only guards against oversized
+    // textures, so it silently absorbed this unrelated div-by-zero-by-`a` failure mode too.
+    let i = ( ( data_len as f32 ).sqrt() / v ).floor().max( 1.0 );
+    let a = ( v * i ) as u32;
+    let b = ( data_len as f32 / a as f32 ).ceil() as u32;
+    ( a, b )
+  }
+
   /// Skin joints transforms related data
   #[ derive( Debug ) ]
   pub struct TransformsData
@@ -446,10 +471,7 @@ mod private
 
       if vertex_displacement_len != 0
       {
-        let v = vertex_displacement_len as f32;
-        let i = ( ( data.len() as f32 ).sqrt() / v ).floor();
-        let a = ( v * i ) as u32;
-        let b = ( data.len() as f32 / a as f32 ).ceil() as u32;
+        let ( a, b ) = displacement_texture_size_compute( data.len(), vertex_displacement_len );
 
         let max_size = gl.get_parameter( gl::MAX_TEXTURE_SIZE )
         .ok()
@@ -742,6 +764,7 @@ crate::mod_interface!
   {
     texture_data_4f_load,
     data_texture_size_calculate,
+    displacement_texture_size_compute,
     TransformsData,
     DisplacementsData,
     Skeleton,

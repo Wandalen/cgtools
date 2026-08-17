@@ -6,7 +6,8 @@ mod private
   use mingl::
   {
     CameraOrbitControls,
-    controls::camera_orbit_controls::controls_bind_to_input
+    controls::camera_orbit_controls::controls_bind_to_input,
+    geometry::BoundingBox,
   };
 
   /// A struct representing a 3D camera with orbit controls.
@@ -27,7 +28,7 @@ mod private
     /// * `up` - The up direction of the camera.
     /// * `look_at` - The point in 3D space the camera is looking at.
     /// * `aspect_ratio` - The ratio of the viewport's width to its height.
-    /// * `fov` - The field of view in degrees.
+    /// * `fov` - The vertical field of view in radians.
     /// * `near` - The distance to the near clipping plane.
     /// * `far` - The distance to the far clipping plane.
     ///
@@ -104,6 +105,53 @@ mod private
       )
     }
 
+    /// Builds a camera framing `bounding_box`, viewed from `direction` ( need not be
+    /// normalized ) with `up` as the camera's up vector.
+    ///
+    /// `distance` is derived from the box's bounding sphere ( its half-diagonal, a
+    /// conservative over-approximation that always contains the box ) so that the sphere
+    /// fits the frustum on both axes, accounting for `fov`/`aspect_ratio` -- unlike a flat
+    /// `distance = bounding_box.max.mag()` scale ( a pattern duplicated, with several
+    /// mutually-inconsistent tweaks, across a dozen examples in this workspace ), this
+    /// scales correctly regardless of where the box sits relative to the world origin, and
+    /// regardless of what fov/aspect_ratio the camera uses. `near`/`far` are likewise
+    /// derived tightly from the box's own extent rather than a fixed heuristic.
+    ///
+    /// `near_min` guards the near plane against a degenerate ( near-zero-radius ) box
+    /// collapsing it to zero or negative, which `Camera::new` would otherwise reject.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` under the same conditions as `Camera::new` -- `aspect_ratio`,
+    /// `fov`, or `near_min` outside their required domains, propagated through unchanged.
+    pub fn from_bounding_box
+    (
+      bounding_box : &BoundingBox,
+      direction : gl::F32x3,
+      up : gl::F32x3,
+      aspect_ratio : f32,
+      fov : f32,
+      near_min : f32,
+    ) -> Result< Self, gl::WebglError >
+    {
+      let center = bounding_box.center();
+      let radius = ( ( bounding_box.max - bounding_box.min ) * 0.5 ).mag();
+
+      let vertical_half = fov * 0.5;
+      let horizontal_half = ( aspect_ratio * vertical_half.tan() ).atan();
+      let limiting_half = vertical_half.min( horizontal_half );
+      let distance = if radius > 0.0 { radius / limiting_half.sin() } else { near_min };
+
+      let eye = center + direction.normalize() * distance;
+      let near = ( distance - radius ).max( near_min );
+      // `.max( near + near_min )` guards a degenerate ( zero/near-zero-radius ) box, where
+      // `distance` collapses to `near_min` and `distance + radius` would otherwise land on or
+      // below `near` itself -- `Camera::new` requires `far > near` strictly.
+      let far = ( distance + radius ).max( near + near_min );
+
+      Self::new( eye, up, center, aspect_ratio, fov, near, far )
+    }
+
     /// Binds mouse and pointer events to the camera controls for interaction.
     ///
     /// # Arguments
@@ -178,9 +226,35 @@ mod private
     }
 
     /// Sets the projection matrix value
-    pub fn projection_matrix_set( &mut self, projection_matrix : gl::F32x4x4 )
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if `projection_matrix` has a non-finite component or is singular
+    /// ( not invertible ) -- see BUG-246. Consumers such as `Renderer::skybox_draw` require an
+    /// invertible projection matrix.
+    // Fix(BUG-246): this setter bypassed `Camera::new`'s ( BUG-174 ) validation entirely --
+    // any caller recomputing a projection matrix directly ( e.g. on window resize ) and passing
+    // it here fed a possibly Inf/NaN-poisoned or singular matrix straight into `self.projection_matrix`
+    // with no check, deferring the same class of panic BUG-174 fixed to an unrelated downstream
+    // `.inverse().unwrap()` call.
+    // Root cause: `Camera::new` validates its scalar inputs before building the matrix, but
+    // `projection_matrix_set` accepts an already-built matrix, so those scalar checks can never run.
+    // Pitfall: validating a constructor's inputs does not protect a sibling setter that accepts
+    // the constructor's *output* type directly -- the invariant must be enforced at every entry
+    // point that can set the field, not just the one a bug happened to be found through.
+    pub fn projection_matrix_set( &mut self, projection_matrix : gl::F32x4x4 ) -> Result< (), gl::WebglError >
     {
+      if !projection_matrix.to_array().iter().all( | c | c.is_finite() )
+      {
+        return Err( gl::WebglError::Other( "Camera::projection_matrix_set: projection_matrix must have all-finite components" ) );
+      }
+      if projection_matrix.inverse().is_none()
+      {
+        return Err( gl::WebglError::Other( "Camera::projection_matrix_set: projection_matrix must be invertible" ) );
+      }
+
       self.projection_matrix = projection_matrix;
+      Ok( () )
     }
 
     /// Returns a clone of the `Rc` to the camera controls.

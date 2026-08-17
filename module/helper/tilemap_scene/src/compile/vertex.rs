@@ -122,12 +122,27 @@ mod private
     ];
     indexed.sort_by( | a, b | a.1.cmp( &b.1 ) );
 
-    // Rotation: where did the original corner 0 end up?
-    // We report it modulo 3 — SPEC says rotation ∈ {0, 1, 2}. If the sort
-    // produces a non-cyclic permutation (e.g. a swap), we still collapse to
-    // the mod-3 index of the original-0 slot; that covers the common case
-    // of cyclic rotations and is a pragmatic default for the others.
-    let rotation = indexed.iter().position( | ( orig, _ ) | *orig == 0 ).unwrap_or( 0 ) as u8;
+    // Fix(BUG-264): rotation must report which ORIGINAL corner's value
+    // landed in canonical slot 0 (`indexed[0].0`), matching this function's
+    // own doc comment ("which original slot landed in slot 0") and the
+    // SPEC-level docs (`docs/format/003_anchor_placement_types.md`,
+    // `docs/invariant/002_edge_and_vertex_canonical_uniqueness.md`: "the
+    // permutation applied to reach"/"which cyclic permutation ... produced
+    // that sorted order"). The previous formula instead searched for where
+    // original corner 0 (not the value now in slot 0) ended up — the
+    // *inverse* rotation, equal to the intended value only at the
+    // rotation = 0 fixed point; for either non-identity cyclic rotation of
+    // 3 corners it picks the wrong one of the 3 `{rot}`-substituted sprite
+    // variants pre-allocated by `assets_compile`.
+    // Root cause: `.position(|(orig,_)| *orig == 0)` finds corner-0's new
+    // position in the sorted array, which is the inverse permutation of
+    // "which corner is now first" (`indexed[0].0`).
+    // Pitfall: a scalar "rotation index" can be read as a permutation or as
+    // its inverse — both compile, both stay in the documented 0..3 range,
+    // and no test pinned the exact value (only "some rotation matched"),
+    // so only cross-checking the implementation against the doc's worked
+    // wording catches the swap.
+    let rotation = indexed[ 0 ].0 as u8;
 
     let sorted =
     [

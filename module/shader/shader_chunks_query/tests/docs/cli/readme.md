@@ -8,8 +8,8 @@
 - **Responsibility:** Cross-reference every documented CLI entity in
   [`../../docs/cli/`](../../docs/cli/readme.md) to the real test
   function(s) that verify it.
-- **In Scope:** The 5 tiers below, covering this crate's 4 commands, 21
-  parameters, 3 parameter groups, 2 command groups, and 10 types.
+- **In Scope:** The 5 tiers below, covering this crate's 4 commands, 24
+  parameters, 3 parameter groups, 2 command groups, and 11 types.
 - **Out of Scope:** Test implementation itself (→ `shader_chunks_query_core/tests/shader_chunks_query_core_test.rs`)
   plus the aggregator's own subprocess suite (→
   [`../../../../shader_chunks/tests/cli_subprocess_test.rs`](../../../../shader_chunks/tests/cli_subprocess_test.rs));
@@ -40,11 +40,11 @@ family index's Out of Scope):
 
 | Tier | Files | Test Cases |
 |------|-------|------------|
-| param/ | 21 | 79 `EC-N` |
-| param_group/ | 3 | 15 `GRP-N` |
-| command/ | 4 | 11 `PAR-N` + 8 `INT-N` |
+| param/ | 24 | 89 `EC-N` |
+| param_group/ | 3 | 16 `GRP-N` |
+| command/ | 4 | 12 `PAR-N` + 8 `INT-N` |
 | command_group/ | 2 | 9 `CG-N` + 2 `WF-N` |
-| type/ | 10 | 58 `TC-N` |
+| type/ | 11 | 61 `TC-N` |
 
 Counts overlap by design (Overlap Policy, OC118) — the same real test
 function is cited from multiple tiers when it verifies more than one

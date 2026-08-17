@@ -23,7 +23,7 @@
 |---|------|---------|--------|--------|
 | 1 | [01_tunables.md](01_tunables.md) | `.tunables` | 1 | ✅ |
 
-**Total:** 1 command (of 8 across the `shader_chunks` family)
+**Total:** 1 command (of 9 across the `shader_chunks` family)
 
 ### Commands Table
 

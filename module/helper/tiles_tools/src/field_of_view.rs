@@ -571,7 +571,23 @@ impl FieldOfView
     let next_distance = viewer.distance(next) as f32;
     let target_to_next = direction_target.distance(next) as f32;
 
-    if target_distance == 0.0 || current_distance == 0.0
+    // Fix(BUG-267): `current_distance == 0.0` is true on every ray's first
+    // hop (directional_ray_cast starts with `current = viewer.clone()`), so
+    // this guard fired for every candidate neighbor on the first step of
+    // every ray regardless of `direction_target`, making all of them tie at
+    // alignment 0.0. The strict `>` comparison in directional_ray_cast's
+    // caller then always kept the first-iterated neighbor, so every ray --
+    // whatever direction it was aimed at -- took its first hop toward the
+    // same fixed neighbor.
+    // Root cause: `current_distance` is never used as a divisor anywhere in
+    // this function (only `target_distance` is), so guarding on it being
+    // zero protects nothing; it was likely copy-pasted alongside the
+    // legitimate `target_distance == 0.0` guard without checking whether it
+    // applied.
+    // Pitfall: a zero-value guard must protect an actual division by that
+    // value -- a guard that merely mentions a variable used elsewhere in the
+    // function does not verify that the variable is a divisor there.
+    if target_distance == 0.0
     {
       return 0.0;
     }

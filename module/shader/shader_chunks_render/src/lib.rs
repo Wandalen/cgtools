@@ -11,7 +11,8 @@
 //! dev server, or the web runner crate — the side effect is one image
 //! file at `out::`. `all::1` sweeps every bundled chunk in one pass
 //! instead of one target, skipping ( not failing ) chunks whose shape
-//! isn't previewable and writing `<out>/<name>.png` per chunk.
+//! isn't previewable and writing `<out>/<name>.png` per chunk, creating
+//! `<out>` first if it doesn't already exist.
 
 mod private
 {
@@ -199,14 +200,14 @@ mod private
   {
     for ( property, value ) in overrides
     {
-      match bundle.parameters.iter_mut().find( | p | &p.property == property )
+      if let Some( param ) = bundle.parameters.iter_mut().find( | p | &p.property == property )
       {
-        Some( param ) => param.value = *value,
-        None =>
-        {
-          let valid = bundle.parameters.iter().map( | p | p.property.clone() ).collect();
-          return Err( RenderCliError::UnknownOverrideParameter { name : property.clone(), valid } );
-        }
+        param.value = *value;
+      }
+      else
+      {
+        let valid = bundle.parameters.iter().map( | p | p.property.clone() ).collect();
+        return Err( RenderCliError::UnknownOverrideParameter { name : property.clone(), valid } );
       }
     }
     Ok( () )
@@ -274,13 +275,21 @@ mod private
   /// Renders every bundled chunk ( [`shader_chunks_core::CHUNKS`] ), each
   /// to `<out_dir>/<name>.png`, at the given `size`/`time` ( no `set::`
   /// overrides — a single override list can't cleanly apply across
-  /// chunks with different declared parameters ). A chunk whose shape
-  /// isn't previewable is [`BatchOutcome::Skipped`], not a failure; every
-  /// other error is [`BatchOutcome::Failed`] and does not stop the batch.
-  #[ must_use ]
-  pub fn render_all_to_png( size : ( u32, u32 ), time : f32, out_dir : &Path ) -> Vec< BatchOutcome >
+  /// chunks with different declared parameters ). Creates `out_dir` if it
+  /// doesn't already exist. A chunk whose shape isn't previewable is
+  /// [`BatchOutcome::Skipped`], not a failure; every other error is
+  /// [`BatchOutcome::Failed`] and does not stop the batch.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`RenderCliError::Io`] if `out_dir` doesn't exist and can't
+  /// be created — the one failure that stops the whole batch before it
+  /// starts, since no chunk could be written anyway.
+  pub fn render_all_to_png( size : ( u32, u32 ), time : f32, out_dir : &Path ) -> Result< Vec< BatchOutcome >, RenderCliError >
   {
-    shader_chunks_core::CHUNKS.iter().map( | chunk |
+    std::fs::create_dir_all( out_dir )
+    .map_err( | err | RenderCliError::Io( format!( "creating `{}`: {err}", out_dir.display() ) ) )?;
+    Ok( shader_chunks_core::CHUNKS.iter().map( | chunk |
     {
       let name = chunk.name.to_string();
       let target = PreviewTarget::Name( name.clone() );
@@ -292,7 +301,7 @@ mod private
         BatchOutcome::Skipped { name, reason },
         Err( error ) => BatchOutcome::Failed { name, error },
       }
-    }).collect()
+    }).collect() )
   }
 
   /// Human-readable batch report: one line per chunk, then a totals line.
@@ -365,7 +374,7 @@ mod private
       .attributes( ArgumentAttributes { optional : true, ..ArgumentAttributes::default() } )
       .end(),
       named_arg( "file", Kind::String, "Path to a local `.wgsl` chunk file (manifest header included), instead of a bundled name.", None ),
-      named_arg( "out", Kind::String, "Output PNG path; default `<target>.png` in the current directory. With `all::1`, the output DIRECTORY instead (default: current directory) — each chunk writes `<dir>/<name>.png`.", None ),
+      named_arg( "out", Kind::String, "Output PNG path; default `<target>.png` in the current directory. With `all::1`, the output DIRECTORY instead (default: current directory), created if it doesn't exist — each chunk writes `<dir>/<name>.png`.", None ),
       named_arg( "size", Kind::String, "Output size in pixels: `<n>` (square) or `<width>x<height>`.", Some( "256".to_string() ) ),
       named_arg( "time", Kind::Float, "Value of the bundle's `time` uniform for this frame.", Some( "0".to_string() ) ),
       named_arg( "set", Kind::List( Box::new( Kind::String ), Some( ',' ) ), "Parameter overrides, comma-separated `property:value` pairs (see `tunables` for a chunk's property names). Not usable with `all::1`.", None ),
@@ -393,7 +402,7 @@ mod private
         .map_err( | err | render_cli_error( &err ) )?;
         let time = arg_time( &cmd )?;
         let out_dir = PathBuf::from( arg_string( &cmd, "out" ).unwrap_or_else( || ".".to_string() ) );
-        let outcomes = render_all_to_png( size, time, &out_dir );
+        let outcomes = render_all_to_png( size, time, &out_dir ).map_err( | err | render_cli_error( &err ) )?;
         let failed = outcomes.iter().filter( | o | matches!( o, BatchOutcome::Failed { .. } ) ).count();
         stdout_print( &batch_summary( &outcomes ) );
         if failed > 0

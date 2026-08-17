@@ -24,6 +24,13 @@ render <name> | file::<path>   [out::<path>] [size::<n>|<w>x<h>] [time::<seconds
   -> shader_chunks_render_core::render         # one headless frame, params at their resolved values
   -> image::save_buffer( out, RGBA8 )          # default out: <target>.png in the cwd
   -> summary                                   # "wrote ... (WxH px, naga-validated)" + baked values
+
+render all::1 [out::<dir>] [size::<n>|<w>x<h>] [time::<seconds>]
+  -> render_all_to_png( size, time, out_dir )  # creates out_dir if missing
+  -> for each shader_chunks_core::CHUNKS entry:
+       -> render_to_png( name, ... )           # same pipeline as above, per chunk
+       -> Rendered | Skipped( unpreviewable ) | Failed( error )   # one chunk's failure never aborts the sweep
+  -> batch_summary                             # one line per chunk + "<n> chunks: <r> rendered, <s> skipped, <f> failed"
 ```
 
 The written frame is exactly what the browser preview shows before anyone
@@ -34,7 +41,10 @@ one instant (default `0`).
 local `.wgsl` chunk file instead, which is how a custom hand-written
 harness (or a chunk still under development) gets a static image. Exactly
 one of the two is required; giving both or neither fails with exit `1`
-before either is resolved.
+before either is resolved. `all::1` replaces the single target with a sweep
+of the entire bundled registry — mutually exclusive with `name`, `file::`,
+and `set::` — writing `<out>/<name>.png` per chunk and treating `out::` as
+a directory (created if missing) instead of a file path.
 
 ## Structure
 
@@ -42,7 +52,7 @@ before either is resolved.
 |---|---|
 | `src/` | `render` command wiring — target resolution, `size_parse`, PNG write |
 | `tests/` | [`render_cli_test.rs`](tests/render_cli_test.rs) plus the [`docs/cli/`](docs/cli/readme.md) specification mirror at [`tests/docs/cli/`](tests/docs/cli/readme.md) |
-| `docs/` | CLI documentation — see [`docs/cli/`](docs/cli/readme.md) for the `render` command, `out`/`size`/`time`/`set` params, and the `Float`/`ParameterOverride` types |
+| `docs/` | CLI documentation — see [`docs/cli/`](docs/cli/readme.md) for the `render` command, `out`/`size`/`time`/`set`/`all` params, and the `Float`/`ParameterOverride` types |
 | `Cargo.toml` | Crate manifest and dependencies |
 
 ## Usage
@@ -52,6 +62,7 @@ cargo run -p shader_chunks_render -- render fbm3                # writes ./fbm3.
 cargo run -p shader_chunks_render -- render fbm3 size::512 time::2.5 out::fbm3_far.png
 cargo run -p shader_chunks_render -- render file::-my_harness.wgsl size::128x64
 cargo run -p shader_chunks_render -- render fbm3 set::lacunarity:2.5,gain:0.75
+cargo run -p shader_chunks_render -- render all::1 out::renders/ size::128     # every chunk in one pass
 ```
 
 ```rust
@@ -79,3 +90,12 @@ exporting `fn NAME(p: vec2f) -> f32` — anything else is rejected as
 not previewable (exit `1`), same as `.preview` would; `file::` with a
 hand-written fragment harness is the escape hatch for chunks outside
 those shapes.
+
+Under `all::1`, an unpreviewable chunk is skipped rather than rejected —
+one chunk's shape saying nothing about the rest of the registry — and any
+other per-chunk failure (naga, GPU, io) does not stop the sweep either;
+the batch's own exit code only turns `1` once every chunk has been
+attempted and at least one truly failed. `out::`'s unwritable-parent exit
+`2` becomes an unwritable-`out_dir`-creation exit `2` instead, since
+`all::1` creates the directory itself rather than requiring it to
+pre-exist.

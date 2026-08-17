@@ -33,5 +33,12 @@ webgl = [ "gpu_hal/webgl" ]
 [lints]
 workspace = true
 
+# Build-time-only WGSL→GLSL ES 300 translation ( `build.rs` ) — never becomes
+# part of the compiled artifact, wasm32 or native; independent of the
+# target-gated runtime `gpu_hal` dependency above ( different Cargo
+# dependency kind, host-only, unconditional on target ).
+[build-dependencies]
+gpu_hal = { workspace = true, features = [ "webgl-glsl-build" ] }
+
 [package.metadata.action]
 tags = ["runtime:browser", "api:webgpu", "api:webgl"]

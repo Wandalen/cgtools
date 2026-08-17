@@ -25,7 +25,7 @@ defaults, and error-code mapping.
 
 `list` and `get` are one routine ([`query_routine`], private) behind two
 `CommandDefinition`s — [`query_arguments`] builds the identical
-19-named-parameter surface for both, differing only in the `defaults`
+20-named-parameter surface for both, differing only in the `defaults`
 struct baked into each; a caller passing identical explicit parameters to
 both gets byte-identical output.
 
@@ -44,7 +44,7 @@ Deliberately has **no** test code — `tests/` holds only the CLI
 documentation mirror (see Structure above). This crate is CLI wiring
 only (argument definitions, defaults, error mapping), fully covered by
 [`shader_chunks_query_core`](../shader_chunks_query_core/readme.md)'s own
-36 direct-call tests (same rendering functions, called without a
+37 direct-call tests (same rendering functions, called without a
 `unilang` round-trip) plus [`shader_chunks`](../shader_chunks/readme.md)'s
 subprocess suite, which exercises this crate's argument wiring end to
 end. This 0/0 count is an intentional architectural asymmetry, not a

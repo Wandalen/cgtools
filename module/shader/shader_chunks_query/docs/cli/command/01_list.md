@@ -4,12 +4,12 @@
 
 Queries the bundled shader chunks: filter, sort, project, and format —
 every chunk by default. `list` and [`get`](02_get.md) run the *same*
-engine (`chunks_query` behind `query_routine`) with the same 20-parameter
+engine (`chunks_query` behind `query_routine`) with the same 21-parameter
 surface; `list`'s defaults lean overview (all chunks, 4 columns, plain
 table), `get`'s lean detail. Use it to discover chunks by name fragment,
-tag, stage, dependency relationship, or export signature.
+tag, stage, dependency relationship, export signature, or WGSL body text.
 
--- **Parameters:** names (optional), plus the 19 shared named query
+-- **Parameters:** names (optional), plus the 20 shared named query
    parameters — [filtering](../param_group/01_filtering.md),
    [projection](../param_group/02_projection.md),
    [formatting](../param_group/03_formatting.md)
@@ -30,7 +30,7 @@ shader_chunks list [names...] [param::value ...]
 |-----------|------|---------|----------|---------|
 | `names` | [`ChunkName`](../param/02_names.md) (list, positional) | every chunk | No | Selection: which chunks enter the query, in which order |
 | `pattern::` | [String](../param/03_pattern.md) | off | No | Substring filter on chunk names |
-| `case::` | [`Switch`](../param/04_case.md) | `false` | No | Case-sensitive `pattern::`/`exports::` matching |
+| `case::` | [`Switch`](../param/04_case.md) | `false` | No | Case-sensitive `pattern::`/`exports::`/`source::` matching |
 | `tag::` | [`TagSelector`](../param/05_tag.md) (list) | off | No | Tag selectors: `group:tag` pair or bare `tag` |
 | `tags_mode::` | [`TagsMode`](../param/06_tags_mode.md) | `any` | No | Combine `tag::` selectors: union or intersection |
 | `stage::` | [`StageSelector`](../param/07_stage.md) | `any` | No | Stage filter: `any` \| `none` \| literal |
@@ -39,6 +39,7 @@ shader_chunks list [names...] [param::value ...]
 | `exports::` | [String](../param/10_exports.md) | off | No | Substring filter over export signatures |
 | `roots::` | [`Switch`](../param/11_roots.md) | `false` | No | Keep only chunks nothing else depends on |
 | `leaves::` | [`Switch`](../param/12_leaves.md) | `false` | No | Keep only chunks with no dependencies |
+| `source::` | [String](../param/23_source.md) | off | No | Substring filter over the raw WGSL body |
 | `fields::` | [`FieldName`](../param/13_fields.md) (list) | `name,description,tags,depends_on` | No | Columns to project, in order |
 | `count::` | [`Switch`](../param/14_count.md) | `false` | No | Print only the matched-chunk count |
 | `format::` | [`OutputFormat`](../param/15_format.md) | `table` | No | `table` \| `markdown` \| `expanded` \| `json` \| `yaml` \| `names` |
@@ -74,6 +75,11 @@ shader_chunks list roots::1 fields::name,exports
 
 shader_chunks list depends_on::hash21 transitive::1 count::1
 # 2
+
+shader_chunks list source::33.33 format::names
+# hash21
+# hash22
+# hash33
 
 shader_chunks list format::bogus
 # invalid `format` value: `bogus` (allowed: table, markdown, expanded, json, yaml, names)

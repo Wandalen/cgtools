@@ -57,12 +57,12 @@ consumer — its `adapter-webgpu` / `adapter-native` adopt the HAL per
 [../adr/003_d2_stack_hal_adoption.md](../adr/003_d2_stack_hal_adoption.md).
 `adapter-webgpu` now builds and passes its own compile-and-construct-level
 test suite, and was browser-pixel-verified via the `adapter_browser` example
-and `browsee` ( task 198 ) — at that time proving a real, correctly-bounded
+and `browsee` ( task 251 ) — at that time proving a real, correctly-bounded
 opaque **black** quad, the adapter's then-unpopulated-texture behavior, not
 the clear color, at the sprite's exact configured location. `assets_load` now
 uploads real pixel data instead ( task 218, sharing `to_rgba8` with
 `adapter-native` rather than duplicating it ), so that black-quad reading is
-stale — task 198's live browser verification predates the fix and needs a
+stale — task 251's live browser verification predates the fix and needs a
 fresh run to confirm what the adapter actually paints now ( predicted:
 solid red, matching `adapter-webgl`, since both now upload the same asset
 bytes — not yet browser-confirmed ).
@@ -72,8 +72,8 @@ the offscreen-render-plus-readback path with no browser involved. Its existing
 `adapter-webgl` keeps its direct `minwebgl` dependency for now, on the same
 accepted-until-strangled posture — it now also has its own
 compile-and-construct-level test suite (`webgl_backend_test.rs` +
-`command_consistency_test.rs`, task 114) and is browser-pixel-verified too, via
-the same `adapter_browser` example ( task 198 ) — proving a real solid-red
+`command_consistency_test.rs`, task 246) and is browser-pixel-verified too, via
+the same `adapter_browser` example ( task 251 ) — proving a real solid-red
 sprite paint, since `adapter-webgl` uploads real pixel bytes — the same shape
 of coverage as `adapter-webgpu`'s, without adopting the HAL itself. The two
 adapters' upload paths are no longer asymmetric in kind ( both now upload real

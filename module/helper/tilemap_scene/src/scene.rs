@@ -137,6 +137,25 @@ mod private
     {
       let mut scene = Self::new( spec );
 
+      // Fix(BUG-265): `seed_set` must run before any `spawn` call. `spawn`
+      // reads `self.seed` synchronously to derive each instance's
+      // `instance_phase_seed` (see `spawn`'s doc comment: "Mixed with the
+      // scene seed so re-seeded scenes get a different distribution").
+      // Applying the snapshot's `seed` after the spawn loops left every
+      // instance salted with the default seed (0) instead of the
+      // snapshot-declared one.
+      // Root cause: the setter calls were grouped at the bottom of the
+      // function in snapshot-field order, not in the data-dependency order
+      // `spawn` actually requires.
+      // Pitfall: when a constructor both seeds mutable state AND consumes
+      // that state while building the same object, apply the seed first —
+      // grouping "setter calls" together by convenience/readability can
+      // silently reorder them past a read they need to precede.
+      if let Some( seed ) = snap.seed
+      {
+        scene.seed_set( seed );
+      }
+
       // Tiles — explicit list takes precedence; ASCII palette+map otherwise.
       let owned_tiles;
       let tiles_iter : &[ crate::snapshot::Tile ] = if snap.tiles.is_empty()
@@ -219,10 +238,6 @@ mod private
       if let Some( tint_id ) = snap.initial_global_tint.as_ref()
       {
         scene.global_tint_set( Some( crate::resource::TintRef( tint_id.clone() ) ) );
-      }
-      if let Some( seed ) = snap.seed
-      {
-        scene.seed_set( seed );
       }
 
       Ok( scene )

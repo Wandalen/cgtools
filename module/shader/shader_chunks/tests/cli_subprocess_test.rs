@@ -1,8 +1,8 @@
 //! Subprocess tests for the `shader_chunks` binary — real process spawns
 //! via `assert_cmd`, exercising the aggregated argv/exit-code path
-//! `src/lib.rs::run` wires up from the five utility crates
-//! (`shader_chunks_query`, `_compose`, `_params`, `_preview`, `_render`)
-//! through `shader_chunks_cli_core`. Each utility's own direct-call tests cover its
+//! `src/lib.rs::run` wires up from the six utility crates
+//! (`shader_chunks_query`, `_compose`, `_params`, `_preview`, `_render`,
+//! `_validate`) through `shader_chunks_cli_core`. Each utility's own direct-call tests cover its
 //! command logic without a subprocess; this file covers only what the
 //! aggregation itself adds — argv routing, help groups, and cross-utility
 //! invariants.
@@ -110,6 +110,7 @@ fn invalid_param_values_exit_non_zero_loudly()
     ( &[ "list", "tags_mode::bogus" ][ .. ], "invalid `tags_mode` value" ),
     ( &[ "list", "limit::-1" ][ .. ], "invalid `limit` value" ),
     ( &[ "list", "fields::bogus" ][ .. ], "unknown field" ),
+    ( &[ "tree", "fbm3", "shape::bogus" ][ .. ], "invalid `shape` value" ),
   ]
   {
     let output = run( args );
@@ -165,6 +166,20 @@ fn tree_hash21_reverse_shows_the_dependents_chain()
   let value_noise_pos = stdout.find( "value_noise" ).expect( "value_noise present" );
   let fbm3_pos = stdout.find( "fbm3" ).expect( "fbm3 present" );
   assert!( hash21_pos < value_noise_pos && value_noise_pos < fbm3_pos, "unexpected reverse tree order:\n{stdout}" );
+}
+
+#[ test ]
+fn tree_fbm3_shape_dot_and_mermaid_render_the_same_chain_as_edges()
+{
+  let dot = stdout_of( &run( &[ "tree", "fbm3", "shape::dot" ] ) );
+  assert!( dot.starts_with( "digraph chunks" ), "{dot}" );
+  assert!( dot.contains( "\"fbm3\" -> \"value_noise\";" ), "{dot}" );
+  assert!( dot.contains( "\"value_noise\" -> \"hash21\";" ), "{dot}" );
+
+  let mermaid = stdout_of( &run( &[ "tree", "fbm3", "shape::mermaid" ] ) );
+  assert!( mermaid.starts_with( "graph TD" ), "{mermaid}" );
+  assert!( mermaid.contains( "fbm3 --> value_noise" ), "{mermaid}" );
+  assert!( mermaid.contains( "value_noise --> hash21" ), "{mermaid}" );
 }
 
 #[ test ]
@@ -374,14 +389,14 @@ fn per_command_help_spells_argument_shapes()
 #[ test ]
 fn per_command_help_lists_named_params_with_per_command_defaults()
 {
-  // The two help screens list the identical 20-parameter surface; only the
+  // The two help screens list the identical 21-parameter surface; only the
   // baked-in defaults differ — that difference must be visible to the user.
   let list_help = stdout_of( &run( &[ "list", "help" ] ) );
   let get_help = stdout_of( &run( &[ "help", "get" ] ) );
   for param in
   [
     "pattern::", "case::", "tag::", "tags_mode::", "stage::", "depends_on::", "transitive::",
-    "exports::", "roots::", "leaves::", "fields::", "count::", "format::", "sort::", "order::",
+    "exports::", "source::", "roots::", "leaves::", "fields::", "count::", "format::", "sort::", "order::",
     "limit::", "offset::", "heading::", "width::",
   ]
   {
@@ -398,9 +413,9 @@ fn per_command_help_lists_named_params_with_per_command_defaults()
 fn top_level_help_groups_commands_by_responsibility()
 {
   // Groups mirror docs/cli/command_group/ — Query, Graph, Compose,
-  // Parameters, Preview, Render, in that order (the aggregator's own
-  // concatenation order: query, compose, params, preview, render), with
-  // each command under its own group.
+  // Parameters, Preview, Render, Validate, in that order (the aggregator's
+  // own concatenation order: query, compose, params, preview, render,
+  // validate), with each command under its own group.
   let stdout = stdout_of( &run( &[] ) );
   // Anchored on each header's own line (2-space indent, nothing trailing)
   // — `Compose`'s command description reads "Preview composed WGSL..." and
@@ -413,10 +428,11 @@ fn top_level_help_groups_commands_by_responsibility()
   let parameters_pos = heading_pos( "Parameters" );
   let preview_pos = heading_pos( "Preview" );
   let render_pos = heading_pos( "Render" );
+  let validate_pos = heading_pos( "Validate" );
   assert!
   (
     query_pos < graph_pos && graph_pos < compose_pos && compose_pos < parameters_pos
-    && parameters_pos < preview_pos && preview_pos < render_pos,
+    && parameters_pos < preview_pos && preview_pos < render_pos && render_pos < validate_pos,
     "group order wrong:\n{stdout}"
   );
   let list_pos = stdout.find( "list [names...]" ).expect( "list entry present" );
@@ -424,27 +440,33 @@ fn top_level_help_groups_commands_by_responsibility()
   let tunables_pos = stdout.find( "tunables <name>" ).expect( "tunables entry present" );
   let preview_cmd_pos = stdout.find( "preview [name]" ).expect( "preview entry present" );
   let render_cmd_pos = stdout.find( "render [name]" ).expect( "render entry present" );
+  // Zero-arg command: no bracket/angle placeholder to anchor on like the
+  // others above, so anchor on the table row's own 4-space indent right
+  // after a newline — distinguishes it from the 2-space `Validate` group
+  // heading and from "validate" inside the top-of-help tagline prose.
+  let validate_cmd_pos = stdout.find( "\n    validate " ).expect( "validate entry present" );
   assert!( query_pos < list_pos && list_pos < graph_pos, "`list` must sit in the Query group:\n{stdout}" );
   assert!( graph_pos < tree_pos && tree_pos < compose_pos, "`tree` must sit in the Graph group:\n{stdout}" );
   assert!( compose_pos < tunables_pos, "`tunables` must sit in the Parameters group:\n{stdout}" );
   assert!( parameters_pos < preview_cmd_pos, "`preview` must sit in the Preview group:\n{stdout}" );
   assert!( preview_pos < render_cmd_pos, "`render` must sit in the Render group:\n{stdout}" );
+  assert!( render_pos < validate_cmd_pos, "`validate` must sit in the Validate group:\n{stdout}" );
 }
 
 #[ test ]
 fn aggregator_exposes_every_utility_command_exactly_once()
 {
   // Cross-cutting invariant the aggregation itself is responsible for:
-  // concatenating five independent `CommandSet`s must not collide or drop
-  // anything. 8 commands (list, get, tags, tree, compose, tunables,
-  // preview, render) across 6 groups (Query, Graph, Compose, Parameters,
-  // Preview, Render).
+  // concatenating six independent `CommandSet`s must not collide or drop
+  // anything. 9 commands (list, get, tags, tree, compose, tunables,
+  // preview, render, validate) across 7 groups (Query, Graph, Compose,
+  // Parameters, Preview, Render, Validate).
   let stdout = stdout_of( &run( &[] ) );
-  for command in [ "list", "get", "tags", "tree", "compose", "tunables", "preview", "render" ]
+  for command in [ "list", "get", "tags", "tree", "compose", "tunables", "preview", "render", "validate" ]
   {
     assert!( stdout.contains( command ), "command `{command}` missing from top-level help:\n{stdout}" );
   }
-  for group in [ "Query", "Graph", "Compose", "Parameters", "Preview", "Render" ]
+  for group in [ "Query", "Graph", "Compose", "Parameters", "Preview", "Render", "Validate" ]
   {
     // Anchored on the header's own line (2-space indent, nothing trailing)
     // — some group names double as prose inside command descriptions
@@ -504,6 +526,20 @@ fn render_unknown_chunk_exits_non_zero_without_a_panic_backtrace()
   let stderr = String::from_utf8_lossy( &output.stderr );
   assert!( !stderr.contains( "panicked at" ), "unexpected panic backtrace:\n{stderr}" );
   assert!( stderr.contains( "bogus_chunk" ), "{stderr}" );
+}
+
+#[ test ]
+fn validate_reports_the_bundled_registry_clean_through_the_aggregated_binary()
+{
+  // Proves the aggregator wires `shader_chunks_validate` correctly end to
+  // end, not just that the standalone crate works in isolation (see
+  // `shader_chunks_validate/tests/validate_cli_test.rs` for the fixture-
+  // driven findings-report matrix).
+  let output = run( &[ "validate" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  let stdout = stdout_of( &output );
+  assert!( stdout.contains( "clean" ), "{stdout}" );
+  assert!( stdout.contains( "0 findings" ), "{stdout}" );
 }
 
 #[ test ]

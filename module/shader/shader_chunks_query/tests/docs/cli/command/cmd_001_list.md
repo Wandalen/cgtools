@@ -5,8 +5,9 @@ Source: [`../../../../docs/cli/command/01_list.md`](../../../../docs/cli/command
 ### Parameter Edge Tests (PAR-N)
 
 Command-level parameter behavior — per-parameter boundary detail lives
-in the 20 [parameter mirrors](../param/readme.md) (`02_names` and
-`03_pattern` through `21_width`), all applicable to `list`.
+in the 21 [parameter mirrors](../param/readme.md) (`02_names`,
+`03_pattern` through `21_width`, and `23_source`), all applicable to
+`list`.
 
 | ID | Case | Real Test |
 |----|------|-----------|
@@ -39,8 +40,8 @@ Discover-then-inspect workflows: [`../command_group/01_query.md`](../command_gro
 
 | Metric | Value |
 |--------|-------|
-| PAR-N | 4 (+20 delegated parameter mirrors) |
-| GRP-N | delegated (15 GRP cases across 3 groups) |
+| PAR-N | 4 (+21 delegated parameter mirrors) |
+| GRP-N | delegated (16 GRP cases across 3 groups) |
 | INT-N | 3 |
 
 ### See Also

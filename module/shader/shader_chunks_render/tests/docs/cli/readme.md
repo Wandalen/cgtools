@@ -8,7 +8,7 @@
 - **Responsibility:** Cross-reference every documented CLI entity in
   [`../../docs/cli/`](../../docs/cli/readme.md) to the real test
   function(s) that verify it.
-- **In Scope:** The 4 tiers below, covering this crate's 1 command, 4
+- **In Scope:** The 4 tiers below, covering this crate's 1 command, 5
   owned parameters, 1 command group, and 2 owned types.
 - **Out of Scope:** Test implementation itself (→ `../../render_cli_test.rs`
   plus the engine tier in
@@ -42,9 +42,9 @@ Directory Authority : DIR-01`. This crate has no `param_group/` tier —
 
 | Tier | Files | Test Cases |
 |------|-------|------------|
-| param/ | 4 | 24 `EC-N` |
-| command/ | 1 | 13 `PAR-N` + 15 `INT-N` |
-| command_group/ | 1 | 7 `CG-N` + 0 `WF-N` |
+| param/ | 5 | 33 `EC-N` |
+| command/ | 1 | 17 `PAR-N` + 19 `INT-N` |
+| command_group/ | 1 | 8 `CG-N` + 0 `WF-N` |
 | type/ | 2 | 10 `TC-N` |
 
 Counts overlap by design (Overlap Policy, OC118) — the same real test

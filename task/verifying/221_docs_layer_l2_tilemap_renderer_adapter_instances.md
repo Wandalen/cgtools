@@ -41,8 +41,9 @@ bullets (webgpu.rs, native.rs) plus a Sources row for each of the three
 gap #4 from the 2026-08-17 docs/layer round-3 gap audit. The suspected
 "test-citation inaccuracy" flagged when this gap was first scoped did not
 hold up on verification: the Sources table's existing
-`webgl_frame_orchestration_test.rs` / "(task 115)" citation is accurate
-(file exists; task 115 is the task that added it) and needs no change —
+`webgl_frame_orchestration_test.rs` / "(task 247)" citation is accurate
+(file exists; task 247 is the task that added it, renumbered from 115 on
+2026-08-17 to resolve a bug/task ID collision) and needs no change —
 this task does not touch that row.
 Testable: `grep -c "adapters/webgpu.rs\|adapters/native.rs"
 docs/layer/003_l2_frame_orchestration.md` returns ≥4 (was: 0 — 2 new
@@ -62,7 +63,7 @@ bullets + 2 new Sources rows).
 
 ## Out of Scope
 
-- The existing `webgl_frame_orchestration_test.rs` / "(task 115)" Sources
+- The existing `webgl_frame_orchestration_test.rs` / "(task 247)" Sources
   row — verified accurate, not touched.
 - `docs/layer/004_l3_stack_engine.md` — confirmed it does not mention
   `native.rs`/`webgpu.rs`'s orchestration logic either way (`grep -n
@@ -140,7 +141,7 @@ Desired answer for every question is YES.
 - [ ] C4 — Does the Sources table have a row for `src/adapters/webgl.rs`,
   `src/adapters/webgpu.rs`, and `src/adapters/native.rs` each?
 - [ ] C5 — Does the pre-existing `webgl_frame_orchestration_test.rs` /
-  "(task 115)" Sources row remain unchanged?
+  "(task 247)" Sources row remain unchanged?
 
 **Out of Scope confirmation**
 - [ ] C6 — Is `module/helper/tilemap_renderer/src/` untouched (`git diff

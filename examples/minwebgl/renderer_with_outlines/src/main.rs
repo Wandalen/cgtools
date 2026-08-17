@@ -9,7 +9,6 @@ use minwebgl as gl;
 
 use gl::
 {
-  texture::d2::image_upload_from_path,
   GL,
   JsCast,
   web_sys::
@@ -31,10 +30,6 @@ use renderer::webgl::
   Renderer,
   TextureInfo,
   Texture,
-  Sampler,
-  WrappingMode,
-  MagFilterMode,
-  MinFilterMode,
   post_processing::
   {
     self,
@@ -52,10 +47,6 @@ use std::cell::RefCell;
 
 /// Creates a new `TextureInfo` struct with a texture loaded from a file.
 ///
-/// This function calls `upload_texture` to load an image, sets up a default `Sampler`
-/// with linear filtering and repeat wrapping, and then combines them into a `TextureInfo`
-/// struct.
-///
 /// # Arguments
 ///
 /// * `gl` - The WebGl2RenderingContext.
@@ -71,20 +62,7 @@ fn texture_create
 ) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = image_upload_from_path( gl, &image_path, true );
-
-  let sampler = Sampler::former()
-  .min_filter( MinFilterMode::Linear )
-  .mag_filter( MagFilterMode::Linear )
-  .wrap_s( WrappingMode::Repeat )
-  .wrap_t( WrappingMode::Repeat )
-  .end();
-
-  let texture = Texture::former()
-  .target( GL::TEXTURE_2D )
-  .source( texture_id )
-  .sampler( sampler )
-  .end();
+  let texture = Texture::load_from_path( gl, &image_path, true );
 
   TextureInfo
   {

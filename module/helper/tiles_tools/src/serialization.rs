@@ -448,7 +448,10 @@ impl GameStateSerializer {
   /// Deserializes a game state from bytes.
   ///
   /// # Errors
-  /// Returns an error when decompression fails or the bytes are not valid for the selected format.
+  /// Returns an error when decompression fails, the bytes are not valid for the
+  /// selected format, or the deserialized state's `metadata.version` is
+  /// incompatible with this serializer's configured version (see
+  /// [`SaveVersion::is_compatible_with`]).
   pub fn game_state_deserialize(&self, data: &[u8]) -> Result<SerializableGameState, SerializationError> {
     let data = if self.compress {
       Self::data_decompress(data)?
@@ -456,7 +459,7 @@ impl GameStateSerializer {
       data.to_vec()
     };
 
-    let state = match self.format {
+    let state: SerializableGameState = match self.format {
       SerializationFormat::Json => serde_json::from_slice(&data)?,
       SerializationFormat::Binary => bincode::serde::decode_from_slice(&data, bincode::config::standard())?.0,
       SerializationFormat::Ron => {
@@ -467,6 +470,29 @@ impl GameStateSerializer {
         })?
       }
     };
+
+    // Fix(BUG-269): `game_state_deserialize` never checked the deserialized
+    // state's `metadata.version` against this serializer's own `version`
+    // (default `SaveVersion::current()`, or a caller-supplied one via
+    // `with_version`), so `with_version` had no observable effect on
+    // anything and `SerializationError::IncompatibleVersion` -- a fully
+    // documented, Display-formatted error variant -- could never actually be
+    // constructed by this crate, despite the module's own doc comment
+    // advertising "Version Management: Backward compatibility for save
+    // files" as a supported feature.
+    // Root cause: `SaveVersion::is_compatible_with` and the
+    // `IncompatibleVersion` error variant were both implemented and tested
+    // in isolation, but never wired into the one call site (deserialize)
+    // that would need to invoke them.
+    // Pitfall: a `with_*` builder setter that stores a value nothing ever
+    // reads back is a silent no-op -- check every configured field is
+    // actually consulted somewhere before trusting a builder API works.
+    if !self.version.is_compatible_with(&state.metadata.version) {
+      return Err(SerializationError::IncompatibleVersion {
+        found: state.metadata.version,
+        expected: self.version.clone(),
+      });
+    }
 
     Ok(state)
   }
@@ -570,7 +596,9 @@ impl SaveManager {
   /// Loads a game state from a file.
   ///
   /// # Errors
-  /// Returns an error when the save does not exist, cannot be read, or cannot be deserialized.
+  /// Returns an error when the save does not exist, cannot be read, cannot be
+  /// deserialized, or was written by an incompatible save version (see
+  /// [`GameStateSerializer::game_state_deserialize`]).
   pub fn game_state_load(&self, save_name: &str) -> Result<SerializableGameState, SerializationError> {
     let save_path = self.saves_directory.join(format!("{save_name}.save"));
 

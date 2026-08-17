@@ -479,19 +479,7 @@ impl GridRenderer
     
     match self.style {
       GridStyle::Square4 | GridStyle::Square8 => {
-        // Vertical lines
-        for x in 0..=self.width {
-          let x_pos = offset + x * cell_size;
-          writeln!(writer, r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="lightgray" stroke-width="1"/>"#,
-            x_pos, offset, x_pos, offset + self.height * cell_size)?;
-        }
-
-        // Horizontal lines
-        for y in 0..=self.height {
-          let y_pos = offset + y * cell_size;
-          writeln!(writer, r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="lightgray" stroke-width="1"/>"#,
-            offset, y_pos, offset + self.width * cell_size, y_pos)?;
-        }
+        self.square_svg_grid_render(writer, cell_size, offset)?;
       },
       GridStyle::Hexagonal => {
         // Simplified hexagonal grid (would need proper hexagon math for production)
@@ -512,9 +500,40 @@ impl GridRenderer
         }
       },
       _ => {
-        // Default to square grid for other styles
-        self.svg_grid_render(writer, cell_size)?;
+        // Fix(BUG-266): this arm called `self.svg_grid_render(..)` -- itself
+        // -- instead of a square-grid helper. `self.style` never changes
+        // between calls, so every recursive call matched this same arm
+        // again, recursing unconditionally until the stack overflowed.
+        // Root cause: the comment said "Default to square grid for other
+        // styles" but there was no separately-named square-grid helper to
+        // delegate to, so the call was left pointing at the enclosing
+        // function itself instead of the Square4/Square8 arm's logic.
+        // Pitfall: a `match` arm that "falls back to another case" must call
+        // a genuinely different function or change the matched value --
+        // calling the same method on the same `self` from its own wildcard
+        // arm is unconditional infinite recursion, not a fallback.
+        self.square_svg_grid_render(writer, cell_size, offset)?;
       }
+    }
+
+    Ok(())
+  }
+
+  /// Renders axis-aligned grid lines. Shared by the square styles and used
+  /// as the visual fallback for styles without dedicated SVG grid-line art.
+  fn square_svg_grid_render(&self, writer: &mut BufWriter<File>, cell_size: usize, offset: usize) -> Result<(), std::io::Error> {
+    // Vertical lines
+    for x in 0..=self.width {
+      let x_pos = offset + x * cell_size;
+      writeln!(writer, r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="lightgray" stroke-width="1"/>"#,
+        x_pos, offset, x_pos, offset + self.height * cell_size)?;
+    }
+
+    // Horizontal lines
+    for y in 0..=self.height {
+      let y_pos = offset + y * cell_size;
+      writeln!(writer, r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="lightgray" stroke-width="1"/>"#,
+        offset, y_pos, offset + self.width * cell_size, y_pos)?;
     }
 
     Ok(())

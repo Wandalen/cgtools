@@ -308,7 +308,7 @@ IndexingRef< Scalar = E, Index = Ix2 >
       [ E::one() / sx, E::one() / sy, E::one() / sz ]
     );
 
-    // Fix(BUG-118): changed `/ inv_scale` to `* inv_scale`.
+    // Fix(BUG-250): changed `/ inv_scale` to `* inv_scale`.
     // Root cause: `inv_scale` already holds the reciprocal (1/sx, 1/sy, 1/sz), so dividing
     // by it (`a / inv_scale.x()` = `a / (1/sx)` = `a * sx`) re-multiplied the scale back
     // into the rotation matrix instead of removing it — the opposite of the cited three.js

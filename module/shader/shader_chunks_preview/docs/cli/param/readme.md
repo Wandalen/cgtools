@@ -22,7 +22,7 @@
 | 1 | [01_file.md](01_file.md) | `file` | String | off (mutually exclusive alternative to `name`) | ✅ |
 | 2 | [02_serve.md](02_serve.md) | `serve` | [`Switch`](../../../../shader_chunks_query/docs/cli/type/07_switch.md) | `true` | ✅ |
 
-**Total:** 2 own parameters (of 28 across the `shader_chunks` family)
+**Total:** 2 own parameters (of 32 across the `shader_chunks` family)
 
 **Group membership:** neither parameter belongs to a
 [parameter group](../../../../shader_chunks_query/docs/cli/param_group/readme.md)

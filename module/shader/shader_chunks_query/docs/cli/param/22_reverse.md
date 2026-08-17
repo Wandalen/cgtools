@@ -1,4 +1,4 @@
-# Parameter :: 27. reverse
+# Parameter :: 22. reverse
 
 - **Fundamental Type:** [`Switch`](../type/07_switch.md) (unilang
   `Kind::Boolean`)

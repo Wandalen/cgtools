@@ -1,4 +1,4 @@
-# BUG-118: `Mat4::decompose()` divides by the scale reciprocal instead of multiplying, re-squaring scale into the extracted rotation matrix
+# BUG-250: `Mat4::decompose()` divides by the scale reciprocal instead of multiplying, re-squaring scale into the extracted rotation matrix
 
 - **Severity:** High
 - **state:** Completed
@@ -223,9 +223,10 @@ confidence signal of this exact mistake.
 | Date | Event | Notes |
 |------|-------|-------|
 | 2026-08-15 | filed | Discovered via task #52's targeted math/geometry code review; root cause independently re-derived by hand (algebraic substitution of `inv_scale`'s definition into the `/ inv_scale` use site) before filing, confirmed HIGH confidence without needing empirical bisection. |
-| 2026-08-15 | fixed | Changed the 9 `/ inv_scale.{x,y,z}()` occurrences in `decompose()`'s `rot_mat` reconstruction to `* inv_scale.{x,y,z}()`; 3-field `Fix(BUG-118)`/`Root cause`/`Pitfall` comment added at the fix site. |
+| 2026-08-15 | fixed | Changed the 9 `/ inv_scale.{x,y,z}()` occurrences in `decompose()`'s `rot_mat` reconstruction to `* inv_scale.{x,y,z}()`; 3-field `Fix(BUG-250)`/`Root cause`/`Pitfall` comment added at the fix site. |
 | 2026-08-15 | verified | Added `test_decompose_recovers_scale_rotation_translation_generic` (row-major + column-major instantiations) to `tests/inc/mat4x4_test/general_test.rs` with a non-uniform scale fixture. Narrow suite and full workspace verification recorded in BUG-121's own closing History entry (all four math bugs verified together as one gate — see `task/bug/readme.md`). |
-| 2026-08-16 | completed | Acceptance verification by a distinct session (filer/fixer/self-verifier 2026-08-15, this verifier 2026-08-16). Independently re-read `decompose()`'s `rot_mat` reconstruction (confirmed all 9 occurrences genuinely changed from `/ inv_scale` to `* inv_scale.{x,y,z}()`, 3-field comment intact) and `test_decompose_recovers_scale_rotation_translation_generic` (non-tautological: builds a real `Mat4` from known non-uniform scale/rotation/translation via `from_scale_rotation_translation`, decomposes it, asserts recovered scale/rotation/translation match the originals within `1e-9`). Fresh `cargo nextest run -p ndarray_cg --all-features` via `longrun`: 272/272 passed. `cargo clippy -p ndarray_cg --all-features --all-targets -- -D warnings`: clean. Corrected the stale `**Related Bugs:**` cross-reference (`../verified/119_...` → `../completed/119_...`). MAAV Tier 2 Dual-Role Self-Check (`governance/maav.rulebook.md`), covering BUG-118/119/120/121 together. State → Completed. |
+| 2026-08-16 | completed | Acceptance verification by a distinct session (filer/fixer/self-verifier 2026-08-15, this verifier 2026-08-16). Independently re-read `decompose()`'s `rot_mat` reconstruction (confirmed all 9 occurrences genuinely changed from `/ inv_scale` to `* inv_scale.{x,y,z}()`, 3-field comment intact) and `test_decompose_recovers_scale_rotation_translation_generic` (non-tautological: builds a real `Mat4` from known non-uniform scale/rotation/translation via `from_scale_rotation_translation`, decomposes it, asserts recovered scale/rotation/translation match the originals within `1e-9`). Fresh `cargo nextest run -p ndarray_cg --all-features` via `longrun`: 272/272 passed. `cargo clippy -p ndarray_cg --all-features --all-targets -- -D warnings`: clean. Corrected the stale `**Related Bugs:**` cross-reference (`../verified/119_...` → `../completed/119_...`). MAAV Tier 2 Dual-Role Self-Check (`governance/maav.rulebook.md`), covering BUG-250/119/120/121 together. State → Completed. |
+| 2026-08-17 | renumbered | 118 → 250, resolving a bug/task ID collision with `TASK-118` (`task/accepting/118_renderer_gltf_light_extension_parsing_test.md`), both filed independently under the shared tsk ID namespace. File, `task/bug/readme.md` row, the `Fix(BUG-250)` source comment in `general.rs`, and the `bug_reproducer`-style citations in `general_test.rs` and 4 sibling bug files (119/120/121/122, part of the same task #52 review batch) all updated. `/tmp/mre118` MRE-script transcripts left verbatim as accurate historical fact (the scratch directory really was named that at the time). |
 
 ## Verification Record
 
@@ -248,10 +249,10 @@ confidence signal of this exact mistake.
 
 | File | Change |
 |------|--------|
-| `module/math/ndarray_cg/src/d2/mat4x4/general.rs` | `decompose()`: `rot_mat` column reconstruction changed from `/ inv_scale.{x,y,z}()` to `* inv_scale.{x,y,z}()`. `Fix(BUG-118)`/`Root cause`/`Pitfall` 3-field comment added at the fix site. |
+| `module/math/ndarray_cg/src/d2/mat4x4/general.rs` | `decompose()`: `rot_mat` column reconstruction changed from `/ inv_scale.{x,y,z}()` to `* inv_scale.{x,y,z}()`. `Fix(BUG-250)`/`Root cause`/`Pitfall` 3-field comment added at the fix site. |
 
 ## Refs: tests/
 
 | File | Change |
 |------|--------|
-| `module/math/ndarray_cg/tests/inc/mat4x4_test/general_test.rs` | Added `test_decompose_recovers_scale_rotation_translation_generic` (`_row_major`/`_column_major` instantiations), a `bug_reproducer(BUG-118)` round-trip test with a non-uniform, non-unit scale fixture and a 5-section doc comment. |
+| `module/math/ndarray_cg/tests/inc/mat4x4_test/general_test.rs` | Added `test_decompose_recovers_scale_rotation_translation_generic` (`_row_major`/`_column_major` instantiations), a `bug_reproducer(BUG-250)` round-trip test with a non-uniform, non-unit scale fixture and a 5-section doc comment. |

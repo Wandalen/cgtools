@@ -1,8 +1,8 @@
-# 198: tilemap_renderer adapter-webgpu and adapter-webgl browser pixel verification
+# 251: tilemap_renderer adapter-webgpu and adapter-webgl browser pixel verification
 
 ## Execution State
 
-- **id:** 198
+- **id:** 251
 - **title:** tilemap_renderer adapter-webgpu and adapter-webgl browser pixel verification
 - **state:** 🔬 (Verifying)
 - **open:** true
@@ -215,10 +215,11 @@ Desired answer for every question is YES.
   - T05: `cargo check -p tilemap_renderer --features adapter-webgpu --target wasm32-unknown-unknown`, `--features adapter-webgl`, plus the example crate under both its own feature configs — all exit 0, no `RUSTFLAGS` env override.
   - T06: `cargo nextest run -p tilemap_renderer --features adapter-native` → 44/44 passed in 23s, zero regression from the browser-adapter work (I1 satisfied).
   - `module/helper/tilemap_renderer/tests/manual/readme.md` created (new file) documenting the full reproduction procedure, the `centered_sprite_command` gotcha, the chrome-correction derivation, and a Test Matrix with the live readings above; registered in `tilemap_renderer/tests/readme.md`'s Directory structure block (C3 satisfied).
-  - `docs/layer/002_l1_gpu_hal.md` lines 58-73 (shifted slightly from the 56-64 cited at filing time, due to intervening unrelated edits) updated: both the `adapter-webgpu` and `adapter-webgl` sentences replaced with task-198 completion citations naming the black-quad-vs-real-sprite asymmetry (C4 satisfied).
+  - `docs/layer/002_l1_gpu_hal.md` lines 58-73 (shifted slightly from the 56-64 cited at filing time, due to intervening unrelated edits) updated: both the `adapter-webgpu` and `adapter-webgl` sentences replaced with task-251 completion citations naming the black-quad-vs-real-sprite asymmetry (C4 satisfied).
   - C5 confirmed by direct `git diff --stat -- module/helper/tilemap_renderer/src/`: empty — zero diff, `src/` fully untouched.
-  - C6 — `gpu_hal` fully untouched by this task. `renderer` is **not** fully untouched: while registering this task's own new `manual/` directory in `tilemap_renderer/tests/readme.md`, the identical Responsibility Table row was found missing from `module/helper/renderer/tests/readme.md` for task 197's own already-existing `manual/` directory — an apparent registration oversight from that task's own execution window, predating and unrelated to this one. Fixed with a one-line addition there (`git diff --stat` confirms exactly `1 insertion` to that one file). This is an incidental, orthogonal CLAUDE.md-hygiene fix, not part of this task's own Test-Matrix-driven deliverable — `renderer`'s `src/`, its own Test Matrix, and every other file under it remain untouched by 198. Documented here rather than reverted, since the fix itself is correct and required, and rather than re-opening task 197's own already-`EXECUTED` History for a one-line fix made in this task's window.
+  - C6 — `gpu_hal` fully untouched by this task. `renderer` is **not** fully untouched: while registering this task's own new `manual/` directory in `tilemap_renderer/tests/readme.md`, the identical Responsibility Table row was found missing from `module/helper/renderer/tests/readme.md` for task 197's own already-existing `manual/` directory — an apparent registration oversight from that task's own execution window, predating and unrelated to this one. Fixed with a one-line addition there (`git diff --stat` confirms exactly `1 insertion` to that one file). This is an incidental, orthogonal CLAUDE.md-hygiene fix, not part of this task's own Test-Matrix-driven deliverable — `renderer`'s `src/`, its own Test Matrix, and every other file under it remain untouched by 251. Documented here rather than reverted, since the fix itself is correct and required, and rather than re-opening task 197's own already-`EXECUTED` History for a one-line fix made in this task's window.
   - All Delivery Requirements and Test Matrix rows (T01-T06) have corresponding passing evidence above; the `## Verification` checklist itself is intentionally left unchecked per the task's own "executor does NOT self-verify" rule — for the independent verifier once this sandbox's `verify_pass`/`acceptance_pass` block is cleared externally.
+- **[2026-08-17]** `RENUMBERED` — 198 → 251, resolving a bug/task ID collision with `BUG-198` (`task/bug/completed/198_scaled_tween_elapsed_doubled_on_local_replay.md`), both filed independently under the shared tsk ID namespace. File, Tasks Index row, `health.md`, `task/verifying/218`'s citation, `module/helper/tilemap_renderer/src/adapters/webgpu.rs`'s doc comment, `tilemap_renderer/docs/feature/005`, and `docs/layer/002_l1_gpu_hal.md`'s remaining 2 citations all updated to 251. The `tsk .verify_pass 198`/`tsk .claim_verify 198` command transcripts above are left verbatim as accurate historical fact (the task really was numbered 198 when those commands ran).
 
 ## Related Documentation
 

@@ -5,12 +5,12 @@
 Queries *named* chunks with the same engine and parameters as
 [`list`](01_list.md) — detail columns and expanded records by default.
 The two commands share one routine (`chunks_query` behind
-`query_routine`) and one 20-parameter surface; `get` differs only in its
+`query_routine`) and one 21-parameter surface; `get` differs only in its
 defaults (`fields::` gains `stage`+`exports`, `format::` starts at
 `expanded`) and in requiring at least one chunk name. Use it once `list`
 has told you which chunk name(s) to inspect.
 
--- **Parameters:** names (required, ≥1), plus the 19 shared named query
+-- **Parameters:** names (required, ≥1), plus the 20 shared named query
    parameters — [filtering](../param_group/01_filtering.md),
    [projection](../param_group/02_projection.md),
    [formatting](../param_group/03_formatting.md)
@@ -31,7 +31,7 @@ shader_chunks get <names...> [param::value ...]
 |-----------|------|---------|----------|---------|
 | `names` | [`ChunkName`](../param/02_names.md) (list, positional) | — | Yes (≥1) | Which bundled chunks to show, in the given order (duplicates allowed) |
 | `pattern::` | [String](../param/03_pattern.md) | off | No | Substring filter on chunk names |
-| `case::` | [`Switch`](../param/04_case.md) | `false` | No | Case-sensitive `pattern::`/`exports::` matching |
+| `case::` | [`Switch`](../param/04_case.md) | `false` | No | Case-sensitive `pattern::`/`exports::`/`source::` matching |
 | `tag::` | [`TagSelector`](../param/05_tag.md) (list) | off | No | Tag selectors: `group:tag` pair or bare `tag` |
 | `tags_mode::` | [`TagsMode`](../param/06_tags_mode.md) | `any` | No | Combine `tag::` selectors: union or intersection |
 | `stage::` | [`StageSelector`](../param/07_stage.md) | `any` | No | Stage filter: `any` \| `none` \| literal |
@@ -40,6 +40,7 @@ shader_chunks get <names...> [param::value ...]
 | `exports::` | [String](../param/10_exports.md) | off | No | Substring filter over export signatures |
 | `roots::` | [`Switch`](../param/11_roots.md) | `false` | No | Keep only chunks nothing else depends on |
 | `leaves::` | [`Switch`](../param/12_leaves.md) | `false` | No | Keep only chunks with no dependencies |
+| `source::` | [String](../param/23_source.md) | off | No | Substring filter over the raw WGSL body |
 | `fields::` | [`FieldName`](../param/13_fields.md) (list) | `name,description,stage,tags,depends_on,exports` | No | Fields to project, in order |
 | `count::` | [`Switch`](../param/14_count.md) | `false` | No | Print only the matched-chunk count |
 | `format::` | [`OutputFormat`](../param/15_format.md) | `expanded` | No | `table` \| `markdown` \| `expanded` \| `json` \| `yaml` \| `names` |

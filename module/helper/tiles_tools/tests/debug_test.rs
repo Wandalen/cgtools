@@ -122,3 +122,51 @@ fn test_grid_renderer_markers()
   assert!( renderer.has_marker( ( 5, 3 ) ) );
   assert!( renderer.has_marker( ( 8, 6 ) ) );
 }
+
+// test_kind: bug_reproducer(BUG-266)
+/// ## Root Cause
+/// `GridRenderer::svg_grid_render`'s fallback arm for styles without
+/// dedicated SVG grid-line art called `self.svg_grid_render( writer,
+/// cell_size )` -- itself -- instead of a square-grid helper. `self.style`
+/// never changes between calls, so every recursive call matched the same
+/// fallback arm again, recursing unconditionally with no base case until the
+/// stack overflowed and the process aborted.
+/// ## Why Not Caught
+/// No existing test exercised `svg_export()` with `GridStyle::Triangular` or
+/// `GridStyle::Isometric` -- the only style-specific SVG coverage exercised
+/// `Square4`/`Hexagonal` indirectly through `PathfindingDebugger`, so the
+/// fallback match arm was never reached end-to-end by any test.
+/// ## Fix Applied
+/// Extracted the square-grid line-drawing body into a new private
+/// `square_svg_grid_render()` helper and made both the `Square4`/`Square8`
+/// arm and the `_` fallback arm call that helper, instead of the fallback
+/// arm calling `svg_grid_render` (itself) recursively.
+/// ## Prevention
+/// Exercise `svg_export()` for every `GridStyle` variant, not only the ones
+/// with bespoke rendering art -- a fallback arm is exactly where an
+/// accidental self-call is easiest to miss, since it reads like ordinary
+/// delegation at a glance.
+/// ## Pitfall
+/// A `match` arm meant to "fall back to another case" must call a genuinely
+/// different function or change the matched value -- calling the same
+/// method on the same `self` from its own wildcard arm is unconditional
+/// infinite recursion (a guaranteed stack-overflow abort), not a fallback.
+#[ test ]
+fn test_svg_export_triangular_and_isometric_styles_do_not_recurse_infinitely()
+{
+  for style in [ GridStyle::Triangular, GridStyle::Isometric ]
+  {
+    let renderer = GridRenderer::new()
+    .with_size( 3, 3 )
+    .with_style( style );
+
+    let path = std::env::temp_dir().join( format!( "-tiles_tools_debug_svg_export_test_{style:?}.svg" ) );
+    let result = renderer.svg_export( &path );
+
+    assert!( result.is_ok(), "svg_export should succeed for {style:?} instead of recursing infinitely" );
+    let contents = std::fs::read_to_string( &path ).expect( "SVG file should have been written" );
+    assert!( contents.contains( "<line" ), "fallback rendering should draw grid lines for {style:?}" );
+
+    std::fs::remove_file( &path ).ok();
+  }
+}

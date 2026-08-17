@@ -6,7 +6,7 @@
   by this crate.
 - **Responsibility:** One file per parameter, cross-referencing the real
   test functions covering its boundary conditions.
-- **In Scope:** The 4 parameters declared in [`../../../docs/cli/param/`](../../../docs/cli/param/readme.md).
+- **In Scope:** The 5 parameters declared in [`../../../docs/cli/param/`](../../../docs/cli/param/readme.md).
 - **Out of Scope:** Command-level integration scenarios (→ [`../command/`](../command/readme.md));
   type-level construction/parsing (→ [`../type/`](../type/readme.md));
   the shared `name`/`file` target parameters, owned by
@@ -25,8 +25,9 @@
 | 2 | [02_size.md](02_size.md) | `size` | ✅ |
 | 3 | [03_time.md](03_time.md) | `time` | ✅ |
 | 4 | [04_set.md](04_set.md) | `set` | ✅ |
+| 5 | [05_all.md](05_all.md) | `all` | ✅ |
 
-**Total:** 4 parameter test specs owned by this crate (of 28 across the
+**Total:** 5 parameter test specs owned by this crate (of 32 across the
 `shader_chunks` family)
 
 ### Docs

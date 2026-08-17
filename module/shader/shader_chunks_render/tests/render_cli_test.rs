@@ -2,11 +2,15 @@
 //! loud rejection paths, both in-process and through the real subprocess.
 //! The happy paths render on the real headless GPU and re-open the
 //! written PNG to prove the file is a valid image of the requested size.
+//! The `render_all_to_png_*`/`subprocess_render_all_*` tests cover the
+//! `all::1` batch mode against the real bundled chunk registry, including
+//! its one known-unpreviewable chunk (`fullscreen_triangle`, skipped, not
+//! failed).
 
 use std::path::PathBuf;
 use assert_cmd::Command;
 use shader_chunks_preview::PreviewTarget;
-use shader_chunks_render::{ RenderCliError, out_path_of, overrides_apply, overrides_parse, render_to_png, size_parse };
+use shader_chunks_render::{ BatchOutcome, RenderCliError, batch_summary, out_path_of, overrides_apply, overrides_parse, render_all_to_png, render_to_png, size_parse };
 
 fn temp_png( label : &str ) -> PathBuf
 {
@@ -16,6 +20,13 @@ fn temp_png( label : &str ) -> PathBuf
 fn temp_wgsl( label : &str ) -> PathBuf
 {
   std::env::temp_dir().join( format!( "shader_chunks_render_{label}_{}.wgsl", std::process::id() ) )
+}
+
+fn temp_dir( label : &str ) -> PathBuf
+{
+  let dir = std::env::temp_dir().join( format!( "shader_chunks_render_batch_{label}_{}", std::process::id() ) );
+  let _ = std::fs::remove_dir_all( &dir );
+  dir
 }
 
 #[ test ]
@@ -393,4 +404,123 @@ fn subprocess_help_lists_the_render_group()
   let stdout = String::from_utf8_lossy( &output.stdout );
   assert!( stdout.contains( "Render" ), "stdout: {stdout}" );
   assert!( stdout.contains( "render [name]" ), "stdout: {stdout}" );
+}
+
+#[ test ]
+fn render_all_to_png_creates_the_out_dir_and_covers_every_bundled_chunk_with_no_failures()
+{
+  let dir = temp_dir( "coverage" );
+  assert!( !dir.exists(), "the dir must not pre-exist, to prove auto-creation" );
+  let outcomes = render_all_to_png( ( 8, 8 ), 0.0, &dir ).expect( "the fresh temp dir must be creatable" );
+  assert!( dir.is_dir(), "render_all_to_png must create out_dir" );
+  assert_eq!( outcomes.len(), shader_chunks_core::CHUNKS.len(), "one outcome per bundled chunk" );
+  let failed : Vec< _ > = outcomes.iter().filter_map( | o | match o
+  {
+    BatchOutcome::Failed { name, error } => Some( format!( "{name}: {error}" ) ),
+    _ => None,
+  }).collect();
+  assert!( failed.is_empty(), "no bundled chunk should fail to render: {failed:?}" );
+  let _ = std::fs::remove_dir_all( &dir );
+}
+
+#[ test ]
+fn render_all_to_png_writes_a_valid_png_for_every_rendered_chunk()
+{
+  let dir = temp_dir( "writes" );
+  let outcomes = render_all_to_png( ( 8, 8 ), 0.0, &dir ).expect( "the fresh temp dir must be creatable" );
+  let rendered : Vec< _ > = outcomes.iter().filter_map( | o | match o
+  {
+    BatchOutcome::Rendered { name, path } => Some( ( name.clone(), path.clone() ) ),
+    _ => None,
+  }).collect();
+  assert!( !rendered.is_empty(), "at least one bundled chunk must render" );
+  for ( name, path ) in &rendered
+  {
+    let image = image::open( path ).unwrap_or_else( | err | panic!( "{name}'s PNG at {} must be readable: {err}", path.display() ) );
+    assert_eq!( ( image.width(), image.height() ), ( 8, 8 ), "{name}'s PNG must be the requested size" );
+  }
+  let _ = std::fs::remove_dir_all( &dir );
+}
+
+#[ test ]
+fn render_all_to_png_skips_the_known_unpreviewable_chunk_without_writing_a_file()
+{
+  let dir = temp_dir( "skip" );
+  let outcomes = render_all_to_png( ( 8, 8 ), 0.0, &dir ).expect( "the fresh temp dir must be creatable" );
+  let skipped = outcomes.iter().find( | o | matches!( o, BatchOutcome::Skipped { name, .. } if name == "fullscreen_triangle" ) )
+  .unwrap_or_else( || panic!( "fullscreen_triangle must be Skipped, got: {outcomes:?}" ) );
+  if let BatchOutcome::Skipped { reason, .. } = skipped
+  {
+    assert!( !reason.is_empty(), "the skip reason must not be empty" );
+  }
+  assert!( !dir.join( "fullscreen_triangle.png" ).exists(), "a skipped chunk must not write a file" );
+  let _ = std::fs::remove_dir_all( &dir );
+}
+
+#[ test ]
+fn batch_summary_lists_each_outcome_and_a_totals_line()
+{
+  let outcomes = vec!
+  [
+    BatchOutcome::Rendered { name : "a".to_string(), path : PathBuf::from( "out/a.png" ) },
+    BatchOutcome::Skipped { name : "b".to_string(), reason : "not previewable".to_string() },
+    BatchOutcome::Failed { name : "c".to_string(), error : RenderCliError::InvalidSize( "bad".to_string() ) },
+  ];
+  let text = batch_summary( &outcomes );
+  assert!( text.contains( "a: wrote out/a.png" ), "got: {text}" );
+  assert!( text.contains( "b: skipped (not previewable)" ), "got: {text}" );
+  assert!( text.contains( "c: failed (invalid `size` value: `bad`" ), "got: {text}" );
+  assert!( text.contains( "3 chunks: 1 rendered, 1 skipped, 1 failed" ), "got: {text}" );
+}
+
+#[ test ]
+fn subprocess_render_all_writes_a_png_per_chunk_into_a_freshly_created_dir_and_reports_totals()
+{
+  let dir = temp_dir( "subprocess_all" );
+  let output = Command::cargo_bin( "shader_chunks_render" ).expect( "binary builds" )
+  .args( [ "render", "all::1", &format!( "out::{}", dir.display() ), "size::8" ] )
+  .output()
+  .expect( "runs" );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  let stdout = String::from_utf8_lossy( &output.stdout );
+  assert!( stdout.contains( "chunks:" ), "stdout must print the totals line: {stdout}" );
+  assert!( stdout.contains( "0 failed" ), "no bundled chunk should fail: {stdout}" );
+  assert!( dir.join( "fbm3.png" ).exists(), "fbm3.png must be written into the freshly created out dir" );
+  let _ = std::fs::remove_dir_all( &dir );
+}
+
+#[ test ]
+fn subprocess_render_all_rejects_a_name_target()
+{
+  let output = Command::cargo_bin( "shader_chunks_render" ).expect( "binary builds" )
+  .args( [ "render", "fbm3", "all::1" ] )
+  .output()
+  .expect( "runs" );
+  assert_eq!( output.status.code(), Some( 1 ) );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( stderr.contains( "cannot be combined" ), "stderr: {stderr}" );
+}
+
+#[ test ]
+fn subprocess_render_all_rejects_a_file_target()
+{
+  let output = Command::cargo_bin( "shader_chunks_render" ).expect( "binary builds" )
+  .args( [ "render", "file::whatever.wgsl", "all::1" ] )
+  .output()
+  .expect( "runs" );
+  assert_eq!( output.status.code(), Some( 1 ) );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( stderr.contains( "cannot be combined" ), "stderr: {stderr}" );
+}
+
+#[ test ]
+fn subprocess_render_all_rejects_set_overrides()
+{
+  let output = Command::cargo_bin( "shader_chunks_render" ).expect( "binary builds" )
+  .args( [ "render", "all::1", "set::lacunarity:2.5" ] )
+  .output()
+  .expect( "runs" );
+  assert_eq!( output.status.code(), Some( 1 ) );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( stderr.contains( "cannot be combined" ), "stderr: {stderr}" );
 }

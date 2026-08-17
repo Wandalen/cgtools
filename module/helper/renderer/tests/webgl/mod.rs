@@ -4,6 +4,9 @@ use mingl::math;
 /// Node related tests
 mod node;
 
+/// Mesh clone independence tests
+mod mesh;
+
 /// Scene related tests
 mod scene;
 
@@ -39,3 +42,15 @@ mod jfa_buffer_selection;
 
 /// Wide-outline outline-pass JFA seed-sentinel validity tests
 mod outline_seed_sentinel;
+
+/// Skeleton morph-target displacement-texture sizing tests
+mod displacement_texture_size;
+
+/// Renderer per-material shader-program cache invalidation tests
+mod program_needs_recompile;
+
+/// `SwapFramebuffer::new` doc-comment-vs-body renderbuffer claim consistency tests
+mod pass;
+
+/// IBL loader texture-parameter / mip-range wiring tests
+mod ibl;

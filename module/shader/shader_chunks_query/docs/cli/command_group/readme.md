@@ -21,15 +21,15 @@
 | 1 | [01_query.md](01_query.md) | Query | `.list`, `.get`, `.tags` | ✅ |
 | 2 | [02_graph.md](02_graph.md) | Graph | `.tree` | ✅ |
 
-**Total:** 2 command groups (of 6 across the `shader_chunks` family)
+**Total:** 2 command groups (of 7 across the `shader_chunks` family)
 
 **Partition note:** every one of this crate's 4 commands belongs to
 exactly one of these 2 groups — no command is outside the partition,
-none is in two groups. The full 6-group, 8-command partition (spanning
-all 5 leaf CLIs) is stated in
+none is in two groups. The full 7-group, 9-command partition (spanning
+all 6 leaf CLIs) is stated in
 [the family index](../../../../shader_chunks/docs/cli/readme.md). The
 help screen (`shader_chunks_cli_core/src/lib.rs`, `help_print`) renders
-all 6 groups together; a drift between the family index's table and the
+all 7 groups together; a drift between the family index's table and the
 help output is a documentation bug.
 
 ### Docs

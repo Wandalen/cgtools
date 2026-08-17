@@ -13,7 +13,7 @@ mod private
   {
     CliApp, CommandSet, arg_bool, arg_list, arg_string, arg_usize, error_report, named_arg, text_output,
   };
-  use shader_chunks_query_core::{ QueryError, QueryParams };
+  use shader_chunks_query_core::{ QueryError, QueryParams, TreeFormat };
 
   /// This utility's standalone binary name.
   pub const BINARY : &str = "shader_chunks_query";
@@ -47,13 +47,14 @@ mod private
       .attributes( ArgumentAttributes { optional : names_optional, multiple : true, ..ArgumentAttributes::default() } )
       .end(),
       named_arg( "pattern", Kind::String, "Substring filter on chunk names.", None ),
-      named_arg( "case", Kind::Boolean, "Case-sensitive `pattern::`/`exports::` matching.", Some( "false".to_string() ) ),
+      named_arg( "case", Kind::Boolean, "Case-sensitive `pattern::`/`exports::`/`source::` matching.", Some( "false".to_string() ) ),
       named_arg( "tag", Kind::List( Box::new( Kind::String ), Some( ',' ) ), "Tag selectors, comma-separated: `group:tag` exact pair, bare `tag` any group.", None ),
       named_arg( "tags_mode", Kind::String, "Combine `tag::` selectors: any | all.", Some( defaults.tags_mode.as_str().to_string() ) ),
       named_arg( "stage", Kind::String, "Stage filter: any | none | a stage name.", Some( defaults.stage.clone() ) ),
       named_arg( "depends_on", Kind::String, "Keep only chunks depending on this chunk.", None ),
       named_arg( "transitive", Kind::Boolean, "Widen `depends_on::` to the transitive closure.", Some( "false".to_string() ) ),
       named_arg( "exports", Kind::String, "Substring filter over export signatures.", None ),
+      named_arg( "source", Kind::String, "Substring filter over the chunk's raw WGSL body.", None ),
       named_arg( "roots", Kind::Boolean, "Keep only chunks nothing else depends on.", Some( "false".to_string() ) ),
       named_arg( "leaves", Kind::Boolean, "Keep only chunks with no dependencies.", Some( "false".to_string() ) ),
       named_arg( "fields", Kind::List( Box::new( Kind::String ), Some( ',' ) ), "Columns to project: name, description, stage, tags, depends_on, exports, source.", Some( defaults.fields.join( "," ) ) ),
@@ -88,6 +89,7 @@ mod private
     if let Some( depends_on ) = arg_string( cmd, "depends_on" ) { params.depends_on = depends_on; }
     params.transitive = arg_bool( cmd, "transitive", params.transitive );
     if let Some( exports ) = arg_string( cmd, "exports" ) { params.exports = exports; }
+    if let Some( source ) = arg_string( cmd, "source" ) { params.source = source; }
     params.roots = arg_bool( cmd, "roots", params.roots );
     params.leaves = arg_bool( cmd, "leaves", params.leaves );
     let fields = arg_list( cmd, "fields" );
@@ -142,6 +144,7 @@ mod private
       format!( "{binary} list pattern::noise" ),
       format!( "{binary} list tag::noise format::json" ),
       format!( "{binary} list roots::1 fields::name,exports" ),
+      format!( "{binary} list source::fract format::names" ),
     ])
     .arguments( query_arguments( true, &defaults ) )
     .end();
@@ -224,6 +227,7 @@ mod private
       format!( "{binary} tree fbm3" ),
       format!( "{binary} tree" ),
       format!( "{binary} tree hash21 reverse::1" ),
+      format!( "{binary} tree fbm3 shape::dot" ),
     ])
     .arguments( vec!
     [
@@ -234,6 +238,7 @@ mod private
       .attributes( ArgumentAttributes { optional : true, ..ArgumentAttributes::default() } )
       .end(),
       named_arg( "reverse", Kind::Boolean, "Walk dependents instead of dependencies: what (transitively) depends on this chunk.", Some( "false".to_string() ) ),
+      named_arg( "shape", Kind::String, "Rendering shape: aligned (indented text), dot (Graphviz digraph), mermaid (Mermaid graph TD).", Some( "aligned".to_string() ) ),
     ])
     .end();
 
@@ -245,7 +250,12 @@ mod private
         _ => None,
       };
       let reverse = arg_bool( &cmd, "reverse", false );
-      let content = shader_chunks_query_core::chunk_tree( name, reverse ).map_err( | e | query_error( &e ) )?;
+      let shape = match arg_string( &cmd, "shape" )
+      {
+        Some( s ) => s.parse().map_err( | e | query_error( &e ) )?,
+        None => TreeFormat::Aligned,
+      };
+      let content = shader_chunks_query_core::chunk_tree( name, reverse, shape ).map_err( | e | query_error( &e ) )?;
       Ok( text_output( content ) )
     });
 

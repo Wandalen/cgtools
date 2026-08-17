@@ -15,14 +15,14 @@ no subprocess to assert on output content (see its `tests/`).
 
 ```text
 select (names:: or every bundled chunk)
-  -> filter (pattern, tag, stage, depends_on, exports, roots, leaves)
+  -> filter (pattern, tag, stage, depends_on, exports, source, roots, leaves)
   -> count short-circuit (returns early if count:: is set)
   -> sort + order
   -> offset + limit
   -> render (fields:: projection, then format::)
 ```
 
-[`QueryParams`] carries the full 19-parameter surface as one struct;
+[`QueryParams`] carries the full 20-parameter surface as one struct;
 [`QueryParams::list_defaults`]/[`QueryParams::get_defaults`] are the only
 difference between `list` and `get` — same engine, different starting
 values (overview columns + plain table vs. detail columns + expanded

@@ -12,9 +12,9 @@ this crate wires it to the CLI via
 [`shader_chunks_preview_web`](../../../shader_chunks_preview_web/readme.md)
 runner crate and, by default, hands off to the browser via the repo's
 shared `action/browser_serve` script; `serve::0` stops after writing and
-prints a summary instead. This crate is one of 5 leaf CLIs assembled by
+prints a summary instead. This crate is one of 6 leaf CLIs assembled by
 the [`shader_chunks`](../../../shader_chunks/docs/cli/readme.md)
-aggregator — see that readme for the family-wide 8-command list and
+aggregator — see that readme for the family-wide 9-command list and
 Scope Decisions.
 
 ## Completion Matrix
@@ -56,7 +56,7 @@ covering the param/command/command_group tiers.
 - [`../../../shader_chunks/docs/cli/procedure.md`](../../../shader_chunks/docs/cli/procedure.md) — how to extend a `docs/cli/` tree when an entity is added or removed
 - [`../../tests/docs/cli/readme.md`](../../tests/docs/cli/readme.md) — test specification mirror
 - [`../../readme.md`](../../readme.md) — crate readme (purpose, examples, links back here)
-- [`../../../shader_chunks/docs/cli/readme.md`](../../../shader_chunks/docs/cli/readme.md) — family index (all 5 leaf CLIs, all 8 commands)
+- [`../../../shader_chunks/docs/cli/readme.md`](../../../shader_chunks/docs/cli/readme.md) — family index (all 6 leaf CLIs, all 9 commands)
 
 ## Scope Decisions
 

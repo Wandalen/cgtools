@@ -342,12 +342,9 @@ mod private
     /// # Arguments
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
-    #[ expect( clippy::unused_self, reason = "the commented-out detach calls in the body are the intended full implementation and need `self`" ) ]
+    #[ expect( clippy::unused_self, reason = "kept as a method, not an associated fn, for API symmetry with `multisample_bind` -- which does need `self` -- not because this body needs it" ) ]
     pub fn multisample_unbind( &self, gl : &gl::WebGl2RenderingContext )
     {
-      // gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      // gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, None );
-      // gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, None );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
 
@@ -361,12 +358,9 @@ mod private
     /// # Arguments
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
-    #[ expect( clippy::unused_self, reason = "the commented-out detach calls in the body are the intended full implementation and need `self`" ) ]
+    #[ expect( clippy::unused_self, reason = "kept as a method, not an associated fn, for API symmetry with `resolved_bind` -- which does need `self` -- not because this body needs it" ) ]
     pub fn resolved_unbind( &self, gl : &gl::WebGl2RenderingContext )
     {
-      //  gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
-      // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
 
@@ -405,8 +399,11 @@ mod private
     shader_source_registry : FxHashMap< ( std::any::TypeId, String ), uuid::Uuid >,
     /// Program UUID → compiled ShaderProgram
     compiled_programs : FxHashMap< uuid::Uuid, Box< dyn ShaderProgram > >,
-    /// Material UUID → program UUID
-    material_program_map : FxHashMap< uuid::Uuid, uuid::Uuid >,
+    /// Material UUID → ( program UUID, `use_ibl` the program was compiled with ).
+    /// The `bool` lets a cached mapping be invalidated when the renderer's IBL
+    /// availability changes after the material was first registered — see
+    /// `program_needs_recompile`.
+    material_program_map : FxHashMap< uuid::Uuid, ( uuid::Uuid, bool ) >,
     /// (node, primitive, primitive_index, program_uuid)
     transparent_nodes : Vec< TransparentNodeEntry >,
     /// (node, primitive, primitive_index, program_uuid, has_emission)
@@ -780,14 +777,25 @@ mod private
 
       let material_id = material.id();
       let use_ibl = self.ibl.is_some() && material.ibl_base_texture_unit().is_some();
+      let cached_use_ibl = self.material_program_map.get( &material_id ).map( | &( _, cached ) | cached );
 
-      // If material's defines changed, drop the old mapping and clean up orphaned programs
-      if material.needs_recompile()
+      // Fix(BUG-258): also invalidate the cached mapping when the program's baked-in IBL
+      // state no longer matches the freshly computed `use_ibl` — previously only
+      // `material.needs_recompile()` (a material-intrinsic "my own defines changed" flag)
+      // could trigger a recompile, so a material registered before `Renderer::ibl_set` was
+      // ever called ( or before it went from `Some` back to being replaced ) kept reusing its
+      // stale program forever, even after IBL availability changed.
+      // Root cause: `material_program_map` short-circuited on `material_id` alone once a
+      // mapping existed; `use_ibl` was only ever consulted on a cache miss, never compared
+      // against the IBL state the cached program was actually compiled with.
+      // Pitfall: any renderer-level (not material-level) input baked into a shader's defines
+      // must be part of the cache invalidation check, not just the material's own dirty flag.
+      if program_needs_recompile( material.needs_recompile(), cached_use_ibl, use_ibl )
       {
-        if let Some( old_prog_id ) = self.material_program_map.remove( &material_id )
+        if let Some( ( old_prog_id, _ ) ) = self.material_program_map.remove( &material_id )
         {
           // Check if any other material still references this program
-          let still_used = self.material_program_map.values().any( | id | *id == old_prog_id );
+          let still_used = self.material_program_map.values().any( | &( id, _ ) | id == old_prog_id );
           if !still_used
           {
             self.compiled_programs.remove( &old_prog_id );
@@ -796,7 +804,7 @@ mod private
         }
       }
 
-      let program_uuid = if let Some( &prog_id ) = self.material_program_map.get( &material_id )
+      let program_uuid = if let Some( &( prog_id, _ ) ) = self.material_program_map.get( &material_id )
       {
         prog_id
       }
@@ -862,7 +870,7 @@ mod private
           new_id
         };
 
-        self.material_program_map.insert( material_id, prog_id );
+        self.material_program_map.insert( material_id, ( prog_id, use_ibl ) );
         material.recompile_flag_clear();
         prog_id
       };
@@ -1174,6 +1182,27 @@ mod private
     }
   }
 
+  /// Decides whether a material's cached shader program must be dropped and
+  /// recompiled on its next registration.
+  ///
+  /// Two independent reasons force a recompile : the material's own defines changed
+  /// (`material_needs_recompile`), or the program in the cache was compiled against a
+  /// different Image-Based Lighting availability state than is currently in effect
+  /// (`cached_use_ibl` vs `current_use_ibl`). `cached_use_ibl` is `None` when there is no
+  /// cached program yet ( first-time registration ), in which case this always returns
+  /// `false` — there is nothing to invalidate, the material simply takes the normal
+  /// "compile a fresh program" path.
+  ///
+  /// # Fix(BUG-258)
+  /// Extracted so a `Renderer::ibl_set` call made after a material has already been
+  /// registered is honored on that material's next registration, instead of the material
+  /// silently keeping its stale ( IBL-less, or stale-IBL ) program forever.
+  #[ must_use ]
+  pub fn program_needs_recompile( material_needs_recompile : bool, cached_use_ibl : Option< bool >, current_use_ibl : bool ) -> bool
+  {
+    material_needs_recompile || cached_use_ibl.is_some_and( | cached | cached != current_use_ibl )
+  }
+
   /// Configures face culling and front face order from material.
   fn material_face_properties_enable( gl : &GL, material : &dyn crate::webgl::Material )
   {
@@ -1362,6 +1391,7 @@ crate::mod_interface!
   orphan use
   {
     Renderer,
-    frame_attachments
+    frame_attachments,
+    program_needs_recompile
   };
 }

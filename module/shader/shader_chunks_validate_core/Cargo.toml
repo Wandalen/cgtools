@@ -1,0 +1,13 @@
+[package]
+name = "shader_chunks_validate_core"
+version = "0.1.0"
+edition = "2024"
+description = "Registry-wide integrity checks over shader_chunks_core's bundled WGSL chunks — manifest/descriptor drift, duplicate names, missing/cyclic dependencies, and per-chunk naga WGSL validation"
+
+[dependencies]
+shader_chunks_core.workspace = true
+naga.workspace = true
+mod_interface.workspace = true
+
+[lints]
+workspace = true

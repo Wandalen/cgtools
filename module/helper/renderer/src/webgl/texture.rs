@@ -2,7 +2,7 @@ mod private
 {
   use mingl::Former;
   use minwebgl::{ self as gl };
-  use crate::webgl::Sampler;
+  use crate::webgl::{ Sampler, MinFilterMode, MagFilterMode, WrappingMode };
 
 
   /// Represents a texture in WebGL.
@@ -29,6 +29,30 @@ mod private
     pub fn new() -> Self
     {
       Self::default()
+    }
+
+    /// Loads a 2D texture from `image_path`, sampled with linear filtering and repeat wrapping
+    /// on both axes -- the sampler configuration duplicated, with no variation, by every
+    /// example that loaded a texture from a path before this helper existed. `flip` controls
+    /// whether the image is flipped vertically on upload ( WebGL's texture origin is
+    /// bottom-left; most image formats decode top-left first ).
+    #[ must_use ]
+    pub fn load_from_path( gl : &gl::WebGl2RenderingContext, image_path : &str, flip : bool ) -> Self
+    {
+      let source = gl::texture::d2::image_upload_from_path( gl, image_path, flip );
+
+      let sampler = Sampler::former()
+      .min_filter( MinFilterMode::Linear )
+      .mag_filter( MagFilterMode::Linear )
+      .wrap_s( WrappingMode::Repeat )
+      .wrap_t( WrappingMode::Repeat )
+      .end();
+
+      Self::former()
+      .target( gl::TEXTURE_2D )
+      .source( source )
+      .sampler( sampler )
+      .end()
     }
 
     /// This function binds the texture to the given WebGL context and then uploads the sampler
