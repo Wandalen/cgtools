@@ -18,15 +18,17 @@ to an L3/L5 consumer produces pixels.
 - **Serializable**: a file format (RON, glTF) is the canonical form, not an
   in-memory object graph.
 - **Validate-able without a GPU**: model loading and validation must work
-  headless — this is what makes L4 testable and toolable.
+  headless — this is what makes L4 testable and toolable. This is the
+  invariant `tilemap_scene` meets; the d3 occupant below does not (its
+  loader requires a live GPU context just to parse).
 
 ### Occupants per Stack
 
 | Stack | Model | State |
 |-------|-------|-------|
-| tile | `tilemap_scene`'s RON scene model (`Scene`, layers, palettes, variants) | ✅ Dedicated crate; GPU-free by dependency surface ([`tilemap_scene` invariant/003](../../module/helper/tilemap_scene/docs/invariant/003_compiles_to_renderer_commands_only.md)) |
+| tile | `tilemap_scene`'s RON scene model (`RenderSpec`/`SceneSnapshot` — layers, palettes, variants; not the in-memory `Scene` runtime graph, which has no `Serialize`/`Deserialize` derive, see Sources below) | ✅ Dedicated crate; GPU-free by dependency surface — `tiles_tools`' default-on `animation` feature, which transitively pulled in `minwebgl` while going unused, was removed (task 117) ([`tilemap_scene` invariant/003](../../module/helper/tilemap_scene/docs/invariant/003_compiles_to_renderer_commands_only.md)) |
 | d2 (general) | None dedicated — content arrives as direct `tilemap_renderer` commands or via `scene_script` | 🔄 Gap accepted; no committed need yet |
-| d3 | glTF, consumed through `renderer`'s loaders | 🔄 De facto: the format is standard, but there is no cgtools-owned model crate wrapping it |
+| d3 | glTF, consumed through `renderer`'s file-based loaders, or assembled procedurally by `primitive_generation`'s `primitives_data_to_gltf` — same `GLTF` struct, a second producer of the same artifact type ([task/decisions.md Q-04](../../task/decisions.md#q-04--primitive_generations-l0-l5-ladder-placement)) | 🔄 De facto: the format is standard, but there is no cgtools-owned model crate wrapping it; both producers require a live `WebGl2RenderingContext` — `renderer`'s `load()` to parse, `primitive_generation`'s `primitives_data_to_gltf` to build GL buffers directly — so neither is off-GPU-validatable end-to-end, though pure sub-surfaces are: light-extraction (`light_list_get`) is now natively tested off-GPU (task 118), and URI resolution (`asset_uri_resolve`) has its own pre-existing native coverage in `gltf_loader_tests.rs` (6 cases: relative-path joining, `blob:`/`data:`/`https://` URIs, absolute paths, empty-folder-path edge case) |
 
 `d3_scene` (`module/blank/d3_scene/`) reserves the slot for a d3-owned
 scene model + script, gated on a committed scene-file requirement.
@@ -44,4 +46,7 @@ scene model + script, gated on a committed scene-file requirement.
 |------|--------------|
 | `module/blank/d3_scene/` | Reserved d3 scene-layer slot |
 | `module/helper/renderer/src/webgl/loaders/gltf.rs` | glTF ingestion — the de facto d3 model boundary |
-| `module/helper/tilemap_scene/src/scene.rs` | The tile stack's declarative model |
+| `module/helper/renderer/src/webgl/animation/loaders/gltf.rs` | Animation-specific glTF ingestion, alongside the main loader above |
+| `module/helper/renderer/tests/gltf_loader_tests.rs` | Native, off-GPU coverage for `asset_uri_resolve`'s pure URI-resolution sub-surface |
+| `module/helper/primitive_generation/src/primitive_data.rs` | `primitives_data_to_gltf` — the second, procedural glTF producer ([Q-04](../../task/decisions.md#q-04--primitive_generations-l0-l5-ladder-placement)) |
+| `module/helper/tilemap_scene/src/spec.rs` + `src/snapshot.rs` | The tile stack's declarative model ( `RenderSpec` / `SceneSnapshot`, RON-deserializable ) — not `scene.rs`, which is the runtime/retained-mode counterpart with no `Serialize`/`Deserialize` derive |

@@ -393,6 +393,30 @@ mod private
 
   impl std::error::Error for ComposeError {}
 
+  /// Error returned by [`set_resolve`] when a requested name — or, under
+  /// `transitive`, a reachable dependency name — is not in the bundled
+  /// [`CHUNKS`] registry.
+  #[ derive( Debug, Clone, PartialEq, Eq ) ]
+  pub enum ResolveError
+  {
+    /// The offending chunk name as given ( or as found in a `depends_on`
+    /// list during transitive widening ).
+    UnknownChunk( String ),
+  }
+
+  impl std::fmt::Display for ResolveError
+  {
+    fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+    {
+      match self
+      {
+        Self::UnknownChunk( name ) => write!( f, "unknown chunk name `{name}` — not in the bundled set" ),
+      }
+    }
+  }
+
+  impl std::error::Error for ResolveError {}
+
   /// Topologically sorts `chunks` by each one's header-declared `depends_on`
   /// and concatenates their WGSL bodies in that order, dependency before
   /// dependent, regardless of the order they were passed in.
@@ -459,6 +483,41 @@ mod private
     .map( | chunk | ParsedChunk { name : chunk.name, depends_on : chunk.depends_on.to_vec(), wgsl : chunk.wgsl } )
     .collect();
     entries_sort_and_join( &entries )
+  }
+
+  /// Resolves `names` against the bundled [`CHUNKS`] registry into their
+  /// descriptors, preserving the given order ( duplicates included ). With
+  /// `transitive` set, the named set is widened to its full dependency
+  /// closure — every reachable `depends_on` chunk is appended after the
+  /// named ones, each exactly once. The result is a *selection*, not a
+  /// composition: pass it on to [`set_try_compose`] ( or read the `wgsl`
+  /// fields ) to obtain ordered WGSL text.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`ResolveError::UnknownChunk`] if any name — or, under
+  /// `transitive`, any reachable dependency name — is not bundled.
+  pub fn set_resolve( names : &[ &str ], transitive : bool ) -> Result< Vec< &'static ChunkDescriptor >, ResolveError >
+  {
+    let find = | name : &str | chunk_get( name ).ok_or_else( || ResolveError::UnknownChunk( name.to_string() ) );
+    let mut selected : Vec< &'static ChunkDescriptor > = names.iter()
+    .map( | &name | find( name ) )
+    .collect::< Result< _, _ > >()?;
+    if transitive
+    {
+      let mut seen : std::collections::HashSet< &str > = selected.iter().map( | chunk | chunk.name ).collect();
+      let mut queue : Vec< &str > = selected.iter().flat_map( | chunk | chunk.depends_on.iter().copied() ).collect();
+      while let Some( name ) = queue.pop()
+      {
+        if seen.insert( name )
+        {
+          let chunk = find( name )?;
+          queue.extend( chunk.depends_on.iter().copied() );
+          selected.push( chunk );
+        }
+      }
+    }
+    Ok( selected )
   }
 
   // Shared sort core of `try_compose` ( entries parsed from raw text ) and
@@ -542,4 +601,6 @@ mod private
   own use ComposeError;
   own use compose;
   own use try_compose;
+  own use ResolveError;
+  own use set_resolve;
 }

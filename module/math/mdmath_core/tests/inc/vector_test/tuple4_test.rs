@@ -156,3 +156,41 @@ fn test_vector_iter_mut_next_and_next_back_disjoint_tuple4()
   }
   assert_eq!( tuple, ( 100, 300, 400, 200 ), "next() and next_back() must yield disjoint elements, not alias the same slot" );
 }
+
+// test_kind: bug_reproducer(BUG-122)
+/// ## Root Cause
+/// `Tuple4Iter::next()`/`next_back()` (`vector/tuple4.rs`) shared a single monotonically
+/// increasing `index` field with per-value match arms hardcoded for one iteration direction —
+/// identical shape to BUG-050 (fixed only for the `*Mut` sibling), so alternating
+/// `.next()`/`.next_back()` calls on the same (non-`.rev()`) iterator reinterpreted the shared
+/// index inconsistently between the two directions, yielding wrong elements instead of a true
+/// front/back traversal.
+/// ## Why Not Caught
+/// Every existing `vector_iter` test called only `.next()` repeatedly, or only `.rev()` then
+/// `.next()` repeatedly (fully reversed) — never alternated `.next()`/`.next_back()` on the
+/// same unwrapped iterator, the exact trigger condition. BUG-050's own fix only updated the
+/// `*Mut` iterators, since the immutable ones don't alias unsafely and so never tripped Miri.
+/// ## Fix Applied
+/// Replaced the shared `index` field with independent `front`/`back` cursors, mirroring the
+/// already-fixed `Tuple4IterMut` (BUG-050).
+/// ## Prevention
+/// This test alternates `.next()`/`.next_back()` on `vector_iter()` and asserts each call
+/// yields the element a correct front/back traversal would produce.
+/// ## Pitfall
+/// A shared-index `DoubleEndedIterator` is only correct under single-direction iteration even
+/// when its yielded references are shared (`&E`) rather than exclusive (`&mut E`) — the
+/// aliasing-safety argument that excuses skipping Miri does not excuse skipping a mixed-order
+/// correctness test.
+#[ test ]
+fn test_vector_iter_next_and_next_back_disjoint_tuple4()
+{
+  use the_module::VectorIter;
+  let tuple : ( i32, i32, i32, i32 ) = ( 42, 43, 44, 45 );
+  let mut iter = tuple.vector_iter();
+  assert_eq!( iter.next(), Some( &42 ), "front" );
+  assert_eq!( iter.next_back(), Some( &45 ), "back of remaining [43,44,45]" );
+  assert_eq!( iter.next(), Some( &43 ), "front of remaining [43,44]" );
+  assert_eq!( iter.next_back(), Some( &44 ), "only element left" );
+  assert_eq!( iter.next(), None );
+  assert_eq!( iter.next_back(), None );
+}

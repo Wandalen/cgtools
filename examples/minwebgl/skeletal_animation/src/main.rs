@@ -67,7 +67,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 10.0;
   let far = near * 100.0f32.powi( exponent.abs() ) / 100.0;
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far )?;
   camera.window_size_set( [ width, height ].into() );
   camera.controls_bind( &canvas );
 

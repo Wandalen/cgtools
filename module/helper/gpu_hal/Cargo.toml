@@ -20,8 +20,19 @@ enabled = [
 webgpu = [ "dep:minwebgpu" ]
 webgl = [ "dep:minwebgl", "dep:web-sys" ]
 native = [ "dep:minwgpu", "dep:wgpu" ]
+# Built on minvulkan + ash directly, and naga for WGSL->SPIR-V translation
+# ( naga has no wgpu dependency of its own — wgpu depends on naga, not the
+# reverse ). Deliberately does not depend on `minwgpu` or `wgpu` — see
+# docs/adr/004_native_vulkan_hal_backend.md.
+vulkan = [ "dep:minvulkan", "dep:ash", "dep:naga", "naga/spv-out" ]
+# Build-time-only WGSL->GLSL ES 300 translation ( `webgl_build` module ), for
+# use as a `build.rs` build-dependency by a downstream crate targeting
+# gpu_hal's WebGL backend — independent of the `webgl` feature itself, and
+# of `vulkan`; shares the optional `naga` dependency, requesting only its
+# GLSL backend.
+webgl-glsl-build = [ "dep:naga", "naga/glsl-out" ]
 default = [ "enabled" ]
-full = [ "default", "webgpu", "webgl", "native" ]
+full = [ "default", "webgpu", "webgl", "native", "vulkan", "webgl-glsl-build" ]
 
 [dependencies]
 
@@ -37,3 +48,11 @@ web-sys = { workspace = true, optional = true, features = [ "WebGl2RenderingCont
 # same split as minwebgl + web-sys above.
 minwgpu = { workspace = true, optional = true }
 wgpu = { workspace = true, optional = true }
+# The vulkan backend builds through minvulkan + raw ash calls — it must never
+# gain a wgpu/minwgpu dependency, per docs/adr/004_native_vulkan_hal_backend.md.
+minvulkan = { workspace = true, optional = true }
+ash = { workspace = true, features = [ "loaded" ], optional = true }
+# Backend feature ( spv-out / glsl-out ) requested per activating feature,
+# above; wgsl-in comes from the workspace-level default already enabled for
+# the `renderer` crate ( naga itself has no wgpu dependency ).
+naga = { workspace = true, optional = true }

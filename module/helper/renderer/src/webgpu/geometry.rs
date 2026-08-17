@@ -36,7 +36,11 @@ mod private
     ///
     /// # Errors
     ///
-    /// Returns an error when any vertex or index buffer allocation fails on the device.
+    /// Returns [`Error::InvalidInput`] if `positions.len()` is not a multiple
+    /// of 3, or if `normals`/`uvs`/`colors` don't each carry exactly the
+    /// vertex count implied by `positions` (3/2/4 components per vertex,
+    /// respectively). Returns an error when any vertex or index buffer
+    /// allocation fails on the device.
     pub fn new
     (
       device : &Device,
@@ -47,7 +51,41 @@ mod private
       indices : Option< Vec< u32 > >
     ) -> Result< Self, Error >
     {
+      // Fix(BUG-177): `vertex_count` was derived from `positions` alone and
+      // never cross-checked against `normals`/`uvs`/`colors` -- despite this
+      // function's own doc comment stating all 4 arrays share "the same
+      // vertex count" as an intended invariant. A mismatched-length array
+      // (e.g. a future glTF-on-webgpu loader passing an accessor with a
+      // different count than `POSITION`, or a malformed/corrupted asset)
+      // silently created undersized vertex buffers that the subsequent draw
+      // call ( `Renderer::render`, binding all 4 buffers for `vertex_count`
+      // or `index_count` vertices ) reads past the end of.
+      // Root cause: no validation existed between the caller-supplied
+      // parallel arrays and the buffer uploads that trust their lengths.
+      // Pitfall: a doc comment stating a cross-array invariant doesn't mean
+      // the invariant is enforced -- always check.
+      if positions.len() % 3 != 0
+      {
+        return Err( Error::InvalidInput( format!
+        (
+          "Geometry::new: positions.len() ( {} ) is not a multiple of 3", positions.len()
+        ) ) );
+      }
       let vertex_count = ( positions.len() / 3 ) as u32;
+      let expected_normals = vertex_count as usize * 3;
+      let expected_uvs = vertex_count as usize * 2;
+      let expected_colors = vertex_count as usize * 4;
+      if normals.len() != expected_normals || uvs.len() != expected_uvs || colors.len() != expected_colors
+      {
+        return Err( Error::InvalidInput( format!
+        (
+          "Geometry::new: attribute length mismatch for {vertex_count} vertices -- \
+           expected normals.len()=={expected_normals}, uvs.len()=={expected_uvs}, \
+           colors.len()=={expected_colors}, got {}/{}/{}",
+          normals.len(), uvs.len(), colors.len()
+        ) ) );
+      }
+
       let position_buffer = device.buffer_init_create( bytemuck::cast_slice( positions ), BufferUsage::VERTEX )?;
       let normal_buffer = device.buffer_init_create( bytemuck::cast_slice( normals ), BufferUsage::VERTEX )?;
       let uv_buffer = device.buffer_init_create( bytemuck::cast_slice( uvs ), BufferUsage::VERTEX )?;

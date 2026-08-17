@@ -7,7 +7,7 @@
 - **Purpose**: Let a command stream produce a terminal-rendered (ASCII/Unicode) preview.
 - **Responsibility**: Record the adapter's actual (stub) implementation state, distinct from its originally intended design.
 - **In Scope**: The current state of `src/adapters/terminal.rs` and the feature gate it sits behind.
-- **Out of Scope**: SVG and WebGL2 adapters (see [feature/001_svg_backend_adapter.md](001_svg_backend_adapter.md), [feature/002_webgl2_backend_adapter.md](002_webgl2_backend_adapter.md)); any rendering behavior, since none is implemented yet.
+- **Out of Scope**: SVG, WebGL2, None, WebGPU, and Native adapters (see [001](001_svg_backend_adapter.md), [002](002_webgl2_backend_adapter.md), [004](004_none_backend_adapter.md), [005](005_webgpu_backend_adapter.md), [006](006_native_backend_adapter.md)); any rendering behavior, since none is implemented yet.
 
 ### Design
 

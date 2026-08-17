@@ -271,16 +271,30 @@ impl TurnBasedGame
   }
 
   fn turn_order_rebuild(&mut self) {
+    let current_entity = self.turn_order.get(self.current_turn_index).copied();
+
     let mut participants: Vec<_> = self.participants.values().collect();
     participants.sort_by_key(|b| std::cmp::Reverse(b.initiative));
-    
+
     self.turn_order = participants.into_iter()
       .map(|p| p.entity_id)
       .collect();
-    
-    // Ensure current turn index is valid
+
+    // Fix(BUG-133)
+    // Root cause: only clamped current_turn_index numerically against the
+    // new turn_order's length, never remapped it to the same entity_id --
+    // any participant_add/participant_remove call mid-round silently
+    // reassigned "whose turn it is" to whichever entity happened to land on
+    // that numeric slot after re-sorting, with no turn_end() call in between.
+    // Pitfall: when the previously-current entity was itself removed, there
+    // is no identity to preserve -- fall back to the same numeric clamp the
+    // original code used unconditionally, so removing the acting entity
+    // still advances play to whoever now occupies that slot instead of
+    // panicking or stalling.
     if !self.turn_order.is_empty() {
-      self.current_turn_index = self.current_turn_index.min(self.turn_order.len() - 1);
+      self.current_turn_index = current_entity
+        .and_then(|id| self.turn_order.iter().position(|&e| e == id))
+        .unwrap_or_else(|| self.current_turn_index.min(self.turn_order.len() - 1));
     }
   }
 

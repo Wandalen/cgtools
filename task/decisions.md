@@ -8,7 +8,7 @@ State legend: 🔍 Unverified · ✔️ Verified · 🚧 Blocked · ✅ Decided 
 
 Format rule: ✅ Decided entries show only the selected option as a single collapsed statement with rationale — rejected alternatives are dropped. ✔️ Verified entries retain the full Options section byte-for-byte plus a Confirmed field citing verification evidence. 🔍 Unverified entries show either the full Options section with a recommendation, or (once an assumption is formulated) a single Assumed statement with a verification mechanism and contingency. 🚧 Blocked entries retain the full Options section plus mandatory Blocked-on/Blocks fields. ➖ Cancelled entries preserve the original analysis plus a mandatory Reason field.
 
-3 entries · 1 cancelled · 2 decided
+4 entries · 1 cancelled · 3 decided
 
 ---
 
@@ -19,6 +19,7 @@ Format rule: ✅ Decided entries show only the selected option as a single colla
 | Q-01 | Split, narrow, or plan-extract task 001? | ➖ Cancelled | i4@wbox.pro | 2026_08_08 | — |
 | Q-02 | How should `ImageSource::Encoded` decoding be implemented across `tilemap_renderer` backends? | ✅ Decided | user1@w002 | 2026_08_11 | — |
 | Q-03 | How should shader-chunk tunable parameters be declared, discovered, and range-resolved? | ✅ Decided | user1@w002 | 2026_08_13 | — |
+| Q-04 | Where does `primitive_generation` sit on the L0-L5 rendering-layer ladder? | ✅ Decided | user1@w002 | 2026_08_16 | — |
 
 ---
 
@@ -78,5 +79,16 @@ How should chunk-level tunable parameters (function argument, compile-time defin
 **Range resolution:** a declared `range(min, max)` always wins. When absent, a deterministic (no randomness) two-stage heuristic infers one — name-substring pattern match first (`octaves`/`count`/`steps`/`iterations` → `[1, 8]`; `seed` → `[0, 65535]`; `angle`/`rotation` → `[0.0, τ]`; `scale`/`frequency`/`freq` → `[0.1, 10.0]`; `amplitude`/`weight`/`opacity`/`alpha`/`mix`/`blend` → `[0.0, 1.0]`; `radius`/`size`/`width`/`height` → `[0.0, 100.0]`), falling back to a WGSL-type-keyed default (`bool`/`texture_*` → no numeric range; `u32`/vec-of-`u32` → `[0, 16]`; `i32`/vec-of-`i32` → `[-16, 16]`; `f32`/vec-of-`f32` → `[0.0, 1.0]`, matching this codebase's own noise chunks' unit-interval convention) when no name pattern matches. Every inferred range is tagged `RangeSource::Inferred` versus a declared range's `RangeSource::Declared`, so a consumer can always tell which happened.
 
 **Scope boundary:** discovery (`shader_chunks_params`, a new crate) and its CLI surface (`shader_chunks`'s `tunables` command) are the full extent of this decision — annotating the 4 existing bundled chunks with real `//@ param:` lines, and any live GPU-backed parameter-preview UI, are both explicitly out of scope (YAGNI — no `//@ param:` line exists anywhere yet to annotate against, and no windowed/interactive rendering path exists anywhere in this workspace to preview into; the mechanism is independently valuable and testable via self-contained fixtures without either).
+
+---
+
+## Q-04 — `primitive_generation`'s L0-L5 ladder placement
+
+**✅ Decided · user1@w002 · 2026_08_16**
+Where does `primitive_generation` sit on `rulebook.md`'s L0-L5 rendering-layer ladder, given its `future`/`math`/`diagnostics` minwebgl feature gate superficially resembles `animation`'s beside-the-ladder shape, but `docs/layer/001_l0_drivers.md` already flags a contradiction: direct `WebGl2RenderingContext` imports in `src/primitive_data.rs`?
+
+**Classify at L4 (scene model), as a second occupant alongside `renderer`'s glTF loaders — not beside-the-ladder like `animation`.** Full-file reads of all 3 source layers (`lib.rs`, `primitive.rs` — 458 lines, `primitive_data.rs` — 302 lines) plus `Cargo.toml` show the crate is not structurally comparable to `animation`: `animation`'s `minwebgl`/`mingl` dependencies are genuinely math-only (`grep -rn "WebGl2RenderingContext\|WebGlBuffer\|create_buffer\|renderer::" module/helper/animation/src/` → zero matches), but `primitive_generation` additionally depends on `dep:renderer` (`features = ["full"]`, the full L3 rendering engine) and its `primitive_data.rs` module — unconditionally compiled, no `#[cfg(feature = ...)]` gate anywhere in the file — imports `WebGl2RenderingContext` plus `renderer::webgl::{AttributeInfo, Geometry, IndexInfo, Material, Mesh, Node, Object3D, Primitive, Scene, loaders::gltf::GLTF, material::PbrMaterial}`: real L3 rendering-engine domain types, not math utilities. `primitives_data_to_gltf` (`primitive_data.rs:141-289`, publicly re-exported via `mod_interface!`) takes a live `gl: &WebGl2RenderingContext`, calls `gl.create_buffer()` / `gl::buffer::upload` / `gl::index::upload` directly, and returns a `renderer::webgl::loaders::gltf::GLTF` — the exact struct type `rulebook.md`'s L4 row already cites as "glTF via `renderer` loaders." Requiring a live GL context does not disqualify L4 membership: `renderer`'s own loader functions (`module/helper/renderer/src/webgl/loaders/gltf.rs`, e.g. lines 518/610/657/744/867/965/1042/1262) likewise take `gl: &gl::WebGl2RenderingContext` throughout — that row's existing occupant has the identical shape. `primitive_generation` is therefore a second L4 occupant: it consumes L3 (`renderer`) and produces L4-shaped (`GLTF`) output, via procedural parameters instead of parsed file bytes — an alternative glTF *producer*, not a horizontal math capability.
+
+**Reject beside-the-ladder classification** (the shape `animation` uses): the GL/renderer coupling here is load-bearing, not incidental — `dep:renderer`/`dep:minwebgl` are pulled in by the crate's `default = ["enabled"]` feature with no feature-gated path to compile `primitive_generation` without them, so splitting the GL-coupled half into its own crate would be a real refactor, not a documentation nuance; that refactor is out of this decision's scope, to be filed as a follow-up task only if a concrete future need justifies it. The pure-geometry-generation code in `primitive.rs` (458 lines, zero GL/renderer imports, confirmed via the same grep) exists to feed `primitives_data_to_gltf`'s `PrimitiveData` input, not to stand alone as the crate's primary value proposition the way `animation`'s pure-math API does — so the crate as a whole (one Cargo unit, one placement) follows its load-bearing half, not its larger-by-line-count half.
 
 ---

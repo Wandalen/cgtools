@@ -22,7 +22,7 @@
 
 **This is explicitly a tracking placeholder, not active work.** No implementation should begin speculatively — there is no concrete, committed consumer need for a general-purpose model-upload viewer beyond the original marker's own wish. If a real need emerges (e.g. a debugging workflow that requires inspecting arbitrary user-supplied models, or a documentation/demo requirement calling for one), revisit building it as its own example crate, reusing the diagnostic-report machinery already adopted by task 097 rather than re-implementing it. Until that trigger condition exists, no further action is needed on this task.
 
-**Related Tasks:** `065` (`task/completed/065_examples_marker_triage.md` once closed) — source of this marker's triage decision. `097` (`task/verified/097_obj_load_adopt_existing_helpers.md`) — the reporting machinery this proposal would reuse if ever built.
+**Related Tasks:** `065` (`task/completed/065_examples_marker_triage.md` once closed) — source of this marker's triage decision. `097` (`task/completed/097_obj_load_adopt_existing_helpers.md`) — the reporting machinery this proposal would reuse if ever built.
 
 ## History
 

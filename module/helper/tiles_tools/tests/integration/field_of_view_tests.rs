@@ -553,3 +553,49 @@ fn test_lighting_performance()
   // Multiple light sources should still calculate quickly
   assert!(calculation_time.as_millis() < 1500);
 }
+
+// test_kind: bug_reproducer(BUG-135)
+/// ## Root Cause
+/// `octant_shadows_cast` computed each neighbor's direction index from
+/// `neighbors.iter().filter(...).enumerate()` -- filtering already-visited
+/// neighbors *before* enumerating desyncs the loop index `i` from the fixed
+/// direction slot each neighbor actually occupies in `pos.neighbors()`,
+/// once any neighbor has been visited (true for every position beyond the
+/// first ring). The octant-membership test then checks the wrong slot.
+/// ## Why Not Caught
+/// Every existing FOV test used open terrain or a straight multi-tile wall,
+/// both of which the algorithm's own 8-fold redundant octant sweep happens
+/// to compensate for symmetrically -- divergence only appears for specific
+/// single-obstacle placements found by adversarial simulation, not the
+/// straight walls/open-field cases hand-written tests reached for.
+/// ## Fix Applied
+/// Swapped to `neighbors.iter().enumerate().filter(...)` so `i` is captured
+/// from the unfiltered array position before any visited neighbor is
+/// dropped.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// A single-tile obstacle can still be routed around diagonally by this
+/// flood-fill-style algorithm (by design, not a defect) -- the point of
+/// this test is the shape of visible tiles differing between the buggy and
+/// fixed index computation for the *same* obstacle, not blocking sight
+/// entirely.
+#[ test ]
+fn test_shadowcasting_single_obstacle_does_not_falsely_shadow_diagonal_tile()
+{
+  let fov = FieldOfView::with_algorithm(FOVAlgorithm::Shadowcasting);
+  let viewer = SquareCoord::<EightConnected>::new(0, 0);
+
+  // Single blocking tile -- does not form a continuous wall.
+  let blocker = SquareCoord::<EightConnected>::new(-3, -1);
+
+  let visibility = fov.fov_calculate(&viewer, 4, |coord| *coord == blocker);
+
+  // Reachable by flood-fill around the single blocker (e.g. via (-3,-2) then
+  // (-4,-1), neither of which is the blocked tile) -- must not be shadowed.
+  let target = SquareCoord::<EightConnected>::new(-4, -1);
+  assert!(
+    visibility.is_visible(&target),
+    "target at distance 4 was falsely shadowed by a single non-blocking-path obstacle"
+  );
+}

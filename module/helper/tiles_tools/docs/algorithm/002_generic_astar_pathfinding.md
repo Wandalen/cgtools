@@ -25,12 +25,6 @@
 - `config.obstacles`: each candidate neighbor is rejected if `config.obstacles.contains(neighbor)` (`src/pathfind.rs:432-434`).
 - `config.allow_diagonal`: **declared, defaulted to `true`, and settable via a builder method — but never read.** A file-wide search of `src/pathfind.rs` for the identifier `allow_diagonal` returns exactly three lines: the field declaration (`PathfindingConfig<C>`, `src/pathfind.rs:288`), its `Default`-style initialization to `true` (`src/pathfind.rs:304`), and one builder-style setter that flips it to `false` (`src/pathfind.rs:366`). No occurrence exists inside `astar_advanced`'s own body, or anywhere else that filters or weights neighbor candidates. Unlike `max_distance`/`obstacles` (both genuinely consulted, verified above), `allow_diagonal` has no effect on pathfinding output regardless of its value — a caller who sets it to `false` expecting diagonal moves to be excluded gets the same result set as leaving it at its `true` default, because whether a given neighbor *is* diagonal is a property of the coordinate system's `Neighbors` impl (see `algorithm/001`), which this flag does not gate.
 
-### Types
-
-| File | Relationship |
-|------|--------------|
-| [type/001_coordinate_system_type_model.md](../type/001_coordinate_system_type_model.md) | `C: Distance + Neighbors` bound is satisfied by any type in that doc's table |
-
 ### Algorithms
 
 | File | Relationship |
@@ -42,6 +36,12 @@
 | File | Relationship |
 |------|--------------|
 | [pitfall/001_flow_field_algorithm_unimplemented.md](../pitfall/001_flow_field_algorithm_unimplemented.md) | The mass-movement alternative to per-entity A*, entirely unimplemented rather than partially-consumed like `allow_diagonal` here |
+
+### Types
+
+| File | Relationship |
+|------|--------------|
+| [type/001_coordinate_system_type_model.md](../type/001_coordinate_system_type_model.md) | `C: Distance + Neighbors` bound is satisfied by any type in that doc's table |
 
 ### Sources
 

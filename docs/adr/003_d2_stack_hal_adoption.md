@@ -52,9 +52,19 @@ render through *any* backend, including the ones (`adapter-svg`,
    construction (an explicit-backend constructor path), mirroring the
    precedent set by `examples/minwgpu/sun_grid_lines_vulkan` (since
    removed) of forcing wgpu's backend bits rather than inventing a
-   parallel API surface — the orrery scene family plans to carry Vulkan
-   the same way, as a run mode of its native-`wgpu` member (see
-   `examples/orrery/readme.md`).
+   parallel API surface. This remains true for `tilemap_renderer`'s own
+   `adapter-native` — its Vulkan run mode is still `wgpu`-forced, not a new
+   adapter, and this decision is unchanged for that consumer.
+
+   > **Scoped update (2026-08-16, [ADR-004](004_native_vulkan_hal_backend.md)):**
+   > the orrery family's Vulkan plan named in the original text of this
+   > decision — "as a run mode of its native-`wgpu` member" — no longer
+   > holds for `examples/orrery/flexible`, which needs a Vulkan option that
+   > does not link `wgpu` at all. That consumer gets Vulkan through a new,
+   > genuinely `wgpu`-free `gpu_hal` backend (`minvulkan`) instead. This
+   > amendment is scoped to that one consumer; `tilemap_renderer`'s
+   > `adapter-native` and every other reasoning in this decision are
+   > unaffected.
 
 4. **L5→L3 wiring is example-local glue, not a new shared crate.** Compiling
    a script's per-frame output (e.g. `pingpong_animation`'s `Frame`) into
@@ -127,3 +137,4 @@ render through *any* backend, including the ones (`adapter-svg`,
 - [layer/004_l3_stack_engine.md](../layer/004_l3_stack_engine.md) — L3's living identity card, updated for this decision
 - [render_stack/001_d2.md](../render_stack/001_d2.md) — the d2 stack invariants the new adapters must still honor
 - `module/helper/tilemap_renderer/docs/pattern/001_ports_and_adapters_backend_architecture.md` — the adapter architecture the new adapters must follow
+- [004_native_vulkan_hal_backend.md](004_native_vulkan_hal_backend.md) — scopes Decision #3's orrery-Vulkan claim down to `tilemap_renderer` only; adds a `wgpu`-free Vulkan path for `examples/orrery/flexible`

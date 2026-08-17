@@ -139,7 +139,8 @@ mod tests
 #[ cfg( test ) ]
 mod pure_tests
 {
-  use renderer::webgl::{ data_texture_size_calculate, skeleton::DisplacementsData };
+  use renderer::webgl::{ data_texture_size_calculate, skeleton::DisplacementsData, Node, loaders::gltf::skeleton_transforms_data_load };
+  use std::{ rc::Rc, cell::RefCell };
 
   #[ test ]
   fn pack_displacements_data_test()
@@ -196,6 +197,50 @@ mod pure_tests
     assert_ne!( data.len(), 0 );
     assert_eq!( data.len(), 16 * 4 * 2 );
     assert_eq!( data.get( 0..8 ).unwrap(), &[ 1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 1.0 ] );
+  }
+
+  #[ test ]
+  fn skinning_joints_resolve_by_index_not_name()
+  {
+    // BUG-173: joints used to be resolved by matching `joint.name()` against a name-keyed
+    // map -- an unnamed joint node (name is optional per glTF spec) was silently dropped,
+    // and two joint nodes sharing the same name collapsed to a single map entry. Both
+    // failure modes corrupt the positional `JOINTS_0`/`JOINTS_1` vertex-attribute binding,
+    // which depends on `skin.joints()`'s iteration position matching 1:1 with the resolved
+    // node list. This fixture declares 3 joint nodes: one unnamed, two sharing the name
+    // "Bone" -- the old code resolved at most 1 of the 3 (whichever "Bone" entry the
+    // HashMap happened to retain last, and never the unnamed one); the fix resolves all 3,
+    // each to the correct node by index.
+    let zero_matrices_base64 = "AAAA".repeat( 64 ); // 192 zero bytes == 3 MAT4-shaped f32 slots
+
+    let fixture = format!
+    (
+      r#"
+      {{
+        "asset": {{ "version": "2.0" }},
+        "nodes": [ {{}}, {{ "name": "Bone" }}, {{ "name": "Bone" }} ],
+        "skins": [ {{ "joints": [ 0, 1, 2 ], "inverseBindMatrices": 0 }} ],
+        "accessors": [ {{ "bufferView": 0, "componentType": 5126, "count": 3, "type": "MAT4" }} ],
+        "bufferViews": [ {{ "buffer": 0, "byteOffset": 0, "byteLength": 192 }} ],
+        "buffers": [ {{ "byteLength": 192, "uri": "data:application/octet-stream;base64,{zero_matrices_base64}" }} ]
+      }}
+      "#
+    );
+
+    let gltf = gltf::Gltf::from_slice( fixture.as_bytes() ).expect( "fixture must parse and validate" );
+    let skin = gltf.skins().next().expect( "fixture declares one skin" );
+
+    let nodes : Vec< Rc< RefCell< Node > > > = ( 0..3 ).map( | _ | Rc::new( RefCell::new( Node::new() ) ) ).collect();
+    let buffers : Vec< Vec< u8 > > = vec![ vec![ 0u8; 192 ] ];
+
+    let transforms = skeleton_transforms_data_load( &skin, &nodes, &buffers )
+    .expect( "skin has an inverseBindMatrices accessor, must produce Some" );
+
+    let joints = transforms.joints_get();
+    assert_eq!( joints.len(), 3, "all 3 joints must resolve, including the unnamed node and both same-named nodes" );
+    assert!( Rc::ptr_eq( &joints[ 0 ], &nodes[ 0 ] ), "joint 0 must resolve to the unnamed node at index 0" );
+    assert!( Rc::ptr_eq( &joints[ 1 ], &nodes[ 1 ] ), "joint 1 must resolve to node index 1, not node index 2" );
+    assert!( Rc::ptr_eq( &joints[ 2 ], &nodes[ 2 ] ), "joint 2 must resolve to node index 2, not node index 1" );
   }
 
   mod calculate_data_texture_size_tests

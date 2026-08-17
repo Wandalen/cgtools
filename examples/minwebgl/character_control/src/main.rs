@@ -108,7 +108,7 @@ fn camera_setup( width : f32, height : f32 ) -> Camera
   let up = F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = F32x3::from( [ 0.0, 1.0, 0.0 ] );
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far ).expect( "camera parameters are valid" );
   camera.window_size_set( [ width, height ].into() );
 
   camera

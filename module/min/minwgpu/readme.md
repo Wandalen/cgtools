@@ -19,6 +19,7 @@ behind small, convenient builders and helpers. It's the native counterpart to
 | `helper` | Adapter and device selection helpers |
 | `buffer` | Buffer creation and upload |
 | `texture` | Texture creation and views |
+| `surface` | Window surface format selection and configuration |
 | `bind` | Bind group and bind group layout builders |
 | `pipeline` | Render and compute pipeline builders |
 | `pass` | Render and compute pass helpers |

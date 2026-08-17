@@ -115,6 +115,89 @@ fn test_from_angle_z()
   assert_abs_diff_eq!( q, exp );
 }
 
+/// ## Root Cause
+/// `from_axis_angle` used `angle.sin_cos()` directly instead of `(angle / 2.0).sin_cos()` --
+/// the axis-angle-to-quaternion formula requires the HALF angle in the `sin`/`cos` terms
+/// (`w = cos(angle/2)`, `xyz = axis * sin(angle/2)`), so the un-halved call produced a
+/// quaternion representing twice the requested rotation.
+///
+/// ## Why Not Caught
+/// No test compared `from_axis_angle` against an independently-correct sibling constructor
+/// for the same rotation before this task -- the already-correct `from_angle_x`/`_y`/`_z`
+/// (which do halve internally) were only ever tested in isolation.
+///
+/// ## Fix Applied
+/// BUG-120 changed `angle.sin_cos()` to `(angle / two).sin_cos()` in
+/// `src/quaternion/arithmetics.rs::from_axis_angle`.
+///
+/// ## Prevention
+/// This test constructs the same rotation two independent ways -- `from_axis_angle` about a
+/// standard basis axis, and the axis-specific `from_angle_x`/`_y`/`_z` -- and asserts they
+/// agree. The pre-fix doubled angle fails this immediately for any non-zero angle.
+///
+/// ## Pitfall
+/// A rotation constructor taking a plain (non-halved) angle parameter must apply the half-angle
+/// conversion internally wherever the underlying representation's algebra requires it --
+/// verify new rotation constructors against an independently-correct sibling, not just against
+/// hand-derived numbers that can silently encode the same mistake.
+#[ test ]
+fn test_from_axis_angle_matches_axis_aligned_from_angle_x()
+{
+  use the_module::QuatF64;
+
+  let got = QuatF64::from_axis_angle( F64x3::new( 1.0, 0.0, 0.0 ), 1.0 );
+  let exp = QuatF64::from_angle_x( 1.0 );
+  assert_abs_diff_eq!( got, exp );
+}
+
+/// ## Root Cause
+/// See `test_from_axis_angle_matches_axis_aligned_from_angle_x` above (BUG-120).
+///
+/// ## Why Not Caught
+/// See `test_from_axis_angle_matches_axis_aligned_from_angle_x` above (BUG-120).
+///
+/// ## Fix Applied
+/// See `test_from_axis_angle_matches_axis_aligned_from_angle_x` above (BUG-120).
+///
+/// ## Prevention
+/// Same mechanism as `test_from_axis_angle_matches_axis_aligned_from_angle_x`, for the Y axis.
+///
+/// ## Pitfall
+/// See `test_from_axis_angle_matches_axis_aligned_from_angle_x` above (BUG-120).
+#[ test ]
+fn test_from_axis_angle_matches_axis_aligned_from_angle_y()
+{
+  use the_module::QuatF64;
+
+  let got = QuatF64::from_axis_angle( F64x3::new( 0.0, 1.0, 0.0 ), 1.0 );
+  let exp = QuatF64::from_angle_y( 1.0 );
+  assert_abs_diff_eq!( got, exp );
+}
+
+/// ## Root Cause
+/// See `test_from_axis_angle_matches_axis_aligned_from_angle_x` above (BUG-120).
+///
+/// ## Why Not Caught
+/// See `test_from_axis_angle_matches_axis_aligned_from_angle_x` above (BUG-120).
+///
+/// ## Fix Applied
+/// See `test_from_axis_angle_matches_axis_aligned_from_angle_x` above (BUG-120).
+///
+/// ## Prevention
+/// Same mechanism as `test_from_axis_angle_matches_axis_aligned_from_angle_x`, for the Z axis.
+///
+/// ## Pitfall
+/// See `test_from_axis_angle_matches_axis_aligned_from_angle_x` above (BUG-120).
+#[ test ]
+fn test_from_axis_angle_matches_axis_aligned_from_angle_z()
+{
+  use the_module::QuatF64;
+
+  let got = QuatF64::from_axis_angle( F64x3::new( 0.0, 0.0, 1.0 ), 1.0 );
+  let exp = QuatF64::from_angle_z( 1.0 );
+  assert_abs_diff_eq!( got, exp );
+}
+
 #[ test ]
 fn test_from_euler_xyz()
 {

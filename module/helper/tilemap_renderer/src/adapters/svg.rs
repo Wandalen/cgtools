@@ -89,7 +89,7 @@ mod private
     asset,
   };
   use core::fmt::Write as _;
-  use nohash_hasher::IntMap;
+  use nohash_hasher::{ IntMap, IntSet };
   use base64::Engine as _;
 
   // ============================================================================
@@ -107,6 +107,22 @@ mod private
     batches : IntMap< ResourceId< Batch >, SvgBatch >,
     /// Map of generated mesh definitions ( packed `geom_id` + topology ) -> `symbol_id`
     mesh_defs : IntMap< u64, String >,
+    /// Sprite ids that successfully got a `<symbol>` def in `sprites_load` —
+    /// the only bookkeeping ( BUG-209 ) that lets `cmd_sprite` tell a loaded
+    /// sprite from one the caller never loaded ( or that `sprites_load`
+    /// itself skipped, e.g. an unresolvable sheet ), instead of blindly
+    /// emitting a `<use>` that dangles.
+    sprite_defs : IntSet< ResourceId< asset::Sprite > >,
+    /// Geometry ids `geometries_load` was ever asked to load — inserted
+    /// unconditionally, regardless of whether the source resolved
+    /// successfully ( BUG-209 ). Unlike `sprite_defs`, this must NOT be
+    /// success-only: `geometry_on_missing_path_is_skipped_with_comment` and
+    /// `mesh_triangle_strip_degenerate_no_output` already establish that a
+    /// declared-but-unreadable or declared-but-degenerate geometry renders
+    /// as a silent no-op, not a `submit` error. Only a `Mesh` command whose
+    /// `geometry` id was never declared at all should error — this set is
+    /// what lets `cmd_mesh` tell those two cases apart.
+    geometries_known : IntSet< ResourceId< asset::Geometry > >,
   }
 
   impl SvgResources
@@ -119,6 +135,8 @@ mod private
         geometries : IntMap::default(),
         batches : IntMap::default(),
         mesh_defs : IntMap::default(),
+        sprite_defs : IntSet::default(),
+        geometries_known : IntSet::default(),
       }
     }
 
@@ -145,6 +163,11 @@ mod private
     fn geometry_store( &mut self, id : ResourceId< asset::Geometry >, geom : SvgGeometry )
     {
       self.geometries.insert( id, geom );
+    }
+
+    fn geometry_known( &self, id : ResourceId< asset::Geometry > ) -> bool
+    {
+      self.geometries_known.contains( &id )
     }
 
     fn batch_store( &mut self, id : ResourceId< Batch >, batch : SvgBatch )
@@ -1043,6 +1066,7 @@ mod private
             sheet.width, sheet.height
           );
           self.content.asset_def_push( &img_def );
+          self.resources.sprite_defs.insert( sprite.id );
         }
       }
     }
@@ -1051,6 +1075,8 @@ mod private
     {
       for geom in geometries
       {
+        self.resources.geometries_known.insert( geom.id );
+
         // `Source::Path` is read via blocking `std::fs`. On targets without a
         // filesystem (wasm32) the read fails at runtime and flows into the same
         // loud-skip diagnostics as a missing file — a stderr warning plus a
@@ -1146,7 +1172,16 @@ mod private
             let mut valid = true;
             for j in 0..3
             {
-              let v_idx = idx.map_or( i + j, | v | v[ i + j ] as usize );
+              // Fix(BUG-153)
+              // Root cause: `count` (an index-buffer length) isn't rounded down to a multiple
+              // of 3, and `v[ i + j ]` indexed the index buffer directly -- on a trailing
+              // partial triangle (`count % 3 != 0`), `i + j` could reach `v.len()`, panicking.
+              // Pitfall: the two position lookups right below already use bounds-checked
+              // `.get()` for malformed *vertex* indices; the index-*buffer* lookup that
+              // produces `v_idx` in the first place needs the same treatment, not just its
+              // downstream consumers.
+              let Some( v_idx ) = idx.map_or( Some( i + j ), | v | v.get( i + j ).map( | &v | v as usize ) )
+              else { valid = false; break; };
               let Some( &x ) = geom.positions.get( v_idx * 2 )     else { valid = false; break; };
               let Some( &y ) = geom.positions.get( v_idx * 2 + 1 ) else { valid = false; break; };
               let _ = write!( pts, "{x},{y} " );
@@ -1273,8 +1308,25 @@ mod private
       self.text_flush();
     }
 
-    fn cmd_mesh( &mut self, m : &Mesh )
+    // Fix(BUG-209): the `None => return` arm below used to drop the whole
+    // draw call silently instead of surfacing `RenderError::MissingAsset`
+    // — the same "loaded-asset lookup fails silently" gap fixed for
+    // `cmd_sprite` above.
+    fn cmd_mesh( &mut self, m : &Mesh ) -> Result< (), RenderError >
     {
+      // Fix(BUG-209): a `Mesh` referencing a geometry id `geometries_load`
+      // was never asked to load at all is a caller bug and must error, same
+      // as `cmd_sprite`. A declared-but-unreadable or declared-but-degenerate
+      // geometry is a separate, already-designed graceful-skip path (see
+      // `geometries_known`'s doc comment) and must stay a silent no-op, so
+      // this check is scoped to "never declared" only — it does not use
+      // `mesh_def_generate`'s `None` return, which also covers those two
+      // other cases.
+      if !self.resources.geometry_known( m.geometry )
+      {
+        return Err( RenderError::MissingAsset( m.geometry.inner() ) );
+      }
+
       let packed_key : u64 = u64::from(m.geometry.inner()) << 8 | u64::from(m.topology as u8);
       let def_id = match self.resources.mesh_defs.get( &packed_key )
       {
@@ -1282,7 +1334,7 @@ mod private
         None => match self.mesh_def_generate( m.geometry, m.topology )
         {
           Some( id ) => id,
-          None => return,
+          None => return Ok( () ),
         },
       };
 
@@ -1301,10 +1353,23 @@ mod private
         "<use href=\"#{def_id}\" fill=\"{fill}\" stroke=\"{fill}\"{transform}{clip}{blend}/>"
       );
       self.content.body_push( &mesh );
+      Ok( () )
     }
 
     fn cmd_sprite( &mut self, s : &Sprite ) -> Result< (), RenderError >
     {
+      // Fix(BUG-209): previously emitted `<use href="#sprite_N">` for any
+      // `s.sprite`, loaded or not — a dangling reference the SVG viewer
+      // just silently fails to resolve, unlike `native.rs`/`webgpu.rs`'s
+      // sibling sprite-draw functions, which already return
+      // `RenderError::MissingAsset` via `.ok_or(..)?`. Root cause: no
+      // bookkeeping previously existed to tell a loaded sprite id from an
+      // unloaded one at draw time ( `sprites_load` writes SVG text
+      // directly, unlike `image_store`/`geometry_store`'s queryable maps ).
+      if !self.resources.sprite_defs.contains( &s.sprite )
+      {
+        return Err( RenderError::MissingAsset( s.sprite.inner() ) );
+      }
       let transform = self.transform_to_svg( &s.transform );
       let clip = Self::clip_attr( s.clip.as_ref() );
       let blend = Self::blend_to_svg( s.blend );
@@ -1347,24 +1412,51 @@ mod private
         }
     }
 
-    fn cmd_set_sprite_instance( &mut self, si : &SetSpriteInstance )
+    // Fix(BUG-211): an out-of-bounds `index` used to fall out of the
+    // `if let` chain silently — a caller typo/stale index looked identical
+    // to a routine no-op ( no batch bound, wrong/missing batch ), unlike
+    // `webgl.rs`'s sibling `cmd_set_sprite_instance`/`cmd_set_mesh_instance`,
+    // which already return `RenderError::BackendError` on the same
+    // out-of-bounds condition. Root cause: SVG's chained `if let .. &&
+    // (index) < len` collapsed three distinct conditions ( unbound / wrong
+    // batch / bad index ) into one silent path; only the first two are
+    // legitimate no-ops.
+    fn cmd_set_sprite_instance( &mut self, si : &SetSpriteInstance ) -> Result< (), RenderError >
     {
-      if let Some( batch_id ) = self.recording_batch
-        && let Some( SvgBatch::Sprite { instances, .. } ) = self.resources.batches.get_mut( &batch_id )
-          && ( si.index as usize ) < instances.len()
-          {
-            instances[ si.index as usize ] = AddSpriteInstance { transform : si.transform, sprite : si.sprite, tint : si.tint };
-          }
+      let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
+      let Some( SvgBatch::Sprite { instances, .. } ) = self.resources.batches.get_mut( &batch_id )
+      else
+      {
+        return Ok( () );
+      };
+      if ( si.index as usize ) >= instances.len()
+      {
+        return Err( RenderError::BackendError
+        (
+          format!( "SetSpriteInstance: index {} out of bounds (len {})", si.index, instances.len() )
+        ) );
+      }
+      instances[ si.index as usize ] = AddSpriteInstance { transform : si.transform, sprite : si.sprite, tint : si.tint };
+      Ok( () )
     }
 
-    fn cmd_set_mesh_instance( &mut self, mi : &SetMeshInstance )
+    fn cmd_set_mesh_instance( &mut self, mi : &SetMeshInstance ) -> Result< (), RenderError >
     {
-      if let Some( batch_id ) = self.recording_batch
-        && let Some( SvgBatch::Mesh { instances, .. } ) = self.resources.batches.get_mut( &batch_id )
-          && ( mi.index as usize ) < instances.len()
-          {
-            instances[ mi.index as usize ] = AddMeshInstance { transform : mi.transform, tint : mi.tint };
-          }
+      let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
+      let Some( SvgBatch::Mesh { instances, .. } ) = self.resources.batches.get_mut( &batch_id )
+      else
+      {
+        return Ok( () );
+      };
+      if ( mi.index as usize ) >= instances.len()
+      {
+        return Err( RenderError::BackendError
+        (
+          format!( "SetMeshInstance: index {} out of bounds (len {})", mi.index, instances.len() )
+        ) );
+      }
+      instances[ mi.index as usize ] = AddMeshInstance { transform : mi.transform, tint : mi.tint };
+      Ok( () )
     }
 
     fn cmd_remove_instance( &mut self, ri : RemoveInstance )
@@ -1613,7 +1705,7 @@ mod private
           RenderCommand::BeginText( bt ) => self.cmd_begin_text( bt ),
           RenderCommand::Char( ch ) => self.cmd_char( *ch ),
           RenderCommand::EndText( _ ) => self.cmd_end_text(),
-          RenderCommand::Mesh( m ) => self.cmd_mesh( m ),
+          RenderCommand::Mesh( m ) => self.cmd_mesh( m )?,
           // `ScreenSpaceSprite` shares the `Sprite` payload — the compile
           // layer already emits screen-space coordinates, so SVG (whose
           // user-space already is screen-space) draws it via the same
@@ -1624,8 +1716,8 @@ mod private
           RenderCommand::BindBatch( bb ) => self.cmd_bind_batch( *bb ),
           RenderCommand::AddSpriteInstance( si ) => self.cmd_add_sprite_instance( si ),
           RenderCommand::AddMeshInstance( mi ) => self.cmd_add_mesh_instance( mi ),
-          RenderCommand::SetSpriteInstance( si ) => self.cmd_set_sprite_instance( si ),
-          RenderCommand::SetMeshInstance( mi ) => self.cmd_set_mesh_instance( mi ),
+          RenderCommand::SetSpriteInstance( si ) => self.cmd_set_sprite_instance( si )?,
+          RenderCommand::SetMeshInstance( mi ) => self.cmd_set_mesh_instance( mi )?,
           RenderCommand::RemoveInstance( ri ) => self.cmd_remove_instance( *ri ),
           RenderCommand::SetSpriteBatchParams( sp ) => self.cmd_set_sprite_batch_params( sp ),
           RenderCommand::SetMeshBatchParams( mp ) => self.cmd_set_mesh_batch_params( mp ),

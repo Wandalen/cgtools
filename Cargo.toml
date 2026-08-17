@@ -21,10 +21,21 @@ members = [
   "module/min/minwebgl",
   "module/min/minwebgpu",
   "module/min/minwgpu",
+  "module/min/minvulkan",
 
   # Shader modules
   "module/shader/shader_chunks_core",
+  "module/shader/shader_chunks_cli_core",
+  "module/shader/shader_chunks_query_core",
+  "module/shader/shader_chunks_query",
+  "module/shader/shader_chunks_compose",
+  "module/shader/shader_chunks_params_core",
   "module/shader/shader_chunks_params",
+  "module/shader/shader_chunks_preview_core",
+  "module/shader/shader_chunks_preview",
+  "module/shader/shader_chunks_preview_web",
+  "module/shader/shader_chunks_render_core",
+  "module/shader/shader_chunks_render",
   "module/shader/shader_chunks",
 
   # Helper modules
@@ -59,6 +70,9 @@ members = [
   "examples/orrery/*",
   "examples/scene_script/*",
   "examples/tiles_tools/*",
+  "examples/gpu_hal/*",
+  "examples/renderer/*",
+  "examples/tilemap_renderer/*",
 ]
 
 # API-group symlinks into scene-family dirs ( e.g. examples/minwebgpu/orrery ->
@@ -215,15 +229,59 @@ path = "module/min/minwebgpu"
 version = "0.1.0"
 path = "module/min/minwgpu"
 
+[workspace.dependencies.minvulkan]
+version = "0.1.0"
+path = "module/min/minvulkan"
+
 # = shader
 
 [workspace.dependencies.shader_chunks_core]
 version = "0.1.0"
 path = "module/shader/shader_chunks_core"
 
+[workspace.dependencies.shader_chunks_cli_core]
+version = "0.1.0"
+path = "module/shader/shader_chunks_cli_core"
+
+[workspace.dependencies.shader_chunks_query_core]
+version = "0.1.0"
+path = "module/shader/shader_chunks_query_core"
+
+[workspace.dependencies.shader_chunks_query]
+version = "0.1.0"
+path = "module/shader/shader_chunks_query"
+
+[workspace.dependencies.shader_chunks_compose]
+version = "0.1.0"
+path = "module/shader/shader_chunks_compose"
+
+[workspace.dependencies.shader_chunks_params_core]
+version = "0.1.0"
+path = "module/shader/shader_chunks_params_core"
+
 [workspace.dependencies.shader_chunks_params]
 version = "0.1.0"
 path = "module/shader/shader_chunks_params"
+
+[workspace.dependencies.shader_chunks_preview_core]
+version = "0.1.0"
+path = "module/shader/shader_chunks_preview_core"
+
+[workspace.dependencies.shader_chunks_preview]
+version = "0.1.0"
+path = "module/shader/shader_chunks_preview"
+
+[workspace.dependencies.shader_chunks_preview_web]
+version = "0.1.0"
+path = "module/shader/shader_chunks_preview_web"
+
+[workspace.dependencies.shader_chunks_render_core]
+version = "0.1.0"
+path = "module/shader/shader_chunks_render_core"
+
+[workspace.dependencies.shader_chunks_render]
+version = "0.1.0"
+path = "module/shader/shader_chunks_render"
 
 [workspace.dependencies.shader_chunks]
 version = "0.1.0"
@@ -469,8 +527,21 @@ version = "0.6.1"
 [workspace.dependencies.hecs]
 version = "0.11"
 
+[workspace.dependencies.flecs_ecs]
+# crates.io 0.2.2 hardcodes `as *const i8` in world.rs's ecs_lookup_symbol call, which fails
+# to compile on aarch64 (plain `char` is unsigned there, so bindgen emits `*const u8`). Fixed
+# upstream via `as *const _` inference but not yet published as a new crates.io version.
+git = "https://github.com/Indra-db/Flecs-Rust"
+rev = "bf956db99b69d41ee142c9d52054911af28d7e93"
+
 [workspace.dependencies.wgpu]
 version = "30.0.0"
+
+[workspace.dependencies.ash]
+version = "0.38"
+
+[workspace.dependencies.winit]
+version = "0.30"
 
 [workspace.dependencies.pollster]
 version = "1.0.1"

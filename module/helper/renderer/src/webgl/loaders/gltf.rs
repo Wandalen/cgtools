@@ -45,8 +45,6 @@ mod private
     gl::F32x4x4
   };
 
-  const DIRECTION_LIGHT_MIN_MAGNITUDE : f32 = 0.01;
-
   #[ cfg( feature = "animation" ) ]
   use crate::webgl::animation::Animation;
 
@@ -89,10 +87,14 @@ mod private
   /// A material shared between primitives, mutable behind `Rc< RefCell< _ > >`.
   type SharedMaterial = Rc< RefCell< Box< dyn Material > > >;
 
-  fn skeleton_transforms_data_load
+  /// Reads a skin's inverse bind matrices and resolves each joint to its node by
+  /// [`gltf::Node::index()`] against the flat, index-ordered `nodes` slice -- the same
+  /// resolution convention every other node lookup in this loader uses.
+  #[ must_use ]
+  pub fn skeleton_transforms_data_load
   (
     skin : &gltf::Skin< '_ >,
-    nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
+    nodes : &[ Rc< RefCell< Node > > ],
     buffers : &[ Vec< u8 > ]
   )
   -> Option< skeleton::TransformsData >
@@ -119,17 +121,22 @@ mod private
     )
     .collect::< Vec< _ > >();
 
-    let mut joints = vec![];
-    for ( joint, matrix ) in skin.joints().zip( matrices )
-    {
-      if let Some( name ) = joint.name()
-      {
-        if let Some( node ) = nodes.get( name )
-        {
-          joints.push( ( node.clone(), matrix ) );
-        }
-      }
-    }
+    // Fix(BUG-173): joints were resolved by matching `joint.name()` against a name-keyed
+    // map, silently dropping any joint whose node had no `name` (optional per glTF spec)
+    // or whose name collided with another node's -- corrupting every subsequent joint's
+    // binding once one was dropped, since `JOINTS_0`/`JOINTS_1` vertex attributes index
+    // this list positionally.
+    // Root cause: `skin.joints()`'s iteration position IS the joint index vertex data
+    // references, but resolution went through a name lookup instead of `joint.index()`
+    // against the flat, index-ordered node list every other lookup in this file already
+    // uses.
+    // Pitfall: an optional, non-unique glTF field (node name) used as a resolution key
+    // for data that is actually positionally/numerically indexed is a silent-drop trap --
+    // it only surfaces once an asset has an unnamed or duplicate-named joint node.
+    let joints = skin.joints()
+    .zip( matrices )
+    .map( | ( joint, matrix ) | ( nodes[ joint.index() ].clone(), matrix ) )
+    .collect::< Vec< _ > >();
 
     Some( skeleton::TransformsData::new( joints ) )
   }
@@ -258,7 +265,7 @@ mod private
   fn skeleton_load
   (
     skin : Option< gltf::Skin< '_ > >,
-    nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
+    nodes : &[ Rc< RefCell< Node > > ],
     primitives_morph_targets : Option< &Vec< MorphTargets< '_ > > >,
     primitives_vertices_count : &[ usize ],
     weights : Option< Vec< f32 > >,
@@ -288,7 +295,9 @@ mod private
     }
   }
 
-  fn light_list_get( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
+  /// Extracts all `KHR_lights_punctual` lights from a parsed glTF document, keyed by their light index.
+  #[ must_use ]
+  pub fn light_list_get( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
   {
     let mut lights = FxHashMap::default();
     for ( i, gltf_light ) in gltf.lights()?.enumerate()
@@ -355,14 +364,30 @@ mod private
     Some( lights )
   }
 
-  fn light_get( gltf_node : &gltf::Node< '_ >, node : &Node, lights : &FxHashMap< usize, Light > ) -> Option< Light >
+  /// Resolves the [`Light`] a glTF node's `KHR_lights_punctual` extension references
+  /// (looked up by index in `lights`, e.g. from [`light_list_get`]), positioned/oriented
+  /// using `node`'s own resolved translation/rotation.
+  #[ must_use ]
+  pub fn light_get< S : std::hash::BuildHasher >( gltf_node : &gltf::Node< '_ >, node : &Node, lights : &std::collections::HashMap< usize, Light, S > ) -> Option< Light >
   {
-    let light_id = gltf_node.extensions()?
-    .get_key_value( "KHR_lights_punctual" )?.1
-    .get( "light" )?
-    .as_u64()?;
+    // Fix(BUG-189): the node-level `KHR_lights_punctual` reference was read via
+    // `gltf_node.extensions()`, the catch-all for extension data *unknown* to this crate
+    // version -- but `KHR_lights_punctual` is a named, typed field this crate's `gltf-json`
+    // deserializes separately (`#[serde(rename = "KHR_lights_punctual")]`), so `#[serde(flatten)]`
+    // never leaves it in that catch-all. `get_key_value` always returned `None`, so this
+    // function never resolved a single node-level light reference, for any glTF asset.
+    // Root cause: this crate exposes a dedicated typed accessor, `gltf::Node::light()`, for
+    // exactly this extension (gated by the same `KHR_lights_punctual` Cargo feature this crate
+    // already enables) -- `light_list_get` two functions up already uses the equivalent
+    // document-level typed accessor (`gltf.lights()`), only this per-node lookup didn't.
+    // Pitfall: a crate offering both a generic "unknown extensions" catch-all and a typed
+    // accessor for a *specific* known extension makes the catch-all silently exclude that
+    // extension the moment its typed-support feature is enabled -- reaching for the generic
+    // path out of habit, instead of the type's own dedicated accessor, fails silently (`None`),
+    // never a compile error.
+    let light_id = gltf_node.light()?.index();
 
-    lights.get( &( light_id as usize ) ).copied()
+    lights.get( &light_id ).copied()
     .map
     (
       | light |
@@ -374,22 +399,30 @@ mod private
             point_light.position = node.translation_get();
             Light::Point( point_light )
           },
+          // Fix(BUG-172): both arms used to derive `direction` from `node.translation_get()` --
+          // a light's world position, not its facing direction. `Direct` only fell back to the
+          // (correct) rotation-based formula when the raw translation's magnitude was below
+          // `DIRECTION_LIGHT_MIN_MAGNITUDE`, i.e. only for a light sitting within 1cm of the
+          // world origin; `Spot` had no rotation-based fallback at all.
+          // Root cause: per glTF's `KHR_lights_punctual`, facing direction comes exclusively
+          // from the node's rotation (local -Z axis) -- never its translation. Both arms now
+          // compute it unconditionally the same way.
+          // Pitfall: a magnitude-gated "fallback" that's actually the only physically correct
+          // formula silently masks the bug for every test fixture that happens to sit near the
+          // origin, while still being wrong for every other placement.
           Light::Direct( mut direct_light ) =>
           {
-            direct_light.direction = node.translation_get();
-            if direct_light.direction.mag() < DIRECTION_LIGHT_MIN_MAGNITUDE
-            {
-              let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
-              let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.rotation_get() );
-              direct_light.direction = rot_matrix * forward;
-            }
-            direct_light.direction = direct_light.direction.normalize();
+            let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
+            let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.rotation_get() );
+            direct_light.direction = ( rot_matrix * forward ).normalize();
             Light::Direct( direct_light )
           },
           Light::Spot( mut spot_light ) =>
           {
+            let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
+            let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.rotation_get() );
             spot_light.position = node.translation_get();
-            spot_light.direction = node.translation_get();
+            spot_light.direction = ( rot_matrix * forward ).normalize();
             Light::Spot( spot_light )
           }
         }
@@ -1141,9 +1174,8 @@ mod private
     NodesCreated { nodes, rigged_nodes, lights }
   }
 
-  /// Builds the name-to-node map and attaches a [`Skeleton`] to every rigged
-  /// mesh, switching its materials onto the skinning / morph-target shader
-  /// paths.
+  /// Attaches a [`Skeleton`] to every rigged mesh, switching its materials
+  /// onto the skinning / morph-target shader paths.
   fn skeletons_attach
   (
     nodes : &[ Rc< RefCell< Node > > ],
@@ -1151,22 +1183,6 @@ mod private
     bin_buffers : &[ Vec< u8 > ]
   )
   {
-    let nodes_map = nodes.iter()
-    .filter_map
-    (
-      | n |
-      {
-        n.borrow()
-        .name_get()
-        .map
-        (
-          | name |
-          ( name, n.clone() )
-        )
-      }
-    )
-    .collect::< FxHashMap< _, _ > >();
-
     for ( node, skin, primitives_morph_targets, weights ) in rigged_nodes
     {
       if let Object3D::Mesh( mesh ) = &node.borrow().object
@@ -1177,7 +1193,7 @@ mod private
         if let Some( skeleton ) = skeleton_load
         (
           skin,
-          &nodes_map,
+          nodes,
           primitives_morph_targets.as_ref(),
           primitives_vertices_count.as_slice(),
           weights,
@@ -1346,6 +1362,9 @@ crate::mod_interface!
   {
     GLTF,
     load,
-    asset_uri_resolve
+    asset_uri_resolve,
+    light_list_get,
+    light_get,
+    skeleton_transforms_data_load
   };
 }

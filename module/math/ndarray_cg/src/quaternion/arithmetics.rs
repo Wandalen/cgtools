@@ -27,7 +27,20 @@ mod private
     where
       T : VectorIter< E, 3 >
     {
-        let ( s, c ) = angle.sin_cos();
+        // Fix(BUG-120): changed `angle.sin_cos()` to `(angle / two).sin_cos()`.
+        // Root cause: the axis-angle-to-quaternion formula requires the HALF angle
+        // (`q = (axis * sin(angle/2), cos(angle/2))`) — this function used the full angle
+        // directly, unlike its sibling constructors `from_angle_x`/`from_angle_y`/
+        // `from_angle_z` (all three correctly halve via `let two = E::one() + E::one(); (x /
+        // two).sin_cos()`), so a caller requesting a rotation of `angle` radians about a given
+        // axis actually got a rotation of `2 * angle` radians instead.
+        // Pitfall: sibling constructors that should share an invariant (here: "always
+        // half-angle the input") can drift independently when each is implemented as its own
+        // free-standing function instead of being built on one shared half-angle helper —
+        // cross-check new constructors against already-correct siblings for the same class of
+        // input, not just against the formula in isolation.
+        let two = E::one() + E::one();
+        let ( s, c ) = ( angle / two ).sin_cos();
 
         let mut iter = axis.vector_iter();
         let x = *iter.next().unwrap() * s;
@@ -160,6 +173,14 @@ mod private
 
       let mut cos_half_theta = self.dot( other );
 
+      // Fix(BUG-194): `q2` is the hemisphere-corrected copy of `other` -- when `cos_half_theta`
+      // is negative, `self` and `other` are more than 90 degrees apart as 4D vectors even though
+      // they represent rotations less than 180 degrees apart ( `q` and `-q` encode the identical
+      // rotation ). Both branches below previously kept blending against the original, un-flipped
+      // `*other` instead of this corrected `q2` -- pairing the short-path angle ( derived from
+      // the now-positive `cos_half_theta` ) with the long-path quaternion value produced a
+      // non-unit-length result rotated the wrong way whenever the two inputs started in opposite
+      // hemispheres. Every use of `*other` below is replaced with `q2`.
       if cos_half_theta < E::zero()
       {
         cos_half_theta = -cos_half_theta;
@@ -178,7 +199,7 @@ mod private
       let sqr_sin_half_theta = E::one() - cos_half_theta * cos_half_theta;
       if sqr_sin_half_theta <= E::epsilon()
       {
-        return ( self * ( E::one() - s ) + *other * s ).normalize();
+        return ( self * ( E::one() - s ) + q2 * s ).normalize();
       }
 
       let sin_half_theta = sqr_sin_half_theta.sqrt();
@@ -187,7 +208,7 @@ mod private
       let ratio_a = ( ( E::one() - s ) * half_theta ).sin() / sin_half_theta;
       let ratio_b = ( s * half_theta ).sin() / sin_half_theta;
 
-      self * ratio_a + *other * ratio_b
+      self * ratio_a + q2 * ratio_b
     }
 
     /// Performs spherical linear interpolation (slerp) in-place.

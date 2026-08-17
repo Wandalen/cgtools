@@ -32,6 +32,9 @@ mod private
     /// Error when a texture format is not supported by the requested operation.
     #[ error( "texture format {0:?} is not supported : {1}" ) ]
     UnsupportedTextureFormat( wgpu::TextureFormat, &'static str ),
+    /// Error when `surface_configure` is called with a zero-sized drawable area.
+    #[ error( "surface_configure called with a zero-sized drawable area: {0}x{1}" ) ]
+    ZeroSizeSurface( u32, u32 ),
   }
 }
 

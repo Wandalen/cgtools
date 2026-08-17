@@ -6,6 +6,7 @@ use ndarray_cg::{ I32x2, F64x3 };
 use web_sys::
 {
   wasm_bindgen::{ JsCast as _, prelude::Closure },
+  Event as DomEvent,
   EventTarget,
   KeyboardEvent,
   PointerEvent,
@@ -121,6 +122,11 @@ pub enum EventType
   /// the pointer leaving the screen). Only the pointer id is reliable; position and button
   /// data from the underlying event are not guaranteed to be valid.
   PointerCancel( i32 ),
+  /// The window lost focus (`blur`) or the page became hidden (`visibilitychange`) --
+  /// e.g. the user alt-tabbed away, switched browser tabs, or minimized the window.
+  /// No further `keyup`/`pointerup` is guaranteed to ever arrive for whatever was
+  /// physically held at that moment, so every tracked key/button/pointer is force-released.
+  FocusLost,
 }
 
 /// Represents a single, complete input event, including its type and any active modifier keys.
@@ -166,6 +172,28 @@ pub struct State
   /// Updated on press, move, and release. Useful for multi-touch (e.g., pinch-to-zoom).
   /// On desktop this usually has at most one entry; on touch screens one per finger.
   pub active_pointers : Vec< ( i32, I32x2 ) >,
+  /// Internal bookkeeping: which buttons each currently-active pointer id holds,
+  /// as a bitmask (bit `n` set means the `MouseButton` whose `as usize` is `n`
+  /// is held by that pointer). `mouse_buttons` and `active_pointers` are the
+  /// public derived view, unioned/gated from this per-pointer source of truth --
+  /// not exposed directly since it is a bookkeeping detail, not a queryable input.
+  /// Insertion of a new (not-yet-tracked) pointer id is capped at
+  /// `MAX_ACTIVE_POINTERS`, mirroring `active_pointers`' own cap (Fix(BUG-212)).
+  held_buttons : std::collections::HashMap< i32, u32 >,
+  /// Internal bookkeeping: per-pointer count of currently-held *distinct real*
+  /// mouse buttons that all fell back to `MouseButton::Unknown` (any DOM
+  /// `button` value outside 0-4 aliases to this one variant). A single bit in
+  /// `held_buttons` cannot distinguish "one Unknown button held" from "two
+  /// different Unknown buttons held" -- this count lets `MouseButton::Unknown`'s
+  /// bit stay set until every aliased button this pointer holds has released
+  /// (Fix(BUG-213)). Same insertion cap as `held_buttons`.
+  unknown_button_counts : std::collections::HashMap< i32, u32 >,
+  /// Internal bookkeeping: count of currently-held keys that fell back to
+  /// `KeyboardKey::Unidentified` (any `code` string not mapped to a known
+  /// variant aliases to this one). Same rationale as `unknown_button_counts`,
+  /// but global rather than per-pointer since keyboard events carry no pointer
+  /// id (Fix(BUG-213)).
+  unidentified_key_hold_count : u32,
 }
 
 impl State
@@ -182,6 +210,9 @@ impl State
       pointer_position : I32x2::default(),
       scroll : F64x3::default(),
       active_pointers : Vec::new(),
+      held_buttons : std::collections::HashMap::new(),
+      unknown_button_counts : std::collections::HashMap::new(),
+      unidentified_key_hold_count : 0,
     }
   }
 }
@@ -246,6 +277,9 @@ pub struct Input
   keyboard_closure : Closure< dyn Fn( KeyboardEvent ) >,
   /// The closure handling mouse wheel events.
   wheel_closure : Closure< dyn Fn( WheelEvent ) >,
+  /// The closure handling focus-loss events (`blur` on the window, `visibilitychange` on the
+  /// document) -- see [`EventType::FocusLost`] and its `Fix(BUG-214)` doc comment.
+  focus_lost_closure : Closure< dyn Fn( DomEvent ) >,
   /// The specific DOM element to which pointer events are attached.
   pointer_event_target : Option< EventTarget >,
   /// The current state of inputs (e.g., which keys are down).
@@ -272,7 +306,7 @@ impl Input
   /// # Errors
   /// Returns `BrowserInputError` if browser APIs are unavailable or event listener registration fails.
   #[ inline ]
-  #[ expect( clippy::too_many_lines, reason = "sets up 5 independent event closures sharing captured state ( event_queue, get_coords, last_pointer_type ) via Rc::clone; splitting each into its own function would thread that shared state through extra parameters for no behavioral change" ) ]
+  #[ expect( clippy::too_many_lines, reason = "sets up 6 independent event closures sharing captured state ( event_queue, get_coords, last_pointer_type ) via Rc::clone; splitting each into its own function would thread that shared state through extra parameters for no behavioral change" ) ]
   pub fn new< F >
   (
     pointer_event_target : Option< EventTarget >,
@@ -377,6 +411,16 @@ impl Input
       let event_queue = event_queue.clone();
       move | event : KeyboardEvent |
       {
+        // Fix(BUG-213): OS-level auto-repeat re-fires `keydown` for an already-held key
+        // without a matching `keyup` in between. Left unfiltered, this would corrupt the
+        // Unidentified-key hold-count fix in `events_apply_to_state` (each repeat would
+        // increment the count again, requiring that many releases to actually clear it).
+        // No legitimate signal is lost: every mapped key already tracks "held" as a level,
+        // not an edge, so repeat events carry no information beyond the initial press.
+        if event.repeat()
+        {
+          return;
+        }
         let code = KeyboardKey::from( event.code().as_str() );
         let action = if event.type_() == "keydown" { Action::Press } else { Action::Release };
         let event_type = EventType::KeyboardKey( code, action );
@@ -387,11 +431,28 @@ impl Input
       }
     };
 
+    let focus_lost_callback =
+    {
+      let event_queue = event_queue.clone();
+      move | _event : DomEvent |
+      {
+        // Fix(BUG-214): fires on `blur` (window loses OS focus) and `visibilitychange`
+        // (tab hidden) alike -- both share the same "we will not receive matching release
+        // events for whatever is currently held" consequence, so both push the same
+        // FocusLost event. `visibilitychange` fires for both directions (hidden and
+        // visible); only the queued event's effect (a full state reset) matters, and
+        // resetting an already-empty state on the "became visible" case is a harmless no-op.
+        let event_type = EventType::FocusLost;
+        event_queue.borrow_mut().push( Event { event_type, alt : false, ctrl : false, shift : false } );
+      }
+    };
+
     let pointerbutton_closure = Closure::< dyn Fn( _ ) >::new( pointerbutton_callback );
     let pointercancel_closure = Closure::< dyn Fn( _ ) >::new( pointercancel_callback );
     let pointermove_closure = Closure::< dyn Fn( _ ) >::new( pointermove_callback );
     let wheel_closure = Closure::< dyn Fn( _ ) >::new( wheel_callback );
     let keyboard_closure = Closure::< dyn Fn( _ ) >::new( keyboard_callback );
+    let focus_lost_closure = Closure::< dyn Fn( _ ) >::new( focus_lost_callback );
 
     let input = Self
     {
@@ -401,6 +462,7 @@ impl Input
       pointermove_closure,
       keyboard_closure,
       wheel_closure,
+      focus_lost_closure,
       pointer_event_target,
       state : State::new(),
       last_pointer_type,
@@ -419,6 +481,16 @@ impl Input
       "keyup",
       input.keyboard_closure.as_ref().unchecked_ref()
     ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "keyup".to_string() ) )?;
+    window.add_event_listener_with_callback
+    (
+      "blur",
+      input.focus_lost_closure.as_ref().unchecked_ref()
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "blur".to_string() ) )?;
+    document.add_event_listener_with_callback
+    (
+      "visibilitychange",
+      input.focus_lost_closure.as_ref().unchecked_ref()
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "visibilitychange".to_string() ) )?;
 
     let document = document.dyn_into().map_err( | _ | BrowserInputError::DocumentCastFailed )?;
     let pointer_event_target = input.pointer_event_target.as_ref().unwrap_or( &document );
@@ -561,6 +633,7 @@ impl Input
 
 /// Applies a slice of events to the given state, updating it accordingly.
 #[ inline ]
+#[ expect( clippy::too_many_lines, reason = "one match dispatching per-EventType state updates across 6 variants ( 3 of which carry independently-necessary alias/cap bookkeeping for BUG-212/BUG-213/BUG-214 ); splitting arms into separate functions would fragment one conceptual state machine over &mut State for no behavioral change" ) ]
 pub fn events_apply_to_state( state : &mut State, events : &[ Event ] )
 {
   for Event { event_type, .. } in events
@@ -569,15 +642,74 @@ pub fn events_apply_to_state( state : &mut State, events : &[ Event ] )
     {
       EventType::KeyboardKey( keyboard_key, action ) =>
       {
-        state.keyboard_keys[ *keyboard_key as usize ] = *action == Action::Press;
+        // Fix(BUG-213)
+        // Root cause: any `code` string not mapped to a known variant aliases to
+        // `KeyboardKey::Unidentified` -- a flat last-writer-wins bool cannot tell
+        // two DIFFERENT physical keys sharing that one fallback apart, so
+        // releasing one falsely cleared the other's still-held state.
+        // Pitfall: only reachable with two simultaneously-held exotic/unmapped
+        // keys -- invisible for every one of the individually-mapped keys, which
+        // have no aliasing and need no counting.
+        if *keyboard_key == KeyboardKey::Unidentified
+        {
+          match action
+          {
+            Action::Press => state.unidentified_key_hold_count += 1,
+            Action::Release =>
+              state.unidentified_key_hold_count = state.unidentified_key_hold_count.saturating_sub( 1 ),
+          }
+          state.keyboard_keys[ *keyboard_key as usize ] = state.unidentified_key_hold_count > 0;
+        }
+        else
+        {
+          state.keyboard_keys[ *keyboard_key as usize ] = *action == Action::Press;
+        }
       }
       EventType::PointerButton( pointer_id, pos, mouse_button, action ) =>
       {
-        state.mouse_buttons[ *mouse_button as usize ] = *action == Action::Press;
+        let bit = 1u32 << ( *mouse_button as u32 );
+        // Fix(BUG-130)
+        // Root cause: `mouse_buttons` was a flat last-writer-wins toggle keyed only
+        // by button, and `active_pointers` evicted a pointer id on ANY release --
+        // both assume exactly one button is ever in play per pointer at a time.
+        // That is true for a single touch contact (whose `button` is always
+        // `Main` per the Pointer Events spec) but false for two simultaneous
+        // pointers sharing a button value, or one physical mouse holding two
+        // buttons under one shared `pointer_id`. `held_buttons` now tracks each
+        // pointer's own held-button bitmask so both derived views only change
+        // once that pointer's actual contribution changes.
+        // Pitfall: global input state that is "set" per event instead of
+        // "derived from all current sources" silently breaks the instant two
+        // sources can overlap -- verify against the *simultaneous* case, not
+        // just sequential press/release pairs.
         match action
         {
           Action::Press =>
           {
+            // Fix(BUG-212)
+            // Root cause: `held_buttons` inserted a new pointer id unconditionally,
+            // while `active_pointers` already gated new insertions behind
+            // `MAX_ACTIVE_POINTERS` -- a source sending Press events under
+            // ever-new synthetic pointer ids (with no matching Release) grew
+            // `held_buttons` without bound even though `active_pointers` stayed
+            // capped. Gate `held_buttons` (and the Fix(BUG-213) counter below)
+            // behind the identical "already tracked or under the cap" check.
+            // Pitfall: two collections meant to track the same conceptual set
+            // (which pointer ids are currently active) drifted because only one
+            // of them enforced the shared invariant -- a cap added to one
+            // sibling collection is not automatically inherited by another.
+            let already_tracked = state.held_buttons.contains_key( pointer_id );
+            if already_tracked || state.held_buttons.len() < MAX_ACTIVE_POINTERS
+            {
+              // Fix(BUG-213): see the KeyboardKey arm above for the mirrored
+              // keyboard-side fix and full rationale -- `MouseButton::Unknown`
+              // is the mouse equivalent of `KeyboardKey::Unidentified`.
+              if *mouse_button == MouseButton::Unknown
+              {
+                *state.unknown_button_counts.entry( *pointer_id ).or_insert( 0 ) += 1;
+              }
+              *state.held_buttons.entry( *pointer_id ).or_insert( 0 ) |= bit;
+            }
             if !state.active_pointers.iter().any( | ( id, _ ) | *id == *pointer_id )
               && state.active_pointers.len() < MAX_ACTIVE_POINTERS
             {
@@ -586,9 +718,51 @@ pub fn events_apply_to_state( state : &mut State, events : &[ Event ] )
           }
           Action::Release =>
           {
-            state.active_pointers.retain( | ( id, _ ) | *id != *pointer_id );
+            // Fix(BUG-213): an Unknown-button release only actually clears the
+            // bit once every aliased real button this pointer holds has
+            // released -- tracked via `unknown_button_counts` (Press arm above).
+            let still_aliased = if *mouse_button == MouseButton::Unknown
+            {
+              let new_count = state.unknown_button_counts.get( pointer_id )
+                .copied().unwrap_or( 0 ).saturating_sub( 1 );
+              if new_count > 0
+              {
+                state.unknown_button_counts.insert( *pointer_id, new_count );
+                true
+              }
+              else
+              {
+                state.unknown_button_counts.remove( pointer_id );
+                false
+              }
+            }
+            else
+            {
+              false
+            };
+
+            if !still_aliased
+            {
+              if let Some( mask ) = state.held_buttons.get_mut( pointer_id )
+              {
+                *mask &= !bit;
+                if *mask == 0
+                {
+                  state.held_buttons.remove( pointer_id );
+                  state.active_pointers.retain( | ( id, _ ) | *id != *pointer_id );
+                }
+              }
+              else
+              {
+                // No tracked press for this id (e.g. it arrived before state was
+                // reset) -- still don't leave a stale active_pointers entry.
+                state.active_pointers.retain( | ( id, _ ) | *id != *pointer_id );
+              }
+            }
           }
         }
+        state.mouse_buttons[ *mouse_button as usize ] =
+          state.held_buttons.values().any( | mask | mask & bit != 0 );
       }
       EventType::PointerMove( pointer_id, pos ) =>
       {
@@ -601,11 +775,57 @@ pub fn events_apply_to_state( state : &mut State, events : &[ Event ] )
       EventType::Wheel( delta ) => state.scroll += *delta,
       EventType::PointerCancel( pointer_id ) =>
       {
+        // Fix(BUG-130)
+        // Root cause: this cleared ALL buttons whenever `active_pointers` happened
+        // to become empty, instead of only the cancelled pointer's own buttons --
+        // wrong whenever a different pointer (e.g. a mouse button held alongside a
+        // cancelled touch) is still legitimately active. Now that `held_buttons`
+        // tracks per-pointer state, only the cancelled pointer's own bits are
+        // removed, and only the buttons it actually held are re-derived.
+        // Pitfall: "if the aggregate is empty, reset everything" is only correct
+        // when the aggregate and the thing being reset are updated by the exact
+        // same events -- here `active_pointers` (per-pointer) and `mouse_buttons`
+        // (per-button) diverge as soon as more than one pointer can be active.
         state.active_pointers.retain( | ( id, _ ) | *id != *pointer_id );
-        if state.active_pointers.is_empty()
+        // Fix(BUG-213): drop this pointer's own alias-hold count too, otherwise
+        // it leaks (a cancelled pointer id is never pressed or released again).
+        state.unknown_button_counts.remove( pointer_id );
+        if let Some( mask ) = state.held_buttons.remove( pointer_id )
         {
-          state.mouse_buttons.fill( false );
+          for i in 0 .. MouseButton::COUNT
+          {
+            if mask & ( 1u32 << i ) != 0
+            {
+              state.mouse_buttons[ i ] =
+                state.held_buttons.values().any( | m | m & ( 1u32 << i ) != 0 );
+            }
+          }
         }
+      }
+      EventType::FocusLost =>
+      {
+        // Fix(BUG-214)
+        // Root cause: no `blur`/`visibilitychange` listener existed at all, so a
+        // key/button held at the moment the user alt-tabbed or switched tabs
+        // never received its matching `keyup`/`pointerup` (the OS delivers the
+        // physical release to whichever window/app now has focus, not this
+        // page) -- the held flag stayed stuck `true` until an unrelated later
+        // event happened to touch that same slot.
+        // Pitfall: invisible in every normal press/release sequence -- only
+        // manifests once focus actually leaves the page mid-hold, which no
+        // sequential keydown/keyup or pointerdown/pointerup test can exercise.
+        state.keyboard_keys = [ false; KeyboardKey::COUNT ];
+        state.mouse_buttons = [ false; MouseButton::COUNT ];
+        state.active_pointers.clear();
+        state.held_buttons.clear();
+        state.unknown_button_counts.clear();
+        state.unidentified_key_hold_count = 0;
+        // `pointer_position` and `scroll` are deliberately left untouched --
+        // they are last-known-value/accumulator state, not "currently held"
+        // state, and remain meaningful after focus returns. `last_pointer_type`
+        // is also untouched, but for a different reason: it lives on `Input`
+        // itself (shared with the DOM callbacks via `Rc<Cell>`), not on `State`,
+        // so this function has no access to it at all.
       }
     }
   }
@@ -628,6 +848,16 @@ impl Drop for Input
     (
       "keyup",
       self.keyboard_closure.as_ref().unchecked_ref()
+    );
+    _ = window.remove_event_listener_with_callback
+    (
+      "blur",
+      self.focus_lost_closure.as_ref().unchecked_ref()
+    );
+    _ = document.remove_event_listener_with_callback
+    (
+      "visibilitychange",
+      self.focus_lost_closure.as_ref().unchecked_ref()
     );
 
     let Ok( document ) = document.dyn_into() else { return };

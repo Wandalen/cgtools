@@ -43,6 +43,13 @@ enum QuadtreeNode< C >
 | `remove` | `(&mut self, entity_id: u32) -> Vec<SpatialEntity<C>>` | **Divergence, verified directly against source**: `remove`'s doc comment (*"Removes all entities with the specified ID from the quadtree"*) makes no complexity claim itself, but the module-level *"O(log n)"* banner (`src/spatial.rs:10`) describes the structure generally, and `remove` is the operation that does not meet it. `remove_recursive_static`'s `Internal`-node arm unconditionally recurses into **all four children** — `northeast`, `northwest`, `southeast`, `southwest`, every call, no bounds pruning — because the function receives only an opaque `entity_id : u32`, with no positional hint to prune the search by. This is a full O(n) tree walk, structurally unable to be O(log n) as written: unlike `region_query`/`circle_query`, `remove` has no `SpatialBounds` argument to intersect against. |
 | `all_entities` / `clear` | `(&self) -> Vec<SpatialEntity<C>>` / `(&mut self)` | Full-tree collection / reset; O(n) is expected and accurate for both. |
 
+### Algorithms
+
+| File | Relationship |
+|------|--------------|
+| [algorithm/003_field_of_view_calculation.md](../algorithm/003_field_of_view_calculation.md) | FOV calculations typically narrow their search using this structure's range/circle queries first |
+| [algorithm/005_coordinate_system_conversion.md](../algorithm/005_coordinate_system_conversion.md) | `triangular::Coordinate`'s lack of a `SpatialCoordinate` impl here compounds its lack of any conversion path documented there — no route into quadtree-compatible space |
+
 ### Invariants
 
 | File | Relationship |

@@ -129,8 +129,8 @@ not a Rust port, is what makes a chunk's interface legible.
 
 **Consumers:** the orrery scene family's browser WebGPU member
 [`orrery/webgpu`](../../../examples/orrery/webgpu/readme.md)
-imports all four bundled chunks by name and defines its scene-specific
-fragment stage (`shader/scene_fragment.wgsl`) as a fifth, local chunk —
+imports four of the bundled chunks by name and defines its scene-specific
+fragment stage (`shader/scene_fragment.wgsl`) as a further, local chunk —
 its `src/shader_source.rs` is the live model of the import pattern above.
 
 **Design docs:** each mechanism above is documented as a typed doc

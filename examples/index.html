@@ -433,15 +433,15 @@
     <div class="stats">
         <!-- GALLERY:STATS:BEGIN -->
         <div class="stat-card" aria-live="polite" aria-atomic="true">
-            <div class="stat-number" id="totalDemos">70</div>
+            <div class="stat-number" id="totalDemos">75</div>
             <div class="stat-label">Total Examples</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number" id="completedDemos">53</div>
+            <div class="stat-number" id="completedDemos">56</div>
             <div class="stat-label">Live Demos</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number">50</div>
+            <div class="stat-number">51</div>
             <div class="stat-label">With Showcase</div>
         </div>
         <div class="stat-card">
@@ -457,9 +457,23 @@
         <section class="category-section" data-category="api:webgl">
             <div class="category-header">
                 <h2>API · WebGL</h2>
-                <span class="category-badge">46 demos</span>
+                <span class="category-badge">50 demos</span>
             </div>
             <div class="demo-grid">
+                <article class="demo-card" role="article" data-name="triangle browser" data-path="gpu_hal/triangle_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">gpu_hal Triangle (Browser)</h3>
+                        <p class="demo-desc">Draws one uniform-colored triangle through gpu_hal's public surface — Device::new_webgpu or Device::new_webgl, one shader module, one pipeline, one render pass — proving both browser backends paint real pixels. Mirrors gpu_hal/tests/native_backend_test.rs's triangle_render_readback, which proves the same render path on the native backend through an offscreen readback instead of a browser canvas; this crate reuses that test's WGSL shader and vertex/uniform data, adding only the GLSL ES override the WebGL backend requires (Device::shader_module_create).</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./gpu_hal/triangle_browser/" class="demo-link" aria-label="View gpu_hal Triangle (Browser) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
                 <article class="demo-card" role="article" data-name="2d line" data-path="minwebgl/2d_line" data-tags="runtime:browser,api:webgl">
                     <div class="demo-image">
                         <span>No showcase yet</span>
@@ -596,6 +610,20 @@
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/color_space_conversions/" class="demo-link" aria-label="View Color Space Conversions demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="context triangle smoke" data-path="minwebgl/context_triangle_smoke" data-tags="runtime:browser,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Context Triangle Smoke Test</h3>
+                        <p class="demo-desc">The narrowest possible browser-side proof that minwebgl::context::from_canvas actually works: create a canvas, get a WebGL2 context from it, compile and link one shader pair, upload one triangle's vertices, and draw. This is the browser-side pixel-verification counterpart to minwebgl's native tests/ suite (which covers only the pure-logic layer) — from_canvas and everything downstream of it cannot be exercised without a real GL context, so this crate exists to give that path at least one real, browsee-verified data point instead of zero.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/context_triangle_smoke/" class="demo-link" aria-label="View Context Triangle Smoke Test demo">View Details</a>
                         </div>
                     </div>
                 </article>
@@ -1103,6 +1131,34 @@
                     </div>
                 </article>
 
+                <article class="demo-card" role="article" data-name="opaque path browser" data-path="renderer/opaque_path_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">renderer Opaque Path (Browser)</h3>
+                        <p class="demo-desc">Renders the same lit-quad scene as renderer/tests/native_render_test.rs's opaque_path_renders_lit_quad — one Geometry quad, one red PbrMaterial, one directional light, one Frame — through renderer::webgpu's canonical opaque path (GpuContext, WebGpuRenderer), proving both browser backends paint real pixels. The native test proves the same render path through an offscreen wgpu readback instead of a browser canvas; this crate reuses its exact vertex data, material, light, and camera.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./renderer/opaque_path_browser/" class="demo-link" aria-label="View renderer Opaque Path (Browser) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="adapter browser" data-path="tilemap_renderer/adapter_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">tilemap_renderer Adapter Browser Pixel Verification</h3>
+                        <p class="demo-desc">Drives tilemap_renderer's adapter-webgpu / adapter-webgl Backend impls through a real browser canvas — one Clear plus one centered Sprite, mirroring tilemap_renderer/tests/native_backend_test.rs's exact 8x8 solid-red sprite asset. That test proves the same construct → assets_load → submit → output flow on the native backend through an offscreen GPU readback; this crate proves it through a real canvas instead.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./tilemap_renderer/adapter_browser/" class="demo-link" aria-label="View tilemap_renderer Adapter Browser Pixel Verification demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
             </div>
         </section>
 
@@ -1110,9 +1166,23 @@
         <section class="category-section" data-category="api:webgpu">
             <div class="category-header">
                 <h2>API · WebGPU</h2>
-                <span class="category-badge">6 demos</span>
+                <span class="category-badge">8 demos</span>
             </div>
             <div class="demo-grid">
+                <article class="demo-card" role="article" data-name="triangle browser" data-path="gpu_hal/triangle_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">gpu_hal Triangle (Browser)</h3>
+                        <p class="demo-desc">Draws one uniform-colored triangle through gpu_hal's public surface — Device::new_webgpu or Device::new_webgl, one shader module, one pipeline, one render pass — proving both browser backends paint real pixels. Mirrors gpu_hal/tests/native_backend_test.rs's triangle_render_readback, which proves the same render path on the native backend through an offscreen readback instead of a browser canvas; this crate reuses that test's WGSL shader and vertex/uniform data, adding only the GLSL ES override the WebGL backend requires (Device::shader_module_create).</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./gpu_hal/triangle_browser/" class="demo-link" aria-label="View gpu_hal Triangle (Browser) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
                 <article class="demo-card" role="article" data-name="deffered rendering" data-path="minwebgpu/deffered_rendering" data-tags="runtime:browser,api:webgpu">
                     <div class="demo-image">
                         <img src="./minwebgpu/deffered_rendering/showcase.webp" alt="Deferred Rendering (WebGPU)" loading="lazy" width="350" height="250">
@@ -1168,20 +1238,6 @@
                     </div>
                 </article>
 
-                <article class="demo-card" role="article" data-name="shader chunk preview" data-path="minwebgpu/shader_chunk_preview" data-tags="runtime:browser,api:webgpu">
-                    <div class="demo-image">
-                        <span>No showcase yet</span>
-                    </div>
-                    <div class="demo-content">
-                        <h3 class="demo-title">Shader Chunk Preview (WebGPU)</h3>
-                        <p class="demo-desc">This example answers the question of what command opens a window with one shader chunk rendered, tunable by UI: action/run shader_chunk_preview (see How to run) opens a browser window rendering a single composed chunk set, with a slider panel wired live to its //@ param:-declared uniforms — drag a slider, the shader redraws that frame with the new value, no rebuild.</p>
-                        <span class="demo-status incomplete">No Showcase Yet</span>
-                        <div class="demo-links">
-                            <a href="./minwebgpu/shader_chunk_preview/" class="demo-link" aria-label="View Shader Chunk Preview (WebGPU) demo">View Details</a>
-                        </div>
-                    </div>
-                </article>
-
                 <article class="demo-card" role="article" data-name="webgpu" data-path="orrery/webgpu" data-tags="runtime:browser,api:webgpu,scene:orrery">
                     <div class="demo-image">
                         <span>No showcase yet</span>
@@ -1196,6 +1252,34 @@
                     </div>
                 </article>
 
+                <article class="demo-card" role="article" data-name="opaque path browser" data-path="renderer/opaque_path_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">renderer Opaque Path (Browser)</h3>
+                        <p class="demo-desc">Renders the same lit-quad scene as renderer/tests/native_render_test.rs's opaque_path_renders_lit_quad — one Geometry quad, one red PbrMaterial, one directional light, one Frame — through renderer::webgpu's canonical opaque path (GpuContext, WebGpuRenderer), proving both browser backends paint real pixels. The native test proves the same render path through an offscreen wgpu readback instead of a browser canvas; this crate reuses its exact vertex data, material, light, and camera.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./renderer/opaque_path_browser/" class="demo-link" aria-label="View renderer Opaque Path (Browser) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="adapter browser" data-path="tilemap_renderer/adapter_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">tilemap_renderer Adapter Browser Pixel Verification</h3>
+                        <p class="demo-desc">Drives tilemap_renderer's adapter-webgpu / adapter-webgl Backend impls through a real browser canvas — one Clear plus one centered Sprite, mirroring tilemap_renderer/tests/native_backend_test.rs's exact 8x8 solid-red sprite asset. That test proves the same construct → assets_load → submit → output flow on the native backend through an offscreen GPU readback; this crate proves it through a real canvas instead.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./tilemap_renderer/adapter_browser/" class="demo-link" aria-label="View tilemap_renderer Adapter Browser Pixel Verification demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
             </div>
         </section>
 
@@ -1203,9 +1287,23 @@
         <section class="category-section" data-category="api:wgpu">
             <div class="category-header">
                 <h2>API · WGPU</h2>
-                <span class="category-badge">2 demos</span>
+                <span class="category-badge">3 demos</span>
             </div>
             <div class="demo-grid">
+                <article class="demo-card" role="article" data-name="flecs bouncing circles" data-path="minwgpu/flecs_bouncing_circles" data-tags="runtime:native,api:wgpu">
+                    <div class="demo-image">
+                        <img src="./minwgpu/flecs_bouncing_circles/showcase.webp" alt="Flecs Bouncing Circles (wgpu)" loading="lazy" width="350" height="250">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Flecs Bouncing Circles (wgpu)</h3>
+                        <p class="demo-desc">This demo drives a basic 2D physics simulation with the flecs Entity Component System and renders the result with wgpu. Ten circles with distinct colors, radii, positions, and initial velocities fall under gravity, collide with each other, and bounce off the arena walls, all with a fixed restitution coefficient.</p>
+                        <span class="demo-status">✓ Has Showcase</span>
+                        <div class="demo-links">
+                            <a href="https://github.com/Wandalen/cgtools/blob/master/examples/minwgpu/flecs_bouncing_circles/readme.md" class="demo-link" aria-label="View Flecs Bouncing Circles (wgpu) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
                 <article class="demo-card" role="article" data-name="grid render" data-path="minwgpu/grid_render" data-tags="runtime:offscreen,api:wgpu">
                     <div class="demo-image">
                         <img src="./minwgpu/grid_render/showcase.webp" alt="Grid Rendering (wgpu)" loading="lazy" width="350" height="250">
@@ -1241,9 +1339,23 @@
         <section class="category-section" data-category="runtime:browser">
             <div class="category-header">
                 <h2>Runtime · Browser</h2>
-                <span class="category-badge">53 demos</span>
+                <span class="category-badge">56 demos</span>
             </div>
             <div class="demo-grid">
+                <article class="demo-card" role="article" data-name="triangle browser" data-path="gpu_hal/triangle_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">gpu_hal Triangle (Browser)</h3>
+                        <p class="demo-desc">Draws one uniform-colored triangle through gpu_hal's public surface — Device::new_webgpu or Device::new_webgl, one shader module, one pipeline, one render pass — proving both browser backends paint real pixels. Mirrors gpu_hal/tests/native_backend_test.rs's triangle_render_readback, which proves the same render path on the native backend through an offscreen readback instead of a browser canvas; this crate reuses that test's WGSL shader and vertex/uniform data, adding only the GLSL ES override the WebGL backend requires (Device::shader_module_create).</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./gpu_hal/triangle_browser/" class="demo-link" aria-label="View gpu_hal Triangle (Browser) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
                 <article class="demo-card" role="article" data-name="2d line" data-path="minwebgl/2d_line" data-tags="runtime:browser,api:webgl">
                     <div class="demo-image">
                         <span>No showcase yet</span>
@@ -1380,6 +1492,20 @@
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/color_space_conversions/" class="demo-link" aria-label="View Color Space Conversions demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="context triangle smoke" data-path="minwebgl/context_triangle_smoke" data-tags="runtime:browser,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Context Triangle Smoke Test</h3>
+                        <p class="demo-desc">The narrowest possible browser-side proof that minwebgl::context::from_canvas actually works: create a canvas, get a WebGL2 context from it, compile and link one shader pair, upload one triangle's vertices, and draw. This is the browser-side pixel-verification counterpart to minwebgl's native tests/ suite (which covers only the pure-logic layer) — from_canvas and everything downstream of it cannot be exercised without a real GL context, so this crate exists to give that path at least one real, browsee-verified data point instead of zero.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/context_triangle_smoke/" class="demo-link" aria-label="View Context Triangle Smoke Test demo">View Details</a>
                         </div>
                     </div>
                 </article>
@@ -1956,20 +2082,6 @@
                     </div>
                 </article>
 
-                <article class="demo-card" role="article" data-name="shader chunk preview" data-path="minwebgpu/shader_chunk_preview" data-tags="runtime:browser,api:webgpu">
-                    <div class="demo-image">
-                        <span>No showcase yet</span>
-                    </div>
-                    <div class="demo-content">
-                        <h3 class="demo-title">Shader Chunk Preview (WebGPU)</h3>
-                        <p class="demo-desc">This example answers the question of what command opens a window with one shader chunk rendered, tunable by UI: action/run shader_chunk_preview (see How to run) opens a browser window rendering a single composed chunk set, with a slider panel wired live to its //@ param:-declared uniforms — drag a slider, the shader redraws that frame with the new value, no rebuild.</p>
-                        <span class="demo-status incomplete">No Showcase Yet</span>
-                        <div class="demo-links">
-                            <a href="./minwebgpu/shader_chunk_preview/" class="demo-link" aria-label="View Shader Chunk Preview (WebGPU) demo">View Details</a>
-                        </div>
-                    </div>
-                </article>
-
                 <article class="demo-card" role="article" data-name="webgpu" data-path="orrery/webgpu" data-tags="runtime:browser,api:webgpu,scene:orrery">
                     <div class="demo-image">
                         <span>No showcase yet</span>
@@ -1984,6 +2096,34 @@
                     </div>
                 </article>
 
+                <article class="demo-card" role="article" data-name="opaque path browser" data-path="renderer/opaque_path_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">renderer Opaque Path (Browser)</h3>
+                        <p class="demo-desc">Renders the same lit-quad scene as renderer/tests/native_render_test.rs's opaque_path_renders_lit_quad — one Geometry quad, one red PbrMaterial, one directional light, one Frame — through renderer::webgpu's canonical opaque path (GpuContext, WebGpuRenderer), proving both browser backends paint real pixels. The native test proves the same render path through an offscreen wgpu readback instead of a browser canvas; this crate reuses its exact vertex data, material, light, and camera.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./renderer/opaque_path_browser/" class="demo-link" aria-label="View renderer Opaque Path (Browser) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="adapter browser" data-path="tilemap_renderer/adapter_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">tilemap_renderer Adapter Browser Pixel Verification</h3>
+                        <p class="demo-desc">Drives tilemap_renderer's adapter-webgpu / adapter-webgl Backend impls through a real browser canvas — one Clear plus one centered Sprite, mirroring tilemap_renderer/tests/native_backend_test.rs's exact 8x8 solid-red sprite asset. That test proves the same construct → assets_load → submit → output flow on the native backend through an offscreen GPU readback; this crate proves it through a real canvas instead.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="./tilemap_renderer/adapter_browser/" class="demo-link" aria-label="View tilemap_renderer Adapter Browser Pixel Verification demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
             </div>
         </section>
 
@@ -1991,7 +2131,7 @@
         <section class="category-section" data-category="runtime:native">
             <div class="category-header">
                 <h2>Runtime · Native</h2>
-                <span class="category-badge">15 demos</span>
+                <span class="category-badge">16 demos</span>
             </div>
             <div class="demo-grid">
                 <article class="demo-card" role="article" data-name="life" data-path="math/life" data-tags="runtime:native">
@@ -2004,6 +2144,20 @@
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="https://github.com/Wandalen/cgtools/blob/master/examples/math/life/readme.md" class="demo-link" aria-label="View Conway's Game of Life demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="demo-card" role="article" data-name="flecs bouncing circles" data-path="minwgpu/flecs_bouncing_circles" data-tags="runtime:native,api:wgpu">
+                    <div class="demo-image">
+                        <img src="./minwgpu/flecs_bouncing_circles/showcase.webp" alt="Flecs Bouncing Circles (wgpu)" loading="lazy" width="350" height="250">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Flecs Bouncing Circles (wgpu)</h3>
+                        <p class="demo-desc">This demo drives a basic 2D physics simulation with the flecs Entity Component System and renders the result with wgpu. Ten circles with distinct colors, radii, positions, and initial velocities fall under gravity, collide with each other, and bounce off the arena walls, all with a fixed restitution coefficient.</p>
+                        <span class="demo-status">✓ Has Showcase</span>
+                        <div class="demo-links">
+                            <a href="https://github.com/Wandalen/cgtools/blob/master/examples/minwgpu/flecs_bouncing_circles/readme.md" class="demo-link" aria-label="View Flecs Bouncing Circles (wgpu) demo">View Details</a>
                         </div>
                     </div>
                 </article>
@@ -2249,9 +2403,23 @@
         <section class="category-section" data-category="scene:orrery">
             <div class="category-header">
                 <h2>Scene · Orrery</h2>
-                <span class="category-badge">1 demo</span>
+                <span class="category-badge">2 demos</span>
             </div>
             <div class="demo-grid">
+                <article class="demo-card" role="article" data-name="flexible" data-path="orrery/flexible" data-tags="scene:orrery">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Orrery (Flexible)</h3>
+                        <p class="demo-desc">The same orrery scene behind one Cargo-feature-selectable backend — webgl, webgpu, wgpu, or vulkan — through the in-house gpu_hal abstraction. Only the wgpu feature links the wgpu crate; the other three (including vulkan, via the new minvulkan L0 driver) do not, even transitively. Browser features (webgl/webgpu) present live to a canvas; native features (wgpu/vulkan) render one offscreen frame and save it as a PNG.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="https://github.com/Wandalen/cgtools/blob/master/examples/orrery/flexible/readme.md" class="demo-link" aria-label="View Orrery (Flexible) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
                 <article class="demo-card" role="article" data-name="webgpu" data-path="orrery/webgpu" data-tags="runtime:browser,api:webgpu,scene:orrery">
                     <div class="demo-image">
                         <span>No showcase yet</span>

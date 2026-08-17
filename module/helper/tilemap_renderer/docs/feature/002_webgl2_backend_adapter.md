@@ -7,7 +7,7 @@
 - **Purpose**: Let a command stream drive real-time, GPU-accelerated rendering in a browser.
 - **Responsibility**: Cross-reference the WebGL2 adapter's source, the pitfalls confirmed in its GPU buffer handling, and its actual (partial) capability status.
 - **In Scope**: Sprite, mesh, and instanced-batch rendering; async and sync image loading; per-instance depth and blend-mode handling.
-- **Out of Scope**: SVG and Terminal adapters (see [feature/001_svg_backend_adapter.md](001_svg_backend_adapter.md), [feature/003_terminal_backend_adapter.md](003_terminal_backend_adapter.md)); the Y-up invariant itself (see [invariant/001](../invariant/001_y_up_coordinate_system.md), satisfied natively here with no adapter-side logic).
+- **Out of Scope**: SVG, Terminal, None, WebGPU, and Native adapters (see [001](001_svg_backend_adapter.md), [003](003_terminal_backend_adapter.md), [004](004_none_backend_adapter.md), [005](005_webgpu_backend_adapter.md), [006](006_native_backend_adapter.md)); the Y-up invariant itself (see [invariant/001](../invariant/001_y_up_coordinate_system.md), satisfied natively here with no adapter-side logic).
 
 ### Design
 
@@ -30,6 +30,8 @@ Given the number of unimplemented command families and the `Overlay` blend-mode 
 | File | Relationship |
 |------|--------------|
 | [invariant/001_y_up_coordinate_system.md](../invariant/001_y_up_coordinate_system.md) | Satisfied natively (OpenGL's own convention); no adapter-side conversion |
+| [invariant/003_z_layer_draw_ordering.md](../invariant/003_z_layer_draw_ordering.md) | Additionally honors `Transform::depth` via `DEPTH_TEST`/`LEQUAL`, reliable only for opaque draws |
+| [invariant/004_vector_representability_of_commands.md](../invariant/004_vector_representability_of_commands.md) | GPU backend accelerating the same declarative stream; adds nothing unrepresentable |
 
 ### Patterns
 

@@ -18,6 +18,7 @@ mod_interface!
   layer buffer;
   layer context;
   layer texture;
+  layer surface;
   layer bind;
   layer pipeline;
   layer pass;

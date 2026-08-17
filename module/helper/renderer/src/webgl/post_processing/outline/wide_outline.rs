@@ -72,7 +72,8 @@ mod private
     "sourceTexture",
     "objectColorTexture",
     "jfaTexture",
-    "resolution"
+    "resolution",
+    "outlineThickness"
   );
 
   /// Binds a texture to a texture unit and uploads its location to a uniform.
@@ -385,9 +386,17 @@ mod private
       // Upload resolution uniform ( needed for distance calculations in the shader )
       gl::uniform::upload( gl, Some( resolution.clone() ), &[ self.width as f32, self.height as f32 ] ).unwrap();
 
-      let aspect_ratio = self.width as f32 / self.height as f32;
-      let step_size =  self.outline_thickness / ( 2.0_f32 ).powf( i as f32 );
-      let step_size = [ step_size * aspect_ratio, step_size ];
+      // Fix(BUG-180): `stepSize` is a *pixel* distance -- `jfa_step.frag` already converts it to
+      // normalized UV space per-axis via `ceil( vec2( x, y ) * stepSize ) / resolution`, which on
+      // its own correctly compensates for a non-square canvas ( each axis divides by its own
+      // resolution component ). Previously this scaled `step_size.x` by `width / height` *before*
+      // that division, double-applying the aspect-ratio correction: the real per-axis pixel jump
+      // ( `offset * resolution` ) worked out to `step_size * aspect_ratio` horizontally vs. just
+      // `step_size` vertically, so the JFA search radius -- and therefore the rendered outline --
+      // was stretched wider than tall on any non-square canvas instead of uniform in all
+      // directions. Both components must carry the same pixel distance.
+      let step_size = self.outline_thickness / ( 2.0_f32 ).powf( i as f32 );
+      let step_size = [ step_size, step_size ];
 
       gl::uniform::upload( gl, Some( u_step_size.clone() ), &step_size ).unwrap();
 
@@ -425,6 +434,10 @@ mod private
       let object_color_loc = outline_locs.get( "objectColorTexture" ).unwrap().clone().unwrap();
       let jfa_step_loc = outline_locs.get( "jfaTexture" ).unwrap().clone().unwrap();
       let resolution = outline_locs.get( "resolution" ).unwrap().clone().unwrap();
+      // Fix(BUG-179): see the matching comment in outline.frag -- this uniform didn't exist
+      // before, so `outline_thickness` never reached the pass that actually decides whether a
+      // background pixel is close enough to draw the outline color.
+      let outline_thickness_loc = outline_locs.get( "outlineThickness" ).unwrap().clone().unwrap();
 
       framebuffer_color_set( gl, outline_fb, output_texture );
 
@@ -434,6 +447,7 @@ mod private
       gl.bind_framebuffer( GL::FRAMEBUFFER, Some( outline_fb ) );
 
       gl::uniform::upload( gl, Some( resolution.clone() ), &[ self.width as f32, self.height as f32 ] ).unwrap();
+      gl::uniform::upload( gl, Some( outline_thickness_loc.clone() ), &self.outline_thickness ).unwrap();
 
       texture_upload( gl, &source, &source_loc, GL::TEXTURE0 );
       texture_upload( gl, object_color, &object_color_loc, GL::TEXTURE1 );

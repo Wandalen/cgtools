@@ -24,18 +24,21 @@ is L0 directly, the accepted violation tracked in
 
 | Engine | Stack | Upward vocabulary | Downward seam |
 |--------|-------|-------------------|---------------|
-| `renderer` | d3 | Scene graph: `Node`/`Scene`/`Mesh`, PBR materials, cameras, lights | Direct `minwebgl` (`renderer::webgl::*` namespace) |
-| `tilemap_renderer` | d2 | POD `RenderCommand` stream + assets | `Backend` trait — SVG/terminal need no GPU at all; the WebGL2 adapter uses `minwebgl` directly; `adapter-webgpu` / `adapter-native` target `gpu_hal` ( [ADR-003](../adr/003_d2_stack_hal_adoption.md) ) |
+| `renderer` | d3 | Legacy: `Node`/`Scene`/`Mesh` scene graph, PBR materials, cameras, lights. Canonical (`gpu_hal`-backed): `Geometry`/`PbrMaterial`/`Lights`/`Frame` | Legacy: direct `minwebgl` (`renderer::webgl::*` namespace). Canonical: `gpu_hal` on three constructible backends — `GpuContext::new_webgpu`, `new_webgl` (gpu_hal's own WebGL2 backend), `new_native` ( `webgpu`/`native` features, [L1](002_l1_gpu_hal.md) ) |
+| `tilemap_renderer` | d2 | POD `RenderCommand` stream + assets | `Backend` trait — `adapter-none`/SVG need no GPU at all; `adapter-terminal` is a stub (no `Backend` impl yet, deferred to a follow-up PR); the WebGL2 adapter uses `minwebgl` directly; `adapter-webgpu` / `adapter-native` target `gpu_hal` ( [ADR-003](../adr/003_d2_stack_hal_adoption.md) ) |
 
 The two demonstrate the two portability strategies ADR-001 weighs: a trait
 seam at the command level (`tilemap_renderer` — backends multiply freely)
 versus per-backend namespaces (`renderer` — each backend is a parallel
 tree). The architecture keeps the first and dissolves the second onto the
-HAL. `tilemap_renderer`'s new adapters go further: rather than dissolving an
+HAL — now underway: `renderer`'s canonical opaque path (`src/webgpu/`)
+already runs through `gpu_hal` on both `webgpu` and `native` features,
+alongside the legacy `src/webgl/` tree it will eventually replace.
+`tilemap_renderer`'s new adapters go further: rather than dissolving an
 existing direct dependency, they adopt the HAL from the start — the same
 trait seam now multiplying backends *through* L1 instead of around it.
 
-### Explorations
+### ADRs
 
 | File | Relationship |
 |------|--------------|

@@ -25,6 +25,13 @@ Domain terms used throughout `docs/cli/`, alphabetical.
   `heading::`, `width::`) — the last stage of the query pipeline.
 - **Leaf** — A chunk with no dependencies of its own; selectable via
   `leaves::1`.
+- **Preview** — Building a live, browser-servable rendering of one chunk
+  (or local file): compose its WGSL, naga-validate it exactly as `wgpu`
+  would parse it, wire its `//@ param:` uniforms to sliders, write the
+  result as a bundle, and — unless `serve::0` — launch it in the browser.
+  Unlike Compose, the bundle is a real filesystem artifact, not stdout
+  text; unlike Tunable, it produces a running render, not a table of
+  declarations. Performed by `preview`.
 - **Projection** — Choosing *what is shown* about each kept chunk — a
   field subset via `fields::`, or just the total via `count::1` — the
   middle stage of the query pipeline.
@@ -34,6 +41,12 @@ Domain terms used throughout `docs/cli/`, alphabetical.
 - **Registry** — The compiled-in, static table of every chunk
   (`shader_chunks_core::CHUNKS`) this CLI inspects; never runtime-discovered
   or loaded from the filesystem.
+- **Render** — Freezing one frame of a chunk's preview bundle as a static
+  PNG on a headless GPU: the same composition and naga validation as
+  Preview, every tunable at its declared default, `time` fixed at
+  `time::`. Unlike Preview, no server, browser, or ongoing process is
+  involved — the artifact is a finished image file at `out::`. Performed
+  by `render`.
 - **Root** — A chunk no other chunk depends on; a natural entry point,
   selectable via `roots::1` and rendered by `tree`'s forest view.
 - **Selection** — Fixing the candidate set a query starts from: the

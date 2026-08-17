@@ -17,7 +17,9 @@ runners that execute them interactively or off-screen. This layer is where
 - **Deterministic**: same script + same seed → same frame sequence. This is
   what makes scripts testable, diffable, and safely re-runnable — pinned for
   the tile stack by
-  [`tilemap_scene` invariant/004](../../module/helper/tilemap_scene/docs/invariant/004_deterministic_compilation.md).
+  [`tilemap_scene` invariant/004](../../module/helper/tilemap_scene/docs/invariant/004_deterministic_compilation.md),
+  and for `scene_script` by its own off-screen determinism tests (see
+  Occupants Today below).
 - **Two runner modes**: interactive (browser/window loop) and off-screen
   (headless compile → declarative output or snapshot) — the off-screen mode
   is what proves determinism in CI.
@@ -26,8 +28,8 @@ runners that execute them interactively or off-screen. This layer is where
 
 | Crate | Stack | Role |
 |-------|-------|------|
-| `tilemap_scene` | tile | Script-as-data: RON scenes compiled deterministically to `tilemap_renderer` commands; headless snapshot tests are the CI proof ([invariant/003](../../module/helper/tilemap_scene/docs/invariant/003_compiles_to_renderer_commands_only.md), [invariant/004](../../module/helper/tilemap_scene/docs/invariant/004_deterministic_compilation.md)) |
-| `scene_script` | d2 | Hosts both script forms, per-script rather than per-crate: `pingpong_animation.rhai` is script-as-glue (imperative `main()` driving registered tween/vector bindings); the orrery example's `scene.rhai` (`examples/orrery/webgpu`, evaluated through this crate's engine) is script-as-data (a pure literal document — zero engine calls). Rhai bindings (`vector_binding`, `tween_binding`, `engine_build()`) expose math + tween vocabulary to scripts that choose to call them; `top_level_lint` checks top-level *shape* only (imperative code confined to `main()`), never whether a script calls the engine — see [pattern/005](../pattern/005_script_as_glue.md)'s boundary-case note |
+| `tilemap_scene` | tile | Script-as-data: RON scenes compiled deterministically to `tilemap_renderer` commands via `compile/frame.rs`, then executed by its own `Renderer` (`src/renderer.rs`, ~24 dedicated tests across `renderer_test.rs`/`renderer_cache_test.rs`) — the runner half of this layer's compile/runner path, documented in [algorithm/002](../../module/helper/tilemap_scene/docs/algorithm/002_scene_rendering_pass.md) and [api/001](../../module/helper/tilemap_scene/docs/api/001_renderer_integration_api.md); headless snapshot tests are the CI proof ([invariant/003](../../module/helper/tilemap_scene/docs/invariant/003_compiles_to_renderer_commands_only.md), [invariant/004](../../module/helper/tilemap_scene/docs/invariant/004_deterministic_compilation.md)) |
+| `scene_script` | d2 | Hosts both script forms, per-script rather than per-crate: `pingpong_animation.rhai` is script-as-glue (imperative `main()` driving a registered vector binding — this particular script calls no tween binding, though the engine exposes one); the orrery example's `scene.rhai` (`examples/orrery/webgpu`, evaluated through this crate's engine) is script-as-data (a pure literal document — zero engine calls). Rhai bindings (`vector_binding`, `tween_binding`, `engine_build()`) expose math + tween vocabulary to scripts that choose to call them; `top_level_lint` checks top-level *shape* only (imperative code confined to `main()`), never whether a script calls the engine — see [pattern/005](../pattern/005_script_as_glue.md)'s boundary-case note; a third tracked example, `f32x2_vector_arithmetic.rhai` (`examples/scene_script/f32x2_vector_arithmetic`), is that boundary case in concrete form — a `let`/`let`/trailing-expression sequence that reads as shape-declarative yet calls the registered `f32x2(...)` constructor and operator overloads, so it is script-as-glue in substance despite the declarative shape (matching [pattern/005](../pattern/005_script_as_glue.md)'s own analysis); unlike the two examples below, it has no dedicated determinism test of its own; both of the other two script forms carry off-screen, CI-run determinism tests proving the Contract above — [`simulation_test.rs`](../../examples/scene_script/pingpong_animation/tests/simulation_test.rs) (glue) and the orrery example's [`scene_test.rs`](../../examples/orrery/webgpu/tests/scene_test.rs) (data) |
 | `d3_scene` | d3 | Reserved (`module/blank/d3_scene/`) — no d3 script layer exists yet |
 
 The two existing occupants embody the layer's two script forms, though not
@@ -41,18 +43,25 @@ needed. A future d3 script layer should make the same per-script choice
 deliberately — the patterns record the criteria and the default
 recommendation.
 
-### Patterns
+### Invariants
 
 | File | Relationship |
 |------|--------------|
-| [../pattern/004_script_as_data.md](../pattern/004_script_as_data.md) | The declarative script form and when to choose it |
-| [../pattern/005_script_as_glue.md](../pattern/005_script_as_glue.md) | The imperative script form and when to choose it |
+| [../../module/helper/scene_script/docs/invariant/001_top_level_bindings_convention.md](../../module/helper/scene_script/docs/invariant/001_top_level_bindings_convention.md) | The convention `scene_script` enforces to realize this layer as script-as-glue |
+| [../../module/helper/scene_script/docs/invariant/004_script_as_data_purity.md](../../module/helper/scene_script/docs/invariant/004_script_as_data_purity.md) | The purity invariant `scene_script` enforces to realize this layer as script-as-data |
 
 ### Layers
 
 | File | Relationship |
 |------|--------------|
 | [005_l4_scene_model.md](005_l4_scene_model.md) | The declarative data scripts are built from |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [../pattern/004_script_as_data.md](../pattern/004_script_as_data.md) | The declarative script form and when to choose it |
+| [../pattern/005_script_as_glue.md](../pattern/005_script_as_glue.md) | The imperative script form and when to choose it |
 
 ### Render Stacks
 
@@ -69,3 +78,4 @@ recommendation.
 | `module/helper/scene_script/src/engine.rs` | Rhai engine assembly (`engine_build()`) |
 | `module/helper/scene_script/src/top_level_lint.rs` | Structural check that imperative code lives inside `main()`, not a proof of the temporal/order determinism the Contract section above requires |
 | `module/helper/tilemap_scene/src/compile/frame.rs` | Deterministic scene→commands compilation |
+| `module/helper/tilemap_scene/src/renderer.rs` | The runner half: executes compiled commands, ~24 dedicated tests |

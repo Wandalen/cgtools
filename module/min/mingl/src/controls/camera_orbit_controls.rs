@@ -446,7 +446,15 @@ mod private
 
       // If scroll is up (-) then zoom in
       // If scroll is down (+) then zoom out
-      let k = if delta_y < 0.0 { 1.0 + delta_y.abs() } else { 1.0 - delta_y.abs() };
+      // Fix(BUG-126): clamp the zoom-out branch's divisor to a positive floor
+      // Root cause: `1.0 - delta_y.abs()` reaches 0.0 (division by zero) or goes negative
+      // (sign flip) whenever a single event's `|delta_y|` reaches/exceeds `zoom.speed`; a fast
+      // pinch gesture's raw screen-pixel distance delta, or a high-precision wheel event, both
+      // reach that magnitude in practice
+      // Pitfall: a divisor derived as `1.0 - x.abs()` is only safe while `x` is known to stay
+      // inside the unit interval — an external, unbounded input can never be assumed to satisfy
+      // that on its own
+      let k = if delta_y < 0.0 { 1.0 + delta_y.abs() } else { ( 1.0 - delta_y.abs() ).max( f32::EPSILON ) };
 
       // We need the center to be at the origin before we can apply zoom
       let mut eye_new = self.eye - self.center;
@@ -486,14 +494,21 @@ mod private
       // `delta_time` is a per-frame delta in seconds — always minuscule relative to
       // f32's precision limits, so narrowing it once here cannot lose meaningful precision.
       let delta_time = delta_time as f32;
+      // Fix(BUG-125): convert to milliseconds before applying the formulas below, which are
+      // written and documented in terms of milliseconds
+      // Root cause: `delta_time` arrives in seconds (per this function's own doc contract and
+      // every real caller), but the /10.0 and /1000.0 constants below assumed milliseconds
+      // Pitfall: a doc comment naming a time unit is not proof the formula beneath it agrees —
+      // verify the two independently
+      let delta_time_ms = delta_time * 1000.0;
 
       // Decays self.movement_decay% every 10 milliseconds
-      let mut decay_percentage = self.rotation.movement_decay * delta_time / 10.0;
+      let mut decay_percentage = self.rotation.movement_decay * delta_time_ms / 10.0;
       decay_percentage = decay_percentage.min( 1.0 );
 
       if self.rotation.movement_smoothing_enabled
       {
-        self.rotation.current_rotation_angle = self.rotation.current_angular_speed * delta_time / 1000.0;
+        self.rotation.current_rotation_angle = self.rotation.current_angular_speed * delta_time_ms / 1000.0;
         self.rotation_apply();
         self.rotation.current_angular_speed *= 1.0 - decay_percentage;
       }

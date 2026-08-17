@@ -565,3 +565,24 @@ pub fn image_mime_detect( bytes : &[ u8 ] ) -> &'static str
   if bytes.starts_with( b"<svg" ) || bytes.starts_with( b"<?xml" ) { return "image/svg+xml"; }
   "image/png"
 }
+
+/// Expands any `PixelFormat` into tightly-packed RGBA8 bytes -- the only
+/// texture format the `native`/`webgpu` adapters upload into (`gpu_hal` has
+/// no narrower GPU-side format for the v0 surface).
+///
+/// Helper shared by the `native` and `webgpu` adapters -- kept outside
+/// `mod private` and the `mod_interface!` block above so both can call it
+/// without depending on `mod_interface`'s visibility-tier semantics; `pub`
+/// so its tests can live in `tests/` per the all-tests-in-tests/ convention.
+#[ cfg( any( feature = "adapter-native", feature = "adapter-webgpu" ) ) ]
+#[ must_use ]
+pub fn to_rgba8( bytes : &[ u8 ], format : PixelFormat ) -> Vec< u8 >
+{
+  match format
+  {
+    PixelFormat::Rgba8 => bytes.to_vec(),
+    PixelFormat::Rgb8 => bytes.chunks_exact( 3 ).flat_map( | p | [ p[ 0 ], p[ 1 ], p[ 2 ], 255 ] ).collect(),
+    PixelFormat::Gray8 => bytes.iter().flat_map( | &g | [ g, g, g, 255 ] ).collect(),
+    PixelFormat::GrayAlpha8 => bytes.chunks_exact( 2 ).flat_map( | p | [ p[ 0 ], p[ 0 ], p[ 0 ], p[ 1 ] ] ).collect(),
+  }
+}

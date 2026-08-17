@@ -67,11 +67,11 @@ those cards.
 | Layer | In plain words | Crates today | Reserved slot |
 |-------|----------------|--------------|---------------|
 | L5 — scene script + runners | Scenes as scripts you can parse, interpret, and rerun — same script, same frames | `tilemap_scene` (compiled scenes), `scene_script` (Rhai glue) | `d3_scene` |
-| L4 — scene model | What exists, as data files — loadable and checkable without any GPU | `tilemap_scene` (RON model); glTF via `renderer` loaders | `d3_scene` |
+| L4 — scene model | What exists, as data files — loadable and checkable without any GPU | `tilemap_scene` (RON model); glTF via `renderer` loaders; procedural glTF assembly via `primitive_generation` | `d3_scene` |
 | L3 — stack engine | Turns one stack's vocabulary into draw work; one engine per stack | `tilemap_renderer` (d2), `renderer` (d3) | — |
 | L2 — frame orchestration | Which passes run, in what order, into which render targets | embedded in `renderer` and `tilemap_renderer` today | `frame_graph` |
-| L1 — GPU abstraction | One GPU API over all backends, so code is written once per stack instead of once per backend | `gpu_hal` (v0: WebGPU + WebGL2, serving `renderer`'s canonical path) | — |
-| L0 — drivers | Thin Rust wrappers over the raw GPU APIs, one per backend | `minwebgl`, `minwebgpu`, `minwgpu` | — |
+| L1 — GPU abstraction | One GPU API over all backends, so code is written once per stack instead of once per backend | `gpu_hal` (v0: WebGPU + WebGL2 + native `wgpu` + native `vulkan`, serving `renderer`'s canonical path; `vulkan` implemented — see [ADR-004](docs/adr/004_native_vulkan_hal_backend.md)) | — |
+| L0 — drivers | Thin Rust wrappers over the raw GPU APIs, one per backend | `minwebgl`, `minwebgpu`, `minwgpu`, `minvulkan` (real Instance/Device/Queue, tested against a live ICD; surface/swapchain not yet implemented) | — |
 | (substrate) | Shared helpers the drivers build on — below the ladder, not a layer | `mingl` | — |
 
 Beside the ladder: `canvas_renderer` (cross-stack bridge via textures — see
@@ -82,7 +82,12 @@ d2/d3 stacks, classification pending — see
 `animation` (value interpolation, easing, and multi-animation sequencing —
 feature-gated to `minwebgl`/`mingl`'s math/future/diagnostics utilities, not
 their GL-context layers, so it is a horizontal capability rather than an
-L0 occupant; feeds `scene_script`'s tween bindings today).
+L0 occupant; feeds `scene_script`'s tween bindings today),
+`shader_chunks_render_core` and `shader_chunks_preview_web` (headless and
+browser shader-chunk authoring/preview tooling — single-backend by design
+via direct `minwgpu`/`minwebgpu` dependencies, not a portability seam any
+stack needs; see
+[docs/layer/001](docs/layer/001_l0_drivers.md#non-stack-tooling-consumers)).
 
 **Rationale:** One glance answers "where does my crate sit, and what may it
 depend on" without walking the doc graph. The detailed contracts stay

@@ -162,11 +162,37 @@ mod private
       };
 
       let mut tweens = rotation.players().to_vec();
+      // Fix(BUG-198): `tweens` clones the persistent, already-playing Sequencer's own Tween
+      // state -- each clone carries forward its REAL, cumulative `elapsed` ( already equal to
+      // roughly `rotation.time()` for the currently active segment ), not a fresh `elapsed =
+      // 0.0`. A few lines below, these clones are wrapped in a brand-new local `Sequence` and
+      // immediately driven via `.update( rotation.time() )`, passing the FULL ABSOLUTE elapsed
+      // time as though replaying from scratch -- correct for the local `Sequence`'s OWN
+      // bookkeeping ( `Sequence::new` does start it fresh ), but doubling up on top of the
+      // already-non-zero Tween-level elapsed underneath it. Visible result: every scaled
+      // channel played at roughly double speed and froze at its segment's end pose once real
+      // elapsed reached only half the segment's authored duration.
+      // Root cause: `Sequence::new` intentionally never resets the players handed to it ( a
+      // caller may legitimately want to seed it with already-in-progress players ) -- this
+      // caller needed exactly that reset and never performed it.
+      // Pitfall: only became externally observable once a precise ( not just "changed from
+      // default" ) value assertion existed for a first-segment sample -- BUG-186's own
+      // regression test only checks segment-boundary continuity ( equality between two
+      // computed quaternions ), which stays correct regardless of the underlying elapsed being
+      // wrong by a constant factor.
+      for tween in &mut tweens
+      {
+        tween.reset();
+      }
       let current = rotation.current_id_get();
 
       for i in 0..( ( current + 1 ).min( tweens.len() ) )
       {
-        if scale < 1.0 && i > 0
+        // Fix(BUG-186): continuity rebase must run for every segment after the first,
+        // regardless of `scale` -- gating it on `scale < 1.0` left every segment after the
+        // first sampling a stale, un-rebased `start_value` whenever `scale >= 1.0` (the GUI's
+        // own default), producing a visible discontinuity at every segment boundary.
+        if i > 0
         {
           tweens[ i ].start_value = tweens[ i - 1 ].end_value;
         }
@@ -182,7 +208,24 @@ mod private
         tweens[ i ].end_value = new_end.normalize();
       }
 
-      tweens[ 0 ].start_value = tweens.last().unwrap().end_value;
+      // Fix(BUG-185): this line unconditionally overwrote `tweens[ 0 ].start_value` with
+      // `tweens.last().end_value` on every call, regardless of whether `current` ever reached
+      // the last segment. `tweens` is rebuilt fresh from the unscaled Sequencer data every call
+      // ( see `rotation.players().to_vec()` above ) and never persists across frames, so this
+      // was never a meaningful "loop back to the start" write -- when `current` was the last
+      // index the write was inert ( `tweens[ 0 ]` isn't sampled and is discarded next call
+      // anyway ); when `current` was 0 ( the common case of playing a sequence's first segment )
+      // it corrupted the CURRENTLY SAMPLED tween's `start_value` with the raw, un-rebased,
+      // unscaled `end_value` of an unrelated, possibly-untouched last segment, producing a wrong
+      // interpolated pose for the entire duration of the first segment.
+      // Root cause: apparent leftover "seamless loop" logic that doesn't fit this function's
+      // actual architecture -- `Sequence` has no automatic loop-back to segment 0, and even a
+      // genuine external `.reset()` would be indistinguishable from first-ever playback here,
+      // since `Scaler` holds no state to tell the two cases apart.
+      // Pitfall: a write to `tweens[ 0 ]` placed after a loop that only touches `0..=current`
+      // silently assumes `current` always reaches the last index by the time this line runs --
+      // true only once per sequence lifetime at most, never on the far more common frames where
+      // an earlier segment is still playing.
 
       let mut sequence= Sequence::new( tweens ).unwrap();
       sequence.update( rotation.time() );
@@ -192,6 +235,128 @@ mod private
         let rotation = tween.value_get();
         let rotation = QuatF32::from( rotation.0.map( | v | v as f32 ) );
         node.borrow_mut().rotation_set( rotation );
+      }
+    }
+
+    /// Applies scaled translation to a node based on the animation and scaling factor.
+    ///
+    /// # Arguments
+    ///
+    /// * `node` - The node to apply the translation to
+    /// * `name` - The name identifier for the node's translation animation
+    /// * `scale` - The scaling factor to apply to each segment's translation delta
+    // Fix(BUG-184): grouped nodes previously never had this channel applied at all --
+    // `AnimatableComposition::set` only ever called `scaled_rotation_apply` for grouped nodes,
+    // leaving `scaled_nodes`'s documented `x` ( transform ) weight component entirely unused.
+    fn scaled_translation_apply
+    (
+      &self,
+      node : &Rc< RefCell< Node > >,
+      name : &str,
+      scale : f64
+    )
+    {
+      let Some( translation ) = self.animation.get::< Sequence< Tween< F64x3 > > >
+      (
+        &format!( "{name}{TRANSLATION_PREFIX}" )
+      )
+      else
+      {
+        return;
+      };
+
+      let mut tweens = translation.players().to_vec();
+      // Fix(BUG-198): see `scaled_rotation_apply` -- same missing reset of the cloned,
+      // already-elapsed Tween state before it's replayed via absolute time.
+      for tween in &mut tweens
+      {
+        tween.reset();
+      }
+      let current = translation.current_id_get();
+
+      for i in 0..( ( current + 1 ).min( tweens.len() ) )
+      {
+        if i > 0
+        {
+          tweens[ i ].start_value = tweens[ i - 1 ].end_value;
+        }
+
+        let prev = tweens[ i ].start_value;
+        let curr = tweens[ i ].end_value;
+        let delta = curr - prev;
+        tweens[ i ].end_value = prev + delta * scale;
+      }
+
+      // Fix(BUG-185): see `scaled_rotation_apply` -- same unconditional, architecturally-dead/
+      // harmful `tweens[ 0 ].start_value` overwrite, deleted for the same reason.
+
+      let mut sequence = Sequence::new( tweens ).unwrap();
+      sequence.update( translation.time() );
+
+      if let Some( tween ) = sequence.current_get()
+      {
+        let translation = tween.value_get().0.map( | v | v as f32 );
+        node.borrow_mut().translation_set( F32x3::from_array( translation ) );
+      }
+    }
+
+    /// Applies scaled scale to a node based on the animation and scaling factor.
+    ///
+    /// # Arguments
+    ///
+    /// * `node` - The node to apply the scale to
+    /// * `name` - The name identifier for the node's scale animation
+    /// * `scale` - The scaling factor to apply to each segment's scale delta
+    // Fix(BUG-184): see `scaled_translation_apply` -- same previously-missing channel.
+    fn scaled_scale_apply
+    (
+      &self,
+      node : &Rc< RefCell< Node > >,
+      name : &str,
+      scale : f64
+    )
+    {
+      let Some( scale_anim ) = self.animation.get::< Sequence< Tween< F64x3 > > >
+      (
+        &format!( "{name}{SCALE_PREFIX}" )
+      )
+      else
+      {
+        return;
+      };
+
+      let mut tweens = scale_anim.players().to_vec();
+      // Fix(BUG-198): see `scaled_rotation_apply` -- same missing reset of the cloned,
+      // already-elapsed Tween state before it's replayed via absolute time.
+      for tween in &mut tweens
+      {
+        tween.reset();
+      }
+      let current = scale_anim.current_id_get();
+
+      for i in 0..( ( current + 1 ).min( tweens.len() ) )
+      {
+        if i > 0
+        {
+          tweens[ i ].start_value = tweens[ i - 1 ].end_value;
+        }
+
+        let prev = tweens[ i ].start_value;
+        let curr = tweens[ i ].end_value;
+        let delta = curr - prev;
+        tweens[ i ].end_value = prev + delta * scale;
+      }
+
+      // Fix(BUG-185): see `scaled_rotation_apply` -- same unconditional, architecturally-dead/
+      // harmful `tweens[ 0 ].start_value` overwrite, deleted for the same reason.
+
+      let mut sequence = Sequence::new( tweens ).unwrap();
+      sequence.update( scale_anim.time() );
+
+      if let Some( tween ) = sequence.current_get()
+      {
+        let scale_value = tween.value_get().0.map( | v | v as f32 );
+        node.borrow_mut().scale_set( F32x3::from_array( scale_value ) );
       }
     }
 
@@ -284,7 +449,13 @@ mod private
           };
 
           used_nodes.insert( name.clone() );
+          // Fix(BUG-184): translation/scale were never applied for grouped nodes at all --
+          // only rotation had a `scaled_*_apply` implementation, so a grouped node's
+          // `x`/`z` weight components were silently ignored and its translation/scale stayed
+          // frozen at whatever the node's default state was.
+          self.scaled_translation_apply( node, name, scales.x() );
           self.scaled_rotation_apply( node, name, scales.y() );
+          self.scaled_scale_apply( node, name, scales.z() );
         }
       }
 

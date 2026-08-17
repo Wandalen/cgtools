@@ -691,22 +691,7 @@ mod private
       // drawbuffers state that is immediately overwritten before any draw uses it.
       self.framebuffer_ctx.multisample_bind( gl );
 
-      if has_transparent && has_emissive
-      {
-        gl::drawbuffers::drawbuffers( gl, &[ 0, 1, 2, 3 ] );
-      }
-      else if has_transparent
-      {
-        gl::drawbuffers::drawbuffers( gl, &[ 0, 2, 3 ] );
-      }
-      else if has_emissive
-      {
-        gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
-      }
-      else
-      {
-        gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-      }
+      gl::drawbuffers::drawbuffers( gl, frame_attachments( has_transparent, has_emissive ) );
 
       let [ r, g, b ] = self.clear_color.0;
       // Alpha = 0 marks background pixels; geometry overwrites it with 1. The tone
@@ -1171,6 +1156,24 @@ mod private
     }
   }
 
+  /// Selects the color attachment indices to enable via `drawbuffers` for a
+  /// frame, given which optional passes are active.
+  ///
+  /// Attachment `0` (main color) is always enabled. `1` (emission) is added
+  /// when `has_emissive`; `2`/`3` (transparent accumulate/revealage) are
+  /// added when `has_transparent`.
+  #[ must_use ]
+  pub fn frame_attachments( has_transparent : bool, has_emissive : bool ) -> &'static [ u32 ]
+  {
+    match ( has_transparent, has_emissive )
+    {
+      ( true, true ) => &[ 0, 1, 2, 3 ],
+      ( true, false ) => &[ 0, 2, 3 ],
+      ( false, true ) => &[ 0, 1 ],
+      ( false, false ) => &[ 0 ],
+    }
+  }
+
   /// Configures face culling and front face order from material.
   fn material_face_properties_enable( gl : &GL, material : &dyn crate::webgl::Material )
   {
@@ -1358,6 +1361,7 @@ crate::mod_interface!
 {
   orphan use
   {
-    Renderer
+    Renderer,
+    frame_attachments
   };
 }

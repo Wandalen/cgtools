@@ -146,6 +146,15 @@ mod private
     /// This function replaces duplicate color changes with `Stop` instruciton.
     /// Should be used when reading specific formats where stop instruction is encoded
     /// with duplicate color change
+    // Fix(BUG-150)
+    // Root cause: the guard compared `self.threads().get( thread_index )` against
+    // `self.threads().get( thread_index - 1 )` with no bounds check -- when there are more
+    // color-change-delimited stitch runs than recorded threads, both `.get()` calls return
+    // `None`, and `None == None` is `true` in Rust, so the guard was satisfied and
+    // `self.threads.remove( thread_index )` ran on an out-of-range index, panicking.
+    // Pitfall: `None == None` silently reads as "these two threads match" instead of "neither
+    // index is valid" -- an equality check against two `Option::get()` results must confirm at
+    // least one side is in-bounds before the comparison can mean anything.
     #[ inline ]
     pub fn duplicate_color_interpolate_as_stop( &mut self )
     {
@@ -165,6 +174,7 @@ mod private
           match last_change
           {
             Some( last_change ) if thread_index != 0
+            && thread_index < self.threads().len()
             && self.threads().get( thread_index ) == self.threads().get( thread_index - 1 ) =>
             {
               let last_change : usize = last_change;

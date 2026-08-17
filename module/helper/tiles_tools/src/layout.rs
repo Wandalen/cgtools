@@ -116,7 +116,17 @@ where
     let [ min, max ] = self.bounds;
 
     let min1 : Pixel = Into::< Coordinate< Axial, Flat > >::into( min ).into();
-    let min_y = if min.r < max.r
+    // Fix(BUG-131)
+    // Root cause: copy-pasted from the Pointy impl above without updating the
+    // guard axis -- Pointy's pixel-x depends on r's parity (guard: min.r<max.r),
+    // but Flat's pixel-y depends on q's parity (the candidate below already
+    // varies q, min.q+1), so the guard must test the q range, not the r range.
+    // Pitfall: when two sibling impls share a near-identical structure differing
+    // only in which axis is parity-dependent, copy-pasting one into the other
+    // silently leaves stale references to the wrong axis in guard conditions
+    // that never fail to compile -- verify every field reference against the
+    // orientation's own parity rule, not just the shape of the surrounding code.
+    let min_y = if min.q < max.q
     {
       let min2 = Coordinate::< Offset< Parity >, Flat >::new( min.q + 1, min.r );
       let min2 : Pixel = Into::< Coordinate< Axial, Flat > >::into( min2 ).into();
@@ -129,7 +139,7 @@ where
     let min_x = min1[ 0 ];
 
     let max1 : Pixel = Into::< Coordinate< Axial, Flat > >::into( max ).into();
-    let max_y = if max.r > min.r
+    let max_y = if max.q > min.q
     {
       let max2 = Coordinate::< Offset< Parity >, Flat >::new( max.q - 1, max.r );
       let max2 : Pixel = Into::< Coordinate< Axial, Flat > >::into( max2 ).into();

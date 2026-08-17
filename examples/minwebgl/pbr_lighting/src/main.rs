@@ -57,7 +57,7 @@ fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : 
   let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 100.0;
   let far = near * 100.0f32.powi( exponent.abs() );
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far ).expect( "camera parameters are valid" );
   camera.window_size_set( [ width, height ].into() );
   camera.controls_bind( canvas );
 

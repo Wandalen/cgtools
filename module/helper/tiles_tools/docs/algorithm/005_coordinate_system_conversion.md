@@ -32,17 +32,29 @@ Every pairing involving `hexagonal` is approximate — a hex grid's 6-neighbor t
 
 **Batch conversion** (`BatchConvertExact`/`BatchConvertApproximate`, `src/coordinates/conversion.rs:224-265`, plus the free functions `batch_convert_exact`/`batch_convert_approximate`) are generic wrappers applying the single-value trait element-wise over a `Vec<T>` — no batch-specific optimization (e.g. no shared-computation reuse across elements), just a `Vec` of the same per-element conversion.
 
-### Types
+### Algorithms
 
 | File | Relationship |
 |------|--------------|
-| [type/001_coordinate_system_type_model.md](../type/001_coordinate_system_type_model.md) | Every coordinate type named in the pairings above is defined there; the same doc's Y-axis disclosure is most relevant exactly at this conversion boundary |
+| [algorithm/001_coordinate_distance_and_neighbor_formulas.md](../algorithm/001_coordinate_distance_and_neighbor_formulas.md) | Isometric's `Distance` formula reuses Manhattan distance, consistent with this file's exact (lossless) `Convert` relationship between `Square` and `Diamond` |
 
 ### Data Structures
 
 | File | Relationship |
 |------|--------------|
 | [data_structure/002_spatial_quadtree.md](../data_structure/002_spatial_quadtree.md) | `triangular`'s lack of any conversion path compounds its lack of a `SpatialCoordinate` impl — there is no crate-provided route from a triangular position into quadtree-compatible space |
+
+### Invariants
+
+| File | Relationship |
+|------|--------------|
+| [invariant/002_lattice_address_primacy.md](../invariant/002_lattice_address_primacy.md) | This file's `Convert`/`ApproximateConvert` split is exactly the sanctioned lattice↔pixel crossing point that invariant marks the direction (exact vs. approximate) of |
+
+### Types
+
+| File | Relationship |
+|------|--------------|
+| [type/001_coordinate_system_type_model.md](../type/001_coordinate_system_type_model.md) | Every coordinate type named in the pairings above is defined there; the same doc's Y-axis disclosure is most relevant exactly at this conversion boundary |
 
 ### Sources
 

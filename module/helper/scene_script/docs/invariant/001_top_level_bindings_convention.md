@@ -72,17 +72,36 @@ isn't last) is rejected.
   violating script fails `check_top_level_is_declarative()` wherever the
   host calls it — for the tracked examples, that's a failing test.
 
-### Patterns
+### Algorithms
 
 | File | Relationship |
 |------|--------------|
-| [../../../../../docs/pattern/005_script_as_glue.md](../../../../../docs/pattern/005_script_as_glue.md) | The imperative script-form this invariant's convention applies to |
+| [001_top_level_statement_classification.md](../algorithm/001_top_level_statement_classification.md) | How this invariant's accept/reject decision is actually computed per statement |
+
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this invariant constrains |
 
 ### Layers
 
 | File | Relationship |
 |------|--------------|
 | [../../../../../docs/layer/006_l5_scene_script_and_runners.md](../../../../../docs/layer/006_l5_scene_script_and_runners.md) | The L5 layer contract `scene_script` realizes as script-as-glue |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [../../../../../docs/pattern/005_script_as_glue.md](../../../../../docs/pattern/005_script_as_glue.md) | The imperative script-form this invariant's convention applies to |
+
+### Pitfalls
+
+| File | Relationship |
+|------|--------------|
+| [001_functions_cannot_see_outer_scope_bindings.md](../pitfall/001_functions_cannot_see_outer_scope_bindings.md) | A surprise scripts hit while working within this invariant's `main()`-confinement requirement |
+| [002_checker_is_structural_not_semantic.md](../pitfall/002_checker_is_structural_not_semantic.md) | The concrete gaps in how this invariant is actually enforced |
 
 ### Sources
 

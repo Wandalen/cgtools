@@ -33,6 +33,12 @@ Make the script data, not code:
 - Every pseudo-random choice flows from a seed carried *in the document*,
   so randomness is part of the data, not of the run.
 
+### Applicability
+
+Default choice for a new stack's L5 — reach for it first, and add
+[glue](005_script_as_glue.md) only where data genuinely cannot express the
+need. The determinism contract is much easier to keep when it is structural.
+
 ### Consequences
 
 - **Determinism by construction**: the compiler is a pure function of
@@ -54,11 +60,23 @@ Make the script data, not code:
 - **Bounded expressiveness** (the cost): the schema is the ceiling. New
   behavior means extending the compiler, not just writing a cleverer script.
 
-### When to Choose
+### Features
 
-Default choice for a new stack's L5 — reach for it first, and add
-[glue](005_script_as_glue.md) only where data genuinely cannot express the
-need. The determinism contract is much easier to keep when it is structural.
+| File | Relationship |
+|------|--------------|
+| [../../module/helper/scene_script/docs/feature/001_rhai_scene_scripting.md](../../module/helper/scene_script/docs/feature/001_rhai_scene_scripting.md) | One of the two script forms this feature hosts per-script, alongside script-as-glue |
+
+### Invariants
+
+| File | Relationship |
+|------|--------------|
+| [../../module/helper/scene_script/docs/invariant/004_script_as_data_purity.md](../../module/helper/scene_script/docs/invariant/004_script_as_data_purity.md) | The checkable, enforced form this pattern is given within `scene_script` |
+
+### Layers
+
+| File | Relationship |
+|------|--------------|
+| [../layer/006_l5_scene_script_and_runners.md](../layer/006_l5_scene_script_and_runners.md) | The layer contract this pattern is one realization of |
 
 ### Patterns
 
@@ -66,11 +84,11 @@ need. The determinism contract is much easier to keep when it is structural.
 |------|--------------|
 | [005_script_as_glue.md](005_script_as_glue.md) | The contrasting form: trades this pattern's guarantees for expressiveness |
 
-### Layers
+### Pitfalls
 
 | File | Relationship |
 |------|--------------|
-| [../layer/006_l5_scene_script_and_runners.md](../layer/006_l5_scene_script_and_runners.md) | The layer contract this pattern is one realization of |
+| [../../module/helper/scene_script/docs/pitfall/003_rhai_serde_bridge_requires_exact_float_type.md](../../module/helper/scene_script/docs/pitfall/003_rhai_serde_bridge_requires_exact_float_type.md) | The exact boundary where this pattern's documents cross from Rhai's type system into Rust's |
 
 ### Sources
 

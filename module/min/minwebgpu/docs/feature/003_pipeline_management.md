@@ -13,23 +13,23 @@ Render and compute pipelines are each built through a nested descriptor-builder 
 
 **Note**: this feature covers pipeline *creation* only. A `ComputePipeline` built here currently has no wrapped execution path — `feature/005` does not yet implement compute pass recording/dispatch, so a created compute pipeline cannot presently be run through this crate's own API.
 
-### Patterns
-
-| File | Relationship |
-|------|--------------|
-| [pattern/001_facade_over_descriptor_builders.md](../pattern/001_facade_over_descriptor_builders.md) | Heaviest user of the nested descriptor-builder pattern |
-
 ### Invariants
 
 | File | Relationship |
 |------|--------------|
 | [invariant/001_result_based_error_handling.md](../invariant/001_result_based_error_handling.md) | All fallible functions here return `Result<_, WebGPUError>` |
 
-### Non Functional Requirements
+### Non-Functional Requirements
 
 | File | Relationship |
 |------|--------------|
 | [non_functional_requirement/001_minimal_abstraction_overhead.md](../non_functional_requirement/001_minimal_abstraction_overhead.md) | This feature's nested builders are the primary source of the overhead this target bounds |
+
+### Patterns
+
+| File | Relationship |
+|------|--------------|
+| [pattern/001_facade_over_descriptor_builders.md](../pattern/001_facade_over_descriptor_builders.md) | Heaviest user of the nested descriptor-builder pattern |
 
 ### Sources
 

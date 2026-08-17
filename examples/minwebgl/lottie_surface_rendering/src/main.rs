@@ -90,7 +90,7 @@ fn camera_init( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
   let near = 0.1;
   let far = 1000.0;
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far ).expect( "camera parameters are valid" );
 
   camera.window_size_set( [ width, height ].into() );
 

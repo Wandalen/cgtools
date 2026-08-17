@@ -2,7 +2,7 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::{ F32x2, geometry::BoundingBox };
+  use gl::{ F32x2, F32x3, geometry::BoundingBox };
   use core::cell::RefCell;
   use std::rc::Rc;
   use primitive_generation::AttributesData;
@@ -30,9 +30,15 @@ mod private
   {
     let mut positions = Vec::new();
     let mut indices = Vec::new();
+    let mut normals = Vec::new();
 
     let half_width = width / 2.0;
 
+    // matches `primitive_generation::curve_to_geometry`'s own BUG-217 fix:
+    // this closure's winding is direction-independent, so every vertex
+    // gets the same constant `(0,0,-1)` normal -- see that function's own
+    // doc comment (`module/helper/primitive_generation/src/primitive.rs`)
+    // for the full algebraic derivation.
     let mut add_segment =
     | start_point : &F32x2, end_point : &F32x2 |
     {
@@ -51,6 +57,8 @@ mod private
       positions.push( [ p1.x(), p1.y(), 0.0 ] );
       positions.push( [ p2.x(), p2.y(), 0.0 ] );
       positions.push( [ p3.x(), p3.y(), 0.0 ] );
+
+      normals.extend( [ [ 0.0, 0.0, -1.0 ]; 4 ] );
 
       indices.push( base_idx );
       indices.push( base_idx + 1 );
@@ -79,7 +87,8 @@ mod private
     let attributes = AttributesData
     {
       positions,
-      indices
+      indices,
+      normals
     };
 
     PrimitiveData::new( Some( Rc::new( RefCell::new( attributes ) ) ) )
@@ -178,16 +187,20 @@ mod private
     bodies
   }
 
+  /// Positions, indices, and per-vertex normals produced by [`bodies_triangulate`].
+  type TriangulatedBodies = ( Vec< [ f32; 3 ] >, Vec< u32 >, Vec< [ f32; 3 ] > );
+
   /// Triangulates every body with `earcutr`, concatenating all vertex positions and indices.
   ///
   /// Returns `None` when a body has no outer contour or its outer contour is empty.
   fn bodies_triangulate
   (
     bodies : Vec< Vec< Vec< [ f32; 2 ] > > >
-  ) -> Option< ( Vec< [ f32; 3 ] >, Vec< u32 > ) >
+  ) -> Option< TriangulatedBodies >
   {
     let mut positions = vec![];
     let mut indices = vec![];
+    let mut normals = vec![];
 
     for contours in bodies
     {
@@ -238,7 +251,29 @@ mod private
       .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
       .collect::< Vec< _ > >();
 
+      // matches `primitive_generation::contours_to_fill_geometry`'s own
+      // BUG-217 fix: this body's winding depends on the input contour's own
+      // orientation, so the normal is derived from its own first triangle
+      // rather than assumed, falling back to `(0,0,1)` for a zero-triangle
+      // or degenerate ( zero-area ) body -- see that function's own doc
+      // comment (`module/helper/primitive_generation/src/primitive.rs`)
+      // for the full writeup.
+      let body_normal = body_indices.chunks_exact( 3 ).next().map
+      (
+        | tri |
+        {
+          let p0 : F32x3 = body_positions[ tri[ 0 ] as usize ].into();
+          let p1 : F32x3 = body_positions[ tri[ 1 ] as usize ].into();
+          let p2 : F32x3 = body_positions[ tri[ 2 ] as usize ].into();
+          ( p1 - p0 ).cross( p2 - p0 )
+        }
+      )
+      .filter( | raw | *raw != F32x3::new( 0.0, 0.0, 0.0 ) )
+      .map_or( F32x3::new( 0.0, 0.0, 1.0 ), F32x3::normalize )
+      .0;
+
       let positions_count = positions.len();
+      normals.extend( std::iter::repeat_n( body_normal, body_positions.len() ) );
       positions.extend( body_positions );
       indices.extend
       (
@@ -247,7 +282,7 @@ mod private
       );
     }
 
-    Some( ( positions, indices ) )
+    Some( ( positions, indices, normals ) )
   }
 
   /// Converts a vector of contours (closed paths) into a filled geometry.
@@ -275,12 +310,13 @@ mod private
 
     let body_id = body_contour_find( contours );
     let bodies = contours_group_into_bodies( contours, body_id );
-    let ( positions, indices ) = bodies_triangulate( bodies )?;
+    let ( positions, indices, normals ) = bodies_triangulate( bodies )?;
 
     let attributes = AttributesData
     {
       positions,
       indices,
+      normals,
     };
 
     let primitive_data = PrimitiveData::new( Some( Rc::new( RefCell::new( attributes ) ) ) );

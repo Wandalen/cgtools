@@ -28,17 +28,17 @@
 
 Each `FOVAlgorithm` variant's fidelity to the textbook technique its name references (e.g. whether `Shadowcasting` implements genuine recursive shadowcasting with per-octant slope tracking, versus a simpler approximation using the same name) was not re-verified line-by-line as part of this migration — a caller whose gameplay depends on a specific algorithm's precise visibility shape (not just "some reasonable FOV") should read the corresponding implementation in `src/field_of_view.rs` directly before relying on the name alone.
 
-### Data Structures
-
-| File | Relationship |
-|------|--------------|
-| [data_structure/002_spatial_quadtree.md](../data_structure/002_spatial_quadtree.md) | A caller narrowing FOV computation to nearby entities would typically source candidates from a spatial query first |
-
 ### Algorithms
 
 | File | Relationship |
 |------|--------------|
 | [algorithm/001_coordinate_distance_and_neighbor_formulas.md](../algorithm/001_coordinate_distance_and_neighbor_formulas.md) | Range-limited FOV variants are generic over the same `Distance`/`Neighbors` traits |
+
+### Data Structures
+
+| File | Relationship |
+|------|--------------|
+| [data_structure/002_spatial_quadtree.md](../data_structure/002_spatial_quadtree.md) | A caller narrowing FOV computation to nearby entities would typically source candidates from a spatial query first |
 
 ### Sources
 

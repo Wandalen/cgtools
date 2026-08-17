@@ -13,6 +13,7 @@
 | attributes_vao | yes | yes | yes | yes | | | |
 | character_control | no | yes | yes | yes | | | |
 | color_space_conversions | yes | yes | yes | yes | | | |
+| context_triangle_smoke | yes | yes | yes | no | | | |
 | curve_surface_rendering | yes | yes | yes | yes | | | |
 | deferred_shading | yes | yes | yes | yes | | | |
 | diamond | yes | yes | yes | yes | | | |
@@ -55,9 +56,9 @@
 | hello_triangle_quickstart (webgpu) | yes | yes | yes | yes | | | |
 | renderer_pbr_scene (webgpu) | no | yes | yes | no | | | |
 | orrery (webgpu) | no | yes | yes | no | | | |
-| shader_chunk_preview (webgpu) | no | yes | yes | no | | | |
 | grid_render | yes | yes | yes | yes | | | |
 | hello_triangle (wgpu) | yes | yes | yes | yes | | | |
+| flecs_bouncing_circles | yes | yes | yes | yes | | | |
 | f32x2_vector_arithmetic | no | yes | yes | no | | | |
 | pingpong_animation | no | yes | yes | no | | | |
 | advanced_pathfinding_demo | no | yes | yes | no | | | |
@@ -72,3 +73,6 @@
 | simple_collision_demo | no | yes | yes | no | | | |
 | stealth_game | no | yes | yes | no | | | |
 | tactical_rpg | no | yes | yes | no | | | |
+| triangle_browser | yes | yes | yes | no | | | |
+| opaque_path_browser | yes | yes | yes | no | | | |
+| tilemap_renderer_adapter_browser | yes | yes | yes | no | | | |

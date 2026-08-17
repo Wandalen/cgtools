@@ -1,0 +1,16 @@
+[package]
+name = "flecs_bouncing_circles"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu.workspace = true
+winit.workspace = true
+minwgpu.workspace = true
+flecs_ecs.workspace = true
+
+[lints]
+workspace = true
+
+[package.metadata.action]
+tags = ["runtime:native", "api:wgpu"]

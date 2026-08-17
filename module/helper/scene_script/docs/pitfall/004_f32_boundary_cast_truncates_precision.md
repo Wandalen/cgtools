@@ -19,6 +19,12 @@ Any `f32x{1,2,3,4}(...)` call where a component carries precision beyond what `f
 
 Use the matching `f64x{1,2,3,4}(...)` constructor whenever a script's numeric precision matters for correctness; treat every `f32x*(...)` constructor as the deliberately-lossy choice — appropriate only when the receiving Rust-side `f32`-element consumer genuinely needs `f32` (e.g. a GPU-bound buffer layout), never reached for out of habit or because it was the first constructor tried.
 
+### Features
+
+| File | Relationship |
+|------|--------------|
+| [../feature/001_rhai_scene_scripting.md](../feature/001_rhai_scene_scripting.md) | Navigational hub this pitfall's warning serves |
+
 ### Invariants
 
 | File | Relationship |

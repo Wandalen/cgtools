@@ -7,16 +7,19 @@
 //! `capabilities()` never over-claims what `submit` actually translates
 //! (`docs/pattern/001_ports_and_adapters_backend_architecture.md`).
 //!
-//! `gpu_hal` has no texture pixel-upload call (`Device` offers
-//! `texture_create` allocation only, no `texture_write`), so loaded images
-//! are allocated but never populated with real pixels -- the same
-//! async-load gap `ImageAsset::source`'s own doc comment records for the
-//! WebGL adapter. Pixel-correctness verification is out of this task's
-//! scope; see the governing task file's Out of Scope section.
+//! `gpu_hal::Queue::texture_write` now covers the WebGPU surface too (task
+//! 089), and `assets_load` uploads real, converted RGBA8 pixel bytes through
+//! it for every `ImageSource::Bitmap` image (task 218) -- sized from the
+//! bitmap's own `width`/`height`, via the same `to_rgba8` helper
+//! `NativeBackend` uses (`crate::assets::to_rgba8`, shared rather than
+//! duplicated). Live browser pixel-correctness re-verification of the new
+//! upload path is a separate, not-yet-done step (see task 198's manual
+//! procedure) -- this file's own tests remain compile-and-construct-level
+//! only, per the governing task file's Out of Scope section.
 
 mod private
 {
-  use crate::assets::Assets;
+  use crate::assets::{ Assets, ImageSource, to_rgba8 };
   use crate::backend::{ Backend, Capabilities, Output, RenderError };
   use crate::commands::{ RenderCommand, Sprite };
   use crate::types::RenderConfig;
@@ -68,8 +71,10 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 ";
 
   /// Unit quad, two triangles, local space `[0,1]x[0,1]` -- doubles as the
-  /// fragment UV since the placeholder texture (see module docs) is always
-  /// `1x1`, so no sub-region addressing is meaningful yet.
+  /// fragment UV since the whole sheet image is always drawn as one
+  /// unmapped quad; sub-region/atlas addressing is not wired (out of scope
+  /// for the task that wired real pixel upload -- see its Out of Scope
+  /// section).
   const QUAD_VERTICES : [ f32; 12 ] =
   [
     0.0, 0.0,
@@ -80,7 +85,8 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     0.0, 1.0,
   ];
 
-  /// An allocated (but unpopulated -- see module docs) image texture.
+  /// An uploaded sheet image: its GPU texture view, real pixel data
+  /// written via `gpu_hal::Queue::texture_write` at load time.
   struct LoadedImage
   {
     id : u32,
@@ -250,13 +256,21 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 
       for image in &assets.images
       {
+        let ImageSource::Bitmap { bytes, width, height, format } = &image.source
+        else
+        {
+          continue;
+        };
+        let rgba = to_rgba8( bytes, *format );
         let texture = self.device.texture_create( &TextureDesc
         {
-          size : [ 1, 1, 1 ],
+          size : [ *width, *height, 1 ],
           format : TextureFormat::Rgba8Unorm,
-          usage : TextureUsage::TEXTURE_BINDING,
+          usage : TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
         })
         .map_err( | e | RenderError::BackendError( format!( "failed to create texture : {e:?}" ) ) )?;
+        self.queue.texture_write( &texture, &rgba )
+        .map_err( | e | RenderError::BackendError( format!( "failed to upload texture data : {e:?}" ) ) )?;
         let view = texture.view()
         .map_err( | e | RenderError::BackendError( format!( "failed to create texture view : {e:?}" ) ) )?;
         self.images.push( LoadedImage { id : image.id.inner(), view } );

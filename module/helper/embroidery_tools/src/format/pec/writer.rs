@@ -99,8 +99,20 @@ mod private
     // height goes as is
     writer.write_u8( PEC_ICON_HEIGHT )?;
 
+    // Fix(BUG-152)
+    // Root cause: sliced `emb.threads()[ 1.. ]`, unconditionally excluding the caller's own
+    // first added thread from the written color table -- confused with `pec_threads()[ 0 ]`,
+    // the *default palette's* dedicated "invalid value" sentinel entry (see `pec.rs`'s own
+    // "This one is for indicating invalid value" comment), which is an unrelated concept.
+    // `emb.threads()[ 0 ]` carries no such status; `read_sample_threads_resolve_from_default_palette`
+    // (reading a real reference fixture, not this crate's own writer) confirms the reader
+    // side already treats index 0 as an ordinary, meaningful thread.
+    // Pitfall: a documented sentinel *value* inside a fixed default palette must not be
+    // confused with a structural *position* in a caller-supplied, arbitrary-content list --
+    // the two only appeared related because a prior test happened to use the sentinel value
+    // as its own first thread.
     let thread_palette = pec_threads();
-    let color_indices = unique_palette_build( &thread_palette, &emb.threads()[ 1.. ] );
+    let color_indices = unique_palette_build( &thread_palette, emb.threads() );
     let current_thread_count = color_indices.len();
 
     if current_thread_count != 0

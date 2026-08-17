@@ -2,5 +2,5 @@
 
 | File | Responsibility |
 |------|----------------|
-| shader_chunks_test.rs | Direct-call tests against `src/lib.rs` command functions |
-| cli_subprocess_test.rs | `assert_cmd` subprocess tests against the real binary |
+| cli_subprocess_test.rs | `assert_cmd` subprocess tests against the aggregated binary |
+| docs/ | CLI test-specification mirror cross-referencing `docs/cli/` to real tests |

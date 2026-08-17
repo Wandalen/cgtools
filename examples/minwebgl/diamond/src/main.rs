@@ -121,7 +121,14 @@ async fn app_run() -> Result< (), gl::WebglError >
   gl.bind_vertex_array( Some( &vao ) );
   gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 0, &pos_buffer )?;
   gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 1, &normal_buffer )?;
-  gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 2, &uv_buffer )?;
+  // Fix(BUG-114): stride was 3 (copy-pasted from the 3-component pos/normal lines above), telling WebGL
+  // each uv vertex is 3*4=12 bytes apart when the tightly-packed `[f32;2]` buffer only has 2*4=8 bytes/vertex.
+  // Root cause: `attribute_pointer` (module/min/minwebgl/src/buffer.rs) passes `self.stride * sz` as the
+  // WebGL byte stride; a stride of 3 elements against 2-element data over-reads past the buffer's actual
+  // bound, tripping `GL_INVALID_OPERATION` at draw time for any mesh with >=2 vertices.
+  // Pitfall: when copy-pasting a BufferDescriptor chain for a differently-sized attribute, stride must
+  // match that attribute's OWN element count, not the neighboring attribute's.
+  gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 0 ).attribute_pointer( &gl, 2, &uv_buffer )?;
 
   let index_buffer = gl::buffer::create( &gl )?;
   gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );

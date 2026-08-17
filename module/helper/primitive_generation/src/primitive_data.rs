@@ -84,7 +84,21 @@ mod private
     /// Vertex positions in 3D space.
     pub positions : Vec< [ f32; 3 ] >,
     /// Triangle indices referencing the positions array.
-    pub indices : Vec< u32 >
+    pub indices : Vec< u32 >,
+    // Fix(BUG-217)
+    // Root cause: `primitives_data_to_gltf` never uploaded any per-vertex
+    // normal, yet `PbrMaterial`'s vertex shader unconditionally computes
+    // `normalize( normalMatrix * normal )` from a `layout(location=1)`
+    // attribute -- an unbound attribute reads WebGL's default `(0,0,0)`,
+    // and `normalize` of the zero vector is NaN (`0 * inversesqrt(0)` =
+    // `0 * Inf`), corrupting every downstream lighting calculation for
+    // every primitive this crate generates.
+    // Pitfall: a shader that unconditionally reads and normalizes a vertex
+    // attribute gives no signal (no error, no panic) when the attribute
+    // was never bound -- the defect only shows up as NaN in the final
+    // shaded output, far from its actual cause.
+    /// Per-vertex surface normals, parallel to `positions`.
+    pub normals : Vec< [ f32; 3 ] >
   }
 
   /// Complete primitive data including geometry attributes, color, and transform.
@@ -155,9 +169,14 @@ mod private
     scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
 
     let position_buffer = gl.create_buffer().unwrap();
+    let normal_buffer = gl.create_buffer().unwrap();
 
     gl_buffers.push( position_buffer.clone() );
+    gl_buffers.push( normal_buffer.clone() );
 
+    // Fix(BUG-217): wire a "normal" attribute at slot 1, matching
+    // `main.vert`'s `layout( location = 1 ) in vec3 normal;` -- see
+    // `AttributesData::normals`'s own doc comment for the full root cause.
     let attribute_infos =
     [
       (
@@ -168,6 +187,18 @@ mod private
           0,
           3,
           0,
+          false,
+          VectorDataType::new( mingl::DataType::F32, 3, 1 )
+        )
+      ),
+      (
+        "normal",
+        buffer_attribute_info_make(
+          &normal_buffer,
+          BufferDescriptor::new::< [ f32; 3 ] >(),
+          0,
+          3,
+          1,
           false,
           VectorDataType::new( mingl::DataType::F32, 3, 1 )
         )
@@ -187,6 +218,7 @@ mod private
 
     let mut positions = vec![];
     let mut indices = vec![];
+    let mut normals = vec![];
 
     // Create nodes for all primitives, even those without attributes (parent nodes)
     for primitive in primitives_data
@@ -204,6 +236,7 @@ mod private
       {
         let last_positions_count = positions.len() as u32;
         positions.extend( attributes.borrow().positions.clone() );
+        normals.extend( attributes.borrow().normals.clone() );
         let primitive_indices = attributes.borrow().indices.iter()
         .map( | i | i + last_positions_count )
         .collect::< Vec< _ > >();
@@ -272,6 +305,7 @@ mod private
     }
 
     gl::buffer::upload( gl, &position_buffer, &positions, GL::STATIC_DRAW );
+    gl::buffer::upload( gl, &normal_buffer, &normals, GL::STATIC_DRAW );
     gl::index::upload( gl, &index_buffer, &indices, GL::STATIC_DRAW );
 
     GLTF

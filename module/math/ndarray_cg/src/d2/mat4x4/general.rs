@@ -308,12 +308,20 @@ IndexingRef< Scalar = E, Index = Ix2 >
       [ E::one() / sx, E::one() / sy, E::one() / sz ]
     );
 
+    // Fix(BUG-118): changed `/ inv_scale` to `* inv_scale`.
+    // Root cause: `inv_scale` already holds the reciprocal (1/sx, 1/sy, 1/sz), so dividing
+    // by it (`a / inv_scale.x()` = `a / (1/sx)` = `a * sx`) re-multiplied the scale back
+    // into the rotation matrix instead of removing it — the opposite of the cited three.js
+    // reference, which multiplies each column by the reciprocal to strip scale out.
+    // Pitfall: a variable named `inv_*` reads as "the thing to divide by" as easily as "the
+    // thing to multiply by" — the name alone doesn't disambiguate; check the reference
+    // algorithm's actual operator, not just which operand looks like a reciprocal.
     let rot_mat = Mat3::< E, mat::DescriptorOrderColumnMajor >::from_column_major
     (
       [
-        a / inv_scale.x(), b / inv_scale.x(), c / inv_scale.x(),
-        d / inv_scale.y(), e / inv_scale.y(), f / inv_scale.y(),
-        g / inv_scale.z(), h / inv_scale.z(), i / inv_scale.z()
+        a * inv_scale.x(), b * inv_scale.x(), c * inv_scale.x(),
+        d * inv_scale.y(), e * inv_scale.y(), f * inv_scale.y(),
+        g * inv_scale.z(), h * inv_scale.z(), i * inv_scale.z()
       ]
     );
 

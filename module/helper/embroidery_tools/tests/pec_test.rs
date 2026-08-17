@@ -5,6 +5,7 @@ use std::io::Cursor;
 use embroidery_tools::embroidery_file::EmbroideryFile;
 use embroidery_tools::format::pec;
 use embroidery_tools::stitch_instruction::{ Instruction, Stitch };
+use embroidery_tools::thread::Thread;
 
 #[ test ]
 fn read_sample_stitches_match_reference_decoder()
@@ -60,7 +61,7 @@ fn encoding_roundtrip_preserves_stitches_and_threads()
   emb.end();
 
   let threads = pec::pec_threads();
-  emb.thread_add( threads[ 0 ].clone() );
+  emb.thread_add( threads[ 1 ].clone() );
   emb.thread_add( threads[ 2 ].clone() );
 
   let mut memory = vec![ 0_u8; 2048 ];
@@ -83,7 +84,122 @@ fn encoding_roundtrip_preserves_stitches_and_threads()
   assert_eq!( stitches[ 7 ], Stitch { x : 41, y : 31, instruction : Instruction::Stitch } );
   assert_eq!( stitches[ 8 ], Stitch { x : 41, y : 31, instruction : Instruction::End } );
 
-  // Thread 0 is the palette's "invalid value" marker; the roundtrip resolves the
-  // first real thread, palette entry 2.
-  assert_eq!( emb.threads()[ 0 ], threads[ 2 ] );
+  // Both added threads survive the roundtrip in order. (Pre-BUG-152-fix, the writer
+  // unconditionally dropped `emb.threads()[ 0 ]` from the written color table, so only
+  // `threads[ 2 ]` came back, landing at position 0 -- a writer defect, not a property of
+  // palette entry 1 itself. Deliberately not using `threads[ 0 ]` here: its color (0,0,0)
+  // ties with palette index 20's "Black"/Brother entry, and `nearest_color_find`'s `<=`
+  // tie-break resolves ties to the *last* matching index -- an unrelated palette-matching
+  // property, not something this stitches+threads roundtrip test is meant to exercise.)
+  assert_eq!( emb.threads()[ 0 ], threads[ 1 ] );
+  assert_eq!( emb.threads()[ 1 ], threads[ 2 ] );
+}
+
+// test_kind: bug_reproducer(BUG-151)
+/// ## Root Cause
+/// `pec_table_process`'s `else` branch (first sighting of a given `color_index`) computed
+/// `thread` and inserted it into its dedup `thread_map` but never called
+/// `emb.thread_add`/`values.push` -- only the `if let Some(thread)` branch (a repeat
+/// sighting of an already-seen `color_index`) did. Every first occurrence of each color
+/// was silently dropped instead of recorded, breaking the 1-entry-per-`color_bytes`-byte
+/// invariant every downstream consumer relies on.
+/// ## Why Not Caught
+/// No existing test supplied a non-empty `pes_chart` shorter than the PEC section's color
+/// table to `pec::content_read` -- the only way to reach `pec_table_process` at all (a
+/// chart that's empty or already `>=` the color count takes a different branch in
+/// `pec_colors_map` entirely).
+/// ## Fix Applied
+/// Added the missing `emb.thread_add`/`values.push` calls to the `else` branch, mirroring
+/// what the `if let Some(thread)` branch already did. See `format/pec/reader.rs`.
+/// ## Prevention
+/// This test writes a design with 2 color-change-delimited stitch runs, reads it back
+/// through `pec::content_read` with a 1-entry chart (shorter than the 2-entry color
+/// table), and asserts the recovered thread count matches the color table, not the chart.
+/// ## Pitfall
+/// A dedup cache (`thread_map`, keyed by `color_index`) must only decide *which* value to
+/// reuse for a repeat -- it must never gate *whether* a push happens at all; every entry
+/// in the source sequence still needs exactly one push, matching the sibling
+/// `pec_colors_process`'s unconditional per-byte push.
+#[ test ]
+fn content_read_with_short_chart_assigns_one_thread_per_color_byte()
+{
+  let default_palette = pec::pec_threads();
+
+  let mut emb = EmbroideryFile::new();
+  emb.stitch( 0, 0 );
+  emb.color_change( 0, 0 );
+  emb.stitch( 1, 1 );
+  emb.end();
+  emb.thread_add( default_palette[ 1 ].clone() );
+  emb.thread_add( default_palette[ 2 ].clone() );
+
+  let mut memory = vec![ 0_u8; 2048 ];
+  {
+    let mut writer = Cursor::new( &mut memory );
+    pec::write( &mut emb, &mut writer ).unwrap();
+  }
+
+  // Skip the 8-byte "#PEC0001" header and feed a chart shorter than the written color
+  // table (2 entries), forcing `pec_colors_map` into the `pec_table_process` merge path.
+  let mut reader = Cursor::new( &memory );
+  reader.set_position( 8 );
+
+  let chart_thread = Thread { description : "chart thread".into(), ..Default::default() };
+  let mut result = EmbroideryFile::new();
+  pec::content_read( &mut result, &mut reader, std::slice::from_ref( &chart_thread ) ).unwrap();
+
+  let threads = result.threads();
+  assert_eq!( threads.len(), 2, "one thread must be recorded per color-table byte, not silently dropped on first sight of a color" );
+  assert_eq!( threads[ 0 ], chart_thread, "the first color byte must drain the supplied chart" );
+  assert_eq!( threads[ 1 ], default_palette[ 2 ], "chart exhausted -- second color byte falls back to the default palette" );
+}
+
+// test_kind: bug_reproducer(BUG-152)
+/// ## Root Cause
+/// `pec_header_write` sliced `emb.threads()[ 1.. ]` before building the written color
+/// table, unconditionally excluding the caller's own first added thread. This was
+/// confused with `pec_threads()[ 0 ]`, the *default palette's* dedicated "invalid value"
+/// sentinel entry -- an unrelated concept: a documented value inside a fixed 65-entry
+/// palette array, not a structural position in the caller's own arbitrary thread list.
+/// ## Why Not Caught
+/// The one existing roundtrip test happened to add the palette's own sentinel value
+/// (`pec_threads()[ 0 ]`, description "Unknown") as its first thread, so the dropped
+/// thread's absence was indistinguishable from "the sentinel value doesn't round-trip" --
+/// a rationalizing comment recorded that reading instead of the actual defect.
+/// ## Fix Applied
+/// Changed `&emb.threads()[ 1.. ]` to `emb.threads()` (the full slice) in
+/// `pec_header_write`. See `format/pec/writer.rs`.
+/// ## Prevention
+/// This test adds two ordinary, non-sentinel default-palette threads (indices 1 and 2,
+/// deliberately avoiding index 0's sentinel value to keep the evidence unambiguous),
+/// round-trips through `pec::write`/`pec::memory_read`, and asserts both survive in order.
+/// ## Pitfall
+/// A documented sentinel *value* inside a fixed default palette must never be confused
+/// with a structural *position* in a caller-supplied, arbitrary-content list -- the two
+/// only appeared related here because a prior test happened to use the sentinel value as
+/// its own first thread.
+#[ test ]
+fn encoding_roundtrip_preserves_first_added_thread()
+{
+  let default_palette = pec::pec_threads();
+
+  let mut emb = EmbroideryFile::new();
+  emb.stitch( 0, 0 );
+  emb.color_change( 0, 0 );
+  emb.stitch( 1, 1 );
+  emb.end();
+  emb.thread_add( default_palette[ 1 ].clone() );
+  emb.thread_add( default_palette[ 2 ].clone() );
+
+  let mut memory = vec![ 0_u8; 2048 ];
+  {
+    let mut writer = Cursor::new( &mut memory );
+    pec::write( &mut emb, &mut writer ).unwrap();
+  }
+
+  let emb = pec::memory_read( &memory ).unwrap();
+
+  assert_eq!( emb.threads().len(), 2, "the first added thread must survive the roundtrip, not be silently dropped" );
+  assert_eq!( emb.threads()[ 0 ], default_palette[ 1 ] );
+  assert_eq!( emb.threads()[ 1 ], default_palette[ 2 ] );
 }

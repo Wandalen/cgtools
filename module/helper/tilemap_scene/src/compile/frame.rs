@@ -179,6 +179,25 @@ mod private
     }
   }
 
+  // Fix(BUG-156)
+  // Root cause: `ObjectLayer::z_in_object` is documented (layer.rs, object.rs,
+  // docs/format/001) as the draw order within one object's layer stack, and
+  // docs/algorithm/002_scene_rendering_pass.md's own pseudocode specifies it as a
+  // pre-sort applied to each object's stack before bucket-wide sort/emission -- but
+  // every compile-pass call site iterated `stack` in raw declaration order, so the
+  // field was read nowhere in the compile pipeline.
+  // Pitfall: a documented-but-unread field compiles cleanly and produces plausible
+  // output (declaration order often coincides with intended order), so this class of
+  // bug has no compiler signal -- only a direct doc-vs-usage grep catches it.
+  /// Returns `stack`'s layers ordered by ascending `z_in_object` (ties keep their
+  /// relative declaration order, since `sort_by_key` is stable).
+  fn layers_in_z_order( stack : &[ ObjectLayer ] ) -> Vec< &ObjectLayer >
+  {
+    let mut ordered : Vec< &ObjectLayer > = stack.iter().collect();
+    ordered.sort_by_key( | layer | layer.z_in_object );
+    ordered
+  }
+
   /// Emit dual-mesh triangle sprites for every `VertexCorners` layer that
   /// routes into `bucket_id`. One sprite per triangle whose canonical
   /// corner tuple matches at least one pattern.
@@ -195,7 +214,7 @@ mod private
     {
       let Some( stack ) = object.states.get( &object.default_state )
       else { continue };
-      for layer in stack
+      for layer in layers_in_z_order( stack )
       {
         if !matches!( layer.sprite_source, SpriteSource::VertexCorners { .. } )
         {
@@ -671,7 +690,8 @@ mod private
 
         let Placement::Hex { q, r } = inst.placement else { continue };
 
-        for layer in stack
+        // Fix(BUG-156): see `layers_in_z_order` doc comment for root cause.
+        for layer in layers_in_z_order( stack )
         {
           let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
           if effective != bucket.id { continue; }
@@ -1094,7 +1114,8 @@ mod private
         object : object.id.clone(),
       })?;
 
-      for layer in stack
+      // Fix(BUG-156): see `layers_in_z_order` doc comment for root cause.
+      for layer in layers_in_z_order( stack )
       {
         let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
         if effective != bucket_id { continue; }
@@ -1180,7 +1201,8 @@ mod private
         object : object.id.clone(),
       })?;
 
-      for layer in stack
+      // Fix(BUG-156): see `layers_in_z_order` doc comment for root cause.
+      for layer in layers_in_z_order( stack )
       {
         let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
         if effective != bucket_id { continue; }
@@ -1295,7 +1317,8 @@ mod private
         object : object.id.clone(),
       })?;
 
-      for layer in stack
+      // Fix(BUG-156): see `layers_in_z_order` doc comment for root cause.
+      for layer in layers_in_z_order( stack )
       {
         let effective = layer.pipeline_layer.as_deref().unwrap_or( object.global_layer.as_str() );
         if effective != bucket_id { continue; }

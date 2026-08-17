@@ -390,7 +390,19 @@ impl FieldOfView
         let neighbors = pos.neighbors();
 
         // Select neighbors in the octant direction
-        for ( i, neighbor ) in neighbors.iter().filter( | n | !visited_positions.contains( *n ) ).enumerate()
+        //
+        // Fix(BUG-135)
+        // Root cause: filtering already-visited neighbors *before* enumerating
+        // desynced the loop index `i` from the fixed direction slot each
+        // neighbor actually occupies in `pos.neighbors()`, so the
+        // octant-membership check below tested the wrong slot once any
+        // neighbor of `pos` had already been visited (true for every ring
+        // beyond the first).
+        // Pitfall: `enumerate()` must run on the unfiltered iterator -- filtering
+        // afterwards keeps `i` tied to each neighbor's real position in the
+        // fixed-order array `pos.neighbors()` returns, which is what the
+        // octant math below assumes.
+        for ( i, neighbor ) in neighbors.iter().enumerate().filter( | ( _, n ) | !visited_positions.contains( *n ) )
         {
           if ( i + total_directions - octant ) % total_directions < 3 ||
              ( i + total_directions - octant ) % total_directions > total_directions - 3

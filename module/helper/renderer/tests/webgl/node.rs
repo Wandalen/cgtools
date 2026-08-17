@@ -160,3 +160,30 @@ fn test_set_rotation()
 
   assert_abs_diff_eq!( exp, node.local_matrix_get() );
 }
+
+#[ test ]
+fn test_zero_scale_node_does_not_panic_on_singular_matrix_paths()
+{
+  // BUG-171: a node whose accumulated scale has a zero on one axis produces a singular
+  // linear part. `world_matrix_set` (reached every frame via `world_matrix_update`) and
+  // `local_bounding_box_hierarchical` both used to panic via `.inverse().unwrap()` on this
+  // input; both now fall back to identity instead of unwrapping `None`.
+  //
+  // `local_matrix_set` is not used here: it round-trips the input through `decompose()`,
+  // which returns `None` for a singular matrix, silently no-op-ing the whole call and never
+  // reaching the buggy code path -- `scale_set` + `local_matrix_update` (as `test_set_scale`
+  // above already does) builds the matrix directly instead.
+  let mut scene = Scene::new();
+  let node_root = Rc::new( RefCell::new( Node::new() ) );
+  scene.add( node_root.clone() );
+
+  let degenerate_scale = [ 1.0, 0.0, 1.0 ];
+  let exp = math::mat3x3h::scale( degenerate_scale );
+  node_root.borrow_mut().scale_set( degenerate_scale );
+  node_root.borrow_mut().local_matrix_update();
+
+  scene.world_matrix_update();
+  assert_abs_diff_eq!( node_root.borrow().world_matrix_get(), exp );
+
+  let _bbox = node_root.borrow().local_bounding_box_hierarchical();
+}

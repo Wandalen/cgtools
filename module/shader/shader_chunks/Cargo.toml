@@ -2,15 +2,16 @@
 name = "shader_chunks"
 version = "0.1.0"
 edition = "2024"
-description = "Terminal CLI for listing, inspecting, and composing shader_chunks_core WGSL chunks"
+description = "Aggregated terminal CLI for the shader_chunks utility family — query, compose, params, preview, and render, under one binary"
+default-run = "shader_chunks"
 
 [dependencies]
-shader_chunks_core.workspace = true
+shader_chunks_cli_core.workspace = true
+shader_chunks_query.workspace = true
+shader_chunks_compose.workspace = true
 shader_chunks_params.workspace = true
-unilang.workspace = true
-cli_fmt.workspace = true
-data_fmt.workspace = true
-error_tools.workspace = true
+shader_chunks_preview.workspace = true
+shader_chunks_render.workspace = true
 mod_interface.workspace = true
 
 [dev-dependencies]

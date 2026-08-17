@@ -142,7 +142,16 @@ mod private
     #[ must_use ]
     pub fn with_duration( mut self, duration : f64 ) -> Self
     {
-      self.duration = duration.max( 0.0 );
+      // Fix(BUG-142)
+      // Root cause: clamped to `0.0` instead of the same `0.001` floor `new` uses ("Minimum
+      // duration to avoid division by zero", above) -- `with_duration(0.0)` reintroduced exactly
+      // the `self.elapsed / self.duration` == `0.0 / 0.0` == NaN case `new`'s own clamp exists to
+      // prevent, propagating NaN out of `value_get`/`progress` on the very first `update`.
+      // Pitfall: a builder method re-deriving a sibling constructor's own documented invariant
+      // ("avoid division by zero") must copy the sibling's actual clamp value, not just its
+      // clamp's polarity (`.max`) -- `0.0` still satisfies "non-negative" while reintroducing the
+      // exact division-by-zero the invariant was written to prevent.
+      self.duration = duration.max( 0.001 );
       self
     }
 
@@ -366,7 +375,18 @@ mod private
       }
       else
       {
-        ( ( self.elapsed - self.delay ) / self.duration ).clamp( 0.0, 1.0 )
+        // Fix(BUG-140)
+        // Root cause: subtracted `self.delay` from `self.elapsed`, but `update` only ever adds
+        // to `elapsed` AFTER the delay countdown (`remain`) has been fully consumed -- `elapsed`
+        // is already delay-exclusive by construction (mirrors `value_get`'s own
+        // `self.elapsed / self.duration`, which performs no such subtraction). Subtracting
+        // `delay` a second time undercounted progress, and a fully-completed delayed tween
+        // (`elapsed == duration`) never reported `1.0`.
+        // Pitfall: identical-looking `( time - delay_get() ) / duration_get()` formulas exist
+        // elsewhere (e.g. `Sequencer::progress()`) where `time`/`elapsed` DO include the delay by
+        // construction -- the correct formula depends on which "elapsed" convention the specific
+        // type actually uses, not on the formula's shape alone.
+        ( self.elapsed / self.duration ).clamp( 0.0, 1.0 )
       }
     }
 
@@ -448,15 +468,38 @@ mod private
       min_delay
     }
 
+    // Fix(BUG-143)
+    // Root cause: reconstructed "elapsed since the group's own start" from `self[ 0 ]` alone,
+    // via `self[ 0 ].time() - self.delay_get()` -- two defects in one formula. (1) it omitted
+    // `self[ 0 ].delay` entirely, so whenever element 0's own delay differs from the group's
+    // earliest delay (`delay_get()`), the result is wrong from the very first tick, not just
+    // near completion. (2) `self[ 0 ]` is an arbitrary, possibly non-representative element --
+    // once IT individually completes, its own `time()` (an already delay-exclusive elapsed,
+    // frozen at its own `duration` on completion per `Tween::update`'s early-return for
+    // `Completed`) stops advancing even while OTHER, longer-running array members keep
+    // animating toward the group's real completion (`duration_get()`, correctly the max
+    // `delay + duration` across every element). A fully-completed array (`is_completed()` ==
+    // true for every element) could therefore report `progress() < 1.0` forever, violating the
+    // trait's own "0.0 to 1.0" contract at exactly the boundary condition `Tween::progress()`
+    // itself was required to hit precisely (BUG-140).
+    // Pitfall: `duration_get()`/`delay_get()` already correctly aggregate over every element
+    // (min delay, max end) -- `progress()`'s numerator must reconstruct elapsed time from the
+    // SAME element that determines the group's own end (`max_end`), not an arbitrary fixed
+    // index, or the numerator and denominator describe two different notions of "the group."
     fn progress( &self ) -> f64
     {
-      if self[ 0 ].state == AnimationState::Pending
+      let last = self.iter().max_by
+      (
+        | a, b | ( a.delay + a.duration ).partial_cmp( &( b.delay + b.duration ) ).expect( "Animation keyframes can't be NaN" )
+      ).expect( "N must be greater than 0" );
+
+      if last.state == AnimationState::Pending
       {
         0.0
       }
       else
       {
-        ( ( self[ 0 ].time() - self.delay_get() ) / self.duration_get() ).clamp( 0.0, 1.0 )
+        ( ( last.delay + last.time() - self.delay_get() ) / self.duration_get() ).clamp( 0.0, 1.0 )
       }
     }
 
@@ -552,8 +595,25 @@ mod private
   impl< E > Animatable for Vec< E >
   where E : MatEl + Animatable
   {
+    // Fix(BUG-148)
+    // Root cause: `self.iter().zip( other.iter() )` silently truncates to the shorter of the two
+    // Vecs whenever their lengths differ, instead of surfacing the mismatch -- the exact same
+    // defect shape `CubicHermite::new`/`apply` (`easing/cubic/hermite.rs`) already guard against
+    // via `assert_eq!`, which this sibling `Animatable` impl had never been brought into line
+    // with.
+    // Pitfall: `Animatable::interpolate`'s own boundary contract (every scalar impl computes
+    // `self + ( other - self ) * time`, so `time == 0.0` must equal `self` and `time == 1.0` must
+    // equal `other`) is silently violated for the longer side's trailing elements whenever
+    // lengths differ -- a loud panic on malformed input is correct here, not a recoverable error,
+    // since `Animatable::interpolate` returns `Self` directly with no `Result` in the trait.
     fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
+      assert_eq!
+      (
+        self.len(), other.len(),
+        "Vec::interpolate: self and other must have the same length ( got {} and {} )", self.len(), other.len()
+      );
+
       self.iter().zip( other.iter() )
       .map
       (

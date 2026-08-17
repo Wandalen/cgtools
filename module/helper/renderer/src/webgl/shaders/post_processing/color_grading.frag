@@ -65,8 +65,21 @@ vec3 apply_white_balance( vec3 color, float temperature, float tint )
   // White balance adjustment with stronger, more visible effect
   vec3 t = vec3( 1.0 );
   // Temperature: -1 = cool blue, 0 = neutral, 1 = warm orange (20% shift)
-  t.r += 0.2 * temperature - 0.1 * tint;
-  t.b -= 0.2 * temperature + 0.1 * tint;
+  // Fix(BUG-178): the tint term's sign was swapped on both channels -- a positive
+  // ( documented "magenta" ) tint was subtracting red and blue, which shifts the
+  // image toward green instead, and vice versa for negative tint. Magenta needs
+  // red AND blue boosted together ( both channels move the same direction as
+  // tint ); green needs both suppressed together, so tint's sign must match on
+  // both the `t.r +=` and `t.b -=` lines, not oppose as it does for temperature.
+  // Root cause: tint's contribution used the opposite sign convention from what
+  // "boost red and blue together for magenta" requires.
+  // Pitfall: `t.r += a - b` / `t.b -= a + b` reads as if `b` opposes on both
+  // channels the same way `a` does -- but `a` ( temperature ) is *supposed* to
+  // oppose ( warm raises red, lowers blue ), while `b` ( tint ) is supposed to
+  // move both channels together. Check each parameter's intended channel
+  // relationship independently before assuming a shared sign pattern.
+  t.r += 0.2 * temperature + 0.1 * tint;
+  t.b -= 0.2 * temperature - 0.1 * tint;
   return color * t;
 }
 

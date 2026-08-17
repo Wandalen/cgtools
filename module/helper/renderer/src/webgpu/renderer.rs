@@ -188,8 +188,8 @@ mod private
       &ShaderSource
       {
         wgsl : include_str!( "shaders/main.wgsl" ),
-        glsl_vertex : Some( include_str!( "shaders/main.vert.glsl" ) ),
-        glsl_fragment : Some( include_str!( "shaders/main.frag.glsl" ) )
+        glsl_vertex : Some( include_str!( concat!( env!( "OUT_DIR" ), "/main.vert.glsl" ) ) ),
+        glsl_fragment : Some( include_str!( concat!( env!( "OUT_DIR" ), "/main.frag.glsl" ) ) )
       }
     )?;
 
@@ -226,8 +226,8 @@ mod private
       &ShaderSource
       {
         wgsl : include_str!( "shaders/tonemap.wgsl" ),
-        glsl_vertex : Some( include_str!( "shaders/tonemap.vert.glsl" ) ),
-        glsl_fragment : Some( include_str!( "shaders/tonemap.frag.glsl" ) )
+        glsl_vertex : Some( include_str!( concat!( env!( "OUT_DIR" ), "/tonemap.vert.glsl" ) ) ),
+        glsl_fragment : Some( include_str!( concat!( env!( "OUT_DIR" ), "/tonemap.frag.glsl" ) ) )
       }
     )?;
 

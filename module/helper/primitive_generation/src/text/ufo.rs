@@ -114,9 +114,21 @@ mod private
       self.bounding_box.max = [ x2 * scale, y2 * scale, 0.0 ].into();
     }
 
+    /// Returns the glyph's flattened contours, each a sequence of 2D points.
+    #[ must_use ]
+    pub fn contours( &self ) -> &[ Vec< [ f32; 2 ] > ]
+    {
+      &self.contours
+    }
+
     /// Creates a `Glyph` from a `.glif` file's byte data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `glif_bytes` is not valid UTF-8.
     #[ expect( clippy::too_many_lines, reason = "the glif XML event loop is one linear state machine; splitting it into helpers would scatter the per-event state transitions without shrinking the logic" ) ]
-    fn from_glif( glif_bytes : &[ u8 ], character : char ) -> Option< Self >
+    #[ must_use ]
+    pub fn from_glif( glif_bytes : &[ u8 ], character : char ) -> Option< Self >
     {
       let glif_str = std::str::from_utf8( glif_bytes ).unwrap();
       let mut reader = Reader::from_str( glif_str );
@@ -124,7 +136,6 @@ mod private
 
       let mut raw_contours = vec![];
       let mut contour_points = vec![];
-      let mut typ = PointType::Move;
 
       loop
       {
@@ -138,6 +149,19 @@ mod private
             let mut x = None;
             let mut y = None;
             let smooth = true;
+            // Fix(BUG-215)
+            // Root cause: `typ` was declared once per *contour* (outside this loop),
+            // so a point with no explicit `type` attribute -- the normal, spec-correct
+            // way to encode an off-curve bezier control point in UFO/glif -- silently
+            // inherited whatever type the *previous* point in the same contour had,
+            // instead of defaulting to `OffCurve`. Confirmed against `norad` 0.18.4's
+            // own reference parser (`glyph/parse.rs::parse_point`), which declares
+            // `let mut typ = PointType::OffCurve;` fresh inside its own per-point
+            // function, never carried over between points.
+            // Pitfall: a state-machine accumulator that must reset per-iteration needs
+            // its `let mut` *inside* the loop body at the right granularity -- placing
+            // it outside silently widens its lifetime to the next coarser loop level.
+            let mut typ = PointType::OffCurve;
 
             for attr in element.attributes()
             {
@@ -157,7 +181,17 @@ mod private
               {
                 b"x" => x = value.parse::< f64 >().ok(),
                 b"y" => y = value.parse::< f64 >().ok(),
-                b"typ" =>
+                // Fix(BUG-128)
+                // Root cause: the UFO/glif spec's point element attribute is named
+                // `type` (confirmed against `norad` 0.18.4's own glif parser, which
+                // reads exactly `b"type"`), but this match arm looked for `b"typ"` --
+                // a one-letter typo that can never match a real `.glif` file, so
+                // every point silently kept the loop's `PointType::Move` default.
+                // Pitfall: an unmatched byte-string arm in a `match` with a `_ => {}`
+                // catch-all fails silently -- it never panics or errors, it just never
+                // fires. Cross-check attribute names against the format spec or a
+                // reference parser, not just internal self-consistency.
+                b"type" =>
                 {
                   let Ok( t ) = PointType::from_str( &value )
                   else
@@ -190,7 +224,6 @@ mod private
           },
           Ok( Event::End( e ) ) if e.starts_with( b"contour" ) =>
           {
-            typ = PointType::Move;
             let mut contour = Contour::default();
             contour.points = std::mem::take(&mut contour_points);
             raw_contours.push( contour );
@@ -263,6 +296,50 @@ mod private
 
   impl Font
   {
+    /// Returns the union bounding box of every glyph in the font.
+    #[ must_use ]
+    pub fn max_size( &self ) -> BoundingBox
+    {
+      self.max_size
+    }
+
+    /// Builds a `Font` directly from pre-built glyphs, computing `max_size` as the
+    /// union of each glyph's own bounding box (mirroring `Font::new`'s union-box
+    /// step). Unlike `Font::new`, this skips the UFO-loading pipeline's automatic
+    /// rescale-to-a-common-em-size step -- primarily useful for constructing
+    /// synthetic fonts (e.g. in tests) from glyphs built via `Glyph::from_glif`.
+    #[ must_use ]
+    pub fn from_glyphs( glyphs : impl IntoIterator< Item = ( char, Glyph ) > ) -> Self
+    {
+      let glyphs : FxHashMap< char, Glyph > = glyphs.into_iter().collect();
+
+      let mut min = F32x3::MAX;
+      let mut max = F32x3::MIN;
+      for glyph in glyphs.values()
+      {
+        // Fix(BUG-216)
+        // Root cause: `Vector`'s `<`/`>` operators route through its `PartialOrd`/`Ord`
+        // impls, which delegate to `[E; N]`'s lexicographic array comparison (compares
+        // the x component first, only inspecting y/z to break an x-tie) -- not the
+        // component-wise per-axis min/max an AABB union needs. Confirmed against
+        // `Vector::min`/`Vector::max` (`ndarray_cg::vector::arithmetics`), the correct
+        // component-wise methods already used by this exact dependency's own
+        // `BoundingBox::compute`/`compute2d`.
+        // Pitfall: a `Vector` supports two unrelated orderings -- a total, lexicographic
+        // one (via `<`/`>`/`Ord`, useful for e.g. canonical sort keys) and a
+        // component-wise one (via `.min()`/`.max()`, useful for geometry) -- picking the
+        // operator instead of the method silently selects the wrong one for AABB math.
+        min = min.min( glyph.bounding_box.min );
+        max = max.max( glyph.bounding_box.max );
+      }
+
+      Self
+      {
+        glyphs,
+        max_size : BoundingBox::new( min, max )
+      }
+    }
+
     /// Asynchronously loads a new `Font` from a UFO directory path.
     //
     // Fix: the 3 glyph-fetch loops below used `.expect(...)`, panicking the
@@ -360,14 +437,20 @@ mod private
       let mut max = F32x3::MIN;
       for glyph in glyphs.values()
       {
-        if min > glyph.bounding_box.min
-        {
-          min = glyph.bounding_box.min;
-        }
-        if max < glyph.bounding_box.max
-        {
-          max = glyph.bounding_box.max;
-        }
+        // Fix(BUG-216)
+        // Root cause: `Vector`'s `<`/`>` operators route through its `PartialOrd`/`Ord`
+        // impls, which delegate to `[E; N]`'s lexicographic array comparison (compares
+        // the x component first, only inspecting y/z to break an x-tie) -- not the
+        // component-wise per-axis min/max an AABB union needs. Confirmed against
+        // `Vector::min`/`Vector::max` (`ndarray_cg::vector::arithmetics`), the correct
+        // component-wise methods already used by this exact dependency's own
+        // `BoundingBox::compute`/`compute2d`.
+        // Pitfall: a `Vector` supports two unrelated orderings -- a total, lexicographic
+        // one (via `<`/`>`/`Ord`, useful for e.g. canonical sort keys) and a
+        // component-wise one (via `.min()`/`.max()`, useful for geometry) -- picking the
+        // operator instead of the method silently selects the wrong one for AABB math.
+        min = min.min( glyph.bounding_box.min );
+        max = max.max( glyph.bounding_box.max );
       }
 
       for glyph in glyphs.values_mut()
@@ -444,19 +527,25 @@ mod private
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
       transform.translation[ 1 ] -= diff;
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] += if glyph_x < half_x / 4.0
-      {
-        half_x
-      }
-      else
-      {
-        glyph_x
-      };
+      // Fix(BUG-129)
+      // Root cause: this advanced by the glyph's *full* slot width before placing
+      // it, expecting the next glyph's leading step to land it correctly -- but
+      // pass 1 above only ever subtracts a HALF slot-width per glyph, so this
+      // pass's full-width single step over-advances by exactly one half
+      // slot-width per glyph, compounding across the string.
+      // Pitfall: pass 1 and pass 2 must advance by symmetric half-steps around
+      // each glyph's placement (step, place, step) to keep glyphs centered in
+      // contiguous slots -- splitting the advance asymmetrically (a whole step
+      // here, an implicit half step there) silently drifts every glyph after the
+      // first.
+      let step = if glyph_x < half_x / 4.0 { half_x / 2.0 } else { glyph_x / 2.0 };
+      transform.translation[ 0 ] += step;
       if let Some( mut geometry ) = glyph.body.clone()
       {
         geometry.transform = transform.clone();
         mesh.push( geometry );
       }
+      transform.translation[ 0 ] += step;
     }
 
     mesh
@@ -514,14 +603,17 @@ mod private
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
       transform.translation[ 1 ] -= diff;
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] += if glyph_x < half_x / 4.0
-      {
-        half_x
-      }
-      else
-      {
-        glyph_x
-      };
+      // Fix(BUG-129)
+      // Root cause: same as `text_to_mesh` above -- this advanced by the glyph's
+      // *full* slot width before placing it, over-advancing by exactly one half
+      // slot-width per glyph relative to pass 1's half-step-only subtraction,
+      // compounding across the string.
+      // Pitfall: pass 1 and pass 2 must advance by symmetric half-steps around
+      // each glyph's placement (step, place, step) to keep glyphs centered in
+      // contiguous slots -- splitting the advance asymmetrically silently drifts
+      // every glyph after the first.
+      let step = if glyph_x < half_x / 4.0 { half_x / 2.0 } else { glyph_x / 2.0 };
+      transform.translation[ 0 ] += step;
 
       for curve in glyph.contours
       {
@@ -534,6 +626,7 @@ mod private
         geometry.transform = transform.clone();
         mesh.push( geometry );
       }
+      transform.translation[ 0 ] += step;
     }
 
     mesh

@@ -103,6 +103,13 @@ naga = { workspace = true }
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 getrandom = { version = "0.2", features = [ "js" ] }
 
+# Build-time-only WGSL→GLSL ES 300 translation for the `webgpu` feature's
+# WebGL override pair ( `build.rs` ) — never becomes part of the compiled
+# artifact, native or wasm32; independent of the runtime `gpu_hal` dependency
+# above ( different Cargo dependency kind, host-only ).
+[build-dependencies]
+gpu_hal = { workspace = true, features = [ "webgl-glsl-build" ] }
+
 # Metadata for crates.io
 [package.metadata.docs.rs]
 all-features = true

@@ -56,6 +56,7 @@ bucketing, or traversal-order discipline is required for correctness.
 | File | Relationship |
 |------|--------------|
 | [../feature/001_pbr_rendering_core.md](../feature/001_pbr_rendering_core.md) | The frame pipeline in which both visibility paths and the composite step live |
+| [../feature/003_shadow_mapping.md](../feature/003_shadow_mapping.md) | Same depth-buffer machinery, applied from the light's viewpoint instead of the camera's |
 
 ### Sources
 

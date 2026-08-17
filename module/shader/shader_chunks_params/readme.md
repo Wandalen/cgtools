@@ -1,66 +1,62 @@
 # shader_chunks_params
 
-**Keywords:** WGSL, Shader Composition, Tunable Parameters, Range Inference
+**Keywords:** WGSL, Shader Composition, Tunable Parameters, CLI
 
-Discovers tunable parameters declared in a shader chunk's manifest header —
-a new repeatable `//@ param:` line in the same flat `//@`-prefixed comment
-block [`shader_chunks_core`](../shader_chunks_core/readme.md) already reads
-for `name`/`description`/`tags`/`depends_on`/`export`. A tunable parameter
-is one of 5 kinds: a plain function argument, a compile-time define
-directive, a uniform-buffer field, a vertex attribute, or a bound texture.
-Substrate-level like `shader_chunks_core`: no graphics API dependency, no
-I/O, no execution — pure text processing over raw WGSL strings.
+Parameters utility CLI: the single `tunables` command, rendering
+[`shader_chunks_params_core`](../shader_chunks_params_core/readme.md)'s
+`//@ param:` discovery as a table. Exposes its command set, help group,
+and help examples as data — parameterized by binary name — so the
+[`shader_chunks`](../shader_chunks/readme.md) aggregator folds it in
+unchanged, while [`run`] serves the same command as the standalone
+`shader_chunks_params` binary.
 
-**Grammar:**
+**Shape:**
 
 ```text
-//@ param: <name> <kind> <type> [range(min, max)]
+tunables <name>
+  -> shader_chunks_core::chunk_get( name )        // UnknownChunk if not bundled
+  -> shader_chunks_params_core::chunk_discover     // //@ param: discovery
+  -> plain table: name | kind | type | range | source
 ```
 
-`<kind>` is one of `argument`/`define`/`uniform`/`attribute`/`texture`;
-`<type>` is a WGSL type token copied verbatim from the adjacent real
-declaration (`bool`, `u32`, `i32`, `f32`, `vec2f`..`vec4u`, `texture_2d`).
-The optional trailing `range(min, max)` always wins when present. When
-absent, [`range_infer`](docs/algorithm/001_range_inference_heuristic.md)
-resolves one deterministically — a name-substring pattern first (e.g.
-`seed` → `[0, 65535]`), a WGSL-type-keyed default second (e.g. bare `u32`
-→ `[0, 16]`) — never a random guess. Full grammar and taxonomy:
-[`docs/api/001_tunable_parameter_taxonomy.md`](docs/api/001_tunable_parameter_taxonomy.md).
+A chunk with no declared `//@ param:` lines renders an explicit message
+("chunk `<name>` declares no tunable parameters") rather than a blank
+table or an error — the empty case is a real, intentional answer, not a
+failure. `source` distinguishes a declared `range(min, max)` from one
+[`shader_chunks_params_core`]'s heuristic inferred.
+
+## Structure
+
+| Path | Responsibility |
+|---|---|
+| `src/` | `tunables` command wiring over `shader_chunks_params_core`'s `//@ param:` discovery |
+| `tests/` | [`tunables_test.rs`](tests/tunables_test.rs) plus the [`docs/cli/`](docs/cli/readme.md) specification mirror at [`tests/docs/cli/`](tests/docs/cli/readme.md) |
+| `docs/` | CLI documentation — see [`docs/cli/`](docs/cli/readme.md) for the `tunables` command |
+| `Cargo.toml` | Crate manifest and dependencies |
 
 ## Usage
 
-```rust
-use shader_chunks_params::discover;
-
-let wgsl = "\
-//@ param: octaves argument u32 range(1, 8)
-//@ param: seed define u32
-
-fn fbm( p : vec2f, octaves : u32, seed : u32 ) -> f32 { /* .. */ }
-";
-
-let params = discover( wgsl );
-assert_eq!( params.len(), 2 );
-assert_eq!( params[ 0 ].name, "octaves" ); // declared range: (1.0, 8.0)
-assert_eq!( params[ 1 ].name, "seed" );    // inferred range: (0.0, 65535.0)
+```sh
+cargo run -p shader_chunks_params -- tunables fbm3
 ```
 
-`chunk_discover( &chunk )` is the same parse applied to a
-[`shader_chunks_core::ChunkDescriptor`]'s own `.wgsl` field — this crate's
-only dependency on `shader_chunks_core`; `discover` itself has none.
+```rust
+use shader_chunks_params::tunables;
 
-## No real chunk annotated yet
+let table = tunables( "fbm3" ).unwrap();
+```
 
-None of the 4 bundled chunks (`hash21`, `value_noise`, `fbm3`,
-`fullscreen_triangle`) carry a `//@ param:` line today — this crate is
-independently valuable and fully testable via self-contained fixture WGSL
-strings without one (see `tests/`). This crate has no consumers yet;
-[`shader_chunks`](../shader_chunks/readme.md)'s upcoming `tunables` command
-will be its first.
+[`tunables_of_chunk`] is exposed separately from [`tunables`] so tests
+can exercise a chunk descriptor carrying `//@ param:` lines without any
+bundled chunk needing to declare one — none of the 4 bundled chunks
+(`hash21`, `value_noise`, `fbm3`, `fullscreen_triangle`) do today (see
+[`shader_chunks_params_core`](../shader_chunks_params_core/readme.md)'s
+own readme), so this crate's own tests exercise both the empty-table path
+against a real bundled chunk and the populated-table path against a
+self-contained fixture.
 
-## Design documentation
+## Errors
 
-- [`docs/api/`](docs/api/readme.md) — the full `//@ param:` grammar, the
-  taxonomy types, and every public function's behavior and panic contract.
-- [`docs/algorithm/`](docs/algorithm/readme.md) — the range-inference
-  heuristic's complete rule table.
+[`ParamsCliError`] has two variants: `UnknownChunk` (exit `1`,
+validation-style) and `Render` (exit `2`, a `data_fmt` table formatter
+failure — internal).

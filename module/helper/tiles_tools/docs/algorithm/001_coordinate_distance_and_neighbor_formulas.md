@@ -42,11 +42,13 @@ Both compute the identical cube-distance formula and are mathematically equivale
 
 **Isometric (`Diamond`)** — reuses Manhattan distance over the underlying logical `(x, y)` pair (`src/coordinates/isometric.rs:271-274`), with the doc comment explicitly justifying this as inherited from the square grid isometric coordinates are a visual transform of (consistent with `algorithm/005`'s `Convert` impl between `Square` and `Diamond` being exact/lossless, not approximate).
 
-### Types
+### Algorithms
 
 | File | Relationship |
 |------|--------------|
-| [type/001_coordinate_system_type_model.md](../type/001_coordinate_system_type_model.md) | Every coordinate type this algorithm operates on is defined there |
+| [algorithm/002_generic_astar_pathfinding.md](../algorithm/002_generic_astar_pathfinding.md) | A* is generic over `C: Distance + Neighbors`, using these exact formulas for heuristic and expansion |
+| [algorithm/003_field_of_view_calculation.md](../algorithm/003_field_of_view_calculation.md) | Range-limited FOV variants are generic over these same `Distance`/`Neighbors` formulas |
+| [algorithm/005_coordinate_system_conversion.md](../algorithm/005_coordinate_system_conversion.md) | Isometric's Manhattan-distance reuse mirrors its exact `Convert` relationship with `Square` |
 
 ### Invariants
 
@@ -54,12 +56,17 @@ Both compute the identical cube-distance formula and are mathematically equivale
 |------|--------------|
 | [invariant/001_triangular_coordinate_sum_constraint.md](../invariant/001_triangular_coordinate_sum_constraint.md) | Triangular `neighbors()`'s offset derivation is proven sum-preserving there |
 
-### Algorithms
+### Pitfalls
 
 | File | Relationship |
 |------|--------------|
-| [algorithm/002_generic_astar_pathfinding.md](../algorithm/002_generic_astar_pathfinding.md) | A* is generic over `C: Distance + Neighbors`, using these exact formulas for heuristic and expansion |
-| [algorithm/005_coordinate_system_conversion.md](../algorithm/005_coordinate_system_conversion.md) | Isometric's Manhattan-distance reuse mirrors its exact `Convert` relationship with `Square` |
+| [pitfall/004_hexagonal_axial_distance_method_ambiguity.md](../pitfall/004_hexagonal_axial_distance_method_ambiguity.md) | The inherent-vs-trait `distance()` duplication on `Coordinate<Axial, Orientation>` documented above is the concrete trap this pitfall covers |
+
+### Types
+
+| File | Relationship |
+|------|--------------|
+| [type/001_coordinate_system_type_model.md](../type/001_coordinate_system_type_model.md) | Every coordinate type this algorithm operates on is defined there |
 
 ### Sources
 

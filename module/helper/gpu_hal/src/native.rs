@@ -170,6 +170,25 @@ mod private
     // padded on copy and re-packed tightly below.
     let padded_bytes_per_row = bytes_per_row.div_ceil( wgpu::COPY_BYTES_PER_ROW_ALIGNMENT )
     * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    let staging = native_texture_rgba8_copy_to_staging
+    (
+      device, queue, texture, width, height, padded_bytes_per_row
+    );
+    native_texture_rgba8_staging_read( device, &staging, bytes_per_row, padded_bytes_per_row, height )
+  }
+
+  /// Copies `texture`'s rgba8 pixels into a newly-created, row-padded
+  /// staging buffer and submits the copy — the buffer is not yet mapped.
+  fn native_texture_rgba8_copy_to_staging
+  (
+    device : &wgpu::Device,
+    queue : &wgpu::Queue,
+    texture : &wgpu::Texture,
+    width : u32,
+    height : u32,
+    padded_bytes_per_row : u32
+  ) -> wgpu::Buffer
+  {
     let staging = device.create_buffer( &wgpu::BufferDescriptor
     {
       label : Some( "gpu_hal readback staging" ),
@@ -201,7 +220,20 @@ mod private
       wgpu::Extent3d { width, height, depth_or_array_layers : 1 }
     );
     queue.submit( core::iter::once( encoder.finish() ) );
+    staging
+  }
 
+  /// Maps `staging`, blocks until the GPU-side copy and map complete, and
+  /// re-packs its row-padded bytes into tightly-packed rgba8 pixels.
+  fn native_texture_rgba8_staging_read
+  (
+    device : &wgpu::Device,
+    staging : &wgpu::Buffer,
+    bytes_per_row : u32,
+    padded_bytes_per_row : u32,
+    height : u32
+  ) -> Result< Vec< u8 >, Error >
+  {
     let slice = staging.slice( .. );
     let ( sender, receiver ) = std::sync::mpsc::channel();
     slice.map_async( wgpu::MapMode::Read, move | result | { let _ = sender.send( result ); } );

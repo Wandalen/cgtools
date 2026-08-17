@@ -53,6 +53,7 @@ use minwebgl::F32x4;
 let attributes = AttributesData {
   positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]],
   indices: vec![0, 1, 2],
+  normals: vec![[0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]],
 };
 
 let primitive = PrimitiveData {

@@ -501,9 +501,19 @@ impl Animation
 
     self.frame_timer += dt;
 
-    if self.frame_timer >= self.frame_duration
+    // Fix(BUG-132)
+    // Root cause: a single `if` consumed at most one frame_duration per call
+    // and unconditionally reset frame_timer to 0.0, discarding any overshoot
+    // beyond the first threshold crossing instead of carrying it into the
+    // next frame -- a large dt (e.g. a stalled render loop) silently
+    // under-advanced the animation.
+    // Pitfall: `while` must also guard on `frame_duration > 0.0`, since `new`
+    // never validates it -- without the guard a non-positive frame_duration
+    // (harmless as a single `if`, advancing exactly one frame per call) turns
+    // into an infinite loop once multiple crossings are consumed per call.
+    while self.frame_duration > 0.0 && self.frame_timer >= self.frame_duration
     {
-      self.frame_timer = 0.0;
+      self.frame_timer -= self.frame_duration;
       self.current_frame += 1;
 
       if self.current_frame >= self.frame_count
@@ -516,6 +526,8 @@ impl Animation
         {
           self.current_frame = self.frame_count - 1;
           self.playing = false;
+          self.frame_timer = 0.0;
+          break;
         }
       }
     }

@@ -183,6 +183,17 @@ mod private
   }
 
   /// Merges default PEC threads and chart from PES together
+  // Fix(BUG-151)
+  // Root cause: the `else` branch (first sighting of a given `color_index`) computed
+  // `thread` and inserted it into `thread_map` but never called `emb.thread_add`/
+  // `values.push` -- only the `if let Some(thread)` branch (a repeat sighting) did. Every
+  // first occurrence of each color was silently dropped, misaligning `emb.threads()`
+  // against `color_bytes` instead of keeping the 1-entry-per-byte invariant every
+  // downstream consumer (e.g. `duplicate_color_interpolate_as_stop`) relies on.
+  // Pitfall: `thread_map` exists only to pick *which* `Thread` value to reuse for a
+  // repeated `color_index` -- it must never gate *whether* a push happens; every byte in
+  // `color_bytes` needs exactly one `thread_add`/`values.push`, matching the sibling
+  // `pec_colors_process`'s unconditional per-byte push.
   fn pec_table_process
   (
     emb : &mut EmbroideryFile,
@@ -218,6 +229,8 @@ mod private
         {
           chart.remove( 0 )
         };
+        emb.thread_add( thread.clone() );
+        values.push( thread.clone() );
         thread_map.insert( color_index, thread );
       }
     }

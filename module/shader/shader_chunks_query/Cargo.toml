@@ -1,0 +1,18 @@
+[package]
+name = "shader_chunks_query"
+version = "0.1.0"
+edition = "2024"
+description = "Terminal CLI for querying and inspecting shader_chunks_core WGSL chunks — list/get/tags/tree over the shader_chunks_query_core engine"
+
+[dependencies]
+shader_chunks_query_core.workspace = true
+shader_chunks_cli_core.workspace = true
+unilang.workspace = true
+cli_fmt.workspace = true
+mod_interface.workspace = true
+
+[dev-dependencies]
+assert_cmd = "2.2"
+
+[lints]
+workspace = true

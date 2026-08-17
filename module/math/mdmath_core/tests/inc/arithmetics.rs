@@ -111,6 +111,51 @@ fn test_normalize()
 
 }
 
+// test_kind: bug_reproducer(BUG-124)
+/// ## Root Cause
+/// `vector::normalize(r, a)` (`vector/arithmetics.rs`) computes `mag` from `a` but its write
+/// loop divided `*elem` (an element already sitting in `r`) by `mag`, never reading from `a`'s
+/// own iterator at all — correct only by coincidence when the caller pre-seeds `r` to equal `a`
+/// before calling. With `r != a`, the function silently normalizes whatever `r` already held
+/// scaled by `a`'s magnitude, instead of normalizing `a`'s direction into `r`.
+/// ## Why Not Caught
+/// Every existing caller (this test included, previously) pre-set `r = a` before calling
+/// `normalize`, making `*elem` and the corresponding element of `a` always numerically identical
+/// — the missing read from `a` was unobservable under that calling convention. The sibling
+/// `project_on(r, b)` in the same file correctly reads `b.vector_iter()` inside its own write
+/// loop, serving as the in-file oracle for what `normalize` should have done.
+/// ## Fix Applied
+/// Added `let mut aiter = a.vector_iter();` before the loop and changed the write to
+/// `*elem = *aiter.next().unwrap() / mag;`, so every written element is `a`'s own value (not
+/// whatever `r` previously held) divided by `a`'s magnitude.
+/// ## Prevention
+/// This test uses `r != a` (`r` pre-set to an unrelated, already-unit-length vector) so a
+/// write loop that reads from `r` instead of `a` produces a detectably wrong result.
+/// ## Pitfall
+/// A `fn(r: &mut R, a: &A)`-shaped API that computes a scalar from `a` but only reads/writes
+/// through `r` in its loop body is only correct under a "caller pre-seeds r = a" convention
+/// that the type signature itself never states or enforces — always check what a write loop
+/// actually dereferences, not just what it assigns into.
+#[ test ]
+fn test_normalize_with_distinct_source_and_destination()
+{
+  use the_module::
+  {
+    assert_ulps_eq,
+    vector,
+  };
+
+  // r starts as an unrelated, already-unit-length vector distinct from a.
+  let mut r = [ 1.0, 0.0, 0.0 ];
+  let a = [ 3.0, 4.0, 0.0 ];
+  vector::normalize( &mut r, &a );
+  let expected = [ 0.6, 0.8, 0.0 ];
+  for ( got, exp ) in r.iter().zip( expected.iter() )
+  {
+    assert_ulps_eq!( got, exp );
+  }
+}
+
 #[ test ]
 fn test_normalized()
 {
