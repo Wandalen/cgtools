@@ -209,7 +209,7 @@ mod private
     let def = CommandDefinition::former()
     .name( ".tree" )
     .namespace( String::new() )
-    .description( "Show the dependency tree for one chunk, or a forest of every root chunk.".to_string() )
+    .description( "Show the dependency tree for one chunk, or a forest of every root chunk; reverse::1 walks dependents instead.".to_string() )
     .hint( "dependency tree for one chunk, or every root chunk with no argument" )
     .status( "stable" )
     .version( "1.0.0".to_string() )
@@ -219,7 +219,12 @@ mod private
     .idempotent( true )
     .deprecation_message( String::new() )
     .http_method_hint( String::new() )
-    .examples( vec![ format!( "{binary} tree fbm3" ), format!( "{binary} tree" ) ] )
+    .examples( vec!
+    [
+      format!( "{binary} tree fbm3" ),
+      format!( "{binary} tree" ),
+      format!( "{binary} tree hash21 reverse::1" ),
+    ])
     .arguments( vec!
     [
       ArgumentDefinition::former()
@@ -228,6 +233,7 @@ mod private
       .hint( "Chunk name (see `list`); omit for the full forest." )
       .attributes( ArgumentAttributes { optional : true, ..ArgumentAttributes::default() } )
       .end(),
+      named_arg( "reverse", Kind::Boolean, "Walk dependents instead of dependencies: what (transitively) depends on this chunk.", Some( "false".to_string() ) ),
     ])
     .end();
 
@@ -238,7 +244,8 @@ mod private
         Some( Value::String( name ) ) => Some( name.as_str() ),
         _ => None,
       };
-      let content = shader_chunks_query_core::chunk_tree( name ).map_err( | e | query_error( &e ) )?;
+      let reverse = arg_bool( &cmd, "reverse", false );
+      let content = shader_chunks_query_core::chunk_tree( name, reverse ).map_err( | e | query_error( &e ) )?;
       Ok( text_output( content ) )
     });
 

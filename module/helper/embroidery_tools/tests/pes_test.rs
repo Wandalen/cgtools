@@ -4,6 +4,7 @@
 
 use std::io::Cursor;
 use embroidery_tools::embroidery_file::EmbroideryFile;
+use embroidery_tools::error::EmbroideryError;
 use embroidery_tools::format::{ pec, pes };
 use embroidery_tools::thread::{ Color, Thread };
 
@@ -108,4 +109,88 @@ fn v6_roundtrip_preserves_metadata_and_threads()
   assert_eq!( thread.catalog_number, "197" );
   assert_eq!( thread.brand, "No brand" );
   assert_eq!( thread.chart, "No chart" );
+}
+
+// test_kind: bug_reproducer(BUG-234)
+/// ## Root Cause
+/// `pes_addendum_write`'s fixed 128-byte color-index field computed its padding via
+/// `128_usize.wrapping_sub( count )`, but the only existing guard on `count`
+/// (`pec_header_write`'s own "too many color changes" check) allows up to 255 -- for any
+/// `count` in `129..=255`, `wrapping_sub` silently underflowed to a value near
+/// `usize::MAX`, which then became a `Vec<u8>` allocation size far past `isize::MAX`,
+/// panicking with "capacity overflow" instead of returning a catchable error.
+/// ## Why Not Caught
+/// No existing test wrote a design with more than a handful of threads -- the largest,
+/// `write_v6_matches_reference_fixture`, uses only 2.
+/// ## Fix Applied
+/// Added an explicit `count > 128` guard in `pes_addendum_write` returning
+/// `EmbroideryError::CompatibilityError`, mirroring `pec_header_write`'s own "too many
+/// color changes" check. See `format/pes/writer.rs`.
+/// ## Prevention
+/// This test writes a design with 129 threads (one past the addendum's 128-byte capacity)
+/// to PES v6 and asserts a `CompatibilityError` comes back instead of a panic.
+/// ## Pitfall
+/// Every other "value exceeds this format's capacity" case in this file reports through
+/// `try_from`/an explicit bounds check and a real `EmbroideryError` -- `wrapping_sub` fed
+/// straight into an allocation size was the one place that convention wasn't followed.
+#[ test ]
+fn version6_write_with_more_than_128_threads_errors_instead_of_panicking()
+{
+  let mut emb = EmbroideryFile::new();
+  emb.stitch( 0, 0 );
+  emb.end();
+
+  let default_palette = pec::pec_threads();
+  for i in 0..129
+  {
+    emb.thread_add( default_palette[ 1 + ( i % ( default_palette.len() - 1 ) ) ].clone() );
+  }
+
+  let mut memory = vec![ 0_u8; 4096 ];
+  let mut writer = Cursor::new( &mut memory );
+  let result = pes::write( &mut emb, &mut writer, pes::PESVersion::V6 );
+
+  assert!
+  (
+    matches!( result, Err( EmbroideryError::CompatibilityError( _ ) ) ),
+    "writing a design with 129 threads must return CompatibilityError, not panic or succeed: {result:?}"
+  );
+}
+
+// test_kind: bug_reproducer(BUG-235)
+/// ## Root Cause
+/// `as_segment_blocks` unconditionally called `thread::nearest_color_find( &color, &chart
+/// ).unwrap()` (twice: once before its main loop, once on every `ColorChange` instruction),
+/// where `chart` is built from `emb.threads()`. A design that never had a thread added and
+/// has no `Stitch`/`SewTo`/`NeedleAt` instruction (so `color_count_fix` never backfills one)
+/// reaches this call with an empty `chart` -- `nearest_color_find` returns `None` by
+/// contract for an empty palette, and `.unwrap()` panicked instead of degrading gracefully.
+/// ## Why Not Caught
+/// Every existing PES v6 test adds at least one thread via `thread_add` before writing --
+/// none exercised a design with zero threads.
+/// ## Fix Applied
+/// Changed both `.unwrap()` calls in `as_segment_blocks` to `.unwrap_or( 0 )`, matching this
+/// section's own write-only/informational nature (this codebase's PES reader never reads it
+/// back) and the same "substitute something reasonable instead of erroring" convention
+/// `thread_or_filler_get` already uses. See `format/pes/writer.rs`.
+/// ## Prevention
+/// This test writes a design with a single `end()` instruction and zero added threads to
+/// PES v6 and asserts the call succeeds instead of panicking.
+/// ## Pitfall
+/// `emb.stitches().is_empty()` (checked by `pes_block_write` to skip the whole CEmbOne/
+/// CSewSeg block) is not the same condition as "zero threads" -- a jump-only or otherwise
+/// stitch-free-but-non-empty instruction sequence still reaches `as_segment_blocks` with
+/// however many threads the design happens to have, which can be zero.
+#[ test ]
+fn version6_write_with_zero_threads_does_not_panic()
+{
+  let mut emb = EmbroideryFile::new();
+  emb.end();
+  assert!( emb.threads().is_empty(), "test setup: design must have zero threads to reach the empty-chart path" );
+
+  let mut memory = vec![ 0_u8; 4096 ];
+  let mut writer = Cursor::new( &mut memory );
+  let result = pes::write( &mut emb, &mut writer, pes::PESVersion::V6 );
+
+  assert!( result.is_ok(), "writing a threadless design to PES v6 must not panic: {result:?}" );
 }

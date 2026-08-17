@@ -30,7 +30,6 @@ workspace = true
 
 [features]
 enabled = [
-  "dep:mod_interface",
   "dep:minwebgl",
   "dep:mingl",
   "dep:gltf",
@@ -42,9 +41,11 @@ enabled = [
   "dep:zune-hdr",
   "dep:rustc-hash"
 ]
-default = [ "enabled" ]
+default = [ "enabled", "webgl" ]
 full = [ "enabled", "webgl", "animation", "webgpu", "native" ]
-webgl = []
+# Fix(BUG-241): must pull in `enabled`'s deps ( minwebgl/web-sys/mingl/gltf/... ) —
+# `src/webgl/**` unconditionally needs them the moment `layer webgl;` is compiled.
+webgl = [ "enabled" ]
 webgpu = [ "dep:minwebgpu", "dep:bytemuck", "dep:gpu_hal" ]
 # The canonical gpu_hal renderer on the native wgpu backend — same layer as
 # `webgpu`, materializing off-wasm instead ( terminal pixel tests, no browser ).
@@ -53,7 +54,10 @@ animation = [ "dep:animation", "dep:clone_dyn_types" ]
 
 [dependencies]
 
-mod_interface = { workspace = true, optional = true }
+# Fix(BUG-241): always required — used unconditionally at the crate root
+# (`lib.rs`) and in both `webgl.rs`'s and `webgpu.rs`'s own module trees,
+# regardless of which top-level feature is active.
+mod_interface = { workspace = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
 minwebgpu = { workspace = true, features = [ "math" ], optional = true }
 gpu_hal = { workspace = true, features = [ "webgpu", "webgl" ], optional = true }

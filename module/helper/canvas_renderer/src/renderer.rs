@@ -55,7 +55,15 @@ mod private
     gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
     gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
 
-    let depthbuffer = gl.create_renderbuffer().unwrap();
+    // Fix(BUG-227): propagate `None` via `?` instead of `.unwrap()`.
+    // Root cause: `create_texture`/`create_framebuffer` in this same function already honor
+    // the doc comment's "or `None` if creation fails" contract via `?`, but this call used
+    // `.unwrap()` -- the identical WebGL failure class (context loss) that its siblings
+    // handle gracefully instead panics here.
+    // Pitfall: when several calls of the same resource-creation shape sit in one function,
+    // fixing the contract on some of them doesn't guarantee the rest were caught -- audit
+    // every call of that shape in the function, not just the ones that already look handled.
+    let depthbuffer = gl.create_renderbuffer()?;
     gl.bind_renderbuffer( GL::RENDERBUFFER, Some( &depthbuffer ) );
     gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width as i32, height as i32 );
 

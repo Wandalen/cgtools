@@ -13,7 +13,11 @@ mod private
   own use ::mod_interface::mod_interface;
 
   /// Webgl implementation of the renderer
-  //#[ cfg( feature = "webgl" ) ]
+  // Fix(BUG-241): was commented out, making this layer — and the `enabled`-only
+  // deps its whole tree needs (minwebgl/web-sys/mingl/gltf/...) — unconditional
+  // regardless of feature selection; broke any `--no-default-features` build
+  // that didn't separately re-request `enabled` (e.g. `--features native`).
+  #[ cfg( feature = "webgl" ) ]
   layer webgl;
 
   /// Canonical `gpu_hal`-based renderer — WebGPU-first, also runs on the

@@ -249,6 +249,15 @@ self-verify — an independent verifier performs the walk after the task reaches
   Documentation` cross-reference to task 202 (moved `task/` → `task/executed/`
   since original filing) and a session-relative phrase in `## Goal`. Reasserted
   🎯 (Verified) via `tsk .verify_pass`; moved to `task/verified/`.
+- **[2026-08-16]** `CLAIM_VERIFY` — task re-claimed for verification
+  (`verifying_at`/`verifying_by` populated, `round: 1`, state reset to
+  🔬 Verifying); this transition itself was not historized at the time it
+  occurred, backfilled now for consistency. Fresh 8-dimension Readiness
+  Verification Gate re-run PASSED 8/8 (see `## Verification Record` below).
+  `tsk .verify_pass` refused with the same-actor sandbox guard
+  (`self-verification forbidden (actor matches filed_by)` — see `## Journal`);
+  not force/spoofed — task remains at 🔬 Verifying pending a different
+  verifying actor.
 
 ## Verification Record
 

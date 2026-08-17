@@ -4,7 +4,7 @@
 
 - **Purpose:** Test specifications for `shader_chunks`, organized by testing lens (parameter, parameter group, command, command group, type) rather than by test file.
 - **Responsibility:** Cross-reference every documented CLI entity in `../../../docs/cli/` to the real test function(s) that verify it.
-- **In Scope:** The 5 tiers below, covering all 8 commands, 26 parameters, 3 parameter groups, 6 command groups, and 11 types this CLI declares.
+- **In Scope:** The 5 tiers below, covering all 8 commands, 28 parameters, 3 parameter groups, 6 command groups, and 12 types this CLI declares.
 - **Out of Scope:** Test implementation itself — now split across each utility's own crate (→ `shader_chunks_query_core/tests/shader_chunks_query_core_test.rs`, `shader_chunks_compose/tests/shader_chunks_compose_test.rs`, `shader_chunks_params/tests/tunables_test.rs`, `shader_chunks_preview/tests/preview_cli_test.rs`, `shader_chunks_render/tests/render_cli_test.rs` with its engine tier in `shader_chunks_render_core/tests/render_core_test.rs`) plus the aggregator's own subprocess suite (→ [`../../cli_subprocess_test.rs`](../../cli_subprocess_test.rs)); CLI behavior documentation (→ [`../../../docs/cli/readme.md`](../../../docs/cli/readme.md)).
 
 ---
@@ -50,11 +50,11 @@ table rather than being duplicated here:
 
 | Tier | Files | Test Cases | Per-leaf breakdown |
 |------|-------|------------|---------------------|
-| param/ | 26 | 98 `EC-N` | [query](../../../../shader_chunks_query/tests/docs/cli/readme.md#aggregate-test-counts) · [preview](../../../../shader_chunks_preview/tests/docs/cli/readme.md#aggregate-test-counts) · [render](../../../../shader_chunks_render/tests/docs/cli/readme.md#aggregate-test-counts) |
+| param/ | 27 | 115 `EC-N` | [query](../../../../shader_chunks_query/tests/docs/cli/readme.md#aggregate-test-counts) · [preview](../../../../shader_chunks_preview/tests/docs/cli/readme.md#aggregate-test-counts) · [render](../../../../shader_chunks_render/tests/docs/cli/readme.md#aggregate-test-counts) |
 | param_group/ | 3 | 15 `GRP-N` | [query](../../../../shader_chunks_query/tests/docs/cli/readme.md#aggregate-test-counts) |
-| command/ | 8 | 32 `PAR-N` + 27 `INT-N` | all 5 leaves, see [Per-Leaf Tier Coverage](#per-leaf-tier-coverage) above |
+| command/ | 8 | 37 `PAR-N` + 30 `INT-N` | all 5 leaves, see [Per-Leaf Tier Coverage](#per-leaf-tier-coverage) above |
 | command_group/ | 6 | 32 `CG-N` + 3 `WF-N` | all 5 leaves, see [Per-Leaf Tier Coverage](#per-leaf-tier-coverage) above |
-| type/ | 11 | 40 `TC-N` | [query](../../../../shader_chunks_query/tests/docs/cli/readme.md#aggregate-test-counts) · [render](../../../../shader_chunks_render/tests/docs/cli/readme.md#aggregate-test-counts) |
+| type/ | 12 | 68 `TC-N` | [query](../../../../shader_chunks_query/tests/docs/cli/readme.md#aggregate-test-counts) · [render](../../../../shader_chunks_render/tests/docs/cli/readme.md#aggregate-test-counts) |
 
 Counts overlap by design (Overlap Policy, OC118) — the same real test
 function is cited from multiple tiers when it verifies more than one

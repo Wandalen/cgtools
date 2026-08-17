@@ -96,14 +96,22 @@ mod private
 
           #[ cfg( feature = "distance" ) ]
           {
+            // Fix(BUG-238): `mag2()` returns a *squared* distance, but was compared directly
+            // against `EPSILON` (a linear-scale tolerance), making the effective dedup radius
+            // `sqrt(EPSILON)` (~3.45e-4 for f32) instead of the intended `EPSILON` (~1.19e-7) --
+            // silently dropping legitimately distinct points closer than that.
+            // Root cause: squared-distance optimization (`mag2()` avoids a `sqrt()` call) without
+            // squaring the comparison threshold to match.
+            // Pitfall: any `mag2()`/`distance_squared()` comparison must square its threshold too --
+            // `d² <= t` means `d <= sqrt(t)`, not `d <= t`.
             let distance = if let Some( last ) = self.geometry.points.back().copied()
             {
-              if ( last - point ).mag2() <= $primitive_type::EPSILON 
+              if ( last - point ).mag2() <= $primitive_type::EPSILON * $primitive_type::EPSILON
               {
                 return;
               }
 
-              ( point - last ).mag() 
+              ( point - last ).mag()
             }
             else
             {
@@ -128,14 +136,16 @@ mod private
 
           #[ cfg( feature = "distance" ) ]
           {
+            // Fix(BUG-238): same squared-vs-linear EPSILON mismatch as `point_add_back` above --
+            // see that comment for the full explanation.
             let distance = if let Some( last ) = geometry.points.front().copied()
             {
-              if ( last - point ).mag2() <= $primitive_type::EPSILON 
+              if ( last - point ).mag2() <= $primitive_type::EPSILON * $primitive_type::EPSILON
               {
                 return;
               }
 
-              ( point - last ).mag() 
+              ( point - last ).mag()
             }
             else
             {

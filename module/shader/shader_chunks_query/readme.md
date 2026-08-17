@@ -21,7 +21,7 @@ defaults, and error-code mapping.
 | `list [names...]` | Query chunks: filter, sort, project, format — every chunk by default, plain table |
 | `get <names...>` | Same query engine as `list`; names required, expanded per-chunk records by default |
 | `tags` | Every distinct `group:tag` pair and the chunk(s) carrying it |
-| `tree [name]` | One chunk's dependency tree, or a forest of every root chunk with no argument |
+| `tree [name] [reverse::1]` | One chunk's dependency tree, or a forest of every root chunk with no argument; `reverse::1` walks dependents instead |
 
 `list` and `get` are one routine ([`query_routine`], private) behind two
 `CommandDefinition`s — [`query_arguments`] builds the identical
@@ -44,7 +44,7 @@ Deliberately has **no** test code — `tests/` holds only the CLI
 documentation mirror (see Structure above). This crate is CLI wiring
 only (argument definitions, defaults, error mapping), fully covered by
 [`shader_chunks_query_core`](../shader_chunks_query_core/readme.md)'s own
-30 direct-call tests (same rendering functions, called without a
+36 direct-call tests (same rendering functions, called without a
 `unilang` round-trip) plus [`shader_chunks`](../shader_chunks/readme.md)'s
 subprocess suite, which exercises this crate's argument wiring end to
 end. This 0/0 count is an intentional architectural asymmetry, not a
@@ -55,6 +55,7 @@ cargo run -p shader_chunks_query -- list tag::noise format::json
 cargo run -p shader_chunks_query -- get hash21
 cargo run -p shader_chunks_query -- tags
 cargo run -p shader_chunks_query -- tree fbm3
+cargo run -p shader_chunks_query -- tree hash21 reverse::1
 ```
 
 ## Error mapping

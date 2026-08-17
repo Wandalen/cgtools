@@ -5,6 +5,7 @@ edition = "2024"
 description = "Terminal CLI rendering shader chunks to static PNG images on a headless GPU — the file-writing counterpart of the live browser preview"
 
 [dependencies]
+shader_chunks_core.workspace = true
 shader_chunks_preview.workspace = true
 shader_chunks_preview_core.workspace = true
 shader_chunks_render_core.workspace = true
@@ -16,7 +17,6 @@ mod_interface.workspace = true
 
 [dev-dependencies]
 assert_cmd = "2.2"
-shader_chunks_core.workspace = true
 
 [lints]
 workspace = true

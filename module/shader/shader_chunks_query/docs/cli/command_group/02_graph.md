@@ -9,8 +9,9 @@ indented, tags trailing — rather than a filtered set of rows.
 ### Purpose
 
 Let a shader author see how chunks relate: one chunk's full dependency
-chain (`tree fbm3`), or the whole forest of root chunks (`tree` with no
-argument).
+chain (`tree fbm3`), the whole forest of root chunks (`tree` with no
+argument), or the reverse — what (transitively) depends on a given chunk
+(`tree hash21 reverse::1`).
 
 ### Semantic Coherence Test
 
@@ -27,8 +28,8 @@ depend on hash21") — the answer is still a flat set of chunk records.
 `.tree` renders the graph structure — nesting is the payload, and its
 [`tree_aligned`](../format/02_tree_aligned.md) output has no
 column-projection or format-selection surface. Merging would put a command
-with a 1-parameter surface and a structural output inside a group defined
-by its shared 20-parameter set engine.
+with a 2-parameter surface (`name`, `reverse`) and a structural output
+inside a group defined by its shared 20-parameter set engine.
 
 ### Invariants
 
@@ -54,13 +55,14 @@ the boundary is output-species (graph rendering), not command count.
 | File | Relationship |
 |------|--------------|
 | [`../../../tests/docs/cli/command_group/02_graph.md`](../../../tests/docs/cli/command_group/02_graph.md) | Group-level test specification |
-| [`../../../../shader_chunks_query_core/tests/shader_chunks_query_core_test.rs`](../../../../shader_chunks_query_core/tests/shader_chunks_query_core_test.rs) | `tree_chunk_shows_fbm3_dependency_chain_in_order`, `tree_chunk_with_no_name_shows_forest_of_every_root_chunk` |
+| [`../../../../shader_chunks_query_core/tests/shader_chunks_query_core_test.rs`](../../../../shader_chunks_query_core/tests/shader_chunks_query_core_test.rs) | `tree_chunk_shows_fbm3_dependency_chain_in_order`, `tree_chunk_with_no_name_shows_forest_of_every_root_chunk`, `tree_reverse_on_a_chunk_shows_its_dependents_chain_in_order`, `tree_reverse_with_no_name_shows_forest_of_every_leaf_chunk` |
 
 ### Typical Patterns
 
 Inspect before composing: `tree <name>` to confirm what `compose` will
 pull in transitively; bare `tree` to survey every entry-point chunk at
-once.
+once; `tree <name> reverse::1` to assess blast radius before editing a
+low-level chunk — what else composes it in, directly or transitively.
 
 ### Referenced User Stories
 

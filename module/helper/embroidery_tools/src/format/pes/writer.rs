@@ -439,7 +439,21 @@ mod private
     let mut color_index = 0;
     let mut current_thread = emb.thread_or_filler_get( color_index );
     color_index += 1;
-    let mut color_code = thread::nearest_color_find( &current_thread.color, &chart ).unwrap();
+    // Fix(BUG-235)
+    // Root cause: `chart` is built from `threads` (== `emb.threads()` for PES v6), which is
+    // empty for any design that never had a thread added and has no Stitch/SewTo/NeedleAt
+    // instruction for `color_count_fix` to backfill (e.g. a jump-only design, or even just
+    // a bare `emb.end()`). `nearest_color_find` against an empty chart returns `None` by
+    // contract, and `.unwrap()` here paniced unconditionally before the block-processing
+    // loop below even started -- regardless of what the design's stitches actually were.
+    // Pitfall: `current_thread` (from `thread_or_filler_get`) is always a real, valid thread
+    // even when `emb.threads()` is empty (it falls back to `random_thread_get`), but `chart`
+    // has no entries to match it against in that case -- there is no meaningful "index into
+    // the design's own (empty) thread palette" to report, so falling back to `0` (this
+    // section is write-only informational data for external PES consumers; this codebase's
+    // own reader never reads it back, see `pes/reader.rs`) is the same "substitute something
+    // reasonable instead of erroring" convention `thread_or_filler_get` itself already uses.
+    let mut color_code = thread::nearest_color_find( &current_thread.color, &chart ).unwrap_or( 0 );
     let mut stitched_x = 0;
     let mut stitched_y = 0;
 
@@ -462,7 +476,8 @@ mod private
         {
           current_thread = emb.thread_or_filler_get( color_index );
           color_index += 1;
-          color_code = thread::nearest_color_find( &current_thread.color, &chart ).unwrap();
+          // Fix(BUG-235): same empty-`chart` fallback as this function's initial `color_code` above.
+          color_code = thread::nearest_color_find( &current_thread.color, &chart ).unwrap_or( 0 );
           // flag = 1;
           continue;
         },
@@ -490,11 +505,29 @@ mod private
     W : Write
   {
     let count = color_indices.len();
+    // Fix(BUG-234)
+    // Root cause: PES v6's addendum color-index field is a fixed 128-byte slot, but the
+    // only existing guard on `color_indices`'s length (`pec_header_write`'s own "too many
+    // color changes" check) allows up to 255 -- for any `count` in `129..=255`,
+    // `128_usize.wrapping_sub( count )` silently underflowed to a value near `usize::MAX`,
+    // which then became a `vec![0x20u8; ...]` allocation size far past `isize::MAX`,
+    // panicking with "capacity overflow" instead of returning a catchable error.
+    // Pitfall: every other "value exceeds this format's capacity" case in this file reports
+    // via `try_from`/an explicit bounds check and a real `EmbroideryError` -- `wrapping_sub`
+    // fed straight into an allocation size was the one place that convention wasn't
+    // followed, and unsigned wraparound turned a bounds miss into an unhandled panic instead
+    // of a `Result::Err`.
+    if count > 128
+    {
+      let msg = format!( "Too many thread/color-change entries for PES addendum. {count} is unsupported value. Maximum: 128" );
+      return Err( EmbroideryError::CompatibilityError( msg.into() ) );
+    }
     // `color_indices` comes from `pec::content_write`, whose values are indices into
     // the fixed 65-entry thread palette (see `pec::pec_header_write`), so every value
     // is < 65 and fits in `u8`.
     let color_indices : Vec< _ > = color_indices.iter().map( | v | *v as u8 ).collect();
-    let spaces = vec![ 0x20_u8; 128_usize.wrapping_sub( count ) ];
+    // Guarded above: `count <= 128` here, so this subtraction cannot underflow.
+    let spaces = vec![ 0x20_u8; 128 - count ];
 
     writer.write_all( &color_indices )?;
     writer.write_all( &spaces )?;

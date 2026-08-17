@@ -47,7 +47,7 @@ covering param/param_group/command/command_group/type tiers.
 
 - [`command/`](command/readme.md) — the 4 commands (`list`, `get`, `tags`, `tree`)
 - [`command_group/`](command_group/readme.md) — the 2 command groups (`Query`, `Graph`)
-- [`param/`](param/readme.md) — the 21 parameters (2 positional selectors + 19 shared named query parameters)
+- [`param/`](param/readme.md) — the 22 parameters (2 positional selectors + 19 shared named query parameters + `.tree`'s own `reverse` switch)
 - [`param_group/`](param_group/readme.md) — the 3 parameter groups (`filtering`, `projection`, `formatting`)
 - [`type/`](type/readme.md) — the 10 semantic types (`ChunkName`, the query enums, selectors, `Switch`, `NonNegativeInteger`)
 - [`format/`](format/readme.md) — the 7 output formats selectable via `format::`, plus `tree`'s own aligned layout

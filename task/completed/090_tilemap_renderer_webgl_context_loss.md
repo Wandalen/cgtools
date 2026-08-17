@@ -275,6 +275,13 @@ independent verifier performs the walk after the task reaches 🔎 Accepting.
   — confirmed harmless, doesn't affect any AC or measurement, just an incomplete enumeration.
   (Verifier dispatch was interrupted mid-run by an unrelated harness restart and resumed via
   `SendMessage` from its preserved transcript — its findings above are from the completed, resumed run.)
+- **[2026-08-17]** `NOTE` — Routine `-*` temp-file cleanup (an unrelated session's stray-log sweep of
+  `task/verified/`) removed the raw `-0025` through `-0029_longrun.log` files the T01–T03/T05/I2/I3
+  citations above point to — ordinary hyphen-prefixed session-scratch logs, not permanent artifacts,
+  per this project's storage-tier convention. No effect on this task's record: every cited result
+  (exit codes, pass counts, warning counts) is already transcribed inline above, and the 2026-08-11
+  independent verifier entry re-executed and reconfirmed all of them directly — nothing here rests
+  solely on the now-removed raw logs.
 
 ## Verification Record
 

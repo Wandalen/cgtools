@@ -61,7 +61,7 @@ Commands are partitioned into six groups, documented per leaf crate
 | Compose | `compose <names...>` | Preview WGSL composed from the given chunks, dependency-ordered; `transitive::1` widens to the full dependency closure |
 | Parameters | `tunables <name>` | One chunk's declared tunable parameters: name, kind, WGSL type, range, range source |
 | Preview | `preview [name] [file::<path>] [serve::0\|1]` | Build, naga-validate, and (by default) live-serve a browser preview of one chunk |
-| Render | `render [name] [file::<path>] [out::<path>] [size::<n>\|<w>x<h>] [time::<s>]` | Render one headless-GPU frame of a chunk to a static PNG, parameters at defaults |
+| Render | `render [name] [file::<path>] [out::<path>] [size::<n>\|<w>x<h>] [time::<s>] [set::<property>:<value>,...]` | Render one headless-GPU frame of a chunk to a static PNG, parameters at defaults unless overridden |
 | — | `help` / `<command> help` | Top-level usage / per-command help (`help <command>` works too) |
 
 `list` and `get` are one routine behind two names: both accept the same

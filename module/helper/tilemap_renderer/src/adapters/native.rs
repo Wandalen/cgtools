@@ -327,21 +327,43 @@ fn fs_main( in : VsOut ) -> @location( 0 ) vec4f
     let sw = sheet_width as f32;
     let sh = sheet_height as f32;
     // Local quad corners in `[-0.5, 0.5]`; `fx`/`fy` is the same corner
-    // mapped to `[0, 1]`. `fy` is flipped for the UV only: row 0 of the
-    // source bytes is the image's top row, but `ly = 0.5` is the *top* of
-    // a Y-up world-space quad.
+    // mapped to `[0, 1]`.
     let corners = [ ( -0.5f32, -0.5f32 ), ( 0.5, -0.5 ), ( 0.5, 0.5 ), ( -0.5, 0.5 ) ];
 
     let mut out = [ 0.0f32; 16 ];
     for ( i, ( lx, ly ) ) in corners.into_iter().enumerate()
     {
-      let world_x = m[ 0 ] * lx + m[ 3 ] * ly + m[ 6 ];
-      let world_y = m[ 1 ] * lx + m[ 4 ] * ly + m[ 7 ];
-      let ( fx, fy ) = ( lx + 0.5, 1.0 - ( ly + 0.5 ) );
+      let ( fx, fy ) = ( lx + 0.5, ly + 0.5 );
+      // Fix(BUG-240)
+      // Root cause: see this function's own regression tests. `world_x`/`world_y`
+      // fed the unscaled `[-0.5, 0.5]` local corner directly into the transform
+      // matrix -- a sprite's on-screen size was `Transform::scale` alone,
+      // independent of its own `region` pixel dimensions, and `Transform::position`
+      // mapped to the quad's *center*. `webgl.rs`'s `sprite.vert`
+      // (`world = u_transform * vec3(quad * u_region.zw, 1.0)`, `quad` in `[0,1]`),
+      // `webgpu.rs`'s `vs_main` (identical shape), and `svg.rs`'s
+      // `<symbol viewBox="region.x region.y region.w region.h">` (sprites_load)
+      // all agree on a different, shared convention: the local quad is scaled to
+      // `region`'s own pixel size *before* the transform, anchored at
+      // `Transform::position` (the corner where the local coordinate is `(0,0)`,
+      // not the quad's center) -- so `Transform::scale=1` means "true source-pixel
+      // size" and `position` is a corner, not a center. Native was the only one of
+      // the 4 backends using a self-invented, unscaled, centered convention.
+      // Pitfall: a backend whose own doc comment claims behavioral parity with a
+      // sibling ("the same minimal command family the WebGPU adapter translates")
+      // needs that claim checked against the sibling's actual vertex math, not just
+      // its command-family support list -- a backend can honestly support the same
+      // *commands* while silently computing a different *geometry* for them.
+      let world_x = m[ 0 ] * ( fx * region[ 2 ] ) + m[ 3 ] * ( fy * region[ 3 ] ) + m[ 6 ];
+      let world_y = m[ 1 ] * ( fx * region[ 2 ] ) + m[ 4 ] * ( fy * region[ 3 ] ) + m[ 7 ];
       out[ i * 4 ] = ( world_x / w ) * 2.0 - 1.0;
       out[ i * 4 + 1 ] = ( world_y / h ) * 2.0 - 1.0;
+      // UV math is unaffected by the fix above -- `fy` here is intentionally
+      // the complement of the `fy` used for `world_y`, matching `sprite.vert`'s
+      // own `(1.0 - quad.y)` flip: row 0 of the source bytes is the image's top
+      // row, but `fy = 1` is the *top* of a Y-up world-space quad.
       out[ i * 4 + 2 ] = ( region[ 0 ] + fx * region[ 2 ] ) / sw;
-      out[ i * 4 + 3 ] = ( region[ 1 ] + fy * region[ 3 ] ) / sh;
+      out[ i * 4 + 3 ] = ( region[ 1 ] + ( 1.0 - fy ) * region[ 3 ] ) / sh;
     }
     out
   }

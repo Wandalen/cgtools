@@ -20,7 +20,7 @@
 | 1 | [01_file.md](01_file.md) | `file` | ✅ |
 | 2 | [02_serve.md](02_serve.md) | `serve` | ✅ |
 
-**Total:** 2 parameter test specs (of 26 across the `shader_chunks` family)
+**Total:** 2 parameter test specs (of 28 across the `shader_chunks` family)
 
 ### Docs
 

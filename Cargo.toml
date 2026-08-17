@@ -46,6 +46,7 @@ members = [
   "module/helper/embroidery_tools",
   "module/helper/primitive_generation",
   "module/helper/line_tools",
+  "module/helper/gl_uniforms",
   "module/helper/gpu_hal",
   "module/helper/renderer",
   "module/helper/tilemap_renderer",
@@ -191,6 +192,10 @@ path = "module/helper/primitive_generation"
 [workspace.dependencies.line_tools]
 version = "0.2.0"
 path = "module/helper/line_tools"
+
+[workspace.dependencies.gl_uniforms]
+version = "0.1.0"
+path = "module/helper/gl_uniforms"
 
 [workspace.dependencies.tilemap_renderer]
 version = "0.2.0"

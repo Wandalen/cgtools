@@ -25,9 +25,6 @@ mod private
     }
   };
 
-  /// Precision for finding equal floats
-  const EPSILON : f64 = 0.001;
-
   /// Normalize weights of blended animation values
   pub fn weights_normalize< T >( values : &mut [ ( T, f32 ) ] )
   {
@@ -129,41 +126,19 @@ mod private
 
     /// Check if blended animation is completed ( checks if all animations are completed )
     /// Better use before update
-    ///
-    /// # Panics
-    ///
-    /// Panics if any animation time is NaN ( the completion sort uses strict `partial_cmp` ).
+    // Fix(BUG-242): previously sorted animations by `.time()` and, when the top two were tied
+    // ( within an EPSILON ), unconditionally returned `false` regardless of completion state;
+    // when not tied, checked only the single animation with the largest raw elapsed time --
+    // meaningless across animations of different durations -- and ignored every other one.
+    // Neither branch implemented "all animations completed". Root cause: `.time()` measures
+    // raw elapsed time, not completion; two animations can be time-tied while both genuinely
+    // completed ( false negative ), or untied while the largest-time one alone is completed and
+    // a shorter one isn't ( false positive ).
     #[ must_use ]
     pub fn is_completed( &self ) -> bool
     {
-      let mut animations = self.weighted_animations.values()
-      .map( | ( s, _ ) | s ).collect::< Vec< _ > >();
-
-      animations.sort_by
-      (
-        | a, b |
-        a.time().partial_cmp( &b.time() ).unwrap()
-      );
-      animations.reverse();
-
-      let mut i = 1;
-      while i < animations.len()
-      {
-        if ( animations[ i - 1 ].time() - animations[ i ].time() ).abs() > EPSILON
-        {
-          break;
-        }
-        i += 1;
-      }
-
-      if i == 1
-      {
-        animations[ 0 ].is_completed()
-      }
-      else
-      {
-        false
-      }
+      !self.weighted_animations.is_empty()
+      && self.weighted_animations.values().all( | ( s, _ ) | s.is_completed() )
     }
 
     /// Reset all blended animations

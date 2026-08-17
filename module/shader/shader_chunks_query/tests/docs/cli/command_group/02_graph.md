@@ -10,6 +10,7 @@ Source: [`../../../../docs/cli/command_group/02_graph.md`](../../../../docs/cli/
 | CG-2 | The no-argument forest renders exactly the root chunks | `shader_chunks_query_core/tests/shader_chunks_query_core_test.rs::tree_chunk_with_no_name_shows_forest_of_every_root_chunk` |
 | CG-3 | An unknown root name fails loudly, never a panic | `shader_chunks_query_core/tests/shader_chunks_query_core_test.rs::tree_chunk_reports_unknown_chunk_error_for_bogus_name` |
 | CG-4 | The help screen renders this group with exactly its documented membership (`tree`) | `cli_subprocess_test.rs::top_level_help_groups_commands_by_responsibility` |
+| CG-5 | `reverse::1` mirrors the forward walk's structural invariant — parent-before-child, chain order preserved — over the inverted edge set | `shader_chunks_query_core/tests/shader_chunks_query_core_test.rs::tree_reverse_on_a_chunk_shows_its_dependents_chain_in_order`; `cli_subprocess_test.rs::tree_hash21_reverse_shows_the_dependents_chain` |
 
 ### Membership Coverage
 
@@ -25,8 +26,8 @@ holds for every current member:
 
 | Metric | Value |
 |--------|-------|
-| Group cases | 4 |
-| Behaviorally tested | 4 |
+| Group cases | 5 |
+| Behaviorally tested | 5 |
 | Structurally verified | 0 |
 | Membership coverage | 1/1 commands |
 

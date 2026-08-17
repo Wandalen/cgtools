@@ -12,8 +12,9 @@ re-run the command to refresh a number instead of trusting the table. Live work 
   docs/adr/004), and `--all-features` enables all 4 at once. `--exclude orrery_flexible` mirrors what
   `verb/test` itself already does for this crate; see that script's own comment above its native
   stages for the full per-feature check list.
-- **Task system:** 87 completed · 2 draft · 8 cancelled · 8 accepting · 11 verifying · 1 open bug
-  (see task/readme.md for the live table).
+- **Task system:** 87 completed · 2 draft · 8 cancelled · 8 accepting · 14 verifying · 1 open bug
+  (see task/readme.md for the live table; counts re-derived 2026-08-17 via
+  `grep -oE '\| (✅|🔎|📝|🚫|❓|🔬|⚙️|📦) \([A-Za-z]+\)' task/readme.md | sort | uniq -c`).
 
 ## Regeneration commands
 
@@ -111,20 +112,23 @@ files — verified clean 2026-08-13.)*
 - **056** — vectorizer revival watch item (📝 Draft; explicitly YAGNI-deferred, no action unless a
   real consumer emerges).
 - **098** — obj_viewer example proposal watch item (📝 Draft; same YAGNI-deferred pattern).
-- **8 tasks in 🔎 Accepting** (114, 115, 116, 118, 191, 192, 201, 202) and **11 in 🔬 Verifying**
-  (197, 198, 203, 206, 218, 219, 220, 221, 222, 223, 224) — all code-complete and independently
-  self-verified (Tier 2 Dual-Role Self-Check). Every attempted `tsk .acceptance_pass`/`.verify_pass`
-  transition on all 19 is refused by this sandbox's same-actor guard (`self-verification forbidden` —
-  actor matches `executing_by`/`filed_by`). Blocked on a genuinely independent verifier, not on
-  further work; see each task's own Journal section for the exact refusal.
+- **8 tasks in 🔎 Accepting** (114, 115, 116, 118, 191, 192, 201, 202) and **14 in 🔬 Verifying**
+  (197, 198, 203, 206, 218, 219, 220, 221, 222, 223, 224, 225, 226, 243) — all code-complete and
+  independently self-verified (Tier 2 Dual-Role Self-Check). Every attempted
+  `tsk .acceptance_pass`/`.verify_pass` transition on all 22 is refused by this sandbox's same-actor
+  guard (`self-verification forbidden` — actor matches `executing_by`/`filed_by`). Blocked on a
+  genuinely independent verifier, not on further work; see each task's own Journal section for the
+  exact refusal.
 - **BUG-114** (🎯 Verified, High) — `diamond` example's uv-attribute stride mismatch. Fix applied and
-  now live-confirmed: Chromium/SwiftShader's software WebGL2 backend performs no `drawElements`-time
+  live-confirmed: Chromium/SwiftShader's software WebGL2 backend performs no `drawElements`-time
   bounds validation at all (blocked round 1's VERIFY Gate), but a re-run of the identical MRE via
   Firefox instead — whose software fallback genuinely validates buffer bounds — reproduced the full
   predicted symptom exactly (see the bug file's `## Verification Record`). VERIFY Gate PASS (8/8);
-  moved to `bug/verified/`, claimable for the fix-promotion/acceptance path.
+  promoted to **task 243** (formal fix-task registration via `bug_promote`/PROC12), itself readiness-
+  gate PASS (8/8) and now folded into the 14-Verifying count above, same same-actor-guard block.
 
-No task in the current backlog is actionable by further autonomous work in this sandbox — the 19
+No task in the current backlog is actionable by further autonomous work in this sandbox — the 22
 tasks above are code-complete and self-verified pending independent review, blocked only on a
-genuinely independent verifier this sandbox's same-actor guard cannot supply. BUG-114 is resolved.
+genuinely independent verifier this sandbox's same-actor guard cannot supply. BUG-114 is resolved and
+promoted.
 

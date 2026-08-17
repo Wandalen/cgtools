@@ -50,8 +50,8 @@ covering param/command/command_group/type tiers.
 
 - [`command/`](command/readme.md) — the 1 command (`render`)
 - [`command_group/`](command_group/readme.md) — the 1 command group (`Render`)
-- [`param/`](param/readme.md) — the 3 parameters owned by this crate (`out`, `size`, `time`)
-- [`type/`](type/readme.md) — the 1 semantic type owned by this crate (`Float`)
+- [`param/`](param/readme.md) — the 4 parameters owned by this crate (`out`, `size`, `time`, `set`)
+- [`type/`](type/readme.md) — the 2 semantic types owned by this crate (`Float`, `ParameterOverride`)
 - [`../../../shader_chunks/docs/cli/dictionary.md`](../../../shader_chunks/docs/cli/dictionary.md) — family-wide domain term glossary
 - [`../../../shader_chunks/docs/cli/procedure.md`](../../../shader_chunks/docs/cli/procedure.md) — how to extend a `docs/cli/` tree when an entity is added or removed
 - [`../../tests/docs/cli/readme.md`](../../tests/docs/cli/readme.md) — test specification mirror
@@ -74,9 +74,9 @@ crate-local addenda:
   than being duplicated per leaf — one glossary and one extension
   procedure serve all 5 CLIs since they share the same entity taxonomy
   (`cli_doc_des.rulebook.md`).
-- **`param_group/` and `format/` omitted here.** `render`'s 5 parameters
+- **`param_group/` and `format/` omitted here.** `render`'s 6 parameters
   (the shared `name`/`file` target pair plus this crate's own `out`,
-  `size`, `time`) are target selection and artifact shaping, not
+  `size`, `time`, `set`) are target selection and artifact shaping, not
   filter/projection/formatting — no co-occurrence group applies. Its
   output is a binary PNG file plus a `plain_text` summary line reused
   verbatim from `shader_chunks_compose` — no new format is introduced.

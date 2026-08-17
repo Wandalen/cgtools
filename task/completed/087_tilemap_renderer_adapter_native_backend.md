@@ -305,6 +305,13 @@ independent verifier performs the walk after the task reaches 🔎 Accepting.
     deferral held, no cross-crate leak from *this* task) is satisfied: `git diff --
     module/helper/gpu_hal/src/device.rs | grep new_native` is empty — zero new backend-selection
     parameters, confirming C7's own underlying question directly.
+- **[2026-08-17]** `NOTE` — Routine `task/verified/` cleanup removed the stray
+  `-0051`/`-0055`/`-0056`/`-0059`/`-0060`/`-0061`/`-0062_longrun.log` files cited above as raw
+  verification transcripts (hyphen-prefixed, gitignored, freely-deletable per this project's own
+  storage-tier convention). No effect on this task's evidentiary record: every cited result's
+  substance (exit codes, pass/fail counts, line counts, diffstat) is already transcribed in prose
+  immediately alongside each citation above — only the raw backing transcript is gone, not the
+  finding it supported.
 
 ## Verification Record
 

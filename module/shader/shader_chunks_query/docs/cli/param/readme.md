@@ -5,11 +5,12 @@
 - **Purpose:** Documents every parameter accepted by this crate's commands.
 - **Responsibility:** One dedicated file per parameter, unified across
   every command that accepts it.
-- **In Scope:** The 21 parameters declared across `list`/`get`/`tags`/`tree`'s
+- **In Scope:** The 22 parameters declared across `list`/`get`/`tags`/`tree`'s
   `ArgumentDefinition`s — 2 positional selectors (`name`, `names`) plus
   the 19 named query parameters `.list` and `.get` share verbatim (one of
   which, `transitive::`, `.compose` in the `shader_chunks_compose` crate
-  also accepts as its closure switch).
+  also accepts as its closure switch), plus `.tree`'s own `reverse::`
+  switch.
 - **Out of Scope:** Command-level syntax/examples (→ [`../command/`](../command/readme.md)),
   type constraints/parsing (→ [`../type/`](../type/readme.md)),
   co-occurrence/interaction rules (→ [`../param_group/`](../param_group/readme.md)),
@@ -44,15 +45,17 @@
 | 19 | [19_offset.md](19_offset.md) | `offset` | [`NonNegativeInteger`](../type/08_non_negative_integer.md) | `0` | ✅ |
 | 20 | [20_heading.md](20_heading.md) | `heading` | String | off | ✅ |
 | 21 | [21_width.md](21_width.md) | `width` | [`NonNegativeInteger`](../type/08_non_negative_integer.md) | `0` (auto) | ✅ |
+| 22 | [22_reverse.md](22_reverse.md) | `reverse` | [`Switch`](../type/07_switch.md) | `false` | ✅ |
 
-**Total:** 21 parameters (of 26 across the `shader_chunks` family)
+**Total:** 22 parameters (of 28 across the `shader_chunks` family)
 
 **Parameter Groups:** the 19 named query parameters (#3–#21) partition
 into 3 groups — [filtering](../param_group/01_filtering.md),
 [projection](../param_group/02_projection.md),
 [formatting](../param_group/03_formatting.md) — shared verbatim by
 `.list` and `.get`; see [`../param_group/`](../param_group/readme.md).
-The positional selectors (#1, #2) belong to no group.
+The positional selectors (#1, #2) and `.tree`'s own `reverse` (#22)
+belong to no group.
 
 ### Docs
 

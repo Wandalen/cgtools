@@ -45,9 +45,10 @@ name. The shared bundle-building lineage lives in code (both call
 ### Invariants
 
 - Rendered pixels are deterministic for identical input (same chunk or
-  file content, same `size::`, same `time::`) on a given GPU adapter —
-  parameters always take their initial values, and nothing else varies —
-  but the command is NOT side-effect-free: the `out::` path is always
+  file content, same `size::`, same `time::`, same `set::` overrides, if
+  any) on a given GPU adapter — parameters take their initial values
+  unless overridden via `set::`, and nothing else varies — but the
+  command is NOT side-effect-free: the `out::` path is always
   (re)written on success, unconditionally overwriting any previous file
   there.
 - Naga validation runs before any GPU work and any write — a chunk that
@@ -77,7 +78,7 @@ finished static image file), not command count.
 | File | Relationship |
 |------|--------------|
 | [`../../../tests/docs/cli/command_group/01_render.md`](../../../tests/docs/cli/command_group/01_render.md) | Group-level test specification |
-| [`../../../../shader_chunks_render/tests/render_cli_test.rs`](../../../../shader_chunks_render/tests/render_cli_test.rs) | `size_parse_accepts_square_and_explicit_forms`, `size_parse_rejects_zero_missing_and_junk_sides`, `out_path_default_derives_from_the_target`, `name_target_renders_a_png_of_the_requested_size`, `unknown_name_is_rejected_with_the_shared_unknown_chunk_text`, `unpreviewable_chunk_is_rejected_before_any_gpu_work`, `missing_file_is_an_io_error_with_exit_code_2`, `subprocess_render_writes_the_png_and_prints_the_summary`, `subprocess_render_with_unknown_name_fails_with_exit_1`, `subprocess_render_with_no_target_fails_loudly`, `subprocess_render_with_both_targets_fails_loudly`, `subprocess_render_with_bad_size_fails_with_exit_1`, `subprocess_render_with_non_numeric_time_is_rejected_by_coercion`, `subprocess_help_lists_the_render_group` |
+| [`../../../../shader_chunks_render/tests/render_cli_test.rs`](../../../../shader_chunks_render/tests/render_cli_test.rs) | `size_parse_accepts_square_and_explicit_forms`, `size_parse_rejects_zero_missing_and_junk_sides`, `out_path_default_derives_from_the_target`, `name_target_renders_a_png_of_the_requested_size`, `unknown_name_is_rejected_with_the_shared_unknown_chunk_text`, `unpreviewable_chunk_is_rejected_before_any_gpu_work`, `missing_file_is_an_io_error_with_exit_code_2`, `subprocess_render_writes_the_png_and_prints_the_summary`, `subprocess_render_with_unknown_name_fails_with_exit_1`, `subprocess_render_with_no_target_fails_loudly`, `subprocess_render_with_both_targets_fails_loudly`, `subprocess_render_with_bad_size_fails_with_exit_1`, `subprocess_render_with_non_numeric_time_is_rejected_by_coercion`, `subprocess_help_lists_the_render_group`, `set_override_replaces_the_named_parameters_default_value`, `subprocess_render_with_unknown_set_parameter_fails_with_exit_1` |
 | [`../../../../shader_chunks_render_core/tests/render_core_test.rs`](../../../../shader_chunks_render_core/tests/render_core_test.rs) | Engine-level: exact constant-color pixels, grayscale harness properties, row-padding widths, time drift, zero-size rejection, uniform layout |
 
 ### Typical Patterns

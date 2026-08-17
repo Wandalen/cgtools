@@ -607,3 +607,138 @@ fn test_blender_rotation_blend_aligns_hemisphere_across_clips()
     "blended rotation must not match the pre-fix long-path 135 degree blend, got {got:?} ( |dot| with buggy = {dot_buggy} )"
   );
 }
+
+/// ## Root Cause
+/// `Blender::is_completed()` sorted its animations by `.time()` and, when the top two were tied
+/// ( within an EPSILON ), unconditionally returned `false` regardless of whether every animation
+/// had actually completed. Two animations driven to completion at the same elapsed time are
+/// exactly the tied case -- the branch that always answered `false`.
+///
+/// ## Why Not Caught
+/// Every pre-existing `is_completed` test called `Blender::update()` immediately before checking
+/// `is_completed()`. `Blender::update()` itself auto-resets ( `time` back to `0.0`, state back to
+/// `Running` ) any animation that completes within that same call, so by the time `is_completed()`
+/// ran, no animation could ever still be observed in the `Completed` state -- the buggy tie branch
+/// and a correct "all completed" check produced the identical `false` answer in every existing
+/// test, for unrelated reasons. This test drives each `Sequencer` to completion directly via
+/// `animation_get_mut` instead of `Blender::update()`, bypassing the auto-reset so the genuinely
+/// `Completed` state survives long enough for `is_completed()` to observe it.
+///
+/// ## Fix Applied
+/// `is_completed()` now returns `!weighted_animations.is_empty() && weighted_animations.values().all(|(s,_)| s.is_completed())`
+/// -- a direct implementation of the documented contract, with no timing comparison at all
+/// ( BUG-242, `blending.rs` ).
+///
+/// ## Prevention
+/// This test's two animations reach completion at the same `.time()` ( the exact tied case the
+/// buggy sort/EPSILON logic special-cased to always-`false` ) and asserts `is_completed()` is
+/// `true`, since both genuinely are.
+///
+/// ## Pitfall
+/// Calling `Blender::update()` after driving animations to completion would silently undo the
+/// setup ( auto-reset ) before `is_completed()` runs -- this test must reach completion only via
+/// `animation_get_mut().update(..)` on each `Sequencer` directly, never via `Blender::update()`.
+// test_kind: bug_reproducer(BUG-242)
+#[ test ]
+fn test_is_completed_two_animations_same_time_both_genuinely_completed()
+{
+  let mut blender = Blender::new();
+
+  let mut seq1 = Sequencer::new();
+  seq1.insert
+  (
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+  );
+
+  let mut seq2 = Sequencer::new();
+  seq2.insert
+  (
+    format!( "node2{TRANSLATION_PREFIX}" ).as_str(),
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
+  );
+
+  blender.add( "anim1".into(), seq1, F64x3::new( 0.5, 0.0, 0.0 ) );
+  blender.add( "anim2".into(), seq2, F64x3::new( 0.5, 0.0, 0.0 ) );
+
+  // Drive both directly to completion, bypassing `Blender::update()`'s auto-reset-on-completion.
+  // Two calls are required: the inner `Sequence` player's own state machine only advances
+  // Pending -> Running on the first `update()` call ( regardless of delta size, since `match
+  // self.state { .. }` dispatches to exactly one arm per call ) and can only detect
+  // Running -> Completed on a subsequent call.
+  blender.animation_get_mut( "anim1" ).unwrap().update( 1.5 );
+  blender.animation_get_mut( "anim1" ).unwrap().update( 1.5 );
+  blender.animation_get_mut( "anim2" ).unwrap().update( 1.5 );
+  blender.animation_get_mut( "anim2" ).unwrap().update( 1.5 );
+
+  assert!( blender.animation_get( "anim1" ).unwrap().is_completed(), "setup sanity: anim1 must be genuinely completed" );
+  assert!( blender.animation_get( "anim2" ).unwrap().is_completed(), "setup sanity: anim2 must be genuinely completed" );
+
+  assert!( blender.is_completed(), "two animations completed at the identical time should report the Blender as completed" );
+}
+
+/// ## Root Cause
+/// See `test_is_completed_two_animations_same_time_both_genuinely_completed` above for the shared
+/// root cause. This test exercises the complementary branch: when the two animations' `.time()`
+/// values were NOT tied, the pre-fix code checked only the single animation with the largest raw
+/// elapsed time and ignored every other one -- a meaningless comparison across animations of
+/// different total durations, since a larger `.time()` does not imply "closer to completion".
+///
+/// ## Why Not Caught
+/// Same masking mechanism as the sibling test above: every pre-existing test checked
+/// `is_completed()` immediately after `Blender::update()`, whose own auto-reset-on-completion
+/// erased any genuine `Completed` state before the buggy largest-time-only check could produce a
+/// false positive. This test reaches completion via `animation_get_mut` directly instead.
+///
+/// ## Fix Applied
+/// Same fix as the sibling test: `is_completed()` folds `is_completed()` across every animation
+/// with `Iterator::all`, independent of each animation's `.time()` ( BUG-242, `blending.rs` ).
+///
+/// ## Prevention
+/// This test's two animations reach completion at deliberately different `.time()` values, with
+/// the animation carrying the LARGER `.time()` completed and the one with the SMALLER `.time()`
+/// still running -- the exact shape the pre-fix code answered `true` for ( checking only the
+/// largest-time entry ) despite not all animations having completed. Asserts `is_completed()` is
+/// `false`.
+///
+/// ## Pitfall
+/// The completed animation must have a strictly larger `.time()` than the incomplete one for this
+/// test to exercise the pre-fix false-positive branch -- swapping which animation gets the larger
+/// update would instead land in the sibling bug's tied-branch or a trivially-correct case.
+// test_kind: bug_reproducer(BUG-242)
+#[ test ]
+fn test_is_completed_larger_time_animation_completed_smaller_time_animation_not()
+{
+  let mut blender = Blender::new();
+
+  // Short duration ( 1.0 ), driven well past completion -- large `.time()`, genuinely completed.
+  let mut seq_done = Sequencer::new();
+  seq_done.insert
+  (
+    format!( "node1{TRANSLATION_PREFIX}" ).as_str(),
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+  );
+
+  // Long duration ( 10.0 ), given only a small update -- small `.time()`, not completed.
+  let mut seq_running = Sequencer::new();
+  seq_running.insert
+  (
+    format!( "node2{TRANSLATION_PREFIX}" ).as_str(),
+    translation_sequence_create( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 10.0 )
+  );
+
+  blender.add( "anim_done".into(), seq_done, F64x3::new( 0.5, 0.0, 0.0 ) );
+  blender.add( "anim_running".into(), seq_running, F64x3::new( 0.5, 0.0, 0.0 ) );
+
+  // Two calls needed to reach Completed -- see the sibling test above for why.
+  blender.animation_get_mut( "anim_done" ).unwrap().update( 1.5 );
+  blender.animation_get_mut( "anim_done" ).unwrap().update( 1.5 );
+  blender.animation_get_mut( "anim_running" ).unwrap().update( 0.5 );
+
+  assert!( blender.animation_get( "anim_done" ).unwrap().time() > blender.animation_get( "anim_running" ).unwrap().time(),
+    "setup sanity: the completed animation must have the larger .time() to exercise the false-positive branch" );
+  assert!( blender.animation_get( "anim_done" ).unwrap().is_completed(), "setup sanity: anim_done must be genuinely completed" );
+  assert!( !blender.animation_get( "anim_running" ).unwrap().is_completed(), "setup sanity: anim_running must not be completed" );
+
+  assert!( !blender.is_completed(), "not all animations completed -- Blender must not report completed just because the largest-time one is" );
+}

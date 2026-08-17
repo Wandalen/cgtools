@@ -87,7 +87,11 @@ L0 occupant; feeds `scene_script`'s tween bindings today),
 browser shader-chunk authoring/preview tooling — single-backend by design
 via direct `minwgpu`/`minwebgpu` dependencies, not a portability seam any
 stack needs; see
-[docs/layer/001](docs/layer/001_l0_drivers.md#non-stack-tooling-consumers)).
+[docs/layer/001](docs/layer/001_l0_drivers.md#non-stack-tooling-consumers)),
+`gl_uniforms` (program-scoped WebGL uniform upload wrapper — a thin
+ergonomic layer directly over `minwebgl`'s uniform primitives, not a
+portability seam or orchestration layer, so it sits beside L0 rather than
+occupying a rung).
 
 **Rationale:** One glance answers "where does my crate sit, and what may it
 depend on" without walking the doc graph. The detailed contracts stay

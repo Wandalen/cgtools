@@ -36,12 +36,12 @@ lookup surface; each leaf owns its own full L1-L3 documentation tree.
 
 | Leaf crate | Commands | Groups | Own Params | Own Types | Own Formats | Docs |
 |------------|----------|--------|------------|-----------|-------------|------|
-| [`shader_chunks_query`](../../../shader_chunks_query/docs/cli/readme.md) | `list`, `get`, `tags`, `tree` | Query, Graph | 21 | 10 | 7 | Complete |
+| [`shader_chunks_query`](../../../shader_chunks_query/docs/cli/readme.md) | `list`, `get`, `tags`, `tree` | Query, Graph | 22 | 10 | 7 | Complete |
 | [`shader_chunks_compose`](../../../shader_chunks_compose/docs/cli/readme.md) | `compose` | Compose | 0 (reuses `names`/`transitive`) | 0 | 1 | Complete |
 | [`shader_chunks_params`](../../../shader_chunks_params/docs/cli/readme.md) | `tunables` | Parameters | 0 (reuses `name`) | 0 | 0 (reuses `table_plain`) | Complete |
 | [`shader_chunks_preview`](../../../shader_chunks_preview/docs/cli/readme.md) | `preview` | Preview | 2 | 0 | 0 (reuses `plain_text`) | Complete |
-| [`shader_chunks_render`](../../../shader_chunks_render/docs/cli/readme.md) | `render` | Render | 3 | 1 | 0 (reuses `plain_text`) | Complete |
-| **Total** | **8** | **6** | **26** | **11** | **8** | |
+| [`shader_chunks_render`](../../../shader_chunks_render/docs/cli/readme.md) | `render` | Render | 4 | 2 | 0 (reuses `plain_text`) | Complete |
+| **Total** | **8** | **6** | **28** | **12** | **8** | |
 
 | Local file | L1 | L2 | L3 | L4 | L5 | Status |
 |------|----|----|----|----|----|--------|
@@ -77,7 +77,7 @@ governing task).
 - [`shader_chunks_compose/docs/cli/`](../../../shader_chunks_compose/docs/cli/readme.md) — `compose`; the `plain_text` format
 - [`shader_chunks_params/docs/cli/`](../../../shader_chunks_params/docs/cli/readme.md) — `tunables`
 - [`shader_chunks_preview/docs/cli/`](../../../shader_chunks_preview/docs/cli/readme.md) — `preview`; `file`/`serve` params
-- [`shader_chunks_render/docs/cli/`](../../../shader_chunks_render/docs/cli/readme.md) — `render`; `out`/`size`/`time` params, the `Float` type
+- [`shader_chunks_render/docs/cli/`](../../../shader_chunks_render/docs/cli/readme.md) — `render`; `out`/`size`/`time`/`set` params, the `Float`/`ParameterOverride` types
 - [`dictionary.md`](dictionary.md) — family-wide domain term glossary (stays centralized — see Scope Decisions)
 - [`procedure.md`](procedure.md) — how to extend a `docs/cli/` tree when an entity is added or removed (stays centralized — see Scope Decisions)
 - [`../../tests/docs/cli/readme.md`](../../tests/docs/cli/readme.md) — test specification family index
