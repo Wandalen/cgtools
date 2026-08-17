@@ -247,6 +247,14 @@ fn test_to_euler_xyz()
   }
 }
 
+// Note (BUG-272): case 4's raw quat literal was corrected from `[ 0.707, 0.0, 0.707, 0.0 ]` to
+// `[ 0.0, -FRAC_1_SQRT_2, 0.0, FRAC_1_SQRT_2 ]`. The original literal has `w = 0`, i.e. it is a
+// 180 degree rotation about axis `( 1, 0, 1 ) / sqrt( 2 )`, not `Ry( -90 deg )` -- it only
+// "passed" against the pre-fix buggy formula because that formula's mismatched `sinp = 2 * ( w *
+// y - z * x )` happened to evaluate to `-1.0` for this specific (wrong) quat, coincidentally
+// landing on the claimed `-90 deg` within this test's loose `epsilon = 1e-1`. The corrected
+// literal is the quaternion `from_angle_y( -90 deg )` actually produces (expressed via the named
+// constant rather than a decimal literal, since the latter trips clippy's `approx_constant`).
 #[ test ]
 fn test_to_euler_xyz_from_raw_quat()
 {
@@ -257,7 +265,7 @@ fn test_to_euler_xyz_from_raw_quat()
     ( [ 0.009, 0.017, 0.026, 0.999 ], [ 1.0_f64.to_radians(), 2.0_f64.to_radians(), 3.0_f64.to_radians() ] ),
     ( [ 0.0, 0.0, 0.0, 1.0 ], [ 0.0, 0.0, 0.0 ] ),
     ( [ 0.0, 0.0, 0.0, 1.0 ], [ 0.01_f64.to_radians(), 0.01_f64.to_radians(), 0.01_f64.to_radians() ] ),
-    ( [ 0.707, 0.0, 0.707, 0.0 ], [ 0.0, -90.0_f64.to_radians(), 0.0 ] ),
+    ( [ 0.0, -std::f64::consts::FRAC_1_SQRT_2, 0.0, std::f64::consts::FRAC_1_SQRT_2 ], [ 0.0, -90.0_f64.to_radians(), 0.0 ] ),
   ];
 
   for ( raw_quat, expected ) in test_cases
@@ -280,53 +288,87 @@ fn test_to_euler_xyz_from_raw_quat()
 /// ## Root Cause
 /// `to_euler_xyz` extracted pitch/roll/yaw via `asin`/`atan2` formulas whose cross terms had
 /// the wrong sign ( `w*y - z*x` instead of `w*y + z*x` for pitch; `w*x + y*z` instead of
-/// `w*x - y*z` for roll; `w*z + x*y` instead of `w*z - x*y` for yaw ), and the gimbal-lock
-/// branch's collapsed-yaw denominator used `y*y + z*z` instead of `x*x + z*z`.
+/// `w*x - y*z` for roll; `w*z + x*y` instead of `w*z - x*y` for yaw ), the gimbal-lock branch's
+/// collapsed-yaw denominator used `y*y + z*z` instead of `x*x + z*z`, and that same branch's
+/// leading `two *` bound to the *result* of `.atan2( .. )` instead of its numerator (`two * (
+/// x * y + w * z ).atan2( .. )` computes `2 * atan2( n, d )`, not the required `atan2( 2*n, d
+/// )` -- the two are different functions whenever `n != 0`).
 ///
 /// ## Why Not Caught
 /// The pre-existing `test_to_euler_xyz`/`test_to_euler_xyz_from_raw_quat` cases used only
 /// small angles ( 1-3 degrees, where the mismatched cross term is numerically tiny ) or
 /// single-axis rotations ( where the mismatched cross term multiplies an always-zero
-/// component ), both of which mask a wrong sign under those tests' loose `epsilon = 1e-1`
-/// tolerance -- neither a genuine multi-axis rotation nor an exact gimbal-lock case with
+/// component, and where the gimbal-lock case's roll and yaw are both zero -- the one condition
+/// under which `2 * atan2( n, d )` and `atan2( 2*n, d )` coincide, since `n = 0` either way ),
+/// both of which mask a wrong sign or misplaced doubling under those tests' loose `epsilon =
+/// 1e-1` tolerance -- neither a genuine multi-axis rotation nor an exact gimbal-lock case with
 /// nonzero roll and yaw was ever exercised at a tight tolerance.
 ///
 /// ## Fix Applied
-/// BUG-270 corrected the three cross-term signs and the gimbal-lock denominator in
+/// BUG-272 corrected the three cross-term signs, the gimbal-lock denominator, and the
+/// gimbal-lock branch's numerator parenthesization in
 /// `src/quaternion/arithmetics.rs::to_euler_xyz`.
 ///
 /// ## Prevention
-/// This test round-trips two genuinely multi-axis rotations -- one away from gimbal lock
-/// ( 30 deg / 20 deg / 10 deg ) and one exactly at gimbal lock with nonzero roll and yaw
-/// ( 30 deg / 90 deg / 20 deg, which the documented convention collapses to `[ 0, 90 deg, 50
-/// deg ]` ) -- through `from_euler_xyz` ( independently verified correct against the crate's
-/// own Hamilton-product `multiply` convention ) and back through `to_euler_xyz`, at a tight
-/// `epsilon = 1e-6`. The pre-fix formulas fail this immediately; only the corrected signs
-/// recover the original input.
+/// This test round-trips three genuinely exercising rotations -- one away from gimbal lock
+/// ( 30 deg / 20 deg / 10 deg, checked by direct angle comparison since the decomposition is
+/// unique there ), and one at each gimbal pole ( pitch = +90 deg and pitch = -90 deg ) with
+/// nonzero roll and yaw on both sides -- through `from_euler_xyz` ( independently verified
+/// correct against the crate's own Hamilton-product `multiply` convention ) and back through
+/// `to_euler_xyz`, at a tight `epsilon = 1e-6`. Roll and yaw are individually ambiguous at
+/// gimbal lock ( only their combination is determined by the rotation ), so each gimbal case
+/// checks reported roll/pitch directly ( both are set by construction: roll = 0 exactly, pitch
+/// = +/-90 deg ) and then re-composes the reported angles through `from_euler_xyz` again,
+/// asserting the round-tripped quaternion represents the same rotation as the original ( `|dot|
+/// ~= 1`, since unit quaternions `p` and `-p` both encode the same rotation ) rather than
+/// hardcoding a specific collapsed-angle literal. The pre-fix formulas fail this immediately;
+/// only the corrected signs, denominator, and parenthesization recover the original rotation.
 ///
 /// ## Pitfall
 /// A round-trip test using only small angles or single-axis rotations cannot distinguish a
-/// correct Euler-angle extraction formula from one with flipped cross-term signs, because the
-/// erroneous term is numerically negligible or multiplies an always-zero component in both
-/// cases -- always include at least one genuinely multi-axis case with non-trivial angles, and
-/// one exact gimbal-lock case with nonzero angles on both sides, at a tight tolerance.
-// test_kind: bug_reproducer(BUG-270)
+/// correct Euler-angle extraction formula from one with flipped cross-term signs or a misplaced
+/// doubling, because the erroneous term is numerically negligible, multiplies an always-zero
+/// component, or is applied to a zero numerator in every such case -- always include at least
+/// one genuinely multi-axis case with non-trivial angles, and gimbal-lock cases with nonzero
+/// angles on both sides, at a tight tolerance. At gimbal lock specifically, comparing to a
+/// hand-derived expected angle triple is itself fragile ( roll/yaw are non-unique, and
+/// re-deriving the collapsed-angle formula by hand is exactly the kind of sign-sensitive
+/// arithmetic prone to the same class of transcription slip as the bug under test ) -- asserting
+/// round-trip rotation equivalence instead is both more robust and does not require hand-solving
+/// the ambiguous decomposition.
+// test_kind: bug_reproducer(BUG-272)
 #[ test ]
 fn test_to_euler_xyz_multi_axis_round_trip()
 {
   use the_module::QuatF64;
 
-  // Away from gimbal lock: roll = 30 deg, pitch = 20 deg, yaw = 10 deg.
+  // Away from gimbal lock: roll = 30 deg, pitch = 20 deg, yaw = 10 deg. The decomposition is
+  // unique here, so a direct angle comparison is valid.
   let input = [ 30.0_f64.to_radians(), 20.0_f64.to_radians(), 10.0_f64.to_radians() ];
   let q = QuatF64::from_euler_xyz( input );
   let result = q.to_euler_xyz();
   assert_abs_diff_eq!( result, F64x3::from_array( input ), epsilon = 1e-6 );
 
-  // Exact gimbal lock ( pitch = 90 deg ) with nonzero roll and yaw: the documented convention
-  // collapses roll into yaw, so the recovered angles are [ 0, 90 deg, roll + yaw ].
+  // Exact gimbal lock ( pitch = 90 deg ) with nonzero roll and yaw: roll and yaw individually
+  // become ambiguous ( only their combination is determined by the rotation ), so this checks
+  // the unambiguous roll/pitch directly and then asserts the recomposed quaternion represents
+  // the same rotation as the original, instead of hardcoding a specific collapsed-angle value.
   let gimbal_input = [ 30.0_f64.to_radians(), 90.0_f64.to_radians(), 20.0_f64.to_radians() ];
   let q_gimbal = QuatF64::from_euler_xyz( gimbal_input );
   let result_gimbal = q_gimbal.to_euler_xyz();
-  let expected_gimbal = F64x3::new( 0.0, 90.0_f64.to_radians(), 50.0_f64.to_radians() );
-  assert_abs_diff_eq!( result_gimbal, expected_gimbal, epsilon = 1e-6 );
+  assert_abs_diff_eq!( result_gimbal.x(), 0.0, epsilon = 1e-6 );
+  assert_abs_diff_eq!( result_gimbal.y(), 90.0_f64.to_radians(), epsilon = 1e-6 );
+  let q_gimbal_roundtrip = QuatF64::from_euler_xyz( result_gimbal );
+  assert_abs_diff_eq!( q_gimbal_roundtrip.dot( &q_gimbal ).abs(), 1.0, epsilon = 1e-6 );
+
+  // Exact gimbal lock at the opposite pole ( pitch = -90 deg ), also with nonzero roll and yaw
+  // -- the same branch handles both signs, so this independently guards the collapsed-angle
+  // numerator's parenthesization for the negative-pitch case too.
+  let gimbal_input_neg = [ 30.0_f64.to_radians(), -90.0_f64.to_radians(), 20.0_f64.to_radians() ];
+  let q_gimbal_neg = QuatF64::from_euler_xyz( gimbal_input_neg );
+  let result_gimbal_neg = q_gimbal_neg.to_euler_xyz();
+  assert_abs_diff_eq!( result_gimbal_neg.x(), 0.0, epsilon = 1e-6 );
+  assert_abs_diff_eq!( result_gimbal_neg.y(), -90.0_f64.to_radians(), epsilon = 1e-6 );
+  let q_gimbal_neg_roundtrip = QuatF64::from_euler_xyz( result_gimbal_neg );
+  assert_abs_diff_eq!( q_gimbal_neg_roundtrip.dot( &q_gimbal_neg ).abs(), 1.0, epsilon = 1e-6 );
 }

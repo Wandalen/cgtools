@@ -131,6 +131,20 @@ mod private
     data.matrix_upload( gl, uniform_location, column_major )
   }
 
+  /// Builds the error for an `f32` matrix upload whose flat data length doesn't match a
+  /// supported square-matrix size ( 4, 9, or 16 -- the flattened element count of a 2x2, 3x3,
+  /// or 4x4 matrix ).
+  ///
+  /// Pulled out as its own function ( rather than inlined at each `UniformMatrixUpload::matrix_upload`
+  /// call site in `float32.rs` ) so the error message content is unit-testable without a live
+  /// `GL` -- `matrix_upload` itself takes `&GL`, which can't be constructed outside a browser.
+  #[ inline ]
+  #[ must_use ]
+  pub fn f32_matrix_length_error( type_name : &'static str, len : usize ) -> WebglError
+  {
+    WebglError::CantUploadUniform( "matrix", type_name, len, "4, 9, 16" )
+  }
+
 }
 
 mod float32;
@@ -142,6 +156,6 @@ crate::mod_interface!
   prelude use UniformUpload;
   prelude use UniformMatrixUpload;
   orphan use WebGlUniformLocation;
-  own use { upload, matrix_upload };
+  own use { upload, matrix_upload, f32_matrix_length_error };
 
 }

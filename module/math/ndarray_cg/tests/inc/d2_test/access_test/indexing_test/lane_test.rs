@@ -240,6 +240,128 @@ fn test_valid_column_iteration_column_major()
   test_valid_column_iteration_generic::< DescriptorOrderColumnMajor >();
 }
 
+/// ## Root Cause
+/// `lane_iter`'s degenerate/empty-iterator guard tested the wrong dimension per branch in
+/// `access_column_major.rs`: the row branch (`varying_dim == 0`, indexed by `lane < ROWS`)
+/// checked `COLS == 0` instead of `ROWS == 0`, and the column branch (`varying_dim == 1`,
+/// indexed by `lane < COLS`) checked `ROWS == 0` instead of `COLS == 0`. For an asymmetric
+/// zero-size matrix (`ROWS != COLS`, exactly one of them `0`), the guard took the `else`
+/// branch and ran `assert!( lane < ROWS )` / `assert!( lane < COLS, .. )` against a zero
+/// bound with `lane == 0`, panicking instead of returning an empty iterator.
+///
+/// ## Why Not Caught
+/// `test_valid_row_iteration_generic`/`test_valid_column_iteration_generic` above only cover
+/// the *symmetric* `0x0` degenerate case, where `ROWS == COLS == 0` makes the buggy and the
+/// correct guard condition equivalent (`COLS == 0` and `ROWS == 0` agree when both are `0`),
+/// masking the swap entirely. No existing test used an asymmetric zero-size matrix (`0xN` or
+/// `Nx0` with `N > 0`).
+///
+/// ## Fix Applied
+/// BUG-271 swapped the guard conditions in both `lane_iter` and `lane_iter_mut` in
+/// `access_column_major.rs`: the row branch now checks `ROWS == 0` and the column branch now
+/// checks `COLS == 0`, matching `access_row_major.rs`'s already-correct per-branch guards.
+///
+/// ## Prevention
+/// This test exercises `Mat<0,3,..>`/`Mat<3,0,..>` -- asymmetric zero-size matrices -- for
+/// both descriptors, so a future guard-dimension swap on either branch fails loudly instead
+/// of hiding behind the symmetric `0x0` case.
+///
+/// ## Pitfall
+/// A degenerate-size guard pair (`if DIM_A == 0 {..} else { assert!( lane < DIM_A ) }`) must
+/// be checked against the *specific* dimension the `else` branch's assertion actually bounds
+/// -- testing only the symmetric `ROWS == COLS == 0` case can never distinguish a correct
+/// guard from one where both branches' conditions were swapped with each other.
+// test_kind: bug_reproducer(BUG-271)
+fn test_lane_iter_asymmetric_zero_size_generic< D : the_module::mat::Descriptor >()
+where
+  the_module::Mat< 0, 3, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingRef< Scalar = f32 >,
+  the_module::Mat< 3, 0, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingRef< Scalar = f32 >,
+{
+  use the_module::Mat;
+
+  // 0 rows, 3 columns: iterating "row 0" (varying_dim == 0) must be empty, not panic --
+  // there are no rows to index.
+  let mat_zero_rows = Mat::< 0, 3, f32, D >::default();
+  let row_iter : Vec< f32 > = mat_zero_rows.lane_iter( 0, 0 ).copied().collect();
+  let exp : Vec< f32 > = vec![];
+  assert_eq!( row_iter, exp, "Expected {exp:?}, got {row_iter:?}" );
+
+  // 3 rows, 0 columns: iterating "column 0" (varying_dim == 1) must be empty, not panic --
+  // there are no columns to index.
+  let mat_zero_cols = Mat::< 3, 0, f32, D >::default();
+  let col_iter : Vec< f32 > = mat_zero_cols.lane_iter( 1, 0 ).copied().collect();
+  let exp : Vec< f32 > = vec![];
+  assert_eq!( col_iter, exp, "Expected {exp:?}, got {col_iter:?}" );
+}
+
+#[ test ]
+fn test_lane_iter_asymmetric_zero_size_row_major()
+{
+  use the_module::mat::DescriptorOrderRowMajor;
+  test_lane_iter_asymmetric_zero_size_generic::< DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+fn test_lane_iter_asymmetric_zero_size_column_major()
+{
+  use the_module::mat::DescriptorOrderColumnMajor;
+  test_lane_iter_asymmetric_zero_size_generic::< DescriptorOrderColumnMajor >();
+}
+
+/// ## Root Cause
+/// `lane_iter_mut` (`IndexingMut`) duplicates `lane_iter`'s (`IndexingRef`) degenerate-size
+/// branching logic in `access_column_major.rs` and carried the identical guard-dimension
+/// swap -- see `test_lane_iter_asymmetric_zero_size_generic` above for the full root cause.
+///
+/// ## Why Not Caught
+/// No existing `lane_iter_mut` test used an asymmetric zero-size matrix (`0xN`/`Nx0` with
+/// `N > 0`); `test_lane_iter_mut_generic` only covers a `3x3` matrix.
+///
+/// ## Fix Applied
+/// BUG-271 swapped the guard conditions in `lane_iter_mut` the same way as `lane_iter`: the
+/// row branch now checks `ROWS == 0` and the column branch now checks `COLS == 0`.
+///
+/// ## Prevention
+/// This test exercises `Mat<0,3,..>`/`Mat<3,0,..>` through `lane_iter_mut` for both
+/// descriptors, so a future guard-dimension swap on either branch fails loudly.
+///
+/// ## Pitfall
+/// A `_mut` sibling that duplicates a checked accessor's branching logic (rather than
+/// delegating to it) duplicates its defects too -- fixing and testing the immutable accessor
+/// alone leaves the mutable sibling's own copy of the same bug completely uncovered.
+// test_kind: bug_reproducer(BUG-271)
+fn test_lane_iter_mut_asymmetric_zero_size_generic< D : the_module::mat::Descriptor >()
+where
+  the_module::Mat< 0, 3, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingMut< Scalar = f32 >,
+  the_module::Mat< 3, 0, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingMut< Scalar = f32 >,
+{
+  use the_module::Mat;
+
+  // 0 rows, 3 columns: mutably iterating "row 0" (varying_dim == 0) must be empty, not panic.
+  let mut mat_zero_rows = Mat::< 0, 3, f32, D >::default();
+  let row_count = mat_zero_rows.lane_iter_mut( 0, 0 ).count();
+  assert_eq!( row_count, 0, "Expected an empty mutable row iterator, got {row_count} elements" );
+
+  // 3 rows, 0 columns: mutably iterating "column 0" (varying_dim == 1) must be empty, not panic.
+  let mut mat_zero_cols = Mat::< 3, 0, f32, D >::default();
+  let col_count = mat_zero_cols.lane_iter_mut( 1, 0 ).count();
+  assert_eq!( col_count, 0, "Expected an empty mutable column iterator, got {col_count} elements" );
+}
+
+#[ test ]
+fn test_lane_iter_mut_asymmetric_zero_size_row_major()
+{
+  use the_module::mat::DescriptorOrderRowMajor;
+  test_lane_iter_mut_asymmetric_zero_size_generic::< DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+fn test_lane_iter_mut_asymmetric_zero_size_column_major()
+{
+  use the_module::mat::DescriptorOrderColumnMajor;
+  test_lane_iter_mut_asymmetric_zero_size_generic::< DescriptorOrderColumnMajor >();
+}
+
 fn test_invalid_dimension_generic<D: the_module::mat::Descriptor + std::panic::RefUnwindSafe>()
 where
   the_module::Mat<2, 2, f32, D>: Default + the_module::RawSliceMut<Scalar = f32> + the_module::IndexingRef<Scalar = f32>,

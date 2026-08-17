@@ -137,7 +137,18 @@ mod private
       self.yaw -= delta_x * self.rotation_sensitivity;
 
       // Update pitch (up/down rotation around X axis)
-      self.pitch -= delta_y * self.rotation_sensitivity;
+      // Fix(BUG-278): changed `-=` to `+=` for the pitch delta.
+      // Root cause: increasing `pitch` already rotates `forward.y` negative (down) via
+      // `Quat::from_angle_x`, unlike yaw -- where `-=` is required because the
+      // character's own `right_xz()` base vector is `-X` while increasing yaw rotates
+      // `forward` toward `+X`. Pitch has no such compensating inversion, but the `-=`
+      // used for yaw one line above was copy-pasted onto the pitch line without
+      // re-deriving pitch's own sign, inverting "mouse down" (positive `movementY`)
+      // into "look up" instead of "look down".
+      // Pitfall: two sibling axes sharing a delta-application pattern can each need a
+      // different sign; always re-derive a copied line's operator from its own
+      // rotation math, never from the neighboring line's already-established sign.
+      self.pitch += delta_y * self.rotation_sensitivity;
 
       // Clamp pitch to prevent over-rotation
       self.pitch = self.pitch.clamp( self.pitch_range.start, self.pitch_range.end );

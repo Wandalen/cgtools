@@ -14,4 +14,7 @@ the crate readme's Testing section for the full runnability story.
 | geometry_test.rs | Verifies natoms validation accepts 1-4, rejects the rest |
 | drawbuffers_test.rs | Verifies color-attachment index validation rejects out-of-range indices (BUG-159) |
 | sprite_upload_test.rs | Verifies sprite mip-level count and row/col position helpers (BUG-160, BUG-161) |
+| diagnostics_test.rs | Verifies `diagnostics`'s `obj` re-export resolves standalone (BUG-274) |
+| uniform_test.rs | Verifies the f32 matrix-upload length-error message content (BUG-277) |
+| enabled_feature_web_gate_test.rs | Verifies `exec_loop`/`log` resolve under `enabled` alone (BUG-279) |
 | manual/ | Scripted `browsee` browser-side pixel-verification procedure for the GL-context/DOM layer |
