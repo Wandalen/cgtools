@@ -17,14 +17,15 @@ and **committed**:
   object picking/selection (M5)")
 - `23f85330` on `space-game-demo` — M6 ("feat: add Falling Frontier
   transform gizmo (M6)")
-- M7 ("feat: add Falling Frontier fleet motion and trajectories (M7)") —
-  commit this one along with this doc update; see checklist entry below.
+- `5971b6a0` on `space-game-demo` — M7 ("feat: add Falling Frontier fleet
+  motion and trajectories (M7)")
 
 All with no `Co-Authored-By` trailer, per the standing repo rule (see memory
-`feedback_commit_trailers`). `examples/minwebgl/falling_frontier/Untitled.png`
-is an untracked debug screenshot the user pasted in during the M4 starfield
-investigation (see Notes section below) — left untracked on purpose, safe to
-delete once no longer needed, not part of the deliverable.
+`feedback_commit_trailers`). Nothing else in this crate is uncommitted as of
+this note. `examples/minwebgl/falling_frontier/Untitled.png` is an untracked
+debug screenshot the user pasted in during the M4 starfield investigation
+(see Notes section below) — left untracked on purpose, safe to delete once
+no longer needed, not part of the deliverable.
 
 **Next task: M8** — HUD/DOM overlay + polish (status bar, unit-info card,
 toolbar, CRT scanline post-pass). The last milestone. Some things M7 left
