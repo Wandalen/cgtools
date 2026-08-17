@@ -13,6 +13,8 @@ mod hull;
 mod primitives;
 mod picking;
 mod gizmo;
+mod spline;
+mod trajectories;
 mod asteroids;
 mod ships;
 mod station;
@@ -30,6 +32,7 @@ use gizmo::{ Gizmo, GizmoMode };
 use asteroids::Asteroids;
 use ships::Ships;
 use station::Station;
+use trajectories::Trajectories;
 use starfield::Starfield;
 
 // Matches tacticalGrid.js's PLANE_SIZE - structural, not exposed in the
@@ -548,6 +551,11 @@ fn app_run() -> Result< (), gl::WebglError >
     station : RefCell::new( Station::new( &gl, STATION_ID ) ),
   } );
 
+  let trajectories = Trajectories::new
+  (
+    &gl, &ctx.ships.borrow(), camera.projection_matrix_get(), [ pixel_w as f32, pixel_h as f32 ]
+  )?;
+
   {
     let ctx = ctx.clone();
     setup_grid_tuning_panel
@@ -570,6 +578,7 @@ fn app_run() -> Result< (), gl::WebglError >
   {
     let canvas = canvas.clone();
     let ctx = ctx.clone();
+    let mut trajectories = trajectories;
     move | t : f64 |
     {
       let delta_time = if prev_time == 0.0 { 0.0 } else { ( t - prev_time ) / 1000.0 };
@@ -599,6 +608,21 @@ fn app_run() -> Result< (), gl::WebglError >
       let tuning_snapshot = *tuning.borrow();
       let selected = ctx.selected_id.get();
       let selected_kind = selected.and_then( classify_pick );
+
+      // M7: advance every ship along its patrol path, except whichever one
+      // is currently selected - matches `main.js`'s `updateFleetMotion`
+      // skipping `excludeMesh` (the gizmo-attached ship) so a drag isn't
+      // fought by the path animation.
+      if tuning_snapshot.animate_ships
+      {
+        let mut ships = ctx.ships.borrow_mut();
+        for i in 0 .. ships::SHIP_COUNT
+        {
+          if Some( SHIP_ID_BASE + i as i32 ) == selected { continue; }
+          let speed = ships.speed( i );
+          ships.advance( i, speed );
+        }
+      }
 
       let asteroids = ctx.asteroids.borrow();
       let ships = ctx.ships.borrow();
@@ -636,6 +660,15 @@ fn app_run() -> Result< (), gl::WebglError >
       for part in station.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
 
       starfield.draw( &gl, view_proj );
+
+      if tuning_snapshot.show_trajectories || tuning_snapshot.show_sensor_rings
+      {
+        trajectories.draw
+        (
+          &gl, camera.view_matrix_get(), camera.projection_matrix_get(), [ w as f32, h as f32 ],
+          tuning_snapshot.show_trajectories, tuning_snapshot.show_sensor_rings
+        );
+      }
 
       grid.draw
       (

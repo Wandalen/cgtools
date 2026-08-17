@@ -45,9 +45,22 @@ pub struct GridTuning
   pub asteroid_glow_mode : f32,
   pub asteroid_glow_gamma : f32,
 
-  // Stand-in for "selected unit's view radius" (real unit selection is M5) —
-  // the ground-click focus point in `main.rs` always uses this radius.
+  // Every ship shares one view radius in this scene (`fleet.js`'s
+  // `FLEET_VIEW_RADIUS`), so this doubles as both the dev-tuning default and
+  // the JS reference's `gridTuning.viewRadiusOverride` - no separate
+  // per-ship value to look up.
   pub view_radius : f32,
+
+  // M7: fleet motion + trajectory/sensor-ring visibility. `animate_ships`
+  // defaults to `false`, matching the JS reference's own
+  // `playbackState.isAnimating: false` ("off by default while the static
+  // layout is being blocked out with the transform gizmo" - see
+  // examples/threejs/falling_frontier/src/state.js). `show_trajectories`/
+  // `show_sensor_rings` default to `false` too, matching `main.js`'s
+  // `groups.trajectory.visible = false; groups.sensorRing.visible = false;`.
+  pub animate_ships : bool,
+  pub show_trajectories : bool,
+  pub show_sensor_rings : bool,
 }
 
 impl Default for GridTuning
@@ -81,6 +94,10 @@ impl Default for GridTuning
       asteroid_glow_gamma : 1.05,
 
       view_radius : 160.0,
+
+      animate_ships : false,
+      show_trajectories : false,
+      show_sensor_rings : false,
     }
   }
 }

@@ -6,8 +6,9 @@ current conversation.
 
 ## Resume here
 
-M0-M6 are done, verified live in-browser, and **committed** (see their
-checklist entries below for what/how):
+M0-M7 are done, verified (see their checklist entries below for what/how -
+M7's own verification hit a real testing-environment limit, see its entry),
+and **committed**:
 - `851dd9df` on `space-game-demo` — M0-M3 ("feat: add Falling Frontier
   tactical grid, dev panel, and view-zone ribbon")
 - `6c71a5c8` on `space-game-demo` — M4 ("feat: add Falling Frontier ships,
@@ -16,38 +17,27 @@ checklist entries below for what/how):
   object picking/selection (M5)")
 - `23f85330` on `space-game-demo` — M6 ("feat: add Falling Frontier
   transform gizmo (M6)")
+- M7 ("feat: add Falling Frontier fleet motion and trajectories (M7)") —
+  commit this one along with this doc update; see checklist entry below.
 
 All with no `Co-Authored-By` trailer, per the standing repo rule (see memory
-`feedback_commit_trailers`). Nothing else in this crate is uncommitted as of
-this note. `examples/minwebgl/falling_frontier/Untitled.png` is an untracked
-debug screenshot the user pasted in during the M4 starfield investigation
-(see Notes section below) — left untracked on purpose, safe to delete once
-no longer needed, not part of the deliverable.
+`feedback_commit_trailers`). `examples/minwebgl/falling_frontier/Untitled.png`
+is an untracked debug screenshot the user pasted in during the M4 starfield
+investigation (see Notes section below) — left untracked on purpose, safe to
+delete once no longer needed, not part of the deliverable.
 
-**Next task: M7** — fleet motion + trajectories. `fleet.js`'s patrol paths
-(Catmull-Rom spline) need a curve helper that doesn't exist yet (only
-Hermite/Bezier easing exists in `module/helper/animation`); trajectory
-ribbons/waypoint rings/sensor ring should use `line_tools` (deliberately
-*not* used for the base grid in M1 — see M1's own note below on why). Two
-things M6 leaves for M7 to handle:
-- **The gizmo and fleet motion will fight over a moving ship's transform** —
-  `main.js`'s own `updateFleetMotion` takes an `excludeMesh` param and skips
-  whichever ship is currently attached to the gizmo, so the path animation
-  doesn't fight a drag. Port that: skip the selected/dragged ship's own
-  motion update, or better, skip motion for whichever ship
-  `ctx.selected_id`/`ctx.drag_state` currently points at.
-  `ships.rs`'s `ShipObject.position`/`rotation_y` (M6) are exactly the
-  fields path animation would drive too - a per-frame `advance_along_path`
-  method alongside the existing `drag_to`/`rotate_to` is the natural shape,
-  not a separate motion system.
-- **GPU id-buffer picking is no longer cheap to skip** - M5/M6 only
-  re-render the id pass on a qualifying click since the scene was fully
-  static; once ships move every frame, a click's id pass must be rendered
-  fresh immediately before that pick (not reused from a stale frame) or
-  clicking a moving ship will hit whatever pixel it happened to occupy last
-  time the pass ran. `pick_at_client` in `main.rs` already isolates this
-  render+read+restore sequence in one place, so this is a one-line change
-  there when the time comes - not a redesign.
+**Next task: M8** — HUD/DOM overlay + polish (status bar, unit-info card,
+toolbar, CRT scanline post-pass). The last milestone. Some things M7 left
+sitting in the dev panel that a real toolbar should absorb: the "Animate
+Ships"/"Show Trajectories"/"Show Sensor Rings" checkboxes (currently in
+`GridTuning`'s Playback section - see M7's checklist entry) map directly to
+the JS reference's `toggle-animate`/`toggle-trajectories`/`toggle-ranges`
+toolbar buttons in `uiControls.js`; a real toolbar should read/write the
+same `GridTuning` fields rather than inventing new state. `uiControls.js`
+also has `btn-pause`/`btn-play`/`btn-fast` (a `shipSpeedMultiplier` control)
+and `btn-reset-cam` (camera reset) - neither exists yet; M7 deliberately
+kept `speed_multiplier` fixed at `1.0` (no fast-forward), since a
+play/pause/fast-forward transport is UI-chrome, not core motion logic.
 
 Reference material:
 - Gap audit: `research/falling_frontier_cgtools_audit.md` (76-feature comparison,
@@ -216,14 +206,62 @@ Reference material:
       "gizmo handle lost the depth test" note below, it's the kind of thing
       that will bite again if `PickBuffer::render` grows a third kind of
       always-on-top overlay later.
-- [ ] **M7** — fleet motion + trajectories: Catmull-Rom spline (new, on top of
-      existing Hermite/Bezier easing in `module/helper/animation`),
-      `line_tools`-based trajectory ribbon + waypoint rings + dashed sensor
-      ring. `line_tools` is the right tool HERE (a handful of rings/paths) —
-      it was deliberately NOT used for the base grid in M1 (would mean
-      hundreds of individual line meshes per frame vs. one shader draw call).
+- [x] **M7** — fleet motion + trajectories. Files: `src/spline.rs` (uniform
+      Catmull-Rom point/tangent evaluation - a new standalone module rather
+      than an extension of `module/helper/animation`'s Hermite/Bezier
+      easing, since that crate's abstractions are for 1D scalar `t -> value`
+      easing curves, a different concern from 2D spline-point evaluation;
+      ships six unit tests, see below), `src/trajectories.rs` (`Trajectories`
+      - one solid ribbon `line_tools::d3::Line` per ship sampled from the
+      same spline, one dashed sensor-ring `Line` per ship that defines a
+      `sensor_radius` - `line_tools`'s first user in this crate, exactly the
+      "handful of rings/paths" M1's own note reserved it for). `ships.rs`
+      gained per-ship `path`/`speed`/`trajectory_color`/`sensor_radius`
+      spec fields (ported from `fleet.js`), a `progress` field on
+      `ShipObject`, and `advance(index, delta_progress)` - wraps past `1.0`
+      back to `0.0` (matching the JS reference's own `if (progress > 1)
+      progress = 0`), moves the ship to `spline::point_at_progress`, and
+      orients it along `spline::tangent_at_progress` using the same
+      `x.atan2(z)` convention the M6 gizmo's rotate-drag already uses and
+      verified visually. `main.rs`'s render loop calls `advance` for every
+      ship *except* whichever one is currently selected, each frame -
+      matches `main.js`'s `updateFleetMotion` skipping its `excludeMesh`
+      (the gizmo-attached ship) so a drag isn't fought by the path
+      animation; checked GPU id-buffer picking's own staleness concern
+      (flagged in M6's own notes) and confirmed it's already fine as
+      written - `pick_at_client` re-renders the id pass fresh from current
+      state on every call, never a cached/stale texture, so a moving ship
+      is always picked at its position *as of that click*, no change
+      needed. Playback is gated behind three new `GridTuning` fields
+      (`animate_ships`/`show_trajectories`/`show_sensor_rings`, all
+      `false` by default, extending the dev panel again rather than
+      building a second one - matches `playbackState.isAnimating: false`
+      and `groups.trajectory.visible = false; groups.sensorRing.visible =
+      false;` in the JS reference, which are *also* off by default at this
+      point in its own development). Deliberate simplifications vs. the JS
+      reference, none affecting correctness: uniform (not centripetal)
+      Catmull-Rom parametrization and segment-uniform (not arc-length-
+      corrected) `t`-to-position mapping (see `spline.rs`'s own module doc
+      for why neither matters for these short, evenly-spaced paths);
+      waypoint ring markers and per-waypoint dashed height-guide-lines
+      dropped as decorative flourishes on top of a ribbon that's already
+      there (`trajectories.rs`'s module doc); no fast-forward/pause
+      transport (`speed_multiplier` fixed at `1.0` - that's M8 UI chrome,
+      not core motion). **A real bug was caught by unit tests, not by
+      visual testing** - see the dedicated note below; visual testing
+      itself hit a genuine environment limitation (`document.hidden` fully
+      suspending `requestAnimationFrame`, so continuous motion couldn't be
+      *watched* happen), also detailed below. What *was* confirmed live:
+      trajectory ribbons and dashed sensor rings render correctly and
+      match their expected shapes once the panel checkboxes are ticked, the
+      one-time reorientation snap when enabling animation lands ships
+      facing along their path's initial tangent, selection/gizmo/drag
+      (M5/M6) all continue to work unmodified with animation enabled, and
+      no console errors across extensive interaction.
 - [ ] **M8** — HUD/DOM overlay + polish (status bar, unit-info card, toolbar,
-      CRT scanline post-pass). Lowest priority, pure UI chrome.
+      CRT scanline post-pass, camera reset). Lowest priority, pure UI
+      chrome - see "Next task" above for how it should absorb M7's dev-panel
+      playback checkboxes rather than inventing parallel state.
 
 ## Notes / gotchas hit so far
 
@@ -417,10 +455,61 @@ Reference material:
   error-overlay page (which looks nothing like a crash, easy to misread as
   "the app broke"). When in doubt, kill trunk, `rm -rf dist`, and restart
   clean on a fresh port rather than chasing a stale server state.
+- **Wrong sign in the Catmull-Rom cubic term** (M7 bug, caught by a unit
+  test before ever reaching the browser). `spline.rs`'s `catmull_rom_segment`
+  transcribed the standard basis-matrix formula's cubic coefficient as
+  `-p0 - 3p1 + 3p2 - p3` instead of the correct `-p0 + 3p1 - 3p2 + p3` (sign
+  flipped on the `p1`/`p2`/`p3` terms). Visually this was *not* obviously
+  wrong - mid-path curve evaluation still produced a smooth-looking (if
+  geometrically incorrect) line, which is exactly why it's worth recording:
+  a plausible-but-wrong closed-form formula can pass a "does this look like
+  a curve" visual check while still being mathematically wrong. It only
+  became unambiguous at a path boundary: `point_at_progress(path, 1.0)` on
+  a 2-waypoint path returned `[15.0, 15.0]` instead of the exact second
+  waypoint `[5.0, 5.0]` - `cargo test --bin falling_frontier spline` catches
+  this in under a second, with zero WebGL/browser involved. **The general
+  lesson**: for closed-form math ported from a formula (not from another
+  codebase's working implementation), a handful of boundary-value unit
+  tests (`t=0` returns the first point exactly, `t=1` returns the last
+  point exactly, a degenerate/minimal input doesn't panic) catch
+  transcription errors that visual smoke-testing reliably misses, and cost
+  far less than another round of `trunk serve`/browser automation. Six
+  tests now live in `spline.rs`'s own `#[cfg(test)] mod tests` - run them
+  with `cargo test --bin falling_frontier` (this crate has no `[lib]`
+  target, so `--lib` doesn't work; `--bin falling_frontier` does, and runs
+  natively - no wasm target/browser needed since `spline.rs` only touches
+  plain vector math, no GL/DOM).
+- **Browser-automation cannot observe continuous per-frame animation in
+  this environment** (M7 finding, not an app bug - distinct from the
+  already-documented "first click after reload is flaky" quirk). Toggling
+  "Animate Ships" produces one correct, immediate reorientation (ships snap
+  to face their path's initial tangent - proof `advance()` ran at least
+  once), but position visibly stops there: a direct probe
+  (`window.requestAnimationFrame` patched to count calls) recorded **zero**
+  calls over 23 real seconds, and `document.hidden` read `true` the whole
+  time despite `document.hasFocus()` reading `true`. Chrome fully suspends
+  `requestAnimationFrame` for a page it considers not actually visible
+  (distinct from ordinary background-tab throttling to ~1fps - this was a
+  hard stop at 0), and neither repeated clicks nor waiting longer changed
+  that in this session. Since `gl::exec_loop::run`'s render loop - and so
+  every per-frame mutation, not just fleet motion - depends entirely on
+  `requestAnimationFrame`, this means **any future milestone's "watch it
+  move/animate/pulse over time" behavior cannot be verified by screenshot-
+  over-time in this environment** the way M1-M6's static/one-shot-drag
+  visuals could be. When that's needed again: verify the underlying math
+  with unit tests instead (see the bug note above - this is exactly how
+  M7's real bug was actually caught, not despite this limitation but
+  because of leaning on tests instead of fighting it), and treat any one
+  visible frame (e.g. right after a checkbox toggle) as confirmation the
+  *wiring* is connected, not as confirmation of the ongoing behavior over
+  time.
 
 ## Verification pattern used so far
 
 `trunk serve --port <N>` in background → `mcp__claude-in-chrome` tools to
 navigate/screenshot/drag → kill trunk + `rm -rf dist` when done. Always check
 `cargo check` and `cargo clippy` on `--target wasm32-unknown-unknown` before
-declaring a milestone done.
+declaring a milestone done. **As of M7**: also run `cargo test --bin
+falling_frontier` for any new pure-math module (no wasm target needed) -
+catches transcription bugs visual testing can miss, and is unaffected by
+the `document.hidden`/`requestAnimationFrame` limitation noted above.
