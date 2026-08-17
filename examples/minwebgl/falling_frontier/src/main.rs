@@ -9,7 +9,12 @@
 
 mod debug;
 mod boundary;
+mod hull;
+mod primitives;
 mod asteroids;
+mod ships;
+mod station;
+mod starfield;
 
 use minwebgl as gl;
 use gl::GL;
@@ -17,7 +22,11 @@ use renderer::webgl::Camera;
 use std::{ cell::{ Cell, RefCell }, rc::Rc };
 use debug::{ GridTuning, setup_grid_tuning_panel, refresh_focus_status };
 use boundary::{ build_boundary_polyline, MAX_BOUNDARY_PTS };
+use hull::HullProgram;
 use asteroids::Asteroids;
+use ships::Ships;
+use station::Station;
+use starfield::Starfield;
 
 // Matches tacticalGrid.js's PLANE_SIZE - structural, not exposed in the
 // tuning panel.
@@ -317,7 +326,11 @@ fn app_run() -> Result< (), gl::WebglError >
   camera.controls_bind( &canvas );
 
   let grid = TacticalGrid::new( &gl );
+  let hull_program = HullProgram::new( &gl );
   let asteroids = Asteroids::new( &gl );
+  let ships = Ships::new( &gl );
+  let station = Station::new( &gl );
+  let starfield = Starfield::new( &gl );
   gl.viewport( 0, 0, pixel_w as i32, pixel_h as i32 );
 
   let tuning = Rc::new( RefCell::new( GridTuning::default() ) );
@@ -382,7 +395,13 @@ fn app_run() -> Result< (), gl::WebglError >
         glow.truncate( MAX_ASTEROID_GLOW );
       }
 
-      asteroids.draw( &gl, view_proj );
+      hull_program.begin_frame( &gl, view_proj );
+      for part in asteroids.parts() { hull_program.draw_part( &gl, part ); }
+      for part in ships.parts() { hull_program.draw_part( &gl, part ); }
+      for part in station.parts() { hull_program.draw_part( &gl, part ); }
+
+      starfield.draw( &gl, view_proj );
+
       grid.draw
       (
         &gl, view_proj, camera.eye_get(), &tuning_snapshot, &focus_snapshot,

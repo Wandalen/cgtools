@@ -6,12 +6,22 @@ current conversation.
 
 ## Resume here
 
-M0, M1, M2, M3 are done and verified live in-browser (see their checklist
-entries below for what/how). **Nothing is committed to git yet** — working
-tree has two untracked additions: `examples/minwebgl/falling_frontier/`
-(this whole crate) and `research/falling_frontier_cgtools_audit.md`. Ask the
-user whether to commit before starting M4, or keep going uncommitted — this
-has been asked before without an answer, so don't assume either way.
+M0-M4 are done and verified live in-browser (see their checklist entries
+below for what/how). M0-M3 are committed — `851dd9df` on `space-game-demo`
+("feat: add Falling Frontier tactical grid, dev panel, and view-zone
+ribbon"), no `Co-Authored-By` trailer per the standing repo rule. **M4 is
+NOT committed yet** — ask the user before committing.
+
+**Next task: M5** — real object picking/selection, replacing M3's
+ground-click-anywhere stand-in with an actual GPU-ID-buffer pick against
+ships/station/asteroids (extend `examples/minwebgl/object_picking`'s
+pattern — note its own picking math assumes a camera fixed at the origin,
+which doesn't hold here, so `main.rs`'s `unproject`/`ray_ground_hit` is the
+one to build on instead, not object_picking's `cursor_to_world_at_depth`).
+Once real selection lands, `main.rs`'s `FocusState`/ground-click plumbing
+gets replaced (not extended) — the ground-click fallback was always meant
+to be throwaway. `hull.rs`'s `HullPart`s (asteroids/ships/station) are the
+natural pickable-object list once IDs are assigned to them.
 
 **Next task: M4** — full static scene content: ship hulls, station,
 starfield. No procedural primitive generators for boxes/cylinders/cones exist
@@ -90,10 +100,24 @@ Reference material:
       touch the boundary/glow math (see asteroids.rs's module doc for the
       full reasoning); revisit only if it reads as too rough once M4 adds
       real ships for scale comparison.
-- [ ] **M4** — full static scene content: ship hulls, station, starfield.
-      No procedural primitive generators (box/cylinder/cone compositing)
-      exist in cgtools yet — `primitive_generation` only has
-      curve/plane/contour generators. Likely a new addition here.
+- [x] **M4** — full static scene content: ship hulls, station, starfield.
+      Files: `src/primitives.rs` (box/cylinder-or-cone/torus/icosphere
+      generators, built here rather than in `primitive_generation` per the
+      example-first-then-promote pattern — none existed anywhere in
+      cgtools before this), `src/hull.rs` (one shared flat-shaded-via-
+      derivatives program + `HullPart`/`HullProgram`, generalized from M3's
+      asteroid-only shader so ships/station/asteroids all draw through it),
+      `src/ships.rs` (4-ship fleet, box+cone+cylinder compositing, ported
+      from `ships.js`/`fleet.js`), `src/station.rs` (core/ring/spokes/
+      docking-modules/beacon, ported from `spaceStation.js`),
+      `src/starfield.rs` (2000-point dust field, own small unlit
+      point-sprite program, ported from `starfield.js`). Scope is static
+      placement only — `fleet.js`'s patrol paths, trajectory ribbons, and
+      `spinStations`/asteroid idle-spin are explicitly M7/M4-polish, not
+      built here. Verified live: ships/station/starfield/asteroids all
+      render together, M3's ribbon still correctly wraps only around
+      asteroids (ships/station aren't registered as blockers, matching the
+      JS reference), no console errors. **Not committed yet.**
 - [ ] **M5** — real object picking/selection, replacing M3's ground-click
       stand-in. Extend `examples/minwebgl/object_picking`'s GPU-ID-buffer
       pattern.
@@ -159,7 +183,43 @@ Reference material:
   duplication in this pipeline — `dFdx`/`dFdy` on the varying world position
   in the fragment shader gives the same "hard face normal" look three.js's
   `flatShading: true` produces, and works with a plain indexed draw. See
-  `asteroid.frag`.
+  `hull.frag`.
+- Starfield looked clustered into a few dense patches instead of spread
+  across the scene (M4 follow-up report - three rounds, on the user's own
+  machine: Chrome + RTX 2050 mobile, reproducible even in a fresh incognito
+  window against a freshly-restarted `trunk serve`, so never a caching
+  artifact). What got investigated and RULED OUT along the way, so it
+  doesn't get re-litigated later:
+  - CPU-side RNG/box math: confirmed correct via a temporary `gl::info!`
+    dump of the generated positions (`min≈[-599,-300,-599]
+    max≈[600,299,599]`, individual samples nicely spread, every time).
+  - "WebGL doesn't clip GL_POINTS behind the camera (w <= 0)": plausible-
+    sounding, informed a temporary shader fix, but a live CPU-vs-GPU
+    cross-check (CPU counted 615/2000 stars behind the camera at a moment
+    the user reported clustering; a shader variant that colored exactly
+    those points bright red instead of clipping them rendered *zero* red
+    pixels) proved the user's own GPU already discards them correctly on
+    its own. This was a real, common occurrence (~30% of stars at a typical
+    view angle), just never the actual bug.
+  - What most likely mattered: `gl_PointSize` distance attenuation (three.js
+    `sizeAttenuation: true`, ported here as `gl_PointSize = clamp(700.0 /
+    gl_Position.w, 1.0, 4.0)` in `starfield.vert`) — without it every star
+    reads at the same size/prominence regardless of depth, which visually
+    exaggerates the perspective clustering inherent to a box this large
+    (far more points lie far from the camera than near it). Combined with
+    at least one round that really was a stale build despite the user's own
+    cache-busting attempts (never root-caused which specific rebuild fixed
+    it, since several changes landed close together) - if this regresses
+    again, re-add the diagnostics described below rather than assuming
+    either explanation without re-checking.
+  - Diagnostic technique worth reusing for any future "looks wrong but I
+    can't repro it" report: a live on-screen debug HUD (plain `<div>`,
+    updated via `set_text_content` each frame - see the git history around
+    this note for the exact snippet if needed) showing camera state and a
+    CPU-computed cross-check number, plus a shader variant that visually
+    marks the flagged elements (e.g. bright red) instead of silently
+    discarding them. Directly answers "is it the data or the rendering"
+    without needing the user to dig through devtools.
 
 ## Verification pattern used so far
 
