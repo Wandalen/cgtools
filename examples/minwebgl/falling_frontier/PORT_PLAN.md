@@ -14,14 +14,15 @@ checklist entries below for what/how):
   station, and starfield (M4)")
 - `0a8434ea` on `space-game-demo` — M5 ("feat: add Falling Frontier real
   object picking/selection (M5)")
-- M6 ("feat: add Falling Frontier transform gizmo (M6)") — commit this one
-  along with this doc update; see checklist entry below for full scope.
+- `23f85330` on `space-game-demo` — M6 ("feat: add Falling Frontier
+  transform gizmo (M6)")
 
 All with no `Co-Authored-By` trailer, per the standing repo rule (see memory
-`feedback_commit_trailers`). `examples/minwebgl/falling_frontier/Untitled.png`
-is an untracked debug screenshot the user pasted in during the M4 starfield
-investigation (see Notes section below) — left untracked on purpose, safe to
-delete once no longer needed, not part of the deliverable.
+`feedback_commit_trailers`). Nothing else in this crate is uncommitted as of
+this note. `examples/minwebgl/falling_frontier/Untitled.png` is an untracked
+debug screenshot the user pasted in during the M4 starfield investigation
+(see Notes section below) — left untracked on purpose, safe to delete once
+no longer needed, not part of the deliverable.
 
 **Next task: M7** — fleet motion + trajectories. `fleet.js`'s patrol paths
 (Catmull-Rom spline) need a curve helper that doesn't exist yet (only
