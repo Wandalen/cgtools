@@ -39,6 +39,10 @@ struct AsteroidSpec
   position : [ f32; 3 ],
 }
 
+/// Number of pickable asteroid ids `main.rs` needs to reserve — kept in sync
+/// with `ASTEROID_SPECS` automatically rather than as a separate literal.
+pub const ASTEROID_COUNT : usize = ASTEROID_SPECS.len();
+
 const ASTEROID_SPECS : [ AsteroidSpec; 8 ] =
 [
   AsteroidSpec { radius : 9.0, position : [ -44.76, ASTEROID_Y, -73.56 ] },
@@ -65,14 +69,17 @@ pub struct Asteroids
 
 impl Asteroids
 {
-  pub fn new( gl : &gl::GL ) -> Self
+  /// `id_base` is the first pick id this belt may hand out - asteroid `i`
+  /// gets `id_base + i` (see `picking.rs`); the caller reserves
+  /// `ASTEROID_COUNT` contiguous ids starting there.
+  pub fn new( gl : &gl::GL, id_base : i32 ) -> Self
   {
     let ( base_vertices, faces ) = icosphere();
 
     let mut parts = Vec::with_capacity( ASTEROID_SPECS.len() );
     let mut blockers = Vec::with_capacity( ASTEROID_SPECS.len() );
 
-    for spec in &ASTEROID_SPECS
+    for ( i, spec ) in ASTEROID_SPECS.iter().enumerate()
     {
       // Per-vertex radial jitter, same magnitude as the JS deformToRock()
       // (factor in [0.825, 1.175]) - regenerated per asteroid instead of
@@ -95,7 +102,7 @@ impl Asteroids
       * mat3x3h::rot( rx, ry, rz )
       * mat3x3h::scale( F32x3::splat( spec.radius ) );
 
-      parts.push( HullPart { vao, index_count, model, color : ASTEROID_COLOR, ambient : AMBIENT_LIT } );
+      parts.push( HullPart { vao, index_count, model, color : ASTEROID_COLOR, ambient : AMBIENT_LIT, pick_id : id_base + i as i32 } );
       blockers.push( AsteroidBlocker
       {
         position : [ spec.position[ 0 ], spec.position[ 2 ] ],

@@ -17,7 +17,6 @@ use gl::web_sys::
 };
 
 use super::grid_tuning::{ GridTuning, FADE_CURVES };
-use crate::FocusState;
 
 fn slider_row_html( id : &str, label : &str, min : f32, max : f32, step : f32, value : f32, decimals : usize ) -> String
 {
@@ -133,26 +132,18 @@ fn build_tuning_summary( t : &GridTuning ) -> String
   )
 }
 
-fn focus_status_text( focus : &FocusState ) -> String
-{
-  if focus.active
-  {
-    format!( "focus: ({:.0}, {:.0})", focus.point[ 0 ], focus.point[ 1 ] )
-  }
-  else
-  {
-    "focus: none (click the ground)".to_string()
-  }
-}
+const NO_SELECTION_TEXT : &str = "selected: none (click a ship, station, or asteroid)";
 
-/// Updates the panel's focus-status line after `main.rs`'s ground-click
-/// handler changes `focus` — the panel itself doesn't own that state (it's
-/// app state, not tuning), so this is the seam between the two.
-pub fn refresh_focus_status( document : &Document, focus : &FocusState )
+/// Updates the panel's selection-status line after `main.rs`'s pick handler
+/// changes the current selection — the panel itself doesn't own that state
+/// (it's app state, not tuning) or know how to describe a raw pick id (only
+/// `main.rs` knows the id ranges it handed out to `asteroids`/`ships`/
+/// `station`), so this just displays whatever text the caller already built.
+pub fn refresh_selection_status( document : &Document, text : &str )
 {
   if let Some( el ) = document.get_element_by_id( "grid-focus-status" )
   {
-    el.set_text_content( Some( &focus_status_text( focus ) ) );
+    el.set_text_content( Some( text ) );
   }
 }
 
@@ -233,11 +224,15 @@ where F : FnMut( [ f32; 3 ] ) + 'static
   closure.forget();
 }
 
+/// `on_deselect` is called when the "Deselect" button is clicked - the panel
+/// doesn't own selection state (that's app state, owned by `main.rs`, not
+/// tuning), so clearing it is left to the caller.
 #[ expect( clippy::too_many_lines, reason = "one flat panel-assembly sequence (build every row's HTML, then bind every row's listener); splitting it would scatter each control's HTML and its own binding across helper functions for no real grouping" ) ]
-pub fn setup_grid_tuning_panel( document : &Document, tuning : &Rc< RefCell< GridTuning > >, focus : &Rc< RefCell< FocusState > > )
+pub fn setup_grid_tuning_panel< F >( document : &Document, tuning : &Rc< RefCell< GridTuning > >, on_deselect : F )
+where F : Fn() + 'static
 {
   let t = *tuning.borrow();
-  let focus_status_line = focus_status_text( &focus.borrow() );
+  let focus_status_line = NO_SELECTION_TEXT;
 
   let body_html = format!
   (
@@ -281,10 +276,10 @@ pub fn setup_grid_tuning_panel( document : &Document, tuning : &Rc< RefCell< Gri
     fade_end = slider_row_html( "grid-fade-end", "Fade End", 0.0, 2000.0, 10.0, t.camera_fade_end, 0 ),
     fade_curve = select_row_html( "grid-fade-curve", "Fade Curve", t.camera_fade_mode ),
     fade_gamma = slider_row_html( "grid-fade-gamma", "Fade Gamma", 0.2, 3.0, 0.05, t.camera_fade_gamma, 2 ),
-    focus_heading = subheading_html( "Focus (M3 stand-in — click ground)" ),
+    focus_heading = subheading_html( "Selection" ),
     focus_status = format_args!( r#"<div id="grid-focus-status" style="font-size:10px;color:#7dd3fc;margin-bottom:6px">{focus_status_line}</div>"# ),
     view_radius = slider_row_html( "grid-view-radius", "View Radius", 20.0, 400.0, 5.0, t.view_radius, 0 ),
-    clear_focus = r#"<button type="button" id="grid-clear-focus" style="width:100%;padding:5px;border-radius:4px;background:#164e63;border:1px solid #22d3ee;color:#e0f2fe;font-size:10px;margin-bottom:10px;cursor:pointer">Clear Focus</button>"#,
+    clear_focus = r#"<button type="button" id="grid-clear-focus" style="width:100%;padding:5px;border-radius:4px;background:#164e63;border:1px solid #22d3ee;color:#e0f2fe;font-size:10px;margin-bottom:10px;cursor:pointer">Deselect</button>"#,
     ribbon_heading = subheading_html( "View Zone Ribbon" ),
     bright_alpha = slider_row_html( "grid-bright-alpha", "Inside Opacity", 0.0, 1.0, 0.01, t.bright_alpha, 2 ),
     ring_core = color_row_html( "grid-ring-core", "Ribbon Core Color", &rgb_to_hex( t.ribbon_color_core ) ),
@@ -343,16 +338,7 @@ pub fn setup_grid_tuning_panel( document : &Document, tuning : &Rc< RefCell< Gri
   bind_slider( document, "grid-glow-gamma", 2, { let tuning = tuning.clone(); move | v | tuning.borrow_mut().asteroid_glow_gamma = v } );
 
   let clear_focus_button = document.get_element_by_id( "grid-clear-focus" ).unwrap().dyn_into::< HtmlButtonElement >().unwrap();
-  let document_for_clear = document.clone();
-  let focus_for_clear = focus.clone();
-  let clear_closure = Closure::< dyn FnMut() >::new
-  (
-    move ||
-    {
-      focus_for_clear.borrow_mut().active = false;
-      refresh_focus_status( &document_for_clear, &focus_for_clear.borrow() );
-    }
-  );
+  let clear_closure = Closure::< dyn FnMut() >::new( on_deselect );
   clear_focus_button.add_event_listener_with_callback( "click", clear_closure.as_ref().unchecked_ref() ).unwrap();
   clear_closure.forget();
 

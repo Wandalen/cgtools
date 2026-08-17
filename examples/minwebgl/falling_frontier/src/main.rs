@@ -11,6 +11,7 @@ mod debug;
 mod boundary;
 mod hull;
 mod primitives;
+mod picking;
 mod asteroids;
 mod ships;
 mod station;
@@ -20,9 +21,10 @@ use minwebgl as gl;
 use gl::GL;
 use renderer::webgl::Camera;
 use std::{ cell::{ Cell, RefCell }, rc::Rc };
-use debug::{ GridTuning, setup_grid_tuning_panel, refresh_focus_status };
+use debug::{ GridTuning, setup_grid_tuning_panel, refresh_selection_status };
 use boundary::{ build_boundary_polyline, MAX_BOUNDARY_PTS };
 use hull::HullProgram;
+use picking::{ IdProgram, PickBuffer };
 use asteroids::Asteroids;
 use ships::Ships;
 use station::Station;
@@ -36,12 +38,55 @@ const PLANE_SIZE : f32 = 3000.0;
 // (`u_asteroid_pos[16]`/`u_asteroid_radius[16]`).
 const MAX_ASTEROID_GLOW : usize = 16;
 
-/// Ground-click focus point - a throwaway stand-in for real unit selection
-/// (that's M5). `active` mirrors the JS shader's `uFocusActive`.
+// Pick-id ranges handed out to each pickable group (see `picking.rs`) -
+// asteroids first, then ships, then the station gets the one id left over.
+// `asteroids::ASTEROID_COUNT`/`ships::SHIP_COUNT` come from those modules'
+// own spec arrays, so these stay in sync automatically if a roster grows.
+const ASTEROID_ID_BASE : i32 = 0;
+const SHIP_ID_BASE : i32 = ASTEROID_ID_BASE + asteroids::ASTEROID_COUNT as i32;
+const STATION_ID : i32 = SHIP_ID_BASE + ships::SHIP_COUNT as i32;
+
+/// What a raw pick id (see `picking.rs`) refers to - the mapping only
+/// `main.rs` knows, since it's the one that handed out the id ranges above.
+#[ derive( Clone, Copy ) ]
+enum PickedKind
+{
+  Asteroid( usize ),
+  Ship( usize ),
+  Station,
+}
+
+fn classify_pick( id : i32 ) -> Option< PickedKind >
+{
+  if id < ASTEROID_ID_BASE { return None; }
+  let offset = id - ASTEROID_ID_BASE;
+  if ( offset as usize ) < asteroids::ASTEROID_COUNT { return Some( PickedKind::Asteroid( offset as usize ) ); }
+  let offset = offset - asteroids::ASTEROID_COUNT as i32;
+  if ( offset as usize ) < ships::SHIP_COUNT { return Some( PickedKind::Ship( offset as usize ) ); }
+  if id == STATION_ID { return Some( PickedKind::Station ); }
+  None
+}
+
+fn selection_status_text( kind : Option< PickedKind > ) -> String
+{
+  match kind
+  {
+    Some( PickedKind::Ship( i ) ) => format!( "selected: ship {i}" ),
+    Some( PickedKind::Station ) => "selected: station".to_string(),
+    Some( PickedKind::Asteroid( i ) ) => format!( "selected: asteroid {i}" ),
+    None => "selected: none (click a ship, station, or asteroid)".to_string(),
+  }
+}
+
+/// The grid's view-zone ribbon, derived fresh every frame from whatever is
+/// currently selected — ported from `main.js`'s `animate()`, which points
+/// the ribbon at `gizmo.object` whenever it defines a `viewRadius` (only
+/// ships do in `fleet.js`) and leaves it off otherwise. `active` mirrors the
+/// JS shader's `uFocusActive`.
 #[ derive( Clone, Copy ) ]
 pub struct FocusState
 {
-  /// Whether a ground click has set a focus point yet.
+  /// Whether a ship is currently selected (and so the ribbon should show).
   pub active : bool,
   /// World-space XZ position of the focus point.
   pub point : [ f32; 2 ],
@@ -78,38 +123,20 @@ fn pointer_client_pos( e : &gl::web_sys::PointerEvent ) -> ( f64, f64 )
   ( x, y )
 }
 
-fn unproject( inv_view_proj : gl::F32x4x4, ndc_x : f32, ndc_y : f32, ndc_z : f32 ) -> gl::math::F32x3
-{
-  let clip = gl::math::F32x4::new( ndc_x, ndc_y, ndc_z, 1.0 );
-  let world = inv_view_proj * clip;
-  gl::math::F32x3::new( world.x() / world.w(), world.y() / world.w(), world.z() / world.w() )
-}
-
-/// Casts a ray from the camera through the clicked pixel and intersects it
-/// with the `y = 0` ground plane — a stand-in for real object picking (M5).
-/// `view_proj` is a snapshot from the most recent frame (see `RayContext`),
-/// not recomputed here.
-fn ray_ground_hit( view_proj : gl::F32x4x4, canvas : &gl::web_sys::HtmlCanvasElement, client_x : f64, client_y : f64 ) -> Option< [ f32; 2 ] >
+/// Converts a pointer event's window-relative client coordinates into
+/// canvas-local, bottom-up device-pixel coordinates - the convention
+/// `PickBuffer::pick`'s `read_pixels` call uses. Ratio-based (not a raw
+/// offset) so it's correct regardless of `devicePixelRatio` scaling between
+/// the canvas's CSS size (`rect.width()/height()`) and its backing-store
+/// size (`canvas.width()/height()`, what `PickBuffer` is sized to).
+fn canvas_pixel_from_client( canvas : &gl::web_sys::HtmlCanvasElement, client_x : f64, client_y : f64 ) -> ( i32, i32 )
 {
   let rect = canvas.get_bounding_client_rect();
-  let x = ( client_x - rect.left() ) as f32;
-  let y = ( client_y - rect.top() ) as f32;
-  let w = rect.width() as f32;
-  let h = rect.height() as f32;
-  if w <= 0.0 || h <= 0.0 { return None; }
-
-  let ndc_x = ( x / w ) * 2.0 - 1.0;
-  let ndc_y = 1.0 - ( y / h ) * 2.0;
-
-  let inv = view_proj.inverse()?;
-  let near = unproject( inv, ndc_x, ndc_y, -1.0 );
-  let far = unproject( inv, ndc_x, ndc_y, 1.0 );
-  let dir = far - near;
-  if dir.y().abs() < 1e-6 { return None; }
-  let t = -near.y() / dir.y();
-  if t < 0.0 { return None; }
-  let hit = near + dir * t;
-  Some( [ hit.x(), hit.z() ] )
+  let x_ratio = ( client_x - rect.left() ) / rect.width();
+  let y_ratio = ( client_y - rect.top() ) / rect.height();
+  let px = ( x_ratio * f64::from( canvas.width() ) ) as i32;
+  let py_top_down = ( y_ratio * f64::from( canvas.height() ) ) as i32;
+  ( px, canvas.height() as i32 - py_top_down )
 }
 
 struct GridUniforms
@@ -299,6 +326,7 @@ impl TacticalGrid
   }
 }
 
+#[ expect( clippy::too_many_lines, reason = "one flat setup-then-render-loop sequence (camera, scene, picking, panel, click handler, then the per-frame closure); splitting it up would scatter closely-related setup across helper functions for no real grouping" ) ]
 fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
@@ -327,23 +355,44 @@ fn app_run() -> Result< (), gl::WebglError >
 
   let grid = TacticalGrid::new( &gl );
   let hull_program = HullProgram::new( &gl );
-  let asteroids = Asteroids::new( &gl );
-  let ships = Ships::new( &gl );
-  let station = Station::new( &gl );
+  let asteroids = Rc::new( Asteroids::new( &gl, ASTEROID_ID_BASE ) );
+  let ships = Rc::new( Ships::new( &gl, SHIP_ID_BASE ) );
+  let station = Rc::new( Station::new( &gl, STATION_ID ) );
   let starfield = Starfield::new( &gl );
   gl.viewport( 0, 0, pixel_w as i32, pixel_h as i32 );
 
+  let id_program = Rc::new( IdProgram::new( &gl ) );
+  let pick_buffer = Rc::new( RefCell::new( PickBuffer::new( &gl, pixel_w as i32, pixel_h as i32 ) ) );
+
   let tuning = Rc::new( RefCell::new( GridTuning::default() ) );
-  let focus = Rc::new( RefCell::new( FocusState::default() ) );
+  let selected_id : Rc< Cell< Option< i32 > > > = Rc::new( Cell::new( None ) );
   let document = gl::web_sys::window().unwrap().document().unwrap();
-  setup_grid_tuning_panel( &document, &tuning, &focus );
 
-  // Last frame's view_proj, kept for the ground-click handler below — the
-  // click fires outside the render loop's closure, which owns `camera`.
+  {
+    let selected_id = selected_id.clone();
+    let document_for_deselect = document.clone();
+    setup_grid_tuning_panel
+    (
+      &document, &tuning,
+      move ||
+      {
+        selected_id.set( None );
+        refresh_selection_status( &document_for_deselect, &selection_status_text( None ) );
+      }
+    );
+  }
+
+  // Last frame's view_proj, kept for the click handler below — the click
+  // fires outside the render loop's closure, which owns `camera`, and the id
+  // pass needs to draw parts at the same transforms the visible frame used.
   let initial_view_proj = camera.projection_matrix_get() * camera.view_matrix_get();
-  let ray_view_proj = Rc::new( Cell::new( initial_view_proj ) );
+  let latest_view_proj = Rc::new( Cell::new( initial_view_proj ) );
 
-  setup_ground_click( &canvas, &document, &ray_view_proj, &focus );
+  setup_selection_click
+  (
+    &canvas, &document, &gl, &id_program, &pick_buffer, &latest_view_proj, &selected_id,
+    &asteroids, &ships, &station,
+  );
 
   let prev_size = Cell::new( ( pixel_w, pixel_h ) );
   let mut prev_time = 0.0f64;
@@ -351,7 +400,11 @@ fn app_run() -> Result< (), gl::WebglError >
   let update_and_draw =
   {
     let canvas = canvas.clone();
-    let ray_view_proj = ray_view_proj.clone();
+    let latest_view_proj = latest_view_proj.clone();
+    let pick_buffer = pick_buffer.clone();
+    let asteroids = asteroids.clone();
+    let ships = ships.clone();
+    let station = station.clone();
     move | t : f64 |
     {
       let delta_time = if prev_time == 0.0 { 0.0 } else { ( t - prev_time ) / 1000.0 };
@@ -364,6 +417,7 @@ fn app_run() -> Result< (), gl::WebglError >
         canvas.set_width( w );
         canvas.set_height( h );
         gl.viewport( 0, 0, w as i32, h as i32 );
+        pick_buffer.borrow_mut().resize( &gl, w as i32, h as i32 );
 
         let proj = gl::math::mat3x3h::perspective_rh_gl( fov, w as f32 / h as f32, near, far );
         camera.projection_matrix_set( proj );
@@ -375,10 +429,21 @@ fn app_run() -> Result< (), gl::WebglError >
       gl.clear( GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT );
 
       let view_proj = camera.projection_matrix_get() * camera.view_matrix_get();
-      ray_view_proj.set( view_proj );
+      latest_view_proj.set( view_proj );
 
-      let focus_snapshot = *focus.borrow();
       let tuning_snapshot = *tuning.borrow();
+      let selected = selected_id.get();
+
+      // Only a selected ship drives the ribbon - matches `main.js`'s
+      // `animate()`, which points the grid's focus at `gizmo.object` only
+      // when it defines a `viewRadius` (only ships do in `fleet.js`; the
+      // station and asteroids have none, so selecting them highlights the
+      // object but leaves the ribbon off).
+      let focus_snapshot = match selected.and_then( classify_pick )
+      {
+        Some( PickedKind::Ship( i ) ) => FocusState { active : true, point : ships.positions()[ i ] },
+        _ => FocusState::default(),
+      };
 
       let mut boundary_buf = [ [ 0.0f32; 2 ]; MAX_BOUNDARY_PTS ];
       let mut boundary_count = 0;
@@ -396,9 +461,9 @@ fn app_run() -> Result< (), gl::WebglError >
       }
 
       hull_program.begin_frame( &gl, view_proj );
-      for part in asteroids.parts() { hull_program.draw_part( &gl, part ); }
-      for part in ships.parts() { hull_program.draw_part( &gl, part ); }
-      for part in station.parts() { hull_program.draw_part( &gl, part ); }
+      for part in asteroids.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
+      for part in ships.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
+      for part in station.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
 
       starfield.draw( &gl, view_proj );
 
@@ -418,16 +483,24 @@ fn app_run() -> Result< (), gl::WebglError >
 }
 
 /// Wires a click-vs-drag-aware pointer handler on `canvas`: a press+release
-/// within a few pixels of each other casts a ray through the clicked pixel
-/// and intersects it with the `y = 0` ground plane, setting `focus` to the
-/// hit point. A `pointerup` that followed a real drag (camera orbit) is
-/// ignored. Real object picking replaces this in M5.
-fn setup_ground_click
+/// within a few pixels of each other re-renders the id pass and reads back
+/// the pick id under the cursor, setting `selected_id` to whatever was found
+/// (`None` for empty space/the grid - neither is in the id pass). A
+/// `pointerup` that followed a real drag (camera orbit) is ignored. Replaces
+/// M3's `setup_ground_click` ray/plane stand-in with real object picking.
+#[ expect( clippy::too_many_arguments, reason = "bundles the id-pass mechanism (gl/id_program/pick_buffer/view_proj), the pickable scene data, and the selection sink the handler updates - a context struct would just move this list into a constructor with no real grouping" ) ]
+fn setup_selection_click
 (
   canvas : &gl::web_sys::HtmlCanvasElement,
   document : &gl::web_sys::Document,
-  ray_view_proj : &Rc< Cell< gl::F32x4x4 > >,
-  focus : &Rc< RefCell< FocusState > >,
+  gl : &GL,
+  id_program : &Rc< IdProgram >,
+  pick_buffer : &Rc< RefCell< PickBuffer > >,
+  latest_view_proj : &Rc< Cell< gl::F32x4x4 > >,
+  selected_id : &Rc< Cell< Option< i32 > > >,
+  asteroids : &Rc< Asteroids >,
+  ships : &Rc< Ships >,
+  station : &Rc< Station >,
 )
 {
   use gl::web_sys::wasm_bindgen::{ prelude::Closure, JsCast };
@@ -446,9 +519,15 @@ fn setup_ground_click
 
   {
     let down_pos = down_pos.clone();
-    let ray_view_proj = ray_view_proj.clone();
-    let focus = focus.clone();
-    let canvas_for_hit = canvas.clone();
+    let gl = gl.clone();
+    let id_program = id_program.clone();
+    let pick_buffer = pick_buffer.clone();
+    let latest_view_proj = latest_view_proj.clone();
+    let selected_id = selected_id.clone();
+    let asteroids = asteroids.clone();
+    let ships = ships.clone();
+    let station = station.clone();
+    let canvas_for_pick = canvas.clone();
     let document = document.clone();
     let closure = Closure::< dyn FnMut( _ ) >::new
     (
@@ -458,17 +537,23 @@ fn setup_ground_click
         let Some( ( dx0, dy0 ) ) = down_pos.get() else { return };
         let ( x, y ) = pointer_client_pos( &e );
         let ( dx, dy ) = ( x - dx0, y - dy0 );
-        // A real drag (camera orbit), not a click - leave focus alone.
+        // A real drag (camera orbit), not a click - leave selection alone.
         if dx.hypot( dy ) > 6.0 { return; }
 
-        if let Some( point ) = ray_ground_hit( ray_view_proj.get(), &canvas_for_hit, x, y )
-        {
-          let mut f = focus.borrow_mut();
-          f.active = true;
-          f.point = point;
-          drop( f );
-          refresh_focus_status( &document, &focus.borrow() );
-        }
+        let parts = asteroids.parts().iter().chain( ships.parts() ).chain( station.parts() );
+        pick_buffer.borrow().render( &gl, &id_program, latest_view_proj.get(), parts );
+
+        let ( px, py ) = canvas_pixel_from_client( &canvas_for_pick, x, y );
+        let picked = pick_buffer.borrow().pick( &gl, px, py );
+
+        // Restore the viewport `render()` changed to the pick buffer's size
+        // - the main render loop only re-sets it on an actual canvas resize,
+        // not every frame, so leaving it wrong here would stick.
+        let ( w, h ) = canvas_size( &canvas_for_pick );
+        gl.viewport( 0, 0, w as i32, h as i32 );
+
+        selected_id.set( picked );
+        refresh_selection_status( &document, &selection_status_text( picked.and_then( classify_pick ) ) );
       }
     );
     canvas.add_event_listener_with_callback( "pointerup", closure.as_ref().unchecked_ref() ).unwrap();

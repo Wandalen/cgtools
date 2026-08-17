@@ -6,40 +6,40 @@ current conversation.
 
 ## Resume here
 
-M0-M4 are done and verified live in-browser (see their checklist entries
-below for what/how). M0-M3 are committed — `851dd9df` on `space-game-demo`
-("feat: add Falling Frontier tactical grid, dev panel, and view-zone
-ribbon"), no `Co-Authored-By` trailer per the standing repo rule. **M4 is
-NOT committed yet** — ask the user before committing.
+M0-M5 are done, verified live in-browser (see their checklist entries below
+for what/how). M0-M3 and M4 are committed:
+- `851dd9df` on `space-game-demo` — M0-M3 ("feat: add Falling Frontier
+  tactical grid, dev panel, and view-zone ribbon")
+- `6c71a5c8` on `space-game-demo` — M4 ("feat: add Falling Frontier ships,
+  station, and starfield (M4)")
 
-**Next task: M5** — real object picking/selection, replacing M3's
-ground-click-anywhere stand-in with an actual GPU-ID-buffer pick against
-ships/station/asteroids (extend `examples/minwebgl/object_picking`'s
-pattern — note its own picking math assumes a camera fixed at the origin,
-which doesn't hold here, so `main.rs`'s `unproject`/`ray_ground_hit` is the
-one to build on instead, not object_picking's `cursor_to_world_at_depth`).
-Once real selection lands, `main.rs`'s `FocusState`/ground-click plumbing
-gets replaced (not extended) — the ground-click fallback was always meant
-to be throwaway. `hull.rs`'s `HullPart`s (asteroids/ships/station) are the
-natural pickable-object list once IDs are assigned to them.
+**M5 is done, verified live, but not committed yet** — commit it (plus this
+doc update) before starting M6, no `Co-Authored-By` trailer per the standing
+repo rule (see memory `feedback_commit_trailers`).
+`examples/minwebgl/falling_frontier/Untitled.png` is an untracked debug
+screenshot the user pasted in during the M4 starfield investigation (see
+Notes section below) — left untracked on purpose, safe to delete once no
+longer needed, not part of the deliverable.
 
-**Next task: M4** — full static scene content: ship hulls, station,
-starfield. No procedural primitive generators for boxes/cylinders/cones exist
-in cgtools yet (`primitive_generation` only has curve/plane/contour/text
-generators) — will likely need new additions there, consistent with the
-standing "extending cgtools crates is the point of the port" instruction.
-Read `examples/threejs/falling_frontier/src/world/` for the ship/station/
-starfield JS references before starting (not yet read in depth this session
-— `asteroidBelt.js` and `tacticalGrid.js` are the only two read so far).
-Also worth doing before/alongside M4: swap `asteroids.rs`'s simplified
-icosahedron placeholder for something closer to the JS dodecahedron look if
-it reads as too rough once real ships are in the scene (see M3 notes below —
-this was a deliberate simplification, not an oversight).
-
-M5 (real picking, replacing M3's ground-click stand-in) and M6 (gizmo) both
-still need the ship/station meshes from M4 to be meaningful, so M4 is the
-right next step even though M5/M6 were "next" in the original risk-first
-ordering rationale — the ribbon/grid risk (M1–M3) is now retired.
+**Next task: M6** — transform gizmo (translate XZ / rotate Y, G/R/Escape).
+No gizmo exists anywhere in cgtools. `main.rs`'s `selected_id : Rc<Cell<
+Option<i32>>>` (M5) is the thing to attach the gizmo to — resolve it to a
+`&HullPart`'s (or, for ships, every `HullPart` sharing that ship's
+`pick_id`) `model` matrix the same way the render loop's highlight check
+already does (`Some(part.pick_id) == selected`). Dragging will need the
+ray/plane ground-unprojection math M5 deleted from `main.rs`
+(`unproject`/`ray_ground_hit`, removed because GPU id-buffer picking doesn't
+need a ray at all) — it's preserved in full below under "Notes / gotchas",
+re-derive it there rather than trying to recover the deleted functions from
+git history. Translate mode constrains the drag to the `y = 0` plane (same
+plane M3's ground click used to hit-test against), rotate mode only needs
+the Y angle. `station.rs`/`ships.rs`/`asteroids.rs` currently bake each
+part's `model` matrix once at construction and never touch it again —
+dragging will need those matrices to become mutable per-frame state instead
+(probably: store a per-object base transform + live translation/rotation
+override, recompute `model` each frame, rather than mutating the baked
+matrix in place, so the original spec position is never lost if the user
+wants a "reset" affordance later).
 
 Reference material:
 - Gap audit: `research/falling_frontier_cgtools_audit.md` (76-feature comparison,
@@ -117,10 +117,50 @@ Reference material:
       built here. Verified live: ships/station/starfield/asteroids all
       render together, M3's ribbon still correctly wraps only around
       asteroids (ships/station aren't registered as blockers, matching the
-      JS reference), no console errors. **Not committed yet.**
-- [ ] **M5** — real object picking/selection, replacing M3's ground-click
-      stand-in. Extend `examples/minwebgl/object_picking`'s GPU-ID-buffer
-      pattern.
+      JS reference), no console errors. See the starfield-clustering
+      debugging notes below - resolved before committing, not a
+      known-remaining issue.
+- [x] **M5** — real object picking/selection, replacing M3's ground-click
+      stand-in. Files: `src/picking.rs` (`IdProgram` + `PickBuffer`, ported
+      from `examples/minwebgl/object_picking`'s GPU-ID-buffer pattern -
+      adapted to upload `u_view_proj * u_model` per part instead of that
+      example's origin-fixed-camera projection-only math, and to resize
+      alongside the canvas instead of a fixed 1280x720), `src/shaders/
+      id.{vert,frag}`. `hull.rs`'s `HullPart` gained a `pick_id : i32` field
+      (asteroids: one id per rock; ships: every part of one ship shares that
+      ship's id, since a click anywhere on a composited ship should select
+      the whole ship; station: every part shares the one station id) and
+      `HullProgram::draw_part` gained a `highlighted : bool` param that mixes
+      the part's color toward white and forces full ambient - a color-tint
+      selection indicator, not a geometric outline (no gizmo exists yet to
+      make selection obvious some other way; M6 will add one). `main.rs`
+      assigns contiguous id ranges (`ASTEROID_ID_BASE`/`SHIP_ID_BASE`/
+      `STATION_ID`, sized from `asteroids::ASTEROID_COUNT`/`ships::
+      SHIP_COUNT` so they can't drift out of sync with the spec arrays) and
+      classifies a picked id back into `PickedKind::{Asteroid,Ship,Station}`.
+      Click handling was renamed `setup_ground_click` → `setup_selection_click`
+      and now re-renders the id pass + reads back one pixel on every
+      qualifying click (not cached - see the note on why, below) instead of
+      ray/plane-intersecting the ground; `main.rs`'s old `unproject`/
+      `ray_ground_hit` functions were deleted as a result (M6 will need
+      similar math for gizmo dragging - see "Next task" above and the
+      preserved math under Notes). The grid's view-zone ribbon is no longer
+      driven by a stand-in ground click at all - it's derived fresh every
+      frame from whatever is currently selected, matching the *actual* JS
+      reference's own `main.js` `animate()` (which points the ribbon at
+      `gizmo.object` only when it defines a `viewRadius`, i.e. only ships;
+      the station/asteroids have none). `debug/grid_tuning_panel.rs` no
+      longer depends on `FocusState` at all - `refresh_selection_status`
+      takes a plain caller-built `&str` and the "Clear Focus" button became
+      "Deselect", wired through an `on_deselect` callback the panel invokes
+      rather than reaching into app state itself. Verified live: clicking
+      each of a ship/the station/an asteroid selects it (tint highlight
+      visible, panel shows "selected: ship 1" / "selected: station" /
+      "selected: asteroid 0"), only the ship selection shows the view-zone
+      ribbon (station/asteroid selection highlights but no ribbon, matching
+      the JS), clicking empty space or the grid deselects, the Deselect
+      button deselects, no console errors across a hard refresh + repeated
+      clicks.
 - [ ] **M6** — transform gizmo (translate XZ / rotate Y, G/R/Escape, attach
       idle-animation suppression). No gizmo exists anywhere in cgtools.
 - [ ] **M7** — fleet motion + trajectories: Catmull-Rom spline (new, on top of
@@ -175,10 +215,68 @@ Reference material:
   (`ndarray_cg`'s `d2::mat4x4::general::inverse`) on `view_proj`, then
   unproject NDC `z = -1` and `z = 1` to get near/far world points and
   intersect the ray with `y = 0` — no ready-made unproject/raycast helper
-  exists in `mingl`/`renderer` yet, this was written from scratch in
-  `main.rs` (`unproject`/`ray_ground_hit`). Worth promoting to a shared
-  crate if M5's real picking needs the same math (object_picking's own
-  approach assumes a camera fixed at the origin, which doesn't hold here).
+  exists in `mingl`/`renderer` yet. **M5 deleted the `main.rs` functions that
+  did this** (`unproject`/`ray_ground_hit`) since GPU id-buffer picking
+  doesn't need a ray at all, but **M6's gizmo dragging will need the same
+  math again** (constraining a drag to the `y = 0` plane), so it's preserved
+  here rather than left to bit-rot in git history:
+  ```rust
+  fn unproject( inv_view_proj : gl::F32x4x4, ndc_x : f32, ndc_y : f32, ndc_z : f32 ) -> gl::math::F32x3
+  {
+    let clip = gl::math::F32x4::new( ndc_x, ndc_y, ndc_z, 1.0 );
+    let world = inv_view_proj * clip;
+    gl::math::F32x3::new( world.x() / world.w(), world.y() / world.w(), world.z() / world.w() )
+  }
+
+  fn ray_ground_hit( view_proj : gl::F32x4x4, canvas : &gl::web_sys::HtmlCanvasElement, client_x : f64, client_y : f64 ) -> Option< [ f32; 2 ] >
+  {
+    let rect = canvas.get_bounding_client_rect();
+    let x = ( client_x - rect.left() ) as f32;
+    let y = ( client_y - rect.top() ) as f32;
+    let w = rect.width() as f32;
+    let h = rect.height() as f32;
+    if w <= 0.0 || h <= 0.0 { return None; }
+
+    let ndc_x = ( x / w ) * 2.0 - 1.0;
+    let ndc_y = 1.0 - ( y / h ) * 2.0;
+
+    let inv = view_proj.inverse()?;
+    let near = unproject( inv, ndc_x, ndc_y, -1.0 );
+    let far = unproject( inv, ndc_x, ndc_y, 1.0 );
+    let dir = far - near;
+    if dir.y().abs() < 1e-6 { return None; }
+    let t = -near.y() / dir.y();
+    if t < 0.0 { return None; }
+    let hit = near + dir * t;
+    Some( [ hit.x(), hit.z() ] )
+  }
+  ```
+  (object_picking's own approach assumes a camera fixed at the origin, which
+  doesn't hold here — that's why this couldn't just be reused as-is.)
+- GPU id-buffer picking (M5, `picking.rs`) renders every pickable
+  `HullPart`'s `pick_id` into an off-screen `R32I` texture and reads back one
+  pixel at the click location, rather than raycasting on the CPU — simpler
+  to get right than ray-vs-mesh intersection against the procedural
+  box/cylinder/torus/icosphere geometry, and it's exactly what
+  `object_picking` already demonstrates. It only re-renders that texture on
+  a qualifying click, not every frame, since M4's scene is still fully
+  static; **M7's fleet motion will invalidate that assumption** — once ships
+  move, the id pass must be re-rendered immediately before every pick (not
+  reused from a stale frame), same as `object_picking`'s own `ids_render`
+  comment already warns about.
+- `tex_storage_2d` (used for the `R32I` id texture) is immutable storage —
+  it can't be resized in place. `PickBuffer::resize` in `picking.rs` handles
+  a canvas resize by deleting and recreating the texture (and the depth
+  renderbuffer, and re-attaching both to the framebuffer) rather than trying
+  to reallocate it, and no-ops if the requested size matches what's already
+  there (the canvas-resize check in `main.rs`'s render loop calls it on
+  every frame, most of which aren't real size changes).
+- `PickBuffer::render` sets `gl.viewport` to the id texture's own size while
+  drawing into it, since that's usually different from the canvas's. The
+  click handler (`setup_selection_click`) is responsible for restoring the
+  viewport back to the canvas size afterward — the main render loop only
+  calls `gl.viewport` again on an actual resize, not every frame, so a stale
+  viewport from a click would otherwise stick until the next resize.
 - Flat-shaded low-poly meshes (asteroids) don't need per-face vertex
   duplication in this pipeline — `dFdx`/`dFdy` on the varying world position
   in the fragment shader gives the same "hard face normal" look three.js's

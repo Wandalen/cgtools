@@ -19,7 +19,10 @@ pub const AMBIENT_LIT : f32 = 0.35;
 pub const AMBIENT_GLOW : f32 = 1.0;
 
 /// One drawable piece: its own geometry (VAO), world transform, color and
-/// ambient factor. Ships/stations are composed from several of these.
+/// ambient factor. Ships/stations are composed from several of these, all
+/// sharing one `pick_id` (see `picking.rs`) so a click anywhere on a
+/// multi-part ship selects the whole ship, not just the part under the
+/// cursor.
 pub struct HullPart
 {
   pub vao : gl::WebGlVertexArrayObject,
@@ -27,7 +30,14 @@ pub struct HullPart
   pub model : gl::F32x4x4,
   pub color : [ f32; 3 ],
   pub ambient : f32,
+  pub pick_id : i32,
 }
+
+/// How much a selected part's color is mixed toward white — stands in for a
+/// geometric outline (M5 has no gizmo yet to make selection obvious some
+/// other way; not ported from the JS, which relies on `TransformControls`'s
+/// own handles for that once M6 attaches a gizmo to the selection).
+const SELECTION_TINT : f32 = 0.45;
 
 /// Uploads `positions`/`indices` as a new VAO and returns it alongside the
 /// index count `draw_elements` needs.
@@ -96,12 +106,25 @@ impl HullProgram
     gl::uniform::upload( gl, self.uniforms.light_dir.clone(), LIGHT_DIR.as_slice() ).unwrap();
   }
 
-  pub fn draw_part( &self, gl : &GL, part : &HullPart )
+  /// `highlighted` marks `part` as the current selection - drawn with its
+  /// color mixed toward white and full ambient instead of the usual
+  /// directional shading, so it visibly stands out.
+  pub fn draw_part( &self, gl : &GL, part : &HullPart, highlighted : bool )
   {
     let u = &self.uniforms;
     gl::uniform::matrix_upload( gl, u.model.clone(), part.model.to_array().as_slice(), true ).unwrap();
-    gl::uniform::upload( gl, u.color.clone(), part.color.as_slice() ).unwrap();
-    gl::uniform::upload( gl, u.ambient.clone(), &part.ambient ).unwrap();
+
+    let ( color, ambient ) = if highlighted
+    {
+      let mix = | c : f32 | c * ( 1.0 - SELECTION_TINT ) + SELECTION_TINT;
+      ( [ mix( part.color[ 0 ] ), mix( part.color[ 1 ] ), mix( part.color[ 2 ] ) ], 1.0 )
+    }
+    else
+    {
+      ( part.color, part.ambient )
+    };
+    gl::uniform::upload( gl, u.color.clone(), color.as_slice() ).unwrap();
+    gl::uniform::upload( gl, u.ambient.clone(), &ambient ).unwrap();
 
     gl.bind_vertex_array( Some( &part.vao ) );
     gl.draw_elements_with_i32( GL::TRIANGLES, part.index_count, GL::UNSIGNED_INT, 0 );
