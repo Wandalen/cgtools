@@ -381,6 +381,45 @@ fn tween_with_yoyo_reverses_direction_on_alternate_repeats()
   assert_eq!( value, F32x1::new( 7.5 ) );
 }
 
+/// `bug_reproducer(BUG-230)`
+///
+/// Root Cause: every `with_repeat` registration in `tween_binding.rs` used to cast its
+/// Rhai-supplied `i64` straight to `i32` via `as`, which wraps silently instead of erroring --
+/// `4294967295i64 as i32 == -1`, exactly `Tween`'s documented infinite-repeat sentinel
+/// (`animation::interpolation::Tween::repeat_count`) -- so a script author intending a very
+/// large but FINITE repeat count would silently get an INFINITE tween instead.
+///
+/// Why Not Caught: no existing test drove `with_repeat` with anything outside `i32`'s range;
+/// the two pre-existing repeat tests both use the small literal `5`.
+///
+/// Fix Applied: `with_repeat` now range-checks via `repeat_count_from_i64` (`i32::try_from`),
+/// raising a script-catchable error instead of wrapping, mirroring `easing_from_name`'s
+/// existing error-instead-of-silent-fallback contract.
+///
+/// Prevention: this test pins the single most dangerous wraparound value -- the one that lands
+/// exactly on the infinite-repeat sentinel -- as a permanent regression guard.
+///
+/// Pitfall: `as` between integer types never panics and never signals truncation -- any
+/// script-reachable narrowing cast needs its own explicit range check, or the truncation
+/// surfaces only as unexplained runtime behavior far from its actual cause.
+#[ test ]
+fn tween_with_repeat_rejects_count_that_would_wrap_to_the_infinite_sentinel()
+{
+  let engine = engine_build();
+  // 4294967295 == u32::MAX == 0xFFFFFFFF; `as i32` truncation of this exact value equals -1,
+  // Tween's documented infinite-repeat sentinel -- the single most dangerous wraparound case.
+  let err = engine.eval::< i64 >
+  (
+    "let t = tween( f32x1(0.0), f32x1(10.0), 10.0 ).with_repeat( 4294967295 ); t.current_repeat()"
+  ).unwrap_err();
+
+  assert!
+  (
+    err.to_string().contains( "out of range" ),
+    "expected an out-of-range repeat-count error, got: {err}"
+  );
+}
+
 #[ test ]
 fn tween_state_reports_animation_lifecycle_stage()
 {

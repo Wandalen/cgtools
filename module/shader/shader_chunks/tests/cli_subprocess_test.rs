@@ -156,6 +156,18 @@ fn tree_fbm3_shows_the_dependency_chain()
 }
 
 #[ test ]
+fn tree_hash21_reverse_shows_the_dependents_chain()
+{
+  let output = run( &[ "tree", "hash21", "reverse::1" ] );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  let stdout = stdout_of( &output );
+  let hash21_pos = stdout.find( "hash21" ).expect( "hash21 present" );
+  let value_noise_pos = stdout.find( "value_noise" ).expect( "value_noise present" );
+  let fbm3_pos = stdout.find( "fbm3" ).expect( "fbm3 present" );
+  assert!( hash21_pos < value_noise_pos && value_noise_pos < fbm3_pos, "unexpected reverse tree order:\n{stdout}" );
+}
+
+#[ test ]
 fn compose_hash21_value_noise_prints_composed_wgsl_in_dependency_order()
 {
   let output = run( &[ "compose", "hash21", "value_noise" ] );

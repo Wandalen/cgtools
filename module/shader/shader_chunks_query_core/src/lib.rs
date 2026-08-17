@@ -108,27 +108,57 @@ mod private
     .collect()
   }
 
+  /// Every bundled chunk with no dependencies of its own — the roots of
+  /// the no-argument `tree reverse::1` forest ( a reverse walk has to
+  /// start somewhere with nothing beneath it; the mirror image of
+  /// [`dependents_free_roots`] ).
+  fn leaf_roots() -> Vec< &'static shader_chunks_core::ChunkDescriptor >
+  {
+    shader_chunks_core::CHUNKS.iter()
+    .filter( | chunk | chunk.depends_on.is_empty() )
+    .collect()
+  }
+
+  /// Maps each chunk name to the chunks that directly depend on it — the
+  /// reverse of `depends_on` — built fresh per call ( the registry is
+  /// small and static, so caching would add complexity for no measurable
+  /// gain ).
+  fn reverse_adjacency() -> std::collections::HashMap< &'static str, Vec< &'static str > >
+  {
+    let mut map : std::collections::HashMap< &'static str, Vec< &'static str > > = std::collections::HashMap::new();
+    for chunk in shader_chunks_core::CHUNKS
+    {
+      for &dep_name in chunk.depends_on
+      {
+        map.entry( dep_name ).or_default().push( chunk.name );
+      }
+    }
+    map
+  }
+
   /// Builds one `name` tree node carrying its name and tags as aligned
-  /// column data, recursing into each `depends_on` entry. `TreeFormatter`'s
-  /// `format_aligned` renders a node's `ColumnData` ( not its bare `name`
-  /// field ) for every non-root row, so `name` must be column 0 for it to
-  /// appear at all — see `chunk_tree`, which also compensates for
-  /// `format_aligned`'s default `show_root: false` by wrapping each root in
-  /// an invisible parent so it renders as a normal ( column-bearing ) row
-  /// rather than being skipped as the tree's root. A dependency name that
-  /// can't be resolved against the bundled set is skipped rather than
-  /// panicking — defensive only, since every real chunk's `depends_on` is
-  /// validated at `compose` time and this bundled set is fixed and
-  /// self-consistent.
-  fn dep_tree( chunk : &shader_chunks_core::ChunkDescriptor ) -> TreeNode< ColumnData >
+  /// column data, recursing via `children_of` — `depends_on` itself in
+  /// forward mode, [`reverse_adjacency`]'s map in `reverse::1` mode — so
+  /// one recursive walk backs both tree directions ( see `chunk_tree` ).
+  /// `TreeFormatter`'s `format_aligned` renders a node's `ColumnData` ( not
+  /// its bare `name` field ) for every non-root row, so `name` must be
+  /// column 0 for it to appear at all — see `chunk_tree`, which also
+  /// compensates for `format_aligned`'s default `show_root: false` by
+  /// wrapping each root in an invisible parent so it renders as a normal
+  /// ( column-bearing ) row rather than being skipped as the tree's root.
+  /// A child name `children_of` returns that can't be resolved against the
+  /// bundled set is skipped rather than panicking — defensive only, since
+  /// every real chunk's `depends_on` is validated at `compose` time and
+  /// this bundled set is fixed and self-consistent.
+  fn dep_tree_node( chunk : &shader_chunks_core::ChunkDescriptor, children_of : &impl Fn( &str ) -> Vec< &'static str > ) -> TreeNode< ColumnData >
   {
     let name = chunk.name;
     let mut node = TreeNode::new( name.to_string(), Some( ColumnData::new( vec![ name.to_string(), tags_string( chunk ) ] ) ) );
-    for &dep_name in chunk.depends_on
+    for dep_name in children_of( name )
     {
       if let Ok( dep ) = chunk_find( dep_name )
       {
-        node.children.push( dep_tree( dep ) );
+        node.children.push( dep_tree_node( dep, children_of ) );
       }
     }
     node
@@ -716,17 +746,32 @@ mod private
   }
 
   /// Dependency tree for one chunk, or — with `name` absent — a forest of
-  /// every chunk nothing else depends on.
+  /// every chunk nothing else depends on. `reverse` flips the walk from
+  /// "what this chunk depends on" to "what depends on this chunk": with
+  /// `name` given, its dependents tree; with `name` absent, a forest
+  /// rooted at every leaf chunk ( [`leaf_roots`] ) instead of every
+  /// dependents-free root, since a reverse walk has to start somewhere
+  /// with nothing beneath it.
   ///
   /// # Errors
   ///
   /// Returns [`QueryError::UnknownChunk`] when `name` is `Some` and not found.
-  pub fn chunk_tree( name : Option< &str > ) -> Result< String, QueryError >
+  pub fn chunk_tree( name : Option< &str >, reverse : bool ) -> Result< String, QueryError >
   {
     let roots : Vec< &'static shader_chunks_core::ChunkDescriptor > = match name
     {
       Some( name ) => vec![ chunk_find( name )? ],
-      None => dependents_free_roots(),
+      None => if reverse { leaf_roots() } else { dependents_free_roots() },
+    };
+
+    let reverse_map = if reverse { Some( reverse_adjacency() ) } else { None };
+    let children_of = | n : &str | -> Vec< &'static str >
+    {
+      match &reverse_map
+      {
+        Some( map ) => map.get( n ).cloned().unwrap_or_default(),
+        None => shader_chunks_core::chunk_get( n ).map_or_else( Vec::new, | c | c.depends_on.to_vec() ),
+      }
     };
 
     let formatter = TreeFormatter::new();
@@ -738,7 +783,7 @@ mod private
       // root as the sole child of an invisible, data-less parent makes that
       // root itself appear as a normal aligned row instead of being skipped.
       let mut invisible_parent = TreeNode::new( String::new(), None );
-      invisible_parent.children.push( dep_tree( chunk ) );
+      invisible_parent.children.push( dep_tree_node( chunk, &children_of ) );
       formatter.format_aligned( &invisible_parent )
     }).collect::< Vec< _ > >().join( "\n" ) )
   }

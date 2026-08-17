@@ -29,7 +29,7 @@
 | 9 | [09_tag_selector.md](09_tag_selector.md) | TagSelector | ✅ |
 | 10 | [10_stage_selector.md](10_stage_selector.md) | StageSelector | ✅ |
 
-**Total:** 10 type test specs (of 11 across the `shader_chunks` family)
+**Total:** 10 type test specs (of 12 across the `shader_chunks` family)
 
 The 4 genuine enums (OutputFormat, SortKey, SortOrder, TagsMode) share
 one round-trip/rejection test

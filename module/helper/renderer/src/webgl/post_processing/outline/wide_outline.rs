@@ -317,6 +317,21 @@ mod private
       self.num_passes = new_value;
     }
 
+    /// Whether JFA step `i` ( see `jfa_step_pass` ) renders into `jfa_step_fb_0`
+    /// ( `false` means `jfa_step_fb_1` ).
+    // Fix(BUG-243): `jfa_step_pass`'s own ping-pong target selection and `outline_pass`'s choice
+    // of which buffer holds the final, fully-converged result used to be two independently
+    // hand-derived parity checks that had to agree but didn't -- `outline_pass` selected the
+    // OPPOSITE buffer from the one the last step ( `i = num_passes - 1` ) actually wrote,
+    // reading a one-step-stale JFA result on every real invocation ( `num_passes` is hardcoded
+    // to `4` in `new` ). Both call sites now defer to this single function so they can't
+    // independently drift out of sync again.
+    #[ must_use ]
+    pub fn jfa_step_targets_fb0( i : u32 ) -> bool
+    {
+      i % 2 == 0
+    }
+
     /// Performs the JFA initialization pass.
     ///
     /// Reads the object silhouette texture and writes texture coordinates for
@@ -366,21 +381,29 @@ mod private
 
       jfa_step.bind( gl );
 
-      // Ping-pong rendering: Determine input texture and output framebuffer based on step index `i`
-      if i == 0 // First step uses the initialization result
+      // Ping-pong rendering: this step's render target and the *next* step's read source are the
+      // same parity decision ( BUG-243 ) -- both derive from `jfa_step_targets_fb0` so they can't
+      // drift out of sync with each other or with `outline_pass`'s final-buffer selection.
+      if Self::jfa_step_targets_fb0( i )
       {
         framebuffer_upload( gl, jfa_step_fb_0, self.width as i32, self.height as i32 ); // Render to FB 0
-        texture_upload( gl, jfa_init_fb_color, &jfa_init_loc, GL::TEXTURE0 ); // Input is JFA init texture
       }
-      else if i % 2 == 0 // Even steps ( 2, 4, ... ) read from FB 1, render to FB 0
-      {
-        framebuffer_upload( gl, jfa_step_fb_0, self.width as i32, self.height as i32 ); // Render to FB 0
-        texture_upload( gl, jfa_step_fb_color_1, &jfa_init_loc, GL::TEXTURE0 ); // Input is texture from FB 1
-      }
-      else // Odd steps ( 1, 3, ... ) read from FB 0, render to FB 1
+      else
       {
         framebuffer_upload( gl, jfa_step_fb_1, self.width as i32, self.height as i32 ); // Render to FB 1
+      }
+
+      if i == 0 // First step uses the initialization result
+      {
+        texture_upload( gl, jfa_init_fb_color, &jfa_init_loc, GL::TEXTURE0 ); // Input is JFA init texture
+      }
+      else if Self::jfa_step_targets_fb0( i - 1 ) // Previous step wrote to FB 0
+      {
         texture_upload( gl, jfa_step_fb_color_0, &jfa_init_loc, GL::TEXTURE0 ); // Input is texture from FB 0
+      }
+      else // Previous step wrote to FB 1
+      {
+        texture_upload( gl, jfa_step_fb_color_1, &jfa_init_loc, GL::TEXTURE0 ); // Input is texture from FB 1
       }
 
       // Upload resolution uniform ( needed for distance calculations in the shader )
@@ -451,8 +474,10 @@ mod private
 
       texture_upload( gl, &source, &source_loc, GL::TEXTURE0 );
       texture_upload( gl, object_color, &object_color_loc, GL::TEXTURE1 );
-      // The final JFA result is in jfa_step_fb_color_0 if num_passes is even, otherwise in jfa_step_fb_color_1
-      if self.num_passes % 2 == 0
+      // Fix(BUG-243): the final JFA result lives wherever the *last* step actually rendered to --
+      // step `num_passes - 1`, not a hand-rederived parity check on `num_passes` itself ( which
+      // previously picked the OPPOSITE buffer from the one `jfa_step_pass` last wrote ).
+      if Self::jfa_step_targets_fb0( self.num_passes.saturating_sub( 1 ) )
       {
         texture_upload( gl, jfa_step_fb_color_0, &jfa_step_loc, GL::TEXTURE2 );
       }

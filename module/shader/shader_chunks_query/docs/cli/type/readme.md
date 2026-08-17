@@ -5,7 +5,7 @@
 - **Purpose:** Documents every semantic parameter type this crate uses.
 - **Responsibility:** One dedicated file per type — purpose, fundamental
   representation, constraints, parsing, methods.
-- **In Scope:** The 10 semantic types behind this crate's 21 parameters —
+- **In Scope:** The 10 semantic types behind this crate's 22 parameters —
   4 genuine Rust enums (`shader_chunks_query_core/src/lib.rs`) and 6
   string/bool/usize-realized types whose constraints live in validation
   code.
@@ -31,7 +31,7 @@
 | 9 | [09_tag_selector.md](09_tag_selector.md) | TagSelector | `String` (pair or bare) | ✅ |
 | 10 | [10_stage_selector.md](10_stage_selector.md) | StageSelector | `String` (any/none/literal) | ✅ |
 
-**Total:** 10 types (of 11 across the `shader_chunks` family)
+**Total:** 10 types (of 12 across the `shader_chunks` family)
 
 ### Docs
 

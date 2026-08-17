@@ -5,7 +5,7 @@
 | ID | F03 |
 | Output context | `compose` (composed WGSL preview); `preview` (build/validation summary line); `render` (write/validation summary line) |
 | Trigger | Always for all three — none exposes a `format::` selection; each prints unstructured text directly |
-| Structure | `compose`: raw WGSL source text, chunk bodies concatenated in dependency order, no added framing. `preview`: a `wrote <path> (<n> bytes wgsl, naga-validated)` line, a `target: <name>` line, then a `sliders:` header followed by one `  <property>  <min>..<max>  start <value>` line per declared slider. `render`: a `wrote <path> (<w>x<h> px, naga-validated)` line, `target:` and `time:` lines, then a `parameters at defaults:` header followed by one `  <property> = <value>` line per parameter |
+| Structure | `compose`: raw WGSL source text, chunk bodies concatenated in dependency order, no added framing. `preview`: a `wrote <path> (<n> bytes wgsl, naga-validated)` line, a `target: <name>` line, then a `sliders:` header followed by one `  <property>  <min>..<max>  start <value>` line per declared slider. `render`: a `wrote <path> (<w>x<h> px, naga-validated)` line, `target:` and `time:` lines, then a `parameters:` header followed by one `  <property> = <value>` line per parameter (default unless overridden via `set::`) |
 | Rendering mechanism | `compose`: `shader_chunks_core::try_compose`'s returned string. `preview`: `shader_chunks_preview::summary`'s returned string. `render`: `shader_chunks_render::summary`'s returned string. All three are printed as-is via `shader_chunks_cli_core::text_output` — no `data_fmt` pipeline, since none of the outputs is tabular or hierarchical data |
 | Example | See below |
 
@@ -43,7 +43,7 @@ lines carry the baked-in default values instead of slider ranges):
 wrote fbm3.png (128x128 px, naga-validated)
 target: fbm3
 time: 0
-parameters at defaults:
+parameters:
   preview_scale = 8
 ```
 

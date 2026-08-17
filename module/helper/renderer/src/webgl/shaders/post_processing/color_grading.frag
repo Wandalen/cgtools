@@ -165,9 +165,21 @@ vec3 apply_filmic_curve( vec3 color, float amount )
 vec3 adjust_vibrance( vec3 color, float vibrance )
 {
   // Smart saturation that affects less-saturated colors more
-  float average = ( color.r + color.g + color.b ) / 3.0;
+  // Fix(BUG-244): the weight term used `( mx - average )` -- a proxy that GROWS with a color's
+  // existing saturation ( 0 for gray, up to 2/3 for a fully saturated primary ) -- so `amt`'s
+  // magnitude, and therefore the saturation push, scaled UP with existing saturation instead of
+  // down. That is the exact opposite of the "Vibrance vs Saturation" contract documented at the
+  // top of this file: already-vivid colors ( including skin tones ) got pushed harder than dull
+  // ones, instead of being protected while dull colors get boosted. Root cause: `( mx - average )`
+  // is an INCREASING function of existing saturation; the weight needs a DECREASING one. Fixed via
+  // normalized HSV-style saturation `( mx - mn ) / mx` ( 0 = gray, 1 = fully saturated ) and its
+  // complement `( 1.0 - sat )`, which is 1 at zero saturation ( maximal boost headroom ) and 0 at
+  // full saturation ( fully protected ) -- `vec3( mx ) - color` is itself already ~0 for near-gray
+  // colors, so gray pixels still see no absolute change despite the large weight, same as before.
   float mx = max( max( color.r, color.g ), color.b );
-  float amt = ( mx - average ) * ( -vibrance * 3.0 );
+  float mn = min( min( color.r, color.g ), color.b );
+  float sat = ( mx - mn ) / max( mx, 0.0001 );
+  float amt = ( 1.0 - sat ) * ( -vibrance * 3.0 );
   return mix( color, vec3( mx ), amt );
 }
 

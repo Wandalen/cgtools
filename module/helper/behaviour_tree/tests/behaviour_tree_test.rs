@@ -166,6 +166,58 @@ fn test_parallel_node_resets_abandoned_running_child_on_failure()
   assert_eq!( parallel.execute( &mut context ), BehaviorStatus::Running );
 }
 
+// test_kind: bug_reproducer(BUG-228)
+/// ## Root Cause
+/// `ParallelNode::execute` re-invoked EVERY child EVERY tick, with no memory of which children
+/// had already reached `Success` in an earlier tick of the same still-`Running` activation.
+/// ## Why Not Caught
+/// `test_parallel_node` only exercises a single tick where every child completes together;
+/// nothing re-ticks a `ParallelNode` where one child already succeeded but another is still
+/// `Running`.
+/// ## Fix Applied
+/// `execute` now tracks a per-child `succeeded` flag and skips re-invoking any child already
+/// marked `Success`, counting its remembered result instead.
+/// ## Prevention
+/// This test pairs a `CooldownNode` (succeeds tick 1, then fails any re-poll within its long
+/// cooldown window) with a slower `WaitAction`. Tick 2 fails pre-fix (the cooldown child gets
+/// wrongly re-polled and reports `Failure` from being back inside its own cooldown) and
+/// succeeds post-fix (the cooldown child's tick-1 success is remembered, never re-polled).
+/// ## Pitfall
+/// A composite that keeps polling every child every tick must stop polling a child once it
+/// reaches a terminal status -- re-polling an already-succeeded child can trigger that child's
+/// own unrelated internal state (like a cooldown window) instead of just reconfirming success.
+#[ test ]
+fn test_parallel_node_does_not_repoll_already_succeeded_child()
+{
+  let mut parallel = ParallelNode::new
+  (
+    vec!
+    [
+      // child 0: succeeds tick 1, then FAILS if polled again within its 100s cooldown.
+      Box::new( CooldownNode::new
+      (
+        Box::new( SetBlackboardAction::new( "fast_done", true ) ),
+        Duration::from_secs_f32( 100.0 )
+      ) ),
+      // child 1: needs 1 simulated second to complete.
+      Box::new( WaitAction::new( 1.0 ) ),
+    ]
+  );
+
+  let mut context = BehaviorContext::new();
+
+  // Tick 1: child 0 succeeds immediately (cooldown starts empty); child 1 starts its wait.
+  assert_eq!( parallel.execute( &mut context ), BehaviorStatus::Running );
+
+  // Fast-forward past child 1's 1s wait -- well within child 0's 100s cooldown window.
+  context.update( Duration::from_secs_f32( 1.1 ) );
+
+  // Tick 2: child 1 finishes. Child 0 must NOT be re-polled -- if it were, it would still be
+  // inside its own 100s cooldown and report `Failure`, wrongly failing the whole composite even
+  // though both children have, in truth, already succeeded.
+  assert_eq!( parallel.execute( &mut context ), BehaviorStatus::Success );
+}
+
 #[ test ]
 fn test_repeat_node()
 {

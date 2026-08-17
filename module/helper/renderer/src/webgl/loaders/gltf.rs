@@ -85,7 +85,7 @@ mod private
   }
 
   /// A material shared between primitives, mutable behind `Rc< RefCell< _ > >`.
-  type SharedMaterial = Rc< RefCell< Box< dyn Material > > >;
+  pub type SharedMaterial = Rc< RefCell< Box< dyn Material > > >;
 
   /// Reads a skin's inverse bind matrices and resolves each joint to its node by
   /// [`gltf::Node::index()`] against the flat, index-ordered `nodes` slice -- the same
@@ -990,14 +990,58 @@ mod private
     Ok( geometry )
   }
 
+  /// Looks up an existing material variation under `material_id` whose
+  /// `vertex_defines_str()` matches `vertex_defines_str`, returning a shared clone of it;
+  /// if none matches, calls `new_material` to build one, records it under `material_id`
+  /// for future lookups, and returns it.
+  // Fix(BUG-245): this lookup-and-insert pairing used to be split apart inside
+  // `primitive_material_resolve`, with the insert half silently missing -- the map was passed by
+  // shared reference, so it had no way to be written to at all, and every entry
+  // `materials_create` seeded as an empty `Vec::new()` stayed empty forever. Every primitive
+  // sharing a glTF material + vertex-defines combination therefore got its own independent clone
+  // instead of the intended shared instance. Root cause: a cache that is only ever read, never
+  // written, is not a cache. Extracted into its own function, taking `material_variation_map` as
+  // `&mut` and inserting immediately after construction, so the lookup and its matching insert
+  // can no longer drift apart -- and so this pairing is unit-testable on its own, independent of
+  // the glTF-parsing and GPU-material-construction context around it.
+  #[ must_use ]
+  #[ expect( clippy::implicit_hasher, reason = "this loader uses FxHashMap exclusively, everywhere -- \
+    genericizing over BuildHasher here would be speculative, never-exercised generality" ) ]
+  pub fn material_variation_resolve
+  (
+    material_variation_map : &mut FxHashMap< uuid::Uuid, Vec< SharedMaterial > >,
+    material_id : uuid::Uuid,
+    vertex_defines_str : &str,
+    new_material : impl FnOnce() -> SharedMaterial
+  )
+  -> SharedMaterial
+  {
+    // Amongst different materials with the same uuid, find the one that has the same vertex defines
+    let variation = material_variation_map
+    .get( &material_id )
+    .and_then( | m | m.iter().find( | m | m.borrow().vertex_defines_str() == vertex_defines_str ) )
+    .cloned();
+
+    if let Some( existing ) = variation
+    {
+      existing
+    }
+    else
+    {
+      let material = new_material();
+      material_variation_map.entry( material_id ).or_default().push( material.clone() );
+      material
+    }
+  }
+
   /// Picks the material clone for one primitive : reuses a clone whose vertex
   /// defines match `dummy_material`'s, otherwise clones the primitive's glTF
-  /// material, applies the defines, and records it in `used_materials`.
+  /// material, applies the defines, and records it via [`material_variation_resolve`].
   fn primitive_material_resolve
   (
     gltf_primitive : &gltf::Primitive< '_ >,
     materials : &[ SharedMaterial ],
-    material_variation_map : &FxHashMap< uuid::Uuid, Vec< SharedMaterial > >,
+    material_variation_map : &mut FxHashMap< uuid::Uuid, Vec< SharedMaterial > >,
     used_materials : &mut Vec< SharedMaterial >,
     dummy_material : &PbrMaterial
   )
@@ -1005,34 +1049,29 @@ mod private
   {
     let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
     let gltf_material = materials[ material_id ].clone();
+    let gltf_material_id = gltf_material.borrow().id();
 
-    // Amongst different materials with the same uuid, find the one that has the same vertex defines
-    let variation = material_variation_map
-    .get( &gltf_material.borrow().id() )
-    .and_then(| m |
-      m.iter()
-      .find( | m | m.borrow().vertex_defines_str() == dummy_material.vertex_defines_str() ))
-    .cloned();
-
-    if let Some( material ) = variation
-    {
-      material
-    }
-    else
-    {
-      let material = Rc::new( RefCell::new( gltf_material.borrow().dyn_clone() ) );
-      let mut m = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
-
-      for ( name, value ) in dummy_material.vertex_defines()
+    material_variation_resolve
+    (
+      material_variation_map,
+      gltf_material_id,
+      dummy_material.vertex_defines_str(),
+      ||
       {
-        m.vertex_define_add( name.clone(), value );
+        let material = Rc::new( RefCell::new( gltf_material.borrow().dyn_clone() ) );
+        let mut m = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
+
+        for ( name, value ) in dummy_material.vertex_defines()
+        {
+          m.vertex_define_add( name.clone(), value );
+        }
+
+        std::mem::drop( m );
+        used_materials.push( material.clone() );
+
+        material
       }
-
-      std::mem::drop( m );
-      used_materials.push( material.clone() );
-
-      material
-    }
+    )
   }
 
   /// Assembles every glTF mesh from its primitives' geometry and resolved
@@ -1043,7 +1082,7 @@ mod private
     gltf_file : &gltf::Gltf,
     gl_buffers : &[ gl::WebGlBuffer ],
     materials : &[ SharedMaterial ],
-    material_variation_map : &FxHashMap< uuid::Uuid, Vec< SharedMaterial > >,
+    material_variation_map : &mut FxHashMap< uuid::Uuid, Vec< SharedMaterial > >,
     used_materials : &mut Vec< SharedMaterial >
   )
   -> Result< Vec< Rc< RefCell< Mesh > > >, gl::WebglError >
@@ -1309,13 +1348,13 @@ mod private
 
     let textures = textures_create( &gltf_file, &images );
 
-    let ( materials, material_variation_map ) = materials_create( gl, &gltf_file, &textures );
+    let ( materials, mut material_variation_map ) = materials_create( gl, &gltf_file, &textures );
     let mut used_materials : Vec< SharedMaterial > = Vec::new();
 
     gl::debug!( "PbrMaterials: {}",materials.len() );
     let meshes = meshes_create
     (
-      gl, &gltf_file, &gl_buffers, &materials, &material_variation_map, &mut used_materials
+      gl, &gltf_file, &gl_buffers, &materials, &mut material_variation_map, &mut used_materials
     )?;
 
     gl::debug!( "Meshes: {}",meshes.len() );
@@ -1365,6 +1404,8 @@ crate::mod_interface!
     asset_uri_resolve,
     light_list_get,
     light_get,
-    skeleton_transforms_data_load
+    skeleton_transforms_data_load,
+    material_variation_resolve,
+    SharedMaterial
   };
 }

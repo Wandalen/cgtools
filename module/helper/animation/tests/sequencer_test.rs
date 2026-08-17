@@ -157,6 +157,49 @@ mod tests
     assert!( !sequencer.remove( "tween1" ) );
   }
 
+  // test_kind: bug_reproducer(BUG-231)
+  /// ## Root Cause
+  /// `Sequencer::remove` never touched `self.state`. `update()`'s own completion check requires
+  /// `!self.players.is_empty()` before it will transition to `Completed` (by design, so a
+  /// genuinely-empty Sequencer is never reported as having "completed" work), so removing the
+  /// last remaining player while `Running` left `state` permanently stuck at `Running` -- there
+  /// was no path back to `Pending`/`Completed` once the player set went empty.
+  /// ## Why Not Caught
+  /// The existing `test_sequencer_remove` only ever removes one of two players, never reaching
+  /// the empty-player-set case, so it never observed `state()` after the last removal.
+  /// ## Fix Applied
+  /// `remove` now transitions `self.state` from `Running` to `Pending` when the removal leaves
+  /// `self.players` empty, mirroring `reset()`'s own empty-players-means-`Pending` convention.
+  /// See `sequencer.rs`.
+  /// ## Prevention
+  /// Added this test, which removes the only player from a `Running` Sequencer and asserts
+  /// `state()` reports `Pending` (not stuck `Running`) and `update()` no longer accumulates time.
+  /// ## Pitfall
+  /// Invisible whenever a `Sequencer` is discarded right after its last player is removed --
+  /// only a `Sequencer` reused afterward (checked via `state()`, or ticked via `update()` and
+  /// observed to keep advancing `time()` despite having nothing left to animate) exposes the
+  /// stuck `Running` state.
+  #[ test ]
+  fn test_sequencer_remove_last_player_leaves_pending_not_stuck_running()
+  {
+    let mut sequencer = Sequencer::new();
+
+    sequencer.insert
+    (
+      "only",
+      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::build() )
+    );
+    assert_eq!( sequencer.state(), AnimationState::Running );
+
+    assert!( sequencer.remove( "only" ) );
+    assert_eq!( sequencer.animation_count(), 0 );
+    assert_eq!( sequencer.state(), AnimationState::Pending, "state stuck at Running after removing the last player" );
+
+    let time_before = sequencer.time();
+    sequencer.update( 1.0 );
+    assert_eq!( sequencer.time(), time_before, "update() still accumulating time on an empty, no-longer-Running Sequencer" );
+  }
+
   #[ test ]
   fn test_sequencer_get_wrong_type()
   {

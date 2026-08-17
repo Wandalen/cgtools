@@ -235,8 +235,21 @@ mod private
       let skx = self.skew[ 0 ].tan();
       let sky = self.skew[ 1 ].tan();
 
-      let m00 = ( cos_r + sin_r * sky ) * sx;
-      let m10 = ( sin_r - cos_r * sky ) * sx;
+      // Fix(BUG-239)
+      // Root cause: see this function's own regression tests. `skew[1]` ("skewY")
+      // entered the x-basis column (m00, m10) with the opposite sign from the SVG
+      // `skewY(a)` matrix ( x'=x, y'=y+x*tan(a) ) that `skew`'s own doc comment and
+      // `transform_to_svg_local` (`src/adapters/svg.rs`) define it against -- `skx`
+      // ("skewX") had no such error. Confirmed by isolating a single unit point
+      // through a zero-rotation, unit-scale, single-nonzero-skew case, which removes
+      // all composition-order ambiguity and leaves only the raw sign to compare.
+      // Pitfall: a hand-derived combined transform matrix with no test covering one
+      // of its inputs (skew was never set to non-default anywhere in this workspace)
+      // can carry a silent per-field sign error indefinitely -- verify each input's
+      // sign against an independent, authoritative single-axis case, not just the
+      // matrix's overall shape.
+      let m00 = ( cos_r - sin_r * sky ) * sx;
+      let m10 = ( sin_r + cos_r * sky ) * sx;
       let m01 = ( cos_r * skx - sin_r ) * sy;
       let m11 = ( sin_r * skx + cos_r ) * sy;
 

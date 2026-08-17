@@ -620,7 +620,7 @@ fn list_tags_lists_every_distinct_group_tag_pair_and_its_chunks()
 #[ test ]
 fn tree_chunk_shows_fbm3_dependency_chain_in_order()
 {
-  let output = chunk_tree( Some( "fbm3" ) ).expect( "chunk_tree should succeed for a real chunk" );
+  let output = chunk_tree( Some( "fbm3" ), false ).expect( "chunk_tree should succeed for a real chunk" );
   let fbm3_pos = output.find( "fbm3" ).expect( "fbm3 present" );
   let value_noise_pos = output.find( "value_noise" ).expect( "value_noise present" );
   let hash21_pos = output.find( "hash21" ).expect( "hash21 present" );
@@ -631,7 +631,7 @@ fn tree_chunk_shows_fbm3_dependency_chain_in_order()
 #[ test ]
 fn tree_chunk_with_no_name_shows_forest_of_every_root_chunk()
 {
-  let output = chunk_tree( None ).expect( "chunk_tree should succeed with no name" );
+  let output = chunk_tree( None, false ).expect( "chunk_tree should succeed with no name" );
   assert!( output.contains( "domain_warp" ), "forest missing root `domain_warp`:\n{output}" );
   assert!( output.contains( "fullscreen_triangle" ), "forest missing root `fullscreen_triangle`:\n{output}" );
   // fbm3 stopped being a root once domain_warp arrived — it must still show
@@ -642,6 +642,45 @@ fn tree_chunk_with_no_name_shows_forest_of_every_root_chunk()
 #[ test ]
 fn tree_chunk_reports_unknown_chunk_error_for_bogus_name()
 {
-  let err = chunk_tree( Some( "bogus_chunk" ) ).expect_err( "chunk_tree should fail for an unknown name" );
+  let err = chunk_tree( Some( "bogus_chunk" ), false ).expect_err( "chunk_tree should fail for an unknown name" );
+  assert!( matches!( err, QueryError::UnknownChunk( _ ) ), "expected UnknownChunk, got {err:?}" );
+}
+
+#[ test ]
+fn tree_reverse_on_a_chunk_shows_its_dependents_chain_in_order()
+{
+  // hash21 <- value_noise <- fbm3 <- domain_warp: walking `reverse::1` from
+  // hash21 must show each dependent, nearest first, in the mirror image of
+  // the forward `fbm3` chain asserted above.
+  let output = chunk_tree( Some( "hash21" ), true ).expect( "reverse chunk_tree should succeed for a real chunk" );
+  let hash21_pos = output.find( "hash21" ).expect( "hash21 present" );
+  let value_noise_pos = output.find( "value_noise" ).expect( "value_noise present" );
+  let fbm3_pos = output.find( "fbm3" ).expect( "fbm3 present" );
+  assert!( hash21_pos < value_noise_pos, "hash21 should precede its dependent value_noise:\n{output}" );
+  assert!( value_noise_pos < fbm3_pos, "value_noise should precede its dependent fbm3:\n{output}" );
+}
+
+#[ test ]
+fn tree_reverse_with_no_name_shows_forest_of_every_leaf_chunk()
+{
+  let output = chunk_tree( None, true ).expect( "reverse chunk_tree should succeed with no name" );
+  assert!( output.contains( "hash21" ), "reverse forest missing leaf root `hash21`:\n{output}" );
+  // fullscreen_triangle has no dependents at all -- still a root, with no
+  // children under it.
+  assert!( output.contains( "fullscreen_triangle" ), "reverse forest missing leaf root `fullscreen_triangle`:\n{output}" );
+  assert!( output.contains( "value_noise" ), "reverse forest missing `value_noise` nested under hash21:\n{output}" );
+}
+
+#[ test ]
+fn tree_reverse_on_a_leaf_with_no_dependents_shows_just_that_chunk()
+{
+  let output = chunk_tree( Some( "fullscreen_triangle" ), true ).expect( "reverse chunk_tree should succeed for a dependents-free chunk" );
+  assert!( output.contains( "fullscreen_triangle" ), "{output}" );
+}
+
+#[ test ]
+fn tree_reverse_reports_unknown_chunk_error_for_bogus_name()
+{
+  let err = chunk_tree( Some( "bogus_chunk" ), true ).expect_err( "reverse chunk_tree should fail for an unknown name" );
   assert!( matches!( err, QueryError::UnknownChunk( _ ) ), "expected UnknownChunk, got {err:?}" );
 }

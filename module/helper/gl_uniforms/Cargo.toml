@@ -1,0 +1,27 @@
+[package]
+name = "gl_uniforms"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.81.0"
+license = "MIT"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/gl_uniforms"
+documentation = "https://docs.rs/gl_uniforms"
+description = "Program-scoped WebGL uniform upload wrapper -- collapses the get_uniform_location + upload + expect boilerplate repeated at every uniform call site"
+readme = "readme.md"
+keywords = ["webgl", "uniforms", "shader", "graphics", "wasm"]
+categories = ["graphics", "rendering", "web-programming", "wasm"]
+include = [
+  "src/**/*",
+  "tests/**/*",
+  "Cargo.toml",
+  "readme.md",
+  "license*",
+  "changelog*",
+]
+
+[lints]
+workspace = true
+
+[dependencies]
+minwebgl = { workspace = true }

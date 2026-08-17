@@ -22,6 +22,9 @@ mod gbuffer;
 /// Color-grading white balance tint-direction tests
 mod white_balance;
 
+/// Color-grading vibrance relative-saturation-boost weighting tests
+mod vibrance;
+
 /// Wide-outline pass structural / uniform-wiring tests
 mod wide_outline;
 
@@ -30,6 +33,9 @@ mod jfa_step_size;
 
 /// Wide-outline JFA silhouette-detection threshold tests
 mod jfa_silhouette;
+
+/// Wide-outline JFA final-result ping-pong buffer selection tests
+mod jfa_buffer_selection;
 
 /// Wide-outline outline-pass JFA seed-sentinel validity tests
 mod outline_seed_sentinel;

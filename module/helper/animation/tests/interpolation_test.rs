@@ -289,6 +289,46 @@ mod tests
     assert_eq!( val, 2.5 );
   }
 
+  // test_kind: bug_reproducer(BUG-232)
+  /// ## Root Cause
+  /// `repeat_handle`'s finite-repeat branch added the whole of `elapsed_repeats` (every repeat
+  /// boundary crossed by this single `update()` call) to `current_repeat` unconditionally, with
+  /// no check against `repeat_count`. A single large `delta_time` that crosses more repeat
+  /// boundaries than remain in the budget let `current_repeat` overshoot past `repeat_count`
+  /// while `state` stayed `Running` -- the crossing that should have completed the Tween instead
+  /// let it silently run extra, unrequested loops.
+  /// ## Why Not Caught
+  /// Every existing repeat test drives `update()` one boundary crossing at a time (`delta_time`
+  /// close to `duration`); none ever passed a single `delta_time` large enough to cross more
+  /// repeat boundaries than the configured `repeat_count` allows in one call.
+  /// ## Fix Applied
+  /// The finite-repeat branch now compares `elapsed_repeats` against the remaining budget
+  /// (`repeat_count - current_repeat`); if this call's crossings exceed it, `current_repeat` is
+  /// capped at `repeat_count` and the Tween completes immediately (`elapsed = duration`),
+  /// discarding the extra crossings -- matching what processing them one at a time would have
+  /// produced. See `interpolation.rs`.
+  /// ## Prevention
+  /// Added this test, which drives a `repeat_count( 2 )` Tween past its entire budget in one
+  /// oversized `update()` call and asserts it completes with `current_repeat()` capped at
+  /// exactly `2`, not overshot to the raw crossed-boundary count.
+  /// ## Pitfall
+  /// Batching multiple repeat-boundary crossings into one `update()` call must reproduce the
+  /// same outcome as processing them individually -- a budget check applied only per-increment
+  /// (never against the batch total) lets a single large `delta_time` silently exceed a bound
+  /// that per-frame deltas would have respected.
+  #[ test ]
+  fn test_tween_finite_repeat_large_delta_completes_without_overshooting_repeat_count()
+  {
+    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_repeat( 2 );
+
+    // Crosses 3 repeat boundaries in one call -- only 2 repeats are allowed.
+    tween.update( 3.5 );
+
+    assert!( tween.is_completed(), "large delta_time should complete the Tween once its repeat budget is exhausted" );
+    assert_eq!( tween.current_repeat(), 2, "current_repeat overshot repeat_count instead of being capped" );
+    assert_eq!( tween.time(), 1.0, "elapsed should snap to duration on completion, not retain leftover overshoot" );
+  }
+
   // test_kind: bug_reproducer(TASK-015)
   /// ## Root Cause
   /// `[Tween<T>; N]::duration_get` computed `min_start` via `.max()` seeded at `0.0`, returning

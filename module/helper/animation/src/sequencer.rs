@@ -218,9 +218,25 @@ mod private
     }
 
     /// Removes an animation from the Sequencer.
+    // Fix(BUG-231)
+    // Root cause: `remove` never touched `self.state`, so removing the last remaining player
+    // left `state` stuck at `Running` -- `update()`'s own completion check requires
+    // `!self.players.is_empty()` before it will transition to `Completed` (deliberately, so a
+    // genuinely-empty Sequencer is never reported as having "completed" work), so an
+    // empty-but-`Running` Sequencer could never leave that state on its own: `is_completed()`
+    // stayed `false` forever and `update()` kept accumulating `self.time` every call despite
+    // having nothing left to animate.
+    // Pitfall: mirrors BUG-147's own asymmetry on `insert` -- only the automatically-reached
+    // `Running` state is superseded here; a caller-requested `Paused` state deliberately
+    // survives losing its last player, exactly as BUG-147 already established for `insert`.
     pub fn remove( &mut self, name : &str ) -> bool
     {
-      self.players.remove( name ).is_some()
+      let removed = self.players.remove( name ).is_some();
+      if removed && self.players.is_empty() && self.state == AnimationState::Running
+      {
+        self.state = AnimationState::Pending;
+      }
+      removed
     }
 
     /// Gets the current  Sequencer time.

@@ -282,9 +282,31 @@ mod private
         // Finite repeat
         // See the infinite-repeat branch above for why this narrowing is bounded in practice.
         let repeats : i32 = elapsed_repeats as i32;
-        self.current_repeat += repeats;
-        self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).max( 0.0 );
-        self.state = AnimationState::Running;
+        // Fix(BUG-232)
+        // Root cause: a single `update()` call whose `delta_time` spans more than one repeat
+        // boundary (a frame stall, a backgrounded tab, a deliberate fast-forward) crossed
+        // `elapsed_repeats` boundaries in one shot; the old code added all of them to
+        // `current_repeat` unconditionally, letting it overshoot past `repeat_count` while still
+        // leaving `state` at `Running` -- exactly the crossing that should have completed the
+        // Tween instead ran one (or more) extra, unrequested loops.
+        // Pitfall: processing N boundary crossings in one call must behave identically to
+        // processing them one at a time -- the moment a crossing would occur at
+        // `current_repeat == repeat_count`, that crossing completes the Tween immediately and
+        // discards every further crossing in the same batch, rather than letting the batch
+        // silently carry `current_repeat` past `repeat_count`.
+        let remaining = self.repeat_count - self.current_repeat;
+        if repeats > remaining
+        {
+          self.current_repeat = self.repeat_count;
+          self.state = AnimationState::Completed;
+          self.elapsed = self.duration;
+        }
+        else
+        {
+          self.current_repeat += repeats;
+          self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).max( 0.0 );
+          self.state = AnimationState::Running;
+        }
       }
       else
       {

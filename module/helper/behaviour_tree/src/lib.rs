@@ -483,6 +483,10 @@ impl BehaviorNode for SelectorNode
 pub struct ParallelNode
 {
   children : Vec< Box< dyn BehaviorNode > >,
+  /// Per-child "already reached `Success` earlier in this still-`Running` activation" flag --
+  /// prevents re-invoking an already-succeeded child on a later tick (see `Fix(BUG-228)` on
+  /// `execute` below). Cleared alongside every child on `reset()`.
+  succeeded : Vec< bool >,
   name : String,
 }
 
@@ -493,9 +497,11 @@ impl ParallelNode
   #[ must_use ]
   pub fn new( children : Vec< Box< dyn BehaviorNode > > ) -> Self
   {
+    let succeeded = vec![ false; children.len() ];
     Self
     {
       children,
+      succeeded,
       name : "Parallel".to_string(),
     }
   }
@@ -505,7 +511,8 @@ impl ParallelNode
   #[ must_use ]
   pub fn named( children : Vec< Box< dyn BehaviorNode > >, name : String ) -> Self
   {
-    Self { children, name }
+    let succeeded = vec![ false; children.len() ];
+    Self { children, succeeded, name }
   }
 }
 
@@ -523,6 +530,20 @@ impl BehaviorNode for ParallelNode
   // needs `&mut self`, which conflicts with an outstanding `IterMut` borrow held for the whole
   // loop -- indexing via `self.children[ i ]` re-borrows only per-statement, leaving `self.reset()`
   // free to borrow `self` again in a later statement.
+  // Fix(BUG-228)
+  // Root cause: every tick re-invoked EVERY child via `self.children[ i ].execute( context )`,
+  // with no memory of which children had already reached `Success` in an earlier tick of the
+  // same still-`Running` activation -- unlike `SequenceNode`/`SelectorNode`, whose
+  // `current_child` cursor naturally skips already-resolved children. A child that resets its
+  // own internal state on success (e.g. `WaitAction`, which calls `self.reset()` right before
+  // returning `Success`) got silently restarted the next time it was polled, so two children
+  // completing at different tick counts could prevent the whole node from ever converging on
+  // `Success`; a `CooldownNode` child re-polled after its own success (while still inside its
+  // own cooldown window) returned `Failure`, wrongly short-circuiting the entire composite even
+  // though that child had already legitimately succeeded.
+  // Pitfall: a composite that keeps polling every child every tick must track which children
+  // already reached a terminal status and stop re-invoking them -- terminal, in a Parallel
+  // composite, is sticky for the rest of the activation, not re-derived from scratch every tick.
   #[ inline ]
   fn execute( &mut self, context : &mut BehaviorContext ) -> BehaviorStatus
   {
@@ -531,9 +552,19 @@ impl BehaviorNode for ParallelNode
 
     for i in 0 .. self.children.len()
     {
+      if self.succeeded[ i ]
+      {
+        success_count += 1;
+        continue;
+      }
+
       match self.children[ i ].execute( context )
       {
-        BehaviorStatus::Success => success_count += 1,
+        BehaviorStatus::Success =>
+        {
+          self.succeeded[ i ] = true;
+          success_count += 1;
+        }
         BehaviorStatus::Failure =>
         {
           self.reset();
@@ -565,6 +596,10 @@ impl BehaviorNode for ParallelNode
     for child in &mut self.children
     {
       child.reset();
+    }
+    for succeeded in &mut self.succeeded
+    {
+      *succeeded = false;
     }
   }
 

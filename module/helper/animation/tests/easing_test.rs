@@ -68,6 +68,34 @@ mod tests
     assert_f_eq( step_func.apply( 0.0, 1.0, 1.0 ), 1.0, eps );
   }
 
+  // test_kind: bug_reproducer(BUG-233)
+  /// ## Root Cause
+  /// `Step::new` stored its `steps` argument as given, with no floor. `apply`'s
+  /// `( time * self.steps ).ceil() / self.steps` then divided by that stored value directly, so
+  /// `Step::new( 0.0 )` produced a `0.0` divisor -- `f64` division never panics, so `0.0 / 0.0`
+  /// silently evaluated to `NaN` instead of erroring.
+  /// ## Why Not Caught
+  /// The only existing `Step` test, `test_step_function`, exercises `Step::new( 5.0 )` only --
+  /// no test ever constructed a `Step` with `0.0` (or a negative value).
+  /// ## Fix Applied
+  /// `Step::new` now floors its argument with `steps.max( 0.001 )`, mirroring `Tween::new`'s own
+  /// `duration.max( 0.001 )` guard against the identical division-by-zero shape. See
+  /// `easing/base.rs`.
+  /// ## Prevention
+  /// Added this test, which constructs `Step::new( 0.0 )` and asserts `apply` returns a finite,
+  /// non-`NaN` value rather than propagating `NaN` into the interpolated result.
+  /// ## Pitfall
+  /// Rust's `f64` division never panics on a zero divisor -- it silently returns `NaN` or
+  /// `±inf` -- so any `f64` constructor parameter that later becomes a division's divisor needs
+  /// an explicit floor; there is no language-level safety net that would surface the mistake.
+  #[ test ]
+  fn test_step_function_zero_steps_does_not_produce_nan()
+  {
+    let step_func = Step::new( 0.0 );
+    let value = step_func.apply( 0.0_f64, 1.0_f64, 0.5 );
+    assert!( !value.is_nan(), "Step::new( 0.0 ) produced NaN instead of a finite value" );
+  }
+
   #[ test ]
   fn test_cubic_boundaries_and_properties()
   {

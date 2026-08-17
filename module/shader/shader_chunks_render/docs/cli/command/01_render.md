@@ -8,23 +8,25 @@ and writes it as a PNG — a bundled chunk by `name`, or a local file via
 [`.preview`](../../../../shader_chunks_preview/docs/cli/command/01_preview.md)'s (the command reuses
 `shader_chunks_preview::bundle_prepare` verbatim), so anything
 previewable is renderable and vice versa. Every bundle parameter takes
-its initial (slider-start) value and the bundle's `time` uniform is
-frozen at `time::` — the written image is exactly what the browser
-preview shows before anyone touches a slider, at that instant.
+its initial (slider-start) value, unless overridden via `set::`, and the
+bundle's `time` uniform is frozen at `time::` — the written image is
+exactly what the browser preview shows before anyone touches a slider
+(or, with `set::` applied, mid-drag), at that instant.
 
--- **Parameters:** name, file, out, size, time
+-- **Parameters:** name, file, out, size, time, set
 -- **Exit Codes:** 0 (success — PNG written, summary printed) | 1 (no
    target or both targets given; `name` does not resolve against
    `shader_chunks_core::CHUNKS`; composed WGSL fails naga
-   parse/validation; `size::` malformed or has a zero side) | 2 (the
-   `file::` target could not be read; no usable headless GPU
-   adapter/device; the GPU rejected the render; the PNG could not be
-   written)
+   parse/validation; `size::` malformed or has a zero side; a `set::`
+   element is malformed or non-finite; a `set::` property matches no
+   declared parameter) | 2 (the `file::` target could not be read; no
+   usable headless GPU adapter/device; the GPU rejected the render; the
+   PNG could not be written)
 -- **Modes:** (none)
 
 ### Syntax
 ```bash
-shader_chunks render [<name>] [file::<path>] [out::<path>] [size::<n>|<w>x<h>] [time::<seconds>]
+shader_chunks render [<name>] [file::<path>] [out::<path>] [size::<n>|<w>x<h>] [time::<seconds>] [set::<property>:<value>,...]
 ```
 
 ### Parameters
@@ -36,6 +38,7 @@ shader_chunks render [<name>] [file::<path>] [out::<path>] [size::<n>|<w>x<h>] [
 | `out` | [`String`](../param/01_out.md) | `<target>.png` | No | Output PNG path |
 | `size` | [`String`](../param/02_size.md) | `256` | No | Output size: `<n>` (square) or `<width>x<height>`, each side ≥ 1 |
 | `time` | [`Float`](../param/03_time.md) | `0` | No | Value of the bundle's `time` uniform for this frame |
+| `set` | [`ParameterOverride`](../type/02_parameter_override.md) list | none (bundle defaults) | No | Comma-separated `property:value` overrides for the bundle's declared parameters |
 
 ### Examples
 ```bash
@@ -43,7 +46,9 @@ shader_chunks render fbm3
 # wrote fbm3.png (256x256 px, naga-validated)
 # target: fbm3
 # time: 0
-# parameters at defaults:
+# parameters:
+#   lacunarity = 2
+#   gain = 0.5
 #   preview_scale = 8
 
 shader_chunks render fbm3 out::fbm3_far.png size::512 time::2.5
@@ -51,6 +56,15 @@ shader_chunks render fbm3 out::fbm3_far.png size::512 time::2.5
 
 shader_chunks render file::-my_harness.wgsl size::128x64
 # renders a local WGSL chunk file at a non-square size
+
+shader_chunks render fbm3 set::lacunarity:2.5,gain:0.75
+# wrote fbm3.png (256x256 px, naga-validated)
+# target: fbm3
+# time: 0
+# parameters:
+#   lacunarity = 2.5
+#   gain = 0.75
+#   preview_scale = 8
 
 shader_chunks render
 # error: render needs exactly one target: a chunk name (see `list`) or `file::<path>`, exit 1
@@ -60,6 +74,9 @@ shader_chunks render bogus_chunk
 
 shader_chunks render fbm3 size::0
 # error: invalid `size` value: `0` (allowed: `<n>` or `<width>x<height>`, each side at least 1), exit 1
+
+shader_chunks render fbm3 set::bogus:1.0
+# error: unknown parameter: `bogus` (valid parameters: lacunarity, gain, preview_scale), exit 1
 ```
 
 ### Notes
@@ -88,6 +105,15 @@ shader_chunks render fbm3 size::0
 - Output format: [`plain_text`](../../../../shader_chunks_compose/docs/cli/format/01_plain_text.md) — the
   summary is printed as-is, same as `.preview`'s summary; the image
   itself goes to the filesystem, never to stdout.
+- `set::` lets one frame capture any parameter combination, not just the
+  defaults: parsing (`overrides_parse`) and identity resolution against
+  the live bundle (`overrides_apply`) are independent steps, so a
+  malformed element (exit 1, before target resolution's cost is paid)
+  and an unrecognized property name (exit 1, after the bundle is built)
+  fail with distinct, specific messages. Overrides are baked in as-is —
+  never clamped to a parameter's declared `min`/`max` — and a later
+  element overriding the same property as an earlier one wins. See
+  [`set`](../param/04_set.md).
 
 ### Related Commands
 
@@ -95,7 +121,7 @@ shader_chunks render fbm3 size::0
 |---|---------|--------------|
 | 1 | [`.preview`](../../../../shader_chunks_preview/docs/cli/command/01_preview.md) | Same bundle building and validation lineage, rendered live in the browser instead of to a file |
 | 2 | [`.compose`](../../../../shader_chunks_compose/docs/cli/command/01_compose.md) | Same WGSL composition lineage, but prints text and renders nothing |
-| 3 | [`.tunables`](../../../../shader_chunks_params/docs/cli/command/01_tunables.md) | Lists the `//@ param:` declarations whose default values `.render` bakes into the frame |
+| 3 | [`.tunables`](../../../../shader_chunks_params/docs/cli/command/01_tunables.md) | Lists the `//@ param:` declarations whose property names `set::` overrides target, and whose default values `.render` bakes in when `set::` is omitted |
 
 ### Referenced User Stories
 

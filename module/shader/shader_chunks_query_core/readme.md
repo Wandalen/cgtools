@@ -45,7 +45,8 @@ params.names = vec![ "fbm3".to_string() ];
 let record = chunks_query( &params ).unwrap();
 
 let tags = tags_list().unwrap();          // every group:tag pair and its chunk(s)
-let forest = chunk_tree( None ).unwrap(); // dependency forest of every root chunk
+let forest = chunk_tree( None, false ).unwrap();       // dependency forest of every root chunk
+let dependents = chunk_tree( None, true ).unwrap();     // reverse forest: what depends on each leaf chunk
 ```
 
 ## Errors
