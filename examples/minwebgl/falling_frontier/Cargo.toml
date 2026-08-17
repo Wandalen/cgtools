@@ -16,6 +16,7 @@ features = [
   'MouseEvent',
   'PointerEvent',
   'WheelEvent',
+  'KeyboardEvent',
   'Element',
   'HtmlInputElement',
   'HtmlSelectElement',

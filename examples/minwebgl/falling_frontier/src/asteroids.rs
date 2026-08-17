@@ -55,16 +55,34 @@ const ASTEROID_SPECS : [ AsteroidSpec; 8 ] =
   AsteroidSpec { radius : 12.0, position : [ 153.53, ASTEROID_Y, 93.93 ] },
 ];
 
-struct AsteroidBlocker
+/// One asteroid's mutable state - `position`/`extra_rotation_y` start from
+/// `ASTEROID_SPECS` but move under the M6 gizmo (`drag_to`/`rotate_to`);
+/// `block_radius` is fixed (derived from the spec's `radius`, never
+/// resized). Kept 1:1 index-aligned with `Asteroids::parts` - asteroid `i`
+/// always owns `parts[i]`, no separate id lookup needed.
+struct AsteroidObject
 {
   position : [ f32; 2 ],
+  /// Extra Y rotation applied on top of the fixed per-asteroid jitter
+  /// baked into each part's `local_transform` - starts at 0, only the
+  /// gizmo's rotate mode (M6) ever changes it.
+  extra_rotation_y : f32,
   block_radius : f32,
+}
+
+impl AsteroidObject
+{
+  fn transform( &self ) -> gl::F32x4x4
+  {
+    mat3x3h::translation( F32x3::new( self.position[ 0 ], ASTEROID_Y, self.position[ 1 ] ) )
+    * mat3x3h::rot( 0.0, self.extra_rotation_y, 0.0 )
+  }
 }
 
 pub struct Asteroids
 {
   parts : Vec< HullPart >,
-  blockers : Vec< AsteroidBlocker >,
+  objects : Vec< AsteroidObject >,
 }
 
 impl Asteroids
@@ -77,7 +95,7 @@ impl Asteroids
     let ( base_vertices, faces ) = icosphere();
 
     let mut parts = Vec::with_capacity( ASTEROID_SPECS.len() );
-    let mut blockers = Vec::with_capacity( ASTEROID_SPECS.len() );
+    let mut objects = Vec::with_capacity( ASTEROID_SPECS.len() );
 
     for ( i, spec ) in ASTEROID_SPECS.iter().enumerate()
     {
@@ -95,22 +113,26 @@ impl Asteroids
 
       let ( vao, index_count ) = upload_mesh( gl, &positions, &faces );
 
+      // Fixed per-rock jitter (shape only) - never touched again, unlike
+      // `extra_rotation_y` above which the gizmo does mutate.
       let rx = rand::rng().random_range( 0.0 .. std::f32::consts::PI );
       let ry = rand::rng().random_range( 0.0 .. std::f32::consts::PI );
       let rz = rand::rng().random_range( 0.0 .. std::f32::consts::PI );
-      let model = mat3x3h::translation( F32x3::from( spec.position ) )
-      * mat3x3h::rot( rx, ry, rz )
-      * mat3x3h::scale( F32x3::splat( spec.radius ) );
+      let local_transform = mat3x3h::rot( rx, ry, rz ) * mat3x3h::scale( F32x3::splat( spec.radius ) );
 
-      parts.push( HullPart { vao, index_count, model, color : ASTEROID_COLOR, ambient : AMBIENT_LIT, pick_id : id_base + i as i32 } );
-      blockers.push( AsteroidBlocker
+      let object = AsteroidObject
       {
         position : [ spec.position[ 0 ], spec.position[ 2 ] ],
+        extra_rotation_y : 0.0,
         block_radius : spec.radius * BLOCK_PADDING,
-      } );
+      };
+      let model = object.transform() * local_transform;
+
+      parts.push( HullPart { vao, index_count, local_transform, model, color : ASTEROID_COLOR, ambient : AMBIENT_LIT, pick_id : id_base + i as i32 } );
+      objects.push( object );
     }
 
-    Self { parts, blockers }
+    Self { parts, objects }
   }
 
   pub fn parts( &self ) -> &[ HullPart ]
@@ -118,11 +140,44 @@ impl Asteroids
     &self.parts
   }
 
+  /// The `index`-th asteroid's current world transform (translate + gizmo
+  /// rotation, no shape jitter) - what the gizmo (M6) draws its handle at.
+  pub fn object_transform( &self, index : usize ) -> gl::F32x4x4
+  {
+    self.objects[ index ].transform()
+  }
+
+  pub fn position( &self, index : usize ) -> [ f32; 2 ]
+  {
+    self.objects[ index ].position
+  }
+
+  pub fn rotation_y( &self, index : usize ) -> f32
+  {
+    self.objects[ index ].extra_rotation_y
+  }
+
+  /// Moves asteroid `index` to a new XZ position (Y stays at `ASTEROID_Y`) -
+  /// called by the M6 gizmo's translate drag.
+  pub fn drag_to( &mut self, index : usize, position : [ f32; 2 ] )
+  {
+    self.objects[ index ].position = position;
+    self.parts[ index ].set_model( self.objects[ index ].transform() );
+  }
+
+  /// Sets asteroid `index`'s extra Y rotation - called by the M6 gizmo's
+  /// rotate drag.
+  pub fn rotate_to( &mut self, index : usize, rotation_y : f32 )
+  {
+    self.objects[ index ].extra_rotation_y = rotation_y;
+    self.parts[ index ].set_model( self.objects[ index ].transform() );
+  }
+
   /// Every asteroid as a boundary-blocking circle, padded past its max
   /// visual bulge - feeds `boundary::build_boundary_polyline`.
   pub fn blockers( &self ) -> Vec< Blocker >
   {
-    self.blockers.iter()
+    self.objects.iter()
     .map( | a | Blocker { x : a.position[ 0 ], z : a.position[ 1 ], radius : a.block_radius } )
     .collect()
   }
@@ -132,7 +187,7 @@ impl Asteroids
   /// so nothing outside view range ever reaches the shader.
   pub fn glow_candidates( &self, focus : [ f32; 2 ], view_radius : f32 ) -> Vec< ( [ f32; 2 ], f32 ) >
   {
-    self.blockers.iter()
+    self.objects.iter()
     .filter_map( | a |
     {
       let dx = a.position[ 0 ] - focus[ 0 ];

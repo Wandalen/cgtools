@@ -141,7 +141,16 @@ impl PickBuffer
   /// Re-renders every part's id at its current transform. Caller is
   /// responsible for restoring the viewport afterward - this always sets it
   /// to the buffer's own size while drawing.
-  pub fn render< 'a >( &self, gl : &GL, id_program : &IdProgram, view_proj : gl::F32x4x4, parts : impl Iterator< Item = &'a HullPart > )
+  ///
+  /// `gizmo_part`, if given, is drawn last with depth test off - matching
+  /// `Gizmo::draw`'s own depth-test-off visible pass (the handle is meant to
+  /// stay clickable through the object it belongs to). Without this, the
+  /// gizmo's flat handle geometry loses the depth test against its own
+  /// object's hull most of the time (the hull's mesh usually has some
+  /// geometry closer to the camera than the handle's paper-thin plane), so
+  /// the id buffer would report the object's id instead of the handle's
+  /// right where a drag is supposed to start.
+  pub fn render< 'a >( &self, gl : &GL, id_program : &IdProgram, view_proj : gl::F32x4x4, parts : impl Iterator< Item = &'a HullPart >, gizmo_part : Option< &HullPart > )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
     gl.viewport( 0, 0, self.width, self.height );
@@ -150,6 +159,13 @@ impl PickBuffer
 
     id_program.begin_frame( gl, view_proj );
     for part in parts { id_program.draw_part( gl, part ); }
+
+    if let Some( part ) = gizmo_part
+    {
+      gl.disable( GL::DEPTH_TEST );
+      id_program.draw_part( gl, part );
+      gl.enable( GL::DEPTH_TEST );
+    }
 
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
   }

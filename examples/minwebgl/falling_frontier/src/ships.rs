@@ -50,13 +50,31 @@ const FLEET : [ ShipSpec; 4 ] =
   ShipSpec { kind : ShipKind::Scout, position : [ 87.85, SHIP_Y, -34.42 ], rotation_y : -1.08 },
 ];
 
+/// One ship's mutable state - `position`/`rotation_y` start from `FLEET`
+/// but move under the M6 gizmo (`drag_to`/`rotate_to`). Index-aligned with
+/// `FLEET`; `pick_id` is stored (rather than re-derived as `id_base + i`)
+/// so `drag_to`/`rotate_to` can filter `Ships::parts` without needing
+/// `id_base` passed back in.
+struct ShipObject
+{
+  position : [ f32; 2 ],
+  rotation_y : f32,
+  pick_id : i32,
+}
+
+impl ShipObject
+{
+  fn transform( &self ) -> F32x4x4
+  {
+    mat3x3h::translation( F32x3::new( self.position[ 0 ], SHIP_Y, self.position[ 1 ] ) )
+    * mat3x3h::rot( 0.0, self.rotation_y, 0.0 )
+  }
+}
+
 pub struct Ships
 {
   parts : Vec< HullPart >,
-  /// XZ position of each ship, in `FLEET` order - `positions()[i]` is the
-  /// ship that owns pick id `id_base + i`, letting `main.rs` turn a
-  /// selected ship id straight into the grid focus point.
-  positions : Vec< [ f32; 2 ] >,
+  objects : Vec< ShipObject >,
 }
 
 impl Ships
@@ -67,13 +85,13 @@ impl Ships
   pub fn new( gl : &gl::GL, id_base : i32 ) -> Self
   {
     let mut parts = Vec::new();
-    let mut positions = Vec::with_capacity( FLEET.len() );
+    let mut objects = Vec::with_capacity( FLEET.len() );
     for ( i, spec ) in FLEET.iter().enumerate()
     {
-      let ship_transform = mat3x3h::translation( F32x3::from( spec.position ) )
-      * mat3x3h::rot( 0.0, spec.rotation_y, 0.0 );
       let pick_id = id_base + i as i32;
-      positions.push( [ spec.position[ 0 ], spec.position[ 2 ] ] );
+      let object = ShipObject { position : [ spec.position[ 0 ], spec.position[ 2 ] ], rotation_y : spec.rotation_y, pick_id };
+      let ship_transform = object.transform();
+      objects.push( object );
 
       match spec.kind
       {
@@ -84,7 +102,7 @@ impl Ships
       }
     }
 
-    Self { parts, positions }
+    Self { parts, objects }
   }
 
   pub fn parts( &self ) -> &[ HullPart ]
@@ -92,9 +110,49 @@ impl Ships
     &self.parts
   }
 
-  pub fn positions( &self ) -> &[ [ f32; 2 ] ]
+  pub fn position( &self, index : usize ) -> [ f32; 2 ]
   {
-    &self.positions
+    self.objects[ index ].position
+  }
+
+  pub fn rotation_y( &self, index : usize ) -> f32
+  {
+    self.objects[ index ].rotation_y
+  }
+
+  /// The `index`-th ship's current world transform - what the gizmo (M6)
+  /// draws its handle at.
+  pub fn object_transform( &self, index : usize ) -> F32x4x4
+  {
+    self.objects[ index ].transform()
+  }
+
+  /// Moves ship `index` to a new XZ position (Y stays at `SHIP_Y`) - called
+  /// by the M6 gizmo's translate drag.
+  pub fn drag_to( &mut self, index : usize, position : [ f32; 2 ] )
+  {
+    self.objects[ index ].position = position;
+    self.sync_parts( index );
+  }
+
+  /// Sets ship `index`'s heading - called by the M6 gizmo's rotate drag.
+  pub fn rotate_to( &mut self, index : usize, rotation_y : f32 )
+  {
+    self.objects[ index ].rotation_y = rotation_y;
+    self.sync_parts( index );
+  }
+
+  /// Recomputes `model` for every `HullPart` sharing ship `index`'s
+  /// `pick_id` - a ship is several parts (hull, bow, bridge, engines...),
+  /// all of which must move together.
+  fn sync_parts( &mut self, index : usize )
+  {
+    let object_transform = self.objects[ index ].transform();
+    let pick_id = self.objects[ index ].pick_id;
+    for part in self.parts.iter_mut().filter( | p | p.pick_id == pick_id )
+    {
+      part.set_model( object_transform );
+    }
   }
 }
 
@@ -113,7 +171,7 @@ fn push_part
 {
   let ( vao, index_count ) = upload_mesh( gl, &mesh.0, &mesh.1 );
   let model = ship_transform * local_transform;
-  parts.push( HullPart { vao, index_count, model, color, ambient, pick_id } );
+  parts.push( HullPart { vao, index_count, local_transform, model, color, ambient, pick_id } );
 }
 
 fn build_cruiser( gl : &gl::GL, parts : &mut Vec< HullPart >, ship_transform : F32x4x4, pick_id : i32 )

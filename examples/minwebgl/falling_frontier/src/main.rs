@@ -12,6 +12,7 @@ mod boundary;
 mod hull;
 mod primitives;
 mod picking;
+mod gizmo;
 mod asteroids;
 mod ships;
 mod station;
@@ -25,6 +26,7 @@ use debug::{ GridTuning, setup_grid_tuning_panel, refresh_selection_status };
 use boundary::{ build_boundary_polyline, MAX_BOUNDARY_PTS };
 use hull::HullProgram;
 use picking::{ IdProgram, PickBuffer };
+use gizmo::{ Gizmo, GizmoMode };
 use asteroids::Asteroids;
 use ships::Ships;
 use station::Station;
@@ -45,6 +47,9 @@ const MAX_ASTEROID_GLOW : usize = 16;
 const ASTEROID_ID_BASE : i32 = 0;
 const SHIP_ID_BASE : i32 = ASTEROID_ID_BASE + asteroids::ASTEROID_COUNT as i32;
 const STATION_ID : i32 = SHIP_ID_BASE + ships::SHIP_COUNT as i32;
+// The M6 gizmo handle's own pick id - one past every real scene object, so
+// it never collides with `classify_pick`'s ranges above.
+const GIZMO_ID : i32 = STATION_ID + 1;
 
 /// What a raw pick id (see `picking.rs`) refers to - the mapping only
 /// `main.rs` knows, since it's the one that handed out the id ranges above.
@@ -75,6 +80,52 @@ fn selection_status_text( kind : Option< PickedKind > ) -> String
     Some( PickedKind::Station ) => "selected: station".to_string(),
     Some( PickedKind::Asteroid( i ) ) => format!( "selected: asteroid {i}" ),
     None => "selected: none (click a ship, station, or asteroid)".to_string(),
+  }
+}
+
+/// The selected object's current world transform - what the M6 gizmo draws
+/// its handle at.
+fn selected_transform( kind : PickedKind, asteroids : &Asteroids, ships : &Ships, station : &Station ) -> gl::F32x4x4
+{
+  match kind
+  {
+    PickedKind::Asteroid( i ) => asteroids.object_transform( i ),
+    PickedKind::Ship( i ) => ships.object_transform( i ),
+    PickedKind::Station => station.object_transform(),
+  }
+}
+
+/// The selected object's current XZ position and Y rotation - what a gizmo
+/// drag needs at grab time to compute a grab offset (translate) or angle
+/// offset (rotate), so the object doesn't snap to the cursor the instant
+/// it's grabbed.
+fn selected_position_rotation( kind : PickedKind, asteroids : &Asteroids, ships : &Ships, station : &Station ) -> ( [ f32; 2 ], f32 )
+{
+  match kind
+  {
+    PickedKind::Asteroid( i ) => ( asteroids.position( i ), asteroids.rotation_y( i ) ),
+    PickedKind::Ship( i ) => ( ships.position( i ), ships.rotation_y( i ) ),
+    PickedKind::Station => ( station.position(), station.rotation_y() ),
+  }
+}
+
+fn drag_selected( kind : PickedKind, position : [ f32; 2 ], asteroids : &mut Asteroids, ships : &mut Ships, station : &mut Station )
+{
+  match kind
+  {
+    PickedKind::Asteroid( i ) => asteroids.drag_to( i, position ),
+    PickedKind::Ship( i ) => ships.drag_to( i, position ),
+    PickedKind::Station => station.drag_to( position ),
+  }
+}
+
+fn rotate_selected( kind : PickedKind, rotation_y : f32, asteroids : &mut Asteroids, ships : &mut Ships, station : &mut Station )
+{
+  match kind
+  {
+    PickedKind::Asteroid( i ) => asteroids.rotate_to( i, rotation_y ),
+    PickedKind::Ship( i ) => ships.rotate_to( i, rotation_y ),
+    PickedKind::Station => station.rotate_to( rotation_y ),
   }
 }
 
@@ -137,6 +188,43 @@ fn canvas_pixel_from_client( canvas : &gl::web_sys::HtmlCanvasElement, client_x 
   let px = ( x_ratio * f64::from( canvas.width() ) ) as i32;
   let py_top_down = ( y_ratio * f64::from( canvas.height() ) ) as i32;
   ( px, canvas.height() as i32 - py_top_down )
+}
+
+fn unproject( inv_view_proj : gl::F32x4x4, ndc_x : f32, ndc_y : f32, ndc_z : f32 ) -> gl::math::F32x3
+{
+  let clip = gl::math::F32x4::new( ndc_x, ndc_y, ndc_z, 1.0 );
+  let world = inv_view_proj * clip;
+  gl::math::F32x3::new( world.x() / world.w(), world.y() / world.w(), world.z() / world.w() )
+}
+
+/// Casts a ray from the camera through the given client-space pixel and
+/// intersects it with the `y = 0` ground plane - re-derived for the M6
+/// gizmo's drag math (constrains translate to this plane, and rotate reads
+/// an angle off it) after M5 deleted the identical M3-era functions once
+/// GPU id-buffer picking made them unnecessary for click-to-select itself.
+/// `view_proj` is a snapshot from the most recent frame (see
+/// `latest_view_proj`), not recomputed here.
+fn ray_ground_hit( view_proj : gl::F32x4x4, canvas : &gl::web_sys::HtmlCanvasElement, client_x : f64, client_y : f64 ) -> Option< [ f32; 2 ] >
+{
+  let rect = canvas.get_bounding_client_rect();
+  let x = ( client_x - rect.left() ) as f32;
+  let y = ( client_y - rect.top() ) as f32;
+  let w = rect.width() as f32;
+  let h = rect.height() as f32;
+  if w <= 0.0 || h <= 0.0 { return None; }
+
+  let ndc_x = ( x / w ) * 2.0 - 1.0;
+  let ndc_y = 1.0 - ( y / h ) * 2.0;
+
+  let inv = view_proj.inverse()?;
+  let near = unproject( inv, ndc_x, ndc_y, -1.0 );
+  let far = unproject( inv, ndc_x, ndc_y, 1.0 );
+  let dir = far - near;
+  if dir.y().abs() < 1e-6 { return None; }
+  let t = -near.y() / dir.y();
+  if t < 0.0 { return None; }
+  let hit = near + dir * t;
+  Some( [ hit.x(), hit.z() ] )
 }
 
 struct GridUniforms
@@ -326,6 +414,83 @@ impl TacticalGrid
   }
 }
 
+/// A gizmo handle grabbed at `kind`'s current position/rotation - captured
+/// at grab time so a translate/rotate drag can preserve the exact point/
+/// angle grabbed instead of snapping the object to the cursor.
+#[ derive( Clone, Copy ) ]
+struct DragState
+{
+  kind : PickedKind,
+  mode : GizmoMode,
+  /// Translate only: `object.xz - hit.xz` at grab time.
+  grab_offset : [ f32; 2 ],
+  /// Rotate only: `object.rotation_y - angle_to_cursor` at grab time.
+  rotation_offset : f32,
+}
+
+/// Everything a click, a gizmo drag, or a render frame needs to pick/select/
+/// drag scene objects - bundled behind one `Rc` (mirroring
+/// `examples/minwebgl/object_picking`'s own `RenderCtx`) so each pointer/
+/// keyboard listener captures a single clone instead of a dozen separate
+/// `Rc`s. Interior mutability (`Cell`/`RefCell`) lives directly on the
+/// fields rather than wrapping each field in its own `Rc`, since nothing
+/// outside this struct ever needs to share just one field independently.
+struct InteractionCtx
+{
+  gl : GL,
+  canvas : gl::web_sys::HtmlCanvasElement,
+  document : gl::web_sys::Document,
+  id_program : IdProgram,
+  pick_buffer : RefCell< PickBuffer >,
+  gizmo : Gizmo,
+  /// Last frame's view_proj - pointer/keyboard listeners fire outside the
+  /// render loop's closure (which owns `Camera`), and the id pass needs to
+  /// draw parts at the same transforms the visible frame used.
+  latest_view_proj : Cell< gl::F32x4x4 >,
+  selected_id : Cell< Option< i32 > >,
+  gizmo_mode : Cell< GizmoMode >,
+  drag_state : Cell< Option< DragState > >,
+  /// Shared with `Camera`'s own internal state (via `Camera::controls_get`).
+  /// Toggling `rotation.enabled` here is exactly how a gizmo drag suppresses
+  /// camera-orbit rotation while active, same mechanism the JS reference's
+  /// `transform.js` uses (`world.controls.enabled = !event.value`).
+  camera_controls : Rc< RefCell< mingl::CameraOrbitControls > >,
+  asteroids : RefCell< Asteroids >,
+  ships : RefCell< Ships >,
+  station : RefCell< Station >,
+}
+
+/// Re-renders the id pass (including the gizmo handle, if something's
+/// selected) and reads back the pick id at `client_x`/`client_y` - shared by
+/// the pointerdown gizmo-grab check and the pointerup click-to-select path,
+/// since both need the exact same render+read+viewport-restore sequence.
+fn pick_at_client( ctx : &InteractionCtx, client_x : f64, client_y : f64 ) -> Option< i32 >
+{
+  let asteroids = ctx.asteroids.borrow();
+  let ships = ctx.ships.borrow();
+  let station = ctx.station.borrow();
+
+  let gizmo_part = ctx.selected_id.get().and_then( classify_pick ).map( | kind |
+  {
+    let transform = selected_transform( kind, &asteroids, &ships, &station );
+    ctx.gizmo.part( ctx.gizmo_mode.get(), transform, GIZMO_ID )
+  } );
+
+  let parts = asteroids.parts().iter().chain( ships.parts() ).chain( station.parts() );
+  ctx.pick_buffer.borrow().render( &ctx.gl, &ctx.id_program, ctx.latest_view_proj.get(), parts, gizmo_part.as_ref() );
+
+  let ( px, py ) = canvas_pixel_from_client( &ctx.canvas, client_x, client_y );
+  let picked = ctx.pick_buffer.borrow().pick( &ctx.gl, px, py );
+
+  // Restore the viewport `render()` changed to the pick buffer's size - the
+  // main render loop only re-sets it on an actual canvas resize, not every
+  // frame, so leaving it wrong here would stick.
+  let ( w, h ) = canvas_size( &ctx.canvas );
+  ctx.gl.viewport( 0, 0, w as i32, h as i32 );
+
+  picked
+}
+
 #[ expect( clippy::too_many_lines, reason = "one flat setup-then-render-loop sequence (camera, scene, picking, panel, click handler, then the per-frame closure); splitting it up would scatter closely-related setup across helper functions for no real grouping" ) ]
 fn app_run() -> Result< (), gl::WebglError >
 {
@@ -355,44 +520,48 @@ fn app_run() -> Result< (), gl::WebglError >
 
   let grid = TacticalGrid::new( &gl );
   let hull_program = HullProgram::new( &gl );
-  let asteroids = Rc::new( Asteroids::new( &gl, ASTEROID_ID_BASE ) );
-  let ships = Rc::new( Ships::new( &gl, SHIP_ID_BASE ) );
-  let station = Rc::new( Station::new( &gl, STATION_ID ) );
   let starfield = Starfield::new( &gl );
   gl.viewport( 0, 0, pixel_w as i32, pixel_h as i32 );
 
-  let id_program = Rc::new( IdProgram::new( &gl ) );
-  let pick_buffer = Rc::new( RefCell::new( PickBuffer::new( &gl, pixel_w as i32, pixel_h as i32 ) ) );
-
   let tuning = Rc::new( RefCell::new( GridTuning::default() ) );
-  let selected_id : Rc< Cell< Option< i32 > > > = Rc::new( Cell::new( None ) );
   let document = gl::web_sys::window().unwrap().document().unwrap();
 
+  // Last frame's view_proj, kept for pointer/keyboard listeners below - they
+  // fire outside this closure, which owns `camera`.
+  let initial_view_proj = camera.projection_matrix_get() * camera.view_matrix_get();
+
+  let ctx = Rc::new( InteractionCtx
   {
-    let selected_id = selected_id.clone();
-    let document_for_deselect = document.clone();
+    gl : gl.clone(),
+    canvas : canvas.clone(),
+    document : document.clone(),
+    id_program : IdProgram::new( &gl ),
+    pick_buffer : RefCell::new( PickBuffer::new( &gl, pixel_w as i32, pixel_h as i32 ) ),
+    gizmo : Gizmo::new( &gl ),
+    latest_view_proj : Cell::new( initial_view_proj ),
+    selected_id : Cell::new( None ),
+    gizmo_mode : Cell::new( GizmoMode::Translate ),
+    drag_state : Cell::new( None ),
+    camera_controls : camera.controls_get(),
+    asteroids : RefCell::new( Asteroids::new( &gl, ASTEROID_ID_BASE ) ),
+    ships : RefCell::new( Ships::new( &gl, SHIP_ID_BASE ) ),
+    station : RefCell::new( Station::new( &gl, STATION_ID ) ),
+  } );
+
+  {
+    let ctx = ctx.clone();
     setup_grid_tuning_panel
     (
       &document, &tuning,
       move ||
       {
-        selected_id.set( None );
-        refresh_selection_status( &document_for_deselect, &selection_status_text( None ) );
+        ctx.selected_id.set( None );
+        refresh_selection_status( &ctx.document, &selection_status_text( None ) );
       }
     );
   }
 
-  // Last frame's view_proj, kept for the click handler below — the click
-  // fires outside the render loop's closure, which owns `camera`, and the id
-  // pass needs to draw parts at the same transforms the visible frame used.
-  let initial_view_proj = camera.projection_matrix_get() * camera.view_matrix_get();
-  let latest_view_proj = Rc::new( Cell::new( initial_view_proj ) );
-
-  setup_selection_click
-  (
-    &canvas, &document, &gl, &id_program, &pick_buffer, &latest_view_proj, &selected_id,
-    &asteroids, &ships, &station,
-  );
+  setup_selection_and_gizmo( &ctx );
 
   let prev_size = Cell::new( ( pixel_w, pixel_h ) );
   let mut prev_time = 0.0f64;
@@ -400,11 +569,7 @@ fn app_run() -> Result< (), gl::WebglError >
   let update_and_draw =
   {
     let canvas = canvas.clone();
-    let latest_view_proj = latest_view_proj.clone();
-    let pick_buffer = pick_buffer.clone();
-    let asteroids = asteroids.clone();
-    let ships = ships.clone();
-    let station = station.clone();
+    let ctx = ctx.clone();
     move | t : f64 |
     {
       let delta_time = if prev_time == 0.0 { 0.0 } else { ( t - prev_time ) / 1000.0 };
@@ -417,7 +582,7 @@ fn app_run() -> Result< (), gl::WebglError >
         canvas.set_width( w );
         canvas.set_height( h );
         gl.viewport( 0, 0, w as i32, h as i32 );
-        pick_buffer.borrow_mut().resize( &gl, w as i32, h as i32 );
+        ctx.pick_buffer.borrow_mut().resize( &gl, w as i32, h as i32 );
 
         let proj = gl::math::mat3x3h::perspective_rh_gl( fov, w as f32 / h as f32, near, far );
         camera.projection_matrix_set( proj );
@@ -429,19 +594,24 @@ fn app_run() -> Result< (), gl::WebglError >
       gl.clear( GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT );
 
       let view_proj = camera.projection_matrix_get() * camera.view_matrix_get();
-      latest_view_proj.set( view_proj );
+      ctx.latest_view_proj.set( view_proj );
 
       let tuning_snapshot = *tuning.borrow();
-      let selected = selected_id.get();
+      let selected = ctx.selected_id.get();
+      let selected_kind = selected.and_then( classify_pick );
+
+      let asteroids = ctx.asteroids.borrow();
+      let ships = ctx.ships.borrow();
+      let station = ctx.station.borrow();
 
       // Only a selected ship drives the ribbon - matches `main.js`'s
       // `animate()`, which points the grid's focus at `gizmo.object` only
       // when it defines a `viewRadius` (only ships do in `fleet.js`; the
       // station and asteroids have none, so selecting them highlights the
       // object but leaves the ribbon off).
-      let focus_snapshot = match selected.and_then( classify_pick )
+      let focus_snapshot = match selected_kind
       {
-        Some( PickedKind::Ship( i ) ) => FocusState { active : true, point : ships.positions()[ i ] },
+        Some( PickedKind::Ship( i ) ) => FocusState { active : true, point : ships.position( i ) },
         _ => FocusState::default(),
       };
 
@@ -473,6 +643,16 @@ fn app_run() -> Result< (), gl::WebglError >
         &boundary_buf[ .. boundary_count ], &glow
       );
 
+      // M6: the gizmo handle, drawn on top of everything at whatever is
+      // currently selected (translate cross or rotate ring, per
+      // `ctx.gizmo_mode`).
+      if let Some( kind ) = selected_kind
+      {
+        let object_transform = selected_transform( kind, &asteroids, &ships, &station );
+        let gizmo_part = ctx.gizmo.part( ctx.gizmo_mode.get(), object_transform, GIZMO_ID );
+        ctx.gizmo.draw( &gl, view_proj, &gizmo_part );
+      }
+
       true
     }
   };
@@ -482,57 +662,113 @@ fn app_run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
-/// Wires a click-vs-drag-aware pointer handler on `canvas`: a press+release
-/// within a few pixels of each other re-renders the id pass and reads back
-/// the pick id under the cursor, setting `selected_id` to whatever was found
-/// (`None` for empty space/the grid - neither is in the id pass). A
-/// `pointerup` that followed a real drag (camera orbit) is ignored. Replaces
-/// M3's `setup_ground_click` ray/plane stand-in with real object picking.
-#[ expect( clippy::too_many_arguments, reason = "bundles the id-pass mechanism (gl/id_program/pick_buffer/view_proj), the pickable scene data, and the selection sink the handler updates - a context struct would just move this list into a constructor with no real grouping" ) ]
-fn setup_selection_click
-(
-  canvas : &gl::web_sys::HtmlCanvasElement,
-  document : &gl::web_sys::Document,
-  gl : &GL,
-  id_program : &Rc< IdProgram >,
-  pick_buffer : &Rc< RefCell< PickBuffer > >,
-  latest_view_proj : &Rc< Cell< gl::F32x4x4 > >,
-  selected_id : &Rc< Cell< Option< i32 > > >,
-  asteroids : &Rc< Asteroids >,
-  ships : &Rc< Ships >,
-  station : &Rc< Station >,
-)
+/// Wires the M5 click-to-select handler and the M6 gizmo drag handler on the
+/// same `pointerdown`/`pointerup` pair, since a gizmo grab and a normal
+/// selection click both start as a `pointerdown` and are only told apart by
+/// what's under the cursor. `pointerdown` stays canvas-scoped (a press must
+/// start over the canvas); `pointermove`/`pointerup` are window-scoped so a
+/// gizmo drag survives the cursor leaving canvas bounds mid-drag, same
+/// rationale as `examples/minwebgl/object_picking`'s own mousemove/mouseup
+/// binding. `keydown` (G/R/Escape) is window-scoped too, matching the JS
+/// reference's own `window.addEventListener('keydown', ...)`.
+#[ expect( clippy::too_many_lines, reason = "four closely-related event listeners (pointerdown/pointermove/pointerup/keydown) sharing the same down_pos/ctx setup - splitting them into separate functions would just move the same total line count behind more indirection" ) ]
+fn setup_selection_and_gizmo( ctx : &Rc< InteractionCtx > )
 {
   use gl::web_sys::wasm_bindgen::{ prelude::Closure, JsCast };
 
+  let window = gl::web_sys::window().unwrap();
+  let canvas = ctx.canvas.clone();
   let down_pos : Rc< Cell< Option< ( f64, f64 ) > > > = Rc::new( Cell::new( None ) );
 
   {
+    let ctx = ctx.clone();
     let down_pos = down_pos.clone();
     let closure = Closure::< dyn FnMut( _ ) >::new
     (
-      move | e : gl::web_sys::PointerEvent | { down_pos.set( Some( pointer_client_pos( &e ) ) ); }
+      move | e : gl::web_sys::PointerEvent |
+      {
+        if e.button() != 0 { return; }
+        let pos = pointer_client_pos( &e );
+        down_pos.set( Some( pos ) );
+
+        // A gizmo handle only exists while something's selected - nothing
+        // to grab otherwise, so skip the speculative pick entirely.
+        let Some( kind ) = ctx.selected_id.get().and_then( classify_pick ) else { return };
+        if pick_at_client( &ctx, pos.0, pos.1 ) != Some( GIZMO_ID ) { return; }
+
+        let Some( hit ) = ray_ground_hit( ctx.latest_view_proj.get(), &ctx.canvas, pos.0, pos.1 ) else { return };
+        let ( position, rotation_y ) = selected_position_rotation( kind, &ctx.asteroids.borrow(), &ctx.ships.borrow(), &ctx.station.borrow() );
+
+        let drag = match ctx.gizmo_mode.get()
+        {
+          GizmoMode::Translate => DragState
+          {
+            kind, mode : GizmoMode::Translate,
+            grab_offset : [ position[ 0 ] - hit[ 0 ], position[ 1 ] - hit[ 1 ] ],
+            rotation_offset : 0.0,
+          },
+          GizmoMode::Rotate => DragState
+          {
+            kind, mode : GizmoMode::Rotate,
+            grab_offset : [ 0.0, 0.0 ],
+            rotation_offset : rotation_y - ( hit[ 0 ] - position[ 0 ] ).atan2( hit[ 1 ] - position[ 1 ] ),
+          },
+        };
+        ctx.drag_state.set( Some( drag ) );
+        ctx.camera_controls.borrow_mut().rotation.enabled = false;
+      }
     );
     canvas.add_event_listener_with_callback( "pointerdown", closure.as_ref().unchecked_ref() ).unwrap();
     closure.forget();
   }
 
   {
-    let down_pos = down_pos.clone();
-    let gl = gl.clone();
-    let id_program = id_program.clone();
-    let pick_buffer = pick_buffer.clone();
-    let latest_view_proj = latest_view_proj.clone();
-    let selected_id = selected_id.clone();
-    let asteroids = asteroids.clone();
-    let ships = ships.clone();
-    let station = station.clone();
-    let canvas_for_pick = canvas.clone();
-    let document = document.clone();
+    let ctx = ctx.clone();
     let closure = Closure::< dyn FnMut( _ ) >::new
     (
       move | e : gl::web_sys::PointerEvent |
       {
+        let Some( drag ) = ctx.drag_state.get() else { return };
+        let ( x, y ) = pointer_client_pos( &e );
+        let Some( hit ) = ray_ground_hit( ctx.latest_view_proj.get(), &ctx.canvas, x, y ) else { return };
+
+        let mut asteroids = ctx.asteroids.borrow_mut();
+        let mut ships = ctx.ships.borrow_mut();
+        let mut station = ctx.station.borrow_mut();
+
+        match drag.mode
+        {
+          GizmoMode::Translate =>
+          {
+            let position = [ hit[ 0 ] + drag.grab_offset[ 0 ], hit[ 1 ] + drag.grab_offset[ 1 ] ];
+            drag_selected( drag.kind, position, &mut asteroids, &mut ships, &mut station );
+          }
+          GizmoMode::Rotate =>
+          {
+            let ( position, _ ) = selected_position_rotation( drag.kind, &asteroids, &ships, &station );
+            let angle = ( hit[ 0 ] - position[ 0 ] ).atan2( hit[ 1 ] - position[ 1 ] );
+            rotate_selected( drag.kind, angle + drag.rotation_offset, &mut asteroids, &mut ships, &mut station );
+          }
+        }
+      }
+    );
+    window.add_event_listener_with_callback( "pointermove", closure.as_ref().unchecked_ref() ).unwrap();
+    closure.forget();
+  }
+
+  {
+    let ctx = ctx.clone();
+    let down_pos = down_pos.clone();
+    let closure = Closure::< dyn FnMut( _ ) >::new
+    (
+      move | e : gl::web_sys::PointerEvent |
+      {
+        if ctx.drag_state.take().is_some()
+        {
+          ctx.camera_controls.borrow_mut().rotation.enabled = true;
+          return;
+        }
+
         if e.button() != 0 { return; }
         let Some( ( dx0, dy0 ) ) = down_pos.get() else { return };
         let ( x, y ) = pointer_client_pos( &e );
@@ -540,23 +776,36 @@ fn setup_selection_click
         // A real drag (camera orbit), not a click - leave selection alone.
         if dx.hypot( dy ) > 6.0 { return; }
 
-        let parts = asteroids.parts().iter().chain( ships.parts() ).chain( station.parts() );
-        pick_buffer.borrow().render( &gl, &id_program, latest_view_proj.get(), parts );
-
-        let ( px, py ) = canvas_pixel_from_client( &canvas_for_pick, x, y );
-        let picked = pick_buffer.borrow().pick( &gl, px, py );
-
-        // Restore the viewport `render()` changed to the pick buffer's size
-        // - the main render loop only re-sets it on an actual canvas resize,
-        // not every frame, so leaving it wrong here would stick.
-        let ( w, h ) = canvas_size( &canvas_for_pick );
-        gl.viewport( 0, 0, w as i32, h as i32 );
-
-        selected_id.set( picked );
-        refresh_selection_status( &document, &selection_status_text( picked.and_then( classify_pick ) ) );
+        let picked = pick_at_client( &ctx, x, y );
+        ctx.selected_id.set( picked );
+        refresh_selection_status( &ctx.document, &selection_status_text( picked.and_then( classify_pick ) ) );
       }
     );
-    canvas.add_event_listener_with_callback( "pointerup", closure.as_ref().unchecked_ref() ).unwrap();
+    window.add_event_listener_with_callback( "pointerup", closure.as_ref().unchecked_ref() ).unwrap();
+    closure.forget();
+  }
+
+  {
+    let ctx = ctx.clone();
+    let closure = Closure::< dyn FnMut( _ ) >::new
+    (
+      move | e : gl::web_sys::KeyboardEvent |
+      {
+        if ctx.selected_id.get().is_none() { return; }
+        match e.key().as_str()
+        {
+          "g" | "G" => ctx.gizmo_mode.set( GizmoMode::Translate ),
+          "r" | "R" => ctx.gizmo_mode.set( GizmoMode::Rotate ),
+          "Escape" =>
+          {
+            ctx.selected_id.set( None );
+            refresh_selection_status( &ctx.document, &selection_status_text( None ) );
+          }
+          _ => {}
+        }
+      }
+    );
+    window.add_event_listener_with_callback( "keydown", closure.as_ref().unchecked_ref() ).unwrap();
     closure.forget();
   }
 }

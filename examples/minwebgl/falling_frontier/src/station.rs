@@ -22,15 +22,24 @@ const GLOW : [ f32; 3 ] = [ 0.0, 0.9412, 1.0 ];
 pub struct Station
 {
   parts : Vec< HullPart >,
+  position : [ f32; 2 ],
+  rotation_y : f32,
 }
 
 impl Station
 {
+  fn transform( position : [ f32; 2 ], rotation_y : f32 ) -> F32x4x4
+  {
+    mat3x3h::translation( F32x3::new( position[ 0 ], STATION_POSITION[ 1 ], position[ 1 ] ) )
+    * mat3x3h::rot( 0.0, rotation_y, 0.0 )
+  }
+
   /// `pick_id` is shared by every part below - the station is one
   /// selectable object, not one per module (see `picking.rs`).
   pub fn new( gl : &gl::GL, pick_id : i32 ) -> Self
   {
-    let station_transform = mat3x3h::translation( F32x3::from( STATION_POSITION ) );
+    let position = [ STATION_POSITION[ 0 ], STATION_POSITION[ 2 ] ];
+    let station_transform = Self::transform( position, 0.0 );
     let mut parts = Vec::new();
 
     // Central axis core cylinder.
@@ -62,14 +71,52 @@ impl Station
     let beacon = mat3x3h::translation( F32x3::new( 0.0, 16.0, 0.0 ) ) * mat3x3h::scale( F32x3::splat( 0.8 ) );
     let ( beacon_positions, beacon_indices ) = icosphere();
     let ( vao, index_count ) = upload_mesh( gl, &beacon_positions, &beacon_indices );
-    parts.push( HullPart { vao, index_count, model : station_transform * beacon, color : GLOW, ambient : AMBIENT_GLOW, pick_id } );
+    parts.push( HullPart { vao, index_count, local_transform : beacon, model : station_transform * beacon, color : GLOW, ambient : AMBIENT_GLOW, pick_id } );
 
-    Self { parts }
+    Self { parts, position, rotation_y : 0.0 }
   }
 
   pub fn parts( &self ) -> &[ HullPart ]
   {
     &self.parts
+  }
+
+  /// The station's current world transform - what the gizmo (M6) draws its
+  /// handle at.
+  pub fn object_transform( &self ) -> F32x4x4
+  {
+    Self::transform( self.position, self.rotation_y )
+  }
+
+  pub fn position( &self ) -> [ f32; 2 ]
+  {
+    self.position
+  }
+
+  pub fn rotation_y( &self ) -> f32
+  {
+    self.rotation_y
+  }
+
+  /// Moves the station to a new XZ position (Y stays at `STATION_POSITION`'s
+  /// altitude) - called by the M6 gizmo's translate drag.
+  pub fn drag_to( &mut self, position : [ f32; 2 ] )
+  {
+    self.position = position;
+    self.sync_parts();
+  }
+
+  /// Sets the station's heading - called by the M6 gizmo's rotate drag.
+  pub fn rotate_to( &mut self, rotation_y : f32 )
+  {
+    self.rotation_y = rotation_y;
+    self.sync_parts();
+  }
+
+  fn sync_parts( &mut self )
+  {
+    let object_transform = self.object_transform();
+    for part in &mut self.parts { part.set_model( object_transform ); }
   }
 }
 
@@ -88,5 +135,5 @@ fn push_part
 {
   let ( vao, index_count ) = upload_mesh( gl, &mesh.0, &mesh.1 );
   let model = station_transform * local_transform;
-  parts.push( HullPart { vao, index_count, model, color, ambient, pick_id } );
+  parts.push( HullPart { vao, index_count, local_transform, model, color, ambient, pick_id } );
 }

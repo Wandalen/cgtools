@@ -27,10 +27,29 @@ pub struct HullPart
 {
   pub vao : gl::WebGlVertexArrayObject,
   pub index_count : i32,
+  /// This part's fixed offset within its owning object (e.g. a ship's
+  /// engine nacelle relative to its hull) - never changes after
+  /// construction. `model` is `object_transform * local_transform`;
+  /// dragging/rotating the object (M6) recomputes `model` by re-applying a
+  /// new `object_transform` here via `set_model`, rather than trying to
+  /// factor a stored `model` back apart.
+  pub local_transform : gl::F32x4x4,
   pub model : gl::F32x4x4,
   pub color : [ f32; 3 ],
   pub ambient : f32,
   pub pick_id : i32,
+}
+
+impl HullPart
+{
+  /// Recomputes `model` from a new object-level transform (translate +
+  /// gizmo rotation) and this part's fixed `local_transform` - called by an
+  /// owner (`asteroids`/`ships`/`station`) when the gizmo (M6) moves or
+  /// rotates the object this part belongs to.
+  pub fn set_model( &mut self, object_transform : gl::F32x4x4 )
+  {
+    self.model = object_transform * self.local_transform;
+  }
 }
 
 /// How much a selected part's color is mixed toward white — stands in for a

@@ -6,7 +6,7 @@ current conversation.
 
 ## Resume here
 
-M0-M5 are done, verified live in-browser, and **committed** (see their
+M0-M6 are done, verified live in-browser, and **committed** (see their
 checklist entries below for what/how):
 - `851dd9df` on `space-game-demo` — M0-M3 ("feat: add Falling Frontier
   tactical grid, dev panel, and view-zone ribbon")
@@ -14,33 +14,39 @@ checklist entries below for what/how):
   station, and starfield (M4)")
 - `0a8434ea` on `space-game-demo` — M5 ("feat: add Falling Frontier real
   object picking/selection (M5)")
+- M6 ("feat: add Falling Frontier transform gizmo (M6)") — commit this one
+  along with this doc update; see checklist entry below for full scope.
 
 All with no `Co-Authored-By` trailer, per the standing repo rule (see memory
-`feedback_commit_trailers`). Nothing else in this crate is uncommitted as of
-this note. `examples/minwebgl/falling_frontier/Untitled.png` is an untracked
-debug screenshot the user pasted in during the M4 starfield investigation
-(see Notes section below) — left untracked on purpose, safe to delete once
-no longer needed, not part of the deliverable.
+`feedback_commit_trailers`). `examples/minwebgl/falling_frontier/Untitled.png`
+is an untracked debug screenshot the user pasted in during the M4 starfield
+investigation (see Notes section below) — left untracked on purpose, safe to
+delete once no longer needed, not part of the deliverable.
 
-**Next task: M6** — transform gizmo (translate XZ / rotate Y, G/R/Escape).
-No gizmo exists anywhere in cgtools. `main.rs`'s `selected_id : Rc<Cell<
-Option<i32>>>` (M5) is the thing to attach the gizmo to — resolve it to a
-`&HullPart`'s (or, for ships, every `HullPart` sharing that ship's
-`pick_id`) `model` matrix the same way the render loop's highlight check
-already does (`Some(part.pick_id) == selected`). Dragging will need the
-ray/plane ground-unprojection math M5 deleted from `main.rs`
-(`unproject`/`ray_ground_hit`, removed because GPU id-buffer picking doesn't
-need a ray at all) — it's preserved in full below under "Notes / gotchas",
-re-derive it there rather than trying to recover the deleted functions from
-git history. Translate mode constrains the drag to the `y = 0` plane (same
-plane M3's ground click used to hit-test against), rotate mode only needs
-the Y angle. `station.rs`/`ships.rs`/`asteroids.rs` currently bake each
-part's `model` matrix once at construction and never touch it again —
-dragging will need those matrices to become mutable per-frame state instead
-(probably: store a per-object base transform + live translation/rotation
-override, recompute `model` each frame, rather than mutating the baked
-matrix in place, so the original spec position is never lost if the user
-wants a "reset" affordance later).
+**Next task: M7** — fleet motion + trajectories. `fleet.js`'s patrol paths
+(Catmull-Rom spline) need a curve helper that doesn't exist yet (only
+Hermite/Bezier easing exists in `module/helper/animation`); trajectory
+ribbons/waypoint rings/sensor ring should use `line_tools` (deliberately
+*not* used for the base grid in M1 — see M1's own note below on why). Two
+things M6 leaves for M7 to handle:
+- **The gizmo and fleet motion will fight over a moving ship's transform** —
+  `main.js`'s own `updateFleetMotion` takes an `excludeMesh` param and skips
+  whichever ship is currently attached to the gizmo, so the path animation
+  doesn't fight a drag. Port that: skip the selected/dragged ship's own
+  motion update, or better, skip motion for whichever ship
+  `ctx.selected_id`/`ctx.drag_state` currently points at.
+  `ships.rs`'s `ShipObject.position`/`rotation_y` (M6) are exactly the
+  fields path animation would drive too - a per-frame `advance_along_path`
+  method alongside the existing `drag_to`/`rotate_to` is the natural shape,
+  not a separate motion system.
+- **GPU id-buffer picking is no longer cheap to skip** - M5/M6 only
+  re-render the id pass on a qualifying click since the scene was fully
+  static; once ships move every frame, a click's id pass must be rendered
+  fresh immediately before that pick (not reused from a stale frame) or
+  clicking a moving ship will hit whatever pixel it happened to occupy last
+  time the pass ran. `pick_at_client` in `main.rs` already isolates this
+  render+read+restore sequence in one place, so this is a one-line change
+  there when the time comes - not a redesign.
 
 Reference material:
 - Gap audit: `research/falling_frontier_cgtools_audit.md` (76-feature comparison,
@@ -162,8 +168,53 @@ Reference material:
       the JS), clicking empty space or the grid deselects, the Deselect
       button deselects, no console errors across a hard refresh + repeated
       clicks.
-- [ ] **M6** — transform gizmo (translate XZ / rotate Y, G/R/Escape, attach
-      idle-animation suppression). No gizmo exists anywhere in cgtools.
+- [x] **M6** — transform gizmo (translate XZ / rotate Y, G/R/Escape). No
+      gizmo existed anywhere in cgtools before this. Files: `src/gizmo.rs`
+      (`Gizmo`/`GizmoMode` - two simplified handle meshes, a flat XZ "move"
+      cross and a flat "rotate" ring, drawn with depth test off so the
+      handle stays visible/clickable through the object it belongs to; each
+      mode's handle is the object's *only* handle, not one arrow per axis
+      like the JS reference's `TransformControls` - translate is XZ-only in
+      this scene anyway (`MODE_CONSTRAINTS`'s `showY: false`), so a single
+      free-drag-in-plane handle covers the same freedom without per-axis
+      hit-testing), `src/shaders/gizmo.{vert,frag}` (unlit, flat color +
+      alpha). `hull.rs`'s `HullPart` gained a `local_transform` field (the
+      part's fixed offset within its object) plus `set_model` (recomputes
+      `model` from a new object-level transform) - needed because dragging
+      requires an object's `model` matrices to be *recomputed*, not just
+      overwritten, since a ship's `model = ship_transform * local_transform`
+      was previously baked into one matrix with no way to recover
+      `ship_transform` alone. `asteroids.rs`/`ships.rs`/`station.rs` each
+      gained mutable per-object state (`AsteroidObject`/`ShipObject`/
+      `Station`'s own `position`/`rotation_y` fields, mutated by new
+      `drag_to`/`rotate_to`/`object_transform` methods) - `blockers()`/
+      `glow_candidates()`/`position()` all read the *live* (possibly
+      dragged) position now, so M3's ribbon/glow correctly follow a dragged
+      asteroid or the selected ship. `main.rs` re-derives `unproject`/
+      `ray_ground_hit` (deleted in M5, preserved in this file's Notes
+      section for exactly this) for drag math, adds a `DragState` (captured
+      grab offset/angle so a drag doesn't snap the object to the cursor) and
+      folds everything selection/picking/gizmo-related into one
+      `InteractionCtx` behind a single `Rc` (mirroring
+      `examples/minwebgl/object_picking`'s own `RenderCtx` pattern) so the
+      pointerdown/pointermove/pointerup/keydown listeners (`
+      setup_selection_and_gizmo`, replacing M5's `setup_selection_click`)
+      each capture one clone instead of a dozen separate `Rc`s. Camera-orbit
+      rotation is suppressed during a drag via `Camera::controls_get()`'s
+      shared `Rc<RefCell<CameraOrbitControls>>` (`rotation.enabled = false`)
+      - the same mechanism the JS reference's `transform.js` uses
+        (`world.controls.enabled = !event.value`). G/R/Escape are window-scoped
+      `keydown`, matching the JS reference's own `window.addEventListener`.
+      Verified live: selecting a ship/station/asteroid shows the yellow
+      translate cross at its position; dragging it moves the object exactly
+      along the cursor (camera does NOT orbit mid-drag); pressing R swaps to
+      the magenta rotate ring, dragging it turns the object smoothly around
+      Y; Escape deselects (removing the handle); repeated select→drag→
+      deselect cycles across all three object kinds with no console errors.
+      One real bug caught and fixed during this verification - see the
+      "gizmo handle lost the depth test" note below, it's the kind of thing
+      that will bite again if `PickBuffer::render` grows a third kind of
+      always-on-top overlay later.
 - [ ] **M7** — fleet motion + trajectories: Catmull-Rom spline (new, on top of
       existing Hermite/Bezier easing in `module/helper/animation`),
       `line_tools`-based trajectory ribbon + waypoint rings + dashed sensor
@@ -216,11 +267,13 @@ Reference material:
   (`ndarray_cg`'s `d2::mat4x4::general::inverse`) on `view_proj`, then
   unproject NDC `z = -1` and `z = 1` to get near/far world points and
   intersect the ray with `y = 0` — no ready-made unproject/raycast helper
-  exists in `mingl`/`renderer` yet. **M5 deleted the `main.rs` functions that
-  did this** (`unproject`/`ray_ground_hit`) since GPU id-buffer picking
-  doesn't need a ray at all, but **M6's gizmo dragging will need the same
-  math again** (constraining a drag to the `y = 0` plane), so it's preserved
-  here rather than left to bit-rot in git history:
+  exists in `mingl`/`renderer` yet. M5 deleted the `main.rs` functions that
+  did this (`unproject`/`ray_ground_hit`) since GPU id-buffer picking doesn't
+  need a ray at all; M6 re-derived the identical functions for gizmo drag
+  math (constraining a drag to the `y = 0` plane), so they're back in
+  `main.rs` for good now. Kept here in full too, in case a future milestone
+  ever needs the same math in a context where re-deriving from `main.rs`
+  isn't convenient:
   ```rust
   fn unproject( inv_view_proj : gl::F32x4x4, ndc_x : f32, ndc_y : f32, ndc_z : f32 ) -> gl::math::F32x3
   {
@@ -319,6 +372,50 @@ Reference material:
     marks the flagged elements (e.g. bright red) instead of silently
     discarding them. Directly answers "is it the data or the rendering"
     without needing the user to dig through devtools.
+
+- **Gizmo handle lost the depth test in the id pass** (M6 bug, caught during
+  live verification, not shipped). Symptom: clicking dead-center on the
+  visible translate cross still picked the *object's* id, not the gizmo's -
+  dragging never started, and the click instead fell through to camera-orbit
+  behavior (the drag threshold check never fired since `drag_state` stayed
+  `None`). Root cause: `Gizmo::draw` (the *visible* pass) explicitly disables
+  depth test so the handle stays visible/clickable through its object, but
+  `PickBuffer::render` (the *id* pass) drew the gizmo part through the same
+  loop as every other part, with depth test at its normal always-on setting
+  - the object's own hull geometry usually has *some* geometry closer to the
+  camera than the handle's paper-thin plane, so the object's fragments won
+  the depth test and overwrote the gizmo's id in the id buffer, even where
+  the handle was clearly the topmost thing on screen. Fixed by giving
+  `PickBuffer::render` a separate `gizmo_part : Option<&HullPart>` parameter,
+  drawn last with depth test explicitly off - matching the visible pass's
+  own choice, not just visually consistent with it. **The general lesson**:
+  any object meant to render "always on top" (depth test off) needs that
+  same treatment in *every* pass that determines what the user is
+  interacting with, not just the one that determines what they see - a
+  future third overlay type would need the same fix applied again, this
+  isn't something `PickBuffer` enforces generically.
+- **Browser-automation clicks are unreliable on the very first interaction
+  after a fresh page load** (M6 verification quirk, not an app bug) - a
+  `computer` tool `left_click` on the very first attempt after `navigate`
+  sometimes dispatches nothing at all (confirmed via a manually-injected
+  `window.addEventListener` probe: zero events observed, not even
+  `mousedown`/`click`, for that first click). A second click at the exact
+  same coordinate always works normally afterward, and once the page has
+  processed any other interaction (even an unrelated `javascript_tool` eval)
+  the very next click is reliable too. Root-caused as a CDP/tab-focus
+  timing quirk external to the app, not a real bug: was already ruled out as
+  an app issue by directly probing with plain DOM listeners rather than
+  trusting the app's own visible state. If a fresh-reload test looks like
+  "nothing happened," retry the same click before suspecting the app.
+- Windows `trunk serve`'s known snippets-directory move-lock flakiness (see
+  the M0-era note earlier in this section) got *more* frequent during M6's
+  rapid edit-reload cycles - confirmed harmless again each time by checking
+  the actually-served `dist/*.js`/`*.wasm` file timestamps and/or `curl`ing
+  the served HTML directly rather than trusting a single browser reload,
+  since a reload landing exactly on a failed build serves trunk's own
+  error-overlay page (which looks nothing like a crash, easy to misread as
+  "the app broke"). When in doubt, kill trunk, `rm -rf dist`, and restart
+  clean on a fresh port rather than chasing a stale server state.
 
 ## Verification pattern used so far
 
