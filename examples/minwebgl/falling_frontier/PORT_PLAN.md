@@ -6,20 +6,21 @@ current conversation.
 
 ## Resume here
 
-M0-M5 are done, verified live in-browser (see their checklist entries below
-for what/how). M0-M3 and M4 are committed:
+M0-M5 are done, verified live in-browser, and **committed** (see their
+checklist entries below for what/how):
 - `851dd9df` on `space-game-demo` — M0-M3 ("feat: add Falling Frontier
   tactical grid, dev panel, and view-zone ribbon")
 - `6c71a5c8` on `space-game-demo` — M4 ("feat: add Falling Frontier ships,
   station, and starfield (M4)")
+- `0a8434ea` on `space-game-demo` — M5 ("feat: add Falling Frontier real
+  object picking/selection (M5)")
 
-**M5 is done, verified live, but not committed yet** — commit it (plus this
-doc update) before starting M6, no `Co-Authored-By` trailer per the standing
-repo rule (see memory `feedback_commit_trailers`).
-`examples/minwebgl/falling_frontier/Untitled.png` is an untracked debug
-screenshot the user pasted in during the M4 starfield investigation (see
-Notes section below) — left untracked on purpose, safe to delete once no
-longer needed, not part of the deliverable.
+All with no `Co-Authored-By` trailer, per the standing repo rule (see memory
+`feedback_commit_trailers`). Nothing else in this crate is uncommitted as of
+this note. `examples/minwebgl/falling_frontier/Untitled.png` is an untracked
+debug screenshot the user pasted in during the M4 starfield investigation
+(see Notes section below) — left untracked on purpose, safe to delete once
+no longer needed, not part of the deliverable.
 
 **Next task: M6** — transform gizmo (translate XZ / rotate Y, G/R/Escape).
 No gizmo exists anywhere in cgtools. `main.rs`'s `selected_id : Rc<Cell<
