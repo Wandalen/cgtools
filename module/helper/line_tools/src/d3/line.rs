@@ -167,10 +167,16 @@ mod private
 
       gl::buffer::upload( gl, &position_buffer, &vertices.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
       gl::buffer::upload( gl, &uv_buffer, &uvs.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
-      gl::index::upload( gl, &index_buffer, &indices, gl::STATIC_DRAW );
 
       let vao = gl.create_vertex_array();
       gl.bind_vertex_array( vao.as_ref() );
+
+      // `index::upload` binds to `ELEMENT_ARRAY_BUFFER`, which is part of the
+      // *currently bound VAO's* state in WebGL2 (unlike `ARRAY_BUFFER`, which
+      // is global scratch state) - uploading before the VAO above exists would
+      // silently overwrite whatever VAO the caller last had bound instead of
+      // this one, corrupting an unrelated mesh's element buffer.
+      gl::index::upload( gl, &index_buffer, &indices, gl::STATIC_DRAW );
 
       gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 0 ).divisor( 0 ).attribute_pointer( gl, 0, &position_buffer )?;
       gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 0 ).divisor( 0 ).attribute_pointer( gl, 1, &uv_buffer )?;
