@@ -218,12 +218,22 @@ mod private
       *self = self.slerp( other, s );
     }
 
-    /// Inverts the unit-length quaternion, which is equivalent to its conjugate.
+    /// Inverts the quaternion, producing its multiplicative inverse. Reduces to the conjugate
+    /// for a unit-length quaternion ( `mag2() == 1` ), and is the general formula otherwise.
+    // BUG-298 task/bug/298_quat_invert_wrong_for_non_unit_quaternions.md -- was
+    // unconditionally `self.conjugate()`, wrong for any non-unit-length quaternion.
+    // Fix(BUG-298): was `self.conjugate()`, correct only when `self` is unit-length.
+    // Root cause: the general quaternion inverse is `conjugate(q) / mag2(q)`; the unit-only
+    // shortcut was applied unconditionally, so `devide`/`Div`/`DivAssign` ( all routed through
+    // `invert` ) silently scaled their result by the divisor's squared magnitude instead of
+    // producing a true quotient whenever the divisor was not already unit-length.
+    // Pitfall: a documented precondition ( "unit-length" ) on a function whose signature accepts
+    // any value of the type gives callers no way to know they've violated it.
     #[ inline ]
     #[ must_use ]
     pub fn invert( &self ) -> Self
     {
-      self.conjugate()
+      self.conjugate() / self.mag2()
     }
 
     /// Converts the quaternion into a column-major 3x3 rotation matrix.

@@ -11,6 +11,17 @@ use orrery_webgpu::scene;
 /// Static-styling plus per-frame uniform fields, in `struct Uniforms`'
 /// declared order — see [`UniformsRaw::to_bytes`] for the byte layout this
 /// order produces.
+// Fix(BUG-308): this struct's declared field order, `to_bytes()`'s push-call
+// order below, and `orrery_webgpu`'s `shader/scene_fragment.wgsl` `Uniforms`
+// struct order must all three stay in lockstep -- nothing else ties them
+// together, since the buffer crosses to the GPU as raw bytes with no
+// per-field validation anywhere. `tests/uniforms_layout_test.rs` guards all
+// three; keep them synchronized when editing any one.
+// Pitfall: `native_render_test.rs`/`vulkan_render_test.rs` only sample two
+// pixels (sun-disc center, background corner) -- a same-shape field swap
+// outside those regions (e.g. `ring_colors`/`ring_params`) compiles cleanly,
+// preserves `to_bytes()`'s 704-byte `debug_assert_eq!`, and produces no
+// render-test failure, only a silently corrupted buffer.
 #[ repr( C ) ]
 pub struct UniformsRaw
 {

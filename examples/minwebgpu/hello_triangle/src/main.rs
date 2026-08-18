@@ -1,6 +1,14 @@
-//! Just draw a large point in the middle of the screen.
+//! Classic "Hello Triangle" -- draws a single hardcoded 3-vertex triangle to the canvas.
 //!
 //! This example only works on WebAssembly (wasm32) targets where WebGPU APIs are available.
+
+// Fix(BUG-306-A): the module doc comment above used to read "Just draw a large point in
+// the middle of the screen" -- copy-pasted from an unrelated example and never updated
+// to describe this crate's actual triangle-drawing shader (see shaders/shader.wgsl).
+// Root cause: stale copy-paste doc comment, never cross-checked against this crate's own
+// shader after being carried over.
+// Pitfall: a demo crate's own top-of-file doc comment is not exempt from doc/source
+// cross-checking just because it's "only an example".
 
 #[cfg(target_arch = "wasm32")]
 use minwebgpu as gl;

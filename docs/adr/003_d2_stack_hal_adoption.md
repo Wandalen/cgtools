@@ -36,7 +36,7 @@ render through *any* backend, including the ones (`adapter-svg`,
    new `Backend` adapters mirroring `gpu_hal`'s existing backend set:
    `adapter-webgpu` (browser WebGPU via `gpu_hal`'s `webgpu` feature) and
    `adapter-native` (native `wgpu` via `gpu_hal`'s `native` feature,
-   offscreen render + pixel readback — the same proof shape as `renderer`'s
+   offscreen render + pixel readback — the same proof shape as `gpu_hal`'s
    `triangle_render_readback`). The existing `adapter-svg` /
    `adapter-terminal` / `adapter-webgl` are unchanged; `adapter-webgl` keeps
    its direct `minwebgl` dependency for now (see Alternatives).
@@ -121,7 +121,8 @@ render through *any* backend, including the ones (`adapter-svg`,
   [`docs/pattern/001`](../../module/helper/tilemap_renderer/docs/pattern/001_ports_and_adapters_backend_architecture.md)'s
   existing Consequences for every adapter.
 - New adapters' output-correctness invariants (mirroring `renderer`'s
-  `opaque_path_renders_lit_quad` / `triangle_render_readback` proofs) get
+  `opaque_path_renders_lit_quad` and `gpu_hal`'s `triangle_render_readback`
+  proofs) get
   their `tilemap_renderer/docs/invariant/` entries when each adapter is
   actually implemented and the guarantee is real — not written speculatively
   ahead of the code.

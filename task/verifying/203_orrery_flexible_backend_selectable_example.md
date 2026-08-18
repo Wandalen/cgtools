@@ -40,7 +40,7 @@ landing first — see `## In Scope`'s per-feature breakdown. Testable: the nativ
 build (`wgpu`/`vulkan` features) renders the orrery scene to an offscreen target and
 exits 0; `trunk build` succeeds for the `webgl`/`webgpu` features and the resulting
 page renders real, non-blank pixels when checked via `browsee`, mirroring tasks
-191/197/198's own browsee pixel-verification precedent.
+191/197/251's own browsee pixel-verification precedent.
 
 ## In Scope
 
@@ -112,7 +112,7 @@ by this section.
 | T02 | Build and run with `--features vulkan` | native | Same as T01, via the vulkan backend |
 | T03 | `trunk build` with `--features webgl` | wasm32 | Build succeeds, produces `dist/` artifacts |
 | T04 | `trunk build` with `--features webgpu` | wasm32 | Build succeeds, produces `dist/` artifacts |
-| T05 | `browsee` pixel check against the built webgl page | browser | Non-blank real pixels at a known scene landmark (e.g. sun disc center), mirroring tasks 191/197/198's own browsee pixel-verification style |
+| T05 | `browsee` pixel check against the built webgl page | browser | Non-blank real pixels at a known scene landmark (e.g. sun disc center), mirroring tasks 191/197/251's own browsee pixel-verification style |
 | T06 | `browsee` pixel check against the built webgpu page | browser | Same as T05, via the webgpu backend |
 | T07 | Build with zero backend features (`--no-default-features`) | any | `compile_error!` still fires (existing feature-guard behavior preserved) |
 
@@ -208,7 +208,7 @@ self-verify — an independent verifier performs the walk after the task reaches
 - `examples/orrery/webgpu/src/main.rs`, `examples/orrery/webgpu/src/scene.rs` — the
   reference implementation this task's scene-loading path mirrors
 - `docs/layer/002_l1_gpu_hal.md` — L1 status card, browser-pixel-verification
-  precedent (tasks 191/197/198) this task's own T05/T06 follow
+  precedent (tasks 191/197/251) this task's own T05/T06 follow
 - `task/executed/202_gpu_hal_vulkan_backend.md` — dependency scoped to this
   task's `vulkan` feature path only (not a blanket block — see the Per-feature
   dependency note under `## In Scope`); provides the `Device::new_vulkan` API that

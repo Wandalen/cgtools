@@ -73,9 +73,9 @@ fn tunables_unknown_chunk_reports_unknown_chunk_error()
   assert_eq!( err.exit_code(), 1 );
 }
 
-// test_kind: bug_reproducer(BUG-XXX-B)
+// test_kind: bug_reproducer(BUG-294)
 /// ## Root Cause
-/// See `shader_chunks_params_core/tests/discovery_test.rs`'s own BUG-XXX-B tests -- same defect,
+/// See `shader_chunks_params_core/tests/discovery_test.rs`'s own BUG-294 tests -- same defect,
 /// copy-pasted across 3 files. `shader_chunks_params/readme.md` and
 /// `shader_chunks_params/docs/cli/command/01_tunables.md` are the other 2 copies: both omitted
 /// `palette_cosine` from the leaf/infrastructure exception list, and the CLI doc additionally
@@ -102,7 +102,7 @@ fn docs_reflect_palette_cosine_and_corrected_count()
   (
     readme.contains( "palette_cosine" ),
     "shader_chunks_params/readme.md must list `palette_cosine` among the chunks declaring zero \
-    `//@ param:` lines (BUG-XXX-B)"
+    `//@ param:` lines (BUG-294)"
   );
 
   let tunables_doc = include_str!( "../docs/cli/command/01_tunables.md" );
@@ -110,12 +110,12 @@ fn docs_reflect_palette_cosine_and_corrected_count()
   (
     tunables_doc.contains( "palette_cosine" ),
     "docs/cli/command/01_tunables.md must list `palette_cosine` among the remaining \
-    leaf/infrastructure chunks (BUG-XXX-B)"
+    leaf/infrastructure chunks (BUG-294)"
   );
   assert!
   (
     tunables_doc.contains( "45 of the 50" ) && !tunables_doc.contains( "46 of the 50" ),
     "docs/cli/command/01_tunables.md must state 45 (not 46) of the 50 bundled chunks carry \
-    `//@ param:` lines (BUG-XXX-B)"
+    `//@ param:` lines (BUG-294)"
   );
 }

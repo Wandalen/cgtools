@@ -19,9 +19,13 @@ backend — see Status ); build-vs-buy is closed in-house by
 - **WebGPU-shaped**: API mirrors WebGPU concepts (device, queue, pipeline,
   bind group) so the WebGPU path is near-zero-cost and the WebGL2 path
   emulates only what it must.
-- **Shader access, not shader hiding**: canonical shader source in WGSL,
-  transpiled per backend at build time, with a per-backend override slot for
-  hand-tuned sources — never a fixed pipeline that owns the shaders.
+- **Shader access, not shader hiding**: canonical shader source in WGSL, with
+  a per-backend override slot for hand-tuned sources — never a fixed pipeline
+  that owns the shaders. Transpilation timing is backend-specific, not a
+  uniform build-time step: the Vulkan backend has no override slot and
+  instead compiles WGSL to SPIR-V itself, at RUNTIME inside `gpu_hal`, via
+  `naga` (`shader_module_create` dispatching to `shader_compile_wgsl_to_spirv`,
+  `device.rs:698-702` / `vulkan.rs:675-682`).
 - **One-step drill-down**: every HAL object exposes a handle to its raw
   driver counterpart ([../pattern/002](../pattern/002_strict_layering_one_step_drilldown.md)).
 - **Stack-vocabulary-free**: no sprite, tile, camera, scene, or material
@@ -58,7 +62,12 @@ covers the opaque path only: buffers, 2d textures, samplers, shader modules,
 bind groups, one-color-attachment render passes, and a depth attachment
 ( `DepthState`, honored by all backends ). Texture upload is now
 covered too ( `texture_write()`, proven by the `texture_write_readback`
-render test — task 089 ). Not yet covered: mipmaps, MSAA, compute.
+render test — task 089 ). The same `native_backend_test.rs` file also
+carries roughly 300 lines of `InvalidInput` guard-rail regression coverage —
+10 tests spanning zero-size textures, zero-dimension `new_native` surfaces,
+undersized/misaligned/oversized buffer and texture writes, and zero-size
+vertex/index buffer binds ( fixes for BUG-165, BUG-176, BUG-199, BUG-204,
+BUG-207, BUG-208 ). Not yet covered: mipmaps, MSAA, compute.
 `renderer`'s legacy `webgl` tree keeps its accepted direct-to-L0 dependency
 until strangled onto the HAL. `tilemap_renderer` (d2) is the second targeted
 consumer — its `adapter-webgpu` / `adapter-native` adopt the HAL per

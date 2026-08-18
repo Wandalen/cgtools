@@ -1,6 +1,16 @@
-//! Just draw a large point in the middle of the screen.
+//! Deferred rendering demo -- renders a grid of models into a G-buffer (albedo, normal,
+//! position), then a lighting pass composites the G-buffer with a set of point lights,
+//! each drawn with a small visualization mesh.
 //!
 //! This example only works on WebAssembly (wasm32) targets where WebGPU APIs are available.
+
+// Fix(BUG-306-B): the module doc comment above used to read "Just draw a large point in
+// the middle of the screen" -- copy-pasted from an unrelated example and never updated
+// to describe this crate's actual deferred G-buffer rendering pipeline.
+// Root cause: stale copy-paste doc comment, never cross-checked against this crate's own
+// render passes after being carried over.
+// Pitfall: a demo crate's own top-of-file doc comment is not exempt from doc/source
+// cross-checking just because it's "only an example".
 
 #[cfg(target_arch = "wasm32")]
 use light::{LightState, LightVisualizationState, NUM_LIGHTS};

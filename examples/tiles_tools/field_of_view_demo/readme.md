@@ -2,7 +2,7 @@
 
 **Keywords:** Field of View, Shadowcasting, Ray Casting, Lighting, tiles_tools
 
-This demo compares `tiles_tools`' field-of-view algorithms side by side: shadowcasting, ray casting, and Bresenham line tracing, plus multi-source lighting where several light sources combine over the same grid.
+This demo compares `tiles_tools`' field-of-view algorithms side by side: shadowcasting, ray casting, Bresenham line tracing, and flood fill, plus multi-source lighting where several light sources combine over the same grid.
 
 *(No showcase — console/logic demo, no visual output)*
 

@@ -5,7 +5,7 @@
 //! the layer's own cross-cutting invariants: [`registry_build`] must reject
 //! two aggregated utilities declaring the same command name loudly, never
 //! silently let the second shadow the first; and [`arg_usize_checked`]
-//! (BUG-XXX) must reject a duplicated integer-valued named argument loudly
+//! (BUG-295) must reject a duplicated integer-valued named argument loudly
 //! rather than silently defaulting to `0` -- covered here, via a real
 //! `Pipeline` dispatch against a throwaway command, rather than through a
 //! consuming crate's own subprocess test, because none of this crate
@@ -96,7 +96,7 @@ fn int_arg_command( name : &str ) -> ( CommandDefinition, CommandRoutine )
   ( def, routine )
 }
 
-// test_kind: bug_reproducer(BUG-XXX)
+// test_kind: bug_reproducer(BUG-295)
 /// ## Root Cause
 /// `arg_usize`'s catch-all `_ => Ok( 0 )` arm cannot tell "argument absent"
 /// apart from "argument supplied twice" -- `unilang` binds ANY repeated

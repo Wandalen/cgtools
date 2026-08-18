@@ -6,7 +6,7 @@
 //! animation loader rather than the light-extension loader. `vec3_sequence` and `weights_sequence`
 //! are covered for their Linear and CubicSpline branches and their general keyframe-building
 //! logic, not only the BUG-188/BUG-262 regression guards; `quat_sequence` ( originally private,
-//! made `pub` alongside this test per task 441 -- same shape as `vec3_sequence`, just `QuatF64`
+//! made `pub` alongside this test per task 299 -- same shape as `vec3_sequence`, just `QuatF64`
 //! instead of `F64x3` ) is covered for its general Linear keyframe-building logic.
 
 use renderer::webgl::animation::loaders::gltf::{ channel_decode, vec3_sequence, weights_sequence, quat_sequence };

@@ -8,6 +8,14 @@
 use orrery_webgpu::scene;
 use minwebgpu as gl;
 
+// Fix(BUG-307): field order below must exactly match `shader/scene_fragment.wgsl`'s
+// `Uniforms` struct -- nothing else checks this, since the struct crosses the
+// Rust/WGSL boundary as raw `Pod` bytes with no per-field validation on either
+// side. `tests/uniforms_layout_test.rs::uniforms_raw_field_order_matches_wgsl_uniforms_struct`
+// guards it; keep both structs' field order in lockstep when editing either one.
+// Pitfall: reordering, inserting, or removing a field here without mirroring the
+// change in the WGSL struct compiles cleanly and produces no runtime error --
+// every field after the divergence point is silently read as the wrong value.
 #[ repr( C ) ]
 #[ derive( Clone, Copy, gl::mem::Pod, gl::mem::Zeroable ) ]
 pub( crate ) struct UniformsRaw

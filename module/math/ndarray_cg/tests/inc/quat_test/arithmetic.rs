@@ -52,6 +52,59 @@ fn test_devide()
   assert_abs_diff_eq!( q1 / q2, exp, );
 }
 
+// BUG-298 task/bug/298_quat_invert_wrong_for_non_unit_quaternions.md -- reproducer
+// for `Quat::invert()`'s wrong result on non-unit-length quaternions.
+/// ## Root Cause
+/// `Quat::invert()` unconditionally returned `self.conjugate()`, which is only the true
+/// multiplicative inverse when the quaternion is unit-length ( magnitude 1 ). For a non-unit
+/// quaternion `q`, the correct inverse is `conjugate(q) / mag2(q)`; `devide`/`Div`/`DivAssign`
+/// all route through `invert()`, so dividing by any non-unit quaternion silently scaled the
+/// result by the divisor's squared magnitude instead of producing a true quotient.
+///
+/// ## Why Not Caught
+/// The only existing division test, `test_devide` above, normalizes both operands before
+/// dividing -- for a unit quaternion `mag2() == 1`, so `conjugate()` and the true inverse
+/// coincide and the bug is invisible. No test exercised division with a non-unit divisor or
+/// checked the defining round-trip property `(a / b) * b == a`.
+///
+/// ## Fix Applied
+/// BUG-298 changed `invert()` in `src/quaternion/arithmetics.rs` from `self.conjugate()` to
+/// `self.conjugate() / self.mag2()`, which reduces to the prior behavior exactly when the
+/// quaternion is already unit-length and is otherwise the correct general inverse.
+///
+/// ## Prevention
+/// This test divides two deliberately non-unit quaternions and asserts the defining property of
+/// division holds: `(a / b) * b == a`. The pre-fix formula fails this for any divisor whose
+/// squared magnitude is not 1.
+///
+/// ## Pitfall
+/// A function whose doc comment names a precondition ( "unit-length" ) but whose signature
+/// accepts any value of the type provides no compile-time or run-time signal when that
+/// precondition is violated -- every caller reachable through a general-purpose op like `Div`
+/// silently inherits the narrower assumption. Prefer implementing the operation correctly for
+/// the general case when the correct general formula is no more expensive than the
+/// unit-only shortcut, rather than documenting a precondition callers have no way to check.
+// test_kind: bug_reproducer(BUG-298)
+#[ test ]
+fn test_devide_non_unit_round_trip()
+{
+  use the_module::
+  {
+    QuatF64,
+  };
+
+  let q1 = QuatF64::from( [ 1.0, 2.0, 3.0, 4.0 ] );
+  let q2 = QuatF64::from( [ -5.0, 1.0, 3.0, 10.0 ] );
+
+  let quotient = q1.devide( &q2 );
+  let reconstructed = quotient * q2;
+  assert_abs_diff_eq!( reconstructed, q1, epsilon = 1e-9 );
+
+  let mut q1_mut = q1;
+  q1_mut.device_mut( &q2 );
+  assert_abs_diff_eq!( q1_mut, quotient );
+}
+
 #[ test ]
 fn test_from_angle_x()
 {
@@ -92,6 +145,49 @@ fn test_from_angle_y()
   let q = QuatF64::from_angle_y( 256.0 );
   let exp = QuatF64::from( [ 0.0, 0.721_037_710_501_731_6, 0.0, -0.692_895_821_920_165_1 ] );
   assert_abs_diff_eq!( q, exp );
+}
+
+// BUG-311 task/bug/311_from_angle_y_called_with_raw_degrees_not_radians.md -- reproducer for
+// `Quat::from_angle_y` being called with a raw degree literal instead of a radians value at 3
+// sibling call sites in `examples/minwebgl/{curve,lottie,animation}_surface_rendering`.
+/// ## Root Cause
+/// `Quat::from_angle_y` takes its angle in radians (its own doc comment states this explicitly,
+/// and its implementation applies the half-angle formula `(angle / two).sin_cos()`), but
+/// `examples/minwebgl/curve_surface_rendering/src/main.rs`, `lottie_surface_rendering/src/main.rs`,
+/// and `animation_surface_rendering/src/main.rs` -- a copy-pasted "clouds" mesh setup block --
+/// each called `gl::Quat::from_angle_y( 90.0 )` intending a 90-degree rotation, passing the raw
+/// degree value directly instead of `90.0_f32.to_radians()`.
+/// ## Why Not Caught
+/// `from_angle_y` cannot distinguish a degrees-shaped caller mistake from a genuine (small)
+/// radians value -- `90.0` radians is a valid input, just not the intended one -- and none of
+/// the 3 affected example crates has any test asserting the clouds mesh's actual orientation.
+/// ## Fix Applied
+/// Changed all 3 call sites from `gl::Quat::from_angle_y( 90.0 )` to
+/// `gl::Quat::from_angle_y( 90.0_f32.to_radians() )`.
+/// ## Prevention
+/// This test asserts `QuatF64::from_angle_y` with a genuine `90_f64.to_radians()` input matches
+/// the closed-form 90-degree-about-Y quaternion, and separately asserts the raw literal `90.0`
+/// -- what all 3 call sites passed pre-fix -- does NOT produce that same quaternion.
+/// ## Pitfall
+/// A rotation constructor documented as taking radians gives no compile-time or run-time signal
+/// when a caller passes a degrees-shaped value instead -- `to_radians()` must be applied
+/// explicitly at every call site that starts from a human-readable degree constant.
+// test_kind: bug_reproducer(BUG-311)
+#[ test ]
+fn test_from_angle_y_rejects_raw_degrees()
+{
+  use the_module::QuatF64;
+
+  // A genuine 90-degree rotation about Y -- closed form mirrors BUG-272's own
+  // `from_angle_y( -90 deg )` precedent below, mirrored to +90 deg.
+  let correct = QuatF64::from_angle_y( 90.0_f64.to_radians() );
+  let expected = QuatF64::from( [ 0.0, std::f64::consts::FRAC_1_SQRT_2, 0.0, std::f64::consts::FRAC_1_SQRT_2 ] );
+  assert_abs_diff_eq!( correct, expected, epsilon = 1e-9 );
+
+  // The raw literal `90.0` -- what all 3 example call sites passed pre-fix -- is ~5_157 degrees,
+  // not 90, and must not match the genuine 90-degree rotation above.
+  let buggy = QuatF64::from_angle_y( 90.0 );
+  assert_ne!( buggy, expected );
 }
 
 #[ test ]

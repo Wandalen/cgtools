@@ -3,7 +3,7 @@
 //! `gl::BufferDescriptor` ( data type, offset, stride, normalized, dimensionality ) from its glTF
 //! accessor. Pure data transform over the accessor's own metadata, no `gl` / `GL` / `WebGl` calls
 //! anywhere in its body. Split out of `attribute_info_make` and made `pub` alongside this test per
-//! task 441.
+//! task 299.
 #![ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
 
 use renderer::webgl::loaders::gltf::attribute_descriptor_make;

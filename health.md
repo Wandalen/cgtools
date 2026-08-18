@@ -12,8 +12,8 @@ re-run the command to refresh a number instead of trusting the table. Live work 
   docs/adr/004), and `--all-features` enables all 4 at once. `--exclude orrery_flexible` mirrors what
   `verb/test` itself already does for this crate; see that script's own comment above its native
   stages for the full per-feature check list.
-- **Task system:** 87 completed · 2 draft · 8 cancelled · 8 accepting · 14 verifying · 1 open bug
-  (see task/readme.md for the live table; counts re-derived 2026-08-17 via
+- **Task system:** 89 completed · 3 draft · 8 cancelled · 8 accepting · 14 verifying · 3 open bugs
+  (see task/readme.md for the live table; counts re-derived 2026-08-18 via
   `grep -oE '\| (✅|🔎|📝|🚫|❓|🔬|⚙️|📦) \([A-Za-z]+\)' task/readme.md | sort | uniq -c`).
 
 ## Regeneration commands
@@ -112,6 +112,8 @@ files — verified clean 2026-08-13.)*
 - **056** — vectorizer revival watch item (📝 Draft; explicitly YAGNI-deferred, no action unless a
   real consumer emerges).
 - **098** — obj_viewer example proposal watch item (📝 Draft; same YAGNI-deferred pattern).
+- **291** — gpu_hal mipmap/MSAA/compute support watch item (📝 Draft; same YAGNI-deferred pattern —
+  `docs/layer/002`'s own Status section already names the gap, no consumer needs it yet).
 - **8 tasks in 🔎 Accepting** (246, 247, 248, 118, 191, 192, 201, 202) and **14 in 🔬 Verifying**
   (197, 251, 203, 206, 218, 219, 220, 221, 222, 223, 224, 225, 226, 254) — all code-complete and
   independently self-verified (Tier 2 Dual-Role Self-Check). Every attempted
@@ -128,9 +130,15 @@ files — verified clean 2026-08-13.)*
   fresh race with a concurrent actor's independently-filed `BUG-252`; formal fix-task registration via
   `bug_promote`/PROC12), itself readiness-gate PASS (8/8) and now folded into the 14-Verifying count
   above, same same-actor-guard block.
+- **BUG-298** (🎯 Verified, Medium) — `ndarray_cg`'s `Quat::invert()` returns the bare conjugate
+  unconditionally, silently wrong for any non-unit-length quaternion; latent (zero reachable call
+  sites currently). Not yet promoted to a fix task.
+- **BUG-300** (🎯 Verified, Medium) — `minwebgpu`'s `TextureDescriptor::new()` default format is
+  incompatible with `.storage_binding()`, silently producing a texture WebGPU rejects; latent (zero
+  reachable call sites currently). Not yet promoted to a fix task.
 
 No task in the current backlog is actionable by further autonomous work in this sandbox — the 22
 tasks above are code-complete and self-verified pending independent review, blocked only on a
 genuinely independent verifier this sandbox's same-actor guard cannot supply. BUG-114 is resolved and
-promoted.
+promoted; BUG-298/BUG-300 are newly-filed latent defects (Verified, not yet promoted to fix tasks).
 

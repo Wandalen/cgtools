@@ -122,3 +122,60 @@ fn test_rotate_yaw_matches_mouse_right_turns_right_convention()
     "moving the mouse right must turn the character toward its own right vector"
   );
 }
+
+/// ## Root Cause
+/// `examples/minwebgl/character_control/src/main.rs` oriented the visible character mesh
+/// with `Quat::from_angle_y( character_controls.yaw() as f32 / 2.0 )` -- an extra `/ 2.0`
+/// with no basis anywhere in `CharacterControls` itself. All 4 of this struct's own
+/// internal call sites (`rotate()`, `rotation_set()`, `forward_xz()`, `right_xz()`) pass
+/// `self.yaw` to `QuatF64::from_angle_y` unmodified; `yaw`'s own doc comment states the
+/// field is already "in radians", the exact value `from_angle_y` expects. The stray
+/// `/ 2.0` halved the mesh's visible yaw relative to the camera's own (correctly unhalved)
+/// `forward()`-derived orbit, so the rendered character under-rotated relative to the
+/// direction the camera was actually looking.
+///
+/// ## Why Not Caught
+/// No prior test compared "the expression a caller should use to orient a rendered mesh"
+/// against `CharacterControls::rotation()` itself -- the existing 3 tests in this file all
+/// assert on `forward()`/`pitch()`/`yaw()` directly, never on a caller-side
+/// `from_angle_y( controls.yaw() )` expression as used by the example binary.
+///
+/// ## Fix Applied
+/// Removed the `/ 2.0` in `examples/minwebgl/character_control/src/main.rs`:
+/// `Quat::from_angle_y( character_controls.borrow().yaw() as f32 / 2.0 )` ->
+/// `Quat::from_angle_y( character_controls.borrow().yaw() as f32 )`.
+///
+/// ## Prevention
+/// This test sets a known yaw via `rotation_set( yaw, 0.0 )` -- at `pitch = 0.0`,
+/// `quat_pitch` is the identity quaternion, so `rotation()` equals `from_angle_y( yaw )`
+/// exactly -- then asserts the un-halved expression matches `rotation()` while the halved
+/// one does not, locking in the correct caller-side expression without manual trigonometry.
+///
+/// ## Pitfall
+/// `Quat::from_angle_y`'s internal half-angle formula (`(angle / two).sin_cos()`) is an
+/// implementation detail of building the quaternion, not something a caller needs to
+/// additionally apply -- passing the already-correct radians value straight through is the
+/// right usage, matching every other call site in this same struct.
+// BUG-312 task/bug/312_character_control_visible_mesh_yaw_halved_at_call_site.md -- reproducer
+// for the example's stray `/ 2.0` on the yaw passed to `Quat::from_angle_y` when orienting
+// the visible character mesh.
+// test_kind: bug_reproducer(BUG-312)
+#[ test ]
+fn test_yaw_passed_unhalved_to_from_angle_y_matches_rotation()
+{
+  let mut controls = the_module::controls::character_controls::CharacterControls::default();
+
+  let yaw = 1.234_f64;
+  controls.rotation_set( yaw, 0.0 );
+
+  // At pitch = 0.0, `rotation() == quat_yaw * identity == from_angle_y( yaw )` exactly --
+  // this is the expression a caller should use to orient a rendered mesh to face the same
+  // direction as the controller.
+  let correct = the_module::QuatF64::from_angle_y( yaw );
+  assert_abs_diff_eq!( controls.rotation(), correct, epsilon = 1e-9 );
+
+  // The example's actual pre-fix expression -- `from_angle_y( yaw / 2.0 )` -- must NOT
+  // match; this is the halved value the buggy call site produced.
+  let buggy = the_module::QuatF64::from_angle_y( yaw / 2.0 );
+  assert_ne!( controls.rotation(), buggy );
+}

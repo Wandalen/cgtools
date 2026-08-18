@@ -260,7 +260,7 @@ mod private
     }
   }
 
-  // Fix(BUG-XXX): new `_checked` extractor -- same defect class as
+  // Fix(BUG-295): new `_checked` extractor -- same defect class as
   // `arg_string`/`arg_bool`'s (see the `Fix(BUG-283)` comment above
   // `arg_string_checked`): `arg_usize`'s catch-all `_ => Ok( 0 )` arm cannot
   // tell "argument absent" apart from "argument supplied twice", since

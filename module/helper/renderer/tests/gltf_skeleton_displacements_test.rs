@@ -3,7 +3,7 @@
 //! primitive's morph-target position / normal / tangent displacements ( plus mesh-level morph
 //! weights ) into a `skeleton::DisplacementsData`. Pure data transform over the parsed document
 //! and raw buffer bytes, no `gl` / `GL` / `WebGl` calls anywhere in its body. Originally
-//! private, made `pub` alongside this test per task 441.
+//! private, made `pub` alongside this test per task 299.
 #![ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
 
 use renderer::webgl::loaders::gltf::skeleton_displacements_data_load;
