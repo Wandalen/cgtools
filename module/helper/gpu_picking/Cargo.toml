@@ -1,0 +1,33 @@
+[package]
+name = "gpu_picking"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.81.0"
+license = "MIT"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/gpu_picking"
+documentation = "https://docs.rs/gpu_picking"
+description = "GPU id-buffer object picking for WebGL2 -- render pickable parts into an off-screen R32I texture, read a pixel back to find what's there"
+readme = "readme.md"
+keywords = ["webgl", "picking", "selection", "graphics", "wasm"]
+categories = ["graphics", "rendering", "web-programming", "wasm"]
+include = [
+  "src/**/*",
+  "tests/**/*",
+  "Cargo.toml",
+  "readme.md",
+  "license*",
+  "changelog*",
+]
+
+[lints]
+workspace = true
+
+[dependencies]
+minwebgl = { workspace = true, features = [ "math" ] }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+  'WebGlRenderbuffer',
+]

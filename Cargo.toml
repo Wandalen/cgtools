@@ -50,6 +50,7 @@ members = [
   "module/helper/line_tools",
   "module/helper/gl_uniforms",
   "module/helper/gpu_hal",
+  "module/helper/gpu_picking",
   "module/helper/renderer",
   "module/helper/tilemap_renderer",
   "module/helper/tiles_tools",
@@ -198,6 +199,10 @@ path = "module/helper/line_tools"
 [workspace.dependencies.gl_uniforms]
 version = "0.1.0"
 path = "module/helper/gl_uniforms"
+
+[workspace.dependencies.gpu_picking]
+version = "0.1.0"
+path = "module/helper/gpu_picking"
 
 [workspace.dependencies.tilemap_renderer]
 version = "0.2.0"
