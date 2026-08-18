@@ -11,6 +11,7 @@
 - **repo_identity:** self
 - **Filed:** 2026-08-18
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
+- **Fix Task:** [387](../../verifying/387_register_animation_pause_during_pending_delay_phase_fix_closes_bug352.md)
 - **Related Bugs:** BUG-353 (`Sequence::update` misses a same-call `Completed` transition) --
   found in the same bug-hunt pass, same file (`sequencer.rs`), same `Sequence` struct; this bug is
   a gating defect in `pause()`, BUG-353 is a same-call-transition defect in `update()` -- distinct

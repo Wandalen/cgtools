@@ -11,6 +11,7 @@
 - **repo_identity:** self
 - **Filed:** 2026-08-18
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
+- **Fix Task:** [388](../../verifying/388_register_animation_sequence_update_samecall_completion_fix_closes_bug353.md)
 - **Related Bugs:** BUG-352 (`pause()` no-op during `Pending`) -- found in the same bug-hunt pass,
   same file (`sequencer.rs`), same `Sequence` struct; distinct root causes (this bug is a
   same-call-transition gap in `update()`, BUG-352 is a gating defect in `pause()`), no shared fix.

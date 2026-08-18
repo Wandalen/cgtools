@@ -422,7 +422,7 @@ mod private
   /// Blend mode for compositing.
   /// SVG: `mix-blend-mode` CSS property.
   /// GPU: blend state on the pipeline.
-  #[ derive( Debug, Clone, Copy, Default ) ]
+  #[ derive( Debug, Clone, Copy, Default, PartialEq, Eq ) ]
   #[ cfg_attr( feature = "scene-model", derive( serde::Serialize, serde::Deserialize ) ) ]
   #[ non_exhaustive ]
   pub enum BlendMode

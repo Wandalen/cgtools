@@ -36,7 +36,7 @@ Fits when a caller wants to author one rendering-command stream and target more 
 |------|--------------|
 | [feature/001_svg_backend_adapter.md](../feature/001_svg_backend_adapter.md) | Implements `Backend` for SVG 1.1 document generation |
 | [feature/002_webgl2_backend_adapter.md](../feature/002_webgl2_backend_adapter.md) | Implements `Backend` for hardware-accelerated WebGL2 rendering (partial) |
-| [feature/003_terminal_backend_adapter.md](../feature/003_terminal_backend_adapter.md) | Implements `Backend` for terminal output (stub only) |
+| [feature/003_terminal_backend_adapter.md](../feature/003_terminal_backend_adapter.md) | Implements `Backend` for ANSI-truecolor terminal output (partial) |
 | [feature/004_none_backend_adapter.md](../feature/004_none_backend_adapter.md) | Implements `Backend` as a complete no-op (math-only simulation) |
 | [feature/005_webgpu_backend_adapter.md](../feature/005_webgpu_backend_adapter.md) | Implements `Backend` for WebGPU rendering via `gpu_hal` (partial — no real pixel upload yet) |
 | [feature/006_native_backend_adapter.md](../feature/006_native_backend_adapter.md) | Implements `Backend` for offscreen native `wgpu` rendering via `gpu_hal`, pixel-verified |

@@ -969,10 +969,10 @@ pub mod ttf
 
   impl Font3D
   {
-    async fn new( gl : &GL, path : &str ) -> Self
+    async fn new( gl : &GL, path : &str ) -> Result< Self, gl::WebglError >
     {
       let ttf_bytes = file::load( path ).await
-      .expect( "Failed to load ttf file" );
+      .map_err( | e | gl::dom::Error::BindgenError( "Failed to load ttf file", format!( "{e:?}" ) ) )?;
 
       let mut glyphs = FxHashMap::< char, Glyph3D >::default();
 
@@ -1018,25 +1018,28 @@ pub mod ttf
         }
       }
 
-      Self
-      {
-        glyphs,
-        max_size : BoundingBox::new( min, max )
-      }
+      Ok
+      (
+        Self
+        {
+          glyphs,
+          max_size : BoundingBox::new( min, max )
+        }
+      )
     }
   }
 
-  pub async fn fonts_3d_load( gl : &GL, font_names : &[ String ] ) -> FxHashMap< String, Font3D >
+  pub async fn fonts_3d_load( gl : &GL, font_names : &[ String ] ) -> Result< FxHashMap< String, Font3D >, gl::WebglError >
   {
     let mut fonts = FxHashMap::< String, Font3D >::default();
 
     for font_name in font_names
     {
       let font_path = format!( "static/fonts/ttf/{font_name}.ttf" );
-      fonts.insert( font_name.clone(), Font3D::new( gl, &font_path ).await );
+      fonts.insert( font_name.clone(), Font3D::new( gl, &font_path ).await? );
     }
 
-    fonts
+    Ok( fonts )
   }
 
   pub fn text_to_mesh( text : &str, font : &Font3D, transform : &Transform ) -> Vec< PrimitiveData >

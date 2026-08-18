@@ -271,7 +271,10 @@ fn text_left_anchor_places_glyphs_left_to_right()
 
 /// T10 -- `TextAnchor::Center` shifts the starting column left by
 /// `len / 2` (integer division): a 2-character string based at column 10
-/// starts at column 9.
+/// starts at column 9. Uses `position.y = 300.0` (row 8 once `Center`'s own
+/// vertical nudge applies -- see T35), not `config.height` like T09/T34's
+/// `Top` cases: `Center`'s vertical component pushes the resolved point up
+/// by half a cell, which would fall outside the grid at the very top edge.
 #[ test ]
 fn text_center_anchor_shifts_start_column()
 {
@@ -285,7 +288,7 @@ fn text_center_anchor_shifts_start_column()
       size : 12.0,
       color : [ 1.0, 1.0, 1.0, 1.0 ],
       anchor : TextAnchor::Center,
-      position : [ 160.0, 600.0 ],
+      position : [ 160.0, 300.0 ],
       along_path : None,
       clip : None,
     }),
@@ -296,8 +299,84 @@ fn text_center_anchor_shifts_start_column()
 
   backend.submit( &commands ).unwrap();
 
-  assert_eq!( backend.cell_glyph( 9, 0 ), Some( 'A' ) );
-  assert_eq!( backend.cell_glyph( 10, 0 ), Some( 'B' ) );
+  assert_eq!( backend.cell_glyph( 9, 8 ), Some( 'A' ) );
+  assert_eq!( backend.cell_glyph( 10, 8 ), Some( 'B' ) );
+}
+
+/// T34 -- vertical anchor now affects row placement: `TextAnchor::TopLeft`
+/// and `TextAnchor::BottomLeft` at the same `position` resolve to adjacent
+/// rows -- Bottom is always exactly one row above Top, per the
+/// `CELL_PX_HEIGHT` row-nudge `cmd_end_text` derives from SVG's own
+/// `dominant-baseline` "hanging"/"baseline" split -- proving vertical
+/// anchor is no longer collapsed to a single row regardless of
+/// `style.anchor`.
+#[ test ]
+fn text_vertical_top_and_bottom_anchor_differ_by_one_row()
+{
+  let mut backend = term();
+  backend.assets_load( &empty_assets() ).unwrap();
+  let commands =
+  [
+    RenderCommand::BeginText( BeginText
+    {
+      font : ResourceId::new( 0 ),
+      size : 12.0,
+      color : [ 1.0, 1.0, 1.0, 1.0 ],
+      anchor : TextAnchor::TopLeft,
+      position : [ 0.0, 304.0 ],
+      along_path : None,
+      clip : None,
+    }),
+    RenderCommand::Char( Char( 'T' ) ),
+    RenderCommand::EndText( EndText ),
+    RenderCommand::BeginText( BeginText
+    {
+      font : ResourceId::new( 0 ),
+      size : 12.0,
+      color : [ 1.0, 1.0, 1.0, 1.0 ],
+      anchor : TextAnchor::BottomLeft,
+      position : [ 0.0, 304.0 ],
+      along_path : None,
+      clip : None,
+    }),
+    RenderCommand::Char( Char( 'B' ) ),
+    RenderCommand::EndText( EndText ),
+  ];
+
+  backend.submit( &commands ).unwrap();
+
+  assert_eq!( backend.cell_glyph( 0, 9 ), Some( 'T' ) );
+  assert_eq!( backend.cell_glyph( 0, 8 ), Some( 'B' ) );
+}
+
+/// T35 -- `TextAnchor::CenterLeft`'s vertical component resolves to the
+/// row whose exact world-space vertical center equals `position`'s Y: at
+/// `position = [0.0, 296.0]`, row 9 spans world Y `(280.0, 312.0]` (cell
+/// height 32), whose midpoint is exactly 296.0.
+#[ test ]
+fn text_vertical_center_anchor_resolves_row_midpoint()
+{
+  let mut backend = term();
+  backend.assets_load( &empty_assets() ).unwrap();
+  let commands =
+  [
+    RenderCommand::BeginText( BeginText
+    {
+      font : ResourceId::new( 0 ),
+      size : 12.0,
+      color : [ 1.0, 1.0, 1.0, 1.0 ],
+      anchor : TextAnchor::CenterLeft,
+      position : [ 0.0, 296.0 ],
+      along_path : None,
+      clip : None,
+    }),
+    RenderCommand::Char( Char( 'C' ) ),
+    RenderCommand::EndText( EndText ),
+  ];
+
+  backend.submit( &commands ).unwrap();
+
+  assert_eq!( backend.cell_glyph( 0, 9 ), Some( 'C' ) );
 }
 
 // ============================================================================
@@ -653,8 +732,10 @@ fn resize_recomputes_grid_and_clears_content()
 
 /// T23 -- `capabilities()` honestly reports coarse support: every command
 /// family the backend processes is `true`, every family it cannot express
-/// at cell resolution (gradients, patterns, clip masks, effects, blending,
-/// text-on-path) is `false`, and `supported_blend_modes` is empty.
+/// at cell resolution (gradients, patterns, clip masks, effects, text-on-path)
+/// is `false`, and blending is limited to exactly `[BlendMode::Normal]`
+/// (source-over) -- `blend_modes` stays `false` since the other 4 variants
+/// silently fall back rather than rendering correctly.
 #[ test ]
 fn capabilities_reports_coarse_support()
 {
@@ -671,7 +752,7 @@ fn capabilities_reports_coarse_support()
   assert!( !caps.clip_masks );
   assert!( !caps.effects );
   assert!( !caps.blend_modes );
-  assert!( caps.supported_blend_modes.is_empty() );
+  assert_eq!( caps.supported_blend_modes, &[ BlendMode::Normal ] );
   assert!( !caps.text_on_path );
   assert_eq!( caps.max_texture_size, 0 );
 }
@@ -957,4 +1038,67 @@ fn path_diagonal_line_is_symmetric_regardless_of_direction()
   assert_eq!( backend.cell_bg( 1, 1 ), Some( stroke_color ) );
   assert_eq!( backend.cell_bg( 2, 1 ), Some( stroke_color ) );
   assert_eq!( backend.cell_bg( 3, 2 ), Some( stroke_color ) );
+}
+
+// ============================================================================
+// Compositing
+// ============================================================================
+
+/// T32 -- a semi-transparent `Sprite` drawn over an opaque background blends
+/// via source-over (Porter-Duff "over") on straight RGBA, per `composite_over`'s
+/// doc comment: `out_a = sa + da*(1-sa)`, `out_rgb = (src*sa + dst*da*(1-sa))/out_a`.
+/// Opaque blue (`da = 1.0`) under 50%-alpha red (`sa = 0.5`) yields exact halves
+/// of each channel (`0.5/1.0 = 0.5`, no rounding), so the result is asserted
+/// exactly rather than within an epsilon.
+#[ test ]
+fn sprite_alpha_blends_over_opaque_background_via_source_over()
+{
+  let mut backend = term();
+  backend.assets_load( &loaded_assets() ).unwrap();
+  let blue = [ 0.0, 0.0, 1.0, 1.0 ];
+  let red_half = [ 1.0, 0.0, 0.0, 0.5 ];
+  let commands =
+  [
+    RenderCommand::Clear( Clear { color : blue } ),
+    RenderCommand::Sprite( Sprite
+    {
+      transform : Transform { position : [ 0.0, 600.0 ], ..Default::default() },
+      sprite : ResourceId::new( 0 ),
+      tint : red_half,
+      blend : BlendMode::default(),
+      clip : None,
+    }),
+  ];
+
+  backend.submit( &commands ).unwrap();
+
+  assert_eq!( backend.cell_bg( 0, 0 ), Some( [ 0.5, 0.0, 0.5, 1.0 ] ) );
+}
+
+/// T33 -- compositing a fully transparent `Sprite` (`sa = 0.0`) onto an
+/// already fully transparent cell (`da = 0.0`) exercises `composite_over`'s
+/// near-zero `out_a` guard documented on the function: rather than dividing
+/// by `out_a ~ 0`, it short-circuits to transparent black.
+#[ test ]
+fn sprite_zero_alpha_over_transparent_background_avoids_division_by_zero()
+{
+  let mut backend = term();
+  backend.assets_load( &loaded_assets() ).unwrap();
+  let transparent = [ 0.0, 0.0, 0.0, 0.0 ];
+  let commands =
+  [
+    RenderCommand::Clear( Clear { color : transparent } ),
+    RenderCommand::Sprite( Sprite
+    {
+      transform : Transform { position : [ 0.0, 600.0 ], ..Default::default() },
+      sprite : ResourceId::new( 0 ),
+      tint : [ 1.0, 0.5, 0.25, 0.0 ],
+      blend : BlendMode::default(),
+      clip : None,
+    }),
+  ];
+
+  backend.submit( &commands ).unwrap();
+
+  assert_eq!( backend.cell_bg( 0, 0 ), Some( [ 0.0, 0.0, 0.0, 0.0 ] ) );
 }

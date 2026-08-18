@@ -48,7 +48,7 @@ num-traits = { workspace = true, optional = true }
 asbytes = { workspace = true, optional = true }
 mod_interface = { workspace = true, optional = true }
 derive_tools = { workspace = true, optional = true }
-mdmath_core = { workspace = true, optional = true, features = [ "index", "float", "arithmetics", "approx", "general" ] }
+mdmath_core = { workspace = true, optional = true, features = [ "index", "float", "arithmetics", "approx" ] }
 # approx = { workspace = true }
 
 [dev-dependencies]

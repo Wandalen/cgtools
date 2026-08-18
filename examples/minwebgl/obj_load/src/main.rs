@@ -19,7 +19,8 @@ async fn app_run() -> Result< (), gl::WebglError >
   gl.use_program( Some( &program ) );
 
   // Load model
-  let obj_buffer = gl::file::load( "static/suzanne.obj" ).await.expect( "Failed to load the model" );
+  let obj_buffer = gl::file::load( "static/suzanne.obj" ).await
+  .map_err( | e | gl::dom::Error::BindgenError( "Failed to load static/suzanne.obj", format!( "{e:?}" ) ) )?;
   let ( models, materials ) = gl::model::obj::model_load_from_slice( &obj_buffer, "static", &tobj::GPU_LOAD_OPTIONS ).await.expect( "Failed to load OBJ file" );
   let materials = materials.expect( "Failed to load materials" );
 

@@ -434,15 +434,15 @@
     <div class="stats">
         <!-- GALLERY:STATS:BEGIN -->
         <div class="stat-card" aria-live="polite" aria-atomic="true">
-            <div class="stat-number" id="totalDemos">76</div>
+            <div class="stat-number" id="totalDemos">73</div>
             <div class="stat-label">Total Examples</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number" id="completedDemos">57</div>
+            <div class="stat-number" id="completedDemos">54</div>
             <div class="stat-label">Live Demos</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number">51</div>
+            <div class="stat-number">48</div>
             <div class="stat-label">With Showcase</div>
         </div>
         <div class="stat-card">
@@ -482,7 +482,7 @@
         <section class="category-section" data-category="api:webgl">
             <div class="category-header">
                 <h2>API · WebGL</h2>
-                <span class="category-badge">50 demos</span>
+                <span class="category-badge">48 demos</span>
             </div>
             <div class="demo-grid">
                 <article class="demo-card" role="article" data-name="triangle browser" data-path="gpu_hal/triangle_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
@@ -709,20 +709,6 @@
                     </div>
                 </article>
 
-                <article class="demo-card" role="article" data-name="filter" data-path="minwebgl/filter" data-tags="runtime:browser,api:webgl">
-                    <div class="demo-image">
-                        <img src="./minwebgl/filter/showcase.webp" alt="Image Filter" loading="lazy" width="350" height="250">
-                    </div>
-                    <div class="demo-content">
-                        <h3 class="demo-title">Image Filter</h3>
-                        <p class="demo-desc">This demo demonstrates real-time image filtering in WebGL2. It applies a 3x3 convolution kernel &lt;!-- Fix(BUG-323): named several other post-processing filter categories this crate never      implements — main.frag applies exactly one hardcoded convolution kernel (emboss).      Root cause: aspirational wording never checked against the actual shader.      Pitfall: a demo whose purpose IS showing a filter is exactly where a wrong named      technique goes unnoticed, since the demo still visibly &quot;works&quot; either way. --&gt; (an emboss effect) to the image, revealed within a radius centered on the mouse cursor as you move the pointer.</p>
-                        <span class="demo-status">✓ Has Showcase</span>
-                        <div class="demo-links">
-                            <a href="./minwebgl/filter/" class="demo-link" aria-label="View Image Filter demo">View Details</a>
-                        </div>
-                    </div>
-                </article>
-
                 <article class="demo-card" role="article" data-name="gltf viewer" data-path="minwebgl/gltf_viewer" data-tags="runtime:browser,api:webgl">
                     <div class="demo-image">
                         <img src="./minwebgl/gltf_viewer/showcase.webp" alt="glTF Viewer" loading="lazy" width="350" height="250">
@@ -827,6 +813,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Morph targets</h3>
+                        <p class="demo-desc">This example demonstrates how to use a renderer crate for playing animations, update models morph targets. Example gives user posibility to choose animation and change its morph targets weights values using UI.</p>
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/morph_targets/" class="demo-link" aria-label="View Morph targets demo">View Details</a>
@@ -1012,20 +999,6 @@
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/space_partition/" class="demo-link" aria-label="View Space partitioning  demo">View Details</a>
-                        </div>
-                    </div>
-                </article>
-
-                <article class="demo-card" role="article" data-name="spinning cube size opt" data-path="minwebgl/spinning_cube_size_opt" data-tags="runtime:browser,api:webgl">
-                    <div class="demo-image">
-                        <img src="./minwebgl/spinning_cube_size_opt/showcase.webp" alt="Spinning Cube (Size Optimized)" loading="lazy" width="350" height="250">
-                    </div>
-                    <div class="demo-content">
-                        <h3 class="demo-title">Spinning Cube (Size Optimized)</h3>
-                        <p class="demo-desc">This demo is a size-optimized version of a spinning cube in WebGL2. It demonstrates minimal code and aggressive optimization for the smallest possible WASM binary.</p>
-                        <span class="demo-status">✓ Has Showcase</span>
-                        <div class="demo-links">
-                            <a href="./minwebgl/spinning_cube_size_opt/" class="demo-link" aria-label="View Spinning Cube (Size Optimized) demo">View Details</a>
                         </div>
                     </div>
                 </article>
@@ -1256,6 +1229,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">🧪 renderer_pbr_scene</h3>
+                        <p class="demo-desc">The runtime demo of the canonical gpu_hal opaque path ( renderer::webgpu ): a metallic-roughness sphere grid over a ground plane — gold metallic row and red dielectric row, roughness rising left to right — lit by one directional, one point and one spot light, rendered through the HDR opaque pass + ACES tone mapping, with a slowly orbiting camera.</p>
                         <span class="demo-status incomplete">No Showcase Yet</span>
                         <div class="demo-links">
                             <a href="./minwebgpu/renderer_pbr_scene/" class="demo-link" aria-label="View 🧪 renderer_pbr_scene demo">View Details</a>
@@ -1364,7 +1338,7 @@
         <section class="category-section" data-category="runtime:browser">
             <div class="category-header">
                 <h2>Runtime · Browser</h2>
-                <span class="category-badge">56 demos</span>
+                <span class="category-badge">53 demos</span>
             </div>
             <div class="demo-grid">
                 <article class="demo-card" role="article" data-name="triangle browser" data-path="gpu_hal/triangle_browser" data-tags="runtime:browser,api:webgpu,api:webgl">
@@ -1591,20 +1565,6 @@
                     </div>
                 </article>
 
-                <article class="demo-card" role="article" data-name="filter" data-path="minwebgl/filter" data-tags="runtime:browser,api:webgl">
-                    <div class="demo-image">
-                        <img src="./minwebgl/filter/showcase.webp" alt="Image Filter" loading="lazy" width="350" height="250">
-                    </div>
-                    <div class="demo-content">
-                        <h3 class="demo-title">Image Filter</h3>
-                        <p class="demo-desc">This demo demonstrates real-time image filtering in WebGL2. It applies a 3x3 convolution kernel &lt;!-- Fix(BUG-323): named several other post-processing filter categories this crate never      implements — main.frag applies exactly one hardcoded convolution kernel (emboss).      Root cause: aspirational wording never checked against the actual shader.      Pitfall: a demo whose purpose IS showing a filter is exactly where a wrong named      technique goes unnoticed, since the demo still visibly &quot;works&quot; either way. --&gt; (an emboss effect) to the image, revealed within a radius centered on the mouse cursor as you move the pointer.</p>
-                        <span class="demo-status">✓ Has Showcase</span>
-                        <div class="demo-links">
-                            <a href="./minwebgl/filter/" class="demo-link" aria-label="View Image Filter demo">View Details</a>
-                        </div>
-                    </div>
-                </article>
-
                 <article class="demo-card" role="article" data-name="gltf viewer" data-path="minwebgl/gltf_viewer" data-tags="runtime:browser,api:webgl">
                     <div class="demo-image">
                         <img src="./minwebgl/gltf_viewer/showcase.webp" alt="glTF Viewer" loading="lazy" width="350" height="250">
@@ -1643,20 +1603,6 @@
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/hexagonal_map/" class="demo-link" aria-label="View Hexagonal Map demo">View Details</a>
-                        </div>
-                    </div>
-                </article>
-
-                <article class="demo-card" role="article" data-name="jewelry site" data-path="minwebgl/jewelry_site" data-tags="runtime:browser">
-                    <div class="demo-image">
-                        <img src="./minwebgl/jewelry_site/showcase.webp" alt="Jewelry Site" loading="lazy" width="350" height="250">
-                    </div>
-                    <div class="demo-content">
-                        <h3 class="demo-title">Jewelry Site</h3>
-                        <p class="demo-desc">&lt;!-- Fix(BUG-328): claimed a 3D/WebGL configurator and listed WebGL as a keyword — this site has      no canvas, no WebGL context, and no 3D library anywhere in its markup or scripts; it swaps      between pre-rendered 2D preview images by filename. src/main.rs exists only as an inert      wasm-bindgen placeholder so trunk's tooling accepts the crate — it renders nothing.      Root cause: aspirational wording never checked against the actual implementation.      Pitfall: this crate sits in a directory of genuine WebGL demos, making an unverified      &quot;WebGL&quot;/&quot;3D&quot; claim here easy to accept at a glance instead of checking the actual scripts. --&gt; This demo showcases a product‑ready jewelry configurator built for real‑time, client‑side customization using pre-rendered 2D preview images. Users can browse ring designs, switch materials and gems, and preview combinations instantly.</p>
-                        <span class="demo-status">✓ Has Showcase</span>
-                        <div class="demo-links">
-                            <a href="./minwebgl/jewelry_site/" class="demo-link" aria-label="View Jewelry Site demo">View Details</a>
                         </div>
                     </div>
                 </article>
@@ -1723,6 +1669,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Morph targets</h3>
+                        <p class="demo-desc">This example demonstrates how to use a renderer crate for playing animations, update models morph targets. Example gives user posibility to choose animation and change its morph targets weights values using UI.</p>
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/morph_targets/" class="demo-link" aria-label="View Morph targets demo">View Details</a>
@@ -1912,20 +1859,6 @@
                     </div>
                 </article>
 
-                <article class="demo-card" role="article" data-name="spinning cube size opt" data-path="minwebgl/spinning_cube_size_opt" data-tags="runtime:browser,api:webgl">
-                    <div class="demo-image">
-                        <img src="./minwebgl/spinning_cube_size_opt/showcase.webp" alt="Spinning Cube (Size Optimized)" loading="lazy" width="350" height="250">
-                    </div>
-                    <div class="demo-content">
-                        <h3 class="demo-title">Spinning Cube (Size Optimized)</h3>
-                        <p class="demo-desc">This demo is a size-optimized version of a spinning cube in WebGL2. It demonstrates minimal code and aggressive optimization for the smallest possible WASM binary.</p>
-                        <span class="demo-status">✓ Has Showcase</span>
-                        <div class="demo-links">
-                            <a href="./minwebgl/spinning_cube_size_opt/" class="demo-link" aria-label="View Spinning Cube (Size Optimized) demo">View Details</a>
-                        </div>
-                    </div>
-                </article>
-
                 <article class="demo-card" role="article" data-name="sprite animation" data-path="minwebgl/sprite_animation" data-tags="runtime:browser,api:webgl">
                     <div class="demo-image">
                         <img src="./minwebgl/sprite_animation/showcase.webp" alt="Sprite Animation" loading="lazy" width="350" height="250">
@@ -2100,6 +2033,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">🧪 renderer_pbr_scene</h3>
+                        <p class="demo-desc">The runtime demo of the canonical gpu_hal opaque path ( renderer::webgpu ): a metallic-roughness sphere grid over a ground plane — gold metallic row and red dielectric row, roughness rising left to right — lit by one directional, one point and one spot light, rendered through the HDR opaque pass + ACES tone mapping, with a slowly orbiting camera.</p>
                         <span class="demo-status incomplete">No Showcase Yet</span>
                         <div class="demo-links">
                             <a href="./minwebgpu/renderer_pbr_scene/" class="demo-link" aria-label="View 🧪 renderer_pbr_scene demo">View Details</a>
@@ -2451,6 +2385,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Orrery (Flexible)</h3>
+                        <p class="demo-desc">One crate, four selectable backends — webgl, webgpu, wgpu, vulkan — chosen at compile time via Cargo features, all rendering the same orrery scene (see the family readme for the shared scene contract). Governed by an explicit product principle: only the wgpu feature may link the wgpu crate; the other three do not, even transitively. See ADR-004 for the full rationale, including why vulkan needed a new, dedicated minvulkan driver instead of reusing wgpu forced onto its own Vulkan backend.</p>
                         <span class="demo-status incomplete">No Showcase Yet</span>
                         <div class="demo-links">
                             <a href="./orrery/flexible/" class="demo-link" aria-label="View Orrery (Flexible) demo">View Details</a>

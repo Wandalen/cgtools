@@ -44,7 +44,7 @@ tilemap_renderer/
 |---------|--------|-------------|
 | `adapter-svg` | partial | SVG backend — generates SVG 1.1 documents; every command/asset family implemented, but font selection is not (`Assets.fonts` ignored — viewer default font) |
 | `adapter-webgl` | partial | WebGL2 backend — sprites, meshes, instanced batches (wasm32); paths/text/effects pending |
-| `adapter-terminal` | partial | Terminal backend — coarse ANSI-truecolor character-cell grid; paths/text/meshes/sprites/batches supported, gradients/patterns/clip masks/effects/blend modes not |
+| `adapter-terminal` | partial | Terminal backend — coarse ANSI-truecolor character-cell grid; paths/text/meshes/sprites/batches supported, alpha blending (Normal only); gradients/patterns/clip masks/effects not |
 | `adapter-none` | complete | No-op backend — accepts and discards everything; for math-only simulation with no rendering |
 | `adapter-webgpu` | partial | WebGPU backend via `gpu_hal` — sprites only (wasm32); real pixel upload not yet supported by `gpu_hal`'s WebGPU surface |
 | `adapter-native` | complete | Native `wgpu` backend via `gpu_hal` — offscreen sprite rendering with pixel readback; sprites only, but pixel-verified end-to-end |
@@ -93,7 +93,7 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 | Batches | yes | yes | yes | — | — | — |
 | Gradients | yes | — | — | — | — | — |
 | Effects | yes | — | — | — | — | — |
-| Blend modes | yes | partial² | — | — | —⁵ | —⁵ |
+| Blend modes | yes | partial² | partial⁷ | — | —⁵ | —⁵ |
 | Viewport pan/zoom | yes | partial | — | — | — | — |
 
 > **Terminal** adapter downsamples world coordinates onto a fixed character-cell grid
@@ -101,8 +101,7 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > sequence; text is the one primitive it renders natively rather than approximating.
 > Gradients, patterns, clip masks, and effects are not implemented. See
 > `docs/feature/003_terminal_backend_adapter.md` and `roadmap.md`'s "terminal adapter
-> gaps" section for known simplifications (no curve flattening, no alpha blending,
-> single vertical text anchor).
+> gaps" section for known simplifications (single blend mode).
 > **WebGL** adapter is partially implemented: sprites, meshes, and instanced batches work;
 > paths, text, groups, gradients, patterns, and effects are not yet rendered.
 >
@@ -146,10 +145,13 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > ⁵ Neither the WebGPU nor the native adapter reads `Sprite::blend` — the field is
 > accepted but not yet applied by either pipeline.
 >
-> ⁶ Terminal paths/meshes: path curves (`QuadTo`/`CubicTo`/`ArcTo`) draw a straight line
-> to their endpoint rather than flattening the curve, and `Mesh` only paints
-> `FillRef::Solid` fills (gradient-filled meshes paint nothing). See
-> `docs/feature/003_terminal_backend_adapter.md`.
+> ⁶ Terminal paths/meshes: path curves (`QuadTo`/`CubicTo`/`ArcTo`) flatten into 16 fixed
+> segments before Bresenham rasterization, and `Mesh` only paints `FillRef::Solid` fills
+> (gradient-filled meshes paint nothing). See `docs/feature/003_terminal_backend_adapter.md`.
+>
+> ⁷ Terminal blend modes: only `BlendMode::Normal` — source-over (Porter-Duff "over") alpha
+> compositing on straight RGBA via `composite_over` — is evaluated; other variants fall back
+> to Normal. `Capabilities::supported_blend_modes` is `&[BlendMode::Normal]`.
 
 ## known issues / TODO
 

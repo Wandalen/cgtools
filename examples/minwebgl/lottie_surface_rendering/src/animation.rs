@@ -669,9 +669,10 @@ impl Animation
 }
 
 /// Asynchronously loads a Lottie animation file from a given path and constructs a new `Animation` object.
-pub async fn animation_load( gl : &GL, path : &str ) -> Animation
+pub async fn animation_load( gl : &GL, path : &str ) -> Result< Animation, gl::WebglError >
 {
-  let lottie_json_bin = gl::file::load( path ).await.unwrap();
+  let lottie_json_bin = gl::file::load( path ).await
+  .map_err( | e | gl::dom::Error::BindgenError( "Failed to load lottie animation file", format!( "{e:?}" ) ) )?;
   let composition = Composition::from_slice( lottie_json_bin.as_slice() ).unwrap();
-  Animation::new( gl, composition )
+  Ok( Animation::new( gl, composition ) )
 }

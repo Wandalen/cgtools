@@ -10,6 +10,7 @@
 - **repo_identity:** self
 - **Filed:** 2026-08-18
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
+- **Fix Task:** [384](../../verifying/384_register_tiles_tools_resource_new_negative_maximum_clamp_fix_closes_bug349.md)
 
 ## Symptom
 

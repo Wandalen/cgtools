@@ -113,6 +113,15 @@ mod private
     /// itself skipped, e.g. an unresolvable sheet ), instead of blindly
     /// emitting a `<use>` that dangles.
     sprite_defs : IntSet< ResourceId< asset::Sprite > >,
+    /// Region pixel `( width, height )` for each loaded sprite, populated
+    /// alongside `sprite_defs` in `sprites_load`. `<use>` elements
+    /// referencing `sprite_N` must carry explicit `width`/`height`
+    /// matching this so they match the `<symbol>`'s own `viewBox` size
+    /// exactly ( see `Fix( BUG-374 )` at both draw call sites ) — without
+    /// it, SVG defaults an unsized `<use>` to 100% of the containing
+    /// viewport, an unwanted auto-fit scale that compounds with the
+    /// `<use>`'s own explicit `transform`.
+    sprite_dims : IntMap< ResourceId< asset::Sprite >, ( f32, f32 ) >,
     /// Geometry ids `geometries_load` was ever asked to load — inserted
     /// unconditionally, regardless of whether the source resolved
     /// successfully ( BUG-209 ). Unlike `sprite_defs`, this must NOT be
@@ -136,6 +145,7 @@ mod private
         batches : IntMap::default(),
         mesh_defs : IntMap::default(),
         sprite_defs : IntSet::default(),
+        sprite_dims : IntMap::default(),
         geometries_known : IntSet::default(),
       }
     }
@@ -1057,9 +1067,22 @@ mod private
             self.content.asset_def_push( &comment );
             continue;
           }
+          // Fix(BUG-373): counter-flip the referenced image vertically within
+          // its own crop window. `<image>` content is Y-down/top-origin
+          // natively and `region` is measured the same way (SVG viewBox
+          // convention — see `SpriteAsset::region`'s doc comment), but the
+          // outer draw-time transform (`transform_to_svg_static`) always
+          // emits `scale(sx,-sy)` to convert the crate's Y-up world space to
+          // SVG's Y-down space — correct for vector content, but it also
+          // mirrors already-correctly-oriented raster content. This inner
+          // `scale(1,-1)` cancels that mirroring; `translate`'s constant
+          // re-centers the flip on the crop window's own extent
+          // ( `2*region.y + region.h` ), not the full sheet, so which
+          // sub-rectangle is selected stays unaffected.
+          let flip_y = 2.0 * sprite.region[ 1 ] + sprite.region[ 3 ];
           let img_def = format!
           (
-            "<symbol id=\"sprite_{}\" viewBox=\"{} {} {} {}\"><use href=\"#img_{}\" width=\"{}\" height=\"{}\"/></symbol>",
+            "<symbol id=\"sprite_{}\" viewBox=\"{} {} {} {}\"><use href=\"#img_{}\" width=\"{}\" height=\"{}\" transform=\"translate(0,{flip_y}) scale(1,-1)\"/></symbol>",
             sprite.id.inner(),
             sprite.region[ 0 ], sprite.region[ 1 ], sprite.region[ 2 ], sprite.region[ 3 ],
             sprite.sheet.inner(),
@@ -1067,6 +1090,7 @@ mod private
           );
           self.content.asset_def_push( &img_def );
           self.resources.sprite_defs.insert( sprite.id );
+          self.resources.sprite_dims.insert( sprite.id, ( sprite.region[ 2 ], sprite.region[ 3 ] ) );
         }
       }
     }
@@ -1374,7 +1398,15 @@ mod private
       let clip = Self::clip_attr( s.clip.as_ref() );
       let blend = Self::blend_to_svg( s.blend );
       let tint = self.tint_filter_attr( &s.tint )?;
-      let sprite = format!( "<use href=\"#sprite_{}\"{}{}{}{}/>", s.sprite.inner(), transform, clip, tint, blend );
+      // Fix(BUG-374): explicit width/height matching the `<symbol>`'s own
+      // viewBox size, so the `<use>` doesn't fall back to SVG's 100%-of-
+      // viewport auto-fit default and compound with `transform`'s scale.
+      // Safe to `.expect` — the `sprite_defs.contains` check above
+      // guarantees `s.sprite` was populated into both maps together in
+      // `sprites_load`.
+      let ( w, h ) = self.resources.sprite_dims.get( &s.sprite ).copied()
+        .expect( "sprite_defs and sprite_dims are always populated together in sprites_load" );
+      let sprite = format!( "<use href=\"#sprite_{}\" width=\"{w}\" height=\"{h}\"{}{}{}{}/>", s.sprite.inner(), transform, clip, tint, blend );
       self.content.body_push( &sprite );
       Ok( () )
     }
@@ -1534,9 +1566,16 @@ mod private
           {
             let inst_transform = Self::transform_to_svg_local( &inst.transform );
             let tint = Self::tint_filter_attr_split( &inst.tint, content, filter_counter )?;
+            // Fix(BUG-374): see `cmd_sprite`'s identical fix for why explicit
+            // width/height is required. This call site has no pre-existing
+            // existence guard (unlike `cmd_sprite`'s BUG-209 check), so an
+            // unloaded `inst.sprite` falls back to 1x1 rather than panicking
+            // — matching this site's existing dangling-reference behavior
+            // for that already-separate, unrelated gap.
+            let ( w, h ) = resources.sprite_dims.get( &inst.sprite ).copied().unwrap_or( ( 1.0, 1.0 ) );
             let sprite = format!
             (
-              "<use href=\"#sprite_{}\"{}{}{}/>",
+              "<use href=\"#sprite_{}\" width=\"{w}\" height=\"{h}\"{}{}{}/>",
               inst.sprite.inner(), inst_transform, tint, blend
             );
             content.body_push( &sprite );

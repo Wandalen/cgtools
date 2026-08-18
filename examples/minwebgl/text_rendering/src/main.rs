@@ -467,7 +467,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   ];
 
   let fonts_ufo_3d = text::ufo::fonts_3d_load( &gl, font_names.as_slice() ).await;
-  let fonts_ttf_3d = text::ttf::fonts_3d_load( &gl, font_names.as_slice() ).await;
+  let fonts_ttf_3d = text::ttf::fonts_3d_load( &gl, font_names.as_slice() ).await?;
 
   let text = "CGTools".to_string();
 

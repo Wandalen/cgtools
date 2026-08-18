@@ -15,6 +15,7 @@
 - **repo_identity:** self
 - **Filed:** 2026-08-18
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/tiles_tools/
+- **Fix Task:** [385](../../verifying/385_register_tiles_tools_coordinate_distance_overflow_and_hex_method_shadowing_fix_closes_bug350.md)
 
 ## Symptom
 

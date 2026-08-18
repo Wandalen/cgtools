@@ -17,12 +17,10 @@
 | curve_surface_rendering | yes | yes | yes | yes | | | |
 | deferred_shading | yes | yes | yes | yes | | | |
 | diamond | yes | yes | yes | yes | | | |
-| filter | yes | yes | yes | yes | | | |
 | filters | yes | yes | yes | yes | | | |
 | gltf_viewer | yes | yes | yes | yes | | | |
 | hexagonal_grid | yes | yes | yes | yes | | | |
 | hexagonal_map | yes | yes | yes | yes | | | |
-| jewelry_site | no | yes | yes | yes | | | |
 | lottie_surface_rendering | no | yes | yes | yes | | | |
 | make_cube_map | yes | yes | yes | yes | | | |
 | mapgen_tiles_rendering | yes | yes | yes | yes | | | |
@@ -41,7 +39,6 @@
 | simple_pbr | yes | yes | yes | yes | | | |
 | skeletal_animation | no | yes | yes | yes | | | |
 | space_partition | no | yes | yes | yes | | | |
-| spinning_cube_size_opt | yes | yes | yes | yes | | | |
 | sprite_animation | yes | yes | yes | yes | | | |
 | text_msdf | yes | yes | yes | yes | | | |
 | text_rendering | yes | yes | yes | yes | | | |

@@ -115,8 +115,9 @@ mod private
     pub blend_modes : bool,
     /// The exact set of [`BlendMode`] variants that render correctly on this
     /// backend. Variants not listed here either fall back silently (e.g. WebGL
-    /// Overlay → Normal) or are fully unsupported. Empty slice means no
-    /// blending at all (e.g. terminal backend).
+    /// Overlay → Normal, or terminal's own non-Normal variants → Normal) or
+    /// are fully unsupported. Empty slice means no blending at all (e.g.
+    /// `NoneBackend`, which discards every command).
     pub supported_blend_modes : &'static [ BlendMode ],
     /// Supports text on a path.
     pub text_on_path : bool,

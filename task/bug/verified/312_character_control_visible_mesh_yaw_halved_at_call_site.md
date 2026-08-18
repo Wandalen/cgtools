@@ -13,6 +13,7 @@
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/ (self)
 - **verification_date:** 2026-08-18
+- **Fix Task:** [363](../../verifying/363_character_control_yaw_halving_fix_registration.md) (Readiness Verification Gate PASS 8/8, 2026-08-18; blocked on `tsk .verify_pass` same-actor guard, task remains 🔬 Verifying)
 
 ## Symptom
 

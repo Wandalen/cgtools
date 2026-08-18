@@ -11,6 +11,7 @@
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/ (self)
 - **verification_date:** 2026-08-18
+- **Fix Task:** [382](../../verifying/382_register_tiles_tools_ecsinspector_entity_record_component_counts_fix_closes_bug347.md)
 
 ## Symptom
 

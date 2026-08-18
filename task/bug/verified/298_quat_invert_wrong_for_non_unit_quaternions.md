@@ -15,6 +15,7 @@
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/ (self)
 - **verification_date:** 2026-08-18
+- **Fix Task:** [357](../../verifying/357_fix_quat_invert_wrong_for_non_unit_quaternions_bug298.md) (filed via `bug_promote` skill/PROC12, 2026-08-18; Readiness Verification Gate PASS 8/8; blocked at 🔬 Verifying by this sandbox's same-actor `tsk .verify_pass` guard)
 
 ## Symptom
 
@@ -201,6 +202,7 @@ for all nonzero q: (a.devide(&q)) * q == a   (within floating-point epsilon)
 | 2026-08-18 | filed | Found during this session's workspace-wide bug-hunt task, assigned review of `module/math`/`module/min` |
 | 2026-08-18 | fix_applied | `src/quaternion/arithmetics.rs:224-227`: `invert()` changed from `self.conjugate()` to `self.conjugate() / self.mag2()` |
 | 2026-08-18 | verified | `test_devide_non_unit_round_trip` (bug_reproducer) passes; full `ndarray_cg` scoped suite (281 passed) and clippy (`-D warnings`) clean |
+| 2026-08-18 | promoted to fix task | Linked to [Task 357](../../verifying/357_fix_quat_invert_wrong_for_non_unit_quaternions_bug298.md) via the `bug_promote` skill (PROC12) — formal task-system registration of this bug's already-applied, already-verified fix. Task 357 reached its own Readiness Verification Gate PASS 8/8 (8-dimension Tier 2 Dual-Role Self-Check) and is blocked on `tsk .verify_pass`'s same-actor guard (identical to this bug's own filing/verifying actor), same standing pattern as this backlog's other same-actor-blocked tasks (e.g. 254, 358). |
 
 ## Refs: src/
 

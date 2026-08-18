@@ -144,9 +144,13 @@ pipelines, bind groups, render passes ) carry no `Drop`-based cleanup on this
 backend — confirmed by zero `impl Drop` anywhere in the crate ( `BufferVulkan`
 / `TextureVulkan`, `vulkan.rs`, are plain structs of raw handles with no
 destroy/free method ) — so every Vulkan-backend resource leaks for the
-process lifetime. This is a known v0 tradeoff rather than an active bug:
-`cargo nextest` isolates each test into its own process, so it has not yet
-accumulated across the test suite. The other three backends get cleanup for
+process lifetime. This was a known v0 tradeoff rather than an active bug for as long as
+`cargo nextest`'s one-process-per-test isolation was the only consumer, so it
+never accumulated across the test suite. [ADR-006](../adr/006_vulkan_windowed_presentation.md)'s
+windowed loop invalidates that reasoning — it runs thousands of frames in one
+process, each allocating a command pool, render pass and framebuffer that are
+never destroyed — so on the windowed path this is now a genuine defect rather
+than a documented simplification. The other three backends get cleanup for
 free via `wgpu`'s / `web_sys`'s own `Drop` impls; only `vulkan`, built
 directly on raw `ash` with no owning graphics crate underneath, lacks it.
 Texture upload is covered on this backend too, mirroring `native`'s own
@@ -155,6 +159,23 @@ Texture upload is covered on this backend too, mirroring `native`'s own
 two successive `texture_write` uploads both land via readback ).
 Tracked by tasks 201 ( `minvulkan` driver ), 202 ( this crate's `vulkan`
 backend variant ), 203 ( the consuming example ).
+
+Presentation, added later, is what makes the four backends uniform in
+capability : `Device::new_native_windowed` and `Device::new_vulkan_windowed`
+return the same `( Device, Queue, Surface )` triple against a real presentable
+surface — `minwgpu`'s surface and a real `VK_KHR_swapchain` respectively —
+where `new_native`/`new_vulkan` return an offscreen image
+( ADRs [005](../adr/005_windowed_native_presentation.md),
+[006](../adr/006_vulkan_windowed_presentation.md) ). The browser pair needs no
+counterpart : a canvas already is the presentable surface. What a windowed
+surface changes is only the frame loop — `current_view` acquires,
+`present` shows, `resize` rebuilds — at the cost of `pixels_read`, which
+returns `Unsupported` there. Neither constructor takes a windowing type, so no
+crate at this layer or below depends on `winit`/`sdl2`/`glfw`. Only the
+`vulkan` windowed path has a running consumer
+( `examples/gpu_hal/triangle_vulkan_window`, the one configuration in this
+workspace whose process links no `wgpu` at all ); `new_native_windowed`'s
+dispatch has none, so it remains unexercised.
 
 ### ADRs
 

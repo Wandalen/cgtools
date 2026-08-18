@@ -173,7 +173,12 @@ mod private
     NativeWindow
     {
       /// Context, swapchain surface and its current configuration.
-      windowed : minwgpu::surface::Windowed< 'static >,
+      ///
+      /// Boxed for the same reason [`Surface::VulkanWindow`] is : unboxed, this
+      /// one variant is several times the size of every other and would set the
+      /// size of every `Surface` value, including the browser ones that carry
+      /// only a handful of handles.
+      windowed : Box< minwgpu::surface::Windowed< 'static > >,
       /// The frame acquired by the most recent `current_view`, awaiting
       /// `present`.
       ///
@@ -410,7 +415,7 @@ mod private
       ((
         Device::Native( device ),
         Queue::Native( queue ),
-        Surface::NativeWindow { windowed, acquired : core::cell::RefCell::new( None ), format }
+        Surface::NativeWindow { windowed : Box::new( windowed ), acquired : core::cell::RefCell::new( None ), format }
       ))
     }
 
@@ -1359,9 +1364,7 @@ coincidental to the two backend families, not duplicated logic" ) ]
         #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
         Self::WebGl { .. } => TextureFormat::Rgba8Unorm,
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native { format, .. } => *format,
-        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::NativeWindow { format, .. } => *format,
+        Self::Native { format, .. } | Self::NativeWindow { format, .. } => *format,
         #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
         Self::Vulkan( surface ) => surface.format,
         #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]

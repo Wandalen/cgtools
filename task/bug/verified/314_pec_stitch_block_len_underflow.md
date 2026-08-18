@@ -12,6 +12,7 @@
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/ (self)
 - **verification_date:** 2026-08-18
+- **Fix Task:** [365](../../verifying/365_pec_stitch_block_len_underflow_fix_registration.md) (renumbered from 356→360→365; two TOCTOU races with a concurrent actor's own BUG-3xx promotion batch, 2026-08-18)
 
 ## Symptom
 

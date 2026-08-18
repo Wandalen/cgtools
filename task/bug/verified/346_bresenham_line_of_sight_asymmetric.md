@@ -11,6 +11,7 @@
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/ (self)
 - **verification_date:** 2026-08-18
+- **Fix Task:** [381](../../verifying/381_register_tiles_tools_bresenham_line_trace_symmetry_fix_closes_bug346.md)
 
 ## Symptom
 

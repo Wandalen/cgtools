@@ -11,6 +11,7 @@
 - **repo_identity:** self
 - **Filed:** 2026-08-18
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
+- **Fix Task:** [379](../../verifying/379_register_tiles_tools_health_heal_overflow_fix_closes_bug344.md)
 
 ## Symptom
 

@@ -32,7 +32,9 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let text = "Cgtools";
 
-  let font_str = String::from_utf8( gl::file::load( "static/font/Alike-Regular.json" ).await.unwrap() ).unwrap();
+  let font_bytes = gl::file::load( "static/font/Alike-Regular.json" ).await
+  .map_err( | e | gl::dom::Error::BindgenError( "Failed to load static/font/Alike-Regular.json", format!( "{e:?}" ) ) )?;
+  let font_str = String::from_utf8( font_bytes ).unwrap();
   //let font_str = include_str!( "../assets/font/Alike-Regular.json" );
   // Parse font from the provided file
   let font = json::MSDFFontJSON::font_parse( &font_str );

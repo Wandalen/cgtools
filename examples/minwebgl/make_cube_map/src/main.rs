@@ -231,7 +231,8 @@ async fn app_run() -> Result< (), gl::WebglError >
   let gl = gl::context::retrieve_or_make()?;
 
   // Load model
-  let obj_buffer = gl::file::load( "static/diamond.glb" ).await.expect( "Failed to load the model" );
+  let obj_buffer = gl::file::load( "static/diamond.glb" ).await
+  .map_err( | e | gl::dom::Error::BindgenError( "Failed to load static/diamond.glb", format!( "{e:?}" ) ) )?;
   let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
 
   let ( cube_texture, max_distance ) = cube_map_generate( &gl, &document, &buffers )?;

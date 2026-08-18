@@ -13,6 +13,7 @@
 - **repo_identity:** self
 - **Filed:** 2026-08-18
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **Fix Task:** [376](../../verifying/376_register_embroidery_tools_jumpsegment_staleneedleposition_fix_closes_bug341.md)
 
 ## Symptom
 
@@ -102,11 +103,11 @@ test second_jump_after_colorchange_starts_where_first_jump_ended ... FAILED
 
 | # | Location | What it shows | Hypothesis |
 |---|----------|---------------|------------|
-| E1 | `module/helper/embroidery_tools/src/format/pes/writer.rs:468-494` (`as_segment_blocks`, pre-fix, direct read) | `Jump` arm (468-474) reads `stitched_x`/`stitched_y` but never assigns them; `Stitch` arm (484-493) assigns both inside its loop; `ColorChange` (475-483) and the catch-all (494) both `continue` without touching either variable | H1, H2 |
-| E2 | `module/helper/embroidery_tools/src/embroidery_file.rs:314-333` (`as_command_blocks`, direct read) | Splits `self.stitches()` into blocks only when consecutive instructions differ in type — confirms two back-to-back `jump()` calls stay in one block, while an intervening `color_change()`/`trim()` produces a second, separately-processed `Jump` block | H3 |
-| E3 | `module/helper/embroidery_tools/src/format/pes/reader.rs` (`grep -n "CSewSeg\|CEmbOne"`, direct read) | No output — confirms the PES reader never parses either section back | H4 |
-| E4 | `module/helper/embroidery_tools/tests/pes_test.rs:11-32` (`fixture_program`, direct read) | Every jump in the shared fixture is immediately followed by a `stitch` before the next jump occurs, so the stale-tracker path was never exercised | H5 |
-| E5 | Terminal output (this report, MRE section) | Running the new reproducer test against the current (unfixed) source panics with the exact stale value `(10, 10)` predicted by H1-H3's mechanism, instead of the expected `(15, 15)` | H1 |
+| E1 | `module/helper/embroidery_tools/src/format/pes/writer.rs:468-494` (`as_segment_blocks`, pre-fix, direct read) | `Jump` arm (468-474) reads `stitched_x`/`stitched_y` but never assigns them; `Stitch` arm (484-493) assigns both inside its loop; `ColorChange` (475-483) and the catch-all (494) both `continue` without touching either variable | H1 ✅, H2 ✅ |
+| E2 | `module/helper/embroidery_tools/src/embroidery_file.rs:314-333` (`as_command_blocks`, direct read) | Splits `self.stitches()` into blocks only when consecutive instructions differ in type — confirms two back-to-back `jump()` calls stay in one block, while an intervening `color_change()`/`trim()` produces a second, separately-processed `Jump` block | H3 ✅ |
+| E3 | `module/helper/embroidery_tools/src/format/pes/reader.rs` (`grep -n "CSewSeg\|CEmbOne"`, direct read) | No output — confirms the PES reader never parses either section back | H4 ✅ |
+| E4 | `module/helper/embroidery_tools/tests/pes_test.rs:11-32` (`fixture_program`, direct read) | Every jump in the shared fixture is immediately followed by a `stitch` before the next jump occurs, so the stale-tracker path was never exercised | H5 ✅ |
+| E5 | Terminal output (this report, MRE section) | Running the new reproducer test against the current (unfixed) source panics with the exact stale value `(10, 10)` predicted by H1-H3's mechanism, instead of the expected `(15, 15)` | H1 ✅ |
 
 ## Root Cause
 
@@ -230,6 +231,25 @@ tracker).
 |------|-------|-------|
 | 2026-08-18 | filed | Re-confirmed via direct source reading and a new permanent byte-level reproducer test, following up a prior investigation pass's throwaway-probe-crate finding |
 | 2026-08-18 | VERIFY Gate | Reproducer test `second_jump_after_colorchange_starts_where_first_jump_ended` (`cd module/helper/embroidery_tools && cargo test --test pes_test second_jump_after_colorchange_starts_where_first_jump_ended -- --exact`) confirmed passing against current source (4/4 clean runs on the fully-built binary; one anomalous FAIL was observed only on the very first invocation during a fresh 34s compile and did not reproduce on any subsequent run, consistent with a build-cache race rather than a source defect). Fix confirmed present in `module/helper/embroidery_tools/src/format/pes/writer.rs`: the `Instruction::Jump` arm's write-back (`stitched_x = last_instruction.x; stitched_y = last_instruction.y;`) is present at lines 486-487, matching this report's Fix Location "After" block. `state:` field found already set to `Verified` at the start of this gate (flipped without a corresponding History entry); this entry backfills that missing record. |
+| 2026-08-18 | verified | Independent Tier 2 Dual-Role Self-Check re-run in full per the assigned VERIFY Gate task, confirming and strengthening the prior entry's PASS verdict with empirical proof: fix temporarily reverted in place (`Jump` arm's 2 write-back lines removed) → `cargo nextest run -p embroidery_tools` showed exactly 1 failure (`second_jump_after_colorchange_starts_where_first_jump_ended`, matching the documented Actual block); fix restored → 17/17 passed; `git diff` confirmed the restored source is byte-identical to the pre-existing fix. Fresh direct re-read of current `writer.rs:468-489` and `pes_test.rs:252-316` confirms no drift since. Adversarial pass caught one real defect: Evidence Table's Hypothesis column cited bare H-IDs with no state symbols (checklist 304) — fixed by annotating all 5 rows with their Hypothesis Table state symbols (✅). Backfills the still-missing `## Verification Record` section required by checklist 106. |
+
+## Verification Record
+
+**VERIFY Gate (2026-08-18) — Tier 2 Dual-Role Self-Check, 8 dimensions, verdict: PASS (8/8).**
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+| ---- | ---- | ---- | --- | ------ | ----- |
+| D1 | Completeness | — | 🟢 | — | — |
+| D2 | MRE Validity & Reproducibility | — | 🟢 | — | — |
+| D3 | Cross-Reference Integrity | — | 🟢 | Evidence Table Hypothesis column had bare H-IDs, no state symbols (304) | Added ✅ to all 5 rows |
+| D4 | Root Cause Quality | — | 🟢 | — | — |
+| D5 | Execution Scope | — | 🟢 | — | — |
+| D6 | Crate Scope Unity | — | 🟢 | — | — |
+| D7 | Crate Locality | — | 🟢 | — | — |
+| D8 | Crate Single Responsibility | — | 🟢 | — | — |
+| **Total** | | — | 🟢 | 1 issue | 1 fix |
+
+**Reproduced:** YES — empirical revert/restore proof against `cargo nextest run -p embroidery_tools`: fix temporarily reverted (2 write-back lines removed from the `Jump` arm) → `second_jump_after_colorchange_starts_where_first_jump_ended` FAILED (1 failed, exit 100, matching the documented Actual block exactly); fix restored → 17/17 passed (exit 0); `git diff` confirmed the restore is byte-identical to the pre-existing fix. Re-confirmed 2026-08-18 via fresh direct read of current `writer.rs:468-489` and `pes_test.rs:252-316` (test and fix both present, unchanged since the empirical proof was gathered).
 
 ## Refs: src/
 

@@ -3,7 +3,11 @@
 # listing) and fully regenerates examples/index.md, both from action/run's own example
 # discovery plus each example's own readme.md — title from its first heading, description
 # from the paragraph following its **Keywords:** line. Single source of truth: no example
-# metadata is hand-maintained or duplicated in either generated file.
+# metadata is hand-maintained or duplicated in either generated file. Relative links inside
+# a description are rebased against the example's own directory when emitted into index.md,
+# so links written for a readme's location stay valid one level up at examples/ (absolute
+# URLs, #anchors, and root-relative paths pass through untouched); the HTML side strips
+# link syntax entirely, so it needs no rebasing.
 #
 # Grouping is by tag — the group:key values each example declares in its own Cargo.toml's
 # [package.metadata.action] table. One section per distinct tag, listing every example that
@@ -106,8 +110,8 @@ _extract_title()
 
 # Description = the first paragraph following the readme's **Keywords:** line that isn't
 # just a standalone image embed (some readmes put a screenshot directly under Keywords,
-# before the prose). Empty if the readme has no Keywords line (2 of 73 examples today) — the
-# caller omits the description rather than guessing at a fallback extraction heuristic.
+# before the prose). Empty if the readme has no Keywords line — the caller omits the
+# description rather than guessing at a fallback extraction heuristic.
 _extract_description()
 {
   awk '
@@ -147,6 +151,61 @@ _title_case_fallback()
     _out="${_out:+$_out }${_w^}"
   done
   printf '%s' "$_out"
+}
+
+# Lexically normalizes a /-joined path: drops empty and `.` segments, resolves `..`
+# against preceding segments, keeps leading `..` runs that climb above the base.
+_normalize_path()
+{
+  local IFS='/' _seg _n
+  local -a _stack=()
+  for _seg in $1
+  do
+    case "$_seg" in
+      '' | . ) ;;
+      .. )
+        _n=${#_stack[@]}
+        if (( _n )) && [[ "${_stack[$(( _n - 1 ))]}" != ".." ]]
+        then
+          unset "_stack[$(( _n - 1 ))]"
+          _stack=( "${_stack[@]}" )
+        else
+          _stack+=( ".." )
+        fi
+        ;;
+      * ) _stack+=( "$_seg" ) ;;
+    esac
+  done
+  printf '%s' "${_stack[*]}"
+}
+
+# Rebases every inline-link target in a markdown snippet against the given example
+# directory (examples/-relative), so a link written for the readme's own location still
+# resolves when the text lands in examples/index.md one level up. Absolute URLs,
+# mailto:, in-page #anchors, and root-relative paths pass through untouched. Processes
+# links right-to-left so each BASH_REMATCH consumes the text before the last link.
+_rebase_links()
+{
+  local _text="$1" _base="$2" _suffix="" _target _norm
+  while [[ "$_text" =~ ^(.*)\]\(([^\)]*)\)(.*)$ ]]
+  do
+    _target="${BASH_REMATCH[2]}"
+    case "$_target" in
+      http://* | https://* | mailto:* | \#* | /* ) ;;
+      * )
+        _norm="$( _normalize_path "$_base/$_target" )"
+        if [[ "$_norm" == ..* ]]
+        then
+          _target="$_norm"
+        else
+          _target="./$_norm"
+        fi
+        ;;
+    esac
+    _suffix="](${_target})${BASH_REMATCH[3]}${_suffix}"
+    _text="${BASH_REMATCH[1]}"
+  done
+  printf '%s%s' "$_text" "$_suffix"
 }
 
 _tmp_stats="$_tmp/stats.html"
@@ -226,7 +285,8 @@ do
     printf '\n'
   } > "$_tmp/card/$_id.html"
 
-  _md_desc="${_desc//|/\\|}"
+  _md_desc="$( _rebase_links "$_desc" "$_relpath_short" )"
+  _md_desc="${_md_desc//|/\\|}"
   [[ -n "$_md_desc" ]] || _md_desc="—"
   printf '[%s](%s) | %s\n' "${_title//|/\\|}" "$_readme_link" "$_md_desc" > "$_tmp/mdrow/$_id.md"
 done < <( "$_SCRIPT_DIR/run" list raw::1 )

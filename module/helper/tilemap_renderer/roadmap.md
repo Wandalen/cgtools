@@ -14,7 +14,7 @@ The core library and SVG adapter are functional; the WebGL2 adapter is partially
 - **Command system** — all POD commands: Clear, Path (moveto/lineto/quad/cubic/arc/close), Text, Mesh, Sprite, Batch lifecycle, Groups with effects
 - **Asset system** — images (bitmap/encoded/path), sprites, geometries, gradients, patterns, clip masks, paths, validation
 - **Backend trait** — `assets_load`, `submit`, `output`, `resize`, `capabilities`
-- **SVG adapter** — implemented across every command and asset family: paths, text, sprites, meshes, batches, groups, effects, gradients, patterns, blend modes, bitmap PNG encoding, viewport pan/zoom wrapper, `Source::Path` geometry loading via blocking `std::fs` (loud skip with stderr warning + diagnostic comment on read failure, incl. on wasm32 where no filesystem exists). Not complete, though — see "svg adapter gaps" below (font selection unimplemented, image Y-flip, no `Transform::depth` ordering)
+- **SVG adapter** — implemented across every command and asset family: paths, text, sprites, meshes, batches, groups, effects, gradients, patterns, blend modes, bitmap PNG encoding, viewport pan/zoom wrapper, `Source::Path` geometry loading via blocking `std::fs` (loud skip with stderr warning + diagnostic comment on read failure, incl. on wasm32 where no filesystem exists). Not complete, though — see "svg adapter gaps" below (font selection unimplemented, no `Transform::depth` ordering)
 - **WebGL2 adapter (partial)** — hardware-accelerated sprites, meshes, and instanced batches on wasm32:
   - Split across `adapters/webgl.rs` (backend + renderers + async image loader) and
     `adapters/webgl/webgl_helpers.rs` (self-contained helpers wired via `mod_interface::layer`)
@@ -42,17 +42,20 @@ The core library and SVG adapter are functional; the WebGL2 adapter is partially
   - Single-draw: `Clear`, `Mesh` (`FillRef::Solid` only), `Sprite`/`ScreenSpaceSprite` (tint) — each
     paints one cell at its transform's resolved position
   - Paths: `BeginPath`..`EndPath` rasterized as connected straight segments between accumulated
-    points via true Bresenham line rasterization; curves (`QuadTo`/`CubicTo`/
-    `ArcTo`) draw straight to their endpoint, ignoring control points
+    points via true Bresenham line rasterization; curves (`QuadTo`/`CubicTo`/`ArcTo`) flatten into
+    16 straight segments before rasterization (`CURVE_SEGMENTS`), including true SVG-style
+    endpoint-to-center arc parameterization for `ArcTo`
   - Text: the native medium here — `BeginText`/`Char`/`EndText` places real glyphs with horizontal
-    anchor support (left/center/right); vertical anchor collapses to one row
+    anchor support (left/center/right) and vertical anchor support (top/center/bottom)
   - Batches: full lifecycle (`Create`/`Bind`/`Add`/`Set`/`Remove`/`Draw`/`Delete`, both sprite and
     mesh) composing instance transforms through the batch's own parent transform
   - Groups: `BeginGroup`/`EndGroup` transform stack composed via `Transform::to_mat3`; clip masks
     and visual effects are accepted but not honored
   - `output()` encodes the grid as 24-bit ANSI SGR truecolor escape sequences, one line per row
-  - No blending (`capabilities().supported_blend_modes` empty — later draws overwrite earlier
-    ones), no gradients/patterns (`Mesh` only draws a `FillRef::Solid` fill)
+  - Blending: source-over (Porter-Duff "over") alpha compositing on straight RGBA via
+    `composite_over` — the only evaluated `BlendMode` (`capabilities().supported_blend_modes`
+    is `&[BlendMode::Normal]`; other variants fall back to it); no gradients/patterns (`Mesh`
+    only draws a `FillRef::Solid` fill)
 - **Test suite** — covers types, commands, assets, backend trait, and SVG adapter
 
 ### project structure
@@ -96,21 +99,14 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 - Font loading and rendering (currently no font resolution)
 - `Source::Path` geometry loading is blocking `std::fs` only — works natively; on wasm32 the read fails at runtime and the geometry is skipped loudly (stderr warning + diagnostic SVG comment). An async `fetch()` path would need a redesign of the sync `assets_load` contract
 - `Transform::depth` ordering — the adapter emits in submission order and ignores `depth`; callers must pre-sort (future: stable sort by `depth` before emission)
-- Image Y-flip: SVG `<image>` elements are Y-down natively; sprites rendered from them may appear flipped
 - Interactive SVG with JavaScript events
 
 ### terminal adapter gaps
 
-- Curve flattening — `QuadTo`/`CubicTo`/`ArcTo` draw a straight line to their endpoint rather
-  than subdividing the curve
 - Gradient/pattern fills — `Mesh` only resolves `FillRef::Solid`; `FillRef::Gradient`/
   `FillRef::Pattern` are accepted but paint nothing
 - Group clip masks and visual effects (blur, drop shadow, color matrix, opacity) — accepted but
   ignored; only a `BeginGroup`'s `transform` is honored
-- Alpha blending — no blend modes are supported (`capabilities().supported_blend_modes` is
-  empty); later draws overwrite earlier ones at the same cell
-- Vertical text anchoring — `TextAnchor`'s Top/Center/Bottom variants all collapse to the same
-  row
 
 ### infrastructure
 

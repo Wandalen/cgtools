@@ -11,6 +11,11 @@ This demo showcases techniques for minimizing WebAssembly binary size in cgtools
 It demonstrates optimization strategies including a minimal global allocator (`wee_alloc`),
 post-build size optimization (`wasm-opt -Os`), and debug-info stripping (`wasm-strip`).
 
+An alternative minimal allocator is `lol_alloc`'s `LeakingPageAllocator` — smaller and
+simpler than `wee_alloc` since it never reclaims memory (bump-allocates from pages and leaks
+on "free"), which is a reasonable trade for short-lived, one-shot WASM modules but unsuitable
+for long-running applications that repeatedly allocate and deallocate.
+
 Small WASM binaries improve load times and user experience. This example serves as a reference for production builds requiring minimal download size.
 
 ![image](./showcase.webp)

@@ -13,6 +13,21 @@
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/ (self)
 - **verification_date:** 2026-08-18
+- **Fix Task:** split via `DECOMPOSE_SPLIT` (PROC17) from cancelled task
+  [360](../../cancelled/360_from_angle_y_degrees_radians_fix_registration_closes_bug311.md)
+  (🚫 Cancelled -- its Readiness Verification Gate Round 1 D6 (Crate Scope Unity) genuinely
+  FAILed: the registration task's own deliverable spanned 4 distinct crates) into 4 per-crate
+  registration tasks, each 🎯-gated (Tier 2 Dual-Role Self-Check, 8/8 PASS) and currently 🔬
+  Verifying pending this sandbox's same-actor `tsk .verify_pass` guard:
+  [369](../../verifying/369_register_curve_surface_rendering_from_angle_y_fix_closes_bug311_split_of_task_360.md)
+  (`curve_surface_rendering`),
+  [370](../../verifying/370_register_lottie_surface_rendering_from_angle_y_fix_closes_bug311_split_of_task_360.md)
+  (`lottie_surface_rendering`),
+  [371](../../verifying/371_register_animation_surface_rendering_from_angle_y_fix_closes_bug311_split_of_task_360.md)
+  (`animation_surface_rendering`),
+  [372](../../verifying/372_register_ndarray_cg_from_angle_y_regression_test_closes_bug311_split_of_task_360.md)
+  (`ndarray_cg`). This bug's own fix and Verification Record above are unaffected -- only
+  task-system registration bookkeeping was ever involved.
 
 ## Symptom
 
@@ -194,6 +209,7 @@ pipeline. Unlike those two, this one is entirely a *caller-side* misuse, not a l
 | 2026-08-18 | filed | Found during this session's workspace-wide bug-hunt task, `examples/` review stage, by grepping `from_angle_[xyz]` across all `minwebgl` examples |
 | 2026-08-18 | fix_applied | All 3 call sites: `from_angle_y( 90.0 )` -> `from_angle_y( 90.0_f32.to_radians() )` |
 | 2026-08-18 | verified | `test_from_angle_y_rejects_raw_degrees` (bug_reproducer) passes; full `ndarray_cg` suite (282 tests) and clippy (native + wasm32 for the 3 example crates, `-D warnings`) clean |
+| 2026-08-18 | promoted | `bug_promote` skill (PROC12) filed task 360 to register this already-complete fix; task's own Readiness Verification Gate found D6 (Crate Scope Unity) genuinely FAILing (deliverable spans 4 crates) and routed to 🌐 Mixed via `VERIFY_MIXED`, pending admin `DECOMPOSE_SPLIT` — see task 360's own History for full detail. This bug's fix and Verification Record are unaffected |
 
 ## Refs: src/
 

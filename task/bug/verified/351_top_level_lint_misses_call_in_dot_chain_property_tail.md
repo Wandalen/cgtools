@@ -17,6 +17,7 @@
 - **repo_identity:** self
 - **Filed:** 2026-08-18
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **Fix Task:** [386](../../verifying/386_register_scene_script_top_level_lint_dot_chain_lhs_call_detection_fix_closes_bug351.md)
 - **Related Bugs:** None -- independent of BUG-230 (`with_repeat`'s `i64`->`i32` cast, same
   crate, unrelated function/root cause). Independent of the two still-open gaps documented in
   `docs/pitfall/002_checker_is_structural_not_semantic.md` (a `let` initializer's own content is

@@ -32,10 +32,13 @@
 //!   `Mesh` only draws when its fill is `FillRef::Solid` (gradients/patterns
 //!   are skipped, matching `capabilities().gradients == false`); `Sprite`
 //!   uses `tint` directly as the cell color.
-//! - No alpha blending: `capabilities().supported_blend_modes` is empty,
-//!   matching the terminal-backend note already on
-//!   `crate::backend::Capabilities::supported_blend_modes`. Later draws
-//!   simply overwrite earlier ones at the same cell.
+//! - Only `BlendMode::Normal` (source-over/Porter-Duff "over") is evaluated:
+//!   `capabilities().supported_blend_modes` is `&[BlendMode::Normal]` and
+//!   `blend_modes` is `false`. Every command's `blend` field is otherwise
+//!   ignored — non-`Normal` variants fall back to source-over compositing
+//!   the same way `adapters::webgl` falls its own unsupported `Overlay`
+//!   back to `Normal`. Compositing uses straight (non-premultiplied) RGBA;
+//!   see `composite_over`.
 //! - Clip masks and group effects (blur/shadow/color-matrix/opacity) are
 //!   accepted but ignored; only a `BeginGroup`'s `transform` is honored, via
 //!   a transform stack composed through `Transform::to_mat3`.
@@ -81,7 +84,7 @@ mod private
     Sprite,
     SpriteBatchParams,
   };
-  use crate::types::{ asset, Batch, FillRef, RenderConfig, ResourceId, TextAnchor, Transform };
+  use crate::types::{ asset, Batch, BlendMode, FillRef, RenderConfig, ResourceId, TextAnchor, Transform };
   use core::fmt::Write as _;
   use nohash_hasher::{ IntMap, IntSet };
 
@@ -140,6 +143,34 @@ mod private
   {
     let m = t.to_mat3();
     [ m[ 0 ] * p[ 0 ] + m[ 3 ] * p[ 1 ] + m[ 6 ], m[ 1 ] * p[ 0 ] + m[ 4 ] * p[ 1 ] + m[ 7 ] ]
+  }
+
+  // ============================================================================
+  // Compositing
+  // ============================================================================
+
+  /// Composites `src` over `dst` using source-over (Porter-Duff "over")
+  /// alpha blending on straight (non-premultiplied) RGBA — the only
+  /// [`crate::types::BlendMode`] variant this backend evaluates per-pixel;
+  /// every other variant currently falls back to this, matching the
+  /// "fall back to Normal" convention `adapters::webgl` already uses for
+  /// its own unsupported `Overlay` variant. Returns transparent black when
+  /// both alphas are ~0 (avoids a near-zero division).
+  fn composite_over( dst : [ f32; 4 ], src : [ f32; 4 ] ) -> [ f32; 4 ]
+  {
+    let sa = src[ 3 ].clamp( 0.0, 1.0 );
+    let da = dst[ 3 ].clamp( 0.0, 1.0 );
+    let out_a = sa + da * ( 1.0 - sa );
+    if out_a < f32::EPSILON
+    {
+      return [ 0.0, 0.0, 0.0, 0.0 ];
+    }
+    [
+      ( src[ 0 ] * sa + dst[ 0 ] * da * ( 1.0 - sa ) ) / out_a,
+      ( src[ 1 ] * sa + dst[ 1 ] * da * ( 1.0 - sa ) ) / out_a,
+      ( src[ 2 ] * sa + dst[ 2 ] * da * ( 1.0 - sa ) ) / out_a,
+      out_a,
+    ]
   }
 
   // ============================================================================
@@ -396,7 +427,7 @@ mod private
       if let Some( cell ) = self.cell_mut( col, row )
       {
         cell.glyph = ' ';
-        cell.bg = color;
+        cell.bg = composite_over( cell.bg, color );
       }
     }
 
@@ -611,15 +642,29 @@ mod private
     }
 
     // Single row per BeginText/EndText run: vertical anchor (Top/Center/
-    // Bottom) collapses to the same row — see module docs. Horizontal
-    // anchor shifts the starting column the same way SVG's own anchor
-    // conversion groups its three left/center/right cases.
+    // Bottom) nudges `position`'s Y by a fraction of one cell height before
+    // the row lookup, the same way SVG maps it to `dominant-baseline`
+    // (hanging/central/baseline) — Top leaves Y unshifted (position is the
+    // row's top edge), Center adds half a cell (position is the row's
+    // vertical center), Bottom adds a full cell (position is the row's
+    // bottom edge). This can't be a row-count shift the way horizontal
+    // shift uses whole character columns: text always spans exactly one
+    // row, so the anchor must operate at sub-cell (world-unit) precision
+    // instead. Horizontal anchor shifts the starting column the same way
+    // SVG's own anchor conversion groups its three left/center/right cases.
     fn cmd_end_text( &mut self )
     {
       let Some( style ) = self.text_style.take() else { return; };
       let text = core::mem::take( &mut self.text_buf );
 
-      let Some( ( base_col, base_row ) ) = self.resolve_cell( style.position ) else { return; };
+      let dy = match style.anchor
+      {
+        TextAnchor::TopLeft | TextAnchor::TopCenter | TextAnchor::TopRight => 0.0,
+        TextAnchor::CenterLeft | TextAnchor::Center | TextAnchor::CenterRight => Self::CELL_PX_HEIGHT as f32 / 2.0,
+        TextAnchor::BottomLeft | TextAnchor::BottomCenter | TextAnchor::BottomRight => Self::CELL_PX_HEIGHT as f32,
+      };
+      let anchored_position = [ style.position[ 0 ], style.position[ 1 ] + dy ];
+      let Some( ( base_col, base_row ) ) = self.resolve_cell( anchored_position ) else { return; };
 
       let len = text.chars().count() as i64;
       let shift = match style.anchor
@@ -945,7 +990,7 @@ mod private
         clip_masks : false,
         effects : false,
         blend_modes : false,
-        supported_blend_modes : &[],
+        supported_blend_modes : &[ BlendMode::Normal ],
         text_on_path : false,
         max_texture_size : 0,
       }

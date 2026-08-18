@@ -11,6 +11,7 @@
 - **repo_identity:** self
 - **Filed:** 2026-08-18
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/browser_log/
+- **Fix Task:** [389](../../verifying/389_register_browser_log_release_max_level_info_static_max_level_cap_fix_closes_bug354.md)
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ (self)
 - **verification_date:** 2026-08-18
 

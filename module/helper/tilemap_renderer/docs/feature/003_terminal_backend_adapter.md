@@ -36,10 +36,14 @@ cell at their transform's position; `Mesh` only paints when its fill is `FillRef
 and pattern fills are accepted but currently paint nothing). Paths (`BeginPath`..`EndPath`)
 accumulate resolved cell coordinates per sub-path and connect consecutive points with true
 Bresenham line rasterization (the symmetric integer variant — `line_cells(a, b)` always equals
-`line_cells(b, a)` reversed); curve commands (`QuadTo`/`CubicTo`/`ArcTo`) draw straight to their
-endpoint rather than subdividing. Text (`BeginText`/`Char`/`EndText`) is the one command family the terminal medium
-represents natively — glyphs place directly into cells, with horizontal anchor support
-(left/center/right); vertical anchor collapses to a single row. Batches (`Create`/`Bind`/`Add`/
+`line_cells(b, a)` reversed); curve commands (`QuadTo`/`CubicTo`/`ArcTo`) flatten into a fixed
+16 straight segments (`CURVE_SEGMENTS`) before rasterization — `ArcTo` derives its center via
+the SVG 1.1 Appendix F.6.5 endpoint-to-center parameterization, falling back to a single
+endpoint point for degenerate (zero-radius or coincident-endpoint) arcs. Text (`BeginText`/`Char`/`EndText`) is the one command family the terminal medium
+represents natively — glyphs place directly into cells, with both horizontal
+(left/center/right) and vertical (top/center/bottom) anchor support; vertical anchor nudges
+the resolved row by a fraction of one cell height (0/½/1×`CELL_PX_HEIGHT`), the same top
+hanging/center/bottom baseline split SVG expresses via `dominant-baseline`. Batches (`Create`/`Bind`/`Add`/
 `Set`/`Remove`/`Draw`/`Delete`, both sprite and mesh) compose each instance's transform through the
 batch's own parent transform. Groups (`BeginGroup`/`EndGroup`) push/pop a `Transform` stack folded
 via `Transform::to_mat3`, right-to-left (`group_stack.iter().rev()`); group-level clip masks and
@@ -50,10 +54,11 @@ sequences — one `\x1b[48;2;r;g;bm` background-color run per painted-background
 `\x1b[38;2;r;g;bm{glyph}` foreground run per glyph cell, `\x1b[0m` reset and `\n` at the end of
 each row.
 
-Given the coarse cell resolution, no gradient/pattern fills, no blend modes
-(`capabilities().supported_blend_modes` is empty — later draws unconditionally overwrite earlier
-ones at the same cell), and no clip-mask/effect support, this adapter's status is tracked as
-partial (⚠️), matching the same convention used for the WebGL2 and SVG adapters' own known gaps.
+Given the coarse cell resolution, no gradient/pattern fills, only a single blend mode
+(`capabilities().supported_blend_modes` is `&[BlendMode::Normal]` — source-over Porter-Duff
+alpha compositing on straight RGBA via `composite_over`; other variants fall back to it), and
+no clip-mask/effect support, this adapter's status is tracked as partial (⚠️), matching the same
+convention used for the WebGL2 and SVG adapters' own known gaps.
 Remaining gaps are tracked in `roadmap.md`'s "terminal adapter gaps" section, not here — per this
 crate's documentation split, forward-looking scope belongs in `roadmap.md`.
 

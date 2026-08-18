@@ -11,6 +11,7 @@
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/ (self)
 - **verification_date:** 2026-08-18
+- **Fix Task:** [383](../../verifying/383_register_tiles_tools_savemanager_game_state_save_compressed_flag_sync_fix_closes_bug348.md)
 
 ## Symptom
 

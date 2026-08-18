@@ -28,10 +28,6 @@ crate::mod_interface!
   #[ cfg( feature = "float" ) ]
   layer float;
 
-  /// General math traits.
-  #[ cfg( feature = "general" ) ]
-  layer general;
-
   /// Reusing `nd_array`.
   #[ cfg( feature = "nd" ) ]
   layer nd;

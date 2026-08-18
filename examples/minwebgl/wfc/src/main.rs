@@ -114,10 +114,16 @@ fn image_load
     )
   );
   on_load_callback.forget();
-  let origin = window.location()
-  .origin()
-  .expect( "Should have an origin" );
-  let url = format!( "{origin}/{path}" );
+  // Fix(BUG-109): joined `path` against `window.location().origin()` alone,
+  // discarding the current page's own directory — resolved to the site root
+  // instead of this example's own subpath when deployed under one.
+  // Root cause: see `mingl::web::resolve_url`'s doc comment — origin never
+  // carries a path; relative references must resolve against the document's
+  // own directory.
+  // Pitfall: don't hand-roll this join — reuse `gl::web::file::url_resolve`,
+  // the same helper `gl::dom::image_element_create` now uses internally.
+  let href = window.location().href()?;
+  let url = gl::web::file::url_resolve( &href, path );
   image.set_src( &url );
   Ok( image )
 }

@@ -13,6 +13,7 @@
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 - **Related Bugs:** BUG-227 (same crate, same file — `framebuffer_create`'s renderbuffer-creation
   panic; independent defect, no shared code path — see Dedup note in Generalized Version)
+- **Fix Task:** [368](../../verifying/368_canvas_renderer_framebuffer_restore_fix_registration.md) (task's own Readiness Verification Gate PASS 8/8; blocked on `tsk .verify_pass` actor guard, task remains 🔬 Verifying)
 
 ## Symptom
 
