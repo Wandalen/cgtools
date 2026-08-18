@@ -260,6 +260,53 @@ mod private
     }
   }
 
+  // Fix(BUG-XXX): new `_checked` extractor -- same defect class as
+  // `arg_string`/`arg_bool`'s (see the `Fix(BUG-283)` comment above
+  // `arg_string_checked`): `arg_usize`'s catch-all `_ => Ok( 0 )` arm cannot
+  // tell "argument absent" apart from "argument supplied twice", since
+  // `unilang` binds ANY repeated named argument to `Value::List` regardless
+  // of the argument's own `multiple` attribute. This exact gap was already
+  // flagged as known-but-unfixed by BUG-283's and BUG-285's own Pitfall
+  // comments (`shader_chunks_query/src/lib.rs`,
+  // `shader_chunks_preview/tests/preview_cli_test.rs`) -- e.g. `sch list
+  // limit::5 limit::10` silently resolved `limit` to `0` ( unlimited )
+  // instead of erroring.
+  // Root cause: same as `arg_string`'s -- a bare `_` catch-all over `Value`
+  // cannot distinguish "absent" from "duplicated."
+  // Pitfall: never add a single-value extractor here without an explicit,
+  // loud `Value::List` arm -- `arg_usize` itself is left as-is ( unchecked
+  // callers keep their existing behavior ), matching how `arg_string`/
+  // `arg_bool` were handled : additive, not a breaking in-place change.
+  /// Extracts a non-negative integer parameter, failing loudly instead of
+  /// silently defaulting to `0` when `key` was supplied more than once ( see
+  /// [`arg_usize`]'s doc comment gap -- its catch-all arm cannot distinguish
+  /// "absent" from "duplicated" ). A negative value still fails loudly
+  /// ( exit 1, validation error ), same as [`arg_usize`].
+  ///
+  /// # Errors
+  ///
+  /// Returns [`ErrorData`] naming `key` when it was bound to more than one
+  /// value, or when the single bound value is negative.
+  pub fn arg_usize_checked( cmd : &VerifiedCommand, key : &'static str ) -> Result< usize, ErrorData >
+  {
+    match cmd.arguments.get( key )
+    {
+      Some( Value::Integer( n ) ) => usize::try_from( *n ).map_err( | _ | error_report
+      (
+        1,
+        ErrorCode::ValidationRuleFailed,
+        format!( "invalid `{key}` value: `{n}` (allowed: a non-negative integer)" ),
+      )),
+      Some( Value::List( values ) ) => Err( error_report
+      (
+        1,
+        ErrorCode::ValidationRuleFailed,
+        format!( "`{key}` was given {} times; a single value is required", values.len() ),
+      )),
+      _ => Ok( 0 ),
+    }
+  }
+
   /// Extracts a list parameter as flat strings ( see [`names_flatten`] ).
   #[ must_use ]
   pub fn arg_list( cmd : &VerifiedCommand, key : &str ) -> Vec< String >
@@ -476,6 +523,7 @@ mod private
   own use arg_bool;
   own use arg_bool_checked;
   own use arg_usize;
+  own use arg_usize_checked;
   own use arg_list;
   own use registry_build;
   own use run;

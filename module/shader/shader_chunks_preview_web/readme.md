@@ -132,3 +132,12 @@ one piece of pure logic in that path, is covered by
 the rest — seeding the editor, debouncing, spawning the recompile task,
 swapping `PipelineState` on success, routing errors to the diagnostics
 panel — is verified manually in-browser instead.
+
+`controls.js`'s own pure, DOM-free string logic (`blockIndent`, the
+Tab/Shift+Tab block-indent helper) has no such excuse — it needs no
+`GpuDevice` and no DOM, so it's covered directly with Node's built-in test
+runner: `tests/controls_indent_test.mjs`, run via
+`node --test tests/controls_indent_test.mjs` from this crate's directory
+(zero external dependencies). The DOM-wiring exports (`addSlider`,
+`initEditor`, the `keydown`/`input` listeners themselves) remain
+manually-verified in-browser only, same as the recompile path above.

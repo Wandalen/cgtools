@@ -51,12 +51,12 @@ only dependency on `shader_chunks_core`; `discover` itself has none.
 
 ## Chunk annotations
 
-Most bundled `shader/*.wgsl` chunks carry `//@ param:` lines today (46 of
+Most bundled `shader/*.wgsl` chunks carry `//@ param:` lines today (45 of
 50) — each `_preview` browser-demo wrapper's former hardcoded literals are
 now real `argument`-kind tunables driving a slider (see
 [`shader_chunks_preview_core`](../shader_chunks_preview_core/readme.md)). A
-handful of leaf/infrastructure chunks — `hash21`, `hash22`, `srgb`, and
-`fullscreen_triangle` — still carry none; this crate remains independently
+handful of leaf/infrastructure chunks — `hash21`, `hash22`, `palette_cosine`,
+`srgb`, and `fullscreen_triangle` — still carry none; this crate remains independently
 valuable and fully testable via self-contained fixture WGSL strings
 regardless of real-chunk adoption (see `tests/`). Its consumers are
 [`shader_chunks_params`](../shader_chunks_params/readme.md) (the `tunables`

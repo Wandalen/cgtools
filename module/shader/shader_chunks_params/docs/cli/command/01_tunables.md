@@ -50,11 +50,11 @@ for a fixture-based worked example covering both a declared and an
 inferred range in the same table.
 
 ### Notes
-- 46 of the 50 bundled chunks declare one or more `//@ param:` lines
-  today; `hash21`, `hash22`, `srgb`, and `fullscreen_triangle` are the
-  remaining leaf/infrastructure chunks that still declare none and so
-  still render the empty-message path — both paths are real,
-  subprocess-reachable, tested outcomes, not a gap.
+- 45 of the 50 bundled chunks declare one or more `//@ param:` lines
+  today; `hash21`, `hash22`, `palette_cosine`, `srgb`, and
+  `fullscreen_triangle` are the remaining leaf/infrastructure chunks that
+  still declare none and so still render the empty-message path — both
+  paths are real, subprocess-reachable, tested outcomes, not a gap.
 - The empty-message case is a single explanatory line, not a table —
   distinct from a hypothetical zero-row table.
 - `range`/`source` render `-`/`-` for a parameter with no numeric range

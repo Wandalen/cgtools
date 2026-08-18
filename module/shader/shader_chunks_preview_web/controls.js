@@ -103,7 +103,7 @@ function formatValue(value) {
 // matching every mainstream editor's Tab-with-selection convention. Used only for that case --
 // collapsed-cursor Tab/Shift+Tab (see the keydown listener below) instead inserts/removes right
 // at the cursor, since there's no line span here that isn't just wherever the cursor sits.
-function blockIndent(value, start, end, outdent) {
+export function blockIndent(value, start, end, outdent) {
   const blockStart = value.lastIndexOf('\n', start - 1) + 1;
   // A selection ending exactly at a line start (e.g. a triple-click selecting whole lines)
   // must not pull the next, untouched line into the block.
@@ -111,8 +111,17 @@ function blockIndent(value, start, end, outdent) {
   let blockEnd = atLineStart ? end : value.indexOf('\n', end);
   if (blockEnd === -1) blockEnd = value.length;
 
+  // When atLineStart, the sliced block itself ends with a trailing '\n' --
+  // strip it before splitting so split('\n') doesn't manufacture a phantom
+  // last "line" (the empty string after a trailing separator) that would
+  // otherwise get indented/outdented like a real one, corrupting the
+  // untouched line right after the block.
+  const rawBlock = value.slice(blockStart, blockEnd);
+  const trailingNewline = atLineStart ? '\n' : '';
+  const body = atLineStart ? rawBlock.slice(0, -1) : rawBlock;
+
   let firstLineDelta = 0;
-  const newLines = value.slice(blockStart, blockEnd).split('\n').map((line, i) => {
+  const newLines = body.split('\n').map((line, i) => {
     if (outdent) {
       const removable = line.match(/^ {1,2}/);
       const removedLen = removable ? removable[0].length : 0;
@@ -122,7 +131,7 @@ function blockIndent(value, start, end, outdent) {
     if (i === 0) firstLineDelta = 2;
     return '  ' + line;
   });
-  const newBlock = newLines.join('\n');
+  const newBlock = newLines.join('\n') + trailingNewline;
   return {
     value: value.slice(0, blockStart) + newBlock + value.slice(blockEnd),
     selectionStart: Math.max(blockStart, start + firstLineDelta),

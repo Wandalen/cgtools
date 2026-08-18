@@ -72,8 +72,7 @@ assert!( summary.contains( "naga-validated" ) );
 Validation always runs before any file is written — a chunk that fails
 naga parse/validation never produces a stale or partial `-preview.json`.
 
-**Disclosed gap:** no test covers giving *both* `name` and `file::`
-simultaneously — only the "neither given" arm of the mutual-exclusivity
-check is exercised. See
+Both arms of the `name`/`file::` mutual-exclusivity check are covered:
+neither given (INT-3) and both given (INT-5). See
 [`tests/docs/cli/command/cmd_001_preview.md`](tests/docs/cli/command/cmd_001_preview.md)
 for the full test-coverage account.

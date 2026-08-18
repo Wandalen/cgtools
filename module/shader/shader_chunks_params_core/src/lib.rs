@@ -179,10 +179,24 @@ mod private
     }
   }
 
+  // Fix(BUG-XXX-A): recognized a `//@ param:` line even with leading whitespace via
+  // `.trim_start()`, diverging from `shader_chunks_core::manifest_field`'s own convention for
+  // every sibling header field ( `name`/`description`/`tags`/`depends_on`/`export`/`stage` ),
+  // which requires the `//@ ` prefix at column 0 with no leniency -- despite this crate's own
+  // docs explicitly claiming `//@ param:` lives in "the same" flat header block under "the same
+  // trust model".
+  // Root cause: `param_lines` was written independently of `manifest_field`/`manifest_field_all`
+  // rather than mirroring their exact recognition rule, so it silently gained a leniency none of
+  // the other 6 manifest fields have.
+  // Pitfall: a manifest system built on "malformed authored content panics loudly" ( see
+  // `Error Handling` in `docs/api/001_tunable_parameter_taxonomy.md` ) depends on every field
+  // sharing one predictable recognition rule -- a lone lenient field can silently accept content
+  // ( e.g. an indented illustrative `//@ param:` line inside a doc-comment example ) that every
+  // other field would correctly ignore or panic on, undermining that guarantee for one field only.
   fn param_lines( wgsl : &str ) -> impl Iterator< Item = &str >
   {
     wgsl.lines()
-    .filter_map( | line | line.trim_start().strip_prefix( "//@ param:" ) )
+    .filter_map( | line | line.strip_prefix( "//@ param:" ) )
     .map( str::trim )
   }
 

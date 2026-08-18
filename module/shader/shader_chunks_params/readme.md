@@ -50,8 +50,8 @@ let table = tunables( "fbm3" ).unwrap();
 can exercise a chunk descriptor carrying `//@ param:` lines without
 depending on any particular bundled chunk's own annotation state — most
 bundled chunks declare one or more `//@ param:` lines today, but a
-handful of leaf/infrastructure chunks (`hash21`, `hash22`, `srgb`,
-`fullscreen_triangle`) still declare none (see
+handful of leaf/infrastructure chunks (`hash21`, `hash22`, `palette_cosine`,
+`srgb`, `fullscreen_triangle`) still declare none (see
 [`shader_chunks_params_core`](../shader_chunks_params_core/readme.md)'s
 own readme), so this crate's own tests exercise both the empty-table path
 against a real bundled chunk (`hash21`) and the populated-table path
