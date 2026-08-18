@@ -52,6 +52,14 @@ impl HullPart
   }
 }
 
+impl gpu_picking::Pickable for HullPart
+{
+  fn vao( &self ) -> &gl::WebGlVertexArrayObject { &self.vao }
+  fn index_count( &self ) -> i32 { self.index_count }
+  fn model( &self ) -> gl::F32x4x4 { self.model }
+  fn pick_id( &self ) -> i32 { self.pick_id }
+}
+
 /// How much a selected part's color is mixed toward white — stands in for a
 /// geometric outline (M5 has no gizmo yet to make selection obvious some
 /// other way; not ported from the JS, which relies on `TransformControls`'s

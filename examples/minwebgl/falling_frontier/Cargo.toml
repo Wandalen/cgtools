@@ -8,6 +8,8 @@ minwebgl = { workspace = true }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 renderer = { workspace = true }
 line_tools = { workspace = true, features = [ "distance" ] }
+primitive_generation = { workspace = true }
+gpu_picking = { workspace = true }
 rand = "0.10.2"
 getrandom = { version = "0.4.3", features = [ "wasm_js" ] }
 

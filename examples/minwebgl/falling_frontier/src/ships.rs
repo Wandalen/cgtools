@@ -7,8 +7,7 @@ use minwebgl as gl;
 use gl::math::{ F32x3, F32x4x4, mat3x3h };
 
 use crate::hull::{ HullPart, upload_mesh, AMBIENT_LIT, AMBIENT_GLOW };
-use crate::primitives::{ box_mesh, cylinder_mesh };
-use crate::spline;
+use primitive_generation::{ box_mesh, cylinder_mesh, spline };
 
 // Matches fleet.js's FLEET_Y - all ships fly at the same altitude as the
 // asteroid belt, so the whole scene reads as one flat tactical plane. `pub`

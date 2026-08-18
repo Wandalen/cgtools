@@ -8,7 +8,7 @@ use minwebgl as gl;
 use gl::math::{ F32x3, F32x4x4, mat3x3h };
 
 use crate::hull::{ HullPart, upload_mesh, AMBIENT_LIT, AMBIENT_GLOW };
-use crate::primitives::{ box_mesh, cylinder_mesh, torus_mesh, icosphere };
+use primitive_generation::{ box_mesh, cylinder_mesh, torus_mesh, icosphere };
 
 // STATION_SPEC from spaceStation.js - negative Y sits it below the tactical
 // grid plane (y = 0), same as the JS reference.

@@ -21,7 +21,7 @@ use minwebgl as gl;
 use gl::GL;
 
 use crate::hull::{ upload_mesh, HullPart };
-use crate::primitives::{ box_mesh, torus_mesh };
+use primitive_generation::{ box_mesh, torus_mesh };
 
 pub const TRANSLATE_COLOR : [ f32; 3 ] = [ 1.0, 0.85, 0.1 ];
 pub const ROTATE_COLOR : [ f32; 3 ] = [ 1.0, 0.25, 0.85 ];

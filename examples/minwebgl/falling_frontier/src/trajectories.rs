@@ -16,7 +16,7 @@ use gl::GL;
 use line_tools::d3::{ Line, DashPattern };
 
 use crate::ships::{ Ships, SHIP_COUNT, SHIP_Y };
-use crate::spline;
+use primitive_generation::spline;
 
 const RIBBON_SAMPLES : usize = 80;
 const RIBBON_WIDTH_PX : f32 = 2.0;

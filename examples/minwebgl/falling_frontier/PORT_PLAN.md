@@ -24,11 +24,46 @@ reading before touching fleet motion again; M8's is the last entry).
   tactical HUD (M8)")
 
 All with no `Co-Authored-By` trailer, per the standing repo rule (see memory
-`feedback_commit_trailers`). Nothing else in this crate is uncommitted as of
-this note. `examples/minwebgl/falling_frontier/Untitled.png` is an untracked
-debug screenshot the user pasted in during the M4 starfield investigation
-(see Notes section below) — left untracked on purpose, safe to delete once
-no longer needed, not part of the deliverable.
+`feedback_commit_trailers`). `examples/minwebgl/falling_frontier/Untitled.png`
+is an untracked debug screenshot the user pasted in during the M4 starfield
+investigation (see Notes section below) — left untracked on purpose, safe to
+delete once no longer needed, not part of the deliverable.
+
+**Post-milestone work (uncommitted as of this note, pending user review):**
+- **Real bug fixed in `line_tools`** (not this crate): `d3::Line::mesh_create`
+  (and `d2::Line`'s join/cap mesh setup) uploaded the index buffer *before*
+  creating/binding its own VAO. `ELEMENT_ARRAY_BUFFER` binding is part of the
+  *currently bound VAO's* state in WebGL2 (unlike `ARRAY_BUFFER`, which is
+  global), so the upload silently overwrote whatever VAO was bound
+  previously — in this app, the station beacon's icosphere VAO, which then
+  failed `drawElements` every frame with `GL_INVALID_OPERATION: Insufficient
+  buffer size` once trajectories/sensor rings were ever constructed. Fixed by
+  moving the index upload after VAO creation in all three call sites. See
+  `module/helper/line_tools/src/d2/line.rs` and `d3/line.rs`.
+- **Promoted three modules out of this example into shared `module/`
+  crates**, per the standing "extend cgtools crates" instruction and the
+  example-first-then-promote pattern:
+  - `primitives.rs` (box/cylinder/torus/icosphere generators) →
+    `primitive_generation::{box_mesh, cylinder_mesh, torus_mesh, icosphere}`
+    (new `src/solid.rs` layer — raw `(positions, indices)` pairs, deliberately
+    *not* funneled through `PrimitiveData`/`primitives_data_to_gltf`, since no
+    consumer wants the GLTF pipeline for these).
+  - `spline.rs` (Catmull-Rom path evaluation) →
+    `primitive_generation::{point_at_progress, tangent_at_progress}` (new
+    `src/spline.rs` layer, unit tests carried over verbatim and still pass).
+  - `picking.rs` (GPU id-buffer picking) → new crate `module/helper/gpu_picking`
+    (`IdProgram`, `PickBuffer`), generalized via a `Pickable` trait (`vao`,
+    `index_count`, `model`, `pick_id`) instead of being coupled to this
+    crate's own `HullPart` — `hull.rs` now does `impl gpu_picking::Pickable
+    for HullPart`. `examples/minwebgl/object_picking` still has its own
+    inline copy of this same pattern and was *not* migrated onto the new
+    crate in this pass (out of scope, no functional need); worth doing if
+    that example gets touched again.
+  - All three verified: `cargo check`/`clippy` clean for `gpu_picking`,
+    `primitive_generation`, and `falling_frontier` (wasm target); live in
+    browser — ship/station/asteroid picking, gizmo translate+rotate (through
+    the promoted `box_mesh`/`torus_mesh`), and the fleet patrol spline all
+    re-verified working with zero console errors after the move.
 
 **If picking this back up**: there's no "next task" - re-read the gap audit
 (`research/falling_frontier_cgtools_audit.md`) against what actually landed

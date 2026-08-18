@@ -16,7 +16,7 @@ use rand::RngExt as _;
 
 use crate::boundary::Blocker;
 use crate::hull::{ HullPart, upload_mesh, AMBIENT_LIT };
-use crate::primitives::icosphere;
+use primitive_generation::icosphere;
 
 // Asteroids sit at the same altitude as the ships in the JS scene, so the
 // belt reads as one flat tactical plane - kept here even though ships
