@@ -28,7 +28,7 @@ mod gui_setup;
 fn near_far_from_exponent( exponent : i32 ) -> ( f32, f32 )
 {
   let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 10.0;
-  // Fix(BUG-XXX-A): the unguarded `far` formula collapses to `far <= near` for
+  // Fix(BUG-331): the unguarded `far` formula collapses to `far <= near` for
   // `exponent in [ -1, 0, 1 ]` ( e.g. `far == near` at `exponent == -1` and `1`, and
   // `far < near` at `exponent == 0` ), which `Camera::new` rejects ( requires `far > near` );
   // `main()`'s `.unwrap()` on `app_run()`'s `Result` then panics the whole demo. That band
@@ -206,9 +206,9 @@ mod tests
   /// value that erases the relationship the caller depends on ( here, `far > near` ) -- always
   /// floor/ceiling such a derived value against its sibling rather than trusting the formula's
   /// shape to hold across the whole input domain.
-  // Fix(BUG-XXX-A): reproducer for `far <= near` across `exponent in [ -1, 0, 1 ]`, rejected
+  // Fix(BUG-331): reproducer for `far <= near` across `exponent in [ -1, 0, 1 ]`, rejected
   // by `Camera::new` and turned into a hard panic via `main()`'s `.unwrap()`.
-  // test_kind: bug_reproducer(BUG-XXX-A)
+  // test_kind: bug_reproducer(BUG-331)
   #[ test ]
   fn test_far_always_exceeds_near_across_exponent_range()
   {

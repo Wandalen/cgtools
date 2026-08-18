@@ -185,7 +185,7 @@ fn app_run() -> Result< (), gl::WebglError >
           },
           "hsl" =>
           {
-            // Fix(BUG-XXX): saturation/lightness are numeric [0,100] per the `color` crate's
+            // Fix(BUG-317): saturation/lightness are numeric [0,100] per the `color` crate's
             // own Hsl docs, but CSS's `hsl()` grammar types those two components as
             // `<percentage>`, not `<number>` (unlike `lab()`/`lch()`, which accept either) —
             // a bare number is invalid syntax and the browser silently drops the whole
@@ -198,7 +198,7 @@ fn app_run() -> Result< (), gl::WebglError >
           },
           "hwb" =>
           {
-            // Fix(BUG-XXX): same defect class as the "hsl" arm above — W/B are numeric
+            // Fix(BUG-317): same defect class as the "hsl" arm above — W/B are numeric
             // [0,100] but CSS's `hwb()` grammar requires `<percentage>` for both.
             let [ hue, whiteness, blackness ] = Srgb::convert::< Hwb >( base_srgb_components );
             format!( "hwb( {hue:.2} {whiteness:.2}% {blackness:.2}% )" )

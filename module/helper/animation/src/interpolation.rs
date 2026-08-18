@@ -348,19 +348,37 @@ mod private
       self.state == AnimationState::Completed
     }
 
+    // Fix(BUG-352)
+    // Root cause: gated only on `state == Running`, so calling `pause()` while a Tween was still
+    // mid-delay ( `state == Pending`, `with_delay(...)`'s countdown not yet finished ) was a
+    // silent no-op -- `update`'s own match never early-returns for `Pending` ( only for `Paused`/
+    // `Completed`, see above ), so a later `update` kept ticking the delay ( and, once it
+    // expired, the animation itself ) forward exactly as if `pause()` had never been called.
+    // Pitfall: `Completed` is deliberately still excluded here -- pausing an already-finished
+    // Tween must not make `is_completed()` ( `state == Completed` ) start reporting `false`.
     fn pause( &mut self )
     {
-      if self.state == AnimationState::Running
+      if matches!( self.state, AnimationState::Running | AnimationState::Pending )
       {
         self.state = AnimationState::Paused;
       }
     }
 
+    // Fix(BUG-352)
+    // Root cause: widening `pause()` ( above ) to also freeze a mid-delay `Pending` Tween makes
+    // `Paused` reachable while `self.remain` ( the countdown `with_delay` set up, consulted by
+    // `update`'s own `Pending` arm above ) is still > 0.0 -- unconditionally resuming straight to
+    // `Running` skipped that leftover delay entirely, since `update`'s `Running` branch ticks
+    // `self.elapsed` ( the animated value itself ) forward immediately and never re-checks
+    // `remain`.
+    // Pitfall: `self.remain` is already exactly the countdown `update`'s own `Pending` arm
+    // consults -- reuse it here rather than assuming every pause happened only after the delay
+    // had fully elapsed.
     fn resume( &mut self )
     {
       if self.state == AnimationState::Paused
       {
-        self.state = AnimationState::Running;
+        self.state = if self.remain > 0.0 { AnimationState::Pending } else { AnimationState::Running };
       }
     }
 

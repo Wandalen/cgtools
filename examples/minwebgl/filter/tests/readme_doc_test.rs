@@ -35,7 +35,7 @@ const MAIN_FRAG : &str = include_str!( "../src/shaders/main.frag" );
 /// visibly "does its job" (one working filter reacting to the mouse) even when most of the
 /// specifically named filter types were never real.
 #[ test ]
-fn bug_reproducer_bug_xxx_readme_does_not_claim_unimplemented_filter_types()
+fn bug_reproducer_bug_323_readme_does_not_claim_unimplemented_filter_types()
 {
   assert!
   (
@@ -50,7 +50,7 @@ fn bug_reproducer_bug_xxx_readme_does_not_claim_unimplemented_filter_types()
     (
       !readme_lower.contains( claimed ),
       "readme claims \"{claimed}\" but main.frag only implements a single hardcoded emboss \
-      convolution kernel — no blur/sharpen/edge-detection/color-grading pass exists (BUG-XXX)"
+      convolution kernel — no blur/sharpen/edge-detection/color-grading pass exists (BUG-323)"
     );
   }
 }

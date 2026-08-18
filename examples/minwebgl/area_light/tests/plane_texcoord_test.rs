@@ -11,7 +11,7 @@
 //! placeholder textures. The crate has no lib target or native test target to unit-test
 //! `plane_vao`'s vertex data directly, only this structural source parse.
 //!
-//! ## Fix Applied (BUG-VVV)
+//! ## Fix Applied (BUG-321)
 //! Corrected vertex 3's texcoord from `( 1.0, 0.0 )` to `( 1.0, 1.0 )` in
 //! `examples/minwebgl/area_light/src/plane.rs`'s `plane_vertices` array.
 //!

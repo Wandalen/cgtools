@@ -23,7 +23,7 @@ extern "C"
   #[ wasm_bindgen( js_name = "onChange" ) ]
   pub fn on_change( gui : &JsValue, callback : &Closure< dyn FnMut( f32 ) > ) -> JsValue;
 
-  // Fix(BUG-XXX): the js_name attribute below pointed at a title-getter export that only exists
+  // Fix(BUG-339): the js_name attribute below pointed at a title-getter export that only exists
   // in sibling crates' older gui.js copies this file was copy-pasted from — this crate's own
   // gui.js exports no such function, only a matching two-argument title-setter instead.
   // Root cause: bindings file copy-pasted from a sibling crate without re-checking this crate's

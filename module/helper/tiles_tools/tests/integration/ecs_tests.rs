@@ -148,11 +148,38 @@ fn test_health_component()
   // Test healing
   health.heal(15);
   assert_eq!(health.current, 85);
-  
+
   // Test fatal damage
   health.damage(200);
   assert_eq!(health.current, 0);
   assert!(!health.is_alive());
+}
+
+// test_kind: bug_reproducer(BUG-344)
+/// ## Root Cause
+/// `Health::heal` computed `self.current + amount` before applying
+/// `.min(self.maximum)` -- the addition itself could overflow `u32` before
+/// the clamp ran, unlike `damage()`, which already used `saturating_sub`.
+/// ## Why Not Caught
+/// `test_health_component` only exercises `heal` from ordinary mid-range
+/// values (`current: 70`, `heal(15) -> 85`), never from a `current` value
+/// close to `u32::MAX`.
+/// ## Fix Applied
+/// Changed the addition to `self.current.saturating_add(amount)`, matching
+/// `damage()`'s existing `saturating_sub` convention.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// `x + y` immediately followed by `.min(bound)` is only safe when `x + y`
+/// itself cannot overflow -- every field on `Health` is `pub`, so a caller
+/// can construct a near-`u32::MAX` `current` directly, not only through
+/// `damage`/`heal`'s own bounded arithmetic.
+#[ test ]
+fn test_health_heal_saturates_instead_of_overflowing()
+{
+  let mut health = Health { current : u32::MAX - 5, maximum : u32::MAX };
+  health.heal( 20 );
+  assert_eq!( health.current, u32::MAX );
 }
 
 #[ test ]
@@ -245,6 +272,41 @@ fn test_animation_component()
   anim.update(0.75);
   // After 4 full frames (1.0s) we loop back, 0.05s into the next cycle = frame 0
   assert_eq!(anim.current_frame, 0);
+}
+
+// test_kind: bug_reproducer(BUG-345)
+/// ## Root Cause
+/// `Animation::update`'s non-looping branch computed `self.frame_count - 1`
+/// unconditionally once `current_frame` reached `frame_count` -- for a
+/// zero-frame animation (`frame_count: 0`, `looping: false`), this
+/// underflowed `u32` on the very first `update` call, since `current_frame`
+/// (starting at 0) is incremented to 1 before this branch runs, and
+/// `1 >= 0` is immediately true.
+/// ## Why Not Caught
+/// `test_animation_component` (the BUG-132 regression test, immediately
+/// above) only exercises `frame_count: 4`, never `0`, and never sets
+/// `looping = false`.
+/// ## Fix Applied
+/// Changed `self.frame_count - 1` to `self.frame_count.saturating_sub(1)`,
+/// so a zero-frame animation lands on `current_frame: 0` instead of
+/// underflowing.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// `Animation::new` documents no lower bound on `frame_count` -- any
+/// arithmetic on `frame_count` inside `update` must assume it can be `0`,
+/// not only validate it at construction time (it isn't validated there
+/// either).
+#[ test ]
+fn test_animation_zero_frame_count_non_looping_does_not_panic()
+{
+  let mut anim = Animation::new( 0, 0.1 );
+  anim.looping = false;
+
+  anim.update( 0.2 );
+
+  assert_eq!( anim.current_frame, 0 );
+  assert!( !anim.playing );
 }
 
 // =============================================================================
@@ -553,8 +615,57 @@ fn test_movement_system_uses_caller_policies()
   assert!( matches!( results[ .. ], [ MovementResult::PathTooLong { .. } ] ) );
 }
 
+// test_kind: bug_reproducer(BUG-343)
+/// ## Root Cause
+/// `MovementSystem::movement_calculate` rejected any target whose raw grid
+/// distance exceeded `movable.range` before ever attempting a weighted-cost
+/// pathfind, even though the function's own later check
+/// (`cost <= movable.range`) treats the pathfinder's *weighted path cost*,
+/// not raw distance, as the real reachability budget.
+/// ## Why Not Caught
+/// `test_movement_system_uses_caller_policies` (immediately above)
+/// exercises the cost-based gate, but every target it uses has raw
+/// distance <= range, so the raw-distance pre-check never actually
+/// rejected anything different from what the cost-based check would have
+/// -- the two metrics never diverged in any existing test.
+/// ## Fix Applied
+/// Removed the raw-distance pre-check entirely; reachability is now decided
+/// solely by the pathfinder's returned weighted cost compared against
+/// `movable.range`, matching the function's own documented cost-policy
+/// contract.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// A caller-defined `cost` closure returning values below 1 per step (a
+/// deliberately valid policy per the `Fc: FnMut(&C) -> u32` signature) can
+/// make a target's true weighted cost arbitrarily smaller than its raw grid
+/// distance -- any future range pre-check must be expressed in the same
+/// cost metric the pathfinder actually uses, never in raw distance.
+#[ test ]
+fn test_movement_uses_cost_not_raw_distance_for_range_check()
+{
+  let mut world = World::new();
+
+  let entity = world.spawn((
+    Position::new( SquareCoord::< FourConnected >::new( 0, 0 ) ),
+    Movable::new( 2 ),
+  ));
+
+  let mut requests = std::collections::HashMap::new();
+  // Raw Manhattan distance is 10, far beyond `range` of 2 -- but every step
+  // costs 0, so the true weighted path cost is 0, well within range.
+  requests.insert( entity, SquareCoord::< FourConnected >::new( 10, 0 ) );
+
+  let results = MovementSystem::movement_process( &mut world.hecs_world, &requests, | _ | true, | _ | 0 );
+
+  assert!(
+    matches!( results[ .. ], [ MovementResult::Success { .. } ] ),
+    "a target with raw distance > range but real weighted cost <= range must succeed, got {results:?}"
+  );
+}
+
 // =============================================================================
-// Performance and Edge Case Tests  
+// Performance and Edge Case Tests
 // =============================================================================
 
 #[ test ]

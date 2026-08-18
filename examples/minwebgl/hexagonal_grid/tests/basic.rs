@@ -101,7 +101,7 @@ fn test_coordinate_hash()
 /// same frame can mask the effect entirely) — only a static name/declaration cross-check like
 /// this one, not manual visual testing, reliably catches it.
 #[ test ]
-fn bug_reproducer_bug_xxx_uniform_upload_names_match_shader_declarations()
+fn bug_reproducer_bug_326_uniform_upload_names_match_shader_declarations()
 {
   let declared : HashSet< String > = shader_uniform_names( MAIN_VERT )
   .union( &shader_uniform_names( MAIN_FRAG ) )
@@ -118,7 +118,7 @@ fn bug_reproducer_bug_xxx_uniform_upload_names_match_shader_declarations()
     assert!
     (
       declared.contains( name ),
-      "main.rs calls uniform_upload( \"{name}\" ) but neither main.vert nor main.frag declares a uniform named \"{name}\" — likely a typo'd/stale uniform name (BUG-XXX)"
+      "main.rs calls uniform_upload( \"{name}\" ) but neither main.vert nor main.frag declares a uniform named \"{name}\" — likely a typo'd/stale uniform name (BUG-326)"
     );
   }
 }

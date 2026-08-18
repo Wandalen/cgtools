@@ -13,7 +13,10 @@ knowing which backend they run on.
   `Device::new( width, height )` overloads pick whichever browser/native
   feature is active for callers that don't need to name one ); everything
   downstream is backend-agnostic. `Device::backend_name()` reports which
-  backend actually ran.
+  backend actually ran. Each non-browser backend also has a windowed
+  constructor — `Device::new_native_windowed( window, size )` and
+  `Device::new_vulkan_windowed( window, size )` — returning the same triple
+  against a real presentable surface ( see *Windowed presentation* below ).
 - Resource handles ( `Buffer`, `Texture`, `TextureView`, `Sampler`,
   `ShaderModule`, `BindGroupLayout`, `BindGroup`, `RenderPipeline` ) — enum
   dispatch over backends, each with one-step `as_webgpu()` / `as_webgl()` /
@@ -58,6 +61,28 @@ breaks a consumer.
 - `new_webgl` requires `EXT_color_buffer_float`, keeping float color targets
   renderable on both backends.
 
+### Windowed presentation
+
+- Both non-browser backends present to a window as well as to an offscreen
+  image : `Device::new_native_windowed( window, size )` goes through
+  `minwgpu`'s surface, `Device::new_vulkan_windowed( window, size )` through a
+  real `VK_KHR_swapchain` in `minvulkan`. The browser pair needs no
+  counterpart — a canvas already *is* the presentable surface.
+- A window enters as handle traits, never as a windowing type :
+  `impl Into< wgpu::SurfaceTarget< 'static > >` for the former,
+  `&( impl HasDisplayHandle + HasWindowHandle )` for the latter. `winit`,
+  `sdl2` and `glfw` are equally usable and no crate under `module/` depends on
+  any of them ( ADRs [005](../../../docs/adr/005_windowed_native_presentation.md),
+  [006](../../../docs/adr/006_vulkan_windowed_presentation.md) ).
+- What a windowed surface changes is the frame loop, not the render code :
+  `current_view` acquires a swapchain image ( returning
+  `Error::SurfaceNotReady` when the chain is out of date ), `present` shows it,
+  `resize` rebuilds the chain. `pixels_read` is the one thing it gives up,
+  returning `Unsupported` — offscreen and windowed are alternatives, not layers.
+- `vulkan` windowed is the only configuration whose process links no `wgpu` at
+  all : `examples/gpu_hal/triangle_vulkan_window`, verified with
+  `cargo tree -p gpu_hal_triangle_vulkan_window | grep -c wgpu` → `0`.
+
 ### Native backend notes
 
 - `Device::new_native( width, height )` builds its context through `minwgpu`
@@ -92,6 +117,25 @@ cargo nextest run -p gpu_hal --features vulkan
 
 `triangle_render_readback` in `tests/vulkan_backend_test.rs` draws through
 the same public surface and asserts on pixels read back the same way.
+
+The windowed path is out of reach of every one of those tests — it needs a
+real window handle, which no crate under `module/` can produce without
+depending on a windowing library — so it is verified by running an example
+and watching it:
+
+```bash
+cargo run -p gpu_hal_triangle_vulkan_window --release
+```
+
+Drag the window's edge : a triangle that stays correctly proportioned means
+the swapchain rebuilt, and the color continuing to cycle means the
+acquire/present loop is running rather than stuck on one stale image.
+
+`new_native_windowed` has no such example — its underlying
+`minwgpu::surface::Windowed` is covered by `examples/minwgpu/flecs_bouncing_circles`,
+which drives that surface directly, one layer below this HAL. The `NativeWindow`
+variant's own dispatch is therefore unexercised by anything that runs, unlike
+`VulkanWindow`'s.
 
 The `webgpu` and `webgl` backends have no offscreen readback to assert on —
 they present to a browser canvas instead — so they're verified with a real

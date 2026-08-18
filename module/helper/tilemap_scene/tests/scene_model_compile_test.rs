@@ -50,6 +50,7 @@ use tilemap_scene::
   SamplerFilter,
   Scene,
   SceneSnapshot,
+  SnapshotLoadError,
   SortMode,
   SortYSource,
   SpriteRef,
@@ -59,6 +60,7 @@ use tilemap_scene::
   Tint,
   TintRef,
   TriBlendPattern,
+  Validate,
   Variant,
   VariantSelection,
   ViewportAnchorPoint,
@@ -880,6 +882,93 @@ fn from_snapshot_applies_seed_before_spawn()
   (
     instance.instance_phase_seed, expected_seed,
     "from_snapshot must apply snap.seed before spawning so instance_phase_seed matches a scene seeded up front",
+  );
+}
+
+/// `initial_global_tint` names a tint id that must resolve against the
+/// spec's `tints` — mirrors the `UnknownObject` resolution already applied
+/// to tile/edge/multihex/free/viewport-instance/entity object ids in the
+/// same function; this is the one snapshot field that previously reached
+/// `global_tint_set` unconditionally with no resolution check at all.
+#[ test ]
+fn from_snapshot_rejects_unknown_initial_global_tint()
+{
+  let spec = minimal_spec();
+  let mut snap = minimal_scene_3x3();
+  snap.initial_global_tint = Some( "nonexistent".into() );
+
+  let Err( err ) = Scene::from_snapshot( &snap, Arc::new( spec ) )
+  else { panic!( "initial_global_tint naming an undeclared tint id must be rejected" ); };
+
+  assert!
+  (
+    matches!( &err, SnapshotLoadError::UnknownTint { id, .. } if id == "nonexistent" ),
+    "expected UnknownTint {{ id: \"nonexistent\", .. }}, got {err:?}",
+  );
+}
+
+/// Counterpart to the rejection test above: a declared tint id resolves
+/// and is applied as the scene's global tint override.
+#[ test ]
+fn from_snapshot_accepts_known_initial_global_tint()
+{
+  let mut spec = minimal_spec();
+  spec.tints.push( Tint
+  {
+    id : "dusk".into(),
+    color : "#ff0000".into(),
+    strength : 1.0,
+    mode : BlendMode::Multiply,
+  });
+  let mut snap = minimal_scene_3x3();
+  snap.initial_global_tint = Some( "dusk".into() );
+
+  let scene = Scene::from_snapshot( &snap, Arc::new( spec ) ).expect( "dusk is declared in spec.tints" );
+
+  assert_eq!( scene.global_tint().map( | t | t.0.as_str() ), Some( "dusk" ) );
+}
+
+/// `UnknownObject` is constructed for six distinct instance-collection
+/// kinds in `Scene::from_snapshot` (tile/edge/multihex/free/viewport/
+/// entity); this exercises the tile case, the simplest to construct.
+/// `docs/invariant/001` cites this as the mechanism enforcing scene-side
+/// object-id references — this test, plus `from_snapshot_rejects_*` above,
+/// are its only direct coverage.
+#[ test ]
+fn from_snapshot_rejects_unknown_tile_object()
+{
+  let spec = minimal_spec();
+  let mut snap = SceneSnapshot::new( Bounds { min : ( 0, 0 ), max : ( 0, 0 ) } );
+  snap.tiles.push( Tile { pos : ( 0, 0 ), objects : vec![ "nonexistent".into() ] } );
+
+  let Err( err ) = Scene::from_snapshot( &snap, Arc::new( spec ) )
+  else { panic!( "tile referencing an undeclared object id must be rejected" ); };
+
+  assert!
+  (
+    matches!( &err, SnapshotLoadError::UnknownObject { id, .. } if id == "nonexistent" ),
+    "expected UnknownObject {{ id: \"nonexistent\", .. }}, got {err:?}",
+  );
+}
+
+/// `SceneSnapshot::palette_expand` (invoked from `Scene::from_snapshot`
+/// whenever `tiles` is empty) rejects an ASCII `map` character with no
+/// matching `palette` entry.
+#[ test ]
+fn from_snapshot_rejects_unknown_palette_char()
+{
+  let spec = minimal_spec();
+  let mut snap = SceneSnapshot::new( Bounds { min : ( 0, 0 ), max : ( 0, 0 ) } );
+  snap.palette.insert( 'G', vec![ "grass".into() ] );
+  snap.map = vec![ "G?".into() ];
+
+  let Err( err ) = Scene::from_snapshot( &snap, Arc::new( spec ) )
+  else { panic!( "map character missing from palette must be rejected" ); };
+
+  assert!
+  (
+    matches!( &err, SnapshotLoadError::UnknownPaletteChar { ch, pos : ( 1, 0 ) } if *ch == '?' ),
+    "expected UnknownPaletteChar {{ ch: '?', pos: (1, 0) }}, got {err:?}",
   );
 }
 
@@ -1785,6 +1874,75 @@ fn edge_connected_bitmask_isolated()
   assert_eq!( sprites.len(), 1 );
   let mask_zero_id = compiled.ids.sprite( "terrain", "0" ).unwrap();
   assert_eq!( sprites[ 0 ].sprite, mask_zero_id );
+}
+
+/// `docs/format/003`/`format/005` claim `External` is valid on every
+/// anchor including `Edge`, but `edge_sprite_source_resolve` has no match
+/// arm for it — anchor↔source compatibility is the one `ValidationError`
+/// rule `validate.rs` deliberately leaves unconstructed (see its
+/// `AnchorSourceMismatch` TODO comment), so this passes `validate()`
+/// cleanly and only fails at first compile. Worked example for
+/// `docs/pitfall/001_load_time_validation_partially_enforced.md`.
+#[ test ]
+fn edge_rejects_external_source()
+{
+  let mut spec = minimal_spec();
+  let mut states = HashMap::default();
+  states.insert
+  (
+    "default".into(),
+    vec!
+    [
+      ObjectLayer
+      {
+        id : None,
+        sprite_source : SpriteSource::External { slot : "body".into() },
+        behaviour : LayerBehaviour::default(),
+        z_in_object : 0,
+        pipeline_layer : None,
+      },
+    ],
+  );
+  spec.objects.push( Object
+  {
+    id : "sign".into(),
+    anchor : Anchor::Edge,
+    global_layer : "terrain".into(),
+    priority : None,
+    sort_y_source : SortYSource::default(),
+    pivot : ( 0.5, 0.5 ),
+    default_state : "default".into(),
+    states,
+  });
+
+  assert!
+  (
+    spec.validate().is_ok(),
+    "anchor/source compatibility is not yet enforced by validate() — External-on-Edge \
+     must pass load-time validation for this test to demonstrate the documented gap",
+  );
+
+  let scene = SceneSnapshot
+  {
+    tiles : Vec::new(),
+    edges : vec!
+    [
+      EdgeInstance
+      {
+        at : EdgePosition { hex : ( 0, 0 ), dir : EdgeDirection::N },
+        object : "sign".into(),
+        animation : None,
+      },
+    ],
+    ..minimal_scene_3x3()
+  };
+
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let err = try_compile( &spec, &scene, &Camera::default() ).unwrap_err();
+  assert!(
+    matches!( err, CompileError::UnsupportedSource { .. } ),
+    "expected UnsupportedSource, got {err:?}",
+  );
 }
 
 #[ test ]

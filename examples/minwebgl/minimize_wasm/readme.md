@@ -3,7 +3,7 @@
 **Keywords:** WASM, Optimization, Binary Size, WebGL2
 
 This demo showcases techniques for minimizing WebAssembly binary size in cgtools applications.
-<!-- Fix(BUG-XXX): named an unconfigured link-time-optimization technique this crate never actually
+<!-- Fix(BUG-329): named an unconfigured link-time-optimization technique this crate never actually
      enables (no [profile.release] exists anywhere reachable from this crate or the workspace).
      Root cause: aspirational wording never checked against the actual build pipeline.
      Pitfall: a demo whose purpose IS showcasing techniques is exactly where a wrong named

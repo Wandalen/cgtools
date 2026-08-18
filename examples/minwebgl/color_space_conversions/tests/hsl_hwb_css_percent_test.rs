@@ -12,7 +12,7 @@
 //! 12 arms (rgb-triplet and bare-number arms) are all independently valid, so nothing here
 //! previously flagged the two percentage-typed arms as different.
 //!
-//! ## Fix Applied (BUG-XXX)
+//! ## Fix Applied (BUG-317)
 //! Added `%` to the saturation/lightness placeholders in the `"hsl"` arm and to the
 //! whiteness/blackness placeholders in the `"hwb"` arm of `examples/minwebgl/
 //! color_space_conversions/src/main.rs`'s color-space match. Left every other arm

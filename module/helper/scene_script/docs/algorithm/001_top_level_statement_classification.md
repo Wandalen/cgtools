@@ -17,7 +17,10 @@ For each top-level statement, in source order:
 
 1. **Detect a call, if present** (`call_expr()`):
    - If the statement is itself a bare `Stmt::FnCall`, that is the call.
-   - If the statement is `Stmt::Expr(inner)`, recurse into `inner`: an `Expr::FnCall` or `Expr::MethodCall` node is the call directly; an `Expr::Dot(binary, ..)` node recurses into `binary.rhs` (this is what lets a dotted method call — `t.update(0.5)`, or a chain of dots — resolve to its terminal call, since Rhai nests each dot's right-hand side one level behind the dot rather than exposing the call at the statement's own outermost node); any other expression shape yields no call.
+   - If the statement is `Stmt::Expr(inner)`, recurse into `inner`: an `Expr::FnCall` or `Expr::MethodCall` node is the call directly. An `Expr::Dot(binary, ..)` node first recurses into `binary.rhs` (this is what lets a dotted method call — `t.update(0.5)`, or a chain of dots — resolve to its terminal call, since Rhai nests each dot's right-hand side one level behind the dot rather than exposing the call at the statement's own outermost node); only when that `rhs` recursion finds no call does it fall back to recursing into `binary.lhs` instead, so a call sitting in the chain's *receiver* rather than its tail (e.g. `trigger().x`, where `.x` is a plain property read) is still found.
+     <!-- BUG-351 task/bug/351_top_level_lint_misses_call_in_dot_chain_property_tail.md --
+          the lhs fallback closes the gap where rhs-only recursion silently missed a call in the chain's receiver. -->
+     Any other expression shape yields no call.
    - Any other statement variant yields no call.
 2. **Classify the role** (`role()`), combining the statement variant with step 1's result:
    - `Stmt::Var` (`let`/`const`) or `Stmt::Noop` → `Binding`, unconditionally — the initializer expression's own content is never inspected at this stage (see [`pitfall/002`](../pitfall/002_checker_is_structural_not_semantic.md) for why this is a known gap, not an oversight).

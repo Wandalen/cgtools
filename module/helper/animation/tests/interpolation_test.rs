@@ -214,6 +214,69 @@ mod tests
     assert!( tween.is_completed() );
   }
 
+  // test_kind: bug_reproducer(BUG-352)
+  /// ## Root Cause
+  /// `Tween::pause` gated the `Paused` transition on `state == Running` only, so calling it
+  /// while still mid-delay ( `state == Pending`, `with_delay(...)`'s countdown not yet finished )
+  /// was a silent no-op -- `update`'s own match never early-returns for `Pending`, so a later
+  /// `update` kept ticking the delay ( and, once it expired, the animation itself ) forward
+  /// exactly as if `pause()` had never been called.
+  /// ## Why Not Caught
+  /// The only existing pause/resume test ( `test_tween_pause_resume` ) pauses only after the
+  /// Tween is already `Running` -- no test ever called `.pause()` while a delayed Tween was
+  /// still `Pending`.
+  /// ## Fix Applied
+  /// Widened `pause`'s gate to `matches!( self.state, Running | Pending )`, and changed `resume`
+  /// to restore `Pending` ( not unconditionally `Running` ) whenever `self.remain` still holds
+  /// leftover delay, mirroring `update`'s own `Pending` arm. See `interpolation.rs`.
+  /// ## Prevention
+  /// Added this test, which pauses a delayed Tween mid-countdown, drives a large `update()`
+  /// while paused and asserts it stays frozen, then resumes and confirms the remaining delay --
+  /// not the full duration -- is what is left to consume before the animation itself starts.
+  /// ## Pitfall
+  /// Invisible for any zero-delay Tween ( `Pending` is a one-tick pass-through there, see
+  /// `update`'s `else { self.state = Running }` branch ) and for any caller that only ever
+  /// pauses after the first `update()` call already returned `Running` -- only a caller pausing
+  /// during an active `.with_delay(...)` countdown exposes it.
+  #[ test ]
+  fn test_tween_pause_during_pending_delay_freezes_and_resume_preserves_remaining_delay()
+  {
+    let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_delay( 5.0 );
+
+    tween.update( 1.0 ); // still Pending, 4.0s of delay left
+    assert_eq!( tween.state(), AnimationState::Pending );
+
+    tween.pause();
+    assert_eq!( tween.state(), AnimationState::Paused, "pause() was a no-op while still Pending" );
+
+    let value = tween.update( 10.0 ); // large update while paused -- must not advance anything
+    assert_eq!( tween.state(), AnimationState::Paused );
+    assert_eq!( value, 0.0_f32, "a paused Tween advanced past its start value" );
+    assert!( !tween.is_completed() );
+
+    tween.resume();
+    assert_eq!
+    (
+      tween.state(), AnimationState::Pending,
+      "resume() jumped straight to Running, skipping the remaining delay"
+    );
+
+    // 2.0s of the remaining 4.0s delay -- still short of it, must stay Pending.
+    let value = tween.update( 2.0 );
+    assert_eq!( tween.state(), AnimationState::Pending );
+    assert_eq!( value, 0.0_f32 );
+
+    // The final 2.0s exhausts the remaining delay exactly; the animation itself has not yet
+    // accumulated any elapsed time in this same call.
+    let value = tween.update( 2.0 );
+    assert_eq!( tween.state(), AnimationState::Running );
+    assert_eq!( value, 0.0_f32, "animation value advanced before the resumed delay fully elapsed" );
+
+    // Sanity: the animation now genuinely progresses on subsequent updates.
+    let value = tween.update( 0.5 );
+    assert_eq!( value, 5.0_f32 );
+  }
+
   #[ test ]
   fn test_tween_finite_repeat()
   {

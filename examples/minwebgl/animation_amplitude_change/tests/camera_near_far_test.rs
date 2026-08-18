@@ -14,7 +14,7 @@
 //! panic at startup — no compile-time signal, and the crate has no lib target or native
 //! test target to unit-test `camera_setup` (a private fn in a binary-only crate) directly.
 //!
-//! ## Fix Applied (BUG-WWW)
+//! ## Fix Applied (BUG-320)
 //! Replaced the base-2-bit-extraction/base-10-power computation with `diagonal.log10()`
 //! (a true base-10 order of magnitude) and a fixed 1,000,000:1 far:near ratio around it,
 //! which yields `far > near` for every finite positive `diagonal` by construction.

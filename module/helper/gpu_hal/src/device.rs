@@ -51,8 +51,10 @@ mod private
     DeviceVulkan,
     QueueVulkan,
     SurfaceVulkan,
+    SurfaceVulkanWindow,
     TextureViewVulkan,
     surface_create,
+    present_transition as vulkan_present_transition,
     buffer_create as vulkan_buffer_create,
     buffer_init_create as vulkan_buffer_init_create,
     buffer_write as vulkan_buffer_write,
@@ -162,10 +164,47 @@ mod private
       /// Format the target is created with.
       format : TextureFormat
     },
+    /// Native backend surface presenting to a window, via a real swapchain.
+    ///
+    /// The windowed counterpart of [`Surface::Native`] : where that one renders
+    /// offscreen and is read back with `pixels_read`, this one acquires a frame
+    /// per tick through `current_view` and shows it with `present`.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    NativeWindow
+    {
+      /// Context, swapchain surface and its current configuration.
+      windowed : minwgpu::surface::Windowed< 'static >,
+      /// The frame acquired by the most recent `current_view`, awaiting
+      /// `present`.
+      ///
+      /// A swapchain frame must be held from acquisition until presentation,
+      /// but `current_view` takes `&self` on every other backend — where the
+      /// canvas or offscreen texture holds itself. Interior mutability keeps
+      /// that shared signature rather than forcing `&mut self` across all four
+      /// backends for the one that needs it.
+      acquired : core::cell::RefCell< Option< wgpu::SurfaceTexture > >,
+      /// Presentation format the swapchain selected, resolved to the HAL's own
+      /// vocabulary once at construction so `format` stays infallible.
+      format : TextureFormat
+    },
     /// Native Vulkan backend surface : an offscreen render target, readable
     /// through `pixels_read` — there is no window to present to.
     #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
-    Vulkan( SurfaceVulkan )
+    Vulkan( SurfaceVulkan ),
+    /// Native Vulkan backend surface presenting to a window, via a real
+    /// `VK_KHR_swapchain`.
+    ///
+    /// Stands to [`Surface::Vulkan`] exactly as [`Surface::NativeWindow`]
+    /// stands to [`Surface::Native`] — acquire a frame per tick through
+    /// `current_view`, show it with `present` — but reaches the swapchain
+    /// through `minvulkan` rather than `wgpu`, so a process using it links no
+    /// `wgpu` at all.
+    ///
+    /// Boxed because its `minvulkan::surface::Windowed` carries whole `ash`
+    /// dispatch tables inline, which would otherwise set the size of every
+    /// `Surface` value including the browser ones.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    VulkanWindow( Box< SurfaceVulkanWindow > )
   }
 
   impl Device
@@ -328,6 +367,53 @@ mod private
       ))
     }
 
+    /// Requests a native `wgpu` context and builds a swapchain surface that
+    /// presents to `window` — the windowed counterpart of [`Device::new_native`].
+    ///
+    /// `window` is anything `wgpu` accepts as a surface target : any type
+    /// implementing both `raw_window_handle::HasWindowHandle` and
+    /// `HasDisplayHandle`, such as an `Arc< winit::window::Window >`. Taking the
+    /// handle traits rather than a concrete window type keeps this crate — like
+    /// `minwgpu` beneath it — independent of any particular windowing library.
+    ///
+    /// The `'static` bound is what lets the resulting [`Surface`] stay free of a
+    /// lifetime parameter, as its other three variants are; pass a shared handle
+    /// ( `Arc< Window > ` ) rather than a borrow.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Native`] if surface creation, adapter selection, device
+    /// request, or the initial surface configuration fails — including when
+    /// `size` is zero in either dimension.
+    #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+    pub fn new_native_windowed
+    (
+      window : impl Into< wgpu::SurfaceTarget< 'static > >,
+      size : ( u32, u32 )
+    ) -> Result< ( Device, Queue, Surface ), Error >
+    {
+      // `minwgpu::surface::Windowed` already validates the size, orders
+      // instance -> surface -> compatible adapter -> device correctly, and picks
+      // an sRGB presentation format; the zero-size guard `new_native` spells out
+      // for BUG-199 lives there rather than being repeated here.
+      let windowed = minwgpu::surface::Windowed::new( window, size )
+      .map_err( | error | Error::Native( error.to_string() ) )?;
+
+      let device = windowed.device_get().clone();
+      let queue = windowed.queue_get().clone();
+      // The swapchain picks its own presentation format ( commonly
+      // `Bgra8UnormSrgb` on desktop ) -- resolve it into the HAL's vocabulary
+      // once, here, so `Surface::format` can stay infallible like its siblings.
+      let format = TextureFormat::try_from( windowed.format() )?;
+
+      Ok
+      ((
+        Device::Native( device ),
+        Queue::Native( queue ),
+        Surface::NativeWindow { windowed, acquired : core::cell::RefCell::new( None ), format }
+      ))
+    }
+
     /// Requests a native Vulkan context ( instance, physical device, logical
     /// device, one graphics queue ) directly via `minvulkan` + `ash`, and
     /// builds an offscreen rgba8 surface of the given size, readable through
@@ -362,6 +448,82 @@ mod private
         Device::Vulkan( Box::new( device_vulkan ) ),
         Queue::Vulkan( Box::new( queue_vulkan ) ),
         Surface::Vulkan( surface_vulkan )
+      ))
+    }
+
+    /// Requests a native Vulkan context directly via `minvulkan` + `ash` and
+    /// builds a real `VK_KHR_swapchain` over `window` at `size` — the Vulkan
+    /// counterpart of `new_native_windowed`, and the only constructor whose
+    /// process links no `wgpu` at all.
+    ///
+    /// `window` is anything implementing the `raw_window_handle` traits
+    /// ( notably `winit::window::Window` ), re-exported as
+    /// `minvulkan::raw_window_handle` so a caller need not name that crate in
+    /// its own manifest. Taking handle traits rather than a windowing type is
+    /// what keeps cgtools free of any windowing dependency — see
+    /// docs/adr/005_windowed_native_presentation.md.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] if either dimension of `size` is `0`.
+    /// Returns [`Error::Vulkan`] if the window yields no usable handle, if no
+    /// physical device can both render and present to the resulting surface,
+    /// or if instance/device/swapchain creation fails. Returns
+    /// [`Error::Unsupported`] if the swapchain's chosen presentation format
+    /// has no HAL equivalent.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    pub fn new_vulkan_windowed
+    (
+      window : &( impl minvulkan::raw_window_handle::HasDisplayHandle + minvulkan::raw_window_handle::HasWindowHandle ),
+      size : ( u32, u32 )
+    ) -> Result< ( Device, Queue, Surface ), Error >
+    {
+      // Mirrors `new_vulkan`'s BUG-199 zero-size guard : a zero extent reaches
+      // `vkCreateSwapchainKHR` as a validation error rather than a diagnosable
+      // one, and a minimized window reports exactly that.
+      if size.0 == 0 || size.1 == 0
+      {
+        return Err( Error::InvalidInput( format!
+        (
+          "new_vulkan_windowed: width and height must be non-zero, got {size:?}"
+        ) ) );
+      }
+
+      let windowed = minvulkan::surface::Windowed::new( window, size )
+      .map_err( | error | Error::Vulkan( error.to_string() ) )?;
+
+      let context = windowed.context_get();
+      let device_vulkan = DeviceVulkan
+      {
+        instance : context.instance_get().clone(),
+        physical_device : context.physical_device_get(),
+        device : context.device_get().clone(),
+        queue_family_index : context.queue_family_index_get()
+      };
+      let queue = context.queue_get();
+      let queue_vulkan = QueueVulkan { device : device_vulkan.clone(), queue };
+
+      // The swapchain picks its own presentation format ( commonly
+      // `B8G8R8A8_SRGB` on desktop ) -- resolve it into the HAL's vocabulary
+      // once, here, so `Surface::format` can stay infallible like its siblings.
+      let vulkan_format = windowed.format();
+      let format = TextureFormat::try_from( vulkan_format )?;
+
+      let surface = SurfaceVulkanWindow
+      {
+        windowed : core::mem::ManuallyDrop::new( windowed ),
+        device : device_vulkan.clone(),
+        queue,
+        acquired : core::cell::RefCell::new( None ),
+        format,
+        vulkan_format
+      };
+
+      Ok
+      ((
+        Device::Vulkan( Box::new( device_vulkan ) ),
+        Queue::Vulkan( Box::new( queue_vulkan ) ),
+        Surface::VulkanWindow( Box::new( surface ) )
       ))
     }
 
@@ -1198,8 +1360,12 @@ coincidental to the two backend families, not duplicated logic" ) ]
         Self::WebGl { .. } => TextureFormat::Rgba8Unorm,
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
         Self::Native { format, .. } => *format,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::NativeWindow { format, .. } => *format,
         #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
-        Self::Vulkan( surface ) => surface.format
+        Self::Vulkan( surface ) => surface.format,
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::VulkanWindow( surface ) => surface.format
       }
     }
 
@@ -1230,6 +1396,26 @@ coincidental to the two backend families, not duplicated logic" ) ]
         {
           Ok( TextureView::Native( texture.create_view( &wgpu::TextureViewDescriptor::default() ) ) )
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::NativeWindow { windowed, acquired, .. } =>
+        {
+          // Reconfiguration needs `&mut`, which this shared-signature call does
+          // not have, so a stale swapchain is reported rather than repaired
+          // here -- `Surface::resize` is the repair, driven by the window
+          // resize event a caller already handles.
+          match windowed.frame_acquire().map_err( | error | Error::Native( error.to_string() ) )?
+          {
+            minwgpu::surface::Frame::Ready { texture, view } =>
+            {
+              *acquired.borrow_mut() = Some( texture );
+              Ok( TextureView::Native( view ) )
+            }
+            minwgpu::surface::Frame::Skip | minwgpu::surface::Frame::Reconfigure =>
+            {
+              Err( Error::SurfaceNotReady )
+            }
+          }
+        }
         #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
         Self::Vulkan( surface ) =>
         {
@@ -1240,6 +1426,29 @@ coincidental to the two backend families, not duplicated logic" ) ]
             vulkan_format : surface.vulkan_format,
             size : surface.size
           } ) )
+        }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::VulkanWindow( surface ) =>
+        {
+          // As the `NativeWindow` arm above : an out-of-date chain is reported
+          // rather than repaired here, because rebuilding it needs `&mut` and
+          // this shared signature has only `&self`. `Surface::resize` is the
+          // repair.
+          match surface.windowed.frame_acquire().map_err( | error | Error::Vulkan( error.to_string() ) )?
+          {
+            minvulkan::swapchain::Frame::Ready { index, view, extent, .. } =>
+            {
+              *surface.acquired.borrow_mut() = Some( index );
+              Ok( TextureView::Vulkan( TextureViewVulkan
+              {
+                view,
+                format : surface.format,
+                vulkan_format : surface.vulkan_format,
+                size : [ extent.width, extent.height ]
+              } ) )
+            }
+            minvulkan::swapchain::Frame::Reconfigure => Err( Error::SurfaceNotReady )
+          }
         }
       }
     }
@@ -1287,6 +1496,7 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// surface's texture format is not `Rgba8Unorm`, or [`Error::Native`]
     /// if the GPU readback fails.
     #[ cfg_attr( all( feature = "webgpu", feature = "webgl", target_arch = "wasm32" ), expect( clippy::match_same_arms, reason = "the WebGpu and WebGl arms are gated by independent features and cannot be merged into an or-pattern without breaking single-feature builds" ) ) ]
+    #[ cfg_attr( all( feature = "native", feature = "vulkan", not( target_arch = "wasm32" ) ), expect( clippy::match_same_arms, reason = "the NativeWindow and VulkanWindow arms are gated by independent features and cannot be merged into an or-pattern without breaking single-feature builds" ) ) ]
     pub fn pixels_read( &self, device : &Device, queue : &Queue ) -> Result< Vec< u8 >, Error >
     {
       match self
@@ -1314,39 +1524,194 @@ coincidental to the two backend families, not duplicated logic" ) ]
         {
           texture_rgba8_read( device.expect_native(), queue.expect_native(), texture )
         }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::NativeWindow { .. } =>
+        {
+          let _ = ( device, queue );
+          Err( Error::Unsupported
+          (
+            "pixels_read is an offscreen operation; a windowed surface presents to its window".to_string()
+          ) )
+        }
         #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
         Self::Vulkan( surface ) =>
         {
           vulkan_pixels_read( device.expect_vulkan(), queue.expect_vulkan().queue, surface )
         }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::VulkanWindow { .. } =>
+        {
+          let _ = ( device, queue );
+          Err( Error::Unsupported
+          (
+            "pixels_read is an offscreen operation; a windowed surface presents to its window".to_string()
+          ) )
+        }
+      }
+    }
+
+    /// Presents the frame most recently returned by [`Surface::current_view`].
+    ///
+    /// A no-op on every backend except the two windowed ones
+    /// ( [`Surface::NativeWindow`], [`Surface::VulkanWindow`] ) : canvas and
+    /// offscreen surfaces have nothing to present. Calling it without a frame
+    /// in flight is also a no-op, so a render loop that skipped a tick on
+    /// [`Error::SurfaceNotReady`] may call it unconditionally.
+    ///
+    /// # Panics
+    ///
+    /// On [`Surface::VulkanWindow`], panics if the present-layout transition or
+    /// `vkQueuePresentKHR` reports a genuine driver failure — matching
+    /// `Queue::submit`, whose signature is infallible for the same
+    /// cross-backend reason and which likewise refuses to lose a driver error
+    /// silently. An out-of-date swapchain is not such a failure : it is
+    /// expected, ignored here, and repaired through [`Surface::resize`] once
+    /// [`Surface::current_view`] reports [`Error::SurfaceNotReady`].
+    #[ allow( clippy::match_same_arms, reason = "every non-windowed backend has nothing to \
+present, and each arm is independently feature-gated -- merging them into one or-pattern would \
+not compile whenever only some of those features are enabled" ) ]
+    pub fn present( &self )
+    {
+      match self
+      {
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::NativeWindow { windowed, acquired, .. } =>
+        {
+          if let Some( texture ) = acquired.borrow_mut().take()
+          {
+            windowed.frame_present( texture );
+          }
+        }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::VulkanWindow( surface ) =>
+        {
+          if let Some( index ) = surface.acquired.borrow_mut().take()
+          {
+            let image = surface.windowed.swapchain_get().images_get()[ index as usize ];
+            vulkan_present_transition( &surface.device, surface.queue, image )
+            .unwrap_or_else( | e | panic!( "present-layout transition failed :: {e}" ) );
+            // The `bool` says the chain is out of date. Discarded deliberately :
+            // the next `current_view` reports it as `SurfaceNotReady` anyway, and
+            // that is the one path a caller already handles.
+            surface.windowed.frame_present( index )
+            .unwrap_or_else( | e | panic!( "vkQueuePresentKHR failed :: {e}" ) );
+          }
+        }
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu { .. } => {}
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl { .. } => {}
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native { .. } => {}
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => {}
+      }
+    }
+
+    /// Re-applies the surface configuration at a new drawable size.
+    ///
+    /// Only the windowed surfaces ( [`Surface::NativeWindow`],
+    /// [`Surface::VulkanWindow`] ) have a swapchain to reconfigure; every other
+    /// backend ignores this. Drive it from the window resize event, and also
+    /// when [`Surface::current_view`] reports [`Error::SurfaceNotReady`]
+    /// persistently — that is how a lost or outdated swapchain is repaired.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Native`] or [`Error::Vulkan`] when the new size is zero
+    /// in either dimension ( e.g. reported while the window is minimized ),
+    /// leaving the existing configuration untouched so rendering resumes once
+    /// the window returns.
+    #[ allow( unused_variables, reason = "size is unused in builds without a windowed backend" ) ]
+    #[ allow( clippy::match_same_arms, reason = "every non-windowed backend has nothing to \
+reconfigure, and each arm is independently feature-gated -- merging them into one or-pattern \
+would not compile whenever only some of those features are enabled" ) ]
+    pub fn resize( &mut self, size : ( u32, u32 ) ) -> Result< (), Error >
+    {
+      match self
+      {
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::NativeWindow { windowed, .. } =>
+        {
+          windowed.resize( size ).map_err( | error | Error::Native( error.to_string() ) )
+        }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::VulkanWindow( surface ) =>
+        {
+          surface.windowed.resize( size ).map_err( | error | Error::Vulkan( error.to_string() ) )
+        }
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu { .. } => Ok( () ),
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl { .. } => Ok( () ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native { .. } => Ok( () ),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) => Ok( () )
       }
     }
 
     /// The raw wgpu texture the surface renders into, when the handle
-    /// belongs to the native backend.
+    /// belongs to the offscreen native backend.
+    ///
+    /// A [`Surface::NativeWindow`] returns `None` : its color target is a
+    /// swapchain frame that exists only between acquire and present, not a
+    /// persistent texture.
     #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
     #[must_use]
+    #[ allow( clippy::match_same_arms, reason = "every non-offscreen-wgpu backend has no such \
+texture, and the vulkan arms are independently feature-gated -- merging them into one or-pattern \
+would not compile without the `vulkan` feature" ) ]
     pub fn as_native( &self ) -> Option< &wgpu::Texture >
     {
       match self
       {
         Self::Native { texture, .. } => Some( texture ),
+        Self::NativeWindow { .. } => None,
         #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
-        Self::Vulkan( _ ) => None
+        Self::Vulkan( _ ) | Self::VulkanWindow( _ ) => None
       }
     }
 
-    /// The raw Vulkan surface, when the handle belongs to the Vulkan
+    /// The raw offscreen Vulkan surface, when the handle belongs to the Vulkan
     /// backend.
+    ///
+    /// A [`Surface::VulkanWindow`] returns `None`, for the same reason
+    /// [`Surface::as_native`] returns `None` for a [`Surface::NativeWindow`] :
+    /// its color target is a swapchain image that exists only between acquire
+    /// and present, not a persistent one. Reach its swapchain through
+    /// [`Surface::as_vulkan_windowed`] instead.
     #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
     #[must_use]
+    #[ allow( clippy::match_same_arms, reason = "every non-offscreen-Vulkan backend has no such \
+surface, and the wgpu arms are independently feature-gated -- merging them into one or-pattern \
+would not compile without the `native` feature" ) ]
     pub fn as_vulkan( &self ) -> Option< &SurfaceVulkan >
     {
       match self
       {
         Self::Vulkan( raw ) => Some( raw ),
+        Self::VulkanWindow( _ ) => None,
         #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
-        Self::Native { .. } => None
+        Self::Native { .. } | Self::NativeWindow { .. } => None
+      }
+    }
+
+    /// The raw windowed Vulkan surface — context, window surface and
+    /// swapchain — when the handle belongs to the windowed Vulkan backend.
+    #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+    #[must_use]
+    #[ allow( clippy::match_same_arms, reason = "every non-windowed-Vulkan backend has no such \
+surface, and the wgpu arms are independently feature-gated -- merging them into one or-pattern \
+would not compile without the `native` feature" ) ]
+    pub fn as_vulkan_windowed( &self ) -> Option< &SurfaceVulkanWindow >
+    {
+      match self
+      {
+        Self::VulkanWindow( raw ) => Some( raw ),
+        Self::Vulkan( _ ) => None,
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native { .. } | Self::NativeWindow { .. } => None
       }
     }
   }

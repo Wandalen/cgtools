@@ -53,17 +53,17 @@ fn apply_gui_override( weights : &mut [ f32 ], gui_weights : &[ f32 ] )
 /// value as a dual-purpose flag.
 #[ test ]
 #[ allow( clippy::float_cmp, reason = "values under test pass through a straight assignment with no arithmetic, so exact equality is the correct check, not an approximation" ) ]
-fn bug_reproducer_bug_xxx_gui_slider_can_reset_weight_to_zero()
+fn bug_reproducer_bug_330_gui_slider_can_reset_weight_to_zero()
 {
   assert!
   (
     MAIN_RS.contains( "vec![ f32::NAN; 60 ]" ),
-    "gui_weights should be sentinel-initialized with NAN, not 0.0 (BUG-XXX)"
+    "gui_weights should be sentinel-initialized with NAN, not 0.0 (BUG-330)"
   );
   assert!
   (
     MAIN_RS.contains( "!gui_weights[ i ].is_nan()" ),
-    "the override guard should check is_nan(), not `> 0.0` (BUG-XXX)"
+    "the override guard should check is_nan(), not `> 0.0` (BUG-330)"
   );
 
   // Untouched slot: NAN sentinel must never overwrite the mesh's actual weight.
@@ -82,6 +82,6 @@ fn bug_reproducer_bug_xxx_gui_slider_can_reset_weight_to_zero()
   assert_eq!
   (
     weights[ 0 ], 0.0,
-    "a slider dragged back to exactly 0.0 must reset the mesh weight, not leave it stuck (BUG-XXX)"
+    "a slider dragged back to exactly 0.0 must reset the mesh weight, not leave it stuck (BUG-330)"
   );
 }

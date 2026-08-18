@@ -48,7 +48,7 @@ fn app_run() -> Result< (), gl::WebglError >
 
   // create vaos
   //
-  // Fix(BUG-YYY): a single `vao` mixed position/point-size from `vert_buffer2` with color
+  // Fix(BUG-318): a single `vao` mixed position/point-size from `vert_buffer2` with color
   // from `vert_buffer`, silently leaving `vert_buffer`'s own position/point-size fields
   // (and a whole second draw call) unused. This crate's own readme states the demo shows
   // "switch[ing] between different vertex configurations with a single binding call" — that

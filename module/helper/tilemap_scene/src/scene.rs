@@ -127,6 +127,8 @@ mod private
     ///
     /// - [`SnapshotLoadError::UnknownObject`] when the snapshot
     ///   references an object id the spec does not declare.
+    /// - [`SnapshotLoadError::UnknownTint`] when `initial_global_tint` is
+    ///   set to a tint id the spec does not declare.
     /// - [`SnapshotLoadError::UnknownPaletteChar`] when an ASCII `map`
     ///   cell uses a character missing from `palette`.
     pub fn from_snapshot
@@ -237,6 +239,14 @@ mod private
 
       if let Some( tint_id ) = snap.initial_global_tint.as_ref()
       {
+        if !scene.spec.tints.iter().any( | t | &t.id == tint_id )
+        {
+          return Err( SnapshotLoadError::UnknownTint
+          {
+            id : tint_id.clone(),
+            context : "initial_global_tint".into(),
+          });
+        }
         scene.global_tint_set( Some( crate::resource::TintRef( tint_id.clone() ) ) );
       }
 

@@ -56,11 +56,11 @@ fn strip_html_comments( text : &str ) -> String
 /// comment quotes X verbatim — strip non-rendered content (HTML comments) before checking what a
 /// reader actually sees, not the raw file bytes.
 #[ test ]
-fn bug_reproducer_bug_xxx_readme_does_not_claim_webgl_or_3d()
+fn bug_reproducer_bug_328_readme_does_not_claim_webgl_or_3d()
 {
   let visible = strip_html_comments( README );
-  assert!( !visible.contains( "WebGL" ), "readme should not claim WebGL usage (BUG-XXX)" );
-  assert!( !visible.contains( "3D" ), "readme should not claim 3D rendering (BUG-XXX)" );
+  assert!( !visible.contains( "WebGL" ), "readme should not claim WebGL usage (BUG-328)" );
+  assert!( !visible.contains( "3D" ), "readme should not claim 3D rendering (BUG-328)" );
   assert!
   (
     visible.contains( "2D" ),
@@ -91,7 +91,7 @@ fn bug_reproducer_bug_xxx_readme_does_not_claim_webgl_or_3d()
 /// the file it resolves to actually exists — only checking against the real filesystem catches
 /// drift between the UI's value vocabulary and the asset directory's real contents.
 #[ test ]
-fn bug_reproducer_bug_xxx_jewelry_preview_asset_paths_all_exist()
+fn bug_reproducer_bug_328_jewelry_preview_asset_paths_all_exist()
 {
   let assets_dir = Path::new( env!( "CARGO_MANIFEST_DIR" ) ).join( "assets" ).join( "jewelry" );
   let mut checked = 0;
@@ -102,7 +102,7 @@ fn bug_reproducer_bug_xxx_jewelry_preview_asset_paths_all_exist()
       for ring in RINGS
       {
         let path = assets_dir.join( format!( "{metal}_{gem}_{ring}.png" ) );
-        assert!( path.is_file(), "missing jewelry preview asset: {} (BUG-XXX)", path.display() );
+        assert!( path.is_file(), "missing jewelry preview asset: {} (BUG-328)", path.display() );
         checked += 1;
       }
     }

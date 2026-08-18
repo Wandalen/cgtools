@@ -95,17 +95,25 @@ impl MovementSystem
     Fa : FnMut( &C ) -> bool,
     Fc : FnMut( &C ) -> u32,
   {
-    // Check if target is within movement range
-    let distance = current.distance( target );
-    if distance > movable.range
-    {
-      return MovementResult::OutOfRange
-      {
-        requested_distance : distance,
-        maximum_range : movable.range,
-      };
-    }
-
+    // Fix(BUG-343): removed the raw-grid-distance pre-check that used to run
+    // before pathfinding -- it rejected purely on `current.distance(target)`
+    // exceeding `movable.range`, a completely different metric from the
+    // weighted path `cost` this function actually gates reachability on
+    // below (`cost <= movable.range`). A caller-supplied `cost` policy
+    // cheaper than the raw-distance heuristic (e.g. free/low-cost terrain)
+    // was rejected before pathfinding ever ran, even though the real
+    // weighted cost was well within range.
+    // Root cause: two different metrics -- raw grid distance vs. weighted
+    // path cost -- were both used to gate the same `range` budget, and the
+    // cheaper (raw-distance) one ran first and could reject a target the
+    // more expensive, authoritative (weighted-cost) check would have
+    // accepted.
+    // Pitfall: `range` is a *cost* budget (compared against `astar`'s
+    // returned path cost just below), not a *distance* bound -- do not
+    // reintroduce a raw-distance short-circuit ahead of the pathfind unless
+    // it is proven to never reject a target the cost-based check would
+    // accept (it cannot be, in general, since `cost` is caller-defined and
+    // may return values below 1 per step).
     // Use pathfinding to find valid path
     let path_result = astar( current, target, is_accessible, cost );
 

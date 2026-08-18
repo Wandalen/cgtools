@@ -147,7 +147,7 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   normal_displacements_reset( &gltf.meshes );
 
-  // Fix(BUG-XXX): filled with 0.0, matching a slider the user has actively dragged down to its
+  // Fix(BUG-330): filled with 0.0, matching a slider the user has actively dragged down to its
   // minimum — `gui_weights[i] > 0.0` then treats "untouched" and "explicitly zeroed" identically,
   // so once a slider is raised above 0 it can never be reset back to 0 via that same slider.
   // Root cause: used the current value's sign as a proxy for "has this slider been touched",

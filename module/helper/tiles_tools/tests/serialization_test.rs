@@ -211,3 +211,54 @@ fn test_error_handling() {
   let result = save_manager.save_metadata_load("nonexistent");
   assert!(matches!(result, Err(SerializationError::MetadataNotFound(_))));
 }
+
+// BUG-348 task/bug/348_save_manager_meta_compressed_flag_desync.md -- reproducer
+// for the .meta sidecar's compressed flag desync.
+// test_kind: bug_reproducer(BUG-348)
+/// ## Root Cause
+/// `SaveManager::game_state_save` clones `state.metadata` as-is and writes it
+/// to the `.meta` sidecar, but never sets `metadata.compressed =
+/// self.serializer.compress` before writing it. `GameStateSerializer.compress`
+/// (which actually controls whether the `.save` file is compressed) and
+/// `SaveMetadata.compressed` (an independent field, set only via the
+/// unrelated `SaveMetadata::with_compression` builder) are never
+/// synchronized, so the `.meta` file's `compressed` flag can silently
+/// disagree with the real compression state of the `.save` file it describes.
+/// ## Why Not Caught
+/// `test_compression` only round-trips through `game_state_serialize`/
+/// `game_state_deserialize` directly -- it never goes through `SaveManager`
+/// or reads the `.meta` sidecar back with `save_metadata_load`, so the
+/// desynchronized flag was never observed.
+/// ## Fix Applied
+/// `game_state_save` now sets `metadata.compressed = self.serializer.compress`
+/// on the cloned metadata before serializing and writing the `.meta` file.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// Two independently-settable fields that are supposed to describe the same
+/// underlying fact (whether the save data is compressed) will drift apart
+/// silently unless one is derived from the other at the one place they are
+/// both written -- `game_state_load` happens to still round-trip correctly
+/// here because it consults the serializer's own `compress` field, not the
+/// metadata, which is exactly what let this desync stay invisible.
+#[test]
+fn test_game_state_save_meta_compressed_flag_matches_actual_compression() {
+  let temp_dir = TempDir::new().unwrap();
+  let save_manager = SaveManager::new(temp_dir.path())
+    .with_serializer(GameStateSerializer::new().with_compression(true));
+
+  let game_state = GameStateSerializer::basic_game_state_create("Compressed Save".to_string());
+  assert!(
+    !game_state.metadata.compressed,
+    "fixture must start with metadata.compressed == false to exercise the desync"
+  );
+
+  save_manager.game_state_save("compressed_save", &game_state).unwrap();
+
+  let loaded_metadata = save_manager.save_metadata_load("compressed_save").unwrap();
+  assert!(
+    loaded_metadata.compressed,
+    "the .save file is actually compressed (serializer.compress == true), but the \
+     .meta sidecar's compressed flag was not synchronized to match"
+  );
+}

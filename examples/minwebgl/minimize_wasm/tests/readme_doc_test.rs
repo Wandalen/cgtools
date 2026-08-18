@@ -38,7 +38,7 @@ const CARGO_TOML : &str = include_str!( "../Cargo.toml" );
 /// named technique is most likely to go unnoticed — the demo still visibly "does its job" (small
 /// wasm output) even when one of the specifically named techniques was never real.
 #[ test ]
-fn bug_reproducer_bug_xxx_readme_does_not_claim_unconfigured_lto()
+fn bug_reproducer_bug_329_readme_does_not_claim_unconfigured_lto()
 {
   assert!( CARGO_TOML.contains( "wee_alloc" ), "sanity: wee_alloc should still be a dependency" );
   assert!( MAKEFILE.contains( "wasm-opt" ), "sanity: Makefile should still run wasm-opt" );
@@ -49,6 +49,6 @@ fn bug_reproducer_bug_xxx_readme_does_not_claim_unconfigured_lto()
     !README.to_lowercase().contains( "lto" ),
     "readme claims LTO but no [profile.release] lto = true exists anywhere reachable from this \
     crate (workspace members can't override profiles, and the real workspace root has no \
-    [profile.*] section at all) (BUG-XXX)"
+    [profile.*] section at all) (BUG-329)"
   );
 }

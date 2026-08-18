@@ -16,12 +16,13 @@ mod tests
   wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
   use minwebgl as gl;
   use gl::GL;
+  use mingl::geometry::BoundingBox;
   use renderer::webgl::{ Geometry, AttributeInfo };
 
   /// Creates a headless WebGL2 context for structural tests.
-  async fn gl_init() -> GL
+  fn gl_init() -> GL
   {
-    gl::browser::setup( Default::default() );
+    gl::browser::setup( gl::browser::Config::default() );
     let canvas = gl::canvas::make().unwrap();
     gl::context::from_canvas( &canvas ).unwrap()
   }
@@ -39,7 +40,7 @@ mod tests
       slot : 0,
       buffer,
       descriptor,
-      bounding_box : Default::default()
+      bounding_box : BoundingBox::default()
     }
   }
 
@@ -67,7 +68,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn add_attribute_duplicate_name_returns_err_not_panic()
   {
-    let gl = gl_init().await;
+    let gl = gl_init();
     let mut geometry = Geometry::new( &gl ).expect( "Geometry::new should succeed" );
 
     geometry.attribute_add( &gl, "positions", make_attribute_info( &gl ) )
@@ -78,7 +79,7 @@ mod tests
     assert!
     (
       result.is_err(),
-      "adding a duplicate attribute name must return Err, not panic — got {:?}", result
+      "adding a duplicate attribute name must return Err, not panic — got {result:?}"
     );
   }
 }

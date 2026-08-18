@@ -197,7 +197,7 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
     vec3 oldOrigin = rayOrigin;
     rayOrigin = dirOriginToIntersect * surfaceDistance;
 
-    // Fix(BUG-UUU): the absorption-strength multiplication below used to be commented out,
+    // Fix(BUG-322): the absorption-strength multiplication below used to be commented out,
     // leaving the `absorptionFactor` uniform declared and uploaded from Rust but with zero
     // effect on the rendered result — any value assigned to it produced identical output.
     // Root cause: a debugging-time comment-out of this multiplication was never restored.

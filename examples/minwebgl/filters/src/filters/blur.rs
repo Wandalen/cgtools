@@ -174,7 +174,7 @@ impl Filter for Blur< Stack >
     uniform vec2 u_texel_size;
     uniform vec2 u_direction;
 
-    // Fix(BUG-XXX): was an unweighted uniform average identical in shape to Blur<Box> (same
+    // Fix(BUG-324): was an unweighted uniform average identical in shape to Blur<Box> (same
     // kernel, different uniform name) — a triangular weight is what actually distinguishes a
     // stack blur from a box blur.
     // Root cause: copy-pasted box-average loop body across the three near-identical Blur<T> impls.

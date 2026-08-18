@@ -59,7 +59,7 @@ pub fn plane_material
 
 pub fn plane_vao( gl : &GL ) -> Result< WebGlVertexArrayObject, gl::WebglError >
 {
-  // Fix(BUG-VVV): vertex 3's texcoord was `( 1.0, 0.0 )`, a duplicate of vertex 2's —
+  // Fix(BUG-321): vertex 3's texcoord was `( 1.0, 0.0 )`, a duplicate of vertex 2's —
   // breaking the bilinear UV grid the other 3 vertices establish ( uv.x tracks -z,
   // uv.y tracks x ), which requires vertex 3 ( x=1, z=-1, the corner diagonal from
   // vertex 0 ) to be `( 1.0, 1.0 )`. Invisible today only because `plane_material`

@@ -70,7 +70,7 @@ fn image_load
   on_load_callback : Box< dyn Fn( &web_sys::HtmlImageElement ) >,
 ) -> Result< web_sys::HtmlImageElement, minwebgl::JsValue >
 {
-  // Fix(BUG-XXX): both `image_element_create` and `set_id` used to be called with the hardcoded
+  // Fix(BUG-338): both `image_element_create` and `set_id` used to be called with the hardcoded
   // literal "tileset.png" instead of `path`, ignoring the parameter entirely for two of its three
   // uses. `image_element_create("tileset.png")` resolves against the app root (no `static/`
   // prefix), so the element's initial `src` pointed at a URL that 404s -- a real, wasted network

@@ -60,7 +60,7 @@ fn exported_js_functions( src : &str ) -> HashSet< String >
 /// a browser, and copying a bindings file between crates with differently-shaped `gui.js` files is
 /// exactly the situation that introduces this silently.
 #[ test ]
-fn bug_reproducer_bug_xxx_lil_gui_bindings_match_real_gui_js_exports()
+fn bug_reproducer_bug_339_lil_gui_bindings_match_real_gui_js_exports()
 {
   let exported = exported_js_functions( GUI_JS );
   assert!( exported.contains( "set_name" ), "sanity: gui.js should still export set_name" );
@@ -74,7 +74,7 @@ fn bug_reproducer_bug_xxx_lil_gui_bindings_match_real_gui_js_exports()
     (
       exported.contains( name ),
       "lil_gui.rs binds js_name = \"{name}\" but gui.js does not export a function named \
-      \"{name}\" — calling this binding would be a wasm_bindgen runtime error (BUG-XXX)"
+      \"{name}\" — calling this binding would be a wasm_bindgen runtime error (BUG-339)"
     );
   }
 }

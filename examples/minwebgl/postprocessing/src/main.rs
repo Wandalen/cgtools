@@ -147,9 +147,9 @@ mod tests
   /// no way to confirm the named JS export actually exists in the target module. A stale or
   /// mistyped `js_name` is invisible until something calls the binding at runtime in a browser.
   /// Any binding that's currently unused is exactly the kind most likely to hide this silently.
-  // Fix(BUG-XXX-F): reproducer for `name_set` binding to the nonexistent JS export "getTitle"
+  // Fix(BUG-339): reproducer for `name_set` binding to the nonexistent JS export "getTitle"
   // instead of the actual export "set_name".
-  // test_kind: bug_reproducer(BUG-XXX-F)
+  // test_kind: bug_reproducer(BUG-339)
   #[ test ]
   fn test_lil_gui_js_name_bindings_match_gui_js_exports()
   {

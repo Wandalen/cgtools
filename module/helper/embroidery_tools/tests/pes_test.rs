@@ -194,3 +194,123 @@ fn version6_write_with_zero_threads_does_not_panic()
 
   assert!( result.is_ok(), "writing a threadless design to PES v6 must not panic: {result:?}" );
 }
+
+/// Decodes the ordered list of `( flag, points )` segment blocks from the `CSewSeg` section of
+/// PES bytes written by `pes::write`. `segment_count` is the number of segment blocks the
+/// caller's own instruction sequence is known to produce (this decoder does not infer it, so
+/// callers must derive it from `EmbroideryFile::as_command_blocks`'s consecutive-same-instruction
+/// grouping -- see the reproducer below).
+///
+/// Mirrors exactly as much of `pes_embsewseg_segments_write`'s binary layout
+/// (`format/pes/writer.rs`) as is needed: `[ flag : u16, color_code : u16, point_count : u16,
+/// ( x : i16, y : i16 ) * point_count ]` per segment, with a `0x8003` marker written between
+/// (not around) consecutive segments.
+fn csewseg_segments_decode( pes_bytes : &[ u8 ], segment_count : usize ) -> Vec< ( u16, Vec< ( i16, i16 ) > ) >
+{
+  // "CSewSeg" is `pes_string16_write`'s 7 ASCII bytes following its own u16-LE length prefix --
+  // distinctive enough in this small, fully-controlled fixture to locate unambiguously.
+  let marker = b"CSewSeg";
+  let marker_pos = pes_bytes.windows( marker.len() )
+  .position( | w | w == marker )
+  .expect( "\"CSewSeg\" marker not found in written PES bytes -- has the CEmbOne/CSewSeg block layout changed?" );
+  let mut pos = marker_pos + marker.len();
+
+  let mut segments = vec![];
+  for i in 0..segment_count
+  {
+    // Between (not around) consecutive segments, the writer emits a `0x8003` "next segment"
+    // marker -- consume it before every segment after the first.
+    if i > 0
+    {
+      let marker_word = u16::from_le_bytes( [ pes_bytes[ pos ], pes_bytes[ pos + 1 ] ] );
+      assert_eq!( marker_word, 0x8003, "expected the 0x8003 inter-segment marker before segment {i}" );
+      pos += 2;
+    }
+
+    let flag = u16::from_le_bytes( [ pes_bytes[ pos ], pes_bytes[ pos + 1 ] ] );
+    pos += 2;
+    let _color_code = u16::from_le_bytes( [ pes_bytes[ pos ], pes_bytes[ pos + 1 ] ] );
+    pos += 2;
+    let point_count = u16::from_le_bytes( [ pes_bytes[ pos ], pes_bytes[ pos + 1 ] ] );
+    pos += 2;
+
+    let mut points = vec![];
+    for _ in 0..point_count
+    {
+      let x = i16::from_le_bytes( [ pes_bytes[ pos ], pes_bytes[ pos + 1 ] ] );
+      let y = i16::from_le_bytes( [ pes_bytes[ pos + 2 ], pes_bytes[ pos + 3 ] ] );
+      points.push( ( x, y ) );
+      pos += 4;
+    }
+
+    segments.push( ( flag, points ) );
+  }
+
+  segments
+}
+
+// test_kind: bug_reproducer(BUG-341)
+/// ## Root Cause
+/// `as_segment_blocks`'s `Instruction::Jump` arm reads `stitched_x`/`stitched_y` to compute a
+/// jump segment's start point, but -- unlike the `Instruction::Stitch` arm, which writes both
+/// back after every stitch -- never writes them back itself. When a `ColorChange` (or any other
+/// non-`Stitch` instruction, all of which fall through a catch-all `_ => continue` that also
+/// never touches the tracker) separates two `Jump` command-blocks with no intervening `Stitch`,
+/// the second jump's recorded start point is whatever the tracker held before the FIRST jump,
+/// not where the first jump actually ended.
+/// ## Why Not Caught
+/// No existing PES writer test exercised two `Jump` command-blocks separated only by a
+/// non-moving instruction (`ColorChange`, `Trim`, etc.) with no `Stitch` between them -- every
+/// existing fixture's jumps are either isolated by stitches on both sides or immediately
+/// followed by a stitch, which happens to refresh the tracker before the next jump reads it.
+/// ## Fix Applied
+/// Added `stitched_x = last_instruction.x; stitched_y = last_instruction.y;` to the `Jump` arm,
+/// mirroring what the `Stitch` arm already does, so a jump's endpoint becomes the tracked
+/// position for whatever segment reads it next. See `format/pes/writer.rs`.
+/// ## Prevention
+/// This test writes two jumps separated by a no-op `color_change` and decodes the actual
+/// `CSewSeg` segment bytes `pes::write` produced, asserting the second jump segment's start
+/// point equals the first jump segment's end point (the only physically correct value, since no
+/// movement occurs between them) rather than the first jump segment's own start point (the stale
+/// value the bug produces).
+/// ## Pitfall
+/// `as_segment_blocks`'s CSewSeg output is write-only/informational -- this crate's own
+/// `pes::read` never reads it back (confirmed by BUG-235's precedent) -- so this bug is invisible
+/// to any roundtrip (`write` then `read`) test; it can only be caught by inspecting the raw bytes
+/// `pes::write` actually produced.
+#[ test ]
+fn second_jump_after_colorchange_starts_where_first_jump_ended()
+{
+  let mut emb = EmbroideryFile::new();
+  emb.stitch( 0, 0 );
+  emb.stitch( 10, 10 );
+  emb.jump( 5, 5 );
+  emb.color_change( 0, 0 );
+  emb.jump( 5, 5 );
+  emb.stitch( 0, 0 );
+  emb.stitch( 1, 1 );
+  emb.end();
+
+  let mut memory = vec![ 0_u8; 4096 ];
+  {
+    let mut writer = Cursor::new( &mut memory );
+    pes::write( &mut emb, &mut writer, pes::PESVersion::V6 ).unwrap();
+  }
+
+  // Expected segment layout for this exact instruction sequence: [Stitch, Jump, Jump, Stitch] --
+  // `ColorChange` never becomes its own segment (see `as_segment_blocks`'s `continue` arm), and
+  // two consecutive `stitch()`/two consecutive `jump()` calls each stay within one command block
+  // (`EmbroideryFile::as_command_blocks` only splits where the instruction type changes).
+  let segments = csewseg_segments_decode( &memory, 4 );
+  let flags : Vec< u16 > = segments.iter().map( | ( flag, _ ) | *flag ).collect();
+  assert_eq!( flags, vec![ 0, 1, 1, 0 ], "test setup: expected [stitch, jump, jump, stitch] segments, got flags {flags:?}" );
+
+  let jump_1_end = *segments[ 1 ].1.last().unwrap();
+  let jump_2_start = segments[ 2 ].1[ 0 ];
+
+  assert_eq!
+  (
+    jump_2_start, jump_1_end,
+    "second jump segment must start where the first jump ended ({jump_1_end:?}), not carry over a stale pre-first-jump needle position (found {jump_2_start:?})"
+  );
+}

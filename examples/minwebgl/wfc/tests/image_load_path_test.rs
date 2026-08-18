@@ -30,10 +30,10 @@
 //! as "used" at a glance -- silently ignoring it for the other purposes (element creation, id)
 //! hides easily behind a single call site whose literal happens to coincide with the real value.
 
-// BUG-XXX task/bug/XXX_wfc_image_load_ignores_path_parameter.md -- reproducer for image_load()
+// BUG-338 task/bug/XXX_wfc_image_load_ignores_path_parameter.md -- reproducer for image_load()
 // calling image_element_create() with a hardcoded "tileset.png" literal instead of its own
 // `path` parameter, causing a wasted/failed network request on every page load.
-// test_kind: bug_reproducer(BUG-XXX)
+// test_kind: bug_reproducer(BUG-338)
 #[ test ]
 fn image_load_passes_path_parameter_to_image_element_create()
 {

@@ -36,7 +36,7 @@ fn light_add( scene : &Rc< RefCell< Scene > >, light : Light ) -> Rc< RefCell< N
 fn near_far_from_exponent( exponent : i32 ) -> ( f32, f32 )
 {
   let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 100.0;
-  // Fix(BUG-XXX-B): `far`'s raw formula collapses to `far == near` at `exponent == 0`
+  // Fix(BUG-332): `far`'s raw formula collapses to `far == near` at `exponent == 0`
   // ( `100.0f32.powi( 0 ) == 1.0` ), which `Camera::new` rejects ( requires `far > near` ),
   // panicking the whole demo for any scene whose bounding-box diagonal falls in [ 1.0, 2.0 )
   // -- an ordinary size for a normalized glTF asset.
@@ -376,8 +376,8 @@ mod tests
   /// value that erases the relationship the caller depends on ( here, `far > near` ) -- always
   /// floor/ceiling such a derived value against its sibling rather than trusting the formula's
   /// shape to hold across the whole input domain.
-  // Fix(BUG-XXX-B): reproducer for `far == near` at `exponent == 0`, rejected by `Camera::new`.
-  // test_kind: bug_reproducer(BUG-XXX-B)
+  // Fix(BUG-332): reproducer for `far == near` at `exponent == 0`, rejected by `Camera::new`.
+  // test_kind: bug_reproducer(BUG-332)
   #[ test ]
   fn test_far_always_exceeds_near_across_exponent_range()
   {

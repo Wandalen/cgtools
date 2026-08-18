@@ -60,7 +60,7 @@ fn spot_light_node( spot : SpotLight ) -> Node
 /// Builds the shadow-mapping projection light for the given spot light description, via the
 /// canonical `SpotLight` -> `shadow::Light` conversion.
 ///
-/// Fix(BUG-XXX-D): this crate previously constructed `shadow::Light` manually --
+/// Fix(BUG-334): this crate previously constructed `shadow::Light` manually --
 /// `mat3x3h::perspective_rh_gl( 60.0_f32.to_radians(), 1.0, 0.1, 30.0 )` with a hardcoded
 /// `light_size` of `0.5` -- instead of using `renderer::webgl::shadow`'s
 /// `impl From< SpotLight > for Light`, which correctly doubles `outer_cone_angle` into a full
@@ -311,9 +311,9 @@ mod tests
   /// one of a light's own fields as an unrelated parameter (a shadow camera's FOV) requires
   /// checking whether the units/semantics actually match, not just whether the value "looks
   /// like" a plausible angle.
-  // Fix(BUG-XXX-D): reproducer for the shadow-mapping spot light's FOV being built from the raw,
+  // Fix(BUG-334): reproducer for the shadow-mapping spot light's FOV being built from the raw,
   // undoubled `outer_cone_angle` instead of the canonical `outer_cone_angle * 2.0`.
-  // test_kind: bug_reproducer(BUG-XXX-D)
+  // test_kind: bug_reproducer(BUG-334)
   #[ test ]
   fn test_shadow_light_projection_matches_canonical_doubled_fov()
   {
@@ -332,8 +332,8 @@ mod tests
   /// Pins that the fixed projection is *not* what the pre-fix ( undoubled FOV, disconnected
   /// far=30.0 ) formula would have produced, confirming the bug was real and the fix actually
   /// changes behavior rather than being a no-op refactor.
-  // Fix(BUG-XXX-D): reproducer confirming the fixed projection diverges from the pre-fix formula.
-  // test_kind: bug_reproducer(BUG-XXX-D)
+  // Fix(BUG-334): reproducer confirming the fixed projection diverges from the pre-fix formula.
+  // test_kind: bug_reproducer(BUG-334)
   #[ test ]
   fn test_pre_fix_undoubled_fov_formula_would_have_diverged()
   {

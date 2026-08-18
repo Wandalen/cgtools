@@ -25,7 +25,7 @@ mod tests
 
   async fn animation_test_init( gltf_path : &str ) -> GLTF
   {
-    gl::browser::setup( Default::default() );
+    gl::browser::setup( gl::browser::Config::default() );
     let options = gl::context::ContextOptions::default().antialias( false );
 
     let canvas = gl::canvas::make().unwrap();
@@ -53,7 +53,7 @@ mod tests
 
     let animation = &gltf.animations[ 0 ];
 
-    assert!( animation.nodes.len() > 0 );
+    assert!( !animation.nodes.is_empty() );
 
     let sequencer = animation.animation.as_any().downcast_ref::< Sequencer >()
     .expect( "Animation is not Sequencer" );

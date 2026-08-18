@@ -419,6 +419,7 @@
         <div class="filter-buttons" role="group" aria-label="Filter by tag">
             <!-- GALLERY:TAGFILTERS:BEGIN -->
             <button class="filter-btn active" data-filter="all">All Tags</button>
+            <button class="filter-btn" data-filter="api:vulkan">API · Vulkan</button>
             <button class="filter-btn" data-filter="api:webgl">API · WebGL</button>
             <button class="filter-btn" data-filter="api:webgpu">API · WebGPU</button>
             <button class="filter-btn" data-filter="api:wgpu">API · WGPU</button>
@@ -433,11 +434,11 @@
     <div class="stats">
         <!-- GALLERY:STATS:BEGIN -->
         <div class="stat-card" aria-live="polite" aria-atomic="true">
-            <div class="stat-number" id="totalDemos">75</div>
+            <div class="stat-number" id="totalDemos">76</div>
             <div class="stat-label">Total Examples</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number" id="completedDemos">56</div>
+            <div class="stat-number" id="completedDemos">57</div>
             <div class="stat-label">Live Demos</div>
         </div>
         <div class="stat-card">
@@ -445,7 +446,7 @@
             <div class="stat-label">With Showcase</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number">7</div>
+            <div class="stat-number">8</div>
             <div class="stat-label">Tag Groups</div>
         </div>
         <!-- GALLERY:STATS:END -->
@@ -453,6 +454,30 @@
 
     <div class="container">
         <!-- GALLERY:SECTIONS:BEGIN -->
+        <!-- api:vulkan -->
+        <section class="category-section" data-category="api:vulkan">
+            <div class="category-header">
+                <h2>API · Vulkan</h2>
+                <span class="category-badge">1 demo</span>
+            </div>
+            <div class="demo-grid">
+                <article class="demo-card" role="article" data-name="triangle vulkan window" data-path="gpu_hal/triangle_vulkan_window" data-tags="runtime:native,api:vulkan">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">gpu_hal Triangle (Vulkan swapchain)</h3>
+                        <p class="demo-desc">A color-cycling triangle in a real window, rendered through gpu_hal's vulkan backend and presented through a real VK_KHR_swapchain — the only example in this workspace whose process links no wgpu at all. It is the windowed counterpart of gpu_hal/tests/vulkan_backend_test.rs's triangle_render_readback, reusing that test's WGSL shader, vertices and uniform layout unchanged; the one difference is where the frame goes, offscreen readback there and on screen here. Resizing the window rebuilds the swapchain and the triangle stays centered and correctly proportioned, which together with the continuously cycling color is what distinguishes a live acquire/present loop from one stuck on a single stale image.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="https://github.com/Wandalen/cgtools/blob/master/examples/gpu_hal/triangle_vulkan_window/readme.md" class="demo-link" aria-label="View gpu_hal Triangle (Vulkan swapchain) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
+            </div>
+        </section>
+
         <!-- api:webgl -->
         <section class="category-section" data-category="api:webgl">
             <div class="category-header">
@@ -690,7 +715,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Image Filter</h3>
-                        <p class="demo-desc">This demo demonstrates real-time image filtering in WebGL2. It shows how to apply various shader-based filters to images or rendered scenes, including blur, sharpen, edge detection, and color grading.</p>
+                        <p class="demo-desc">This demo demonstrates real-time image filtering in WebGL2. It applies a 3x3 convolution kernel &lt;!-- Fix(BUG-323): named several other post-processing filter categories this crate never      implements — main.frag applies exactly one hardcoded convolution kernel (emboss).      Root cause: aspirational wording never checked against the actual shader.      Pitfall: a demo whose purpose IS showing a filter is exactly where a wrong named      technique goes unnoticed, since the demo still visibly &quot;works&quot; either way. --&gt; (an emboss effect) to the image, revealed within a radius centered on the mouse cursor as you move the pointer.</p>
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/filter/" class="demo-link" aria-label="View Image Filter demo">View Details</a>
@@ -788,7 +813,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Minimized WASM Build</h3>
-                        <p class="demo-desc">This demo showcases techniques for minimizing WebAssembly binary size in cgtools applications. It demonstrates optimization strategies including dead code elimination, LTO, and size-focused compilation.</p>
+                        <p class="demo-desc">This demo showcases techniques for minimizing WebAssembly binary size in cgtools applications. &lt;!-- Fix(BUG-329): named an unconfigured link-time-optimization technique this crate never actually      enables (no [profile.release] exists anywhere reachable from this crate or the workspace).      Root cause: aspirational wording never checked against the actual build pipeline.      Pitfall: a demo whose purpose IS showcasing techniques is exactly where a wrong named      technique goes unnoticed, since the demo still visibly &quot;works&quot; either way. --&gt; It demonstrates optimization strategies including a minimal global allocator (wee_alloc), post-build size optimization (wasm-opt -Os), and debug-info stripping (wasm-strip).</p>
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/minimize_wasm/" class="demo-link" aria-label="View Minimized WASM Build demo">View Details</a>
@@ -1217,7 +1242,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Hello Triangle (WebGPU)</h3>
-                        <p class="demo-desc">This demo is the classic "quot;Hello Triangle"quot; in WebGPU. It demonstrates the minimum code needed to render a triangle using the modern WebGPU API, serving as an introduction to GPU programming.</p>
+                        <p class="demo-desc">This demo is the classic &quot;Hello Triangle&quot; in WebGPU. It demonstrates the minimum code needed to render a triangle using the modern WebGPU API, serving as an introduction to GPU programming.</p>
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgpu/hello_triangle/" class="demo-link" aria-label="View Hello Triangle (WebGPU) demo">View Details</a>
@@ -1324,7 +1349,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Hello Triangle (wgpu)</h3>
-                        <p class="demo-desc">This demo is the classic "quot;Hello Triangle"quot; using wgpu in Rust. It demonstrates the minimum code needed for native GPU rendering, serving as an introduction to wgpu fundamentals.</p>
+                        <p class="demo-desc">This demo is the classic &quot;Hello Triangle&quot; using wgpu in Rust. It demonstrates the minimum code needed for native GPU rendering, serving as an introduction to wgpu fundamentals.</p>
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="https://github.com/Wandalen/cgtools/blob/master/examples/minwgpu/hello_triangle/readme.md" class="demo-link" aria-label="View Hello Triangle (wgpu) demo">View Details</a>
@@ -1572,7 +1597,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Image Filter</h3>
-                        <p class="demo-desc">This demo demonstrates real-time image filtering in WebGL2. It shows how to apply various shader-based filters to images or rendered scenes, including blur, sharpen, edge detection, and color grading.</p>
+                        <p class="demo-desc">This demo demonstrates real-time image filtering in WebGL2. It applies a 3x3 convolution kernel &lt;!-- Fix(BUG-323): named several other post-processing filter categories this crate never      implements — main.frag applies exactly one hardcoded convolution kernel (emboss).      Root cause: aspirational wording never checked against the actual shader.      Pitfall: a demo whose purpose IS showing a filter is exactly where a wrong named      technique goes unnoticed, since the demo still visibly &quot;works&quot; either way. --&gt; (an emboss effect) to the image, revealed within a radius centered on the mouse cursor as you move the pointer.</p>
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/filter/" class="demo-link" aria-label="View Image Filter demo">View Details</a>
@@ -1628,7 +1653,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Jewelry Site</h3>
-                        <p class="demo-desc">This demo showcases a product‑ready 3D jewelry configurator built for real‑time, client‑side customization. Users can explore ring models, switch materials and gems, and preview combinations instantly.</p>
+                        <p class="demo-desc">&lt;!-- Fix(BUG-328): claimed a 3D/WebGL configurator and listed WebGL as a keyword — this site has      no canvas, no WebGL context, and no 3D library anywhere in its markup or scripts; it swaps      between pre-rendered 2D preview images by filename. src/main.rs exists only as an inert      wasm-bindgen placeholder so trunk's tooling accepts the crate — it renders nothing.      Root cause: aspirational wording never checked against the actual implementation.      Pitfall: this crate sits in a directory of genuine WebGL demos, making an unverified      &quot;WebGL&quot;/&quot;3D&quot; claim here easy to accept at a glance instead of checking the actual scripts. --&gt; This demo showcases a product‑ready jewelry configurator built for real‑time, client‑side customization using pre-rendered 2D preview images. Users can browse ring designs, switch materials and gems, and preview combinations instantly.</p>
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/jewelry_site/" class="demo-link" aria-label="View Jewelry Site demo">View Details</a>
@@ -1684,7 +1709,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Minimized WASM Build</h3>
-                        <p class="demo-desc">This demo showcases techniques for minimizing WebAssembly binary size in cgtools applications. It demonstrates optimization strategies including dead code elimination, LTO, and size-focused compilation.</p>
+                        <p class="demo-desc">This demo showcases techniques for minimizing WebAssembly binary size in cgtools applications. &lt;!-- Fix(BUG-329): named an unconfigured link-time-optimization technique this crate never actually      enables (no [profile.release] exists anywhere reachable from this crate or the workspace).      Root cause: aspirational wording never checked against the actual build pipeline.      Pitfall: a demo whose purpose IS showcasing techniques is exactly where a wrong named      technique goes unnoticed, since the demo still visibly &quot;works&quot; either way. --&gt; It demonstrates optimization strategies including a minimal global allocator (wee_alloc), post-build size optimization (wasm-opt -Os), and debug-info stripping (wasm-strip).</p>
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/minimize_wasm/" class="demo-link" aria-label="View Minimized WASM Build demo">View Details</a>
@@ -2061,7 +2086,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Hello Triangle (WebGPU)</h3>
-                        <p class="demo-desc">This demo is the classic "quot;Hello Triangle"quot; in WebGPU. It demonstrates the minimum code needed to render a triangle using the modern WebGPU API, serving as an introduction to GPU programming.</p>
+                        <p class="demo-desc">This demo is the classic &quot;Hello Triangle&quot; in WebGPU. It demonstrates the minimum code needed to render a triangle using the modern WebGPU API, serving as an introduction to GPU programming.</p>
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgpu/hello_triangle/" class="demo-link" aria-label="View Hello Triangle (WebGPU) demo">View Details</a>
@@ -2131,9 +2156,23 @@
         <section class="category-section" data-category="runtime:native">
             <div class="category-header">
                 <h2>Runtime · Native</h2>
-                <span class="category-badge">16 demos</span>
+                <span class="category-badge">17 demos</span>
             </div>
             <div class="demo-grid">
+                <article class="demo-card" role="article" data-name="triangle vulkan window" data-path="gpu_hal/triangle_vulkan_window" data-tags="runtime:native,api:vulkan">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">gpu_hal Triangle (Vulkan swapchain)</h3>
+                        <p class="demo-desc">A color-cycling triangle in a real window, rendered through gpu_hal's vulkan backend and presented through a real VK_KHR_swapchain — the only example in this workspace whose process links no wgpu at all. It is the windowed counterpart of gpu_hal/tests/vulkan_backend_test.rs's triangle_render_readback, reusing that test's WGSL shader, vertices and uniform layout unchanged; the one difference is where the frame goes, offscreen readback there and on screen here. Resizing the window rebuilds the swapchain and the triangle stays centered and correctly proportioned, which together with the continuously cycling color is what distinguishes a live acquire/present loop from one stuck on a single stale image.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="https://github.com/Wandalen/cgtools/blob/master/examples/gpu_hal/triangle_vulkan_window/readme.md" class="demo-link" aria-label="View gpu_hal Triangle (Vulkan swapchain) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
                 <article class="demo-card" role="article" data-name="life" data-path="math/life" data-tags="runtime:native">
                     <div class="demo-image">
                         <img src="./math/life/showcase.webp" alt="Conway's Game of Life" loading="lazy" width="350" height="250">
@@ -2168,7 +2207,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">F32x2 Vector Arithmetic</h3>
-                        <p class="demo-desc">This demo runs a .rhai scene script that constructs two F32x2 vectors and combines them with ordinary +/ operators, returning the result back to the host as a typed value. It demonstrates the declarative half of scene_script's two scripting patterns: a script as a data format*, building a value purely from expressions and returning it, as opposed to driving the host imperatively.</p>
+                        <p class="demo-desc">This demo runs a .rhai scene script that constructs two F32x2 vectors and combines them with +/ operators, returning the result back to the host as a typed value. Structurally the script is declarative in shape* — a let/let/trailing-expression sequence with no main(), loop, or branch — as opposed to pingpong_animation's imperative shape, confined to main(). But the shape is not the whole story: every operator and the F32x2 constructor dispatch to engine-registered bindings (see below), which makes this script scene_script's script-as-glue pattern in substance despite its declarative-looking shape — see pattern/005's own worked analysis of this exact script for why declarative shape does not imply the script-as-data pattern.</p>
                         <span class="demo-status incomplete">No Showcase Yet</span>
                         <div class="demo-links">
                             <a href="https://github.com/Wandalen/cgtools/blob/master/examples/scene_script/f32x2_vector_arithmetic/readme.md" class="demo-link" aria-label="View F32x2 Vector Arithmetic demo">View Details</a>
@@ -2224,7 +2263,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Debug Demo</h3>
-                        <p class="demo-desc">This demo exercises tiles_tools' debug tooling: grid visualization in multiple styles and coordinate systems, pathfinding debug overlays with cost visualization, ECS component/entity inspection, performance profiling with frame timing and bottleneck detection, and both ASCII-art and SVG rendering of the same grid state.</p>
+                        <p class="demo-desc">This demo exercises tiles_tools' debug tooling: grid visualization in multiple styles and coordinate systems, pathfinding debug overlays with cost visualization, ECS component/entity inspection, performance profiling with frame timing and bottleneck detection, and ASCII-art rendering of the same grid state.</p>
                         <span class="demo-status incomplete">No Showcase Yet</span>
                         <div class="demo-links">
                             <a href="https://github.com/Wandalen/cgtools/blob/master/examples/tiles_tools/debug_demo/readme.md" class="demo-link" aria-label="View Debug Demo demo">View Details</a>
@@ -2266,7 +2305,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Field of View Demo</h3>
-                        <p class="demo-desc">This demo compares tiles_tools' field-of-view algorithms side by side: shadowcasting, ray casting, and Bresenham line tracing, plus multi-source lighting where several light sources combine over the same grid.</p>
+                        <p class="demo-desc">This demo compares tiles_tools' field-of-view algorithms side by side: shadowcasting, ray casting, Bresenham line tracing, and flood fill, plus multi-source lighting where several light sources combine over the same grid.</p>
                         <span class="demo-status incomplete">No Showcase Yet</span>
                         <div class="demo-links">
                             <a href="https://github.com/Wandalen/cgtools/blob/master/examples/tiles_tools/field_of_view_demo/readme.md" class="demo-link" aria-label="View Field of View Demo demo">View Details</a>
@@ -2308,7 +2347,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Serialization Demo</h3>
-                        <p class="demo-desc">This demo exercises tiles_tools' save/load functionality: game-state serialization and deserialization across three formats (JSON, Binary, RON), configuration management and persistence, save-file management with metadata, and version-compatibility checking. Requires the crate's serialization feature, which pulls in serde_json/bincode/ron alongside serde itself.</p>
+                        <p class="demo-desc">This demo exercises tiles_tools' save/load functionality: game-state serialization and deserialization across three formats (JSON, Binary, RON), configuration management and persistence, save-file management with metadata, version-compatibility checking, and compression support. Requires the crate's serialization feature, which pulls in serde_json/bincode/ron alongside serde itself.</p>
                         <span class="demo-status incomplete">No Showcase Yet</span>
                         <div class="demo-links">
                             <a href="https://github.com/Wandalen/cgtools/blob/master/examples/tiles_tools/serialization_demo/readme.md" class="demo-link" aria-label="View Serialization Demo demo">View Details</a>
@@ -2388,7 +2427,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Hello Triangle (wgpu)</h3>
-                        <p class="demo-desc">This demo is the classic "quot;Hello Triangle"quot; using wgpu in Rust. It demonstrates the minimum code needed for native GPU rendering, serving as an introduction to wgpu fundamentals.</p>
+                        <p class="demo-desc">This demo is the classic &quot;Hello Triangle&quot; using wgpu in Rust. It demonstrates the minimum code needed for native GPU rendering, serving as an introduction to wgpu fundamentals.</p>
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="https://github.com/Wandalen/cgtools/blob/master/examples/minwgpu/hello_triangle/readme.md" class="demo-link" aria-label="View Hello Triangle (wgpu) demo">View Details</a>
@@ -2412,10 +2451,9 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Orrery (Flexible)</h3>
-                        <p class="demo-desc">The same orrery scene behind one Cargo-feature-selectable backend — webgl, webgpu, wgpu, or vulkan — through the in-house gpu_hal abstraction. Only the wgpu feature links the wgpu crate; the other three (including vulkan, via the new minvulkan L0 driver) do not, even transitively. Browser features (webgl/webgpu) present live to a canvas; native features (wgpu/vulkan) render one offscreen frame and save it as a PNG.</p>
                         <span class="demo-status incomplete">No Showcase Yet</span>
                         <div class="demo-links">
-                            <a href="https://github.com/Wandalen/cgtools/blob/master/examples/orrery/flexible/readme.md" class="demo-link" aria-label="View Orrery (Flexible) demo">View Details</a>
+                            <a href="./orrery/flexible/" class="demo-link" aria-label="View Orrery (Flexible) demo">View Details</a>
                         </div>
                     </div>
                 </article>

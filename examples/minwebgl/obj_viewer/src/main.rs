@@ -1,4 +1,5 @@
-//! Just draw a large point in the middle of the screen.
+//! Interactive OBJ model viewer in WebGL2, with orbit-camera rotation and
+//! zoom controls over a loaded Wavefront OBJ scene.
 
 use std::
 {

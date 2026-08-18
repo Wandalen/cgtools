@@ -20,9 +20,9 @@
 //! compiler enforcement -- this is the second such copy-paste/stale-description drift found in
 //! this exact bug-hunt pass (see the sibling `text_msdf` crate).
 
-// BUG-XXX task/bug/XXX_spinning_cube_size_opt_stale_large_point_doc_comment.md -- reproducer for
+// BUG-337 task/bug/XXX_spinning_cube_size_opt_stale_large_point_doc_comment.md -- reproducer for
 // main.rs's doc comment falsely describing "a large point" instead of a spinning wireframe cube.
-// test_kind: bug_reproducer(BUG-XXX)
+// test_kind: bug_reproducer(BUG-337)
 #[ test ]
 fn doc_comment_describes_spinning_cube_not_stale_large_point_claim()
 {

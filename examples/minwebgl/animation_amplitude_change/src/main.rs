@@ -150,7 +150,7 @@ fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : 
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  // Fix(BUG-WWW): `near`/`far` used to be derived from a scale value read out of the raw
+  // Fix(BUG-320): `near`/`far` used to be derived from a scale value read out of the raw
   // IEEE-754 bit layout of `diagonal` — a base-2 quantity by construction — then fed into
   // a base-10 power function. That base mismatch, combined with a `far` formula that
   // isn't monotonically greater than `near` across its own input domain, collapsed to

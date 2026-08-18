@@ -30,10 +30,30 @@ The core library and SVG adapter are functional; the WebGL2 adapter is partially
   - `Transform::depth` — honored via depth buffer (`DEPTH_TEST`, `LEQUAL`). Per-field range `[-RenderConfig::max_depth, max_depth]` (default `1.0`); shader divides by `u_max_depth`, GPU clips out-of-range values. Batch sum `parent_depth + instance_depth` is subject to the same range. Reliable for fully opaque draws (translucent must be back-to-front)
   - Blend modes: Normal, Add, Multiply, Screen (hardware-accelerated); Overlay falls back to Normal. `Capabilities::supported_blend_modes` advertises the correct set; `blend_modes: bool` means "all variants correct" and is `false` until Overlay is implemented
   - Shaders: `sprite.vert/frag`, `sprite_batch.vert/frag`, `mesh.vert/frag`, `mesh_batch.vert/frag`
+- **WebGPU / native / no-op adapters** — `adapter-webgpu`, `adapter-native`, `adapter-none` via
+  `gpu_hal`, adopted in `docs/adr/003_d2_stack_hal_adoption.md` (supersedes the earlier
+  direct-`minwebgpu` idea); `task/completed/084_tilemap_renderer_adapter_none_backend.md`,
+  `task/completed/086_tilemap_renderer_adapter_webgpu_backend.md`,
+  `task/completed/087_tilemap_renderer_adapter_native_backend.md`
+- **Terminal adapter** — coarse ANSI-truecolor character-cell rendering, no external dependencies:
+  - World-space commands downsample onto a fixed cell grid (`CELL_PX_WIDTH`×`CELL_PX_HEIGHT` =
+    16×32 world units per cell, chosen to approximate a monospace glyph's ~1:2 aspect ratio);
+    `resize` reallocates the grid
+  - Single-draw: `Clear`, `Mesh` (`FillRef::Solid` only), `Sprite`/`ScreenSpaceSprite` (tint) — each
+    paints one cell at its transform's resolved position
+  - Paths: `BeginPath`..`EndPath` rasterized as connected straight segments between accumulated
+    points via true Bresenham line rasterization; curves (`QuadTo`/`CubicTo`/
+    `ArcTo`) draw straight to their endpoint, ignoring control points
+  - Text: the native medium here — `BeginText`/`Char`/`EndText` places real glyphs with horizontal
+    anchor support (left/center/right); vertical anchor collapses to one row
+  - Batches: full lifecycle (`Create`/`Bind`/`Add`/`Set`/`Remove`/`Draw`/`Delete`, both sprite and
+    mesh) composing instance transforms through the batch's own parent transform
+  - Groups: `BeginGroup`/`EndGroup` transform stack composed via `Transform::to_mat3`; clip masks
+    and visual effects are accepted but not honored
+  - `output()` encodes the grid as 24-bit ANSI SGR truecolor escape sequences, one line per row
+  - No blending (`capabilities().supported_blend_modes` empty — later draws overwrite earlier
+    ones), no gradients/patterns (`Mesh` only draws a `FillRef::Solid` fill)
 - **Test suite** — covers types, commands, assets, backend trait, and SVG adapter
-
-### deferred to follow-up PRs
-- **Terminal adapter** — stub only (`adapter-terminal` feature gate exists; implementation pending)
 
 ### project structure
 
@@ -51,7 +71,7 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 │       ├── webgl.rs        # WebGL2 backend entry point (WebGlBackend + renderers)
 │       ├── webgl/          # WebGL submodule layer
 │       │   └── webgl_helpers.rs  # ArrayBuffer, GPU handles, GL mappers, batch types
-│       ├── terminal.rs     # Terminal backend (stub — no implementation yet)
+│       ├── terminal.rs     # Terminal backend (ANSI-truecolor character-cell grid)
 │       └── shaders/        # GLSL shaders for WebGL
 ├── Cargo.toml
 ├── readme.md
@@ -77,16 +97,20 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 - `Source::Path` geometry loading is blocking `std::fs` only — works natively; on wasm32 the read fails at runtime and the geometry is skipped loudly (stderr warning + diagnostic SVG comment). An async `fetch()` path would need a redesign of the sync `assets_load` contract
 - `Transform::depth` ordering — the adapter emits in submission order and ignores `depth`; callers must pre-sort (future: stable sort by `depth` before emission)
 - Image Y-flip: SVG `<image>` elements are Y-down natively; sprites rendered from them may appear flipped
+- Interactive SVG with JavaScript events
 
 ### terminal adapter gaps
 
-The adapter is a stub — no `Backend` implementation or type exists yet, so everything is
-pending, starting with the basics:
-
-- `Backend` implementation with path and text output (ASCII/Unicode cells)
-- Sprite/mesh/batch support
-- Effect support
-- Gradient approximation
+- Curve flattening — `QuadTo`/`CubicTo`/`ArcTo` draw a straight line to their endpoint rather
+  than subdividing the curve
+- Gradient/pattern fills — `Mesh` only resolves `FillRef::Solid`; `FillRef::Gradient`/
+  `FillRef::Pattern` are accepted but paint nothing
+- Group clip masks and visual effects (blur, drop shadow, color matrix, opacity) — accepted but
+  ignored; only a `BeginGroup`'s `transform` is honored
+- Alpha blending — no blend modes are supported (`capabilities().supported_blend_modes` is
+  empty); later draws overwrite earlier ones at the same cell
+- Vertical text anchoring — `TextAnchor`'s Top/Center/Bottom variants all collapse to the same
+  row
 
 ### infrastructure
 
@@ -94,15 +118,6 @@ pending, starting with the basics:
 - wasm-pack test runner for WebGL tests
 - CI with feature matrix testing
 - Performance benchmarks (target: 10,000 commands < 16ms)
-
-### future backends
-
-- WebGPU / native / no-op via `gpu_hal` (`adapter-webgpu`, `adapter-native`, `adapter-none`) —
-  adopted in `docs/adr/003_d2_stack_hal_adoption.md` (supersedes the earlier direct-`minwebgpu`
-  idea); tracked as `task/completed/084_tilemap_renderer_adapter_none_backend.md`,
-  `task/completed/086_tilemap_renderer_adapter_webgpu_backend.md`,
-  `task/completed/087_tilemap_renderer_adapter_native_backend.md`
-- Interactive SVG with JavaScript events
 
 ## design decisions
 

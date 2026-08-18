@@ -10,7 +10,7 @@
 //! rustdoc renders whatever text is present without validating it against the demo's
 //! actual behavior, so a stale sentence compiles and renders cleanly forever.
 //!
-//! ## Fix Applied (BUG-ZZZ)
+//! ## Fix Applied (BUG-319)
 //! Replaced the stale `//!` doc comment in `examples/minwebgl/attributes_instanced/
 //! src/main.rs` with an accurate description of the instanced-triangle demo.
 //!

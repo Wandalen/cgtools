@@ -23,7 +23,7 @@ extern "C"
   #[ wasm_bindgen( js_name = "onChange" ) ]
   pub fn on_change( gui : &JsValue, callback : &Closure< dyn FnMut( f32 ) > ) -> JsValue;
 
-  // Fix(BUG-XXX-F): this bound to the nonexistent JS export "getTitle" -- gui.js has no such
+  // Fix(BUG-339): this bound to the nonexistent JS export "getTitle" -- gui.js has no such
   // export, it exports `set_name` ( which calls lil-gui's own `gui.name( name )` setter ).
   // Root cause: `js_name` was left as a stale/mistaken value that never matched any export in
   // gui.js, unlike every sibling binding in this file, where `js_name` exactly matches its JS

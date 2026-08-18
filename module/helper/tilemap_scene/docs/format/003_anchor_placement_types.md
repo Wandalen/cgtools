@@ -43,7 +43,7 @@
 
 ### Version Compatibility
 
-Anchor variants are additive across minor versions — a new anchor kind is expected to extend this enum without invalidating specs that don't use it. The `Square4`/`Square8` tiling gap (`format/002`) does not block any anchor variant's own schema; anchors are defined independent of which tiling strategy is active.
+Anchor variants are additive across minor versions — a new anchor kind is expected to extend this enum without invalidating specs that don't use it. The `Square4`/`Square8` tiling whitelist (`format/002`, enforced at load time) is orthogonal to any anchor variant's own schema; anchors are defined independent of which tiling strategy is active.
 
 ### Algorithms
 
@@ -70,6 +70,7 @@ Anchor variants are additive across minor versions — a new anchor kind is expe
 
 | File | Relationship |
 |------|--------------|
+| [invariant/001_renderspec_referential_integrity.md](../invariant/001_renderspec_referential_integrity.md) | `connects_with` reserved-id resolution is enforced there; anchor↔source compatibility (Data Model table above) is the one rule it documents as still unenforced |
 | [invariant/002_edge_and_vertex_canonical_uniqueness.md](../invariant/002_edge_and_vertex_canonical_uniqueness.md) | Formalizes the `Edge`/`Vertex` canonicalization rule stated above |
 
 ### Pitfalls

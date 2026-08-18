@@ -1,4 +1,6 @@
-//! Just draw a large point in the middle of the screen.
+//! Loads a diamond glTF model, renders it into a freshly generated 6-face cube map texture
+//! (one framebuffer pass per face), then displays a textured cube that orbits while sampling
+//! the generated cube map -- demonstrates dynamic cube map generation in WebGL2.
 
 use minwebgl as gl;
 use gl::GL;

@@ -470,6 +470,21 @@ mod private
           block.push( ( stitched_x - adjust_x, stitched_y - adjust_y ) );
           let last_instruction = command_block.last().unwrap();
           block.push( ( last_instruction.x - adjust_x, last_instruction.y - adjust_y ) );
+          // Fix(BUG-341)
+          // Root cause: unlike the `Instruction::Stitch` arm below (which assigns
+          // `stitched_x`/`stitched_y` after every stitch), this arm read the tracker to compute
+          // a jump segment's start point but never wrote it back -- so a second `Jump` block
+          // separated from the first only by a non-`Stitch` instruction (`ColorChange`, `Trim`,
+          // etc., all of which `continue` without touching the tracker) read a stale position
+          // left over from before the first jump, instead of where the first jump ended.
+          // Pitfall: a jump's own *end* point was always correct (read from `command_block`'s
+          // own absolute coordinates, not the tracker) -- only the *start* point of a jump that
+          // immediately follows another jump (across a non-`Stitch` gap) was affected. Any local
+          // "current position" tracker read by multiple match arms needs a write-back audit on
+          // every arm that can legitimately move the position, not only the arm it was
+          // introduced alongside.
+          stitched_x = last_instruction.x;
+          stitched_y = last_instruction.y;
           flag = 1;
         },
         Instruction::ColorChange =>

@@ -1,6 +1,6 @@
 //! # MSDF Text Rendering Example
 //!
-// Fix(BUG-XXX): doc comment was copy-pasted from `uniforms_ubo`'s main.rs and never updated --
+// Fix(BUG-336): doc comment was copy-pasted from `uniforms_ubo`'s main.rs and never updated --
 // this example renders MSDF (Multi-Channel Signed Distance Field) text via instanced quads, not
 // a plain UBO-driven triangle. Root cause: copy-paste of a sibling crate's file header.
 // Pitfall: a crate's own top-level doc comment has no compiler link to what the crate actually

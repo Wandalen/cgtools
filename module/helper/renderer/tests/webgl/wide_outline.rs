@@ -23,9 +23,9 @@ mod tests
   use gl::GL;
   use renderer::webgl::post_processing::{ Pass, outline::wide_outline::WideOutlinePass };
 
-  async fn gl_init() -> GL
+  fn gl_init() -> GL
   {
-    gl::browser::setup( Default::default() );
+    gl::browser::setup( gl::browser::Config::default() );
     let options = gl::context::ContextOptions::default().antialias( false );
     let canvas = gl::canvas::make().unwrap();
     gl::context::from_canvas_with( &canvas, options ).unwrap()
@@ -71,7 +71,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn render_succeeds_for_two_different_outline_thicknesses()
   {
-    let gl = gl_init().await;
+    let gl = gl_init();
     let width = 16;
     let height = 16;
 

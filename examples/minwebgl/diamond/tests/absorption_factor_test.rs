@@ -12,7 +12,7 @@
 //! wrong result. The crate has no lib target or native test target to unit-test shader
 //! behavior directly, only this structural source parse.
 //!
-//! ## Fix Applied (BUG-UUU)
+//! ## Fix Applied (BUG-322)
 //! Restored the multiplication in `examples/minwebgl/diamond/shaders/shader.frag`'s `r`
 //! computation: `length( rayOrigin - oldOrigin ) * absorptionFactor`.
 //!

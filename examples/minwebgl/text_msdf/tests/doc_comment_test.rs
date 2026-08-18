@@ -22,9 +22,9 @@
 //! A crate's own top-level doc comment is disconnected from its actual behavior with zero
 //! compiler enforcement -- copy-pasting a sibling crate's file header is an easy, silent mistake.
 
-// BUG-XXX task/bug/XXX_text_msdf_stale_triangle_ubo_doc_comment.md -- reproducer for main.rs's
+// BUG-336 task/bug/XXX_text_msdf_stale_triangle_ubo_doc_comment.md -- reproducer for main.rs's
 // doc comment falsely describing a UBO-driven triangle instead of MSDF text rendering.
-// test_kind: bug_reproducer(BUG-XXX)
+// test_kind: bug_reproducer(BUG-336)
 #[ test ]
 fn doc_comment_describes_msdf_text_not_stale_triangle_ubo_claim()
 {

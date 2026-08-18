@@ -240,7 +240,19 @@ impl Health
   /// Heals this entity, capped at maximum health.
   pub fn heal( &mut self, amount : u32 )
   {
-    self.current = ( self.current + amount ).min( self.maximum );
+    // Fix(BUG-344): `self.current + amount` could overflow `u32` before the
+    // `.min(self.maximum)` clamp ever ran (debug build: panics; release
+    // build: silently wraps to a tiny value, i.e. "healing" corrupts health
+    // downward) -- switched to `saturating_add`, matching `damage()`'s
+    // existing `saturating_sub` convention just above.
+    // Root cause: the clamp-after-add pattern assumes the addition itself
+    // cannot overflow, which does not hold once `current` is already close
+    // to `u32::MAX` (every field on `Health` is `pub`, so nothing prevents
+    // constructing such a state directly).
+    // Pitfall: any `x + y` immediately followed by `.min(bound)`/`.max(bound)`
+    // is only safe when `x + y` itself cannot overflow the integer type --
+    // use `saturating_add`/`saturating_sub` first, then clamp.
+    self.current = self.current.saturating_add( amount ).min( self.maximum );
   }
 
   /// Sets health to maximum.
@@ -524,7 +536,20 @@ impl Animation
         }
         else
         {
-          self.current_frame = self.frame_count - 1;
+          // Fix(BUG-345): `self.frame_count - 1` underflowed (panic:
+          // "attempt to subtract with overflow") when `frame_count == 0` --
+          // `Animation::new` documents no lower bound on `frame_count`, and
+          // the non-looping branch unconditionally subtracted 1 regardless.
+          // Root cause: this subtraction assumed `frame_count >= 1` (a
+          // reasonable animation always has at least one frame) but nothing
+          // in the type enforces it -- `looping: true` with `frame_count: 0`
+          // never reaches this branch, so the assumption held silently until
+          // a zero-frame, non-looping animation actually called `update`.
+          // Pitfall: any `some_len - 1` on a caller-controlled, unvalidated
+          // count must use `saturating_sub(1)` (or an explicit `== 0` guard)
+          // unless the type's own invariants already rule out `0` -- they do
+          // not here.
+          self.current_frame = self.frame_count.saturating_sub( 1 );
           self.playing = false;
           self.frame_timer = 0.0;
           break;

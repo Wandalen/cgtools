@@ -21,6 +21,13 @@ mod private {}
 
 mod_interface!
 {
+  /// The raw window handle traits, re-exported so a consumer reaches them
+  /// through this driver rather than naming a second, independently versioned
+  /// copy in its own manifest — the same reason `minwgpu` re-exports `wgpu`.
+  own use ::raw_window_handle;
+
   layer context;
   layer error;
+  layer surface;
+  layer swapchain;
 }

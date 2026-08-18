@@ -94,9 +94,14 @@ decided keep-crate for `diamond` and `make_cube_map`, and tasks 094/095 deleted 
 
 ## Known issues (workspace level)
 
-- **Shader validation tooling absent:** `glslangValidator` is not installed on this machine, which
-  blocks offline GLSL validation work. Fix: `sudo apt install glslang-tools`, verify with
-  `glslangValidator --version`.
+- **Shader validation tooling absent: resolved without external tooling.** `glslangValidator` is
+  still not installed on this machine, but GLSL ES 3.00 shader validation no longer needs it —
+  `module/helper/renderer/tests/legacy_glsl_shader_compile_test.rs` compiles all 28 shipped
+  `.vert`/`.frag` files through a real headless WebGL2 context's own compiler, the actual target
+  these OpenGL-ES-idiom sources are written for (naga's `front::glsl` targets desktop GLSL
+  440+/Vulkan only and rejects them outright — see `shader_validation_tests.rs`'s doc comment).
+  Verify: `grep -c 'wasm_bindgen_test( async )'
+  module/helper/renderer/tests/legacy_glsl_shader_compile_test.rs` (28).
 - **Lint-policy stragglers: none.** All module/ crates inherit `[workspace.lints]` (mdmath_core,
   ndarray_cg, embroidery_tools verified wired 2026-08-11), and the last 23 stragglers — the
   minwebgl demo crates (the earlier "~43" figure was a stale estimate) — were wired and gated

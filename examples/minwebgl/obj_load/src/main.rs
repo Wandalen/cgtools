@@ -1,4 +1,5 @@
-//! Just draw a large point in the middle of the screen.
+//! Loads and renders a Wavefront OBJ model in WebGL2, parsing vertices,
+//! normals, texture coordinates, and face indices.
 
 use minwebgl as gl;
 use gl::

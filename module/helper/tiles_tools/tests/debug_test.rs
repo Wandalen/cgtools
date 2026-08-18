@@ -170,3 +170,59 @@ fn test_svg_export_triangular_and_isometric_styles_do_not_recurse_infinitely()
     std::fs::remove_file( &path ).ok();
   }
 }
+
+// BUG-347 task/bug/347_ecs_inspector_entity_record_inflates_component_counts.md
+// -- reproducer for component_counts inflation on entity re-recording.
+// test_kind: bug_reproducer(BUG-347)
+/// ## Root Cause
+/// `ECSInspector::entity_record` increments `component_counts` for each of an
+/// entity's components on every call, but never decrements the *previous*
+/// call's contribution before a re-record overwrites the same `entity_id` in
+/// `entity_data`. There is no `entity_remove`/`unrecord` method anywhere in
+/// `ECSInspector` either, so a component tally inflated by re-recording can
+/// never be corrected.
+/// ## Why Not Caught
+/// `test_ecs_inspector` only ever calls `entity_record` once per entity ID --
+/// no existing test re-records the same `entity_id` with a different
+/// component set, which is the only way the stale increment becomes
+/// observable.
+/// ## Fix Applied
+/// `entity_record` now looks up any existing entry for `entity.id` before
+/// overwriting it, decrements `component_counts` for that old entry's
+/// components, and only then applies the new insert and increments.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// A counter incremented inside a "record" method that can be called more
+/// than once for the same identity needs a matching decrement path for the
+/// value(s) it is replacing -- otherwise every re-record silently inflates
+/// the counter forever, with no panic or error to surface it.
+#[ test ]
+fn test_ecs_inspector_rerecording_entity_does_not_inflate_component_counts()
+{
+  let mut inspector = ECSInspector::new();
+
+  inspector.entity_record( EntityDebugInfo
+  {
+    id : 1,
+    components : vec![ "Position".to_string() ],
+    position : None,
+    data : vec![].into_iter().collect(),
+  });
+
+  inspector.entity_record( EntityDebugInfo
+  {
+    id : 1,
+    components : vec![ "Position".to_string(), "Health".to_string() ],
+    position : None,
+    data : vec![].into_iter().collect(),
+  });
+
+  assert_eq!( inspector.entity_count(), 1 );
+
+  let report = inspector.report_generate();
+  assert!(
+    report.contains( "Position: 1 entities" ),
+    "re-recording entity 1 should leave Position's count at 1 (one currently-recorded entity), got:\n{report}"
+  );
+}

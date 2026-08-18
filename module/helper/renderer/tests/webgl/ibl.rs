@@ -16,9 +16,9 @@ mod tests
   use gl::GL;
   use renderer::webgl::loaders::ibl;
 
-  async fn gl_init() -> GL
+  fn gl_init() -> GL
   {
-    gl::browser::setup( Default::default() );
+    gl::browser::setup( gl::browser::Config::default() );
     let options = gl::context::ContextOptions::default().antialias( false );
     let canvas = gl::canvas::make().unwrap();
     gl::context::from_canvas_with( &canvas, options ).unwrap()
@@ -82,7 +82,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn ibl_texture_parameters_apply_targets_mip_range_at_specular_1_not_diffuse()
   {
-    let gl = gl_init().await;
+    let gl = gl_init();
 
     let specular_1 = gl.create_texture();
     let specular_2 = gl.create_texture();

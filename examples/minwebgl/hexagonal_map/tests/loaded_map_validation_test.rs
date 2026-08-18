@@ -65,18 +65,18 @@ fn tile_in_range( tile : &FakeTile, config : &FakeConfig ) -> bool
 /// as array indices against a DIFFERENT, independently-loaded piece of state — cross-check
 /// user-supplied indices against the state they're about to index into, not just their own shape.
 #[ test ]
-fn bug_reproducer_bug_xxx_loaded_map_rejects_out_of_range_indices()
+fn bug_reproducer_bug_327_loaded_map_rejects_out_of_range_indices()
 {
   assert!
   (
     MAIN_RS.contains( "fn map_tile_indices_in_range" ),
-    "main.rs should validate a loaded map's tile indices before assigning it (BUG-XXX)"
+    "main.rs should validate a loaded map's tile indices before assigning it (BUG-327)"
   );
   assert!
   (
     MAIN_RS.contains( "map_tile_indices_in_range( &m, game_config )" ),
     "loaded_map_sync should check map_tile_indices_in_range before assigning the deserialized \
-    map (BUG-XXX)"
+    map (BUG-327)"
   );
 
   let config = FakeConfig { player_colors_len : 2, object_props_len : 3 };

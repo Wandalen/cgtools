@@ -55,8 +55,40 @@ mod private
         TextureFormat::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
         TextureFormat::Rgba8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,
         TextureFormat::Bgra8Unorm => wgpu::TextureFormat::Bgra8Unorm,
+        TextureFormat::Bgra8UnormSrgb => wgpu::TextureFormat::Bgra8UnormSrgb,
         TextureFormat::Rgba16Float => wgpu::TextureFormat::Rgba16Float,
         TextureFormat::Depth24Plus => wgpu::TextureFormat::Depth24Plus
+      }
+    }
+  }
+
+  impl TryFrom< wgpu::TextureFormat > for TextureFormat
+  {
+    /// The error type returned if the conversion fails.
+    type Error = Error;
+
+    /// The HAL equivalent of a raw wgpu format, when the v0 surface has one.
+    ///
+    /// Reverse of the `From< TextureFormat > for wgpu::TextureFormat` mapping
+    /// above. Needed because a swapchain picks its own presentation format —
+    /// the HAL must name whatever the driver chose, rather than only convert
+    /// formats it selected itself.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] when `format` has no equivalent in the
+    /// v0 surface.
+    fn try_from( format : wgpu::TextureFormat ) -> Result< Self, Self::Error >
+    {
+      match format
+      {
+        wgpu::TextureFormat::Rgba8Unorm => Ok( Self::Rgba8Unorm ),
+        wgpu::TextureFormat::Rgba8UnormSrgb => Ok( Self::Rgba8UnormSrgb ),
+        wgpu::TextureFormat::Bgra8Unorm => Ok( Self::Bgra8Unorm ),
+        wgpu::TextureFormat::Bgra8UnormSrgb => Ok( Self::Bgra8UnormSrgb ),
+        wgpu::TextureFormat::Rgba16Float => Ok( Self::Rgba16Float ),
+        wgpu::TextureFormat::Depth24Plus => Ok( Self::Depth24Plus ),
+        other => Err( Error::Unsupported( format!( "texture format {other:?} is outside the v0 surface" ) ) )
       }
     }
   }

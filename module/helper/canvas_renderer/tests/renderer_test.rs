@@ -102,3 +102,93 @@ fn resolve_mesh_colors_stays_in_sync_across_non_mesh_siblings()
     "second mesh encountered must get colors[1], not fall back to the default color"
   );
 }
+
+/// Extracts `CanvasRenderer::render`'s body verbatim from the crate's own `src/renderer.rs`, via
+/// brace counting from the `pub fn render` signature's opening `{` to its matching closing `}` --
+/// robust to whitespace/formatting drift, unlike an offset- or next-`pub fn`-based cut. No live
+/// `WebGl2RenderingContext` exists in this crate's test environment (see the reproducer below),
+/// so structural inspection of the real source is the only way to regression-test this function
+/// without adding disproportionate new browser-test infrastructure.
+fn render_fn_body() -> &'static str
+{
+  const SRC : &str = include_str!( "../src/renderer.rs" );
+
+  let sig_pos = SRC.find( "pub fn render" )
+  .expect( "`pub fn render` not found in src/renderer.rs -- has `CanvasRenderer::render` been renamed or moved?" );
+  let after_sig = &SRC[ sig_pos.. ];
+  let open_brace = after_sig.find( '{' )
+  .expect( "no opening brace found after the `pub fn render` signature" );
+
+  let mut depth = 0_i32;
+  let mut close = None;
+  for ( i, ch ) in after_sig[ open_brace.. ].char_indices()
+  {
+    match ch
+    {
+      '{' => depth += 1,
+      '}' =>
+      {
+        depth -= 1;
+        if depth == 0
+        {
+          close = Some( open_brace + i + 1 );
+          break;
+        }
+      },
+      _ => {}
+    }
+  }
+  let close = close.expect( "unbalanced braces while scanning `render`'s body -- extraction logic assumption broke" );
+
+  &after_sig[ ..close ]
+}
+
+// test_kind: bug_reproducer(BUG-342)
+/// ## Root Cause
+/// `render` binds `self.framebuffer` (`gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &self.framebuffer ) )`)
+/// but never rebinds the default (`None`) framebuffer before returning -- unlike its siblings
+/// `framebuffer_create` and `texture_set`, which both explicitly restore `None` at the end.
+/// WebGL's `bindFramebuffer` state persists on the context until explicitly changed, so any GL
+/// call issued after `render()` returns, by code that doesn't itself rebind first, silently
+/// targets the internal offscreen texture instead of the intended target.
+/// ## Why Not Caught
+/// All 3 real call sites (`animation_surface_rendering`, `curve_surface_rendering`,
+/// `lottie_surface_rendering`) immediately follow `canvas_renderer.render(...)` with a
+/// *different* renderer's `.render(...)` (`renderer::webgl::Renderer::render`), which explicitly
+/// rebinds its own target first -- masking the leak by luck, not by any restore `render` itself
+/// performs. No live `WebGl2RenderingContext` test infrastructure exists in this crate (no
+/// `wasm-bindgen-test` dev-dependency; same limitation BUG-227 already documented for this exact
+/// crate), so no behavioral test could have caught this either.
+/// ## Fix Applied
+/// Added `gl.bind_framebuffer( GL::FRAMEBUFFER, None );` at the end of `render`, mirroring
+/// `framebuffer_create`/`texture_set`'s existing convention. See `src/renderer.rs`.
+/// ## Prevention
+/// No live-context behavioral test is feasible here (see Why Not Caught and BUG-227's own
+/// Prevention section for this crate's precedent). This is a structural/source-inspection
+/// regression test instead: it extracts `render`'s body verbatim from the real `src/renderer.rs`
+/// at test-run time (so it always exercises the current implementation, never a copy that could
+/// drift stale) and asserts a `bind_framebuffer( ..., None )` restore call appears after the
+/// `Some( &self.framebuffer )` bind -- it fails if that restore is ever removed again.
+/// ## Pitfall
+/// A passing structural check here proves only that the *text* of the restore call is present in
+/// `render`'s body, not that it runs on every code path (e.g. it would not catch the restore
+/// being added before an early `return`/`?` that skips it). Read the diff, not just this test's
+/// PASS, when touching `render` again.
+#[ test ]
+fn render_restores_default_framebuffer_binding_before_returning()
+{
+  let body = render_fn_body();
+
+  let self_bind_pos = body.find( "Some( &self.framebuffer )" )
+  .expect( "test setup: expected render() to bind self.framebuffer at some point" );
+
+  let after_self_bind = &body[ self_bind_pos + "Some( &self.framebuffer )".len().. ];
+  let next_bind_call = after_self_bind.find( "bind_framebuffer" )
+  .map( | offset | &after_self_bind[ offset..( offset + 60 ).min( after_self_bind.len() ) ] );
+
+  assert!
+  (
+    matches!( next_bind_call, Some( call ) if call.contains( "None )" ) ),
+    "render() must call `bind_framebuffer( GL::FRAMEBUFFER, None )` after binding self.framebuffer and before returning (matching framebuffer_create/texture_set's own restore convention) -- next bind_framebuffer call found after the self.framebuffer bind was: {next_bind_call:?}"
+  );
+}

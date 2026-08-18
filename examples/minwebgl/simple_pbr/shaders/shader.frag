@@ -124,7 +124,7 @@ void main()
     float time = u_time / 1000.0;
 
     // Animate lights
-    // Fix(BUG-XXX-E): this branch used `*=` where the other two branches use `=`, so light 0's
+    // Fix(BUG-335): this branch used `*=` where the other two branches use `=`, so light 0's
     // xy was overwritten with itself component-wise multiplied by its own rotated value instead
     // of being replaced by the rotated value -- not a rotation at all, and not even
     // magnitude-preserving. Root cause: copy-paste across the three near-identical branches left

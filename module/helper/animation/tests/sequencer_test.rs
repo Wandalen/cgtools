@@ -308,6 +308,99 @@ mod tests
     assert!( matches!( result, Err( SequenceError::Unsorted ) ) );
   }
 
+  // test_kind: bug_reproducer(BUG-352)
+  /// ## Root Cause
+  /// `Sequence::pause` gated the `Paused` transition on `state == Running` only -- the identical
+  /// defect shape to `Tween::pause` ( see interpolation_test.rs ) -- so calling it while the
+  /// Sequence itself was still `Pending` ( `elapsed` hasn't yet reached the active player's own
+  /// `delay_get()`, see `update`'s `Pending` arm ) was a silent no-op: `self.elapsed` kept
+  /// accumulating on every later `update()` exactly as if `pause()` had never been called.
+  /// ## Why Not Caught
+  /// No existing `Sequence` pause/resume test exists at all -- `test_sequencer_pause_resume`
+  /// exercises the unrelated `Sequencer` struct, not `Sequence`.
+  /// ## Fix Applied
+  /// Widened `Sequence::pause`'s gate to `matches!( self.state, Running | Pending )`, mirroring
+  /// the `Tween::pause` fix. See `sequencer.rs`.
+  /// ## Prevention
+  /// Added this test, which pauses a two-player Sequence while still in its own pre-roll delay,
+  /// drives a large `update()` while paused, and asserts `time()`/`progress()` stay frozen.
+  /// ## Pitfall
+  /// Invisible for any Sequence whose first player has zero delay ( `Pending` is a one-tick
+  /// pass-through there ) -- only a Sequence paused during a real pre-roll delay exposes it.
+  #[ test ]
+  fn test_sequence_pause_during_pending_delay_freezes_time_and_progress()
+  {
+    let players = vec!
+    [
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_delay( 5.0 ),
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_delay( 6.0 ),
+    ];
+    let mut sequence = Sequence::new( players ).unwrap();
+
+    sequence.update( 1.0 ); // elapsed = 1.0, well inside the 5.0s pre-roll delay
+    assert_eq!( sequence.time(), 1.0 );
+    assert_eq!( sequence.progress(), 0.0 );
+
+    sequence.pause();
+
+    sequence.update( 100.0 ); // large update while paused -- must not advance anything
+    assert_eq!
+    (
+      sequence.time(), 1.0,
+      "pause() was a no-op while the Sequence was still in its own Pending phase -- elapsed kept advancing"
+    );
+    assert_eq!( sequence.progress(), 0.0 );
+    assert!( !sequence.is_completed() );
+  }
+
+  // test_kind: bug_reproducer(BUG-353)
+  /// ## Root Cause
+  /// `Sequence::update`'s Pending->Running and Running->Completed transitions were two mutually
+  /// exclusive arms of one `match self.state`, keyed on `self.state` as it stood at the START of
+  /// the call -- so at most one of the two could ever fire per `update()`. A single `delta_time`
+  /// large enough to both leave `Pending` AND finish the ( now-active ) last player in the very
+  /// same call landed on `Running`, since the `match` had already committed to the `Pending` arm
+  /// and never re-evaluated the `Running` arm's condition against the just-updated state.
+  /// ## Why Not Caught
+  /// No existing `Sequence` test drove `update()` with a `delta_time` large enough to span the
+  /// entire timeline ( leave `Pending` AND complete the last player ) in a single call -- every
+  /// prior multi-frame test called `update()` with deltas that stayed within one phase at a time,
+  /// and no existing `Sequence` test ever drove one all the way to `is_completed() == true`.
+  /// ## Fix Applied
+  /// Replaced the single `match self.state { ... }` with two sequential `if` checks, so the
+  /// Running->Completed condition is re-evaluated against the ( possibly just-updated ) state
+  /// after the Pending->Running transition applies, in the same call. See `sequencer.rs`.
+  /// ## Prevention
+  /// Added this test, which drives a fresh, still-`Pending`, 2-player `Sequence` with one
+  /// oversized `update()` call and asserts `is_completed()` is `true` immediately, matching
+  /// `progress() == 1.0` in that same call -- not one call later.
+  /// ## Pitfall
+  /// Self-corrects on the very next `update()` call regardless ( that call's own check
+  /// re-evaluates from the now-`Running` state and finds `Completed` ), so this defect is
+  /// invisible to any test that calls `update()` more than once before checking `is_completed()`.
+  #[ test ]
+  fn test_sequence_update_completes_in_same_call_that_leaves_pending()
+  {
+    let players = vec!
+    [
+      Tween::new( 0.0_f32, 10.0_f32, 0.5, Linear::build() ).with_delay( 0.1 ),
+      Tween::new( 0.0_f32, 10.0_f32, 0.5, Linear::build() ).with_delay( 0.6 ),
+    ];
+    let mut sequence = Sequence::new( players ).unwrap();
+
+    // One oversized update spans the entire timeline: leaves the Sequence's own Pending phase
+    // AND drives the last player to completion, in the same call.
+    sequence.update( 100.0 );
+
+    assert_eq!( sequence.progress(), 1.0 );
+    assert!
+    (
+      sequence.is_completed(),
+      "is_completed() still false the same call progress() already reports 1.0 -- \
+      Pending->Running and Running->Completed didn't both apply within one update()"
+    );
+  }
+
   // test_kind: bug_reproducer(BUG-138)
   /// ## Root Cause
   /// `Sequence::update` used `binary_search_by`'s `Err( id )` insertion-point directly as the

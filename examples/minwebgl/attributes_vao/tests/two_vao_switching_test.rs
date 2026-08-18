@@ -12,7 +12,7 @@
 //! `vert_buffer`, positioned/sized from `vert_buffer2`), so nothing crashed or errored —
 //! only a source read against the readme's own stated purpose reveals the mismatch.
 //!
-//! ## Fix Applied (BUG-YYY)
+//! ## Fix Applied (BUG-318)
 //! Split into two independent VAOs (`vao` bound entirely to `vert_buffer`, `vao2` bound
 //! entirely to `vert_buffer2`), each with its own 3 attribute_pointer calls against a single
 //! buffer, and two `draw_arrays` calls (bind `vao` → draw 5 → bind `vao2` → draw 5).

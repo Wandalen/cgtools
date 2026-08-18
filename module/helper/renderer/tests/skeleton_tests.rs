@@ -26,9 +26,9 @@ mod tests
     skeleton::Skeleton
   };
 
-  async fn test_init() -> GL
+  fn test_init() -> GL
   {
-    gl::browser::setup( Default::default() );
+    gl::browser::setup( gl::browser::Config::default() );
     let options = gl::context::ContextOptions::default().antialias( false );
 
     let canvas = gl::canvas::make().unwrap();
@@ -37,7 +37,7 @@ mod tests
 
   async fn skeleton_test_init( gltf_path : &str ) -> Skeleton
   {
-    let gl = test_init().await;
+    let gl = test_init();
     let window = gl::web_sys::window().unwrap();
     let document = window.document().unwrap();
 
@@ -117,7 +117,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn load_texture_data_4f_test()
   {
-    let gl = test_init().await;
+    let gl = test_init();
 
     let texture = gl.create_texture().unwrap();
 

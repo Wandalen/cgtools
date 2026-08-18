@@ -109,7 +109,7 @@ impl_locations!
 /// Computes the ( x, y ) JFA jump distance, in pixels, for step pass `i` -- always equal in
 /// both axes.
 ///
-/// Fix(BUG-XXX-C): `jfa_step.frag`'s `offset` calculation already divides by `u_resolution`
+/// Fix(BUG-333): `jfa_step.frag`'s `offset` calculation already divides by `u_resolution`
 /// per-axis to convert a pixel-space jump into normalized UV space, which alone correctly
 /// compensates for a non-square canvas ( each axis divides by its own resolution component ) --
 /// exactly as this crate's sibling "production" shader
@@ -713,9 +713,9 @@ mod tests
   /// the exact distortion the per-axis division was meant to remove. When a sibling
   /// implementation documents a fix for this pattern, any other copy sharing the same
   /// algorithm must be checked for the identical mistake, not assumed independent.
-  // Fix(BUG-XXX-C): reproducer for the JFA step's x-axis jump distance being inflated by
+  // Fix(BUG-333): reproducer for the JFA step's x-axis jump distance being inflated by
   // aspect ratio relative to the y-axis, stretching the outline on non-square canvases.
-  // test_kind: bug_reproducer(BUG-XXX-C)
+  // test_kind: bug_reproducer(BUG-333)
   #[ allow( clippy::float_cmp, reason = "both sides come from the same deterministic f32 formula in jfa_step_size, so IEEE-754 guarantees bit-exact results, not merely close ones" ) ]
   #[ test ]
   fn test_jfa_step_size_is_symmetric_across_passes_and_time()
@@ -756,8 +756,8 @@ mod tests
   /// full `u_step_size` vector ( component-wise `vec2 * vec2` ), matching the sibling
   /// "production" shader exactly, not broadcast only its `.x` component -- which would
   /// silently leave the uploaded `.y` component unread.
-  // Fix(BUG-XXX-C): reproducer for `jfa_step.frag` reading only `u_step_size.x`.
-  // test_kind: bug_reproducer(BUG-XXX-C)
+  // Fix(BUG-333): reproducer for `jfa_step.frag` reading only `u_step_size.x`.
+  // test_kind: bug_reproducer(BUG-333)
   #[ test ]
   fn test_jfa_step_shader_uses_full_step_size_vector_not_x_only()
   {

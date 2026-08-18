@@ -14,6 +14,14 @@
 //! backend's own capabilities() output, not assumed"). `svg`'s own claim is
 //! still fully exercised: T03 already proves it accepts a command from a
 //! family it declares `true`.
+//!
+//! Whole file gated to the three backends it actually exercises: every
+//! fixture and module below is used only by `none_backend`/`svg_backend`/
+//! `native_backend`, so a build enabling none of them (e.g.
+//! `adapter-terminal`/`adapter-webgl`/`adapter-webgpu` alone) would
+//! otherwise trip dead-code-deny/unused-imports-deny on this file's
+//! top-level fixtures with nothing left to compile them in.
+#![ cfg( any( feature = "adapter-none", feature = "adapter-svg", all( feature = "adapter-native", not( target_arch = "wasm32" ) ) ) ) ]
 
 use tilemap_renderer::commands::{ RenderCommand, Sprite };
 use tilemap_renderer::types::{ BlendMode, ResourceId, Transform };

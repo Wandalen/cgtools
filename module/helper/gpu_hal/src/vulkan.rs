@@ -133,6 +133,42 @@ mod private
     pub size : [ u32 ; 2 ]
   }
 
+  /// Raw Vulkan handles backing a `Surface::VulkanWindow`: a real
+  /// `VK_KHR_swapchain` over a window, acquired per frame and presented on the
+  /// context's own graphics queue.
+  ///
+  /// The windowed counterpart of [`SurfaceVulkan`] : where that one renders
+  /// into one long-lived offscreen image read back with `pixels_read`, this
+  /// one hands out a different swapchain image every frame.
+  #[ derive( Debug ) ]
+  pub struct SurfaceVulkanWindow
+  {
+    /// Context, window surface and swapchain, owned together.
+    ///
+    /// Held in `ManuallyDrop` so that dropping the surface never destroys the
+    /// device or instance : `device` below, and the `Device`/`Queue` handed
+    /// back beside this surface, hold clones of those same handles, and this
+    /// backend's v0 tradeoff is to leak long-lived Vulkan objects rather than
+    /// risk dangling them ( see this module's own doc comment, and
+    /// `vulkan_handles_create`'s `mem::forget` for the offscreen path ).
+    pub windowed : core::mem::ManuallyDrop< minvulkan::surface::Windowed >,
+    /// Device handles, for the layout transition `present` records.
+    pub device : DeviceVulkan,
+    /// The graphics queue that transition is submitted on, and that presents.
+    pub queue : ash::vk::Queue,
+    /// Index of the swapchain image acquired by the most recent
+    /// `current_view`, awaiting `present`.
+    ///
+    /// Interior mutability for the same reason as `Surface::NativeWindow`'s
+    /// own `acquired` : `current_view` takes `&self` on every backend, because
+    /// every other one has nothing to hold between acquire and present.
+    pub acquired : core::cell::RefCell< Option< u32 > >,
+    /// Presentation format the swapchain selected, in the HAL's vocabulary.
+    pub format : TextureFormat,
+    /// `format` still in its original `VkFormat` form.
+    pub vulkan_format : ash::vk::Format
+  }
+
   /// Raw Vulkan handles backing a `Buffer::Vulkan`: a dedicated
   /// `HOST_VISIBLE | HOST_COHERENT` allocation, written directly via
   /// `vkMapMemory` ( no staging buffer for CPU -> buffer uploads ).
@@ -350,8 +386,44 @@ mod private
       TextureFormat::Rgba8Unorm => Ok( ash::vk::Format::R8G8B8A8_UNORM ),
       TextureFormat::Rgba8UnormSrgb => Ok( ash::vk::Format::R8G8B8A8_SRGB ),
       TextureFormat::Bgra8Unorm => Ok( ash::vk::Format::B8G8R8A8_UNORM ),
+      TextureFormat::Bgra8UnormSrgb => Ok( ash::vk::Format::B8G8R8A8_SRGB ),
       TextureFormat::Rgba16Float => Ok( ash::vk::Format::R16G16B16A16_SFLOAT ),
       TextureFormat::Depth24Plus => depth_format_select( instance, physical_device )
+    }
+  }
+
+  impl TryFrom< ash::vk::Format > for TextureFormat
+  {
+    /// The error type returned if the conversion fails.
+    type Error = Error;
+
+    /// The HAL equivalent of a raw `VkFormat`, when the v0 surface has one.
+    ///
+    /// Reverse of `texture_format_to_vulkan`, minus its depth arm : depth
+    /// formats are *selected* from what the device supports rather than named
+    /// by a driver, so nothing ever needs converting back. Needed because a
+    /// swapchain picks its own presentation format — the HAL must name
+    /// whatever the driver chose, exactly as the `wgpu` backend's own
+    /// `TryFrom< wgpu::TextureFormat >` does.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unsupported`] when `format` has no equivalent in the
+    /// v0 surface.
+    fn try_from( format : ash::vk::Format ) -> Result< Self, Self::Error >
+    {
+      match format
+      {
+        ash::vk::Format::R8G8B8A8_UNORM => Ok( Self::Rgba8Unorm ),
+        ash::vk::Format::R8G8B8A8_SRGB => Ok( Self::Rgba8UnormSrgb ),
+        ash::vk::Format::B8G8R8A8_UNORM => Ok( Self::Bgra8Unorm ),
+        ash::vk::Format::B8G8R8A8_SRGB => Ok( Self::Bgra8UnormSrgb ),
+        ash::vk::Format::R16G16B16A16_SFLOAT => Ok( Self::Rgba16Float ),
+        other => Err( Error::Unsupported( format!
+        (
+          "VkFormat {other:?} has no gpu_hal TextureFormat equivalent"
+        ) ) )
+      }
     }
   }
 
@@ -1842,6 +1914,77 @@ deliberately -- consuming it is what makes the recorder unusable after \
     Ok( pixels )
   }
 
+  /// Transitions a just-rendered swapchain image from the layout every render
+  /// pass leaves it in to the one `vkQueuePresentKHR` requires.
+  ///
+  /// `color_attachment_description`'s `final_layout` is
+  /// `TRANSFER_SRC_OPTIMAL` — chosen so `pixels_read` can copy straight out of
+  /// an offscreen surface — while presentation requires `PRESENT_SRC_KHR`.
+  /// Bridging the two here rather than making the render pass's final layout
+  /// conditional keeps every existing pipeline and render pass untouched :
+  /// Vulkan's render pass compatibility rules ignore attachment layouts, so a
+  /// pipeline built against the offscreen pass stays valid for a windowed one.
+  ///
+  /// No semaphores are involved, and none are needed : `submit` above ends
+  /// with `vkQueueWaitIdle`, so all rendering is provably complete before this
+  /// transition is recorded, and `Swapchain::frame_acquire` waits on a fence
+  /// rather than a semaphore, so the image is provably owned before rendering
+  /// begins. That is a deliberate v0 simplification — correctness without
+  /// pipelining — matching this backend's synchronous `submit`.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`Error::Vulkan`] if allocating, recording or submitting the
+  /// one-shot command buffer carrying the barrier fails.
+  pub fn present_transition
+  (
+    device_vulkan : &DeviceVulkan,
+    queue : ash::vk::Queue,
+    image : ash::vk::Image
+  ) -> Result< (), Error >
+  {
+    let subresource_range = ash::vk::ImageSubresourceRange::default()
+    .aspect_mask( ash::vk::ImageAspectFlags::COLOR )
+    .base_mip_level( 0 )
+    .level_count( 1 )
+    .base_array_layer( 0 )
+    .layer_count( 1 );
+    let barrier = image_layout_barrier
+    (
+      image,
+      subresource_range,
+      ash::vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+      ash::vk::ImageLayout::PRESENT_SRC_KHR,
+      ash::vk::AccessFlags::TRANSFER_READ,
+      ash::vk::AccessFlags::empty()
+    );
+
+    command_buffer_one_shot_submit
+    (
+      device_vulkan,
+      queue,
+      | command_buffer |
+      {
+        // SAFETY: `command_buffer` is recording ( `command_buffer_one_shot_submit`
+        // began it ), and `barrier` references only `image`, which belongs to a
+        // swapchain created on this same device.
+        unsafe
+        {
+          device_vulkan.device.cmd_pipeline_barrier
+          (
+            command_buffer,
+            ash::vk::PipelineStageFlags::TRANSFER,
+            ash::vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+            ash::vk::DependencyFlags::empty(),
+            &[],
+            &[],
+            &[ barrier ]
+          );
+        }
+      }
+    )
+  }
+
   /// Ends `encoder`'s command buffer recording and submits it, blocking
   /// until the GPU finishes — the synchronous completion this call
   /// guarantees is what lets a caller safely read back results ( e.g.
@@ -1906,6 +2049,7 @@ crate::mod_interface!
   own use draw_indexed;
   own use render_pass_end;
   own use pixels_read;
+  own use present_transition;
   own use submit;
   own use index_format_to_vulkan;
 
@@ -1914,6 +2058,7 @@ crate::mod_interface!
     DeviceVulkan,
     QueueVulkan,
     SurfaceVulkan,
+    SurfaceVulkanWindow,
     BufferVulkan,
     TextureVulkan,
     TextureViewVulkan,

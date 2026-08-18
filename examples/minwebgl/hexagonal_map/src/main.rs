@@ -362,7 +362,7 @@ fn screen_params_compute( width : u32, height : u32 ) -> ( F32x2, F32x2 )
 }
 
 /// Applies a dropped-in map JSON payload, if one has arrived since the last frame.
-// Fix(BUG-XXX): a dropped map JSON was deserialized and assigned straight to `map` with no
+// Fix(BUG-327): a dropped map JSON was deserialized and assigned straight to `map` with no
 // validation of its tiles' `owner_index`/`object_index` against the current `game_config` —
 // an out-of-range value (hand-edited file, or a map saved under a config with more
 // players/objects than the one it's re-loaded into) panics on the very next render via

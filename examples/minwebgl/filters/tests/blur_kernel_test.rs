@@ -50,7 +50,7 @@ fn impl_block< 'a >( src : &'a str, marker : &str ) -> &'a str
 /// bug produces a visibly-working filter (it does blur), so it is invisible without explicitly
 /// comparing kernel shapes across sibling variants.
 #[ test ]
-fn bug_reproducer_bug_xxx_stack_blur_uses_distinct_triangular_kernel_not_box_average()
+fn bug_reproducer_bug_324_stack_blur_uses_distinct_triangular_kernel_not_box_average()
 {
   let box_block = impl_block( BLUR_RS, "impl Filter for Blur< Box >" );
   let stack_block = impl_block( BLUR_RS, "impl Filter for Blur< Stack >" );
@@ -64,7 +64,7 @@ fn bug_reproducer_bug_xxx_stack_blur_uses_distinct_triangular_kernel_not_box_ave
     "Stack Blur's fragment shader has no per-tap weight term — it uses the same uniform \
     box-average kernel as Box Blur (sum of equal-weight taps / tap count), making \"Stack Blur\" \
     and \"Box Blur\" produce identical output despite being offered as two distinct filter \
-    choices in the UI (BUG-XXX). A real stack blur uses a triangular (linearly-decreasing) \
+    choices in the UI (BUG-324). A real stack blur uses a triangular (linearly-decreasing) \
     weight kernel that this test's fix introduces."
   );
 }

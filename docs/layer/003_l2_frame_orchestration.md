@@ -55,9 +55,13 @@ and resolve mechanics are the same shape of problem.
   horizontal-blur and 5 mip-level vertical-blur targets
   (`horizontal_targets` / `vertical_targets`, `MIPS = 5`), and its
   `render()` alternates horizontal→vertical Gaussian blur per mip before
-  compositing all 5 blurred mips into the output target. No test citation
-  — the same browser-test-infrastructure gap named elsewhere in this
-  layer.
+  compositing all 5 blurred mips into the output target. Structurally
+  tested against a real headless WebGL2 context by
+  `tests/unreal_bloom_tests.rs` (2 tests: a full render completes without
+  error through the real `SwapFramebuffer`-bound pass cycle, and a second
+  render after `bloom_radius_set`/`bloom_strength_set` mutation also
+  completes) — signature regressions, panics, and incomplete-framebuffer
+  failures are caught, though not pixel-level correctness.
 - `renderer` (`src/webgl/post_processing/outline/wide_outline.rs`, legacy
   path): a JFA (Jump Flood Algorithm) ping-pong outline pass —
   `WideOutlinePass` allocates two step framebuffers
@@ -77,10 +81,16 @@ and resolve mechanics are the same shape of problem.
 - `renderer` (`src/webgl/loaders/pmrem.rs`): a PMREM-prefiltering render
   cycle over a cubemap target set, run at load time rather than per frame.
   Structurally tested end-to-end against a real headless WebGL2 context by
-  `tests/pmrem_tests.rs` (3 tests: full-output-set, single-mip, and
-  non-power-of-two resolution) — signature regressions, panics, and
-  incomplete-framebuffer failures are caught, though not pixel-level
-  correctness (still visual-only, via the `gltf_viewer` example).
+  `tests/pmrem_tests.rs` (4 tests: full-output-set, single-mip,
+  non-power-of-two resolution, and now one pixel-level correctness check —
+  `generate_uniform_environment_prefilters_to_uniform_color` feeds a
+  uniform-color source cubemap through `generate()` and asserts every
+  sampled output mip stays within tolerance of the input color, the
+  analytically-provable invariant that a weighted convolution of a
+  constant field is that same constant) — signature regressions, panics,
+  incomplete-framebuffer failures, and this one correctness property are
+  now caught; broader pixel-level correctness across non-uniform inputs
+  remains visual-only, via the `gltf_viewer` example.
 - `renderer` (`src/webgpu/renderer.rs`, canonical `gpu_hal`-backed path): a
   further independent embedded instance — `frame_targets_create()` builds
   the HDR target set and `render()` runs the opaque → tonemap ordering,
@@ -136,6 +146,7 @@ name and a documented home.
 | `module/helper/renderer/tests/webgl/gbuffer.rs` | Native coverage for `GBufferAttachment::define_const`/`attribute_info` (task 225) |
 | `module/helper/renderer/tests/fbo_pass_cycle_test.rs` | Live headless-WebGL2 bind/clear/render coverage for both `ShadowMap::render` and `GBuffer::render` |
 | `module/helper/renderer/src/webgl/post_processing/unreal_bloom.rs` | 10-target ping-pong bloom pass (5 mip-level horizontal/vertical blur targets) |
+| `module/helper/renderer/tests/unreal_bloom_tests.rs` | Structural browser coverage: real pass render through the `SwapFramebuffer`-bound cycle, before and after parameter mutation |
 | `module/helper/renderer/src/webgl/post_processing/outline/wide_outline.rs` | JFA ping-pong outline pass (two step framebuffers) |
 | `module/helper/renderer/tests/webgl/wide_outline.rs` | `wasm_bindgen_test` rendering two real `WideOutlinePass` instances against a live WebGL2 context (BUG-179) |
 | `module/helper/renderer/tests/webgl/jfa_buffer_selection.rs` | Native coverage for `WideOutlinePass::jfa_step_targets_fb0` (BUG-243) |
@@ -143,7 +154,7 @@ name and a documented home.
 | `module/helper/renderer/tests/webgl/jfa_silhouette.rs` | Native coverage for the silhouette check in `jfa_init.frag`/`outline.frag` (BUG-181, BUG-193) |
 | `module/helper/renderer/tests/webgl/outline_seed_sentinel.rs` | Native coverage for `outline.frag`'s seed-validity check (BUG-182) |
 | `module/helper/renderer/src/webgl/loaders/pmrem.rs` | PMREM-prefiltering render cycle over a cubemap target set |
-| `module/helper/renderer/tests/pmrem_tests.rs` | Structural coverage of `pmrem::generate()` against a real headless WebGL2 context |
+| `module/helper/renderer/tests/pmrem_tests.rs` | Structural coverage of `pmrem::generate()` against a real headless WebGL2 context, plus one analytically-grounded pixel-level correctness check (uniform-color input stays uniform through prefiltering) |
 | `module/helper/renderer/src/webgpu/renderer.rs` | Canonical `gpu_hal`-backed embedded instance: HDR target set + opaque → tonemap ordering |
 | `module/helper/renderer/tests/manual/readme.md` | Real-browser (`browsee`) pixel verification of the WebGPU/WebGL opaque path — `rgb 205 46 41` lit quad, `rgb 0 0 0` background, both backends |
 | `module/helper/tilemap_renderer/src/adapters/webgl.rs` | Per-batch VAO lifecycle and draw-time state management |

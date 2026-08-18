@@ -578,6 +578,23 @@ impl SaveManager {
     // Create updated metadata with actual size
     let mut metadata = state.metadata.clone();
     metadata.size_bytes = serialized_data.len() as u64;
+    // BUG-348 task/bug/348_save_manager_meta_compressed_flag_desync.md -- .meta
+    // sidecar's compressed flag never synced with the serializer; fix below.
+    // Fix(BUG-348): synchronize the .meta sidecar's `compressed` flag with
+    // the serializer that actually determines whether the .save file's
+    // bytes are compressed, instead of leaving whatever `compressed` value
+    // the caller's SerializableGameState happened to already carry.
+    // Root cause: `GameStateSerializer.compress` (drives real compression)
+    // and `SaveMetadata.compressed` (an independent field, set only via the
+    // unrelated `SaveMetadata::with_compression` builder) were never
+    // synchronized anywhere -- `game_state_load` still round-trips
+    // correctly because it consults the serializer's own `compress` field,
+    // not the metadata, which is exactly what let this desync go unnoticed.
+    // Pitfall: two fields describing the same underlying fact will drift
+    // apart unless one is derived from the other at the one place both are
+    // written -- verify every field a sidecar/report writes is actually
+    // sourced from the value that controls the real behavior it describes.
+    metadata.compressed = self.serializer.compress;
 
     // Write save file
     let mut save_file = BufWriter::new(File::create(save_path)?);

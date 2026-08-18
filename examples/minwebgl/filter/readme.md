@@ -3,7 +3,7 @@
 **Keywords:** Post-Processing, Filters, WebGL2, Shaders
 
 This demo demonstrates real-time image filtering in WebGL2. It applies a 3x3 convolution kernel
-<!-- Fix(BUG-XXX): named several other post-processing filter categories this crate never
+<!-- Fix(BUG-323): named several other post-processing filter categories this crate never
      implements — main.frag applies exactly one hardcoded convolution kernel (emboss).
      Root cause: aspirational wording never checked against the actual shader.
      Pitfall: a demo whose purpose IS showing a filter is exactly where a wrong named

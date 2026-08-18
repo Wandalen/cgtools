@@ -46,13 +46,13 @@ fn apply_hue_shift( original_hue : f32, shift : f32 ) -> f32
 /// in `[0, 1)`) silently becomes wrong the moment a caller feeds it a value from a wider domain —
 /// the helper itself never changed and has no way to signal the violated assumption.
 #[ test ]
-fn bug_reproducer_bug_xxx_hue_shift_wraps_into_zero_one_domain()
+fn bug_reproducer_bug_325_hue_shift_wraps_into_zero_one_domain()
 {
   assert!
   (
     HSL_ADJUSTMENT_RS.contains( "mod( hsl.x + u_hsl.x, 1.0 )" ),
     "hsl_adjustment.rs should wrap the hue shift back into [0, 1) via mod(...) before hsl2rgb \
-    sees it — a bare `hsl.x += u_hsl.x;` under-wraps at slider extremes (BUG-XXX)"
+    sees it — a bare `hsl.x += u_hsl.x;` under-wraps at slider extremes (BUG-325)"
   );
 
   // Sweep the full reachable (original_hue, shift) space: original_hue from rgb2hsl is [0, 1),
@@ -69,7 +69,7 @@ fn bug_reproducer_bug_xxx_hue_shift_wraps_into_zero_one_domain()
       (
         ( 0.0..1.0 ).contains( &wrapped ),
         "apply_hue_shift( {original_hue}, {shift} ) = {wrapped}, outside [0, 1) — hue2rgb's \
-        single-step ±1 correction assumes its input is already in this range (BUG-XXX)"
+        single-step ±1 correction assumes its input is already in this range (BUG-325)"
       );
       checked += 1;
     }

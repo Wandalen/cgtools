@@ -91,8 +91,8 @@ mod tests
   /// exactly where a single stray compound-assignment operator hides -- a reviewer's eye tends
   /// to pattern-match the overall shape of each branch and can skip over a one-character
   /// operator difference. Diff sibling branches token-by-token, not just by silhouette.
-  // Fix(BUG-XXX-E): reproducer for the light-0 rotation branch using `*=` instead of `=`.
-  // test_kind: bug_reproducer(BUG-XXX-E)
+  // Fix(BUG-335): reproducer for the light-0 rotation branch using `*=` instead of `=`.
+  // test_kind: bug_reproducer(BUG-335)
   #[ test ]
   fn test_light_rotation_branches_all_use_plain_assignment()
   {

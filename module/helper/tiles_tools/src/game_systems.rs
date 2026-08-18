@@ -562,6 +562,15 @@ impl Resource {
   /// Creates a new resource with the given maximum value.
   #[must_use]
   pub fn new(maximum: f32) -> Self {
+    // Fix(BUG-349): clamp maximum to a non-negative value, matching the
+    // invariant maximum_set already enforces (`self.maximum = value.max(0.0)`).
+    // Root cause: modify/current_set both call `.clamp(0.0, self.maximum)`,
+    // and f32::clamp asserts `min <= max` unconditionally -- a negative
+    // maximum stored here made every later modify/current_set call panic.
+    // Pitfall: a sibling setter (maximum_set) enforcing an invariant
+    // correctly is not evidence every value-producing path (new,
+    // with_regeneration) enforces the same invariant -- check each one.
+    let maximum = maximum.max(0.0);
     Self {
       current: maximum,
       maximum,
@@ -572,6 +581,8 @@ impl Resource {
   /// Creates a resource with regeneration.
   #[must_use]
   pub fn with_regeneration(maximum: f32, regeneration: f32) -> Self {
+    // Fix(BUG-349): see `Resource::new` -- same clamp, same root cause.
+    let maximum = maximum.max(0.0);
     Self {
       current: maximum,
       maximum,

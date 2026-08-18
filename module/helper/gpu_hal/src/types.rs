@@ -90,6 +90,9 @@ mod private
     Rgba8UnormSrgb,
     /// 8-bit bgra, linear ( common canvas format ).
     Bgra8Unorm,
+    /// 8-bit bgra, sRGB-encoded ( the format desktop swapchains most often
+    /// select for a window surface ).
+    Bgra8UnormSrgb,
     /// 16-bit float rgba.
     Rgba16Float,
     /// 24-bit depth.
@@ -109,7 +112,7 @@ mod private
     {
       match self
       {
-        Self::Rgba8Unorm | Self::Rgba8UnormSrgb | Self::Bgra8Unorm => Ok( 4 ),
+        Self::Rgba8Unorm | Self::Rgba8UnormSrgb | Self::Bgra8Unorm | Self::Bgra8UnormSrgb => Ok( 4 ),
         Self::Rgba16Float => Ok( 8 ),
         Self::Depth24Plus =>
         {
@@ -130,6 +133,7 @@ mod private
         TextureFormat::Rgba8Unorm => gl::GpuTextureFormat::Rgba8unorm,
         TextureFormat::Rgba8UnormSrgb => gl::GpuTextureFormat::Rgba8unormSrgb,
         TextureFormat::Bgra8Unorm => gl::GpuTextureFormat::Bgra8unorm,
+        TextureFormat::Bgra8UnormSrgb => gl::GpuTextureFormat::Bgra8unormSrgb,
         TextureFormat::Rgba16Float => gl::GpuTextureFormat::Rgba16float,
         TextureFormat::Depth24Plus => gl::GpuTextureFormat::Depth24plus
       }
@@ -155,6 +159,7 @@ mod private
         gl::GpuTextureFormat::Rgba8unorm => Ok( Self::Rgba8Unorm ),
         gl::GpuTextureFormat::Rgba8unormSrgb => Ok( Self::Rgba8UnormSrgb ),
         gl::GpuTextureFormat::Bgra8unorm => Ok( Self::Bgra8Unorm ),
+        gl::GpuTextureFormat::Bgra8unormSrgb => Ok( Self::Bgra8UnormSrgb ),
         gl::GpuTextureFormat::Rgba16float => Ok( Self::Rgba16Float ),
         gl::GpuTextureFormat::Depth24plus => Ok( Self::Depth24Plus ),
         other => Err( Error::Unsupported( format!( "texture format {other:?} is outside the v0 surface" ) ) )

@@ -82,11 +82,20 @@ _tag_label()
 
 _html_escape()
 {
+  # BUG-315 task/bug/315_gallery_html_escape_ampersand_backreference.md --
+  # Fix(BUG-315): each replacement's & must be escaped as \& below.
+  # Root cause: bash's ${var/pattern/replacement} treats an unescaped & in `replacement`
+  # as a backreference to the matched text (sed-style), not a literal ampersand -- so
+  # without the backslash, "<" became "<lt;" instead of "&lt;" (matched text + literal
+  # entity-name suffix), and likewise for >/".
+  # Pitfall: the &->&amp; line looks correct even when written the same broken way, since
+  # its matched text (&) coincidentally equals the character the literal replacement
+  # would have inserted anyway -- that coincidence hid the bug in the other 3 lines.
   local _s="$1"
-  _s="${_s//&/&amp;}"
-  _s="${_s//</&lt;}"
-  _s="${_s//>/&gt;}"
-  _s="${_s//\"/&quot;}"
+  _s="${_s//&/\&amp;}"
+  _s="${_s//</\&lt;}"
+  _s="${_s//>/\&gt;}"
+  _s="${_s//\"/\&quot;}"
   printf '%s' "$_s"
 }
 
