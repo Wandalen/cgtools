@@ -13,7 +13,7 @@ Controls:
 - Hold E - arm kick
 - Hold Q - leg kick
 
-![Showcase]( ./showcase.webp )
+![Showcase](./showcase.webp)
 
 **[How to run](../../how_to_run.md)**
 

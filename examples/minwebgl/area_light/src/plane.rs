@@ -59,13 +59,24 @@ pub fn plane_material
 
 pub fn plane_vao( gl : &GL ) -> Result< WebGlVertexArrayObject, gl::WebglError >
 {
+  // Fix(BUG-VVV): vertex 3's texcoord was `( 1.0, 0.0 )`, a duplicate of vertex 2's —
+  // breaking the bilinear UV grid the other 3 vertices establish ( uv.x tracks -z,
+  // uv.y tracks x ), which requires vertex 3 ( x=1, z=-1, the corner diagonal from
+  // vertex 0 ) to be `( 1.0, 1.0 )`. Invisible today only because `plane_material`
+  // currently fills both textures with a single constant 1x1 texel ( any UV samples the
+  // same color under `wrap_clamp`/`filter_nearest` ), but wrong the moment a real
+  // ( non-1x1 ) texture is bound here.
+  // Root cause: vertex 3's texcoord row was copy-pasted from vertex 2's instead of being
+  // computed for its own corner.
+  // Pitfall: don't "fix" this by touching vertices 0/1/2 — they already form a correct,
+  // consistent grid; only vertex 3's row was wrong.
   let plane_vertices : &[ f32 ] =
   &[
     // position         // normal         // texcoord
     -1.0, 0.0,  1.0,    0.0, 1.0, 0.0,    0.0, 0.0,
      1.0, 0.0,  1.0,    0.0, 1.0, 0.0,    0.0, 1.0,
     -1.0, 0.0, -1.0,    0.0, 1.0, 0.0,    1.0, 0.0,
-     1.0, 0.0, -1.0,    0.0, 1.0, 0.0,    1.0, 0.0,
+     1.0, 0.0, -1.0,    0.0, 1.0, 0.0,    1.0, 1.0,
   ];
 
   let vao = gl::vao::create( gl )?;

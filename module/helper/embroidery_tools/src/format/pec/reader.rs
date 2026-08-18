@@ -119,7 +119,16 @@ mod private
 
     reader.seek( SeekFrom::Current( i64::from( 0x1D0 - u16::from( color_changes ) ) ) )?;
     let stitch_block_len = u64::from( reader.read_u24::< LE >()? );
-    let stitch_block_end = stitch_block_len - 5 + reader.stream_position()?;
+    // BUG-314 task/bug/314_pec_stitch_block_len_underflow.md --
+    // Fix(BUG-314): `stitch_block_len` is untrusted file data; a raw `- 5` underflows
+    // (panics in debug, wraps near `u64::MAX` in release) whenever it is less than 5.
+    // Root cause: no validation that the on-disk length is large enough to hold the
+    // 5-byte trailer this subtraction accounts for.
+    // Pitfall: any arithmetic on a length read from untrusted input must use `checked_*`
+    // and return a decode error, never a raw operator that can panic or wrap.
+    let stitch_block_len = stitch_block_len.checked_sub( 5 )
+    .ok_or_else( || EmbroideryError::DecodingError( "PEC stitch block length is too small (must be at least 5 bytes)".into() ) )?;
+    let stitch_block_end = stitch_block_len + reader.stream_position()?;
 
     reader.seek( SeekFrom::Current( 0x0B ) )?;
     pec_instructions_read( emb, reader )?;

@@ -124,7 +124,7 @@ fn app_run()
     let w = canvas.width() as f32;
     let h = canvas.height() as f32;
 
-    loaded_map_sync( &loaded_map, &map );
+    loaded_map_sync( &loaded_map, &map, &game_config );
     zoom_wheel_handle( &input, &mut zoom );
 
     let pointer_pos = input.pointer_position();
@@ -362,18 +362,50 @@ fn screen_params_compute( width : u32, height : u32 ) -> ( F32x2, F32x2 )
 }
 
 /// Applies a dropped-in map JSON payload, if one has arrived since the last frame.
-fn loaded_map_sync( loaded_map : &Rc< RefCell< Option< String > > >, map : &Rc< RefCell< core_game::Map > > )
+// Fix(BUG-XXX): a dropped map JSON was deserialized and assigned straight to `map` with no
+// validation of its tiles' `owner_index`/`object_index` against the current `game_config` —
+// an out-of-range value (hand-edited file, or a map saved under a config with more
+// players/objects than the one it's re-loaded into) panics on the very next render via
+// `game_config.player_colors[ hex.owner_index.0 as usize ]` / `object_props[ object_index.0 ]`.
+// Root cause: the file-upload boundary trusted the uploaded map's indices to already be in
+// range for whatever `Config` happens to be loaded, with no cross-check between the two.
+// Pitfall: `serde_json::from_str::<Map>` succeeding only proves the JSON is well-typed, not
+// that its index fields are in range for a DIFFERENT, independently-loaded `Config` — a
+// deserialize `Ok` is not the same as "safe to index with".
+fn loaded_map_sync
+(
+  loaded_map : &Rc< RefCell< Option< String > > >,
+  map : &Rc< RefCell< core_game::Map > >,
+  game_config : &core_game::Config,
+)
 {
   let mut loaded_map = loaded_map.borrow_mut();
   if let Some( map_json ) = loaded_map.as_ref()
   {
-    match serde_json::from_str( map_json )
+    match serde_json::from_str::< core_game::Map >( map_json )
     {
-      Ok( m ) => *map.borrow_mut() = m,
+      Ok( m ) if map_tile_indices_in_range( &m, game_config ) => *map.borrow_mut() = m,
+      Ok( _ ) => gl::warn!( "loaded map references a player/object index outside the current config's range — ignoring" ),
       Err( e ) => gl::warn!( "{e}" ),
     }
     *loaded_map = None;
   }
+}
+
+/// `false` if any tile's `owner_index`/`object_index` is out of range for `game_config` —
+/// such a tile would panic `tile_render_commands_push`'s `player_colors`/`object_props` indexing.
+fn map_tile_indices_in_range( map : &core_game::Map, game_config : &core_game::Config ) -> bool
+{
+  map.tiles.values().all( | tile |
+  {
+    let owner_in_range = ( tile.owner_index.0 as usize ) < game_config.player_colors.len();
+    let object_in_range = match tile.object_index
+    {
+      Some( object_index ) => ( object_index.0 as usize ) < game_config.object_props.len(),
+      None => true,
+    };
+    owner_in_range && object_in_range
+  })
 }
 
 /// Applies mouse-wheel deltas queued this frame to the zoom level.

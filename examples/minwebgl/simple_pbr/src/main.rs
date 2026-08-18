@@ -56,3 +56,69 @@ fn main()
 {
   app_run().unwrap();
 }
+
+#[ cfg( test ) ]
+mod tests
+{
+  /// ## Root Cause
+  /// The `i == 0` branch of `shader.frag`'s light-rotation animation used `lightDir[ i ].xy *=
+  /// rot( time ) * lightDir[ i ].xy` -- a compound multiply-assign -- while the
+  /// structurally-parallel `i == 1` and `i == 2` branches both use a plain assignment
+  /// ( `lightDir[ i ].xz = rot( time ) * lightDir[ i ].xz`, `lightDir[ i ].yz = rot( time ) *
+  /// lightDir[ i ].yz` ). `*=` computes `new = old * ( rotation_matrix * old )` -- an
+  /// element-wise self-multiplication by the rotated vector -- instead of `new = rotation_matrix *
+  /// old`, so light 0 never actually rotates; its direction is corrupted every frame instead ( the
+  /// result isn't even magnitude-preserving, unlike a real rotation ).
+  ///
+  /// ## Why Not Caught
+  /// This crate has no test file -- it's a `fn main()`-only WebGL demo binary verified by eye in
+  /// a browser. With three animated, differently-colored lights orbiting on different axes, one
+  /// light moving on a wrong, non-rotating trajectory is easy to mistake for an intentional,
+  /// idiosyncratic animation path rather than a broken one, especially since it still visibly
+  /// changes every frame ( `time` still varies the corrupted result ) rather than freezing.
+  ///
+  /// ## Fix Applied
+  /// Changed the `i == 0` branch's `*=` to `=` in `shader.frag`, matching the other two branches
+  /// exactly.
+  ///
+  /// ## Prevention
+  /// `test_light_rotation_branches_all_use_plain_assignment` parses the shader source and
+  /// asserts the `i==0` branch uses plain assignment and not compound-multiply-assign, rather
+  /// than only checking that the shader compiles.
+  ///
+  /// ## Pitfall
+  /// Three structurally-parallel branches sharing the same right-hand-side expression shape are
+  /// exactly where a single stray compound-assignment operator hides -- a reviewer's eye tends
+  /// to pattern-match the overall shape of each branch and can skip over a one-character
+  /// operator difference. Diff sibling branches token-by-token, not just by silhouette.
+  // Fix(BUG-XXX-E): reproducer for the light-0 rotation branch using `*=` instead of `=`.
+  // test_kind: bug_reproducer(BUG-XXX-E)
+  #[ test ]
+  fn test_light_rotation_branches_all_use_plain_assignment()
+  {
+    let shader_src = include_str!( "../shaders/shader.frag" );
+
+    assert!
+    (
+      shader_src.contains( "lightDir[ i ].xy = rot( time ) * lightDir[ i ].xy;" ),
+      "the i==0 light-rotation branch must plainly assign the rotated vector, matching the i==1/i==2 branches"
+    );
+    assert!
+    (
+      !shader_src.contains( "lightDir[ i ].xy *= rot( time ) * lightDir[ i ].xy;" ),
+      "the i==0 light-rotation branch must not compound-multiply-assign -- that corrupts the vector instead of rotating it"
+    );
+  }
+
+  /// Confirms the other two branches ( already correct before this fix ) stay in their plain
+  /// assignment form, so this suite can't be satisfied by "fixing" i==0 into matching a
+  /// compound-assign bug moved elsewhere instead of actually fixing it.
+  #[ test ]
+  fn test_sibling_light_rotation_branches_use_plain_assignment()
+  {
+    let shader_src = include_str!( "../shaders/shader.frag" );
+
+    assert!( shader_src.contains( "lightDir[ i ].xz = rot( time ) * lightDir[ i ].xz;" ) );
+    assert!( shader_src.contains( "lightDir[ i ].yz = rot( time ) * lightDir[ i ].yz;" ) );
+  }
+}

@@ -38,9 +38,9 @@ and resolve mechanics are the same shape of problem.
 - `renderer` (`src/webgl/shadow.rs`, legacy path): a separate shadow-map
   render-target and pass cycle, run before the main scene pass. Its
   `tests/webgl/shadow.rs` (3 tests) covers only the `SpotLight`→`Light`
-  size-parameterization helper; the FBO/pass-cycle machinery itself is now
-  structurally tested against a real headless WebGL2 context by
-  `tests/fbo_pass_cycle_test.rs`'s
+  size-parameterization helper (BUG-175); the FBO/pass-cycle machinery
+  itself is now structurally tested against a real headless WebGL2 context
+  by `tests/fbo_pass_cycle_test.rs`'s
   `shadow_map_bind_clear_render_completes_on_a_shadow_casting_mesh`.
 - `renderer` (`src/webgl/post_processing/gbuffer.rs`, legacy path): a
   G-buffer target set and its own fill/composite pass cycle, feeding the
@@ -63,8 +63,17 @@ and resolve mechanics are the same shape of problem.
   `WideOutlinePass` allocates two step framebuffers
   (`jfa_step_fb_0`/`jfa_step_fb_1`) that its render cycle ping-pongs
   between across `num_passes` JFA step passes before a final
-  outline-compositing pass. No test citation — the same
-  browser-test-infrastructure gap named elsewhere in this layer.
+  outline-compositing pass. Five dedicated tests cover this pass and its
+  shaders: `tests/webgl/wide_outline.rs` is a `wasm_bindgen_test` that
+  constructs and renders two real `WideOutlinePass` instances against a
+  live WebGL2 context (BUG-179); `tests/webgl/jfa_buffer_selection.rs`
+  (2 tests) calls `WideOutlinePass::jfa_step_targets_fb0` directly
+  (BUG-243); `tests/webgl/jfa_step_size.rs` (2 tests) ports the pass's
+  `jfa_step_pass` step-size math (BUG-180); `tests/webgl/jfa_silhouette.rs`
+  (4 tests) covers the silhouette check shared by
+  `jfa_init.frag`/`outline.frag` (BUG-181, BUG-193); and
+  `tests/webgl/outline_seed_sentinel.rs` (3 tests) covers
+  `outline.frag`'s seed-validity check (BUG-182).
 - `renderer` (`src/webgl/loaders/pmrem.rs`): a PMREM-prefiltering render
   cycle over a cubemap target set, run at load time rather than per frame.
   Structurally tested end-to-end against a real headless WebGL2 context by
@@ -122,12 +131,17 @@ name and a documented home.
 | `module/helper/renderer/src/webgl/post_processing/pass.rs` | Pass composition machinery |
 | `module/helper/renderer/tests/webgl/pass.rs` | Narrow `SwapFramebuffer::new` doc-comment regression test (BUG-259) — not FBO/pass-cycle coverage |
 | `module/helper/renderer/src/webgl/shadow.rs` | Shadow-map target and pass cycle |
-| `module/helper/renderer/tests/webgl/shadow.rs` | Covers only the `SpotLight`→`Light` size helper, not the FBO/pass-cycle machinery |
+| `module/helper/renderer/tests/webgl/shadow.rs` | Covers only the `SpotLight`→`Light` size helper (BUG-175), not the FBO/pass-cycle machinery |
 | `module/helper/renderer/src/webgl/post_processing/gbuffer.rs` | G-buffer target set and fill/composite pass cycle |
 | `module/helper/renderer/tests/webgl/gbuffer.rs` | Native coverage for `GBufferAttachment::define_const`/`attribute_info` (task 225) |
 | `module/helper/renderer/tests/fbo_pass_cycle_test.rs` | Live headless-WebGL2 bind/clear/render coverage for both `ShadowMap::render` and `GBuffer::render` |
 | `module/helper/renderer/src/webgl/post_processing/unreal_bloom.rs` | 10-target ping-pong bloom pass (5 mip-level horizontal/vertical blur targets) |
 | `module/helper/renderer/src/webgl/post_processing/outline/wide_outline.rs` | JFA ping-pong outline pass (two step framebuffers) |
+| `module/helper/renderer/tests/webgl/wide_outline.rs` | `wasm_bindgen_test` rendering two real `WideOutlinePass` instances against a live WebGL2 context (BUG-179) |
+| `module/helper/renderer/tests/webgl/jfa_buffer_selection.rs` | Native coverage for `WideOutlinePass::jfa_step_targets_fb0` (BUG-243) |
+| `module/helper/renderer/tests/webgl/jfa_step_size.rs` | Native coverage porting `jfa_step_pass`'s step-size math (BUG-180) |
+| `module/helper/renderer/tests/webgl/jfa_silhouette.rs` | Native coverage for the silhouette check in `jfa_init.frag`/`outline.frag` (BUG-181, BUG-193) |
+| `module/helper/renderer/tests/webgl/outline_seed_sentinel.rs` | Native coverage for `outline.frag`'s seed-validity check (BUG-182) |
 | `module/helper/renderer/src/webgl/loaders/pmrem.rs` | PMREM-prefiltering render cycle over a cubemap target set |
 | `module/helper/renderer/tests/pmrem_tests.rs` | Structural coverage of `pmrem::generate()` against a real headless WebGL2 context |
 | `module/helper/renderer/src/webgpu/renderer.rs` | Canonical `gpu_hal`-backed embedded instance: HDR target set + opaque → tonemap ordering |

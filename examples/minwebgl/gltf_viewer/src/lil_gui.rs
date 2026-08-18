@@ -23,7 +23,14 @@ extern "C"
   #[ wasm_bindgen( js_name = "onChange" ) ]
   pub fn on_change( gui : &JsValue, callback : &Closure< dyn FnMut( f32 ) > ) -> JsValue;
 
-  #[ wasm_bindgen( js_name = "getTitle" ) ]
+  // Fix(BUG-XXX): the js_name attribute below pointed at a title-getter export that only exists
+  // in sibling crates' older gui.js copies this file was copy-pasted from — this crate's own
+  // gui.js exports no such function, only a matching two-argument title-setter instead.
+  // Root cause: bindings file copy-pasted from a sibling crate without re-checking this crate's
+  // own gui.js exports.
+  // Pitfall: a wasm_bindgen extern binding compiles fine even when its js_name has no real JS
+  // export — the mismatch only surfaces as a runtime error if the binding is ever called.
+  #[ wasm_bindgen( js_name = "set_name" ) ]
   pub fn name_set( gui : &JsValue, value : &str ) -> JsValue;
 
 

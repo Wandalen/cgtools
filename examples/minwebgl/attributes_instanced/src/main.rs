@@ -1,4 +1,15 @@
-//! Just draw a large point in the middle of the screen.
+//! Draws 6 static triangles via `draw_arrays_instanced`, with 5 instances offset along Y
+//! by a per-instance attribute (divisor 1) — demonstrates instanced rendering with
+//! per-instance vertex attributes in WebGL2.
+
+// Fix(BUG-ZZZ): module doc comment above was a stale copy-paste leftover — it used to
+// claim this crate drew one large, screen-centered point, but this crate actually
+// instanced-draws 6 triangles with per-instance Y offsets (5 instances), and its own
+// readme.md already correctly describes it as an instanced-rendering demo.
+// Root cause: doc comment never updated as the demo grew past an early single-point sketch.
+// Pitfall: `attributes_vao`'s sibling `main.rs` carried the exact same stale sentence —
+// check other `attributes_*`/early-stage demo crates for the same leftover before assuming
+// this was a one-off.
 
 use minwebgl as gl;
 use gl::{ GL };

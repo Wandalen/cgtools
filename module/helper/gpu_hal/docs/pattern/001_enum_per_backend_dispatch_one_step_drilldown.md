@@ -69,4 +69,4 @@ Callers get one flat, backend-agnostic API surface plus a one-step escape hatch 
 
 ### Tests
 
-`tests/native_backend_test.rs` and `tests/vulkan_backend_test.rs` each exercise their own enum surface throughout but never call `as_native()`/`expect_native()` or `as_vulkan()`/`expect_vulkan()` directly, since each test's feature set compiles in only its own backend — the drill-down accessors themselves have no dedicated test on any backend.
+`tests/native_backend_test.rs` and `tests/vulkan_backend_test.rs` each exercise their own enum surface throughout. `vulkan_backend_test.rs`'s `as_vulkan_returns_none_on_native_device` calls `as_vulkan()` directly, and both files' `*_drilldown_returns_some_on_matching_backend` tests call `as_native()`/`as_vulkan()` on a handle actually built on that backend, asserting `Some` and dereferencing the raw object — so both the backend-mismatch (`None`) and matching-backend (`Some`) branches of the drill-down accessors are now covered on the two backends this crate can test without a browser (native, vulkan); `as_webgpu()`/`as_webgl()` remain untested either way, since proving them needs a live browser context.

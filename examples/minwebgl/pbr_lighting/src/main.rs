@@ -30,6 +30,26 @@ fn light_add( scene : &Rc< RefCell< Scene > >, light : Light ) -> Rc< RefCell< N
   light_node
 }
 
+/// Computes ( near, far ) clip-plane distances from `exponent` ( the scene bounding-box
+/// diagonal's base-2 exponent ), scaling `near` down for smaller scenes while guaranteeing
+/// `far` always clears `near` by a safe margin.
+fn near_far_from_exponent( exponent : i32 ) -> ( f32, f32 )
+{
+  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 100.0;
+  // Fix(BUG-XXX-B): `far`'s raw formula collapses to `far == near` at `exponent == 0`
+  // ( `100.0f32.powi( 0 ) == 1.0` ), which `Camera::new` rejects ( requires `far > near` ),
+  // panicking the whole demo for any scene whose bounding-box diagonal falls in [ 1.0, 2.0 )
+  // -- an ordinary size for a normalized glTF asset.
+  // Root cause: `100.0f32.powi( exponent.abs() )` is V-shaped in `exponent` ( `.abs()` makes
+  // it shrink toward `exponent == 0` from both sides ) instead of monotonically increasing
+  // with scene size, so the multiplier can collapse to 1.0 and erase the near/far margin.
+  // Pitfall: deriving `far` as a pure multiple of `near` with no floor lets that multiplier
+  // silently erase the required margin at whatever exponent makes it collapse, instead of
+  // failing loudly at the formula's own definition site.
+  let far = ( near * 100.0f32.powi( exponent.abs() ) ).max( near * 10.0 );
+  ( near, far )
+}
+
 /// Creates the orbit camera framed on the scene's bounding box and binds its controls.
 fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : &mingl::geometry::BoundingBox, width : f32, height : f32 ) -> Camera
 {
@@ -54,8 +74,7 @@ fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : 
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 100.0;
-  let far = near * 100.0f32.powi( exponent.abs() );
+  let ( near, far ) = near_far_from_exponent( exponent );
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far ).expect( "camera parameters are valid" );
   camera.window_size_set( [ width, height ].into() );
@@ -322,4 +341,67 @@ async fn app_run() -> Result< (), gl::WebglError >
 fn main()
 {
   gl::spawn_local( async move { app_run().await.unwrap() } );
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::*;
+
+  /// ## Root Cause
+  /// `near_far_from_exponent`'s `far` formula ( `near * 100.0f32.powi( exponent.abs() )` )
+  /// used `exponent.abs()`, making the scaling multiplier V-shaped around `exponent == 0`
+  /// instead of monotonically increasing with scene size. At `exponent == 0` the multiplier
+  /// collapses to exactly `1.0`, so `far` equals `near` -- a degenerate frustum `Camera::new`
+  /// rejects ( it requires `far > near` ), which `camera_setup`'s `.expect( "camera
+  /// parameters are valid" )` then turns into a panic.
+  ///
+  /// ## Why Not Caught
+  /// This crate has no test file -- it is a `fn main()`-only WebGL demo binary, verified by
+  /// running it in a browser against whatever glTF asset happens to be loaded. The panic only
+  /// triggers when the loaded scene's bounding-box diagonal falls in `[ 1.0, 2.0 )`, a plausible
+  /// but not-yet-exercised size for this demo's own asset.
+  ///
+  /// ## Fix Applied
+  /// Extracted the near/far computation into `near_far_from_exponent`, keeping `near`'s
+  /// formula unchanged and wrapping `far` in `.max( near * 10.0 )` -- a floor guaranteeing a
+  /// minimum 10x margin regardless of what the exponent-scaled term evaluates to.
+  ///
+  /// ## Prevention
+  /// This test sweeps every exponent in a wide, representative range and asserts `far > near`
+  /// unconditionally, rather than checking only the one exponent that happened to break.
+  ///
+  /// ## Pitfall
+  /// A multiplier derived from the same shared input as the value it scales can collapse to a
+  /// value that erases the relationship the caller depends on ( here, `far > near` ) -- always
+  /// floor/ceiling such a derived value against its sibling rather than trusting the formula's
+  /// shape to hold across the whole input domain.
+  // Fix(BUG-XXX-B): reproducer for `far == near` at `exponent == 0`, rejected by `Camera::new`.
+  // test_kind: bug_reproducer(BUG-XXX-B)
+  #[ test ]
+  fn test_far_always_exceeds_near_across_exponent_range()
+  {
+    for exponent in -10_i32 ..= 10_i32
+    {
+      let ( near, far ) = near_far_from_exponent( exponent );
+      assert!( near.is_finite() && near > 0.0, "near must be finite and positive at exponent {exponent}" );
+      assert!( far.is_finite() && far > near, "far ({far}) must exceed near ({near}) at exponent {exponent}" );
+    }
+  }
+
+  /// Pins the pre-fix formula's exact failure at `exponent == 0` ( `far == near == 10.0` ),
+  /// confirming the bug was real and not a hypothetical edge case.
+  #[ test ]
+  fn test_pre_fix_formula_was_degenerate_at_exponent_zero()
+  {
+    let exponent = 0_i32;
+    let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 100.0;
+    let buggy_far = near * 100.0f32.powi( exponent.abs() );
+    // Compared as `i32`, not raw `f32` equality ( clippy::float_cmp ) -- exact for these
+    // whole-number inputs, matching this crate family's established BUG-313 precedent.
+    assert_eq!( buggy_far as i32, near as i32, "pre-fix formula collapsed far to exactly near at exponent 0" );
+
+    let ( _, fixed_far ) = near_far_from_exponent( exponent );
+    assert!( fixed_far > near, "fixed formula must clear the degenerate case" );
+  }
 }

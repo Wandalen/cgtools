@@ -1,6 +1,13 @@
-//! # Uniforms And Animation Example with UBOs
+//! # MSDF Text Rendering Example
 //!
-//! This program demonstrates how to render a triangle in the middle of the screen using WebGL in Rust. It utilizes shaders with Uniform Block Objects (UBOs) to manage uniforms efficiently.
+// Fix(BUG-XXX): doc comment was copy-pasted from `uniforms_ubo`'s main.rs and never updated --
+// this example renders MSDF (Multi-Channel Signed Distance Field) text via instanced quads, not
+// a plain UBO-driven triangle. Root cause: copy-paste of a sibling crate's file header.
+// Pitfall: a crate's own top-level doc comment has no compiler link to what the crate actually
+// does -- nothing catches a stale one short of a reader or a text-content test.
+//! This program demonstrates high-quality text rendering using Multi-Channel Signed Distance
+//! Fields (MSDF) in WebGL2. Glyph geometry, UV rects, and per-character offsets are computed
+//! from a parsed font atlas and uploaded as instanced quad attributes.
 
 use minwebgl::{ self as gl, wasm_bindgen::prelude::Closure, JsCast };
 

@@ -1,4 +1,6 @@
-//! Just draw a large point in the middle of the screen.
+//! Draws 5+5 points via two independent VAOs, demonstrating switching between vertex
+//! configurations with a single binding call (`gl.bind_vertex_array`) per WebGL2's VAO
+//! state-encapsulation model.
 
 use minwebgl as gl;
 use gl::{ GL };
@@ -44,18 +46,41 @@ fn app_run() -> Result< (), gl::WebglError >
   let vert_buffer2 = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &vert_buffer2, &vert_data2, GL::STATIC_DRAW );
 
-  // create vao
+  // create vaos
+  //
+  // Fix(BUG-YYY): a single `vao` mixed position/point-size from `vert_buffer2` with color
+  // from `vert_buffer`, silently leaving `vert_buffer`'s own position/point-size fields
+  // (and a whole second draw call) unused. This crate's own readme states the demo shows
+  // "switch[ing] between different vertex configurations with a single binding call" — that
+  // requires two independent, self-contained VAOs, not one VAO composed from two buffers.
+  // Root cause: `vert_buffer`'s attribute_pointer calls were bound against `vao` alongside
+  // `vert_buffer2`'s, instead of each buffer getting its own VAO.
+  // Pitfall: don't "fix" this by deleting the second dataset — the two datasets existing
+  // side by side, each already a complete position+size+color record, is what shows this
+  // was meant to demonstrate two configurations, not one.
 
   let vao = gl::vao::create( &gl )?;
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32 ; 2 ] >().stride( 6 ).offset( 0 ).attribute_pointer( &gl, 0, &vert_buffer2 )?;
-  gl::BufferDescriptor::new::< [ f32 ; 1 ] >().stride( 6 ).offset( 2 ).attribute_pointer( &gl, 1, &vert_buffer2 )?;
+  gl::BufferDescriptor::new::< [ f32 ; 2 ] >().stride( 6 ).offset( 0 ).attribute_pointer( &gl, 0, &vert_buffer )?;
+  gl::BufferDescriptor::new::< [ f32 ; 1 ] >().stride( 6 ).offset( 2 ).attribute_pointer( &gl, 1, &vert_buffer )?;
   gl::BufferDescriptor::new::< [ f32 ; 3 ] >().stride( 6 ).offset( 3 ).attribute_pointer( &gl, 2, &vert_buffer )?;
   gl.bind_vertex_array( None );
 
-  // Bind VAO and draw
+  let vao2 = gl::vao::create( &gl )?;
+  gl.bind_vertex_array( Some( &vao2 ) );
+  gl::BufferDescriptor::new::< [ f32 ; 2 ] >().stride( 6 ).offset( 0 ).attribute_pointer( &gl, 0, &vert_buffer2 )?;
+  gl::BufferDescriptor::new::< [ f32 ; 1 ] >().stride( 6 ).offset( 2 ).attribute_pointer( &gl, 1, &vert_buffer2 )?;
+  gl::BufferDescriptor::new::< [ f32 ; 3 ] >().stride( 6 ).offset( 3 ).attribute_pointer( &gl, 2, &vert_buffer2 )?;
+  gl.bind_vertex_array( None );
+
+  // Bind each VAO in turn and draw — switching between two independent vertex
+  // configurations with a single binding call each.
 
   gl.bind_vertex_array( Some( &vao ) );
+  gl.draw_arrays( GL::POINTS, 0, 5 );
+  gl.bind_vertex_array( None );
+
+  gl.bind_vertex_array( Some( &vao2 ) );
   gl.draw_arrays( GL::POINTS, 0, 5 );
   gl.bind_vertex_array( None );
 

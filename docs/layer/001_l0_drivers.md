@@ -29,10 +29,10 @@ to hide it — cross-backend abstraction is exactly what L0 must not do
 |-------|---------|-------|
 | `minwebgl` | WebGL2 (web) | Mature (primary driver) for pure-logic surface — its live-`WebGl2RenderingContext` entry point (`context::from_canvas` + a minimal shader/buffer/draw sequence) is now browser-pixel-verified too (proven by the `context_triangle_smoke` example via `browsee` — task 192, mirroring gpu_hal's own [002_l1_gpu_hal.md](002_l1_gpu_hal.md) coverage); broader GL-context/DOM surface (shaders, VAOs, textures, uniforms, file/fetch beyond this one path) remains a separate, not-yet-filed gap |
 | `minwebgpu` | WebGPU (web) | Functional |
-| `minwgpu` | `wgpu` (native) | Embryonic — helper/buffer/context/texture/surface/bind/pipeline/pass/readback/error layers exist |
+| `minwgpu` | `wgpu` (native) | Embryonic — helper/buffer/context/texture/surface/bind/pipeline/pass/readback/error layers exist; unlike its three siblings, has no live-adapter/device test coverage at all — `tests/context_test.rs` deliberately uses `wgpu::Backends::empty()` (own `tests/readme.md`: "GPU-dependent behavior... has no native test story") |
 | `minvulkan` | Vulkan via `ash` (native, `wgpu`-free) | `Context::builder()` produces a real `ash::Instance`, `PhysicalDevice`, `Device`, and graphics `Queue` — tested against a live Vulkan ICD (task 201); surface/swapchain presentation and resource construction (buffers, images, pipelines) not yet implemented at this layer ([ADR-004](../adr/004_native_vulkan_hal_backend.md)) — resource construction (buffers, images, pipelines) already exists one layer up, directly in `gpu_hal`'s `vulkan` backend ([002_l1_gpu_hal.md](002_l1_gpu_hal.md)), not yet pushed down into this driver; `gpu_hal`'s own `vulkan` backend is offscreen-only too, though — its `Surface` is a `DEVICE_LOCAL` color image with no swapchain, so swapchain/present-queue-backed presentation is not yet implemented anywhere in the stack |
 
-**`mingl` is not a layer.** All three drivers depend on it as a shared
+**`mingl` is not a layer.** All four drivers depend on it as a shared
 substrate of backend-independent helpers — math, an orbit-camera controller
 (`CameraOrbitControls`), and a WASD-plus-mouse-look character controller
 (`CharacterControls`) among them — it sits *below* L0, which is why it

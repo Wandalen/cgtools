@@ -70,7 +70,17 @@ fn image_load
   on_load_callback : Box< dyn Fn( &web_sys::HtmlImageElement ) >,
 ) -> Result< web_sys::HtmlImageElement, minwebgl::JsValue >
 {
-  let image = image_element_create( "tileset.png" )?;
+  // Fix(BUG-XXX): both `image_element_create` and `set_id` used to be called with the hardcoded
+  // literal "tileset.png" instead of `path`, ignoring the parameter entirely for two of its three
+  // uses. `image_element_create("tileset.png")` resolves against the app root (no `static/`
+  // prefix), so the element's initial `src` pointed at a URL that 404s -- a real, wasted network
+  // request fired on every page load, immediately overwritten a few lines below by the correctly
+  // computed `url`. Root cause: literal copy-pasted in place of the parameter that was meant to
+  // drive it (the doc comment above already claimed `path` was "used to construct the image URL",
+  // which was only true for the later `set_src` call).
+  // Pitfall: a demo with a single call site can hide a parameter being silently ignored --
+  // nothing here fails visibly unless a second caller passes a different `path`.
+  let image = image_element_create( path )?;
 
   let window = web_sys::window()
   .ok_or_else( || JsValue::from_str( "Failed to get window" ) )?;
@@ -79,7 +89,11 @@ fn image_load
   let body = document.body()
   .ok_or_else( || JsValue::from_str( "Failed to get body" ) )?;
   let _ = body.append_child( &image );
-  image.set_id( "tileset.png" );
+  // The DOM id stays filename-only (not the full `path`) so it keeps matching the bare-filename
+  // ids that `texture_array_prepare`'s `get_element_by_id` lookups already use elsewhere in this
+  // file -- only the element-creation `src` bug above needed the full path.
+  let id = path.rsplit( '/' ).next().unwrap_or( path );
+  image.set_id( id );
 
   let style = image.style();
   let _ = style.set_property( "visibility", "hidden" );

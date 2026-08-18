@@ -1,4 +1,12 @@
-//! Just draw a large point in the middle of the screen.
+//! Size-optimized spinning wireframe cube — minimal code and aggressive
+//! optimization for the smallest possible WASM binary (see `lol_alloc`'s
+//! leaking allocator below), matching this crate's own readme.md.
+// Fix(BUG-XXX): doc comment described a single stationary large point, not what this example
+// actually renders -- a rotating wireframe cube (8 vertices, 24 line indices, animated angle
+// uniform, perspective projection). Root cause: stale/copy-pasted description, likely from an
+// earlier, simpler revision of this example.
+// Pitfall: same class as sibling crates' doc-comment drift -- a doc comment has no compiler
+// link to actual behavior.
 
 use minwebgl as gl;
 

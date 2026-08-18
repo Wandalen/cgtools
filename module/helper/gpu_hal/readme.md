@@ -82,6 +82,17 @@ cargo nextest run -p gpu_hal --features native
 `triangle_render_readback` draws through the full public surface and asserts
 on pixels read back from the offscreen target.
 
+The `vulkan` backend has its own offscreen readback test, mirroring `native`
+— no browser, no `wgpu` dependency, just a Vulkan ICD (a software one, e.g.
+lavapipe, suffices):
+
+```bash
+cargo nextest run -p gpu_hal --features vulkan
+```
+
+`triangle_render_readback` in `tests/vulkan_backend_test.rs` draws through
+the same public surface and asserts on pixels read back the same way.
+
 The `webgpu` and `webgl` backends have no offscreen readback to assert on —
 they present to a browser canvas instead — so they're verified with a real
 browser via `browsee` against `examples/gpu_hal/triangle_browser/`:

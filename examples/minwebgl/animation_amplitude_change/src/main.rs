@@ -140,13 +140,6 @@ fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : 
   gl::info!( "Scene boudnig box: {scene_bounding_box:?}" );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let dist = scene_bounding_box.max.mag();
-  let exponent =
-  {
-    let bits = diagonal.to_bits();
-    let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
-    exponent_field - 127
-  };
-  gl::info!( "Exponent: {exponent:?}" );
 
   // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
@@ -157,8 +150,23 @@ fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : 
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 10.0;
-  let far = near * 100.0f32.powi( exponent.abs() ) / 100.0;
+  // Fix(BUG-WWW): `near`/`far` used to be derived from a scale value read out of the raw
+  // IEEE-754 bit layout of `diagonal` — a base-2 quantity by construction — then fed into
+  // a base-10 power function. That base mismatch, combined with a `far` formula that
+  // isn't monotonically greater than `near` across its own input domain, collapsed to
+  // `far <= near` for an ordinary scene scale ( including this crate's own bundled
+  // `multi_animation.glb` ), which `Camera::new` rejects outright ( `far` must be
+  // strictly greater than `near` ), panicking this demo's own
+  // `.expect( "camera parameters are valid" )` at startup.
+  // Root cause: a base-2-derived scale factor paired with a base-10 power computation.
+  // Pitfall: don't reintroduce raw floating-point bit-layout inspection here — `f32::log10`
+  // gives the scene's true base-10 order of magnitude directly, and a fixed `far`/`near`
+  // ratio ( here 1_000_000 ) guarantees `far > near` for every finite positive `diagonal`.
+  let magnitude = diagonal.max( f32::EPSILON ).log10().floor();
+  let scale = 10.0f32.powf( magnitude );
+  let near = ( scale * 0.01 ).max( 1e-5 );
+  let far = scale * 10_000.0;
+  gl::info!( "near: {near:?}, far: {far:?}" );
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far ).expect( "camera parameters are valid" );
   camera.window_size_set( [ width, height ].into() );

@@ -427,7 +427,11 @@ fn pathfind_demo
   let count = ( offsets.len() / 2 ) as i32;
   min::buffer::upload( context, &offsets_buffer, offsets.as_slice(), GL::DYNAMIC_DRAW );
 
-  hex_shader.uniform_upload( "u_mvp", scale.as_slice() );
+  // Fix(BUG-XXX): was "u_mvp", which main.vert/main.frag never declare — a silent WebGL no-op
+  // masked only by the obstacle-drawing block above already having set u_zoom to this same value.
+  // Root cause: stale/typo'd uniform name, never caught since unknown uniform names don't error.
+  // Pitfall: WebGL uniform lookups fail silently — verify call-site names against shader source.
+  hex_shader.uniform_upload( "u_zoom", scale.as_slice() );
   hex_shader.uniform_upload( "u_rotation", [ angle.cos(), angle.sin() ].as_slice() );
   hex_shader.uniform_upload( "u_color", &[ 0.1, 0.6, 0.1, 1.0 ] );
   context.draw_arrays_instanced( GL::TRIANGLES, 0, hexagon_geometry.nvertices, count );

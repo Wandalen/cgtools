@@ -3,6 +3,7 @@
 
 use std::io::Cursor;
 use embroidery_tools::embroidery_file::EmbroideryFile;
+use embroidery_tools::error::EmbroideryError;
 use embroidery_tools::format::pec;
 use embroidery_tools::stitch_instruction::{ Instruction, Stitch };
 use embroidery_tools::thread::Thread;
@@ -202,4 +203,70 @@ fn encoding_roundtrip_preserves_first_added_thread()
   assert_eq!( emb.threads().len(), 2, "the first added thread must survive the roundtrip, not be silently dropped" );
   assert_eq!( emb.threads()[ 0 ], default_palette[ 1 ] );
   assert_eq!( emb.threads()[ 1 ], default_palette[ 2 ] );
+}
+
+/// Builds a minimal PEC content buffer (header-less, matching `content_read`'s own
+/// expected layout) with `color_changes = 0` (one color) and a caller-chosen 24-bit
+/// `stitch_block_len` placed at its real on-disk offset, so the reader reaches the
+/// length-validation code at the exact same point a real file would.
+fn build_pec_content_with_stitch_block_len( stitch_block_len : u32 ) -> Vec< u8 >
+{
+  // 3 ("LA:" skip) + 16 (label) + 0xF + 1 (byte_stride) + 1 (icon_height) + 0xC
+  // + 1 (color_changes, set below) + 1 (single color byte, since count_colors = 1)
+  // + 0x1D0 (post-color-bytes seek distance when color_changes = 0) = 514 bytes,
+  // then the 3-byte `stitch_block_len` field itself.
+  let mut buf = vec![ 0u8; 3 + 16 + 0xF + 1 + 1 + 0xC + 1 + 1 + 0x1D0 ];
+  buf[ 48 ] = 0; // color_changes = 0 -> count_colors = 1
+  buf.extend_from_slice( &stitch_block_len.to_le_bytes()[ ..3 ] );
+  buf
+}
+
+/// ## Root Cause
+/// `content_read` read `stitch_block_len` as an untrusted 24-bit value straight from file
+/// data, then computed `stitch_block_len - 5 + reader.stream_position()?` with a raw `-`.
+/// For any `stitch_block_len` less than 5, this underflows: it panics in a debug build
+/// ("attempt to subtract with overflow") and silently wraps to a value near `u64::MAX` in
+/// a release build, corrupting the subsequent `seek( SeekFrom::Start( stitch_block_end ) )`.
+/// This code path is reachable both directly (`pec::file_read`/`memory_read`/`read`) and
+/// indirectly via `pes::file_read`/`memory_read`/`read`, since PES files embed a PEC
+/// content block parsed by this same `content_read` function.
+///
+/// ## Why Not Caught
+/// No existing test constructed a PEC buffer with a corrupted/malicious `stitch_block_len`
+/// -- all existing tests use either the reference sample file or a freshly-written buffer
+/// from this crate's own writer, both of which always produce a valid (>= 5) length.
+///
+/// ## Fix Applied
+/// Replaced the raw `stitch_block_len - 5` with `stitch_block_len.checked_sub( 5 )
+/// .ok_or_else( .. )?`, returning `EmbroideryError::DecodingError` for any length under 5
+/// instead of panicking or silently wrapping. See `format/pec/reader.rs`.
+///
+/// ## Prevention
+/// This test builds a minimal PEC content buffer with `stitch_block_len = 0` (the
+/// simplest under-5 value) and asserts `content_read` returns a `DecodingError` instead of
+/// panicking or succeeding with a corrupted read position.
+///
+/// ## Pitfall
+/// Arithmetic on any length/offset value read from untrusted file data must use
+/// `checked_*` and return a decode error -- a raw operator either panics (debug) or wraps
+/// to a wildly wrong value that gets used as a real seek position (release), neither of
+/// which is a safe way to handle malformed input.
+// BUG-314 task/bug/314_pec_stitch_block_len_underflow.md -- reproducer for the untrusted
+// `stitch_block_len` underflowing when less than 5, reachable via both `pec::*` and
+// `pes::*` public entry points.
+// test_kind: bug_reproducer(BUG-314)
+#[ test ]
+fn content_read_rejects_stitch_block_len_below_5_instead_of_underflowing()
+{
+  let buf = build_pec_content_with_stitch_block_len( 0 );
+  let mut cursor = Cursor::new( buf );
+  let mut emb = EmbroideryFile::new();
+
+  let result = pec::content_read( &mut emb, &mut cursor, &[] );
+
+  assert!(
+    matches!( result, Err( EmbroideryError::DecodingError( _ ) ) ),
+    "a stitch block length under 5 must return a DecodingError, not panic or succeed \
+    with a corrupted read position; got {result:?}"
+  );
 }

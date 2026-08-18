@@ -185,13 +185,23 @@ fn app_run() -> Result< (), gl::WebglError >
           },
           "hsl" =>
           {
+            // Fix(BUG-XXX): saturation/lightness are numeric [0,100] per the `color` crate's
+            // own Hsl docs, but CSS's `hsl()` grammar types those two components as
+            // `<percentage>`, not `<number>` (unlike `lab()`/`lch()`, which accept either) —
+            // a bare number is invalid syntax and the browser silently drops the whole
+            // declaration, leaving the swatch unstyled.
+            // Root cause: the format string omitted the `%` suffix CSS requires for S/L.
+            // Pitfall: `lab`/`lch`/`oklab`/`oklch` correctly stay bare (`<number>` is valid
+            // there) — don't blanket-append `%` to every color-space arm above.
             let [ hue, saturation, lightness ] = Srgb::convert::< Hsl >( base_srgb_components );
-            format!( "hsl( {hue:.2} {saturation:.2} {lightness:.2} )" )
+            format!( "hsl( {hue:.2} {saturation:.2}% {lightness:.2}% )" )
           },
           "hwb" =>
           {
+            // Fix(BUG-XXX): same defect class as the "hsl" arm above — W/B are numeric
+            // [0,100] but CSS's `hwb()` grammar requires `<percentage>` for both.
             let [ hue, whiteness, blackness ] = Srgb::convert::< Hwb >( base_srgb_components );
-            format!( "hwb( {hue:.2} {whiteness:.2} {blackness:.2} )" )
+            format!( "hwb( {hue:.2} {whiteness:.2}% {blackness:.2}% )" )
           },
           "lab" =>
           {

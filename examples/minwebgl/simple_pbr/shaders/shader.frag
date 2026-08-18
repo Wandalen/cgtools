@@ -124,7 +124,15 @@ void main()
     float time = u_time / 1000.0;
 
     // Animate lights
-    if( i == 0 ) { lightDir[ i ].xy *= rot( time ) * lightDir[ i ].xy; }
+    // Fix(BUG-XXX-E): this branch used `*=` where the other two branches use `=`, so light 0's
+    // xy was overwritten with itself component-wise multiplied by its own rotated value instead
+    // of being replaced by the rotated value -- not a rotation at all, and not even
+    // magnitude-preserving. Root cause: copy-paste across the three near-identical branches left
+    // one compound-assignment operator unconverted to a plain assignment. Pitfall: three
+    // structurally-parallel branches that use the same right-hand-side expression pattern are
+    // exactly where a single stray `*=`/`+=` typo hides -- diff sibling branches character by
+    // character, not just by shape.
+    if( i == 0 ) { lightDir[ i ].xy = rot( time ) * lightDir[ i ].xy; }
     else if( i == 1 ) { lightDir[ i ].xz = rot( time ) * lightDir[ i ].xz; }
     else if( i == 2 ) { lightDir[ i ].yz = rot( time ) * lightDir[ i ].yz; }
 

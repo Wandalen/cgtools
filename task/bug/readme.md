@@ -34,6 +34,8 @@ Bug reports for the cgtools workspace. IDs share the tsk Unified ID namespace tr
 | BUG-300 | [`TextureDescriptor::new()`'s default `format` (`Rgba8unormSrgb`) is incompatible with `.storage_binding()` usage](./verified/300_texture_descriptor_default_format_not_storage_capable.md) | Medium | module/min/minwebgpu | 2026-08-18 | 🎯 Verified |
 | BUG-311 | [`Quat::from_angle_y( 90.0 )` called with a raw degree literal instead of radians at 3 sibling example call sites](./verified/311_from_angle_y_called_with_raw_degrees_not_radians.md) | Medium | examples/minwebgl/{curve,lottie,animation}_surface_rendering | 2026-08-18 | 🎯 Verified |
 | BUG-312 | [`character_control` example halves the visible character mesh's yaw at its `Quat::from_angle_y` call site, desyncing it from the camera's own orbit](./verified/312_character_control_visible_mesh_yaw_halved_at_call_site.md) | Medium | examples/minwebgl/character_control | 2026-08-18 | 🎯 Verified |
+| BUG-313 | [`sprite_animation` example's frame-index modulus uses `sprite_count - 1` instead of `sprite_count`, permanently skipping the last frame](./verified/313_sprite_animation_modulus_skips_last_frame.md) | Medium | examples/minwebgl/sprite_animation | 2026-08-18 | 🎯 Verified |
+| BUG-314 | [PEC reader's `stitch_block_len - 5` underflows for untrusted file data with a length under 5, panicking in debug and corrupting the read position in release](./verified/314_pec_stitch_block_len_underflow.md) | High | module/helper/embroidery_tools | 2026-08-18 | 🎯 Verified |
 
 ## Closed Bugs
 

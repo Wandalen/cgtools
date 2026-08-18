@@ -174,16 +174,25 @@ impl Filter for Blur< Stack >
     uniform vec2 u_texel_size;
     uniform vec2 u_direction;
 
+    // Fix(BUG-XXX): was an unweighted uniform average identical in shape to Blur<Box> (same
+    // kernel, different uniform name) — a triangular weight is what actually distinguishes a
+    // stack blur from a box blur.
+    // Root cause: copy-pasted box-average loop body across the three near-identical Blur<T> impls.
+    // Pitfall: three sibling shader-string impls in one file invites a copy-pasted kernel body —
+    // the result still visibly blurs, so a wrong/duplicate kernel shape has no visible symptom.
     void main()
     {
       vec4 sum = vec4( 0.0 );
+      float weight_sum = 0.0;
       for ( int i = -u_radius; i <= u_radius; i++ )
       {
+        float weight = float( u_radius + 1 - abs( i ) );
         vec2 tc = v_tex_coord + u_direction * float( i ) * u_texel_size;
-        sum += texture( u_image, tc );
+        sum += weight * texture( u_image, tc );
+        weight_sum += weight;
       }
 
-      frag_color = sum / float( ( u_radius * 2 ) + 1 );
+      frag_color = sum / weight_sum;
     }
     ".to_string()
   }

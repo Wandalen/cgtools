@@ -1,8 +1,15 @@
 # Jewelry Site
 
-**Keywords:** Web, Jewelry, Configurator, WebGL
+**Keywords:** Web, Jewelry, Configurator, HTML, CSS, JS
 
-This demo showcases a product‑ready 3D jewelry configurator built for real‑time, client‑side customization. Users can explore ring models, switch materials and gems, and preview combinations instantly.
+<!-- Fix(BUG-XXX): claimed a 3D/WebGL configurator and listed WebGL as a keyword — this site has
+     no canvas, no WebGL context, and no 3D library anywhere in its markup or scripts; it swaps
+     between pre-rendered 2D preview images by filename. `src/main.rs` exists only as an inert
+     wasm-bindgen placeholder so trunk's tooling accepts the crate — it renders nothing.
+     Root cause: aspirational wording never checked against the actual implementation.
+     Pitfall: this crate sits in a directory of genuine WebGL demos, making an unverified
+     "WebGL"/"3D" claim here easy to accept at a glance instead of checking the actual scripts. -->
+This demo showcases a product‑ready jewelry configurator built for real‑time, client‑side customization using pre-rendered 2D preview images. Users can browse ring designs, switch materials and gems, and preview combinations instantly.
 
 ![image](./showcase.webp)
 

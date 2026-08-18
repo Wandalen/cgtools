@@ -93,7 +93,15 @@ impl Filter for HSLAdjustment
     {
       vec4 pixel = texture( u_image, v_tex_coord );
       vec3 hsl = rgb2hsl( pixel.rgb );
-      hsl.x += u_hsl.x;
+      // Fix(BUG-XXX): was `hsl.x += u_hsl.x;` — hue2rgb's single-step ±1 wraparound assumes its
+      // phase-shifted (±1/3) input is at most 1 unit outside [0,1), which no longer held once an
+      // external shift of up to ±1.0 was added on top, under-wrapping the r/b channels at slider
+      // extremes.
+      // Root cause: hue2rgb correct only for a hue already normalized to [0,1); main() broke that
+      // precondition before calling hsl2rgb.
+      // Pitfall: a helper correct for its assumed input domain fails silently once a caller feeds
+      // it a value from a wider domain — check callers' actual value ranges, not just the helper.
+      hsl.x = mod( hsl.x + u_hsl.x, 1.0 );
       hsl.y = clamp( hsl.y + u_hsl.y, 0.0, 1.0 );
       hsl.z = clamp( hsl.z + u_hsl.z, 0.0, 1.0 );
       vec3 rgb = hsl2rgb( hsl );
