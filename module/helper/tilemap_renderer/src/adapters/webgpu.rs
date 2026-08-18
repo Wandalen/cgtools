@@ -13,9 +13,10 @@
 //! bitmap's own `width`/`height`, via the same `to_rgba8` helper
 //! `NativeBackend` uses (`crate::assets::to_rgba8`, shared rather than
 //! duplicated). Live browser pixel-correctness re-verification of the new
-//! upload path is a separate, not-yet-done step (see task 251's manual
-//! procedure) -- this file's own tests remain compile-and-construct-level
-//! only, per the governing task file's Out of Scope section.
+//! upload path is now confirmed (task 251, 2026-08-18: a real solid-red
+//! sprite in Firefox, matching `adapter-webgl`) -- this file's own tests
+//! remain compile-and-construct-level only, per the governing task file's
+//! Out of Scope section.
 
 mod private
 {

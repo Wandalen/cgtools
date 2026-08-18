@@ -13,8 +13,8 @@
 - **unit_type:** module
 - **unit:** module/helper/gl_uniforms
 - **repo_identity:** self
-- **verified_by:** null
-- **verification_date:** null
+- **verified_by:** acceptance-verifier
+- **verification_date:** 2026-08-18
 - **blocked_by:** null
 
 ## Goal
@@ -140,6 +140,22 @@ Desired answer for every question is YES.
 
 - [ ] AF1 — No raw `gl.get_uniform_location(...).expect(...)` boilerplate reintroduced inside `gl_uniforms` itself (the crate's whole purpose is collapsing that pattern for callers): `grep -n "get_uniform_location" module/helper/gl_uniforms/src/lib.rs` → exactly 0 direct calls outside the two documented delegation lines to `minwebgl::uniform::*`
 
+## Verification Record
+
+**Gate Check** · Tier: 2 · Type: Full · Verdict: PASS · Agents: 0 (self, dual-role) · 8/8
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+|------|------|------|-----|--------|-------|
+| D1 | Scope Coherence | — | 🟢 | — | — |
+| D2 | MOST Goal Quality | — | 🟢 | — | — |
+| D3 | Value / YAGNI | — | 🟢 | — | — |
+| D4 | Implementation Readiness | — | 🟢 | — | — |
+| D5 | Execution Scope | — | 🟢 | — | — |
+| D6 | Crate Scope Unity | — | 🟢 | Adversarial pass questioned whether workspace-root `Cargo.toml` + `rulebook.md` touches violate single-crate scope | Confirmed non-blocking: mandatory registration touchpoints for any new crate's existence, not scope mixing with a second crate's own responsibility — distinct in kind from task 006's actual D6 violation (substantive logic changes across 3 independent crates) |
+| D7 | Crate Locality | — | 🟢 | — | — |
+| D8 | Crate Single Responsibility | — | 🟢 | — | — |
+| **Total** | | — | 🟢 | 1 issue, resolved | — |
+
 ## Outcomes
 
 *(Added by Procedure - Closure when the task transitions to ✅ Completed. Absent from task files prior to completion.)*
@@ -150,6 +166,33 @@ relocated into this workspace, and live-verified against all three
 downstream consumers, before this task file existed. See
 `## Verification Record` and the independent Acceptance Verification below
 for the evidence gathered against the current repository state.
+
+### Acceptance Results
+
+- **Verified by:** acceptance-verifier
+- **Date:** 2026-08-18
+- **Verdict:** PASS
+
+Performed via an independently dispatched Agent (`subagent_type=Explore`, read-only, no file writes), given only this task file's path and the repo root — blind to the filer's own reasoning above.
+
+#### Checklist
+- [x] C1 — Is `ProgramUniforms`'s only public API `new`/`upload`/`matrix_upload` plus the `Debug` impl? — YES: `grep -n "pub " src/lib.rs` → exactly those 4 items (struct + 3 fns); `grep -n "pub use\|pub mod\|pub trait\|pub type\|pub const\|pub enum"` → 0 matches, no re-exports or extra surface
+- [x] C2 — Does `.upload()`/`.matrix_upload()` delegate to `minwebgl::uniform::*` rather than reimplementing GL calls? — YES: `src/lib.rs:41,54` call `gl::uniform::upload`/`gl::uniform::matrix_upload`; cross-checked against the real `UniformUpload`/`UniformMatrixUpload` traits in `module/min/minwebgl/src/uniform.rs:16,45`
+- [x] C3 — Does `Cargo.toml` declare `minwebgl` as a workspace dependency and `wasm-bindgen-test` as dev-dependency only? — YES: isolated `[dependencies]`/`[dev-dependencies]` sections contain exactly those two lines, nothing else
+- [x] C4 — Registered in the workspace root member list and `[workspace.dependencies.gl_uniforms]`? — YES: root `Cargo.toml:51` (member entry) and `:198-200` (dependency block, `version = "0.1.0"` matching the crate's own manifest)
+- [x] C5 — No `docs/` directory under this crate? — YES: `find module/helper/gl_uniforms/ -type d -iname docs` → empty; full file listing is exactly `Cargo.toml`, `readme.md`, `src/lib.rs`, `tests/program_uniforms_test.rs`, `tests/readme.md`
+- [x] C6 — No UBO/array-batch-upload capability added? — YES: `grep -ni "uniform_buffer\|UBO\|batch\|array_upload\|bind_buffer_base"` → 0 matches
+
+#### Measurements
+- [x] M1 — `grep -n "pub fn\|pub struct" src/lib.rs` → exactly `ProgramUniforms` (struct) + `new`/`upload`/`matrix_upload` (fns) — MET
+- [x] M2 — Live `wasm-bindgen-test` run via headless Firefox against a real WebGL2 context (`cargo test -p gl_uniforms --target wasm32-unknown-unknown`, using this repo's configured `GECKODRIVER` runner): `4 passed; 0 failed; 0 ignored` — T01(scalar)/T02(vector)/T03(matrix)/T04(absent-name) all present and green — MET
+
+#### Invariants
+- [x] I1 — `RUSTFLAGS="-D warnings" cargo check -p gl_uniforms` → `Finished` profile, 0 warnings — HOLD
+- [x] I2 — workspace member list and `rulebook.md`'s layer table both reference the crate consistently — YES: `grep -n "gl_uniforms" rulebook.md` → exactly 1 hit (the "beside L0" placement entry), no conflicting/duplicate mention — HOLD
+
+#### Anti-faking checks
+- [x] AF1 — `grep -n "get_uniform_location" src/lib.rs` → 3 total lines: 1 doc-comment (`//!`, prose not code) + the 2 documented delegation call sites (`:41`, `:54`); 0 stray raw calls outside those — PASS
 
 ## History
 

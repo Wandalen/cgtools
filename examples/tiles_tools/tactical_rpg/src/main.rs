@@ -7,7 +7,6 @@
 //! - Movement and attack ranges on hexagonal grid
 //! - AI-controlled enemies with different behaviors  
 //! - Player-controlled units with tactical decisions
-//! - Line-of-sight and area-of-effect attacks
 //! - Experience and leveling system
 //! - Equipment and inventory management
 //!

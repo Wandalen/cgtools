@@ -179,7 +179,7 @@ mod private
     }
   }
 
-  // Fix(BUG-XXX-A): recognized a `//@ param:` line even with leading whitespace via
+  // Fix(BUG-293): recognized a `//@ param:` line even with leading whitespace via
   // `.trim_start()`, diverging from `shader_chunks_core::manifest_field`'s own convention for
   // every sibling header field ( `name`/`description`/`tags`/`depends_on`/`export`/`stage` ),
   // which requires the `//@ ` prefix at column 0 with no leniency -- despite this crate's own

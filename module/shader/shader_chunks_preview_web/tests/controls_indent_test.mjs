@@ -12,7 +12,7 @@
 // pure string logic with zero WebGPU/DOM dependency, so that disclosure
 // does not extend to them; this file closes that specific coverage gap.
 
-// test_kind: bug_reproducer(BUG-XXX)
+// test_kind: bug_reproducer(BUG-296)
 /// ## Root Cause
 /// `blockIndent()` slices the selected block as
 /// `value.slice(blockStart, blockEnd)` then `.split('\n')`s it into "lines"

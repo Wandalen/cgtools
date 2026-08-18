@@ -3,7 +3,7 @@
 //! stages of the glTF loader. All three are pure data transforms over an already-parsed
 //! `gltf::Gltf` document plus pre-built placeholder `Mesh` / `Node` values ( via their GL-free
 //! `Default` impls ) -- no `gl` / `GL` / `WebGl` calls anywhere in their bodies. Originally
-//! private, made `pub` alongside these tests per task 441.
+//! private, made `pub` alongside these tests per task 299.
 #![ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
 
 use renderer::webgl::loaders::gltf::{ nodes_create, skeletons_attach, scenes_create };

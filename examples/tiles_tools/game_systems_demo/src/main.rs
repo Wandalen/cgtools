@@ -638,10 +638,17 @@ fn combat_round_simulate(turn_game: &mut TurnBasedGame, resources: &mut Resource
           turn_game.action_points_spend(2);
         }
       },
+      // Fix(BUG-301): this arm used to attack unconditionally, unlike sibling arms 11 and 13,
+      // which both guard on the attacker's own liveness before acting.
+      // Root cause: arm 12 was authored without copying the liveness guard its 2 siblings share.
+      // Pitfall: when 3+ match arms share a guard pattern, a copy-paste omission in the middle
+      // arm is easy to miss during review -- check every sibling arm, not just the adjacent one.
       12 => { // Orc Warrior 2
-        println!("  {entity_name} charges at Mage!");
-        resources.health_modify(2, -18.0);
-        turn_game.action_points_spend(3);
+        if resources.resources_get(12).unwrap().health.current > 0.0 {
+          println!("  {entity_name} charges at Mage!");
+          resources.health_modify(2, -18.0);
+          turn_game.action_points_spend(3);
+        }
       },
       13 if resources.resources_get(13).unwrap().health.current > 0.0 => { // Orc Shaman
         println!("  {entity_name} casts dark bolt at Cleric!");

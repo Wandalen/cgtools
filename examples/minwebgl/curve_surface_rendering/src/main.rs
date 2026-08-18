@@ -170,7 +170,13 @@ async fn scene_setup( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let scale = 1.005;
   clouds.borrow_mut().translation_set( [ 0.0, 1.0 - scale, 0.0 ] );
   clouds.borrow_mut().scale_set( [ scale; 3 ] );
-  clouds.borrow_mut().rotation_set( gl::Quat::from_angle_y( 90.0 ) );
+  // BUG-311 task/bug/311_from_angle_y_called_with_raw_degrees_not_radians.md -- was `90.0`
+  // (radians, ~5_157 degrees), not a 90-degree rotation.
+  // Fix(BUG-311): `from_angle_y( 90.0 )` -> `from_angle_y( 90.0_f32.to_radians() )`.
+  // Root cause: `Quat::from_angle_y` takes radians; `90.0` was passed as if it were degrees.
+  // Pitfall: a radians-only rotation constructor gives no signal when a degrees-shaped literal
+  // is passed instead -- always convert explicitly at the call site.
+  clouds.borrow_mut().rotation_set( gl::Quat::from_angle_y( 90.0_f32.to_radians() ) );
   clouds.borrow_mut().local_matrix_update();
 
   let moon = clone( &mut gltf, &earth );

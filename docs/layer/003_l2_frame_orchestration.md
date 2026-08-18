@@ -31,21 +31,40 @@ and resolve mechanics are the same shape of problem.
   extracted into a pure `frame_attachments()` function, natively unit-tested
   across all 4 branch combinations by `webgl_frame_orchestration_test.rs`
   (no live `WebGl2RenderingContext` needed for this one piece; the rest of
-  the embedded instance still has no test citation — the same
-  browser-test-infrastructure gap named elsewhere in this layer).
+  the embedded instance still has no pass-cycle test citation beyond
+  `tests/webgl/pass.rs`'s narrow `SwapFramebuffer::new` doc-comment
+  regression test (BUG-259) — the same browser-test-infrastructure gap
+  named elsewhere in this layer).
 - `renderer` (`src/webgl/shadow.rs`, legacy path): a separate shadow-map
   render-target and pass cycle, run before the main scene pass. Its
   `tests/webgl/shadow.rs` (3 tests) covers only the `SpotLight`→`Light`
-  size-parameterization helper, not the FBO/pass-cycle machinery itself,
-  which remains untested — the same browser-test-infrastructure gap named
-  elsewhere in this layer.
+  size-parameterization helper; the FBO/pass-cycle machinery itself is now
+  structurally tested against a real headless WebGL2 context by
+  `tests/fbo_pass_cycle_test.rs`'s
+  `shadow_map_bind_clear_render_completes_on_a_shadow_casting_mesh`.
 - `renderer` (`src/webgl/post_processing/gbuffer.rs`, legacy path): a
   G-buffer target set and its own fill/composite pass cycle, feeding the
   post-processing chain. Its pure `GBufferAttachment::define_const` /
-  `attribute_info` config-mapping methods are now natively tested
-  (`tests/webgl/gbuffer.rs`, task 225) — the FBO fill/composite pass
-  cycle itself remains untested, the same browser-test-infrastructure
-  gap named elsewhere in this layer.
+  `attribute_info` config-mapping methods are natively tested
+  (`tests/webgl/gbuffer.rs`, task 225), and the FBO bind/render pass cycle
+  itself is now structurally tested against a real headless WebGL2 context
+  by `tests/fbo_pass_cycle_test.rs`'s
+  `gbuffer_bind_render_completes_on_an_empty_scene`.
+- `renderer` (`src/webgl/post_processing/unreal_bloom.rs`, legacy path): a
+  10-target ping-pong bloom pass — `UnrealBloomPass` allocates 5 mip-level
+  horizontal-blur and 5 mip-level vertical-blur targets
+  (`horizontal_targets` / `vertical_targets`, `MIPS = 5`), and its
+  `render()` alternates horizontal→vertical Gaussian blur per mip before
+  compositing all 5 blurred mips into the output target. No test citation
+  — the same browser-test-infrastructure gap named elsewhere in this
+  layer.
+- `renderer` (`src/webgl/post_processing/outline/wide_outline.rs`, legacy
+  path): a JFA (Jump Flood Algorithm) ping-pong outline pass —
+  `WideOutlinePass` allocates two step framebuffers
+  (`jfa_step_fb_0`/`jfa_step_fb_1`) that its render cycle ping-pongs
+  between across `num_passes` JFA step passes before a final
+  outline-compositing pass. No test citation — the same
+  browser-test-infrastructure gap named elsewhere in this layer.
 - `renderer` (`src/webgl/loaders/pmrem.rs`): a PMREM-prefiltering render
   cycle over a cubemap target set, run at load time rather than per frame.
   Structurally tested end-to-end against a real headless WebGL2 context by
@@ -56,13 +75,25 @@ and resolve mechanics are the same shape of problem.
 - `renderer` (`src/webgpu/renderer.rs`, canonical `gpu_hal`-backed path): a
   further independent embedded instance — `frame_targets_create()` builds
   the HDR target set and `render()` runs the opaque → tonemap ordering,
-  pixel-verified end-to-end by `opaque_path_renders_lit_quad`.
+  pixel-verified end-to-end by `opaque_path_renders_lit_quad`. Also
+  real-browser pixel-verified via `browsee` on both the `webgpu` and
+  `webgl` backends, documented in
+  `module/helper/renderer/tests/manual/readme.md` — confirmed readings of
+  `rgb 205 46 41` (lit quad center) and `rgb 0 0 0` (background), identical
+  on both backends.
 - `tilemap_renderer` (WebGL2 adapter): per-batch VAO lifecycle and
-  draw-time state management inside `src/adapters/webgl.rs`.
+  draw-time state management inside `src/adapters/webgl.rs`. Beyond
+  `tests/webgl_backend_test.rs`'s compile-and-construct-level coverage,
+  real-browser pixel verification via `browsee` is documented in
+  `tests/manual/readme.md` — confirmed `rgb 255 0 0` sprite on
+  `rgb 0 0 255` clear.
 - `tilemap_renderer` (WebGPU adapter): `submit()` in `src/adapters/webgpu.rs`
   runs its own independent per-frame cycle — `command_encoder_create()` →
   `render_pass_begin()` → `pipeline_set()` → a per-command dispatch loop →
-  `pass.end()` → `queue.submit()`.
+  `pass.end()` → `queue.submit()`. Beyond `tests/webgpu_backend_test.rs`'s
+  compile-and-construct-level coverage, real-browser pixel verification via
+  `browsee` is documented in `tests/manual/readme.md` — confirmed
+  `rgb 255 0 0` sprite on `rgb 0 0 255` clear (Firefox, post-task-218).
 - `tilemap_renderer` (native adapter): `submit()` in `src/adapters/native.rs`
   runs the same encoder/pass/pipeline/dispatch-loop/end/submit shape as the
   WebGPU adapter, over an offscreen surface with pixel readback.
@@ -89,15 +120,22 @@ name and a documented home.
 | `module/helper/renderer/src/webgl/renderer.rs` | The richest embedded instance: target zoo + pass ordering + resolve |
 | `module/helper/renderer/tests/webgl_frame_orchestration_test.rs` | Native unit coverage for the attachment-selection branch (task 247) |
 | `module/helper/renderer/src/webgl/post_processing/pass.rs` | Pass composition machinery |
+| `module/helper/renderer/tests/webgl/pass.rs` | Narrow `SwapFramebuffer::new` doc-comment regression test (BUG-259) — not FBO/pass-cycle coverage |
 | `module/helper/renderer/src/webgl/shadow.rs` | Shadow-map target and pass cycle |
 | `module/helper/renderer/tests/webgl/shadow.rs` | Covers only the `SpotLight`→`Light` size helper, not the FBO/pass-cycle machinery |
 | `module/helper/renderer/src/webgl/post_processing/gbuffer.rs` | G-buffer target set and fill/composite pass cycle |
 | `module/helper/renderer/tests/webgl/gbuffer.rs` | Native coverage for `GBufferAttachment::define_const`/`attribute_info` (task 225) |
+| `module/helper/renderer/tests/fbo_pass_cycle_test.rs` | Live headless-WebGL2 bind/clear/render coverage for both `ShadowMap::render` and `GBuffer::render` |
+| `module/helper/renderer/src/webgl/post_processing/unreal_bloom.rs` | 10-target ping-pong bloom pass (5 mip-level horizontal/vertical blur targets) |
+| `module/helper/renderer/src/webgl/post_processing/outline/wide_outline.rs` | JFA ping-pong outline pass (two step framebuffers) |
 | `module/helper/renderer/src/webgl/loaders/pmrem.rs` | PMREM-prefiltering render cycle over a cubemap target set |
 | `module/helper/renderer/tests/pmrem_tests.rs` | Structural coverage of `pmrem::generate()` against a real headless WebGL2 context |
+| `module/helper/renderer/src/webgpu/renderer.rs` | Canonical `gpu_hal`-backed embedded instance: HDR target set + opaque → tonemap ordering |
+| `module/helper/renderer/tests/manual/readme.md` | Real-browser (`browsee`) pixel verification of the WebGPU/WebGL opaque path — `rgb 205 46 41` lit quad, `rgb 0 0 0` background, both backends |
 | `module/helper/tilemap_renderer/src/adapters/webgl.rs` | Per-batch VAO lifecycle and draw-time state management |
 | `module/helper/tilemap_renderer/src/adapters/webgpu.rs` | Per-frame encoder/pass/pipeline/dispatch-loop/end/submit cycle in `submit()` |
 | `module/helper/tilemap_renderer/src/adapters/native.rs` | Same per-frame cycle as the WebGPU adapter, over an offscreen surface with pixel readback |
 | `module/helper/tilemap_renderer/tests/native_backend_test.rs` | Native adapter's own per-frame cycle, pixel-verified via readback (task 087) |
 | `module/helper/tilemap_renderer/tests/webgpu_backend_test.rs` | WebGPU adapter's compile-and-construct-level coverage |
 | `module/helper/tilemap_renderer/tests/webgl_backend_test.rs`, `tests/command_consistency_test.rs` | WebGL2 adapter's compile-and-construct-level coverage, plus a cross-backend (`none`/`svg`/`native`) `capabilities()`-honesty check (task 246) |
+| `module/helper/tilemap_renderer/tests/manual/readme.md` | Real-browser (`browsee`) pixel verification beyond compile-and-construct-level — `rgb 255 0 0` sprite on `rgb 0 0 255` clear, both backends (Firefox) |

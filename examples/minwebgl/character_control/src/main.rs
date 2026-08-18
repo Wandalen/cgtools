@@ -434,7 +434,13 @@ async fn app_run() -> Result< (), gl::WebglError >
       input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyA ) ||
       input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyD )
       {
-        character.borrow_mut().rotation_set( Quat::from_angle_y( character_controls.borrow().yaw() as f32 / 2.0 ) );
+        // BUG-312 task/bug/312_character_control_visible_mesh_yaw_halved_at_call_site.md --
+        // Fix(BUG-312): removed the stray `/ 2.0` on the yaw passed to `Quat::from_angle_y`.
+        // Root cause: no basis in `CharacterControls` for halving `yaw` here -- all 4 of the
+        // struct's own internal call sites pass `self.yaw` to `from_angle_y` unmodified.
+        // Pitfall: `from_angle_y`'s internal half-angle formula is already applied inside the
+        // function; a caller passing an already-correct radians value straight through is right.
+        character.borrow_mut().rotation_set( Quat::from_angle_y( character_controls.borrow().yaw() as f32 ) );
       }
 
       let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );

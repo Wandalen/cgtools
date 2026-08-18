@@ -175,7 +175,7 @@ fn discover_chunk_matches_discover_on_wgsl_field()
   assert_eq!( chunk_discover( &LOCAL_GLOW ), discover( LOCAL_GLOW_WGSL ) );
 }
 
-// test_kind: bug_reproducer(BUG-XXX-A)
+// test_kind: bug_reproducer(BUG-293)
 /// ## Root Cause
 /// `param_lines` recognized a `//@ param:` line even when preceded by leading whitespace, via
 /// `line.trim_start().strip_prefix( "//@ param:" )` -- unlike `shader_chunks_core::manifest_field`
@@ -210,14 +210,14 @@ fn param_line_requires_column_zero_prefix_matching_manifest_field_convention()
   (
     discover( indented ), Vec::< Parameter >::new(),
     "an indented `//@ param:` line must be ignored, exactly like shader_chunks_core::manifest_field \
-    ignores an indented `//@ name:`/`//@ description:`/etc. line (BUG-XXX-A)"
+    ignores an indented `//@ name:`/`//@ description:`/etc. line (BUG-293)"
   );
 
   let flush_left = "//@ param: octaves argument u32 range(1, 8)\n";
   assert_eq!( discover( flush_left ).len(), 1, "a column-0 `//@ param:` line must still be recognized" );
 }
 
-// test_kind: bug_reproducer(BUG-XXX-B)
+// test_kind: bug_reproducer(BUG-294)
 /// ## Root Cause
 /// `shader_chunks_params_core/readme.md`, `shader_chunks_params/readme.md`, and
 /// `shader_chunks_params/docs/cli/command/01_tunables.md` all claimed "46 of the 50" bundled
@@ -258,13 +258,13 @@ fn exactly_5_bundled_chunks_declare_no_tunable_params()
   (
     without_params,
     vec![ "fullscreen_triangle", "hash21", "hash22", "palette_cosine", "srgb" ],
-    "bundled chunks declaring zero `//@ param:` lines changed (BUG-XXX-B) -- update this list AND \
+    "bundled chunks declaring zero `//@ param:` lines changed (BUG-294) -- update this list AND \
     the matching count/list in shader_chunks_params_core/readme.md, shader_chunks_params/readme.md, \
     and shader_chunks_params/docs/cli/command/01_tunables.md"
   );
 }
 
-// test_kind: bug_reproducer(BUG-XXX-B)
+// test_kind: bug_reproducer(BUG-294)
 /// ## Root Cause
 /// See `exactly_5_bundled_chunks_declare_no_tunable_params` above -- same defect. This test
 /// targets the other half of it: the codebase-fact test proves `discover` returns empty for
@@ -293,12 +293,12 @@ fn readme_chunk_annotations_reflect_palette_cosine_and_corrected_count()
   (
     readme.contains( "palette_cosine" ),
     "shader_chunks_params_core/readme.md's Chunk annotations section must list `palette_cosine` \
-    among the chunks declaring zero `//@ param:` lines (BUG-XXX-B)"
+    among the chunks declaring zero `//@ param:` lines (BUG-294)"
   );
   assert!
   (
     readme.contains( "45 of" ) && !readme.contains( "46 of" ),
     "shader_chunks_params_core/readme.md's Chunk annotations section must state 45 (not 46) of \
-    the 50 bundled chunks carry `//@ param:` lines (BUG-XXX-B)"
+    the 50 bundled chunks carry `//@ param:` lines (BUG-294)"
   );
 }
