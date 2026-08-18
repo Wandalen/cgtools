@@ -14,16 +14,16 @@
 //! trunk serve --release --no-default-features --features webgl  # webgl
 //! ```
 //!
-//! **Historical note (superseded by task 218):** at the time this example was
-//! written, the two backends were NOT expected to paint the same pixel —
-//! `adapter-webgl` uploaded real pixel bytes and painted the sprite's
-//! configured solid red, while `adapter-webgpu` had no texture-upload path
-//! wired and painted an opaque **black** quad instead. Task 218 wired
-//! `adapter-webgpu`'s own real pixel upload
-//! (`tilemap_renderer::assets::to_rgba8`, shared with `adapter-native`), so
-//! both backends are now predicted to paint the same solid red — not yet
-//! re-confirmed live in a browser; see
-//! `tilemap_renderer/tests/manual/readme.md` Scenario 2.
+//! **Historical note (superseded by task 218, re-confirmed live):** at the
+//! time this example was written, the two backends were NOT expected to
+//! paint the same pixel — `adapter-webgl` uploaded real pixel bytes and
+//! painted the sprite's configured solid red, while `adapter-webgpu` had no
+//! texture-upload path wired and painted an opaque **black** quad instead.
+//! Task 218 wired `adapter-webgpu`'s own real pixel upload
+//! (`tilemap_renderer::assets::to_rgba8`, shared with `adapter-native`), and
+//! this has now been re-confirmed live in Firefox: both backends paint the
+//! identical solid red; see `tilemap_renderer/tests/manual/readme.md`
+//! Scenario 2.
 
 #[ cfg( target_arch = "wasm32" ) ]
 use tilemap_renderer::assets::{ Assets, ImageAsset, ImageSource, PixelFormat, SpriteAsset };

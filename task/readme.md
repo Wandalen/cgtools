@@ -1,5 +1,5 @@
 <!-- task_system_metadata
-highest_id: 279
+highest_id: 291
 -->
 
 # task
@@ -137,3 +137,4 @@ Task tracking for cgtools workspace. This `readme.md` carries no `type: root`/`t
 | 117 | [005](cancelled/005_sprawl_geometry_and_subdivision.md) | 0 | 8 | 4 | 4 | 0 | 🚫 (Cancelled) | any | workspace | lib/yrd_gamedev/cgtools | SPRAWL M4 - Geometry and Subdivision | Cancelled 2026-08-09 — parent SPRAWL initiative cancelled before implementation began |
 | 118 | [006](cancelled/006_sprawl_ai_hooks_and_polish.md) | 0 | 6 | 5 | 4 | 0 | 🚫 (Cancelled) | any | workspace | lib/yrd_gamedev/cgtools | SPRAWL M5 - AI Hooks and Polish | Cancelled 2026-08-09 — parent SPRAWL initiative cancelled before implementation began |
 | 119 | [113](cancelled/113_docs_layer_od013_structural_compliance_gaps.md) | 0 | 3 | 7 | 9 | 0 | 🚫 (Cancelled) | any | workspace | lib/yrd_gamedev/cgtools | Fix docs/layer structural compliance gaps found in OD013 audit | Cancelled 2026-08-15 — superseded by direct documentation fixes via `/doc_tsk`; doc work must never be task-tracked (doc_tsk.md § Requirements), and fresh re-verification found 2 of the original 3 gaps already resolved externally, with the remaining gap + open question fixed directly in docs/layer + docs/pattern this session |
+| 120 | [291](draft/291_reconsider_gpu_hal_mipmapmsaacompute_support_if_a_real_consumer_emerges.md) | 48 | 3 | 2 | 8 | 1 | 📝 (Draft) | any | module | lib/yrd_gamedev/cgtools/module/helper/gpu_hal | Reconsider gpu_hal mipmap/MSAA/compute support if a real consumer emerges | `docs/layer/002_l1_gpu_hal.md`'s own Status section names mipmaps/MSAA/compute as not yet covered by design; no consumer (`renderer`'s opaque path, `tilemap_renderer`'s d2 adapters) currently needs any of the three — YAGNI watch-item mirroring task 056/098's pattern; no action until a real consumer need exists |

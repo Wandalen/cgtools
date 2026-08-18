@@ -74,11 +74,18 @@ those cards.
 | L0 — drivers | Thin Rust wrappers over the raw GPU APIs, one per backend | `minwebgl`, `minwebgpu`, `minwgpu`, `minvulkan` (real Instance/Device/Queue, tested against a live ICD; surface/swapchain not yet implemented) | — |
 | (substrate) | Shared helpers the drivers build on — below the ladder, not a layer | `mingl` | — |
 
+`line_tools` is not beside the ladder — it is already pinned twice, split by
+submodule: `line_tools::d2` is a `d2`-stack crate, `line_tools::d3` is a
+`d3`-stack crate (both already listed in
+[docs/adr/001](docs/adr/001_multi_stack_rendering_architecture.md)'s own
+per-stack tables — neither pending nor a single classification, since
+neither module is an "engine" occupying the L3 row above; both are
+line-geometry-and-shader utilities their respective stack's engine can call
+directly).
+
 Beside the ladder: `canvas_renderer` (cross-stack bridge via textures — see
 [docs/pattern/003](docs/pattern/003_cross_stack_bridge_via_foundation_resources.md)),
-`tiles_tools` (tile-logic library feeding L4), `line_tools` (straddles the
-d2/d3 stacks, classification pending — see
-[docs/adr/001](docs/adr/001_multi_stack_rendering_architecture.md)),
+`tiles_tools` (tile-logic library feeding L4),
 `animation` (value interpolation, easing, and multi-animation sequencing —
 feature-gated to `minwebgl`/`mingl`'s math/future/diagnostics utilities, not
 their GL-context layers, so it is a horizontal capability rather than an

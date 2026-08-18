@@ -29,21 +29,30 @@ trunk serve --release --port 8080                                        # webgp
 trunk serve --release --no-default-features --features webgl --port 8080 # webgl
 ```
 
-**Historical note (superseded by task 218):** at the time this guide and its
-recorded readings below were written, the two backends were NOT expected to
-paint the same pixel — `adapter-webgl` uploaded real pixel bytes
+**Historical note (superseded by task 218, re-verified live):** at the time
+this guide was first written, the two backends were NOT expected to paint the
+same pixel — `adapter-webgl` uploaded real pixel bytes
 (`tex_image_2d_with_...`) and painted the sprite's configured solid red, while
 `adapter-webgpu` had no texture-upload path wired and painted an opaque
 **black** quad instead (see `src/adapters/webgpu.rs:9-13`'s then-current module
 doc comment). Task 218 has since wired `adapter-webgpu`'s own real pixel
 upload through `gpu_hal::Queue::texture_write`, sharing the same `to_rgba8`
-conversion helper `adapter-native` uses — sourced, unit-tested, and confirmed
-by direct source reading, but **not yet re-verified live in a browser**. Both
-backends are now predicted to paint the same solid red (the asset content is
-identical), but Scenario 2 and the Test Matrix below still show the pre-218
-black reading until this manual procedure is re-run. Treat every `rgb 0 0 0`
-reading below as stale pending that re-run, not as this adapter's current
-behavior.
+conversion helper `adapter-native` uses, and this has now been re-verified
+live in Firefox: both backends paint the identical solid red (`rgb 255 0 0`)
+sprite on the identical blue (`rgb 0 0 255`) clear color. Scenario 2 and the
+Test Matrix below have been updated with the confirmed reading — every
+`rgb 0 0 0` reading remaining in this guide is now explicitly historical
+(pre-218), not the adapter's current behavior.
+
+**Chromium gotcha (this sandbox):** unlike Firefox, Chromium has been observed
+to intermittently fail to present the `adapter-webgpu` canvas frame at all —
+`.wait for::render` times out, and the session log shows GPU-process/compositor
+-level errors (e.g. Dawn's `CopyTextureForBrowser`/`[Invalid Texture]`, or a
+lower-level `vaInitialize failed`/`ContextResult::kTransientFailure` GPU-process
+crash) with a different signature each time, consistent with this sandbox's
+virtualized/software-GPU limitations rather than a defect in this crate's
+texture-upload code — the same Rust/wasm path renders correctly in Firefox.
+Use Firefox for this procedure; it is the proven, reliable browser here.
 
 **Gotcha for anyone editing `centered_sprite_command`:** `Transform::position`
 is the sprite quad's *starting corner*, not its center, and `Transform::scale`
@@ -82,7 +91,7 @@ browsee .shot out::./-tmr_webgl.png session::tmr_adapter_webgl
   `native_backend_test.rs`'s own `SPRITE_RGBA`. Verified reading on this build:
   `rgb 255 0 0`.
 
-### 2. WebGPU backend renders its sprite (⚠️ reading predates task 218, needs re-run)
+### 2. WebGPU backend renders its sprite (re-verified post-task-218)
 
 **Objective:** `WebGpuBackend::new` + `assets_load` + `submit` + `output`
 paints a real, correctly-centered quad through a real WebGPU context,
@@ -98,18 +107,20 @@ browsee .pixel region::20x20x314,270 session::tmr_adapter   # chrome-corrected �
 browsee .shot out::./-tmr_webgpu.png session::tmr_adapter
 ```
 
-**Expected Behavior (pre-task-218, recorded when this guide was written):** the
-corrected offset read pure opaque black (`rgb 0 0 0`) — `WebGpuBackend` had no
-texture-upload path wired at the time, so the fragment shader sampled a
-zero-initialized texture through `gpu_hal`'s opaque, no-blend v0 pipeline.
+**Expected Behavior (pre-task-218, historical):** the corrected offset read
+pure opaque black (`rgb 0 0 0`) — `WebGpuBackend` had no texture-upload path
+wired at the time, so the fragment shader sampled a zero-initialized texture
+through `gpu_hal`'s opaque, no-blend v0 pipeline.
 
-**Expected Behavior (post-task-218, predicted but NOT yet live-confirmed):**
+**Expected Behavior (post-task-218, live-confirmed):**
 `WebGpuBackend::assets_load` now uploads the sprite's real pixel bytes (same
-solid-red 8x8 bitmap, same `to_rgba8` conversion `adapter-native` uses), so
-the corrected offset should now read pure solid red (`rgb 255 0 0`), matching
-Scenario 1. This has not been re-measured live since the fix landed — re-run
-the steps above and update both this line and the Test Matrix below with the
-actual reading before trusting it.
+solid-red 8x8 bitmap, same `to_rgba8` conversion `adapter-native` uses).
+Re-run in Firefox against a fresh `trunk serve --release` build: the corrected
+offset reads pure solid red (`rgb 255 0 0`), matching Scenario 1 exactly.
+Chromium in this sandbox failed to present a frame at all on the same build
+(see the Chromium gotcha note above) — treat that as an environment limitation
+of this sandbox, not a re-opening of this reading; Firefox's reading is the
+one this guide treats as authoritative.
 
 ### 3. Bounded draw — clear color outside the sprite
 
@@ -128,9 +139,9 @@ browsee .pixel region::20x20x100,150 session::tmr_adapter
 
 **Expected Behavior:** both should read the configured clear color
 (`rgb 0 0 255`), distinct from the sprite's solid red. Verified identical on
-both backends **pre-task-218** (when `adapter-webgpu`'s own sprite color was
-still black, also distinct from the clear color); not yet re-verified against
-the predicted post-task-218 red sprite.
+both backends pre-task-218 (when `adapter-webgpu`'s own sprite color was
+still black, also distinct from the clear color) and re-verified post-task-218
+in Firefox — `rgb 0 0 255` on both, still distinct from the now-red sprite.
 
 ### `region::center` needs a chrome-corrected offset here
 
@@ -165,9 +176,9 @@ browsee .kill session::tmr_adapter_webgl purge::1
 
 | Scenario | webgpu | webgl |
 |----------|--------|-------|
-| Render completes (`.wait for::render` exits 0) | ✓ | ✓ |
-| Sprite-center reads configured color | ⚠️ stale: opaque black (`0,0,0`), recorded pre-task-218 — predicted `255,0,0` post-fix, not yet re-measured | ✓ solid red (`255,0,0`) |
-| Background reads configured clear color, distinct from sprite | ✓ (`0,0,255`), pre-task-218 | ✓ (`0,0,255`) |
+| Render completes (`.wait for::render` exits 0) | ✓ (Firefox; Chromium intermittently fails to present — see Chromium gotcha note) | ✓ |
+| Sprite-center reads configured color | ✓ solid red (`255,0,0`), re-verified post-task-218 in Firefox | ✓ solid red (`255,0,0`) |
+| Background reads configured clear color, distinct from sprite | ✓ (`0,0,255`) | ✓ (`0,0,255`) |
 
 Native regression coverage and the wasm32 compile check are automated —
 `cargo nextest run -p tilemap_renderer --features adapter-native` and

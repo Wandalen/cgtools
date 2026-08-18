@@ -84,7 +84,17 @@ mod private
     )
   }
 
-  fn quat_sequence
+  /// Builds a rotation [`Sequence`] of [`Tween< QuatF64 >`]s from a glTF animation channel --
+  /// pure data transform, no `gl`/`GL`/`WebGl` calls anywhere in its body. Mirrors
+  /// `vec3_sequence`'s single-keyframe handling (see the BUG-188 guard below).
+  ///
+  /// # Panics
+  ///
+  /// Does not panic under normal control flow: the two preceding `Interpolation::CubicSpline`
+  /// checks always populate `in_tangent`/`out_tangent` before the `match`'s own `CubicSpline`
+  /// arm runs its `.unwrap()` calls on them.
+  #[ must_use ]
+  pub fn quat_sequence
   (
     channel : &Channel< '_ >,
     buffers : &[ Vec< u8 > ],
@@ -522,6 +532,7 @@ crate::mod_interface!
     load,
     channel_decode,
     vec3_sequence,
-    weights_sequence
+    weights_sequence,
+    quat_sequence
   };
 }

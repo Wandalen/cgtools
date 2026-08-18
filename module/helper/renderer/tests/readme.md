@@ -32,6 +32,8 @@
 | animation_graph_tests.rs | Tests animation graph stuff |
 | mirror_tests.rs | Tests animation mirroring stuff |
 | pmrem_tests.rs | Structural browser tests of the PMREM IBL generator |
+| fbo_pass_cycle_test.rs | Live-context FBO pass-cycle tests for `ShadowMap`/`GBuffer` bind/render |
+| pbr_material_live_test.rs | Live-context tests for `PbrMaterial` defines/IBL-flag/emission/clone logic |
 | tests.rs | Connects test modules into root |
 | shader_validation_tests.rs | Validates WGSL shader sources offline via naga |
 | native_render_test.rs | Pixel-asserted opaque path render on the native backend |
@@ -40,4 +42,7 @@
 | webgpu_normal_matrix_test.rs | Tests `webgpu::normal_matrix_compute` singular-matrix identity fallback |
 | gltf_loader_tests.rs | Verifies glTF loader asset-URI resolution rules |
 | gltf_material_variation_test.rs | Tests glTF material-variation cache lookup-or-insert sharing |
+| gltf_node_scene_test.rs | Tests glTF node-hierarchy, skeleton-attach, and scene-assembly builders |
+| gltf_skeleton_displacements_test.rs | Tests glTF morph-target displacement data packing |
+| gltf_attribute_descriptor_test.rs | Tests glTF vertex-attribute descriptor computation from accessor metadata |
 | webgl_frame_orchestration_test.rs | Tests legacy webgl path's drawbuffers attachment selection |

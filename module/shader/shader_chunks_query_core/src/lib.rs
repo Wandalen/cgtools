@@ -892,17 +892,29 @@ mod private
       TreeFormat::Aligned =>
       {
         let formatter = TreeFormatter::new();
-        Ok( roots.iter().map( | &chunk |
+        // Fix(BUG-284): render every forest root as a child of ONE shared invisible parent and
+        // call format_aligned exactly once, instead of once per root joined by "\n".
+        // Root cause: the old per-root loop called format_aligned separately for each root (each
+        // wrapped as the SOLE child of its own invisible parent), then joined the resulting
+        // strings with "\n" — but every per-root string already carried format_aligned's own
+        // trailing "\n", so the join doubled it into a blank line between every pair of roots;
+        // and since each root was always its invisible parent's only child, format_aligned always
+        // rendered it with the "last sibling" connector (`└── `), even when more roots followed.
+        // Pitfall: mapping a formatter call over each sibling and joining the strings defeats the
+        // formatter's own sibling-position awareness (├── vs └──) and can double a trailing
+        // separator the formatter already appends — give a formatter every sibling in one call
+        // (one shared parent) whenever it is itself responsible for inter-sibling connectors.
+        let mut invisible_parent = TreeNode::new( String::new(), None );
+        for &chunk in &roots
         {
           // `format_aligned` never renders its own argument's `name`/`data` ( only
           // `show_root: true` would, and even then via bare `name` with no
-          // column alignment ) — it only renders `children`. Wrapping each real
-          // root as the sole child of an invisible, data-less parent makes that
-          // root itself appear as a normal aligned row instead of being skipped.
-          let mut invisible_parent = TreeNode::new( String::new(), None );
+          // column alignment ) — it only renders `children`. Wrapping every real
+          // root as a child of ONE shared invisible, data-less parent makes each
+          // root appear as a normal aligned row instead of being skipped.
           invisible_parent.children.push( dep_tree_node( chunk, &children_of ) );
-          formatter.format_aligned( &invisible_parent )
-        }).collect::< Vec< _ > >().join( "\n" ) )
+        }
+        Ok( formatter.format_aligned( &invisible_parent ) )
       },
       TreeFormat::Dot | TreeFormat::Mermaid =>
       {

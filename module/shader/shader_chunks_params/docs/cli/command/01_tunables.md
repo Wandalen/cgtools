@@ -5,9 +5,9 @@
 Lists every tunable parameter `shader_chunks_params::chunk_discover` finds
 declared on one bundled chunk's `//@ param:` lines — name, kind, WGSL
 type, range, and range source (declared vs. inferred). A chunk that
-declares none (true for every bundled chunk today — see Notes) prints an
-explicit "no tunable parameters" message instead of a blank table or an
-error.
+declares none (a handful of leaf/infrastructure chunks — see Notes)
+prints an explicit "no tunable parameters" message instead of a blank
+table or an error.
 
 -- **Parameters:** name
 -- **Exit Codes:** 0 (success, including the zero-parameters case) | 1
@@ -31,24 +31,30 @@ shader_chunks tunables hash21
 # chunk `hash21` declares no tunable parameters
 
 shader_chunks tunables fbm3
-# chunk `fbm3` declares no tunable parameters
+# name        kind      type  range  source
+# ----------  --------  ----  -----  --------
+# lacunarity  Argument  F32   1..3   Declared
+# gain        Argument  F32   0..1   Declared
 ```
 
-Every bundled chunk today declares zero `//@ param:` lines, so both real
-invocations above render the explicit empty message (see Notes). When a
-chunk does declare one or more, `tunables` instead renders one table row
-per parameter — columns `name`, `kind`, `type`, `range`, `source` — see
+Most bundled chunks declare one or more `//@ param:` lines today (see
+Notes); `fbm3` above is a real, subprocess-reachable example of the
+populated-table path — one table row per parameter, columns `name`,
+`kind`, `type`, `range`, `source`. A handful of leaf/infrastructure
+chunks — `hash21` among them — still declare none and render the
+explicit empty message instead. See
 [`shader_chunks_params`](../../../../shader_chunks_params/readme.md) for
 the `//@ param:` declaration grammar and range-inference heuristic, and
 `shader_chunks_params/tests/tunables_test.rs::tunables_of_chunk_lists_declared_and_inferred_parameters`
-for a worked example against a fixture chunk.
+for a fixture-based worked example covering both a declared and an
+inferred range in the same table.
 
 ### Notes
-- Every bundled chunk today declares zero `//@ param:` lines — annotating
-  one is out of scope for this command, same as it was for
-  `shader_chunks_params` itself (decision Q-03); the empty-message path
-  is the only outcome reachable against the real bundled set via
-  subprocess, and is itself a tested, valid outcome, not a gap.
+- 46 of the 50 bundled chunks declare one or more `//@ param:` lines
+  today; `hash21`, `hash22`, `srgb`, and `fullscreen_triangle` are the
+  remaining leaf/infrastructure chunks that still declare none and so
+  still render the empty-message path — both paths are real,
+  subprocess-reachable, tested outcomes, not a gap.
 - The empty-message case is a single explanatory line, not a table —
   distinct from a hypothetical zero-row table.
 - `range`/`source` render `-`/`-` for a parameter with no numeric range

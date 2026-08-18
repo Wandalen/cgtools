@@ -9,12 +9,15 @@ solid-red sprite asset. That test proves the same construct → assets_load →
 submit → output flow on the native backend through an offscreen GPU
 readback; this crate proves it through a real canvas instead.
 
-The two backends are **not** expected to paint the same pixel:
-`adapter-webgl` uploads real pixel bytes and paints the sprite's configured
-solid red; `adapter-webgpu` has no texture-upload path wired yet (see its own
-module doc comment) and paints an opaque **black** quad instead — this crate
-proves each backend's own honest, distinct current behavior rather than a
-uniform claim neither could back up.
+The two backends now paint the **same** pixel: both `adapter-webgl` and
+`adapter-webgpu` upload the sprite's real pixel bytes (sharing the same
+`to_rgba8` conversion `adapter-native` uses) and paint the configured solid
+red on the configured blue clear color — confirmed live in Firefox, see
+`module/helper/tilemap_renderer/tests/manual/readme.md`. (Historically,
+before `adapter-webgpu`'s texture-upload path was wired, it painted an opaque
+black quad instead — this crate originally proved each backend's own honest,
+distinct behavior rather than a uniform claim neither could back up; that
+asymmetry no longer exists.)
 
 One crate, two backends, one feature each — build/run one at a time:
 

@@ -560,7 +560,21 @@ fn fs_main( in : VertexOutput ) -> @location( 0 ) vec4f
   /// - [`PreviewError::Compose`] — the assembled set fails composition.
   pub fn bundle_build( target_wgsl : &str ) -> Result< PreviewBundle, PreviewError >
   {
-    for required in [ "name", "depends_on" ]
+    // Fix(BUG-281): added "tags" to the upfront required-manifest-fields
+    // list so a missing `//@ tags:` line is rejected here, gracefully, as
+    // `Unpreviewable` instead of panicking later inside `tags_parse`.
+    // Root cause: this loop only ever checked "name"/"depends_on" before
+    // any panicking `shader_chunks_core` parser ran, but
+    // `value_chunk_harness_and_parameters` (below) unconditionally calls
+    // `tags_parse` once a previewable export is chosen, which panics via
+    // `manifest_field` when no `//@ tags:` line exists -- this function's
+    // own doc comment promises `Unpreviewable` for "missing manifest
+    // lines" generally, not just the two that were actually guarded.
+    // Pitfall: this upfront guard is only as complete as the field list it
+    // checks -- any future call to another panicking `shader_chunks_core`/
+    // `shader_chunks_params_core` manifest parser deeper in this pipeline
+    // must extend this same list, or it silently reopens this panic class.
+    for required in [ "name", "depends_on", "tags" ]
     {
       let prefix = format!( "//@ {required}:" );
       if !target_wgsl.lines().any( | line | line.starts_with( prefix.as_str() ) )

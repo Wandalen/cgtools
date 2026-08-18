@@ -20,7 +20,7 @@ mod private
   use std::path::{ Path, PathBuf };
   use unilang::prelude::*;
   use cli_fmt::prelude::*;
-  use shader_chunks_cli_core::{ CliApp, CommandSet, arg_bool, arg_list, arg_string, error_report, named_arg, stdout_print, text_output };
+  use shader_chunks_cli_core::{ CliApp, CommandSet, arg_bool_checked, arg_list, arg_string_checked, error_report, named_arg, stdout_print, text_output };
   use shader_chunks_preview::{ PreviewCliError, PreviewTarget, bundle_prepare };
   use shader_chunks_preview_core::{ PreviewBundle, PreviewError };
   use shader_chunks_render_core::RenderError;
@@ -382,12 +382,18 @@ mod private
     ])
     .end();
 
+    // Fix(BUG-285): every `arg_string`/`arg_bool` call in this routine
+    // switched to `arg_string_checked`/`arg_bool_checked`. Root cause: same
+    // defect class as BUG-283 (`shader_chunks_cli_core`'s catch-all `Value`
+    // match arms cannot tell "argument absent" apart from "argument
+    // supplied twice"); BUG-283 fixed `shader_chunks_compose` only. Pitfall:
+    // see the matching comment in `shader_chunks_query/src/lib.rs`.
     let routine : CommandRoutine = Box::new( | cmd, _ctx |
     {
-      let name = arg_string( &cmd, "name" );
-      let file = arg_string( &cmd, "file" );
+      let name = arg_string_checked( &cmd, "name" )?;
+      let file = arg_string_checked( &cmd, "file" )?;
       let set_tokens = arg_list( &cmd, "set" );
-      if arg_bool( &cmd, "all", false )
+      if arg_bool_checked( &cmd, "all", false )?
       {
         if name.is_some() || file.is_some() || !set_tokens.is_empty()
         {
@@ -398,10 +404,10 @@ mod private
             "render `all::1` renders every chunk and cannot be combined with a target (`name`/`file::`) or `set::`".to_string(),
           ));
         }
-        let size = size_parse( &arg_string( &cmd, "size" ).unwrap_or_else( || "256".to_string() ) )
+        let size = size_parse( &arg_string_checked( &cmd, "size" )?.unwrap_or_else( || "256".to_string() ) )
         .map_err( | err | render_cli_error( &err ) )?;
         let time = arg_time( &cmd )?;
-        let out_dir = PathBuf::from( arg_string( &cmd, "out" ).unwrap_or_else( || ".".to_string() ) );
+        let out_dir = PathBuf::from( arg_string_checked( &cmd, "out" )?.unwrap_or_else( || ".".to_string() ) );
         let outcomes = render_all_to_png( size, time, &out_dir ).map_err( | err | render_cli_error( &err ) )?;
         let failed = outcomes.iter().filter( | o | matches!( o, BatchOutcome::Failed { .. } ) ).count();
         stdout_print( &batch_summary( &outcomes ) );
@@ -427,11 +433,11 @@ mod private
           "render needs exactly one target: a chunk name (see `list`) or `file::<path>`".to_string(),
         )),
       };
-      let size = size_parse( &arg_string( &cmd, "size" ).unwrap_or_else( || "256".to_string() ) )
+      let size = size_parse( &arg_string_checked( &cmd, "size" )?.unwrap_or_else( || "256".to_string() ) )
       .map_err( | err | render_cli_error( &err ) )?;
       let time = arg_time( &cmd )?;
       let overrides = overrides_parse( &set_tokens ).map_err( | err | render_cli_error( &err ) )?;
-      let out = out_path_of( &target, arg_string( &cmd, "out" ) );
+      let out = out_path_of( &target, arg_string_checked( &cmd, "out" )? );
       let content = render_to_png( &target, size, time, &overrides, &out ).map_err( | err | render_cli_error( &err ) )?;
       Ok( text_output( content ) )
     });

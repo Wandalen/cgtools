@@ -264,11 +264,20 @@ fn manifest_field_all< 'a >( wgsl : &'a str, key : &str ) -> Vec< &'a str >
 }
 
 /// A comma-separated manifest value as trimmed entries, empty when blank.
+// Fix(BUG-280): filter out empty segments from a trailing/leading/doubled
+// comma, mirroring `src/lib.rs`'s `depends_on_parse`/`tags_parse` fix — this
+// function is the compile-time counterpart for both fields, and the
+// `chunks_table_matches_each_manifest` test holds its output equal to
+// theirs, so the two implementations must not drift.
+// Root cause: `split(',').map(trim)` alone still yields an empty segment
+// per stray comma; trimming does not remove an already-empty string.
+// Pitfall: keep this in sync with the `lib.rs` parsers — they share the
+// same manifest grammar by design ( see this file's own module doc ).
 fn list_entries( raw : &str ) -> Vec< &str >
 {
   if raw.is_empty()
   {
     return Vec::new();
   }
-  raw.split( ',' ).map( str::trim ).collect()
+  raw.split( ',' ).map( str::trim ).filter( | entry | !entry.is_empty() ).collect()
 }

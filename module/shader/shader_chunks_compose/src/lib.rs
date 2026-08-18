@@ -14,7 +14,7 @@ mod private
   use std::path::Path;
   use unilang::prelude::*;
   use cli_fmt::prelude::*;
-  use shader_chunks_cli_core::{ CliApp, CommandSet, arg_bool, arg_string, error_report, named_arg, names_flatten, text_output };
+  use shader_chunks_cli_core::{ CliApp, CommandSet, arg_bool_checked, arg_string_checked, error_report, named_arg, names_flatten, text_output };
 
   /// This utility's standalone binary name.
   pub const BINARY : &str = "shader_chunks_compose";
@@ -166,9 +166,23 @@ mod private
         Some( value ) => names_flatten( value ),
         None => unreachable!( "argument 'names' is declared Kind::List, multiple, and required" ),
       };
-      let transitive = arg_bool( &cmd, "transitive", false );
+      // Fix(BUG-283): use the `_checked` extractors for `transitive`/`out` so
+      // a duplicated named key ( unilang binds a repeated key as
+      // `Value::List` regardless of the argument's own `multiple` attribute )
+      // fails loudly instead of silently falling through to
+      // `arg_bool`/`arg_string`'s catch-all `_ => default`/`None` arm.
+      // Root cause: `arg_bool`/`arg_string` never matched `Value::List`, so a
+      // repeated `out::`/`transitive::` was indistinguishable from the key
+      // never having been supplied at all -- `out::a out::b` silently printed
+      // to stdout instead of writing either file, and `transitive::1
+      // transitive::1` silently composed with `transitive=false`.
+      // Pitfall: a `Value` match's catch-all arm must never be trusted to
+      // mean "argument absent" -- unilang can bind any named key to
+      // `Value::List` the moment it is repeated on argv, whether or not
+      // `multiple` was set.
+      let transitive = arg_bool_checked( &cmd, "transitive", false )?;
       let content = chunks_compose( &names, transitive ).map_err( | e | compose_error( &e ) )?;
-      match arg_string( &cmd, "out" )
+      match arg_string_checked( &cmd, "out" )?
       {
         Some( out ) =>
         {

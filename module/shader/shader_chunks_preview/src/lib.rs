@@ -15,7 +15,7 @@ mod private
   use std::path::{ Path, PathBuf };
   use unilang::prelude::*;
   use cli_fmt::prelude::*;
-  use shader_chunks_cli_core::{ CliApp, CommandSet, arg_bool, arg_string, error_report, named_arg, stdout_print, text_output };
+  use shader_chunks_cli_core::{ CliApp, CommandSet, arg_bool_checked, arg_string_checked, error_report, named_arg, stdout_print, text_output };
   use shader_chunks_preview_core::{ bundle_build, PreviewBundle, PreviewError };
 
   /// This utility's standalone binary name.
@@ -248,10 +248,16 @@ mod private
     ])
     .end();
 
+    // Fix(BUG-285): every `arg_string`/`arg_bool` call in this routine
+    // switched to `arg_string_checked`/`arg_bool_checked`. Root cause: same
+    // defect class as BUG-283 (`shader_chunks_cli_core`'s catch-all `Value`
+    // match arms cannot tell "argument absent" apart from "argument
+    // supplied twice"); BUG-283 fixed `shader_chunks_compose` only. Pitfall:
+    // see the matching comment in `shader_chunks_query/src/lib.rs`.
     let routine : CommandRoutine = Box::new( | cmd, _ctx |
     {
-      let name = arg_string( &cmd, "name" );
-      let file = arg_string( &cmd, "file" );
+      let name = arg_string_checked( &cmd, "name" )?;
+      let file = arg_string_checked( &cmd, "file" )?;
       let target = match ( name, file )
       {
         ( Some( name ), None ) => PreviewTarget::Name( name ),
@@ -263,7 +269,7 @@ mod private
           "preview needs exactly one target: a chunk name (see `shader_chunks list`) or `file::<path>`".to_string(),
         )),
       };
-      let serve_bundle = arg_bool( &cmd, "serve", true );
+      let serve_bundle = arg_bool_checked( &cmd, "serve", true )?;
       let content = preview( &target, serve_bundle ).map_err( | e | preview_cli_error( &e ) )?;
       Ok( text_output( content ) )
     });

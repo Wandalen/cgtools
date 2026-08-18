@@ -189,3 +189,111 @@ fn subprocess_compose_out_to_unwritable_path_fails_with_exit_2()
   assert!( stderr.contains( "io error" ), "stderr: {stderr}" );
   assert!( !out.exists() );
 }
+
+/// ## Root Cause
+/// `unilang`'s semantic analyzer collects a named argument into a
+/// `Value::List` whenever the same key is supplied more than once on argv
+/// -- unconditionally, regardless of whether the argument's own
+/// `ArgumentDefinition` declared `multiple: true`
+/// ( `unilang::semantic::argument_binding::bind_argument_values`, guarded
+/// by `if parser_args.len() > 1` before ever consulting
+/// `arg_def.attributes.multiple` ). `shader_chunks_cli_core::arg_string`
+/// only matched `Value::String`/`Value::Enum`; any other variant --
+/// including this `Value::List` -- fell through its catch-all `_ => None`
+/// arm, making a duplicated `out::` indistinguishable from `out::` never
+/// having been supplied at all.
+///
+/// ## Why Not Caught
+/// Every existing `out::` test ( `subprocess_compose_writes_the_file_and_prints_the_summary`
+/// et al. ) supplies the key exactly once; nothing in this crate's suite
+/// exercised a repeated named key, so the silent fallback to `arg_string`'s
+/// `None` branch -- which happens to be `compose`'s own well-tested "no
+/// `out::` given" behavior -- was never distinguished from the "given but
+/// ignored" case.
+///
+/// ## Fix Applied
+/// Added `shader_chunks_cli_core::arg_string_checked` / `arg_bool_checked`
+/// -- new, additive helpers ( not a breaking change to the existing
+/// `arg_string`/`arg_bool` still used by sibling utility crates ) that
+/// explicitly match `Value::List` and return a loud `ErrorData`/exit-1
+/// naming the duplicated key instead of silently falling through.
+/// `shader_chunks_compose`'s `cmd_compose` routine now uses the checked
+/// variants for its own `out`/`transitive` parameters.
+///
+/// ## Prevention
+/// Any future single-value named-argument extractor added to
+/// `shader_chunks_cli_core` must explicitly handle `Value::List` -- never
+/// rely on a catch-all `_` arm for a `Value` match, since `unilang` can
+/// produce a list for *any* named key the moment it is repeated, whether
+/// or not the argument was declared `multiple`.
+///
+/// ## Pitfall
+/// A `Value` catch-all arm silently conflates two very different
+/// situations -- "the key was never supplied" and "the key was supplied,
+/// just not in the shape this extractor expects" -- collapsing both into
+/// the same fallback. When that fallback is itself a valid, well-tested
+/// behavior in its own right ( here: "no `out::`, print to stdout" ), the
+/// silent misrouting is invisible until someone diffs the *destination* of
+/// the output against what was actually requested.
+#[ test ]
+fn subprocess_compose_out_given_twice_fails_loudly_instead_of_silently_printing_to_stdout()
+{
+  let out_a = temp_wgsl( "dup_out_a" );
+  let out_b = temp_wgsl( "dup_out_b" );
+  let output = Command::cargo_bin( "shader_chunks_compose" ).expect( "binary builds" )
+  .args( [ "compose", "hash21", &format!( "out::{}", out_a.display() ), &format!( "out::{}", out_b.display() ) ] )
+  .output()
+  .expect( "runs" );
+
+  assert!( !output.status.success(), "a duplicated `out::` must not silently succeed" );
+  assert_eq!( output.status.code(), Some( 1 ), "duplicated named argument is a caller-fixable validation error, exit 1" );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( stderr.contains( "out" ), "stderr should name the offending parameter: {stderr}" );
+  let stdout = String::from_utf8_lossy( &output.stdout );
+  assert!( !stdout.contains( "fn hash21" ), "must not silently fall back to printing the composed WGSL to stdout: {stdout}" );
+  assert!( !out_a.exists(), "neither out:: value must receive a partial/stale write" );
+  assert!( !out_b.exists(), "neither out:: value must receive a partial/stale write" );
+}
+
+/// ## Root Cause
+/// Same underlying defect as
+/// `subprocess_compose_out_given_twice_fails_loudly_instead_of_silently_printing_to_stdout`
+/// ( see its doc comment for the full mechanism ), manifesting through
+/// `arg_bool` instead of `arg_string`: a duplicated `transitive::1
+/// transitive::1` binds as `Value::List([Boolean(true), Boolean(true)])`,
+/// which `arg_bool`'s `Some(Value::Boolean(flag)) => *flag, _ => default`
+/// match silently resolved to `default` ( `false` ) via its catch-all arm.
+///
+/// ## Why Not Caught
+/// Every existing `transitive` test supplies the key at most once; no
+/// existing case repeats a named boolean flag.
+///
+/// ## Fix Applied
+/// `cmd_compose` now calls the new `arg_bool_checked`, which matches
+/// `Value::List` explicitly and returns a loud exit-1 error instead of
+/// silently taking `default`.
+///
+/// ## Prevention
+/// See the sibling `out::` test's doc comment -- same rule: never let a
+/// `Value` match's catch-all arm absorb `Value::List`.
+///
+/// ## Pitfall
+/// Silently falling back to `transitive`'s default of `false` doesn't just
+/// drop a flag -- it routes execution into a *different, unrelated* error
+/// path ( `MissingDependency`, since the closure was never widened ),
+/// which reads like a legitimate dependency-resolution failure rather than
+/// a swallowed duplicate-argument bug, making misdiagnosis likely.
+#[ test ]
+fn subprocess_compose_transitive_given_twice_fails_loudly_instead_of_silently_defaulting_to_false()
+{
+  let output = Command::cargo_bin( "shader_chunks_compose" ).expect( "binary builds" )
+  .args( [ "compose", "fbm3", "transitive::1", "transitive::1" ] )
+  .output()
+  .expect( "runs" );
+
+  assert!( !output.status.success(), "a duplicated `transitive::` must not silently succeed" );
+  assert_eq!( output.status.code(), Some( 1 ), "duplicated named argument is a caller-fixable validation error, exit 1" );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( stderr.contains( "transitive" ), "stderr should name the offending parameter: {stderr}" );
+  assert!( !stderr.contains( "was not passed to compose" ), "must not silently fall into the unrelated MissingDependency path: {stderr}" );
+}

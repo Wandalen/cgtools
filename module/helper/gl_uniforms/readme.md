@@ -13,3 +13,4 @@ context and a linked `WebGlProgram` once, so each call site only needs a name an
 | File | Responsibility |
 |------|-----------------|
 | `src/lib.rs` | `ProgramUniforms` wrapper -- `.upload()`/`.matrix_upload()` over `minwebgl::uniform`'s `UniformUpload`/`UniformMatrixUpload` traits |
+| `tests/readme.md` | Live-context tests for `ProgramUniforms` upload/matrix_upload |

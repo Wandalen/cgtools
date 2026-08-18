@@ -41,7 +41,11 @@ and resolve mechanics are the same shape of problem.
   elsewhere in this layer.
 - `renderer` (`src/webgl/post_processing/gbuffer.rs`, legacy path): a
   G-buffer target set and its own fill/composite pass cycle, feeding the
-  post-processing chain.
+  post-processing chain. Its pure `GBufferAttachment::define_const` /
+  `attribute_info` config-mapping methods are now natively tested
+  (`tests/webgl/gbuffer.rs`, task 225) — the FBO fill/composite pass
+  cycle itself remains untested, the same browser-test-infrastructure
+  gap named elsewhere in this layer.
 - `renderer` (`src/webgl/loaders/pmrem.rs`): a PMREM-prefiltering render
   cycle over a cubemap target set, run at load time rather than per frame.
   Structurally tested end-to-end against a real headless WebGL2 context by
@@ -88,8 +92,12 @@ name and a documented home.
 | `module/helper/renderer/src/webgl/shadow.rs` | Shadow-map target and pass cycle |
 | `module/helper/renderer/tests/webgl/shadow.rs` | Covers only the `SpotLight`→`Light` size helper, not the FBO/pass-cycle machinery |
 | `module/helper/renderer/src/webgl/post_processing/gbuffer.rs` | G-buffer target set and fill/composite pass cycle |
+| `module/helper/renderer/tests/webgl/gbuffer.rs` | Native coverage for `GBufferAttachment::define_const`/`attribute_info` (task 225) |
 | `module/helper/renderer/src/webgl/loaders/pmrem.rs` | PMREM-prefiltering render cycle over a cubemap target set |
 | `module/helper/renderer/tests/pmrem_tests.rs` | Structural coverage of `pmrem::generate()` against a real headless WebGL2 context |
 | `module/helper/tilemap_renderer/src/adapters/webgl.rs` | Per-batch VAO lifecycle and draw-time state management |
 | `module/helper/tilemap_renderer/src/adapters/webgpu.rs` | Per-frame encoder/pass/pipeline/dispatch-loop/end/submit cycle in `submit()` |
 | `module/helper/tilemap_renderer/src/adapters/native.rs` | Same per-frame cycle as the WebGPU adapter, over an offscreen surface with pixel readback |
+| `module/helper/tilemap_renderer/tests/native_backend_test.rs` | Native adapter's own per-frame cycle, pixel-verified via readback (task 087) |
+| `module/helper/tilemap_renderer/tests/webgpu_backend_test.rs` | WebGPU adapter's compile-and-construct-level coverage |
+| `module/helper/tilemap_renderer/tests/webgl_backend_test.rs`, `tests/command_consistency_test.rs` | WebGL2 adapter's compile-and-construct-level coverage, plus a cross-backend (`none`/`svg`/`native`) `capabilities()`-honesty check (task 246) |

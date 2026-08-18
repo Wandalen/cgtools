@@ -164,7 +164,12 @@ Self : RawSlice< Scalar = E >
     mat
   }
 
-  /// Convertes this matrix into the 3x3 matrix
+  // Fix(BUG-287): doc said "into the 3x3 matrix" while the signature returns `Mat<2,2,...>`.
+  // Root cause: copy-pasted from `Mat4::truncate()` (4x4 -> 3x3, where that text is correct)
+  // without updating it for this type's own 3x3 -> 2x2 conversion.
+  // Pitfall: a doc/code mismatch like this misleads callers about the returned shape even
+  // though the runtime behavior (already covered by `test_truncate_*`) was always correct.
+  /// Converts this matrix into the 2x2 matrix, dropping the last row and column.
   #[ inline ]
   pub fn truncate( &self ) -> Mat< 2, 2, E, Descriptor >
   where

@@ -659,6 +659,61 @@ fn tree_chunk_with_no_name_shows_forest_of_every_root_chunk()
   assert!( output.contains( "fbm3" ), "forest missing `fbm3` under domain_warp:\n{output}" );
 }
 
+// test_kind: bug_reproducer(BUG-284)
+/// ## Root Cause
+/// `chunk_tree`'s `TreeFormat::Aligned` branch rendered a multi-root forest by mapping each root
+/// to its OWN separate `invisible_parent` ( one real root as that invisible parent's sole child )
+/// and calling `formatter.format_aligned` once per root, then joining the N resulting strings with
+/// `"\n"`. Since each per-root string already carries its own trailing `"\n"` from
+/// `format_aligned`, the join inserted a second, unintended `"\n"` between every pair of roots —
+/// a blank line after every root block except the last. Worse, because every root was always the
+/// *sole* child of its own invisible parent, `format_aligned` rendered every single one of them
+/// with the "last sibling" connector ( `└── ` ), even the ones with more roots still to follow —
+/// the opposite of what a real forest with siblings should show ( `├── ` for every non-last root,
+/// `└── ` only for the true last one ).
+/// ## Why Not Caught
+/// Every existing forest test ( e.g. `tree_chunk_with_no_name_shows_forest_of_every_root_chunk` )
+/// only asserted that specific chunk names were present somewhere in the output via
+/// `output.contains(name)` — never on blank-line structure or on which box-drawing connector
+/// prefixed a given root line, so the spurious gaps and uniformly-wrong `└── ` connectors were
+/// invisible to the suite. The single-chunk `tree <name>` path was never affected ( there is only
+/// ever one root, so it legitimately is the last/only sibling, and no join ever runs ), which is
+/// why that path's tests never surfaced this.
+/// ## Fix Applied
+/// Changed the `TreeFormat::Aligned` branch to build ONE shared `invisible_parent` and push every
+/// real root as one of its children, then call `formatter.format_aligned` exactly once over that
+/// shared parent — the same one-call-per-whole-forest shape `TreeFormat::Dot`/`TreeFormat::Mermaid`
+/// already used via `collect_edges`'s shared `edges` vec for the identical "no name" forest case.
+/// This lets `data_fmt` itself compute correct `├── `/`└── ` sibling connectors across every root
+/// and removes the synthetic per-root `"\n"` join entirely.
+/// ## Prevention
+/// When rendering a "one or many roots" tree/forest with an underlying formatter that itself knows
+/// how to draw sibling connectors, always give it every sibling in one call ( one shared parent )
+/// rather than looping the formatter call per item and joining strings — string-joining defeats
+/// the formatter's own sibling-position awareness and silently duplicates whatever line-ending
+/// convention each individual call already applies.
+/// ## Pitfall
+/// A loop that maps a formatter call over each top-level item and joins the results with a
+/// separator looks harmless, but if the formatter's own output already ends with the same
+/// separator character, the join doubles it — always check whether the thing you're about to
+/// join already carries its own trailing copy of the joiner before adding one.
+#[ test ]
+fn tree_forest_aligned_format_has_no_blank_lines_and_uses_correct_sibling_connectors()
+{
+  let output = chunk_tree( None, false, TreeFormat::Aligned ).expect( "chunk_tree should succeed with no name" );
+  assert!
+  (
+    !output.contains( "\n\n" ),
+    "a multi-root forest must render as one continuous tree with no blank lines between roots:\n{output}"
+  );
+  assert!
+  (
+    output.starts_with( "├── fullscreen_triangle" ),
+    "fullscreen_triangle is the first of several forest roots, so it must use the ├── \
+    ( more-siblings-follow ) connector, not └── ( last-sibling ):\n{output}"
+  );
+}
+
 #[ test ]
 fn tree_chunk_reports_unknown_chunk_error_for_bogus_name()
 {

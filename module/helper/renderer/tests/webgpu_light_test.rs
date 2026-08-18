@@ -1,9 +1,70 @@
-//! Unit-level validation tests for `renderer::webgpu::Lights::spot_push` — the cone-angle
-//! invariant its own doc comment states but didn't use to enforce ( see BUG-255 ). Pure CPU-side
-//! data packing, no GPU device needed.
+//! Unit-level validation tests for `renderer::webgpu::Lights::point_push` and `spot_push`. Pure
+//! CPU-side data packing, no GPU device needed. `spot_push`'s tests additionally cover the
+//! cone-angle invariant its own doc comment states but didn't use to enforce ( see BUG-255 ).
 #![ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+#![ expect( clippy::float_cmp, reason = "assertions check exact pass-through of position/color into the raw buffer; point_push does no arithmetic on them, so epsilon comparison would weaken the test" ) ]
 
-use renderer::webgpu::Lights;
+use renderer::webgpu::{ Lights, MAX_POINT_LIGHTS };
+
+/// A well-formed point light argument set.
+fn valid_point_args() -> ( [ f32; 3 ], [ f32; 3 ], f32, f32 )
+{
+  (
+    [ 1.0, 2.0, 3.0 ],
+    [ 1.0, 0.5, 0.25 ],
+    2.5,
+    10.0
+  )
+}
+
+#[ test ]
+fn point_push_accepts_and_packs_a_light()
+{
+  let ( position, color, strength, range ) = valid_point_args();
+  let mut lights = Lights::new();
+
+  assert!( lights.point_push( position, color, strength, range ), "a well-formed point light must be accepted" );
+
+  let raw = lights.as_raw();
+  assert_eq!( raw.counts[ 0 ], 1 );
+  assert_eq!( raw.point[ 0 ].position_range, [ position[ 0 ], position[ 1 ], position[ 2 ], range ] );
+  assert_eq!( raw.point[ 0 ].color_strength, [ color[ 0 ], color[ 1 ], color[ 2 ], strength ] );
+}
+
+#[ test ]
+fn point_push_sequential_pushes_land_in_incrementing_slots()
+{
+  let mut lights = Lights::new();
+
+  assert!( lights.point_push( [ 1.0, 0.0, 0.0 ], [ 1.0, 0.0, 0.0 ], 1.0, 1.0 ) );
+  assert!( lights.point_push( [ 0.0, 1.0, 0.0 ], [ 0.0, 1.0, 0.0 ], 2.0, 2.0 ) );
+  assert!( lights.point_push( [ 0.0, 0.0, 1.0 ], [ 0.0, 0.0, 1.0 ], 3.0, 3.0 ) );
+
+  let raw = lights.as_raw();
+  assert_eq!( raw.counts[ 0 ], 3 );
+  assert_eq!( raw.point[ 0 ].position_range, [ 1.0, 0.0, 0.0, 1.0 ] );
+  assert_eq!( raw.point[ 1 ].position_range, [ 0.0, 1.0, 0.0, 2.0 ] );
+  assert_eq!( raw.point[ 2 ].position_range, [ 0.0, 0.0, 1.0, 3.0 ] );
+}
+
+#[ test ]
+fn point_push_rejects_past_capacity_without_corrupting_existing_entries()
+{
+  let ( position, color, strength, range ) = valid_point_args();
+  let mut lights = Lights::new();
+
+  for _ in 0..MAX_POINT_LIGHTS
+  {
+    assert!( lights.point_push( position, color, strength, range ) );
+  }
+  assert_eq!( lights.as_raw().counts[ 0 ], MAX_POINT_LIGHTS as u32 );
+
+  assert!( !lights.point_push( [ 9.0, 9.0, 9.0 ], [ 9.0, 9.0, 9.0 ], 9.0, 9.0 ), "pushing past MAX_POINT_LIGHTS must be rejected" );
+
+  let raw = lights.as_raw();
+  assert_eq!( raw.counts[ 0 ], MAX_POINT_LIGHTS as u32, "rejected push must not increment the count" );
+  assert_eq!( raw.point[ 0 ].position_range, [ position[ 0 ], position[ 1 ], position[ 2 ], range ], "rejected push must not corrupt existing entries" );
+}
 
 /// A well-formed spot light argument set — mirrors `examples/minwebgpu/renderer_pbr_scene`'s own
 /// real `spot_push` call.

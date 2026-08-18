@@ -47,13 +47,16 @@ let table = tunables( "fbm3" ).unwrap();
 ```
 
 [`tunables_of_chunk`] is exposed separately from [`tunables`] so tests
-can exercise a chunk descriptor carrying `//@ param:` lines without any
-bundled chunk needing to declare one — none of the 4 bundled chunks
-(`hash21`, `value_noise`, `fbm3`, `fullscreen_triangle`) do today (see
+can exercise a chunk descriptor carrying `//@ param:` lines without
+depending on any particular bundled chunk's own annotation state — most
+bundled chunks declare one or more `//@ param:` lines today, but a
+handful of leaf/infrastructure chunks (`hash21`, `hash22`, `srgb`,
+`fullscreen_triangle`) still declare none (see
 [`shader_chunks_params_core`](../shader_chunks_params_core/readme.md)'s
 own readme), so this crate's own tests exercise both the empty-table path
-against a real bundled chunk and the populated-table path against a
-self-contained fixture.
+against a real bundled chunk (`hash21`) and the populated-table path
+against a self-contained fixture, independent of any bundled chunk's own
+annotation state.
 
 ## Errors
 
