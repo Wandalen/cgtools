@@ -67,3 +67,61 @@ fn context_queue_family_index_matches_independent_derivation()
 
   assert_eq!( context.queue_family_index_get(), u32::try_from( expected_index ).expect( "index fits u32" ) );
 }
+
+// test_kind: bug_reproducer(BUG-290)
+/// ## Root Cause
+/// `context_finish`'s 3 error paths ( `Error::PhysicalDeviceEnumerate`, `Error::NoSuitableDevice`,
+/// `Error::DeviceCreate` ) all occur after `instance_make` has already produced a live
+/// `ash::Instance`, but each one propagated its error via a bare `?`/`.ok_or()?`, which drops
+/// `instance` as an ordinary Rust value on the way out. `ash::Instance` has no `Drop` impl of its
+/// own -- confirmed by reading `ash` 0.38's own source, which defines no `Drop` impl anywhere in
+/// the crate for `Entry`, `Instance`, or `Device` -- Vulkan mandates explicit `vkDestroyInstance`
+/// instead. So every one of these 3 error paths silently leaked the created `VkInstance` handle.
+/// ## Why Not Caught
+/// `context_test.rs`'s existing tests ( T01-T03 ) only exercise the success path -- none force
+/// `enumerate_physical_devices`/`create_device` to fail or every physical device to lack a
+/// graphics queue family, so the leaking branches were never executed by any test. Separately, a
+/// resource leak produces no visible symptom in an ordinary black-box test : the function still
+/// returns the correct `Err( Error::X )` either way, and nothing in the public API surfaces
+/// "was `vkDestroyInstance` called." None of the 3 failure conditions are practically triggerable
+/// against a real local Vulkan implementation from outside `context_finish` without faking the
+/// Vulkan layer -- this is a real, driver-backed crate, so no fake/mock ICD is introduced to force
+/// the branch. This regression test instead asserts the fix's presence directly in the source,
+/// the same source-inspection approach BUG-287/BUG-288 used for their own hard-to-runtime-test
+/// (there, doc-only ; here, cleanup-only) defects.
+/// ## Fix Applied
+/// Added `instance_cleanup_on_error`, a one-line `unsafe fn( &ash::Instance )` wrapping
+/// `destroy_instance( None )`, called from all 3 error-producing points in `context_finish`
+/// before propagating the `Err` -- via `.map_err`/`.ok_or_else`, never `.ok_or`, since `.ok_or`
+/// evaluates its argument eagerly and would have destroyed the instance on the *success* path
+/// too, a far worse bug than the leak it fixes.
+/// ## Prevention
+/// Before relying on ordinary Rust drop to clean up an FFI-owned resource on an error path,
+/// verify the wrapper type actually implements `Drop` for that purpose -- `ash`'s handle wrapper
+/// types deliberately do not, by Vulkan's own explicit-cleanup design.
+/// ## Pitfall
+/// A missing `Drop` impl doesn't announce itself -- assuming "ownership will clean this up" is
+/// only true for types that actually implement `Drop` for that purpose ; FFI/driver-handle
+/// wrapper types very often don't, by design, and each one must be checked individually rather
+/// than assumed from Rust's ordinary RAII conventions.
+#[ test ]
+fn context_finish_destroys_instance_on_every_error_path()
+{
+  let src = include_str!( "../src/context.rs" );
+
+  let helper_def_count = src.matches( "fn instance_cleanup_on_error" ).count();
+  assert_eq!
+  (
+    helper_def_count, 1,
+    "expected exactly one instance_cleanup_on_error helper definition (BUG-290), found {helper_def_count}"
+  );
+
+  let cleanup_call_count = src.matches( "instance_cleanup_on_error( &instance )" ).count();
+  assert_eq!
+  (
+    cleanup_call_count, 3,
+    "context_finish must call instance_cleanup_on_error( &instance ) on all 3 error-producing \
+    paths -- enumerate_physical_devices failure, no suitable device, create_device failure -- \
+    to avoid leaking the VkInstance handle (BUG-290) ; found {cleanup_call_count} call sites"
+  );
+}

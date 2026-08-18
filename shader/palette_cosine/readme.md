@@ -27,7 +27,7 @@ cycle apart. Directly previewable via `sch preview palette_cosine`.
 | `tags` | `category:color` |
 | `stage` | — (plain callable function, not an entry point) |
 | `depends_on` | — (no dependencies; leaf chunk) |
-| `export` | `fn palette_cosine(t: f32, a: vec3f, b: vec3f, c: vec3f, d: vec3f) -> vec3f`, `fn palette_cosine_preview(p: vec2f, base: f32, amplitude: f32, frequency: f32, phase_r: f32, phase_g: f32, phase_b: f32) -> vec3f` |
+| `export` | `fn palette_cosine(t: f32, a: vec3f, b: vec3f, c: vec3f, d: vec3f) -> vec3f`, `fn palette_cosine_preview(p: vec2f) -> vec3f` |
 
 ## Nuances
 

@@ -28,6 +28,14 @@ backend — see Status ); build-vs-buy is closed in-house by
   concepts — those belong to stacks above (variance rule,
   [../pattern/001](../pattern/001_invariant_defined_stack.md)); L1 serves
   every stack equally.
+- **Depth range is queryable, not uniform**: `Device::depth_range()`
+  reports which NDC depth convention the active backend uses —
+  `DepthRange::ZeroToOne` for WebGPU, native, and Vulkan;
+  `DepthRange::NegOneToOne` for WebGL2 (`device.rs:408`, `types.rs:373`;
+  asserted by `native_backend_test.rs`/`vulkan_backend_test.rs`). This is
+  the one place the WebGPU-shaped contract above does not fully hide
+  backend variance — projection math tuned to one convention must call
+  this to stay correct across backends.
 
 ### Status
 
@@ -56,30 +64,32 @@ until strangled onto the HAL. `tilemap_renderer` (d2) is the second targeted
 consumer — its `adapter-webgpu` / `adapter-native` adopt the HAL per
 [../adr/003_d2_stack_hal_adoption.md](../adr/003_d2_stack_hal_adoption.md).
 `adapter-webgpu` now builds and passes its own compile-and-construct-level
-test suite, and was browser-pixel-verified via the `adapter_browser` example
-and `browsee` ( task 198 ) — at that time proving a real, correctly-bounded
-opaque **black** quad, the adapter's then-unpopulated-texture behavior, not
-the clear color, at the sprite's exact configured location. `assets_load` now
-uploads real pixel data instead ( task 218, sharing `to_rgba8` with
-`adapter-native` rather than duplicating it ), so that black-quad reading is
-stale — task 198's live browser verification predates the fix and needs a
-fresh run to confirm what the adapter actually paints now ( predicted:
-solid red, matching `adapter-webgl`, since both now upload the same asset
-bytes — not yet browser-confirmed ).
+test suite, and is browser-pixel-verified via the `adapter_browser` example
+and `browsee` ( task 251 ) — an initial pass proved the adapter's then-
+unpopulated-texture opaque-**black** behavior; a re-run after `assets_load`
+started uploading real pixel data ( task 218, sharing `to_rgba8` with
+`adapter-native` rather than duplicating it ) confirms, in Firefox at the
+sprite's exact configured location, a real solid-red sprite ( `rgb 255 0 0` )
+on the blue clear color ( `rgb 0 0 255` ) — a pixel-exact match to
+`adapter-webgl`'s own reading below, since both now upload the same asset
+bytes. ( Chromium in this sandbox intermittently fails to present the canvas
+frame at all — GPU-process/compositor-level errors, not a validation defect
+in this crate's upload code; see
+`module/helper/tilemap_renderer/tests/manual/readme.md` for the observed
+symptoms and why Firefox is the proven browser for this check. )
 `adapter-native` now also builds and passes an in-repo pixel-readback test
 suite mirroring `gpu_hal`'s own `triangle_render_readback` precedent, proving
 the offscreen-render-plus-readback path with no browser involved. Its existing
 `adapter-webgl` keeps its direct `minwebgl` dependency for now, on the same
 accepted-until-strangled posture — it now also has its own
 compile-and-construct-level test suite (`webgl_backend_test.rs` +
-`command_consistency_test.rs`, task 114) and is browser-pixel-verified too, via
-the same `adapter_browser` example ( task 198 ) — proving a real solid-red
+`command_consistency_test.rs`, task 246) and is browser-pixel-verified too, via
+the same `adapter_browser` example ( task 251 ) — proving a real solid-red
 sprite paint, since `adapter-webgl` uploads real pixel bytes — the same shape
 of coverage as `adapter-webgpu`'s, without adopting the HAL itself. The two
-adapters' upload paths are no longer asymmetric in kind ( both now upload real
-pixel bytes via a shared conversion helper ), only in browser-verification
-recency ( `adapter-webgl`'s reading is current; `adapter-webgpu`'s predates
-task 218 and awaits re-verification, per the note above ).
+adapters' upload paths are no longer asymmetric in kind or in browser-
+verification recency — both upload real pixel bytes via a shared conversion
+helper, and both readings are now current.
 
 A fourth backend, `vulkan` ( `minvulkan` via `ash`, no `wgpu` dependency ),
 is now implemented — [ADR-004](../adr/004_native_vulkan_hal_backend.md) adds
@@ -94,6 +104,10 @@ surface and asserts on the bytes read back, no browser involved, mirroring
 `native`'s own `triangle_render_readback` precedent. Resources use dedicated
 ( non-suballocated ) memory — one `vkAllocateMemory` call per buffer/image,
 matching the crate's v0 "minimum resource support" tradeoff elsewhere.
+Texture upload is covered on this backend too, mirroring `native`'s own
+`texture_write()` proof above ( `vulkan_texture_write_readback` in
+`tests/vulkan_backend_test.rs`, constructing a textured quad and asserting
+two successive `texture_write` uploads both land via readback ).
 Tracked by tasks 201 ( `minvulkan` driver ), 202 ( this crate's `vulkan`
 backend variant ), 203 ( the consuming example ).
 

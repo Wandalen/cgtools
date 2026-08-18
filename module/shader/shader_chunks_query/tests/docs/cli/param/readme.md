@@ -6,7 +6,7 @@
   crate's commands accept.
 - **Responsibility:** One file per parameter, cross-referencing the real
   test functions covering its boundary conditions.
-- **In Scope:** The 22 parameters declared in [`../../../docs/cli/param/`](../../../docs/cli/param/readme.md).
+- **In Scope:** The 24 parameters declared in [`../../../docs/cli/param/`](../../../docs/cli/param/readme.md).
 - **Out of Scope:** Group-level interaction scenarios (→ [`../param_group/`](../param_group/readme.md));
   command-level integration scenarios (→ [`../command/`](../command/readme.md));
   type-level construction/parsing (→ [`../type/`](../type/readme.md)).
@@ -39,8 +39,10 @@
 | 20 | [20_heading.md](20_heading.md) | `heading` | ✅ |
 | 21 | [21_width.md](21_width.md) | `width` | ✅ |
 | 22 | [22_reverse.md](22_reverse.md) | `reverse` | ✅ |
+| 23 | [23_source.md](23_source.md) | `source` | ✅ |
+| 24 | [24_shape.md](24_shape.md) | `shape` | ✅ |
 
-**Total:** 22 parameter test specs (of 28 across the `shader_chunks` family)
+**Total:** 24 parameter test specs (of 32 across the `shader_chunks` family)
 
 ### Docs
 

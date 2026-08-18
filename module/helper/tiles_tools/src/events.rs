@@ -171,7 +171,22 @@ impl<T> EventChannel<T> {
     self.pending_events.push_back(event);
   }
 
-  fn events_process(&mut self) {
+  // Fix(BUG-268): changed from `-> ()` to `-> usize` so callers can learn how
+  // many listeners were auto-removed via `EventResult::Unsubscribe` --
+  // `EventBus::statistics.total_subscribers` was only ever decremented by the
+  // explicit `EventBus::unsubscribe()` path, which has no visibility into
+  // removals this method performs on its own.
+  // Root cause: this method silently removed listeners without reporting a
+  // count, so `EventBus::events_process`/`events_for_type_process` (the only
+  // callers) had no way to keep `total_subscribers` in sync with the listener
+  // that just self-unsubscribed by returning `EventResult::Unsubscribe`.
+  // Pitfall: a "current active count" statistic must be updated at every
+  // removal site, not only the one explicit public API that happens to have
+  // direct access to the statistics struct -- an internal removal path needs
+  // to report what it did, not just do it.
+  fn events_process(&mut self) -> usize {
+    let mut unsubscribed = 0;
+
     while let Some(event) = self.pending_events.pop_front() {
       let mut listeners_to_remove = Vec::new();
 
@@ -197,10 +212,13 @@ impl<T> EventChannel<T> {
       }
 
       // Remove listeners that requested unsubscription
+      unsubscribed += listeners_to_remove.len();
       for id in listeners_to_remove {
         self.listener_remove(id);
       }
     }
+
+    unsubscribed
   }
 
   fn listener_count(&self) -> usize {
@@ -220,15 +238,15 @@ impl<T> Default for EventChannel<T> {
 
 /// Type-erased event channel for storage in the event bus.
 trait AnyEventChannel: Send + Sync {
-  fn events_process(&mut self);
+  fn events_process(&mut self) -> usize;
   fn listener_count(&self) -> usize;
   fn pending_count(&self) -> usize;
   fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 impl<T: Event> AnyEventChannel for EventChannel<T> {
-  fn events_process(&mut self) {
-    EventChannel::events_process(self);
+  fn events_process(&mut self) -> usize {
+    EventChannel::events_process(self)
   }
 
   fn listener_count(&self) -> usize {
@@ -313,15 +331,27 @@ impl EventBus {
   /// Processes all pending events across all channels.
   pub fn events_process(&mut self) {
     let mut events_processed = 0;
+    let mut unsubscribed = 0;
 
     for channel in self.channels.values_mut() {
       let pending_before = channel.pending_count();
-      channel.events_process();
+      unsubscribed += channel.events_process();
       events_processed += pending_before;
     }
 
     self.statistics.events_processed += events_processed as u64;
     self.statistics.process_cycles += 1;
+    // Fix(BUG-268): a listener that self-unsubscribed by returning
+    // `EventResult::Unsubscribe` during processing was removed from the
+    // channel here but never reflected in `total_subscribers` -- only the
+    // explicit `unsubscribe()` API path decremented it, so the statistic
+    // silently drifted above the real listener count for every automatic
+    // removal.
+    // Root cause: `EventChannel::events_process` used to return `()`, giving
+    // this method no way to learn how many listeners it had just removed.
+    // Pitfall: see the fix comment on `EventChannel::events_process` for the
+    // full explanation of why the count needed to be threaded through.
+    self.statistics.total_subscribers = self.statistics.total_subscribers.saturating_sub(unsubscribed as u64);
   }
 
   /// Processes events for a specific event type only.
@@ -329,8 +359,11 @@ impl EventBus {
     let type_id = TypeId::of::<T>();
     if let Some(channel) = self.channels.get_mut(&type_id) {
       let pending_before = channel.pending_count();
-      channel.events_process();
+      let unsubscribed = channel.events_process();
       self.statistics.events_processed += pending_before as u64;
+      // Fix(BUG-268): same drift as `events_process` above, scoped to a
+      // single event type's channel -- see that method's fix comment.
+      self.statistics.total_subscribers = self.statistics.total_subscribers.saturating_sub(unsubscribed as u64);
     }
   }
 

@@ -30,7 +30,7 @@ to hide it — cross-backend abstraction is exactly what L0 must not do
 | `minwebgl` | WebGL2 (web) | Mature (primary driver) for pure-logic surface — its live-`WebGl2RenderingContext` entry point (`context::from_canvas` + a minimal shader/buffer/draw sequence) is now browser-pixel-verified too (proven by the `context_triangle_smoke` example via `browsee` — task 192, mirroring gpu_hal's own [002_l1_gpu_hal.md](002_l1_gpu_hal.md) coverage); broader GL-context/DOM surface (shaders, VAOs, textures, uniforms, file/fetch beyond this one path) remains a separate, not-yet-filed gap |
 | `minwebgpu` | WebGPU (web) | Functional |
 | `minwgpu` | `wgpu` (native) | Embryonic — helper/buffer/context/texture/bind/pipeline/pass/readback/error layers exist |
-| `minvulkan` | Vulkan via `ash` (native, `wgpu`-free) | `Context::builder()` produces a real `ash::Instance`, `PhysicalDevice`, `Device`, and graphics `Queue` — tested against a live Vulkan ICD (task 201); surface/swapchain presentation and resource construction (buffers, images, pipelines) not yet implemented ([ADR-004](../adr/004_native_vulkan_hal_backend.md)) |
+| `minvulkan` | Vulkan via `ash` (native, `wgpu`-free) | `Context::builder()` produces a real `ash::Instance`, `PhysicalDevice`, `Device`, and graphics `Queue` — tested against a live Vulkan ICD (task 201); surface/swapchain presentation and resource construction (buffers, images, pipelines) not yet implemented at this layer ([ADR-004](../adr/004_native_vulkan_hal_backend.md)) — that construction already exists one layer up, directly in `gpu_hal`'s `vulkan` backend ([002_l1_gpu_hal.md](002_l1_gpu_hal.md)), not yet pushed down into this driver |
 
 **`mingl` is not a layer.** All three drivers depend on it as a shared
 substrate of backend-independent helpers — math, an orbit-camera controller
@@ -48,10 +48,12 @@ in `gpu_hal` also declare a direct, optional dependency on `minwebgpu`
 directly alongside going through L1. The remaining code reaching L0 directly
 with no L1 involvement at all is: `renderer`'s legacy `webgl` tree,
 `tilemap_renderer`'s WebGL2 adapter (optional `dep:minwebgl`) — both L3
-stack engines — and `line_tools` (optional `dep:minwebgl`; straddles
-d2/d3, stack classification pending, see
-[rulebook.md](../../rulebook.md#rendering-layer-placement)). These are the
-accepted violations named in
+stack engines — and `line_tools` (optional `dep:minwebgl`; not an engine
+itself, but its `line_tools::d2`/`line_tools::d3` submodules are already
+split across the `d2`/`d3` stacks per
+[rulebook.md](../../rulebook.md#rendering-layer-placement) and
+[../adr/001](../adr/001_multi_stack_rendering_architecture.md)). These are
+the accepted violations named in
 [../pattern/002](../pattern/002_strict_layering_one_step_drilldown.md),
 scheduled to strangle onto L1.
 
@@ -83,6 +85,18 @@ table places explicitly beside the ladder rather than on it:
   multi-animation sequencing, feature-gated to `minwebgl`/`mingl`'s
   math/future/diagnostics utilities only, never their GL-context layers;
   feeds `scene_script`'s tween bindings.
+- `gl_uniforms` (required `dep:minwebgl`) — program-scoped WebGL uniform
+  upload wrapper: `ProgramUniforms` binds a `GL` context and a linked
+  `WebGlProgram` once, collapsing the `get_uniform_location` + upload +
+  `.expect()` boilerplate repeated at every uniform call site into a
+  single `.upload()`/`.matrix_upload()` call. A thin ergonomic layer
+  directly over `minwebgl`'s own uniform primitives, not a portability
+  seam or orchestration layer — matches
+  [rulebook.md](../../rulebook.md#rendering-layer-placement)'s own
+  classification. No dependents yet; no test coverage yet either — both
+  methods require a live `GL`/`WebGlProgram`, so any test is
+  browser-bound, the same not-yet-built browser-test-infrastructure gap
+  named elsewhere in this layer.
 
 `primitive_generation` (`dep:minwebgl` with the same `future`/`math`/
 `diagnostics` feature gate as `animation`) is **not** a beside-the-ladder

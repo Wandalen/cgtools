@@ -174,6 +174,26 @@ mod private
         }
       }
 
+      // Fix(BUG-261): previously fell straight through to `translation_set` unconditionally,
+      // even when no blended `Sequencer` had a translation channel for this node -- overwriting
+      // the node's existing translation with `F32x3::default()` == `(0,0,0)`. glTF skeletal
+      // rigs commonly omit a translation channel per-joint ( e.g. joints animated only via
+      // rotation ), so this reachably zeroed out untouched joints' positions on every
+      // `Blender::set` call.
+      // Root cause: no `values.is_empty()` guard before applying the accumulated ( vacuous,
+      // zero ) sum -- every sibling `AnimatableComposition` impl ( `Sequencer`, `Pose`,
+      // `Scaler`, `Transition` ) instead skips the `_set()` call entirely when a channel is
+      // absent, per the "skip-if-absent" convention established across this module.
+      // Pitfall: an accumulator seeded from `Default::default()` is only safe to apply
+      // unconditionally when "no contributions" and "identity contribution" are the same value
+      // -- here they are not ( zero translation vs. "leave untouched" ), so emptiness must be
+      // tracked and checked explicitly. See `rotation_blend`/`scale_blend` below for the same
+      // fix applied to their own accumulators.
+      if values.is_empty()
+      {
+        return;
+      }
+
       if self.normalize
       {
         weights_normalize( &mut values );
@@ -234,11 +254,15 @@ mod private
       // entry itself ( scaled by its own weight ) sidesteps the question of what a "zero
       // rotation" would even mean here, and needs no hemisphere check of its own since there is
       // nothing to align against yet.
+      // Fix(BUG-261): see `translation_blend` above for the shared root cause. This branch was
+      // already explicit about the empty case, but explicitly wrong: it force-set the node's
+      // rotation to `QuatF32::default()` ( identity, `[0,0,0,1]` ) whenever no blended
+      // `Sequencer` had a rotation channel for this node, instead of leaving the node's
+      // existing rotation untouched.
       let mut values_iter = values.into_iter();
       let Some( ( first_r, first_w ) ) = values_iter.next()
       else
       {
-        node.borrow_mut().rotation_set( QuatF32::default() );
         return;
       };
 
@@ -278,6 +302,14 @@ mod private
             );
           }
         }
+      }
+
+      // Fix(BUG-261): see `translation_blend` above for the shared root cause -- same
+      // unconditional fall-through into `scale_set`, applied to `F32x3::default()` == `(0,0,0)`
+      // scale instead of the ( conventional, 1:1 ) "no scale channel present" outcome.
+      if values.is_empty()
+      {
+        return;
       }
 
       if self.normalize

@@ -49,37 +49,15 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
 
-  // Calculate scene dimensions to automatically scale camera parameters
-  // diagonal: full diagonal length of the bounding box for scale reference
-  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  let dist = scene_bounding_box.max.mag();
-
-  // Extract IEEE 754 exponent to determine scale order of magnitude
-  // This helps dynamically adjust near/far planes based on scene size
-  let exponent =
-  {
-    let bits = diagonal.to_bits();
-    let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
-    exponent_field - 127
-  };
-
-  // Camera setup: position eye along diagonal direction at calculated distance
-  // Eye is positioned at (0,1,1) direction scaled by distance to fit the scene
-  let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
-  eye *= dist;
+  // Camera setup: frames the scene's bounding sphere from the (0,1,1) direction, deriving
+  // distance/near/far from the box itself and the camera's own fov/aspect_ratio.
+  let direction = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
 
-  let center = scene_bounding_box.center();
-
-  // Camera projection parameters scaled to scene size
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  // Near plane: scaled by 10^exponent but clamped to minimum of 1.0
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 );
-  // Far plane: extends 100^|exponent| times beyond near plane for large scale range
-  let far = near * 100.0f32.powi( exponent.abs() );
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far )?;
+  let mut camera = Camera::from_bounding_box( &scene_bounding_box, direction, up, aspect_ratio, fov, 0.1 )?;
   camera.window_size_set( [ width, height ].into() );
   camera.controls_bind( &canvas );
 

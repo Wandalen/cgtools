@@ -21,12 +21,17 @@ In-process, function-level cases (no subprocess spawn):
 | PAR-11 | `set::` token missing its `:` separator rejected before any bundle is built | `shader_chunks_render/tests/render_cli_test.rs::overrides_parse_rejects_a_token_missing_its_separator` |
 | PAR-12 | `set::` value side non-finite or non-numeric rejected | `shader_chunks_render/tests/render_cli_test.rs::overrides_parse_rejects_a_non_finite_or_non_numeric_value` |
 | PAR-13 | Two `set::` overrides of the same property — the later one wins | `shader_chunks_render/tests/render_cli_test.rs::overrides_apply_lets_a_later_override_of_the_same_property_win` |
+| PAR-14 | `render_all_to_png` creates a missing `out_dir` and covers every entry in `shader_chunks_core::CHUNKS` with no failures | `shader_chunks_render/tests/render_cli_test.rs::render_all_to_png_creates_the_out_dir_and_covers_every_bundled_chunk_with_no_failures` |
+| PAR-15 | `render_all_to_png` writes a structurally valid PNG for every chunk it renders | `shader_chunks_render/tests/render_cli_test.rs::render_all_to_png_writes_a_valid_png_for_every_rendered_chunk` |
+| PAR-16 | `render_all_to_png` skips the known unpreviewable chunk without writing a file for it, and without failing the batch | `shader_chunks_render/tests/render_cli_test.rs::render_all_to_png_skips_the_known_unpreviewable_chunk_without_writing_a_file` |
+| PAR-17 | `batch_summary` lists each per-chunk outcome plus a totals line | `shader_chunks_render/tests/render_cli_test.rs::batch_summary_lists_each_outcome_and_a_totals_line` |
 
 Full parameter edge-case detail: [`file`](../../../../../shader_chunks_preview/tests/docs/cli/param/01_file.md),
 [`../param/01_out.md`](../param/01_out.md),
 [`../param/02_size.md`](../param/02_size.md),
 [`../param/03_time.md`](../param/03_time.md),
-[`../param/04_set.md`](../param/04_set.md).
+[`../param/04_set.md`](../param/04_set.md),
+[`../param/05_all.md`](../param/05_all.md).
 
 Engine-level pixel guarantees (exact constant-color bytes, grayscale
 harness properties, row-padding widths, time drift, zero-size rejection,
@@ -63,19 +68,25 @@ Subprocess-level, end-to-end cases:
 | INT-13 | `set::lacunarity:2.5,gain:0.75` through the subprocess boundary — succeeds, stdout shows both overridden values | `shader_chunks_render/tests/render_cli_test.rs::subprocess_render_with_set_override_shows_the_overridden_value` |
 | INT-14 | Unknown `set::` property through the subprocess boundary — exit 1, stderr names the offending property | `shader_chunks_render/tests/render_cli_test.rs::subprocess_render_with_unknown_set_parameter_fails_with_exit_1` |
 | INT-15 | Malformed `set::` token (no `:`) through the subprocess boundary — exit 1, stderr quotes the offending token | `shader_chunks_render/tests/render_cli_test.rs::subprocess_render_with_malformed_set_token_fails_with_exit_1` |
+| INT-16 | `render all::1 out::<tmp> size::<n>` through the subprocess boundary writes one PNG per chunk into a freshly created directory and prints the totals line | `shader_chunks_render/tests/render_cli_test.rs::subprocess_render_all_writes_a_png_per_chunk_into_a_freshly_created_dir_and_reports_totals` |
+| INT-17 | `render <name> all::1` through the subprocess boundary — exit 1, mutual-exclusivity message | `shader_chunks_render/tests/render_cli_test.rs::subprocess_render_all_rejects_a_name_target` |
+| INT-18 | `render file::<path> all::1` through the subprocess boundary — exit 1, mutual-exclusivity message | `shader_chunks_render/tests/render_cli_test.rs::subprocess_render_all_rejects_a_file_target` |
+| INT-19 | `render all::1 set::<override>` through the subprocess boundary — exit 1, mutual-exclusivity message | `shader_chunks_render/tests/render_cli_test.rs::subprocess_render_all_rejects_set_overrides` |
 
 Both arms of the mutual-exclusivity check are independently pinned —
 INT-3 (neither target) and INT-4 (both targets) — matching `.preview`'s
 INT-3/INT-5 pair in
 [`cmd_001_preview.md`](../../../../../shader_chunks_preview/tests/docs/cli/command/cmd_001_preview.md).
+INT-17 through INT-19 pin the analogous three-way exclusivity `all::1`
+introduces against `name`, `file::`, and `set::` respectively.
 
 ### Test Coverage Summary
 
 | Metric | Value |
 |--------|-------|
-| PAR-N | 13 |
+| PAR-N | 17 |
 | GRP-N | 0 (no within-group combination available) |
-| INT-N | 15 |
+| INT-N | 19 |
 
 ### See Also
 
@@ -84,5 +95,6 @@ INT-3/INT-5 pair in
 - [`../param/02_size.md`](../param/02_size.md) — `size` parameter
 - [`../param/03_time.md`](../param/03_time.md) — `time` parameter
 - [`../param/04_set.md`](../param/04_set.md) — `set` parameter
+- [`../param/05_all.md`](../param/05_all.md) — `all` parameter
 - [`../command_group/01_render.md`](../command_group/01_render.md) — group invariants + engine-level citations
 - [`plain_text`](../../../../../shader_chunks_compose/docs/cli/format/01_plain_text.md) — output format

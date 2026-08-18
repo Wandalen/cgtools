@@ -226,7 +226,7 @@ task's Crate Locality scope (a different crate, a different dependency, no
 overlap with `shader_chunks_cli`); flagged to the user for separate
 disposition (e.g. pin `interpoli` to a `rev`, or file a dedicated bug)
 rather than fixed here or used to block this task's completion. Since
-filed as [BUG-101](../bug/draft/101_animation_surface_rendering_kurbo_peniko_version_skew.md).
+filed as [BUG-101](../bug/completed/101_animation_surface_rendering_kurbo_peniko_version_skew.md).
 
 **Provenance note:** mid-session, a concurrent actor (not this session —
 no git command beyond the whitelist was ever run here) committed `bb5c07df

@@ -97,6 +97,7 @@ wasm-bindgen-futures = { workspace = true }
 test_tools = { workspace = true }
 approx = { workspace = true, features = [] }
 naga = { workspace = true }
+rustc-hash = { workspace = true }
 
 # Not a real dependency — a feature shim. `test_tools` drags in
 # rand 0.8 → getrandom 0.2, which refuses to compile for

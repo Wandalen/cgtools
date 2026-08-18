@@ -8,7 +8,7 @@ and render the result in a chosen output format. `.list` and `.get` are
 literally the same engine — one shared routine (`chunks_query` in
 `shader_chunks_query_core/src/lib.rs`, wired to both commands via
 `query_routine` in `shader_chunks_query/src/lib.rs`) behind both
-commands, with an identical 20-parameter surface differing only in
+commands, with an identical 21-parameter surface differing only in
 defaults and in whether `names` is required. `.tags` is the tag-axis pivot
 of the same metadata.
 
@@ -31,7 +31,7 @@ tags exist and on which chunks." Every member fits the single sentence.
 
 A plausible split is "browse" (`list`, `tags`) vs. "inspect" (`get`).
 Rejected: `.get` is not a separate detail machine — it dispatches to the
-same `query_routine` as `.list`, accepts the same 19 named parameters plus
+same `query_routine` as `.list`, accepts the same 20 named parameters plus
 `names`, and differs only in defaults (`fields::` gains `stage`+`exports`,
 `format::` starts at `expanded`, `names` is required). Splitting them would
 draw a group boundary through one function. The genuine boundaries in this
@@ -58,8 +58,8 @@ CLI are output-species ones: relationship rendering (→
 | 2 | [`.get`](../command/02_get.md) | Member — same engine, named chunks, detail defaults |
 | 3 | [`.tags`](../command/03_tags.md) | Member — tag-axis pivot of the registry |
 
-**Membership:** these 3 of the 8 commands across the `shader_chunks`
-family; the full partition across all 6 command groups (spanning all 5
+**Membership:** these 3 of the 9 commands across the `shader_chunks`
+family; the full partition across all 7 command groups (spanning all 6
 leaf CLIs) is stated in [the family
 index](../../../../shader_chunks/docs/cli/readme.md).
 
@@ -77,7 +77,7 @@ index](../../../../shader_chunks/docs/cli/readme.md).
 |------|--------------|
 | [`../../../tests/docs/cli/command_group/01_query.md`](../../../tests/docs/cli/command_group/01_query.md) | Group-level test specification |
 | [`../../../../shader_chunks_query_core/tests/shader_chunks_query_core_test.rs`](../../../../shader_chunks_query_core/tests/shader_chunks_query_core_test.rs) | `query_list_and_get_defaults_share_engine_and_agree_under_equal_params` proves the shared engine |
-| [`../../../tests/cli_subprocess_test.rs`](../../../tests/cli_subprocess_test.rs) | `list_and_get_agree_under_identical_explicit_parameters` proves it end-to-end |
+| [`../../../../shader_chunks/tests/cli_subprocess_test.rs`](../../../../shader_chunks/tests/cli_subprocess_test.rs) | `list_and_get_agree_under_identical_explicit_parameters` proves it end-to-end |
 
 ### Typical Patterns
 

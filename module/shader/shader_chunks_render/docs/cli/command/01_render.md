@@ -11,34 +11,41 @@ previewable is renderable and vice versa. Every bundle parameter takes
 its initial (slider-start) value, unless overridden via `set::`, and the
 bundle's `time` uniform is frozen at `time::` — the written image is
 exactly what the browser preview shows before anyone touches a slider
-(or, with `set::` applied, mid-drag), at that instant.
+(or, with `set::` applied, mid-drag), at that instant. With `all::1`,
+sweeps every entry in `shader_chunks_core::CHUNKS` in one pass instead of
+resolving a single target, writing `<out>/<name>.png` per chunk; a chunk
+outside the previewable shapes is skipped, not failed, and one chunk's
+render/validation failure does not stop the rest of the batch.
 
--- **Parameters:** name, file, out, size, time, set
--- **Exit Codes:** 0 (success — PNG written, summary printed) | 1 (no
+-- **Parameters:** name, file, out, size, time, set, all
+-- **Exit Codes:** 0 (success — PNG(s) written, summary printed) | 1 (no
    target or both targets given; `name` does not resolve against
    `shader_chunks_core::CHUNKS`; composed WGSL fails naga
    parse/validation; `size::` malformed or has a zero side; a `set::`
    element is malformed or non-finite; a `set::` property matches no
-   declared parameter) | 2 (the `file::` target could not be read; no
-   usable headless GPU adapter/device; the GPU rejected the render; the
-   PNG could not be written)
+   declared parameter; `all::1` combined with `name`/`file::`/`set::`; at
+   least one chunk failed during an `all::1` sweep) | 2 (the `file::`
+   target could not be read; no usable headless GPU adapter/device; the
+   GPU rejected the render; the PNG could not be written; the `all::1`
+   output directory could not be created)
 -- **Modes:** (none)
 
 ### Syntax
 ```bash
-shader_chunks render [<name>] [file::<path>] [out::<path>] [size::<n>|<w>x<h>] [time::<seconds>] [set::<property>:<value>,...]
+shader_chunks render [<name>] [file::<path>] [out::<path>] [size::<n>|<w>x<h>] [time::<seconds>] [set::<property>:<value>,...] [all::1]
 ```
 
 ### Parameters
 
 | Parameter | Type | Default | Required | Purpose |
 |-----------|------|---------|----------|---------|
-| `name` | [`ChunkName`](../../../../shader_chunks_query/docs/cli/param/01_name.md) | — | Exactly one of `name`/`file::` | The bundled chunk to render |
-| `file` | [`String`](../../../../shader_chunks_preview/docs/cli/param/01_file.md) | — | Exactly one of `name`/`file::` | A local `.wgsl` chunk file to render instead of a bundled name |
-| `out` | [`String`](../param/01_out.md) | `<target>.png` | No | Output PNG path |
+| `name` | [`ChunkName`](../../../../shader_chunks_query/docs/cli/param/01_name.md) | — | Exactly one of `name`/`file::` (unless `all::1`) | The bundled chunk to render |
+| `file` | [`String`](../../../../shader_chunks_preview/docs/cli/param/01_file.md) | — | Exactly one of `name`/`file::` (unless `all::1`) | A local `.wgsl` chunk file to render instead of a bundled name |
+| `out` | [`String`](../param/01_out.md) | `<target>.png` | No | Output PNG path (or output DIRECTORY under `all::1`) |
 | `size` | [`String`](../param/02_size.md) | `256` | No | Output size: `<n>` (square) or `<width>x<height>`, each side ≥ 1 |
 | `time` | [`Float`](../param/03_time.md) | `0` | No | Value of the bundle's `time` uniform for this frame |
 | `set` | [`ParameterOverride`](../type/02_parameter_override.md) list | none (bundle defaults) | No | Comma-separated `property:value` overrides for the bundle's declared parameters |
+| `all` | [`Switch`](../../../../shader_chunks_query/docs/cli/type/07_switch.md) | `false` | No | Render every previewable chunk instead of one target |
 
 ### Examples
 ```bash
@@ -77,6 +84,16 @@ shader_chunks render fbm3 size::0
 
 shader_chunks render fbm3 set::bogus:1.0
 # error: unknown parameter: `bogus` (valid parameters: lacunarity, gain, preview_scale), exit 1
+
+shader_chunks render all::1 out::renders/ size::128
+# fbm3: wrote renders/fbm3.png
+# fullscreen_triangle: skipped (chunk `fullscreen_triangle` is not previewable ...)
+# hash21: wrote renders/hash21.png
+# ... (one line per registry entry; exact count and names grow with the collection)
+# <n> chunks: <n - 1> rendered, 1 skipped, 0 failed
+
+shader_chunks render fbm3 all::1
+# error: render `all::1` renders every chunk and cannot be combined with a target (`name`/`file::`) or `set::`, exit 1
 ```
 
 ### Notes
@@ -114,6 +131,16 @@ shader_chunks render fbm3 set::bogus:1.0
   never clamped to a parameter's declared `min`/`max` — and a later
   element overriding the same property as an earlier one wins. See
   [`set`](../param/04_set.md).
+- `all::1` sweeps every entry in `shader_chunks_core::CHUNKS` instead of
+  resolving one target — mutually exclusive with `name`, `file::`, and
+  `set::` (a single override list can't cleanly apply across chunks with
+  different declared parameters). `out::` is read as a DIRECTORY under
+  `all::1`, created if it doesn't already exist; each chunk writes
+  `<dir>/<name>.png`. A chunk outside the previewable shapes is skipped,
+  not failed, and does not stop the sweep; any other per-chunk error
+  (naga validation, GPU, io) is also non-stopping but flips the overall
+  exit code to 1 once every chunk has been attempted. See
+  [`all`](../param/05_all.md).
 
 ### Related Commands
 

@@ -8,8 +8,6 @@ use mingl::F32x4;
 use minwebgl as gl;
 use gl::
 {
-  texture::d2::image_upload_from_path,
-  GL,
   WebGl2RenderingContext,
   web_sys::HtmlCanvasElement,
 };
@@ -20,16 +18,12 @@ use renderer::webgl::
   {
     self, Pass, SwapFramebuffer
   },
-  MinFilterMode,
-  MagFilterMode,
-  WrappingMode,
   Camera,
   Object3D,
   Renderer,
   Scene,
   Texture,
   TextureInfo,
-  Sampler,
   material::PbrMaterial,
   Node
 };
@@ -43,20 +37,7 @@ fn texture_create(
 ) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = image_upload_from_path( gl, &image_path, false );
-
-  let sampler = Sampler::former()
-  .min_filter( MinFilterMode::Linear )
-  .mag_filter( MagFilterMode::Linear )
-  .wrap_s( WrappingMode::Repeat )
-  .wrap_t( WrappingMode::Repeat )
-  .end();
-
-  let texture = Texture::former()
-  .target( GL::TEXTURE_2D )
-  .source( texture_id )
-  .sampler( sampler )
-  .end();
+  let texture = Texture::load_from_path( gl, &image_path, false );
 
   TextureInfo
   {

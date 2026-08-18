@@ -84,7 +84,17 @@ mod private
     )
   }
 
-  fn quat_sequence
+  /// Builds a rotation [`Sequence`] of [`Tween< QuatF64 >`]s from a glTF animation channel --
+  /// pure data transform, no `gl`/`GL`/`WebGl` calls anywhere in its body. Mirrors
+  /// `vec3_sequence`'s single-keyframe handling (see the BUG-188 guard below).
+  ///
+  /// # Panics
+  ///
+  /// Does not panic under normal control flow: the two preceding `Interpolation::CubicSpline`
+  /// checks always populate `in_tangent`/`out_tangent` before the `match`'s own `CubicSpline`
+  /// arm runs its `.unwrap()` calls on them.
+  #[ must_use ]
+  pub fn quat_sequence
   (
     channel : &Channel< '_ >,
     buffers : &[ Vec< u8 > ],
@@ -287,7 +297,29 @@ mod private
     Sequence::new( tweens ).ok()
   }
 
-  fn weights_sequence
+  // Fix(BUG-262): `targets == 0` reached `weights.chunks( components * targets )` below with a
+  // chunk size of `0`, which `[T]::chunks` panics on unconditionally. A glTF mesh can
+  // legitimately carry morph-target animation channels while omitting the optional
+  // `mesh.weights` default array; in that case `DisplacementsData::morph_weights_get()` stays
+  // empty and `load()`'s `Property::MorphTargetWeights` arm passes `targets == 0` here.
+  // Root cause: no guard existed for the zero case before it reached `.chunks( 0 )`.
+  // Pitfall: a chunk-size parameter derived from optional external input must be checked for
+  // zero before use, even when the call site "usually" supplies a nonzero value -- returning
+  // `None` here is handled gracefully by every call site via `let Some( sequence ) = .. else
+  // { continue; }`.
+  /// Builds a keyframe tween sequence for a morph-target-weights animation channel.
+  ///
+  /// Returns `None` when `targets` is `0`, when `channel` doesn't decode to
+  /// `ReadOutputs::MorphTargetWeights`, or when `channel_decode` fails to decode the channel's
+  /// accessor data.
+  ///
+  /// # Panics
+  ///
+  /// Does not panic under normal control flow: the two `Interpolation::CubicSpline` checks
+  /// preceding the `match` below always populate `m1`/`m2` (or `continue` past the match)
+  /// before the match's own `CubicSpline` arm runs its `.unwrap()` calls.
+  #[ must_use ]
+  pub fn weights_sequence
   (
     channel : &Channel< '_ >,
     buffers : &[ Vec< u8 > ],
@@ -295,6 +327,11 @@ mod private
   )
   -> Option< Sequence< Tween< Vec< f64 > > > >
   {
+    if targets == 0
+    {
+      return None;
+    }
+
     let ( components, times, values ) = channel_decode( channel, buffers )?;
 
     let ReadOutputs::MorphTargetWeights( weights ) = values
@@ -494,6 +531,8 @@ crate::mod_interface!
   {
     load,
     channel_decode,
-    vec3_sequence
+    vec3_sequence,
+    weights_sequence,
+    quat_sequence
   };
 }

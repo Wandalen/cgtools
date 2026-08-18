@@ -141,7 +141,19 @@ mod private
     Some( skeleton::TransformsData::new( joints ) )
   }
 
-  fn skeleton_displacements_data_load
+  /// Packs a glTF primitive's morph-target position / normal / tangent
+  /// displacements ( plus mesh-level morph weights ) into a
+  /// [`skeleton::DisplacementsData`], or `None` if `primitives_morph_targets`
+  /// is `None`. Pure data transform over the parsed document and raw buffer
+  /// bytes -- no GL calls.
+  ///
+  /// # Panics
+  ///
+  /// Does not panic under normal control flow : `targets_pack`'s two
+  /// `.unwrap()` calls only run once `targets_array.first()` is known to be
+  /// `Some`, guarded immediately above by `targets_array.is_empty()`.
+  #[ must_use ]
+  pub fn skeleton_displacements_data_load
   (
     primitives_morph_targets : Option< &Vec< MorphTargets< '_ > > >,
     primitives_vertices_count : &[ usize ],
@@ -824,15 +836,19 @@ mod private
     ( materials, material_variation_map )
   }
 
-  /// Describes one vertex attribute over the uploaded GPU buffers from its
-  /// glTF accessor : data type, offset, stride, and dimensionality.
-  fn attribute_info_make
-  (
-    gl_buffers : &[ gl::WebGlBuffer ],
-    acc : &gltf::Accessor< '_ >,
-    slot : u32
-  )
-  -> AttributeInfo
+  /// Computes a vertex attribute's [`gl::BufferDescriptor`] from its glTF
+  /// accessor : data type, offset, stride, and dimensionality. Split out of
+  /// [`attribute_info_make`] -- pure data transform over the accessor's own
+  /// metadata, no GL calls -- so it can be tested without a live
+  /// `WebGl2RenderingContext`.
+  ///
+  /// # Panics
+  ///
+  /// Panics if `acc`'s buffer view is absent -- every accessor this loader
+  /// resolves ( via `gltf_primitive.attributes()` ) is backed by a view
+  /// pointing at real buffer bytes, never a sparse-only accessor.
+  #[ must_use ]
+  pub fn attribute_descriptor_make( acc : &gltf::Accessor< '_ > ) -> gl::BufferDescriptor
   {
     let data_type = match acc.data_type()
     {
@@ -844,17 +860,28 @@ mod private
       gltf::accessor::DataType::F32 => gl::DataType::F32
     };
 
-    let descriptor = gl::BufferDescriptor::new::< [ f32; 1 ] >()
+    gl::BufferDescriptor::new::< [ f32; 1 ] >()
     .offset( acc.offset() as i32 / data_type.byte_size() )
     .normalized( acc.normalized() )
     .stride( acc.view().unwrap().stride().unwrap_or( 0 ) as i32 / data_type.byte_size() )
-    .vector( gl::VectorDataType::new( data_type, acc.dimensions().multiplicity() as i32, 1 ) );
+    .vector( gl::VectorDataType::new( data_type, acc.dimensions().multiplicity() as i32, 1 ) )
+  }
 
+  /// Describes one vertex attribute over the uploaded GPU buffers from its
+  /// glTF accessor : data type, offset, stride, and dimensionality.
+  fn attribute_info_make
+  (
+    gl_buffers : &[ gl::WebGlBuffer ],
+    acc : &gltf::Accessor< '_ >,
+    slot : u32
+  )
+  -> AttributeInfo
+  {
     AttributeInfo
     {
       slot,
       buffer : gl_buffers[ acc.view().unwrap().index() ].clone(),
-      descriptor,
+      descriptor : attribute_descriptor_make( acc ),
       bounding_box : gl::geometry::BoundingBox::default()
     }
   }
@@ -1118,7 +1145,7 @@ mod private
 
   /// A node prepared for skeleton attachment : the node, its glTF skin, its
   /// primitives' morph targets, and its mesh's morph weights.
-  type RiggedNode< 'a > =
+  pub type RiggedNode< 'a > =
   (
     Rc< RefCell< Node > >,
     Option< gltf::Skin< 'a > >,
@@ -1128,17 +1155,22 @@ mod private
 
   /// Product of [`nodes_create`] : the flat node list, per-node
   /// skeleton-attachment data, and the nodes carrying lights.
-  struct NodesCreated< 'a >
+  pub struct NodesCreated< 'a >
   {
-    nodes : Vec< Rc< RefCell< Node > > >,
+    /// Every node in the glTF document, in document order, with hierarchy
+    /// wired via [`Node::child_add`] and transform/object resolved.
+    pub nodes : Vec< Rc< RefCell< Node > > >,
     rigged_nodes : Vec< RiggedNode< 'a > >,
-    lights : Vec< Rc< RefCell< Node > > >
+    /// The subset of `nodes` whose `object` resolved to [`Object3D::Light`].
+    pub lights : Vec< Rc< RefCell< Node > > >
   }
 
   /// Instantiates every glTF node with its transform and object ( mesh,
   /// light, or plain ), wires the child hierarchy, and returns the flat node
-  /// list, skeleton-attachment data, and the light nodes.
-  fn nodes_create< 'a >
+  /// list, skeleton-attachment data, and the light nodes. Pure data
+  /// transform over the parsed document and pre-built meshes -- no GL calls.
+  #[ must_use ]
+  pub fn nodes_create< 'a >
   (
     gltf_file : &'a gltf::Gltf,
     meshes : &[ Rc< RefCell< Mesh > > ]
@@ -1214,8 +1246,12 @@ mod private
   }
 
   /// Attaches a [`Skeleton`] to every rigged mesh, switching its materials
-  /// onto the skinning / morph-target shader paths.
-  fn skeletons_attach
+  /// onto the skinning / morph-target shader paths. A rigged node with no
+  /// skin and no morph targets is a no-op : [`skeleton_load`] returns `None`
+  /// and the mesh's `skeleton` field ( and its material's defines ) are left
+  /// untouched -- the only GL call on this path, `PbrMaterial::define_add`,
+  /// is only ever reached once a real [`Skeleton`] comes back.
+  pub fn skeletons_attach
   (
     nodes : &[ Rc< RefCell< Node > > ],
     rigged_nodes : Vec< RiggedNode< '_ > >,
@@ -1261,8 +1297,10 @@ mod private
   }
 
   /// Builds every glTF scene from the instantiated nodes and computes the
-  /// initial world matrices.
-  fn scenes_create
+  /// initial world matrices. Pure data transform over already-instantiated
+  /// nodes -- no GL calls.
+  #[ must_use ]
+  pub fn scenes_create
   (
     gltf_file : &gltf::Gltf,
     nodes : &[ Rc< RefCell< Node > > ]
@@ -1405,7 +1443,14 @@ crate::mod_interface!
     light_list_get,
     light_get,
     skeleton_transforms_data_load,
+    skeleton_displacements_data_load,
     material_variation_resolve,
-    SharedMaterial
+    SharedMaterial,
+    RiggedNode,
+    NodesCreated,
+    nodes_create,
+    skeletons_attach,
+    scenes_create,
+    attribute_descriptor_make
   };
 }

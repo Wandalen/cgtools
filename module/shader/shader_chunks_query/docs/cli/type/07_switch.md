@@ -2,7 +2,8 @@
 
 **Purpose:** A boolean toggle parameter — the shared shape of the 5
 on/off query parameters (`case`, `transitive`, `roots`, `leaves`,
-`count`), `.tree`'s own `reverse`, plus `.preview`'s `serve`.
+`count`), `.tree`'s own `reverse`, `.preview`'s `serve`, plus `.render`'s
+`all`.
 
 **Fundamental Type:** `bool` (unilang `Kind::Boolean`). No wrapper type —
 unilang performs the string→bool coercion during argument binding, before
@@ -17,9 +18,9 @@ any `shader_chunks` code runs; the routines read an already-typed
 
 **Parsing:** unilang's argument binding (`coerce_arg_value`); every
 Switch declares an explicit default in its `ArgumentDefinition` — `false`
-for the 5 query switches and `.tree`'s `reverse`, `true` for `.preview`'s
-`serve` — so the bound argument map always carries a typed value —
-routines never see an absent Switch.
+for the 5 query switches, `.tree`'s `reverse`, and `.render`'s `all`,
+`true` for `.preview`'s `serve` — so the bound argument map always
+carries a typed value — routines never see an absent Switch.
 
 **Methods:**
 - `arg_bool(cmd, key)` (`shader_chunks_cli_core/src/lib.rs`) — reads the bound
@@ -36,6 +37,7 @@ routines never see an absent Switch.
 | 3 | [`.compose`](../../../../shader_chunks_compose/docs/cli/command/01_compose.md) | `transitive::` |
 | 4 | [`.preview`](../../../../shader_chunks_preview/docs/cli/command/01_preview.md) | `serve::` |
 | 5 | [`.tree`](../command/04_tree.md) | `reverse::` |
+| 6 | [`.render`](../../../../shader_chunks_render/docs/cli/command/01_render.md) | `all::` |
 
 ---
 
@@ -50,3 +52,4 @@ routines never see an absent Switch.
 | 5 | [`count`](../param/14_count.md) | 2 |
 | 6 | [`serve`](../../../../shader_chunks_preview/docs/cli/param/02_serve.md) | 1 |
 | 7 | [`reverse`](../param/22_reverse.md) | 1 |
+| 8 | [`all`](../../../../shader_chunks_render/docs/cli/param/05_all.md) | 1 |

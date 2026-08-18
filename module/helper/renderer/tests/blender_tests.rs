@@ -12,7 +12,7 @@ use renderer::webgl::
   }
 };
 use animation::{ Tween, Sequence, Sequencer, easing::{ EasingBuilder, Linear } };
-use mingl::{ F64x3, QuatF32, QuatF64 };
+use mingl::{ F32x3, F64x3, QuatF32, QuatF64 };
 use core::f64;
 use std::f64::consts::PI;
 use rustc_hash::FxHashMap;
@@ -675,6 +675,86 @@ fn test_is_completed_two_animations_same_time_both_genuinely_completed()
   assert!( blender.animation_get( "anim2" ).unwrap().is_completed(), "setup sanity: anim2 must be genuinely completed" );
 
   assert!( blender.is_completed(), "two animations completed at the identical time should report the Blender as completed" );
+}
+
+/// ## Root Cause
+/// `Blender::translation_blend`/`rotation_blend`/`scale_blend` applied their accumulated result
+/// to the node unconditionally -- `translation_set`/`scale_set` fell straight through even when
+/// no blended `Sequencer` had that channel for the node ( applying the vacuous
+/// `F32x3::default()` == `(0,0,0)` sum ), and `rotation_blend`'s empty branch explicitly forced
+/// `QuatF32::default()` ( identity ). glTF skeletal rigs commonly animate only a subset of a
+/// joint's TRS channels ( e.g. a rotation-only joint ), so every other channel's untouched value
+/// was silently clobbered on every `Blender::set` call.
+///
+/// ## Why Not Caught
+/// Every pre-existing `Blender` test that called `set()` used a `Sequencer` with a translation
+/// channel present for the node under test ( see every `translation_sequence_create` call
+/// throughout this file ), so the "channel absent for this node" branch of `translation_blend`/
+/// `scale_blend`/`rotation_blend` was never exercised.
+///
+/// ## Fix Applied
+/// All three blend functions now return early -- leaving the node's existing value untouched --
+/// when no blended `Sequencer` contributed a value for that channel, matching the
+/// "skip-if-absent" convention already used by `Sequencer::set`, `Pose::set`,
+/// `Scaler::unscaled_transforms_apply`, and `Transition::set`/`blend` ( BUG-261, `blending.rs` ).
+///
+/// ## Prevention
+/// This test's `Sequencer` carries only a rotation channel for `node1` -- no translation, no
+/// scale. The node's translation/scale are set to non-default sentinel values before
+/// `blender.set` runs; the test asserts they remain exactly the sentinel values afterward, while
+/// rotation is confirmed to have actually changed away from identity ( proving the fix does not
+/// also accidentally suppress the channel that IS present ).
+///
+/// ## Pitfall
+/// A regression test asserting only "rotation changed" would pass even with the bug still
+/// present ( it never touched rotation while a channel was present ) -- the sentinel values on
+/// translation/scale, asserted via exact equality against the pre-`set` values, are what
+/// actually exercises the fix.
+// test_kind: bug_reproducer(BUG-261)
+#[ test ]
+#[ expect( clippy::float_cmp, reason = "sentinel translation/scale values round-trip unchanged through Blender::set when no channel targets them; no arithmetic occurs in between" ) ]
+fn test_blender_leaves_translation_and_scale_untouched_when_only_rotation_channel_present()
+{
+  let mut blender = Blender::new();
+
+  // Constant, non-identity start/end: `current_get()` reflects this value immediately in the
+  // pending ( pre-`update` ) state, matching `test_blender_rotation_blend_aligns_hemisphere_
+  // across_clips`'s identical idiom above -- a start value of identity itself would make the
+  // "changed away from identity" assertion below trivially satisfied for the wrong reason.
+  let q_90_deg_z = QuatF64::from_axis_angle( F64x3::new( 0.0, 0.0, 1.0 ), PI / 2.0 );
+  let mut seq = Sequencer::new();
+  seq.insert
+  (
+    format!( "node1{ROTATION_PREFIX}" ).as_str(),
+    rotation_sequence_create( q_90_deg_z, q_90_deg_z, 1.0 )
+  );
+  blender.add( "anim1".into(), seq, F64x3::splat( 1.0 ) );
+
+  let mut nodes = FxHashMap::default();
+  let node = Rc::new( RefCell::new( Node::new() ) );
+  node.borrow_mut().name_set( "node1" );
+  node.borrow_mut().translation_set( F32x3::new( 3.0, 5.0, 7.0 ) );
+  node.borrow_mut().scale_set( F32x3::new( 2.0, 4.0, 6.0 ) );
+  nodes.insert( "node1".to_string().into_boxed_str(), node.clone() );
+
+  blender.set( &nodes );
+
+  let translation = node.borrow().translation_get();
+  assert_eq!( translation.x(), 3.0, "translation.x must remain untouched -- no translation channel targets this node" );
+  assert_eq!( translation.y(), 5.0, "translation.y must remain untouched -- no translation channel targets this node" );
+  assert_eq!( translation.z(), 7.0, "translation.z must remain untouched -- no translation channel targets this node" );
+
+  let scale = node.borrow().scale_get();
+  assert_eq!( scale.x(), 2.0, "scale.x must remain untouched -- no scale channel targets this node" );
+  assert_eq!( scale.y(), 4.0, "scale.y must remain untouched -- no scale channel targets this node" );
+  assert_eq!( scale.z(), 6.0, "scale.z must remain untouched -- no scale channel targets this node" );
+
+  let rotation = node.borrow().rotation_get();
+  assert!
+  (
+    rotation.w() < 0.9,
+    "rotation must have actually blended away from identity ( w=1.0 ) toward the 90-degree Z rotation, got w={}", rotation.w()
+  );
 }
 
 /// ## Root Cause

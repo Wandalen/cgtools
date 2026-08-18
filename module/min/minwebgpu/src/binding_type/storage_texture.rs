@@ -9,7 +9,7 @@ mod private
   {
     /// The texture format that the storage texture must have.
     ///
-    /// Defaults to `Rgba8unormSrgb`
+    /// Defaults to `Rgba8unorm`
     format : GpuTextureFormat,
     /// The access mode for the storage texture.
     ///
@@ -34,9 +34,20 @@ mod private
     /// Creates a new `StorageTextureBindingLayout` with default values.
     #[ inline ]
     #[ must_use ]
+    // Fix(BUG-275): default `format` changed from `GpuTextureFormat::Rgba8unormSrgb` to
+    // `GpuTextureFormat::Rgba8unorm`.
+    // Root cause: the sRGB default was copy-pasted from the general-purpose texture descriptor's
+    // default (`descriptor/texture.rs`) and the render-target color-attachment default
+    // (`state/color_target.rs`), where an sRGB format is valid. Per the WebGPU spec's texture
+    // format capability table, no `-srgb` format supports `STORAGE_BINDING` usage, so leaving
+    // `format` at its default (never calling `.format(..)`) produced a layout that a real
+    // `GPUDevice.createBindGroupLayout` call rejects with a validation error.
+    // Pitfall: a default value copied from a sibling type's default must be re-checked against
+    // the new type's own spec constraints -- `format` is not interchangeable between a
+    // sampled/render texture and a storage texture binding despite sharing a field name and type.
     pub fn new() -> Self
     {
-      let format = GpuTextureFormat::Rgba8unormSrgb;
+      let format = GpuTextureFormat::Rgba8unorm;
       let access = None;
       let view_dimension = None;
 
@@ -57,7 +68,7 @@ mod private
       self
     }
 
-    /// Sets the `access` property to `ReadOnly`
+    /// Sets the `access` property to `WriteOnly`
     #[ inline ]
     #[ must_use ]
     pub fn write_only( mut self ) -> Self

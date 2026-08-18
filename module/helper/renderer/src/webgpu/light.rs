@@ -145,9 +145,19 @@ mod private
     }
 
     /// Adds a spot light. `direction` is the cone axis pointing away from the
-    /// light; normalized internally. Cone angles are radians from the axis,
-    /// `inner_cone_angle <= outer_cone_angle`. Returns `false` — dropping the
-    /// light — when the array is full.
+    /// light; normalized internally. Cone angles are finite radians from the
+    /// axis, `inner_cone_angle < outer_cone_angle`. Returns `false` —
+    /// dropping the light — when the array is full or the cone angles don't
+    /// satisfy that invariant.
+    // Fix(BUG-255): the doc comment previously allowed `inner_cone_angle <= outer_cone_angle`,
+    // but `shaders/main.wgsl`'s `smoothstep( light.outer.x, light.color_inner.w, angle )` divides
+    // by `( inner_cone_angle - outer_cone_angle )` internally -- exactly `0.0` the moment a caller
+    // followed the documented ( non-strict ) contract to the letter with equal angles, producing
+    // NaN that propagates into every fragment lit by that spot light.
+    // Root cause: the contract was documented but never enforced in code.
+    // Pitfall: a documented "caller obligation" invariant is not safe merely because it's
+    // documented -- this one explicitly permitted the exact input that breaks the consuming
+    // shader formula.
     #[ expect( clippy::too_many_arguments, reason = "a spot light irreducibly needs position, axis, color, strength, range, and both cone angles" ) ]
     #[ must_use ]
     pub fn spot_push
@@ -162,6 +172,11 @@ mod private
       outer_cone_angle : f32
     ) -> bool
     {
+      if !inner_cone_angle.is_finite() || !outer_cone_angle.is_finite() || inner_cone_angle >= outer_cone_angle
+      {
+        return false;
+      }
+
       let i = self.raw.counts[ 2 ] as usize;
       if i >= MAX_SPOT_LIGHTS
       {

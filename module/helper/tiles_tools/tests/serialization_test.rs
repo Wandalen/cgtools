@@ -150,6 +150,54 @@ fn test_player_progress_serialization() {
   assert_eq!(progress.achievements[0].id, deserialized.achievements[0].id);
 }
 
+// test_kind: bug_reproducer(BUG-269)
+/// ## Root Cause
+/// `GameStateSerializer::game_state_deserialize` never compared the
+/// deserialized state's `metadata.version` against `self.version` (default
+/// `SaveVersion::current()`, or a caller-supplied one via `with_version`).
+/// `SaveVersion::is_compatible_with` and `SerializationError::IncompatibleVersion`
+/// were both fully implemented, but nothing ever called the former or
+/// constructed the latter.
+///
+/// ## Why Not Caught
+/// `test_save_version_compatibility` only tests `SaveVersion::is_compatible_with`
+/// in isolation. Every round-trip test in this file uses the default
+/// `GameStateSerializer::new()` (current version) against
+/// `basic_game_state_create` (also current version), so a version mismatch
+/// was never exercised end-to-end through `game_state_deserialize`.
+///
+/// ## Fix Applied
+/// Added a version-compatibility check in `game_state_deserialize`, after
+/// deserializing but before returning the state: if
+/// `self.version.is_compatible_with(&state.metadata.version)` is false,
+/// return `SerializationError::IncompatibleVersion` instead of the state.
+///
+/// ## Prevention
+/// A builder setter (`with_version`) whose stored value is never read back
+/// anywhere is a silent no-op -- grep for every `self.<field>` read site
+/// when adding a `with_*` method, not just the field's own declaration.
+///
+/// ## Pitfall
+/// A fully-implemented, unit-tested helper (`is_compatible_with`) and a
+/// fully-defined, `Display`-formatted error variant (`IncompatibleVersion`)
+/// can coexist in a crate for a long time without ever being wired together
+/// at the one call site that would actually use them -- "the pieces exist"
+/// is not evidence that "the feature works end to end".
+#[test]
+fn test_deserialize_rejects_incompatible_major_version() {
+  let writer = GameStateSerializer::new();
+  let game_state = GameStateSerializer::basic_game_state_create("Version Test".to_string());
+  let bytes = writer.game_state_serialize(&game_state).unwrap();
+
+  let reader = GameStateSerializer::new().with_version(SaveVersion::new(2, 0, 0));
+  let result = reader.game_state_deserialize(&bytes);
+
+  assert!(
+    matches!(result, Err(SerializationError::IncompatibleVersion { .. })),
+    "expected IncompatibleVersion, got {result:?}"
+  );
+}
+
 #[test]
 fn test_error_handling() {
   let temp_dir = TempDir::new().unwrap();

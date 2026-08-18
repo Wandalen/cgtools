@@ -11,9 +11,9 @@ mod private
   use cli_fmt::prelude::*;
   use shader_chunks_cli_core::
   {
-    CliApp, CommandSet, arg_bool, arg_list, arg_string, arg_usize, error_report, named_arg, text_output,
+    CliApp, CommandSet, arg_bool_checked, arg_list, arg_string_checked, arg_usize, error_report, named_arg, text_output,
   };
-  use shader_chunks_query_core::{ QueryError, QueryParams };
+  use shader_chunks_query_core::{ QueryError, QueryParams, TreeFormat };
 
   /// This utility's standalone binary name.
   pub const BINARY : &str = "shader_chunks_query";
@@ -47,13 +47,14 @@ mod private
       .attributes( ArgumentAttributes { optional : names_optional, multiple : true, ..ArgumentAttributes::default() } )
       .end(),
       named_arg( "pattern", Kind::String, "Substring filter on chunk names.", None ),
-      named_arg( "case", Kind::Boolean, "Case-sensitive `pattern::`/`exports::` matching.", Some( "false".to_string() ) ),
+      named_arg( "case", Kind::Boolean, "Case-sensitive `pattern::`/`exports::`/`source::` matching.", Some( "false".to_string() ) ),
       named_arg( "tag", Kind::List( Box::new( Kind::String ), Some( ',' ) ), "Tag selectors, comma-separated: `group:tag` exact pair, bare `tag` any group.", None ),
       named_arg( "tags_mode", Kind::String, "Combine `tag::` selectors: any | all.", Some( defaults.tags_mode.as_str().to_string() ) ),
       named_arg( "stage", Kind::String, "Stage filter: any | none | a stage name.", Some( defaults.stage.clone() ) ),
       named_arg( "depends_on", Kind::String, "Keep only chunks depending on this chunk.", None ),
       named_arg( "transitive", Kind::Boolean, "Widen `depends_on::` to the transitive closure.", Some( "false".to_string() ) ),
       named_arg( "exports", Kind::String, "Substring filter over export signatures.", None ),
+      named_arg( "source", Kind::String, "Substring filter over the chunk's raw WGSL body.", None ),
       named_arg( "roots", Kind::Boolean, "Keep only chunks nothing else depends on.", Some( "false".to_string() ) ),
       named_arg( "leaves", Kind::Boolean, "Keep only chunks with no dependencies.", Some( "false".to_string() ) ),
       named_arg( "fields", Kind::List( Box::new( Kind::String ), Some( ',' ) ), "Columns to project: name, description, stage, tags, depends_on, exports, source.", Some( defaults.fields.join( "," ) ) ),
@@ -68,6 +69,21 @@ mod private
     ]
   }
 
+  // Fix(BUG-285): every `arg_string`/`arg_bool` call in this function and in
+  // `cmd_tree`'s routine switched to `arg_string_checked`/`arg_bool_checked`.
+  // Root cause: same defect class as BUG-283 (`shader_chunks_cli_core`'s
+  // `arg_string`/`arg_bool` catch-all arms cannot tell "argument absent"
+  // apart from "argument supplied twice", since `unilang` binds ANY
+  // repeated named argument to `Value::List` regardless of its declared
+  // `multiple` attribute) -- BUG-283 fixed `shader_chunks_compose`'s two
+  // call sites but left every other CLI crate's call sites unchecked; this
+  // is the first of those, `shader_chunks_query`'s 17 (15 in this function,
+  // 2 in `cmd_tree`). Every named parameter here was previously silently
+  // misread on a duplicate: `pattern::a pattern::b` fell through to "no
+  // filter" and matched every chunk instead of erroring.
+  // Pitfall: `arg_usize` has the identical catch-all shape (`_ => Ok(0)`,
+  // `shader_chunks_cli_core/src/lib.rs`) and is NOT yet fixed here or
+  // anywhere else -- still a known gap, same as BUG-283 left it.
   /// Builds [`QueryParams`] from a verified command's bound arguments on
   /// top of `params` ( a per-command defaults struct ). Enum-style values
   /// ( `tags_mode`/`format`/`sort`/`order` ) and negative integers fail
@@ -79,29 +95,30 @@ mod private
   ) -> Result< QueryParams, ErrorData >
   {
     params.names = arg_list( cmd, "names" );
-    if let Some( pattern ) = arg_string( cmd, "pattern" ) { params.pattern = pattern; }
-    params.case_sensitive = arg_bool( cmd, "case", params.case_sensitive );
+    if let Some( pattern ) = arg_string_checked( cmd, "pattern" )? { params.pattern = pattern; }
+    params.case_sensitive = arg_bool_checked( cmd, "case", params.case_sensitive )?;
     params.tags = arg_list( cmd, "tag" );
-    if let Some( mode ) = arg_string( cmd, "tags_mode" )
+    if let Some( mode ) = arg_string_checked( cmd, "tags_mode" )?
     { params.tags_mode = mode.parse().map_err( | e | query_error( &e ) )?; }
-    if let Some( stage ) = arg_string( cmd, "stage" ) { params.stage = stage; }
-    if let Some( depends_on ) = arg_string( cmd, "depends_on" ) { params.depends_on = depends_on; }
-    params.transitive = arg_bool( cmd, "transitive", params.transitive );
-    if let Some( exports ) = arg_string( cmd, "exports" ) { params.exports = exports; }
-    params.roots = arg_bool( cmd, "roots", params.roots );
-    params.leaves = arg_bool( cmd, "leaves", params.leaves );
+    if let Some( stage ) = arg_string_checked( cmd, "stage" )? { params.stage = stage; }
+    if let Some( depends_on ) = arg_string_checked( cmd, "depends_on" )? { params.depends_on = depends_on; }
+    params.transitive = arg_bool_checked( cmd, "transitive", params.transitive )?;
+    if let Some( exports ) = arg_string_checked( cmd, "exports" )? { params.exports = exports; }
+    if let Some( source ) = arg_string_checked( cmd, "source" )? { params.source = source; }
+    params.roots = arg_bool_checked( cmd, "roots", params.roots )?;
+    params.leaves = arg_bool_checked( cmd, "leaves", params.leaves )?;
     let fields = arg_list( cmd, "fields" );
     if !fields.is_empty() { params.fields = fields; }
-    params.count = arg_bool( cmd, "count", params.count );
-    if let Some( format ) = arg_string( cmd, "format" )
+    params.count = arg_bool_checked( cmd, "count", params.count )?;
+    if let Some( format ) = arg_string_checked( cmd, "format" )?
     { params.format = format.parse().map_err( | e | query_error( &e ) )?; }
-    if let Some( sort ) = arg_string( cmd, "sort" )
+    if let Some( sort ) = arg_string_checked( cmd, "sort" )?
     { params.sort = sort.parse().map_err( | e | query_error( &e ) )?; }
-    if let Some( order ) = arg_string( cmd, "order" )
+    if let Some( order ) = arg_string_checked( cmd, "order" )?
     { params.order = order.parse().map_err( | e | query_error( &e ) )?; }
     params.limit = arg_usize( cmd, "limit" )?;
     params.offset = arg_usize( cmd, "offset" )?;
-    if let Some( heading ) = arg_string( cmd, "heading" ) { params.heading = heading; }
+    if let Some( heading ) = arg_string_checked( cmd, "heading" )? { params.heading = heading; }
     params.width = arg_usize( cmd, "width" )?;
     Ok( params )
   }
@@ -142,6 +159,7 @@ mod private
       format!( "{binary} list pattern::noise" ),
       format!( "{binary} list tag::noise format::json" ),
       format!( "{binary} list roots::1 fields::name,exports" ),
+      format!( "{binary} list source::fract format::names" ),
     ])
     .arguments( query_arguments( true, &defaults ) )
     .end();
@@ -224,6 +242,7 @@ mod private
       format!( "{binary} tree fbm3" ),
       format!( "{binary} tree" ),
       format!( "{binary} tree hash21 reverse::1" ),
+      format!( "{binary} tree fbm3 shape::dot" ),
     ])
     .arguments( vec!
     [
@@ -234,6 +253,7 @@ mod private
       .attributes( ArgumentAttributes { optional : true, ..ArgumentAttributes::default() } )
       .end(),
       named_arg( "reverse", Kind::Boolean, "Walk dependents instead of dependencies: what (transitively) depends on this chunk.", Some( "false".to_string() ) ),
+      named_arg( "shape", Kind::String, "Rendering shape: aligned (indented text), dot (Graphviz digraph), mermaid (Mermaid graph TD).", Some( "aligned".to_string() ) ),
     ])
     .end();
 
@@ -244,8 +264,13 @@ mod private
         Some( Value::String( name ) ) => Some( name.as_str() ),
         _ => None,
       };
-      let reverse = arg_bool( &cmd, "reverse", false );
-      let content = shader_chunks_query_core::chunk_tree( name, reverse ).map_err( | e | query_error( &e ) )?;
+      let reverse = arg_bool_checked( &cmd, "reverse", false )?;
+      let shape = match arg_string_checked( &cmd, "shape" )?
+      {
+        Some( s ) => s.parse().map_err( | e | query_error( &e ) )?,
+        None => TreeFormat::Aligned,
+      };
+      let content = shader_chunks_query_core::chunk_tree( name, reverse, shape ).map_err( | e | query_error( &e ) )?;
       Ok( text_output( content ) )
     });
 

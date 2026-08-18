@@ -45,7 +45,16 @@ index = [ "dep:ndarray" ]
 nd = [ "dep:ndarray" ]
 float = [ "nd", "dep:num-traits" ]
 approx = [ "float", "dep:approx" ]
-arithmetics = [ "float" ]
+# Fix(BUG-270): `arithmetics` now also requires `approx`.
+# Root cause: `src/vector/arithmetics.rs`'s `is_orthogonal` unconditionally uses
+# `crate::approx::ulps_eq` and bounds `E : approx::UlpsEq` with no `#[cfg(feature = "approx")]`
+# guard, so the file has always needed `approx` to compile -- `arithmetics` alone (or the `full`
+# bundle, which pulls in `arithmetics` but not `approx`) failed to build with E0432/E0433.
+# Pitfall: a feature flag whose gated source file unconditionally uses another feature's items
+# only fails when someone actually selects that exact combination -- `--all-features` (and any
+# combination that happens to also enable the second feature separately, e.g. this crate's own
+# sibling `ndarray_cg` explicitly requesting both) never exercises the gap.
+arithmetics = [ "float", "approx" ]
 general = []
 
 [dependencies]

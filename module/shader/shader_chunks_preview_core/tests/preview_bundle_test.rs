@@ -87,9 +87,9 @@ fn vec3_value_chunk_gets_a_synthesized_harness()
   assert_eq!( bundle.target, "palette_cosine" );
   assert_eq!
   (
-    code_occurrences( &bundle.wgsl, "palette_cosine_preview( p, params.base, params.amplitude, params.frequency, params.phase_r, params.phase_g, params.phase_b )" ), 1,
+    code_occurrences( &bundle.wgsl, "palette_cosine_preview( p )" ), 1,
     "candidate selection must fall back to the first previewable export, since none is named exactly `palette_cosine`; \
-    the chunk's own six tunables are now real arguments, positioned before the synthesized preview_scale slider"
+    the wrapper takes no tunables of its own -- its canonical rainbow phase spread is fixed, not sliderable ( BUG-286 )"
   );
   assert_eq!( code_occurrences( &bundle.wgsl, "let color = value;" ), 1, "the Vec3 shape writes a direct RGB passthrough, no rescaling" );
   naga_validate( &bundle.wgsl );
@@ -401,5 +401,60 @@ fn resolution_index_pads_to_the_next_16_byte_boundary()
 fn missing_manifest_is_rejected_before_parsing_panics()
 {
   let err = bundle_build( "fn naked() -> f32 { return 0.0; }" ).expect_err( "should fail" );
+  assert!( matches!( err, PreviewError::Unpreviewable { .. } ), "expected Unpreviewable, got {err:?}" );
+}
+
+// test_kind: bug_reproducer(BUG-281)
+/// ## Root Cause
+/// `bundle_build`'s upfront manifest-completeness check ( the loop over
+/// `[ "name", "depends_on" ]` ) rejects only those two missing header lines
+/// gracefully before any panicking `shader_chunks_core` parser runs. But
+/// `value_chunk_harness_and_parameters` later calls `tags_parse` ( to detect
+/// the `category:sdf` tag, for the SDF-specific harness treatment ) once a
+/// previewable export has been chosen -- `tags_parse` panics outright via
+/// `shader_chunks_core`'s `manifest_field` when no `//@ tags:` line exists.
+/// A value-chunk-shaped target with a valid previewable export but no
+/// `//@ tags:` line reaches that call and crashes the whole process instead
+/// of returning `PreviewError::Unpreviewable`, even though `bundle_build`'s
+/// own doc comment promises `Unpreviewable` for "missing manifest lines"
+/// generally, not just the two currently checked.
+/// ## Why Not Caught
+/// Every existing test's inline WGSL fixture in this file always includes a
+/// `//@ tags:` line out of habit ( following the real manifest convention ),
+/// and every bundled `CHUNKS` entry already carries one too ( required
+/// elsewhere across the wider `shader_chunks` CLI ), so `tags_parse`'s panic
+/// path inside this crate was never exercised by any test. It is reachable
+/// in practice through the CLI's `preview file::<path>` mode on a chunk
+/// still being hand-authored, before its manifest header is complete.
+/// ## Fix Applied
+/// Added `"tags"` to `bundle_build`'s upfront required-manifest-fields loop,
+/// alongside the existing `"name"`/`"depends_on"` checks, so a missing
+/// `//@ tags:` line is caught and reported as `Unpreviewable` before any
+/// panicking parser runs -- the same graceful contract already applied to
+/// `name`/`depends_on`.
+/// ## Prevention
+/// This test constructs a value-chunk-shaped WGSL fixture with every other
+/// required manifest line present except `//@ tags:`, proving `bundle_build`
+/// now returns `Err( PreviewError::Unpreviewable { .. } )` instead of
+/// panicking.
+/// ## Pitfall
+/// An upfront "reject missing manifest lines before parsing panics" guard is
+/// only as complete as the field list it actually checks -- adding a new
+/// call to a panicking `shader_chunks_core` parser deeper in the pipeline
+/// ( as `tags_parse` was, for `category:sdf` detection ) silently reopens
+/// the exact panic class the guard exists to close, unless the guard's own
+/// field list is extended alongside it.
+#[ test ]
+fn value_chunk_missing_tags_line_is_rejected_not_panicked()
+{
+  let wgsl = "\
+//@ name: local_probe
+//@ description: Probe.
+//@ depends_on:
+//@ export: fn local_probe(p: vec2f) -> f32
+
+fn local_probe( p : vec2f ) -> f32 { return 0.0; }
+";
+  let err = bundle_build( wgsl ).expect_err( "a value chunk with no `//@ tags:` line must be rejected, not panic" );
   assert!( matches!( err, PreviewError::Unpreviewable { .. } ), "expected Unpreviewable, got {err:?}" );
 }

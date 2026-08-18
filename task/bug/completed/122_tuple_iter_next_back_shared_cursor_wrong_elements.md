@@ -52,7 +52,7 @@ concern.
 
 Task #58, a targeted code review of `mdmath_core` dispatched under the standing bug-hunt
 mandate, using the same "read every source file directly, hand-derive expected behavior rather
-than trusting existing tests" methodology that surfaced BUG-118 through BUG-121 in `ndarray_cg`.
+than trusting existing tests" methodology that surfaced BUG-250 through BUG-121 in `ndarray_cg`.
 The reviewing agent flagged that `Tuple2Iter`/`Tuple3Iter`/`Tuple4Iter` (the plain, immutable
 `Iterator`/`DoubleEndedIterator` impls in `vector/tuple{2,3,4}.rs`) still used the single shared
 `index : usize` field with hardcoded per-direction match arms — the exact shape BUG-050 already

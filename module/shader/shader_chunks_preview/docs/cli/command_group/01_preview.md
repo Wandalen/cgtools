@@ -58,8 +58,8 @@ server-launching command inside a group whose entire contract is
 |---|---------|---------------|
 | 1 | [`.preview`](../command/01_preview.md) | Member — live browser preview of one chunk |
 
-**Membership:** 1 of the 8 commands across the `shader_chunks` family; the
-full partition across all 6 command groups (spanning all 5 leaf CLIs) is
+**Membership:** 1 of the 9 commands across the `shader_chunks` family; the
+full partition across all 7 command groups (spanning all 6 leaf CLIs) is
 stated in [the family index](../../../../shader_chunks/docs/cli/readme.md).
 A single-member group is deliberate — the boundary is output-species (a
 live rendering artifact, with real filesystem and subprocess side

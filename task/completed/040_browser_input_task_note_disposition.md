@@ -99,7 +99,7 @@ requirement would need resolved (renumber one side) the moment option (a) or (b)
   `JsCast` trait through minwebgl's re-export (crate has no direct `wasm-bindgen` dep — the note's
   "just two math types" premise is wrong), and `tests/active_pointers_test.rs:4` imports
   `minwebgl::math::I32x2` (a fourth site the note's file list missed). All of this is recorded in the
-  migrated task. **Executed:** filed [draft/057](../draft/057_browser_input_minwebgl_dependency_cleanup.md)
+  migrated task. **Executed:** filed [draft/057](../completed/057_browser_input_minwebgl_dependency_cleanup.md)
   (highest_id bumped 056 → 057); deleted `module/helper/browser_input/task/001_dependency_cleanup.md`
   and removed the now-empty `task/` directory; rewrote `task/readme.md`'s "Known, unresolved gap"
   preamble paragraph to a resolution record. The old note's `001` ID collision with root task `001` is

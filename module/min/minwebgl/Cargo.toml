@@ -26,6 +26,24 @@ workspace = true
 
 [features]
 
+# Fix(BUG-279): `enabled` now also requires `mingl/web` and `mingl/web_log`.
+# Root cause: `lib.rs` compiles `layer exec_loop;` and `layer log;` unconditionally (no
+# per-layer `#[cfg]` at all) under `enabled` alone, and both `reuse ::mingl::web::exec_loop;` /
+# `reuse ::mingl::web::log;` unconditionally -- but `mingl::web` itself is gated behind
+# `#[cfg(feature = "web")]`, and `mingl::web::log` additionally behind `#[cfg(feature =
+# "web_log")]`, in `mingl/src/lib.rs` / `mingl/src/web.rs`; `enabled` never forwarded either.
+# Selecting `enabled` alone (or any combination that omits this crate's own `web`/`log`
+# features) failed with E0433 "cannot find `web` in `mingl`" (then, once `web` alone was added,
+# "cannot find `log` in `web`") the moment `exec_loop`/`log` tried to resolve their `reuse`
+# targets -- even though `enabled` already hard-requires `dep:web-sys` / `dep:wasm-bindgen` /
+# `dep:wasm-bindgen-futures` / `dep:js-sys` directly, the same dependencies `mingl/web` itself
+# gates, so this crate was never meaningfully usable without them regardless.
+# Pitfall: a `layer` with no per-item `#[cfg]` reads as "always available," but if its body
+# `reuse`s from an optionally-gated path in another crate, it silently inherits that crate's
+# gate as a real (but unstated) prerequisite -- grep every unconditional `layer` for `reuse`
+# targets that cross an optional-feature boundary in the crate it reuses from, and check for
+# *nested* gates one level deeper (here, `web_log` gating `log` from inside the already-gated
+# `web` layer) rather than stopping at the first resolved layer.
 enabled = [
   "dep:mingl",
   "dep:asbytes",
@@ -34,6 +52,8 @@ enabled = [
   "dep:wasm-bindgen",
   "dep:js-sys",
   "dep:web-sys",
+  "mingl/web",
+  "mingl/web_log",
 ]
 default = [
   "enabled",
@@ -51,9 +71,22 @@ full = [
 constants = [] # reflect contants
 
 # diagnostics
+# Fix(BUG-274): `diagnostics` now also requires `future` and `file`.
+# Root cause: `src/diagnostics.rs` unconditionally does `own use crate::model::obj;`, but
+# `lib.rs` gates `layer model;` (the module that `obj` lives under) behind
+# `all( feature = "future", feature = "file" )`, not behind `model_obj` -- so enabling
+# `diagnostics` (which only forwarded `model_obj`) left `crate::model` itself configured out,
+# failing with E0432 "unresolved import `crate::model`" the moment `diagnostics` was selected
+# without also separately selecting both `future` and `file`.
+# Pitfall: a feature that transitively needs a `layer`/module gated by a *different* cfg
+# predicate than the one it directly forwards only breaks when someone selects it without also
+# happening to select the layer's own gate -- `--all-features` and this crate's own `default`
+# bundle (which lists `future`/`file` alongside `diagnostics` anyway) never exercise the gap.
 diagnostics = [
   "mingl/diagnostics",
-  "model_obj"
+  "model_obj",
+  "future",
+  "file"
 ]
 
 web = [ "mingl/web", "mingl/web_log" ] # common web utils

@@ -54,29 +54,16 @@ fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene : &Rc< RefCell<
 
   let scene_bounding_box = scene.borrow().bounding_box();
   gl::info!( "Scene boudnig box: {scene_bounding_box:?}" );
-  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  let dist = scene_bounding_box.max.mag();
-  let exponent =
-  {
-    let bits = diagonal.to_bits();
-    let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
-    exponent_field - 127
-  };
-  gl::info!( "Exponent: {exponent:?}" );
 
-  // Camera setup
-  let mut eye = gl::math::F32x3::from( [ 0.0, 0.1, 1.0 ] );
-  eye *= dist / 50.0;
+  // Camera setup: frames the scene's bounding sphere from the (0,0.1,1) direction, deriving
+  // distance/near/far from the box itself and the camera's own fov/aspect_ratio.
+  let direction = gl::math::F32x3::from( [ 0.0, 0.1, 1.0 ] );
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
-
-  let center = scene_bounding_box.center();
 
   let aspect_ratio = width / height;
   let fov = 40.0f32.to_radians();
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 );
-  let far = near * 100.0f32.powi( exponent.abs() );
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far ).expect( "camera parameters are valid" );
+  let mut camera = Camera::from_bounding_box( &scene_bounding_box, direction, up, aspect_ratio, fov, 0.1 ).expect( "camera parameters are valid" );
   camera.window_size_set( [ width, height ].into() );
   camera.controls_bind( canvas );
 

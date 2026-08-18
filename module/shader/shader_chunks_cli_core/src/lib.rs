@@ -155,6 +155,44 @@ mod private
     }
   }
 
+  // Fix(BUG-283): new `_checked` extractor -- `arg_string`'s catch-all
+  // `_ => None` arm silently swallowed a duplicated named key. `unilang`
+  // binds ANY repeated named argument to `Value::List` regardless of the
+  // argument's own `multiple` attribute (`bind_argument_values`'s
+  // `if parser_args.len() > 1` check runs before it ever consults
+  // `arg_def.attributes.multiple`), so `out::a out::b` was indistinguishable
+  // from `out::` never having been supplied at all -- `shader_chunks_compose`
+  // silently printed to stdout instead of writing either file.
+  // Root cause: a `Value` match's catch-all arm cannot tell "argument
+  // absent" apart from "argument supplied in an unexpected shape."
+  // Pitfall: never add a new single-value extractor here with a bare `_`
+  // catch-all over `Value` -- always match `Value::List` explicitly and
+  // fail loudly, since any named key can be repeated regardless of its
+  // declared `multiple` attribute.
+  /// Extracts a string-valued parameter ( plain or enum-spelled ), failing
+  /// loudly instead of silently defaulting to `None` when `key` was
+  /// supplied more than once ( see [`arg_string`]'s doc comment gap -- its
+  /// catch-all arm cannot distinguish "absent" from "duplicated" ).
+  ///
+  /// # Errors
+  ///
+  /// Returns [`ErrorData`] naming `key` when it was bound to more than one
+  /// value.
+  pub fn arg_string_checked( cmd : &VerifiedCommand, key : &str ) -> Result< Option< String >, ErrorData >
+  {
+    match cmd.arguments.get( key )
+    {
+      Some( Value::String( s ) | Value::Enum( s ) ) => Ok( Some( s.clone() ) ),
+      Some( Value::List( values ) ) => Err( error_report
+      (
+        1,
+        ErrorCode::ValidationRuleFailed,
+        format!( "`{key}` was given {} times; a single value is required", values.len() ),
+      )),
+      _ => Ok( None ),
+    }
+  }
+
   /// Extracts a boolean parameter, falling back to `default` when absent.
   #[ must_use ]
   pub fn arg_bool( cmd : &VerifiedCommand, key : &str, default : bool ) -> bool
@@ -163,6 +201,41 @@ mod private
     {
       Some( Value::Boolean( flag ) ) => *flag,
       _ => default,
+    }
+  }
+
+  // Fix(BUG-283): new `_checked` extractor -- same defect class as
+  // `arg_string`'s (see the `Fix(BUG-283)` comment above `arg_string_checked`):
+  // `arg_bool`'s catch-all `_ => default` arm silently absorbed a duplicated
+  // `transitive::1 transitive::1` ( bound by `unilang` as
+  // `Value::List([Boolean(true), Boolean(true)])` ), making it
+  // indistinguishable from `transitive::` never having been supplied --
+  // `shader_chunks_compose` silently composed with `transitive=false`.
+  // Root cause: same as `arg_string`'s -- a bare `_` catch-all over `Value`
+  // cannot tell "absent" apart from "duplicated."
+  // Pitfall: same as `arg_string_checked`'s -- never add a single-value
+  // extractor here without an explicit, loud `Value::List` arm.
+  /// Extracts a boolean parameter, failing loudly instead of silently
+  /// falling back to `default` when `key` was supplied more than once ( see
+  /// [`arg_bool`]'s doc comment gap -- its catch-all arm cannot distinguish
+  /// "absent" from "duplicated" ).
+  ///
+  /// # Errors
+  ///
+  /// Returns [`ErrorData`] naming `key` when it was bound to more than one
+  /// value.
+  pub fn arg_bool_checked( cmd : &VerifiedCommand, key : &str, default : bool ) -> Result< bool, ErrorData >
+  {
+    match cmd.arguments.get( key )
+    {
+      Some( Value::Boolean( flag ) ) => Ok( *flag ),
+      Some( Value::List( values ) ) => Err( error_report
+      (
+        1,
+        ErrorCode::ValidationRuleFailed,
+        format!( "`{key}` was given {} times; a single value is required", values.len() ),
+      )),
+      _ => Ok( default ),
     }
   }
 
@@ -182,6 +255,53 @@ mod private
         1,
         ErrorCode::ValidationRuleFailed,
         format!( "invalid `{key}` value: `{n}` (allowed: a non-negative integer)" ),
+      )),
+      _ => Ok( 0 ),
+    }
+  }
+
+  // Fix(BUG-XXX): new `_checked` extractor -- same defect class as
+  // `arg_string`/`arg_bool`'s (see the `Fix(BUG-283)` comment above
+  // `arg_string_checked`): `arg_usize`'s catch-all `_ => Ok( 0 )` arm cannot
+  // tell "argument absent" apart from "argument supplied twice", since
+  // `unilang` binds ANY repeated named argument to `Value::List` regardless
+  // of the argument's own `multiple` attribute. This exact gap was already
+  // flagged as known-but-unfixed by BUG-283's and BUG-285's own Pitfall
+  // comments (`shader_chunks_query/src/lib.rs`,
+  // `shader_chunks_preview/tests/preview_cli_test.rs`) -- e.g. `sch list
+  // limit::5 limit::10` silently resolved `limit` to `0` ( unlimited )
+  // instead of erroring.
+  // Root cause: same as `arg_string`'s -- a bare `_` catch-all over `Value`
+  // cannot distinguish "absent" from "duplicated."
+  // Pitfall: never add a single-value extractor here without an explicit,
+  // loud `Value::List` arm -- `arg_usize` itself is left as-is ( unchecked
+  // callers keep their existing behavior ), matching how `arg_string`/
+  // `arg_bool` were handled : additive, not a breaking in-place change.
+  /// Extracts a non-negative integer parameter, failing loudly instead of
+  /// silently defaulting to `0` when `key` was supplied more than once ( see
+  /// [`arg_usize`]'s doc comment gap -- its catch-all arm cannot distinguish
+  /// "absent" from "duplicated" ). A negative value still fails loudly
+  /// ( exit 1, validation error ), same as [`arg_usize`].
+  ///
+  /// # Errors
+  ///
+  /// Returns [`ErrorData`] naming `key` when it was bound to more than one
+  /// value, or when the single bound value is negative.
+  pub fn arg_usize_checked( cmd : &VerifiedCommand, key : &'static str ) -> Result< usize, ErrorData >
+  {
+    match cmd.arguments.get( key )
+    {
+      Some( Value::Integer( n ) ) => usize::try_from( *n ).map_err( | _ | error_report
+      (
+        1,
+        ErrorCode::ValidationRuleFailed,
+        format!( "invalid `{key}` value: `{n}` (allowed: a non-negative integer)" ),
+      )),
+      Some( Value::List( values ) ) => Err( error_report
+      (
+        1,
+        ErrorCode::ValidationRuleFailed,
+        format!( "`{key}` was given {} times; a single value is required", values.len() ),
       )),
       _ => Ok( 0 ),
     }
@@ -399,8 +519,11 @@ mod private
   own use names_flatten;
   own use named_arg;
   own use arg_string;
+  own use arg_string_checked;
   own use arg_bool;
+  own use arg_bool_checked;
   own use arg_usize;
+  own use arg_usize_checked;
   own use arg_list;
   own use registry_build;
   own use run;

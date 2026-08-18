@@ -27,7 +27,6 @@ use types::GuiParams;
 use gl::
 {
   GL,
-  F32x3,
   math::d2::mat3x3h,
   AsBytes as _,
   JsCast as _,
@@ -285,8 +284,8 @@ fn translation_buffer_update
   );
 }
 
-/// Setup scene transformation and calculate transformed center
-fn scene_transform_setup( scene_bounding_box : &gl::geometry::BoundingBox ) -> ( gl::math::F32x4x4, gl::math::F32x4x4, F32x3 )
+/// Setup scene transformation ( translation, rotation, and scale applied to the raw glTF geometry ).
+fn scene_transform_setup() -> ( gl::math::F32x4x4, gl::math::F32x4x4 )
 {
   let rotation = mat3x3h::rot( 10.0f32.to_radians(), 0.0, 0.0 )
     * mat3x3h::rot( 0.0, 90.0f32.to_radians(), 0.0 );
@@ -295,52 +294,30 @@ fn scene_transform_setup( scene_bounding_box : &gl::geometry::BoundingBox ) -> (
     * rotation
     * mat3x3h::scale( [ scale, scale, scale ] );
 
-  let local_center = scene_bounding_box.center();
-  let center_4d = F32x3::new( local_center.x(), local_center.y(), local_center.z() );
-  let center_homogeneous = gl::math::F32x4::new( center_4d.x(), center_4d.y(), center_4d.z(), 1.0 );
-  let transformed_center_4d = scene_transform * center_homogeneous;
-  let scene_center = F32x3::new
-  (
-    transformed_center_4d.x(),
-    transformed_center_4d.y(),
-    transformed_center_4d.z()
-  );
-  gl::info!( "Scene center (world space): {scene_center:?}" );
-
-  ( scene_transform, rotation, scene_center )
+  ( scene_transform, rotation )
 }
 
-/// Setup camera with interactive controls
+/// Creates the camera framed on the scene's bounding box -- transformed by `scene_transform`
+/// into the same world space the rendered geometry ends up in, so the frame matches what's
+/// actually drawn rather than the raw, untransformed glTF-local box -- and binds its controls.
 fn camera_setup
 (
   scene_bounding_box : &gl::geometry::BoundingBox,
-  scene_center : F32x3,
+  scene_transform : gl::math::F32x4x4,
   aspect : f32,
   width : i32,
   height : i32,
   canvas : &HtmlCanvasElement
 ) -> renderer::webgl::Camera
 {
-  let scale = 0.1;
-  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag() * scale;
-  let camera_distance = diagonal * 1.5;
+  let world_bounding_box = scene_bounding_box.transform_apply( scene_transform );
 
-  let camera_position = F32x3::new
-  (
-    scene_center.x(),
-    scene_center.y(),
-    scene_center.z() + camera_distance
-  );
+  let direction = gl::math::F32x3::from( [ 0.0, 0.0, 1.0 ] );
+  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
 
-  let mut camera = renderer::webgl::Camera::new
+  let mut camera = renderer::webgl::Camera::from_bounding_box
   (
-    camera_position,
-    [ 0.0, 1.0, 0.0 ].into(),
-    scene_center,
-    aspect,
-    60.0_f32.to_radians(),
-    0.1,
-    1000.0
+    &world_bounding_box, direction, up, aspect, 60.0_f32.to_radians(), 0.1
   ).expect( "camera parameters are valid" );
   camera.window_size_set( [ width as f32, height as f32 ].into() );
   camera.controls_bind( canvas );
@@ -403,9 +380,9 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let shaders = shader::shaders_load( &gl )?;
 
-  let ( scene_transform, rotation, scene_center ) = scene_transform_setup( &scene_bounding_box );
+  let ( scene_transform, rotation ) = scene_transform_setup();
 
-  let camera = camera_setup( &scene_bounding_box, scene_center, aspect, width, height, &canvas );
+  let camera = camera_setup( &scene_bounding_box, scene_transform, aspect, width, height, &canvas );
 
   let fb = framebuffer::framebuffers_create( &gl, width, height );
 

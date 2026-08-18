@@ -26,10 +26,11 @@ The [Query](01_query.md) group's `depends_on::`/`transitive::`/`roots::`/
 `leaves::` parameters answer set questions *about* the graph ("which chunks
 depend on hash21") — the answer is still a flat set of chunk records.
 `.tree` renders the graph structure — nesting is the payload, and its
-[`tree_aligned`](../format/02_tree_aligned.md) output has no
-column-projection or format-selection surface. Merging would put a command
-with a 2-parameter surface (`name`, `reverse`) and a structural output
-inside a group defined by its shared 20-parameter set engine.
+[`tree_aligned`](../format/02_tree_aligned.md)/[`tree_dot`](../format/09_tree_dot.md)/[`tree_mermaid`](../format/10_tree_mermaid.md)
+shapes (selected via `shape::`) have no column-projection surface, unlike
+`format::`'s 6 query-record shapes. Merging would put a command with a
+3-parameter surface (`name`, `reverse`, `shape`) and a structural output
+inside a group defined by its shared 21-parameter set engine.
 
 ### Invariants
 
@@ -46,7 +47,7 @@ inside a group defined by its shared 20-parameter set engine.
 |---|---------|---------------|
 | 1 | [`.tree`](../command/04_tree.md) | Member — dependency tree or full forest |
 
-**Membership:** 1 of the 8 commands; the partition across all groups is
+**Membership:** 1 of the 9 commands; the partition across all groups is
 stated in [`readme.md`](readme.md). A single-member group is deliberate —
 the boundary is output-species (graph rendering), not command count.
 
@@ -55,7 +56,7 @@ the boundary is output-species (graph rendering), not command count.
 | File | Relationship |
 |------|--------------|
 | [`../../../tests/docs/cli/command_group/02_graph.md`](../../../tests/docs/cli/command_group/02_graph.md) | Group-level test specification |
-| [`../../../../shader_chunks_query_core/tests/shader_chunks_query_core_test.rs`](../../../../shader_chunks_query_core/tests/shader_chunks_query_core_test.rs) | `tree_chunk_shows_fbm3_dependency_chain_in_order`, `tree_chunk_with_no_name_shows_forest_of_every_root_chunk`, `tree_reverse_on_a_chunk_shows_its_dependents_chain_in_order`, `tree_reverse_with_no_name_shows_forest_of_every_leaf_chunk` |
+| [`../../../../shader_chunks_query_core/tests/shader_chunks_query_core_test.rs`](../../../../shader_chunks_query_core/tests/shader_chunks_query_core_test.rs) | `tree_chunk_shows_fbm3_dependency_chain_in_order`, `tree_chunk_with_no_name_shows_forest_of_every_root_chunk`, `tree_reverse_on_a_chunk_shows_its_dependents_chain_in_order`, `tree_reverse_with_no_name_shows_forest_of_every_leaf_chunk`, `tree_dot_format_renders_digraph_with_edges_in_dependency_order`, `tree_mermaid_format_renders_graph_td_with_edges_in_dependency_order` |
 
 ### Typical Patterns
 

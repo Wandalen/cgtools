@@ -82,6 +82,28 @@ mod private
     }
   }
 
+  // Fix(BUG-290): `context_finish`'s 3 error-return paths ( enumeration failure, no suitable
+  // device, device-creation failure ) all occur after `instance` is already live, but each one
+  // previously propagated its error via a bare `?`/`.ok_or()?`, silently dropping `instance` as
+  // an ordinary value on the way out instead of destroying it.
+  // Root cause: `ash::Instance` has no `Drop` impl of its own ( confirmed against `ash` 0.38's
+  // own source -- Vulkan mandates explicit `vkDestroyInstance`, so relying on ordinary Rust drop
+  // to clean it up was never correct ), leaking the `VkInstance` handle on every one of those 3
+  // paths.
+  // Pitfall: a missing `Drop` impl doesn't announce itself -- verify an FFI handle wrapper type
+  // actually implements `Drop` for cleanup before relying on ordinary ownership to provide it ;
+  // `ash::Entry` incidentally self-cleans via an internal `Arc<Library>`, which does not
+  // generalize to `Instance`/`Device`.
+  /// Destroys `instance` -- called from `context_finish`'s error paths, where an early return
+  /// must destroy the already-created instance instead of leaking it ( see `Fix(BUG-290)` above ).
+  fn instance_cleanup_on_error( instance : &ash::Instance )
+  {
+    // SAFETY: called only from `context_finish`'s error paths, where `instance` is still live
+    // and the caller is about to return `Err` without handing `instance` off to a `Context` --
+    // no other code holds or will use this handle afterward.
+    unsafe { instance.destroy_instance( None ); }
+  }
+
   impl Drop for Context
   {
     fn drop( &mut self )
@@ -188,7 +210,7 @@ mod private
       // SAFETY: `instance` was created by `instance_make` immediately prior and is still
       // live ; enumeration performs no writes through caller-supplied pointers.
       let physical_devices = unsafe { instance.enumerate_physical_devices() }
-      .map_err( Error::PhysicalDeviceEnumerate )?;
+      .map_err( | e | { instance_cleanup_on_error( &instance ); Error::PhysicalDeviceEnumerate( e ) } )?;
 
       let ( physical_device, queue_family_index ) = physical_devices
       .into_iter()
@@ -205,7 +227,9 @@ mod private
           .map( | index | ( candidate, u32::try_from( index ).expect( "queue family index fits u32" ) ) )
         }
       )
-      .ok_or( Error::NoSuitableDevice )?;
+      // `ok_or_else`, not `ok_or` : the latter evaluates its argument eagerly, which would run
+      // `instance_cleanup_on_error` ( and so destroy `instance` ) on the success path too.
+      .ok_or_else( || { instance_cleanup_on_error( &instance ); Error::NoSuitableDevice } )?;
 
       let queue_priorities = [ 1.0_f32 ];
       let queue_create_info = ash::vk::DeviceQueueCreateInfo::default()
@@ -218,7 +242,7 @@ mod private
       // enumeration above ; `device_create_info` and the slices it borrows are all
       // stack-local and outlive this call.
       let device = unsafe { instance.create_device( physical_device, &device_create_info, None ) }
-      .map_err( Error::DeviceCreate )?;
+      .map_err( | e | { instance_cleanup_on_error( &instance ); Error::DeviceCreate( e ) } )?;
 
       // SAFETY: `device` was just created above with exactly one queue ( index 0 )
       // requested at `queue_family_index` via `device_create_info`, so that ( family,

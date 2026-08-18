@@ -13,7 +13,7 @@
 //! bitmap's own `width`/`height`, via the same `to_rgba8` helper
 //! `NativeBackend` uses (`crate::assets::to_rgba8`, shared rather than
 //! duplicated). Live browser pixel-correctness re-verification of the new
-//! upload path is a separate, not-yet-done step (see task 198's manual
+//! upload path is a separate, not-yet-done step (see task 251's manual
 //! procedure) -- this file's own tests remain compile-and-construct-level
 //! only, per the governing task file's Out of Scope section.
 

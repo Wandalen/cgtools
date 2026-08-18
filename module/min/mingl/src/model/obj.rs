@@ -114,6 +114,40 @@ mod private
     }
   }
 
+  /// Computes the true face (polygon) count from a mesh's `face_arities` and `indices`.
+  ///
+  /// `tobj` leaves `face_arities` *empty* whenever every face is a triangle -- either because
+  /// the source data was already fully triangular, or because the `triangulate` load option was
+  /// set (as `tobj::GPU_LOAD_OPTIONS` always does). In that case `face_arities.len()` is always
+  /// `0`, which is not the face count -- the real count must be derived from `indices` instead,
+  /// since every triangular face consumes exactly 3 of them. When `face_arities` is non-empty,
+  /// it already holds exactly one entry per face, so its length is used directly.
+  ///
+  /// # Arguments
+  /// * `face_arities` - `tobj::Mesh::face_arities`; one entry per face, or empty for an
+  ///   all-triangle mesh.
+  /// * `indices` - `tobj::Mesh::indices`; the mesh's vertex indices.
+  // Fix(BUG-273): derive face count via this helper instead of `face_arities.len()` alone.
+  // Root cause: `face_arities.len()` silently reports 0 faces for any triangulated mesh -- the
+  // exact configuration `examples/minwebgl/obj_load` requests via `tobj::GPU_LOAD_OPTIONS`
+  // (`triangulate: true`) -- even though `indices` holds the real, non-empty triangle data.
+  // Pitfall: an external crate leaving a field empty as a documented "assume default" signal
+  // (here, "assume arity 3") is not the same as that field being a valid count of anything;
+  // never conflate "empty means apply the default" with "empty means zero".
+  #[ inline ]
+  #[ must_use ]
+  pub fn num_faces_compute( face_arities : &[ u32 ], indices : &[ u32 ] ) -> usize
+  {
+    if face_arities.is_empty()
+    {
+      indices.len() / 3
+    }
+    else
+    {
+      face_arities.len()
+    }
+  }
+
   /// Returns size in bytes the model occupies when loaded in memory
   #[ inline ]
   #[ must_use ]
@@ -186,13 +220,13 @@ mod private
       let mesh = &model.mesh;
       let bounding_box = BoundingBox::compute( &mesh.positions );
       let bounding_sphere = BoundingSphere::compute( &mesh.positions, &bounding_box );
-      let num_faces = mesh.face_arities.len();
+      let num_faces = num_faces_compute( &mesh.face_arities, &mesh.indices );
       let mut num_of_arities = HashSet::new();
 
       // The defualt amount of arities is three, so when the object either containes only triangles,
       // Or "triangulate" option is chosen when loading with tobj crate, then the face_arities array is going
       // to be empty, implying the amount of arities per face equal to 3
-      if num_faces == 0
+      if mesh.face_arities.is_empty()
       {
         num_of_arities.insert( 3 );
       }
@@ -280,7 +314,8 @@ crate::mod_interface!
     reports_make,
     ReportObjModel,
     BoundingBox,
-    BoundingSphere
+    BoundingSphere,
+    num_faces_compute
   };
 
 }

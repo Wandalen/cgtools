@@ -79,14 +79,57 @@ mod tests
     assert!( result.is_ok(), "BindGroupLayoutDescriptor::entry must succeed once `.ty(..)` was called" );
   }
 
+  // Test-integrity correction (audit finding, not a BUG-NNN -- `entry_from_ty`'s own `src/`
+  // behavior was already correct both before and after this edit; only this comment's claim was
+  // wrong, so there is no behavioral state to revert-and-rerun against).
+  //
+  // This comment previously read: "`entry_from_ty` always supplies a concrete `BindingType`
+  // itself, so it can never hit the `TypeNotSet` path -- this documents that guarantee
+  // explicitly." That is false as a claim about the *function*: `entry_from_ty`'s parameter is
+  // `ty : impl Into< BindingType >`, and `BindingType::Other` -- a fieldless unit variant of the
+  // `#[ non_exhaustive ]` `BindingType` enum -- is freely constructible from this external
+  // `tests/` crate (confirmed empirically: `#[ non_exhaustive ]` on an enum blocks only
+  // exhaustive `match` and struct-literal variant construction from other crates, never plain
+  // unit/tuple variant construction -- the same reason external code can write
+  // `std::io::ErrorKind::NotFound`). Passing `BindingType::Other` through `entry_from_ty` reaches
+  // exactly the `TypeNotSet` path this comment called unreachable, matching `entry_from_ty`'s own
+  // `# Errors` doc comment in `descriptor/bind_group_layout.rs`, which already documented this
+  // case correctly -- only this test's adjacent comment overclaimed. See
+  // `descriptor_entry_from_ty_with_other_still_errors_test` below for the previously-uncovered
+  // counter-case, added as a direct result of this audit.
   #[ wasm_bindgen_test ]
   fn descriptor_entry_from_ty_always_succeeds_test()
   {
-    // `entry_from_ty` always supplies a concrete `BindingType` itself, so it can never hit the
-    // `TypeNotSet` path — this documents that guarantee explicitly.
+    // Scoped claim: `entry_from_ty` succeeds for this specific input (`buffer_type()`, which
+    // converts to `BindingType::Buffer`, never `Other`) -- not a guarantee about every possible
+    // `impl Into<BindingType>` argument. See `descriptor_entry_from_ty_with_other_still_errors_test`
+    // for the documented error path this function's own `# Errors` section describes.
     let result = gl::BindGroupLayoutDescriptor::new()
     .entry_from_ty( gl::binding_type::buffer_type() );
 
-    assert!( result.is_ok(), "BindGroupLayoutDescriptor::entry_from_ty always supplies a concrete type" );
+    assert!( result.is_ok(), "BindGroupLayoutDescriptor::entry_from_ty must succeed for a concrete BindingType input" );
+  }
+
+  /// Test-integrity correction (audit finding, not a `bug_reproducer`): closes the coverage gap
+  /// the corrected comment above documents. `entry_from_ty`'s own `# Errors` doc comment in
+  /// `descriptor/bind_group_layout.rs` already states this function returns
+  /// `BindGroupError::TypeNotSet` when `ty`'s conversion yields `BindingType::Other` -- no
+  /// existing test exercised that path *through `entry_from_ty` specifically* (as opposed to
+  /// through `.entry()` directly, which the two `descriptor_entry_*_without_ty_*` tests above
+  /// already cover). `BindingType::Other` is reachable here despite `BindingType` being
+  /// `#[ non_exhaustive ]`: that attribute blocks external exhaustive matching and struct-literal
+  /// variant construction, not plain unit-variant construction -- verified via `cargo check
+  /// --target wasm32-unknown-unknown --tests` and a live `wasm_bindgen_test` run during this
+  /// audit, both green.
+  #[ wasm_bindgen_test ]
+  fn descriptor_entry_from_ty_with_other_still_errors_test()
+  {
+    let result = gl::BindGroupLayoutDescriptor::new().entry_from_ty( gl::BindingType::Other );
+
+    assert!
+    (
+      result.is_err(),
+      "BindGroupLayoutDescriptor::entry_from_ty( BindingType::Other ) must propagate TypeNotSet, matching its own documented `# Errors` contract"
+    );
   }
 }

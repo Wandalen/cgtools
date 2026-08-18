@@ -2,14 +2,14 @@
 
 - **Severity:** High
 - **state:** Completed
-- **Affects:** Any caller of `Quat<E>::from(mat3_instance)` (rotation-matrix-to-quaternion conversion) — confirmed concretely for a 90° rotation about the Z axis, and reachable internally via `Mat4::decompose()`'s final step (see BUG-118)
+- **Affects:** Any caller of `Quat<E>::from(mat3_instance)` (rotation-matrix-to-quaternion conversion) — confirmed concretely for a 90° rotation about the Z axis, and reachable internally via `Mat4::decompose()`'s final step (see BUG-250)
 - **Component:** `module/math/ndarray_cg` (`src/quaternion/from.rs::{impl From<Mat3<E,Descriptor>> for Quat<E>}`)
 - **repo_identity:** self
 - **Filed:** 2026-08-15
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/bug/
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/
 - **verification_date:** 2026-08-16
-- **Related Bugs:** [BUG-118](../completed/118_decompose_scale_resquared_into_rotation_matrix.md) — `decompose()`'s final step calls this same conversion; both bugs compound on any real `decompose()` call but have distinct, unrelated root causes (BUG-118 is a wrong operator on the rotation-matrix columns computed *before* this conversion runs; this bug is a component-array reorder inside the conversion itself), fixed together under the same task #52 targeted math review
+- **Related Bugs:** [BUG-250](../completed/250_decompose_scale_resquared_into_rotation_matrix.md) — `decompose()`'s final step calls this same conversion; both bugs compound on any real `decompose()` call but have distinct, unrelated root causes (BUG-250 is a wrong operator on the rotation-matrix columns computed *before* this conversion runs; this bug is a component-array reorder inside the conversion itself), fixed together under the same task #52 targeted math review
 
 ## Symptom
 
@@ -28,7 +28,7 @@ quat = [ x: 0.0, y: 0.0, z: 0.70711, w: 0.70711 ]   # matches hand-derived expec
 
 **Who is affected:** Any caller of `Quat::from(mat3)` — the only rotation-matrix-to-quaternion
 conversion in this crate. Reached directly by any code converting a `Mat3` rotation to a
-quaternion, and indirectly by every `Mat4::decompose()` call (its very last step, see BUG-118)
+quaternion, and indirectly by every `Mat4::decompose()` call (its very last step, see BUG-250)
 and by `Mat4::decompose_generic`-style consumers built on top of it.
 
 **What breaks:** Silent, no error, no panic — produces a normalized, plausible-looking quaternion
@@ -117,7 +117,7 @@ cd /tmp/mre119 && cargo run 2>&1 | tail -1
 representing a rotation about the wrong axis combination.
 
 **Known MRE limitation (check 205):** `ndarray_cg` is this workspace's own crate; the MRE
-path-depends on it locally rather than a registry version, mirroring BUG-116/BUG-118's own
+path-depends on it locally rather than a registry version, mirroring BUG-116/BUG-250's own
 documented exception. The 90°-about-Z matrix is written out from exact closed-form trig values
 (`0`, `±1`), so there is no floating-point or registry-version ambiguity this local dependency
 could be hiding.
@@ -237,7 +237,7 @@ conversion (as this bug's own oracle, `Mat3::from_quat`, made possible here).
 | 2026-08-15 | filed | Discovered via task #52's targeted math/geometry code review; root cause independently confirmed via a full from-scratch re-derivation of the rotation-matrix-to-quaternion formula, cross-checked term-by-term against the crate's own correct `Mat3::from_quat` and against `from_angle_x/y/z`/`from_axis_angle`'s storage convention, before filing. |
 | 2026-08-15 | fixed | Reordered the final `q` array literal in `Quat::from(Mat3)` from `[n0,n1,n2,n3]`-positional to `[n1,n2,n3,n0]` (matching the `[x,y,z,w]` storage convention); 3-field `Fix(BUG-119)`/`Root cause`/`Pitfall` comment added at the fix site. |
 | 2026-08-15 | verified | Added `test_from_mat3_recovers_known_axis_angle_rotation` and `test_from_mat3_round_trips_through_from_quat_generic` (row-major + column-major instantiations) to `tests/inc/quat_test/general.rs`. Narrow suite and full workspace verification recorded in BUG-121's own closing History entry (all four math bugs verified together as one gate — see `task/bug/readme.md`). |
-| 2026-08-16 | completed | Acceptance verification by a distinct session (filer/fixer/self-verifier 2026-08-15, this verifier 2026-08-16). Independently re-read `Quat::from(Mat3)` (confirmed the final array genuinely reordered to `[n1,n2,n3,n0]`-derived slots, matching `[x,y,z,w]` storage; 3-field comment intact) and `test_from_mat3_recovers_known_axis_angle_rotation` (non-tautological: hand-derives the expected quaternion for a known 90°-about-Z rotation matrix and asserts an exact component match). Fresh `cargo nextest run -p ndarray_cg --all-features` via `longrun`: 272/272 passed. `cargo clippy -p ndarray_cg --all-features --all-targets -- -D warnings`: clean. Corrected the stale `**Related Bugs:**` cross-reference (`../verified/118_...` → `../completed/118_...`). MAAV Tier 2 Dual-Role Self-Check (`governance/maav.rulebook.md`), covering BUG-118/119/120/121 together. State → Completed. |
+| 2026-08-16 | completed | Acceptance verification by a distinct session (filer/fixer/self-verifier 2026-08-15, this verifier 2026-08-16). Independently re-read `Quat::from(Mat3)` (confirmed the final array genuinely reordered to `[n1,n2,n3,n0]`-derived slots, matching `[x,y,z,w]` storage; 3-field comment intact) and `test_from_mat3_recovers_known_axis_angle_rotation` (non-tautological: hand-derives the expected quaternion for a known 90°-about-Z rotation matrix and asserts an exact component match). Fresh `cargo nextest run -p ndarray_cg --all-features` via `longrun`: 272/272 passed. `cargo clippy -p ndarray_cg --all-features --all-targets -- -D warnings`: clean. Corrected the stale `**Related Bugs:**` cross-reference (`../verified/118_...` → `../completed/118_...`). MAAV Tier 2 Dual-Role Self-Check (`governance/maav.rulebook.md`), covering BUG-250/119/120/121 together. State → Completed. |
 
 ## Verification Record
 
@@ -247,7 +247,7 @@ conversion (as this bug's own oracle, `Mat3::from_quat`, made possible here).
 |------|------|------|-----|--------|-------|
 | D1 | Completeness | 🟢 | 🟢 | All 12 FI008 sections + `Refs: src/`/`Refs: tests/` present — confirmed by direct re-read of the full file. | — |
 | D2 | MRE Validity & Reproducibility | 🟡 | 🟢 | Confirming pass hand-derived the 90°-about-Z expected values; adversarial pass independently re-verified the closed-form trig substitution (`cos90=0, sin90=1`) against the general `n0..n3` formulas term-by-term rather than trusting the first pass's arithmetic. | — |
-| D3 | Cross-Reference Integrity | 🟢 | 🟢 | Adversarial pass confirmed BUG-118's file carries the reciprocal `**Related Bugs:**` line forward to this file. | — |
+| D3 | Cross-Reference Integrity | 🟢 | 🟢 | Adversarial pass confirmed BUG-250's file carries the reciprocal `**Related Bugs:**` line forward to this file. | — |
 | D4 | Root Cause Quality | 🟢 | 🟢 | Adversarial pass re-confirmed the H2 (sign-term pairing) alternative was genuinely checked and falsified, not assumed — each `signum()` argument pairing was re-derived independently against the standard identity. | — |
 | D5 | Execution Scope | 🟢 | 🟢 | Adversarial pass checked whether `Mat3::from_quat` (the reverse conversion, used as oracle) needed any change — confirmed no, it was already correct and is the reason it could serve as the cross-check oracle in the first place. | — |
 | D6 | Crate Scope Unity | 🟢 | 🟢 | Only `ndarray_cg`'s own `src/`/`tests/` and this bug-tracking file touched — no cross-crate scope creep. | — |

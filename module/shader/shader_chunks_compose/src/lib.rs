@@ -5,14 +5,16 @@
 //! core. Exposes its command set, help group, and help examples as data —
 //! parameterized by binary name — so the `shader_chunks` aggregator folds
 //! them in unchanged, while [`run`] serves the same command as the
-//! standalone `shader_chunks_compose` binary.
+//! standalone `shader_chunks_compose` binary. `out::<path>` writes the
+//! composed WGSL to a file instead of printing it to stdout.
 
 mod private
 {
   use core::fmt;
+  use std::path::Path;
   use unilang::prelude::*;
   use cli_fmt::prelude::*;
-  use shader_chunks_cli_core::{ CliApp, CommandSet, arg_bool, error_report, named_arg, names_flatten, text_output };
+  use shader_chunks_cli_core::{ CliApp, CommandSet, arg_bool_checked, arg_string_checked, error_report, named_arg, names_flatten, text_output };
 
   /// This utility's standalone binary name.
   pub const BINARY : &str = "shader_chunks_compose";
@@ -27,6 +29,8 @@ mod private
     /// Composition failed the dependency resolution
     /// [`shader_chunks_core::set_try_compose`] performs.
     Compose( shader_chunks_core::ComposeError ),
+    /// Writing the composed WGSL to `out::<path>` failed.
+    Io( String ),
   }
 
   impl fmt::Display for ComposeCliError
@@ -37,6 +41,7 @@ mod private
       {
         Self::UnknownChunk( name ) => write!( f, "unknown chunk: `{name}` (see `list` for valid names)" ),
         Self::Compose( err ) => write!( f, "{err}" ),
+        Self::Io( message ) => write!( f, "io error: {message}" ),
       }
     }
   }
@@ -45,22 +50,24 @@ mod private
 
   impl ComposeCliError
   {
-    /// Maps this error to a process exit code: both variants are
-    /// validation-style, caller-fixable by passing different arguments —
-    /// exit `1`.
+    /// Maps this error to a process exit code: `UnknownChunk`/`Compose`
+    /// are validation-style, caller-fixable by passing different
+    /// arguments — exit `1`; `Io` is environmental — exit `2`.
     #[ must_use ]
     pub fn exit_code( &self ) -> i32
     {
       match self
       {
         Self::UnknownChunk( _ ) | Self::Compose( _ ) => 1,
+        Self::Io( _ ) => 2,
       }
     }
   }
 
   fn compose_error( err : &ComposeCliError ) -> ErrorData
   {
-    error_report( err.exit_code(), ErrorCode::ValidationRuleFailed, err.to_string() )
+    let code = if err.exit_code() == 1 { ErrorCode::ValidationRuleFailed } else { ErrorCode::InternalError };
+    error_report( err.exit_code(), code, err.to_string() )
   }
 
   /// Composes already-resolved WGSL chunk bodies via
@@ -103,12 +110,27 @@ mod private
     shader_chunks_core::set_try_compose( &set ).map_err( ComposeCliError::Compose )
   }
 
+  /// Writes already-composed WGSL `content` to `path` and returns a short
+  /// summary line, instead of returning `content` itself for the caller to
+  /// print to stdout — the file-writing counterpart of returning `content`
+  /// directly.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`ComposeCliError::Io`] if the write fails.
+  pub fn compose_write( content : &str, path : &Path ) -> Result< String, ComposeCliError >
+  {
+    std::fs::write( path, content )
+    .map_err( | err | ComposeCliError::Io( format!( "writing `{}`: {err}", path.display() ) ) )?;
+    Ok( format!( "wrote {} ({} bytes wgsl)", path.display(), content.len() ) )
+  }
+
   fn cmd_compose( binary : &str ) -> ( CommandDefinition, CommandRoutine )
   {
     let def = CommandDefinition::former()
     .name( ".compose" )
     .namespace( String::new() )
-    .description( "Preview WGSL composed from one or more chunks, dependency-ordered.".to_string() )
+    .description( "Preview WGSL composed from one or more chunks, dependency-ordered. With `out::<path>`, writes it to a file instead of printing it.".to_string() )
     .hint( "composed WGSL text for the given chunks, in dependency order" )
     .status( "stable" )
     .version( "1.0.0".to_string() )
@@ -122,6 +144,7 @@ mod private
     [
       format!( "{binary} compose hash21 value_noise" ),
       format!( "{binary} compose fbm3 transitive::1" ),
+      format!( "{binary} compose fbm3 transitive::1 out::fbm3_bundle.wgsl" ),
     ])
     .arguments( vec!
     [
@@ -132,6 +155,7 @@ mod private
       .attributes( ArgumentAttributes { multiple : true, ..ArgumentAttributes::default() } )
       .end(),
       named_arg( "transitive", Kind::Boolean, "Widen the named set to its full dependency closure.", Some( "false".to_string() ) ),
+      named_arg( "out", Kind::String, "Write the composed WGSL to this file instead of printing it to stdout.", None ),
     ])
     .end();
 
@@ -142,9 +166,31 @@ mod private
         Some( value ) => names_flatten( value ),
         None => unreachable!( "argument 'names' is declared Kind::List, multiple, and required" ),
       };
-      let transitive = arg_bool( &cmd, "transitive", false );
+      // Fix(BUG-283): use the `_checked` extractors for `transitive`/`out` so
+      // a duplicated named key ( unilang binds a repeated key as
+      // `Value::List` regardless of the argument's own `multiple` attribute )
+      // fails loudly instead of silently falling through to
+      // `arg_bool`/`arg_string`'s catch-all `_ => default`/`None` arm.
+      // Root cause: `arg_bool`/`arg_string` never matched `Value::List`, so a
+      // repeated `out::`/`transitive::` was indistinguishable from the key
+      // never having been supplied at all -- `out::a out::b` silently printed
+      // to stdout instead of writing either file, and `transitive::1
+      // transitive::1` silently composed with `transitive=false`.
+      // Pitfall: a `Value` match's catch-all arm must never be trusted to
+      // mean "argument absent" -- unilang can bind any named key to
+      // `Value::List` the moment it is repeated on argv, whether or not
+      // `multiple` was set.
+      let transitive = arg_bool_checked( &cmd, "transitive", false )?;
       let content = chunks_compose( &names, transitive ).map_err( | e | compose_error( &e ) )?;
-      Ok( text_output( content ) )
+      match arg_string_checked( &cmd, "out" )?
+      {
+        Some( out ) =>
+        {
+          let summary = compose_write( &content, Path::new( &out ) ).map_err( | e | compose_error( &e ) )?;
+          Ok( text_output( summary ) )
+        }
+        None => Ok( text_output( content ) ),
+      }
     });
 
     ( def, routine )
@@ -170,7 +216,7 @@ mod private
         name : "Compose".to_string(),
         entries : vec!
         [
-          CommandEntry { name : "compose <names...>".to_string(), desc : "Preview composed WGSL for the given chunks.".to_string() },
+          CommandEntry { name : "compose <names...>".to_string(), desc : "Preview composed WGSL for the given chunks (or write it to a file with `out::`).".to_string() },
         ],
       },
     ]
@@ -204,6 +250,7 @@ mod private
   own use ComposeCliError;
   own use wgsl_try_compose;
   own use chunks_compose;
+  own use compose_write;
   own use commands;
   own use help_groups;
   own use help_examples;

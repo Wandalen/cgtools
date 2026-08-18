@@ -5,9 +5,11 @@
 - **Purpose:** Documents every output rendering mode this crate produces.
 - **Responsibility:** One dedicated file per format — trigger, structure,
   rendering mechanism, and an example.
-- **In Scope:** The 7 output shapes produced by `list`/`get`/`tags`/`tree` —
+- **In Scope:** The 9 output shapes produced by `list`/`get`/`tags`/`tree` —
   6 selectable via [`format::`](../param/15_format.md) on the query
-  commands, plus `tree`'s own fixed aligned layout.
+  commands, plus 3 selectable via `tree`'s own
+  [`shape::`](../param/24_shape.md) parameter (`aligned`, `dot`,
+  `mermaid`).
 - **Out of Scope:** Command-level syntax (→ [`../command/`](../command/readme.md)),
   the family's `plain_text` format — owned by `shader_chunks_compose`,
   reused by preview/render for their summary lines (→
@@ -26,8 +28,10 @@
 | 6 | [06_json.md](06_json.md) | json | `.list`, `.get` | ✅ |
 | 7 | [07_yaml.md](07_yaml.md) | yaml | `.list`, `.get` | ✅ |
 | 8 | [08_names.md](08_names.md) | names | `.list`, `.get` | ✅ |
+| 9 | [09_tree_dot.md](09_tree_dot.md) | tree_dot | `.tree` | ✅ |
+| 10 | [10_tree_mermaid.md](10_tree_mermaid.md) | tree_mermaid | `.tree` | ✅ |
 
-**Total:** 7 formats (of 8 across the `shader_chunks` family)
+**Total:** 9 formats (of 10 across the `shader_chunks` family)
 
 **Numbering note:** file #3 (`plain_text`) is not listed here — it moved
 to [`shader_chunks_compose/docs/cli/format/01_plain_text.md`](../../../../shader_chunks_compose/docs/cli/format/01_plain_text.md)

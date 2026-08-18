@@ -36,6 +36,8 @@ members = [
   "module/shader/shader_chunks_preview_web",
   "module/shader/shader_chunks_render_core",
   "module/shader/shader_chunks_render",
+  "module/shader/shader_chunks_validate_core",
+  "module/shader/shader_chunks_validate",
   "module/shader/shader_chunks",
 
   # Helper modules
@@ -287,6 +289,14 @@ path = "module/shader/shader_chunks_render_core"
 [workspace.dependencies.shader_chunks_render]
 version = "0.1.0"
 path = "module/shader/shader_chunks_render"
+
+[workspace.dependencies.shader_chunks_validate_core]
+version = "0.1.0"
+path = "module/shader/shader_chunks_validate_core"
+
+[workspace.dependencies.shader_chunks_validate]
+version = "0.1.0"
+path = "module/shader/shader_chunks_validate"
 
 [workspace.dependencies.shader_chunks]
 version = "0.1.0"

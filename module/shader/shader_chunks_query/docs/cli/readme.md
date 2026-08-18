@@ -8,12 +8,12 @@ engine lives in
 [`shader_chunks_query_core`](../../../shader_chunks_query_core/readme.md);
 this crate wires it to the CLI via
 [`shader_chunks_cli_core`](../../../shader_chunks_cli_core/readme.md).
-`list` and `get` share one engine with a 20-parameter filter/projection/
-formatting surface (2 positional selectors + 19 shared named
+`list` and `get` share one engine with a 21-parameter filter/projection/
+formatting surface (2 positional selectors + 20 shared named
 parameters); `tags` lists every distinct tag; `tree` renders the
-dependency graph. This crate is one of 5 leaf CLIs assembled by the
+dependency graph. This crate is one of 6 leaf CLIs assembled by the
 [`shader_chunks`](../../../shader_chunks/docs/cli/readme.md) aggregator
-— see that readme for the family-wide 8-command list and Scope
+— see that readme for the family-wide 9-command list and Scope
 Decisions.
 
 ## Completion Matrix
@@ -47,15 +47,15 @@ covering param/param_group/command/command_group/type tiers.
 
 - [`command/`](command/readme.md) — the 4 commands (`list`, `get`, `tags`, `tree`)
 - [`command_group/`](command_group/readme.md) — the 2 command groups (`Query`, `Graph`)
-- [`param/`](param/readme.md) — the 22 parameters (2 positional selectors + 19 shared named query parameters + `.tree`'s own `reverse` switch)
+- [`param/`](param/readme.md) — the 24 parameters (2 positional selectors + 20 shared named query parameters + `.tree`'s own `reverse` switch and `shape` parameter)
 - [`param_group/`](param_group/readme.md) — the 3 parameter groups (`filtering`, `projection`, `formatting`)
-- [`type/`](type/readme.md) — the 10 semantic types (`ChunkName`, the query enums, selectors, `Switch`, `NonNegativeInteger`)
-- [`format/`](format/readme.md) — the 7 output formats selectable via `format::`, plus `tree`'s own aligned layout
+- [`type/`](type/readme.md) — the 11 semantic types (`ChunkName`, the query enums, selectors, `Switch`, `NonNegativeInteger`, `TreeFormat`)
+- [`format/`](format/readme.md) — the 9 output formats — 6 selectable via `format::`, plus 3 selectable via `tree`'s own `shape::` parameter
 - [`../../../shader_chunks/docs/cli/dictionary.md`](../../../shader_chunks/docs/cli/dictionary.md) — family-wide domain term glossary
 - [`../../../shader_chunks/docs/cli/procedure.md`](../../../shader_chunks/docs/cli/procedure.md) — how to extend a `docs/cli/` tree when an entity is added or removed
 - [`../../tests/docs/cli/readme.md`](../../tests/docs/cli/readme.md) — test specification mirror
 - [`../../readme.md`](../../readme.md) — crate readme (purpose, examples, links back here)
-- [`../../../shader_chunks/docs/cli/readme.md`](../../../shader_chunks/docs/cli/readme.md) — family index (all 5 leaf CLIs, all 8 commands)
+- [`../../../shader_chunks/docs/cli/readme.md`](../../../shader_chunks/docs/cli/readme.md) — family index (all 6 leaf CLIs, all 9 commands)
 
 ## Scope Decisions
 

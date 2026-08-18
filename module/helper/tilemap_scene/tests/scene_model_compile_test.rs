@@ -43,6 +43,7 @@ use tilemap_scene::
   PathResolver,
   PhaseOffset,
   PipelineLayer,
+  Placement,
   Renderer,
   RenderPipeline,
   RenderSpec,
@@ -817,6 +818,69 @@ fn variant_random_deterministic_across_frames()
   let ids_a = sprite_ids_from( at_time_compile( &spec, &scene, &Camera::default(), 0.0 ) );
   let ids_b = sprite_ids_from( at_time_compile( &spec, &scene, &Camera::default(), 1.5 ) );
   assert_eq!( ids_a, ids_b, "Random selection must be deterministic for the same seed + coord" );
+}
+
+/// ## Root Cause
+/// `Scene::from_snapshot` applied `snap.seed` via `seed_set` *after* every
+/// `spawn` loop had already run. `Scene::spawn` reads `self.seed`
+/// synchronously to derive each instance's `instance_phase_seed` (the
+/// per-instance salt `PhaseOffset::Instance` staggers against), so every
+/// instance spawned by `from_snapshot` was salted with the default seed
+/// (`0`) instead of the snapshot-declared one, regardless of what
+/// `snap.seed` actually held.
+/// ## Why Not Caught
+/// The only existing seed-focused test
+/// (`variant_random_deterministic_across_frames`) exercises
+/// `VariantSelection::Random`, which reads `Scene.seed` *live* at compile
+/// time and so never observes a stamp-once-at-spawn ordering bug.
+/// `instance_phase_seed` is stamped exactly once, inside `spawn`, and no
+/// prior test compared it against a scene seeded before spawning.
+/// ## Fix Applied
+/// Moved the `if let Some(seed) = snap.seed { scene.seed_set(seed); }`
+/// block in `Scene::from_snapshot` to immediately after `Self::new`,
+/// before any of the tile/edge/multihex/free/viewport/entity spawn loops.
+/// ## Prevention
+/// This test spawns the same object twice — once through
+/// `Scene::from_snapshot` with `seed` set on the snapshot, once by calling
+/// `seed_set` manually before a direct `spawn` — and asserts the two
+/// instances receive an identical `instance_phase_seed`. Any future
+/// reordering that re-introduces a spawn-before-seed gap will desync the
+/// two salts and fail this assertion.
+/// ## Pitfall
+/// When a constructor both seeds mutable state and consumes that state
+/// while building the same object, ordering matters even though nothing
+/// panics or errors — the failure is silent, wrong-but-plausible output.
+/// Grouping "setter calls" together at the end of a function for
+/// readability can silently reorder them past a read they were required
+/// to precede.
+#[ test ]
+fn from_snapshot_applies_seed_before_spawn()
+{
+  let spec = minimal_spec();
+  let seed : u64 = 0xC0FF_EE12_3456_789A;
+
+  // Reference: seed set *before* spawn — the documented/intended order
+  // (`spawn`'s own doc comment: "Mixed with the scene seed so re-seeded
+  // scenes get a different distribution").
+  let mut reference = Scene::new( Arc::new( spec.clone() ) );
+  reference.seed_set( seed );
+  let object = reference.object( "grass" ).expect( "grass object declared in minimal_spec" );
+  let reference_handle = reference.spawn( object, Placement::Hex { q : 0, r : 0 } );
+  let expected_seed = reference.instance( reference_handle ).expect( "just spawned" ).instance_phase_seed;
+
+  // Under test: seed declared on the snapshot, scene built via `from_snapshot`.
+  let mut snap = SceneSnapshot::new( Bounds { min : ( 0, 0 ), max : ( 0, 0 ) } );
+  snap.tiles.push( Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } );
+  snap.seed = Some( seed );
+
+  let scene = Scene::from_snapshot( &snap, Arc::new( spec ) ).expect( "valid snapshot" );
+  let ( _, instance ) = scene.instances().next().expect( "one instance spawned" );
+
+  assert_eq!
+  (
+    instance.instance_phase_seed, expected_seed,
+    "from_snapshot must apply snap.seed before spawning so instance_phase_seed matches a scene seeded up front",
+  );
 }
 
 fn sprite_ids_from( commands : Vec< RenderCommand > ) -> Vec< tilemap_renderer::types::ResourceId< tilemap_renderer::types::asset::Sprite > >

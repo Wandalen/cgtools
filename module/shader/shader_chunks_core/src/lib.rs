@@ -301,7 +301,15 @@ mod private
     {
       return Vec::new();
     }
-    raw.split( ',' ).map( str::trim ).collect()
+    // Fix(BUG-280): drop empty segments left by a trailing/leading/doubled
+    // comma instead of collecting them as bogus `""` dependency names.
+    // Root cause: `split(',').map(trim)` alone still yields one segment per
+    // delimiter, including an empty one after a stray comma — trimming
+    // never removes an already-empty string.
+    // Pitfall: any comma-list manifest parser here needs the same
+    // `filter(|s| !s.is_empty())` step; a trailing comma is an easy typo to
+    // make and must not silently become a fake list entry.
+    raw.split( ',' ).map( str::trim ).filter( | entry | !entry.is_empty() ).collect()
   }
 
   /// Reads the chunk's `//@ description:` manifest line.
@@ -347,8 +355,17 @@ mod private
     {
       return Vec::new();
     }
+    // Fix(BUG-280): drop empty segments ( same stray-comma artifact as
+    // `depends_on_parse` ) before pairing, instead of feeding `""` into
+    // `split_once( ':' )` and panicking on a "malformed entry" that isn't
+    // actually one.
+    // Root cause: the outer `split(',').map(trim)` step retained empty
+    // segments produced by a trailing/leading/doubled comma.
+    // Pitfall: a genuinely malformed non-empty entry ( no `:` ) must still
+    // panic — only the comma-artifact empty case should be tolerated.
     raw.split( ',' )
     .map( str::trim )
+    .filter( | entry | !entry.is_empty() )
     .map( | entry | entry.split_once( ':' )
       .unwrap_or_else( || panic!( "malformed `//@ tags:` entry (expected `group:tag`): {entry:?}" ) ) )
     .collect()

@@ -4,13 +4,13 @@
 
 The `shader_chunks` crate family: manifest-driven WGSL shader-chunk
 composition ([`shader_chunks_core`](shader_chunks_core/readme.md)) plus
-five independent terminal utilities built over it — query, compose,
-params, preview, render — aggregated under one CLI
+six independent terminal utilities built over it — query, compose,
+params, preview, render, validate — aggregated under one CLI
 ([`shader_chunks`](shader_chunks/readme.md)) but each also runnable
 standalone. Every utility's argument wiring, dispatch, and help rendering
 share one layer ([`shader_chunks_cli_core`](shader_chunks_cli_core/readme.md));
-every utility with real query/compose/discovery/preview logic separates
-that logic into its own `_core` engine crate, except
+every utility with real query/compose/discovery/preview/validation logic
+separates that logic into its own `_core` engine crate, except
 [`shader_chunks_compose`](shader_chunks_compose/readme.md), which is thin
 enough that `shader_chunks_core` itself serves as its core.
 
@@ -29,6 +29,8 @@ enough that `shader_chunks_core` itself serves as its core.
 | [`shader_chunks_preview_web/`](shader_chunks_preview_web/readme.md) | wasm32-only WebGPU browser runner rendering a written preview bundle |
 | [`shader_chunks_render_core/`](shader_chunks_render_core/readme.md) | Renders a preview bundle to raw RGBA pixels on a headless GPU |
 | [`shader_chunks_render/`](shader_chunks_render/readme.md) | CLI wiring for `render`: builds, naga-validates, renders, writes a PNG |
+| [`shader_chunks_validate_core/`](shader_chunks_validate_core/readme.md) | Five registry-wide integrity checks: drift, duplicates, missing/cyclic deps, WGSL compile |
+| [`shader_chunks_validate/`](shader_chunks_validate/readme.md) | CLI wiring for `validate`: runs every check, renders a findings report |
 | [`shader_chunks_cli_core/`](shader_chunks_cli_core/readme.md) | Shared `unilang` dispatch, help rendering, and exit-code plumbing |
 | [`shader_chunks/`](shader_chunks/readme.md) | Aggregates every utility's commands under one `shader_chunks`/`sch` binary |
 

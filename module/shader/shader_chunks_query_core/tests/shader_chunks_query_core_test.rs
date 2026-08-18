@@ -8,7 +8,7 @@
 
 use shader_chunks_query_core::
 {
-  QueryError, OutputFormat, QUERY_FIELDS, QueryParams, SortKey, SortOrder, TagsMode,
+  QueryError, OutputFormat, QUERY_FIELDS, QueryParams, SortKey, SortOrder, TagsMode, TreeFormat,
   tags_list, chunks_query, chunk_tree,
 };
 
@@ -235,6 +235,26 @@ fn query_exports_filter_matches_signatures_with_case_switch()
 {
   let mut params = QueryParams::list_defaults();
   params.exports = "FN HASH21".to_string();
+  assert_eq!( names_of( &params ), [ "hash21" ] );
+
+  params.case_sensitive = true;
+  assert!( names_of( &params ).is_empty() );
+}
+
+#[ test ]
+fn query_source_filter_matches_wgsl_body_text_with_case_switch()
+{
+  // `33.33` is a magic constant shared by three hash chunks' bodies (not
+  // their names or export signatures) -- proves this searches the full raw
+  // WGSL text, not just names/exports the way `pattern`/`exports` do.
+  let mut params = QueryParams::list_defaults();
+  params.source = "33.33".to_string();
+  assert_eq!( names_of( &params ), [ "hash21", "hash22", "hash33" ] );
+
+  // `fn hash21( p` (body signature spacing) appears exactly once, only in
+  // hash21's own function definition -- distinct from its `//@ export:`
+  // manifest line, which has no space before the parameter list.
+  params.source = "FN HASH21( P".to_string();
   assert_eq!( names_of( &params ), [ "hash21" ] );
 
   params.case_sensitive = true;
@@ -620,7 +640,7 @@ fn list_tags_lists_every_distinct_group_tag_pair_and_its_chunks()
 #[ test ]
 fn tree_chunk_shows_fbm3_dependency_chain_in_order()
 {
-  let output = chunk_tree( Some( "fbm3" ), false ).expect( "chunk_tree should succeed for a real chunk" );
+  let output = chunk_tree( Some( "fbm3" ), false, TreeFormat::Aligned ).expect( "chunk_tree should succeed for a real chunk" );
   let fbm3_pos = output.find( "fbm3" ).expect( "fbm3 present" );
   let value_noise_pos = output.find( "value_noise" ).expect( "value_noise present" );
   let hash21_pos = output.find( "hash21" ).expect( "hash21 present" );
@@ -631,7 +651,7 @@ fn tree_chunk_shows_fbm3_dependency_chain_in_order()
 #[ test ]
 fn tree_chunk_with_no_name_shows_forest_of_every_root_chunk()
 {
-  let output = chunk_tree( None, false ).expect( "chunk_tree should succeed with no name" );
+  let output = chunk_tree( None, false, TreeFormat::Aligned ).expect( "chunk_tree should succeed with no name" );
   assert!( output.contains( "domain_warp" ), "forest missing root `domain_warp`:\n{output}" );
   assert!( output.contains( "fullscreen_triangle" ), "forest missing root `fullscreen_triangle`:\n{output}" );
   // fbm3 stopped being a root once domain_warp arrived — it must still show
@@ -639,10 +659,65 @@ fn tree_chunk_with_no_name_shows_forest_of_every_root_chunk()
   assert!( output.contains( "fbm3" ), "forest missing `fbm3` under domain_warp:\n{output}" );
 }
 
+// test_kind: bug_reproducer(BUG-284)
+/// ## Root Cause
+/// `chunk_tree`'s `TreeFormat::Aligned` branch rendered a multi-root forest by mapping each root
+/// to its OWN separate `invisible_parent` ( one real root as that invisible parent's sole child )
+/// and calling `formatter.format_aligned` once per root, then joining the N resulting strings with
+/// `"\n"`. Since each per-root string already carries its own trailing `"\n"` from
+/// `format_aligned`, the join inserted a second, unintended `"\n"` between every pair of roots —
+/// a blank line after every root block except the last. Worse, because every root was always the
+/// *sole* child of its own invisible parent, `format_aligned` rendered every single one of them
+/// with the "last sibling" connector ( `└── ` ), even the ones with more roots still to follow —
+/// the opposite of what a real forest with siblings should show ( `├── ` for every non-last root,
+/// `└── ` only for the true last one ).
+/// ## Why Not Caught
+/// Every existing forest test ( e.g. `tree_chunk_with_no_name_shows_forest_of_every_root_chunk` )
+/// only asserted that specific chunk names were present somewhere in the output via
+/// `output.contains(name)` — never on blank-line structure or on which box-drawing connector
+/// prefixed a given root line, so the spurious gaps and uniformly-wrong `└── ` connectors were
+/// invisible to the suite. The single-chunk `tree <name>` path was never affected ( there is only
+/// ever one root, so it legitimately is the last/only sibling, and no join ever runs ), which is
+/// why that path's tests never surfaced this.
+/// ## Fix Applied
+/// Changed the `TreeFormat::Aligned` branch to build ONE shared `invisible_parent` and push every
+/// real root as one of its children, then call `formatter.format_aligned` exactly once over that
+/// shared parent — the same one-call-per-whole-forest shape `TreeFormat::Dot`/`TreeFormat::Mermaid`
+/// already used via `collect_edges`'s shared `edges` vec for the identical "no name" forest case.
+/// This lets `data_fmt` itself compute correct `├── `/`└── ` sibling connectors across every root
+/// and removes the synthetic per-root `"\n"` join entirely.
+/// ## Prevention
+/// When rendering a "one or many roots" tree/forest with an underlying formatter that itself knows
+/// how to draw sibling connectors, always give it every sibling in one call ( one shared parent )
+/// rather than looping the formatter call per item and joining strings — string-joining defeats
+/// the formatter's own sibling-position awareness and silently duplicates whatever line-ending
+/// convention each individual call already applies.
+/// ## Pitfall
+/// A loop that maps a formatter call over each top-level item and joins the results with a
+/// separator looks harmless, but if the formatter's own output already ends with the same
+/// separator character, the join doubles it — always check whether the thing you're about to
+/// join already carries its own trailing copy of the joiner before adding one.
+#[ test ]
+fn tree_forest_aligned_format_has_no_blank_lines_and_uses_correct_sibling_connectors()
+{
+  let output = chunk_tree( None, false, TreeFormat::Aligned ).expect( "chunk_tree should succeed with no name" );
+  assert!
+  (
+    !output.contains( "\n\n" ),
+    "a multi-root forest must render as one continuous tree with no blank lines between roots:\n{output}"
+  );
+  assert!
+  (
+    output.starts_with( "├── fullscreen_triangle" ),
+    "fullscreen_triangle is the first of several forest roots, so it must use the ├── \
+    ( more-siblings-follow ) connector, not └── ( last-sibling ):\n{output}"
+  );
+}
+
 #[ test ]
 fn tree_chunk_reports_unknown_chunk_error_for_bogus_name()
 {
-  let err = chunk_tree( Some( "bogus_chunk" ), false ).expect_err( "chunk_tree should fail for an unknown name" );
+  let err = chunk_tree( Some( "bogus_chunk" ), false, TreeFormat::Aligned ).expect_err( "chunk_tree should fail for an unknown name" );
   assert!( matches!( err, QueryError::UnknownChunk( _ ) ), "expected UnknownChunk, got {err:?}" );
 }
 
@@ -652,7 +727,7 @@ fn tree_reverse_on_a_chunk_shows_its_dependents_chain_in_order()
   // hash21 <- value_noise <- fbm3 <- domain_warp: walking `reverse::1` from
   // hash21 must show each dependent, nearest first, in the mirror image of
   // the forward `fbm3` chain asserted above.
-  let output = chunk_tree( Some( "hash21" ), true ).expect( "reverse chunk_tree should succeed for a real chunk" );
+  let output = chunk_tree( Some( "hash21" ), true, TreeFormat::Aligned ).expect( "reverse chunk_tree should succeed for a real chunk" );
   let hash21_pos = output.find( "hash21" ).expect( "hash21 present" );
   let value_noise_pos = output.find( "value_noise" ).expect( "value_noise present" );
   let fbm3_pos = output.find( "fbm3" ).expect( "fbm3 present" );
@@ -663,7 +738,7 @@ fn tree_reverse_on_a_chunk_shows_its_dependents_chain_in_order()
 #[ test ]
 fn tree_reverse_with_no_name_shows_forest_of_every_leaf_chunk()
 {
-  let output = chunk_tree( None, true ).expect( "reverse chunk_tree should succeed with no name" );
+  let output = chunk_tree( None, true, TreeFormat::Aligned ).expect( "reverse chunk_tree should succeed with no name" );
   assert!( output.contains( "hash21" ), "reverse forest missing leaf root `hash21`:\n{output}" );
   // fullscreen_triangle has no dependents at all -- still a root, with no
   // children under it.
@@ -674,13 +749,102 @@ fn tree_reverse_with_no_name_shows_forest_of_every_leaf_chunk()
 #[ test ]
 fn tree_reverse_on_a_leaf_with_no_dependents_shows_just_that_chunk()
 {
-  let output = chunk_tree( Some( "fullscreen_triangle" ), true ).expect( "reverse chunk_tree should succeed for a dependents-free chunk" );
+  let output = chunk_tree( Some( "fullscreen_triangle" ), true, TreeFormat::Aligned ).expect( "reverse chunk_tree should succeed for a dependents-free chunk" );
   assert!( output.contains( "fullscreen_triangle" ), "{output}" );
 }
 
 #[ test ]
 fn tree_reverse_reports_unknown_chunk_error_for_bogus_name()
 {
-  let err = chunk_tree( Some( "bogus_chunk" ), true ).expect_err( "reverse chunk_tree should fail for an unknown name" );
+  let err = chunk_tree( Some( "bogus_chunk" ), true, TreeFormat::Aligned ).expect_err( "reverse chunk_tree should fail for an unknown name" );
   assert!( matches!( err, QueryError::UnknownChunk( _ ) ), "expected UnknownChunk, got {err:?}" );
+}
+
+#[ test ]
+fn tree_dot_format_renders_digraph_with_edges_in_dependency_order()
+{
+  let output = chunk_tree( Some( "fbm3" ), false, TreeFormat::Dot ).expect( "chunk_tree should succeed for a real chunk" );
+  assert!( output.starts_with( "digraph chunks\n{\n" ), "{output}" );
+  assert!( output.trim_end().ends_with( '}' ), "{output}" );
+  assert!( output.contains( "\"fbm3\" -> \"value_noise\";" ), "{output}" );
+  assert!( output.contains( "\"value_noise\" -> \"hash21\";" ), "{output}" );
+  let fbm3_edge_pos = output.find( "\"fbm3\" -> \"value_noise\";" ).expect( "fbm3 edge present" );
+  let value_noise_edge_pos = output.find( "\"value_noise\" -> \"hash21\";" ).expect( "value_noise edge present" );
+  assert!( fbm3_edge_pos < value_noise_edge_pos, "edges should follow walk order:\n{output}" );
+}
+
+#[ test ]
+fn tree_dot_format_declares_childless_root_with_no_edges()
+{
+  let output = chunk_tree( Some( "fullscreen_triangle" ), false, TreeFormat::Dot ).expect( "chunk_tree should succeed for a dependents-free chunk" );
+  assert!( !output.contains( "->" ), "a childless root has no edges to draw:\n{output}" );
+  assert!( output.contains( "\"fullscreen_triangle\";" ), "{output}" );
+}
+
+#[ test ]
+fn tree_mermaid_format_renders_graph_td_with_edges_in_dependency_order()
+{
+  let output = chunk_tree( Some( "fbm3" ), false, TreeFormat::Mermaid ).expect( "chunk_tree should succeed for a real chunk" );
+  assert!( output.starts_with( "graph TD\n" ), "{output}" );
+  assert!( output.contains( "fbm3 --> value_noise" ), "{output}" );
+  assert!( output.contains( "value_noise --> hash21" ), "{output}" );
+  let fbm3_edge_pos = output.find( "fbm3 --> value_noise" ).expect( "fbm3 edge present" );
+  let value_noise_edge_pos = output.find( "value_noise --> hash21" ).expect( "value_noise edge present" );
+  assert!( fbm3_edge_pos < value_noise_edge_pos, "edges should follow walk order:\n{output}" );
+}
+
+#[ test ]
+fn tree_mermaid_format_declares_childless_root_with_no_edges()
+{
+  let output = chunk_tree( Some( "fullscreen_triangle" ), false, TreeFormat::Mermaid ).expect( "chunk_tree should succeed for a dependents-free chunk" );
+  assert!( !output.contains( "-->" ), "a childless root has no edges to draw:\n{output}" );
+  assert!( output.contains( "fullscreen_triangle" ), "{output}" );
+}
+
+#[ test ]
+fn tree_dot_and_mermaid_with_no_name_combine_every_root_into_one_graph()
+{
+  // Bare `tree` ( no `name` ) walks every dependents-free root at once — this
+  // must combine an edge-bearing root's chain ( fbm3's ) and a childless
+  // root's bare declaration ( fullscreen_triangle's ) into the *same* single
+  // digraph/graph, not two separate outputs.
+  let dot = chunk_tree( None, false, TreeFormat::Dot ).expect( "chunk_tree should succeed for the full forest" );
+  assert!( dot.contains( "\"fbm3\" -> \"value_noise\";" ), "{dot}" );
+  assert!( dot.lines().any( | l | l.trim() == "\"fullscreen_triangle\";" ), "{dot}" );
+
+  let mermaid = chunk_tree( None, false, TreeFormat::Mermaid ).expect( "chunk_tree should succeed for the full forest" );
+  assert!( mermaid.contains( "fbm3 --> value_noise" ), "{mermaid}" );
+  assert!( mermaid.lines().any( | l | l.trim() == "fullscreen_triangle" ), "{mermaid}" );
+}
+
+#[ test ]
+fn tree_dot_and_mermaid_reverse_walk_flip_edge_direction_like_aligned()
+{
+  // Mirrors `tree_reverse_on_a_chunk_shows_its_dependents_chain_in_order`'s
+  // aligned-mode assertion: reverse::1 from hash21 walks dependents, so the
+  // edge direction is hash21 -> value_noise -> fbm3, not the forward chain.
+  let dot = chunk_tree( Some( "hash21" ), true, TreeFormat::Dot ).expect( "reverse chunk_tree should succeed" );
+  assert!( dot.contains( "\"hash21\" -> \"value_noise\";" ), "{dot}" );
+  assert!( dot.contains( "\"value_noise\" -> \"fbm3\";" ), "{dot}" );
+
+  let mermaid = chunk_tree( Some( "hash21" ), true, TreeFormat::Mermaid ).expect( "reverse chunk_tree should succeed" );
+  assert!( mermaid.contains( "hash21 --> value_noise" ), "{mermaid}" );
+  assert!( mermaid.contains( "value_noise --> fbm3" ), "{mermaid}" );
+}
+
+#[ test ]
+fn tree_format_round_trips_and_rejects_bogus_values()
+{
+  for format in [ TreeFormat::Aligned, TreeFormat::Dot, TreeFormat::Mermaid ]
+  {
+    assert_eq!( format.as_str().parse::< TreeFormat >().expect( "round trip" ), format );
+  }
+
+  let err = "bogus".parse::< TreeFormat >().expect_err( "bogus shape must fail" );
+  assert!
+  (
+    matches!( &err, QueryError::InvalidParam { param : "shape", .. } ),
+    "expected InvalidParam for shape, got {err:?}"
+  );
+  assert_eq!( err.exit_code(), 1 );
 }

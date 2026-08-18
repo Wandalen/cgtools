@@ -9,10 +9,12 @@ crate); it wires to the CLI via
 [`shader_chunks_cli_core`](../../../shader_chunks_cli_core/readme.md).
 `compose` accepts `names` (positional) and `transitive` (closure
 switch), both owned and documented by
-[`shader_chunks_query`](../../../shader_chunks_query/docs/cli/readme.md).
-This crate is one of 5 leaf CLIs assembled by the
+[`shader_chunks_query`](../../../shader_chunks_query/docs/cli/readme.md),
+plus this crate's own `out` — write the composed WGSL to a file instead
+of printing it to stdout.
+This crate is one of 6 leaf CLIs assembled by the
 [`shader_chunks`](../../../shader_chunks/docs/cli/readme.md) aggregator
-— see that readme for the family-wide 8-command list and Scope
+— see that readme for the family-wide 9-command list and Scope
 Decisions.
 
 ## Completion Matrix
@@ -23,13 +25,15 @@ Decisions.
 | command/ | ✅ | ✅ | ✅ | — | — | Complete |
 | command_group/ | ✅ | ✅ | ✅ | — | — | Complete |
 | format/ | ✅ | ✅ | ✅ | — | — | Complete |
+| param/ | ✅ | ✅ | ✅ | — | — | Complete |
 
 **Current Level:** L3 (Specification Complete)
 **Design Completeness:** All required L1-L3 entities present for this
 crate's 1-command slice (`compose`) of the `shader_chunks` family; no
-incomplete-content placeholders. This crate declares no `param/`,
-`param_group/`, or `type/` of its own — `compose`'s parameters are
-owned by `shader_chunks_query`.
+incomplete-content placeholders. This crate declares no `param_group/`
+or `type/` of its own — `out` is a plain String with no shared group
+membership. `names`/`transitive` remain owned by `shader_chunks_query`;
+`out` is this crate's own first owned parameter.
 **Implementation Status:** Matches shipped code — `src/lib.rs` (engine +
 CLI wiring, contributes `help_groups()`/`help_examples()`/`commands()`
 to the aggregator), tested by
@@ -43,12 +47,13 @@ covering the command/command_group tiers.
 - [`command/`](command/readme.md) — the 1 command (`compose`)
 - [`command_group/`](command_group/readme.md) — the 1 command group (`Compose`)
 - [`format/`](format/readme.md) — the 1 output format this crate introduces (`plain_text`)
+- [`param/`](param/readme.md) — the 1 parameter this crate introduces (`out`)
 - [`shader_chunks_query/docs/cli/param/readme.md`](../../../shader_chunks_query/docs/cli/param/readme.md) — `names`/`transitive` parameter definitions (owned by `shader_chunks_query`)
 - [`../../../shader_chunks/docs/cli/dictionary.md`](../../../shader_chunks/docs/cli/dictionary.md) — family-wide domain term glossary
 - [`../../../shader_chunks/docs/cli/procedure.md`](../../../shader_chunks/docs/cli/procedure.md) — how to extend a `docs/cli/` tree when an entity is added or removed
 - [`../../tests/docs/cli/readme.md`](../../tests/docs/cli/readme.md) — test specification mirror
 - [`../../readme.md`](../../readme.md) — crate readme (purpose, examples, links back here)
-- [`../../../shader_chunks/docs/cli/readme.md`](../../../shader_chunks/docs/cli/readme.md) — family index (all 5 leaf CLIs, all 8 commands)
+- [`../../../shader_chunks/docs/cli/readme.md`](../../../shader_chunks/docs/cli/readme.md) — family index (all 6 leaf CLIs, all 9 commands)
 
 ## Scope Decisions
 
@@ -66,9 +71,13 @@ crate-local addenda:
   than being duplicated per leaf — one glossary and one extension
   procedure serve all 5 CLIs since they share the same entity taxonomy
   (`cli_doc_des.rulebook.md`).
-- **`param/`, `param_group/`, `type/` omitted here.** `compose` accepts
-  only `names` and `transitive`, both declared and documented by
-  `shader_chunks_query` since `list`/`get` share the same parameters
-  verbatim — duplicating those definitions here would violate
-  leaf-locality's own no-duplication counterpart; this crate references
-  them instead.
+- **`param_group/`, `type/` omitted here.** `out` is a plain String
+  parameter belonging to no parameter group (an artifact-path selector,
+  like `render`'s own `out`) and needs no dedicated type beyond the
+  built-in `String` — nothing to declare in either collection.
+  `names`/`transitive`, `compose`'s other two parameters, remain
+  declared and documented by `shader_chunks_query` since `list`/`get`
+  share them verbatim — duplicating those definitions here would
+  violate leaf-locality's own no-duplication counterpart; this crate
+  references them instead. `out` itself IS declared here
+  ([`param/`](param/readme.md)) since it belongs to no other crate.

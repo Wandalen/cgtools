@@ -19,16 +19,16 @@
 |---|------|-------|---------|--------|
 | 1 | [01_parameters.md](01_parameters.md) | Parameters | `.tunables` | ✅ |
 
-**Total:** 1 command group (of 6 across the `shader_chunks` family)
+**Total:** 1 command group (of 7 across the `shader_chunks` family)
 
 **Partition note:** this crate's sole command, `.tunables`, is the only
 member of the Parameters group — a deliberate single-member group (data
 source, not command count, is the boundary; see
 [`01_parameters.md`](01_parameters.md#why-not-merge-into-query)). The
-full 6-group, 8-command partition (spanning all 5 leaf CLIs) is stated
+full 7-group, 9-command partition (spanning all 6 leaf CLIs) is stated
 in [the family index](../../../../shader_chunks/docs/cli/readme.md).
 The help screen (`shader_chunks_cli_core/src/lib.rs`, `help_print`)
-renders all 6 groups together; a drift between the family index's table
+renders all 7 groups together; a drift between the family index's table
 and the help output is a documentation bug.
 
 ### Docs

@@ -77,5 +77,6 @@ recommendation.
 | `module/blank/d3_scene/` | Reserved d3 script-layer slot |
 | `module/helper/scene_script/src/engine.rs` | Rhai engine assembly (`engine_build()`) |
 | `module/helper/scene_script/src/top_level_lint.rs` | Structural check that imperative code lives inside `main()`, not a proof of the temporal/order determinism the Contract section above requires |
+| `module/helper/scene_script/src/purity_lint.rs` | Companion structural check for the script-as-data form: `check_whole_ast_is_pure` rejects any call expression, enforcing the no-engine-calls half of the [script-as-data](../pattern/004_script_as_data.md)/script-as-glue split this layer names above |
 | `module/helper/tilemap_scene/src/compile/frame.rs` | Deterministic scene→commands compilation |
 | `module/helper/tilemap_scene/src/renderer.rs` | The runner half: executes compiled commands, ~24 dedicated tests |

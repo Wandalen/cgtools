@@ -23,6 +23,7 @@ impl< 'a > ProgramUniforms< 'a >
   /// `gl.use_program( Some( program ) )` -- this wrapper does not do so itself, since some
   /// call sites issue other GL calls (e.g. `draw_arrays`) between binding the program and
   /// uploading uniforms.
+  #[ must_use ]
   pub fn new( gl : &'a gl::GL, program : &'a gl::WebGlProgram ) -> Self
   {
     Self { gl, program }

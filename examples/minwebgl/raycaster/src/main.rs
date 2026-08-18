@@ -77,6 +77,8 @@ fn app_run()
 
   let loop_ = move | time |
   {
+    controls.borrow_mut().state_update();
+
     let time = ( time / 1000. ) as f32;
     let delta_time = time - last_time;
     last_time = time;

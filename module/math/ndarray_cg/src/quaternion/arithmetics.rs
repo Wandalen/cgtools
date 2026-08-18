@@ -317,8 +317,39 @@ mod private
       let one = E::one();
       let eps = E::from( 1e-6 ).unwrap();
 
+      // Fix(BUG-272): corrected the sign of the cross term in all three trig formulas (`w*y -
+      // z*x` -> `w*y + z*x` for pitch; `w*x + y*z` -> `w*x - y*z` for roll; `w*z + x*y` -> `w*z
+      // - x*y` for yaw), corrected the gimbal-lock branch's yaw denominator (`y*y + z*z` ->
+      // `x*x + z*z`), and parenthesized the gimbal-lock branch's doubled numerator (`two * ( x *
+      // y + w * z ).atan2( .. )` -> `( two * ( x * y + w * z ) ).atan2( .. )`) -- method-call
+      // precedence bound `.atan2` tighter than the leading `two *`, so the whole `atan2` result
+      // was doubled after the call instead of its first argument being doubled before it.
+      // Root cause: the matrix-to-Euler-angle extraction formulas were transcribed with the
+      // wrong sign on each cross term (and the wrong pair of squared components in the gimbal
+      // lock denominator), so the function only happened to look correct for single-axis
+      // rotations (where the mismatched cross term is a product against an always-zero
+      // component) or very small angles (where the loose pre-existing test epsilon of 1e-1
+      // hid the error) -- any genuine multi-axis rotation returned wrong roll/pitch/yaw. The
+      // gimbal-lock branch carried a second, independent defect on top of that: `atan2( 2*n, d
+      // )` (double the numerator, then take the angle) and `2 * atan2( n, d )` (take the angle,
+      // then double it) are different functions whenever `n != 0`, but the unparenthesized `two
+      // * ( .. ).atan2( .. )` computed the latter -- so even a case with the correct sign/
+      // denominator still reported the wrong collapsed angle at true gimbal lock unless roll
+      // and yaw were both zero (the only case where the two placements coincide).
+      // Pitfall: a matrix/quaternion-to-Euler decomposition formula with several structurally
+      // similar terms (here: `w*y +/- z*x`, `w*x +/- y*z`, `w*z +/- x*y`) needs each sign
+      // verified independently against a derivation or ground truth (matrix product, or the
+      // crate's own verified-correct forward conversion) -- copying the "shape" of a sibling
+      // term without re-deriving its specific sign lets a single transcription slip silently
+      // propagate across every term that shares the pattern, and single-axis/small-angle test
+      // inputs cannot detect it because the buggy cross term evaluates to (near) zero either
+      // way. Separately, `scalar * expr.method( .. )` silently binds the method call tighter
+      // than the leading multiplication -- a formula that needs the multiplication applied
+      // *before* the call (doubling a numerator, not a result) must parenthesize the multiplied
+      // expression explicitly, and a test exercising only the degenerate zero-numerator case
+      // cannot tell the two placements apart.
       // Pitch ( Y )
-      let sinp = two * ( w * y - z * x );
+      let sinp = two * ( w * y + z * x );
       let sinp = sinp.max( - one ).min( one );
       let pitch = sinp.asin();
 
@@ -326,15 +357,15 @@ mod private
       if ( sinp.abs() - one ).abs() < eps
       {
         // Collapse roll into yaw
-        let yaw = two * ( x * y + w * z ).atan2( one - two * ( y * y + z * z ) );
+        let yaw = ( two * ( x * y + w * z ) ).atan2( one - two * ( x * x + z * z ) );
         return [ E::zero(), pitch, wrap_pi( yaw ) ].into();
       }
 
       // Roll ( X )
-      let mut roll = ( two * ( w * x + y * z ) ).atan2( one - two * ( x * x + y * y ) );
+      let mut roll = ( two * ( w * x - y * z ) ).atan2( one - two * ( x * x + y * y ) );
 
       // Yaw ( Z )
-      let mut yaw = ( two * ( w * z + x * y ) ).atan2( one - two * ( y * y + z * z ) );
+      let mut yaw = ( two * ( w * z - x * y ) ).atan2( one - two * ( y * y + z * z ) );
 
       roll = wrap_pi( roll );
       yaw  = wrap_pi( yaw );

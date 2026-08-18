@@ -62,5 +62,11 @@ trait seam now multiplying backends *through* L1 instead of around it.
 
 | File | Relationship |
 |------|--------------|
-| `module/helper/renderer/src/webgl/renderer.rs` | d3 engine core |
+| `module/helper/renderer/src/webgl/renderer.rs` | d3 engine core (legacy path) |
+| `module/helper/renderer/src/webgpu/renderer.rs` | d3 engine core (canonical, `gpu_hal`-backed path) |
+| `module/helper/renderer/tests/native_render_test.rs`, `tests/webgpu_geometry_test.rs` | Canonical-path engine coverage, pixel-verified end-to-end (`opaque_path_renders_lit_quad`) |
+| `module/helper/renderer/tests/webgpu_light_test.rs`, `tests/webgpu_normal_matrix_test.rs` | Canonical-path `Lights`/transform-vocabulary coverage |
+| `module/helper/renderer/tests/geometry_tests.rs`, `tests/skeleton_tests.rs`, `tests/animation_tests.rs`, `tests/animation_graph_tests.rs`, `tests/mirror_tests.rs`, `tests/scaler_tests.rs`, `tests/color_grading_tests.rs`, `tests/shader_validation_tests.rs`, `tests/webgl_frame_orchestration_test.rs` | Legacy-path native coverage of scene-graph, skeletal, post-processing, and frame-orchestration vocabulary — representative, not exhaustive |
+| `module/helper/renderer/tests/webgl/` (`node.rs`, `mesh.rs`, `scene.rs`, `camera.rs`, `pass.rs`, `pbr_material.rs`, and others) | Legacy-path `wasm-bindgen-test` coverage for individual scene-graph and material types |
 | `module/helper/tilemap_renderer/src/backend.rs` | d2 engine's `Backend` seam |
+| `module/helper/tilemap_renderer/tests/backend_test.rs`, `tests/commands_test.rs` | `Backend` seam construct-level and command-shape coverage, shared across all adapters (per-adapter coverage cited in [003_l2_frame_orchestration.md](003_l2_frame_orchestration.md)) |

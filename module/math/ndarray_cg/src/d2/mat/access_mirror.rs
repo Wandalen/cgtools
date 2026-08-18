@@ -317,13 +317,17 @@ where
   E : MatEl,
   Self : ScalarRef,
 {
+  // Fix(BUG-288): doc claimed "A mutable reference" for a `&self`-receiver method returning
+  // `&<Self as Collection>::Scalar`. Root cause: mirrored from `md::access::ScalarRef::scalar_ref`,
+  // which itself carried the same copy-pasted wording from its `ScalarMut` sibling.
+  // Pitfall: a caller trusting the doc could wrongly assume `scalar_ref` grants write access.
   /// Get a reference to a scalar at a specified index.
   ///
   /// # Parameters
   /// - `index`: The index of the scalar to access.
   ///
   /// # Returns
-  /// - A mutable reference to the scalar at the specified index.
+  /// - A reference to the scalar at the specified index.
   #[ inline( always ) ]
   pub fn scalar_ref( &self, index : < Self as Indexable >::Index ) -> &< Self as Collection >::Scalar
   {

@@ -211,6 +211,52 @@ fn canonicalize_sorts_ids()
   assert_eq!( sorted, [ "grass".to_string(), "sand".into(), "water".into() ] );
 }
 
+/// ## Root Cause
+/// `canonicalize()`'s `rotation` value was computed as the position, in the
+/// sorted output, where the *original* corner index 0 ended up
+/// ( `indexed.iter().position( |( orig, _ )| *orig == 0 )` ) — the inverse
+/// of the documented contract, which asks for the original index of
+/// whichever corner's value now sits in canonical slot 0 ( `indexed[ 0 ].0` ).
+/// Both readings agree only at the `rotation == 0` fixed point; for the
+/// other two cyclic rotations of 3 corners they diverge.
+/// ## Why Not Caught
+/// No existing test pinned a specific `rotation` value — `canonicalize_sorts_ids`
+/// only checks the sorted triple, and the one integration assertion in
+/// `scene_model_compile_test.rs` accepts *any* of the 3 rotations
+/// ( `any_rot_emitted` ). A wrong-but-in-range `u8` produces no panic and no
+/// visible test failure.
+/// ## Fix Applied
+/// Replaced the `.position()` search with a direct read of `indexed[ 0 ].0`
+/// — the original index of the corner whose value landed in canonical slot
+/// 0 — matching `canonicalize`'s own doc comment ("which original slot
+/// landed in slot 0") and the SPEC-level docs
+/// ( `docs/format/003_anchor_placement_types.md`,
+/// `docs/invariant/002_edge_and_vertex_canonical_uniqueness.md`: "the
+/// permutation applied to reach" / "which cyclic permutation ... produced
+/// that sorted order" ).
+/// ## Prevention
+/// This test pins a concrete 3-corner example where the two readings
+/// (forward permutation vs. its inverse) diverge, so a regression back to
+/// the inverse formula fails loudly instead of silently picking the wrong
+/// of the 3 `{rot}`-substituted sprite variants.
+/// ## Pitfall
+/// A scalar "rotation index" is ambiguous between a permutation and its
+/// inverse; both are valid-looking, both stay in the documented `0..3`
+/// range, and only a concrete worked example — not a type signature or a
+/// loose "any rotation matched" test — can distinguish them.
+#[ test ]
+fn canonicalize_rotation_reports_forward_permutation()
+{
+  // raw[ 0 ] = "water", raw[ 1 ] = "grass", raw[ 2 ] = "sand" — alphabetical
+  // sort moves "grass" (originally at index 1) into canonical slot 0.
+  let ( sorted, rotation ) = canonicalize( &[ "water".into(), "grass".into(), "sand".into() ] );
+  assert_eq!( sorted, [ "grass".to_string(), "sand".into(), "water".into() ] );
+  // Correct rotation is the ORIGINAL index of the value now in slot 0
+  // ("grass" was raw[ 1 ]) — not the slot original corner 0's value
+  // ("water") ended up in (slot 2), which is the inverse permutation.
+  assert_eq!( rotation, 1, "rotation should report which original corner landed in slot 0" );
+}
+
 #[ test ]
 fn exact_beats_wildcard()
 {

@@ -126,7 +126,7 @@ async fn app_run() -> Result< (), gl::WebglError >
         canvas.set_height( h );
 
         let proj = gl::math::mat3x3h::perspective_rh_gl( fov, w as f32 / h as f32, near, far );
-        camera.projection_matrix_set( proj );
+        camera.projection_matrix_set( proj ).expect( "resize produced a degenerate projection matrix" );
         camera.window_size_set( [ w as f32, h as f32 ].into() );
 
         renderer.borrow_mut().resize( &gl, w, h, samples ).expect( "Failed to resize renderer" );

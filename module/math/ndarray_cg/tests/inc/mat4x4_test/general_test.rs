@@ -275,7 +275,7 @@ fn test_from_scale_rotation_translation_column_major()
 
 /// ## Root Cause
 /// `decompose()` divided by `inv_scale` (already a reciprocal) instead of multiplying,
-/// re-squaring scale into the rotation matrix passed to `Quat::from` (BUG-118); separately,
+/// re-squaring scale into the rotation matrix passed to `Quat::from` (BUG-250); separately,
 /// `Quat::from(Mat3)` wrote its trace-derived `w` term into the `x` slot, cyclically
 /// shifting all four components (BUG-119).
 ///
@@ -284,7 +284,7 @@ fn test_from_scale_rotation_translation_column_major()
 /// translation_generic` only exercises the forward (build) direction, never the round trip.
 ///
 /// ## Fix Applied
-/// BUG-118 changed `decompose()`'s `rot_mat` column construction from `/ inv_scale` to `*
+/// BUG-250 changed `decompose()`'s `rot_mat` column construction from `/ inv_scale` to `*
 /// inv_scale`. BUG-119 reordered `Quat::from(Mat3)`'s final array literal to match the
 /// crate's `[x,y,z,w]` storage convention. This test round-trips a matrix built with
 /// deliberately non-uniform scale through `from_scale_rotation_translation` then

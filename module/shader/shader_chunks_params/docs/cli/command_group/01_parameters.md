@@ -52,8 +52,8 @@ single-crate-dependency command inside a group whose entire contract is
 |---|---------|---------------|
 | 1 | [`.tunables`](../command/01_tunables.md) | Member — declared tunable parameters for one chunk |
 
-**Membership:** 1 of the 8 commands across the `shader_chunks` family; the
-full partition across all 6 command groups (spanning all 5 leaf CLIs) is
+**Membership:** 1 of the 9 commands across the `shader_chunks` family; the
+full partition across all 7 command groups (spanning all 6 leaf CLIs) is
 stated in [the family index](../../../../shader_chunks/docs/cli/readme.md).
 A single-member group is deliberate — the boundary is data-source (a
 second crate, `shader_chunks_params`), not command count.

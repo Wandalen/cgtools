@@ -2,11 +2,15 @@
 //! loud rejection paths, both in-process and through the real subprocess.
 //! The happy paths render on the real headless GPU and re-open the
 //! written PNG to prove the file is a valid image of the requested size.
+//! The `render_all_to_png_*`/`subprocess_render_all_*` tests cover the
+//! `all::1` batch mode against the real bundled chunk registry, including
+//! its one known-unpreviewable chunk (`fullscreen_triangle`, skipped, not
+//! failed).
 
 use std::path::PathBuf;
 use assert_cmd::Command;
 use shader_chunks_preview::PreviewTarget;
-use shader_chunks_render::{ RenderCliError, out_path_of, overrides_apply, overrides_parse, render_to_png, size_parse };
+use shader_chunks_render::{ BatchOutcome, RenderCliError, batch_summary, out_path_of, overrides_apply, overrides_parse, render_all_to_png, render_to_png, size_parse };
 
 fn temp_png( label : &str ) -> PathBuf
 {
@@ -16,6 +20,13 @@ fn temp_png( label : &str ) -> PathBuf
 fn temp_wgsl( label : &str ) -> PathBuf
 {
   std::env::temp_dir().join( format!( "shader_chunks_render_{label}_{}.wgsl", std::process::id() ) )
+}
+
+fn temp_dir( label : &str ) -> PathBuf
+{
+  let dir = std::env::temp_dir().join( format!( "shader_chunks_render_batch_{label}_{}", std::process::id() ) );
+  let _ = std::fs::remove_dir_all( &dir );
+  dir
 }
 
 #[ test ]
@@ -61,6 +72,64 @@ fn name_target_renders_a_png_of_the_requested_size()
 
   let image = image::open( &out ).expect( "the written PNG must be a readable image" );
   assert_eq!( ( image.width(), image.height() ), ( 24, 24 ) );
+  let _ = std::fs::remove_file( &out );
+}
+
+// test_kind: bug_reproducer(BUG-286)
+/// ## Root Cause
+/// `palette_cosine_preview` threaded its documented-fixed "canonical
+/// rainbow parameterization" ( `readme.md`'s own Visualization section:
+/// `a = b = vec3f(0.5)`, `c = vec3f(1.0)`, `d = vec3f(0.0, 0.33, 0.67)` )
+/// through as six independent tunable arguments instead of hardcoding
+/// them. `shader_chunks_params_core`'s range inference always defaults an
+/// argument to its own declared range's midpoint, independently of every
+/// other argument -- so `phase_r`/`phase_g`/`phase_b` ( each declared
+/// `range(0.0, 1.0)` ) all defaulted to the identical `0.5`, collapsing
+/// the three RGB channels ( which only differ from each other via the
+/// phase vector `d` ) to the same value at every pixel: the default
+/// render was flat grayscale, not the documented rainbow.
+/// ## Why Not Caught
+/// The existing structural test ( `shader_chunks_preview_core`'s
+/// `preview_bundle_test.rs::vec3_value_chunk_gets_a_synthesized_harness` )
+/// only asserted the generated WGSL called `palette_cosine_preview` with
+/// the right variable names -- it never rendered a frame or inspected a
+/// pixel, so a semantically-monochrome-by-default demo passed it cleanly.
+/// ## Fix Applied
+/// `palette_cosine_preview` ( `shader/palette_cosine/palette_cosine.wgsl` )
+/// now takes only `p: vec2f` and hardcodes the readme's own canonical
+/// values directly, matching every sibling bespoke-demo chunk's
+/// convention of baking fixed compositional constants into the wrapper
+/// body rather than exposing them as sliders.
+/// ## Prevention
+/// This test renders the chunk for real on the headless GPU and decodes
+/// the PNG, so a future regression that re-collapses the channels (e.g.
+/// re-exposing the phase spread as independently-defaulted sliders)
+/// fails on an actual pixel-color assertion, not just a string match.
+/// ## Pitfall
+/// Any other chunk that threads N structurally-identical, identically
+/// -ranged parameters through where the demo's meaning depends on them
+/// differing from each other ( not merely each being independently
+/// "reasonable" ) is vulnerable to the same collapse; the rest of the
+/// bundled set was audited for this specific shape during BUG-286's
+/// investigation and no other instance was found.
+#[ test ]
+fn palette_cosine_default_render_shows_distinct_channels_not_flat_grayscale()
+{
+  let out = temp_png( "palette_cosine_color" );
+  render_to_png( &PreviewTarget::Name( "palette_cosine".to_string() ), ( 64, 64 ), 0.0, &[], &out )
+  .expect( "palette_cosine is bundled, previewable, and renderable" );
+
+  let image = image::open( &out ).expect( "the written PNG must be a readable image" ).to_rgb8();
+  let max_channel_spread = image.pixels()
+  .map( | pixel | { let [ r, g, b ] = pixel.0; r.max( g ).max( b ) - r.min( g ).min( b ) } )
+  .max()
+  .expect( "a 64x64 image has pixels" );
+  assert!
+  (
+    max_channel_spread > 40,
+    "the canonical rainbow parameterization must produce visibly distinct R/G/B channels somewhere in the frame, \
+    not a flat grayscale image (max channel spread across all pixels was only {max_channel_spread})"
+  );
   let _ = std::fs::remove_file( &out );
 }
 
@@ -370,6 +439,46 @@ fn subprocess_render_with_unknown_set_parameter_fails_with_exit_1()
   assert!( stderr.contains( "unknown parameter: `bogus_param`" ), "stderr: {stderr}" );
 }
 
+// test_kind: bug_reproducer(BUG-285)
+/// ## Root Cause
+/// The `render` routine read `name`/`file`/`size`/`out` through
+/// `shader_chunks_cli_core::arg_string`, whose catch-all `_ => None` arm
+/// cannot distinguish "argument absent" from "argument supplied more than
+/// once" -- `unilang` binds a repeated named key to `Value::List`
+/// regardless of the argument's own declared `multiple` attribute, so
+/// `out::a.png out::b.png` fell through the same arm as "absent" and
+/// silently rendered to the default `<target>.png` path instead of
+/// erroring, discarding one of the two paths the caller explicitly typed.
+/// ## Why Not Caught
+/// No existing test in this file passed a named `key::value` argument
+/// twice in one invocation -- every prior test supplied each parameter at
+/// most once.
+/// ## Fix Applied
+/// The routine now reads `name`/`file`/`size`/`out`/`all` through
+/// `arg_string_checked`/`arg_bool_checked` (`shader_chunks_render/src/lib.rs`),
+/// which returns a loud `ValidationRuleFailed` naming the key and its
+/// repeat count instead of silently falling back to the default.
+/// ## Prevention
+/// This subprocess test locks in the loud-failure behavior for `out`;
+/// sibling crates `shader_chunks_query`/`shader_chunks_preview` gained
+/// their own matching regression tests in the same fix (BUG-285).
+/// ## Pitfall
+/// `arg_usize` (unused directly in this crate's own call sites, but shared
+/// via `shader_chunks_cli_core`) has the identical catch-all shape and
+/// remains unfixed elsewhere -- a known, not a forgotten, gap.
+#[ test ]
+fn subprocess_render_with_duplicated_out_fails_loudly_instead_of_using_the_default_path()
+{
+  let output = Command::cargo_bin( "shader_chunks_render" ).expect( "binary builds" )
+  .args( [ "render", "fbm3", "out::a.png", "out::b.png" ] )
+  .output()
+  .expect( "runs" );
+  assert_eq!( output.status.code(), Some( 1 ), "stdout: {}", String::from_utf8_lossy( &output.stdout ) );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( stderr.contains( "`out` was given 2 times" ), "stderr: {stderr}" );
+  assert!( !std::path::Path::new( "a.png" ).exists() && !std::path::Path::new( "b.png" ).exists(), "no PNG may be written on failure" );
+}
+
 #[ test ]
 fn subprocess_render_with_malformed_set_token_fails_with_exit_1()
 {
@@ -393,4 +502,123 @@ fn subprocess_help_lists_the_render_group()
   let stdout = String::from_utf8_lossy( &output.stdout );
   assert!( stdout.contains( "Render" ), "stdout: {stdout}" );
   assert!( stdout.contains( "render [name]" ), "stdout: {stdout}" );
+}
+
+#[ test ]
+fn render_all_to_png_creates_the_out_dir_and_covers_every_bundled_chunk_with_no_failures()
+{
+  let dir = temp_dir( "coverage" );
+  assert!( !dir.exists(), "the dir must not pre-exist, to prove auto-creation" );
+  let outcomes = render_all_to_png( ( 8, 8 ), 0.0, &dir ).expect( "the fresh temp dir must be creatable" );
+  assert!( dir.is_dir(), "render_all_to_png must create out_dir" );
+  assert_eq!( outcomes.len(), shader_chunks_core::CHUNKS.len(), "one outcome per bundled chunk" );
+  let failed : Vec< _ > = outcomes.iter().filter_map( | o | match o
+  {
+    BatchOutcome::Failed { name, error } => Some( format!( "{name}: {error}" ) ),
+    _ => None,
+  }).collect();
+  assert!( failed.is_empty(), "no bundled chunk should fail to render: {failed:?}" );
+  let _ = std::fs::remove_dir_all( &dir );
+}
+
+#[ test ]
+fn render_all_to_png_writes_a_valid_png_for_every_rendered_chunk()
+{
+  let dir = temp_dir( "writes" );
+  let outcomes = render_all_to_png( ( 8, 8 ), 0.0, &dir ).expect( "the fresh temp dir must be creatable" );
+  let rendered : Vec< _ > = outcomes.iter().filter_map( | o | match o
+  {
+    BatchOutcome::Rendered { name, path } => Some( ( name.clone(), path.clone() ) ),
+    _ => None,
+  }).collect();
+  assert!( !rendered.is_empty(), "at least one bundled chunk must render" );
+  for ( name, path ) in &rendered
+  {
+    let image = image::open( path ).unwrap_or_else( | err | panic!( "{name}'s PNG at {} must be readable: {err}", path.display() ) );
+    assert_eq!( ( image.width(), image.height() ), ( 8, 8 ), "{name}'s PNG must be the requested size" );
+  }
+  let _ = std::fs::remove_dir_all( &dir );
+}
+
+#[ test ]
+fn render_all_to_png_skips_the_known_unpreviewable_chunk_without_writing_a_file()
+{
+  let dir = temp_dir( "skip" );
+  let outcomes = render_all_to_png( ( 8, 8 ), 0.0, &dir ).expect( "the fresh temp dir must be creatable" );
+  let skipped = outcomes.iter().find( | o | matches!( o, BatchOutcome::Skipped { name, .. } if name == "fullscreen_triangle" ) )
+  .unwrap_or_else( || panic!( "fullscreen_triangle must be Skipped, got: {outcomes:?}" ) );
+  if let BatchOutcome::Skipped { reason, .. } = skipped
+  {
+    assert!( !reason.is_empty(), "the skip reason must not be empty" );
+  }
+  assert!( !dir.join( "fullscreen_triangle.png" ).exists(), "a skipped chunk must not write a file" );
+  let _ = std::fs::remove_dir_all( &dir );
+}
+
+#[ test ]
+fn batch_summary_lists_each_outcome_and_a_totals_line()
+{
+  let outcomes = vec!
+  [
+    BatchOutcome::Rendered { name : "a".to_string(), path : PathBuf::from( "out/a.png" ) },
+    BatchOutcome::Skipped { name : "b".to_string(), reason : "not previewable".to_string() },
+    BatchOutcome::Failed { name : "c".to_string(), error : RenderCliError::InvalidSize( "bad".to_string() ) },
+  ];
+  let text = batch_summary( &outcomes );
+  assert!( text.contains( "a: wrote out/a.png" ), "got: {text}" );
+  assert!( text.contains( "b: skipped (not previewable)" ), "got: {text}" );
+  assert!( text.contains( "c: failed (invalid `size` value: `bad`" ), "got: {text}" );
+  assert!( text.contains( "3 chunks: 1 rendered, 1 skipped, 1 failed" ), "got: {text}" );
+}
+
+#[ test ]
+fn subprocess_render_all_writes_a_png_per_chunk_into_a_freshly_created_dir_and_reports_totals()
+{
+  let dir = temp_dir( "subprocess_all" );
+  let output = Command::cargo_bin( "shader_chunks_render" ).expect( "binary builds" )
+  .args( [ "render", "all::1", &format!( "out::{}", dir.display() ), "size::8" ] )
+  .output()
+  .expect( "runs" );
+  assert!( output.status.success(), "stderr: {}", String::from_utf8_lossy( &output.stderr ) );
+  let stdout = String::from_utf8_lossy( &output.stdout );
+  assert!( stdout.contains( "chunks:" ), "stdout must print the totals line: {stdout}" );
+  assert!( stdout.contains( "0 failed" ), "no bundled chunk should fail: {stdout}" );
+  assert!( dir.join( "fbm3.png" ).exists(), "fbm3.png must be written into the freshly created out dir" );
+  let _ = std::fs::remove_dir_all( &dir );
+}
+
+#[ test ]
+fn subprocess_render_all_rejects_a_name_target()
+{
+  let output = Command::cargo_bin( "shader_chunks_render" ).expect( "binary builds" )
+  .args( [ "render", "fbm3", "all::1" ] )
+  .output()
+  .expect( "runs" );
+  assert_eq!( output.status.code(), Some( 1 ) );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( stderr.contains( "cannot be combined" ), "stderr: {stderr}" );
+}
+
+#[ test ]
+fn subprocess_render_all_rejects_a_file_target()
+{
+  let output = Command::cargo_bin( "shader_chunks_render" ).expect( "binary builds" )
+  .args( [ "render", "file::whatever.wgsl", "all::1" ] )
+  .output()
+  .expect( "runs" );
+  assert_eq!( output.status.code(), Some( 1 ) );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( stderr.contains( "cannot be combined" ), "stderr: {stderr}" );
+}
+
+#[ test ]
+fn subprocess_render_all_rejects_set_overrides()
+{
+  let output = Command::cargo_bin( "shader_chunks_render" ).expect( "binary builds" )
+  .args( [ "render", "all::1", "set::lacunarity:2.5" ] )
+  .output()
+  .expect( "runs" );
+  assert_eq!( output.status.code(), Some( 1 ) );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( stderr.contains( "cannot be combined" ), "stderr: {stderr}" );
 }

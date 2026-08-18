@@ -21,7 +21,7 @@
 |---|------|--------|-------|--------|
 | 1 | [cmd_001_compose.md](cmd_001_compose.md) | `.compose` | [Compose](../command_group/01_compose.md) | ✅ |
 
-**Total:** 1 per-command file (of 8 across the `shader_chunks` family)
+**Total:** 1 per-command file (of 9 across the `shader_chunks` family)
 
 Cross-command workflow compositions live with the group whose semantics
 they exercise: [`../command_group/01_compose.md`](../command_group/01_compose.md)

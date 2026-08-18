@@ -43,12 +43,24 @@ mod private
 
   impl SwapFramebuffer
   {
-    /// Creates a new `SwapFramebuffer` instance, initializing its WebGL framebuffer,
-    /// renderbuffer, and the primary output texture.
+    // Fix(BUG-259): doc comment claimed `new` creates "its WebGL framebuffer, renderbuffer, and
+    // the primary output texture" with the framebuffer "configured with a single color
+    // attachment point and a depth/stencil renderbuffer" -- the function body has never created
+    // a renderbuffer (no `create_renderbuffer`/`renderbuffer_storage`/`framebuffer_renderbuffer`
+    // calls exist below), only a single-color-attachment framebuffer and the output texture.
+    // Root cause: the renderbuffer was deliberately removed from this struct in commit a54d680b
+    // ("Added bloom", 2025-05-28) once depth testing was no longer needed for post-processing
+    // passes, but this doc comment (written earlier and never revisited) kept claiming it exists.
+    // Pitfall: a doc comment describing a resource that a later refactor deletes is invisible to
+    // the compiler -- nothing type-checks prose against the function body it sits above.
+    /// Creates a new `SwapFramebuffer` instance, initializing its WebGL framebuffer
+    /// and the primary output texture.
     ///
-    /// The framebuffer is configured with a single color attachment point and a
-    /// depth/stencil renderbuffer. An initial `output_texture` is created with
-    /// `RGBA16F` format for high precision.
+    /// The framebuffer is configured with a single color attachment point only -- there is no
+    /// depth/stencil renderbuffer. Any `Pass` rendering into this framebuffer must not rely on
+    /// depth testing (every `Pass` implementation in this crate already explicitly calls
+    /// `gl.disable( gl::DEPTH_TEST )` before drawing). An initial `output_texture` is created
+    /// with `RGBA16F` format for high precision.
     ///
     /// # Arguments
     ///

@@ -19,26 +19,26 @@
 
 | # | File | Command | Params | Status |
 |---|------|---------|--------|--------|
-| 1 | [01_list.md](01_list.md) | `.list` | 20 | ✅ |
-| 2 | [02_get.md](02_get.md) | `.get` | 20 | ✅ |
+| 1 | [01_list.md](01_list.md) | `.list` | 21 | ✅ |
+| 2 | [02_get.md](02_get.md) | `.get` | 21 | ✅ |
 | 3 | [03_tags.md](03_tags.md) | `.tags` | 0 | ✅ |
 | 4 | [04_tree.md](04_tree.md) | `.tree` | 2 | ✅ |
 
-**Total:** 4 commands (of 8 across the `shader_chunks` family)
+**Total:** 4 commands (of 9 across the `shader_chunks` family)
 
 ### Commands Table
 
 | # | Command | Purpose | Params | Group |
 |---|---------|---------|--------|-------|
-| 1 | `.list` | Query bundled chunks — filter, sort, project, format; every chunk by default | 20 | [Query](../command_group/01_query.md) |
-| 2 | `.get` | Same query engine, names required, detail defaults | 20 | [Query](../command_group/01_query.md) |
+| 1 | `.list` | Query bundled chunks — filter, sort, project, format; every chunk by default | 21 | [Query](../command_group/01_query.md) |
+| 2 | `.get` | Same query engine, names required, detail defaults | 21 | [Query](../command_group/01_query.md) |
 | 3 | `.tags` | List every distinct tag and its chunk(s) | 0 | [Query](../command_group/01_query.md) |
 | 4 | `.tree` | Show a chunk's dependency tree, or the full forest (`reverse::1` walks dependents instead) | 2 | [Graph](../command_group/02_graph.md) |
 
 These 4 commands partition into the 2 [`command_group/`](../command_group/readme.md)
 groups above — each group file carries its own Semantic Coherence Test.
-`.list` and `.get` share one routine and one parameter surface; their 20
-declared parameters are the same 20 (see [`../param_group/`](../param_group/readme.md)).
+`.list` and `.get` share one routine and one parameter surface; their 21
+declared parameters are the same 21 (see [`../param_group/`](../param_group/readme.md)).
 The remaining 4 commands of the `shader_chunks` family (`.compose`,
 `.tunables`, `.preview`, `.render`) live in their own crates — see the
 [family index](../../../../shader_chunks/docs/cli/readme.md).

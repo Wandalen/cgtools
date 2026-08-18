@@ -368,3 +368,64 @@ fn set_resolve_feeds_set_try_compose_identically_to_explicit_selection()
     "topological sort makes closure-selected and explicitly-selected sets compose to identical text"
   );
 }
+
+// test_kind: bug_reproducer(BUG-280)
+/// ## Root Cause
+/// `depends_on_parse` split a manifest line's value on `,` and trimmed each
+/// piece, but never dropped pieces that trim down to an empty string — a
+/// trailing comma ( `//@ depends_on: a,` ), a leading comma, or a doubled
+/// comma ( `a,,b` ) all produce a spurious `""` entry mixed in with the real
+/// chunk names. That empty-string "name" then silently rides along as a
+/// bogus dependency into `compose`/`try_compose`, surfacing ( if at all ) as
+/// a confusing `MissingDependency { missing: "" }` instead of anything
+/// pointing at the real stray-comma typo. `tags_parse` and `build.rs`'s
+/// `list_entries` ( its compile-time counterpart, shared by both the
+/// `depends_on` and `tags` fields when generating `CHUNKS` ) had the
+/// identical unfiltered `split(',').map(str::trim)` pattern.
+///
+/// ## Why Not Caught
+/// The existing coverage ( `parse_depends_on_handles_empty_value`,
+/// `parse_depends_on_handles_multiple_entries` ) only exercises a fully
+/// empty value and a clean `"a, b"` list — never a list with a stray-comma
+/// artifact — and none of the 50 currently-bundled `shader/*/*.wgsl`
+/// manifests happen to have a trailing or doubled comma, so the defect
+/// never surfaced against real data.
+///
+/// ## Fix Applied
+/// `depends_on_parse` and `tags_parse` ( `src/lib.rs` ) and `list_entries`
+/// ( `build.rs` ) now filter out empty trimmed segments before collecting,
+/// so a stray comma is tolerated the same way surrounding whitespace
+/// already was, instead of leaking an empty-string entry or panicking on it.
+///
+/// ## Prevention
+/// This test pins `depends_on_parse` and `tags_parse` directly against a
+/// trailing/doubled comma; the bundled-registry tests
+/// ( `chunks_table_matches_each_manifest`,
+/// `depends_on_covers_every_actual_wgsl_call_to_another_chunk` ) already
+/// guard the compile-time side against any future chunk manifest that
+/// happens to carry the same artifact.
+///
+/// ## Pitfall
+/// A `str::split(',').map(str::trim)` pipeline over a human-authored,
+/// comma-separated manifest value must filter empty segments explicitly —
+/// `split` always yields one segment per delimiter occurrence, including
+/// the empty one after a trailing delimiter, and trimming does not remove
+/// an already-empty string.
+#[ test ]
+fn parse_depends_on_ignores_stray_commas()
+{
+  assert_eq!( depends_on_parse( "//@ depends_on: a, b,\n" ), vec![ "a", "b" ] );
+  assert_eq!( depends_on_parse( "//@ depends_on: a,,b\n" ), vec![ "a", "b" ] );
+}
+
+// test_kind: bug_reproducer(BUG-280)
+/// Second symptom of BUG-280 — a stray comma in `//@ tags:` panicked with a
+/// "malformed" message that doesn't name the real cause, instead of being
+/// tolerated like extra whitespace; full Root Cause / Why Not Caught / Fix /
+/// Prevention / Pitfall sections are on
+/// [`parse_depends_on_ignores_stray_commas`].
+#[ test ]
+fn parse_tags_ignores_stray_commas()
+{
+  assert_eq!( tags_parse( "//@ name: x\n//@ tags: category:hash,\n" ), vec![ ( "category", "hash" ) ] );
+}

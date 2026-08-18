@@ -6,7 +6,7 @@
   for every type this crate uses.
 - **Responsibility:** One file per type, documenting the abstract
   contract independent of any single parameter's usage context.
-- **In Scope:** The 10 types in [`../../../docs/cli/type/`](../../../docs/cli/type/readme.md).
+- **In Scope:** The 11 types in [`../../../docs/cli/type/`](../../../docs/cli/type/readme.md).
 - **Out of Scope:** Parameter-specific usage constraints (→ [`../param/`](../param/readme.md));
   the family's one remaining type,
   [`Float`](../../../../../shader_chunks_render/tests/docs/cli/type/01_float.md),
@@ -28,8 +28,9 @@
 | 8 | [08_non_negative_integer.md](08_non_negative_integer.md) | NonNegativeInteger | ✅ |
 | 9 | [09_tag_selector.md](09_tag_selector.md) | TagSelector | ✅ |
 | 10 | [10_stage_selector.md](10_stage_selector.md) | StageSelector | ✅ |
+| 11 | [11_tree_format.md](11_tree_format.md) | TreeFormat | ✅ |
 
-**Total:** 10 type test specs (of 12 across the `shader_chunks` family)
+**Total:** 11 type test specs (of 13 across the `shader_chunks` family)
 
 The 4 genuine enums (OutputFormat, SortKey, SortOrder, TagsMode) share
 one round-trip/rejection test

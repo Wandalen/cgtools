@@ -33,7 +33,7 @@ These entity types are deliberately absent from this CLI (see
 [`readme.md` § Scope Decisions](readme.md#scope-decisions)) — their
 Add/Remove operations do not apply until the underlying condition changes:
 
-- **User Story** (`OC065`/`OC066`) — this CLI has only 8 commands total,
+- **User Story** (`OC065`/`OC066`) — this CLI has only 9 commands total,
   not enough distinct user stories to warrant the collection.
 - **Command Noun** (`OC069`/`OC070`) — only one domain noun (`chunk`)
   exists; the collection requires ≥3.
@@ -48,7 +48,7 @@ Add/Remove operations do not apply until the underlying condition changes:
 
 *(Parameter Group moved from this list to Applicable Operations when
 `list`/`get` unified behind the shared query engine — they now co-occur
-on 19 named parameters.)*
+on 20 named parameters.)*
 
 If any of these conditions changes (e.g. a second domain noun is
 introduced), re-evaluate the corresponding Scope Decision before applying

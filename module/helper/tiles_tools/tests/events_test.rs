@@ -209,6 +209,60 @@ fn test_unsubscribe_halts_propagation_to_lower_priority_listeners() {
   assert_eq!(bus.subscriber_count::<TestEvent>(), 1);
 }
 
+// test_kind: bug_reproducer(BUG-268)
+/// ## Root Cause
+/// `EventStatistics::total_subscribers` was only ever decremented by the
+/// explicit `EventBus::unsubscribe(id)` API path. A listener that
+/// self-unsubscribed by returning `EventResult::Unsubscribe` during
+/// `events_process`/`events_for_type_process` was removed from its
+/// `EventChannel` (so `subscriber_count` dropped correctly) but
+/// `total_subscribers` was never told about that removal, since
+/// `EventChannel::events_process` had no way to report how many listeners it
+/// had just removed back up to the `EventBus` that owns the statistics.
+///
+/// ## Why Not Caught
+/// `test_statistics` never subscribes a listener that unsubscribes itself,
+/// and `test_unsubscribe_halts_propagation_to_lower_priority_listeners`
+/// (the `BUG-137` regression test) checks `subscriber_count`, not
+/// `statistics().total_subscribers` -- so no existing test compared the two,
+/// which is exactly where they diverge.
+///
+/// ## Fix Applied
+/// Changed `EventChannel::events_process` to return the number of listeners
+/// it removed, propagated that count through the private `AnyEventChannel`
+/// trait, and had `EventBus::events_process`/`events_for_type_process`
+/// subtract it from `total_subscribers` (saturating, matching the explicit
+/// `unsubscribe()` path's existing style).
+///
+/// ## Prevention
+/// Any statistic that is incremented by one public API path must be checked
+/// for every other path that can produce the same underlying state change --
+/// here, "a listener stopped being subscribed" has two triggers (explicit
+/// `unsubscribe()` and self-returned `EventResult::Unsubscribe`), and only
+/// one was wired to the counter.
+///
+/// ## Pitfall
+/// A "current count" statistic drifting out of sync with the data structure
+/// it describes is silent by nature -- it never panics or errors, it just
+/// slowly becomes wrong. Test it against the same operations that mutate the
+/// underlying collection, not in isolation.
+#[test]
+fn test_auto_unsubscribe_decrements_total_subscribers_statistic() {
+  let mut bus = EventBus::new();
+  bus.subscribe(|_: &TestEvent| EventResult::Unsubscribe);
+
+  assert_eq!(bus.statistics().total_subscribers, 1);
+
+  bus.publish(TestEvent { id: 1, message: "test".to_string() });
+  bus.events_process();
+
+  assert_eq!(bus.subscriber_count::<TestEvent>(), 0);
+  assert_eq!(
+    bus.statistics().total_subscribers, 0,
+    "total_subscribers should track a listener that unsubscribed itself via EventResult::Unsubscribe, not only the explicit unsubscribe() path"
+  );
+}
+
 #[test]
 fn test_batch_publishing() {
   let mut bus = EventBus::new();

@@ -221,3 +221,53 @@ fn catalog_object_panics_for_unrequired_id()
   // No objects required at build time — every lookup panics.
   let _ = cat.object( "grass" );
 }
+
+/// ## Root Cause
+/// `CatalogBuilder::build()`'s objects loop dedupes missing ids via a
+/// `seen_missing_objects` set, so a repeated `object_require( "x" )` for a
+/// missing `"x"` reports the miss exactly once. The sibling states loop had
+/// no equivalent guard: it pushed onto `missing_states` unconditionally for
+/// every `(obj, state)` pair, so calling `state_require` twice with the
+/// identical, missing pair produced two identical entries in
+/// `err.missing_states` and inflated `missing_states.len()` beyond the
+/// actual number of distinct misses.
+/// ## Why Not Caught
+/// Every existing `catalog_test.rs` case calls `state_require` with
+/// distinct `(obj, state)` pairs — none repeats the identical pair twice,
+/// so the missing dedup guard was never exercised.
+/// ## Fix Applied
+/// Added a `seen_missing_states` set (and a `states.contains_key` guard for
+/// the success path) to the states loop in `src/catalog.rs`, mirroring the
+/// `seen_missing_objects` / `objects.contains_key` pattern the objects loop
+/// already uses.
+/// ## Prevention
+/// This test pins that requiring the same missing `(obj, state)` pair twice
+/// still yields exactly one `missing_states` entry.
+/// ## Pitfall
+/// Parallel accumulation loops that share a "report every unique miss
+/// exactly once" contract need the same dedup guard applied to both —
+/// copying one loop's dedup logic but not its sibling's leaves a defect
+/// that only the repeated-input path exposes.
+#[ test ]
+fn catalog_build_does_not_double_report_duplicate_missing_state_require()
+{
+  let scene = Scene::new( spec_build() );
+  let err = scene.catalog()
+    .state_require( "knight", "attack" )  // missing state
+    .state_require( "knight", "attack" )  // same pair again, deliberately
+    .build()
+    .expect_err( "state is missing" );
+
+  assert!( err.missing_objects.is_empty(), "knight is declared" );
+  assert_eq!
+  (
+    err.missing_states.len(), 1,
+    "duplicate identical state_require calls must not double-report: {:?}",
+    err.missing_states,
+  );
+  assert_eq!
+  (
+    err.missing_states[ 0 ],
+    ( "knight".to_owned(), "attack".to_owned() ),
+  );
+}

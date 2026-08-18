@@ -22,13 +22,14 @@ from the named chunks, `list` from every chunk).
 | 8 | [`exports`](../param/10_exports.md) | String | off | Substring of any export signature |
 | 9 | [`roots`](../param/11_roots.md) | [Switch](../type/07_switch.md) | `false` | Chunks nothing else depends on |
 | 10 | [`leaves`](../param/12_leaves.md) | [Switch](../type/07_switch.md) | `false` | Chunks with no dependencies |
+| 11 | [`source`](../param/23_source.md) | String | off | Substring of the chunk's raw WGSL body |
 
 ### Interaction Rules
 
 - All active filters are conjunctive (AND): a chunk survives only if it
   passes every one.
-- `case::` has no filter of its own — it modifies `pattern::` and
-  `exports::` matching; on its own it is a no-op.
+- `case::` has no filter of its own — it modifies `pattern::`,
+  `exports::`, and `source::` matching; on its own it is a no-op.
 - `tags_mode::` is only observable when `tag::` carries ≥2 selectors.
 - `transitive::` is only observable when `depends_on::` is set.
 - `roots::1` and `leaves::1` may combine — the intersection is chunks that

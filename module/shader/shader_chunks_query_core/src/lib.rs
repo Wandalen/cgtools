@@ -9,6 +9,7 @@
 mod private
 {
   use core::fmt;
+  use core::fmt::Write as _;
   use core::str::FromStr;
   use error_tools::Error;
   use data_fmt::
@@ -338,6 +339,51 @@ mod private
     }
   }
 
+  /// Rendering shape for [`chunk_tree`]'s output.
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+  pub enum TreeFormat
+  {
+    /// Indented, column-aligned tree ( the original `tree` rendering ).
+    Aligned,
+    /// Graphviz `digraph` — one `"parent" -> "child";` edge statement per
+    /// dependency, paste-able directly into Graphviz or an online renderer.
+    Dot,
+    /// Mermaid `graph TD` flowchart — one `parent --> child` edge per line,
+    /// paste-able directly into a Mermaid Live Editor or Markdown viewer
+    /// with Mermaid support.
+    Mermaid,
+  }
+
+  impl TreeFormat
+  {
+    /// The `shape::` spelling of this variant.
+    #[ must_use ]
+    pub fn as_str( self ) -> &'static str
+    {
+      match self
+      {
+        Self::Aligned => "aligned",
+        Self::Dot => "dot",
+        Self::Mermaid => "mermaid",
+      }
+    }
+  }
+
+  impl FromStr for TreeFormat
+  {
+    type Err = QueryError;
+    fn from_str( s : &str ) -> Result< Self, QueryError >
+    {
+      match s
+      {
+        "aligned" => Ok( Self::Aligned ),
+        "dot" => Ok( Self::Dot ),
+        "mermaid" => Ok( Self::Mermaid ),
+        other => Err( QueryError::InvalidParam { param : "shape", value : other.to_string(), allowed : "aligned, dot, mermaid" } ),
+      }
+    }
+  }
+
   /// The full parameter surface shared by `list` and `get` — one struct, one
   /// engine ( [`chunks_query`] ). The two commands differ only in the defaults
   /// [`QueryParams::list_defaults`] and [`QueryParams::get_defaults`] supply.
@@ -367,6 +413,9 @@ mod private
     pub transitive : bool,
     /// Substring filter over export signatures; empty = off.
     pub exports : String,
+    /// Substring filter over the chunk's raw WGSL body ( the same text the
+    /// `source` field renders — manifest header comments included ); empty = off.
+    pub source : String,
     /// Keep only chunks nothing else depends on.
     pub roots : bool,
     /// Keep only chunks with no dependencies of their own.
@@ -410,6 +459,7 @@ mod private
         depends_on : String::new(),
         transitive : false,
         exports : String::new(),
+        source : String::new(),
         roots : false,
         leaves : false,
         fields : vec![ "name".to_string(), "description".to_string(), "tags".to_string(), "depends_on".to_string() ],
@@ -549,6 +599,10 @@ mod private
       {
         return false;
       }
+    }
+    if !params.source.is_empty() && !pattern_contains( chunk.wgsl, &params.source, params.case_sensitive )
+    {
+      return false;
     }
     if params.roots && depended_on.contains( chunk.name )
     {
@@ -745,18 +799,77 @@ mod private
     .map_err( | e | QueryError::Render( e.to_string() ) )
   }
 
+  /// Walks `chunk` via `children_of`, collecting every `(parent, child)`
+  /// edge reachable from it exactly once. `expanded` guards a diamond
+  /// dependency ( two parents converging on one child ) from having that
+  /// child's own outgoing edges collected twice — shared across the whole
+  /// `roots` walk in [`chunk_tree`], not reset per root.
+  fn collect_edges<'a>( chunk : &'a shader_chunks_core::ChunkDescriptor, children_of : &impl Fn( &str ) -> Vec< &'static str >, expanded : &mut std::collections::HashSet< &'a str >, edges : &mut Vec< ( &'a str, &'a str ) > )
+  {
+    if !expanded.insert( chunk.name )
+    {
+      return;
+    }
+    for dep_name in children_of( chunk.name )
+    {
+      edges.push( ( chunk.name, dep_name ) );
+      if let Ok( dep ) = chunk_find( dep_name )
+      {
+        collect_edges( dep, children_of, expanded, edges );
+      }
+    }
+  }
+
+  /// Renders `edges` ( from [`collect_edges`] ) plus any childless-root
+  /// `isolated` names as a Graphviz `digraph`.
+  fn dot_render( edges : &[ ( &str, &str ) ], isolated : &[ &str ] ) -> String
+  {
+    let mut out = String::from( "digraph chunks\n{\n" );
+    for &( from, to ) in edges
+    {
+      let _ = writeln!( out, "  \"{from}\" -> \"{to}\";" );
+    }
+    for &name in isolated
+    {
+      let _ = writeln!( out, "  \"{name}\";" );
+    }
+    out.push( '}' );
+    out
+  }
+
+  /// Renders `edges` ( from [`collect_edges`] ) plus any childless-root
+  /// `isolated` names as a Mermaid `graph TD` flowchart. Chunk names are
+  /// plain WGSL/Rust identifiers, so they need no quoting as Mermaid node
+  /// IDs.
+  fn mermaid_render( edges : &[ ( &str, &str ) ], isolated : &[ &str ] ) -> String
+  {
+    let mut out = String::from( "graph TD\n" );
+    for &( from, to ) in edges
+    {
+      let _ = writeln!( out, "  {from} --> {to}" );
+    }
+    for &name in isolated
+    {
+      let _ = writeln!( out, "  {name}" );
+    }
+    out.trim_end().to_string()
+  }
+
   /// Dependency tree for one chunk, or — with `name` absent — a forest of
   /// every chunk nothing else depends on. `reverse` flips the walk from
   /// "what this chunk depends on" to "what depends on this chunk": with
   /// `name` given, its dependents tree; with `name` absent, a forest
   /// rooted at every leaf chunk ( [`leaf_roots`] ) instead of every
   /// dependents-free root, since a reverse walk has to start somewhere
-  /// with nothing beneath it.
+  /// with nothing beneath it. `format` selects the rendering shape —
+  /// [`TreeFormat::Aligned`]'s indented text, or a
+  /// [`TreeFormat::Dot`]/[`TreeFormat::Mermaid`] graph of the same
+  /// roots/edges.
   ///
   /// # Errors
   ///
   /// Returns [`QueryError::UnknownChunk`] when `name` is `Some` and not found.
-  pub fn chunk_tree( name : Option< &str >, reverse : bool ) -> Result< String, QueryError >
+  pub fn chunk_tree( name : Option< &str >, reverse : bool, format : TreeFormat ) -> Result< String, QueryError >
   {
     let roots : Vec< &'static shader_chunks_core::ChunkDescriptor > = match name
     {
@@ -774,18 +887,54 @@ mod private
       }
     };
 
-    let formatter = TreeFormatter::new();
-    Ok( roots.iter().map( | &chunk |
+    match format
     {
-      // `format_aligned` never renders its own argument's `name`/`data` ( only
-      // `show_root: true` would, and even then via bare `name` with no
-      // column alignment ) — it only renders `children`. Wrapping each real
-      // root as the sole child of an invisible, data-less parent makes that
-      // root itself appear as a normal aligned row instead of being skipped.
-      let mut invisible_parent = TreeNode::new( String::new(), None );
-      invisible_parent.children.push( dep_tree_node( chunk, &children_of ) );
-      formatter.format_aligned( &invisible_parent )
-    }).collect::< Vec< _ > >().join( "\n" ) )
+      TreeFormat::Aligned =>
+      {
+        let formatter = TreeFormatter::new();
+        // Fix(BUG-284): render every forest root as a child of ONE shared invisible parent and
+        // call format_aligned exactly once, instead of once per root joined by "\n".
+        // Root cause: the old per-root loop called format_aligned separately for each root (each
+        // wrapped as the SOLE child of its own invisible parent), then joined the resulting
+        // strings with "\n" — but every per-root string already carried format_aligned's own
+        // trailing "\n", so the join doubled it into a blank line between every pair of roots;
+        // and since each root was always its invisible parent's only child, format_aligned always
+        // rendered it with the "last sibling" connector (`└── `), even when more roots followed.
+        // Pitfall: mapping a formatter call over each sibling and joining the strings defeats the
+        // formatter's own sibling-position awareness (├── vs └──) and can double a trailing
+        // separator the formatter already appends — give a formatter every sibling in one call
+        // (one shared parent) whenever it is itself responsible for inter-sibling connectors.
+        let mut invisible_parent = TreeNode::new( String::new(), None );
+        for &chunk in &roots
+        {
+          // `format_aligned` never renders its own argument's `name`/`data` ( only
+          // `show_root: true` would, and even then via bare `name` with no
+          // column alignment ) — it only renders `children`. Wrapping every real
+          // root as a child of ONE shared invisible, data-less parent makes each
+          // root appear as a normal aligned row instead of being skipped.
+          invisible_parent.children.push( dep_tree_node( chunk, &children_of ) );
+        }
+        Ok( formatter.format_aligned( &invisible_parent ) )
+      },
+      TreeFormat::Dot | TreeFormat::Mermaid =>
+      {
+        // Only a childless *root* needs an explicit bare-node declaration —
+        // any other childless node reached during the walk already has an
+        // incoming edge carrying it into the rendered graph.
+        let isolated : Vec< &str > = roots.iter()
+        .filter( | &&chunk | children_of( chunk.name ).is_empty() )
+        .map( | chunk | chunk.name )
+        .collect();
+
+        let mut expanded = std::collections::HashSet::new();
+        let mut edges = Vec::new();
+        for &chunk in &roots
+        {
+          collect_edges( chunk, &children_of, &mut expanded, &mut edges );
+        }
+        Ok( if format == TreeFormat::Dot { dot_render( &edges, &isolated ) } else { mermaid_render( &edges, &isolated ) } )
+      },
+    }
   }
 }
 
@@ -797,6 +946,7 @@ mod private
   own use SortKey;
   own use SortOrder;
   own use OutputFormat;
+  own use TreeFormat;
   own use QueryParams;
   own use chunks_query;
   own use tags_list;

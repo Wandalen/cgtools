@@ -9,7 +9,7 @@
   reused by `.preview` and `.render` (in their own crates) for their
   summary lines.
 - **Out of Scope:** Command-level syntax (→ [`../command/`](../command/readme.md)),
-  the family's other 7 formats — owned by `shader_chunks_query` (→
+  the family's other 9 formats — owned by `shader_chunks_query` (→
   [family index](../../../../shader_chunks/docs/cli/readme.md)).
 
 ---
@@ -20,7 +20,7 @@
 |---|------|--------|---------|--------|
 | 1 | [01_plain_text.md](01_plain_text.md) | plain_text | `.compose` (composed WGSL); `.preview`, `.render` (summary lines, in their own crates) | ✅ |
 
-**Total:** 1 format (of 8 across the `shader_chunks` family)
+**Total:** 1 format (of 10 across the `shader_chunks` family)
 
 ### Docs
 

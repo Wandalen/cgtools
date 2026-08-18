@@ -58,17 +58,17 @@ Commands are partitioned into six groups, documented per leaf crate
 | Query | `get <names...>` | Same query engine as `list`, defaulting to expanded per-chunk detail records |
 | Query | `tags` | Table of every distinct `group:tag` pair and the chunk(s) carrying it |
 | Graph | `tree [name]` | Dependency tree for one chunk, or a forest of every chunk nothing depends on |
-| Compose | `compose <names...>` | Preview WGSL composed from the given chunks, dependency-ordered; `transitive::1` widens to the full dependency closure |
+| Compose | `compose <names...> [transitive::0\|1] [out::<path>]` | Preview WGSL composed from the given chunks, dependency-ordered; `transitive::1` widens to the full dependency closure; `out::<path>` writes it to a file instead of stdout |
 | Parameters | `tunables <name>` | One chunk's declared tunable parameters: name, kind, WGSL type, range, range source |
 | Preview | `preview [name] [file::<path>] [serve::0\|1]` | Build, naga-validate, and (by default) live-serve a browser preview of one chunk |
-| Render | `render [name] [file::<path>] [out::<path>] [size::<n>\|<w>x<h>] [time::<s>] [set::<property>:<value>,...]` | Render one headless-GPU frame of a chunk to a static PNG, parameters at defaults unless overridden |
+| Render | `render [name] [file::<path>] [out::<path>] [size::<n>\|<w>x<h>] [time::<s>] [set::<property>:<value>,...] [all::1]` | Render one headless-GPU frame of a chunk to a static PNG, parameters at defaults unless overridden; `all::1` sweeps every bundled chunk in one pass |
 | — | `help` / `<command> help` | Top-level usage / per-command help (`help <command>` works too) |
 
 `list` and `get` are one routine behind two names: both accept the same
-20-parameter query surface — positional `names` plus 19 named:
+21-parameter query surface — positional `names` plus 20 named:
 filtering (`pattern::`, `case::`, `tag::`,
 `tags_mode::`, `stage::`, `depends_on::`, `transitive::`, `exports::`,
-`roots::`, `leaves::`), projection (`fields::`, `count::`), and formatting
+`source::`, `roots::`, `leaves::`), projection (`fields::`, `count::`), and formatting
 (`format::`, `sort::`, `order::`, `limit::`, `offset::`, `heading::`,
 `width::`) — and differ only in defaults (`list`: all chunks, plain table;
 `get`: named chunks required, expanded records). Identical explicit
@@ -81,6 +81,7 @@ cargo run -p shader_chunks -- list
 cargo run -p shader_chunks -- list tag::noise format::names
 cargo run -p shader_chunks -- list roots::1 fields::name,exports format::markdown
 cargo run -p shader_chunks -- list depends_on::hash21 transitive::1 count::1
+cargo run -p shader_chunks -- list source::33.33 format::names
 cargo run -p shader_chunks -- get hash21
 cargo run -p shader_chunks -- get fbm3 format::yaml fields::name,source
 cargo run -p shader_chunks -- tags
@@ -88,10 +89,13 @@ cargo run -p shader_chunks -- tree fbm3
 cargo run -p shader_chunks -- tunables fbm3
 cargo run -p shader_chunks -- compose hash21 value_noise
 cargo run -p shader_chunks -- compose fbm3 transitive::1
+cargo run -p shader_chunks -- compose fbm3 transitive::1 out::fbm3_bundle.wgsl
 cargo run -p shader_chunks -- preview fbm3
 cargo run -p shader_chunks -- preview fbm3 serve::0
 cargo run -p shader_chunks -- render fbm3
 cargo run -p shader_chunks -- render fbm3 out::fbm3_far.png size::512 time::2.5
+cargo run -p shader_chunks -- render fbm3 set::lacunarity:2.5,gain:0.75
+cargo run -p shader_chunks -- render all::1 out::renders/ size::128
 ```
 
 An unknown chunk name or field, an invalid enum or negative integer value,

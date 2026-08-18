@@ -323,6 +323,47 @@ fn test_is_orthogonal()
   assert!( vector::is_orthogonal( &vec_a, &vec_zero ), "Orthogonal test failed for zero vector" );
 }
 
+// test_kind: bug_reproducer(BUG-270)
+/// ## Root Cause
+/// `Cargo.toml`'s `arithmetics = [ "float" ]` feature declaration omitted `approx`, but
+/// `vector/arithmetics.rs`'s `is_orthogonal` unconditionally uses `crate::approx::ulps_eq` and
+/// bounds `E : approx::UlpsEq` with no `#[cfg(feature = "approx")]` guard -- so the file has
+/// always needed `approx` to compile, regardless of what `Cargo.toml` declared.
+/// ## Why Not Caught
+/// Every existing test run (including this file's own pre-existing `test_is_orthogonal`) goes
+/// through `cargo test -p mdmath_core --all-features`, which enables `approx` unconditionally
+/// alongside `arithmetics` -- masking that `arithmetics` alone (or the `full` bundle, which pulls
+/// in `arithmetics` but not `approx`) fails to build with E0432/E0433. This crate's own sibling
+/// `ndarray_cg` also always requests both features together in its own `Cargo.toml`, so the one
+/// real in-workspace consumer never tripped over the gap either.
+/// ## Fix Applied
+/// Changed `Cargo.toml`'s `arithmetics = [ "float" ]` to `arithmetics = [ "float", "approx" ]`,
+/// making the already-real dependency explicit and cargo-enforced.
+/// ## Prevention
+/// This test's regression value is specifically in *how* it's invoked, not its body: run in
+/// isolation via `cargo test -p mdmath_core --no-default-features --features enabled,arithmetics`
+/// (no `approx`, no `--all-features`), it fails to compile before the fix (E0432: unresolved
+/// import `crate::approx`) and passes after. Run under the crate's normal `--all-features` suite
+/// it still exercises the same `is_orthogonal` call as a plain assertion, alongside the
+/// pre-existing `test_is_orthogonal` above.
+/// ## Pitfall
+/// A feature flag whose gated source file unconditionally uses a *second* feature's items only
+/// fails to build under the one combination that selects the first without the second --
+/// `--all-features` and any consumer that happens to always request both together never exercise
+/// that gap, so the declared feature graph can silently diverge from the code's real requirements
+/// for a long time.
+#[ test ]
+fn test_is_orthogonal_builds_under_arithmetics_feature_alone()
+{
+  use the_module::vector;
+
+  // Same call as `test_is_orthogonal` above -- the meaningful check here is that this file
+  // compiles at all under an isolated `--features enabled,arithmetics` build (see `## Prevention`).
+  let vec_a = [ 1.0, 0.0 ];
+  let vec_b = [ 0.0, 1.0 ];
+  assert!( vector::is_orthogonal( &vec_a, &vec_b ) );
+}
+
 #[ test ]
 fn test_cross_mut()
 {

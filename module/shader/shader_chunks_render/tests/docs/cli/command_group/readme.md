@@ -17,13 +17,13 @@
 |---|------|----------------|--------|
 | 1 | [01_render.md](01_render.md) | Render | ✅ |
 
-**Total:** 1 command group test spec (of 6 across the `shader_chunks`
+**Total:** 1 command group test spec (of 7 across the `shader_chunks`
 family)
 
 The rendered-grouping invariant —
-[`../../../../shader_chunks/tests/cli_subprocess_test.rs`](../../../../shader_chunks/tests/cli_subprocess_test.rs)`::top_level_help_groups_commands_by_responsibility`
+[`../../../../../shader_chunks/tests/cli_subprocess_test.rs`](../../../../../shader_chunks/tests/cli_subprocess_test.rs)`::top_level_help_groups_commands_by_responsibility`
 — asserts the help screen's group order and membership matches the
-documented partition across all 6 groups; `../../render_cli_test.rs::subprocess_help_lists_the_render_group`
+documented partition across all 7 groups; `../../render_cli_test.rs::subprocess_help_lists_the_render_group`
 asserts the same grouping through the standalone binary.
 
 ### Docs

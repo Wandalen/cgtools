@@ -3,13 +3,7 @@
 //@ tags: category:color
 //@ depends_on:
 //@ export: fn palette_cosine(t: f32, a: vec3f, b: vec3f, c: vec3f, d: vec3f) -> vec3f
-//@ export: fn palette_cosine_preview(p: vec2f, base: f32, amplitude: f32, frequency: f32, phase_r: f32, phase_g: f32, phase_b: f32) -> vec3f
-//@ param: base argument f32 range(0.0, 1.0)
-//@ param: amplitude argument f32 range(0.0, 1.0)
-//@ param: frequency argument f32 range(0.1, 4.0)
-//@ param: phase_r argument f32 range(0.0, 1.0)
-//@ param: phase_g argument f32 range(0.0, 1.0)
-//@ param: phase_b argument f32 range(0.0, 1.0)
+//@ export: fn palette_cosine_preview(p: vec2f) -> vec3f
 
 fn palette_cosine( t : f32, a : vec3f, b : vec3f, c : vec3f, d : vec3f ) -> vec3f
 {
@@ -18,7 +12,11 @@ fn palette_cosine( t : f32, a : vec3f, b : vec3f, c : vec3f, d : vec3f ) -> vec3
   return a + b * cos( 6.28318530718 * ( c * t + d ) );
 }
 
-fn palette_cosine_preview( p : vec2f, base : f32, amplitude : f32, frequency : f32, phase_r : f32, phase_g : f32, phase_b : f32 ) -> vec3f
+fn palette_cosine_preview( p : vec2f ) -> vec3f
 {
-  return palette_cosine( p.x, vec3f( base ), vec3f( amplitude ), vec3f( frequency ), vec3f( phase_r, phase_g, phase_b ) );
+  // Fixed canonical rainbow parameterization ( see readme.md's
+  // Visualization section ) -- the point of this demo is showing three
+  // channels visibly separated by phase, so the spread must not be a
+  // tunable that can collapse to a single shared value.
+  return palette_cosine( p.x, vec3f( 0.5 ), vec3f( 0.5 ), vec3f( 1.0 ), vec3f( 0.0, 0.33, 0.67 ) );
 }

@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 minwebgl = { workspace = true }
-web-sys = { workspace = true, features = ['KeyboardEvent'] }
+browser_input = { workspace = true }
 
 [package.metadata.action]
 tags = ["runtime:browser", "api:webgl"]
