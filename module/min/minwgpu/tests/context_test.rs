@@ -187,3 +187,60 @@ fn from_instance_supports_adapter_stage_configuration()
     "expected Error::RequestAdapterError, got {error:?}"
   );
 }
+
+/// `instance_get` is what lets windowed setup create a surface from the builder's own
+/// instance before an adapter is chosen — so it must be absent in the instance stage and
+/// present immediately after `instance_make`, with no adapter or device involved.
+#[ test ]
+fn instance_get_becomes_available_after_instance_make()
+{
+  let builder = Context::builder().backends( wgpu::Backends::empty() );
+  assert!( builder.instance_get().is_none(), "no instance exists before instance_make" );
+
+  let builder = builder.instance_make();
+  assert!( builder.instance_get().is_some(), "instance_make must populate the instance" );
+}
+
+/// `windowed_with` validates the drawable size before requesting an adapter, so a
+/// zero-sized window fails fast with the crate's own error rather than deep inside `wgpu`.
+/// Uses `Backends::empty()`, which can never yield an adapter — so reaching a
+/// `RequestAdapterError` here would prove the size check ran too late.
+#[ test ]
+fn windowed_rejects_zero_size_before_requesting_an_adapter()
+{
+  let result = minwgpu::context::windowed_with
+  (
+    wgpu::Backends::empty(),
+    DummyWindow,
+    ( 0, 600 ),
+  );
+
+  let Err( error ) = result else { panic!( "a zero-width surface must not be configured" ) };
+  assert!
+  (
+    matches!( &error, Error::ZeroSizeSurface( 0, 600 ) ),
+    "expected Error::ZeroSizeSurface(0, 600) before any adapter request, got {error:?}"
+  );
+}
+
+/// A window handle that is never actually dereferenced : `windowed_with` validates the
+/// size and returns before surface creation ever consults it. Returning `Unavailable`
+/// keeps that guarantee honest — if the ordering ever regressed, surface creation would
+/// fail loudly here rather than silently succeed.
+struct DummyWindow;
+
+impl wgpu::rwh::HasWindowHandle for DummyWindow
+{
+  fn window_handle( &self ) -> Result< wgpu::rwh::WindowHandle< '_ >, wgpu::rwh::HandleError >
+  {
+    Err( wgpu::rwh::HandleError::Unavailable )
+  }
+}
+
+impl wgpu::rwh::HasDisplayHandle for DummyWindow
+{
+  fn display_handle( &self ) -> Result< wgpu::rwh::DisplayHandle< '_ >, wgpu::rwh::HandleError >
+  {
+    Err( wgpu::rwh::HandleError::Unavailable )
+  }
+}

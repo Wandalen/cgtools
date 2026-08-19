@@ -9,21 +9,28 @@ use gl::
 
 async fn cube_texture_load( name : &str ) -> Result< [ image::RgbaImage; 6 ], JsValue >
 {
-  let px = gl::file::load( &format!( "static/{name}/PX.png" ) ).await.expect( "Failed to load PX face" );
-  let nx = gl::file::load( &format!( "static/{name}/NX.png" ) ).await.expect( "Failed to load NX face" );
+  let px = gl::file::load( &format!( "static/{name}/PX.png" ) ).await?;
+  let nx = gl::file::load( &format!( "static/{name}/NX.png" ) ).await?;
 
-  let py = gl::file::load( &format!( "static/{name}/PY.png" ) ).await.expect( "Failed to load PY face" );
-  let ny = gl::file::load( &format!( "static/{name}/NY.png" ) ).await.expect( "Failed to load NY face" );
+  let py = gl::file::load( &format!( "static/{name}/PY.png" ) ).await?;
+  let ny = gl::file::load( &format!( "static/{name}/NY.png" ) ).await?;
 
-  let pz = gl::file::load( &format!( "static/{name}/PZ.png" ) ).await.expect( "Failed to load PZ face" );
-  let nz = gl::file::load( &format!( "static/{name}/NZ.png" ) ).await.expect( "Failed to load NZ face" );
+  let pz = gl::file::load( &format!( "static/{name}/PZ.png" ) ).await?;
+  let nz = gl::file::load( &format!( "static/{name}/NZ.png" ) ).await?;
 
-  let px = image::load_from_memory( &px ).unwrap().to_rgba8();
-  let nx = image::load_from_memory( &nx ).unwrap().to_rgba8();
-  let py = image::load_from_memory( &py ).unwrap().to_rgba8();
-  let ny = image::load_from_memory( &ny ).unwrap().to_rgba8();
-  let pz = image::load_from_memory( &pz).unwrap().to_rgba8();
-  let nz = image::load_from_memory( &nz ).unwrap().to_rgba8();
+  let decode = | bytes : &[ u8 ], face : &str | -> Result< image::RgbaImage, JsValue >
+  {
+    image::load_from_memory( bytes )
+    .map( | image | image.to_rgba8() )
+    .map_err( | e | JsValue::from_str( &format!( "Failed to decode {face} face of {name}: {e}" ) ) )
+  };
+
+  let px = decode( &px, "PX" )?;
+  let nx = decode( &nx, "NX" )?;
+  let py = decode( &py, "PY" )?;
+  let ny = decode( &ny, "NY" )?;
+  let pz = decode( &pz, "PZ" )?;
+  let nz = decode( &nz, "NZ" )?;
 
   Ok( [ px, nx, py, ny, pz, nz ] )
 }
@@ -104,7 +111,8 @@ async fn app_run() -> Result< (), gl::WebglError >
   let cube_normal_map = cube_texture_load( "normal_cube" ).await.expect( "Failed to load cube normal map" );
 
   // Load model
-  let obj_buffer = gl::file::load( "static/diamond.glb" ).await.expect( "Failed to load the model" );
+  let obj_buffer = gl::file::load( "static/diamond.glb" ).await
+  .map_err( | e | gl::dom::Error::BindgenError( "Failed to load static/diamond.glb", format!( "{e:?}" ) ) )?;
   let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
 
   let ( positions, normals, tex_coords, indices ) = geometry_read( &document, &buffers );
@@ -119,8 +127,11 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let vao = gl::vao::create( &gl )?;
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 0, &pos_buffer )?;
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 1, &normal_buffer )?;
+  let position_attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  let normal_attr = mingl::VertexAttribute::new( 1, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  let uv_attr = mingl::VertexAttribute::new( 2, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector ).stride( 3 ).offset( position_attr.offset ).attribute_pointer( &gl, position_attr.location, &pos_buffer )?;
+  gl::BufferDescriptor::from_vector( normal_attr.vector ).stride( 3 ).offset( normal_attr.offset ).attribute_pointer( &gl, normal_attr.location, &normal_buffer )?;
   // Fix(BUG-114): stride was 3 (copy-pasted from the 3-component pos/normal lines above), telling WebGL
   // each uv vertex is 3*4=12 bytes apart when the tightly-packed `[f32;2]` buffer only has 2*4=8 bytes/vertex.
   // Root cause: `attribute_pointer` (module/min/minwebgl/src/buffer.rs) passes `self.stride * sz` as the
@@ -128,7 +139,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   // bound, tripping `GL_INVALID_OPERATION` at draw time for any mesh with >=2 vertices.
   // Pitfall: when copy-pasting a BufferDescriptor chain for a differently-sized attribute, stride must
   // match that attribute's OWN element count, not the neighboring attribute's.
-  gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 0 ).attribute_pointer( &gl, 2, &uv_buffer )?;
+  gl::BufferDescriptor::from_vector( uv_attr.vector ).stride( 2 ).offset( uv_attr.offset ).attribute_pointer( &gl, uv_attr.location, &uv_buffer )?;
 
   let index_buffer = gl::buffer::create( &gl )?;
   gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );

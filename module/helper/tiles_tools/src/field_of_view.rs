@@ -763,12 +763,46 @@ impl FieldOfView
   where
     C: Distance + Neighbors + Clone + std::hash::Hash + Eq,
   {
+    // BUG-346 task/bug/346_bresenham_line_of_sight_asymmetric.md -- greedy walk
+    // made line_of_sight asymmetric between call directions; fix below.
+    // Fix(BUG-346): canonicalize the walk direction (always walk from the
+    // hash-smaller endpoint toward the hash-larger one, then reverse the
+    // result if the caller's `from`/`to` were the other way round) so the
+    // set of intermediate cells visited no longer depends on which endpoint
+    // the caller labeled `from` vs `to`.
+    // Root cause: the walk below is a greedy "step to whichever neighbor is
+    // closest to the fixed target" search, which is not path-reversible --
+    // tracing A->B and B->A could visit different intermediate cells, so one
+    // direction could route around a wall the other ran straight through.
+    // Pitfall: canonicalizing via a coordinate-specific ordering would need
+    // an `Ord` bound that ripples out to every coordinate system usable with
+    // `FieldOfView` (all 4 algorithms share this function's generic bounds);
+    // comparing `Hash` output instead needs no new bound and is still
+    // deterministic across both call directions, since the two hash values
+    // being compared are identical regardless of which endpoint is passed
+    // as `from` vs `to`.
+    use std::hash::Hasher;
+    let hash_of = | c : &C |
+    {
+      let mut hasher = std::collections::hash_map::DefaultHasher::new();
+      c.hash( &mut hasher );
+      hasher.finish()
+    };
+
+    if from == to
+    {
+      return vec![ from.clone() ];
+    }
+
+    let swapped = hash_of( from ) > hash_of( to );
+    let ( start, end ) = if swapped { ( to, from ) } else { ( from, to ) };
+
     let mut line_positions = Vec::new();
-    let mut current = from.clone();
+    let mut current = start.clone();
     line_positions.push(current.clone());
 
     // Simple neighbor-based line tracing
-    while current != *to
+    while current != *end
     {
       let neighbors = current.neighbors();
       let mut best_neighbor = None;
@@ -777,7 +811,7 @@ impl FieldOfView
       // Find neighbor that gets us closest to the target
       for neighbor in neighbors
       {
-        let distance_to_target = neighbor.distance(to);
+        let distance_to_target = neighbor.distance(end);
         if distance_to_target < best_distance
         {
           best_distance = distance_to_target;
@@ -804,6 +838,11 @@ impl FieldOfView
       {
         break; // No valid path found
       }
+    }
+
+    if swapped
+    {
+      line_positions.reverse();
     }
 
     line_positions

@@ -781,6 +781,32 @@ impl ECSInspector {
 
   /// Records entity information.
   pub fn entity_record(&mut self, entity: EntityDebugInfo) {
+    // BUG-347 task/bug/347_ecs_inspector_entity_record_inflates_component_counts.md
+    // -- re-recording an entity inflated component_counts; fix below.
+    // Fix(BUG-347): decrement the previous entry's component counts (if
+    // entity.id was already recorded) before applying the new entity's
+    // counts, so re-recording the same entity_id does not permanently
+    // inflate component_counts.
+    // Root cause: every call incremented component_counts for the new
+    // entity's components, then unconditionally overwrote entity_data via
+    // HashMap::insert -- the prior call's contribution to component_counts
+    // was never removed, and no entity_remove/unrecord method existed to
+    // correct it either.
+    // Pitfall: a counter incremented on every call of a "record" method that
+    // can be called more than once for the same identity needs a matching
+    // decrement for whatever it is replacing -- otherwise re-recording
+    // silently inflates the counter forever, with no panic to surface it.
+    if let Some(previous) = self.entity_data.get(&entity.id) {
+      for component in &previous.components {
+        if let Some(count) = self.component_counts.get_mut(component) {
+          *count = count.saturating_sub(1);
+          if *count == 0 {
+            self.component_counts.remove(component);
+          }
+        }
+      }
+    }
+
     for component in &entity.components {
       *self.component_counts.entry(component.clone()).or_insert(0) += 1;
     }

@@ -117,3 +117,61 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   Ok( () )
 }
+
+#[ cfg( test ) ]
+mod tests
+{
+  /// ## Root Cause
+  /// `lil_gui.rs`'s `name_set` binding declared `#[ wasm_bindgen( js_name = "getTitle" ) ]`, but
+  /// `gui.js` exports no function named `getTitle` at all -- it exports `set_name`, which calls
+  /// lil-gui's own `gui.name( name )` setter. Every other binding in `lil_gui.rs` has a `js_name`
+  /// that exactly matches its corresponding `export function` in `gui.js`; this one didn't.
+  ///
+  /// ## Why Not Caught
+  /// `name_set` is declared but never called anywhere in this crate, so the mismatch never
+  /// reached the wasm/JS boundary at runtime. `wasm_bindgen` cannot verify a `js_name` target
+  /// exists in the target JS module at compile time -- an `extern` binding to a nonexistent
+  /// export compiles cleanly and only fails, with an opaque "is not a function"-style error, the
+  /// first time something actually calls it.
+  ///
+  /// ## Fix Applied
+  /// Changed `js_name` from `"getTitle"` to `"set_name"`, matching the actual `gui.js` export.
+  ///
+  /// ## Prevention
+  /// `test_lil_gui_js_name_bindings_match_gui_js_exports` parses every `js_name = "..."` value
+  /// out of `lil_gui.rs` and asserts each one has a matching `export function NAME(` in
+  /// `gui.js`, rather than only checking that the crate compiles.
+  ///
+  /// ## Pitfall
+  /// A `wasm_bindgen` extern binding is only checked structurally by the Rust compiler -- it has
+  /// no way to confirm the named JS export actually exists in the target module. A stale or
+  /// mistyped `js_name` is invisible until something calls the binding at runtime in a browser.
+  /// Any binding that's currently unused is exactly the kind most likely to hide this silently.
+  // Fix(BUG-339): reproducer for `name_set` binding to the nonexistent JS export "getTitle"
+  // instead of the actual export "set_name".
+  // test_kind: bug_reproducer(BUG-339)
+  #[ test ]
+  fn test_lil_gui_js_name_bindings_match_gui_js_exports()
+  {
+    let bindings_src = include_str!( "lil_gui.rs" );
+    let gui_js_src = include_str!( "../gui.js" );
+
+    let js_names : Vec< &str > = bindings_src
+    .split( "js_name = \"" )
+    .skip( 1 )
+    .map( | rest | rest.split( '"' ).next().unwrap() )
+    .collect();
+
+    assert!( !js_names.is_empty(), "expected to find at least one js_name binding in lil_gui.rs" );
+
+    for name in js_names
+    {
+      let expected_export = format!( "export function {name}(" );
+      assert!
+      (
+        gui_js_src.contains( &expected_export ),
+        "lil_gui.rs binds js_name = \"{name}\", but gui.js has no `{expected_export}` -- every js_name must match an actual gui.js export"
+      );
+    }
+  }
+}

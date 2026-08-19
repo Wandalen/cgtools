@@ -180,9 +180,21 @@ impl Distance for Coordinate< FourConnected >
   /// let coord2 = Coordinate::< FourConnected >::new( 3, 4 );
   /// assert_eq!( coord1.distance( &coord2 ), 7 ); // |3-0| + |4-0| = 7
   /// ```
+  // Fix(BUG-350): `self.x - other.x` (and the `.y` sibling) subtracted raw
+  // i32 fields directly -- coordinates ~2e9 apart (well within what
+  // `Coordinate::new`'s fully-public i32 fields accept) overflow that
+  // subtraction before `.abs()`/`as u32` ever run.
+  // Root cause: distance() assumed a "reasonable" input sub-range that the
+  // struct's public fields/constructor never enforce.
+  // Pitfall: widen to i64 BEFORE subtracting, not after -- casting an
+  // already i32-overflowed (panicking) result to a wider type never gets the
+  // chance to help; the final narrowing back to u32 must saturate, not use a
+  // bare `as`, since the true sum can still exceed u32::MAX.
   fn distance( &self, other : &Self ) -> u32
   {
-    ( ( self.x - other.x ).abs() + ( self.y - other.y ).abs() ) as u32
+    let dx = ( i64::from( self.x ) - i64::from( other.x ) ).abs();
+    let dy = ( i64::from( self.y ) - i64::from( other.y ) ).abs();
+    ( dx + dy ).clamp( 0, i64::from( u32::MAX ) ) as u32
   }
 }
 
@@ -202,9 +214,17 @@ impl Distance for Coordinate< EightConnected >
   /// let coord2 = Coordinate::< EightConnected >::new( 3, 4 );
   /// assert_eq!( coord1.distance( &coord2 ), 4 ); // max(|3-0|, |4-0|) = max(3, 4) = 4
   /// ```
+  // Fix(BUG-350): same overflow as `FourConnected::distance` above -- raw
+  // i32 subtraction on `self.x - other.x` (and `.y`) overflows for
+  // coordinates ~2e9 apart, before `.abs()`/`.max()`/`as u32` ever run.
+  // Root cause: distance() assumed a "reasonable" input sub-range that the
+  // struct's public fields/constructor never enforce.
+  // Pitfall: widen to i64 BEFORE subtracting, not after.
   fn distance( &self, other : &Self ) -> u32
   {
-    ( ( self.x - other.x ).abs().max( ( self.y - other.y ).abs() ) ) as u32
+    let dx = ( i64::from( self.x ) - i64::from( other.x ) ).abs();
+    let dy = ( i64::from( self.y ) - i64::from( other.y ) ).abs();
+    dx.max( dy ).clamp( 0, i64::from( u32::MAX ) ) as u32
   }
 }
 

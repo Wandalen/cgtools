@@ -25,7 +25,18 @@ backend — see Status ); build-vs-buy is closed in-house by
   uniform build-time step: the Vulkan backend has no override slot and
   instead compiles WGSL to SPIR-V itself, at RUNTIME inside `gpu_hal`, via
   `naga` (`shader_module_create` dispatching to `shader_compile_wgsl_to_spirv`,
-  `device.rs:698-702` / `vulkan.rs:675-682`).
+  `device.rs:698-702` / `vulkan.rs:675-682`). WebGL sits at the opposite end
+  of that timing spectrum: its override slots must already be populated by
+  the caller, since `shader_module_create`'s WebGL arm performs no
+  transpilation itself. `gpu_hal` ships a BUILD-TIME WGSL-to-GLSL ES 300
+  translator for populating them, `webgl_build::wgsl_to_webgl_glsl()`
+  (`src/webgl_build.rs`, 154 lines, `naga`-based like the Vulkan path, gated
+  behind the `webgl-glsl-build` feature, its own 7-test suite in
+  `tests/webgl_build_test.rs`) — meant to run once, in a downstream crate's
+  own `build.rs`, not inside `gpu_hal` at runtime. `renderer`'s `build.rs`
+  uses it as a required build-dependency instead of hand-porting the GLSL
+  (`module/helper/renderer/build.rs:1-13,34`); `examples/orrery/flexible`
+  depends on it optionally, under its own `webgl` feature.
 - **One-step drill-down**: every HAL object exposes a handle to its raw
   driver counterpart ([../pattern/002](../pattern/002_strict_layering_one_step_drilldown.md)).
 - **Stack-vocabulary-free**: no sprite, tile, camera, scene, or material
@@ -60,14 +71,23 @@ renderer's canonical opaque path itself also runs on this backend
 pixel-verified end-to-end in the terminal by `opaque_path_renders_lit_quad`. The v0 surface
 covers the opaque path only: buffers, 2d textures, samplers, shader modules,
 bind groups, one-color-attachment render passes, and a depth attachment
-( `DepthState`, honored by all backends ). Texture upload is now
+( `DepthState`, honored by all backends when rendering to a texture — the
+WebGL2 canvas backbuffer itself accepts no depth attachment, so depth-tested
+passes there must render to a texture first; `webgl_canvas_pass_begin`
+returns `Error::Unsupported` if asked otherwise, `pass.rs:545-551` ). Texture upload is now
 covered too ( `texture_write()`, proven by the `texture_write_readback`
 render test — task 089 ). The same `native_backend_test.rs` file also
 carries roughly 300 lines of `InvalidInput` guard-rail regression coverage —
 10 tests spanning zero-size textures, zero-dimension `new_native` surfaces,
 undersized/misaligned/oversized buffer and texture writes, and zero-size
 vertex/index buffer binds ( fixes for BUG-165, BUG-176, BUG-199, BUG-204,
-BUG-207, BUG-208 ). Not yet covered: mipmaps, MSAA, compute.
+BUG-207, BUG-208 ). One same-defect-family fix sits outside this automated
+coverage: BUG-200 ( `webgl_buffer_write`, `device.rs:2065-2079` ) fixes the
+same silent-data-corruption class on the WebGL backend, which
+`native_backend_test.rs` cannot exercise ( wasm32 + browser only ), and for
+which `gpu_hal` has no automated wasm test suite of any kind — its only
+regression signal is a manual colored-pixel check in the `triangle_browser` example
+( `main.rs:80-99` ), run via `browsee`. Not yet covered: mipmaps, MSAA, compute — accepted YAGNI scope boundary, tracked as a watch-item (task 291), revisited only if a real consumer emerges.
 `renderer`'s legacy `webgl` tree keeps its accepted direct-to-L0 dependency
 until strangled onto the HAL. `tilemap_renderer` (d2) is the second targeted
 consumer — its `adapter-webgpu` / `adapter-native` adopt the HAL per
@@ -97,8 +117,14 @@ the same `adapter_browser` example ( task 251 ) — proving a real solid-red
 sprite paint, since `adapter-webgl` uploads real pixel bytes — the same shape
 of coverage as `adapter-webgpu`'s, without adopting the HAL itself. The two
 adapters' upload paths are no longer asymmetric in kind or in browser-
-verification recency — both upload real pixel bytes via a shared conversion
-helper, and both readings are now current.
+verification recency — both upload real pixel bytes, and both readings are
+now current. The conversion path itself is not shared between them, though:
+`adapter-webgpu` uses the same `crate::assets::to_rgba8` helper as
+`adapter-native` ( `webgpu.rs:265`, `native.rs:166`, `assets.rs:579-588` ),
+while `adapter-webgl`'s `bitmap_texture_upload` ( `webgl.rs:1334-1394` ) has
+its own separate inline pixel-format match — notably uploading `Rgb8`
+natively as `gl::RGB` rather than expanding it to RGBA the way `to_rgba8`
+does.
 
 A fourth backend, `vulkan` ( `minvulkan` via `ash`, no `wgpu` dependency ),
 is now implemented — [ADR-004](../adr/004_native_vulkan_hal_backend.md) adds
@@ -113,12 +139,43 @@ surface and asserts on the bytes read back, no browser involved, mirroring
 `native`'s own `triangle_render_readback` precedent. Resources use dedicated
 ( non-suballocated ) memory — one `vkAllocateMemory` call per buffer/image,
 matching the crate's v0 "minimum resource support" tradeoff elsewhere.
+Long-lived handles returned through the public HAL API ( buffers, textures,
+pipelines, bind groups, render passes ) carry no `Drop`-based cleanup on this
+backend — confirmed by zero `impl Drop` anywhere in the crate ( `BufferVulkan`
+/ `TextureVulkan`, `vulkan.rs`, are plain structs of raw handles with no
+destroy/free method ) — so every Vulkan-backend resource leaks for the
+process lifetime. This was a known v0 tradeoff rather than an active bug for as long as
+`cargo nextest`'s one-process-per-test isolation was the only consumer, so it
+never accumulated across the test suite. [ADR-006](../adr/006_vulkan_windowed_presentation.md)'s
+windowed loop invalidates that reasoning — it runs thousands of frames in one
+process, each allocating a command pool, render pass and framebuffer that are
+never destroyed — so on the windowed path this is now a genuine defect rather
+than a documented simplification. The other three backends get cleanup for
+free via `wgpu`'s / `web_sys`'s own `Drop` impls; only `vulkan`, built
+directly on raw `ash` with no owning graphics crate underneath, lacks it.
 Texture upload is covered on this backend too, mirroring `native`'s own
 `texture_write()` proof above ( `vulkan_texture_write_readback` in
 `tests/vulkan_backend_test.rs`, constructing a textured quad and asserting
 two successive `texture_write` uploads both land via readback ).
 Tracked by tasks 201 ( `minvulkan` driver ), 202 ( this crate's `vulkan`
 backend variant ), 203 ( the consuming example ).
+
+Presentation, added later, is what makes the four backends uniform in
+capability : `Device::new_native_windowed` and `Device::new_vulkan_windowed`
+return the same `( Device, Queue, Surface )` triple against a real presentable
+surface — `minwgpu`'s surface and a real `VK_KHR_swapchain` respectively —
+where `new_native`/`new_vulkan` return an offscreen image
+( ADRs [005](../adr/005_windowed_native_presentation.md),
+[006](../adr/006_vulkan_windowed_presentation.md) ). The browser pair needs no
+counterpart : a canvas already is the presentable surface. What a windowed
+surface changes is only the frame loop — `current_view` acquires,
+`present` shows, `resize` rebuilds — at the cost of `pixels_read`, which
+returns `Unsupported` there. Neither constructor takes a windowing type, so no
+crate at this layer or below depends on `winit`/`sdl2`/`glfw`. Only the
+`vulkan` windowed path has a running consumer
+( `examples/gpu_hal/triangle_vulkan_window`, the one configuration in this
+workspace whose process links no `wgpu` at all ); `new_native_windowed`'s
+dispatch has none, so it remains unexercised.
 
 ### ADRs
 
@@ -152,6 +209,7 @@ backend variant ), 203 ( the consuming example ).
 | File | Relationship |
 |------|--------------|
 | `module/helper/gpu_hal/` | The v0 implementation |
+| `module/helper/gpu_hal/src/webgl_build.rs` | Build-time WGSL→GLSL ES 300 translator (`webgl-glsl-build` feature) — required build-dependency of `renderer/build.rs`, optional for `examples/orrery/flexible` |
 | `module/helper/renderer/src/webgpu/` | First consumer — the canonical opaque path on both backends |
 | `module/helper/tilemap_renderer/src/adapters/webgpu.rs`, `src/adapters/native.rs` | Second targeted consumer — `adapter-webgpu` / `adapter-native` ( [ADR-003](../adr/003_d2_stack_hal_adoption.md) ) |
 | `examples/orrery/flexible/src/main.rs` | Reference/comparison consumer, not an L3 stack engine — depends only on `gpu_hal` (no direct `minwebgl`/`minwebgpu`/`minwgpu`/`minvulkan`/`renderer`) and reaches all four backends through the unified `gpu_hal::Device::new(...)` constructor, which itself dispatches to whichever backend the crate's own Cargo feature ( `webgl`/`webgpu`/`wgpu`/`vulkan` ) selected — bypassing L3 entirely, unlike this table's other two rows |

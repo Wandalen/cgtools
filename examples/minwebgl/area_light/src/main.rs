@@ -248,7 +248,8 @@ fn light_body_vao( gl : &GL, light : &RectangularLight )
   gl.bind_vertex_array( Some( &light_body_vao ) );
   let vbo = gl::buffer::create( gl )?;
   gl::buffer::upload( gl, &vbo, light.vertices().as_flattened(), gl::DYNAMIC_DRAW );
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().attribute_pointer( gl, 0, &vbo )?;
+  let position_attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector ).attribute_pointer( gl, position_attr.location, &vbo )?;
   Ok( ( light_body_vao, vbo ) )
 }
 

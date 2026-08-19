@@ -7,7 +7,7 @@
 - **Purpose**: Reduce raw `ash`/Vulkan setup boilerplate while making it impossible to request a physical device or logical device out of order, without hiding the underlying Vulkan objects or introducing a `wgpu` dependency.
 - **Responsibility**: Cross-reference the source and tests that make up `minvulkan`'s instance/device construction.
 - **In Scope**: Instance configuration and construction, physical-device selection, logical-device/queue construction, the `Context` accessors, and the crate's error type.
-- **Out of Scope**: Surface/swapchain creation and presentation; buffer/image/pipeline/command-pool resource construction (future features); validation-layer/debug-messenger setup — see `task/201_minvulkan_native_context_and_device.md § Out of Scope`.
+- **Out of Scope**: Surface/swapchain creation and presentation — that is [Window Surface and Swapchain](002_window_surface_and_swapchain.md), which builds its own instance/device chain because the two cannot be interleaved after the fact; buffer/image/pipeline/command-pool resource construction (future features); validation-layer/debug-messenger setup — see `task/201_minvulkan_native_context_and_device.md § Out of Scope`.
 
 ### Design
 
@@ -17,7 +17,7 @@
 
 **Device stage** (`DeviceBuilder`): `context_finish()` enumerates physical devices (`enumerate_physical_devices`) and selects the first one exposing a graphics-capable queue family (`get_physical_device_queue_family_properties` + `find_map` — no scoring/preference heuristic; see `physical_device_selector` in `minwgpu::ContextBuilder`'s `adapter_selector` for the analogous future extension point this crate does not yet have), creates the logical `ash::Device` with one graphics queue requested on that family (`create_device`), retrieves the resulting `ash::vk::Queue` (`get_device_queue`), and consumes the builder into a `Context`.
 
-**Accessors**: `Context` exposes `entry_get`, `instance_get`, `physical_device_get`, `device_get`, `queue_get`, `queue_family_index_get` — the underlying `ash` types are returned directly, not wrapped further. `Context` does not hold a swapchain or surface; presentation is not part of this crate.
+**Accessors**: `Context` exposes `entry_get`, `instance_get`, `physical_device_get`, `device_get`, `queue_get`, `queue_family_index_get` — the underlying `ash` types are returned directly, not wrapped further. `Context` does not hold a swapchain or surface: a builder-produced context is offscreen-only by construction, since its instance carries no platform surface extensions and its physical device was selected without regard to present support. A context that can present is produced by `context::windowed` instead — see [Window Surface and Swapchain](002_window_surface_and_swapchain.md).
 
 **Lifetime**: `Context` implements `Drop`, destroying the logical device then the instance, in that order — Vulkan performs no automatic cleanup. `Context` deliberately does not derive `Clone`: it owns single-destruction semantics over its handles, and a second `Context` sharing the same handles would double-free on drop.
 

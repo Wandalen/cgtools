@@ -9,6 +9,11 @@
 //! made `pub` alongside this test per task 299 -- same shape as `vec3_sequence`, just `QuatF64`
 //! instead of `F64x3` ) is covered for its general Linear keyframe-building logic.
 
+// `webgl::animation` is `#[cfg(feature = "animation")]`-gated in src/webgl.rs, and `animation`
+// is not part of the crate's `default` feature set -- without this matching gate, `cargo test -p
+// renderer` (default features) fails E0433 trying to resolve the module below.
+#![ cfg( feature = "animation" ) ]
+
 use renderer::webgl::animation::loaders::gltf::{ channel_decode, vec3_sequence, weights_sequence, quat_sequence };
 use gltf::animation::util::ReadOutputs;
 use mingl::{ F64x3, QuatF64 };

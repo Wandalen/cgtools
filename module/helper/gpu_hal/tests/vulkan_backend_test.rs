@@ -6,6 +6,9 @@
 //! `native_backend_test.rs`'s `triangle_render_readback` exact-equality
 //! style — task 202's T02.
 #![ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+#![ allow( unsafe_code, reason = "as_vulkan_returns_device_usable_through_raw_handle exercises a raw \
+`ash` FFI call ( `device_wait_idle` ) against a live Vulkan device to prove the handle `as_vulkan()` \
+returns is genuinely usable ; the call site carries its own `// SAFETY:` comment" ) ]
 
 use gpu_hal::*;
 
@@ -118,6 +121,7 @@ fn triangle_render_readback()
     vertex_buffers : &[ VertexBufferLayout
     {
       stride : 8,
+      step_mode : StepMode::Vertex,
       attributes : vec!
       [
         VertexAttribute
@@ -179,6 +183,35 @@ fn as_vulkan_returns_none_on_native_device()
   let ( device, _queue, _surface ) = Device::new_native( 4, 4 )
   .expect( "no native wgpu adapter available" );
   assert!( device.as_vulkan().is_none(), "as_vulkan must return None on a Device::Native handle" );
+}
+
+/// `device.as_vulkan()` on a Vulkan-constructed `Device` returns `Some` with a
+/// genuinely usable `DeviceVulkan` — the positive counterpart of
+/// `as_vulkan_returns_none_on_native_device` above, which only ever exercises
+/// the mismatch ( `None` ) branch. Usability is proven by a real driver
+/// round-trip through the returned handle's `ash::Device` : `vkDeviceWaitIdle`
+/// only succeeds against a genuinely live device.
+#[ test ]
+fn as_vulkan_returns_device_usable_through_raw_handle()
+{
+  let ( device, _queue, _surface ) = Device::new_vulkan( 4, 4 )
+  .expect
+  (
+    "no Vulkan device : the vulkan backend needs a Vulkan ICD \
+     ( a software one such as lavapipe / mesa-vulkan-drivers suffices )"
+  );
+
+  let raw = device.as_vulkan().expect( "as_vulkan must return Some on a Device::Vulkan handle" );
+
+  // SAFETY: `raw.device` is the live `ash::Device` owned by `device`, which is
+  // not dropped until after this call returns ; `device_wait_idle` performs no
+  // writes through caller-supplied pointers.
+  let result = unsafe { raw.device.device_wait_idle() };
+  assert!
+  (
+    result.is_ok(),
+    "device_wait_idle should succeed on a freshly-created, idle device drilled down through as_vulkan()"
+  );
 }
 
 /// Samples one texel from a texture at a fixed interior UV — mirrors
@@ -293,6 +326,7 @@ fn textured_scene_setup() -> TexturedScene
     vertex_buffers : &[ VertexBufferLayout
     {
       stride : 8,
+      step_mode : StepMode::Vertex,
       attributes : vec! [ VertexAttribute { location : 0, format : VertexFormat::Float32x2, offset : 0 } ]
     } ],
     bind_group_layouts : &[ &layout ],

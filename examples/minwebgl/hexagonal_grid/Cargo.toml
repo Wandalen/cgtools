@@ -8,6 +8,7 @@ workspace = true
 
 [dependencies]
 minwebgl = { workspace = true, features = ["math"] }
+mingl = { workspace = true }
 web-sys = { workspace = true, features = [
   "DomRect",
   "MouseEvent",

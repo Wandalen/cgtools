@@ -1,5 +1,7 @@
 # Orrery (Flexible)
 
+**Keywords:** Orrery, gpu_hal, WebGL2, WebGPU, wgpu, Vulkan, Multi-backend
+
 One crate, four selectable backends — `webgl`, `webgpu`, `wgpu`, `vulkan` —
 chosen at compile time via Cargo features, all rendering the same orrery
 scene (see the [family readme](../readme.md) for the shared scene

@@ -4,24 +4,24 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/
-- **started_at:** 2026-08-16 20:45:02
-- **expires_at:** 2026-08-16 22:45:02
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **started_at:** 2026-08-19 00:46:28
+- **expires_at:** 2026-08-19 02:46:28
 - **round:** 2
 - **state:** 🔎 (Accepting)
 - **closes:** null
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/gpu_hal
-- **verified_by:** /home/user1/pro/lib/yrd_gamedev/cgtools/task
+- **verified_by:** system
 - **verification_date:** null
 - **blocked_by:** 201
 - **repo_identity:** self
-- **executing_at:** 2026-08-16 19:45:32
-- **executing_by:** user1@w002//home/user1/pro/lib/yrd_gamedev/cgtools/
+- **executing_at:** 2026-08-19 00:46:28
+- **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **in_motion:** true
-- **accepting_at:** 2026-08-16 20:45:02
-- **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/
-- **verified_at:** 2026-08-16 19:45:17
+- **accepting_at:** 2026-08-19 00:46:28
+- **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **verified_at:** 2026-08-19 00:40:43
 
 ## Goal
 
@@ -211,6 +211,10 @@ self-verify — an independent verifier performs the walk after the task reaches
 | 2026-08-16 20:44:55 | user1@w002//home/user1/pro/lib/yrd_gamedev/cgtools/ | EXEC_COMPLETE | execution complete |
 | 2026-08-16 20:45:02 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | CLAIM_ACCEPT | acceptance claimed |
 | 2026-08-17 00:49:51 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | ATTEMPT_ACCEPTANCE_PASS | `tsk .acceptance_pass 202` → exit 1, "self-verification forbidden (actor matches executing_by)" — same-actor sandbox guard, consistent with task 206 precedent; not forced/spoofed, left at 🔎 Accepting per standing project convention |
+| 2026-08-19 00:40:43 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-19 00:46:28 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
+| 2026-08-19 00:46:28 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | EXEC_COMPLETE | execution complete |
+| 2026-08-19 00:46:28 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_ACCEPT | acceptance claimed |
 
 ## History
 

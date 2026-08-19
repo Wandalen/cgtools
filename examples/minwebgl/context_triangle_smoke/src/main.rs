@@ -22,7 +22,8 @@ fn app_run() -> Result< (), gl::WebglError >
 
   let vao = gl::vao::create( &context )?;
   context.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32 ; 2 ] >().stride( 2 ).offset( 0 ).attribute_pointer( &context, 0, &vertex_buffer )?;
+  let position_attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector ).stride( 2 ).offset( position_attr.offset ).attribute_pointer( &context, position_attr.location, &vertex_buffer )?;
 
   context.clear_color( 0.0, 0.0, 0.0, 1.0 );
   context.clear( GL::COLOR_BUFFER_BIT );

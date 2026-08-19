@@ -86,18 +86,34 @@ mod private
   ///
   /// A dotted method call (`receiver.method( .. )`) does not appear as a
   /// bare `Expr::MethodCall` at the statement's own top level — Rhai wraps
-  /// it in `Expr::Dot( BinaryExpr { rhs, .. }, .. )` with the call sitting
-  /// in `rhs`, one level behind the dot (chained dots nest the same way,
-  /// `rhs`-first, all the way down to the terminal call), so the wrapper
-  /// must be unwound to reach it.
+  /// it in `Expr::Dot( BinaryExpr { lhs, rhs }, .. )`. The call usually sits
+  /// in `rhs` (chained dots nest `rhs`-first, all the way down to the
+  /// terminal call, e.g. `a.b().c()`), so `rhs` is checked first — but a
+  /// call can also sit in `lhs`, the chain's receiver, when the chain's own
+  /// tail is a plain property/index read rather than another call (e.g.
+  /// `trigger().x`), so `lhs` is checked too whenever `rhs` yields no call.
+  /// Both sides are checked at every `Dot` level, so an arbitrarily deep
+  /// chain resolves correctly regardless of which side carries the one real
+  /// call.
   fn call_expr( stmt : &rhai::Stmt ) -> Option< &rhai::FnCallExpr >
   {
+    // Fix(BUG-351): a `Dot` chain's own tail (`.rhs`) can be a plain property
+    // read with the real call sitting in the receiver (`.lhs`) instead --
+    // e.g. `trigger().x`, where `.rhs` is the property `x` and `.lhs` is the
+    // call `trigger()`. Checking only `.rhs` silently missed this shape,
+    // letting a real top-level call through as `Role::PlainExpression`.
+    // Root cause: the original recursion unwound exclusively through `.rhs`,
+    // correctly reaching the terminal call for chains like `a.b().c()`
+    // (where the outermost `.rhs` IS the call) but never falling back to
+    // `.lhs` for chains like `trigger().x` (where `.rhs` is not a call).
+    // Pitfall: a Rhai `Dot` chain can carry its one real call on EITHER side
+    // of any `.` -- never assume the call-bearing side without checking both.
     fn call_in_expr( expr : &rhai::Expr ) -> Option< &rhai::FnCallExpr >
     {
       match expr
       {
         rhai::Expr::FnCall( call, .. ) | rhai::Expr::MethodCall( call, .. ) => Some( call ),
-        rhai::Expr::Dot( binary, .. ) => call_in_expr( &binary.rhs ),
+        rhai::Expr::Dot( binary, .. ) => call_in_expr( &binary.rhs ).or_else( || call_in_expr( &binary.lhs ) ),
         _ => None,
       }
     }

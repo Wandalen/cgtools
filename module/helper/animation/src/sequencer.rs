@@ -536,19 +536,28 @@ mod private
         return;
       };
 
-      match self.state
+      // Fix(BUG-353)
+      // Root cause: the Pending->Running and Running->Completed transitions were two mutually
+      // exclusive arms of one `match self.state`, keyed on `self.state` as it stood at the START
+      // of this call -- so at most one of the two could ever fire per `update()`. A call whose
+      // `delta_time` was large enough to leave `Pending` AND immediately finish the ( now-active )
+      // last player in the very same call landed on `Running` without the second check ever
+      // running, leaving `is_completed()` `false` while `progress()` already reported `1.0` -- an
+      // internally inconsistent public API state that only self-corrected on the NEXT `update()`.
+      // Pitfall: re-check the Running->Completed condition again after a same-call
+      // Pending->Running transition, using the ( possibly just-updated ) `self.state` -- do not
+      // gate both transitions on one snapshot of the entry-state, or a call spanning both
+      // boundaries at once silently drops the second one.
+      if self.state == AnimationState::Pending && self.elapsed - current.delay_get() > 0.0
       {
-        AnimationState::Pending if self.elapsed - current.delay_get() > 0.0 =>
-        {
-          self.state = AnimationState::Running;
-        },
-        AnimationState::Running
-        if self.current >= self.players.len() - 1 &&
-        self.players.get( self.current ).map_or( true, AnimatablePlayer::is_completed ) =>
-        {
-          self.state = AnimationState::Completed;
-        },
-        _ => {}
+        self.state = AnimationState::Running;
+      }
+
+      if self.state == AnimationState::Running
+      && self.current >= self.players.len() - 1
+      && self.players.get( self.current ).map_or( true, AnimatablePlayer::is_completed )
+      {
+        self.state = AnimationState::Completed;
       }
     }
 
@@ -557,9 +566,17 @@ mod private
       self.state == AnimationState::Completed
     }
 
+    // Fix(BUG-352)
+    // Root cause: gated only on `state == Running`, the identical defect shape to `Tween::pause`
+    // ( see interpolation.rs ) -- calling `pause()` while the Sequence itself was still `Pending`
+    // ( `elapsed` hasn't yet reached the active player's own `delay_get()`, see `update`'s
+    // `Pending` check above ) was a silent no-op, so a later `update()` kept advancing `elapsed`
+    // and driving the active player forward exactly as if `pause()` had never been called.
+    // Pitfall: `Completed` is deliberately still excluded -- pausing an already-finished Sequence
+    // must not make `is_completed()` start reporting `false`.
     fn pause( &mut self )
     {
-      if self.state == AnimationState::Running
+      if matches!( self.state, AnimationState::Running | AnimationState::Pending )
       {
         self.state = AnimationState::Paused;
       }

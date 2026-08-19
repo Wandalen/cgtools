@@ -32,7 +32,7 @@ Grid positions use axial coordinates `(q, r)` with `i32` components; cube coordi
 
 ### Version Compatibility
 
-The tiling strategy is the one schema surface where the specification's normative requirement and the implementation currently disagree: **`Square4`/`Square8` MUST be rejected at load time with a clear error**, per the format's own `tiling` contract. `ValidationError::UnsupportedTiling(String)` is declared for exactly this (see `invariant/001`), but nothing in `src/validate.rs` constructs it yet — a spec naming `Square4`/`Square8` currently passes `load()` successfully and fails only at first render, with a misleading `CompileError::UnsupportedAnchor` rather than a load-time tiling error (see `pitfall/001`). New minor-version additions to this schema (a third hex orientation, square support) are expected to extend `TilingStrategy` without breaking existing `HexFlatTop`/`HexPointyTop` specs.
+The specification's normative requirement — **`Square4`/`Square8` MUST be rejected at load time with a clear error** — and the implementation now agree: `src/validate.rs`'s tiling-whitelist check constructs `ValidationError::UnsupportedTiling(String)` (see `invariant/001`) whenever `pipeline.hex.tiling` names a reserved variant, so a spec naming `Square4`/`Square8` now fails `RenderSpec::load()` with that error instead of reaching render. New minor-version additions to this schema (a third hex orientation, actual square support) are expected to extend `TilingStrategy` without breaking existing `HexFlatTop`/`HexPointyTop` specs.
 
 ### Formats
 
@@ -41,11 +41,17 @@ The tiling strategy is the one schema surface where the specification's normativ
 | [format/003_anchor_placement_types.md](../format/003_anchor_placement_types.md) | `Hex`/`Edge`/`Vertex`/`Multihex` anchors are positioned in this coordinate system |
 | [format/007_render_pipeline.md](../format/007_render_pipeline.md) | `HexConfig` (tiling + grid_stride) is declared on `RenderPipeline.hex` |
 
+### Invariants
+
+| File | Relationship |
+|------|--------------|
+| [invariant/001_renderspec_referential_integrity.md](../invariant/001_renderspec_referential_integrity.md) | Formalizes the tiling-strategy whitelist and its enforcement (`ValidationError::UnsupportedTiling`) |
+
 ### Pitfalls
 
 | File | Relationship |
 |------|--------------|
-| [pitfall/001_load_time_validation_partially_enforced.md](../pitfall/001_load_time_validation_partially_enforced.md) | `Square4`/`Square8` load-time rejection is the concrete example of an unenforced MUST from this format |
+| [pitfall/001_load_time_validation_partially_enforced.md](../pitfall/001_load_time_validation_partially_enforced.md) | `Square4`/`Square8` — formerly this format's worked example of an unenforced MUST; `validate.rs`'s tiling whitelist now rejects both at load time, so this class of failure no longer reaches render |
 
 ### Sources
 

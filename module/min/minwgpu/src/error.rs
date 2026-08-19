@@ -35,6 +35,15 @@ mod private
     /// Error when `surface_configure` is called with a zero-sized drawable area.
     #[ error( "surface_configure called with a zero-sized drawable area: {0}x{1}" ) ]
     ZeroSizeSurface( u32, u32 ),
+    /// Error when `Instance::create_surface` fails for a window target.
+    #[ error( "{0}" ) ]
+    CreateSurfaceError( #[ from ] wgpu::CreateSurfaceError ),
+    /// Error when acquiring the next surface texture raised a validation error.
+    ///
+    /// Distinct from the transient/stale acquisition outcomes, which are not errors :
+    /// see [`crate::surface::Frame`].
+    #[ error( "acquiring the next surface texture raised a validation error" ) ]
+    SurfaceAcquire,
   }
 }
 

@@ -147,7 +147,14 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   normal_displacements_reset( &gltf.meshes );
 
-  let gui_weights = Rc::new( RefCell::new( vec![ 0.0; 60 ] ) );
+  // Fix(BUG-330): filled with 0.0, matching a slider the user has actively dragged down to its
+  // minimum — `gui_weights[i] > 0.0` then treats "untouched" and "explicitly zeroed" identically,
+  // so once a slider is raised above 0 it can never be reset back to 0 via that same slider.
+  // Root cause: used the current value's sign as a proxy for "has this slider been touched",
+  // conflating a real, meaningful value (0.0) with the sentinel for "no GUI override yet".
+  // Pitfall: a min-of-range value (here, a slider's own minimum, 0.0) makes a poor "untouched"
+  // sentinel whenever that same value is also a legitimate, settable state.
+  let gui_weights = Rc::new( RefCell::new( vec![ f32::NAN; 60 ] ) );
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
@@ -190,7 +197,7 @@ async fn app_run() -> Result< (), gl::WebglError >
         let gui_weights = gui_weights.borrow().clone();
         for i in 0..weights_mut.len().min( gui_weights.len() )
         {
-          if gui_weights[ i ] > 0.0
+          if !gui_weights[ i ].is_nan()
           {
             weights_mut[ i ] = gui_weights[ i ];
           }

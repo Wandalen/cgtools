@@ -43,7 +43,8 @@ async fn app_run() -> Result< (), gl::WebglError >
   gl.enable( GL::DEPTH_TEST );
   gl.enable( GL::CULL_FACE );
 
-  let obj = gl::file::load( "static/cat/Cat.obj" ).await.unwrap();
+  let obj = gl::file::load( "static/cat/Cat.obj" ).await
+  .map_err( | e | gl::dom::Error::BindgenError( "Failed to load static/cat/Cat.obj", format!( "{e:?}" ) ) )?;
   let ( models, materials ) = gl::model::model_load_from_slice( &obj, "static/cat", &tobj::GPU_LOAD_OPTIONS )
   .await
   .expect( "Can't read model" );
@@ -413,22 +414,26 @@ async fn meshes_load( models : &[ tobj::Model ], materials : &[ tobj::Material ]
     let index_buffer = gl::buffer::create( gl ).unwrap();
     gl::index::upload( gl, &index_buffer, model.mesh.indices.as_slice(), GL::STATIC_DRAW );
 
-    gl::BufferDescriptor::new::< [ f32; 3 ] >()
+    let position_attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+    let normal_attr = mingl::VertexAttribute::new( 1, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+    let texcoord_attr = mingl::VertexAttribute::new( 2, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+
+    gl::BufferDescriptor::from_vector( position_attr.vector )
     .stride( 0 )
-    .offset( 0 )
-    .attribute_pointer( gl, 0, &position_buffer )
+    .offset( position_attr.offset )
+    .attribute_pointer( gl, position_attr.location, &position_buffer )
     .unwrap();
 
-    gl::BufferDescriptor::new::< [ f32; 3 ] >()
+    gl::BufferDescriptor::from_vector( normal_attr.vector )
     .stride( 0 )
-    .offset( 0 )
-    .attribute_pointer( gl, 1, &normal_buffer )
+    .offset( normal_attr.offset )
+    .attribute_pointer( gl, normal_attr.location, &normal_buffer )
     .unwrap();
 
-    gl::BufferDescriptor::new::< [ f32; 2 ] >()
+    gl::BufferDescriptor::from_vector( texcoord_attr.vector )
     .stride( 0 )
-    .offset( 0 )
-    .attribute_pointer( gl, 2, &texcoord_buffer )
+    .offset( texcoord_attr.offset )
+    .attribute_pointer( gl, texcoord_attr.location, &texcoord_buffer )
     .unwrap();
 
     let texture = if let Some( name ) = &material.diffuse_texture

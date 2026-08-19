@@ -38,7 +38,6 @@ full = [
   "index",
   "nd",
   "arithmetics",
-  "general",
 ]
 
 index = [ "dep:ndarray" ]
@@ -55,7 +54,6 @@ approx = [ "float", "dep:approx" ]
 # combination that happens to also enable the second feature separately, e.g. this crate's own
 # sibling `ndarray_cg` explicitly requesting both) never exercises the gap.
 arithmetics = [ "float", "approx" ]
-general = []
 
 [dependencies]
 mod_interface = { workspace = true, optional = true }

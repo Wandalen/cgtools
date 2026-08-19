@@ -33,7 +33,6 @@ use renderer::webgl::
   material::PbrMaterial
 };
 use std::rc::Rc;
-use std::any::type_name_of_val;
 
 mod text;
 mod style;
@@ -46,34 +45,20 @@ fn buffer_attribute_info_make
   slot : u32,
   normalized : bool,
   vector: gl::VectorDataType
-) -> Result< AttributeInfo, gl::WebglError >
+) -> AttributeInfo
 {
-  let descriptor = match vector.scalar
-  {
-    gl::DataType::U8 => gl::BufferDescriptor::new::< [ u8; 1 ] >(),
-    gl::DataType::I8 => gl::BufferDescriptor::new::< [ i8; 1 ] >(),
-    gl::DataType::U16 => gl::BufferDescriptor::new::< [ u16; 1 ] >(),
-    gl::DataType::I16 => gl::BufferDescriptor::new::< [ i16; 1 ] >(),
-    gl::DataType::U32 => gl::BufferDescriptor::new::< [ u32; 1 ] >(),
-    gl::DataType::F32 => gl::BufferDescriptor::new::< [ f32; 1 ] >(),
-    _ => return Err( gl::WebglError::NotSupportedForType( type_name_of_val( &vector.scalar ) ) )
-  };
-
-  let descriptor = descriptor
+  let descriptor = gl::BufferDescriptor::from_vector( vector )
   .offset( offset )
   .normalized( normalized )
-  .stride( stride )
-  .vector( vector );
+  .stride( stride );
 
-  Ok(
-    AttributeInfo
-    {
-      slot,
-      buffer : buffer.clone(),
-      descriptor,
-      bounding_box : mingl::geometry::BoundingBox::default()
-    }
-  )
+  AttributeInfo
+  {
+    slot,
+    buffer : buffer.clone(),
+    descriptor,
+    bounding_box : mingl::geometry::BoundingBox::default()
+  }
 }
 
 /// Builds the shared position and normal attribute descriptors for the scene buffers.
@@ -94,7 +79,7 @@ fn scene_attribute_infos
         0,
         false,
         VectorDataType::new( mingl::DataType::F32, 3, 1 )
-      ).unwrap()
+      )
     ),
     (
       "normals",
@@ -106,7 +91,7 @@ fn scene_attribute_infos
         1,
         false,
         VectorDataType::new( mingl::DataType::F32, 3, 1 )
-      ).unwrap()
+      )
     )
   ]
 }
@@ -467,7 +452,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   ];
 
   let fonts_ufo_3d = text::ufo::fonts_3d_load( &gl, font_names.as_slice() ).await;
-  let fonts_ttf_3d = text::ttf::fonts_3d_load( &gl, font_names.as_slice() ).await;
+  let fonts_ttf_3d = text::ttf::fonts_3d_load( &gl, font_names.as_slice() ).await?;
 
   let text = "CGTools".to_string();
 

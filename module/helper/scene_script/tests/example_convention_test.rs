@@ -190,3 +190,39 @@ fn checker_accepts_multiple_top_level_function_definitions()
 
   check_top_level_is_declarative( &ast ).unwrap();
 }
+
+/// `bug_reproducer(BUG-351)`
+///
+/// Root Cause: `call_in_expr()`'s `Expr::Dot` arm only recursed into the chain's `.rhs` — when
+/// the chain's own tail is a plain property read (e.g. `.x`) rather than another call, and the
+/// real call sits in the receiver (`.lhs`) instead, no call is ever found; `role()` then falls
+/// through to `Role::PlainExpression`, which is allowed at any top-level position.
+///
+/// Why Not Caught: the only existing dotted-call test
+/// (`checker_rejects_a_trailing_non_main_method_call`) puts the call in the chain's own tail
+/// (`t.update(0.5)`) — the one shape `.rhs`-only recursion already handled; no test exercised a
+/// call sitting in the chain's receiver instead.
+///
+/// Fix Applied: `call_in_expr()`'s `Dot` arm now falls back to `.lhs` whenever `.rhs` yields no
+/// call, so a call on either side of a dot — at any nesting depth — is found.
+///
+/// Prevention: this test pins the exact reported shape (`trigger().x`) as a permanent
+/// regression guard.
+///
+/// Pitfall: a Rhai dot chain can carry its one real call on EITHER side of the dot, not only
+/// the tail — code that unwinds only one side silently misses the other.
+#[ test ]
+fn checker_rejects_a_trailing_call_disguised_as_a_dot_chain_property_read()
+{
+  // `trigger()` is a real, non-operator function call sitting in the RECEIVER position of the
+  // dot chain; `.x` (the chain's own tail) is a plain property read, not a call. Before the
+  // fix, `call_in_expr()` only ever inspected the tail, so this whole statement was silently
+  // misclassified as `Role::PlainExpression` (allowed anywhere) instead of `Role::Call(
+  // "trigger" )` (rejected, since `trigger` isn't `main`).
+  let engine = engine_build();
+  let ast = engine.compile( "fn trigger() { #{ x: 1 } } trigger().x" ).unwrap();
+
+  let violation = check_top_level_is_declarative( &ast )
+    .expect_err( "a call sitting in a dot chain's receiver must be rejected even when the chain's own tail is a plain property read" );
+  assert_eq!( violation.kind, "expression" );
+}

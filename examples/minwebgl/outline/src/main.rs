@@ -106,6 +106,25 @@ impl_locations!
   "u_inv_view"
 );
 
+/// Computes the ( x, y ) JFA jump distance, in pixels, for step pass `i` -- always equal in
+/// both axes.
+///
+/// Fix(BUG-333): `jfa_step.frag`'s `offset` calculation already divides by `u_resolution`
+/// per-axis to convert a pixel-space jump into normalized UV space, which alone correctly
+/// compensates for a non-square canvas ( each axis divides by its own resolution component ) --
+/// exactly as this crate's sibling "production" shader
+/// ( `module/helper/renderer/.../wide_outline/jfa_step.frag`, already fixed under BUG-180 )
+/// documents. The caller previously pre-multiplied only the x component by
+/// `viewport.0 as f32 / viewport.1 as f32` before uploading, double-applying the aspect-ratio
+/// correction on top of that per-axis division and stretching the JFA search radius -- and
+/// therefore the rendered outline -- wider than tall on any non-square canvas instead of
+/// uniform in all directions. Both components must carry the same pixel distance.
+fn jfa_step_size( t : f64, i : i32 ) -> ( f32, f32 )
+{
+  let step = ( 5.0 * ( t as f32 / 500.0 ).sin().abs() ) / ( 2.0_f32 ).powf( i as f32 );
+  ( step, step )
+}
+
 /// Binds a texture to a texture unit and uploads its location to a uniform.
 ///
 /// # Arguments
@@ -508,9 +527,7 @@ impl Renderer
     // Upload resolution uniform ( needed for distance calculations in the shader )
     gl::uniform::upload( gl, Some( u_resolution.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
 
-    let aspect_ratio = self.viewport.0 as f32 / self.viewport.1 as f32;
-    let step_size = ( 5.0 * ( t as f32 / 500.0 ).sin().abs() ) / ( 2.0_f32 ).powf( i as f32 );
-    let step_size = ( step_size * aspect_ratio, step_size );
+    let step_size = jfa_step_size( t, i );
 
     gl::uniform::upload( gl, Some( u_step_size.clone() ), &[ step_size.0, step_size.1 ] ).unwrap();
 
@@ -653,4 +670,107 @@ async fn app_run() -> Result< (), gl::WebglError >
 fn main()
 {
   gl::spawn_local( async move { app_run().await.unwrap() } );
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::*;
+
+  /// ## Root Cause
+  /// `jfa_step_pass` pre-multiplied only the x component of the JFA jump distance by
+  /// `viewport.0 as f32 / viewport.1 as f32` ( aspect ratio ) before uploading it as
+  /// `u_step_size`. `jfa_step.frag`'s own `offset = ceil( vec2( x, y ) * u_step_size ) /
+  /// u_resolution` already converts a pixel-space jump into normalized UV space per-axis,
+  /// which alone correctly compensates for a non-square canvas -- pre-multiplying by aspect
+  /// ratio on top of that double-applies the correction, stretching the JFA search radius
+  /// ( and the rendered outline ) wider than tall on any non-square canvas.
+  ///
+  /// ## Why Not Caught
+  /// This crate has no test file -- it is a `fn main()`-only WebGL demo binary, verified by
+  /// running it in a browser. The distortion is only visible by eye on a non-square canvas,
+  /// and is easy to mistake for an intentional artistic choice rather than a scaling defect,
+  /// especially since the algorithm still produces *an* outline, just non-uniformly shaped.
+  ///
+  /// ## Fix Applied
+  /// Extracted the jump-distance computation into `jfa_step_size`, which returns the same
+  /// pixel value for both axes unconditionally -- matching this crate's sibling "production"
+  /// implementation ( `module/helper/renderer/.../wide_outline/wide_outline.rs`, `stepSize =
+  /// [ step_size, step_size ]`, fixed under BUG-180 ). Also changed `jfa_step.frag`'s offset
+  /// calculation from the scalar-broadcast `* u_step_size.x` to the component-wise
+  /// `* u_step_size`, matching the sibling shader's `* stepSize` exactly ( the `.x`-only form
+  /// silently never read the uploaded `.y` component ).
+  ///
+  /// ## Prevention
+  /// `test_jfa_step_size_is_symmetric_across_passes_and_time` sweeps every step index and
+  /// several time samples and asserts the two axes are always identical, rather than checking
+  /// only one canvas aspect ratio or one point in time.
+  ///
+  /// ## Pitfall
+  /// A per-axis UV conversion ( dividing by a resolution vector with different components )
+  /// already compensates for non-square canvases on its own -- pre-scaling the pixel-space
+  /// input to that conversion by the same aspect ratio a second time silently re-introduces
+  /// the exact distortion the per-axis division was meant to remove. When a sibling
+  /// implementation documents a fix for this pattern, any other copy sharing the same
+  /// algorithm must be checked for the identical mistake, not assumed independent.
+  // Fix(BUG-333): reproducer for the JFA step's x-axis jump distance being inflated by
+  // aspect ratio relative to the y-axis, stretching the outline on non-square canvases.
+  // test_kind: bug_reproducer(BUG-333)
+  #[ allow( clippy::float_cmp, reason = "both sides come from the same deterministic f32 formula in jfa_step_size, so IEEE-754 guarantees bit-exact results, not merely close ones" ) ]
+  #[ test ]
+  fn test_jfa_step_size_is_symmetric_across_passes_and_time()
+  {
+    for i in 0 .. 8_i32
+    {
+      for t in [ 0.0_f64, 123.0, 500.0, 1000.0, 7777.0 ]
+      {
+        let ( x, y ) = jfa_step_size( t, i );
+        assert_eq!( x, y, "jfa_step_size must be symmetric at t={t}, i={i} (got x={x}, y={y})" );
+      }
+    }
+  }
+
+  /// Pins the pre-fix formula's exact asymmetry on a representative non-square ( 16:9 )
+  /// canvas, confirming the bug was real and not a hypothetical edge case.
+  #[ allow( clippy::float_cmp, reason = "both formulas are deterministic f32 arithmetic on the same inputs, so IEEE-754 guarantees bit-exact, not merely close, results" ) ]
+  #[ test ]
+  fn test_pre_fix_formula_was_asymmetric_for_non_square_aspect_ratio()
+  {
+    let aspect_ratio = 16.0_f32 / 9.0_f32;
+    let t = 250.0_f64;
+    let i = 1_i32;
+
+    let step = ( 5.0 * ( t as f32 / 500.0 ).sin().abs() ) / ( 2.0_f32 ).powf( i as f32 );
+    let buggy_step_size = ( step * aspect_ratio, step );
+    assert_ne!
+    (
+      buggy_step_size.0, buggy_step_size.1,
+      "pre-fix formula must be asymmetric on a non-square canvas (x={}, y={})", buggy_step_size.0, buggy_step_size.1
+    );
+
+    let ( fixed_x, fixed_y ) = jfa_step_size( t, i );
+    assert_eq!( fixed_x, fixed_y, "fixed formula must clear the asymmetry" );
+  }
+
+  /// Structural check on the shader text itself: the offset calculation must scale by the
+  /// full `u_step_size` vector ( component-wise `vec2 * vec2` ), matching the sibling
+  /// "production" shader exactly, not broadcast only its `.x` component -- which would
+  /// silently leave the uploaded `.y` component unread.
+  // Fix(BUG-333): reproducer for `jfa_step.frag` reading only `u_step_size.x`.
+  // test_kind: bug_reproducer(BUG-333)
+  #[ test ]
+  fn test_jfa_step_shader_uses_full_step_size_vector_not_x_only()
+  {
+    let shader_src = include_str!( "../resources/shaders/jfa_step.frag" );
+    assert!
+    (
+      shader_src.contains( "* u_step_size )" ),
+      "jfa_step.frag must scale the offset by the full u_step_size vector (component-wise), matching the fixed production shader"
+    );
+    assert!
+    (
+      !shader_src.contains( "u_step_size.x" ),
+      "jfa_step.frag must not broadcast only the x component of u_step_size -- .y would then be silently unused"
+    );
+  }
 }

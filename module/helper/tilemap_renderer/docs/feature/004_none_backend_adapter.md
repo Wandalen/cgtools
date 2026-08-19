@@ -11,7 +11,7 @@
 
 ### Design
 
-`NoneBackend` is a complete, working implementation, not a stub — unlike the terminal adapter's deferred status ([003](003_terminal_backend_adapter.md)), there is no follow-up PR pending here; the no-op behavior *is* the finished feature. `assets_load` and `submit` both unconditionally return `Ok(())` without inspecting their input, `output()` always returns `Output::Presented`, `resize()` is a no-op, and `capabilities()` returns `Capabilities::default()` (every flag `false`, matching a backend that renders nothing).
+`NoneBackend` is a complete, working implementation, not a stub — unlike the terminal adapter's partial status ([003](003_terminal_backend_adapter.md)), there is no further work pending here; the no-op behavior *is* the finished feature. `assets_load` and `submit` both unconditionally return `Ok(())` without inspecting their input, `output()` always returns `Output::Presented`, `resize()` is a no-op, and `capabilities()` returns `Capabilities::default()` (every flag `false`, matching a backend that renders nothing).
 
 This is deliberately distinct from an unimplemented command family returning `RenderError::Unsupported` elsewhere in the crate — `NoneBackend` never errors on any input, because accepting and discarding everything is the entire contract, not a partial one. The adapter exists so a caller can drive the same `RenderCommand` stream through a pipeline that only cares about simulation state (e.g. physics or layout math expressed as commands) without requiring a real backend — see `docs/adr/003_d2_stack_hal_adoption.md` Decision #2, which formalizes this as "math-only simulation, no rendering."
 

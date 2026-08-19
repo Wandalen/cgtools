@@ -70,7 +70,17 @@ fn image_load
   on_load_callback : Box< dyn Fn( &web_sys::HtmlImageElement ) >,
 ) -> Result< web_sys::HtmlImageElement, minwebgl::JsValue >
 {
-  let image = image_element_create( "tileset.png" )?;
+  // Fix(BUG-338): both `image_element_create` and `set_id` used to be called with the hardcoded
+  // literal "tileset.png" instead of `path`, ignoring the parameter entirely for two of its three
+  // uses. `image_element_create("tileset.png")` resolves against the app root (no `static/`
+  // prefix), so the element's initial `src` pointed at a URL that 404s -- a real, wasted network
+  // request fired on every page load, immediately overwritten a few lines below by the correctly
+  // computed `url`. Root cause: literal copy-pasted in place of the parameter that was meant to
+  // drive it (the doc comment above already claimed `path` was "used to construct the image URL",
+  // which was only true for the later `set_src` call).
+  // Pitfall: a demo with a single call site can hide a parameter being silently ignored --
+  // nothing here fails visibly unless a second caller passes a different `path`.
+  let image = image_element_create( path )?;
 
   let window = web_sys::window()
   .ok_or_else( || JsValue::from_str( "Failed to get window" ) )?;
@@ -79,7 +89,11 @@ fn image_load
   let body = document.body()
   .ok_or_else( || JsValue::from_str( "Failed to get body" ) )?;
   let _ = body.append_child( &image );
-  image.set_id( "tileset.png" );
+  // The DOM id stays filename-only (not the full `path`) so it keeps matching the bare-filename
+  // ids that `texture_array_prepare`'s `get_element_by_id` lookups already use elsewhere in this
+  // file -- only the element-creation `src` bug above needed the full path.
+  let id = path.rsplit( '/' ).next().unwrap_or( path );
+  image.set_id( id );
 
   let style = image.style();
   let _ = style.set_property( "visibility", "hidden" );
@@ -100,10 +114,16 @@ fn image_load
     )
   );
   on_load_callback.forget();
-  let origin = window.location()
-  .origin()
-  .expect( "Should have an origin" );
-  let url = format!( "{origin}/{path}" );
+  // Fix(BUG-109): joined `path` against `window.location().origin()` alone,
+  // discarding the current page's own directory — resolved to the site root
+  // instead of this example's own subpath when deployed under one.
+  // Root cause: see `mingl::web::resolve_url`'s doc comment — origin never
+  // carries a path; relative references must resolve against the document's
+  // own directory.
+  // Pitfall: don't hand-roll this join — reuse `gl::web::file::url_resolve`,
+  // the same helper `gl::dom::image_element_create` now uses internally.
+  let href = window.location().href()?;
+  let url = gl::web::file::url_resolve( &href, path );
   image.set_src( &url );
   Ok( image )
 }
@@ -314,15 +334,17 @@ fn vertex_attributes_prepare() -> WebGlVertexArrayObject
   let vao = gl::vao::create( &gl )
   .unwrap();
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32; 2 ] >()
+  let position_attr = mingl::VertexAttribute::new( position_slot, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  let uv_attr = mingl::VertexAttribute::new( uv_slot, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector )
   .stride( 2 )
-  .offset( 0 )
-  .attribute_pointer( &gl, position_slot, &position_buffer )
+  .offset( position_attr.offset )
+  .attribute_pointer( &gl, position_attr.location, &position_buffer )
   .unwrap();
-  gl::BufferDescriptor::new::< [ f32; 2 ] >()
+  gl::BufferDescriptor::from_vector( uv_attr.vector )
   .stride( 2 )
-  .offset( 0 )
-  .attribute_pointer( &gl, uv_slot, &uv_buffer )
+  .offset( uv_attr.offset )
+  .attribute_pointer( &gl, uv_attr.location, &uv_buffer )
   .unwrap();
   gl.bind_vertex_array( None );
 

@@ -89,6 +89,26 @@ mod private
       }
     }
 
+    /// Creates a new `BufferDescriptor` from a raw `VectorDataType`.
+    ///
+    /// For bridging from a `mingl::VertexAttribute`, where the concrete Rust type
+    /// ( `I : IntoVectorDataType` ) that `new` expects isn't known at the call site — only the
+    /// already-resolved `VectorDataType` is. Needed because `BufferDescriptor` is `#[non_exhaustive]`,
+    /// so it can't be built via struct literal outside this module.
+    #[ inline ]
+    #[ must_use ]
+    pub fn from_vector( vector : VectorDataType ) -> Self
+    {
+      Self
+      {
+        vector,
+        offset : 0,
+        stride : 0,
+        divisor : 0,
+        normalized : false
+      }
+    }
+
     /// Sets whether the buffer attribute should be normalized.
     #[ inline ]
     #[ must_use ]
@@ -213,6 +233,43 @@ mod private
     }
   }
 
+  /// Binds every attribute in a `mingl::VertexBufferLayout` to `gl_buffer`, delegating each
+  /// attribute to `BufferDescriptor::attribute_pointer` for the actual GL call ( including its
+  /// matrix-splitting behavior for attributes whose `vector.nelements() > 1` ).
+  ///
+  /// `layout.step_mode` is authoritative: `StepMode::Vertex` always binds with WebGL divisor `0`,
+  /// regardless of `layout.divisor`. `StepMode::Instance` binds with `layout.divisor`, defaulting to
+  /// `1` ( advance once per instance ) when left at its Rust-default `0`, since a WebGL divisor of
+  /// `0` means "per vertex" — the opposite of what `StepMode::Instance` asks for.
+  ///
+  /// # Errors
+  /// Returns `WebglError` if any attribute's `attribute_pointer` call fails.
+  #[ inline ]
+  pub fn vertex_buffer_layout_bind
+  (
+    gl : &GL,
+    gl_buffer : &WebGlBuffer,
+    layout : &mingl::VertexBufferLayout
+  ) -> Result< (), WebglError >
+  {
+    let divisor = match layout.step_mode
+    {
+      mingl::StepMode::Vertex => 0,
+      mingl::StepMode::Instance => if layout.divisor == 0 { 1 } else { layout.divisor },
+    };
+
+    for attribute in &layout.attributes
+    {
+      BufferDescriptor::from_vector( attribute.vector )
+      .offset( attribute.offset )
+      .stride( layout.stride )
+      .divisor( divisor )
+      .attribute_pointer( gl, attribute.location, gl_buffer )?;
+    }
+
+    Ok( () )
+  }
+
 }
 
 crate::mod_interface!
@@ -224,6 +281,7 @@ crate::mod_interface!
     upload,
     WebGlBuffer,
     BufferDescriptor,
+    vertex_buffer_layout_bind,
   };
 
 }

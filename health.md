@@ -4,7 +4,7 @@ Per-crate workspace health dashboard. Every column is a snapshot with its regene
 re-run the command to refresh a number instead of trusting the table. Live work items are tracked in
 [task/readme.md](task/readme.md); this file summarizes state, it does not duplicate the backlog.
 
-- **Snapshot date:** 2026-08-17
+- **Snapshot date:** 2026-08-18
 - **Workspace build:** ✅ `cargo check --workspace --all-features --exclude orrery_flexible` — exit 0
   (incremental, warm cache from same-day `verb/test` full run). The bare `--workspace --all-features`
   form this row previously documented now fails unconditionally — `orrery_flexible`'s 4 backend
@@ -12,9 +12,10 @@ re-run the command to refresh a number instead of trusting the table. Live work 
   docs/adr/004), and `--all-features` enables all 4 at once. `--exclude orrery_flexible` mirrors what
   `verb/test` itself already does for this crate; see that script's own comment above its native
   stages for the full per-feature check list.
-- **Task system:** 89 completed · 3 draft · 8 cancelled · 8 accepting · 14 verifying · 3 open bugs
-  (see task/readme.md for the live table; counts re-derived 2026-08-18 via
-  `grep -oE '\| (✅|🔎|📝|🚫|❓|🔬|⚙️|📦) \([A-Za-z]+\)' task/readme.md | sort | uniq -c`).
+- **Task system:** 89 completed · 3 draft · 8 cancelled · 8 accepting · 14 verifying · 7 open bugs
+  (see task/readme.md for the live table; task counts re-derived 2026-08-18 via
+  `grep -oE '\| (✅|🔎|📝|🚫|❓|🔬|⚙️|📦) \([A-Za-z]+\)' task/readme.md | sort | uniq -c`; bug count via
+  `ls task/bug/verified/ | wc -l`, cross-checked against task/bug/readme.md's Open Bugs table).
 
 ## Regeneration commands
 
@@ -93,9 +94,14 @@ decided keep-crate for `diamond` and `make_cube_map`, and tasks 094/095 deleted 
 
 ## Known issues (workspace level)
 
-- **Shader validation tooling absent:** `glslangValidator` is not installed on this machine, which
-  blocks offline GLSL validation work. Fix: `sudo apt install glslang-tools`, verify with
-  `glslangValidator --version`.
+- **Shader validation tooling absent: resolved without external tooling.** `glslangValidator` is
+  still not installed on this machine, but GLSL ES 3.00 shader validation no longer needs it —
+  `module/helper/renderer/tests/legacy_glsl_shader_compile_test.rs` compiles all 28 shipped
+  `.vert`/`.frag` files through a real headless WebGL2 context's own compiler, the actual target
+  these OpenGL-ES-idiom sources are written for (naga's `front::glsl` targets desktop GLSL
+  440+/Vulkan only and rejects them outright — see `shader_validation_tests.rs`'s doc comment).
+  Verify: `grep -c 'wasm_bindgen_test( async )'
+  module/helper/renderer/tests/legacy_glsl_shader_compile_test.rs` (28).
 - **Lint-policy stragglers: none.** All module/ crates inherit `[workspace.lints]` (mdmath_core,
   ndarray_cg, embroidery_tools verified wired 2026-08-11), and the last 23 stragglers — the
   minwebgl demo crates (the earlier "~43" figure was a stale estimate) — were wired and gated
@@ -136,9 +142,23 @@ files — verified clean 2026-08-13.)*
 - **BUG-300** (🎯 Verified, Medium) — `minwebgpu`'s `TextureDescriptor::new()` default format is
   incompatible with `.storage_binding()`, silently producing a texture WebGPU rejects; latent (zero
   reachable call sites currently). Not yet promoted to a fix task.
+- **BUG-311** (🎯 Verified, Medium) — `Quat::from_angle_y( 90.0 )` called with a raw degree literal
+  instead of radians at 3 sibling example call sites (`curve`/`lottie`/`animation_surface_rendering`);
+  active, visually-wrong behavior, confined to those 3 examples. Not yet promoted to a fix task.
+- **BUG-312** (🎯 Verified, Medium) — `character_control` example halves the visible character mesh's
+  yaw at its `Quat::from_angle_y` call site, desyncing it from the camera's own orbit; active, confined
+  to 1 example. Not yet promoted to a fix task.
+- **BUG-313** (🎯 Verified, Medium) — `sprite_animation` example's frame-index modulus uses
+  `sprite_count - 1` instead of `sprite_count`, permanently skipping the last animation frame; active,
+  confined to 1 example. Not yet promoted to a fix task.
+- **BUG-314** (🎯 Verified, High) — `embroidery_tools`' PEC reader underflows `stitch_block_len - 5` for
+  untrusted file data under 5 bytes, panicking in debug and corrupting the read position in release;
+  reachable via both public `pec::*` and `pes::*` entry points, not latent. Not yet promoted to a fix
+  task.
 
 No task in the current backlog is actionable by further autonomous work in this sandbox — the 22
 tasks above are code-complete and self-verified pending independent review, blocked only on a
 genuinely independent verifier this sandbox's same-actor guard cannot supply. BUG-114 is resolved and
-promoted; BUG-298/BUG-300 are newly-filed latent defects (Verified, not yet promoted to fix tasks).
+promoted; BUG-298/BUG-300 are latent defects and BUG-311/BUG-312/BUG-313/BUG-314 are active defects
+(all 🎯 Verified, not yet promoted to fix tasks).
 

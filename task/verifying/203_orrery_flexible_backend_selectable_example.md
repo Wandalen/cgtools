@@ -4,9 +4,9 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **started_at:** 2026-08-16 19:39:31
-- **expires_at:** 2026-08-16 21:39:31
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **started_at:** 2026-08-18 23:49:11
+- **expires_at:** 2026-08-19 01:49:11
 - **round:** 1
 - **state:** 🔬 (Verifying)
 - **closes:** null
@@ -17,8 +17,10 @@
 - **blocked_by:** null
 - **repo_identity:** self
 - **in_motion:** true
-- **verifying_at:** 2026-08-16 19:39:31
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **verifying_at:** 2026-08-18 23:49:11
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **unverified_at:** 2026-08-18 23:47:41
+- **unverified_by:** system
 
 ## Goal
 
@@ -221,6 +223,8 @@ self-verify — an independent verifier performs the walk after the task reaches
 |---------------------|----------------------|-------|--------------|
 | 2026-08-16 19:39:31 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-17 00:49:51 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | ATTEMPT_VERIFY_PASS | `tsk .verify_pass 203` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard, consistent with task 206 precedent; not forced/spoofed, left at 🔬 Verifying per standing project convention |
+| 2026-08-18 23:47:41 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-18 23:49:11 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 
 ## History
 

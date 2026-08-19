@@ -18,7 +18,14 @@ mod private
     /// The caller-supplied descriptor is invalid independent of which
     /// backend is active ( e.g. a zero-sized texture dimension ) — rejected
     /// before any backend is touched.
-    InvalidInput( String )
+    InvalidInput( String ),
+    /// No frame is available from a windowed surface right now — the window
+    /// is occluded, minimized, or acquisition timed out.
+    ///
+    /// Transient and expected, not a failure : a render loop handles it by
+    /// skipping this frame and trying again on the next tick. Only windowed
+    /// surfaces produce it; offscreen and canvas surfaces never do.
+    SurfaceNotReady
   }
 
   impl std::fmt::Display for Error
@@ -32,7 +39,8 @@ mod private
         Error::Native( message ) => write!( f, "Native backend error :: {message}" ),
         Error::Vulkan( message ) => write!( f, "Vulkan backend error :: {message}" ),
         Error::Unsupported( message ) => write!( f, "Unsupported :: {message}" ),
-        Error::InvalidInput( message ) => write!( f, "Invalid input :: {message}" )
+        Error::InvalidInput( message ) => write!( f, "Invalid input :: {message}" ),
+        Error::SurfaceNotReady => write!( f, "Surface not ready :: no frame available this tick" )
       }
     }
   }

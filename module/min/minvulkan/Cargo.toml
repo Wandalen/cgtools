@@ -6,6 +6,14 @@ description = "Minimal, opinionated native Vulkan toolkit via ash — no wgpu de
 
 [dependencies]
 ash = { workspace = true, features = [ "loaded" ] }
+# Creates a `VkSurfaceKHR` from raw window/display handles and reports which
+# platform instance extensions that needs — the two pieces of the swapchain path
+# that are inherently platform-specific. Hand-rolling them would mean duplicating
+# per-platform `unsafe` for xlib/xcb/wayland/win32/metal.
+ash-window.workspace = true
+# Re-exported as `minvulkan::raw_window_handle` so a consumer reaches the handle
+# traits through this driver rather than naming a second copy of them.
+raw-window-handle.workspace = true
 mingl.workspace = true
 error_tools.workspace = true
 

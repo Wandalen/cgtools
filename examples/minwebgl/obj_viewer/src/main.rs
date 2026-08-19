@@ -1,4 +1,5 @@
-//! Just draw a large point in the middle of the screen.
+//! Interactive OBJ model viewer in WebGL2, with orbit-camera rotation and
+//! zoom controls over a loaded Wavefront OBJ scene.
 
 use std::
 {
@@ -67,7 +68,8 @@ async fn app_run() -> Result< (), gl::WebglError >
   let obl_path = "static/lost-empire/lost_empire.obj";
 
   gl::console::time_with_label( "Load" );
-  let model_buffer = gl::file::load( obl_path ).await.expect( "Failed to fetch the model" );
+  let model_buffer = gl::file::load( obl_path ).await
+  .map_err( | e | gl::dom::Error::BindgenError( "Failed to fetch the model", format!( "{e:?}" ) ) )?;
   gl::console::time_end_with_label( "Load" );
 
   // This is for loading the model in a form as close as possible to the form specified in obj file, which might not me suitable for render

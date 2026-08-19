@@ -211,7 +211,7 @@ async fn app_run() -> Result< (), gl::WebglError >
   let mut gltf = scene_setup( &gl ).await?;
 
   let lottie_path = "static/lottie/google.json";
-  let animation = animation_load( &gl, lottie_path ).await;
+  let animation = animation_load( &gl, lottie_path ).await?;
   animation.world_matrix_set( identity() );
 
   let ( s, _ ) = animation.frame( 0.0 ).expect( "Can't get scene at start frame" );

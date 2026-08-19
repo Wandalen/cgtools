@@ -8,6 +8,7 @@ rand = "0.10.2"
 getrandom = { version = "0.4.3", features = [ "wasm_js" ] }
 ndarray_cg = { workspace = true }
 minwebgl = { workspace = true, features = ['future'] }
+mingl = { workspace = true }
 tobj = { workspace = true, features = ['async'] }
 [dependencies.web-sys]
 features = [

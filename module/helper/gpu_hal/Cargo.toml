@@ -36,6 +36,11 @@ full = [ "default", "webgpu", "webgl", "native", "vulkan", "webgl-glsl-build" ]
 
 [dependencies]
 
+# Non-optional: `types.rs`'s struct/enum definitions ( including `VertexBufferLayout::step_mode`,
+# typed `mingl::StepMode` ) are never `#[cfg]`-gated -- they compile regardless of which backend
+# feature ( webgl/webgpu/native/vulkan ) is active, so this dependency can't be gated behind any of
+# them either.
+mingl = { workspace = true }
 mod_interface = { workspace = true, optional = true }
 minwebgpu = { workspace = true, features = [ "math" ], optional = true }
 minwebgl = { workspace = true, optional = true }
@@ -43,9 +48,11 @@ minwebgl = { workspace = true, optional = true }
 # minwebgl's own web-sys feature set does not enable; feature unification
 # adds them to the shared web-sys instance minwebgl re-exports.
 web-sys = { workspace = true, optional = true, features = [ "WebGl2RenderingContext", "WebGlSampler" ] }
-# The native backend builds its context through minwgpu ( which does not
-# re-export wgpu ) and holds raw wgpu objects in its handle variants — the
-# same split as minwebgl + web-sys above.
+# The native backend builds its context through minwgpu and holds raw wgpu
+# objects in its handle variants, which appear in this crate's own public
+# signatures — so wgpu is named directly here rather than reached through
+# minwgpu's re-export, the same split as minwebgl + web-sys above. A consumer
+# that only *calls* this crate needs neither entry.
 minwgpu = { workspace = true, optional = true }
 wgpu = { workspace = true, optional = true }
 # The vulkan backend builds through minvulkan + raw ash calls — it must never

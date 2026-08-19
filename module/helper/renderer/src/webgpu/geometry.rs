@@ -6,6 +6,7 @@ mod private
     Buffer,
     BufferUsage,
     Error,
+    StepMode,
     VertexAttribute,
     VertexBufferLayout,
     VertexFormat
@@ -123,6 +124,7 @@ mod private
         VertexBufferLayout
         {
           stride : 12,
+          step_mode : StepMode::Vertex,
           attributes : vec!
           [
             VertexAttribute { location : 0, format : VertexFormat::Float32x3, offset : 0 }
@@ -131,6 +133,7 @@ mod private
         VertexBufferLayout
         {
           stride : 12,
+          step_mode : StepMode::Vertex,
           attributes : vec!
           [
             VertexAttribute { location : 1, format : VertexFormat::Float32x3, offset : 0 }
@@ -139,6 +142,7 @@ mod private
         VertexBufferLayout
         {
           stride : 8,
+          step_mode : StepMode::Vertex,
           attributes : vec!
           [
             VertexAttribute { location : 2, format : VertexFormat::Float32x2, offset : 0 }
@@ -147,6 +151,7 @@ mod private
         VertexBufferLayout
         {
           stride : 16,
+          step_mode : StepMode::Vertex,
           attributes : vec!
           [
             VertexAttribute { location : 3, format : VertexFormat::Float32x4, offset : 0 }

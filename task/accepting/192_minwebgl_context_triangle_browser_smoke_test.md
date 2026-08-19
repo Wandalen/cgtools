@@ -4,22 +4,23 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/
-- **started_at:** 2026-08-16 12:33:59
-- **expires_at:** 2026-08-16 14:33:59
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **started_at:** 2026-08-19 00:46:27
+- **expires_at:** 2026-08-19 02:46:27
 - **round:** 1
 - **state:** 🔎 (Accepting)
 - **closes:** null
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/min/minwebgl
-- **verified_by:** null
+- **verified_by:** system
 - **verification_date:** null
 - **blocked_by:** null
-- **executing_at:** 2026-08-16 12:11:30
-- **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **executing_at:** 2026-08-19 00:46:27
+- **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **in_motion:** true
-- **accepting_at:** 2026-08-16 12:33:59
-- **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/
+- **accepting_at:** 2026-08-19 00:46:27
+- **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **verified_at:** 2026-08-19 00:40:42
 
 ## Goal
 
@@ -213,6 +214,10 @@ Desired answer for every question is YES.
 | 2026-08-16 12:33:59 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | EXEC_COMPLETE | execution complete |
 | 2026-08-16 12:33:59 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | CLAIM_ACCEPT | acceptance claimed |
 | 2026-08-17 00:49:51 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | ATTEMPT_ACCEPTANCE_PASS | `tsk .acceptance_pass 192` → exit 1, "self-verification forbidden (actor matches executing_by)" — same-actor sandbox guard, consistent with task 202/206 precedent; not forced/spoofed, left at 🔎 Accepting per standing project convention |
+| 2026-08-19 00:40:42 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-19 00:46:27 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
+| 2026-08-19 00:46:27 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | EXEC_COMPLETE | execution complete |
+| 2026-08-19 00:46:27 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_ACCEPT | acceptance claimed |
 
 ## History
 

@@ -14,6 +14,11 @@ mod private {}
 
 mod_interface!
 {
+  // Re-export the underlying host API, so a consumer reaches `wgpu` through this driver
+  // rather than naming it as a second, independently-versioned dependency of its own —
+  // matching `minwebgl` and `minwebgpu`, which each re-export `web_sys` the same way.
+  own use ::wgpu;
+
   layer helper;
   layer buffer;
   layer context;

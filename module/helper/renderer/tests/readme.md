@@ -36,6 +36,7 @@
 | pbr_material_live_test.rs | Live-context tests for `PbrMaterial` defines/IBL-flag/emission/clone logic |
 | tests.rs | Connects test modules into root |
 | shader_validation_tests.rs | Validates WGSL shader sources offline via naga |
+| legacy_glsl_shader_compile_test.rs | Compiles all 28 shipped legacy GLSL ES 3.00 `.vert`/`.frag` shaders through a real headless WebGL2 context |
 | native_render_test.rs | Pixel-asserted opaque path render on the native backend |
 | webgpu_geometry_test.rs | Tests `webgpu::Geometry::new` attribute-length cross-validation |
 | webgpu_light_test.rs | Tests `webgpu::Lights::spot_push` cone-angle validation |
@@ -46,3 +47,5 @@
 | gltf_skeleton_displacements_test.rs | Tests glTF morph-target displacement data packing |
 | gltf_attribute_descriptor_test.rs | Tests glTF vertex-attribute descriptor computation from accessor metadata |
 | webgl_frame_orchestration_test.rs | Tests legacy webgl path's drawbuffers attachment selection |
+| gltf_extensions_required_test.rs | Tests glTF loader rejects assets requiring unsupported extensions |
+| unreal_bloom_tests.rs | Structural browser tests: `UnrealBloomPass` renders via the real `SwapFramebuffer`-bound pass cycle |

@@ -49,6 +49,32 @@ fn device_creation()
   assert_eq!( surface.format(), TextureFormat::Rgba8Unorm );
 }
 
+/// `device.as_native()` on a native-constructed `Device` returns `Some` with a
+/// genuinely usable `wgpu::Device` — proven by querying a real GPU-negotiated
+/// limit through the returned reference, not just checking it's non-`None`
+/// ( no test anywhere in this crate previously exercised the matching-backend
+/// branch of any `as_native`/`as_vulkan`/`as_webgpu`/`as_webgl` accessor ).
+#[ test ]
+fn as_native_returns_device_usable_through_raw_handle()
+{
+  let ( device, _queue, _surface ) = Device::new_native( 4, 4 )
+  .expect( "no native wgpu adapter available" );
+
+  let raw = device.as_native().expect( "as_native must return Some on a Device::Native handle" );
+
+  // `max_texture_dimension_2d` is a real limit negotiated with the adapter at
+  // device creation ; wgpu's own downlevel-compatible floor
+  // ( `Limits::downlevel_defaults()` ) never lets this drop below 2048, so
+  // this also doubles as a sanity check on the queried value itself.
+  let limits = raw.limits();
+  assert!
+  (
+    limits.max_texture_dimension_2d >= 2048,
+    "max_texture_dimension_2d should be a real GPU-negotiated limit drilled down through as_native(), got {}",
+    limits.max_texture_dimension_2d
+  );
+}
+
 #[ test ]
 fn triangle_render_readback()
 {
@@ -105,6 +131,7 @@ fn triangle_render_readback()
     vertex_buffers : &[ VertexBufferLayout
     {
       stride : 8,
+      step_mode : StepMode::Vertex,
       attributes : vec!
       [
         VertexAttribute
@@ -267,6 +294,7 @@ fn textured_scene_setup() -> TexturedScene
     vertex_buffers : &[ VertexBufferLayout
     {
       stride : 8,
+      step_mode : StepMode::Vertex,
       attributes : vec! [ VertexAttribute { location : 0, format : VertexFormat::Float32x2, offset : 0 } ]
     } ],
     bind_group_layouts : &[ &layout ],

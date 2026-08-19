@@ -505,6 +505,230 @@ fn two_tinted_sprites_get_distinct_filter_ids()
   assert!( b.contains( "url(#tint_1)" ), "body: {b}" );
 }
 
+// -- sprite <use> sizing and orientation (BUG-374, BUG-373) --
+
+// test_kind: bug_reproducer(BUG-374)
+/// ## Root Cause
+/// The draw-time `<use href="#sprite_N">` emitted by `cmd_sprite` carried no
+/// explicit `width`/`height`. Per SVG 1.1/2, a `<use>` referencing a
+/// `<symbol>` that has a `viewBox` but no explicit size on the `<use>`
+/// itself defaults to 100% of the *containing viewport* -- not the
+/// symbol's own viewBox size. This auto-fit scale compounds
+/// multiplicatively with the `<use>`'s own explicit `transform` (the
+/// world-to-SVG `scale(sx,-sy)`), producing a gross over-scale (100x+ in a
+/// typical 200px-viewport / 2px-sprite case) that renders sprites as a
+/// solid-color blob deep inside a single source pixel.
+/// ## Why Not Caught
+/// Every existing sprite test asserted only on the `<use href="#sprite_N"`
+/// prefix or a match count, never on the presence of an explicit
+/// `width`/`height` attribute -- so the auto-fit fallback was silently
+/// exercised without any test noticing which SVG default it triggered.
+/// Only a real-browser pixel readback (no pixel-render infra exists in
+/// this crate's unit tests) surfaced the effect.
+/// ## Fix Applied
+/// Added `SvgResources::sprite_dims`, populated in `sprites_load` alongside
+/// `sprite_defs`, and emit `width="{w}" height="{h}"` (matching the
+/// sprite's own region pixel size) on the `<use>` in `cmd_sprite`.
+/// See `src/adapters/svg.rs`.
+/// ## Prevention
+/// This test asserts the draw-time `<use>` carries explicit width/height
+/// matching the sprite's region dimensions exactly.
+/// ## Pitfall
+/// The correct value is the region's own *native* pixel size, not the
+/// draw call's target on-screen size -- the outer `transform`'s own scale
+/// is what stretches native size to the final on-screen size; sizing the
+/// `<use>` to anything else double-applies that scale.
+#[ test ]
+fn sprite_use_carries_explicit_dimensions_matching_region()
+{
+  let mut svg = svg800x600();
+  let assets = Assets
+  {
+    images : vec![ ImageAsset
+    {
+      id : ResourceId::new( 0 ),
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 16 * 16 * 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+      filter : SamplerFilter::Linear,
+      mipmap : MipmapMode::Off,
+      wrap : WrapMode::Clamp,
+    }],
+    sprites : vec![ SpriteAsset
+    {
+      id : ResourceId::new( 0 ),
+      sheet : ResourceId::new( 0 ),
+      region : [ 0.0, 0.0, 16.0, 16.0 ],
+    }],
+    ..empty_assets()
+  };
+  svg.assets_load( &assets ).unwrap();
+  svg.submit( &[
+    RenderCommand::Sprite( Sprite
+    {
+      transform : Transform { position : [ 0.0, 0.0 ], scale : [ 100.0, 100.0 ], ..Default::default() },
+      sprite : ResourceId::new( 0 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+  ]).unwrap();
+
+  let b = body( &svg );
+  assert!
+  (
+    b.contains( "<use href=\"#sprite_0\" width=\"16\" height=\"16\"" ),
+    "draw-time <use> must carry explicit width/height matching the region size, else SVG auto-fits to 100% of viewport and compounds with the transform's own scale; body: {b}",
+  );
+}
+
+// test_kind: bug_reproducer(BUG-374)
+/// ## Root Cause
+/// Same defect as `sprite_use_carries_explicit_dimensions_matching_region`,
+/// at the distinct `cmd_draw_batch` sprite-instance call site, which builds
+/// its own `<use href="#sprite_N">` string independently of `cmd_sprite`.
+/// ## Why Not Caught
+/// `sprite_batch_create_draw` (the only pre-existing batch sprite test)
+/// asserted only `b.matches("#sprite_0").count() == 2`, never on
+/// width/height presence.
+/// ## Fix Applied
+/// Same `sprite_dims` lookup as `cmd_sprite`, with a `.unwrap_or((1.0,1.0))`
+/// fallback instead of `.expect(...)` since this call site has no
+/// pre-existing existence guard (unlike `cmd_sprite`'s BUG-209 check) --
+/// matching this site's existing dangling-reference behavior for that
+/// already-separate, unrelated gap. See `src/adapters/svg.rs`,
+/// `cmd_draw_batch`.
+/// ## Prevention
+/// This test asserts both batch-instance `<use>` elements carry explicit
+/// width/height matching the sprite's region dimensions.
+/// ## Pitfall
+/// The batch path's `<use>` string is built independently of `cmd_sprite`'s
+/// -- fixing one call site does not fix the other; both need their own
+/// regression coverage. Separately: `sprite_batch_create_draw` (the sibling
+/// test this one's asset setup was copied from) uses a byte-count-mismatched
+/// `ImageSource::Bitmap` (`vec![0u8;4]` claiming 32x32) that `bitmap_to_png`
+/// silently rejects, so that sheet never actually registers and its sprite
+/// symbol never lands in `defs` -- invisible to that test because it only
+/// asserts on `body`. This test uses a correctly-sized buffer so the sprite
+/// genuinely loads and the fix's `sprite_dims` lookup has a real entry to
+/// find, rather than exercising the unrelated missing-entry fallback path.
+#[ test ]
+fn sprite_batch_use_carries_explicit_dimensions_matching_region()
+{
+  let mut svg = svg800x600();
+  let assets = Assets
+  {
+    images : vec![ ImageAsset
+    {
+      id : ResourceId::new( 0 ),
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 32 * 32 * 4 ], width : 32, height : 32, format : PixelFormat::Rgba8 },
+      filter : SamplerFilter::Linear,
+      mipmap : MipmapMode::Off,
+      wrap : WrapMode::Clamp,
+    }],
+    sprites : vec![ SpriteAsset
+    {
+      id : ResourceId::new( 0 ),
+      sheet : ResourceId::new( 0 ),
+      region : [ 0.0, 0.0, 32.0, 32.0 ],
+    }],
+    ..empty_assets()
+  };
+  svg.assets_load( &assets ).unwrap();
+
+  let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
+  svg.submit( &[
+    RenderCommand::CreateSpriteBatch( CreateSpriteBatch
+    {
+      batch : batch_id,
+      params : SpriteBatchParams { transform : Transform::default(), sheet : ResourceId::new( 0 ), blend : BlendMode::Normal, clip : None },
+    }),
+    RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
+    RenderCommand::AddSpriteInstance( AddSpriteInstance
+    {
+      transform : Transform { position : [ 10.0, 20.0 ], ..Default::default() },
+      sprite : ResourceId::new( 0 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+    }),
+    RenderCommand::UnbindBatch( UnbindBatch ),
+    RenderCommand::DrawBatch( DrawBatch { batch : batch_id } ),
+  ]).unwrap();
+
+  let b = body( &svg );
+  assert!
+  (
+    b.contains( "<use href=\"#sprite_0\" width=\"32\" height=\"32\"" ),
+    "batch-instance <use> must carry explicit width/height matching the region size; body: {b}",
+  );
+}
+
+// test_kind: bug_reproducer(BUG-373)
+/// ## Root Cause
+/// `transform_to_svg_static` always emits `scale(sx,-sy)` on the draw-time
+/// `<use href="#sprite_N">` to convert the crate's Y-up world space to
+/// SVG's Y-down space. This is correct for vector content (paths/meshes
+/// authored directly in Y-up coordinates) but also mirrors already-
+/// correctly-oriented raster `<image>` content vertically, since `<image>`
+/// and `region` are both Y-down/top-origin natively (SVG viewBox
+/// convention -- see `SpriteAsset::region`'s doc comment). No compensating
+/// counter-flip existed anywhere in the `images_load`/`sprites_load`/
+/// `cmd_sprite` pipeline.
+/// ## Why Not Caught
+/// No existing test rendered an asymmetric (non-uniform-color) bitmap and
+/// checked pixel orientation -- string-content assertions can't detect a
+/// visual mirror; only a real-browser pixel readback surfaced it, and only
+/// after fixing BUG-374's over-scale (which had been masking every sample
+/// point down to a single source pixel).
+/// ## Fix Applied
+/// `sprites_load` now emits a counter-flip `transform="translate(0,{flip_y})
+/// scale(1,-1)"` on the symbol definition's inner `<use href="#img_N">`,
+/// where `flip_y = 2*region.y + region.h` re-centers the flip on the crop
+/// window's own vertical extent (not the full sheet), so which
+/// sub-rectangle is selected stays unaffected -- verified algebraically and
+/// via real-browser pixel readback (4-quadrant RGBW bitmap, exact
+/// orientation match post-fix). See `src/adapters/svg.rs`.
+/// ## Prevention
+/// This test asserts the `<symbol id="sprite_N">` definition's inner
+/// `<use href="#img_N">` carries the exact counter-flip transform, using a
+/// non-trivial region (`region.y != 0`) so the `2*region.y + region.h`
+/// formula is meaningfully exercised, not just its `region.y == 0` special
+/// case.
+/// ## Pitfall
+/// The counter-flip must be centered on the *crop window's* own extent
+/// (`2*region.y + region.h`), not the full sheet's height -- centering on
+/// the sheet instead would correctly un-mirror a full-sheet sprite but
+/// silently select the wrong sub-rectangle for any sprite whose region
+/// doesn't start at the sheet's own origin.
+#[ test ]
+fn sprite_symbol_use_counter_flips_image_orientation()
+{
+  let mut svg = svg800x600();
+  let assets = Assets
+  {
+    images : vec![ ImageAsset
+    {
+      id : ResourceId::new( 0 ),
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 32 * 32 * 4 ], width : 32, height : 32, format : PixelFormat::Rgba8 },
+      filter : SamplerFilter::Linear,
+      mipmap : MipmapMode::Off,
+      wrap : WrapMode::Clamp,
+    }],
+    sprites : vec![ SpriteAsset
+    {
+      id : ResourceId::new( 0 ),
+      sheet : ResourceId::new( 0 ),
+      region : [ 4.0, 2.0, 8.0, 6.0 ],
+    }],
+    ..empty_assets()
+  };
+  svg.assets_load( &assets ).unwrap();
+
+  let d = defs( &svg );
+  assert!
+  (
+    d.contains( "<use href=\"#img_0\" width=\"32\" height=\"32\" transform=\"translate(0,10) scale(1,-1)\"" ),
+    "sprite symbol's inner <use> must counter-flip via translate(0, 2*region.y+region.h) scale(1,-1) ( 2*2.0+6.0 = 10 here ) to cancel the outer draw-time Y-flip for raster content; defs: {d}",
+  );
+}
+
 // -- batch lifecycle --
 
 #[ test ]

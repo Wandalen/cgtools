@@ -197,7 +197,14 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
     vec3 oldOrigin = rayOrigin;
     rayOrigin = dirOriginToIntersect * surfaceDistance;
 
-    float r = length( rayOrigin - oldOrigin );// * absorptionFactor;
+    // Fix(BUG-322): the absorption-strength multiplication below used to be commented out,
+    // leaving the `absorptionFactor` uniform declared and uploaded from Rust but with zero
+    // effect on the rendered result — any value assigned to it produced identical output.
+    // Root cause: a debugging-time comment-out of this multiplication was never restored.
+    // Pitfall: don't rename or remove the `absorptionFactor` uniform to "clean up" what
+    // looks like dead code — it's meant to scale the Beer-Lambert distance term below;
+    // only the multiplication itself was missing.
+    float r = length( rayOrigin - oldOrigin ) * absorptionFactor;
     attenuationFactor *= exp( -r * ( 1.0 - colorAbsorption ) );
 
     totalDistance += length( rayOrigin - oldOrigin );

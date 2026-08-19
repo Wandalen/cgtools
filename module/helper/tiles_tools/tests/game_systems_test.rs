@@ -221,3 +221,36 @@ fn test_status_effects() {
   assert_eq!(participant.status_effects.len(), 1);
   assert_eq!(participant.status_effects[0].duration, 3);
 }
+
+// test_kind: bug_reproducer(BUG-349)
+/// ## Root Cause
+/// `Resource::new`/`Resource::with_regeneration` store `maximum` unclamped,
+/// but `Resource::modify`/`Resource::current_set` both call
+/// `.clamp(0.0, self.maximum)` -- `f32::clamp` has an unconditional
+/// `assert!(min <= max)`, so any negative `maximum` makes every subsequent
+/// `modify`/`current_set` call panic. `Resource::maximum_set` already clamps
+/// via `value.max(0.0)`, but `new`/`with_regeneration` never applied the same
+/// invariant.
+/// ## Why Not Caught
+/// Every existing `Resource`/`ResourceManager` test constructs resources with
+/// a positive maximum -- no test ever passed a negative value to `new` or
+/// `with_regeneration`, so the missing clamp had no historical trigger.
+/// ## Fix Applied
+/// `new` and `with_regeneration` now clamp `maximum` to `.max(0.0)`, matching
+/// the invariant `maximum_set` already enforced.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// A builder/constructor that stores a value one of the type's own methods
+/// later assumes is non-negative (via an unconditional `f32::clamp` divisor
+/// bound) must enforce that invariant itself at construction -- a sibling
+/// setter clamping correctly (`maximum_set`) is not evidence every
+/// value-producing path does the same.
+#[test]
+fn test_resource_new_with_negative_maximum_does_not_panic_on_modify()
+{
+  let mut resource = Resource::new(-5.0);
+  resource.modify(1.0);
+  assert!(resource.maximum >= 0.0, "maximum should be clamped to a non-negative value, got {}", resource.maximum);
+  assert!(resource.current >= 0.0, "current should be clamped to a non-negative value, got {}", resource.current);
+}

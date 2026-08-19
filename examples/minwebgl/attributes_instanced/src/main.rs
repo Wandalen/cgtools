@@ -1,4 +1,15 @@
-//! Just draw a large point in the middle of the screen.
+//! Draws 6 static triangles via `draw_arrays_instanced`, with 5 instances offset along Y
+//! by a per-instance attribute (divisor 1) — demonstrates instanced rendering with
+//! per-instance vertex attributes in WebGL2.
+
+// Fix(BUG-319): module doc comment above was a stale copy-paste leftover — it used to
+// claim this crate drew one large, screen-centered point, but this crate actually
+// instanced-draws 6 triangles with per-instance Y offsets (5 instances), and its own
+// readme.md already correctly describes it as an instanced-rendering demo.
+// Root cause: doc comment never updated as the demo grew past an early single-point sketch.
+// Pitfall: `attributes_vao`'s sibling `main.rs` carried the exact same stale sentence —
+// check other `attributes_*`/early-stage demo crates for the same leftover before assuming
+// this was a one-off.
 
 use minwebgl as gl;
 use gl::{ GL };
@@ -72,12 +83,15 @@ fn app_run() -> Result< (), gl::WebglError >
 
   let vao = gl::vao::create( &gl )?;
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32 ; 2 ] >().stride( 2 ).offset( 0 ).divisor( 0 )
-  .attribute_pointer( &gl, position_slot, &position_buffer )?;
-  gl::BufferDescriptor::new::< [ f32 ; 3 ] >().stride( 3 ).offset( 0 ).divisor( 2 )
-  .attribute_pointer( &gl, color_slot, &color_buffer )?;
-  gl::BufferDescriptor::new::< [ f32 ; 2 ] >().stride( 2 ).offset( 0 ).divisor( 1 )
-  .attribute_pointer( &gl, offset_slot, &offset_buffer )?;
+  let position_attr = mingl::VertexAttribute::new( position_slot, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  let color_attr = mingl::VertexAttribute::new( color_slot, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  let offset_attr = mingl::VertexAttribute::new( offset_slot, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector ).stride( 2 ).offset( position_attr.offset ).divisor( 0 )
+  .attribute_pointer( &gl, position_attr.location, &position_buffer )?;
+  gl::BufferDescriptor::from_vector( color_attr.vector ).stride( 3 ).offset( color_attr.offset ).divisor( 2 )
+  .attribute_pointer( &gl, color_attr.location, &color_buffer )?;
+  gl::BufferDescriptor::from_vector( offset_attr.vector ).stride( 2 ).offset( offset_attr.offset ).divisor( 1 )
+  .attribute_pointer( &gl, offset_attr.location, &offset_buffer )?;
   gl.bind_vertex_array( None );
 
   // Bind VAO and draw

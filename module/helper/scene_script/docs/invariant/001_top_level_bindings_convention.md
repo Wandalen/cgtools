@@ -36,11 +36,17 @@ isn't last) is rejected.
   expose `AST::statements()` and the `Stmt` enum; it costs no extra
   dependency (`internals = []` in `rhai`'s own manifest) and is the same
   surface `rhai`'s own `debugging` feature builds on.
+<!-- BUG-351 task/bug/351_top_level_lint_misses_call_in_dot_chain_property_tail.md --
+     corrected the rhs-only claim below: a dot chain's call can sit in
+     either lhs or rhs, not rhs alone. -->
 - `call_expr()` recognizes a call whether it arrives as a bare
   `Stmt::FnCall`, a trailing (implicit-return) `Stmt::Expr( Expr::FnCall )`,
   or a dotted method call (`receiver.method( args )`) wrapped in one or
-  more `Expr::Dot` layers — unwound recursively via the `rhs` link down to
-  the terminal `Expr::MethodCall`/`Expr::FnCall`.
+  more `Expr::Dot` layers — unwound recursively via the `rhs` link first
+  (reaching a terminal `Expr::MethodCall`/`Expr::FnCall` such as
+  `a.b().c()`), falling back to the `lhs` link at each level when `rhs`
+  isn't itself a call (reaching a call sitting in the chain's receiver, such
+  as `trigger().x`, where the chain's own tail is a plain property read).
 - Rhai operator calls (`+`, `-`, `*`, ...) classify as `PlainExpression`,
   not `Call`, even though Rhai represents arithmetic as a `FnCallExpr`
   under the hood (`FnCallExpr::is_operator_call()`) — arithmetic is

@@ -1,9 +1,16 @@
-//! # Uniforms And Animation Example with UBOs
+//! # Simple PBR Material Grid
 //!
-//! This program demonstrates how to render a triangle in the middle of the screen using WebGL in Rust. It utilizes shaders with Uniform Block Objects (UBOs) to manage uniforms efficiently.
+//! Renders a grid of screen-space impostor spheres -- no mesh, just a fullscreen quad and a
+//! per-pixel analytic sphere SDF -- each cell varying metallic (rows) and roughness (columns) at
+//! a shared, live-adjustable base color. Lit with a three-point (key/fill/rim) setup plus
+//! hemisphere ambient, ACES tonemapped. Base color, light intensity, ambient intensity and
+//! exposure are controllable live via the lil-gui panel.
 
 use minwebgl as gl;
-use gl::{ GL };
+use gl::GL;
+
+mod lil_gui;
+mod gui_setup;
 
 fn app_run() -> Result< (), gl::WebglError >
 {
@@ -20,27 +27,28 @@ fn app_run() -> Result< (), gl::WebglError >
   let height = gl.drawing_buffer_height() as f32;
 
   let resolution_loc = gl.get_uniform_location( &program, "u_resolution" );
-  let metallic_loc = gl.get_uniform_location( &program, "u_metallic" );
-  let roughness_loc = gl.get_uniform_location( &program, "u_roughness" );
-  let reflactance_loc = gl.get_uniform_location( &program, "u_reflectance" );
   let base_color_loc = gl.get_uniform_location( &program, "u_base_color" );
+  let light_intensity_loc = gl.get_uniform_location( &program, "u_light_intensity" );
+  let ambient_intensity_loc = gl.get_uniform_location( &program, "u_ambient_intensity" );
+  let exposure_loc = gl.get_uniform_location( &program, "u_exposure" );
   let time_loc = gl.get_uniform_location( &program, "u_time" );
 
-  gl.uniform1f( metallic_loc.as_ref(), 0.0 );
-  gl.uniform1f( roughness_loc.as_ref(), 0.5 ); // 0.027 - minimum value;
-  gl.uniform1f( reflactance_loc.as_ref(), 2.0 );
-  // gl.uniform3f( base_color_loc.as_ref(), 0.562, 0.565, 0.578 ); // iron
-  // gl.uniform3f( base_color_loc.as_ref(), 1.022, 0.782, 0.344 ); // gold
-  gl.uniform3f( base_color_loc.as_ref(), 0.673, 0.637, 0.585 ); // platinum
-
+  let settings = gui_setup::setup();
 
   // Define the update and draw logic
   let update_and_draw =
   {
     move | t : f64 |
     {
-      gl.uniform1f( time_loc.as_ref(), t as f32 );
+      let settings = settings.borrow();
+
       gl.uniform2f( resolution_loc.as_ref(), width, height );
+      gl.uniform3f( base_color_loc.as_ref(), settings.base_color[ 0 ], settings.base_color[ 1 ], settings.base_color[ 2 ] );
+      gl.uniform1f( light_intensity_loc.as_ref(), settings.light_intensity );
+      gl.uniform1f( ambient_intensity_loc.as_ref(), settings.ambient_intensity );
+      gl.uniform1f( exposure_loc.as_ref(), settings.exposure );
+      gl.uniform1f( time_loc.as_ref(), t as f32 );
+
       // Draw points
       gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
       true

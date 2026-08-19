@@ -5,8 +5,8 @@
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-17 04:20:34
-- **expires_at:** 2026-08-17 06:20:34
+- **started_at:** 2026-08-18 23:49:12
+- **expires_at:** 2026-08-19 01:49:12
 - **round:** 1
 - **state:** 🔬 (Verifying)
 - **closes:** null
@@ -16,8 +16,10 @@
 - **verification_date:** null
 - **blocked_by:** null
 - **in_motion:** true
-- **verifying_at:** 2026-08-17 04:20:34
+- **verifying_at:** 2026-08-18 23:49:12
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **unverified_at:** 2026-08-18 23:47:41
+- **unverified_by:** system
 
 ## Goal
 
@@ -231,6 +233,8 @@ Desired answer for every question is YES.
 |---------------------|----------------------|-------|--------------|
 | 2026-08-17 04:20:34 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-17 04:21 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 223` → blocked: `tsk: .verify_pass: self-verification forbidden (actor matches filed_by)`; left at 🔬 Verifying |
+| 2026-08-18 23:47:41 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-18 23:49:12 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 
 ## History
 

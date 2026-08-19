@@ -357,6 +357,19 @@ mod private
       // Traverse the scene and draw all opaque objects.
       scene.traverse( &mut draw_node )?;
 
+      // Fix(BUG-342)
+      // Root cause: this function bound `self.framebuffer` above but never rebound the default
+      // (`None`) framebuffer before returning, unlike its siblings `framebuffer_create` and
+      // `texture_set`, which both explicitly restore `None` as their last GL state change.
+      // WebGL's `bindFramebuffer` state persists on the context until explicitly changed, so any
+      // GL call issued after `render()` returned, by code that didn't itself rebind first, would
+      // silently target this internal offscreen texture instead of the intended target.
+      // Pitfall: when several functions in the same file share a "bind non-default, do work,
+      // restore default" shape, fixing the restore on some of them doesn't guarantee the rest
+      // were caught -- each has to be individually audited against the shape it shares with its
+      // siblings, not assumed consistent once most of them look handled.
+      gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+
       Ok( () )
     }
 

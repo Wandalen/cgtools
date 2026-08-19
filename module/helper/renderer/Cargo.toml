@@ -108,6 +108,32 @@ rustc-hash = { workspace = true }
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 getrandom = { version = "0.2", features = [ "js" ] }
 
+# Exercises the animation-specific glTF loader's pure decode/sequence-building
+# logic, gated behind `animation` -- without `required-features`, this test
+# binary fails to *compile* under a plain `cargo test` ( `animation` is not
+# part of `default` ), since it unconditionally imports the
+# `#[cfg(feature = "animation")]`-gated `renderer::webgl::animation` module.
+[[test]]
+name = "gltf_animation_loader_test"
+required-features = ["animation"]
+
+# The following three exercise pure sub-surfaces of the glTF loader gated
+# behind `native` ( `#![cfg(all(feature = "native", not(target_arch =
+# "wasm32")))]` internally ) -- without `required-features`, a plain
+# `cargo test` silently compiles each to an empty crate and reports
+# "running 0 tests" instead of skipping the binary with a clear reason.
+[[test]]
+name = "gltf_attribute_descriptor_test"
+required-features = ["native"]
+
+[[test]]
+name = "gltf_node_scene_test"
+required-features = ["native"]
+
+[[test]]
+name = "gltf_skeleton_displacements_test"
+required-features = ["native"]
+
 # Build-time-only WGSL→GLSL ES 300 translation for the `webgpu` feature's
 # WebGL override pair ( `build.rs` ) — never becomes part of the compiled
 # artifact, native or wasm32; independent of the runtime `gpu_hal` dependency

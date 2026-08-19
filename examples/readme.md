@@ -39,10 +39,10 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 |<img width="500px" src="./minwebgl/character_control/showcase.webp"><br>[Character control](./minwebgl/character_control/readme.md) |<img width="500px" src="./minwebgl/color_space_conversions/showcase.webp"><br>[Color space conversions](./minwebgl/color_space_conversions/readme.md) |
 |[Context triangle smoke](./minwebgl/context_triangle_smoke/readme.md)<br>*(No showcase — see readme for pixel-verification detail)* | |
 |<img width="500px" src="./minwebgl/curve_surface_rendering/showcase.webp"><br>[Curve rendering on surface](./minwebgl/curve_surface_rendering/readme.md) |<img width="500px" src="./minwebgl/deferred_shading/showcase.webp"><br>[Deferred shading](./minwebgl/deferred_shading/readme.md) |
-|<img width="500px" src="./minwebgl/diamond/showcase.webp"><br>[Diamond](./minwebgl/diamond/readme.md) |<img width="500px" src="./minwebgl/filter/showcase.webp"><br>[Image filter](./minwebgl/filter/readme.md) |
+|<img width="500px" src="./minwebgl/diamond/showcase.webp"><br>[Diamond](./minwebgl/diamond/readme.md) | |
 |<img width="500px" src="./minwebgl/filters/showcase.webp"><br>[Image filters](./minwebgl/filters/readme.md) |<img width="500px" src="./minwebgl/gltf_viewer/showcase.webp"><br>[GLTF viewer](./minwebgl/gltf_viewer/readme.md) |
 |<img width="500px" src="./minwebgl/hexagonal_grid/showcase.webp"><br>[Hexagonal grid](./minwebgl/hexagonal_grid/readme.md) |<img width="500px" src="./minwebgl/hexagonal_map/showcase.webp"><br>[Hexagonal map](./minwebgl/hexagonal_map/readme.md) |
-|<img width="500px" src="./minwebgl/jewelry_site/showcase.webp"><br>[Jewelry site](./minwebgl/jewelry_site/readme.md) |<img width="500px" src="./minwebgl/lottie_surface_rendering/showcase.webp"><br>[Lottie surface rendering](./minwebgl/lottie_surface_rendering/readme.md) |
+| |<img width="500px" src="./minwebgl/lottie_surface_rendering/showcase.webp"><br>[Lottie surface rendering](./minwebgl/lottie_surface_rendering/readme.md) |
 |<img width="500px" src="./minwebgl/make_cube_map/showcase.webp"><br>[Cube map](./minwebgl/make_cube_map/readme.md) |<img width="500px" src="./minwebgl/mapgen_tiles_rendering/showcase.webp"><br>[Tilemaps rendering](./minwebgl/mapgen_tiles_rendering/readme.md) |
 |<img width="500px" src="./minwebgl/minimize_wasm/showcase.webp"><br>[Minimize wasm](./minwebgl/minimize_wasm/readme.md) |<img width="500px" src="./minwebgl/morph_targets/showcase.webp"><br>[Morph targets](./minwebgl/morph_targets/readme.md) |
 |<img width="500px" src="./minwebgl/narrow_outline/showcase.webp"><br>[Narrow outline](./minwebgl/narrow_outline/readme.md) |<img width="500px" src="./minwebgl/obj_load/showcase.webp"><br>[OBJ loading](./minwebgl/obj_load/readme.md) |
@@ -51,7 +51,7 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 |<img width="500px" src="./minwebgl/postprocessing/showcase.webp"><br>[Postprocessing](./minwebgl/postprocessing/readme.md) |<img width="500px" src="./minwebgl/raycaster/showcase.webp"><br>[Raycaster](./minwebgl/raycaster/readme.md) |
 |<img width="500px" src="./minwebgl/renderer_with_outlines/showcase.webp"><br>[Outlines postprocessing](./minwebgl/renderer_with_outlines/readme.md) |[Shadowmap](./minwebgl/shadowmap/readme.md)<br>*(No showcase yet)* |
 |<img width="500px" src="./minwebgl/simple_pbr/showcase.webp"><br>[Simple PBR](./minwebgl/simple_pbr/readme.md) |<img width="500px" src="./minwebgl/skeletal_animation/showcase.webp"><br>[Skeletal animation](./minwebgl/skeletal_animation/readme.md) |
-|<img width="500px" src="./minwebgl/space_partition/showcase.webp"><br>[Space partition](./minwebgl/space_partition/readme.md) |<img width="500px" src="./minwebgl/spinning_cube_size_opt/showcase.webp"><br>[Spinning cube](./minwebgl/spinning_cube_size_opt/readme.md) |
+|<img width="500px" src="./minwebgl/space_partition/showcase.webp"><br>[Space partition](./minwebgl/space_partition/readme.md) | |
 |<img width="500px" src="./minwebgl/sprite_animation/showcase.webp"><br>[Sprite animation](./minwebgl/sprite_animation/readme.md) | |
 |<img width="500px" src="./minwebgl/text_msdf/showcase.webp"><br>[Text MSDF](./minwebgl/text_msdf/readme.md) |<img width="500px" src="./minwebgl/text_rendering/showcase.webp"><br>[Text rendering](./minwebgl/text_rendering/readme.md) |
 |[Touch input test](./minwebgl/touch_input_test/readme.md)<br>*(No showcase — manual testing aid, not a demo)* |<img width="500px" src="./minwebgl/trivial/showcase.webp"><br>[Trivial](./minwebgl/trivial/readme.md) |
@@ -74,13 +74,17 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 
 ## gpu_hal Examples
 
-One triangle, drawn through `gpu_hal`'s portable surface against both the WebGPU and
-WebGL2 backends (separate cargo features) — the browser-side pixel-verification
-counterpart to `gpu_hal/tests/native_backend_test.rs`'s native readback test.
+The same one triangle, drawn through `gpu_hal`'s portable surface against the
+backends its own tests cannot reach. `Triangle (browser)` covers WebGPU and WebGL2
+(separate cargo features) — the browser-side pixel-verification counterpart to
+`gpu_hal/tests/native_backend_test.rs`'s native readback test. `Triangle (Vulkan
+window)` covers windowed presentation through a real `VK_KHR_swapchain`, which no
+test can reach because no crate under `module/` may depend on a windowing library;
+it is also the only example whose process links no `wgpu` at all.
 
 | | |
 |:-------------------------:|:-------------------------:|
-|[Triangle (browser)](./gpu_hal/triangle_browser/readme.md)<br>*(No showcase — see readme for pixel-verification detail)* | |
+|[Triangle (browser)](./gpu_hal/triangle_browser/readme.md)<br>*(No showcase — see readme for pixel-verification detail)* |[Triangle (Vulkan window)](./gpu_hal/triangle_vulkan_window/readme.md)<br>*(No showcase — see readme for what to watch while it runs)* |
 
 ## renderer Examples
 
@@ -139,7 +143,7 @@ One scene — a sun-and-orbits HUD diagram — implemented once per backend/laye
 | demo_readme_example.md | Template for creating demo readme files |
 | demo_todo_categorized.md | Categorized todo list for examples |
 | example_requirements.md | Requirements documentation for examples |
-| gpu_hal/ | gpu_hal HAL examples directory (1 demo) |
+| gpu_hal/ | gpu_hal HAL examples directory (2 demos) |
 | how_to_run.md | Setup and execution instructions for examples |
 | index.html | Interactive HTML gallery with 72 example showcases |
 | index.md | Markdown-formatted examples list |

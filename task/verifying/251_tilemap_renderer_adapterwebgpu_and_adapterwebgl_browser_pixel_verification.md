@@ -14,11 +14,11 @@
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/tilemap_renderer
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-16 14:32:04
-- **expires_at:** 2026-08-16 16:32:04
-- **unverified_at:** 2026-08-16 14:24:12
-- **unverified_by:** unknown
-- **verifying_at:** 2026-08-16 14:32:04
+- **started_at:** 2026-08-18 23:49:12
+- **expires_at:** 2026-08-19 01:49:12
+- **unverified_at:** 2026-08-18 23:47:41
+- **unverified_by:** system
+- **verifying_at:** 2026-08-18 23:49:12
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
@@ -201,6 +201,8 @@ Desired answer for every question is YES.
 | 2026-08-16 14:32:04 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-17 00:49:51 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | ATTEMPT_VERIFY_PASS | `tsk .verify_pass 198` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard, consistent with task 206 precedent; not forced/spoofed, left at 🔬 Verifying per standing project convention |
 | 2026-08-18 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified | RE_VERIFIED | post-task-218 re-run of T03/T04 in Firefox: `adapter-webgpu` sprite-center now `rgb 255 0 0`, background `rgb 0 0 255` — matches `adapter-webgl` exactly; docs/manual guide updated |
+| 2026-08-18 23:47:41 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-18 23:49:12 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 
 ## History
 

@@ -52,5 +52,5 @@ Given the font gap, this adapter's status is tracked as partial (⚠️) rather 
 
 | File | Relationship |
 |------|--------------|
-| `src/adapters/svg.rs` (inline `#[cfg(test)]`) | Internal-helper coverage: transform conversion, escaping, MIME detection, asset-skip diagnostics, geometry `Source::Path` loading (from-disk happy path, missing-file skip, missing-index whole-skip), blend modes, effects, and more |
+| `tests/svg_backend_test.rs` | Relocated from inline `src/adapters/svg.rs` by task 071 — no `#[cfg(test)]` block remains in the source file. Behavior tests drive `SvgBackend` through its public surface (`SvgBackend::new` / `viewport_scale_set` / `viewport_offset_set` plus the `Backend` trait), asserting on the rendered SVG string from `output()`; formatting/encoding helper tests cover the `#[doc(hidden)]`-exported helpers. Covers transform conversion, escaping, MIME detection, asset-skip diagnostics, geometry `Source::Path` loading (from-disk happy path, missing-file skip, missing-index whole-skip), blend modes, effects, and more |
 | `tests/backend_test.rs` | `Backend` trait contract exercised generically (not SVG-specific) |

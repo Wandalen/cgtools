@@ -20,6 +20,7 @@ Two layers:
 |---|---|
 | `integration_tests.rs` | Entry point compiling the feature-gated integration suite |
 | `integration/` | Cross-cutting integration scenarios (opt-in `integration` feature) |
+| `coordinates_distance_overflow_test.rs` | `distance()` overflow/saturation across hex, square, isometric, triangular (BUG-350) |
 | `debug_test.rs` | Debugger, inspector, profiler, and formatting utilities behavior |
 | `events_test.rs` | Event bus lifecycle, priorities, consumption, statistics |
 | `field_of_view_test.rs` | Direct `VisibilityMap` construction and mutation API |

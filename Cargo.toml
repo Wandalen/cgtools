@@ -560,6 +560,19 @@ version = "30.0.0"
 [workspace.dependencies.ash]
 version = "0.38"
 
+# Surface creation from raw window/display handles, for `minvulkan`'s swapchain path.
+# Part of the `ash` project itself, tracking `ash` 0.38 — the Vulkan counterpart of
+# `wgpu::SurfaceTarget`, not a windowing library : it takes handles and knows nothing
+# about `winit`, `sdl2` or `glfw` ( see docs/adr/005_windowed_native_presentation.md ).
+[workspace.dependencies.ash-window]
+version = "0.13"
+
+# The window/display handle traits themselves. Named here because `minvulkan`
+# re-exports them, so a consumer reaches them through the driver rather than
+# declaring a second, independently-versioned copy of its own.
+[workspace.dependencies.raw-window-handle]
+version = "0.6"
+
 [workspace.dependencies.winit]
 version = "0.30"
 

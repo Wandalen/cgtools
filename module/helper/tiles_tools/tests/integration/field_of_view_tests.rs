@@ -643,3 +643,53 @@ fn test_ray_casting_reaches_every_immediate_neighbor_at_range_one() {
     );
   }
 }
+
+// BUG-346 task/bug/346_bresenham_line_of_sight_asymmetric.md -- reproducer for
+// line_of_sight's direction-dependent asymmetry around a wall cluster.
+// test_kind: bug_reproducer(BUG-346)
+/// ## Root Cause
+/// `bresenham_line_trace` greedily walks from `from` toward `to`, picking
+/// whichever neighbor is closest (by `distance()`) to the fixed target at
+/// each step. This greedy nearest-to-target walk is not path-reversible --
+/// tracing `A -> B` and `B -> A` can visit different intermediate cells, so
+/// one direction can route around a wall the other direction runs straight
+/// through.
+/// ## Why Not Caught
+/// No existing `Bresenham`-algorithm test called `line_of_sight` in both
+/// directions between the same pair of endpoints -- every existing case
+/// checked only one direction, which cannot distinguish a symmetric result
+/// from a direction-dependent one.
+/// ## Fix Applied
+/// `bresenham_line_trace` now traces from the lexicographically-smaller
+/// endpoint regardless of which endpoint the caller passed as `from`, so the
+/// traced path -- and therefore the line-of-sight result -- no longer depends
+/// on call direction.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// A greedy "move to whichever neighbor is closest to the target" line
+/// tracer looks like an ordinary Bresenham approximation but is not
+/// guaranteed to retrace the same cells in reverse -- symmetry must be
+/// verified explicitly, not assumed from the algorithm's name.
+#[ test ]
+fn test_bresenham_line_of_sight_is_symmetric_around_wall() {
+  let fov = FieldOfView::with_algorithm(FOVAlgorithm::Bresenham);
+
+  let a = SquareCoord::<EightConnected>::new(0, 0);
+  let b = SquareCoord::<EightConnected>::new(5, 3);
+
+  let walls = [
+    SquareCoord::<EightConnected>::new(2, 1),
+    SquareCoord::<EightConnected>::new(2, 2),
+    SquareCoord::<EightConnected>::new(3, 2),
+  ];
+  let blocks = |coord: &SquareCoord<EightConnected>| walls.contains(coord);
+
+  let a_to_b = fov.line_of_sight(&a, &b, blocks);
+  let b_to_a = fov.line_of_sight(&b, &a, blocks);
+
+  assert_eq!(
+    a_to_b, b_to_a,
+    "line_of_sight must not depend on call direction: A->B = {a_to_b}, B->A = {b_to_a}"
+  );
+}

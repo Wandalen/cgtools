@@ -39,7 +39,23 @@ wasm-bindgen = { workspace = true, optional = true }
 web-sys = { workspace = true, optional = true, features = [
   'console',
 ]}
-log = { workspace = true, optional = true, features = [ "std", "release_max_level_info" ] }
+# Fix(BUG-354): removed the `release_max_level_info` feature — it set `log::STATIC_MAX_LEVEL`
+# to `Info` at COMPILE TIME for the entire dependency graph (Cargo feature unification) in
+# every release build (`cfg(not(debug_assertions))`), silently discarding every consumer's
+# `log::debug!`/`log::trace!` call — including the CONSUMING application's own unrelated
+# logging, not just browser_log's — regardless of the runtime level requested via
+# `log::setup::setup`/`Config`. Contradicted this crate's own documented contract
+# (`Config::new`'s doc comment; readme.md's "Configurable log levels for deployment").
+# Root cause: `log`'s own `STATIC_MAX_LEVEL` const (log-0.4.33/src/lib.rs:1637-1650) selects
+# `Info` whenever `not(debug_assertions)` and this feature is set, and `debug!`/`trace!`
+# (log-0.4.33/src/macros.rs:137) gate on `lvl <= STATIC_MAX_LEVEL` before the runtime level is
+# ever consulted — so the only correct level control here is the runtime one already
+# implemented in `setup.rs`, never a compile-time Cargo feature cap.
+# Pitfall: `release_max_level_*` features look like a reasonable "ship less log noise in
+# release" default, but they cap the level for every crate sharing this dependency's feature
+# set (unification), not just this one — a library crate should never opt a consuming binary
+# into a level cap the binary's own author never asked for.
+log = { workspace = true, optional = true, features = [ "std" ] }
 mod_interface = { workspace = true, optional = true }
 
 [dev-dependencies]

@@ -14,6 +14,7 @@
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
 - **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/ (self)
 - **verification_date:** 2026-08-18
+- **Fix Task:** [359](../../verifying/359_minwebgpu_texture_descriptor_default_format_fix_registration.md) (task's own Readiness Verification Gate PASS 8/8; blocked on `tsk .verify_pass` actor guard, task remains 🔬 Verifying)
 
 ## Symptom
 
