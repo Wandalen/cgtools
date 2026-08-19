@@ -69,6 +69,20 @@ pub struct GridTuning
   // the JS reference), Pause leaves it alone and just clears `animate_ships`.
   pub show_grid : bool,
   pub speed_multiplier : f32,
+
+  // Directional light + shadow-map controls for `hull.rs`'s material
+  // (asteroids/ships/station) - not part of the JS reference's own dev
+  // panel (`gridTuningPanel.js` never exposed lighting), added per explicit
+  // request once the hull material grew a real directional-light model with
+  // shadow mapping instead of the flat ambient+diffuse it started with.
+  // Azimuth/elevation (not a raw direction vector) since that's what's
+  // actually pleasant to drag on a slider - `main.rs` converts to a
+  // direction each frame.
+  pub light_azimuth : f32,
+  pub light_elevation : f32,
+  pub light_color : [ f32; 3 ],
+  pub light_intensity : f32,
+  pub shadows_enabled : bool,
 }
 
 impl Default for GridTuning
@@ -78,28 +92,28 @@ impl Default for GridTuning
     Self
     {
       line_color : [ 0.0, 0.847, 0.965 ], // COLORS.gridCyan (0x00d8f6)
-      dim_alpha : 0.45,
+      dim_alpha : 0.21,
       cell_size : 10.0,
-      line_width_px : 2.5,
+      line_width_px : 1.0,
       camera_fade_start : 0.0,
-      camera_fade_end : 950.0,
+      camera_fade_end : 860.0,
       camera_fade_mode : 2.0,
-      camera_fade_gamma : 0.95,
+      camera_fade_gamma : 1.25,
 
-      bright_alpha : 0.85,
+      bright_alpha : 0.5,
       ribbon_color_core : [ 0.729, 0.925, 0.996 ], // #baecfe
       ribbon_color_edge : [ 0.0, 0.847, 0.965 ],   // #00d8f6
       ribbon_width_outer : 0.8,
       ribbon_width_inner : 1.1,
       ribbon_gap : 0.3,
       ribbon_opacity : 1.0,
-      inside_fade_width : 1.1,
+      inside_fade_width : 1.6,
       inside_fade_mode : 2.0,
-      inside_fade_gamma : 0.95,
+      inside_fade_gamma : 0.5,
       asteroid_glow_alpha : 1.0,
-      asteroid_glow_width : 4.2,
-      asteroid_glow_mode : 1.0,
-      asteroid_glow_gamma : 1.05,
+      asteroid_glow_width : 6.1,
+      asteroid_glow_mode : 3.0,
+      asteroid_glow_gamma : 0.7,
 
       view_radius : 160.0,
 
@@ -109,6 +123,12 @@ impl Default for GridTuning
 
       show_grid : true,
       speed_multiplier : 1.0,
+
+      light_azimuth : 276.0,
+      light_elevation : 31.0,
+      light_color : [ 1.0, 0.933, 0.867 ], // 0xffeedd, matches world.js's own sunLight color
+      light_intensity : 1.85,
+      shadows_enabled : true,
     }
   }
 }

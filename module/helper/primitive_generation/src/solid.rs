@@ -31,14 +31,25 @@ mod private
       [ -hx, -hy,  hz ], [  hx, -hy,  hz ], [  hx,  hy,  hz ], [ -hx,  hy,  hz ],
     ];
 
+    // Fix(winding): every face here was wound backwards (`cross(edge1,
+    // edge2)` pointed *into* the box, not outward) - harmless for the
+    // dFdx/dFdy-derived flat-shading normal in hull.frag (it self-corrects
+    // via gl_FrontFacing regardless of a mesh's winding), but it broke
+    // shadow mapping's front-face-culling trick (`ShadowMap::bind()` culls
+    // whatever's front-facing and keeps back-facing, relying on *correct*
+    // winding to record the far/away-from-light surface as the occluder -
+    // with this reversed, it kept the near surface instead, which reads as
+    // near-total self-shadow acne on anything facing the light). Every
+    // triangle below has its last two indices swapped from the original to
+    // reverse its winding.
     let indices = vec!
     [
-      0, 1, 2,  0, 2, 3, // back  (z = -hz)
-      4, 6, 5,  4, 7, 6, // front (z = +hz)
-      0, 3, 7,  0, 7, 4, // left  (x = -hx)
-      1, 5, 6,  1, 6, 2, // right (x = +hx)
-      0, 4, 5,  0, 5, 1, // bottom (y = -hy)
-      3, 2, 6,  3, 6, 7, // top    (y = +hy)
+      0, 2, 1,  0, 3, 2, // back  (z = -hz)
+      4, 5, 6,  4, 6, 7, // front (z = +hz)
+      0, 7, 3,  0, 4, 7, // left  (x = -hx)
+      1, 6, 5,  1, 2, 6, // right (x = +hx)
+      0, 5, 4,  0, 1, 5, // bottom (y = -hy)
+      3, 6, 2,  3, 7, 6, // top    (y = +hy)
     ];
 
     ( positions, indices )
@@ -78,6 +89,9 @@ mod private
       indices.extend_from_slice( &[ t0, t1, b1, t0, b1, b0 ] );
     }
 
+    // Fix(winding): both cap fans below were backwards (same class of bug
+    // as box_mesh - see its comment) - the side wall quads above are
+    // correctly wound already, only these two fans needed the swap.
     if radius_top > 0.0001
     {
       let center = positions.len() as u32;
@@ -85,7 +99,7 @@ mod private
       for i in 0 .. segments
       {
         let i2 = ( i + 1 ) % segments;
-        indices.extend_from_slice( &[ center, ( top_ring + i ) as u32, ( top_ring + i2 ) as u32 ] );
+        indices.extend_from_slice( &[ center, ( top_ring + i2 ) as u32, ( top_ring + i ) as u32 ] );
       }
     }
     if radius_bottom > 0.0001
@@ -95,7 +109,7 @@ mod private
       for i in 0 .. segments
       {
         let i2 = ( i + 1 ) % segments;
-        indices.extend_from_slice( &[ center, ( bottom_ring + i2 ) as u32, ( bottom_ring + i ) as u32 ] );
+        indices.extend_from_slice( &[ center, ( bottom_ring + i ) as u32, ( bottom_ring + i2 ) as u32 ] );
       }
     }
 
