@@ -9,11 +9,15 @@
 //! `Geometry` pipeline via `primitives_data_to_gltf`, or a bare
 //! `bufferData` call, or anything in between).
 //!
-//! None of these bother getting triangle winding "correct" for outward
-//! normals — a caller deriving a flat-shading normal from screen-space
-//! derivatives (`dFdx`/`dFdy`) gets a correct result regardless of winding;
-//! a caller relying on `CULL_FACE` or vertex normals for lighting will need
-//! to fix winding order (and generate normals) itself.
+//! `box_mesh`/`cylinder_mesh` (the cone case is `cylinder_mesh` with a zero
+//! radius) are outward-wound, regression-guarded by `solid_test.rs`'s
+//! `box_mesh_triangles_wind_outward`/`cylinder_mesh_triangles_wind_outward`
+//! (see BUG-396) — a caller relying on `CULL_FACE` or winding-derived
+//! normals gets a correct result for these two. `torus_mesh`/`icosphere`
+//! make no winding guarantee either way. A caller deriving a flat-shading
+//! normal from screen-space derivatives (`dFdx`/`dFdy`) is unaffected
+//! regardless, for any of the four, since that gets a correct result
+//! independent of winding.
 
 mod private
 {
@@ -31,17 +35,23 @@ mod private
       [ -hx, -hy,  hz ], [  hx, -hy,  hz ], [  hx,  hy,  hz ], [ -hx,  hy,  hz ],
     ];
 
-    // Fix(winding): every face here was wound backwards (`cross(edge1,
-    // edge2)` pointed *into* the box, not outward) - harmless for the
-    // dFdx/dFdy-derived flat-shading normal in hull.frag (it self-corrects
-    // via gl_FrontFacing regardless of a mesh's winding), but it broke
-    // shadow mapping's front-face-culling trick (`ShadowMap::bind()` culls
-    // whatever's front-facing and keeps back-facing, relying on *correct*
-    // winding to record the far/away-from-light surface as the occluder -
-    // with this reversed, it kept the near surface instead, which reads as
-    // near-total self-shadow acne on anything facing the light). Every
-    // triangle below has its last two indices swapped from the original to
-    // reverse its winding.
+    // Fix(BUG-396): every face here was wound backwards (`cross(edge1, edge2)` pointed
+    // *into* the box, not outward). Every triangle below has its last two indices
+    // swapped from the original to reverse its winding.
+    // Root cause: face indices were authored with vertex *positions* verified against
+    // three.js's `BoxGeometry` layout, but winding was never checked against an
+    // outward-facing convention - harmless for the dFdx/dFdy-derived flat-shading normal
+    // in hull.frag (it self-corrects via gl_FrontFacing regardless of a mesh's winding),
+    // but it broke shadow mapping's front-face-culling trick (`ShadowMap::bind()` culls
+    // whatever's front-facing and keeps back-facing, relying on *correct* winding to
+    // record the far/away-from-light surface as the occluder - with this reversed, it
+    // kept the near surface instead, which reads as near-total self-shadow acne on
+    // anything facing the light).
+    // Pitfall: a geometry generator with no stated winding contract can silently become
+    // winding-*dependent* the moment any consumer adds a technique that reads it (GL face
+    // culling, winding-derived normals) - see `solid_test.rs`'s
+    // `box_mesh_triangles_wind_outward`/`cylinder_mesh_triangles_wind_outward` for the
+    // general outward-winding invariant this fix now guards.
     let indices = vec!
     [
       0, 2, 1,  0, 3, 2, // back  (z = -hz)
@@ -89,9 +99,11 @@ mod private
       indices.extend_from_slice( &[ t0, t1, b1, t0, b1, b0 ] );
     }
 
-    // Fix(winding): both cap fans below were backwards (same class of bug
-    // as box_mesh - see its comment) - the side wall quads above are
-    // correctly wound already, only these two fans needed the swap.
+    // Fix(BUG-396): both cap fans below were backwards (same class of bug as box_mesh's
+    // faces - see its `Fix(BUG-396)` comment above), only these two fans needed the
+    // index-order swap. Root cause / Pitfall: same as box_mesh above - the side wall
+    // quads here were already correctly wound (confirmed by `solid_test.rs`'s
+    // `cylinder_mesh_triangles_wind_outward`, which covers this function's full output).
     if radius_top > 0.0001
     {
       let center = positions.len() as u32;

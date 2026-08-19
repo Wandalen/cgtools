@@ -288,6 +288,7 @@ beyond the 2026-08-16 walk's own already-real (not stale) evidence.
 | 2026-08-19 00:46:28 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
 | 2026-08-19 00:46:28 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | EXEC_COMPLETE | execution complete |
 | 2026-08-19 00:46:28 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_ACCEPT | acceptance claimed |
+| 2026-08-19 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | ATTEMPT_ACCEPTANCE_PASS | `tsk .acceptance_pass 246` → exit 1, "self-verification forbidden (actor matches executing_by)" — same-actor sandbox guard, consistent with prior 2026-08-17 attempt (under pre-renumbering ID 114) and this sweep's 202/247/248/192/118 precedent; not forced/spoofed, left at 🔎 Accepting with PASS verdict (drift-reconfirmed) documented in `### Post-Hoc Drift Reconfirmation` above per standing project convention |
 
 ## History
 

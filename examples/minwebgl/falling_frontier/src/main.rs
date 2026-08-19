@@ -747,7 +747,7 @@ fn app_run() -> Result< (), gl::WebglError >
         -SHADOW_HALF_EXTENT, SHADOW_HALF_EXTENT, -SHADOW_HALF_EXTENT, SHADOW_HALF_EXTENT,
         1.0, SHADOW_LIGHT_DISTANCE + SHADOW_HALF_EXTENT,
       );
-      let mut light = Light::new( shadow_scene_center + light_dir * SHADOW_LIGHT_DISTANCE, -light_dir, shadow_projection, 1.0 );
+      let mut light = Light::new( shadow_scene_center + light_dir * SHADOW_LIGHT_DISTANCE, -light_dir, shadow_projection, tuning_snapshot.light_size );
       let light_view_proj = light.view_projection();
 
       shadow_map.bind();

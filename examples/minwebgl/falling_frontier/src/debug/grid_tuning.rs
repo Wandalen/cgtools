@@ -82,6 +82,12 @@ pub struct GridTuning
   pub light_elevation : f32,
   pub light_color : [ f32; 3 ],
   pub light_intensity : f32,
+  // `Light::size()` ("controls shadow softness" per its own doc comment,
+  // `module/helper/renderer/src/webgl/shadow.rs:342`) - was a hardcoded
+  // `1.0` literal at the `Light::new` call site in `main.rs` until this
+  // field exposed it. Range mirrors this same renderer's own spot-light
+  // precedent (`shadow.rs:454`: `light_size` computed in `0.01..=1.7`).
+  pub light_size : f32,
   pub shadows_enabled : bool,
 }
 
@@ -128,6 +134,7 @@ impl Default for GridTuning
       light_elevation : 31.0,
       light_color : [ 1.0, 0.933, 0.867 ], // 0xffeedd, matches world.js's own sunLight color
       light_intensity : 1.85,
+      light_size : 1.0,
       shadows_enabled : true,
     }
   }

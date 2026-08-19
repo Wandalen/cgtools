@@ -59,9 +59,11 @@ correct mechanism for "revisit later," not reopening 023 itself.
   future revival trigger" — is not the same question and isn't resolvable now). Cross-linked to 023 via
   `**Related Tasks:**` on both sides.
 - **[2026-08-19]** `NOTE` — Resolved by explicit user decision: rather than continuing to wait for an
-  in-workspace revival trigger, the pre-deletion crate is relocated to
-  `~/pro/lib/yrd_gamedev/vectorizer` (outside the cgtools workspace and outside this repo entirely) as a
-  standalone package, so it no longer needs cgtools' own architecture/lint constraints to exist. Recovered
+  in-workspace revival trigger, the pre-deletion crate is relocated outside the cgtools repository
+  entirely, to a standalone sibling package, so it no longer needs cgtools' own architecture/lint
+  constraints to exist. This repository's own tracked content must never reference absolute or relative
+  paths to files outside the repository, so the relocation destination is intentionally not spelled out
+  here. Recovered
   all 20 files (3870 lines) from the pre-deletion tree — confirmed via `git show --stat 2be3d2cc` (the
   deletion commit itself; note this task's own text above says "pre-deletion tree at commit `2be3d2cc`,"
   which is imprecise — `2be3d2cc` is the deletion commit, the pre-deletion tree is its parent,

@@ -153,4 +153,57 @@ mod tests
       );
     }
   }
+
+  /// Regression guard for BUG-396: `box_mesh` and `cylinder_mesh` are both star-shaped from the
+  /// origin (their own documented center), so an outward-facing triangle's face normal must point
+  /// in the same general direction as that triangle's own centroid -- checked via
+  /// `dot( cross( edge1, edge2 ), centroid ) > 0` rather than pinning exact normal values, so the
+  /// test stays valid across any future re-tessellation that preserves outward winding.
+  fn assert_triangle_faces_outward( positions : &[ [ f32; 3 ] ], tri : &[ u32 ], label : &str )
+  {
+    let ( ia, ib, ic ) = ( tri[ 0 ] as usize, tri[ 1 ] as usize, tri[ 2 ] as usize );
+    let [ ax, ay, az ] = positions[ ia ];
+    let [ bx, by, bz ] = positions[ ib ];
+    let [ cx, cy, cz ] = positions[ ic ];
+
+    let e1 = [ bx - ax, by - ay, bz - az ];
+    let e2 = [ cx - ax, cy - ay, cz - az ];
+    let normal =
+    [
+      e1[ 1 ] * e2[ 2 ] - e1[ 2 ] * e2[ 1 ],
+      e1[ 2 ] * e2[ 0 ] - e1[ 0 ] * e2[ 2 ],
+      e1[ 0 ] * e2[ 1 ] - e1[ 1 ] * e2[ 0 ],
+    ];
+    let centroid = [ ( ax + bx + cx ) / 3.0, ( ay + by + cy ) / 3.0, ( az + bz + cz ) / 3.0 ];
+    let dot = normal[ 0 ] * centroid[ 0 ] + normal[ 1 ] * centroid[ 1 ] + normal[ 2 ] * centroid[ 2 ];
+
+    assert!
+    (
+      dot > 0.0,
+      "{label}: triangle {tri:?} winds inward ( cross(edge1,edge2) = {normal:?} vs centroid \
+      {centroid:?}, dot = {dot} ) -- both shapes are centered at and star-shaped from the origin, \
+      so an outward-facing normal must point in the same general direction as its own triangle's \
+      centroid"
+    );
+  }
+
+  #[ test ]
+  fn box_mesh_triangles_wind_outward()
+  {
+    let ( positions, indices ) = box_mesh( 2.0, 3.0, 4.0 );
+    for ( i, tri ) in indices.chunks_exact( 3 ).enumerate()
+    {
+      assert_triangle_faces_outward( &positions, tri, &format!( "box_mesh triangle {i}" ) );
+    }
+  }
+
+  #[ test ]
+  fn cylinder_mesh_triangles_wind_outward()
+  {
+    let ( positions, indices ) = cylinder_mesh( 1.0, 1.0, 2.0, 8 );
+    for ( i, tri ) in indices.chunks_exact( 3 ).enumerate()
+    {
+      assert_triangle_faces_outward( &positions, tri, &format!( "cylinder_mesh triangle {i}" ) );
+    }
+  }
 }
