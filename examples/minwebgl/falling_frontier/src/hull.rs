@@ -9,9 +9,6 @@
 use minwebgl as gl;
 use gl::GL;
 
-/// Not normalized on the CPU side - `hull.frag` normalizes it itself.
-pub const LIGHT_DIR : [ f32; 3 ] = [ 0.4, 1.0, 0.3 ];
-
 /// A normally-lit part (asteroid rock, ship/station hull plating).
 pub const AMBIENT_LIT : f32 = 0.35;
 /// A fully self-lit part (engine glow, beacon light) - stands in for
@@ -92,8 +89,14 @@ struct HullUniforms
   view_proj : Option< gl::WebGlUniformLocation >,
   model : Option< gl::WebGlUniformLocation >,
   color : Option< gl::WebGlUniformLocation >,
-  light_dir : Option< gl::WebGlUniformLocation >,
   ambient : Option< gl::WebGlUniformLocation >,
+  camera_position : Option< gl::WebGlUniformLocation >,
+  light_dir : Option< gl::WebGlUniformLocation >,
+  light_color : Option< gl::WebGlUniformLocation >,
+  light_intensity : Option< gl::WebGlUniformLocation >,
+  light_view_proj : Option< gl::WebGlUniformLocation >,
+  shadow_map : Option< gl::WebGlUniformLocation >,
+  shadows_enabled : Option< gl::WebGlUniformLocation >,
 }
 
 pub struct HullProgram
@@ -117,20 +120,45 @@ impl HullProgram
       view_proj : gl.get_uniform_location( &program, "u_view_proj" ),
       model : gl.get_uniform_location( &program, "u_model" ),
       color : gl.get_uniform_location( &program, "u_color" ),
-      light_dir : gl.get_uniform_location( &program, "u_light_dir" ),
       ambient : gl.get_uniform_location( &program, "u_ambient" ),
+      camera_position : gl.get_uniform_location( &program, "u_camera_position" ),
+      light_dir : gl.get_uniform_location( &program, "u_light_dir" ),
+      light_color : gl.get_uniform_location( &program, "u_light_color" ),
+      light_intensity : gl.get_uniform_location( &program, "u_light_intensity" ),
+      light_view_proj : gl.get_uniform_location( &program, "u_light_view_proj" ),
+      shadow_map : gl.get_uniform_location( &program, "u_shadow_map" ),
+      shadows_enabled : gl.get_uniform_location( &program, "u_shadows_enabled" ),
     };
 
     Self { program, uniforms }
   }
 
-  /// Activates the program and uploads the frame's view_proj - call once
-  /// per frame before any `draw_part` calls.
-  pub fn begin_frame( &self, gl : &GL, view_proj : gl::F32x4x4 )
+  /// Activates the program and uploads everything that's constant for the
+  /// whole frame (camera, directional light, shadow map) - call once before
+  /// any `draw_part` calls. `light_view_proj` must be the same matrix the
+  /// shadow depth pass rendered with, or the shadow test in `hull.frag`
+  /// won't line up with what's actually in `shadow_map`.
+  #[ allow( clippy::too_many_arguments, reason = "one frame's worth of camera/light/shadow uniforms - mirrors TacticalGrid::draw's own reasoning, a struct wouldn't reduce real complexity here" ) ]
+  pub fn begin_frame
+  (
+    &self, gl : &GL, view_proj : gl::F32x4x4, camera_position : gl::F32x3,
+    light_dir : gl::F32x3, light_color : [ f32; 3 ], light_intensity : f32,
+    light_view_proj : gl::F32x4x4, shadow_map : Option< &gl::web_sys::WebGlTexture >, shadows_enabled : bool,
+  )
   {
     gl.use_program( Some( &self.program ) );
-    gl::uniform::matrix_upload( gl, self.uniforms.view_proj.clone(), view_proj.to_array().as_slice(), true ).unwrap();
-    gl::uniform::upload( gl, self.uniforms.light_dir.clone(), LIGHT_DIR.as_slice() ).unwrap();
+    let u = &self.uniforms;
+    gl::uniform::matrix_upload( gl, u.view_proj.clone(), view_proj.to_array().as_slice(), true ).unwrap();
+    gl::uniform::upload( gl, u.camera_position.clone(), camera_position.to_array().as_slice() ).unwrap();
+    gl::uniform::upload( gl, u.light_dir.clone(), light_dir.to_array().as_slice() ).unwrap();
+    gl::uniform::upload( gl, u.light_color.clone(), light_color.as_slice() ).unwrap();
+    gl::uniform::upload( gl, u.light_intensity.clone(), &light_intensity ).unwrap();
+    gl::uniform::matrix_upload( gl, u.light_view_proj.clone(), light_view_proj.to_array().as_slice(), true ).unwrap();
+    gl::uniform::upload( gl, u.shadows_enabled.clone(), &if shadows_enabled { 1.0f32 } else { 0.0f32 } ).unwrap();
+
+    gl.active_texture( GL::TEXTURE0 );
+    gl.bind_texture( GL::TEXTURE_2D, shadow_map );
+    gl::uniform::upload( gl, u.shadow_map.clone(), &0i32 ).unwrap();
   }
 
   /// `highlighted` marks `part` as the current selection - drawn with its

@@ -17,10 +17,12 @@ mod asteroids;
 mod ships;
 mod station;
 mod starfield;
+mod background;
 
 use minwebgl as gl;
 use gl::GL;
 use renderer::webgl::Camera;
+use renderer::webgl::shadow::{ ShadowMap, Light };
 use std::{ cell::{ Cell, RefCell }, rc::Rc };
 use debug::{ GridTuning, setup_grid_tuning_panel, refresh_selection_status };
 use hud::{ setup_hud, refresh_unit_panel, bind_reset_camera };
@@ -33,6 +35,7 @@ use ships::Ships;
 use station::Station;
 use trajectories::Trajectories;
 use starfield::Starfield;
+use background::Background;
 
 // Matches tacticalGrid.js's PLANE_SIZE - structural, not exposed in the
 // tuning panel.
@@ -41,6 +44,14 @@ const PLANE_SIZE : f32 = 3000.0;
 // Must match the fixed-size uniform arrays declared in grid.frag
 // (`u_asteroid_pos[16]`/`u_asteroid_radius[16]`).
 const MAX_ASTEROID_GLOW : usize = 16;
+
+// Shadow map sizing - deliberately covers just the ships/station/asteroid
+// cluster (see asteroids.rs's ASTEROID_SPECS, all within roughly ±175 on
+// X/Z), not the whole PLANE_SIZE grid, so the ortho frustum stays tight
+// enough for reasonable shadow resolution at SHADOW_MAP_RESOLUTION.
+const SHADOW_MAP_RESOLUTION : u32 = 1024;
+const SHADOW_HALF_EXTENT : f32 = 260.0;
+const SHADOW_LIGHT_DISTANCE : f32 = 400.0;
 
 // Pick-id ranges handed out to each pickable group (see `picking.rs`) -
 // asteroids first, then ships, then the station gets the one id left over.
@@ -184,6 +195,17 @@ impl Default for FocusState
   {
     Self { active : false, point : [ 0.0, 0.0 ] }
   }
+}
+
+/// Converts the dev panel's azimuth/elevation (degrees) into a normalized
+/// world-space direction pointing *toward* the light - the convention
+/// `hull.frag`'s `n_dot_l = dot(normal, light_dir)` and `ShadowMap`'s light
+/// placement (see `app_run`) both expect.
+fn light_direction( azimuth_deg : f32, elevation_deg : f32 ) -> gl::F32x3
+{
+  let az = azimuth_deg.to_radians();
+  let el = elevation_deg.to_radians();
+  gl::F32x3::new( el.cos() * az.cos(), el.sin(), el.cos() * az.sin() )
 }
 
 fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
@@ -534,7 +556,10 @@ fn app_run() -> Result< (), gl::WebglError >
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
   gl.enable( GL::DEPTH_TEST );
-  gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
+  // Matches background.frag's own "deep" color - only ever visible as a
+  // one-frame flash before the background shader itself draws, since that
+  // shader fills every pixel every frame.
+  gl.clear_color( 0.08, 0.20, 0.30, 1.0 );
 
   let ( pixel_w, pixel_h ) = canvas_size( &canvas );
   canvas.set_width( pixel_w );
@@ -556,6 +581,8 @@ fn app_run() -> Result< (), gl::WebglError >
   let grid = TacticalGrid::new( &gl );
   let hull_program = HullProgram::new( &gl );
   let starfield = Starfield::new( &gl );
+  let background = Background::new( &gl );
+  let shadow_map = ShadowMap::new( &gl, SHADOW_MAP_RESOLUTION )?;
   gl.viewport( 0, 0, pixel_w as i32, pixel_h as i32 );
 
   let tuning = Rc::new( RefCell::new( GridTuning::default() ) );
@@ -654,6 +681,8 @@ fn app_run() -> Result< (), gl::WebglError >
       let view_proj = camera.projection_matrix_get() * camera.view_matrix_get();
       ctx.latest_view_proj.set( view_proj );
 
+      background.draw( &gl, view_proj, camera.eye_get(), ( t / 1000.0 ) as f32 );
+
       let tuning_snapshot = *tuning.borrow();
       let selected = ctx.selected_id.get();
       let selected_kind = selected.and_then( classify_pick );
@@ -703,7 +732,38 @@ fn app_run() -> Result< (), gl::WebglError >
         glow.truncate( MAX_ASTEROID_GLOW );
       }
 
-      hull_program.begin_frame( &gl, view_proj );
+      // Directional light + shadow map for the hull material - the ortho
+      // frustum is centered on the ship/station/asteroid cluster (not the
+      // whole grid) and placed SHADOW_LIGHT_DISTANCE back along the light
+      // direction, matching the `-light_dir` "camera looks back down at the
+      // scene" convention `Light::view_projection` expects.
+      let light_dir = light_direction( tuning_snapshot.light_azimuth, tuning_snapshot.light_elevation );
+      let shadow_scene_center = gl::F32x3::new( 0.0, 12.0, 0.0 );
+      let shadow_projection = gl::math::mat3x3h::orthographic_rh_gl
+      (
+        -SHADOW_HALF_EXTENT, SHADOW_HALF_EXTENT, -SHADOW_HALF_EXTENT, SHADOW_HALF_EXTENT,
+        1.0, SHADOW_LIGHT_DISTANCE + SHADOW_HALF_EXTENT,
+      );
+      let mut light = Light::new( shadow_scene_center + light_dir * SHADOW_LIGHT_DISTANCE, -light_dir, shadow_projection, 1.0 );
+      let light_view_proj = light.view_projection();
+
+      shadow_map.bind();
+      shadow_map.clear();
+      for part in asteroids.parts().iter().chain( ships.parts() ).chain( station.parts() )
+      {
+        shadow_map.mvp_upload( light_view_proj * part.model );
+        gl.bind_vertex_array( Some( &part.vao ) );
+        gl.draw_elements_with_i32( GL::TRIANGLES, part.index_count, GL::UNSIGNED_INT, 0 );
+      }
+      gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+      gl.viewport( 0, 0, w as i32, h as i32 );
+      gl.disable( GL::CULL_FACE );
+
+      hull_program.begin_frame
+      (
+        &gl, view_proj, camera.eye_get(), light_dir, tuning_snapshot.light_color, tuning_snapshot.light_intensity,
+        light_view_proj, shadow_map.depth_buffer(), tuning_snapshot.shadows_enabled,
+      );
       for part in asteroids.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
       for part in ships.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
       for part in station.parts() { hull_program.draw_part( &gl, part, Some( part.pick_id ) == selected ); }
