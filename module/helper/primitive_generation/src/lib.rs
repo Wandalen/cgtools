@@ -20,4 +20,12 @@ mod private
 
   /// Data structures for primitive attributes and transformations.
   layer primitive_data;
+
+  /// Procedural solid primitives (box/cylinder/cone/torus/icosphere) as raw
+  /// `( positions, indices )` pairs, independent of the `PrimitiveData`/GLTF
+  /// pipeline above.
+  layer solid;
+
+  /// Catmull-Rom spline evaluation over a waypoint path.
+  layer spline;
 }

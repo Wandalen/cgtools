@@ -1,0 +1,71 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #0f1a24;
+    font-family: 'Rajdhani', sans-serif;
+    color: #8be0ff;
+    user-select: none;
+}
+
+.font-mono-tech {
+    font-family: 'Share Tech Mono', monospace;
+}
+
+/* Tactical UI Glow Effects */
+.ui-panel {
+    background: rgba(8, 24, 38, 0.75);
+    border: 1px solid rgba(0, 229, 255, 0.25);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.08);
+}
+
+.ui-panel-glow {
+    border-color: rgba(0, 229, 255, 0.5);
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.2);
+}
+
+.btn-tactical {
+    background: rgba(12, 38, 58, 0.6);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    transition: all 0.2s ease;
+}
+
+.btn-tactical:hover {
+    background: rgba(0, 229, 255, 0.2);
+    border-color: #00e5ff;
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+    color: #ffffff;
+}
+
+.btn-tactical.active {
+    background: rgba(0, 229, 255, 0.3);
+    border-color: #00e5ff;
+    color: #ffffff;
+}
+
+/* Custom Scrollbar for UI */
+::-webkit-scrollbar {
+    width: 4px;
+}
+::-webkit-scrollbar-track {
+    background: rgba(4, 13, 20, 0.5);
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 229, 255, 0.4);
+    border-radius: 2px;
+}
+
+/* Scanline Overlay for Sci-Fi feel */
+.scanlines {
+    background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%,
+        rgba(0, 0, 0, 0.25) 50%
+    ), linear-gradient(
+        90deg,
+        rgba(255, 0, 0, 0.03),
+        rgba(0, 255, 0, 0.01),
+        rgba(0, 0, 255, 0.03)
+    );
+    background-size: 100% 3px, 6px 100%;
+    pointer-events: none;
+}
