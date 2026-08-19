@@ -13,13 +13,13 @@
 - **executor_type:** any
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/gpu_hal
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **started_at:** 2026-08-16 21:45:51
-- **expires_at:** 2026-08-16 23:45:51
-- **unverified_at:** 2026-08-16 21:45:43
-- **unverified_by:** unknown
-- **verifying_at:** 2026-08-16 21:45:51
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **started_at:** 2026-08-18 23:49:12
+- **expires_at:** 2026-08-19 01:49:12
+- **unverified_at:** 2026-08-18 23:47:41
+- **unverified_by:** system
+- **verifying_at:** 2026-08-18 23:49:12
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## Goal
 
@@ -213,6 +213,8 @@ Desired answer for every question is YES.
 | 2026-08-17 00:19:45 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | TEST | T01 (full-crate line-span sweep): 0 violations across 254 functions. T03 (`cargo nextest -p gpu_hal --all-features`): 18/18 pass |
 | 2026-08-17 00:22:54 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | TEST | T04 (`cargo clippy -p gpu_hal --all-targets --all-features -- -D warnings`): initially failed with 3 self-introduced lint errors (2 `unnecessary_wraps` on newly-infallible extracted helpers, 1 `uninlined_format_args`); fixed by dropping the `Result` wrapper on `native_texture_create`/`native_render_pass_begin` (wrapping `Ok(...)` at their call sites instead) and inlining the format arg; re-run exits 0. T05 (`cargo check`/`clippy` for `wasm32-unknown-unknown`, features `webgl,webgpu`): both exit 0 |
 | 2026-08-17 00:23:30 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | ATTEMPT_VERIFY_PASS | `tsk .verify_pass 206` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard, consistent with prior occurrences on tasks 082/083 (see task list history); not forced/spoofed, left at 🔬 Verifying per standing project convention; execution work proceeded regardless under the session's standing multi-session authorization since the readiness Gate Check below already recorded 8/8 PASS |
+| 2026-08-18 23:47:41 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-18 23:49:12 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 
 ## History
 

@@ -87,53 +87,35 @@ mod private
         return vec![];
       }
 
-      let mut descriptors = match self
+      // Each attachment's vertex attribute is described once via the cross-backend
+      // `mingl::VertexAttribute` ( location + vector shape + offset ), paired with the
+      // WebGL-only `normalized` flag that type doesn't model. Bridged down to
+      // `BufferDescriptor` below since `AttributeInfo.descriptor` is WebGL-specific.
+      let descriptors : Vec< ( mingl::VertexAttribute, bool ) > = match self
       {
         GBufferAttachment::Position =>
-        {
-          let d0 = gl::BufferDescriptor::new::< [ f32; 3 ] >()
-          .normalized( false )
-          .vector( VectorDataType::new( mingl::DataType::F32, 3, 1 ) );
-          vec![ ( 0, d0 ) ]
-        },
+        vec![ ( mingl::VertexAttribute::new( 0, VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ), false ) ],
         GBufferAttachment::Color =>
-        {
-          let d1 = gl::BufferDescriptor::new::< [ f32; 4 ] >()
-          .normalized( true )
-          .vector( VectorDataType::new( mingl::DataType::F32, 4, 1 ) );
-          vec![ ( 1, d1 ) ]
-        },
+        vec![ ( mingl::VertexAttribute::new( 1, VectorDataType::new( mingl::DataType::F32, 4, 1 ), 0 ), true ) ],
         GBufferAttachment::Normal =>
-        {
-          let d2 = gl::BufferDescriptor::new::< [ f32; 3 ] >()
-          .normalized( true )
-          .vector( VectorDataType::new( mingl::DataType::F32, 3, 1 ) );
-          vec![ ( 2, d2 ) ]
-        },
+        vec![ ( mingl::VertexAttribute::new( 2, VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ), true ) ],
         GBufferAttachment::Uv1 =>
-        {
-          let d3 = gl::BufferDescriptor::new::< [ f32; 2 ] >()
-          .normalized( true )
-          .vector( VectorDataType::new( mingl::DataType::F32, 2, 1 ) );
-          vec![ ( 3, d3 ) ]
-        },
+        vec![ ( mingl::VertexAttribute::new( 3, VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 ), true ) ],
         _ => vec![]
       };
 
-      for ( _, d ) in &mut descriptors
-      {
-        *d = d
-        .offset( 0 )
-        .stride( 0 );
-      }
-
       let mut attribute_infos = vec![];
 
-      for ( i, ( slot, descriptor ) ) in descriptors.into_iter().enumerate()
+      for ( i, ( attr, normalized ) ) in descriptors.into_iter().enumerate()
       {
+        let descriptor = gl::BufferDescriptor::from_vector( attr.vector )
+        .offset( attr.offset )
+        .stride( 0 )
+        .normalized( normalized );
+
         let a = AttributeInfo
         {
-          slot,
+          slot : attr.location,
           buffer : buffers.get( i ).expect( "Some GbufferAttachment hasn't enough buffers" ).clone(),
           descriptor,
           bounding_box : gl::geometry::BoundingBox::default()

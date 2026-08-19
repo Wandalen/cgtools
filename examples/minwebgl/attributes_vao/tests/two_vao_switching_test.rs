@@ -19,9 +19,10 @@
 //!
 //! ## Prevention
 //! This structural test parses `main.rs` (no lib target to unit-test the setup directly)
-//! and asserts: two `gl::vao::create` calls exist, each VAO's three `attribute_pointer`
-//! calls all reference the same buffer variable (not a mix of `vert_buffer`/`vert_buffer2`
-//! within one VAO's setup block), and two `draw_arrays` calls exist.
+//! and asserts: two `gl::vao::create` calls exist, each VAO's `vertex_buffer_layout_bind`
+//! call references a single, consistent buffer variable (not a mix of
+//! `vert_buffer`/`vert_buffer2` within one VAO's setup block), and two `draw_arrays` calls
+//! exist.
 //!
 //! ## Pitfall
 //! Don't collapse this back to one VAO/one draw call as a "simplification" — the two
@@ -48,8 +49,8 @@ fn two_draw_calls_exist()
 fn each_vao_setup_block_uses_a_single_consistent_buffer()
 {
   // Extract each `gl.bind_vertex_array( Some( &vaoN ) ); ... gl.bind_vertex_array( None );`
-  // setup block and assert all 3 attribute_pointer calls inside it reference the same
-  // buffer identifier — catches a regression back to the mixed-buffer bug.
+  // setup block and assert its `vertex_buffer_layout_bind` call references a single buffer
+  // identifier — catches a regression back to the mixed-buffer bug.
   for vao_name in [ "&vao )", "&vao2 )" ]
   {
     let marker = format!( "Some( {vao_name}" );
@@ -59,8 +60,8 @@ fn each_vao_setup_block_uses_a_single_consistent_buffer()
     .map_or_else( || panic!( "no matching unbind found for {vao_name} setup block" ), | i | start + i );
     let block = &MAIN_RS[ start..block_end ];
 
-    let uses_buffer = block.contains( "&vert_buffer )?" );
-    let uses_buffer2 = block.contains( "&vert_buffer2 )?" );
+    let uses_buffer = block.contains( "&vert_buffer," );
+    let uses_buffer2 = block.contains( "&vert_buffer2," );
     assert!(
       uses_buffer ^ uses_buffer2,
       "setup block for {vao_name} must reference exactly one of vert_buffer/vert_buffer2, not a mix: {block}"

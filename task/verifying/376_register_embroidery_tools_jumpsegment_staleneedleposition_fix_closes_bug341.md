@@ -15,11 +15,11 @@
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/embroidery_tools
 - **closes:** BUG-341
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-18 19:44:31
-- **expires_at:** 2026-08-18 21:44:31
-- **unverified_at:** 2026-08-18 19:44:23
-- **unverified_by:** unknown
-- **verifying_at:** 2026-08-18 19:44:31
+- **started_at:** 2026-08-18 23:49:13
+- **expires_at:** 2026-08-19 01:49:13
+- **unverified_at:** 2026-08-18 23:47:42
+- **unverified_by:** system
+- **verifying_at:** 2026-08-18 23:49:13
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
@@ -204,6 +204,8 @@ both at the single `as_segment_blocks` declaration (line 457-458), no sibling fu
 | 2026-08-18 19:43:17 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | FILED | task created |
 | 2026-08-18 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-18 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 376 "user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/"` → blocked: "self-verification forbidden (actor matches filed_by)" (exit 1) — same-actor guard, not a defect; state remains 🔬 Verifying |
+| 2026-08-18 23:47:42 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-18 23:49:13 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 
 ## History
 

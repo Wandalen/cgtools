@@ -1,4 +1,4 @@
-use crate::{MatNum, Indexable, Ix2, ScalarMut, IndexingRef, nd, VectorIterMut, VectorIter, Mul, Mat, mat, IndexingMut, Vector};
+use crate::{MatNum, Indexable, Ix2, ScalarMut, IndexingRef, nd, VectorIterMut, VectorIter, Mul, Mat, mat, IndexingMut, Vector, Zero};
 
 /// Multiplies two matrices.
 ///
@@ -120,7 +120,7 @@ where
   E : MatNum,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingMut< Scalar = E >,
   Mat< COLS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
-  Mat< ROWS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >,
+  Mat< ROWS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + IndexingMut< Scalar = E > + ScalarMut< Scalar = E >,
 {
   type Output = Mat< ROWS, COLS2, E, Descriptor >;
 
@@ -131,7 +131,7 @@ where
   #[ inline ]
   fn mul( self, rhs : Mat< COLS, COLS2, E, Descriptor > ) -> Self::Output
   {
-    let mut result = Self::Output::default();
+    let mut result = Self::Output::zero();
     mul( &mut result, &self, &rhs );
     result
   }
@@ -144,7 +144,7 @@ where
   E : MatNum,
   Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingMut< Scalar = E >,
   Mat< COLS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
-  Mat< ROWS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >,
+  Mat< ROWS, COLS2, E, Descriptor > : Indexable< Index = Ix2 > + IndexingMut< Scalar = E > + ScalarMut< Scalar = E >,
 {
   type Output = Mat< ROWS, COLS2, E, Descriptor >;
 
@@ -155,7 +155,7 @@ where
   #[ inline ]
   fn mul( self, rhs : &Mat< COLS, COLS2, E, Descriptor > ) -> Self::Output
   {
-    let mut result = Self::Output::default();
+    let mut result = Self::Output::zero();
     mul( &mut result, self, rhs );
     result
   }
@@ -188,6 +188,9 @@ where
   #[ inline ]
   fn mul( self, rhs : Vector< E, COLS > ) -> Self::Output
   {
+    // Not migrated to `.zero()` (task 391): `Self::Output` here is `Vector<E,ROWS>`, not `Mat`
+    // -- `Vector` has no `Zero` impl (out of scope for task 391), so `.default()` stays as the
+    // zero-seed for this matrix-vector product.
     let mut result = Self::Output::default();
     mat_vec_mul( &mut result, &self, &rhs );
     result
@@ -212,6 +215,8 @@ where
   #[ inline ]
   fn mul( self, rhs : &Vector< E, COLS > ) -> Self::Output
   {
+    // Not migrated to `.zero()` -- same reason as the owned `Mat * Vector` impl above
+    // (`Self::Output` is `Vector<E,ROWS>`, which has no `Zero` impl).
     let mut result = Self::Output::default();
     mat_vec_mul( &mut result, self, rhs );
     result

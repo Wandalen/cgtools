@@ -14,11 +14,7 @@
 //! and a scene hierarchy.
 mod private
 {
-  use minwebgl::
-  {
-    self as gl,
-    BufferDescriptor
-  };
+  use minwebgl as gl;
   use gl::
   {
     GL,
@@ -118,27 +114,27 @@ mod private
   }
 
   /// Creates an `AttributeInfo` object using one function call for a WebGL buffer.
+  ///
+  /// `attribute` carries the cross-backend location/vector-shape/offset description;
+  /// `stride`/`normalized` are WebGL-only concerns `mingl::VertexAttribute` doesn't model,
+  /// so they're layered on top of the bridged `BufferDescriptor` directly.
   #[ must_use ]
   pub fn buffer_attribute_info_make
   (
     buffer : &web_sys::WebGlBuffer,
-    descriptor : gl::BufferDescriptor,
-    offset : i32,
+    attribute : mingl::VertexAttribute,
     stride : i32,
-    slot : u32,
-    normalized : bool,
-    vector: gl::VectorDataType
+    normalized : bool
   ) -> AttributeInfo
   {
-    let descriptor = descriptor
-    .offset( offset )
-    .normalized( normalized )
+    let descriptor = gl::BufferDescriptor::from_vector( attribute.vector )
+    .offset( attribute.offset )
     .stride( stride )
-    .vector( vector );
+    .normalized( normalized );
 
     AttributeInfo
     {
-      slot,
+      slot : attribute.location,
       buffer : buffer.clone(),
       descriptor,
       bounding_box : mingl::geometry::BoundingBox::default()
@@ -183,24 +179,18 @@ mod private
         "positions",
         buffer_attribute_info_make(
           &position_buffer,
-          BufferDescriptor::new::< [ f32; 3 ] >(),
-          0,
+          mingl::VertexAttribute::new( 0, VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ),
           3,
-          0,
-          false,
-          VectorDataType::new( mingl::DataType::F32, 3, 1 )
+          false
         )
       ),
       (
         "normal",
         buffer_attribute_info_make(
           &normal_buffer,
-          BufferDescriptor::new::< [ f32; 3 ] >(),
-          0,
+          mingl::VertexAttribute::new( 1, VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ),
           3,
-          1,
-          false,
-          VectorDataType::new( mingl::DataType::F32, 3, 1 )
+          false
         )
       ),
     ];

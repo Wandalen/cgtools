@@ -14,13 +14,13 @@
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/tiles_tools
 - **closes:** BUG-346
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/tiles_tools/
-- **started_at:** 2026-08-18 20:04:07
-- **expires_at:** 2026-08-18 22:04:07
-- **unverified_at:** 2026-08-18 20:04:07
-- **unverified_by:** unknown
-- **verifying_at:** 2026-08-18 20:04:07
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/tiles_tools/
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **started_at:** 2026-08-18 23:49:13
+- **expires_at:** 2026-08-19 01:49:13
+- **unverified_at:** 2026-08-18 23:47:42
+- **unverified_by:** system
+- **verifying_at:** 2026-08-18 23:49:13
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
 
@@ -208,6 +208,8 @@ originally written — no rewording needed this round.
 | 2026-08-18 20:04:07 | unknown | SUBMIT | structural completeness gate passed |
 | 2026-08-18 20:04:07 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/tiles_tools/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-18 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/tiles_tools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 381 "user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/tiles_tools/"` → blocked: "self-verification forbidden (actor matches filed_by)" (exit 1) — same-actor guard, not a defect; state remains 🔬 Verifying |
+| 2026-08-18 23:47:42 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-18 23:49:13 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 
 ## History
 

@@ -90,32 +90,6 @@ where
   }
 }
 
-// impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > Mat< ROWS, COLS, E, Descriptor >
-// where
-//   E : nd::NdFloat + Copy,
-//   Self : Zero,
-// {
-//
-//   #[ inline( always ) ]
-//   pub fn zero() -> Self
-//   {
-//     < Self as Zero >::zero()
-//   }
-//
-//   #[ inline( always ) ]
-//   pub fn is_zero( &self ) -> bool
-//   {
-//     < Self as Zero >::is_zero( self )
-//   }
-//
-//   #[ inline( always ) ]
-//   pub fn set_zero( &mut self )
-//   {
-//     < Self as Zero >::set_zero( self )
-//   }
-//
-// }
-
 impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > Mat< ROWS, COLS, E, Descriptor >
 where
   E : MatEl,

@@ -14,11 +14,11 @@
 - **unit_type:** dir
 - **unit:** .
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-18 19:44:53
-- **expires_at:** 2026-08-18 21:44:53
-- **unverified_at:** 2026-08-18 19:44:40
-- **unverified_by:** unknown
-- **verifying_at:** 2026-08-18 19:44:53
+- **started_at:** 2026-08-18 23:49:13
+- **expires_at:** 2026-08-19 01:49:13
+- **unverified_at:** 2026-08-18 23:47:42
+- **unverified_by:** system
+- **verifying_at:** 2026-08-18 23:49:13
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
@@ -117,3 +117,5 @@ during execution, not merely asserted:
 | 2026-08-18 19:44:40 | unknown | SUBMIT | structural completeness gate passed |
 | 2026-08-18 19:44:53 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-18 19:48:00 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_BLOCKED | `tsk .verify_pass 377` refused: "self-verification forbidden (actor matches filed_by)" — known same-sandbox guard, not forced/spoofed. Substituted a real Tier 2 Dual-Role Self-Check instead (surfaced to user in-conversation): confirming pass re-ran every Delivery/Acceptance check live (gallery regen + verify::1, root `cargo metadata`, jewelry_site's own `cargo metadata` + `longrun`-detached `cargo test` 2/2, `longrun`-detached `cargo check -p minwebgl_minimize_wasm --target wasm32-unknown-unknown`); adversarial pass grepped the whole repo (excluding `/target/`) for `filter`/`spinning_cube_size_opt`/`jewelry_site` looking for dangling references the plan didn't name — found and fixed 3 dead rows in `examples/demo_completeness.md` (filter/jewelry_site/spinning_cube_size_opt), ruled out `health.md`'s unrelated "filter" word-match and historical `task/bug/completed/*`+`task/completed/*` narrative mentions (correctly left as historical record), and flagged (not hand-edited) `locales.md`'s 3 now-dangling rows — it's explicitly generator-maintained ("Do not edit manually. Maintained by `.locale.doc.generate`") and this repo's own task history (023, 024) already treats its staleness as a known, accepted, unrelated-task-doesn't-fix-it condition. Leaving task state at 🔬 (Verifying) — blocked, not force-advanced. |
+| 2026-08-18 23:47:42 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-18 23:49:13 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |

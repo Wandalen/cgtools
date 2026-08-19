@@ -14,13 +14,13 @@
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/animation
 - **closes:** BUG-353
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/animation/
-- **started_at:** 2026-08-18 20:58:23
-- **expires_at:** 2026-08-18 22:58:23
-- **unverified_at:** 2026-08-18 20:58:23
-- **unverified_by:** unknown
-- **verifying_at:** 2026-08-18 20:58:23
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/animation/
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **started_at:** 2026-08-18 23:49:14
+- **expires_at:** 2026-08-19 01:49:14
+- **unverified_at:** 2026-08-18 23:47:43
+- **unverified_by:** system
+- **verifying_at:** 2026-08-18 23:49:14
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
 
@@ -196,6 +196,8 @@ Dual-Role Self-Check per `maav.rulebook.md § MAAV : Verification Tier Selection
 | 2026-08-18 20:58:23 | unknown | SUBMIT | structural completeness gate passed |
 | 2026-08-18 20:58:23 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/animation/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-18 21:01:00 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/animation/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 388 "user1@w002/.../animation/"` → exit 1: `tsk: .verify_pass: self-verification forbidden (actor matches filed_by)`. Same-actor guard, documented sandbox constraint — not forced/spoofed. |
+| 2026-08-18 23:47:43 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-18 23:49:14 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 
 ## History
 

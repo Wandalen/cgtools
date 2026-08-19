@@ -15,11 +15,11 @@
 - **unit:** lib/yrd_gamedev/cgtools/action
 - **closes:** BUG-375
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-18 21:04:18
-- **expires_at:** 2026-08-18 23:04:18
-- **unverified_at:** 2026-08-18 21:04:18
-- **unverified_by:** unknown
-- **verifying_at:** 2026-08-18 21:04:18
+- **started_at:** 2026-08-18 23:49:14
+- **expires_at:** 2026-08-19 01:49:14
+- **unverified_at:** 2026-08-18 23:47:43
+- **unverified_by:** system
+- **verifying_at:** 2026-08-18 23:49:14
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
@@ -197,6 +197,8 @@ Dual-Role Self-Check per `maav.rulebook.md § MAAV : Verification Tier Selection
 | 2026-08-18 21:04:18 | unknown | SUBMIT | structural completeness gate passed |
 | 2026-08-18 21:04:18 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-18 21:07:00 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 390 "user1@w002/.../cgtools/"` → exit 1: `tsk: .verify_pass: self-verification forbidden (actor matches filed_by)`. Same-actor guard, documented sandbox constraint — not forced/spoofed. |
+| 2026-08-18 23:47:43 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-18 23:49:14 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 
 ## History
 

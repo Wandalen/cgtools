@@ -1967,6 +1967,11 @@ would not compile without the `native` feature" ) ]
     {
       let mut raw_layout = gl::VertexBufferLayout::new()
       .stride_from_value( f64::from( layout.stride ) );
+      raw_layout = match layout.step_mode
+      {
+        mingl::StepMode::Vertex => raw_layout.vertex(),
+        mingl::StepMode::Instance => raw_layout.instance()
+      };
       for attribute in &layout.attributes
       {
         raw_layout = raw_layout.attribute
@@ -2318,7 +2323,11 @@ would not compile without the `native` feature" ) ]
       wgpu::VertexBufferLayout
       {
         array_stride : u64::from( layout.stride ),
-        step_mode : wgpu::VertexStepMode::Vertex,
+        step_mode : match layout.step_mode
+        {
+          mingl::StepMode::Vertex => wgpu::VertexStepMode::Vertex,
+          mingl::StepMode::Instance => wgpu::VertexStepMode::Instance
+        },
         attributes
       }
     )

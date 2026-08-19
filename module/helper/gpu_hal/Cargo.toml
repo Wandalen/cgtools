@@ -36,6 +36,11 @@ full = [ "default", "webgpu", "webgl", "native", "vulkan", "webgl-glsl-build" ]
 
 [dependencies]
 
+# Non-optional: `types.rs`'s struct/enum definitions ( including `VertexBufferLayout::step_mode`,
+# typed `mingl::StepMode` ) are never `#[cfg]`-gated -- they compile regardless of which backend
+# feature ( webgl/webgpu/native/vulkan ) is active, so this dependency can't be gated behind any of
+# them either.
+mingl = { workspace = true }
 mod_interface = { workspace = true, optional = true }
 minwebgpu = { workspace = true, features = [ "math" ], optional = true }
 minwebgl = { workspace = true, optional = true }

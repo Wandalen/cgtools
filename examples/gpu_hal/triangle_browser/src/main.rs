@@ -19,7 +19,7 @@ use gpu_hal::
 {
   Device, Queue, Surface, ShaderSource, BufferUsage, BindGroupLayoutEntry, ShaderStages,
   BindingType, BindingResource, RenderPipelineDesc, VertexBufferLayout, VertexAttribute,
-  VertexFormat, ColorAttachmentDesc, IndexFormat,
+  VertexFormat, ColorAttachmentDesc, IndexFormat, StepMode,
 };
 
 /// Bytes of a `f32` slice, little-endian — mirrors
@@ -120,6 +120,7 @@ fn triangle_draw( device : &Device, queue : &Queue, surface : &Surface )
     vertex_buffers : &[ VertexBufferLayout
     {
       stride : 8,
+      step_mode : StepMode::Vertex,
       attributes : vec!
       [
         VertexAttribute { location : 0, format : VertexFormat::Float32x2, offset : 0 }

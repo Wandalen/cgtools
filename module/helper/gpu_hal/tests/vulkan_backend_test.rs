@@ -121,6 +121,7 @@ fn triangle_render_readback()
     vertex_buffers : &[ VertexBufferLayout
     {
       stride : 8,
+      step_mode : StepMode::Vertex,
       attributes : vec!
       [
         VertexAttribute
@@ -325,6 +326,7 @@ fn textured_scene_setup() -> TexturedScene
     vertex_buffers : &[ VertexBufferLayout
     {
       stride : 8,
+      step_mode : StepMode::Vertex,
       attributes : vec! [ VertexAttribute { location : 0, format : VertexFormat::Float32x2, offset : 0 } ]
     } ],
     bind_group_layouts : &[ &layout ],

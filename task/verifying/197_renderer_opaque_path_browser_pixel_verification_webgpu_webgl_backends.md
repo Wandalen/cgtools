@@ -14,11 +14,11 @@
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/renderer
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-16 14:31:24
-- **expires_at:** 2026-08-16 16:31:24
-- **unverified_at:** 2026-08-16 14:24:03
-- **unverified_by:** unknown
-- **verifying_at:** 2026-08-16 14:31:24
+- **started_at:** 2026-08-18 23:49:11
+- **expires_at:** 2026-08-19 01:49:11
+- **unverified_at:** 2026-08-18 23:47:41
+- **unverified_by:** system
+- **verifying_at:** 2026-08-18 23:49:11
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
@@ -178,6 +178,8 @@ Desired answer for every question is YES.
 | 2026-08-16 14:24:03 | unknown | SUBMIT | structural completeness gate passed |
 | 2026-08-16 14:31:24 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-17 00:49:51 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | ATTEMPT_VERIFY_PASS | `tsk .verify_pass 197` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard, consistent with task 206 precedent; not forced/spoofed, left at 🔬 Verifying per standing project convention |
+| 2026-08-18 23:47:41 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-18 23:49:11 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 
 ## History
 

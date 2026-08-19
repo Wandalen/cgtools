@@ -28,6 +28,8 @@ mod private {}
 
   /// Errors handling.
   layer error;
+  /// Buffer-related.
+  layer buffer;
   /// Descriptors of primitive data types.
   layer data_type;
   /// Memory-related entities.

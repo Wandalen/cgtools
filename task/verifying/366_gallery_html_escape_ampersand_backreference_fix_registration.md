@@ -5,8 +5,8 @@
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-18 16:08:38
-- **expires_at:** 2026-08-18 18:08:38
+- **started_at:** 2026-08-18 23:49:13
+- **expires_at:** 2026-08-19 01:49:13
 - **round:** 1
 - **state:** 🔬 (Verifying)
 - **closes:** BUG-315
@@ -16,8 +16,10 @@
 - **verification_date:** null
 - **blocked_by:** null
 - **in_motion:** true
-- **verifying_at:** 2026-08-18 16:08:38
+- **verifying_at:** 2026-08-18 23:49:13
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **unverified_at:** 2026-08-18 23:47:42
+- **unverified_by:** system
 
 ## Goal
 
@@ -233,6 +235,8 @@ Desired answer for every question is YES.
 | 2026-08-18 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | READINESS_GATE_PASS | Tier 2 Dual-Role Self-Check, Round 1, 8/8 PASS, 0 fixes needed |
 | 2026-08-18 16:08:38 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-18 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 366` → blocked: "self-verification forbidden (actor matches filed_by)" — same-actor guard, not a defect; state remains 🔬 Verifying |
+| 2026-08-18 23:47:42 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-18 23:49:13 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 
 ## History
 

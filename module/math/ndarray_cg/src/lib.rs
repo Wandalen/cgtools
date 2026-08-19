@@ -28,9 +28,6 @@ crate::mod_interface!
   layer d2;
   // own use super::d2;
 
-  /// General math traits.
-  layer general;
-
   /// Multidimensional space.
   layer md;
   // own use super::md;

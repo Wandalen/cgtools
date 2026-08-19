@@ -1,4 +1,4 @@
-use crate::{MatNum, Indexable, Ix2, IndexingMut, IndexingRef, Add, Mat, mat};
+use crate::{MatNum, Indexable, Ix2, IndexingMut, IndexingRef, Add, Mat, mat, Zero};
 
 /// Adds two matrices.
 ///
@@ -66,7 +66,7 @@ where
   #[ inline ]
   fn add( self, rhs : Self ) -> Self::Output
   {
-    let mut result = Self::Output::default();
+    let mut result = Self::Output::zero();
     add( &mut result, &self, &rhs );
     result
   }
@@ -89,7 +89,7 @@ where
   #[ inline ]
   fn add( self, rhs : &Mat< ROWS, COLS, E, Descriptor > ) -> Self::Output
   {
-    let mut result = Self::Output::default();
+    let mut result = Self::Output::zero();
     add( &mut result, self, rhs );
     result
   }

@@ -29,7 +29,7 @@ mod private
   {
     BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
     Buffer, BufferUsage, ColorAttachmentDesc, Device, Queue, RenderPass, RenderPipeline,
-    RenderPipelineDesc, Sampler, SamplerDesc, ShaderSource, ShaderStages, Surface,
+    RenderPipelineDesc, Sampler, SamplerDesc, ShaderSource, ShaderStages, StepMode, Surface,
     TextureDesc, TextureFormat, TextureUsage, TextureView, VertexAttribute,
     VertexBufferLayout, VertexFormat,
   };
@@ -366,6 +366,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
       VertexBufferLayout
       {
         stride : 8,
+        step_mode : StepMode::Vertex,
         attributes : vec![ VertexAttribute { location : 0, format : VertexFormat::Float32x2, offset : 0 } ],
       }
     ];

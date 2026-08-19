@@ -17,6 +17,7 @@ use gpu_hal::
   RenderPipelineDesc,
   ShaderSource,
   ShaderStages,
+  StepMode,
   Surface,
   VertexAttribute,
   VertexBufferLayout,
@@ -137,6 +138,7 @@ impl Renderer
       vertex_buffers : &[ VertexBufferLayout
       {
         stride : 8,
+        step_mode : StepMode::Vertex,
         attributes : vec!
         [
           VertexAttribute

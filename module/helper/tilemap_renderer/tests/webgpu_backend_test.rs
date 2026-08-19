@@ -50,6 +50,7 @@ fn sprite_at( position : [ f32; 2 ], resource_id : u32 ) -> Sprite
 /// T05 -- `sprite_draw_params` returns parameters that actually track its
 /// input: two sprites with different positions/resource ids yield two
 /// different results, not a hardcoded constant.
+#[ allow( clippy::float_cmp, reason = "every position compared here is a hardcoded literal passed straight through with no arithmetic in between, so there's no representation-error risk -- exact comparison is the actual test intent" ) ]
 #[ wasm_bindgen_test ]
 fn sprite_draw_params_differ_with_input()
 {

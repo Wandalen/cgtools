@@ -5,8 +5,8 @@
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-18 16:13:44
-- **expires_at:** 2026-08-18 18:13:44
+- **started_at:** 2026-08-18 23:49:13
+- **expires_at:** 2026-08-19 01:49:13
 - **round:** 1
 - **state:** 🔬 (Verifying)
 - **closes:** BUG-342
@@ -16,8 +16,10 @@
 - **verification_date:** null
 - **blocked_by:** null
 - **in_motion:** true
-- **verifying_at:** 2026-08-18 16:13:44
+- **verifying_at:** 2026-08-18 23:49:13
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **unverified_at:** 2026-08-18 23:47:42
+- **unverified_by:** system
 
 ## Goal
 
@@ -172,6 +174,8 @@ Desired answer for every question is YES.
 | 2026-08-18 16:07:00 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | FILED | task created (ID 368; highest_id was 367 after an earlier misfired `tsk .create` invocation this session burned that ID on a stray draft, deleted before this filing) |
 | 2026-08-18 16:13:44 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-18 16:14:02 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 368 "user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/"` → blocked: "self-verification forbidden (actor matches filed_by)" (exit 1) — same-actor guard, not a defect; state remains 🔬 Verifying |
+| 2026-08-18 23:47:42 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-18 23:49:13 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 
 ## History
 
