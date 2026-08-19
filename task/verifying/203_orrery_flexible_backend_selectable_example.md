@@ -263,6 +263,45 @@ self-verify — an independent verifier performs the walk after the task reaches
   not force/spoofed — task remains at 🔬 Verifying pending a different
   verifying actor.
 
+## History (continued)
+
+- **[2026-08-19]** `NOTE` — This file's own Verification Record below is the
+  pre-execution Readiness Gate only (D1-D8, "is this task well-scoped"); no
+  EXECUTED entry or Acceptance-walk evidence had ever been captured, though
+  `main.rs` (158 lines, real implementation) and 3 real test files already
+  existed in the working tree, fully committed (`git log` → `0e713a83`
+  "feat: add Vulkan backend, examples, and test coverage expansion",
+  refined in `4d322cb9`) — apparently landed by other work in this repo
+  without this task's own record being updated to match. Ran the fast,
+  non-browser portion of the Acceptance walk personally this session:
+  `cargo nextest run -p orrery_flexible --features wgpu` → 2/2 passed
+  (`uniforms_layout_test` + `native_render_test::scene_render_produces_expected_landmarks`,
+  a real landmark-pixel assertion, not a bare exit-0 check — satisfies T01/I1/AF2).
+  First attempt at `--features vulkan` (without `--no-default-features`)
+  correctly hit the crate's own multi-backend guard (`compile_error!` — this
+  is T07's tested behavior firing on my own invocation mistake, not a code
+  defect); corrected to `--no-default-features --features vulkan` →
+  2/2 passed (`vulkan_render_test::scene_render_produces_expected_landmarks`
+  — satisfies T02/I2/AF2). `RUSTFLAGS="-D warnings" cargo clippy --all-targets`
+  clean (0 warnings) for both `wgpu` and `vulkan` features (partial I3 — 2/4
+  features checked). `cargo tree --features webgl`/`--no-default-features
+  --features webgpu` both show zero `^wgpu` lines (C3/M2 confirmed for both
+  browser features). C6 (`git diff --stat -- examples/orrery/webgpu/`), C7
+  (`git status --porcelain -- examples/orrery/webgpu/scene/scene.rhai`), C8
+  (`git diff --stat -- module/helper/gpu_hal/ module/min/minvulkan/`) all
+  empty — all three Out-of-Scope confirmations clean. `readme.md`'s Status
+  line already reads "implemented — ..." (C4b satisfied, not "reserved").
+  **Still open, not attempted this session:** T03-T06 (`trunk build` +
+  `browsee` pixel verification for `webgl`/`webgpu`), C4 (index.html wiring
+  shape), C5/AF1 (browser pixel-landmark assertions), I3's remaining 2
+  features' clippy, I4 (`trunk build` exit 0) — these require a browser
+  build+automation pass materially larger than the native checks above and
+  were out of this session's scope; do not treat this task as fully
+  Acceptance-verified on the strength of this note alone. `tsk .verify_pass
+  203` already documented blocked in `## Journal` (2026-08-17,
+  same-actor guard) — not re-attempted, no reason to expect a different
+  result.
+
 ## Verification Record
 
 **Gate Check** · Tier: 2 · Type: Full · Verdict: PASS · Agents: 0 (self, dual-role) · 8/8

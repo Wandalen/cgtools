@@ -4,23 +4,23 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **started_at:** 2026-08-19 00:46:27
-- **expires_at:** 2026-08-19 02:46:27
-- **round:** 1
-- **state:** 🔎 (Accepting)
+- **actor:** null
+- **started_at:** null
+- **expires_at:** null
+- **round:** 2
+- **state:** 🎯 (Verified)
 - **closes:** null
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/gpu_hal
-- **verified_by:** system
+- **verified_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 - **verification_date:** null
 - **blocked_by:** null
 - **executing_at:** 2026-08-19 00:46:27
 - **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **in_motion:** true
+- **in_motion:** false
 - **accepting_at:** 2026-08-19 00:46:27
 - **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **verified_at:** 2026-08-19 00:40:42
+- **verified_at:** 2026-08-19 10:21:54
 
 ## Goal
 
@@ -198,6 +198,7 @@ Desired answer for every question is YES.
 | 2026-08-19 00:46:27 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
 | 2026-08-19 00:46:27 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | EXEC_COMPLETE | execution complete |
 | 2026-08-19 00:46:27 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_ACCEPT | acceptance claimed |
+| 2026-08-19 10:21:54 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | ACCEPTANCE_FAIL | acceptance failed |
 
 ## History
 
@@ -210,3 +211,37 @@ Desired answer for every question is YES.
 - `docs/layer/002_l1_gpu_hal.md` — the doc instance carrying the open-gap parenthetical this task resolves
 - `module/helper/gpu_hal/readme.md` — crate readme's `## Verify` section and Directory Layout table this task updates
 - `module/helper/gpu_hal/tests/native_backend_test.rs` — the `triangle_render_readback` precedent this task mirrors for the browser backends
+
+## Outcomes
+
+### Acceptance Results
+
+**Verified by:** user1@w002 (Round 4 re-verification — Tier 2 Dual-Role Self-Check)
+**Date:** 2026-08-19
+**Verdict:** FAIL (2 Blocking issues)
+
+**Separation of Concerns:** Original implementation executed 2026-08-16 by a prior session (Journal: CLAIM_EXEC 11:30:34, EXEC_COMPLETE 12:10:32) — distinct from this one. The acceptance-claim window then expired unused (TIMEOUT_2H, 2026-08-19 00:40:42) with no acceptance walk ever completed. This session performed only the mechanical re-claim bookkeeping chain (CLAIM_EXEC → EXEC_COMPLETE → CLAIM_ACCEPT, all 00:46:27) to restore 🔎 Accepting for verification — it did not re-execute or modify the implementation; this walk's findings are independently re-derived against current source. The re-claim chain stamped `executing_by`/`accepting_by` to this session's own `user@host`, so `tsk .acceptance_pass` would hard-block on the same-actor guard regardless of verdict — moot here since the verdict is FAIL.
+
+#### Checklist
+
+- C1 — PASS. `examples/gpu_hal/triangle_browser/Cargo.toml` exists; covered by root `Cargo.toml`'s `"examples/gpu_hal/*"` workspace-member glob (line 77) — no explicit per-crate listing needed.
+- C2 — PASS. `triangle_browser` present in all 4 gallery files: `examples/readme.md`, `examples/index.md`, `examples/index.html`, `examples/demo_completeness.md`.
+- C3 — PASS. `gpu_hal/tests/manual/readme.md` documents exact `trunk serve` + `browsee .launch/.wait for::render/.shot/.pixel` command sequences for both `webgpu` and `webgl` builds, including a window-chrome pixel-offset troubleshooting section.
+- C4 — PASS (Non-Blocking note). `docs/layer/002_l1_gpu_hal.md` (current lines 60-62) correctly cites this task's completion. The task's own Goal section self-cites "line 36" — now stale (doc has grown since filing); content is correct, only the line-number self-reference drifted.
+- C5 — **FAIL (Blocking)**. `module/helper/gpu_hal/src/` is NOT zero-diff. `git show 3843aef7 --stat -- module/helper/gpu_hal/src/` shows `device.rs` (+33/-4) and `error.rs` (+9/-2) modified in the same commit as this task's own deliverables. The diff is a self-documented `Fix(BUG-176)` (zero-sized-texture validation guard in `texture_create`, new `Error::InvalidInput` variant). `BUG-176` was properly filed (now `task/bug/completed/176_texture_create_zero_size_unguarded.md`) — but this task's own Out-of-Scope states: "Any change to gpu_hal's src/ implementation. If the browser verification uncovers an actual rendering defect, file it as a new BUG-NNN... rather than patching it inside this task." The fix was filed AND patched inline in the same commit — exactly the sequence the clause prohibits. (The fix's own content is well-reasoned and plausibly correct — a canvas can legitimately report zero size mid-load — the process violation is independent of the fix's quality.)
+- C6 — PASS (observation). The same commit also touches 23 `renderer` test/shader files (~1556 insertions) — commit message ("Expand renderer test suite...", "Improve animation scaling...") and diff content (animation/blending/outline/shadow/geometry test expansion, nothing touching Device/canvas construction) indicate unrelated work bundled into the same large commit, consistent with this repo's documented multi-task-commit pattern (cf. task 246's Outcomes). `tilemap_renderer`: zero diff.
+- C7 (derived from Delivery Requirements — not present in original Checklist, added during this walk per the Pre-Walk Gate's missing-content rule) — **FAIL (Blocking)**. Delivery Requirements require "No function exceeds 50 lines." `triangle_draw` (`examples/gpu_hal/triangle_browser/src/main.rs:58-151`) spans 94 lines — 88% over the ceiling.
+
+#### Measurements
+
+- M1, M2, M3 — **NOT RUN this walk.** Live `browsee` verification requires standing up a `trunk serve` dev server; deferred to avoid resource contention with the concurrently-running full-workspace background verification build (shared `target/`). Both C5 and C7 require source edits to the exact files these measurements exercise (`main.rs`'s `triangle_draw`, `gpu_hal/src/device.rs`) — any reading captured now would be invalidated by the required rework, so capture is deferred to the post-fix re-verification pass rather than wasted now.
+
+#### Invariants
+
+- I1 — **NOT INDEPENDENTLY CONFIRMED this walk.** Shared full-workspace `verb/test` run for this task batch was still in progress at time of this walk (Durable Log `-0001_longrun.log`, pid 1587932).
+- I2 — **NOT CONFIRMED this walk.** `cargo check -p gpu_hal --features webgpu,webgl --target wasm32-unknown-unknown` attempted with a 25s bound, did not complete (likely lock contention with the concurrent full-workspace build on shared `target/`) — genuinely not run to completion, not treated as a failure.
+
+#### Anti-faking checks
+
+- AF1 — PASS (procedural). Documented sequence correctly places `browsee .wait for::render timeout::60` before every `.shot`/`.pixel` call (`tests/manual/readme.md` lines 54/73/106). Not independently re-confirmed via a live run this walk.
+- AF2 — PASS (procedural). Documented procedure includes a distinct corner-pixel check (T03) separate from center-pixel checks (T01/T02), with troubleshooting guidance for window-chrome pixel-offset correction. Not independently re-confirmed via a live run this walk.

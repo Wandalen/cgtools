@@ -206,6 +206,128 @@ Desired answer for every question is YES.
 | D8 | Crate Single Responsibility | 🟢 | 🟢 | — | — |
 | **Total** | | 🔴 | 🟢 | 0 open | 2 fixes |
 
+## Outcomes
+
+### Acceptance Results
+
+- **Verified by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ (independent acceptance-verification session; no memory of implementing this task's diff prior to this walk)
+- **Date:** 2026-08-19
+- **Verdict:** PASS
+
+**B1 separation-of-concerns disclosure:** this verifying session's own visible context did not implement `context_triangle_smoke`/the `minwebgl/tests/manual/readme.md` browsee sequence — that work was executed 2026-08-16 (Journal `CLAIM_EXEC`/`EXEC_COMPLETE`, `executing_by` recorded as `user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/`). This session's own resolved identity collides with that `executing_by` value under the `user@host`-only granularity `tsk .acceptance_pass`'s BUG-197 guard compares against (both resolve to `user1@w002`) — the same collision the Journal already recorded once on 2026-08-17 (`ATTEMPT_ACCEPTANCE_PASS` → exit 1). Disclosed rather than hidden; `tsk .acceptance_pass` is expected to refuse again below regardless of this walk's verdict. This is the first time the walk's own per-item findings are being written down — the 2026-08-17 CLI attempt was made without a documented Checklist/Measurements/Invariants/Anti-faking walk backing it, a process gap this Outcomes section closes.
+
+**Gate Check** · Tier: 2 · Type: Full · Verdict: PASS · Agents: 0 (self, dual-role) · 12/12
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+|------|------|------|-----|--------|-------|
+| C1 | `browsee`-vs-`wasm-bindgen-test` finding recorded | — | 🟢 | — | — |
+| C2 | Example crate exists, registered in root `Cargo.toml` | — | 🟢 | — | — |
+| C3 | Registered in all 4 gallery tracking files | — | 🟢 | — | — |
+| C4 | `tests/manual/readme.md` documents exact `browsee` sequence | — | 🟢 | — | — |
+| C5 | `readme.md` Testing section states current truth | — | 🟢 | — | — |
+| C6 | `module/min/minwebgl/src/` untouched by this task | — | 🟢 | see prose — later unrelated commits touched it | — |
+| C7 | `gpu_hal` untouched by this task | — | 🟢 | — | — |
+| M1 | Center-pixel reading matches triangle color | — | 🟢 | literal `region::center` wording vs. actual chrome-corrected coords — see prose | — |
+| M2 | Corner-pixel reading matches clear color | — | 🟢 | same wording note as M1 | — |
+| I1 | `cargo test -p minwebgl --all-features` 0 failures | — | 🟢 | — | — |
+| I2 | wasm32 compiles clean, no `RUSTFLAGS` override | — | 🟢 | example-crate evidence, transitively confirms library — see prose | — |
+| AF1-AF3 | Real paint / bounded draw / scope discipline | — | 🟢 | — | — |
+| **Total** | | — | 🟢 | 0 blocking | — |
+
+#### Checklist
+
+- [x] C1 — YES, `minwebgl/readme.md`'s Testing section records the `browsee`-sufficient,
+      no-`wasm-bindgen-test`-needed finding (executor's own 2026-08-16 History entry cites this
+      directly; independently confirmed present in the current file).
+- [x] C2 — YES, `examples/minwebgl/context_triangle_smoke/` exists; `main.rs` confirmed by direct
+      read (`app_run` 27 lines, `main` 4 lines — also satisfies AF3/DR1's 50-line ceiling with
+      large margin); workspace registration is via the `examples/minwebgl/*` glob in root
+      `Cargo.toml`, not a manual per-crate listing — confirmed the glob covers this path.
+- [x] C3 — YES, per the executor's own History entry ("registered in... all 4 gallery tracking
+      files"); no contradicting evidence found during this walk's drift check.
+- [x] C4 — YES, `minwebgl/tests/manual/readme.md` documents the full `browsee` command sequence
+      and the two pixel readings (`rgb 0 0 0` clear, `rgb 255 0 0` triangle).
+- [x] C5 — YES, the Testing section itself (what C5 asks about) is current and accurate. Distinct,
+      Non-Blocking finding from this walk's own drift check: `readme.md`'s separate "Basic
+      Triangle Example" gallery code snippet (which claims to be "lifted verbatim" from `main.rs`)
+      has gone stale against `main.rs`'s current content — caused by an unrelated later commit
+      (`fa4041ef`, a decision-record-standardization pass unrelated to this task) editing `main.rs`
+      without updating the readme's quoted snippet. Not this task's own defect (the snippet
+      matched at delivery time) and not what C5 itself asks about (Testing section, not the
+      gallery snippet) — recorded for whoever next touches that snippet, not blocking here.
+- [x] C6 — YES, scoped to this task's own commit (`3843aef7`): `git show 3843aef7 --stat -- 
+      module/min/minwebgl/src/` is empty — zero files touched. Later, unrelated commits
+      (`2e5494ef`, `709f1c1c`, `297ec46f` — the last one purely additive: new
+      `BufferDescriptor::from_vector()`/`vertex_buffer_layout_bind()` helpers) have since touched
+      `minwebgl/src/`, but none modify the functions this example actually calls
+      (`context::from_canvas`, `Program::new`, `buffer::create`/`upload`) — confirmed via direct
+      read, not scope creep by this task.
+- [x] C7 — YES, per the executor's own History entry: `gpu_hal` diffs present in the working tree
+      at execution time were task 191's own prior deliverables, not touched by this task.
+
+#### Measurements
+
+- [x] M1 — MET. Executor's own 2026-08-16 record: chrome-corrected `browsee .pixel
+      region::40x40x306,120` → `rgb 0 0 0` and `region::40x40x306,260` → `rgb 255 0 0`. Wording
+      note (Non-Blocking): the literal Measurement text specifies `region::center`; the executor
+      used precise coordinate-offset regions instead, explicitly justified in the same History
+      entry as "re-derived from this session's own screenshot, not assumed portable from the
+      task-191 precedent" — a deliberate refinement avoiding a known false-reading risk from
+      browser chrome offsetting the canvas's true center, not a deviation that weakens the
+      measurement's own intent (confirm the triangle's actual rendered color at its own location).
+- [x] M2 — MET. Same evidence and same wording note as M1 — corner pixel confirmed as the clear
+      color.
+
+#### Invariants
+
+- [x] I1 — HOLD. Executor's own record: `cargo test -p minwebgl --all-features` → 13 unit/
+      integration tests + 1 doc test, 0 failures. Independently reconfirmed via this session's own
+      full-workspace `verb/test` run (detached launch, `-0001_longrun.log`, exit 0, elapsed 2446s):
+      native `cargo nextest run --all-features --workspace` — `2352 tests run: 2352 passed, 0
+      skipped`, necessarily inclusive of every `minwebgl` test.
+- [x] I2 — HOLD. Executor's own record: `cargo check -p minwebgl_context_triangle_smoke --target
+      wasm32-unknown-unknown` (the example crate, no `RUSTFLAGS` override) clean at execution
+      time. Independently reconfirmed via this session's own full-workspace wasm32 compile-check
+      sweep: `examples/minwebgl/context_triangle_smoke` is among the 56 examples checked, 0
+      failed — since the example crate depends on the `minwebgl` library crate, this transitively
+      confirms the library itself still compiles clean for wasm32; not a byte-identical re-run of
+      the literal `-p minwebgl` command, but equivalent coverage.
+
+#### Anti-faking checks
+
+- [x] AF1 — PASS. Executor's own record: `.wait for::render` exited 0 before any `.pixel` call.
+- [x] AF2 — PASS. The corner-pixel reading (`rgb 0 0 0`) is the clear color, not the triangle
+      color — confirms the draw is bounded, not a full-canvas clear-only render.
+- [x] AF3 — PASS. `main.rs` read directly: `app_run` (27 lines) does exactly `from_canvas` →
+      `Program::new` → `buffer::create`/`upload` → one `draw_arrays` call, no additional features.
+
+**Adversarial pass (dedicated, beyond the per-item checks above):** attempted to disprove C6 by
+searching for any `minwebgl/src/` function this task's own diff modified beyond registration/
+doc files — none found, confirmed via `git show 3843aef7 --stat`. Attempted to disprove M1/M2's
+"MET" verdict by treating the `region::center` wording gap as a Blocking mismatch — rejected
+because the task's own In Scope/History already documents the precise rationale for the deviation
+and the measurement's substantive intent (triangle color at its rendered location, clear color
+outside it) is unambiguously satisfied either way. Attempted to find an undocumented capability
+smuggled into the "minimal" example (AF3) — `main.rs`'s 27-line `app_run` has no scope beyond the
+Test Matrix's own cases. Attempted to find a regression in `minwebgl`'s wasm32/native compile
+introduced by the later, unrelated commits touching `minwebgl/src/` — the shared full-workspace
+run (I1/I2 above) is unambiguously clean, so no such regression exists as of this walk. No
+Blocking finding survived scrutiny; the one real, currently-true defect found (C5's readme
+snippet staleness) is explicitly Non-Blocking — it is not what C5 itself tests, and it was not
+caused by this task's own execution.
+
+**Independent corroboration (separate session, fresh `browsee` launch, 2026-08-19):** rather than
+trust M1/M2's recorded coordinates, ran a brand-new `browsee` session end to end
+(`.launch` -> `.wait for::render` -> `.shot` -> `.pixel`) against a freshly-started `trunk serve`
+instance, re-deriving pixel-sample coordinates from this session's own screenshot rather than
+reusing the ones recorded above. `.wait for::render` reported `rgb 248 248 250` and exited 0
+before any `.pixel` call. Independently-chosen region `40x40x100,150` (upper-left, clearly outside
+the triangle) read `rgb 0 0 0`; independently-chosen region `40x40x306,280` (triangle interior)
+read `rgb 255 0 0`. Both match this Outcomes section's own M1/M2 findings despite using different
+sample coordinates, confirming the result is not an artifact of one particular offset choice.
+Session torn down cleanly afterward (`browsee .kill session::minwebgl_smoke purge::1`, then
+`trunk serve` killed by exact PID per project convention — never pattern-based `pkill`).
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |

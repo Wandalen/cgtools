@@ -20,7 +20,12 @@ features = [
   'PointerEvent',
   'WheelEvent',
   'WebGlTexture',
-  'HtmlImageElement'
+  'HtmlImageElement',
+  'HtmlInputElement',
+  'File',
+  'FileList',
+  'FileReader',
+  'Event'
 ]
 
 [package.metadata.action]

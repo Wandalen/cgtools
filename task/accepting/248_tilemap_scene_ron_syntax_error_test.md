@@ -170,6 +170,7 @@ Desired answer for every question is YES.
 | 2026-08-19 00:46:28 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
 | 2026-08-19 00:46:28 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | EXEC_COMPLETE | execution complete |
 | 2026-08-19 00:46:28 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_ACCEPT | acceptance claimed |
+| 2026-08-19 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | ATTEMPT_ACCEPTANCE_PASS | `tsk .acceptance_pass 248` → exit 1, "self-verification forbidden (actor matches executing_by)" — same-actor sandbox guard, consistent with prior 2026-08-17 attempt and this sweep's 202/246/192/118/247 precedent; not forced/spoofed, left at 🔎 Accepting with PASS verdict (drift-reconfirmed) documented in `### Acceptance Results` above per standing project convention |
 
 ## History
 
@@ -213,3 +214,15 @@ Desired answer for every question is YES.
 #### Anti-faking checks
 
 - **AF1** — PASS. `UNCLOSED_PAREN_SPEC` (`r"RenderSpec( assets: ["`) and `BARE_TOKEN_SCENE` (`r"totally_not_a_struct"`) are genuinely distinct string literals from each other; `grep -rn` across the whole `tests/` directory finds each literal occurring only inside `ron_syntax_error_test.rs` itself — no duplication against any other fixture in the suite. Note (informational, not a failure): T03's `GHOST_LAYER_SPEC` is a byte-for-byte mirror of `scene_model_test.rs`'s `validate_rejects_unknown_pipeline_layer` fixture — transparently disclosed via an explicit code comment and matching the Test Matrix's own stated design ("mirroring an existing Validation-test fixture"); AF1's own criterion scopes explicitly to T01/T02 only, so this is not a violation.
+
+**BUG-197 mechanical guard (upfront disclosure, backfilled 2026-08-19 — omitted from the original 2026-08-16 walk above):** this verifying session's own resolved identity (`user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/`) shares the `user@host` prefix with the task's own `executing_by` field; `tsk .acceptance_pass` is expected to mechanically refuse regardless of verdict. Consistent with the Journal's own 2026-08-17 `ATTEMPT_ACCEPTANCE_PASS` entry (under this task's pre-renumbering ID 116), already blocked for this exact reason.
+
+### Post-Hoc Drift Reconfirmation (2026-08-19)
+
+**Gate Check** · Tier: 2 · Type: Full · Verdict: PASS · Agents: 0 (self, dual-role) · 1/1
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+|------|------|------|-----|--------|-------|
+| D1 | No drift since 2026-08-16 walk invalidates C1/C3/C4/C5/C6/M1/I1 | 🟢 | 🟢 | — | — |
+
+Confirming: `tests/ron_syntax_error_test.rs` touched only by this task's own commit `fbd3f206` (`git log --oneline -- .../ron_syntax_error_test.rs` → single hit); still 3 `#[ test ]` functions; still counted in this window's shared full-workspace `verb/test` evidence (`-0001_longrun.log`, exit 0, 2352/2352 native tests). Adversarial: one later commit, `1b3f87ae`, does touch `error.rs`(+42)/`load.rs`(+8/-8)/`validate.rs`(+553/-66) after `fbd3f206` — actively checked whether it invalidates C3/C4/C5. `git log -S"enum LoadError" -- error.rs` shows the `LoadError` enum (the type under test — `Io`/`Ron`/`Validation` variants) has been touched only by the crate's original creation commit `317d023a`, never since; `1b3f87ae`'s `error.rs` hunk instead adds two new variants (`ConflictingTileSource`, `UnknownTint`) to the separate, nested `ValidationError` type, and its `load.rs` hunk is a doc-comment-only update to `Scene::load`'s rustdoc — neither touches `LoadError::Io`/`LoadError::Ron`, neither reintroduces `SnapshotLoadError`, neither affects `from_ron_str`. C3's original PASS was already scoped to this task's own diff (not a promise no one would ever touch these files again); the later commit is unrelated, legitimate SPEC §16 validation-rule work, not this task's own scope creep or a regression it caused. No blocking finding. Re-attempting `tsk .acceptance_pass`.

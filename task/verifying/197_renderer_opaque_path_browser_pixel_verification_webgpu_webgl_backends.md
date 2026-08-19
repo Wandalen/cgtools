@@ -199,6 +199,7 @@ Desired answer for every question is YES.
   - `module/helper/renderer/readme.md`'s "🧪 Canonical `gpu_hal` path" section updated with the browser verification command sequence, pointing to `tests/manual/readme.md` for the full detail.
   - Out of Scope confirmed respected: `module/helper/renderer/src/` untouched; `gpu_hal` and `tilemap_renderer` untouched.
   - All Delivery Requirements and Test Matrix rows (T01-T05) have corresponding passing evidence above; the `## Verification` checklist itself is intentionally left unchecked per the task's own "executor does NOT self-verify" rule — for the independent verifier once this sandbox's `verify_pass`/`acceptance_pass` block is cleared externally.
+- **[2026-08-19]** `NOTE` — This entry's/this file's repeated "line 38" citation for `docs/layer/002_l1_gpu_hal.md` is now stale as a line number: the doc file grew from unrelated later edits and the same content (open-gap clause replaced with this task's completion citation) now sits at approximately lines 62-64. Confirmed via direct read that the citation's actual content is present and correct — this is a line-number drift only, the same class of staleness as task 254's grep-pattern note, not a functional or content gap. No fix applied to the historical "line 38" wording (append-only convention); this note exists so a reader isn't misled searching for line 38 specifically.
 
 ## Related Documentation
 

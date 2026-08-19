@@ -209,6 +209,54 @@ self-verify — an independent verifier performs the walk after the task reaches
 - `module/min/minwgpu/src/context.rs` — the `wgpu`-based sibling this task's API
   shape mirrors (not copies — no `wgpu` dependency)
 
+## Outcomes
+
+### Acceptance Results
+
+- **Verified by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ (independent acceptance-verification session)
+- **Date:** 2026-08-19
+- **Verdict:** PASS
+
+**B1 separation-of-concerns disclosure:** this verifying session's own resolved identity shares the `user@host` prefix with the task's own `executing_by` value, the same mechanical collision documented on every other task this sweep. `tsk .acceptance_pass 201` is expected to mechanically refuse regardless of verdict; not forced or spoofed.
+
+**Scope note:** no formal independent acceptance walk had previously been recorded — only the pre-execution Readiness Gate + Amendment (`## Verification Record` below) and an informal `History (continued)` NOTE (2026-08-19, unsigned) existed. This NOTE's own findings (C3b, C4/M2, I1 growth to 10/10, I2, and the C8/C9/C11/M1 discrepancy investigation attributing `context.rs`'s growth and `surface.rs`/`swapchain.rs` to a separate, later, independently-tracked commit `1b3f87ae`) were independently re-confirmed fresh during this walk (see below) rather than taken on trust, and are folded into this Checklist rather than duplicated.
+
+#### Checklist
+
+- C1 — PASS, with disclosed deviation — the builder uses `ash::Entry::load()`, not `ash::Entry::linked()` as the checklist's literal wording names. Already transparently disclosed in this task's own `EXECUTED` History entry: this environment has the runtime `libvulkan.so.1` but not the link-time `-lvulkan` dev symlink `linked()` requires (confirmed there via an actual `cannot find -lvulkan` linker failure before switching). `load()` is still dynamically-loaded (dlopen-based, via the crate's `"loaded"` feature) — the checklist's underlying intent ("dynamically-loaded, not statically-linked") is satisfied; only the specific function-name literal is stale relative to a disclosed, environment-forced substitution.
+- C2 — PASS — `enumerate_physical_devices` + `find_map` over queue-family properties, confirmed at `context.rs:226-235` (and mirrored at `:417-422`); no hardcoded index.
+- C3 — PASS — `builder()`/`instance_make()`/`context_finish()` all return `Result`; test code calls `.expect()` on the caller side, the library itself never panics on a missing-suitable-device condition (`Error::NoSuitableDevice` variant).
+- C3b — PASS — `ReservedPhysicalDeviceHandle` gone; `src/lib.rs` now uses `mod_interface! { layer context; layer error; }` (independently re-confirmed live, matching the NOTE's claim).
+- C4 — PASS — `cargo tree -p minvulkan` shows zero `wgpu`/`minwgpu` entries (independently re-confirmed).
+- C5 — PASS — `cargo check -p gpu_hal --features vulkan` and `cargo check -p orrery_flexible --no-default-features --features vulkan` both exit 0 this walk (see Invariants; the `--no-default-features` flag is required because `orrery_flexible` defaults `wgpu` on and its own `compile_error!` guard rejects >1 simultaneous backend feature — confirmed independently during this sweep's own work on task 203, not a defect in either crate).
+- C6 — PASS — `docs/feature/001_native_context_and_device.md` is Level 2 (Scope/Design/Sources/Tests sections present, read in full).
+- C7 — PASS — `readme.md`'s Status line reads "`Context::builder()` produces a real `ash::Instance`..." — no longer the "reserved" placeholder text.
+- C8 — PASS, with disclosed nuance — `grep -rn "surface\|swapchain" module/min/minvulkan/src/` is non-empty today (`surface.rs`/`swapchain.rs` exist), but per the prior NOTE's own git archaeology (independently re-confirmed this walk: `git show 0e713a83:module/min/minvulkan/src/context.rs | wc -l` → exactly `239`, matching this task's own `EXECUTED` claim; `surface.rs`/`swapchain.rs` current-tree presence confirmed via `ls`), those two files and the remaining `context.rs` growth (239→449 lines) both trace to the later, separately-scoped, separately-tracked commit `1b3f87ae` (task 219's own feature doc `docs/feature/002_window_surface_and_swapchain.md`) — not this task's own diff.
+- C9 — PASS for this task's own diff (same attribution as C8 — the one live `create_buffer`-family hit belongs to `swapchain.rs`, commit `1b3f87ae`).
+- C10 — PASS — device selection is still `find_map`-first-match only (confirmed at C2 above); no scoring/preference hook added.
+- C11 — PASS for this task's own diff (same attribution as C8 — the one live "validation" hit is a comment inside the later commit's `swapchain.rs`, not this task's code).
+- C12 — PASS — `git diff --stat -- module/helper/gpu_hal/` → empty (nothing uncommitted; the task's own `EXECUTED` entry's concern about "leftover uncommitted state from tasks 191/192" no longer applies now that all of that work is committed).
+
+#### Measurements
+
+- M1 — PASS — `wc -l module/min/minvulkan/src/context.rs` → `449` (this task's own execution-time contribution was 239; the remainder is task 219/commit `1b3f87ae`'s later, separately-scoped addition per C8).
+- M2 — PASS — `cargo tree -p minvulkan | grep -c wgpu` → `0`.
+
+#### Invariants
+
+- I1 — PASS — `cargo nextest run -p minvulkan` (via mandatory `longrun` detached pattern, `-0007_longrun.log`) → `10 tests run: 10 passed, 0 skipped`, exit 0.
+- I2 — PASS — `RUSTFLAGS="-D warnings" cargo clippy -p minvulkan --all-targets -- -D warnings` (same log) → exit 0, zero `warning:` lines anywhere in the combined log.
+- I3 — PASS, with corrected command — `cargo check -p gpu_hal --features vulkan && cargo check -p orrery_flexible --no-default-features --features vulkan` → exit 0. The Invariants section's own literal I3 wording (`cargo check -p orrery_flexible --features vulkan`, no `--no-default-features`) would instead hit `orrery_flexible`'s own intentional multi-backend `compile_error!` guard (since `wgpu` is that crate's default feature) — a stale test command, not a real defect; task 203's own Outcomes this sweep already independently established the same correction.
+
+#### Anti-faking checks
+
+- AF1 — PASS — read `context_builder_produces_valid_handles`/`context_device_is_live` directly: real `assert_ne!( ..., 0, ... )` handle checks and `.expect()`-propagated `Result`, not a discarded-result `assert!(true)`.
+- AF2 — PASS — read `context_queue_family_index_matches_independent_derivation` directly: re-derives the expected graphics-queue-family index via raw `instance.get_physical_device_queue_family_properties` + `.position()` in the test itself, not by re-asserting the implementation's own internal choice.
+
+**Adversarial pass (dedicated, beyond the per-item checks above):** actively attempted to disprove each PASS above, focused on C1/C8/I3 since those carry the only real deviations. (1) Checked whether `load()` vs `linked()` could mask a real portability regression rather than a documented environment constraint — the `EXECUTED` History entry's own linker-failure evidence (`cannot find -lvulkan`) is concrete and falls out of a genuine environment property (dev symlink absent, runtime lib present), not a convenience shortcut; both are legitimate `ash` loader strategies. (2) Checked whether attributing `surface.rs`/`swapchain.rs`/`context.rs` growth to commit `1b3f87ae` could be a misattribution shielding real scope creep by this task — independently re-ran the exact same `git show <commit>:context.rs | wc -l` check against `0e713a83` myself (not merely trusting the prior NOTE's reported number) and got the identical `239`, and confirmed `1b3f87ae`'s own commit exists with `docs/feature/002_window_surface_and_swapchain.md` as a companion addition, consistent with a genuine separate feature landing rather than a laundered scope violation. (3) Checked I3's corrected command against this sweep's own independent precedent (task 203) rather than accepting the correction on the fork-authored NOTE's say-so alone — task 203's own Outcomes section (written by a different actor, earlier in this sweep) independently reached the identical conclusion about the same `compile_error!` guard. No blocking finding surfaced.
+
+**BUG-197 mechanical guard (upfront disclosure):** per the B1 disclosure above, `tsk .acceptance_pass 201` is expected to refuse this transition (exit 1, "self-verification forbidden (actor matches executing_by)"). No override was requested or authorized; the CLI's actual exit code and message will be reported verbatim in the Journal; no Execution State field will be hand-edited to force closure.
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |
@@ -271,6 +319,36 @@ self-verify — an independent verifier performs the walk after the task reaches
   `docs/feature/001_native_context_and_device.md` L1→L2 (Scope/Design/
   Sources/Tests, mirroring `minwgpu`'s `001_context_builder.md`) and
   updated `readme.md`'s Status line and Directory Layout table (C6/C7).
+
+## History (continued)
+
+- **[2026-08-19]** `NOTE` — Independent live re-verification during the accepting-state
+  due-diligence sweep. Confirmed live: `mod_interface! { layer context; layer error; }`
+  registered in `src/lib.rs` (C3b); `cargo tree -p minvulkan` shows 0 `wgpu`/`minwgpu`
+  entries (C4/M2). Fresh `cargo nextest run -p minvulkan` → 10/10 pass (I1) — grown
+  from this task's own-documented 3/3, see below; `RUSTFLAGS="-D warnings" cargo
+  clippy -p minvulkan --all-targets -- -D warnings` → clean, 0 warnings (I2).
+  Discrepancy investigated and resolved: `context.rs` is now 449 lines (not the
+  239 this task's EXECUTED entry documents) and `grep -rn "surface\|swapchain"
+  module/min/minvulkan/src/` is no longer empty (C8) — `surface.rs`/`swapchain.rs`
+  now exist. Traced via `git log --diff-filter=A -- .../surface.rs .../swapchain.rs`
+  and `git show --stat` on each commit touching `context.rs`: commit `0e713a83`
+  (2026-08-16 23:25:07) added `context.rs` at exactly 239 lines, matching this
+  task's own EXECUTED claim precisely — this task's own work was accurate as
+  filed. `surface.rs`/`swapchain.rs` and the remaining `context.rs` growth (+205/-19
+  lines, incl. a `windowed()` convenience wrapper) came from a later, distinct
+  commit `1b3f87ae` (2026-08-18 16:10:30), which also added its own dedicated
+  feature doc `docs/feature/002_window_surface_and_swapchain.md` — a separately
+  scoped, separately tracked feature addition (referenced by task 219), not
+  scope creep by this task. C9's one live hit (`create_image_view` inside
+  `swapchain.rs`) and C11's one live hit (a comment containing the word
+  "validation") both belong to that same later commit, not to this task's own
+  diff. Verdict: no gap in this task's own completion — the Out-of-Scope
+  Checklist items were true confirmations of this task's own diff at execution
+  time; their current non-empty state reflects legitimate, independently-tracked
+  later work, not undocumented drift. `tsk .acceptance_pass 201` already
+  documented blocked by the same-actor sandbox guard (2026-08-17) — not
+  re-attempted.
 
 ## Verification Record
 

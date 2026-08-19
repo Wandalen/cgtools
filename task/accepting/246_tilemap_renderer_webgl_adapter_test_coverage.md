@@ -226,6 +226,55 @@ Desired answer for every question is YES.
 
 **BUG-197 mechanical guard (upfront disclosure):** per the B1 disclosure above, `tsk .acceptance_pass` is expected to refuse this transition (same-sandbox `user@host` collision) despite this being a genuinely independent, fresh-dispatch verification walk. No user-directed override was requested or authorized for this task — the CLI's actual exit code and message will be reported verbatim in the Journal below; no Execution State field will be hand-edited to force closure.
 
+### Post-Hoc Drift Reconfirmation (2026-08-19)
+
+The 2026-08-16 PASS above was never followed by a successful `tsk .acceptance_pass` (BUG-197 guard,
+disclosed above), leaving the task sitting in `accepting/` unclosed. Before re-attempting closure,
+re-checked whether anything landed in `src/adapters/webgl.rs`, `tests/webgl_backend_test.rs`,
+`tests/command_consistency_test.rs`, or the crate's other backend/type/command files since this
+Outcomes was written — dispatched a read-only drift-focused re-check (`subagent_type = Explore`,
+"very thorough").
+
+**Gate Check** · Tier: 2 · Type: Full · Verdict: PASS · Agents: 0 (self, dual-role) · 1/1
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+|------|------|------|-----|--------|-------|
+| D1 | No drift since 2026-08-16 invalidates any C/M/I/AF verdict | 🟢 | 🟢 | — | — |
+| **Total** | | 🟢 | 🟢 | — | — |
+
+Confirming pass: `tests/webgl_backend_test.rs` — zero changes since baseline, byte-identical.
+`tests/command_consistency_test.rs` — the `svg_backend` module's fixture changed from
+`empty_assets()` to `loaded_sprite_assets()` as a ripple from an unrelated BUG-209 fix elsewhere in
+the crate, but the test's own name and assertion (`sprite_command_returns_ok` asserts `Ok`) are
+unchanged and still true under the new fixture — not a behavioral regression in what this task's
+own test verifies. `src/adapters/webgl.rs` — `cmd_mesh`/`cmd_sprite`/`submit()` signatures changed
+(Fix(BUG-209), Fix(BUG-210)) but `declared_capabilities`/`capabilities` (this task's own delivered
+functions) are untouched. `backend.rs` — doc-comment-only change, no behavior. Full function-length
+re-sweep of `webgl.rs`: 6 functions remain over 50 lines, but all 6 already exceeded the ceiling at
+the 2026-08-16 baseline (pre-existing debt, not introduced by or attributable to this task) except
+`bitmap_texture_upload`, which grew 65→77 lines via the unrelated BUG-210 fix — already over-limit
+before this task, grown further by a different task's own fix, not this task's own function.
+
+Adversarial pass: attempted to find a way the `svg_backend` fixture swap could mask a real failure
+(e.g. the test passing vacuously) — re-read the assertion directly, it still calls `.expect()` on
+the `submit()` result and would panic on `Err`, so the fixture change genuinely had to produce a
+working, valid command path for the test to still pass, not a weaker tautology. Attempted to
+attribute `bitmap_texture_upload`'s growth to this task — confirmed via `git log -p` on the
+function that the growth commit is BUG-210's own fix commit, not part of task 246's original
+delivery. Attempted to find scope creep in the drift itself (this task's diff reaching into
+adapters it doesn't own) — `git status --porcelain -- module/helper/tilemap_renderer/src/
+adapters/webgl.rs` shows only the original 4 files this task's own In Scope named, nothing more.
+No basis found to overturn the 2026-08-16 PASS.
+
+Independently reconfirmed via this session's own full-workspace `verb/test` run (detached launch,
+`-0001_longrun.log`, exit 0, elapsed 2446s): native `cargo nextest run --all-features --workspace`
+— `2352 tests run: 2352 passed, 0 skipped`, including `command_consistency_test.rs` and
+`webgl_backend_test.rs`'s tests by name; workspace-wide `clippy --all-targets --all-features -- -D
+warnings` — 0 warning lines in the entire log. This is a fresher, full-workspace confirmation of I1
+beyond the 2026-08-16 walk's own already-real (not stale) evidence.
+
+**Verdict:** PASS reconfirmed. Re-attempting `tsk .acceptance_pass`.
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |

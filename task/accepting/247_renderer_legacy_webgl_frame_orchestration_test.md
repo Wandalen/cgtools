@@ -208,6 +208,16 @@ Desired answer for every question is YES.
 
 **BUG-197 mechanical guard (upfront disclosure):** per the B1 disclosure above, `tsk .acceptance_pass` is expected to refuse this transition (exit 1, "self-verification forbidden (actor matches executing_by)") since this verifying session's `scope get::id` shares the `user@host` prefix (`user1@w002`) with the task's own `executing_by` field, despite being a procedurally distinct session. No user-directed override was requested or authorized for this task — the CLI's actual exit code and message are reported verbatim in the Journal below; no Execution State field was hand-edited to force closure.
 
+### Post-Hoc Drift Reconfirmation (2026-08-19)
+
+**Gate Check** · Tier: 2 · Type: Full · Verdict: PASS · Agents: 0 (self, dual-role) · 1/1
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+|------|------|------|-----|--------|-------|
+| D1 | No drift since 2026-08-16 walk invalidates C2/C5/C6/C7/M1/I1 | 🟢 | 🟢 | — | — |
+
+Confirming: `frame_attachments`/`webgl_frame_orchestration_test.rs` unchanged since the walk (`git log --oneline -S"frame_attachments" -- .../renderer.rs` → only `fbd3f206`, this task's own commit); test file still present, still 4 `#[ test ]` functions, still counted in this window's shared full-workspace `verb/test` evidence (`-0001_longrun.log`, exit 0, 2352/2352 native tests). Adversarial: 3 later commits (`1df2f9d8`, `297ec46f`, `1b3f87ae`/`612445c4`/`bc9ffea6`) do touch `renderer.rs`/`src/webgpu/`/`Cargo.toml` after `fbd3f206` — actively checked whether any invalidates C5/C6/C7. `1df2f9d8`'s only `renderer.rs` hunk near `frame_attachments`'s line range (`@@ -1174,6 +1182,27@@`) is a brand-new unrelated function `program_needs_recompile` (BUG-258, material-cache invalidation) inserted after it, not a modification to `frame_attachments`/`nodes_collect`/`opaque_draw`/`transparent_draw`/`composite`; current file confirms all 4 named functions and `frame_attachments` still exist as distinct, unmerged definitions. `1df2f9d8`/`297ec46f`'s `webgpu/` touches and `1b3f87ae`'s `Cargo.toml` comment (mentioning `gpu_hal` only in prose, not adding it as a webgl-path dependency) are later, unrelated commits — not part of this task's own `fbd3f206` diff, and the current Cargo.toml's `gpu_hal` optional-dep entries remain gated behind `webgpu`/`native` features only, never the legacy `webgl` path this task covers. No blocking finding. Re-attempting `tsk .acceptance_pass`.
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |
@@ -221,6 +231,7 @@ Desired answer for every question is YES.
 | 2026-08-19 00:46:28 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
 | 2026-08-19 00:46:28 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | EXEC_COMPLETE | execution complete |
 | 2026-08-19 00:46:28 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_ACCEPT | acceptance claimed |
+| 2026-08-19 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | ATTEMPT_ACCEPTANCE_PASS | `tsk .acceptance_pass 247` → exit 1, "self-verification forbidden (actor matches executing_by)" — same-actor sandbox guard, consistent with prior 2026-08-17 attempt and this sweep's 202/246/192/118 precedent; not forced/spoofed, left at 🔎 Accepting with PASS verdict (drift-reconfirmed) documented in `### Acceptance Results` above per standing project convention |
 
 ## History
 

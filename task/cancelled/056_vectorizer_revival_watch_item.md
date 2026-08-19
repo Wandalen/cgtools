@@ -8,13 +8,15 @@
 - **started_at:** null
 - **expires_at:** null
 - **round:** 1
-- **state:** 📝 (Draft)
+- **state:** 🚫 (Cancelled)
 - **closes:** null
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/vectorizer
 - **verified_by:** null
 - **verification_date:** null
 - **blocked_by:** null
+- **cancelled_at:** 2026-08-19 10:59:47
+- **cancelled_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## Goal
 
@@ -40,6 +42,12 @@ state. `✅ Completed` is terminal in this project's task system (v5.13 — the 
 removed; see `tsk.rulebook.md § Vocabulary : Regression Event`), so a distinct, cross-linked task is the
 correct mechanism for "revisit later," not reopening 023 itself.
 
+## Journal
+
+| Timestamp           | Actor                | Event | Note         |
+|---------------------|----------------------|-------|--------------|
+| 2026-08-19 10:59:47 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CANCEL | task cancelled |
+
 ## History
 
 - **[2026-08-10]** `FILED` — Filed via lightweight Draft capture
@@ -50,3 +58,29 @@ correct mechanism for "revisit later," not reopening 023 itself.
   differs: 023's scope — "decide fix vs delete" — is fully resolved; this task's scope — "watch for a
   future revival trigger" — is not the same question and isn't resolvable now). Cross-linked to 023 via
   `**Related Tasks:**` on both sides.
+- **[2026-08-19]** `NOTE` — Resolved by explicit user decision: rather than continuing to wait for an
+  in-workspace revival trigger, the pre-deletion crate is relocated to
+  `~/pro/lib/yrd_gamedev/vectorizer` (outside the cgtools workspace and outside this repo entirely) as a
+  standalone package, so it no longer needs cgtools' own architecture/lint constraints to exist. Recovered
+  all 20 files (3870 lines) from the pre-deletion tree — confirmed via `git show --stat 2be3d2cc` (the
+  deletion commit itself; note this task's own text above says "pre-deletion tree at commit `2be3d2cc`,"
+  which is imprecise — `2be3d2cc` is the deletion commit, the pre-deletion tree is its parent,
+  `2be3d2cc~1`) via whitelisted `git show 2be3d2cc~1:<path>` reads for each file, redirected to the new
+  location; line counts match the deletion diff's own stat (Cargo.toml 96/96 exact; two files off by
+  exactly 1 from a trailing-newline counting convention difference between `wc -l` and git's diff stat,
+  not a content loss). `Cargo.toml`'s `workspace = true` dependency/lint inheritance doesn't resolve
+  outside a Cargo workspace, so every dependency was inlined to the version pinned in cgtools' root
+  `Cargo.toml` as of the pre-deletion parent commit `2be3d2cc~1` (not today's HEAD — today's versions
+  are newer and broke the standalone build with 16 compile errors on first attempt, consistent with this
+  session's recurring finding that these workspace-internal utility crates — `mod_interface`,
+  `derive_tools`, `error_tools` — get breaking API changes across versions; the vintage-correct pins
+  fixed it cleanly). `repository`/`homepage`/`documentation` metadata fields removed (they pointed at the
+  cgtools GitHub location, no longer accurate); `changelog.md`'s own `[0.1.0]` release-tag link left
+  unchanged since it documents a real past release, not a claim about current location. `[lints]
+  workspace = true` dropped (cgtools' custom lint policy no longer applies once outside cgtools).
+  Verified live: `cargo check --all-features` at the new standalone location exits 0 clean (no `tests/`
+  directory existed at deletion time to re-verify — matches task 023's own "zero tests existed" finding).
+  cgtools' own workspace is unaffected — no files changed inside this repo other than this task file
+  itself. Closing this task via `tsk .cancel 056` (the correct terminal transition for an open Draft-state
+  placeholder task whose watch condition is now resolved by relocation rather than by an in-workspace
+  revival).

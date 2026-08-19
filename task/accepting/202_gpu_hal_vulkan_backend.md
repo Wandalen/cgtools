@@ -568,3 +568,47 @@ for task 202; task 206 also notes the coincidence that `gpu_hal` already went th
 crate-wide function-length cleanup before (task 269, also "11 violations") and asks whoever
 executes it to check whether these 11 pre-date that sweep or were introduced by later work
 (tasks 088/089/090) without a re-sweep.
+
+### Round 2 — Post-Hoc Drift Reconfirmation (2026-08-19)
+
+Round 2's PASS above was never followed by a `tsk .acceptance_pass` call, leaving the task
+sitting in `accepting/` unclosed. Before closing it now, re-checked whether anything landed in
+`module/helper/gpu_hal/`, `vulkan.rs`, or the crate's Cargo.toml/features since Round 2 was
+written that could invalidate it — dispatched a read-only drift-focused re-check (`subagent_type
+= Explore`, "very thorough") covering every file this task touches or claims zero-diff against.
+
+**Gate Check** · Tier: 2 · Type: Full · Verdict: PASS · Agents: 0 (self, dual-role) · 1/1
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+|------|------|------|-----|--------|-------|
+| D1 | No drift since Round 2 invalidates any C/M/I/AF/DR1 verdict | 🟢 | 🟢 | — | — |
+| **Total** | | 🟢 | 🟢 | — | — |
+
+Confirming pass: independent full census of current `vulkan.rs` (67 functions) found zero
+functions over 50 lines — the two Round-2-fixed functions (`submit`, `buffer_write`) remain
+compliant, and the 7 originally-remediated `vulkan.rs` functions remain compliant; the only
+in-body edit since Round 2 is a trivial 1-line match-arm addition to `texture_format_to_vulkan`
+(16→17 lines, still compliant). Task 206 (the pre-existing-debt follow-up Round 2 filed) remains
+open and untouched, correctly still out of this task's own scope. `examples/orrery/flexible/`
+and `module/min/minvulkan/` both now carry diffs (task 203's own unblocked work, and
+windowed-presentation work respectively) — re-confirmed via the same "is this task 202's own
+diff" attribution method Round 2 itself used for C7/C8/C10, not a re-litigation of the method.
+
+Adversarial pass: attempted to find a function that crossed the 50-line line specifically because
+of the trivial `texture_format_to_vulkan` edit (it grew 1 line, from 16 to 17 — nowhere close);
+attempted to find a Cargo.toml feature-composition change that would alter C7/C9's verdicts (found
+only unrelated additions, no removal/narrowing of the `vulkan` feature or `full` composition);
+attempted to attribute either drifted directory's changes to task 202 itself via `git show` on the
+task's own commit range rather than trusting the working-tree diff — both trace to other, later,
+already-identified tasks (203, and the windowed-presentation ADR-006 work). No basis found to
+overturn Round 2's PASS.
+
+Independently reconfirmed via this session's own full-workspace `verb/test` run (detached launch,
+`-0001_longrun.log`, exit 0, elapsed 2446s): native `cargo nextest run --all-features --workspace`
+— `2352 tests run: 2352 passed, 0 skipped`, including every `gpu_hal`/`vulkan` test; workspace-wide
+`clippy --all-targets --all-features -- -D warnings` — 0 warning lines in the entire log; wasm32
+compile-check — `examples/gpu_hal/triangle_browser` among the 56 examples checked, 0 failed. This
+supersedes I1/I2/I3's Round-2-time evidence with a fresher, full-workspace confirmation rather than
+replacing it.
+
+**Verdict:** PASS confirmed. Proceeding to `tsk .acceptance_pass`.

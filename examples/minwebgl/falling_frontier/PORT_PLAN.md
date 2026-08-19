@@ -23,14 +23,43 @@ reading before touching fleet motion again; M8's is the last entry).
 - `50ef62de` on `space-game-demo` — M8 ("feat: add Falling Frontier
   tactical HUD (M8)")
 
+The `space-game-demo` branch merged into `master` as `f6f5010b` (regular
+merge commit, per the user's own choice when asked). A PR review of that
+merge (#211) found several remaining issues, since fixed directly on
+`master` (uncommitted as of this note):
+- `grid.frag`: guarded `smoothstep` against `edge0 == edge1` (spec-undefined,
+  can return NaN) via a `safeSmoothstep` wrapper.
+- `main.rs`: handled `Camera::projection_matrix_set`'s `Result` on
+  window-resize instead of discarding it.
+- `hud.rs`: the Pause/Play/Fast buttons' initial `active` state now derives
+  from `GridTuning` (`time_control_button_classes`, now unit-tested) instead
+  of Pause being hardcoded regardless of actual state.
+- `boundary.rs`: `build_boundary_polyline` truncates (not downsamples) its
+  sorted candidate-angle list if candidates ever exceed `MAX_BOUNDARY_PTS` -
+  currently unreachable, now pinned by a compile-time assertion tying the
+  constants together so a future constant change can't silently reintroduce
+  it.
+- Added test coverage that didn't exist before: `boundary.rs`, `hud.rs`'s
+  button-state logic, `primitive_generation::solid` (`box_mesh`/
+  `cylinder_mesh`/`torus_mesh`/`icosphere`), and `gpu_picking`.
+- `gpu_picking` placed on `rulebook.md`'s L0-L5 rendering-layer ladder
+  (beside it, alongside `gl_uniforms`) and documented in
+  `docs/layer/001_l0_drivers.md`.
+
+The Three.js reference implementation this port was built against
+(`examples/threejs/falling_frontier/`) was removed once the port was
+confirmed feature-complete - the "Reference material" bullet below is now
+historical; consult git history from before this point if its source is
+ever needed again.
+
 All with no `Co-Authored-By` trailer, per the standing repo rule.
 `examples/minwebgl/falling_frontier/Untitled.png`
 is an untracked debug screenshot the user pasted in during the M4 starfield
 investigation (see Notes section below) — left untracked on purpose, safe to
 delete once no longer needed, not part of the deliverable.
 
-**Post-milestone work (uncommitted as of this note, pending user review):**
-- **Real bug fixed in `line_tools`** (not this crate): `d3::Line::mesh_create`
+**Post-milestone work (committed, merged into `master` via `f6f5010b`):**
+- **Real bug fixed in `line_tools`** (not this crate, `5a6b9003`): `d3::Line::mesh_create`
   (and `d2::Line`'s join/cap mesh setup) uploaded the index buffer *before*
   creating/binding its own VAO. `ELEMENT_ARRAY_BUFFER` binding is part of the
   *currently bound VAO's* state in WebGL2 (unlike `ARRAY_BUFFER`, which is
@@ -41,8 +70,8 @@ delete once no longer needed, not part of the deliverable.
   moving the index upload after VAO creation in all three call sites. See
   `module/helper/line_tools/src/d2/line.rs` and `d3/line.rs`.
 - **Promoted three modules out of this example into shared `module/`
-  crates**, per the standing "extend cgtools crates" instruction and the
-  example-first-then-promote pattern:
+  crates** (`31b7d8b0`, `e76d2850`, `863a4d01`), per the standing "extend
+  cgtools crates" instruction and the example-first-then-promote pattern:
   - `primitives.rs` (box/cylinder/torus/icosphere generators) →
     `primitive_generation::{box_mesh, cylinder_mesh, torus_mesh, icosphere}`
     (new `src/solid.rs` layer — raw `(positions, indices)` pairs, deliberately
@@ -79,8 +108,9 @@ weight with zero wired behavior even in the JS reference itself).
 Reference material:
 - Gap audit: `research/falling_frontier_cgtools_audit.md` (76-feature comparison,
   render-pipeline flexibility finding)
-- JS original: `examples/threejs/falling_frontier/src/` — port faithfully from
-  here unless a note below says otherwise
+- JS original: was `examples/threejs/falling_frontier/src/`, removed once the
+  port was confirmed feature-complete (see "Resume here" above) — consult git
+  history from before that point if it's ever needed again
 - Standing instruction from the user: **extending/adding cgtools crates is in
   scope and is the point of this port**, not a last resort. Build inside this
   example crate first while a piece is still being proven out, promote to a
