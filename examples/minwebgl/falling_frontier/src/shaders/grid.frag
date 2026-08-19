@@ -56,10 +56,24 @@ float distToSegment( vec2 p, vec2 a, vec2 b )
   return length( p - ( a + ab * t ) );
 }
 
+// smoothstep is undefined ( can return NaN ) when edge0 == edge1 -- not just for literally
+// equal inputs, but also when a large edge0/edge1 magnitude absorbs a small constant offset
+// in floating-point ( e.g. halfWidth - 0.6 == halfWidth once halfWidth is large enough that
+// 0.6 falls below f32's representable precision at that magnitude ). Falls back to a hard
+// step at edge0, matching smoothstep's own limit as edge1 approaches edge0 from above.
+float safeSmoothstep( float edge0, float edge1, float x )
+{
+  if ( edge0 == edge1 )
+  {
+    return x < edge0 ? 0.0 : 1.0;
+  }
+  return smoothstep( edge0, edge1, x );
+}
+
 // 1 where |signedDist - target| < halfWidth, antialiased falloff outside.
 float ribbonMask( float signedDist, float target, float halfWidth )
 {
-  return 1.0 - smoothstep( halfWidth - 0.6, halfWidth, abs( signedDist - target ) );
+  return 1.0 - safeSmoothstep( halfWidth - 0.6, halfWidth, abs( signedDist - target ) );
 }
 
 // Returns 1 for x <= start, 0 for x >= end (exponential modes are
@@ -77,7 +91,7 @@ float fadeFactor( float x, float start, float end, float mode, float gamma )
   }
   else if ( mode < 1.5 )
   {
-    t = smoothstep( start, end, x );
+    t = safeSmoothstep( start, end, x );
   }
   else
   {

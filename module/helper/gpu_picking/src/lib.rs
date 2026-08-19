@@ -200,6 +200,45 @@ impl PickBuffer
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
     let id = self.readback.to_vec()[ 0 ];
-    ( id >= 0 ).then_some( id )
+    readback_to_pick_id( id )
+  }
+}
+
+/// Maps a raw id-texture readback value to a picked id: `-1` is the
+/// "nothing here" background sentinel written by `PickBuffer::render`'s
+/// `clear_bufferiv_with_i32_array`; anything else is a genuine `pick_id`
+/// (see [`Pickable::pick_id`]). Pulled out of [`PickBuffer::pick`] as its
+/// own function so this sentinel mapping — the one piece of interpretive
+/// logic in this crate that isn't a direct GL call — is testable without a
+/// live `WebGl2RenderingContext`.
+fn readback_to_pick_id( raw : i32 ) -> Option< i32 >
+{
+  ( raw >= 0 ).then_some( raw )
+}
+
+// `IdProgram`/`PickBuffer`'s own methods all require a live
+// `WebGl2RenderingContext` to construct or call (framebuffers, textures,
+// shader compilation), which a native `cargo nextest` run cannot provide —
+// same Wasm Native-Check Blind Spot already established in this workspace
+// (see `primitive_generation/tests/geometry_normal_attribute_test.rs`).
+// `readback_to_pick_id` above is the only pure, context-free logic this
+// crate has to test natively.
+#[ cfg( test ) ]
+mod tests
+{
+  use super::readback_to_pick_id;
+
+  #[ test ]
+  fn background_sentinel_maps_to_none()
+  {
+    assert_eq!( readback_to_pick_id( -1 ), None, "-1 is the documented background sentinel" );
+  }
+
+  #[ test ]
+  fn zero_and_positive_ids_map_to_some()
+  {
+    assert_eq!( readback_to_pick_id( 0 ), Some( 0 ), "id 0 is a valid, pickable id, not background" );
+    assert_eq!( readback_to_pick_id( 7 ), Some( 7 ) );
+    assert_eq!( readback_to_pick_id( i32::MAX ), Some( i32::MAX ) );
   }
 }

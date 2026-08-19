@@ -98,7 +98,11 @@ stack needs; see
 `gl_uniforms` (program-scoped WebGL uniform upload wrapper — a thin
 ergonomic layer directly over `minwebgl`'s uniform primitives, not a
 portability seam or orchestration layer, so it sits beside L0 rather than
-occupying a rung).
+occupying a rung),
+`gpu_picking` (GPU id-buffer object picking — renders pickable parts into
+an off-screen R32I texture and reads a pixel back to find what's there; a
+thin, WebGL2-only capability directly over `minwebgl`, same shape as
+`gl_uniforms`, not a portability seam or orchestration layer).
 
 **Rationale:** One glance answers "where does my crate sit, and what may it
 depend on" without walking the doc graph. The detailed contracts stay

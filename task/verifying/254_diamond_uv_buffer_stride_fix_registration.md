@@ -186,6 +186,19 @@ Desired answer for every question is YES.
 - **[2026-08-17]** `RENUMBERED` — 243 → 252, resolving a bug/task ID collision with `BUG-243` (`task/bug/completed/243_wide_outline_jfa_final_buffer_selection_inverted.md`), both filed independently under the shared tsk ID namespace. File, Tasks Index row, `health.md`, and `task/bug/verified/114_diamond_uv_buffer_stride_mismatch.md`'s Fix Task link all updated to 252. The `tsk .verify_pass 243` command transcript above is left verbatim as accurate historical fact (the task really was numbered 243 when that command ran).
 - **[2026-08-17]** `RENUMBERED` — 252 → 254, a second hop within minutes of the first: a concurrent session actor (same sandbox identity, independent activity) filed `BUG-252` (`task/bug/completed/252_displacement_texture_size_zero_width_division_by_zero.md`) in the same race window this task's own 243→252 rename landed in — both sides independently computed "next free ID" from an on-disk scan and picked 252 within ~2 minutes of each other (confirmed via file mtimes: their `BUG-252` predates this file's own 243→252 rename by ~118s). Their bug/readme.md entry documents them dodging this session's already-visible 246-250 range but not this file's own just-landed 252, since it wasn't yet on disk at their scan time — a genuine TOCTOU race between two independent actors, not a defect in either side's renumbering logic. Since their `BUG-252` was already `task/bug/completed/` (terminal) and cross-referenced in `bug/readme.md` by the time this was discovered, this file moved again rather than displacing theirs — 254 confirmed free (254 also not claimed by their own `BUG-253`, `task/bug/completed/253_camera_projection_matrix_set_bypasses_bug174_validation.md`, filed immediately after their 252). File, Tasks Index row, `health.md`, and `task/bug/verified/114_diamond_uv_buffer_stride_mismatch.md`'s Fix Task link all updated to 254; `highest_id` bumped to 254.
 
+- **[2026-08-19]** `NOTE` — Unrelated later AoS/SoA migration work (task 392/394's expansion) rewrote
+  `examples/minwebgl/diamond/src/main.rs`'s attribute setup from
+  `BufferDescriptor::new::<[f32;2]>().stride(2)`-style calls to
+  `gl::BufferDescriptor::from_vector( uv_attr.vector ).stride( 2 )`. **The fix itself is unaffected
+  and still correct** — live re-check confirms `.stride( 2 )` on the uv attribute (now line 142) with
+  the full `Fix(BUG-114)`/`Root cause`/`Pitfall` comment intact (lines 135-140). But this task's own
+  Test Matrix/Measurement grep patterns (`'\[ f32; 2 \] >().stride( 2 )'` etc., T01/M1/M2) are written
+  against the old call shape and will return 0 matches (false negative) if literally re-run today —
+  not a regression, just a stale literal-text check against since-refactored code. Flagging rather
+  than rewriting the checklist, since this task's own content is otherwise complete and the
+  underlying fix was never in question. `tsk .verify_pass 254` re-confirmed blocked 2026-08-19,
+  same same-actor guard as the rest of this repo's registration backlog.
+
 ## Related Documentation
 
 - `task/bug/verified/114_diamond_uv_buffer_stride_mismatch.md` — the source bug this task promotes; carries the full Root Cause/MRE/Prevention/History detail this task does not duplicate

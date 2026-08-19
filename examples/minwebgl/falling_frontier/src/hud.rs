@@ -139,6 +139,7 @@ pub fn setup_hud( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
   document.head().unwrap().append_child( &style ).unwrap();
 
   let t = *tuning.borrow();
+  let ( pause_active, play_active, fast_active ) = time_control_button_classes( t.animate_ships, t.speed_multiplier );
   let body_html = format!
   (
     r#"<div class="ff-top-bar">
@@ -148,9 +149,9 @@ pub fn setup_hud( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
           <div class="ff-value">SAT 2 JAN <span class="ff-value-big">2545</span></div>
         </div>
         <div class="ff-divider"></div>
-        <button type="button" id="ff-btn-pause" class="ff-btn active">||</button>
-        <button type="button" id="ff-btn-play" class="ff-btn">&gt;</button>
-        <button type="button" id="ff-btn-fast" class="ff-btn">&gt;&gt;</button>
+        <button type="button" id="ff-btn-pause" class="ff-btn {pause_active}">||</button>
+        <button type="button" id="ff-btn-play" class="ff-btn {play_active}">&gt;</button>
+        <button type="button" id="ff-btn-fast" class="ff-btn {fast_active}">&gt;&gt;</button>
       </div>
       <div class="ff-panel ff-location-panel">
         <div class="ff-location-title">Titan Colony <span style="color:#0e7490">[SECTOR 04-B]</span></div>
@@ -280,6 +281,31 @@ fn bind_scanlines_toggle( document : &Document )
 /// multiplier as-is (matching the JS, which never resets it on pause).
 const TIME_CONTROL_IDS : [ &str; 3 ] = [ "ff-btn-pause", "ff-btn-play", "ff-btn-fast" ];
 
+/// Decides which of the three time-control buttons should render as
+/// `active` for `setup_hud`'s initial paint, from `tuning`'s already-current
+/// state. Mirrors `set_time_control_active`'s own three-way split: paused
+/// when `animate_ships` is clear, else Play/Fast is picked by
+/// `speed_multiplier` (Play = 1.0, Fast = 2.5 - a `> 1.0` threshold avoids
+/// relying on exact float equality) - so the initial render matches
+/// whatever state `tuning` already holds, the same guarantee the other four
+/// toggles have. Returns each button's own `active`-or-empty CSS class
+/// fragment, in (pause, play, fast) order.
+fn time_control_button_classes( animate_ships : bool, speed_multiplier : f32 ) -> ( &'static str, &'static str, &'static str )
+{
+  if !animate_ships
+  {
+    ( "active", "", "" )
+  }
+  else if speed_multiplier > 1.0
+  {
+    ( "", "", "active" )
+  }
+  else
+  {
+    ( "", "active", "" )
+  }
+}
+
 fn set_time_control_active( document : &Document, active_id : &str )
 {
   for id in TIME_CONTROL_IDS
@@ -375,4 +401,34 @@ pub fn refresh_unit_panel( document : &Document, info : Option< &UnitInfo > )
   if let Some( el ) = document.get_element_by_id( "ff-unit-name" ) { el.set_text_content( Some( &info.name ) ); }
   if let Some( el ) = document.get_element_by_id( "ff-unit-commander" ) { el.set_text_content( Some( &info.commander ) ); }
   if let Some( el ) = document.get_element_by_id( "ff-unit-class" ) { el.set_text_content( Some( &format!( "{} CLASS", info.class_label ) ) ); }
+}
+
+// Every other function in this module takes a `&Document` and is DOM-bound,
+// untestable natively (same Wasm Native-Check Blind Spot already
+// established in this workspace). `time_control_button_classes` is the one
+// piece of context-free decision logic pulled out for that reason.
+#[ cfg( test ) ]
+mod tests
+{
+  use super::time_control_button_classes;
+
+  #[ test ]
+  fn paused_highlights_only_pause_regardless_of_speed()
+  {
+    assert_eq!( time_control_button_classes( false, 1.0 ), ( "active", "", "" ) );
+    assert_eq!( time_control_button_classes( false, 2.5 ), ( "active", "", "" ), "animate_ships=false always means paused, regardless of speed_multiplier" );
+  }
+
+  #[ test ]
+  fn normal_speed_highlights_only_play()
+  {
+    assert_eq!( time_control_button_classes( true, 1.0 ), ( "", "active", "" ) );
+  }
+
+  #[ test ]
+  fn fast_speed_highlights_only_fast()
+  {
+    assert_eq!( time_control_button_classes( true, 2.5 ), ( "", "", "active" ) );
+    assert_eq!( time_control_button_classes( true, 1.0001 ), ( "", "", "active" ), "the Play/Fast split is a strict > 1.0 threshold" );
+  }
 }

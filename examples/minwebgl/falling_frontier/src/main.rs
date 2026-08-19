@@ -1,11 +1,11 @@
-//! Falling Frontier — tactical space-scene demo, ported from the Three.js/Vite
-//! prototype in `examples/threejs/falling_frontier/`.
-//!
-//! M3 slice: the view-zone ribbon (boundary polyline wrapped around blocking
-//! asteroids), the inside/outside brightness fade, and the asteroid
-//! proximity glow — plus just enough asteroid geometry/ground-click picking
-//! to exercise it. See `PORT_PLAN.md` in this crate for the full milestone
-//! list and porting notes.
+//! Falling Frontier — tactical space-scene demo: a fleet of selectable ships
+//! and a station orbit an asteroid field, tracked by a shader-driven
+//! tactical grid whose selection-driven view-zone ribbon wraps around
+//! blocking asteroids as a faceted boundary polyline. Object picking uses
+//! an off-screen id buffer (`gpu_picking`), selected units get a
+//! movable/rotatable transform gizmo, fleets move along Catmull-Rom
+//! trajectories, and a HUD surfaces unit info and view-layer toggles. See
+//! `PORT_PLAN.md` in this crate for the milestone history and porting notes.
 
 mod debug;
 mod hud;
@@ -643,7 +643,10 @@ fn app_run() -> Result< (), gl::WebglError >
         ctx.pick_buffer.borrow_mut().resize( &gl, w as i32, h as i32 );
 
         let proj = gl::math::mat3x3h::perspective_rh_gl( fov, w as f32 / h as f32, near, far );
-        camera.projection_matrix_set( proj );
+        if let Err( e ) = camera.projection_matrix_set( proj )
+        {
+          web_sys::console::warn_1( &format!( "Falling Frontier: skipping invalid projection matrix on resize: {e}" ).into() );
+        }
         camera.window_size_set( [ w as f32, h as f32 ].into() );
 
         prev_size.set( ( w, h ) );

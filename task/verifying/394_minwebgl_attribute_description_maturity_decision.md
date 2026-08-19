@@ -232,3 +232,30 @@ action.
 
   Still explicitly unresolved: the ~25 "Unassessed" rows in this task's own fit table above were
   never in scope for this migration pass — not tested because never touched, not a testing gap.
+
+- **[2026-08-19]** `EXPANDED` — Separate later session picked up part of the "Unassessed" long tail.
+  Full file list and shared verification (native+wasm32 `verb/test` green, 2 real regressions found
+  and fixed, concurrent-actor commit `fa4041ef` discovery) recorded in task 392's own `EXPANDED`
+  entry — not duplicated here.
+
+  **This trait's own share of that expansion is exactly one file**: `examples/minwebgl/area_light/
+  src/plane.rs`'s `plane_vao`. Confirmed via diff against pre-migration source: the flat `&[f32]`
+  array with 3 hand-chained `.offset(0/3/6).stride(8).attribute_pointer(...)` calls became a
+  `#[repr(C)] struct Vertex { position:[f32;3], normal:[f32;3], texcoord:[f32;2] }` implementing
+  `mingl::Attribute::describe()`, bound via `mingl::VertexBufferLayout::from_attribute::<Vertex>(8)`
+  — `#[repr(C)]`'s field-order layout traced to produce byte offsets/stride identical to the old
+  hand-written values (0/3/6 floats, stride 8 floats). The BUG-321 fix (vertex 3's corrected
+  texcoord) survived unchanged in the new struct-literal data. All other files in 392's expansion
+  list used the 392-level `VertexAttribute`/`BufferDescriptor` pair directly (per-attribute/SoA
+  shape), not this trait — consistent with this task's own `T : Pod` bound being AoS-only by
+  construction (see this task's `EXECUTED` entry).
+
+  One real regression traced to this file's own migration (not the trait's design): the BUG-321
+  regression test (`area_light/tests/plane_texcoord_test.rs`) hand-parses `plane_vertices` out of
+  `plane.rs` source text and broke when the array literal's shape changed from flat floats to struct
+  literals — fixed (detail in task 392's `EXPANDED` entry) by rescoping the parser's split predicate
+  to digit/`.`/`-` characters instead of literal commas.
+
+  `tsk .verify_pass 394` re-attempted 2026-08-19, blocked identically to task 392 and the rest of
+  this repo's registration backlog: `self-verification forbidden (actor matches filed_by)` (exit 1).
+  Structural sandbox limitation — left at 🔬 Verifying, not forced or spoofed.

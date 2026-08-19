@@ -23,8 +23,8 @@ reading before touching fleet motion again; M8's is the last entry).
 - `50ef62de` on `space-game-demo` — M8 ("feat: add Falling Frontier
   tactical HUD (M8)")
 
-All with no `Co-Authored-By` trailer, per the standing repo rule (see memory
-`feedback_commit_trailers`). `examples/minwebgl/falling_frontier/Untitled.png`
+All with no `Co-Authored-By` trailer, per the standing repo rule.
+`examples/minwebgl/falling_frontier/Untitled.png`
 is an untracked debug screenshot the user pasted in during the M4 starfield
 investigation (see Notes section below) — left untracked on purpose, safe to
 delete once no longer needed, not part of the deliverable.
@@ -85,8 +85,7 @@ Reference material:
   scope and is the point of this port**, not a last resort. Build inside this
   example crate first while a piece is still being proven out, promote to a
   shared `module/helper/*` or `module/shader/*` crate once its shape is proven
-  (same pattern `line_tools`/`primitive_generation` already followed) — see
-  memory `project_falling_frontier_port` for the fuller version of this note.
+  (same pattern `line_tools`/`primitive_generation` already followed).
 - No `Co-Authored-By` trailer on any commit for this work (standing repo rule).
 
 ## Milestone order (risk-first: grid shader before the rest of the visible scene)

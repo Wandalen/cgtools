@@ -330,7 +330,7 @@ pub fn attributes_add
 ///
 /// # Returns
 ///
-/// A `Result<AttributeInfo, WebglError>` containing the attribute info or an error if the type is not supported.
+/// The constructed `AttributeInfo`.
 fn buffer_attribute_info_make
 (
   buffer : &web_sys::WebGlBuffer,
