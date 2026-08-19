@@ -7,6 +7,28 @@ use controls::Controls;
 use minwebgl as gl;
 use gl::GL;
 
+/// One map tile's position/color record — `stride( 5 )` in `map_vao` covers all 5 `f32`
+/// fields, matching this struct's own ( `repr( C )`, no padding ) byte layout.
+#[ repr( C ) ]
+#[ derive( Debug, Default, Clone, Copy, gl::mem::Pod, gl::mem::Zeroable ) ]
+struct Vertex
+{
+  position : [ f32; 2 ],
+  color : [ f32; 3 ],
+}
+
+impl mingl::Attribute for Vertex
+{
+  fn describe() -> Vec< mingl::VertexAttribute >
+  {
+    vec!
+    [
+      mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 ),
+      mingl::VertexAttribute::new( 2, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 2 ),
+    ]
+  }
+}
+
 fn main()
 {
   gl::browser::setup( gl::browser::Config::default() );
@@ -233,11 +255,7 @@ fn map_vao( gl : &GL ) -> gl::WebGlVertexArrayObject
     let pos_x = ( -WIDTH / 2. + CELL_SIZE * ( col + 0.5 ) ) / ( WIDTH / 2. );
     let pos_y = ( HEIGHT / 2. - CELL_SIZE * ( row + 0.5 ) ) / ( HEIGHT / 2. );
 
-    data.push( pos_x );
-    data.push( pos_y );
-    data.push( color[ 0 ] );
-    data.push( color[ 1 ] );
-    data.push( color[ 2 ] );
+    data.push( Vertex { position : [ pos_x, pos_y ], color } );
   }
 
   let buf = gl::buffer::create( gl ).unwrap();
@@ -250,16 +268,8 @@ fn map_vao( gl : &GL ) -> gl::WebGlVertexArrayObject
   let vao = gl::vao::create( gl ).unwrap();
   gl.bind_vertex_array( Some( &vao ) );
 
-  gl::BufferDescriptor::new::< [ f32; 2 ] >()
-  .offset( 0 )
-  .stride( 5 )
-  .attribute_pointer( gl, 0, &buf )
-  .unwrap();
-  gl::BufferDescriptor::new::< [ f32; 3 ] >()
-  .offset( 2 )
-  .stride( 5 )
-  .attribute_pointer( gl, 2, &buf )
-  .unwrap();
+  let vertex_layout = mingl::VertexBufferLayout::from_attribute::< Vertex >( 5 );
+  gl::vertex_buffer_layout_bind( gl, &buf, &vertex_layout ).unwrap();
 
   gl.bind_vertex_array( None );
 

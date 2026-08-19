@@ -46,8 +46,11 @@ fn plane_vertex_rows() -> Vec< [ f32 ; 8 ] >
     {
       let line = line.split( "//" ).next().unwrap_or( "" ).trim();
       if line.is_empty() { return None; }
-      let nums : Vec< f32 > = line.split( ',' )
-      .map( str::trim )
+      // Split on anything that isn't part of a float literal, so this survives either the
+      // plain `x, y, z, ...` row format or a `Vertex { position : [ x, y, z ], ... }` struct
+      // literal — field names and punctuation never contain digit/'.'/'-' characters.
+      let nums : Vec< f32 > = line
+      .split( | c : char | !( c.is_ascii_digit() || c == '.' || c == '-' ) )
       .filter( | s | !s.is_empty() )
       .map( | s | s.parse::< f32 >().unwrap_or_else( | e | panic!( "failed to parse {s:?}: {e}" ) ) )
       .collect();

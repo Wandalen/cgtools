@@ -5,6 +5,8 @@ edition = "2024"
 
 [dependencies]
 minwebgl.workspace = true
+mingl.workspace = true
+bytemuck.workspace = true
 web-sys = { workspace = true, features = ["WebGlTexture"] }
 renderer = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

@@ -53,7 +53,6 @@ use ndarray_cg::
 };
 use rustc_hash::FxHashMap;
 use rand::RngExt;
-use std::any::type_name_of_val;
 use csgrs::traits::CSG;
 use renderer::impl_locations;
 
@@ -303,8 +302,7 @@ pub fn attributes_add
     2,
     false,
     VectorDataType::new( mingl::DataType::F32, 1, 1 )
-  )
-  .unwrap();
+  );
 
   for mesh in &gltf.meshes
   {
@@ -341,35 +339,20 @@ fn buffer_attribute_info_make
   slot : u32,
   normalized : bool,
   vector: gl::VectorDataType
-) -> Result< AttributeInfo, gl::WebglError >
+) -> AttributeInfo
 {
-  let descriptor = match vector.scalar
-  {
-      gl::DataType::U8 => gl::BufferDescriptor::new::< [ u8; 1 ] >(),
-      gl::DataType::I8 => gl::BufferDescriptor::new::< [ i8; 1 ] >(),
-      gl::DataType::U16 => gl::BufferDescriptor::new::< [ u16; 1 ] >(),
-      gl::DataType::I16 => gl::BufferDescriptor::new::< [ i16; 1 ] >(),
-      gl::DataType::U32 => gl::BufferDescriptor::new::< [ u32; 1 ] >(),
-      gl::DataType::F32 => gl::BufferDescriptor::new::< [ f32; 1 ] >(),
-      _ => return Err( gl::WebglError::NotSupportedForType( type_name_of_val( &vector.scalar ) ) )
-  };
-
-  let descriptor = descriptor
+  let descriptor = gl::BufferDescriptor::from_vector( vector )
   .offset( offset )
   .normalized( normalized )
-  .stride( stride )
-  .vector( vector );
+  .stride( stride );
 
-  Ok
-  (
-    AttributeInfo
-    {
-      slot,
-      buffer : buffer.clone(),
-      descriptor,
-      bounding_box : gl::geometry::BoundingBox::default()
-    }
-  )
+  AttributeInfo
+  {
+    slot,
+    buffer : buffer.clone(),
+    descriptor,
+    bounding_box : gl::geometry::BoundingBox::default()
+  }
 }
 
 /// Adds a single CSG primitive's geometry data to the provided vectors.
@@ -587,7 +570,7 @@ fn csg_attribute_infos
         0,
         false,
         VectorDataType::new( mingl::DataType::F32, 3, 1 )
-      ).unwrap()
+      )
     ),
     (
       "normals",
@@ -599,7 +582,7 @@ fn csg_attribute_infos
         1,
         false,
         VectorDataType::new( mingl::DataType::F32, 3, 1 )
-      ).unwrap()
+      )
     ),
     (
       "object_ids",
@@ -611,7 +594,7 @@ fn csg_attribute_infos
         2,
         false,
         VectorDataType::new( mingl::DataType::F32, 1, 1 )
-      ).unwrap()
+      )
     ),
   ]
 }

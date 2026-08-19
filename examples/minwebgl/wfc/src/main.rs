@@ -334,15 +334,17 @@ fn vertex_attributes_prepare() -> WebGlVertexArrayObject
   let vao = gl::vao::create( &gl )
   .unwrap();
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32; 2 ] >()
+  let position_attr = mingl::VertexAttribute::new( position_slot, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  let uv_attr = mingl::VertexAttribute::new( uv_slot, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector )
   .stride( 2 )
-  .offset( 0 )
-  .attribute_pointer( &gl, position_slot, &position_buffer )
+  .offset( position_attr.offset )
+  .attribute_pointer( &gl, position_attr.location, &position_buffer )
   .unwrap();
-  gl::BufferDescriptor::new::< [ f32; 2 ] >()
+  gl::BufferDescriptor::from_vector( uv_attr.vector )
   .stride( 2 )
-  .offset( 0 )
-  .attribute_pointer( &gl, uv_slot, &uv_buffer )
+  .offset( uv_attr.offset )
+  .attribute_pointer( &gl, uv_attr.location, &uv_buffer )
   .unwrap();
   gl.bind_vertex_array( None );
 

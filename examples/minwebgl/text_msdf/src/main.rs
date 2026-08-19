@@ -54,26 +54,10 @@ async fn app_run() -> Result< (), gl::WebglError >
   gl.bind_vertex_array( Some( &vao ) );
 
   let char_data_stride  = std::mem::size_of::< text::CharData >() as i32 / 4;
-  // offset
-  gl::BufferDescriptor::new::< [ f32 ; 4 ] >()
-  .stride( char_data_stride )
-  .offset( 0 )
-  .divisor( 1 )
-  .attribute_pointer( &gl, 0, &buffer )?;
-
-  // uv_info
-  gl::BufferDescriptor::new::< [ f32 ; 4 ] >()
-  .stride( char_data_stride )
-  .offset( 4 )
-  .divisor( 1 )
-  .attribute_pointer( &gl, 1, &buffer )?;
-
-  // size
-  gl::BufferDescriptor::new::< [ f32 ; 2 ] >()
-  .stride( char_data_stride )
-  .offset( 8 )
-  .divisor( 1 )
-  .attribute_pointer( &gl, 2, &buffer )?;
+  let char_data_layout = mingl::VertexBufferLayout::from_attribute::< text::CharData >( char_data_stride )
+  .step_mode( mingl::StepMode::Instance )
+  .divisor( 1 );
+  gl::vertex_buffer_layout_bind( &gl, &buffer, &char_data_layout )?;
 
 
   let eye = gl::F32x3::Z * 5.0;

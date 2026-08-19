@@ -222,3 +222,13 @@ action.
   actually guard the original BUG-318 regression (mixed-buffer VAO) — confirmed the disjointness
   assertion (`uses_buffer ^ uses_buffer2`) and per-VAO block extraction logic are both unchanged, only
   the literal substrings being searched for were updated to match the new call shape.
+
+- **[2026-08-19]** `VERIFIED` — user directly asked whether the changed examples were manually
+  tested; they had not been. Closed the gap for this task's own adoption: `attributes_vao` run live
+  in a browser (`longrun`-detached `trunk serve` + `browsee` screenshot/pixel-verdict) — 10 correctly
+  colored/sized/positioned squares (2 VAOs × 5 points each), matching the crate's stated purpose, no
+  visual defects. `gbuffer.rs`/`primitive_data.rs` (392-level, not this trait) tested too — see task
+  392's own `VERIFIED` entry for those 2.
+
+  Still explicitly unresolved: the ~25 "Unassessed" rows in this task's own fit table above were
+  never in scope for this migration pass — not tested because never touched, not a testing gap.

@@ -45,9 +45,12 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let vao = gl::vao::create( &gl )?;
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 0, &pos_buffer )?;
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 1, &normal_buffer )?;
-  gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 0 ).attribute_pointer( &gl, 2, &uv_buffer )?;
+  let position_attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  let normal_attr = mingl::VertexAttribute::new( 1, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  let uv_attr = mingl::VertexAttribute::new( 2, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector ).stride( 3 ).offset( position_attr.offset ).attribute_pointer( &gl, position_attr.location, &pos_buffer )?;
+  gl::BufferDescriptor::from_vector( normal_attr.vector ).stride( 3 ).offset( normal_attr.offset ).attribute_pointer( &gl, normal_attr.location, &normal_buffer )?;
+  gl::BufferDescriptor::from_vector( uv_attr.vector ).stride( 2 ).offset( uv_attr.offset ).attribute_pointer( &gl, uv_attr.location, &uv_buffer )?;
   //gl.bind_vertex_array( None );
 
   let index_buffer = gl::buffer::create( &gl )?;

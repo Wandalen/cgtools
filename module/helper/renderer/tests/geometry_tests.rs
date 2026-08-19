@@ -33,7 +33,8 @@ mod tests
   fn make_attribute_info( gl : &GL ) -> AttributeInfo
   {
     let buffer = gl.create_buffer().unwrap();
-    let descriptor = gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 0 );
+    let attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+    let descriptor = gl::BufferDescriptor::from_vector( attr.vector ).offset( attr.offset ).stride( 0 );
 
     AttributeInfo
     {

@@ -7,6 +7,7 @@ license = "MIT"
 [dependencies]
 
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
+mingl = { workspace = true }
 wee_alloc = { workspace = true }
 
 [package.metadata.action]

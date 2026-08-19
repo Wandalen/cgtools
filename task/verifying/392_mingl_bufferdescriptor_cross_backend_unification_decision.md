@@ -234,3 +234,23 @@ Until answered: `module/min/mingl/src/buffer.rs` stays as dead/commented code; n
   confirmed identical; (c) whether `line_tools`'s deferral was scope creep avoidance or an
   undocumented gap — confirmed explicitly out of scope per the original "Full migration" plan
   approval, not silently dropped.
+
+- **[2026-08-19]** `VERIFIED` — user directly asked whether the changed examples were manually
+  tested; they had not been (the verification above was compile/lint-only, native + wasm32). Closed
+  the gap: ran all 3 migrated call sites live in a browser (`longrun`-detached `trunk serve`,
+  `browsee` for screenshot/console/pixel-verdict inspection — launched from outside each crate
+  directory per the known Trunk+Longrun rebuild-loop hazard).
+  - `examples/minwebgl/attributes_vao` — 10 correctly colored/sized/positioned squares (2 VAOs × 5
+    points each), matching the crate's own stated purpose.
+  - `examples/minwebgl/renderer_with_outlines` (real consumer of `gbuffer.rs`'s `attribute_info()`)
+    — loads a 166-mesh/27-texture glTF car model through the full GBuffer deferred-shading +
+    outline post-process pipeline; renders correctly shaded and textured. An initial all-black frame
+    was software-GL shader-compile/asset-decode latency, not a defect — confirmed via console log
+    showing normal glTF-load progress with no errors, then a correct render once compiled.
+  - `examples/minwebgl/animation_surface_rendering` (real consumer of the changed
+    `buffer_attribute_info_make`, via its own `primitive_data.rs`) — renders a correctly shaped,
+    properly textured/shaded Earth sphere from custom-generated primitive geometry.
+
+  No visual defects found in any of the 3. This does not extend to the ~25 files task 394's own fit
+  table marks "Unassessed" — those were never in this migration's scope to begin with (see that
+  task's own table), not silently skipped during testing.
