@@ -98,6 +98,22 @@ table places explicitly beside the ladder rather than on it:
   (`wasm_bindgen_test`, `run_in_browser`) tests exercise `.upload()` and
   `.matrix_upload()` against a live `GL`/`WebGlProgram`, covering both a
   present and an absent uniform name.
+- `gpu_picking` (required `dep:minwebgl`) — GPU id-buffer object picking:
+  `IdProgram` renders each `Pickable` part's small integer id into an
+  off-screen `R32I` texture via `PickBuffer`, then `PickBuffer::pick` reads
+  a single pixel back to find out what's there — no CPU-side ray/AABB
+  math needed. A thin, WebGL2-only capability directly over `minwebgl`,
+  same shape as `gl_uniforms` above, not a portability seam or
+  orchestration layer — matches
+  [rulebook.md](../../rulebook.md#rendering-layer-placement)'s own
+  classification. No dependents yet. `IdProgram`/`PickBuffer`'s own
+  methods all require a live `WebGl2RenderingContext` (framebuffers,
+  textures, shader compilation) and stay untested natively — same Wasm
+  Native-Check Blind Spot as the rest of this table; the one piece of
+  context-free interpretive logic (`pick`'s `-1`
+  background-sentinel-to-`None` mapping, pulled out as its own
+  `readback_to_pick_id` function) is covered by two native `cargo
+  nextest` tests inline in `src/lib.rs`.
 
 `primitive_generation` (`dep:minwebgl` with the same `future`/`math`/
 `diagnostics` feature gate as `animation`) is **not** a beside-the-ladder

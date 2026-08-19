@@ -254,3 +254,61 @@ Until answered: `module/min/mingl/src/buffer.rs` stays as dead/commented code; n
   No visual defects found in any of the 3. This does not extend to the ~25 files task 394's own fit
   table marks "Unassessed" — those were never in this migration's scope to begin with (see that
   task's own table), not silently skipped during testing.
+
+- **[2026-08-19]** `EXPANDED` — Separate later session picked up the ~25-file "Unassessed" long tail
+  this task's own `EXECUTED`/`VERIFIED` entries explicitly deferred. Confirmed via
+  `git show --stat fa4041ef -- examples/ module/` (the concurrent-actor commit that swept this work
+  in, see below): `area_light/{main,plane}.rs`, `attributes_instanced/main.rs`,
+  `attributes_matrix/main.rs`, `deferred_shading/geometry.rs`, `diamond/main.rs`,
+  `hexagonal_grid/main.rs`, `make_cube_map/main.rs`, `minimize_wasm/main.rs`, `narrow_outline/main.rs`,
+  `obj_load/main.rs`, `obj_viewer/mesh.rs`, `object_picking/main.rs`, `raycaster/main.rs`,
+  `space_partition/main.rs`, `text_msdf/{main,text}.rs`, `text_rendering/main.rs`, `wfc/main.rs`, plus
+  `module/helper/renderer/tests/geometry_tests.rs` — 20 source files (+ matching `Cargo.toml`
+  `mingl`-dependency additions), all onto this task's `mingl::VertexAttribute`/`BufferDescriptor`
+  pair (per-attribute/SoA pattern) except `area_light/plane.rs`, which adopted task 394's own
+  `Attribute` trait instead (see that task's own `EXPANDED` entry).
+
+  **Independently re-verified, not rubber-stamped**, on 4 of these files directly (byte-level GL
+  semantic diff against pre-migration source, matching this task's own `deferred_shading`
+  cross-check method above): `deferred_shading/geometry.rs`, `text_rendering/main.rs`,
+  `narrow_outline/main.rs`, `area_light/{main,plane}.rs` — all confirmed offset/stride/divisor
+  byte-for-byte identical to pre-migration behavior. The remaining files in the list were confirmed
+  via live browser rendering (screenshot/console/pixel-verdict per crate) plus the full-workspace
+  test/clippy run below, not per-file diff tracing.
+
+  **2 real regressions found and fixed** (both downstream consequences of the migration, not
+  semantic-equivalence failures): (1) `area_light/tests/plane_texcoord_test.rs` (a BUG-321 regression
+  test) hand-parses `plane.rs`'s `plane_vertices` array via `include_str!` + `.split(',')` — broke
+  when the array literal changed from flat `&[f32]` to `&[Vertex]` struct literals; fixed by
+  rescoping the split predicate to digit/`.`/`-` characters, format-agnostic either way. (2)
+  `text_rendering`/`narrow_outline` both had a `buffer_attribute_info_make` helper whose only `Err`
+  path was a dead match arm removed by the migration, triggering hard-denied
+  `clippy::unnecessary_wraps`; fixed by returning bare `AttributeInfo` instead of
+  `Result<AttributeInfo, WebglError>` in both (6 call sites' `.unwrap()` removed combined), plus a
+  stale doc comment on `narrow_outline`'s copy still describing the old fallible signature.
+
+  **Full verification: `verb/test` genuinely green** — native nextest/doctest/clippy, wasm32
+  compile-check across all browser examples, wasm32 test execution (including
+  `vertex_attribute_tests`) — exit 0, 1372s, via `longrun`.
+
+  **Concurrent-actor commit discovered mid-verification**: another session under the same git
+  identity committed the working tree (`fa4041ef`, "feat: add GUI support and enhance example
+  tests") while the final `verb/test` run was still executing. Verified via `git show fa4041ef` that
+  both fixes above landed intact — nothing lost. `fa4041ef` also includes unrelated GUI-support work
+  (`simple_pbr`'s `gui.js`/`lil_gui.rs`/etc.) — not part of this migration, not attributed to it here.
+
+  Tier 2 (Dual-Role Self-Check, standing project cap). Confirming pass: 4 files directly
+  diff-verified byte-equivalent, 2 real regressions found and fixed, full native+wasm32 suite green.
+  Adversarial pass: specifically hunted for (a) any other file sharing the `unnecessary_wraps`
+  pattern beyond the 2 found — full-workspace `cargo clippy --keep-going` swept clean, none found;
+  (b) whether the concurrent commit dropped or altered either fix — `git show fa4041ef:<path>`
+  confirmed byte-identical to what was applied; (c) whether `area_light`'s visual "jagged sawtooth"
+  symptom (flagged during browser testing) traces to this migration — diff-confirmed both
+  `main.rs`/`plane.rs` semantically unchanged, so the symptom (if real) has a cause elsewhere,
+  out of scope for this migration task.
+
+  **`tsk .verify_pass 392` re-attempted 2026-08-19, still blocked**: `self-verification forbidden
+  (actor matches filed_by)` (exit 1) — same sandbox-wide same-actor guard documented across this
+  repo's entire bug-fix-registration backlog (tasks 254, 358, and 24 others, all confirmed blocked
+  identically this same session). Structural sandbox limitation, not a content gap in this task —
+  left at 🔬 Verifying, not forced or spoofed.
