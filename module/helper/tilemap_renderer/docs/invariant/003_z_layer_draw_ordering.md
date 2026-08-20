@@ -73,4 +73,4 @@ contract.
 | File | Relationship |
 |------|--------------|
 | `tests/types_test.rs` | Pins `Transform`/`RenderConfig` defaults the contract builds on |
-| — | No dedicated cross-backend ordering test yet; SVG document-order output is exercised implicitly by the SVG adapter suite |
+| `tests/svg_backend_test.rs` | `svg_ignores_depth_preserves_submission_order` submits sprites at non-monotonic depths (5.0, 1.0, 3.0) and asserts the emitted `<use>` elements land in submission order, not depth-sorted order — direct, explicit proof of the SVG half of this invariant |

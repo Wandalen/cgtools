@@ -131,11 +131,20 @@ Drag the window's edge : a triangle that stays correctly proportioned means
 the swapchain rebuilt, and the color continuing to cycle means the
 acquire/present loop is running rather than stuck on one stale image.
 
-`new_native_windowed` has no such example — its underlying
-`minwgpu::surface::Windowed` is covered by `examples/minwgpu/flecs_bouncing_circles`,
-which drives that surface directly, one layer below this HAL. The `NativeWindow`
-variant's own dispatch is therefore unexercised by anything that runs, unlike
-`VulkanWindow`'s.
+`new_native_windowed` has the same coverage, through
+`examples/gpu_hal/triangle_native_window`:
+
+```bash
+cargo run -p gpu_hal_triangle_native_window --release
+```
+
+Same signal, same technique — a triangle that stays correctly proportioned
+across a resize plus a continuously cycling color confirms the wgpu `Surface`
+swapchain rebuilds rather than one stale image persisting. The one difference
+from the Vulkan example is the window handle : `Arc<Window>` rather than
+`&Window`, since `Device::new_native_windowed` takes
+`impl Into<wgpu::SurfaceTarget<'static>>`, which only converts from an owned
+handle — see that example's own readme.md.
 
 The `webgpu` and `webgl` backends have no offscreen readback to assert on —
 they present to a browser canvas instead — so they're verified with a real
@@ -151,6 +160,21 @@ browsee .wait for::render timeout::60 session::gpu_hal_tri
 
 Full command sequence, exact pixel readings, and the `region::center` /
 window-chrome caveat: `tests/manual/readme.md`.
+
+Unlike `webgpu`, `webgl` device creation is synchronous ( `Device::new_webgl`
+takes no `.await` ), so it can also be exercised by a real, `cargo
+test`-driven browser instead of only a human eyeballing a screenshot.
+`triangle_render_readback` in `tests/webgl_backend_test.rs` reads the canvas
+backbuffer back through the live `GL` context directly ( `Surface::pixels_read`
+is `Unsupported` on this backend, so this is not the same call the native and
+vulkan tests above use ) and asserts on both the triangle's color and the
+surrounding clear color, browser-driven via the same runner wired up in the
+workspace's `.cargo/config.toml`:
+
+```bash
+cd module/helper/gpu_hal
+cargo test --target wasm32-unknown-unknown --features webgl --test webgl_backend_test
+```
 
 ## Context
 

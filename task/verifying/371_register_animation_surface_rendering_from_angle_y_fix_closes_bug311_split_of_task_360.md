@@ -15,12 +15,12 @@
 - **unit_type:** module (`scope` from the crate dir returns `SCOPE_LEVEL=package`, not in tsk.rulebook.md's 5-value enum `yard|repository|workspace|module|dir` -- mapped to the closest valid variant, a single crate/package within a workspace)
 - **unit:** lib/yrd_gamedev/cgtools/examples/minwebgl/animation_surface_rendering
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-18 23:49:13
-- **expires_at:** 2026-08-19 01:49:13
+- **started_at:** 2026-08-19 22:45:33
+- **expires_at:** 2026-08-20 00:45:33
 - **related_tasks:** 369 (curve_surface_rendering), 370 (lottie_surface_rendering), 372 (ndarray_cg) -- split siblings of cancelled task 360; supersedes task 360's portion for this crate
-- **unverified_at:** 2026-08-18 23:47:42
+- **unverified_at:** 2026-08-19 22:37:55
 - **unverified_by:** system
-- **verifying_at:** 2026-08-18 23:49:13
+- **verifying_at:** 2026-08-19 22:45:33
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
@@ -173,6 +173,9 @@ file → 1.
 | 2026-08-18 17:50 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 371 "user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/"` → blocked: "self-verification forbidden (actor matches filed_by)" (exit 1) — same-actor guard, not a defect; state remains 🔬 Verifying |
 | 2026-08-18 23:47:42 | system | TIMEOUT_2H | 2h exclusivity window expired |
 | 2026-08-18 23:49:13 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:37:55 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-19 22:45:33 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:45:33 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 371` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
 
 ## History
 

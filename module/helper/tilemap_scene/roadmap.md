@@ -15,7 +15,8 @@ per-sprite `Sprite` commands for sorted buckets. The legacy stateless
 `compile_frame` is gone — `Renderer::render(scene, camera)` is the sole
 entry.
 
-Used by `examples/minwebgl/slay_map`.
+No example or application consumer exists yet — the retained-mode
+pipeline is exercised only by this crate's own tests.
 
 ### Shipped
 
@@ -410,6 +411,6 @@ for the same shape.
   file; `exposed use X;` for items that bubble up to the parent scope via
   `layer X;` in the parent.
 - Workspace rulebook at repo-root `rulebook.md` applies — see *Test placement* and *Test file size* sections.
-- The `slay_map` demo (untracked) in `examples/minwebgl/` exercises most
-  shipped features — useful as a smoke test when iterating on the
-  compile layer.
+- No example crate exercises the shipped feature set end-to-end yet;
+  the nearest smoke test when iterating on the compile layer is this
+  crate's own `tests/` suite.

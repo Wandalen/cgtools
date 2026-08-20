@@ -434,7 +434,7 @@
     <div class="stats">
         <!-- GALLERY:STATS:BEGIN -->
         <div class="stat-card" aria-live="polite" aria-atomic="true">
-            <div class="stat-number" id="totalDemos">74</div>
+            <div class="stat-number" id="totalDemos">75</div>
             <div class="stat-label">Total Examples</div>
         </div>
         <div class="stat-card">
@@ -869,7 +869,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">OBJ Model Viewer</h3>
-                        <p class="demo-desc">This demo is a complete OBJ model viewer with interactive camera controls in WebGL2. Building on OBJ loading, it provides a full viewing experience with rotation, zoom, and lighting.</p>
+                        <p class="demo-desc">This demo is a complete OBJ model viewer with interactive camera controls in WebGL2. Building on OBJ loading, it provides a full viewing experience with rotation, zoom, and lighting. It starts with a bundled &quot;lost empire&quot; scene — upload your own .obj file via the picker in the top-left corner to swap it in, along with a full diagnostic report (vertex/normal/texcoord/face counts, bounding box and sphere, material properties) logged to the browser console.</p>
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/obj_viewer/" class="demo-link" aria-label="View OBJ Model Viewer demo">View Details</a>
@@ -1300,9 +1300,23 @@
         <section class="category-section" data-category="api:wgpu">
             <div class="category-header">
                 <h2>API · WGPU</h2>
-                <span class="category-badge">3 demos</span>
+                <span class="category-badge">4 demos</span>
             </div>
             <div class="demo-grid">
+                <article class="demo-card" role="article" data-name="triangle native window" data-path="gpu_hal/triangle_native_window" data-tags="runtime:native,api:wgpu">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">gpu_hal Triangle (native wgpu swapchain)</h3>
+                        <p class="demo-desc">A color-cycling triangle in a real window, rendered through gpu_hal's native backend and presented through a real wgpu::Surface swapchain — the windowed counterpart of gpu_hal/tests/native_backend_test.rs's triangle_render_readback, reusing that test's WGSL shader, vertices and uniform layout unchanged; the one difference is where the frame goes, offscreen readback there and on screen here. Resizing the window rebuilds the swapchain and the triangle stays centered and correctly proportioned, which together with the continuously cycling color is what distinguishes a live acquire/present loop from one stuck on a single stale image.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="https://github.com/Wandalen/cgtools/blob/master/examples/gpu_hal/triangle_native_window/readme.md" class="demo-link" aria-label="View gpu_hal Triangle (native wgpu swapchain) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
                 <article class="demo-card" role="article" data-name="flecs bouncing circles" data-path="minwgpu/flecs_bouncing_circles" data-tags="runtime:native,api:wgpu">
                     <div class="demo-image">
                         <img src="./minwgpu/flecs_bouncing_circles/showcase.webp" alt="Flecs Bouncing Circles (wgpu)" loading="lazy" width="350" height="250">
@@ -1739,7 +1753,7 @@
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">OBJ Model Viewer</h3>
-                        <p class="demo-desc">This demo is a complete OBJ model viewer with interactive camera controls in WebGL2. Building on OBJ loading, it provides a full viewing experience with rotation, zoom, and lighting.</p>
+                        <p class="demo-desc">This demo is a complete OBJ model viewer with interactive camera controls in WebGL2. Building on OBJ loading, it provides a full viewing experience with rotation, zoom, and lighting. It starts with a bundled &quot;lost empire&quot; scene — upload your own .obj file via the picker in the top-left corner to swap it in, along with a full diagnostic report (vertex/normal/texcoord/face counts, bounding box and sphere, material properties) logged to the browser console.</p>
                         <span class="demo-status">✓ Has Showcase</span>
                         <div class="demo-links">
                             <a href="./minwebgl/obj_viewer/" class="demo-link" aria-label="View OBJ Model Viewer demo">View Details</a>
@@ -2118,9 +2132,23 @@
         <section class="category-section" data-category="runtime:native">
             <div class="category-header">
                 <h2>Runtime · Native</h2>
-                <span class="category-badge">17 demos</span>
+                <span class="category-badge">18 demos</span>
             </div>
             <div class="demo-grid">
+                <article class="demo-card" role="article" data-name="triangle native window" data-path="gpu_hal/triangle_native_window" data-tags="runtime:native,api:wgpu">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">gpu_hal Triangle (native wgpu swapchain)</h3>
+                        <p class="demo-desc">A color-cycling triangle in a real window, rendered through gpu_hal's native backend and presented through a real wgpu::Surface swapchain — the windowed counterpart of gpu_hal/tests/native_backend_test.rs's triangle_render_readback, reusing that test's WGSL shader, vertices and uniform layout unchanged; the one difference is where the frame goes, offscreen readback there and on screen here. Resizing the window rebuilds the swapchain and the triangle stays centered and correctly proportioned, which together with the continuously cycling color is what distinguishes a live acquire/present loop from one stuck on a single stale image.</p>
+                        <span class="demo-status incomplete">No Showcase Yet</span>
+                        <div class="demo-links">
+                            <a href="https://github.com/Wandalen/cgtools/blob/master/examples/gpu_hal/triangle_native_window/readme.md" class="demo-link" aria-label="View gpu_hal Triangle (native wgpu swapchain) demo">View Details</a>
+                        </div>
+                    </div>
+                </article>
+
                 <article class="demo-card" role="article" data-name="triangle vulkan window" data-path="gpu_hal/triangle_vulkan_window" data-tags="runtime:native,api:vulkan">
                     <div class="demo-image">
                         <span>No showcase yet</span>

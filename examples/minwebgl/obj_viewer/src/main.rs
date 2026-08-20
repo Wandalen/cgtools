@@ -125,8 +125,8 @@ fn file_input_setup< F : Fn( web_sys::File ) + 'static >( input_id : &str, on_fi
   onchange.forget();
 }
 
-/// Reads `file`'s full contents into memory and invokes `on_load` with the bytes.
-fn file_bytes_read< F : Fn( Vec< u8 > ) + 'static >( file : &web_sys::File, on_load : F )
+/// Reads `file`'s full contents into memory and invokes `on_bytes_read` with the bytes.
+fn file_bytes_read< F : Fn( Vec< u8 > ) + 'static >( file : &web_sys::File, on_bytes_read : F )
 {
   let file_reader = web_sys::FileReader::new().expect( "Should be able to create FileReader" );
   let fr = file_reader.clone();
@@ -136,7 +136,7 @@ fn file_bytes_read< F : Fn( Vec< u8 > ) + 'static >( file : &web_sys::File, on_l
     let result = fr.result().expect( "FileReader should have a result on load" );
     let array_buffer = result.dyn_into::< gl::js_sys::ArrayBuffer >()
     .expect( "FileReader result should be an ArrayBuffer" );
-    on_load( gl::js_sys::Uint8Array::new( &array_buffer ).to_vec() );
+    on_bytes_read( gl::js_sys::Uint8Array::new( &array_buffer ).to_vec() );
   });
   file_reader.set_onload( Some( onload.as_ref().unchecked_ref() ) );
   onload.forget();
@@ -149,17 +149,17 @@ fn upload_wire( gl : &gl::WebGl2RenderingContext, scene : &Rc< RefCell< SceneSta
 {
   let gl_for_load = gl.clone();
   let scene_for_load = scene.clone();
-  let perspective_matrix = perspective_matrix.clone();
+  let perspective_matrix = *perspective_matrix;
   file_input_setup( "file-input", move | file : web_sys::File |
   {
     let gl_for_load = gl_for_load.clone();
     let scene_for_load = scene_for_load.clone();
-    let perspective_matrix = perspective_matrix.clone();
+    let perspective_matrix = perspective_matrix;
     file_bytes_read( &file, move | bytes : Vec< u8 > |
     {
       let gl_for_load = gl_for_load.clone();
       let scene_for_load = scene_for_load.clone();
-      let perspective_matrix = perspective_matrix.clone();
+      let perspective_matrix = perspective_matrix;
       gl::spawn_local( async move
       {
         match scene_state_build( &gl_for_load, &bytes, "", "", &perspective_matrix ).await

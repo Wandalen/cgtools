@@ -25,7 +25,7 @@ backend — see Status ); build-vs-buy is closed in-house by
   uniform build-time step: the Vulkan backend has no override slot and
   instead compiles WGSL to SPIR-V itself, at RUNTIME inside `gpu_hal`, via
   `naga` (`shader_module_create` dispatching to `shader_compile_wgsl_to_spirv`,
-  `device.rs:698-702` / `vulkan.rs:675-682`). WebGL sits at the opposite end
+  `device.rs:830` / `vulkan.rs:747`). WebGL sits at the opposite end
   of that timing spectrum: its override slots must already be populated by
   the caller, since `shader_module_create`'s WebGL arm performs no
   transpilation itself. `gpu_hal` ships a BUILD-TIME WGSL-to-GLSL ES 300
@@ -46,7 +46,7 @@ backend — see Status ); build-vs-buy is closed in-house by
 - **Depth range is queryable, not uniform**: `Device::depth_range()`
   reports which NDC depth convention the active backend uses —
   `DepthRange::ZeroToOne` for WebGPU, native, and Vulkan;
-  `DepthRange::NegOneToOne` for WebGL2 (`device.rs:408`, `types.rs:373`;
+  `DepthRange::NegOneToOne` for WebGL2 (`device.rs:575`, `types.rs:407`;
   asserted by `native_backend_test.rs`/`vulkan_backend_test.rs`). This is
   the one place the WebGPU-shaped contract above does not fully hide
   backend variance — projection math tuned to one convention must call
@@ -82,12 +82,16 @@ carries roughly 300 lines of `InvalidInput` guard-rail regression coverage —
 undersized/misaligned/oversized buffer and texture writes, and zero-size
 vertex/index buffer binds ( fixes for BUG-165, BUG-176, BUG-199, BUG-204,
 BUG-207, BUG-208 ). One same-defect-family fix sits outside this automated
-coverage: BUG-200 ( `webgl_buffer_write`, `device.rs:2065-2079` ) fixes the
+coverage: BUG-200 ( `webgl_buffer_write`, `device.rs:2440-2456` ) fixes the
 same silent-data-corruption class on the WebGL backend, which
-`native_backend_test.rs` cannot exercise ( wasm32 + browser only ), and for
-which `gpu_hal` has no automated wasm test suite of any kind — its only
-regression signal is a manual colored-pixel check in the `triangle_browser` example
-( `main.rs:80-99` ), run via `browsee`. Not yet covered: mipmaps, MSAA, compute — accepted YAGNI scope boundary, tracked as a watch-item (task 291), revisited only if a real consumer emerges.
+`native_backend_test.rs` cannot exercise ( wasm32 + browser only ). `gpu_hal`
+now has a real automated wasm test suite for it too — `webgl_backend_test.rs`
+( 3 `wasm-bindgen-test`s: device creation, `pixels_read`'s expected
+`Unsupported` on this surface, and `triangle_render_readback` asserting on
+the canvas backbuffer read back through the live `GL` context ) — run via
+`cargo test --target wasm32-unknown-unknown --features webgl --test
+webgl_backend_test`, alongside the pre-existing manual colored-pixel check in
+the `triangle_browser` example ( `main.rs:80-99` ), run via `browsee`. Not yet covered: mipmaps, MSAA, compute — accepted YAGNI scope boundary, tracked as a watch-item (task 291), revisited only if a real consumer emerges.
 `renderer`'s legacy `webgl` tree keeps its accepted direct-to-L0 dependency
 until strangled onto the HAL. `tilemap_renderer` (d2) is the second targeted
 consumer — its `adapter-webgpu` / `adapter-native` adopt the HAL per
@@ -171,11 +175,16 @@ counterpart : a canvas already is the presentable surface. What a windowed
 surface changes is only the frame loop — `current_view` acquires,
 `present` shows, `resize` rebuilds — at the cost of `pixels_read`, which
 returns `Unsupported` there. Neither constructor takes a windowing type, so no
-crate at this layer or below depends on `winit`/`sdl2`/`glfw`. Only the
-`vulkan` windowed path has a running consumer
-( `examples/gpu_hal/triangle_vulkan_window`, the one configuration in this
-workspace whose process links no `wgpu` at all ); `new_native_windowed`'s
-dispatch has none, so it remains unexercised.
+crate at this layer or below depends on `winit`/`sdl2`/`glfw`. Both windowed
+paths now have a running consumer in `examples/` : `vulkan`'s is
+`examples/gpu_hal/triangle_vulkan_window` ( the one configuration in this
+workspace whose process links no `wgpu` at all ); `new_native_windowed`'s is
+`examples/gpu_hal/triangle_native_window`, driving the same
+`current_view`/`present`/`resize` triple through a real `wgpu::Surface`
+swapchain in a `winit` window ( `Arc<Window>` handle, not `&Window` — the
+one difference from its Vulkan sibling, which takes `&Window` because
+`minvulkan` accepts the raw `HasWindowHandle`/`HasDisplayHandle` traits by
+reference ).
 
 ### ADRs
 
@@ -184,6 +193,8 @@ dispatch has none, so it remains unexercised.
 | [../adr/002_gpu_hal_in_house.md](../adr/002_gpu_hal_in_house.md) | Build-vs-buy decision — closed in-house; `gpu_hal` is the L1 HAL |
 | [../adr/003_d2_stack_hal_adoption.md](../adr/003_d2_stack_hal_adoption.md) | Extends L1 adoption to the d2 stack ( `tilemap_renderer` ) |
 | [../adr/004_native_vulkan_hal_backend.md](../adr/004_native_vulkan_hal_backend.md) | Adds a fourth, `wgpu`-free `vulkan` backend via `minvulkan` — implemented ( task 202 ) |
+| [../adr/005_windowed_native_presentation.md](../adr/005_windowed_native_presentation.md) | Gives the `native` ( `wgpu` ) backend a real windowed swapchain path via handle traits |
+| [../adr/006_vulkan_windowed_presentation.md](../adr/006_vulkan_windowed_presentation.md) | Gives the `vulkan` backend a real `VK_KHR_swapchain`, closing the asymmetry ADR-005 left open |
 
 ### Explorations
 

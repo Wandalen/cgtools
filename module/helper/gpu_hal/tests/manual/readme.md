@@ -3,11 +3,11 @@
 This guide covers the two `gpu_hal` paths that end in a *presented* frame rather
 than a readback, and so cannot be `cargo test`-automated: the browser backends
 (`webgpu`, `webgl`), which need a real browser painting a real canvas
-(Scenarios 1–4), and the windowed Vulkan swapchain, which needs a real window
-handle no crate under `module/` can produce (Scenario 5). Both are counterparts
-to `tests/native_backend_test.rs` / `tests/vulkan_backend_test.rs`'s
-`triangle_render_readback`, which prove the same render path through an offscreen
-readback instead.
+(Scenarios 1–4), and the windowed swapchains — Vulkan (Scenario 5) and native
+wgpu (Scenario 6) — which need a real window handle no crate under `module/`
+can produce. All three are counterparts to `tests/native_backend_test.rs` /
+`tests/vulkan_backend_test.rs`'s `triangle_render_readback`, which prove the
+same render path through an offscreen readback instead.
 
 ## Prerequisites
 
@@ -22,6 +22,14 @@ readback instead.
 - A Vulkan ICD exposing `VK_KHR_swapchain` for the current display server —
   a software rasterizer (lavapipe / `mesa-vulkan-drivers`) suffices:
   `vulkaninfo | grep -i swapchain`
+- A reachable X display, plus `wmctrl` and `import`/`scrot` (or any screenshot
+  tool) to drive and capture the window
+
+**Scenario 6 (windowed native wgpu):**
+
+- A `wgpu`-compatible adapter (Vulkan, Metal, DX12, or GL) for the current
+  display server — the same lavapipe/software-rasterizer ICD Scenario 5 uses
+  is enough on Linux
 - A reachable X display, plus `wmctrl` and `import`/`scrot` (or any screenshot
   tool) to drive and capture the window
 
@@ -195,37 +203,71 @@ ratio. Two distinct colors confirm the acquire/present loop cycled; the clean
 geometry confirms `resize`'s `vkDeviceWaitIdle` + `oldSwapchain` rebuild. Log
 carried no errors, panics, or validation messages; exit 0.
 
+### 6. Windowed native wgpu swapchain presents and rebuilds on resize
+
+**Objective:** confirm `Device::new_native_windowed` + `Surface::current_view` /
+`present` / `resize` drive a real `wgpu::Surface` swapchain — that frames
+actually cycle rather than one stale image persisting, and that a resize
+rebuilds the chain rather than stretching or tearing the old one.
+
+**Steps:** the example animates its triangle's color continuously, same as
+Scenario 5, which is what makes "did a new frame present?" observable in a
+still screenshot at all:
+
+```bash
+cargo run -p gpu_hal_triangle_native_window --release &
+sleep 3
+import -window "gpu_hal triangle -- native wgpu swapchain" ./-native_triangle.png
+wmctrl -r "gpu_hal triangle -- native wgpu swapchain" -e 0,330,360,420,700   # resize
+sleep 2
+wmctrl -l -G | grep "native wgpu swapchain"                                  # confirm new geometry
+import -window "gpu_hal triangle -- native wgpu swapchain" ./-native_triangle_resized.png
+```
+
+**Expected Behavior:**
+- Both screenshots show one triangle on the dark clear color, **in two different
+  colors** — the same color twice means frames are not cycling (a stale image, or
+  `present` never reaching the swapchain)
+- The second screenshot's window measures the requested size, and the triangle is
+  centered and correctly proportioned in it — not stretched, letterboxed, or
+  clipped, each of which means the swapchain was reconfigured without a rebuild
+- No `wgpu` validation output on stderr, and the process exits 0 when the window
+  is closed — a surface error escaping as a panic would surface here
+
+**Verified** 2026-08-19 (lavapipe, `aarch64`): initial window screenshot showed
+a pink/magenta triangle at `wmctrl`-reported geometry `600x450`; after `wmctrl`
+resize, `wmctrl -l -G` reported geometry `420x700` and the second screenshot
+showed a blue triangle, correctly proportioned at the new aspect ratio. Two
+distinct colors confirm the acquire/present loop cycled; the clean geometry
+confirms `Surface::resize`'s reconfiguration. The process exited cleanly
+(`[1]+ Done` job-control status) after a graceful `wmctrl -c` close, with no
+errors, panics, or validation messages in its log.
+
 ## Teardown
 
 ```bash
 browsee .kill session::gpu_hal_tri purge::1        # scenarios 1-4
 # then stop the trunk dev server (Ctrl-C, or kill the backgrounded PID)
-# scenario 5: close the window, or kill the `cargo run` PID
+# scenarios 5-6: close the window, or kill the `cargo run` PID
 ```
 
 ## Test Matrix
 
-| Scenario | webgpu | webgl | vulkan (windowed) |
-|----------|--------|-------|-------------------|
-| Render completes (`.wait for::render` exits 0) | ✓ | ✓ | n/a — no browser; observed as a painted window |
-| Triangle reads configured color (`255, 0, 0`) | ✓ | ✓ | n/a — this example animates its color deliberately |
-| Corner reads configured clear color (`0, 0, 0`) | ✓ | ✓ | ✓ |
-| Oversized `buffer_write` rejected, no cyan clear (BUG-200) | n/a — WebGPU validates writes itself | ✓ | not covered |
-| Successive frames differ (present loop is cycling) | n/a — static frame | n/a — static frame | ✓ |
-| Resize rebuilds the swapchain, geometry stays proportioned | n/a — canvas is resized by the browser | n/a | ✓ |
+| Scenario | webgpu | webgl | vulkan (windowed) | native wgpu (windowed) |
+|----------|--------|-------|--------------------|-------------------------|
+| Render completes (`.wait for::render` exits 0) | ✓ | ✓ | n/a — no browser; observed as a painted window | n/a — no browser; observed as a painted window |
+| Triangle reads configured color (`255, 0, 0`) | ✓ | ✓ | n/a — this example animates its color deliberately | n/a — this example animates its color deliberately |
+| Corner reads configured clear color (`0, 0, 0`) | ✓ | ✓ | ✓ | ✓ |
+| Oversized `buffer_write` rejected, no cyan clear (BUG-200) | n/a — WebGPU validates writes itself | ✓ | not covered | not covered |
+| Successive frames differ (present loop is cycling) | n/a — static frame | n/a — static frame | ✓ | ✓ |
+| Resize rebuilds the swapchain, geometry stays proportioned | n/a — canvas is resized by the browser | n/a | ✓ | ✓ |
 
 Native and Vulkan offscreen regression coverage and the wasm32 compile check are
 automated — `cargo nextest run -p gpu_hal --features native`,
 `cargo nextest run -p gpu_hal --features vulkan` and
 `cargo check -p gpu_hal --features webgpu,webgl --target wasm32-unknown-unknown`
-(see `gpu_hal/readme.md`'s `## Verify` section). Only the two presented-pixel
-paths above require this manual procedure.
-
-`Device::new_native_windowed` has no scenario here: no example drives it, so the
-`NativeWindow` variant's dispatch is currently unexercised by anything that runs
-(`examples/minwgpu/flecs_bouncing_circles` covers the underlying
-`minwgpu::surface::Windowed` directly, one layer below this HAL). Closing that is
-a matter of adding an example, not of writing a scenario for one that exists.
+(see `gpu_hal/readme.md`'s `## Verify` section). Only the presented-pixel paths
+above (Scenarios 1–6) require this manual procedure.
 
 ## Reporting Issues
 
@@ -239,3 +281,6 @@ When reporting issues found during manual testing, please include:
 - For Scenario 5 instead: `vulkaninfo | head -20` (driver and ICD), both
   screenshots, the `wmctrl -l -G` geometry line, and the process's full stderr —
   Vulkan validation output goes there and is the primary diagnostic
+- For Scenario 6 instead: the adapter `wgpu` selected (visible in its own
+  debug logging, e.g. `WGPU_LOG_LEVEL=info`), both screenshots, the
+  `wmctrl -l -G` geometry line, and the process's full stderr

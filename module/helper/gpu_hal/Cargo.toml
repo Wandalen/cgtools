@@ -55,11 +55,26 @@ web-sys = { workspace = true, optional = true, features = [ "WebGl2RenderingCont
 # that only *calls* this crate needs neither entry.
 minwgpu = { workspace = true, optional = true }
 wgpu = { workspace = true, optional = true }
-# The vulkan backend builds through minvulkan + raw ash calls — it must never
-# gain a wgpu/minwgpu dependency, per docs/adr/004_native_vulkan_hal_backend.md.
-minvulkan = { workspace = true, optional = true }
-ash = { workspace = true, features = [ "loaded" ], optional = true }
 # Backend feature ( spv-out / glsl-out ) requested per activating feature,
 # above; wgsl-in comes from the workspace-level default already enabled for
 # the `renderer` crate ( naga itself has no wgpu dependency ).
 naga = { workspace = true, optional = true }
+
+# `ash`/`minvulkan` are native-only ( `ash`'s own `libloading` dependency has
+# no wasm32 support ) -- declaring them here rather than in `[dependencies]`
+# keeps Cargo from ever attempting to compile them for wasm32-unknown-unknown,
+# even when the `vulkan` feature is nominally active via `--all-features`
+# ( e.g. `verb/test`'s wasm32 stage ). The crate's own `#[cfg(...)]` gates on
+# vulkan code already combine `feature = "vulkan"` with `not(target_arch =
+# "wasm32")` ( device.rs, pass.rs, resource.rs, error.rs, lib.rs ) -- this
+# mirrors that boundary at the dependency-graph level so the two can never
+# drift apart. See docs/adr/004_native_vulkan_hal_backend.md.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+minvulkan = { workspace = true, optional = true }
+ash = { workspace = true, features = [ "loaded" ], optional = true }
+
+[dev-dependencies]
+# Drives tests/webgl_backend_test.rs -- the real, browser-executed WebGL
+# backend test; run via `cargo test --target wasm32-unknown-unknown` through
+# the runner wired up in the workspace's .cargo/config.toml.
+wasm-bindgen-test = { workspace = true }

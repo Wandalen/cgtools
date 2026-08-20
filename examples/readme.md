@@ -78,13 +78,16 @@ The same one triangle, drawn through `gpu_hal`'s portable surface against the
 backends its own tests cannot reach. `Triangle (browser)` covers WebGPU and WebGL2
 (separate cargo features) — the browser-side pixel-verification counterpart to
 `gpu_hal/tests/native_backend_test.rs`'s native readback test. `Triangle (Vulkan
-window)` covers windowed presentation through a real `VK_KHR_swapchain`, which no
-test can reach because no crate under `module/` may depend on a windowing library;
-it is also the only example whose process links no `wgpu` at all.
+window)` and `Triangle (native wgpu window)` cover windowed presentation through
+a real `VK_KHR_swapchain` and a real `wgpu::Surface` swapchain respectively,
+which no test can reach because no crate under `module/` may depend on a
+windowing library; the Vulkan one is also the only example whose process links
+no `wgpu` at all.
 
 | | |
 |:-------------------------:|:-------------------------:|
 |[Triangle (browser)](./gpu_hal/triangle_browser/readme.md)<br>*(No showcase — see readme for pixel-verification detail)* |[Triangle (Vulkan window)](./gpu_hal/triangle_vulkan_window/readme.md)<br>*(No showcase — see readme for what to watch while it runs)* |
+|[Triangle (native wgpu window)](./gpu_hal/triangle_native_window/readme.md)<br>*(No showcase — see readme for what to watch while it runs)* | |
 
 ## renderer Examples
 
@@ -143,7 +146,7 @@ One scene — a sun-and-orbits HUD diagram — implemented once per backend/laye
 | demo_readme_example.md | Template for creating demo readme files |
 | demo_todo_categorized.md | Categorized todo list for examples |
 | example_requirements.md | Requirements documentation for examples |
-| gpu_hal/ | gpu_hal HAL examples directory (2 demos) |
+| gpu_hal/ | gpu_hal HAL examples directory (3 demos) |
 | how_to_run.md | Setup and execution instructions for examples |
 | index.html | Interactive HTML gallery with 72 example showcases |
 | index.md | Markdown-formatted examples list |

@@ -30,11 +30,13 @@ and resolve mechanics are the same shape of problem.
   `[0,2,3]` / `[0,1,2,3]` color attachments to enable per frame — is
   extracted into a pure `frame_attachments()` function, natively unit-tested
   across all 4 branch combinations by `webgl_frame_orchestration_test.rs`
-  (no live `WebGl2RenderingContext` needed for this one piece; the rest of
-  the embedded instance still has no pass-cycle test citation beyond
-  `tests/webgl/pass.rs`'s narrow `SwapFramebuffer::new` doc-comment
-  regression test (BUG-259) — the same browser-test-infrastructure gap
-  named elsewhere in this layer).
+  (no live `WebGl2RenderingContext` needed for this one piece); the rest of
+  the embedded instance's pass cycle is now structurally tested against a
+  real headless WebGL2 context too, by `webgl_renderer_pass_cycle_test.rs`'s
+  `render_completes_on_an_opaque_pbr_primitive` and
+  `render_completes_on_an_empty_scene` (task 413) — `tests/webgl/pass.rs`'s
+  narrow `SwapFramebuffer::new` doc-comment regression test (BUG-259) is no
+  longer the only coverage here.
 - `renderer` (`src/webgl/shadow.rs`, legacy path): a separate shadow-map
   render-target and pass cycle, run before the main scene pass. Its
   `tests/webgl/shadow.rs` (3 tests) covers only the `SpotLight`→`Light`
@@ -138,6 +140,7 @@ name and a documented home.
 | `module/blank/frame_graph/` | The reserved crate slot |
 | `module/helper/renderer/src/webgl/renderer.rs` | The richest embedded instance: target zoo + pass ordering + resolve |
 | `module/helper/renderer/tests/webgl_frame_orchestration_test.rs` | Native unit coverage for the attachment-selection branch (task 247) |
+| `module/helper/renderer/tests/webgl_renderer_pass_cycle_test.rs` | Live headless-WebGL2 pass-cycle coverage for the embedded `renderer.rs` instance itself — `render_completes_on_an_opaque_pbr_primitive` and `render_completes_on_an_empty_scene` (task 413) |
 | `module/helper/renderer/src/webgl/post_processing/pass.rs` | Pass composition machinery |
 | `module/helper/renderer/tests/webgl/pass.rs` | Narrow `SwapFramebuffer::new` doc-comment regression test (BUG-259) — not FBO/pass-cycle coverage |
 | `module/helper/renderer/src/webgl/shadow.rs` | Shadow-map target and pass cycle |

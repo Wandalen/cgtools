@@ -82,7 +82,7 @@ new shared crate, until a second consumer triggers extraction.
 
 | File | Relationship |
 |------|--------------|
-| [../render_stack/002_tile.md](../render_stack/002_tile.md) | The stack whose L5 is fully realized |
+| [../render_stack/002_tile.md](../render_stack/002_tile.md) | The stack whose L5 off-screen compile path is implemented — no interactive runner yet |
 | [../render_stack/003_d3.md](../render_stack/003_d3.md) | The stack whose L5 slot is reserved |
 
 ### Sources
@@ -92,6 +92,6 @@ new shared crate, until a second consumer triggers extraction.
 | `module/blank/d3_scene/` | Reserved d3 script-layer slot |
 | `module/helper/scene_script/src/engine.rs` | Rhai engine assembly (`engine_build()`) |
 | `module/helper/scene_script/src/top_level_lint.rs` | Structural check that imperative code lives inside `main()`, not a proof of the temporal/order determinism the Contract section above requires |
-| `module/helper/scene_script/src/purity_lint.rs` | Companion structural check for the script-as-data form: `check_whole_ast_is_pure` rejects any call expression, enforcing the no-engine-calls half of the [script-as-data](../pattern/004_script_as_data.md)/script-as-glue split this layer names above |
+| `module/helper/scene_script/src/purity_lint.rs` | Companion structural check for the script-as-data form: `check_whole_ast_is_pure` rejects any call expression, enforcing the no-engine-calls half of the [script-as-data](../pattern/004_script_as_data.md)/script-as-glue split this layer names above — proven against the real orrery `scene.rhai` end-to-end (`purity_lint_test.rs`), but test-suite-invoked only like `top_level_lint` above; neither lint is wired into a production loader, so a violation is caught on the next test run, not at script-load time ([invariant/004](../../module/helper/scene_script/docs/invariant/004_script_as_data_purity.md)) |
 | `module/helper/tilemap_scene/src/compile/frame.rs` | Deterministic scene→commands compilation |
 | `module/helper/tilemap_scene/src/renderer.rs` | The runner half: executes compiled commands, ~24 dedicated tests |

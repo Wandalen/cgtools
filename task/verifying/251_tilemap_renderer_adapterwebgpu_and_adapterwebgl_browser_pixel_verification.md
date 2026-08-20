@@ -13,13 +13,13 @@
 - **executor_type:** any
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/tilemap_renderer
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-18 23:49:12
-- **expires_at:** 2026-08-19 01:49:12
-- **unverified_at:** 2026-08-18 23:47:41
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **started_at:** 2026-08-19 23:07:51
+- **expires_at:** 2026-08-20 01:07:51
+- **unverified_at:** 2026-08-19 22:37:54
 - **unverified_by:** system
-- **verifying_at:** 2026-08-18 23:49:12
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **verifying_at:** 2026-08-19 23:07:51
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 
 ## MOST Goal
 
@@ -192,6 +192,26 @@ Desired answer for every question is YES.
 - [ ] AF1 — real paint, not a stale/blank canvas: `browsee .wait for::render timeout::60` exits 0 before any `.pixel` call is trusted (per the browsee skill's core rule — never trust launch exit code alone as proof a page painted)
 - [ ] AF2 — bounded draw, not a full-canvas clear: both T02/T04's corner-pixel checks read the clear color, not the sprite's rendered color — guards against a test that would pass even if the draw call painted the whole canvas
 
+## Verification Record
+
+Formalizes History's 2026-08-16 `READINESS_CHECK` narrative entry ("Tier 2 Dual-Role Self-Check (8/8 dimensions PASS, 0 Blocking Findings)") into a structured Gate Table per `governance/maav.rulebook.md § MAAV : Surface Rule`. Re-walked fresh rather than rubber-stamped; verdict agrees, with two Non-Blocking observations the narrative entry didn't surface.
+
+**Gate Check** · Tier: 2 · Type: Full · Verdict: PASS · Agents: 0 (self, dual-role) · 8/8
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+| ---- | ---- | ---- | --- | ------ | ----- |
+| D1 | Scope Coherence | — | 🟢 | Non-blocking: MOST Goal/Test Matrix/Acceptance Criteria predict an opaque-black `adapter-webgpu` sprite (the state at filing/initial-execution time); History's later `RE_VERIFIED` (2026-08-18) entry found task 218 changed this — `adapter-webgpu` now paints the real red sprite, matching `adapter-webgl`. The canonical current-truth docs (`docs/layer/002_l1_gpu_hal.md`, `tilemap_renderer/tests/manual/readme.md`) were already updated to record this per that entry; the task file's own MOST Goal/Test Matrix/Acceptance Criteria sections are correctly left as the frozen historical record of what was scoped and originally tested against, not live system-behavior claims. | — |
+| D2 | MOST Goal Quality | — | 🟢 | — | — |
+| D3 | Value/YAGNI | — | 🟢 | — | — |
+| D4 | Implementation Readiness | — | 🟢 | — | — |
+| D5 | Execution Scope | — | 🟢 | — | — |
+| D6 | Crate Scope Unity | — | 🟢 | Non-blocking: primary crate `tilemap_renderer` (unit_type: module) plus a documented one-line incidental fix to `module/helper/renderer/tests/readme.md` (a sibling crate) — History's `EXECUTED` entry's C6 finding: a Responsibility Table row missing from task 197's own already-`EXECUTED` `manual/` registration, discovered incidentally while registering this task's own `manual/` dir, fixed in place (`git diff --stat` confirmed exactly 1 insertion) rather than reverted or deferred. Pure documentation-hygiene one-liner, not a functional touch to `renderer`'s `src/` or Test Matrix — doesn't encroach on the Out-of-Scope carve-out for `renderer`'s own substantive pixel-verification work (a distinct sibling task). | — |
+| D7 | Crate Locality | — | 🟢 | — | — |
+| D8 | Crate Single Responsibility | — | 🟢 | — | — |
+| **Total** | | — | 🟢 | 2 non-blocking | 0/0 |
+
+**Adversarial pass:** Actively attempted to fail D1 on the black→red staleness (rejected — frozen historical record, not a live claim, and canonical docs already reflect current truth per History's own entry) and D6 on the cross-crate `renderer/tests/readme.md` touch (rejected — one-line documented hygiene fix, not functional scope creep into `renderer`'s excluded feature work). Attempted to fail D4 on the checkboxes appearing unchecked despite claimed full execution (rejected — matches the task's own explicit "executor does NOT self-verify" convention, consistent with sibling tasks 197/395). No Blocking Finding survives.
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |
@@ -203,6 +223,9 @@ Desired answer for every question is YES.
 | 2026-08-18 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified | RE_VERIFIED | post-task-218 re-run of T03/T04 in Firefox: `adapter-webgpu` sprite-center now `rgb 255 0 0`, background `rgb 0 0 255` — matches `adapter-webgl` exactly; docs/manual guide updated |
 | 2026-08-18 23:47:41 | system | TIMEOUT_2H | 2h exclusivity window expired |
 | 2026-08-18 23:49:12 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:37:54 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-19 23:07:51 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 23:08:30 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | VERIFY_PASS_ATTEMPTED | Fresh Tier 2 Dual-Role Self-Check walk (8/8 dimensions PASS, 2 non-blocking: D1 black→red staleness superseded by RE_VERIFIED, D6 documented one-line renderer/tests/readme.md hygiene fix); `## Verification Record` formalizing History's 2026-08-16 READINESS_CHECK narrative appended. `tsk .verify_pass 251` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
 
 ## History
 

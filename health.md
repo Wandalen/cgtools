@@ -4,18 +4,20 @@ Per-crate workspace health dashboard. Every column is a snapshot with its regene
 re-run the command to refresh a number instead of trusting the table. Live work items are tracked in
 [task/readme.md](task/readme.md); this file summarizes state, it does not duplicate the backlog.
 
-- **Snapshot date:** 2026-08-18
-- **Workspace build:** ✅ `cargo check --workspace --all-features --exclude orrery_flexible` — exit 0
-  (incremental, warm cache from same-day `verb/test` full run). The bare `--workspace --all-features`
-  form this row previously documented now fails unconditionally — `orrery_flexible`'s 4 backend
-  features (webgl/webgpu/wgpu/vulkan) are mutually exclusive by design (`compile_error!` guard, see
-  docs/adr/004), and `--all-features` enables all 4 at once. `--exclude orrery_flexible` mirrors what
-  `verb/test` itself already does for this crate; see that script's own comment above its native
-  stages for the full per-feature check list.
-- **Task system:** 89 completed · 3 draft · 8 cancelled · 8 accepting · 14 verifying · 7 open bugs
-  (see task/readme.md for the live table; task counts re-derived 2026-08-18 via
+- **Snapshot date:** 2026-08-19
+- **Workspace build:** ✅ `cargo check --workspace --all-features --exclude orrery_flexible` — exit 0,
+  re-confirmed 2026-08-19 (`longrun`-detached, 463s — briefly blocked on a build-directory file lock
+  held by concurrent Fleet activity before proceeding). The bare `--workspace --all-features` form
+  this row previously documented still fails unconditionally —
+  `orrery_flexible`'s 4 backend features (webgl/webgpu/wgpu/vulkan) are mutually exclusive by design
+  (`compile_error!` guard, see docs/adr/004), and `--all-features` enables all 4 at once.
+  `--exclude orrery_flexible` mirrors what `verb/test` itself already does for this crate; see that
+  script's own comment above its native stages for the full per-feature check list.
+- **Task system:** 89 completed · 14 draft · 12 cancelled · 9 accepting · 44 verifying · 23 open bugs
+  (see task/readme.md for the live table; task counts re-derived 2026-08-19 via
   `grep -oE '\| (✅|🔎|📝|🚫|❓|🔬|⚙️|📦) \([A-Za-z]+\)' task/readme.md | sort | uniq -c`; bug count via
-  `ls task/bug/verified/ | wc -l`, cross-checked against task/bug/readme.md's Open Bugs table).
+  `awk '/^## Open Bugs/,/^## Closed Bugs/' task/bug/readme.md | grep -c '^| BUG-'`, cross-checked
+  against `task/bug/verified/`'s file count).
 
 ## Regeneration commands
 
@@ -120,12 +122,14 @@ files — verified clean 2026-08-13.)*
 - **098** — obj_viewer example proposal watch item (📝 Draft; same YAGNI-deferred pattern).
 - **291** — gpu_hal mipmap/MSAA/compute support watch item (📝 Draft; same YAGNI-deferred pattern —
   `docs/layer/002`'s own Status section already names the gap, no consumer needs it yet).
-- **8 tasks in 🔎 Accepting** (246, 247, 248, 118, 191, 192, 201, 202) and **14 in 🔬 Verifying**
-  (197, 251, 203, 206, 218, 219, 220, 221, 222, 223, 224, 225, 226, 254) — all code-complete and
-  independently self-verified (Tier 2 Dual-Role Self-Check). Every attempted
-  `tsk .acceptance_pass`/`.verify_pass` transition on all 22 is refused by this sandbox's same-actor
-  guard (`self-verification forbidden` — actor matches `executing_by`/`filed_by`). Blocked on a
-  genuinely independent verifier, not on further work; see each task's own Journal section for the
+- **9 tasks in 🔎 Accepting** (246, 247, 248, 118, 192, 201, 202, 413, 414 — 191 moved back to 🎯
+  Verified, not yet claimed for execution) and **44 in 🔬 Verifying** (grown substantially since the
+  2026-08-18 snapshot's 14, driven by a wave of formal fix-registration tasks for already-applied bug
+  fixes — see task/readme.md's live Tasks Index for the full current list, not duplicated here) — all
+  code-complete and independently self-verified (Tier 2 Dual-Role Self-Check). Every attempted
+  `tsk .acceptance_pass`/`.verify_pass` transition across this backlog is refused by this sandbox's
+  same-actor guard (`self-verification forbidden` — actor matches `executing_by`/`filed_by`). Blocked
+  on a genuinely independent verifier, not on further work; see each task's own Journal section for the
   exact refusal.
 - **BUG-114** (🎯 Verified, High) — `diamond` example's uv-attribute stride mismatch. Fix applied and
   live-confirmed: Chromium/SwiftShader's software WebGL2 backend performs no `drawElements`-time
@@ -138,27 +142,37 @@ files — verified clean 2026-08-13.)*
   above, same same-actor-guard block.
 - **BUG-298** (🎯 Verified, Medium) — `ndarray_cg`'s `Quat::invert()` returns the bare conjugate
   unconditionally, silently wrong for any non-unit-length quaternion; latent (zero reachable call
-  sites currently). Not yet promoted to a fix task.
+  sites currently). Fix applied and registered via **task 357** (`closes: BUG-298`, `bug_promote`/
+  PROC12), 🔬 Verifying, readiness-gate PASS 8/8, blocked on the same same-actor guard.
 - **BUG-300** (🎯 Verified, Medium) — `minwebgpu`'s `TextureDescriptor::new()` default format is
   incompatible with `.storage_binding()`, silently producing a texture WebGPU rejects; latent (zero
-  reachable call sites currently). Not yet promoted to a fix task.
+  reachable call sites currently). Fix applied and registered via **task 359** (`closes: BUG-300`),
+  🔬 Verifying, readiness-gate PASS 8/8, blocked on the same same-actor guard.
 - **BUG-311** (🎯 Verified, Medium) — `Quat::from_angle_y( 90.0 )` called with a raw degree literal
   instead of radians at 3 sibling example call sites (`curve`/`lottie`/`animation_surface_rendering`);
-  active, visually-wrong behavior, confined to those 3 examples. Not yet promoted to a fix task.
+  active, visually-wrong behavior, confined to those 3 examples. Fix applied and registered via
+  **tasks 369-372** (split of task 360, one per example plus an `ndarray_cg` regression test,
+  `closes: BUG-311`), all 🔬 Verifying, blocked on the same same-actor guard.
 - **BUG-312** (🎯 Verified, Medium) — `character_control` example halves the visible character mesh's
   yaw at its `Quat::from_angle_y` call site, desyncing it from the camera's own orbit; active, confined
-  to 1 example. Not yet promoted to a fix task.
+  to 1 example. Fix applied and registered via **task 363**, 🔬 Verifying, blocked on the same
+  same-actor guard.
 - **BUG-313** (🎯 Verified, Medium) — `sprite_animation` example's frame-index modulus uses
   `sprite_count - 1` instead of `sprite_count`, permanently skipping the last animation frame; active,
-  confined to 1 example. Not yet promoted to a fix task.
+  confined to 1 example. Fix applied and registered via **task 358**, 🔬 Verifying, blocked on the
+  same same-actor guard.
 - **BUG-314** (🎯 Verified, High) — `embroidery_tools`' PEC reader underflows `stitch_block_len - 5` for
   untrusted file data under 5 bytes, panicking in debug and corrupting the read position in release;
-  reachable via both public `pec::*` and `pes::*` entry points, not latent. Not yet promoted to a fix
-  task.
+  reachable via both public `pec::*` and `pes::*` entry points, not latent. Fix applied and registered
+  via **task 365**, 🔬 Verifying, blocked on the same same-actor guard.
 
-No task in the current backlog is actionable by further autonomous work in this sandbox — the 22
-tasks above are code-complete and self-verified pending independent review, blocked only on a
-genuinely independent verifier this sandbox's same-actor guard cannot supply. BUG-114 is resolved and
-promoted; BUG-298/BUG-300 are latent defects and BUG-311/BUG-312/BUG-313/BUG-314 are active defects
-(all 🎯 Verified, not yet promoted to fix tasks).
+No task in the current backlog is actionable by further autonomous work in this sandbox — the 8
+Accepting + 44 Verifying tasks above are code-complete and self-verified pending independent review,
+blocked only on a genuinely independent verifier this sandbox's same-actor guard cannot supply.
+BUG-114/298/300/311/312/313/314 all have fixes applied and formally registered (bug/readme.md itself
+still shows each 🎯 Verified — the linked fix-registration task is the pending step, not the code fix).
+The bug registry's own Open Bugs table (task/bug/readme.md) has grown substantially since this
+section was last written; treat the bullets above as the reach-consistency-confirmed subset, not an
+exhaustive Open Bugs list — re-derive via `awk '/^## Open Bugs/,/^## Closed Bugs/' task/bug/readme.md`
+for the current full count (23 as of this snapshot).
 

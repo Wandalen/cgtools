@@ -5,8 +5,8 @@
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-18 23:44:40
-- **expires_at:** 2026-08-19 01:44:40
+- **started_at:** 2026-08-19 22:54:17
+- **expires_at:** 2026-08-20 00:54:17
 - **round:** 1
 - **state:** 🔬 (Verifying)
 - **closes:** BUG-298
@@ -16,10 +16,10 @@
 - **verified_by:** null
 - **verification_date:** null
 - **blocked_by:** null
-- **unverified_at:** 2026-08-18 23:41:16
+- **unverified_at:** 2026-08-19 22:37:54
 - **unverified_by:** system
 - **in_motion:** true
-- **verifying_at:** 2026-08-18 23:44:40
+- **verifying_at:** 2026-08-19 22:54:17
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## Goal
@@ -256,6 +256,9 @@ Desired answer for every question is YES.
 | 2026-08-18 16:09 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 357` → blocked: "self-verification forbidden (actor matches filed_by)" — same-actor guard, not a defect; state remains 🔬 Verifying |
 | 2026-08-18 23:41:16 | system | TIMEOUT_2H | 2h exclusivity window expired |
 | 2026-08-18 23:44:40 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:37:54 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-19 22:54:17 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:54:17 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 357` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
 
 ## History
 

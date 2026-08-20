@@ -20,6 +20,7 @@ tests/
   commands_test.rs      — RenderCommand Copy invariant, size, stream construction
   svg_backend_test.rs   — SvgBackend adapter behavior via public surface (feature adapter-svg)
   none_backend_test.rs  — NoneBackend no-op contract (feature adapter-none)
+  terminal_backend_test.rs — TerminalBackend cell-grid rasterizer contract (feature adapter-terminal)
   native_backend_test.rs — NativeBackend real-GPU pixel-readback contract (feature adapter-native)
   webgpu_backend_test.rs — WebGpuBackend compile-and-construct-level contract (feature adapter-webgpu, wasm32)
   webgl_backend_test.rs — WebGlBackend::declared_capabilities pure-function contract (feature adapter-webgl)
@@ -37,6 +38,7 @@ tests/
 | `backend_test.rs` | Backend trait | `assets_load`, `submit`, `output`, `resize`, `Capabilities::default`, all `RenderError` variants |
 | `svg_backend_test.rs` | SvgBackend adapter (relocated from inline by task 071) | Clear/viewport wrapper, paths, gradients, patterns, clip masks, sprite tint/batches, mesh topologies, effects, blend modes, groups, disk/encoded/bitmap image loading, text flow/anchors/on-path, plus the former private helpers ( transforms, anchors, PNG probing, `SvgContentManager` ) now exposed as documented or `doc( hidden )` pub — `src/` carries no inline test modules |
 | `none_backend_test.rs` | NoneBackend adapter | `Capabilities::default` field-by-field pin, unconditional `Ok` on `submit`/`assets_load` regardless of command/asset content |
+| `terminal_backend_test.rs` | TerminalBackend adapter (35 tests) | World-space commands land on the expected cell after `CELL_PX_WIDTH`/`CELL_PX_HEIGHT` downsample and Y-flip, `MissingAsset` contract shared with `SvgBackend`, `output()`'s exact ANSI truecolor byte encoding — assertions reach the grid through `#[doc(hidden)]` test-only accessors (`cols`/`rows`/`cell_bg`/`cell_fg`/`cell_glyph`) |
 | `native_backend_test.rs` | NativeBackend adapter | Real `gpu_hal` device construct/load/submit/output, exact pixel readback, resize |
 | `webgpu_backend_test.rs` | WebGpuBackend adapter | `declared_capabilities` honest subset, `sprite_draw_params` anti-hardcoding, `command_classify` family rejection (wasm32 only) |
 | `webgl_backend_test.rs` | WebGlBackend adapter | `declared_capabilities` honest-subset pin and `max_texture_size` anti-hardcoding pin — no live `WebGl2RenderingContext` |

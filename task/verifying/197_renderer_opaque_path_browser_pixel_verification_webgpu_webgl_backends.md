@@ -13,13 +13,13 @@
 - **executor_type:** any
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/renderer
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-18 23:49:11
-- **expires_at:** 2026-08-19 01:49:11
-- **unverified_at:** 2026-08-18 23:47:41
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **started_at:** 2026-08-19 23:03:33
+- **expires_at:** 2026-08-20 01:03:33
+- **unverified_at:** 2026-08-19 22:37:54
 - **unverified_by:** system
-- **verifying_at:** 2026-08-18 23:49:11
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **verifying_at:** 2026-08-19 23:03:33
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 
 ## MOST Goal
 
@@ -170,6 +170,28 @@ Desired answer for every question is YES.
 - [ ] AF1 — real paint, not a stale/blank canvas: `browsee .wait for::render timeout::60` exits 0 before any `.pixel` call is trusted (per the browsee skill's core rule — never trust launch exit code alone as proof a page painted)
 - [ ] AF2 — bounded draw, not a full-canvas clear: T03's corner-pixel check reads background black, not the lit-quad color — guards against a test that would pass even if the draw call painted the whole canvas
 
+## Verification Record
+
+**Gate Round 1** (Tier 2 — Dual-Role Self-Check, one-shot, self-administered by user1@w002)
+
+Formalizes History's 2026-08-16 `READINESS_CHECK` narrative entry ("8/8 dimensions PASS, 0 Blocking
+Findings") into a structured Gate Table, per this repo's standing convention that a Verification
+Record must be a table, not prose alone. Re-walked fresh rather than rubber-stamped; verdict agrees.
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+|------|------|------|-----|--------|-------|
+| D1 | Scope Coherence | — | 🟢 | Goal/Scope/Delivery Requirements/Test Matrix/Acceptance Criteria and History's EXECUTED entry all align — no staleness defect (unlike tasks 392/394 in this same round) | — |
+| D2 | MOST Goal Quality | — | 🟢 | — | — |
+| D3 | Value / YAGNI | — | 🟢 | Real, pre-existing coverage gap named explicitly in `docs/layer/002_l1_gpu_hal.md` and task 191's own Out of Scope — not speculative | — |
+| D4 | Implementation Readiness | — | 🟢 | — | — |
+| D5 | Execution Scope | — | 🟢 | — | — |
+| D6 | Crate Scope Unity | — | 🟢 | Touches a new example crate (`examples/renderer/opaque_path_browser/`), root `Cargo.toml` workspace members, and 4 gallery tracking files, beyond `unit: module/helper/renderer` itself. Non-blocking: this is the repo's standard, explicitly-declared example-crate-registration convention (In Scope names it directly), the same shape used throughout this round's other example-crate tasks, not incidental scope creep | — |
+| D7 | Crate Locality | — | 🟢 | — | — |
+| D8 | Crate Single Responsibility | — | 🟢 | Out of Scope confirms `module/helper/renderer/src/` stays untouched (zero diff) — no responsibility creep into the renderer crate itself | — |
+| **Total** | | — | 🟢 | 1 non-blocking | 0/0 |
+
+**Adversarial pass:** attempted to find a reason the History EXECUTED entry's evidence is thinner than it reads — checked the concrete pixel readings cited (`rgb 205 46 41` center, `rgb 0 0 0` corner, both backends) against the Goal's own stated bound (`r>150,g<80,b<80`) and confirmed they genuinely satisfy it, not just asserted to. Checked whether the self-flagged stale "line 38" NOTE (History, 2026-08-19) hides a real content gap — re-read the note and confirmed it explicitly states the citation content itself is correct, only the line number drifted, which is self-disclosed rather than discovered adversarially. Checked whether leaving the `## Verification` checklist's own C1-AF2 items unchecked understates readiness — confirmed this is correct process (executor does not self-verify that layer; it's the separate Acceptance Verification gate, not this Readiness gate), matching this round's established pattern for every informally-executed audit task. No blocking defect found.
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |
@@ -180,6 +202,9 @@ Desired answer for every question is YES.
 | 2026-08-17 00:49:51 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | ATTEMPT_VERIFY_PASS | `tsk .verify_pass 197` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard, consistent with task 206 precedent; not forced/spoofed, left at 🔬 Verifying per standing project convention |
 | 2026-08-18 23:47:41 | system | TIMEOUT_2H | 2h exclusivity window expired |
 | 2026-08-18 23:49:11 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:37:54 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-19 23:03:33 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 23:03:33 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 197` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
 
 ## History
 

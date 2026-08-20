@@ -105,3 +105,21 @@ fn rejects_a_call_two_blocks_deep_inside_a_function_body()
   .expect_err( "a call two control-flow blocks deep inside a function body must be rejected" );
   assert_eq!( violation.name, "trigger" );
 }
+
+#[ test ]
+fn accepts_the_real_orrery_scene_script_end_to_end()
+{
+  // Every test above compiles a synthetic inline literal mirroring some
+  // real script's shape. None of them load an actual shipping `.rhai`
+  // file, so the checker had never been proven against production
+  // content — only against hand-written stand-ins for it. `scene.rhai` is
+  // the flagship script-as-data example ( see its own header comment:
+  // "every value below is a plain color/number/list literal, no function
+  // or operator calls anywhere" ) and is exactly what `src/scene.rs`
+  // compiles at runtime via its own `include_str!`.
+  let engine = engine_build();
+  let source = include_str!( "../../../../examples/orrery/webgpu/scene/scene.rhai" );
+  let ast = engine.compile( source ).unwrap();
+
+  check_whole_ast_is_pure( &ast ).unwrap();
+}

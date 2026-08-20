@@ -58,9 +58,15 @@ program the engine runs.
   [`docs/pattern/004_script_as_data.md`](../../../../../docs/pattern/004_script_as_data.md)'s
   determinism guarantee covers — "same script → same frames" stops being a
   construction guarantee for it, since it is a program, not a fact.
-- Enforcement is structural and loud: a violating script fails
-  `check_whole_ast_is_pure()` wherever a loader calls it, before any value
-  is ever read out of the compiled `AST`.
+- Enforcement is structural and loud, but test-suite-scoped, not a
+  production gate: no loader calls `check_whole_ast_is_pure()` at script-load
+  time (`examples/orrery/webgpu/src/scene.rs` compiles and evaluates
+  `scene.rhai` directly, with no purity check in that path). The property is
+  instead proven against the real, shipping `scene.rhai` content by
+  `purity_lint_test.rs::accepts_the_real_orrery_scene_script_end_to_end`
+  (`include_str!` of the same file `scene.rs` bundles), so a violation
+  surfaces the next time the test suite runs, not at actual script-load
+  time.
 
 ### Features
 

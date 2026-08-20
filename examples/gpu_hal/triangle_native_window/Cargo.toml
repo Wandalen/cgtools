@@ -1,0 +1,21 @@
+[package]
+name = "gpu_hal_triangle_native_window"
+version = "0.1.0"
+edition = "2024"
+description = "Windowed triangle on gpu_hal's native wgpu backend — a real wgpu::Surface swapchain"
+
+[dependencies]
+# `native` on top of the default `enabled`. Pulls in `wgpu` transitively --
+# unlike the `vulkan` sibling example, this one's whole point is exercising
+# the wgpu-backed windowed path.
+gpu_hal = { workspace = true, features = [ "native" ] }
+# Windowing only, which is neither computer graphics nor math. gpu_hal takes the
+# window as `impl Into< wgpu::SurfaceTarget< 'static > >`, which needs an owned/
+# `Arc`'d handle rather than a borrow -- see src/main.rs.
+winit.workspace = true
+
+[lints]
+workspace = true
+
+[package.metadata.action]
+tags = ["runtime:native", "api:wgpu"]

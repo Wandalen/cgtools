@@ -13,13 +13,13 @@
 - **executor_type:** any
 - **unit_type:** dir
 - **unit:** .
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-18 23:49:13
-- **expires_at:** 2026-08-19 01:49:13
-- **unverified_at:** 2026-08-18 23:47:42
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **started_at:** 2026-08-19 23:09:59
+- **expires_at:** 2026-08-20 01:09:59
+- **unverified_at:** 2026-08-19 22:37:55
 - **unverified_by:** system
-- **verifying_at:** 2026-08-18 23:49:13
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **verifying_at:** 2026-08-19 23:09:59
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 
 ## MOST Goal
 
@@ -109,6 +109,26 @@ during execution, not merely asserted:
 - `longrun`-detached `cargo check -p minwebgl_minimize_wasm --target wasm32-unknown-unknown`
   at workspace root → clean, exit 0.
 
+## Verification Record
+
+The `## Verification` section above (and the Journal's own 2026-08-18 19:48:00 `VERIFY_BLOCKED` entry) already documents a real re-run of every Delivery/Acceptance check plus an adversarial dangling-reference grep sweep — that pass verified the WORK, not yet the 8-dimension Readiness Gate (is this task well-scoped, not whether the work was done right). This section performs that Readiness walk fresh, formalized as a Gate Table per `governance/maav.rulebook.md § MAAV : Surface Rule`.
+
+**Gate Check** · Tier: 2 · Type: Full · Verdict: PASS · Agents: 0 (self, dual-role) · 8/8
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+| ---- | ---- | ---- | --- | ------ | ----- |
+| D1 | Scope Coherence | — | 🟢 | Non-blocking: the existing VERIFY_BLOCKED adversarial pass fixed 3 dead rows in `examples/demo_completeness.md` (filter/jewelry_site/spinning_cube_size_opt) even though In Scope's last bullet says to flag that file rather than hand-patch it — confirmed not a contradiction: the flagged concern is fabricating subjective compile/description/image status judgments across 76 rows, not deleting rows for crates this very task made nonexistent (pure referential-integrity cleanup, already carefully distinguished from `locales.md`'s untouched generator-owned rows in the same Journal entry). | — |
+| D2 | MOST Goal Quality | — | 🟢 | — | — |
+| D3 | Value/YAGNI | — | 🟢 | — | — |
+| D4 | Implementation Readiness | — | 🟢 | — | — |
+| D5 | Execution Scope | — | 🟢 | Non-blocking: the `jewelry_site` relocation's destination (`~/pro/lib/yrd_gamedev/jewelry_site`) is outside this repository by design — the deliverable's own rationale is that this zero-cgtools-dependency crate doesn't belong in `cgtools` at all. The deletion side is fully in-repo; the relocation target is transparently documented, and its own standalone `cargo metadata`/`cargo test` (2/2 passing) were independently verified from the new location per the Verification section above — a well-justified, explicitly-scoped repo-hygiene move, not silent drift into unrelated external work. | — |
+| D6 | Crate Scope Unity | — | 🟢 | Non-blocking: `unit_type: dir`, `unit: .` — correctly self-declared as a repo-wide examples-tree hygiene sweep (mirroring task 065's own precedent), not mis-scoped as a single-crate task when the work genuinely spans dozens of touch points across `examples/minwebgl/`, `examples/orrery/`, `examples/minwebgpu/`, gallery tooling, and tracking files. D6's single-crate-unity concern doesn't bind in its usual sense for a task correctly modeled at dir-level from filing. | — |
+| D7 | Crate Locality | — | 🟢 | — | — |
+| D8 | Crate Single Responsibility | — | 🟢 | — | — |
+| **Total** | | — | 🟢 | 3 non-blocking | 0/0 |
+
+**Adversarial pass:** Attempted to fail D5 on the out-of-repo relocation target (rejected — deletion is in-repo, destination is the deliverable, transparently documented and independently verified standalone). Attempted to fail D1 on the demo_completeness.md edit apparently contradicting its own Out-of-Scope-adjacent carve-out (rejected — different concern: referential integrity vs. subjective status judgments, already reasoned through in the Journal). Attempted to fail D6/D8 on the lack of single-crate scoping (rejected — task is correctly self-declared `unit_type: dir` for a genuinely cross-cutting sweep, not a mis-scoped crate task). No Blocking Finding survives.
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |
@@ -119,3 +139,6 @@ during execution, not merely asserted:
 | 2026-08-18 19:48:00 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_BLOCKED | `tsk .verify_pass 377` refused: "self-verification forbidden (actor matches filed_by)" — known same-sandbox guard, not forced/spoofed. Substituted a real Tier 2 Dual-Role Self-Check instead (surfaced to user in-conversation): confirming pass re-ran every Delivery/Acceptance check live (gallery regen + verify::1, root `cargo metadata`, jewelry_site's own `cargo metadata` + `longrun`-detached `cargo test` 2/2, `longrun`-detached `cargo check -p minwebgl_minimize_wasm --target wasm32-unknown-unknown`); adversarial pass grepped the whole repo (excluding `/target/`) for `filter`/`spinning_cube_size_opt`/`jewelry_site` looking for dangling references the plan didn't name — found and fixed 3 dead rows in `examples/demo_completeness.md` (filter/jewelry_site/spinning_cube_size_opt), ruled out `health.md`'s unrelated "filter" word-match and historical `task/bug/completed/*`+`task/completed/*` narrative mentions (correctly left as historical record), and flagged (not hand-edited) `locales.md`'s 3 now-dangling rows — it's explicitly generator-maintained ("Do not edit manually. Maintained by `.locale.doc.generate`") and this repo's own task history (023, 024) already treats its staleness as a known, accepted, unrelated-task-doesn't-fix-it condition. Leaving task state at 🔬 (Verifying) — blocked, not force-advanced. |
 | 2026-08-18 23:47:42 | system | TIMEOUT_2H | 2h exclusivity window expired |
 | 2026-08-18 23:49:13 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:37:55 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-19 23:09:59 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 23:10:45 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | VERIFY_PASS_ATTEMPTED | Fresh 8-dimension Readiness Gate walk (8/8 PASS, 3 non-blocking: D1 demo_completeness.md edit reasoned as referential-integrity not status-judgment, D5 jewelry_site relocation target outside repo by design and independently verified, D6 correctly self-declared dir-level scope for a repo-wide sweep); `## Verification Record` appended, distinct from the pre-existing Acceptance-flavored VERIFY_BLOCKED entry above. `tsk .verify_pass 377` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |

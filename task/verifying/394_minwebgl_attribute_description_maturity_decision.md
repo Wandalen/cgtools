@@ -4,9 +4,9 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
-- **started_at:** 2026-08-19 05:09:12
-- **expires_at:** 2026-08-19 07:09:12
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **started_at:** 2026-08-19 23:00:49
+- **expires_at:** 2026-08-20 01:00:49
 - **round:** 1
 - **state:** 🔬 (Verifying)
 - **closes:** null
@@ -15,11 +15,11 @@
 - **verified_by:** null
 - **verification_date:** null
 - **blocked_by:** null
-- **unverified_at:** 2026-08-19 05:09:04
-- **unverified_by:** unknown
+- **unverified_at:** 2026-08-19 22:37:56
+- **unverified_by:** system
 - **in_motion:** true
-- **verifying_at:** 2026-08-19 05:09:12
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
+- **verifying_at:** 2026-08-19 23:00:49
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 
 ## Goal
 
@@ -78,12 +78,48 @@ action rather than left open).
 Until answered: `module/min/minwebgl/src/attribute.rs` stays as dead/commented code; no further
 action.
 
+**Status update — superseded.** The "tracking placeholder, no further action" framing above reflects
+this task's *filed* state, not its *current* state. Per `## History`'s `EXECUTED` entry, the user
+later gave an explicit live directive ("apply same logic to second task also" — the same full
+migration treatment as task 392) that answered Open Question 1 directly and authorized real
+implementation: the trait was completed close to its original sketch (`describe()` as an associated
+function on `Self : mem::Pod`, per this task's own `ANALYZED` correction), adopted in
+`attributes_vao`, browser-verified (`VERIFIED` entry), then extended to one more file
+(`area_light/plane.rs`) in a later session's expansion pass (`EXPANDED` entry). Open Question 2 (why
+the original attempt was abandoned pre-2024) remains genuinely unanswered — no repo history reaches
+that far back. Open Question 3 (derive-macro ergonomic layer) also remains genuinely open — the
+completed trait is the manually-implemented path only, `derive_tools` was deliberately not added.
+Neither blocks this task's own closure, since Question 1 (the actual "finish or drop" call) was
+answered and acted on. The investigative content above (git-history findings, the call-site fit
+table, the field-shape correction) is preserved as-is for its historical/design-rationale value.
+
+## Verification Record
+
+**Gate Round 1** (Tier 2 — Dual-Role Self-Check, one-shot, self-administered by user1@w002)
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+|------|------|------|-----|--------|-------|
+| D1 | Scope Coherence | 🔴 | 🟢 | Goal/Open Question read "tracking placeholder, no further action" while History documented full execution — genuine documentation-coherence defect | Added a "Status update — superseded" note pointing to the History entries that answered Open Question 1 and authorized implementation; original investigative text preserved unchanged |
+| D2 | MOST Goal Quality | — | 🟢 | — | — |
+| D3 | Value / YAGNI | — | 🟢 | Real boilerplate-collapse win on the rank-3 clean-fit call site (`attributes_vao`), authorized by explicit live user directive; the genuinely harder `line_tools` sites (rank 1/2, highest volume) were correctly left deferred rather than forced | — |
+| D4 | Implementation Readiness | — | 🟢 | Lightweight Draft/open-question template (no In Scope/Out of Scope/Delivery Requirements/Verification sections by original design) — readiness judged against History's own record: 3 documented Tier 2 self-checks (EXECUTED/VERIFIED/EXPANDED), each with confirming+adversarial pass, shared native+wasm32 test/clippy evidence (with task 392), and live browser pixel verification | — |
+| D5 | Execution Scope | — | 🟢 | — | — |
+| D6 | Crate Scope Unity | — | 🟢 | Cross-crate touch: primary crate `minwebgl` plus 2 example crates (`attributes_vao`, `area_light`). Non-blocking: both are real end-to-end consumers proving the revived trait works outside its own defining crate, each addition explicitly directive-authorized and independently browser/diff-verified (area_light's BUG-321 regression test fix documented and re-confirmed passing) | — |
+| D7 | Crate Locality | — | 🟢 | — | — |
+| D8 | Crate Single Responsibility | — | 🟢 | `minwebgl`'s responsibility (WebGL-facing typed helpers) is unchanged by completing an already-sketched trait; the 2 example crates each stay single-purpose demos adopting it | — |
+| **Total** | | 🔴 | 🟢 | 1 fixed, 1 non-blocking | 1/1 |
+
+**Adversarial pass:** attempted to find a reason the D1 fix undersells the gap — re-read the full History chain (FILED → ANALYZED → EXECUTED → VERIFIED → EXPANDED) end-to-end to confirm the "superseded" claim is accurate, not a rationalization; confirmed the user directive quote ("apply same logic to second task also") is real and traces to the same session as task 392's own directive. Checked whether `T : Pod` being AoS-only (explicitly excluding `gbuffer.rs`/`primitive_data.rs`, migrated to 392-level types instead per this task's own corrected fit table) was a scope dodge — confirmed it's a genuine structural constraint (`Pod` describes one fixed-layout value type), not a convenient excuse to avoid harder call sites; the genuinely-avoidable-but-deferred site (`line_tools`) is explicitly flagged as deferred-not-forgotten rather than silently dropped. No further defect found.
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |
 |---------------------|----------------------|-------|--------------|
 | 2026-08-19 05:09:04 | unknown | SUBMIT | structural completeness gate passed |
 | 2026-08-19 05:09:12 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:37:56 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-19 23:00:49 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 23:00:49 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 394` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
 
 ## History
 

@@ -4,9 +4,9 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
-- **started_at:** 2026-08-19 05:09:12
-- **expires_at:** 2026-08-19 07:09:12
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **started_at:** 2026-08-19 23:00:06
+- **expires_at:** 2026-08-20 01:00:06
 - **round:** 1
 - **state:** 🔬 (Verifying)
 - **closes:** null
@@ -15,11 +15,11 @@
 - **verified_by:** null
 - **verification_date:** null
 - **blocked_by:** null
-- **unverified_at:** 2026-08-19 05:09:04
-- **unverified_by:** unknown
+- **unverified_at:** 2026-08-19 22:37:56
+- **unverified_by:** system
 - **in_motion:** true
-- **verifying_at:** 2026-08-19 05:09:12
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/
+- **verifying_at:** 2026-08-19 23:00:06
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 
 ## Goal
 
@@ -81,12 +81,45 @@ action rather than left open).
 
 Until answered: `module/min/mingl/src/buffer.rs` stays as dead/commented code; no further action.
 
+**Status update — superseded.** The "tracking placeholder, no further action" framing above reflects
+this task's *filed* state, not its *current* state. Per `## History`'s `EXECUTED` entry, the user
+later gave an explicit live directive ("apply the same treatment as task 394... full migration
+scope") that answered Open Question 1/2 directly and authorized real implementation: `buffer.rs` was
+revived for real, wired into `gpu_hal`, migrated across the 3 originally-scoped call sites, browser-
+verified (`VERIFIED` entry), then further expanded by a later session onto ~25 more files
+(`EXPANDED` entry). Open Question 3 (why the original mingl attempt was abandoned pre-2024) remains
+genuinely unanswered — no repo history reaches that far back — but is no longer blocking, since
+Questions 1/2 were answered and acted on directly. The investigative content above (git-history
+findings, the 4-mechanism analysis, the field-set mismatch reasoning) is preserved as-is for its
+historical/design-rationale value, not because the decision is still open.
+
+## Verification Record
+
+**Gate Round 1** (Tier 2 — Dual-Role Self-Check, one-shot, self-administered by user1@w002)
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+|------|------|------|-----|--------|-------|
+| D1 | Scope Coherence | 🔴 | 🟢 | Goal/Open Question read "tracking placeholder, no further action" while History documented full execution — genuine documentation-coherence defect | Added a "Status update — superseded" note pointing to the History entries that answered the open questions and authorized implementation; original investigative text preserved unchanged |
+| D2 | MOST Goal Quality | — | 🟢 | — | — |
+| D3 | Value / YAGNI | — | 🟢 | Real DRY consolidation of 4 independently-reinvented vertex-attribute-description mechanisms, authorized by explicit live user directive rather than speculative executor-driven scope growth | — |
+| D4 | Implementation Readiness | — | 🟢 | This task was filed via the lightweight Draft/open-question template (no In Scope/Out of Scope/Delivery Requirements/Verification sections by original design) — readiness is judged against History's own record of what was implemented and how it was verified, not against a Checklist/Measurements/Invariants layer this task never had. History documents 3 separate Tier 2 self-checks (EXECUTED/VERIFIED/EXPANDED), each with its own confirming+adversarial pass, native+wasm32 test/clippy evidence, and live browser pixel verification | — |
+| D5 | Execution Scope | — | 🟢 | — | — |
+| D6 | Crate Scope Unity | — | 🟢 | Large genuine multi-crate footprint: `mingl` (primary), `gpu_hal`, `renderer`, `primitive_generation`, plus ~20+ example crates (EXPANDED entry). Non-blocking: every touched site is the same single coherent design decision (adopt the `gpu_hal`-shaped `VertexAttribute`/`VertexBufferLayout` split in place of each backend's own hand-rolled descriptor), each expansion stage explicitly authorized by a live user directive documented in History, not silent scope creep by the executor; full native+wasm32 test/clippy plus per-file browser/diff verification already confirms coherence | — |
+| D7 | Crate Locality | — | 🟢 | Every touched file is a real leaf crate/example (mingl, gpu_hal, renderer, primitive_generation, individual example crates) — no pushed-up aggregator | — |
+| D8 | Crate Single Responsibility | — | 🟢 | No crate's own one-sentence responsibility changed — each crate gained a call-site migration or a new type consistent with its existing role (mingl: shared cross-backend GL types; gpu_hal: hardware abstraction; renderer/primitive_generation: consumers) | — |
+| **Total** | | 🔴 | 🟢 | 1 fixed, 2 non-blocking | 1/1 |
+
+**Adversarial pass:** attempted to force D6 to FAIL given the sheer file count (~30 files across a dozen+ crates) — rejected on the same grounds as task 391's smaller-scale precedent: the expansion was directive-authorized at each stage (not unilateral), the design is one decision applied consistently, and History's own re-verification (4 files independently diff-checked byte-for-byte, 2 real regressions found and fixed, full-workspace `verb/test` green) is stronger evidence than most single-crate tasks in this batch carry. Also specifically checked whether the D1 fix above was cosmetic rather than substantive — re-read History's EXECUTED/VERIFIED/EXPANDED entries end-to-end to confirm the "superseded" claim is accurate and not itself a rationalization; confirmed the user directive quote ("apply the same treatment as task 394... full migration scope") is real and load-bearing, not inferred. No further defect found.
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |
 |---------------------|----------------------|-------|--------------|
 | 2026-08-19 05:09:04 | unknown | SUBMIT | structural completeness gate passed |
 | 2026-08-19 05:09:12 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/module/helper/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:37:56 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-19 23:00:06 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 23:00:06 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 392` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
 
 ## History
 

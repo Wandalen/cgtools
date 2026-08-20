@@ -38,7 +38,7 @@ The stack's L0–L3 are the d2 stack's own layers, reused as-is —
 
 | File | Relationship |
 |------|--------------|
-| [../layer/006_l5_scene_script_and_runners.md](../layer/006_l5_scene_script_and_runners.md) | The script layer `tilemap_scene` fully realizes for this stack |
+| [../layer/006_l5_scene_script_and_runners.md](../layer/006_l5_scene_script_and_runners.md) | The script layer `tilemap_scene` implements for this stack — off-screen compile path only; no interactive runner or example consumer exists yet |
 
 ### Patterns
 

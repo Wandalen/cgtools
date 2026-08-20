@@ -4,9 +4,9 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-19 02:58:01
-- **expires_at:** 2026-08-19 04:58:01
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **started_at:** 2026-08-19 23:02:14
+- **expires_at:** 2026-08-20 01:02:14
 - **round:** 1
 - **state:** 🔬 (Verifying)
 - **closes:** null
@@ -15,11 +15,11 @@
 - **verified_by:** null
 - **verification_date:** null
 - **blocked_by:** null
-- **unverified_at:** 2026-08-19 02:57:55
-- **unverified_by:** unknown
+- **unverified_at:** 2026-08-19 22:37:56
+- **unverified_by:** system
 - **in_motion:** true
-- **verifying_at:** 2026-08-19 02:58:01
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **verifying_at:** 2026-08-19 23:02:14
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 
 ## Goal
 
@@ -159,12 +159,33 @@ independent verifier performs the walk after the task reaches 🔎 Accepting.
       recorded (e.g. the eye/translation gap identified in this Goal) — not a bare "left as-is" with
       no rationale.
 
+## Verification Record
+
+**Gate Round 1** (Tier 2 — Dual-Role Self-Check, one-shot, self-administered by user1@w002)
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+|------|------|------|-----|--------|-------|
+| D1 | Scope Coherence | — | 🟢 | — | — |
+| D2 | MOST Goal Quality | — | 🟢 | — | — |
+| D3 | Value / YAGNI | — | 🟢 | Acceptance Criteria C1/AF1 remain explicitly unsatisfied (zero real non-test callers found after a fresh workspace-wide re-grep) — but this is the task's own pre-authorized outcome, not a corner cut: Delivery Requirements explicitly states "if a genuine blocker makes `Rotation` inapplicable... that finding itself, with evidence, is an acceptable task outcome in place of forced code." History documents the blocker with line-level evidence (the eye/translation structural gap) rather than forcing an unsound migration or a test-only implementor to fake C1 green. This is what the readiness gate judges — task-scoping/documentation honesty, not 100% AC closure, which is Acceptance Verification's own separate concern | — |
+| D4 | Implementation Readiness | — | 🟢 | Full standard template (In Scope/Out of Scope/Delivery Requirements/Acceptance Criteria/Verification all present, unlike the lightweight Draft shape of 392/394) — Checklist/Measurements/Invariants/Anti-faking items remain unchecked `[ ]` in the file itself, correctly left for a future independent Acceptance walk rather than self-checked here | — |
+| D5 | Execution Scope | — | 🟢 | — | — |
+| D6 | Crate Scope Unity | — | 🟢 | Single crate actually touched (`ndarray_cg` — `d2/rotation.rs` + new test file); Acceptance Criteria/Invariants scope clippy to `-p ndarray_cg -p mingl` defensively (mingl hosts the one investigated-but-not-migrated candidate caller) but no mingl file was edited — no real cross-crate touch, unlike 391/392/394 | — |
+| D7 | Crate Locality | — | 🟢 | — | — |
+| D8 | Crate Single Responsibility | — | 🟢 | — | — |
+| **Total** | | — | 🟢 | 0 blocking | 0/0 |
+
+**Adversarial pass:** attempted to argue the unsatisfied C1/AF1 should block readiness (route back toward more execution rather than gate-pass) — rejected: readiness verification judges whether the task file itself is coherent and well-scoped, not whether every Acceptance Criterion was hit; that judgment belongs to the separate Acceptance Verification walk this task has not yet been routed through (no `executing_at`/`accepting_at` fields set — execution happened informally within the Draft/History narrative, same pattern as this batch's other audit-derived tasks). Checked whether the "acceptable outcome" self-exemption in Delivery Requirements was being used post-hoc to rationalize an incomplete job — re-read Goal's own `FILED` framing and found the translation-component gap was flagged as a real risk *before* execution began ("this session's own signature comparison found a real structural gap... may limit how much 'wherever possible' actually covers"), not invented after the fact to excuse a shortfall. Also independently re-checked the `Rotation2` tangent (a fresh `grep` hit the executor could have glossed over) — confirmed it's genuinely separate dead scaffolding with its own unused generics and a commented-out re-export, not a hidden adopter that would flip C1. No blocking defect found.
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |
 |---------------------|----------------------|-------|--------------|
 | 2026-08-19 02:57:55 | unknown | SUBMIT | structural completeness gate passed |
 | 2026-08-19 02:58:01 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:37:56 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-19 23:02:14 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 23:02:14 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 395` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
 
 ## History
 

@@ -106,7 +106,9 @@ table places explicitly beside the ladder rather than on it:
   same shape as `gl_uniforms` above, not a portability seam or
   orchestration layer — matches
   [rulebook.md](../../rulebook.md#rendering-layer-placement)'s own
-  classification. No dependents yet. `IdProgram`/`PickBuffer`'s own
+  classification. Dependent: `examples/minwebgl/falling_frontier`
+  (`HullPart` implements `Pickable`; `main.rs` drives `IdProgram`/
+  `PickBuffer` directly). `IdProgram`/`PickBuffer`'s own
   methods all require a live `WebGl2RenderingContext` (framebuffers,
   textures, shader compilation) and stay untested natively — same Wasm
   Native-Check Blind Spot as the rest of this table; the one piece of

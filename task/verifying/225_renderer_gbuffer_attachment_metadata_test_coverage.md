@@ -14,11 +14,11 @@
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/renderer
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-18 23:49:12
-- **expires_at:** 2026-08-19 01:49:12
-- **unverified_at:** 2026-08-18 23:47:41
+- **started_at:** 2026-08-19 22:45:31
+- **expires_at:** 2026-08-20 00:45:31
+- **unverified_at:** 2026-08-19 22:37:54
 - **unverified_by:** system
-- **verifying_at:** 2026-08-18 23:49:12
+- **verifying_at:** 2026-08-19 22:45:31
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
@@ -209,6 +209,9 @@ Both issues were caught during this same Readiness Gate ( pre-execution — the 
 | 2026-08-17 13:08:53 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_CONFIRMED | row above recorded an unfilled timestamp placeholder (`09:xx`) and a malformed command (`<actor>`/`task` positionals — same CLI-argument-order confusion as the CORRECTION entry above); re-ran the well-formed `tsk .verify_pass 225` directly this session → identical `tsk: .verify_pass: self-verification forbidden (actor matches filed_by)`, exit 1; confirms the guard applies here too, consistent with every other open task; not force/spoofed — task remains at 🔬 Verifying pending a different verifying actor |
 | 2026-08-18 23:47:41 | system | TIMEOUT_2H | 2h exclusivity window expired |
 | 2026-08-18 23:49:12 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:37:54 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-19 22:45:31 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:45:31 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 225` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
 
 ## History
 

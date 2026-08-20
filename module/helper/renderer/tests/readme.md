@@ -47,5 +47,6 @@
 | gltf_skeleton_displacements_test.rs | Tests glTF morph-target displacement data packing |
 | gltf_attribute_descriptor_test.rs | Tests glTF vertex-attribute descriptor computation from accessor metadata |
 | webgl_frame_orchestration_test.rs | Tests legacy webgl path's drawbuffers attachment selection |
+| webgl_renderer_pass_cycle_test.rs | Live-context test: legacy `Renderer::render()` completes on an opaque PBR primitive and an empty scene |
 | gltf_extensions_required_test.rs | Tests glTF loader rejects assets requiring unsupported extensions |
 | unreal_bloom_tests.rs | Structural browser tests: `UnrealBloomPass` renders via the real `SwapFramebuffer`-bound pass cycle |

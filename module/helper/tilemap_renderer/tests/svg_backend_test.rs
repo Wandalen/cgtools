@@ -505,6 +505,84 @@ fn two_tinted_sprites_get_distinct_filter_ids()
   assert!( b.contains( "url(#tint_1)" ), "body: {b}" );
 }
 
+// -- z-layer draw ordering (docs/invariant/003_z_layer_draw_ordering.md) --
+
+/// SVG has no depth buffer, so the invariant states it ignores
+/// `Transform::depth` entirely -- submission order is the *whole* ordering
+/// contract for this backend (unlike WebGL2, where equal-depth draws also
+/// fall back to submission order but differing depths additionally reorder
+/// via the depth buffer). Submits three sprites at deliberately
+/// non-monotonic depths (5.0, 1.0, 3.0, in that exact submission sequence)
+/// and asserts the emitted `<use>` elements appear in submission order
+/// rather than depth-sorted order -- proving depth is not read for
+/// ordering purposes, not merely that it happens not to matter for this
+/// particular input.
+#[ test ]
+fn svg_ignores_depth_preserves_submission_order()
+{
+  let mut svg = svg800x600();
+  let assets = Assets
+  {
+    images : vec![ ImageAsset
+    {
+      id : ResourceId::new( 0 ),
+      source : ImageSource::Bitmap { bytes : vec![ 255u8; 16 * 16 * 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+      filter : SamplerFilter::Linear,
+      mipmap : MipmapMode::Off,
+      wrap : WrapMode::Clamp,
+    }],
+    sprites : vec!
+    [
+      SpriteAsset { id : ResourceId::new( 0 ), sheet : ResourceId::new( 0 ), region : [ 0.0, 0.0, 16.0, 16.0 ] },
+      SpriteAsset { id : ResourceId::new( 1 ), sheet : ResourceId::new( 0 ), region : [ 0.0, 0.0, 16.0, 16.0 ] },
+      SpriteAsset { id : ResourceId::new( 2 ), sheet : ResourceId::new( 0 ), region : [ 0.0, 0.0, 16.0, 16.0 ] },
+    ],
+    ..empty_assets()
+  };
+  svg.assets_load( &assets ).unwrap();
+
+  // Submission order: sprite_0 @ depth 5.0, sprite_1 @ depth 1.0, sprite_2 @ depth 3.0.
+  // Depth-sorted order would read sprite_1, sprite_2, sprite_0 -- the opposite of what
+  // this test asserts below, so a false pass via accidental depth-sorting is ruled out.
+  svg.submit( &[
+    RenderCommand::Sprite( Sprite
+    {
+      transform : Transform { depth : 5.0, ..Default::default() },
+      sprite : ResourceId::new( 0 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+    RenderCommand::Sprite( Sprite
+    {
+      transform : Transform { depth : 1.0, ..Default::default() },
+      sprite : ResourceId::new( 1 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+    RenderCommand::Sprite( Sprite
+    {
+      transform : Transform { depth : 3.0, ..Default::default() },
+      sprite : ResourceId::new( 2 ),
+      tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      blend : BlendMode::Normal,
+      clip : None,
+    }),
+  ]).unwrap();
+
+  let b = body( &svg );
+  let pos_0 = b.find( "#sprite_0" ).expect( "sprite_0 <use> missing" );
+  let pos_1 = b.find( "#sprite_1" ).expect( "sprite_1 <use> missing" );
+  let pos_2 = b.find( "#sprite_2" ).expect( "sprite_2 <use> missing" );
+  assert!
+  (
+    pos_0 < pos_1 && pos_1 < pos_2,
+    "SVG must ignore Transform::depth and emit elements in submission order \
+     regardless of the non-monotonic depths (5.0, 1.0, 3.0) submitted; body: {b}",
+  );
+}
+
 // -- sprite <use> sizing and orientation (BUG-374, BUG-373) --
 
 // test_kind: bug_reproducer(BUG-374)

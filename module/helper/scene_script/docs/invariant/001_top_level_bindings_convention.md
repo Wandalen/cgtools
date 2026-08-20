@@ -120,4 +120,4 @@ isn't last) is rejected.
 
 | File | Relationship |
 |------|--------------|
-| `tests/example_convention_test.rs` | `example_scripts_follow_declarative_top_level_convention` checks every real example script; the remaining 10 tests cover the checker's own accept/reject edge cases |
+| `tests/example_convention_test.rs` | `example_scripts_follow_declarative_top_level_convention` checks every real example script; the remaining 11 tests cover the checker's own accept/reject edge cases |

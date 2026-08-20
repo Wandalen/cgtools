@@ -4,9 +4,9 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-19 02:58:01
-- **expires_at:** 2026-08-19 04:58:01
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **started_at:** 2026-08-19 22:58:05
+- **expires_at:** 2026-08-20 00:58:05
 - **round:** 1
 - **state:** 🔬 (Verifying)
 - **closes:** null
@@ -15,11 +15,11 @@
 - **verified_by:** null
 - **verification_date:** null
 - **blocked_by:** null
-- **unverified_at:** 2026-08-19 02:57:24
-- **unverified_by:** unknown
+- **unverified_at:** 2026-08-19 22:37:56
+- **unverified_by:** system
 - **in_motion:** true
-- **verifying_at:** 2026-08-19 02:58:01
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **verifying_at:** 2026-08-19 22:58:05
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
 
 ## Goal
 
@@ -183,12 +183,33 @@ independent verifier performs the walk after the task reaches 🔎 Accepting.
       test that only ever asserts `true` cannot catch a buggy `is_zero` that always returns `true`) —
       at least one genuinely non-zero matrix case must assert `false`.
 
+## Verification Record
+
+**Gate Round 1** (Tier 2 — Dual-Role Self-Check, one-shot, self-administered by user1@w002)
+
+| Gate | Name | Prev | Now | Issues | Fixes |
+|------|------|------|-----|--------|-------|
+| D1 | Scope Coherence | — | 🟢 | — | — |
+| D2 | MOST Goal Quality | — | 🟢 | — | — |
+| D3 | Value / YAGNI | — | 🟢 | — | — |
+| D4 | Implementation Readiness | — | 🟢 | Lightweight template variant: no separate Work Procedure/Test Matrix section — Goal's concrete `impl Zero` code sketch plus the Delivery Requirements test bullet substitute; History's EXECUTED entry confirms `zero_test.rs` was actually written covering all 3 required cases | — |
+| D5 | Execution Scope | — | 🟢 | — | — |
+| D6 | Crate Scope Unity | — | 🟢 | Genuine cross-crate touch: primary crate `ndarray_cg` (`unit_type: module`) plus `mdmath_core` (deletion of the abandoned competing `ZeroIdentity` design that `ndarray_cg::general` re-exports via `reuse ::mdmath_core::general;`). Non-blocking: both are sibling crates in the `module/math/` family already coupled by that re-export — the `mdmath_core` deletion removes the specific alternate implementation this task's `num_traits::Zero` impl supersedes, not scope creep into unrelated code; Acceptance Criteria/Invariants already scope clippy jointly as `-p ndarray_cg -p mdmath_core`, confirming the pairing was deliberate | — |
+| D7 | Crate Locality | — | 🟢 | — | — |
+| D8 | Crate Single Responsibility | — | 🟢 | — | — |
+| **Total** | | — | 🟢 | 2 non-blocking | 0/0 |
+
+**Adversarial pass:** attempted to force D6 to FAIL (would trigger the D5/D6 scope-escape routing, never an ordinary retry) on the grounds that a genuine two-crate deliverable set is exactly what Crate Scope Unity exists to catch — rejected: the cross-crate touch was declared upfront in the task's own In Scope section (not discovered after the fact), is bounded to deleting one specific abandoned competing design tied to this task's own feature, and is retroactively confirmed clean by History's own clippy/nextest evidence (`-p ndarray_cg -p mdmath_core`, exit 0). Also checked whether the AC/M2 grep caveat documented in History (7 false-positive `layer general;` hits from an unrelated per-type naming convention) masks a real leftover — re-read the executor's own file-existence-based resolution and found it sound, not a rationalization. No blocking defect found on any dimension.
+
 ## Journal
 
 | Timestamp           | Actor                | Event | Note         |
 |---------------------|----------------------|-------|--------------|
 | 2026-08-19 02:57:24 | unknown | SUBMIT | structural completeness gate passed |
 | 2026-08-19 02:58:01 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:37:56 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-19 22:58:05 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-19 22:58:05 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 391` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
 
 ## History
 

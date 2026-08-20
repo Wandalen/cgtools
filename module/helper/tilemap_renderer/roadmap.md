@@ -14,7 +14,7 @@ The core library and SVG adapter are functional; the WebGL2 adapter is partially
 - **Command system** — all POD commands: Clear, Path (moveto/lineto/quad/cubic/arc/close), Text, Mesh, Sprite, Batch lifecycle, Groups with effects
 - **Asset system** — images (bitmap/encoded/path), sprites, geometries, gradients, patterns, clip masks, paths, validation
 - **Backend trait** — `assets_load`, `submit`, `output`, `resize`, `capabilities`
-- **SVG adapter** — implemented across every command and asset family: paths, text, sprites, meshes, batches, groups, effects, gradients, patterns, blend modes, bitmap PNG encoding, viewport pan/zoom wrapper, `Source::Path` geometry loading via blocking `std::fs` (loud skip with stderr warning + diagnostic comment on read failure, incl. on wasm32 where no filesystem exists). Not complete, though — see "svg adapter gaps" below (font selection unimplemented, no `Transform::depth` ordering)
+- **SVG adapter** — implemented across every command and asset family: paths, text, sprites, meshes, batches, groups, effects, gradients, patterns, blend modes, bitmap PNG encoding, viewport pan/zoom wrapper, `Source::Path` geometry loading via blocking `std::fs` (loud skip with stderr warning + diagnostic comment on read failure, incl. on wasm32 where no filesystem exists). Not complete, though — see "svg adapter gaps" below (font selection unimplemented). `Transform::depth` is deliberately ignored, not unimplemented — SVG has no depth buffer, so submission order is the whole ordering contract; a committed, permanent design decision formalized in [docs/invariant/003_z_layer_draw_ordering.md](docs/invariant/003_z_layer_draw_ordering.md)
 - **WebGL2 adapter (partial)** — hardware-accelerated sprites, meshes, and instanced batches on wasm32:
   - Split across `adapters/webgl.rs` (backend + renderers + async image loader) and
     `adapters/webgl/webgl_helpers.rs` (self-contained helpers wired via `mod_interface::layer`)
@@ -56,7 +56,10 @@ The core library and SVG adapter are functional; the WebGL2 adapter is partially
     `composite_over` — the only evaluated `BlendMode` (`capabilities().supported_blend_modes`
     is `&[BlendMode::Normal]`; other variants fall back to it); no gradients/patterns (`Mesh`
     only draws a `FillRef::Solid` fill)
-- **Test suite** — covers types, commands, assets, backend trait, and SVG adapter
+- **Test suite** — covers types, commands, assets, backend trait, and all 6
+  adapters (SVG, WebGL, WebGPU, native, none, and terminal —
+  `terminal_backend_test.rs` alone is 35 tests), plus a
+  `command_consistency_test.rs` cross-backend consistency check
 
 ### project structure
 
@@ -98,8 +101,9 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 
 - Font loading and rendering (currently no font resolution)
 - `Source::Path` geometry loading is blocking `std::fs` only — works natively; on wasm32 the read fails at runtime and the geometry is skipped loudly (stderr warning + diagnostic SVG comment). An async `fetch()` path would need a redesign of the sync `assets_load` contract
-- `Transform::depth` ordering — the adapter emits in submission order and ignores `depth`; callers must pre-sort (future: stable sort by `depth` before emission)
 - Interactive SVG with JavaScript events
+
+`Transform::depth` ordering is intentionally **not** in this list — SVG permanently ignores `depth` (no depth buffer; submission order is the whole ordering contract), per [docs/invariant/003_z_layer_draw_ordering.md](docs/invariant/003_z_layer_draw_ordering.md). Portable callers must submit in back-to-front order and treat `depth` as a WebGL-only optimization, never a cross-backend semantic.
 
 ### terminal adapter gaps
 
