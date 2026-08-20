@@ -54,6 +54,31 @@ mod private
       let vy = self.viewport_size.1 as f32 * 0.5;
       ( ( wx - cx ) * self.zoom + vx, ( wy - cy ) * self.zoom + vy )
     }
+
+    /// The same world→screen projection as [`Self::project`], expressed as a
+    /// **column-major** 3×3 matrix (matching `tilemap_renderer`'s
+    /// `Transform::to_mat3` layout, element `(row i, col j)` at index `j*3+i`).
+    ///
+    /// A GPU backend uploads this once per frame and applies it to world-space
+    /// draws, so per-instance transforms stay in world space and a pan/zoom is a
+    /// single uniform change rather than a re-projection of every sprite.
+    /// Because the camera is translate + uniform zoom only, the linear part is a
+    /// scalar `zoom` and the translation carries the centre offset:
+    /// `screen = zoom * world + ( viewport/2 - zoom * center )`.
+    #[ inline ]
+    #[ must_use ]
+    pub fn to_view_mat3( &self ) -> [ f32; 9 ]
+    {
+      let ( cx, cy ) = self.world_center;
+      let z = self.zoom;
+      let tx = self.viewport_size.0 as f32 * 0.5 - z * cx;
+      let ty = self.viewport_size.1 as f32 * 0.5 - z * cy;
+      [
+        z,   0.0, 0.0,
+        0.0, z,   0.0,
+        tx,  ty,  1.0,
+      ]
+    }
   }
 }
 

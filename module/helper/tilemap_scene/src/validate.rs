@@ -205,7 +205,7 @@ mod private
       //     NeighborCondition → Hex, VertexCorners → Vertex,
       //     EdgeConnectedBitmask → Edge, ViewportTiled → Viewport) and
       //     marks `External` "applicable to all anchors".
-      //   - `compile/frame.rs::vertex_pass_compile` scans *every* object
+      //   - `compile/frame.rs::resolve_vertex_pass_all` scans *every* object
       //     for VertexCorners layers with no anchor check at all —
       //     confirmed intentional by the explicit comment on the `blend`
       //     object in `tests/scene_model_compile_test.rs`'s

@@ -372,6 +372,9 @@ mod private
     pub mipmap : MipmapMode,
     /// Wrap mode recorded at creation time; kept for parity with future re-applies.
     pub wrap : WrapMode,
+    /// Premultiplied-alpha flag recorded at creation time; read at draw time to
+    /// pick the premultiplied vs straight "over" blend in `blend_apply`.
+    pub premultiplied : bool,
   }
 
   impl Drop for GpuTexture
@@ -390,6 +393,91 @@ mod private
     pub sheet : ResourceId< asset::Image >,
     /// Region within the sheet: `[x, y, w, h]` in pixels.
     pub region : [ f32; 4 ],
+  }
+
+  /// An offscreen render target: an RGBA8 color texture + a depth renderbuffer
+  /// wrapped in a framebuffer. Used to bake a subset of the frame (e.g. the
+  /// static terrain layers) into a texture that is later composited as a single
+  /// world-space quad — see `WebGlBackend::create_render_target`. Owns all three
+  /// GL objects and deletes them on `Drop` (RAII, like `GpuTexture`).
+  ///
+  /// The depth attachment is present because the sprite/mesh shaders depth-test
+  /// and write; without it the baked subset's opaque/transparent layer ordering
+  /// would collapse to submission order. A depth TEXTURE is used (not a
+  /// renderbuffer) so no extra `web_sys` feature is required. LINEAR colour,
+  /// `CLAMP_TO_EDGE`, a single mip level (crispness at zoom-in — the target case
+  /// — comes from baking at a resolution matched to the hard max-zoom; zoom-out
+  /// mipmaps are a future add).
+  pub struct GpuFramebuffer
+  {
+    /// GL context held for cleanup in `Drop`.
+    pub gl : gl::GL,
+    /// The framebuffer object.
+    pub framebuffer : web_sys::WebGlFramebuffer,
+    /// Color attachment — the texture sampled when compositing this cache.
+    pub color : web_sys::WebGlTexture,
+    /// Depth attachment (`DEPTH_COMPONENT24` texture).
+    pub depth : web_sys::WebGlTexture,
+    /// Texture width in pixels.
+    pub width : u32,
+    /// Texture height in pixels.
+    pub height : u32,
+  }
+
+  impl GpuFramebuffer
+  {
+    /// Create a `width×height` RGBA8 color target with a depth texture. Returns
+    /// `None` if any GL object cannot be allocated or the framebuffer is
+    /// incomplete.
+    #[ must_use ]
+    pub fn new( gl : &gl::GL, width : u32, height : u32 ) -> Option< Self >
+    {
+      #[ allow( clippy::cast_possible_wrap ) ]
+      let ( w, h ) = ( width as i32, height as i32 );
+
+      let color = gl.create_texture()?;
+      gl.bind_texture( gl::TEXTURE_2D, Some( &color ) );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA8, w, h );
+      gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
+      gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+      gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32 );
+      gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
+
+      let depth = gl.create_texture()?;
+      gl.bind_texture( gl::TEXTURE_2D, Some( &depth ) );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::DEPTH_COMPONENT24, w, h );
+      gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32 );
+      gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32 );
+      gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32 );
+      gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
+      gl.bind_texture( gl::TEXTURE_2D, None );
+
+      let framebuffer = gl.create_framebuffer()?;
+      gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &framebuffer ) );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, Some( &color ), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::TEXTURE_2D, Some( &depth ), 0 );
+      let status = gl.check_framebuffer_status( gl::FRAMEBUFFER );
+      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+      if status != gl::FRAMEBUFFER_COMPLETE
+      {
+        gl.delete_texture( Some( &color ) );
+        gl.delete_texture( Some( &depth ) );
+        gl.delete_framebuffer( Some( &framebuffer ) );
+        return None;
+      }
+
+      Some( Self { gl : gl.clone(), framebuffer, color, depth, width, height } )
+    }
+  }
+
+  impl Drop for GpuFramebuffer
+  {
+    fn drop( &mut self )
+    {
+      self.gl.delete_framebuffer( Some( &self.framebuffer ) );
+      self.gl.delete_texture( Some( &self.depth ) );
+      self.gl.delete_texture( Some( &self.color ) );
+    }
   }
 
   /// GPU-side geometry: VAO plus the backing buffers.
@@ -671,12 +759,21 @@ mod private
   /// the RGB factors on the alpha channel would produce wrong framebuffer alpha
   /// (e.g. `src_a^2` under `Normal`) and break readPixels / compositing onto a
   /// transparent canvas background.
-  pub fn blend_apply( gl : &gl::GL, blend : &BlendMode )
+  ///
+  /// `premultiplied` selects the source colour factor for the alpha-compositing
+  /// modes: a premultiplied texture already carries `rgb·a`, so its source factor
+  /// is `ONE` (premultiplied "over"); a straight texture uses `SRC_ALPHA`. Without
+  /// this, a premultiplied texture drawn under `SRC_ALPHA` would be scaled by alpha
+  /// twice (`a²`), darkening every antialiased edge.
+  pub fn blend_apply( gl : &gl::GL, blend : &BlendMode, premultiplied : bool )
   {
+    // For premultiplied sources the colour is pre-scaled by alpha, so the "src·a"
+    // factor becomes plain `ONE`. Affects the alpha-weighted modes (Normal, Add).
+    let src_a = if premultiplied { gl::ONE } else { gl::SRC_ALPHA };
     match blend
     {
-      // Color: src*src_a + dst. Alpha: standard over.
-      BlendMode::Add => gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
+      // Color: src + dst. Alpha: standard over.
+      BlendMode::Add => gl.blend_func_separate( src_a, gl::ONE, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
       // Approximation: diverges from Photoshop Multiply when src_alpha < 1 — the
       // DST_COLOR factor multiplies dst by raw src.rgb (not src.rgb*src_a), so
       // partially transparent sources darken the destination more than the
@@ -708,10 +805,10 @@ mod private
             &"BlendMode::Overlay is not supported in WebGL2 without an FBO pass; falling back to Normal".into()
           );
         }
-        gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
+        gl.blend_func_separate( src_a, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
       }
-      // Color: src*src_a + dst*(1-src_a). Alpha: standard over.
-      BlendMode::Normal => gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
+      // Color: src*src_a + dst*(1-src_a)  (straight), or src + dst*(1-src_a)  (premultiplied).
+      BlendMode::Normal => gl.blend_func_separate( src_a, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
     }
   }
 
@@ -737,6 +834,7 @@ mod_interface::mod_interface!
   own use GpuResources;
   own use GpuTexture;
   own use GpuSprite;
+  own use GpuFramebuffer;
   own use GpuGeometry;
   own use GpuBatch;
   own use sprite_batch_vao_setup;
