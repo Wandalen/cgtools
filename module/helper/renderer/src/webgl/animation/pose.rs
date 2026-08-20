@@ -51,34 +51,34 @@ mod private
     /// [`Pose`] constructor
     ///
     /// Parameters:
-    /// * _nodes - list of [`Node`]'s which current 3D
+    /// * nodes - list of [`Node`]'s which current 3D
     ///   transformation parameters are used for defining [`Pose`]
-    pub fn new( _nodes : &[ Rc< RefCell< Node > > ] ) -> Self
+    ///
+    /// # Panics
+    ///
+    /// Panics if a morph-target node's skeleton has no displacement data.
+    pub fn new( nodes : &[ Rc< RefCell< Node > > ] ) -> Self
     {
-      let animatables = _nodes.iter()
+      let animatables = nodes.iter()
       .filter_map
       (
         | n |
         {
-          let Some( name ) = n.borrow().get_name()
-          else
-          {
-            return None;
-          };
+          let name = n.borrow().name_get()?;
 
           let mut node_animatables: Vec< ( Box< str >, AnimationProperty ) > = vec!
           [
             (
-              format!( "{}{}", name, TRANSLATION_PREFIX ).into_boxed_str(),
-              AnimationProperty::Translation( F64x3::from_array( n.borrow().get_translation().map( | v | v as f64 ) ) )
+              format!( "{name}{TRANSLATION_PREFIX}" ).into_boxed_str(),
+              AnimationProperty::Translation( F64x3::from_array( n.borrow().translation_get().map( f64::from ) ) )
             ),
             (
-              format!( "{}{}", name, ROTATION_PREFIX ).into_boxed_str(),
-              AnimationProperty::Rotation( QuatF64::from( n.borrow().get_rotation().0.map( | v | v as f64 ) ) )
+              format!( "{name}{ROTATION_PREFIX}" ).into_boxed_str(),
+              AnimationProperty::Rotation( QuatF64::from( n.borrow().rotation_get().0.map( f64::from ) ) )
             ),
             (
-              format!( "{}{}", name, SCALE_PREFIX ).into_boxed_str(),
-              AnimationProperty::Scale( F64x3::from_array( n.borrow().get_scale().map( | v | v as f64 ) ) )
+              format!( "{name}{SCALE_PREFIX}" ).into_boxed_str(),
+              AnimationProperty::Scale( F64x3::from_array( n.borrow().scale_get().map( f64::from ) ) )
             ),
           ];
 
@@ -91,11 +91,11 @@ mod private
                 node_animatables.push
                 (
                   (
-                    format!( "{}{}", name, MORPH_TARGET_PREFIX ).into_boxed_str(),
+                    format!( "{name}{MORPH_TARGET_PREFIX}" ).into_boxed_str(),
                     AnimationProperty::Weights
                     (
                       skeleton.borrow().displacements_as_ref().as_ref().unwrap()
-                      .get_morph_weights().borrow().iter().map( | v | *v as f64 )
+                      .morph_weights_get().borrow().iter().map( | v | f64::from(*v) )
                       .collect::< Vec< _ > >()
                     )
                   )
@@ -110,16 +110,12 @@ mod private
       .flatten()
       .collect::< FxHashMap< Box< str >, AnimationProperty > >();
 
-      let nodes = _nodes.iter()
+      let nodes = nodes.iter()
       .filter_map
       (
         | n |
         {
-          let Some( name ) = n.borrow().get_name()
-          else
-          {
-            return None;
-          };
+          let name = n.borrow().name_get()?;
 
           Some( ( name, n.clone() ) )
         }
@@ -134,12 +130,14 @@ mod private
     }
 
     /// Get [`FxHashMap`] of related [`Node`]'s
+    #[ must_use ]
     pub fn nodes_get( &self ) -> &FxHashMap< Box< str >, Rc< RefCell< Node > > >
     {
       &self.nodes
     }
 
     /// Get [`FxHashMap`] of related animated properties
+    #[ must_use ]
     pub fn state_get( &self ) -> &FxHashMap< Box< str >, AnimationProperty >
     {
       &self.animatables
@@ -169,34 +167,34 @@ mod private
       {
         if let Some( AnimationProperty::Translation( translation ) ) = self.animatables.get
         (
-          format!( "{}{}", name, TRANSLATION_PREFIX ).as_str()
+          format!( "{name}{TRANSLATION_PREFIX}" ).as_str()
         )
         {
           let translation = translation.0.map( | v | v as f32 );
-          node.borrow_mut().set_translation( F32x3::from_array( translation ) );
+          node.borrow_mut().translation_set( F32x3::from_array( translation ) );
         }
 
         if let Some( AnimationProperty::Rotation( rotation ) ) = self.animatables.get
         (
-          format!( "{}{}", name, ROTATION_PREFIX ).as_str()
+          format!( "{name}{ROTATION_PREFIX}" ).as_str()
         )
         {
           let rotation = rotation.0.map( | v | v as f32 );
-          node.borrow_mut().set_rotation( QuatF32::from( rotation ) );
+          node.borrow_mut().rotation_set( QuatF32::from( rotation ) );
         }
 
         if let Some( AnimationProperty::Scale( scale ) ) = self.animatables.get
         (
-          format!( "{}{}", name, SCALE_PREFIX ).as_str()
+          format!( "{name}{SCALE_PREFIX}" ).as_str()
         )
         {
           let scale = scale.0.map( | v | v as f32 );
-          node.borrow_mut().set_scale( F32x3::from_array( scale ) );
+          node.borrow_mut().scale_set( F32x3::from_array( scale ) );
         }
 
         if let Some( AnimationProperty::Weights( weights ) ) = self.animatables.get
         (
-          format!( "{}{}", name, MORPH_TARGET_PREFIX ).as_str()
+          format!( "{name}{MORPH_TARGET_PREFIX}" ).as_str()
         )
         {
           let weights = weights.iter()
@@ -208,7 +206,7 @@ mod private
             {
               if let Some( displacements ) = skeleton.borrow().displacements_as_ref()
               {
-                let weights_rc = displacements.get_morph_weights();
+                let weights_rc = displacements.morph_weights_get();
                 let mut weights_mut = weights_rc.borrow_mut();
                 for i in 0..weights.len().min( weights_mut.len() )
                 {

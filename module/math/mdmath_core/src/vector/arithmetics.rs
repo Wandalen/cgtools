@@ -77,6 +77,21 @@ mod private
   }
 
   /// Normalizes a vector to unit length.
+  ///
+  /// # Panics
+  /// Panics if `a`'s iterator yields fewer than `SIZE` elements.
+  // Fix(BUG-124): the write loop now reads `a`'s own elements (`*aiter.next().unwrap() / mag`)
+  // instead of dividing whatever `r` already held.
+  // Root cause: the loop only ever touched `r.vector_iter_mut()`, never `a`'s iterator beyond
+  // the single aggregate `mag(a)` call — so this computed `r / |a|`, not `a / |a|`, silently
+  // correct only when the caller had pre-set `r` equal to `a` (as the sole in-crate caller
+  // `normalized()` does via `r = a.clone()`), despite `R`/`A` being independent, unconstrained
+  // generic parameters with no `r == a` precondition documented anywhere in the signature.
+  // Pitfall: when a "write into `r`, derived from `a`" function's loop body only reads `r`,
+  // check whether it was ever meant to read `a` too — the sibling `project_on(r,b)` a few
+  // lines below shows the correct pattern (`*elem = *biter.next().unwrap() * scalar`); a
+  // same-crate sibling function is often the cheapest oracle for "should this dereference the
+  // *other* argument."
   #[ inline ]
   pub fn normalize< E, R, A, const SIZE : usize >( r : &mut R, a : &A )
   where
@@ -85,9 +100,10 @@ mod private
     E : NdFloat,
   {
     let mag = mag( a );
+    let mut aiter = a.vector_iter();
     for elem in r.vector_iter_mut()
     {
-      *elem /= mag;
+      *elem = *aiter.next().unwrap() / mag;
     }
   }
 
@@ -130,6 +146,9 @@ mod private
   }
 
   /// Projects vector `a` onto vector `b`.
+  ///
+  /// # Panics
+  /// Panics if `r` or `b`'s iterator yields fewer than `SIZE` elements.
   #[ inline ]
   pub fn project_on< E, R, B, const SIZE : usize >( r : &mut R, b : &B )
   where
@@ -189,6 +208,9 @@ mod private
   /// For integer scalars the per-component multiplications and subtractions are
   /// not overflow-checked: they panic in debug / wrap in release once any
   /// intermediate value leaves `E`'s range.
+  ///
+  /// # Panics
+  /// Panics if `r` or `b`'s iterator yields fewer than 3 elements.
   #[ inline ]
   pub fn cross_mut< E, R, B >( r : &mut R, b : &B )
   where
@@ -286,7 +308,7 @@ mod private
   /// For integer scalars the per-element addition is not overflow-checked: it
   /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
-  pub fn sum_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
+  pub fn scalar_sum_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
     E : Scalar,
@@ -304,13 +326,13 @@ mod private
   /// For integer scalars the per-element addition is not overflow-checked: it
   /// panics in debug / wraps in release once a sum leaves `E`'s range.
   #[ inline ]
-  pub fn sum_scalar< E, A, const N : usize >( a : &A, b : E ) -> A
+  pub fn scalar_sum< E, A, const N : usize >( a : &A, b : E ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
     E : Scalar,
   {
     let mut r = a.clone();
-    sum_scalar_mut( &mut r, b );
+    scalar_sum_mut( &mut r, b );
     r
   }
 
@@ -363,7 +385,7 @@ mod private
   /// panics in debug / wraps in release whenever a result leaves `E`'s range —
   /// e.g. unsigned underflow when `a` exceeds a component of `r`.
   #[ inline ]
-  pub fn sub_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
+  pub fn scalar_sub_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
     E : Scalar,
@@ -382,13 +404,13 @@ mod private
   /// panics in debug / wraps in release whenever a result leaves `E`'s range —
   /// e.g. unsigned underflow when `b` exceeds a component of `a`.
   #[ inline ]
-  pub fn sub_scalar< E, A, const N : usize >( a : &A, b : E ) -> A
+  pub fn scalar_sub< E, A, const N : usize >( a : &A, b : E ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
     E : Scalar,
   {
     let mut r = a.clone();
-    sub_scalar_mut( &mut r, b );
+    scalar_sub_mut( &mut r, b );
     r
   }
 
@@ -436,7 +458,7 @@ mod private
   /// For integer scalars the per-element multiplication is not overflow-checked:
   /// it panics in debug / wraps in release once a product leaves `E`'s range.
   #[ inline ]
-  pub fn mul_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
+  pub fn scalar_mul_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
     E : Scalar,
@@ -454,13 +476,13 @@ mod private
   /// For integer scalars the per-element multiplication is not overflow-checked:
   /// it panics in debug / wraps in release once a product leaves `E`'s range.
   #[ inline ]
-  pub fn mul_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
+  pub fn scalar_mul< E, R, const N : usize >( a : &R, b : E ) -> R
   where
     R : VectorIterMut< E, N >  + Clone,
     E : Scalar,
   {
     let mut r = a.clone();
-    mul_scalar_mut( &mut r, b );
+    scalar_mul_mut( &mut r, b );
     r
   }
 
@@ -510,7 +532,7 @@ mod private
   /// For integer `E` this panics if `a` is zero, in both debug and release
   /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
   #[ inline ]
-  pub fn div_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
+  pub fn scalar_div_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
     E : Scalar,
@@ -528,39 +550,47 @@ mod private
   /// For integer `E` this panics if `b` is zero, in both debug and release
   /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
   #[ inline ]
-  pub fn div_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
+  pub fn scalar_div< E, R, const N : usize >( a : &R, b : E ) -> R
   where
     R : VectorIterMut< E, N >  + Clone,
     E : Scalar,
   {
     let mut r = a.clone();
-    div_scalar_mut( &mut r, b );
+    scalar_div_mut( &mut r, b );
     r
   }
 
   /// Performs element-wise minimum operation on vectors.
   /// Modifies first vector in place.
+  ///
+  /// Satisfied by all integer primitives and floats alike (`E : Scalar + PartialOrd`) — this is
+  /// pure ordering comparison, not floating-point arithmetic. NaN tie-break: if either operand is
+  /// unordered with respect to the other (i.e. either is NaN), `r`'s original value is kept — `a`'s
+  /// value is only ever selected when `*a < *r` is a well-defined `true`.
   #[ inline ]
   pub fn min_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
     R : VectorIterMut< E, N >,
     A : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar + PartialOrd,
   {
     let iter = r.vector_iter_mut().zip( a.vector_iter() );
     for ( r, a ) in iter
     {
-      *r = ( *r ).min( *a );
+      *r = if *a < *r { *a } else { *r };
     }
   }
 
   /// Performs element-wise minimum operation on vectors.
+  ///
+  /// Satisfied by all integer primitives and floats alike — see [`min_mut`] for the NaN tie-break
+  /// behavior.
   #[ inline ]
   pub fn min< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
     B : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar + PartialOrd,
   {
     let mut r = a.clone();
     min_mut( &mut r, b );
@@ -569,27 +599,35 @@ mod private
 
   /// Performs element-wise maximum operation on vectors.
   /// Modifies first vector in place.
+  ///
+  /// Satisfied by all integer primitives and floats alike (`E : Scalar + PartialOrd`) — this is
+  /// pure ordering comparison, not floating-point arithmetic. NaN tie-break: if either operand is
+  /// unordered with respect to the other (i.e. either is NaN), `r`'s original value is kept — `a`'s
+  /// value is only ever selected when `*a > *r` is a well-defined `true`.
   #[ inline ]
   pub fn max_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
     R : VectorIterMut< E, N >,
     A : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar + PartialOrd,
   {
     let iter = r.vector_iter_mut().zip( a.vector_iter() );
     for ( r, a ) in iter
     {
-      *r = ( *r ).max( *a );
+      *r = if *a > *r { *a } else { *r };
     }
   }
 
   /// Performs element-wise maximum operation on vectors.
+  ///
+  /// Satisfied by all integer primitives and floats alike — see [`max_mut`] for the NaN tie-break
+  /// behavior.
   #[ inline ]
   pub fn max< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
     A : VectorIterMut< E, N > + Clone,
     B : VectorIter< E, N >,
-    E : NdFloat,
+    E : Scalar + PartialOrd,
   {
     let mut r = a.clone();
     max_mut( &mut r, b );
@@ -620,19 +658,19 @@ crate::mod_interface!
     sub_mut,
     mul,
     mul_mut,
-    mul_scalar,
-    mul_scalar_mut,
-    div_scalar,
-    div_scalar_mut,
+    scalar_mul,
+    scalar_mul_mut,
+    scalar_div,
+    scalar_div_mut,
     min,
     min_mut,
     max,
     max_mut,
     div,
     div_mut,
-    sub_scalar,
-    sub_scalar_mut,
-    sum_scalar,
-    sum_scalar_mut
+    scalar_sub,
+    scalar_sub_mut,
+    scalar_sum,
+    scalar_sum_mut
   };
 }

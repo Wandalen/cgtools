@@ -6,9 +6,9 @@ This demo demonstrates the Wave Function Collapse algorithm for procedural conte
 
 WFC produces varied yet consistent results from small rule sets. This example shows practical implementation for game level generation or pattern synthesis.
 
-![image](showcase.png)
+![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

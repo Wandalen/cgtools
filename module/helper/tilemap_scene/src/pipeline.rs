@@ -158,12 +158,14 @@ mod private
     /// directly with the empirically-tuned `grid_stride` instead.
     ///
     /// `Square4` / `Square8` are accepted without panic (stride
-    /// defaults to `(w, h)`) but are not yet implemented. Load-time
-    /// rejection of unsupported tilings is a tracked TODO in
-    /// [`crate::validate`] (SPEC §16), so [`crate::load::load`]
-    /// currently returns `Ok( () )` for square specs; compilation
-    /// later fails at render time with
-    /// [`crate::compile::CompileError::UnsupportedAnchor`].
+    /// defaults to `(w, h)`) but are not yet implemented. The SPEC §16
+    /// tiling check in [`crate::validate`] rejects them, so
+    /// [`crate::spec::RenderSpec::load`] (which runs validation) now fails
+    /// for square specs at load time with
+    /// [`crate::error::ValidationError::UnsupportedTiling`] rather than
+    /// reaching [`crate::compile::CompileError::UnsupportedAnchor`] at
+    /// render time. [`crate::spec::RenderSpec::from_ron_str`] does not run
+    /// validation, so it still accepts square specs.
     #[ inline ]
     #[ must_use ]
     pub fn from_hex_size( w : u32, h : u32, tiling : TilingStrategy ) -> Self
@@ -185,11 +187,14 @@ mod private
   /// pixel-conversion. See SPEC §2.1.
   ///
   /// Version 0.2.0 implements the two hex variants; the square variants are
-  /// reserved. Load-time validation of [`TilingStrategy`] is a tracked TODO
-  /// in [`crate::validate`] (SPEC §16) — [`crate::error::ValidationError::UnsupportedTiling`]
-  /// is declared for that future check but is not yet constructed.
-  /// Square specs therefore pass [`crate::load::load`] today and fail at
-  /// render time with [`crate::compile::CompileError::UnsupportedAnchor`].
+  /// reserved. The SPEC §16 tiling check in [`crate::validate`] constructs
+  /// [`crate::error::ValidationError::UnsupportedTiling`] for `Square4` /
+  /// `Square8`, so [`crate::spec::RenderSpec::load`] (which runs
+  /// validation) now rejects square specs at load time instead of letting
+  /// them fail later at render time with
+  /// [`crate::compile::CompileError::UnsupportedAnchor`].
+  /// [`crate::spec::RenderSpec::from_ron_str`] does not run validation, so
+  /// it still parses square specs successfully.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize ) ]
   #[ non_exhaustive ]
   pub enum TilingStrategy

@@ -20,7 +20,7 @@ mod private
   ///
   /// ```rust
   /// use mdmath_core::ToRef;
-  /// fn print_length< T : ToRef< String > >( input : T )
+  /// fn length_print< T : ToRef< String > >( input : T )
   /// {
   ///   let reference = input.to_ref();
   ///   println!( "Length: {}", reference.len() );
@@ -29,12 +29,12 @@ mod private
   /// let mut owned = String::from( "Hello" );
   ///
   /// let borrowed = &owned;
-  /// print_length( borrowed );
+  /// length_print( borrowed );
   ///
   /// let mut mutable_borrowed = &mut owned;
-  /// print_length( mutable_borrowed );
+  /// length_print( mutable_borrowed );
   ///
-  /// print_length( owned );
+  /// length_print( owned );
   /// ```
   pub trait ToRef< T : ?Sized >
   {
@@ -48,6 +48,7 @@ mod private
   // Implement ToRef for immutable references
   impl< T : ?Sized > ToRef< T > for &T
   {
+    #[ inline ]
     fn to_ref( &self ) -> &T
     {
       self
@@ -57,6 +58,7 @@ mod private
   // Implement ToRef for mutable references
   impl< T : ?Sized > ToRef< T > for &mut T
   {
+    #[ inline ]
     fn to_ref( &self ) -> &T
     {
       self
@@ -66,6 +68,7 @@ mod private
   // Implement ToRef for owned values
   impl< T : ?Sized > ToRef< T > for T
   {
+    #[ inline ]
     fn to_ref( &self ) -> &T
     {
       self
@@ -115,10 +118,11 @@ mod private
   }
 
   // Implement ToValue for immutable references
-  impl< T : ?Sized > ToValue< T > for &T
+  impl< T > ToValue< T > for &T
   where
     T : Clone,
   {
+    #[ inline ]
     fn to_value( self ) -> T
     {
       < T as Clone >::clone( self )
@@ -126,10 +130,11 @@ mod private
   }
 
   // Implement ToValue for mutable references
-  impl< T : ?Sized > ToValue< T > for &mut T
+  impl< T > ToValue< T > for &mut T
   where
     T : Clone,
   {
+    #[ inline ]
     fn to_value( self ) -> T
     {
       < T as Clone >::clone( self )
@@ -139,6 +144,7 @@ mod private
   // Implement ToValue for owned values
   impl< T > ToValue< T > for T
   {
+    #[ inline ]
     fn to_value( self ) -> T
     {
       self

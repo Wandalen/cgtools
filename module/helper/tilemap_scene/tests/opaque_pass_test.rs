@@ -255,7 +255,7 @@ fn occlude_overlap_keeps_depth_writes_in_transparent_pass()
 
   // Walk the flattened stream, tracking the depth-write state in force at each
   // Sprite. `SetDepthWrite` passes through the flattener unchanged.
-  let flat = common::flatten_to_sprites( &cmds );
+  let flat = common::commands_to_sprites( &cmds );
   let mut write = true; // backend default
   let mut by_depth : Vec< ( f32, bool ) > = Vec::new();
   for c in &flat

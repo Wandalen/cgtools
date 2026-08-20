@@ -1,5 +1,6 @@
 
-use super::*;
+#![ expect( clippy::float_cmp, reason = "assertions check deterministic cumulative-distance arithmetic against exact literal expected values" ) ]
+
 use line_tools::d3;
 
 #[ test ]
@@ -33,10 +34,10 @@ fn test_distance_diagonal_segments()
   line.point_add_back( &[ 1.0, 1.0, 1.0 ] );
   line.point_add_back( &[ 2.0, 2.0, 2.0 ] );
 
-  let d = ( 3.0_f32 ).sqrt();
-  let expected = [ 0.0, d, d * 2.0 ];
+  let dist = ( 3.0_f32 ).sqrt();
+  let expected = [ 0.0, dist, dist * 2.0 ];
   assert_eq!( expected, line.distances_get() );
-  assert_eq!( d * 2.0, line.total_distance_get() );
+  assert_eq!( dist * 2.0, line.total_distance_get() );
 }
 
 #[ test ]
@@ -85,12 +86,10 @@ fn test_distance_clear_and_rebuild()
   assert_eq!( 5.0, line.total_distance_get() );
 }
 
-/// # Bug History
-///
 /// ## Root Cause
 /// `point_remove()` did not remove a distance value from the array
 ///
-/// ## Why Not Caught Initially
+/// ## Why Not Caught
 /// Original tests didn't verify that the distance value was removed after removal operations.
 ///
 /// ## Fix Applied
@@ -99,7 +98,7 @@ fn test_distance_clear_and_rebuild()
 /// ## Prevention
 /// This test verifies distances are set properly.
 ///
-/// ## Pitfall to Avoid
+/// ## Pitfall
 /// `distance` should be a one to one mapping with `points`.
 // test_kind: bug_reproducer(issue-003)
 #[ test ]
@@ -385,22 +384,19 @@ fn test_distance_point_remove_back()
   assert_eq!( expected, line.distances_get() );
 }
 
-
-/// # Bug History
-///
 /// ## Root Cause
-/// `point_remove_front()` did not update the total_distance
+/// `point_remove_front()` did not update the `total_distance`
 ///
-/// ## Why Not Caught Initially
-/// Original tests didn't verify total_distance after removal operations.
+/// ## Why Not Caught
+/// Original tests didn't verify `total_distance` after removal operations.
 ///
 /// ## Fix Applied
-/// Now correctly sets total_distance to the new last element in distances array.
+/// Now correctly sets `total_distance` to the new last element in distances array.
 ///
 /// ## Prevention
-/// This test verifies total_distance equals the last cumulative distance after removal.
+/// This test verifies `total_distance` equals the last cumulative distance after removal.
 ///
-/// ## Pitfall to Avoid
+/// ## Pitfall
 /// Total distance needs to be updated when the distance array is changed.
 // test_kind: bug_reproducer(issue-002)
 #[ test ]
@@ -759,23 +755,21 @@ fn test_distance_remove_front_and_back_then_rebuild()
 }
 
 /// Tests that removing last point correctly updates total distance.
-/// 
-/// # Bug History
 ///
 /// ## Root Cause
 /// `point_remove_front()` subtracted the cumulative distance from itself,
-/// resulting in total_distance = 0 instead of the new total.
+/// resulting in `total_distance` = 0 instead of the new total.
 ///
-/// ## Why Not Caught Initially
-/// Original tests didn't verify total_distance after removal operations.
+/// ## Why Not Caught
+/// Original tests didn't verify `total_distance` after removal operations.
 ///
 /// ## Fix Applied
-/// Now correctly sets total_distance to the new last element in distances array.
+/// Now correctly sets `total_distance` to the new last element in distances array.
 ///
 /// ## Prevention
-/// This test verifies total_distance equals the last cumulative distance after removal.
+/// This test verifies `total_distance` equals the last cumulative distance after removal.
 ///
-/// ## Pitfall to Avoid
+/// ## Pitfall
 /// Cumulative distance arrays store running totals [0, d1, d1+d2], not deltas.
 // test_kind: bug_reproducer(issue-001)
 #[ test ]
@@ -1118,4 +1112,69 @@ fn test_distances_update_multi_point()
 
   assert_eq!( [ 0.0, 1.0, 2.0, 3.0 ], line.distances_get() );
   assert_eq!( 3.0, line.total_distance_get() );
+}
+
+// === BUG-238: near-duplicate points wrongly dropped ===
+
+/// ## Root Cause
+/// `point_add_back`/`point_add_front` gated the "skip near-duplicate point" check on
+/// `( last - point ).mag2() <= f32::EPSILON` -- but `mag2()` returns a *squared* distance,
+/// while `f32::EPSILON` (~1.19e-7) is a linear-scale tolerance. Comparing a squared
+/// quantity against an unsquared threshold makes the effective dedup radius
+/// `sqrt( f32::EPSILON )` (~3.45e-4), roughly 2900x larger than intended.
+///
+/// ## Why Not Caught
+/// Existing tests (`test_distance_add_back_duplicate_ignored`,
+/// `test_distance_add_at_the_same_position`) only ever add EXACT duplicate points
+/// (distance 0.0), which correctly dedup under both the buggy and fixed comparison --
+/// no test exercised a point that is close-but-genuinely-distinct in the gap between
+/// the intended threshold and the accidentally-inflated one.
+///
+/// ## Fix Applied
+/// Compare against `f32::EPSILON * f32::EPSILON` instead, so the linear-distance dedup
+/// radius stays `f32::EPSILON` as intended.
+///
+/// ## Prevention
+/// This test adds two points 1e-4 apart (well inside the old buggy radius, ~3.45e-4)
+/// and asserts both survive -- would fail against the pre-fix comparison, which
+/// silently drops the second point.
+///
+/// ## Pitfall
+/// Any `mag2()`/`distance_squared()` comparison must square its threshold to match --
+/// `d² <= t` means `d <= sqrt(t)`, not `d <= t`.
+// test_kind: bug_reproducer(BUG-238)
+#[ test ]
+fn test_distance_add_back_near_duplicate_not_dropped_bug_238()
+{
+  let mut line = d3::Line::default();
+  line.point_add_back( &[ 0.0, 0.0, 0.0 ] );
+  line.point_add_back( &[ 0.0001, 0.0, 0.0 ] );
+
+  assert_eq!( 2, line.distances_get().len(), "a point 1e-4 away is genuinely distinct and must not be dropped as a near-duplicate" );
+  assert_eq!( 0.0001_f32, line.total_distance_get() );
+}
+
+// Same defect, `point_add_front` code path.
+// test_kind: bug_reproducer(BUG-238)
+#[ test ]
+fn test_distance_add_front_near_duplicate_not_dropped_bug_238()
+{
+  let mut line = d3::Line::default();
+  line.point_add_front( &[ 0.0, 0.0, 0.0 ] );
+  line.point_add_front( &[ 0.0001, 0.0, 0.0 ] );
+
+  assert_eq!( 2, line.distances_get().len(), "a point 1e-4 away is genuinely distinct and must not be dropped as a near-duplicate" );
+  assert_eq!( 0.0001_f32, line.total_distance_get() );
+}
+
+// Confirms the fix doesn't perturb genuinely-near-zero-distance dedup: a point 1e-10 away
+// (well under the fixed radius of ~1.19e-7) must still be treated as a duplicate and dropped.
+#[ test ]
+fn test_distance_add_back_true_near_zero_still_deduped()
+{
+  let mut line = d3::Line::default();
+  line.point_add_back( &[ 0.0, 0.0, 0.0 ] );
+  line.point_add_back( &[ 1e-10, 0.0, 0.0 ] );
+
+  assert_eq!( 1, line.distances_get().len(), "a point 1e-10 away is within the intended dedup tolerance and should still be dropped" );
 }

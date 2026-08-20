@@ -40,7 +40,7 @@ mod private
   ///
   /// An `Option< ( WebGlFramebuffer, WebGlTexture ) >` containing the created framebuffer and
   /// its color attachment texture, or `None` if creation fails.
-  fn create_framebuffer
+  fn framebuffer_create
   (
     gl : &gl::GL,
     width : u32,
@@ -55,7 +55,15 @@ mod private
     gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
     gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
 
-    let depthbuffer = gl.create_renderbuffer().unwrap();
+    // Fix(BUG-227): propagate `None` via `?` instead of `.unwrap()`.
+    // Root cause: `create_texture`/`create_framebuffer` in this same function already honor
+    // the doc comment's "or `None` if creation fails" contract via `?`, but this call used
+    // `.unwrap()` -- the identical WebGL failure class (context loss) that its siblings
+    // handle gracefully instead panics here.
+    // Pitfall: when several calls of the same resource-creation shape sit in one function,
+    // fixing the contract on some of them doesn't guarantee the rest were caught -- audit
+    // every call of that shape in the function, not just the ones that already look handled.
+    let depthbuffer = gl.create_renderbuffer()?;
     gl.bind_renderbuffer( GL::RENDERBUFFER, Some( &depthbuffer ) );
     gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width as i32, height as i32 );
 
@@ -70,6 +78,69 @@ mod private
     gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
     Some( ( framebuffer, color ) )
+  }
+
+  /// The fallback color applied to a mesh that has no corresponding entry in `colors`.
+  fn default_color() -> F32x4
+  {
+    F32x4::from_array( [ 1.0, 0.0, 1.0, 1.0 ] )
+  }
+
+  /// Resolves, in mesh-encounter order, the color that `CanvasRenderer::render` will apply to
+  /// each mesh node while traversing `scene`.
+  ///
+  /// `colors` holds one entry per *mesh*, in the order meshes are encountered during
+  /// traversal -- not one entry per traversed node. Non-mesh nodes (`Object3D::Light`,
+  /// `Object3D::Other`, and any future variant) are visited but must never consume an entry
+  /// from `colors`.
+  ///
+  /// Kept separate from `render`'s own GL-drawing traversal so the mesh-to-color
+  /// correspondence can be verified independent of a live WebGL context.
+  ///
+  /// # Arguments
+  ///
+  /// * `scene` - The scene to traverse (read-only; traversal order matches `render`'s).
+  /// * `colors` - Per-mesh colors, in mesh-encounter order.
+  ///
+  /// # Returns
+  ///
+  /// One resolved color per mesh encountered, in traversal order. A mesh beyond the end of
+  /// `colors` resolves to `default_color()`.
+  ///
+  /// # Panics
+  ///
+  /// Panics only if [`Scene::traverse`] reports an error, which cannot happen here : the
+  /// visitor passed to it is infallible.
+  // Fix(TASK-016): index `colors` by `resolved.len()` -- the count of meshes already resolved
+  // -- instead of a counter shared with every traversed node.
+  // Root cause: the lookup index previously advanced once per traversed node (mesh or not),
+  // but was only ever read while visiting a mesh, so any non-mesh node visited before or
+  // between mesh nodes shifted every later mesh onto the wrong `colors` entry.
+  // Pitfall: when a lookup index is shared between a filtered consumer (only meshes read it)
+  // and an unfiltered traversal (every node advances it), the two silently drift apart the
+  // moment a "skipped" item actually occurs -- count only what is actually consumed.
+  #[ must_use ]
+  pub fn mesh_colors_resolve( scene : &Scene, colors : &[ F32x4 ] ) -> Vec< F32x4 >
+  {
+    let mut resolved = Vec::new();
+
+    let mut visit =
+    |
+      node : Rc< RefCell< Node > >
+    | -> Result< (), gl::WebglError >
+    {
+      if let Object3D::Mesh( _ ) = node.borrow().object
+      {
+        resolved.push( *colors.get( resolved.len() ).unwrap_or( &default_color() ) );
+      }
+
+      Ok( () )
+    };
+
+    // `visit` never returns `Err`, so `traverse` cannot fail here.
+    scene.traverse( &mut visit ).unwrap();
+
+    resolved
   }
 
   /// A 2D canvas renderer that renders 3D scenes to a texture using WebGL.
@@ -105,15 +176,15 @@ mod private
     /// * `width` - Width of the render target in pixels
     /// * `height` - Height of the render target in pixels
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// Returns `Ok(CanvasRenderer)` on success, or `Err(WebglError)` if initialization fails.
+    /// Returns `WebglError` if shader compilation or program linking fails.
     pub fn new( gl : &GL, width : u32, height : u32 ) -> Result< Self, gl::WebglError >
     {
       let vertex_shader_src = include_str!( "../shaders/canvas.vert" );
       let fragment_shader_src = include_str!( "../shaders/canvas.frag" );
       let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src )
-      .compile_and_link( &gl )?;
+      .compile_and_link( gl )?;
 
       let mut uniforms = FxHashMap::default();
       let mut add_location =
@@ -131,7 +202,7 @@ mod private
       add_location( "viewMatrix" );
       add_location( "projectionMatrix" );
 
-      let Some( ( framebuffer, output_texture ) ) = create_framebuffer( gl, width, height )
+      let Some( ( framebuffer, output_texture ) ) = framebuffer_create( gl, width, height )
       else
       {
         return Err( gl::WebglError::FailedToAllocateResource( "Framebuffer" ) );
@@ -151,21 +222,21 @@ mod private
     }
 
     /// Uploads the camera's view and projection matrices to the shader uniforms.
-    fn upload_camera( &self, gl : &GL, camera : &Camera )
+    fn camera_upload( &self, gl : &GL, camera : &Camera )
     {
       gl::uniform::matrix_upload
       (
-        &gl,
+        gl,
         self.uniforms.get( "viewMatrix" ).unwrap().clone(),
-        &camera.get_view_matrix().to_array(),
+        &camera.view_matrix_get().to_array(),
         true
       ).unwrap();
 
       gl::uniform::matrix_upload
       (
-        &gl,
+        gl,
         self.uniforms.get( "projectionMatrix" ).unwrap().clone(),
-        &camera.get_projection_matrix().to_array(),
+        &camera.projection_matrix_get().to_array(),
         true
       ).unwrap();
     }
@@ -178,7 +249,11 @@ mod private
     ///
     /// * `gl` - The WebGL2 rendering context
     /// * `node` - The scene node whose world matrix will be uploaded
-    pub fn upload_node
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `worldMatrix` uniform location is missing or the matrix upload fails.
+    pub fn node_upload
     (
       &self,
       gl : &GL,
@@ -187,9 +262,9 @@ mod private
     {
       gl::uniform::matrix_upload
       (
-        &gl,
+        gl,
         self.uniforms.get( "worldMatrix" ).unwrap().clone(),
-        node.borrow().get_world_matrix().to_array().as_slice(),
+        node.borrow().world_matrix_get().to_array().as_slice(),
         true
       ).unwrap();
     }
@@ -206,9 +281,14 @@ mod private
     /// * `camera` - The camera defining view and projection matrices
     /// * `colors` - Array of colors to apply to scene nodes in order
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// Returns `Ok(())` on successful rendering, or `Err(WebglError)` if rendering fails.
+    /// Returns `WebglError` if a mesh upload or draw step fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a required uniform location was not registered at construction, or if scene
+    /// traversal or a uniform upload fails.
     pub fn render
     (
       &self,
@@ -218,7 +298,7 @@ mod private
       colors : &[ F32x4 ]
     ) -> Result< (), gl::WebglError >
     {
-      scene.update_world_matrix();
+      scene.world_matrix_update();
 
       gl.enable( gl::DEPTH_TEST );
       gl.disable( gl::BLEND );
@@ -235,8 +315,10 @@ mod private
 
       gl.use_program( Some( &self.program ) );
 
-      let mut i = 0;
-      let default_color = F32x4::from_array( [ 1.0, 0.0, 1.0, 1.0 ] );
+      // Resolved once, up front, in mesh-encounter order -- see `mesh_colors_resolve` for why
+      // this can't be a counter shared with the node-traversal below.
+      let mesh_colors = mesh_colors_resolve( scene, colors );
+      let mut mesh_i = 0;
 
       // Define a closure to handle the drawing of each node in the scene.
       let mut draw_node =
@@ -249,31 +331,44 @@ mod private
         {
           gl::uniform::upload
           (
-            &gl,
+            gl,
             self.uniforms.get( "color" ).unwrap().clone(),
-            colors.get( i ).unwrap_or( &default_color ).as_slice()
+            mesh_colors.get( mesh_i ).unwrap_or( &default_color() ).as_slice()
           ).unwrap();
 
+          mesh_i += 1;
+
           // Iterate over each primitive in the mesh.
-          for primitive_rc in mesh.borrow().primitives.iter()
+          for primitive_rc in &mesh.borrow().primitives
           {
             let primitive = primitive_rc.borrow();
 
-            self.upload_camera( gl, camera );
-            self.upload_node( gl, &node );
+            self.camera_upload( gl, camera );
+            self.node_upload( gl, &node );
 
             primitive.geometry.borrow().bind( gl );
             primitive.draw( gl );
           }
         }
 
-        i += 1;
-
         Ok( () )
       };
 
       // Traverse the scene and draw all opaque objects.
       scene.traverse( &mut draw_node )?;
+
+      // Fix(BUG-342)
+      // Root cause: this function bound `self.framebuffer` above but never rebound the default
+      // (`None`) framebuffer before returning, unlike its siblings `framebuffer_create` and
+      // `texture_set`, which both explicitly restore `None` as their last GL state change.
+      // WebGL's `bindFramebuffer` state persists on the context until explicitly changed, so any
+      // GL call issued after `render()` returned, by code that didn't itself rebind first, would
+      // silently target this internal offscreen texture instead of the intended target.
+      // Pitfall: when several functions in the same file share a "bind non-default, do work,
+      // restore default" shape, fixing the restore on some of them doesn't guarantee the rest
+      // were caught -- each has to be individually audited against the shape it shares with its
+      // siblings, not assumed consistent once most of them look handled.
+      gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
       Ok( () )
     }
@@ -287,7 +382,7 @@ mod private
     ///
     /// * `gl` - The WebGL2 rendering context
     /// * `output_texture` - The new texture to use as the color attachment
-    pub fn set_texture
+    pub fn texture_set
     (
       &mut self,
       gl : &GL,
@@ -310,7 +405,8 @@ mod private
     /// # Returns
     ///
     /// A clone of the WebGlTexture that serves as the color attachment.
-    pub fn get_texture( &self ) -> WebGlTexture
+    #[must_use]
+    pub fn texture_get( &self ) -> WebGlTexture
     {
       self.output_texture.clone()
     }
@@ -322,5 +418,10 @@ crate::mod_interface!
   orphan use
   {
     CanvasRenderer
+  };
+
+  own use
+  {
+    mesh_colors_resolve
   };
 }

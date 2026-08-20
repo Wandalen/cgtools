@@ -1,31 +1,26 @@
 //! This module provides functionality for loading UFO
 //! fonts and converting text into a 3D mesh representation.
 
-#![ allow( clippy::needless_continue ) ]
-#![ allow( clippy::cloned_instead_of_copied ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::unnecessary_cast ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::redundant_closure_for_method_calls ) ]
 
-#[ cfg( feature = "text" ) ]
+// Fix(TASK-021)
+// Root cause : this module was gated on `text` while its glyph pipeline calls
+// `contours_to_fill_geometry`, which only exists under `font-processing` — so
+// `--features text` alone could never compile (surfaced by TASK-055).
+// Pitfall : gate a module on the feature that provides everything it calls,
+// not on the broadest feature it is thematically related to.
+#[ cfg( feature = "font-processing" ) ]
 mod private
 {
-  use std::rc::Rc;
-  use std::cell::RefCell;
   use rustc_hash::FxHashMap;
   use std::str::FromStr;
   use kurbo::flatten;
   use mingl::geometry::BoundingBox;
   use norad::{ PointType, ContourPoint, Contour };
   use minwebgl as gl;
-  use gl::{ F32x3, F32x4 };
+  use gl::F32x3;
   use quick_xml::{ Reader, events::Event };
   use crate::
   {
-    AttributesData,
     PrimitiveData,
     Transform,
     contours_to_fill_geometry
@@ -63,33 +58,33 @@ mod private
       )
       .collect::< Vec< _ > >();
 
-      let flat_contours = contours.iter().flatten().flatten().cloned().collect::< Vec< _ > >();
+      let flat_contours = contours.iter().flatten().flatten().copied().collect::< Vec< _ > >();
       let bounding_box = BoundingBox::compute2d( &flat_contours );
 
       let [ x1, y1 ] = [ bounding_box.left(), bounding_box.down() ];
       let [ x2, y2 ] = [ bounding_box.right(), bounding_box.up() ];
 
-      let halfx = ( x2 - x1 ) / 2.0;
-      let halfy = ( y2 - y1 ) / 2.0;
-      let offsetx = x1;
-      let offsety = y1;
-      let offsetx = - halfx - offsetx;
-      let offsety = - halfy - offsety;
+      let half_x = ( x2 - x1 ) / 2.0;
+      let half_y = ( y2 - y1 ) / 2.0;
+      let offset_x = x1;
+      let offset_y = y1;
+      let offset_x = - half_x - offset_x;
+      let offset_y = - half_y - offset_y;
 
-      for contour in contours.iter_mut()
+      for contour in &mut contours
       {
         for point in contour.iter_mut()
         {
-          point[ 0 ] += offsetx;
-          point[ 1 ] += offsety;
+          point[ 0 ] += offset_x;
+          point[ 1 ] += offset_y;
         }
       }
 
-      let bounding_box = BoundingBox
-      {
-        min : [ ( x1 + offsetx ) as f32, ( y1 + offsety ) as f32, 0.0 ].into(),
-        max : [ ( x2 + offsetx ) as f32, ( y2 + offsety ) as f32, 0.0 ].into()
-      };
+      let bounding_box = BoundingBox::new
+      (
+        [ ( x1 + offset_x ), ( y1 + offset_y ), 0.0 ],
+        [ ( x2 + offset_x ), ( y2 + offset_y ), 0.0 ]
+      );
 
       Self
       {
@@ -106,7 +101,7 @@ mod private
       let [ x1, y1 ] = [ self.bounding_box.left(), self.bounding_box.down() ];
       let [ x2, y2 ] = [ self.bounding_box.right(), self.bounding_box.up() ];
 
-      for contour in self.contours.iter_mut()
+      for contour in &mut self.contours
       {
         for point in contour.iter_mut()
         {
@@ -119,16 +114,28 @@ mod private
       self.bounding_box.max = [ x2 * scale, y2 * scale, 0.0 ].into();
     }
 
-    /// Creates a `Glyph` from a `.glif` file's byte data.
-    fn from_glif( glif_bytes : Vec< u8 >, character : char ) -> Option< Self >
+    /// Returns the glyph's flattened contours, each a sequence of 2D points.
+    #[ must_use ]
+    pub fn contours( &self ) -> &[ Vec< [ f32; 2 ] > ]
     {
-      let glif_str = std::str::from_utf8( &glif_bytes ).unwrap();
+      &self.contours
+    }
+
+    /// Creates a `Glyph` from a `.glif` file's byte data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `glif_bytes` is not valid UTF-8.
+    #[ expect( clippy::too_many_lines, reason = "the glif XML event loop is one linear state machine; splitting it into helpers would scatter the per-event state transitions without shrinking the logic" ) ]
+    #[ must_use ]
+    pub fn from_glif( glif_bytes : &[ u8 ], character : char ) -> Option< Self >
+    {
+      let glif_str = std::str::from_utf8( glif_bytes ).unwrap();
       let mut reader = Reader::from_str( glif_str );
       reader.config_mut().trim_text( true );
 
-      let mut _contours = vec![];
+      let mut raw_contours = vec![];
       let mut contour_points = vec![];
-      let mut typ = PointType::Move;
 
       loop
       {
@@ -142,6 +149,19 @@ mod private
             let mut x = None;
             let mut y = None;
             let smooth = true;
+            // Fix(BUG-215)
+            // Root cause: `typ` was declared once per *contour* (outside this loop),
+            // so a point with no explicit `type` attribute -- the normal, spec-correct
+            // way to encode an off-curve bezier control point in UFO/glif -- silently
+            // inherited whatever type the *previous* point in the same contour had,
+            // instead of defaulting to `OffCurve`. Confirmed against `norad` 0.18.4's
+            // own reference parser (`glyph/parse.rs::parse_point`), which declares
+            // `let mut typ = PointType::OffCurve;` fresh inside its own per-point
+            // function, never carried over between points.
+            // Pitfall: a state-machine accumulator that must reset per-iteration needs
+            // its `let mut` *inside* the loop body at the right granularity -- placing
+            // it outside silently widens its lifetime to the next coarser loop level.
+            let mut typ = PointType::OffCurve;
 
             for attr in element.attributes()
             {
@@ -161,7 +181,17 @@ mod private
               {
                 b"x" => x = value.parse::< f64 >().ok(),
                 b"y" => y = value.parse::< f64 >().ok(),
-                b"typ" =>
+                // Fix(BUG-128)
+                // Root cause: the UFO/glif spec's point element attribute is named
+                // `type` (confirmed against `norad` 0.18.4's own glif parser, which
+                // reads exactly `b"type"`), but this match arm looked for `b"typ"` --
+                // a one-letter typo that can never match a real `.glif` file, so
+                // every point silently kept the loop's `PointType::Move` default.
+                // Pitfall: an unmatched byte-string arm in a `match` with a `_ => {}`
+                // catch-all fails silently -- it never panics or errors, it just never
+                // fires. Cross-check attribute names against the format spec or a
+                // reference parser, not just internal self-consistency.
+                b"type" =>
                 {
                   let Ok( t ) = PointType::from_str( &value )
                   else
@@ -170,7 +200,7 @@ mod private
                   };
                   typ = t;
                 }
-                _ => continue
+                _ => {}
               }
             }
 
@@ -185,19 +215,18 @@ mod private
               (
                 x.unwrap(),
                 y.unwrap(),
-                typ.clone(),
+                typ,
                 smooth,
                 None,
                 None
               )
-            )
+            );
           },
           Ok( Event::End( e ) ) if e.starts_with( b"contour" ) =>
           {
-            typ = PointType::Move;
             let mut contour = Contour::default();
-            contour.points = contour_points.drain( .. ).collect::< Vec< _ > >();
-            _contours.push( contour );
+            contour.points = std::mem::take(&mut contour_points);
+            raw_contours.push( contour );
           },
           Ok( Event::Eof ) => break,
           _ => ()
@@ -207,7 +236,7 @@ mod private
       let mut contours = vec![];
       let mut curves = vec![];
 
-      for contour in _contours
+      for contour in raw_contours
       {
         let mut path = vec![];
         let Ok( bez_path ) = contour.to_kurbo()
@@ -218,31 +247,27 @@ mod private
 
         flatten
         (
-          bez_path.elements().iter().cloned(),
+          bez_path.elements().iter().copied(),
           0.25,
           | p | path.push( p )
         );
 
         let mut contour = vec![];
 
-        path.iter()
-        .for_each
-        (
-          | p |
+        for p in &path
+        {
+          match p
           {
-            match p
+            kurbo::PathEl::MoveTo( point ) |
+            kurbo::PathEl::LineTo( point ) => contour.push( [ point.x, point.y ] ),
+            kurbo::PathEl::ClosePath =>
             {
-              kurbo::PathEl::MoveTo( point ) |
-              kurbo::PathEl::LineTo( point ) => contour.push( [ point.x, point.y ] ),
-              kurbo::PathEl::ClosePath =>
-              {
-                contours.push( contour.clone() );
-                contour.clear();
-              },
-              _ => ()
-            }
+              contours.push( contour.clone() );
+              contour.clear();
+            },
+            _ => ()
           }
-        );
+        }
 
         curves.push( bez_path );
         contours.push( contour );
@@ -271,7 +296,61 @@ mod private
 
   impl Font
   {
+    /// Returns the union bounding box of every glyph in the font.
+    #[ must_use ]
+    pub fn max_size( &self ) -> BoundingBox
+    {
+      self.max_size
+    }
+
+    /// Builds a `Font` directly from pre-built glyphs, computing `max_size` as the
+    /// union of each glyph's own bounding box (mirroring `Font::new`'s union-box
+    /// step). Unlike `Font::new`, this skips the UFO-loading pipeline's automatic
+    /// rescale-to-a-common-em-size step -- primarily useful for constructing
+    /// synthetic fonts (e.g. in tests) from glyphs built via `Glyph::from_glif`.
+    #[ must_use ]
+    pub fn from_glyphs( glyphs : impl IntoIterator< Item = ( char, Glyph ) > ) -> Self
+    {
+      let glyphs : FxHashMap< char, Glyph > = glyphs.into_iter().collect();
+
+      let mut min = F32x3::MAX;
+      let mut max = F32x3::MIN;
+      for glyph in glyphs.values()
+      {
+        // Fix(BUG-216)
+        // Root cause: `Vector`'s `<`/`>` operators route through its `PartialOrd`/`Ord`
+        // impls, which delegate to `[E; N]`'s lexicographic array comparison (compares
+        // the x component first, only inspecting y/z to break an x-tie) -- not the
+        // component-wise per-axis min/max an AABB union needs. Confirmed against
+        // `Vector::min`/`Vector::max` (`ndarray_cg::vector::arithmetics`), the correct
+        // component-wise methods already used by this exact dependency's own
+        // `BoundingBox::compute`/`compute2d`.
+        // Pitfall: a `Vector` supports two unrelated orderings -- a total, lexicographic
+        // one (via `<`/`>`/`Ord`, useful for e.g. canonical sort keys) and a
+        // component-wise one (via `.min()`/`.max()`, useful for geometry) -- picking the
+        // operator instead of the method silently selects the wrong one for AABB math.
+        min = min.min( glyph.bounding_box.min );
+        max = max.max( glyph.bounding_box.max );
+      }
+
+      Self
+      {
+        glyphs,
+        max_size : BoundingBox::new( min, max )
+      }
+    }
+
     /// Asynchronously loads a new `Font` from a UFO directory path.
+    //
+    // Fix: the 3 glyph-fetch loops below used `.expect(...)`, panicking the
+    // entire app if ANY of the full a-z/A-Z/0-9 set (62 files) was absent from
+    // a UFO directory, even though callers only ever render a handful of
+    // specific letters.
+    // Root cause: `.expect` treated a missing-but-optional glyph the same as a
+    // fatal load error -- a font legitimately may not define every glyph.
+    // Pitfall: a loop over an exhaustive enumeration (full alphabet/digit set)
+    // must tolerate individual misses via `continue`; only the per-glyph fetch
+    // is optional, not the overall load.
     async fn new( path : &str ) -> Self
     {
       let mut glyphs = FxHashMap::< char, Glyph >::default();
@@ -280,9 +359,12 @@ mod private
       for c in b'a'..=b'z'
       {
         let glyph_path = format!( "{}/{}.glif", glyphs_path, c as char );
-        let glif_bytes = gl::file::load( &glyph_path ).await
-        .expect( "Failed to load glif file" );
-        if let Some( glyph ) = Glyph::from_glif( glif_bytes, c as char )
+        let Ok( glif_bytes ) = gl::file::load( &glyph_path ).await
+        else
+        {
+          continue;
+        };
+        if let Some( glyph ) = Glyph::from_glif( &glif_bytes, c as char )
         {
           glyphs.insert( c as char, glyph );
         }
@@ -291,9 +373,12 @@ mod private
       for c in b'A'..=b'Z'
       {
         let glyph_path = format!( "{}/{}_.glif", glyphs_path, c as char );
-        let glif_bytes = gl::file::load( &glyph_path ).await
-        .expect( "Failed to load glif file" );
-        if let Some( glyph ) = Glyph::from_glif( glif_bytes, c as char )
+        let Ok( glif_bytes ) = gl::file::load( &glyph_path ).await
+        else
+        {
+          continue;
+        };
+        if let Some( glyph ) = Glyph::from_glif( &glif_bytes, c as char )
         {
           glyphs.insert( c as char, glyph );
         }
@@ -313,17 +398,20 @@ mod private
         ( '9', "nine" )
       ]
       {
-        let glyph_path = format!( "{}/{}.glif", glyphs_path, name );
-        let glif_bytes = gl::file::load( &glyph_path ).await
-        .expect( "Failed to load glif file" );
-        if let Some( glyph ) = Glyph::from_glif( glif_bytes, c )
+        let glyph_path = format!( "{glyphs_path}/{name}.glif" );
+        let Ok( glif_bytes ) = gl::file::load( &glyph_path ).await
+        else
+        {
+          continue;
+        };
+        if let Some( glyph ) = Glyph::from_glif( &glif_bytes, c )
         {
           glyphs.insert( c, glyph );
         }
       }
 
       let [ mut max_x, mut max_y ] = [ 0.0, 0.0 ];
-      for ( _, glyph ) in &glyphs
+      for glyph in glyphs.values()
       {
         let [ x1, y1 ] = [ glyph.bounding_box.left(), glyph.bounding_box.down() ];
         let [ x2, y2 ] = [ glyph.bounding_box.right(), glyph.bounding_box.up() ];
@@ -340,26 +428,32 @@ mod private
       }
 
       let scale = 250.0;
-      for ( _, glyph ) in glyphs.iter_mut()
+      for glyph in glyphs.values_mut()
       {
         glyph.scale( scale / max_y );
       }
 
       let mut min = F32x3::MAX;
       let mut max = F32x3::MIN;
-      for ( _, glyph ) in &glyphs
+      for glyph in glyphs.values()
       {
-        if min > glyph.bounding_box.min
-        {
-          min = glyph.bounding_box.min;
-        }
-        if max < glyph.bounding_box.max
-        {
-          max = glyph.bounding_box.max;
-        }
+        // Fix(BUG-216)
+        // Root cause: `Vector`'s `<`/`>` operators route through its `PartialOrd`/`Ord`
+        // impls, which delegate to `[E; N]`'s lexicographic array comparison (compares
+        // the x component first, only inspecting y/z to break an x-tie) -- not the
+        // component-wise per-axis min/max an AABB union needs. Confirmed against
+        // `Vector::min`/`Vector::max` (`ndarray_cg::vector::arithmetics`), the correct
+        // component-wise methods already used by this exact dependency's own
+        // `BoundingBox::compute`/`compute2d`.
+        // Pitfall: a `Vector` supports two unrelated orderings -- a total, lexicographic
+        // one (via `<`/`>`/`Ord`, useful for e.g. canonical sort keys) and a
+        // component-wise one (via `.min()`/`.max()`, useful for geometry) -- picking the
+        // operator instead of the method silently selects the wrong one for AABB math.
+        min = min.min( glyph.bounding_box.min );
+        max = max.max( glyph.bounding_box.max );
       }
 
-      for ( _, glyph ) in glyphs.iter_mut()
+      for glyph in glyphs.values_mut()
       {
         glyph.body = contours_to_fill_geometry( &glyph.contours );
       }
@@ -367,198 +461,27 @@ mod private
       Self
       {
         glyphs,
-        max_size : BoundingBox
-        {
-          min,
-          max
-        }
+        max_size : BoundingBox::new( min, max )
       }
     }
-  }
-
-  /// Converts a set of 2D contours into a triangulated mesh with holes support.
-  #[ cfg( feature = "font-processing" ) ]
-  #[ allow( dead_code ) ]
-  pub fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
-  {
-    if contours.is_empty()
-    {
-      return None;
-    }
-
-    let mut body_id = 0;
-    let mut max_box_diagonal_size = 0;
-    for ( i, contour ) in contours.iter().enumerate()
-    {
-      if contour.is_empty()
-      {
-        continue;
-      }
-      let [ x1, y1 ] = contour.iter()
-      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
-      .min().unwrap();
-      let [ x2, y2 ] = contour.iter()
-      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
-      .max().unwrap();
-      let controur_size = ( ( x2 - x1 ).pow( 2 ) + ( y2 - y1 ).pow( 2 ) ).isqrt();
-      if max_box_diagonal_size < controur_size
-      {
-        max_box_diagonal_size = controur_size;
-        body_id = i;
-      }
-    }
-
-    let body_bounding_box = BoundingBox::compute2d
-    (
-      contours.get( body_id ).unwrap()
-      .iter()
-      .flatten()
-      .cloned()
-      .collect::< Vec< _ > >()
-      .as_slice()
-    );
-
-    let mut outside_body_list = vec![];
-    let mut inside_body_list = vec![];
-    for ( i, contour ) in contours.iter().enumerate()
-    {
-      if body_id == i
-      {
-        continue;
-      }
-
-      let bounding_box = BoundingBox::compute2d
-      (
-        contour
-        .iter()
-        .flatten()
-        .cloned()
-        .collect::< Vec< _ > >()
-        .as_slice()
-      );
-
-      let has_part_outside_body = bounding_box.left() < body_bounding_box.left() ||
-      bounding_box.right() > body_bounding_box.right() ||
-      bounding_box.up() > body_bounding_box.up() ||
-      bounding_box.down() < body_bounding_box.down();
-
-      if has_part_outside_body
-      {
-        outside_body_list.push( contour.clone() );
-      }
-      else
-      {
-        inside_body_list.push( contour.clone() );
-      }
-    }
-
-    let mut base = vec![ contours[ body_id ].clone() ];
-    base.extend( inside_body_list );
-
-    let mut bodies = vec![ base ];
-    bodies.extend( outside_body_list.into_iter().map( | c | vec![ c ] ) );
-
-    let mut positions = vec![];
-    let mut indices = vec![];
-
-    for contours in bodies
-    {
-      let mut flat_positions: Vec< f64 > = Vec::new();
-      let mut hole_indices: Vec< usize > = Vec::new();
-
-      if let Some( outer_contour ) = contours.get( 0 )
-      {
-        if outer_contour.is_empty()
-        {
-          return None;
-        }
-        for &[ x, y ] in outer_contour
-        {
-          flat_positions.push( x as f64 );
-          flat_positions.push( y as f64 );
-        }
-      }
-      else
-      {
-        return None;
-      }
-
-      // Process holes (remaining contours)
-      // Their winding order must be opposite to the outer (e.g., CW for holes)
-      for i in 1..contours.len()
-      {
-        let hole_contour = &contours[ i ];
-        if hole_contour.is_empty()
-        {
-          continue;
-        }
-
-        hole_indices.push( flat_positions.len() / 2 );
-
-        for &[ x, y ] in hole_contour
-        {
-          flat_positions.push( x as f64 );
-          flat_positions.push( y as f64 );
-        }
-      }
-
-      // Perform triangulation
-      let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 )
-      else
-      {
-        continue;
-      };
-
-      let body_indices = body_indices.into_iter()
-      .map( | i | i as u32 )
-      .collect::< Vec< _ > >();
-
-      let body_positions = flat_positions.chunks( 2 )
-      .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
-      .collect::< Vec< _ > >();
-
-      let positions_count = positions.len();
-      positions.extend( body_positions );
-      indices.extend
-      (
-        body_indices.iter()
-        .map( | i | i + positions_count as u32 )
-      );
-    }
-
-    let attributes = AttributesData
-    {
-      positions,
-      indices,
-    };
-
-    let primitive_data = PrimitiveData
-    {
-      name : None,
-      parent : None,
-      attributes : Some( Rc::new( RefCell::new( attributes ) ) ),
-      color : F32x4::default(),
-      transform : Transform::default()
-    };
-
-    Some( primitive_data )
   }
 
   /// Asynchronously loads multiple fonts from a list of font names.
-  pub async fn load_fonts( font_names : &[ &str ] ) -> FxHashMap< String, Font >
+  pub async fn fonts_load( font_names : &[ &str ] ) -> FxHashMap< String, Font >
   {
     let mut fonts = FxHashMap::< String, Font >::default();
 
     for font_name in font_names
     {
-      let font_path = format!( "static/fonts/ufo/{}.ufo", font_name );
-      fonts.insert( font_name.to_string(), Font::new( &font_path ).await );
+      let font_path = format!( "static/fonts/ufo/{font_name}.ufo" );
+      fonts.insert( (*font_name).to_string(), Font::new( &font_path ).await );
     }
 
     fonts
   }
 
   /// Converts text string into a collection of filled mesh primitives using the specified font.
+  #[ must_use ]
   pub fn text_to_mesh( text : &str, font : &Font, transform : &Transform ) -> Vec< PrimitiveData >
   {
     let mut mesh = vec![];
@@ -568,21 +491,21 @@ mod private
     transform.scale = [ 0.003, 0.003, 1.0 ].into();
     let max_x = font.max_size.max[ 0 ] - font.max_size.min[ 0 ];
     let max_y = font.max_size.max[ 1 ] - font.max_size.min[ 1 ];
-    let halfx = max_x * transform.scale[ 0 ];
+    let half_x = max_x * transform.scale[ 0 ];
 
     for char in text.chars()
     {
       let Some( glyph ) = font.glyphs.get( &char )
       else
       {
-        transform.translation[ 0 ] -= halfx / 2.0;
+        transform.translation[ 0 ] -= half_x / 2.0;
         continue;
       };
 
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] -= if glyph_x < halfx / 4.0
+      transform.translation[ 0 ] -= if glyph_x < half_x / 4.0
       {
-        halfx / 2.0
+        half_x / 2.0
       }
       else
       {
@@ -595,7 +518,7 @@ mod private
       let Some( glyph ) = font.glyphs.get( &char ).cloned()
       else
       {
-        transform.translation[ 0 ] += halfx;
+        transform.translation[ 0 ] += half_x;
         continue;
       };
 
@@ -604,25 +527,32 @@ mod private
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
       transform.translation[ 1 ] -= diff;
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] += if glyph_x < halfx / 4.0
-      {
-        halfx
-      }
-      else
-      {
-        glyph_x
-      };
+      // Fix(BUG-129)
+      // Root cause: this advanced by the glyph's *full* slot width before placing
+      // it, expecting the next glyph's leading step to land it correctly -- but
+      // pass 1 above only ever subtracts a HALF slot-width per glyph, so this
+      // pass's full-width single step over-advances by exactly one half
+      // slot-width per glyph, compounding across the string.
+      // Pitfall: pass 1 and pass 2 must advance by symmetric half-steps around
+      // each glyph's placement (step, place, step) to keep glyphs centered in
+      // contiguous slots -- splitting the advance asymmetrically (a whole step
+      // here, an implicit half step there) silently drifts every glyph after the
+      // first.
+      let step = if glyph_x < half_x / 4.0 { half_x / 2.0 } else { glyph_x / 2.0 };
+      transform.translation[ 0 ] += step;
       if let Some( mut geometry ) = glyph.body.clone()
       {
         geometry.transform = transform.clone();
         mesh.push( geometry );
       }
+      transform.translation[ 0 ] += step;
     }
 
     mesh
   }
 
   /// Converts text string into outlined contour meshes with specified line width.
+  #[ must_use ]
   pub fn text_to_countour_mesh(
     text : &str,
     font : &Font,
@@ -637,21 +567,21 @@ mod private
     transform.scale = [ 0.003, 0.003, 1.0 ].into();
     let max_x = font.max_size.max[ 0 ] - font.max_size.min[ 0 ];
     let max_y = font.max_size.max[ 1 ] - font.max_size.min[ 1 ];
-    let halfx = max_x * transform.scale[ 0 ];
+    let half_x = max_x * transform.scale[ 0 ];
 
     for char in text.chars()
     {
       let Some( glyph ) = font.glyphs.get( &char )
       else
       {
-        transform.translation[ 0 ] -= halfx / 2.0;
+        transform.translation[ 0 ] -= half_x / 2.0;
         continue;
       };
 
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] -= if glyph_x < halfx / 4.0
+      transform.translation[ 0 ] -= if glyph_x < half_x / 4.0
       {
-        halfx / 2.0
+        half_x / 2.0
       }
       else
       {
@@ -664,7 +594,7 @@ mod private
       let Some( glyph ) = font.glyphs.get( &char ).cloned()
       else
       {
-        transform.translation[ 0 ] += halfx;
+        transform.translation[ 0 ] += half_x;
         continue;
       };
 
@@ -673,14 +603,17 @@ mod private
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
       transform.translation[ 1 ] -= diff;
       let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] += if glyph_x < halfx / 4.0
-      {
-        halfx
-      }
-      else
-      {
-        glyph_x
-      };
+      // Fix(BUG-129)
+      // Root cause: same as `text_to_mesh` above -- this advanced by the glyph's
+      // *full* slot width before placing it, over-advancing by exactly one half
+      // slot-width per glyph relative to pass 1's half-step-only subtraction,
+      // compounding across the string.
+      // Pitfall: pass 1 and pass 2 must advance by symmetric half-steps around
+      // each glyph's placement (step, place, step) to keep glyphs centered in
+      // contiguous slots -- splitting the advance asymmetrically silently drifts
+      // every glyph after the first.
+      let step = if glyph_x < half_x / 4.0 { half_x / 2.0 } else { glyph_x / 2.0 };
+      transform.translation[ 0 ] += step;
 
       for curve in glyph.contours
       {
@@ -693,70 +626,29 @@ mod private
         geometry.transform = transform.clone();
         mesh.push( geometry );
       }
+      transform.translation[ 0 ] += step;
     }
 
     mesh
   }
 }
 
-#[ cfg( not( feature = "text" ) ) ]
+// Without `font-processing` the UFO pipeline simply does not exist — the
+// symbols are configured out (loud absence at compile time), matching how
+// `contours_to_fill_geometry` is gated in `primitive.rs`. The former
+// always-return-None/empty stubs were silent-failure machinery with drifted
+// signatures and are gone (TASK-021).
+#[ cfg( not( feature = "font-processing" ) ) ]
 mod private
 {
-  use std::collections::HashMap;
-  use crate::{ PrimitiveData };
-
-  /// Stub implementation of Glyph when text feature is disabled
-  #[ derive( Clone ) ]
-  pub struct Glyph;
-
-  /// Stub implementation of Font when text feature is disabled
-  #[ derive( Clone ) ]
-  pub struct Font;
-
-  impl Font
-  {
-    /// Stub implementation for Font constructor when text feature is disabled
-    pub async fn new( _path : &str ) -> Self
-    {
-      Self
-    }
-  }
-
-  /// Stub implementation - always returns None when text feature is disabled
-  pub fn contours_to_mesh( _contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
-  {
-    None
-  }
-
-  /// Stub implementation - always returns empty map when text feature is disabled
-  pub async fn load_fonts( _font_names : &[ &str ] ) -> HashMap< String, Font >
-  {
-    HashMap::new()
-  }
-
-  /// Stub implementation - always returns None when text feature is disabled
-  pub fn text_to_mesh( _text : &str, _font : &Font ) -> Option< PrimitiveData >
-  {
-    None
-  }
-
-  /// Stub implementation - always returns empty vec when text feature is disabled
-  pub fn text_to_countour_mesh(
-    _text : &str,
-    _font : &Font,
-    _transform : &crate::Transform,
-    _width : f32
-  ) -> Vec< PrimitiveData >
-  {
-    Vec::new()
-  }
 }
 
 crate::mod_interface!
 {
+  #[ cfg( feature = "font-processing" ) ]
   orphan use
   {
-    load_fonts,
+    fonts_load,
     Glyph,
     Font,
     text_to_mesh,

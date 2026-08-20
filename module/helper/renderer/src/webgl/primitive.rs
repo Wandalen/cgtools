@@ -33,6 +33,10 @@ mod private
     ///
     /// * `gl`: The `WebGl2RenderingContext` to use for uploading.
     /// * `locations`: A hash map of uniform locations in the shader program.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the material or geometry upload fails.
     pub fn upload
     (
       &self,
@@ -64,11 +68,13 @@ mod private
     }
 
     /// Returns the center point of the primitive's geometry.
+    #[ must_use ]
     pub fn center( &self ) -> gl::F32x3
     {
       self.geometry.borrow().center()
     }
     /// Returns the bounding box of the geometry.
+    #[ must_use ]
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.geometry.borrow().bounding_box()

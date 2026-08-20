@@ -1,16 +1,7 @@
-//! Tests for `ndarray_tools`
-#![ allow( unused_imports ) ]
+//! Tests for `ndarray_tools` — runs the full `ndarray_cg` suite against the alias's re-exports.
 
-use test_tools::exposed::*;
+
 use ndarray_tools as the_module;
 
-mod tests
-{
-  #[ allow( unused_imports ) ]
-  use super::*;
-
-  // xxx : enable
-  // #[ path = "../../../math/ndarray_cg/tests/inc/mod.rs" ]
-  // mod tests;
-
-}
+#[ path = "../../../math/ndarray_cg/tests/inc/mod.rs" ]
+mod inc;

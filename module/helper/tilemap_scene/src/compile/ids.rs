@@ -19,7 +19,7 @@ mod private
   ///
   /// The two map fields are `pub(crate)` so the asset compile pass can
   /// iterate them in `compile/assets.rs`. External callers go through
-  /// [`Self::alloc_image`] / [`Self::alloc_sprite`] / [`Self::image`] /
+  /// [`Self::image_alloc`] / [`Self::sprite_alloc`] / [`Self::image`] /
   /// [`Self::sprite`] so the next-id counters remain consistent with the
   /// recorded entries.
   #[ derive( Debug, Default ) ]
@@ -44,9 +44,9 @@ mod private
     ///
     /// # Panics
     ///
-    /// Panics if more than `u32::MAX` distinct image ids have been allocated.
+    /// Panics if the image id counter overflows `u32::MAX`.
     #[ inline ]
-    pub fn alloc_image( &mut self, asset_id : &str ) -> ResourceId< asset::Image >
+    pub fn image_alloc( &mut self, asset_id : &str ) -> ResourceId< asset::Image >
     {
       if let Some( id ) = self.images.get( asset_id ).copied()
       {
@@ -62,9 +62,9 @@ mod private
     ///
     /// # Panics
     ///
-    /// Panics if more than `u32::MAX` distinct sprite ids have been allocated.
+    /// Panics if the sprite id counter overflows `u32::MAX`.
     #[ inline ]
-    pub fn alloc_sprite
+    pub fn sprite_alloc
     (
       &mut self,
       asset_id : &str,
@@ -107,36 +107,6 @@ mod private
       let key = ( asset_id.to_owned(), frame_name.to_owned() );
       self.sprites.get( &key ).copied()
     }
-  }
-}
-
-#[ cfg( test ) ]
-mod tests
-{
-  use super::private::*;
-
-  #[ test ]
-  fn images_are_deterministic()
-  {
-    let mut m = IdMap::new();
-    let a = m.alloc_image( "terrain_atlas" );
-    let b = m.alloc_image( "transitions_atlas" );
-    let a_again = m.alloc_image( "terrain_atlas" );
-    assert_eq!( a.inner(), 0 );
-    assert_eq!( b.inner(), 1 );
-    assert_eq!( a, a_again, "re-allocating same id returns the same handle" );
-  }
-
-  #[ test ]
-  fn sprites_namespace_by_atlas()
-  {
-    let mut m = IdMap::new();
-    let grass = m.alloc_sprite( "terrain", "0" );
-    let sand  = m.alloc_sprite( "terrain", "1" );
-    let grass_other_atlas = m.alloc_sprite( "other", "0" );
-    assert_ne!( grass, sand, "different frames get different ids" );
-    assert_ne!( grass, grass_other_atlas, "same frame name in different atlases is distinct" );
-    assert_eq!( Some( grass ), m.sprite( "terrain", "0" ) );
   }
 }
 

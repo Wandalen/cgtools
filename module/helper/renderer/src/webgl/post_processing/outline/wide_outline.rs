@@ -72,7 +72,8 @@ mod private
     "sourceTexture",
     "objectColorTexture",
     "jfaTexture",
-    "resolution"
+    "resolution",
+    "outlineThickness"
   );
 
   /// Binds a texture to a texture unit and uploads its location to a uniform.
@@ -83,7 +84,7 @@ mod private
   /// * `texture` - The texture to bind.
   /// * `location` - The uniform location in the shader for the sampler.
   /// * `slot` - The texture unit to bind to ( e.g., `GL::TEXTURE0` ).
-  fn upload_texture
+  fn texture_upload
   (
     gl : &gl::WebGl2RenderingContext,
     texture : &WebGlTexture,
@@ -92,7 +93,7 @@ mod private
   )
   {
     gl.active_texture( slot );
-    gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
+    gl.bind_texture( GL::TEXTURE_2D, Some( texture ) );
     // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
     gl.uniform1i( Some( location ), ( slot - GL::TEXTURE0 ) as i32 );
   }
@@ -109,7 +110,7 @@ mod private
   ///
   /// An `Option< ( WebGlFramebuffer, WebGlTexture ) >` containing the created framebuffer and
   /// its color attachment texture, or `None` if creation fails.
-  fn create_framebuffer
+  fn framebuffer_create
   (
     gl : &gl::WebGl2RenderingContext,
     width : i32,
@@ -144,16 +145,16 @@ mod private
     Some( ( framebuffer, color ) )
   }
 
-  fn set_framebuffer_color
+  fn framebuffer_color_set
   (
     gl : &gl::WebGl2RenderingContext,
     framebuffer : &WebGlFramebuffer,
-    color_texture : Option< WebGlTexture >
+    color_texture : Option< &WebGlTexture >
   )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, Some( framebuffer ) );
     // Attach the texture to the framebuffer's color attachment point
-    gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, color_texture.as_ref(), 0 );
+    gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, color_texture, 0 );
     gl.bind_framebuffer( gl::FRAMEBUFFER, None );
   }
 
@@ -164,7 +165,7 @@ mod private
   /// * `gl` - The WebGL2 rendering context.
   /// * `framebuffer` - The framebuffer to bind.
   /// * `width`, `height` - The size of the framebuffer.
-  fn upload_framebuffer(
+  fn framebuffer_upload(
     gl : &gl::WebGl2RenderingContext,
     framebuffer : &WebGlFramebuffer,
     width : i32,
@@ -243,7 +244,15 @@ mod private
 
   impl WideOutlinePass
   {
-    /// Creates a new `NarrowOutlinePass` instance.
+    /// Creates a new `WideOutlinePass` instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the JFA/outline shaders fail to compile or link.
+    ///
+    /// # Panics
+    ///
+    /// Panics if creating the JFA framebuffers fails.
     pub fn new(
       gl : &gl::WebGl2RenderingContext,
       object_color_texture : WebGlTexture,
@@ -257,11 +266,11 @@ mod private
       // --- Create Framebuffers and Textures ---
 
       // Framebuffer for the JFA initialization pass
-      let ( jfa_init_fb, jfa_init_fb_color ) = create_framebuffer( gl, width as i32, height as i32, None ).unwrap();
+      let ( jfa_init_fb, jfa_init_fb_color ) = framebuffer_create( gl, width as i32, height as i32, None ).unwrap();
       // Framebuffers for the JFA step passes ( ping-pong )
-      let ( jfa_step_fb_0, jfa_step_fb_color_0 ) = create_framebuffer( gl, width as i32, height as i32, None ).unwrap();
-      let ( jfa_step_fb_1, jfa_step_fb_color_1 ) = create_framebuffer( gl, width as i32, height as i32, None ).unwrap();
-      let ( outline_fb, output_color ) = create_framebuffer( gl, width as i32, height as i32, None ).unwrap();
+      let ( jfa_step_fb_0, jfa_step_fb_color_0 ) = framebuffer_create( gl, width as i32, height as i32, None ).unwrap();
+      let ( jfa_step_fb_1, jfa_step_fb_color_1 ) = framebuffer_create( gl, width as i32, height as i32, None ).unwrap();
+      let ( outline_fb, output_color ) = framebuffer_create( gl, width as i32, height as i32, None ).unwrap();
 
       let mut textures = FxHashMap::default();
 
@@ -297,15 +306,30 @@ mod private
     }
 
     /// Sets the thickness of the outline.
-    pub fn set_outline_thickness( &mut self, new_value : f32 )
+    pub fn outline_thickness_set( &mut self, new_value : f32 )
     {
       self.outline_thickness = new_value;
     }
 
     /// Sets the number of passes for the wide outline algorithm.
-    pub fn set_num_passes( &mut self, new_value : u32 )
+    pub fn num_passes_set( &mut self, new_value : u32 )
     {
       self.num_passes = new_value;
+    }
+
+    /// Whether JFA step `i` ( see `jfa_step_pass` ) renders into `jfa_step_fb_0`
+    /// ( `false` means `jfa_step_fb_1` ).
+    // Fix(BUG-243): `jfa_step_pass`'s own ping-pong target selection and `outline_pass`'s choice
+    // of which buffer holds the final, fully-converged result used to be two independently
+    // hand-derived parity checks that had to agree but didn't -- `outline_pass` selected the
+    // OPPOSITE buffer from the one the last step ( `i = num_passes - 1` ) actually wrote,
+    // reading a one-step-stale JFA result on every real invocation ( `num_passes` is hardcoded
+    // to `4` in `new` ). Both call sites now defer to this single function so they can't
+    // independently drift out of sync again.
+    #[ must_use ]
+    pub fn jfa_step_targets_fb0( i : u32 ) -> bool
+    {
+      i % 2 == 0
     }
 
     /// Performs the JFA initialization pass.
@@ -325,9 +349,9 @@ mod private
 
       jfa_init.bind( gl );
 
-      upload_framebuffer( gl, jfa_init_fb, self.width as i32, self.height as i32 );
+      framebuffer_upload( gl, jfa_init_fb, self.width as i32, self.height as i32 );
 
-      upload_texture( gl, object_color, &object_color_loc, GL::TEXTURE0 );
+      texture_upload( gl, object_color, &object_color_loc, GL::TEXTURE0 );
 
       gl.draw_arrays( GL::TRIANGLES, 0, 3 );
     }
@@ -340,8 +364,6 @@ mod private
     /// # Arguments
     ///
     /// * `i` - The current JFA step index ( 0, 1, 2, ... ).
-    /// * `last` - A boolean flag. If true, the result of this step is rendered
-    ///            directly to the default framebuffer ( screen ) for debugging.
     fn jfa_step_pass( &self, gl : &gl::WebGl2RenderingContext, i : u32 )
     {
       let jfa_step = &self.shader_programs.jfa_step;
@@ -359,29 +381,45 @@ mod private
 
       jfa_step.bind( gl );
 
-      // Ping-pong rendering: Determine input texture and output framebuffer based on step index `i`
+      // Ping-pong rendering: this step's render target and the *next* step's read source are the
+      // same parity decision ( BUG-243 ) -- both derive from `jfa_step_targets_fb0` so they can't
+      // drift out of sync with each other or with `outline_pass`'s final-buffer selection.
+      if Self::jfa_step_targets_fb0( i )
+      {
+        framebuffer_upload( gl, jfa_step_fb_0, self.width as i32, self.height as i32 ); // Render to FB 0
+      }
+      else
+      {
+        framebuffer_upload( gl, jfa_step_fb_1, self.width as i32, self.height as i32 ); // Render to FB 1
+      }
+
       if i == 0 // First step uses the initialization result
       {
-        upload_framebuffer( gl, jfa_step_fb_0, self.width as i32, self.height as i32 ); // Render to FB 0
-        upload_texture( gl, jfa_init_fb_color, &jfa_init_loc, GL::TEXTURE0 ); // Input is JFA init texture
+        texture_upload( gl, jfa_init_fb_color, &jfa_init_loc, GL::TEXTURE0 ); // Input is JFA init texture
       }
-      else if i % 2 == 0 // Even steps ( 2, 4, ... ) read from FB 1, render to FB 0
+      else if Self::jfa_step_targets_fb0( i - 1 ) // Previous step wrote to FB 0
       {
-        upload_framebuffer( gl, jfa_step_fb_0, self.width as i32, self.height as i32 ); // Render to FB 0
-        upload_texture( gl, &jfa_step_fb_color_1, &jfa_init_loc, GL::TEXTURE0 ); // Input is texture from FB 1
+        texture_upload( gl, jfa_step_fb_color_0, &jfa_init_loc, GL::TEXTURE0 ); // Input is texture from FB 0
       }
-      else // Odd steps ( 1, 3, ... ) read from FB 0, render to FB 1
+      else // Previous step wrote to FB 1
       {
-        upload_framebuffer( gl, jfa_step_fb_1, self.width as i32, self.height as i32 ); // Render to FB 1
-        upload_texture( gl, jfa_step_fb_color_0, &jfa_init_loc, GL::TEXTURE0 ); // Input is texture from FB 0
+        texture_upload( gl, jfa_step_fb_color_1, &jfa_init_loc, GL::TEXTURE0 ); // Input is texture from FB 1
       }
 
       // Upload resolution uniform ( needed for distance calculations in the shader )
       gl::uniform::upload( gl, Some( resolution.clone() ), &[ self.width as f32, self.height as f32 ] ).unwrap();
 
-      let aspect_ratio = self.width as f32 / self.height as f32;
-      let step_size =  self.outline_thickness / ( 2.0_f32 ).powf( i as f32 );
-      let step_size = [ step_size * aspect_ratio, step_size ];
+      // Fix(BUG-180): `stepSize` is a *pixel* distance -- `jfa_step.frag` already converts it to
+      // normalized UV space per-axis via `ceil( vec2( x, y ) * stepSize ) / resolution`, which on
+      // its own correctly compensates for a non-square canvas ( each axis divides by its own
+      // resolution component ). Previously this scaled `step_size.x` by `width / height` *before*
+      // that division, double-applying the aspect-ratio correction: the real per-axis pixel jump
+      // ( `offset * resolution` ) worked out to `step_size * aspect_ratio` horizontally vs. just
+      // `step_size` vertically, so the JFA search radius -- and therefore the rendered outline --
+      // was stretched wider than tall on any non-square canvas instead of uniform in all
+      // directions. Both components must carry the same pixel distance.
+      let step_size = self.outline_thickness / ( 2.0_f32 ).powf( i as f32 );
+      let step_size = [ step_size, step_size ];
 
       gl::uniform::upload( gl, Some( u_step_size.clone() ), &step_size ).unwrap();
 
@@ -396,16 +434,14 @@ mod private
     ///
     /// # Arguments
     ///
-    /// * `t` - The current time in milliseconds ( used for animating outline thickness ).
-    /// * `num_passes` - The total number of JFA step passes performed. Used to determine
-    ///                which of the ping-pong textures ( `jfa_step_fb_color_0` or `jfa_step_fb_color_1` )
-    ///                holds the final JFA result.
+    /// * `input_texture` - The rendered scene texture to draw outlines over.
+    /// * `output_texture` - The color texture to attach to the outline framebuffer.
     fn outline_pass
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
       input_texture : Option< minwebgl::web_sys::WebGlTexture >,
-      output_texture : Option< minwebgl::web_sys::WebGlTexture >
+      output_texture : Option< &minwebgl::web_sys::WebGlTexture >
     )
     {
       let outline = &self.shader_programs.outline;
@@ -421,8 +457,12 @@ mod private
       let object_color_loc = outline_locs.get( "objectColorTexture" ).unwrap().clone().unwrap();
       let jfa_step_loc = outline_locs.get( "jfaTexture" ).unwrap().clone().unwrap();
       let resolution = outline_locs.get( "resolution" ).unwrap().clone().unwrap();
+      // Fix(BUG-179): see the matching comment in outline.frag -- this uniform didn't exist
+      // before, so `outline_thickness` never reached the pass that actually decides whether a
+      // background pixel is close enough to draw the outline color.
+      let outline_thickness_loc = outline_locs.get( "outlineThickness" ).unwrap().clone().unwrap();
 
-      set_framebuffer_color( gl, &outline_fb, Some( output_texture.unwrap() ) );
+      framebuffer_color_set( gl, outline_fb, output_texture );
 
       outline.bind( gl );
 
@@ -430,17 +470,20 @@ mod private
       gl.bind_framebuffer( GL::FRAMEBUFFER, Some( outline_fb ) );
 
       gl::uniform::upload( gl, Some( resolution.clone() ), &[ self.width as f32, self.height as f32 ] ).unwrap();
+      gl::uniform::upload( gl, Some( outline_thickness_loc.clone() ), &self.outline_thickness ).unwrap();
 
-      upload_texture( gl, &source, &source_loc, GL::TEXTURE0 );
-      upload_texture( gl, object_color, &object_color_loc, GL::TEXTURE1 );
-      // The final JFA result is in jfa_step_fb_color_0 if num_passes is even, otherwise in jfa_step_fb_color_1
-      if self.num_passes % 2 == 0
+      texture_upload( gl, &source, &source_loc, GL::TEXTURE0 );
+      texture_upload( gl, object_color, &object_color_loc, GL::TEXTURE1 );
+      // Fix(BUG-243): the final JFA result lives wherever the *last* step actually rendered to --
+      // step `num_passes - 1`, not a hand-rederived parity check on `num_passes` itself ( which
+      // previously picked the OPPOSITE buffer from the one `jfa_step_pass` last wrote ).
+      if Self::jfa_step_targets_fb0( self.num_passes.saturating_sub( 1 ) )
       {
-        upload_texture( gl, jfa_step_fb_color_0, &jfa_step_loc, GL::TEXTURE2 );
+        texture_upload( gl, jfa_step_fb_color_0, &jfa_step_loc, GL::TEXTURE2 );
       }
       else
       {
-        upload_texture( gl, jfa_step_fb_color_1, &jfa_step_loc, GL::TEXTURE2 );
+        texture_upload( gl, jfa_step_fb_color_1, &jfa_step_loc, GL::TEXTURE2 );
       }
 
       gl.draw_arrays( GL::TRIANGLES, 0, 3 );
@@ -477,7 +520,7 @@ mod private
       }
 
       // 4. Outline Pass: Generate and render the final scene with the outline
-      self.outline_pass( gl, input_texture, output_texture.clone() );
+      self.outline_pass( gl, input_texture, output_texture.as_ref() );
 
       Ok
       (

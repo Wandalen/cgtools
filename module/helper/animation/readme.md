@@ -36,7 +36,7 @@ use animation::interpolation::Tween;
 use animation::easing::{ EasingBuilder, Linear };
 use animation::AnimatablePlayer;
 
-let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
+let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() )
 .with_repeat( 1 ).with_yoyo( true );
 
 // First loop: 0.0 -> 10.0
@@ -64,7 +64,7 @@ let mut sequencer = Sequencer::new();
 sequencer.insert
 (
   "test",
-  Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
+  Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() )
 );
 
 sequencer.update( 0.5 );
@@ -93,7 +93,7 @@ use animation::easing::
   cubic::EaseInSine
 };
 
-let f = Linear::new();
+let f = Linear::build();
 let value = f.apply( 0.0, 1.0, 0.5 );
 
 // You can choose steps count that split range [`0.0..1.0`]
@@ -102,7 +102,7 @@ let f = Step::new( 5.0 );
 let value = f.apply( 0.0, 1.0, 0.5 );
 
 // Returns [`Cubic`] instance with specific behavior
-let f = EaseInSine::new();
+let f = EaseInSine::build();
 let value = f.apply( 0.0, 1.0, 0.5 );
 ```
 
@@ -112,8 +112,9 @@ let value = f.apply( 0.0, 1.0, 0.5 );
 
 | Component | Purpose | Key Methods |
 |-----------|---------|-------------|
-| `Sequencer` | Complex values player | `new()`, `add()`, `update()`, `get_value()` |
-| `Tween` | One value interpolation player | `new()`, `update()`, `get_value()`, `progress()` |
+| `Sequencer` | Named, heterogeneous player collection running in parallel | `new()`, `insert()`, `get()`, `update()`, `progress()` |
+| `Sequence` | Ordered, homogeneous player chain running one at a time | `new()`, `current_get()`, `update()`, `progress()` |
+| `Tween` | One value interpolation player | `new()`, `update()`, `value_get()`, `progress()` |
 | `EasingFunction` | Easing function trait | `apply()` |
 
 ## 🎯 Use Cases

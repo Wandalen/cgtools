@@ -2,7 +2,7 @@
 name = "animation"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.75.0"
+rust-version = "1.81.0"
 authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
   "Bilan Vadym <vadym.b@obox.systems>"
@@ -11,7 +11,7 @@ license = "MIT"
 repository = "https://github.com/Wandalen/cgtools"
 homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/animation"
 documentation = "https://docs.rs/animation"
-description = ""
+description = "Library for animatable values interpolation, easing functions, and multi-animation sequencing"
 readme = "readme.md"
 keywords = ["webgl", "animation", "3d"]
 categories = ["animation", "web-programming", "game-development"]
@@ -37,22 +37,6 @@ minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true }
 clone_dyn_types = { workspace = true }
 rustc-hash = { workspace = true }
-
-[dependencies.web-sys]
-workspace = true
-optional = true
-features = [
-  'MouseEvent',
-  'PointerEvent',
-  'WheelEvent',
-  'WebGlTexture',
-  'HtmlImageElement',
-  'Blob',
-  'BlobPropertyBag',
-  'Url',
-  'WebGlFramebuffer',
-  'WebGlRenderbuffer'
-]
 
 [dev-dependencies]
 test_tools = { workspace = true }

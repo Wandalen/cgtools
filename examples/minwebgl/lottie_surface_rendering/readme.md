@@ -4,9 +4,9 @@
 
 This demo demonstrates how to render Lottie animations as textures on 3D object surfaces in WebGL2. It uses the velato library to parse and evaluate Lottie JSON files, converts vector paths to geometry, and renders animated frames onto surfaces using canvas rendering techniques.
 
-![image](showcase.png)
+![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

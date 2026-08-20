@@ -4,15 +4,12 @@
 //!
 //! ```ignore
 //! mod common;
-//! use common::flatten_to_sprites;
+//! use common::commands_to_sprites;
 //! ```
 //!
 //! Cargo does NOT treat `tests/common/mod.rs` as a test target on its
 //! own — it only compiles into the test crates that explicitly `mod`
 //! it in.
-
-#![ allow( dead_code ) ]
-#![ allow( clippy::min_ident_chars ) ]
 
 use rustc_hash::FxHashMap as HashMap;
 use tilemap_renderer::commands::
@@ -45,7 +42,7 @@ struct BatchState
 ///
 /// Use this when a test issues more than one `render()` call against
 /// the same `Renderer` — the stateless free-function form
-/// [`flatten_to_sprites`] only handles a single frame's command stream.
+/// [`commands_to_sprites`] only handles a single frame's command stream.
 pub struct BatchFlattener
 {
   batches : HashMap< ResourceId< Batch >, BatchState >,
@@ -146,7 +143,7 @@ impl Default for BatchFlattener
 /// Single-shot flattener equivalent to `BatchFlattener::new().apply(cmds)`.
 /// Use only for tests that issue one render call against a fresh
 /// renderer; multi-render tests need the stateful form above.
-pub fn flatten_to_sprites( cmds : &[ RenderCommand ] ) -> Vec< RenderCommand >
+pub fn commands_to_sprites( cmds : &[ RenderCommand ] ) -> Vec< RenderCommand >
 {
   BatchFlattener::new().apply( cmds )
 }
@@ -154,10 +151,10 @@ pub fn flatten_to_sprites( cmds : &[ RenderCommand ] ) -> Vec< RenderCommand >
 /// Count `RenderCommand::Sprite` entries after a single-shot flatten.
 /// For multi-render tests, route through [`BatchFlattener`] and count
 /// the per-call output.
-#[ allow( dead_code ) ]
+#[ allow( dead_code, reason = "tests/common is recompiled per integration-test binary; only renderer_cache_test.rs / renderer_test.rs call this helper, so it reads as dead in the other binaries — expect would be unfulfilled there" ) ]
 pub fn flat_sprite_count( cmds : &[ RenderCommand ] ) -> usize
 {
-  flatten_to_sprites( cmds )
+  commands_to_sprites( cmds )
     .iter()
     .filter( | c | matches!( c, RenderCommand::Sprite( _ ) ) )
     .count()
@@ -165,16 +162,14 @@ pub fn flat_sprite_count( cmds : &[ RenderCommand ] ) -> usize
 
 /// Extract just the `Sprite` payloads (world-space) from a single-shot
 /// flatten.
-#[ allow( dead_code ) ]
+#[ allow( dead_code, reason = "tests/common is recompiled per integration-test binary; only sorted_batching_test.rs / renderer_test.rs call this helper, so it reads as dead in the other binaries — expect would be unfulfilled there" ) ]
 pub fn flat_sprites( cmds : &[ RenderCommand ] ) -> Vec< Sprite >
 {
-  flatten_to_sprites( cmds )
+  commands_to_sprites( cmds )
     .into_iter()
     .filter_map( | c | if let RenderCommand::Sprite( s ) = c { Some( s ) } else { None } )
     .collect()
 }
 
-// Silence "unused" warnings for the `AddSpriteInstance` import when a
-// test file pulls common/mod.rs in but doesn't reference all helpers.
-#[ allow( dead_code ) ]
+#[ allow( dead_code, reason = "keeps the AddSpriteInstance import referenced when a test binary pulls common/mod.rs in without using every helper — expect would be unfulfilled in binaries that do use them all" ) ]
 fn _silence_unused() { let _ = core::mem::size_of::< AddSpriteInstance >(); }

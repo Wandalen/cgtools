@@ -15,7 +15,8 @@ per-sprite `Sprite` commands for sorted buckets. The legacy stateless
 `compile_frame` is gone — `Renderer::render(scene, camera)` is the sole
 entry.
 
-Used by `examples/minwebgl/slay_map`.
+No example or application consumer exists yet — the retained-mode
+pipeline is exercised only by this crate's own tests.
 
 ### Shipped
 
@@ -55,7 +56,7 @@ Used by `examples/minwebgl/slay_map`.
 - `Camera` with translate + uniform zoom; `viewport_size` source precedence `pipeline.viewport_size` → `camera.viewport_size`. `Camera::to_view_mat3` exposes the world→screen projection as a column-major 3×3 so a GPU backend applies it once per frame — world-space draws emit at unit scale in world coordinates, making a pan/zoom a single view-matrix change instead of a per-sprite re-projection (and, for a pan, an idle-replay cache hit)
 - `Renderer::set_disabled_buckets(mask: u64)` — diagnostic / perf layer gate; bit `i` skips the `i`-th `pipeline.layers` bucket (its live batches are released, depth pinning still divides by the full count so the others' depths don't shift). Changing the mask invalidates the idle-replay cache
 - `Renderer::set_batch_id_base(base: u32)` — offsets `ResourceId<Batch>` allocation so several renderers can share one backend without batch-id collisions (e.g. main / static-bake / region-bake). Must be called before the first `render()`
-- `Scene.seed: Option<u64>` — folds to `u32` salt for `hash_coord`; deterministic across frames
+- `Scene.seed: Option<u64>` — folds to `u32` salt for `coord_hash`; deterministic across frames
 - `FrameSpec::anchor` — per-frame pixel anchor, overrides `Object.pivot` when set; threaded via `CompiledAssets.sprite_anchors`
 - RON + serde loader (`RenderSpec::load`, `Scene::load`) with validation hooks
 - `ScreenSpaceSprite` command (implemented end-to-end in the WebGL adapter; SVG stubs)
@@ -128,10 +129,10 @@ fallback, inline `DrawBatch` pipeline order) +
 3 `hex_config_test` (`from_hex_size` arithmetic for both tilings) +
 6 `catalog_test` +
 42 `scene_model_compile_test` (anchor × source × pipeline coverage —
-all migrated via `tests/common::flatten_to_sprites`) +
+all migrated via `tests/common::commands_to_sprites`) +
 14 `scene_model_test` (RON + serde round-trip).
 
-**Closed `TILEMAP_SCENE_FEEDBACK.md` items:**
+**Closed items from the (since-removed) `TILEMAP_SCENE_FEEDBACK.md` review:**
 
 - §1 Runtime spec mutation — gone. Per-instance phase override
   (`set_phase_offset`) replaces the duplicate-Object workaround.
@@ -158,7 +159,7 @@ below): §8, §10, §11, §12, §13, §14.
 These are small-to-medium-size and independent. Implement when a real
 game use-case demands one.
 
-1. ~~**`TintBehaviour::Flat` for `VertexCorners`.**~~ *Shipped.* `compile_vertex_pass`
+1. ~~**`TintBehaviour::Flat` for `VertexCorners`.**~~ *Shipped.* `resolve_vertex_pass_all`
    now respects `LayerBehaviour.tint = Flat(TintRef)` per object layer — the flat
    tint multiplies the global tint so per-player region overlays can be coloured
    independently. Still open: `Masked` + `TeamColor` resolution against
@@ -175,17 +176,63 @@ game use-case demands one.
    unrelated `revision` bump — e.g. a cursor-preview `move_to` — does not restart
    the pulse. `VertexDisplace` / `ColorShift` still pass references through only —
    real work is adapter-side shader support, largely blocked on backend.
-3. **`Validate` rule implementation.** `validate.rs` has TODO-comments for
-   every SPEC §16 rule (unresolved refs, illegal source nesting, anchor ↔
-   source compatibility, default_state existence, reserved ids, tiling
-   whitelist, duplicate-id checks). Each rule is a ~10-line method.
-   Tedious but high-value for catching bad specs at load time.
+3. **`Validate` rule implementation.** *Mostly shipped.* `RenderSpec::validate`
+   now enforces pipeline-layer references, asset references (recursive
+   through `Variant` / `NeighborBitmask` / `EdgeConnectedBitmask` /
+   `ViewportTiled`), tint / animation / effect reference resolution,
+   `connects_with` resolution, illegal composite-in-composite nesting,
+   default_state existence, reserved ids, duplicate-id checks (assets /
+   tints / animations / effects / objects), and the hex-only tiling
+   whitelist (`Square4` / `Square8` rejected via
+   `ValidationError::UnsupportedTiling`, so `RenderSpec::load` now fails
+   for square specs instead of only failing later at render time).
+   `SceneSnapshot::validate` enforces tile-source (`tiles` vs `map`)
+   exclusivity and entity `owner` bounds. Still genuinely unimplemented,
+   left as a `// TODO SPEC §16` marker with rationale in `validate.rs`:
+   - **Anchor ↔ sprite-source compatibility** (`RenderSpec`) — genuinely
+     ambiguous rather than unimplemented. `docs/format/003` and
+     `docs/format/005` disagree with each other and with the actual
+     compile-time dispatch in `compile/frame.rs` (which ignores anchor
+     for `VertexCorners` and has no `External`-on-`Edge` case at all);
+     implementing the rule as literally documented would flag an
+     intentionally-passing test. Needs the docs and the compile layer
+     reconciled first.
+
+   Enforced, but not by `Validate::validate` — `// SPEC §16 note` markers
+   in `validate.rs` point here instead of leaving these looking like open
+   TODOs:
+   - **Three `SceneSnapshot` cross-file rules** — palette character
+     coverage, tile / edge / multihex / free / viewport instance
+     object-id resolution, and `initial_global_tint` resolution.
+     `Validate::validate(&self)` only receives the snapshot itself, but
+     these need `&RenderSpec` too, so they live in
+     `crate::scene::Scene::from_snapshot` — the pass that already has both
+     documents loaded — which rejects violations via
+     `SnapshotLoadError::UnknownObject` / `UnknownTint`. Tested in
+     `tests/scene_model_compile_test.rs`:
+     `from_snapshot_rejects_unknown_tile_object` (`UnknownObject`, tile
+     case — palette-expanded tiles share this code path, though no test
+     combines palette expansion with an unresolved target object) and
+     `from_snapshot_rejects_unknown_initial_global_tint` /
+     `from_snapshot_accepts_known_initial_global_tint` (`UnknownTint`).
+
+   Covered by 11 focused tests in `scene_model_test.rs` — one per
+   implemented rule (`validate_rejects_duplicate_object_id` /
+   `_duplicate_asset_id` / `_unresolved_animation_ref` /
+   `_unresolved_tint_ref` / `_unresolved_effect_ref` /
+   `_unresolved_connects_with` / `_illegal_composite_nesting` /
+   `_square_tiling` / `_conflicting_tile_source` /
+   `_owner_out_of_range`), plus one positive-path test
+   (`validate_accepts_tint_effect_connects_with`) covering the
+   tint/effect/connects_with resolution paths `validates_minimal_spec`
+   doesn't exercise.
 4. ~~**`External` sprite source runtime plumbing.**~~ *Shipped.*
    `Scene::set_external_sprite( handle, slot, SpriteRef )` populates
    the per-instance slot map; the renderer resolves
    `SpriteSource::External { slot }` against it. Unset slots emit
-   nothing (no error, no placeholder — see §12.2 of the spec for the
-   pending magenta-checkerboard option).
+   nothing (no error, no placeholder — the originally-specified
+   warn-and-substitute magenta checkerboard remains an unimplemented
+   design option; `docs/algorithm/002` documents actual behavior).
 5. **`AssetKind::SpriteSheet` support.** Currently rejected at compile with
    `UnsupportedAssetKind`. Useful shorthand for horizontal / vertical /
    grid sprite sheets that an atlas already covers — optional.
@@ -207,13 +254,15 @@ game use-case demands one.
    `BottomOfShape`), culling check against the shape cells, and the
    restriction that the sprite source is `Static` / `Variant` / `Animation`
    (no neighbour-aware sources on multihex).
-10. **Square tilings (`Square4` / `Square8`).** Enum values exist; load-time
-    rejection is a tracked TODO (SPEC §16) — `load()` currently returns
-    `Ok(())`, and Square specs fail at render time with
-    `CompileError::UnsupportedAnchor`. Implementing means square-grid neighbour
-    offsets (4 or 8), square-grid dual-mesh (4 corners per vertex), square pixel
-    conversion. Scope inflation — only do if a square-grid game is actually
-    planned.
+10. **Square tilings (`Square4` / `Square8`).** Enum values exist; actual
+    square-grid rendering support does not. `Validate` now rejects them
+    with `ValidationError::UnsupportedTiling` at `RenderSpec::load` time
+    (see Polish item 3), so the failure mode moved from a late render-time
+    `CompileError::UnsupportedAnchor` to an early load-time error — the
+    rendering gap itself is unchanged. Implementing real support means
+    square-grid neighbour offsets (4 or 8), square-grid dual-mesh (4
+    corners per vertex), square pixel conversion. Scope inflation — only
+    do if a square-grid game is actually planned.
 11. **`HexConfig::from_hex_size` bounding-box helper.** *Shipped (constructor).*
     `HexConfig::from_hex_size(w, h, tiling)` computes the equilateral-hex
     stride (`(w * 3 / 4, h)` for flat-top, symmetric for pointy-top) so authors
@@ -237,7 +286,7 @@ workload demands it.
 
 1. **Fine-delta per-instance `SetSpriteInstance` for `SortMode::None`
    batches.** *Partially shipped — bit-equal payload elision.*
-   `emit_or_update_batch` now does a bit-equal pre-pass against the
+   `batch_emit_or_update` now does a bit-equal pre-pass against the
    cached `BatchEntry.instances` and emits `SetSpriteInstance` only
    for slots whose new `Sprite` payload (transform / sprite id / tint;
    blend & clip are batch-level) actually differs. If no slot
@@ -390,6 +439,6 @@ for the same shape.
   file; `exposed use X;` for items that bubble up to the parent scope via
   `layer X;` in the parent.
 - Workspace rulebook at repo-root `rulebook.md` applies — see *Test placement* and *Test file size* sections.
-- The `slay_map` demo (untracked) in `examples/minwebgl/` exercises most
-  shipped features — useful as a smoke test when iterating on the
-  compile layer.
+- No example crate exercises the shipped feature set end-to-end yet;
+  the nearest smoke test when iterating on the compile layer is this
+  crate's own `tests/` suite.

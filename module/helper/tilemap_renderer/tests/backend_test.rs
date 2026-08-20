@@ -1,5 +1,3 @@
-#![ allow( clippy::min_ident_chars ) ] // Short names like x, y, m are idiomatic in math/graphics contexts throughout this crate
-#![ allow( clippy::struct_field_names ) ]   // ErrorBackend fields named *_error intentionally mirror the trait methods
 
 //! Backend trait contract tests.
 //!
@@ -37,7 +35,7 @@ impl TestBackend
 
 impl Backend for TestBackend
 {
-  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError >
+  fn assets_load( &mut self, _assets : &Assets ) -> Result< (), RenderError >
   {
     self.assets_loaded = true;
     Ok( () )
@@ -69,57 +67,57 @@ impl Backend for TestBackend
 // Always returns errors — used for negative-path tests.
 struct ErrorBackend
 {
-  load_error : Option< RenderError >,
-  submit_error : Option< RenderError >,
-  output_error : Option< RenderError >,
+  load : Option< RenderError >,
+  submit : Option< RenderError >,
+  output : Option< RenderError >,
 }
 
 impl ErrorBackend
 {
   fn load_missing( id : u32 ) -> Self
   {
-    Self { load_error : Some( RenderError::MissingAsset( id ) ), submit_error : None, output_error : None }
+    Self { load : Some( RenderError::MissingAsset( id ) ), submit : None, output : None }
   }
 
   fn load_backend_error( msg : &'static str ) -> Self
   {
-    Self { load_error : Some( RenderError::BackendError( msg.into() ) ), submit_error : None, output_error : None }
+    Self { load : Some( RenderError::BackendError( msg.into() ) ), submit : None, output : None }
   }
 
   fn submit_unsupported( what : &'static str ) -> Self
   {
-    Self { load_error : None, submit_error : Some( RenderError::Unsupported( what ) ), output_error : None }
+    Self { load : None, submit : Some( RenderError::Unsupported( what ) ), output : None }
   }
 
   fn submit_missing( id : u32 ) -> Self
   {
-    Self { load_error : None, submit_error : Some( RenderError::MissingAsset( id ) ), output_error : None }
+    Self { load : None, submit : Some( RenderError::MissingAsset( id ) ), output : None }
   }
 
   fn output_backend_error( msg : &'static str ) -> Self
   {
-    Self { load_error : None, submit_error : None, output_error : Some( RenderError::BackendError( msg.into() ) ) }
+    Self { load : None, submit : None, output : Some( RenderError::BackendError( msg.into() ) ) }
   }
 }
 
 impl Backend for ErrorBackend
 {
-  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError >
+  fn assets_load( &mut self, _assets : &Assets ) -> Result< (), RenderError >
   {
-    if let Some( e ) = self.load_error.take() { return Err( e ); }
+    if let Some( e ) = self.load.take() { return Err( e ); }
     Ok( () )
   }
 
   fn submit( &mut self, _commands : &[ RenderCommand ] ) -> Result< (), RenderError >
   {
-    if let Some( e ) = self.submit_error.take() { return Err( e ); }
+    if let Some( e ) = self.submit.take() { return Err( e ); }
     Ok( () )
   }
 
   fn output( &self ) -> Result< Output, RenderError >
   {
     // output takes &self so we cannot take from an Option; store as a cell-style flag via a copy.
-    match &self.output_error
+    match &self.output
     {
       Some( RenderError::BackendError( msg ) ) => Err( RenderError::BackendError( msg.clone() ) ),
       Some( RenderError::MissingAsset( id ) ) => Err( RenderError::MissingAsset( *id ) ),
@@ -144,7 +142,7 @@ struct BitmapBackend;
 
 impl Backend for BitmapBackend
 {
-  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError >
+  fn assets_load( &mut self, _assets : &Assets ) -> Result< (), RenderError >
   {
     Ok( () )
   }
@@ -174,7 +172,7 @@ struct PresentedBackend;
 
 impl Backend for PresentedBackend
 {
-  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError >
+  fn assets_load( &mut self, _assets : &Assets ) -> Result< (), RenderError >
   {
     Ok( () )
   }
@@ -203,7 +201,7 @@ impl Backend for PresentedBackend
 // Tests
 // ============================================================================
 
-/// Verifies that `load_assets` succeeds on a valid empty asset set and
+/// Verifies that `assets_load` succeeds on a valid empty asset set and
 /// sets the internal `assets_loaded` flag, confirming the call reaches
 /// the backend implementation.
 #[ test ]
@@ -211,17 +209,17 @@ fn backend_load_assets_valid()
 {
   let mut b = TestBackend::new();
   let assets = empty_assets();
-  assert!( b.load_assets( &assets ).is_ok() );
+  assert!( b.assets_load( &assets ).is_ok() );
   assert!( b.assets_loaded );
 }
 
-/// Verifies that `load_assets` accepts an empty `Assets` struct without error.
+/// Verifies that `assets_load` accepts an empty `Assets` struct without error.
 /// Empty asset sets are a common initial state and must not be rejected.
 #[ test ]
 fn backend_load_assets_empty()
 {
   let mut b = TestBackend::new();
-  assert!( b.load_assets( &empty_assets() ).is_ok() );
+  assert!( b.assets_load( &empty_assets() ).is_ok() );
 }
 
 /// Verifies that `submit` with an empty command slice returns `Ok` and
@@ -333,23 +331,23 @@ fn backend_resize_stores_dimensions()
   assert_eq!( b.height, 600 );
 }
 
-/// Verifies that `load_assets` propagates `RenderError::MissingAsset`
+/// Verifies that `assets_load` propagates `RenderError::MissingAsset`
 /// when the backend signals a missing asset during load.
 #[ test ]
 fn backend_load_assets_missing_asset_error()
 {
   let mut b = ErrorBackend::load_missing( 7 );
-  let err = b.load_assets( &empty_assets() ).unwrap_err();
+  let err = b.assets_load( &empty_assets() ).unwrap_err();
   assert!( matches!( err, RenderError::MissingAsset( 7 ) ) );
 }
 
-/// Verifies that `load_assets` propagates `RenderError::BackendError`
+/// Verifies that `assets_load` propagates `RenderError::BackendError`
 /// when the backend encounters a generic failure during asset load.
 #[ test ]
 fn backend_load_assets_backend_error()
 {
   let mut b = ErrorBackend::load_backend_error( "disk full" );
-  let err = b.load_assets( &empty_assets() ).unwrap_err();
+  let err = b.assets_load( &empty_assets() ).unwrap_err();
   assert!( matches!( err, RenderError::BackendError( _ ) ) );
 }
 

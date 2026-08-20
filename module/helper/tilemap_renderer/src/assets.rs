@@ -1,7 +1,7 @@
 //! Asset definitions — resources loaded before rendering.
 //!
 //! Assets CAN allocate (`Vec`, `PathBuf`, etc.) unlike commands.
-//! They are loaded once via `Backend::load_assets()` and referenced
+//! They are loaded once via `Backend::assets_load()` and referenced
 //! from commands by `ResourceId<T>`.
 
 mod private
@@ -16,6 +16,10 @@ mod private
 
   /// Collection of all resources needed for rendering.
   /// Loaded into a backend once before submitting commands.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:32` and
+  // `tilemap_scene/src/compile/assets.rs:115`, so `#[non_exhaustive]` would
+  // break those call sites.
   #[ derive( Debug ) ]
   pub struct Assets
   {
@@ -43,6 +47,7 @@ mod private
 
   /// Error found during asset validation.
   #[ derive( Debug, error_tools::Error ) ]
+  #[ non_exhaustive ]
   pub enum ValidationError
   {
     /// Two assets of the same type share the same [`ResourceId`].
@@ -75,7 +80,7 @@ mod private
     #[ must_use ]
     pub fn validate( &self ) -> Vec< ValidationError >
     {
-      fn check_dups< T >( items : &[ impl HasId< T > ], kind : &'static str, errors : &mut Vec< ValidationError > )
+      fn dups_check< T >( items : &[ impl HasId< T > ], kind : &'static str, errors : &mut Vec< ValidationError > )
       {
         let mut seen = IntSet::default();
         for item in items
@@ -89,14 +94,14 @@ mod private
 
       let mut errors = Vec::new();
 
-      check_dups::< asset::Font >( &self.fonts, "font", &mut errors );
-      check_dups::< asset::Image >( &self.images, "image", &mut errors );
-      check_dups::< asset::Sprite >( &self.sprites, "sprite", &mut errors );
-      check_dups::< asset::Geometry >( &self.geometries, "geometry", &mut errors );
-      check_dups::< asset::Gradient >( &self.gradients, "gradient", &mut errors );
-      check_dups::< asset::Pattern >( &self.patterns, "pattern", &mut errors );
-      check_dups::< asset::ClipMask >( &self.clip_masks, "clip_mask", &mut errors );
-      check_dups::< asset::Path >( &self.paths, "path", &mut errors );
+      dups_check::< asset::Font >( &self.fonts, "font", &mut errors );
+      dups_check::< asset::Image >( &self.images, "image", &mut errors );
+      dups_check::< asset::Sprite >( &self.sprites, "sprite", &mut errors );
+      dups_check::< asset::Geometry >( &self.geometries, "geometry", &mut errors );
+      dups_check::< asset::Gradient >( &self.gradients, "gradient", &mut errors );
+      dups_check::< asset::Pattern >( &self.patterns, "pattern", &mut errors );
+      dups_check::< asset::ClipMask >( &self.clip_masks, "clip_mask", &mut errors );
+      dups_check::< asset::Path >( &self.paths, "path", &mut errors );
 
       errors
     }
@@ -162,6 +167,7 @@ mod private
 
   /// A font loaded from a file path.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub struct FontAsset
   {
     /// Unique resource identifier.
@@ -171,6 +177,9 @@ mod private
   }
 
   /// An image asset with source and sampling configuration.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:35`, so `#[non_exhaustive]` would
+  // break that call site.
   #[ derive( Debug ) ]
   pub struct ImageAsset
   {
@@ -187,7 +196,7 @@ mod private
     pub mipmap : MipmapMode,
     /// Texture wrap mode for UVs outside `[0, 1]`. GPU backends honor this via
     /// `TEXTURE_WRAP_S`/`TEXTURE_WRAP_T`; SVG backends currently ignore it and
-    /// always behave as `Clamp` (see `adapters/svg.rs` comment in `load_images`).
+    /// always behave as `Clamp` (see `adapters/svg.rs` comment in `images_load`).
     pub wrap : WrapMode,
     /// Whether the image's pixels are premultiplied-alpha. GPU backends composite
     /// it with the premultiplied "over" blend (source colour factor `ONE` instead
@@ -198,6 +207,9 @@ mod private
   /// A rectangular region within a loaded image (sprite sheet support).
   /// SVG: `<symbol viewBox="x y w h"><use href="#sheet" .../></symbol>`.
   /// GPU: UV coordinates mapped to the sub-rectangle within the texture atlas.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_scene/src/compile/assets.rs:318`, so `#[non_exhaustive]` would
+  // break that call site.
   #[ derive( Debug ) ]
   pub struct SpriteAsset
   {
@@ -210,6 +222,9 @@ mod private
   }
 
   /// Mesh geometry with positions, UVs, and indices.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:71`, so `#[non_exhaustive]` would
+  // break that call site.
   #[ derive( Debug ) ]
   pub struct GeometryAsset
   {
@@ -233,6 +248,9 @@ mod private
   /// Gradient definition.
   /// SVG: `<linearGradient>` / `<radialGradient>` in `<defs>`.
   /// GPU: uploaded as a 1D texture or evaluated analytically in shader.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:128`, so `#[non_exhaustive]` would
+  // break that call site.
   #[ derive( Debug ) ]
   pub struct GradientAsset
   {
@@ -245,6 +263,10 @@ mod private
   }
 
   /// A single color stop in a gradient.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:124` and
+  // `tilemap_renderer/tests/svg_backend_test.rs:207`, so `#[non_exhaustive]`
+  // would break those call sites.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct GradientStop
   {
@@ -259,7 +281,8 @@ mod private
   /// Gradient geometry.
   ///
   /// All coordinates are in **world / user space** (the same coordinate system
-  /// as [`Transform`] and path commands), not 0..1 bounding-box fractions.
+  /// as [`Transform`](crate::types::Transform) and path commands), not 0..1 bounding-box fractions.
+  #[ non_exhaustive ]
   pub enum GradientKind
   {
     /// Linear gradient between two points.
@@ -285,6 +308,9 @@ mod private
   /// A repeating tile pattern.
   /// SVG: `<pattern>` in `<defs>` containing an `<image>` or shape.
   /// GPU: texture with `AddressMode::Repeat` sampler.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:287`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug ) ]
   pub struct PatternAsset
   {
@@ -301,6 +327,9 @@ mod private
   /// A clip mask — a shape that limits rendering to its interior.
   /// SVG: `<clipPath>` in `<defs>`, elements use `clip-path="url(#...)"`.
   /// GPU: draw clip shape into stencil buffer, enable stencil test for content.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:144`, so `#[non_exhaustive]` would
+  // break that call site.
   #[ derive( Debug ) ]
   pub struct ClipMaskAsset
   {
@@ -311,6 +340,9 @@ mod private
   }
 
   /// Stored path (e.g. for text-on-path references).
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/assets_test.rs:160`, so `#[non_exhaustive]` would
+  // break that call site.
   #[ derive( Debug ) ]
   pub struct PathAsset
   {
@@ -322,6 +354,7 @@ mod private
 
   /// Path segment for use in Assets.
   #[ derive( Debug, Clone, Copy ) ]
+  #[ non_exhaustive ]
   pub enum PathSegment
   {
     /// Move pen to position (x, y).
@@ -384,12 +417,13 @@ mod private
 
   /// Image data source.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub enum ImageSource
   {
     /// Path to image file — backend decodes (PNG, JPEG, etc.).
     ///
     /// **SVG backend limitation:** image dimensions cannot be determined at
-    /// `load_assets` time (no file I/O is performed). Sprites referencing a
+    /// `assets_load` time (no file I/O is performed). Sprites referencing a
     /// sheet loaded this way are skipped with a stderr warning and an HTML
     /// comment in the SVG output instead of producing an invisible element.
     /// Use [`ImageSource::Bitmap`] or [`ImageSource::Encoded`] (from which the
@@ -398,16 +432,16 @@ mod private
     /// **WebGL backend:** the image is fetched and uploaded asynchronously via
     /// an `HtmlImageElement`. If loading fails (file not found, CORS, decode
     /// error), the error is logged to `console.error` and the texture remains
-    /// empty; it cannot be propagated back through `load_assets` because the
+    /// empty; it cannot be propagated back through `assets_load` because the
     /// failure happens after that call returns.
     Path( PathBuf ),
     /// Encoded image in memory — backend decodes.
     ///
     /// **SVG backend:** MIME type is auto-detected from magic bytes
     /// (PNG, JPEG, GIF, WebP, SVG). Unknown signatures fall back to `image/png`.
-    /// Dimensions are extracted via the `image` crate for any format it
-    /// recognizes (PNG, JPEG, GIF, WebP, BMP, TIFF, ...). If dimension
-    /// extraction fails, any sprite referencing this sheet is skipped with a
+    /// Dimensions are extracted via a minimal PNG-only header read (the `png`
+    /// crate). Non-PNG bytes (JPEG, GIF, WebP, BMP, TIFF, ...) do not resolve
+    /// dimensions; any sprite referencing this sheet is then skipped with a
     /// warning — see [`ImageSource::Path`] for the reporting behavior.
     ///
     /// **Security — embedded SVG bytes:** bytes starting with `<svg`/`<?xml`
@@ -420,9 +454,14 @@ mod private
     /// embedded SVG document. Callers passing SVG bytes are responsible for
     /// trusting or sanitizing their source.
     ///
-    /// **WebGL backend:** not yet implemented — this variant is silently
-    /// skipped during `load_assets`. Use `Bitmap` (pre-decoded) or `Path`
-    /// instead.
+    /// **WebGL backend:** MIME type is auto-detected the same way as the SVG
+    /// backend (shared `image_mime_detect` helper, crate-internal). The
+    /// bytes are wrapped in a `Blob` and decoded via a browser-native
+    /// `blob:` object URL, then uploaded asynchronously through the same
+    /// `HtmlImageElement` path as [`ImageSource::Path`] — including its
+    /// failure-reporting behavior (logged to `console.error`, texture
+    /// remains empty, cannot propagate back through `assets_load`). The
+    /// object URL is revoked once the image has loaded or failed to load.
     Encoded( Vec< u8 > ),
     /// Raw pixel data — ready to upload directly.
     Bitmap
@@ -440,6 +479,7 @@ mod private
 
   /// Pixel format for raw bitmap data.
   #[ derive( Debug, Clone, Copy ) ]
+  #[ non_exhaustive ]
   pub enum PixelFormat
   {
     /// 4 bytes per pixel: red, green, blue, alpha.
@@ -454,9 +494,15 @@ mod private
 
   /// Generic data source for geometry buffers.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub enum Source
   {
     /// File path to load data from.
+    ///
+    /// **SVG backend:** read via blocking `std::fs` at `assets_load` time; a
+    /// failed read (missing file, or wasm32 where no filesystem exists) skips
+    /// the whole geometry with a stderr warning and a diagnostic comment in
+    /// the output. **WebGL backend:** fetched asynchronously.
     Path( PathBuf ),
     /// Raw byte data in memory.
     Bytes( Vec< u8 > ),
@@ -466,8 +512,9 @@ mod private
   ///
   /// When used as [`GeometryAsset::data_type`] (index buffer element type),
   /// only `U8`, `U16`, and `U32` are valid. `F32` is rejected by the WebGL
-  /// backend with `RenderError::BackendError` during `load_assets`.
+  /// backend with `RenderError::BackendError` during `assets_load`.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub enum DataType
   {
     /// Unsigned 8-bit integer. Valid as an index type (`UNSIGNED_BYTE`).
@@ -501,4 +548,45 @@ mod_interface::mod_interface!
   own use PixelFormat;
   own use Source;
   own use DataType;
+}
+
+/// Detects the MIME type of an encoded image by inspecting its magic bytes.
+/// Falls back to `image/png` when the signature is unknown, which matches
+/// the prior behavior for well-formed PNG inputs.
+///
+/// Helper shared by the `svg` and `webgl` adapters — kept outside
+/// `mod private` and the `mod_interface!` block above so both can call it
+/// without depending on `mod_interface`'s visibility-tier semantics; `pub`
+/// so its tests can live in `tests/` per the all-tests-in-tests/ convention.
+#[ cfg( any( feature = "adapter-svg", feature = "adapter-webgl" ) ) ]
+#[ must_use ]
+pub fn image_mime_detect( bytes : &[ u8 ] ) -> &'static str
+{
+  if bytes.starts_with( &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ] ) { return "image/png"; }
+  if bytes.starts_with( &[ 0xff, 0xd8, 0xff ] ) { return "image/jpeg"; }
+  if bytes.starts_with( b"GIF87a" ) || bytes.starts_with( b"GIF89a" ) { return "image/gif"; }
+  if bytes.len() >= 12 && bytes.starts_with( b"RIFF" ) && &bytes[ 8..12 ] == b"WEBP" { return "image/webp"; }
+  if bytes.starts_with( b"<svg" ) || bytes.starts_with( b"<?xml" ) { return "image/svg+xml"; }
+  "image/png"
+}
+
+/// Expands any `PixelFormat` into tightly-packed RGBA8 bytes -- the only
+/// texture format the `native`/`webgpu` adapters upload into (`gpu_hal` has
+/// no narrower GPU-side format for the v0 surface).
+///
+/// Helper shared by the `native` and `webgpu` adapters -- kept outside
+/// `mod private` and the `mod_interface!` block above so both can call it
+/// without depending on `mod_interface`'s visibility-tier semantics; `pub`
+/// so its tests can live in `tests/` per the all-tests-in-tests/ convention.
+#[ cfg( any( feature = "adapter-native", feature = "adapter-webgpu" ) ) ]
+#[ must_use ]
+pub fn to_rgba8( bytes : &[ u8 ], format : PixelFormat ) -> Vec< u8 >
+{
+  match format
+  {
+    PixelFormat::Rgba8 => bytes.to_vec(),
+    PixelFormat::Rgb8 => bytes.chunks_exact( 3 ).flat_map( | p | [ p[ 0 ], p[ 1 ], p[ 2 ], 255 ] ).collect(),
+    PixelFormat::Gray8 => bytes.iter().flat_map( | &g | [ g, g, g, 255 ] ).collect(),
+    PixelFormat::GrayAlpha8 => bytes.chunks_exact( 2 ).flat_map( | p | [ p[ 0 ], p[ 0 ], p[ 0 ], p[ 1 ] ] ).collect(),
+  }
 }

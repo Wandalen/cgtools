@@ -1,0 +1,72 @@
+# Command Group :: 2. Graph
+
+### Pattern
+
+Relationship rendering: walk the `depends_on` edges of the compiled-in
+chunk registry and print the structure itself — parent-before-child,
+indented, tags trailing — rather than a filtered set of rows.
+
+### Purpose
+
+Let a shader author see how chunks relate: one chunk's full dependency
+chain (`tree fbm3`), the whole forest of root chunks (`tree` with no
+argument), or the reverse — what (transitively) depends on a given chunk
+(`tree hash21 reverse::1`).
+
+### Semantic Coherence Test
+
+"The member command answers a relationship-shaped question about the
+compiled-in chunk registry — what depends on what, rendered as the graph
+itself." `.tree` is the only command whose output rows are graph *edges*
+(nesting), not chunk *records*.
+
+### Why NOT Merge Into Query
+
+The [Query](01_query.md) group's `depends_on::`/`transitive::`/`roots::`/
+`leaves::` parameters answer set questions *about* the graph ("which chunks
+depend on hash21") — the answer is still a flat set of chunk records.
+`.tree` renders the graph structure — nesting is the payload, and its
+[`tree_aligned`](../format/02_tree_aligned.md)/[`tree_dot`](../format/09_tree_dot.md)/[`tree_mermaid`](../format/10_tree_mermaid.md)
+shapes (selected via `shape::`) have no column-projection surface, unlike
+`format::`'s 6 query-record shapes. Merging would put a command with a
+3-parameter surface (`name`, `reverse`, `shape`) and a structural output
+inside a group defined by its shared 21-parameter set engine.
+
+### Invariants
+
+- Idempotent: identical input always produces identical output.
+- No side effects outside stdout content and process exit code.
+- Only `shader_chunks_core::CHUNKS` is consulted — no filesystem,
+  environment, or network access.
+- Child order and nesting mirror the declared `depends_on` metadata
+  exactly — never alphabetized, never flattened.
+
+### Referenced Commands
+
+| # | Command | Relationship |
+|---|---------|---------------|
+| 1 | [`.tree`](../command/04_tree.md) | Member — dependency tree or full forest |
+
+**Membership:** 1 of the 9 commands; the partition across all groups is
+stated in [`readme.md`](readme.md). A single-member group is deliberate —
+the boundary is output-species (graph rendering), not command count.
+
+### Referenced Tests
+
+| File | Relationship |
+|------|--------------|
+| [`../../../tests/docs/cli/command_group/02_graph.md`](../../../tests/docs/cli/command_group/02_graph.md) | Group-level test specification |
+| [`../../../../shader_chunks_query_core/tests/shader_chunks_query_core_test.rs`](../../../../shader_chunks_query_core/tests/shader_chunks_query_core_test.rs) | `tree_chunk_shows_fbm3_dependency_chain_in_order`, `tree_chunk_with_no_name_shows_forest_of_every_root_chunk`, `tree_reverse_on_a_chunk_shows_its_dependents_chain_in_order`, `tree_reverse_with_no_name_shows_forest_of_every_leaf_chunk`, `tree_dot_format_renders_digraph_with_edges_in_dependency_order`, `tree_mermaid_format_renders_graph_td_with_edges_in_dependency_order` |
+
+### Typical Patterns
+
+Inspect before composing: `tree <name>` to confirm what `compose` will
+pull in transitively; bare `tree` to survey every entry-point chunk at
+once; `tree <name> reverse::1` to assess blast radius before editing a
+low-level chunk — what else composes it in, directly or transitively.
+
+### Referenced User Stories
+
+*(None — this project deliberately omits the `user_story/` collection at
+this CLI's scale; see [`../readme.md` § Scope
+Decisions](../readme.md#scope-decisions).)*

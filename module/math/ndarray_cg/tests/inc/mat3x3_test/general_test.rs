@@ -1,6 +1,5 @@
 use super::*;
-use ndarray_cg::{IndexingRef, QuatF32, QuatF64,approx };
-// use approx::assert_abs_diff_eq;
+use ndarray_cg::{IndexingRef, QuatF64,approx };
 use the_module::
 {
   Ix2,
@@ -15,6 +14,9 @@ use the_module::
   mat
 };
 
+// `determinant` on these small-integer-valued matrices only sums/subtracts products of
+// exactly-representable integers — no rounding is possible, so exact equality is correct.
+#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn test_determinant_generic< Descriptor : mat::Descriptor > ()
 where
   Mat3< f32, Descriptor > :
@@ -138,9 +140,46 @@ fn test_truncate_column_major()
   test_truncate_generic::< mat::DescriptorOrderColumnMajor >();
 }
 
-fn test_from_quat_generic< Descriptor : mat::Descriptor >()
+// test_kind: bug_reproducer(BUG-287)
+/// ## Root Cause
+/// `Mat3::truncate()`'s doc comment ("Convertes this matrix into the 3x3 matrix") was copy-pasted
+/// from `Mat4::truncate()` (a real 4x4 -> 3x3 conversion, where that text is correct) without
+/// updating it for this type's own 3x3 -> 2x2 conversion -- the doc claimed the wrong output shape
+/// while the signature, and the runtime behavior already covered by `test_truncate_generic` above,
+/// always returned `Mat<2,2,...>` correctly.
+/// ## Why Not Caught
+/// `test_truncate_row_major`/`test_truncate_column_major` above already assert the correct 2x2
+/// runtime behavior, but none of them read the doc comment itself -- a doc string carries zero
+/// compiler enforcement, so a behaviorally-correct function can carry an arbitrarily wrong
+/// description indefinitely with every runtime test still green.
+/// ## Fix Applied
+/// Reworded the doc comment to "Converts this matrix into the 2x2 matrix, dropping the last row
+/// and column" (`d2/mat3x3/general.rs`); no behavioral change.
+/// ## Prevention
+/// For any method whose doc was copy-pasted from a sibling (same method name, different type),
+/// diff the doc text against the actual return type in the signature, not just re-check the
+/// sibling's own correctness.
+/// ## Pitfall
+/// This class of bug is invisible to every runtime test, however thorough -- only a check that
+/// reads the source text itself (as this test does via `include_str!`) or a human doc review
+/// can catch it.
+#[ test ]
+fn truncate_doc_matches_2x2_output()
+{
+  let src = include_str!( "../../../src/d2/mat3x3/general.rs" );
+  let fn_pos = src.find( "pub fn truncate" ).expect( "Mat3::truncate must exist" );
+  let preceding = &src[ ..fn_pos ];
+  let doc_line = preceding.lines().rev()
+    .find( | line | line.trim_start().starts_with( "///" ) )
+    .expect( "truncate() must have a doc comment" );
+
+  assert!( doc_line.contains( "2x2" ), "doc comment must describe the actual 2x2 return shape, got: {doc_line:?}" );
+  assert!( !doc_line.contains( "3x3" ), "doc comment must not claim a 3x3 return shape (BUG-287), got: {doc_line:?}" );
+}
+
+fn test_from_quat_generic< Descriptor >()
 where
-  Descriptor : PartialEq,
+  Descriptor : mat::Descriptor + PartialEq,
   Mat3< f64, Descriptor > :
       RawSliceMut< Scalar = f64 > +
       IndexingRef< Scalar = f64, Index = Ix2 > +
@@ -150,9 +189,9 @@ where
 
   let exp = Mat3::< f64, Descriptor >::from_column_major
   ([
-    0.13333333333333353, 0.9333333333333332, -0.33333333333333326,
-    -0.6666666666666666, 0.3333333333333335, 0.6666666666666665,
-    0.7333333333333332, 0.13333333333333336, 0.6666666666666667,
+    0.133_333_333_333_333_53, 0.933_333_333_333_333_2, -0.333_333_333_333_333_26,
+    -0.666_666_666_666_666_6, 0.333_333_333_333_333_5, 0.666_666_666_666_666_5,
+    0.733_333_333_333_333_2, 0.133_333_333_333_333_36, 0.666_666_666_666_666_7,
   ]);
 
   assert_eq!( Mat3::< f64, Descriptor >::from_quat( q ), exp, " Mat3 from Quat mismatch" );
@@ -161,9 +200,9 @@ where
 
   let exp = Mat3::< f64, Descriptor >::from_column_major
   ([
-    -0.042253521126760285, -0.76056338028169, -0.6478873239436618,
-    -0.9295774647887323, 0.267605633802817, -0.2535211267605634,
-    0.36619718309859145, 0.5915492957746478, -0.7183098591549293,
+    -0.042_253_521_126_760_285, -0.760_563_380_281_69, -0.647_887_323_943_661_8,
+    -0.929_577_464_788_732_3, 0.267_605_633_802_817, -0.253_521_126_760_563_4,
+    0.366_197_183_098_591_45, 0.591_549_295_774_647_8, -0.718_309_859_154_929_3,
   ]);
 
   assert_eq!( Mat3::< f64, Descriptor >::from_quat( q ), exp, " Mat3 from Quat mismatch" );
@@ -172,9 +211,9 @@ where
 
   let exp = Mat3::< f64, Descriptor >::from_column_major
   ([
-    0.7605633802816901, -0.14084507042253522, -0.6338028169014085,
-    -0.4225352112676056, 0.6338028169014085, -0.6478873239436619,
-    0.49295774647887325, 0.7605633802816901, 0.4225352112676056,
+    0.760_563_380_281_690_1, -0.140_845_070_422_535_22, -0.633_802_816_901_408_5,
+    -0.422_535_211_267_605_6, 0.633_802_816_901_408_5, -0.647_887_323_943_661_9,
+    0.492_957_746_478_873_25, 0.760_563_380_281_690_1, 0.422_535_211_267_605_6,
   ]);
   approx::assert_abs_diff_eq!( Mat3::< f64, Descriptor >::from_quat( q ), exp );
 }
@@ -218,11 +257,14 @@ fn test_identity_column_major()
   test_identity_generic::< mat::DescriptorOrderColumnMajor >();
 }
 
+// `to_homogenous` only copies existing elements and inserts exact 0.0/1.0 padding — no
+// arithmetic, so the result is bit-identical to the literal arrays compared against.
+#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn test_to_homogenous_generic< Descriptor : mat::Descriptor >()
 where
   Mat4< f32, Descriptor > :
     RawSliceMut< Scalar = f32 >,
-  Mat3< f32, Descriptor > : 
+  Mat3< f32, Descriptor > :
     RawSlice< Scalar = f32 > +
     RawSliceMut< Scalar = f32 >
 {

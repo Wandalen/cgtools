@@ -121,6 +121,7 @@ pub struct Movable
 impl Movable
 {
   /// Creates a new movable component with basic movement.
+  #[ must_use ]
   pub fn new( range : u32 ) -> Self
   {
     Self
@@ -133,6 +134,7 @@ impl Movable
   }
 
   /// Creates a movable component with diagonal movement capability.
+  #[ must_use ]
   pub fn with_diagonal( mut self ) -> Self
   {
     self.diagonal_movement = true;
@@ -140,6 +142,7 @@ impl Movable
   }
 
   /// Creates a movable component that can pass through entities.
+  #[ must_use ]
   pub fn with_entity_passthrough( mut self ) -> Self
   {
     self.can_pass_through_entities = true;
@@ -147,6 +150,7 @@ impl Movable
   }
 
   /// Creates a movable component that can pass through obstacles.
+  #[ must_use ]
   pub fn with_obstacle_passthrough( mut self ) -> Self
   {
     self.can_pass_through_obstacles = true;
@@ -170,24 +174,28 @@ pub struct Size
 impl Size
 {
   /// Creates a new size component.
+  #[ must_use ]
   pub fn new( width : u32, height : u32 ) -> Self
   {
     Self { width, height }
   }
 
   /// Creates a square size (1x1).
+  #[ must_use ]
   pub fn single() -> Self
   {
     Self::new( 1, 1 )
   }
 
   /// Creates a square size with the specified dimension.
+  #[ must_use ]
   pub fn square( size : u32 ) -> Self
   {
     Self::new( size, size )
   }
 
   /// Calculates the total area occupied.
+  #[ must_use ]
   pub fn area( &self ) -> u32
   {
     self.width * self.height
@@ -213,6 +221,7 @@ pub struct Health
 impl Health
 {
   /// Creates a new health component with the specified maximum health.
+  #[ must_use ]
   pub fn new( maximum : u32 ) -> Self
   {
     Self
@@ -231,7 +240,19 @@ impl Health
   /// Heals this entity, capped at maximum health.
   pub fn heal( &mut self, amount : u32 )
   {
-    self.current = ( self.current + amount ).min( self.maximum );
+    // Fix(BUG-344): `self.current + amount` could overflow `u32` before the
+    // `.min(self.maximum)` clamp ever ran (debug build: panics; release
+    // build: silently wraps to a tiny value, i.e. "healing" corrupts health
+    // downward) -- switched to `saturating_add`, matching `damage()`'s
+    // existing `saturating_sub` convention just above.
+    // Root cause: the clamp-after-add pattern assumes the addition itself
+    // cannot overflow, which does not hold once `current` is already close
+    // to `u32::MAX` (every field on `Health` is `pub`, so nothing prevents
+    // constructing such a state directly).
+    // Pitfall: any `x + y` immediately followed by `.min(bound)`/`.max(bound)`
+    // is only safe when `x + y` itself cannot overflow the integer type --
+    // use `saturating_add`/`saturating_sub` first, then clamp.
+    self.current = self.current.saturating_add( amount ).min( self.maximum );
   }
 
   /// Sets health to maximum.
@@ -241,18 +262,21 @@ impl Health
   }
 
   /// Returns whether this entity is alive (health > 0).
+  #[ must_use ]
   pub fn is_alive( &self ) -> bool
   {
     self.current > 0
   }
 
   /// Returns whether this entity is at full health.
+  #[ must_use ]
   pub fn is_full_health( &self ) -> bool
   {
     self.current == self.maximum
   }
 
   /// Returns health as a percentage (0.0 to 1.0).
+  #[ must_use ]
   pub fn health_percentage( &self ) -> f32
   {
     if self.maximum == 0
@@ -286,19 +310,22 @@ pub struct Stats
 impl Stats
 {
   /// Creates new stats with specified values.
+  #[ must_use ]
   pub fn new( attack : u32, defense : u32, speed : u32, level : u32 ) -> Self
   {
     Self { attack, defense, speed, level }
   }
 
   /// Creates basic level 1 stats.
+  #[ must_use ]
   pub fn basic() -> Self
   {
     Self::new( 10, 10, 10, 1 )
   }
 
   /// Calculates damage dealt to a target with specified defense.
-  pub fn calculate_damage( &self, target_defense : u32 ) -> u32
+  #[ must_use ]
+  pub fn damage_calculate( &self, target_defense : u32 ) -> u32
   {
     self.attack.saturating_sub( target_defense / 2 ).max( 1 )
   }
@@ -320,6 +347,7 @@ pub struct Team
 impl Team
 {
   /// Creates a new team component.
+  #[ must_use ]
   pub fn new( id : u32 ) -> Self
   {
     Self
@@ -330,6 +358,7 @@ impl Team
   }
 
   /// Creates a hostile team component.
+  #[ must_use ]
   pub fn hostile( id : u32 ) -> Self
   {
     Self
@@ -340,12 +369,14 @@ impl Team
   }
 
   /// Checks if this team is allied with another team.
+  #[ must_use ]
   pub fn is_allied_with( &self, other : &Team ) -> bool
   {
     self.id == other.id
   }
 
   /// Checks if this team is hostile to another team.
+  #[ must_use ]
   pub fn is_hostile_to( &self, other : &Team ) -> bool
   {
     if self.id == other.id
@@ -398,6 +429,7 @@ impl Sprite
   }
 
   /// Sets the tint color.
+  #[ must_use ]
   pub fn with_tint( mut self, r : f32, g : f32, b : f32, a : f32 ) -> Self
   {
     self.tint = [ r, g, b, a ];
@@ -405,6 +437,7 @@ impl Sprite
   }
 
   /// Sets the scale.
+  #[ must_use ]
   pub fn with_scale( mut self, scale : f32 ) -> Self
   {
     self.scale = scale;
@@ -412,6 +445,7 @@ impl Sprite
   }
 
   /// Sets the rotation.
+  #[ must_use ]
   pub fn with_rotation( mut self, rotation : f32 ) -> Self
   {
     self.rotation = rotation;
@@ -455,6 +489,7 @@ pub struct Animation
 impl Animation
 {
   /// Creates a new animation component.
+  #[ must_use ]
   pub fn new( frame_count : u32, frame_duration : f32 ) -> Self
   {
     Self
@@ -478,9 +513,19 @@ impl Animation
 
     self.frame_timer += dt;
 
-    if self.frame_timer >= self.frame_duration
+    // Fix(BUG-132)
+    // Root cause: a single `if` consumed at most one frame_duration per call
+    // and unconditionally reset frame_timer to 0.0, discarding any overshoot
+    // beyond the first threshold crossing instead of carrying it into the
+    // next frame -- a large dt (e.g. a stalled render loop) silently
+    // under-advanced the animation.
+    // Pitfall: `while` must also guard on `frame_duration > 0.0`, since `new`
+    // never validates it -- without the guard a non-positive frame_duration
+    // (harmless as a single `if`, advancing exactly one frame per call) turns
+    // into an infinite loop once multiple crossings are consumed per call.
+    while self.frame_duration > 0.0 && self.frame_timer >= self.frame_duration
     {
-      self.frame_timer = 0.0;
+      self.frame_timer -= self.frame_duration;
       self.current_frame += 1;
 
       if self.current_frame >= self.frame_count
@@ -491,8 +536,23 @@ impl Animation
         }
         else
         {
-          self.current_frame = self.frame_count - 1;
+          // Fix(BUG-345): `self.frame_count - 1` underflowed (panic:
+          // "attempt to subtract with overflow") when `frame_count == 0` --
+          // `Animation::new` documents no lower bound on `frame_count`, and
+          // the non-looping branch unconditionally subtracted 1 regardless.
+          // Root cause: this subtraction assumed `frame_count >= 1` (a
+          // reasonable animation always has at least one frame) but nothing
+          // in the type enforces it -- `looping: true` with `frame_count: 0`
+          // never reaches this branch, so the assumption held silently until
+          // a zero-frame, non-looping animation actually called `update`.
+          // Pitfall: any `some_len - 1` on a caller-controlled, unvalidated
+          // count must use `saturating_sub(1)` (or an explicit `== 0` guard)
+          // unless the type's own invariants already rule out `0` -- they do
+          // not here.
+          self.current_frame = self.frame_count.saturating_sub( 1 );
           self.playing = false;
+          self.frame_timer = 0.0;
+          break;
         }
       }
     }
@@ -536,6 +596,7 @@ pub struct PlayerControlled
 impl PlayerControlled
 {
   /// Creates a new player control component.
+  #[ must_use ]
   pub fn new( player_id : u32 ) -> Self
   {
     Self { player_id }
@@ -580,6 +641,7 @@ pub enum AIState
 impl AI
 {
   /// Creates a new AI component.
+  #[ must_use ]
   pub fn new( decision_interval : f32 ) -> Self
   {
     Self
@@ -598,25 +660,26 @@ impl AI
   }
 
   /// Returns whether it's time for a new AI decision.
+  #[ must_use ]
   pub fn should_make_decision( &self ) -> bool
   {
     self.decision_timer >= self.decision_interval
   }
 
   /// Resets the decision timer.
-  pub fn reset_decision_timer( &mut self )
+  pub fn decision_timer_reset( &mut self )
   {
     self.decision_timer = 0.0;
   }
 
   /// Sets a new target.
-  pub fn set_target( &mut self, target : Option< hecs::Entity > )
+  pub fn target_set( &mut self, target : Option< hecs::Entity > )
   {
     self.target = target;
   }
 
   /// Changes the AI state.
-  pub fn set_state( &mut self, state : AIState )
+  pub fn state_set( &mut self, state : AIState )
   {
     self.state = state;
   }
@@ -660,6 +723,7 @@ pub enum TriggerType
 impl Trigger
 {
   /// Creates a new trigger component.
+  #[ must_use ]
   pub fn new( trigger_type : TriggerType ) -> Self
   {
     Self
@@ -673,6 +737,7 @@ impl Trigger
   }
 
   /// Makes the trigger repeatable with a cooldown.
+  #[ must_use ]
   pub fn repeatable( mut self, cooldown : f32 ) -> Self
   {
     self.repeatable = true;
@@ -690,6 +755,7 @@ impl Trigger
   }
 
   /// Returns whether the trigger can be activated.
+  #[ must_use ]
   pub fn can_activate( &self ) -> bool
   {
     if self.activated && !self.repeatable

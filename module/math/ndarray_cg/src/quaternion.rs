@@ -3,12 +3,13 @@
 //! in 3D space in a compact and efficient manner, avoiding issues like gimbal lock.
 mod private
 {
-  use crate::*;
+  use crate::{MatEl, Vector, NdFloat};
 
   /// Represents a quaternion using a 4D vector for its components `[x, y, z, w]`.
   ///
   /// The `w` component is the scalar part, and `(x, y, z)` is the vector part.
   #[ derive( Clone, Copy, Debug, PartialEq, PartialOrd ) ]
+  #[ non_exhaustive ]
   pub struct Quat< E >( pub Vector< E, 4 > )
   where E : MatEl;
 
@@ -16,7 +17,8 @@ mod private
   where
     E : MatEl + NdFloat
   {
-    fn default() -> Self 
+    #[ inline ]
+    fn default() -> Self
     {
       Quat( Vector( [ E::zero(), E::zero(), E::zero(), E::one() ] ) )
     } 

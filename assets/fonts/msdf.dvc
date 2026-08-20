@@ -1,0 +1,6 @@
+outs:
+- md5: 4c17cec1540e44487fef9d7b70af15ef.dir
+  size: 8018
+  nfiles: 2
+  hash: md5
+  path: msdf

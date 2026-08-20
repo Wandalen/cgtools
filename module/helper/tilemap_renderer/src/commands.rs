@@ -6,8 +6,20 @@
 
 mod private
 {
-  use crate::types::*;
-  use crate::types::asset;
+  use crate::types::
+  {
+    Batch,
+    BlendMode,
+    DashStyle,
+    FillRef,
+    LineCap,
+    LineJoin,
+    ResourceId,
+    TextAnchor,
+    Topology,
+    Transform,
+    asset,
+  };
 
   // ============================================================================
   // Clear
@@ -16,6 +28,10 @@ mod private
   /// Clears the framebuffer / canvas with a solid color.
   /// SVG: `<rect width="100%" height="100%" fill="..."/>`.
   /// GPU: `clear_color` on the render pass.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_scene/src/compile/frame.rs:713` and
+  // `tilemap_renderer/tests/backend_test.rs:242`, so `#[non_exhaustive]` would
+  // break those call sites.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct Clear
   {
@@ -30,6 +46,9 @@ mod private
   /// Begins a new path with styling.
   /// SVG: opens `<path d="...">` with fill/stroke attributes.
   /// GPU: begins collecting vertices for tessellation.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:99`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct BeginPath
   {
@@ -54,14 +73,23 @@ mod private
   }
 
   /// SVG: `M x y`.
+  // Constructed via tuple-struct syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:111`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct MoveTo( pub f32, pub f32 );
 
   /// SVG: `L x y`.
+  // Constructed via tuple-struct syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:112`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct LineTo( pub f32, pub f32 );
 
   /// Quadratic bezier. SVG: `Q cx cy x y`.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:146`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct QuadTo
   {
@@ -76,6 +104,9 @@ mod private
   }
 
   /// Cubic bezier. SVG: `C c1x c1y c2x c2y x y`.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:147`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct CubicTo
   {
@@ -95,6 +126,9 @@ mod private
 
   /// Elliptical arc. SVG: `A rx ry rotation large_arc sweep x y`.
   /// GPU: decompose into cubic beziers, then tessellate.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:150`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct ArcTo
   {
@@ -115,10 +149,16 @@ mod private
   }
 
   /// Closes the current subpath. SVG: `Z`.
+  // Constructed as a unit-struct value from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:113`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct ClosePath;
 
   /// Ends path, flushes to backend.
+  // Constructed as a unit-struct value from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:114`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct EndPath;
 
@@ -128,6 +168,9 @@ mod private
 
   /// Begins text rendering.
   /// GPU: CPU text layout (optionally along path), then render glyphs.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:1397`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct BeginText
   {
@@ -148,10 +191,16 @@ mod private
   }
 
   /// Single character. POD.
+  // Constructed via tuple-struct syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:1418`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct Char( pub char );
 
   /// Ends text sequence.
+  // Constructed as a unit-struct value from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:1420`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct EndText;
 
@@ -162,6 +211,9 @@ mod private
   /// Mesh with geometry from `Assets`.
   /// SVG: `<polygon>` or `<path>` depending on topology.
   /// GPU: vertex buffer + topology draw call.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `examples/minwebgl/hexagonal_map/src/main.rs:401`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct Mesh
   {
@@ -186,6 +238,9 @@ mod private
   /// Renders a sprite (sub-region of an image / sprite sheet).
   /// SVG: `<use href="#sprite_N">` referencing a `<symbol viewBox="region">`.
   /// GPU: textured quad with UV coordinates mapped to the sprite's region.
+  // Constructed via full struct-literal syntax (with `..` update syntax) from
+  // outside this crate, e.g. `tilemap_renderer/tests/svg_backend_test.rs:500`,
+  // so `#[non_exhaustive]` would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct Sprite
   {
@@ -225,6 +280,9 @@ mod private
   /// cmd( RemoveInstance { index: 5 } );
   /// cmd( UnbindBatch );
   /// ```
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_scene/src/renderer.rs:643`, so `#[non_exhaustive]` would break
+  // that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct SpriteBatchParams
   {
@@ -254,6 +312,9 @@ mod private
   }
 
   /// Parameters for a mesh batch.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/commands_test.rs:115`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct MeshBatchParams
   {
@@ -282,6 +343,9 @@ mod private
   }
 
   /// Creates an empty sprite batch with the given parameters.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_scene/src/renderer.rs:640`, so `#[non_exhaustive]` would break
+  // that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct CreateSpriteBatch
   {
@@ -292,6 +356,9 @@ mod private
   }
 
   /// Creates an empty mesh batch with the given parameters.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:597`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct CreateMeshBatch
   {
@@ -314,12 +381,15 @@ mod private
   ///   issuing `DrawBatch` or a second `BindBatch`.
   ///
   /// **Correct lifecycle:**
-  /// ```ignore
+  /// ```text
   /// BindBatch(id)
   /// Add/Set/RemoveInstance …
   /// UnbindBatch          // commits VAO state; safe to draw after this
   /// DrawBatch(id)
   /// ```
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_scene/src/renderer.rs:601`, so `#[non_exhaustive]` would break
+  // that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct BindBatch
   {
@@ -333,6 +403,9 @@ mod private
   ///
   /// If the internal GPU buffer needs to grow and the allocation fails,
   /// `submit` returns `RenderError::BackendError`.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_scene/src/renderer.rs:623`, so `#[non_exhaustive]` would break
+  // that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct AddSpriteInstance
   {
@@ -350,6 +423,9 @@ mod private
   ///
   /// If the internal GPU buffer needs to grow and the allocation fails,
   /// `submit` returns `RenderError::BackendError`.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:612`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct AddMeshInstance
   {
@@ -369,6 +445,9 @@ mod private
   /// Stale indices are easy to introduce after `RemoveInstance` (swap-remove
   /// shifts the last element into the removed slot) — always update your
   /// entity→index map after every removal.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_scene/src/renderer.rs:605`, so `#[non_exhaustive]` would break
+  // that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct SetSpriteInstance
   {
@@ -388,6 +467,10 @@ mod private
   ///
   /// If `index >= batch.len()`, `submit` returns `RenderError::BackendError`.
   /// See `SetSpriteInstance` for notes on stale indices after swap-remove.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs`'s
+  // `set_mesh_instance_out_of_bounds_returns_error`, so `#[non_exhaustive]`
+  // would break that call site -- same reasoning as `SetSpriteInstance`.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct SetMeshInstance
   {
@@ -424,6 +507,9 @@ mod private
   /// // After:  [A, D, C]     (len = 3) — D moved from index 3 to index 1
   /// // → update your map: entity_D.index = 1
   /// ```
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_scene/src/renderer.rs:618`, so `#[non_exhaustive]` would break
+  // that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct RemoveInstance
   {
@@ -433,6 +519,7 @@ mod private
 
   /// Updates parameters of the bound sprite batch.
   #[ derive( Debug, Clone, Copy ) ]
+  #[ non_exhaustive ]
   pub struct SetSpriteBatchParams
   {
     /// Updated sprite batch parameters.
@@ -441,6 +528,7 @@ mod private
 
   /// Updates parameters of the bound mesh batch.
   #[ derive( Debug, Clone, Copy ) ]
+  #[ non_exhaustive ]
   pub struct SetMeshBatchParams
   {
     /// Updated mesh batch parameters.
@@ -456,6 +544,9 @@ mod private
   /// attribute pointers.
   ///
   /// Calling `UnbindBatch` when no batch is bound is a no-op.
+  // Constructed as a unit-struct value from outside this crate, e.g.
+  // `tilemap_scene/src/renderer.rs:630`, so `#[non_exhaustive]` would break
+  // that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct UnbindBatch;
 
@@ -472,6 +563,9 @@ mod private
   /// This restriction exists because `UnbindBatch` is responsible for
   /// refreshing the VAO when the instance buffer grew during recording.
   /// Drawing with a stale VAO produces undefined GPU behavior.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_scene/src/renderer.rs:409`, so `#[non_exhaustive]` would break
+  // that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct DrawBatch
   {
@@ -486,6 +580,9 @@ mod private
   /// without a VAO refresh, since the batch is about to be destroyed).
   /// Subsequent instance commands that would have targeted this batch become
   /// no-ops.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_scene/src/renderer.rs:313`, so `#[non_exhaustive]` would break
+  // that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct DeleteBatch
   {
@@ -517,6 +614,7 @@ mod private
   /// SVG: `<filter>` with corresponding `fe*` element.
   /// GPU: render to offscreen texture, apply post-process shader, composite.
   #[ derive( Debug, Clone, Copy ) ]
+  #[ non_exhaustive ]
   pub enum Effect
   {
     /// SVG: `feGaussianBlur`. GPU: separable gaussian blur shader.
@@ -549,6 +647,9 @@ mod private
 
   /// Begins a group with shared transform/clip/effect.
   /// SVG: `<g>`. GPU: push state stack.
+  // Constructed via full struct-literal syntax from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:816`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct BeginGroup
   {
@@ -561,6 +662,9 @@ mod private
   }
 
   /// Ends group. SVG: `</g>`. GPU: pop state stack.
+  // Constructed as a unit-struct value from outside this crate, e.g.
+  // `tilemap_renderer/tests/svg_backend_test.rs:724`, so `#[non_exhaustive]`
+  // would break that call site.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct EndGroup;
 
@@ -571,6 +675,7 @@ mod private
   /// A single render command. All variants are POD (Copy, no allocations).
   /// Backends process these sequentially from a `&[RenderCommand]` slice.
   #[ derive( Debug, Clone, Copy ) ]
+  #[ non_exhaustive ]
   pub enum RenderCommand
   {
     /// Clear the framebuffer.

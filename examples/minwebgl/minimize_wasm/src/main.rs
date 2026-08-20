@@ -6,11 +6,11 @@ use gl::GL;
 use minwebgl as gl;
 
 static POSITION_DATA: [f32; 6] = [
-  -0.86602545, // Left
+  -0.866_025_45, // Left
   -0.5,
   0.0, // Top
   1.0,
-  0.86602545, // Right
+  0.866_025_45, // Right
   -0.5,
 ];
 
@@ -23,8 +23,8 @@ static COLOR_DATA: [f32; 9] = [
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc<'_> = wee_alloc::WeeAlloc::INIT;
 
-fn run() -> Result<(), gl::WebglError> {
-  gl::browser::setup(Default::default());
+fn app_run() -> Result<(), gl::WebglError> {
+  gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
 
   // Vertex and fragment shader source code
@@ -49,16 +49,18 @@ fn run() -> Result<(), gl::WebglError> {
 
   let vao = gl::vao::create(&gl)?;
   gl.bind_vertex_array(Some(&vao));
-  gl::BufferDescriptor::new::<[f32; 2]>()
+  let position_attr = mingl::VertexAttribute::new(position_slot, mingl::VectorDataType::new(mingl::DataType::F32, 2, 1), 0);
+  gl::BufferDescriptor::from_vector(position_attr.vector)
     .stride(2)
-    .offset(0)
+    .offset(position_attr.offset)
     .divisor(0)
-    .attribute_pointer(&gl, position_slot, &position_buffer)?;
-  gl::BufferDescriptor::new::<[f32; 3]>()
+    .attribute_pointer(&gl, position_attr.location, &position_buffer)?;
+  let color_attr = mingl::VertexAttribute::new(color_slot, mingl::VectorDataType::new(mingl::DataType::F32, 3, 1), 0);
+  gl::BufferDescriptor::from_vector(color_attr.vector)
     .stride(3)
-    .offset(0)
+    .offset(color_attr.offset)
     .divisor(0)
-    .attribute_pointer(&gl, color_slot, &color_buffer)?;
+    .attribute_pointer(&gl, color_attr.location, &color_buffer)?;
 
   let projective_view_location = gl.get_uniform_location(&program, "project_view_matrix");
 
@@ -106,5 +108,5 @@ fn run() -> Result<(), gl::WebglError> {
 }
 
 fn main() {
-  run().unwrap()
+  app_run().unwrap();
 }

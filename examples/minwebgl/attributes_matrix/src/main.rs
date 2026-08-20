@@ -1,4 +1,9 @@
-//! Just draw a large point in the middle of the screen.
+//! Draws 6 static triangles via `draw_arrays_instanced`, each of the 3
+//! instances offset by a distinct translation matrix supplied as a
+//! per-instance vertex attribute (divisor 1), then further animated every
+//! frame by a shared rotation uploaded through a `TransformBlock` UBO —
+//! showing attribute-driven and uniform-driven transforms composed in the
+//! same draw call.
 
 use minwebgl as gl;
 use gl::{ GL, math::nd, math::nd::array, DebugLog };
@@ -8,11 +13,28 @@ use std::
   rc::Rc,
 };
 
-// qqq : make usecase more and picture more impressive changing code minimally
+const POSITION_DATA : [ f32 ; 36 ] =
+[
+  // 12x3x2 position
+   -0.6, -0.4, -0.6, -0.5, -0.65, -0.35, // Triangle 5
+   -0.4,  0.3, -0.35, 0.4, -0.3,  0.25,  // Triangle 3
+   -0.1, -0.1,  0.0,  0.2,  0.0, -0.15,  // Triangle 1
+    0.1, -0.3,  0.15, -0.1, 0.05, -0.25, // Triangle 6
+    0.3, -0.2,  0.25, 0.1,  0.2,  0.05,  // Triangle 2
+    0.5,  0.5,  0.45, 0.6,  0.55, 0.6,   // Triangle 4
+];
 
-fn run() -> Result< (), gl::WebglError >
+// Vertex data
+const COLOR_DATA : [ f32 ; 18 ] =
+[
+  // color 2x6x3
+  0.9849, 0.0600, 0.0662, 0.1232, 0.9332, 0.4260, 0.6969, 0.5353, 0.1471,
+  0.2899, 0.9056, 0.7799, 0.2565, 0.6451, 0.8498, 0.0969, 0.9353, 0.0471,
+];
+
+fn app_run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
 
   // Vertex and fragment shader source code
@@ -20,25 +42,6 @@ fn run() -> Result< (), gl::WebglError >
   let fragment_shader_src = include_str!( "../shaders/shader.frag" );
   let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src ).compile_and_link( &gl )?;
   gl.use_program( Some( &program ) );
-
-  let position_data :  [ f32 ; 36 ] =
-  [
-    // 12x3x2 position
-     -0.6, -0.4, -0.6, -0.5, -0.65, -0.35, // Triangle 5
-     -0.4,  0.3, -0.35, 0.4, -0.3,  0.25,  // Triangle 3
-     -0.1, -0.1,  0.0,  0.2,  0.0, -0.15,  // Triangle 1
-      0.1, -0.3,  0.15, -0.1, 0.05, -0.25, // Triangle 6
-      0.3, -0.2,  0.25, 0.1,  0.2,  0.05,  // Triangle 2
-      0.5,  0.5,  0.45, 0.6,  0.55, 0.6,   // Triangle 4
-  ];
-
-  // Vertex data
-  let color_data : [ f32 ; 18 ] =
-  [
-    // color 2x6x3
-    0.9849, 0.0600, 0.0662, 0.1232, 0.9332, 0.4260, 0.6969, 0.5353, 0.1471,
-    0.2899, 0.9056, 0.7799, 0.2565, 0.6451, 0.8498, 0.0969, 0.9353, 0.0471,
-  ];
 
   let trans_data : nd::Array< _, _ > = array!
   [
@@ -60,7 +63,7 @@ fn run() -> Result< (), gl::WebglError >
   ];
 
   // Transformation matrices
-  let _trans_data : [ f32 ; 18 ] =
+  let trans_data_flat : [ f32 ; 18 ] =
   [
 
     1.0, 0.0,
@@ -80,17 +83,17 @@ fn run() -> Result< (), gl::WebglError >
   // You can use either flat array ( either static or dynamic )
   // or you can prefer nd::Array with it's flexible math.
   // The last one will save you much time on development and performance.
-  assert_eq!( &_trans_data[ .. ], trans_data.as_slice().unwrap() );
+  assert_eq!( &trans_data_flat[ .. ], trans_data.as_slice().unwrap() );
 
   // Create buffer and upload vertex data
 
   let position_slot = 0;
   let position_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &position_buffer, &position_data, GL::STATIC_DRAW );
+  gl::buffer::upload( &gl, &position_buffer, &POSITION_DATA, GL::STATIC_DRAW );
 
   let color_slot = 1;
   let color_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &color_buffer, &color_data, GL::STATIC_DRAW );
+  gl::buffer::upload( &gl, &color_buffer, &COLOR_DATA, GL::STATIC_DRAW );
 
   let trans_slot = 2;
   let trans_buffer = gl::buffer::create( &gl )?;
@@ -104,15 +107,17 @@ fn run() -> Result< (), gl::WebglError >
 
   let vao = gl::vao::create( &gl )?;
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32 ; 2 ] >().stride( 2 ).offset( 0 ).divisor( 0 )
-  .attribute_pointer( &gl, position_slot, &position_buffer )?;
-  gl::BufferDescriptor::new::< [ f32 ; 3 ] >().stride( 3 ).offset( 0 ).divisor( 2 )
-  .attribute_pointer( &gl, color_slot, &color_buffer )?;
-  gl::BufferDescriptor::new::< [ [ f32 ; 2 ] ; 3 ] >().stride( 3*2 ).offset( 0 ).divisor( 1 )
-  .attribute_pointer( &gl, trans_slot, &trans_buffer )?;
+  let position_attr = mingl::VertexAttribute::new( position_slot, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  let color_attr = mingl::VertexAttribute::new( color_slot, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  let trans_attr = mingl::VertexAttribute::new( trans_slot, mingl::VectorDataType::new( mingl::DataType::F32, 6, 2 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector ).stride( 2 ).offset( position_attr.offset ).divisor( 0 )
+  .attribute_pointer( &gl, position_attr.location, &position_buffer )?;
+  gl::BufferDescriptor::from_vector( color_attr.vector ).stride( 3 ).offset( color_attr.offset ).divisor( 2 )
+  .attribute_pointer( &gl, color_attr.location, &color_buffer )?;
+  gl::BufferDescriptor::from_vector( trans_attr.vector ).stride( 3*2 ).offset( trans_attr.offset ).divisor( 1 )
+  .attribute_pointer( &gl, trans_attr.location, &trans_buffer )?;
   gl.bind_vertex_array( None );
 
-  // xxx
   // Prepare to change transformation every frame
   // std140 alignment require to allocate 4 words for the first row and 4 for the second row.
   let trans = vec!
@@ -129,7 +134,7 @@ fn run() -> Result< (), gl::WebglError >
   gl.uniform_block_binding( &program, trans_block_index, trans_block_point );
 
   // Retrieve UBO information for diagnostic purposes only; these lines should be removed in production builds.
-  gl::ubo::diagnostic_info( &gl, &program, trans_block_index ).debug_info();
+  gl::ubo::diagnostic_info( &gl, &program, trans_block_index ).debug_info( module_path!() );
 
   // Define the update and draw logic
   let update_and_draw =
@@ -169,5 +174,5 @@ fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  run().unwrap()
+  app_run().unwrap();
 }

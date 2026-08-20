@@ -2,7 +2,7 @@
 name = "mdmath_core"
 version = "0.4.0"
 edition = "2021"
-rust-version = "1.75.0"
+rust-version = "1.81.0"
 authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
 license = "MIT"
 repository = "https://github.com/Wandalen/cgtools"
@@ -22,48 +22,7 @@ include = [
 ]
 
 [lints]
-# Custom lints for mdmath_core (inherits most from workspace but allows mathematical conventions)
-
-[lints.rust]
-# Inherit workspace rust lints
-rust_2018_idioms = { level = "deny", priority = -1 }
-future_incompatible = "warn"
-missing_docs = "warn"
-unsafe-code = "warn"
-
-[lints.clippy]
-# Inherit key workspace clippy lints
-pedantic = { level = "warn", priority = -1 }
-undocumented_unsafe_blocks = "deny"
-std_instead_of_core = "warn"
-
-# Allow specific lints for mathematical code
-min_ident_chars = "allow"
-too_many_arguments = "allow"
-missing_panics_doc = "allow"
-missing_errors_doc = "allow"
-extra_unused_lifetimes = "allow"
-wrong_self_convention = "allow"
-
-# Allow workspace exceptions
-single_call_fn = "allow"
-inline_always = "allow"
-module_name_repetitions = "allow"
-absolute_paths = "allow"
-pub_use = "allow"
-mod_module_files = "allow"
-self_named_module_files = "allow"
-allow_attributes = "allow"
-allow_attributes_without_reason = "allow"
-arbitrary_source_item_ordering = "allow"
-missing_docs_in_private_items = "allow"
-many_single_char_names = "allow"
-
-# [lints.rust]
-# # Encourages documentation for public items.
-# missing_docs = "warn" # qqq : uncomment please
-# # Suggests implementing Debug for public types.
-# missing_debug_implementations = "warn" # qqq : uncomment please
+workspace = true
 
 [features]
 
@@ -79,15 +38,22 @@ full = [
   "index",
   "nd",
   "arithmetics",
-  "general",
 ]
 
 index = [ "dep:ndarray" ]
 nd = [ "dep:ndarray" ]
 float = [ "nd", "dep:num-traits" ]
 approx = [ "float", "dep:approx" ]
-arithmetics = [ "float" ]
-general = []
+# Fix(BUG-270): `arithmetics` now also requires `approx`.
+# Root cause: `src/vector/arithmetics.rs`'s `is_orthogonal` unconditionally uses
+# `crate::approx::ulps_eq` and bounds `E : approx::UlpsEq` with no `#[cfg(feature = "approx")]`
+# guard, so the file has always needed `approx` to compile -- `arithmetics` alone (or the `full`
+# bundle, which pulls in `arithmetics` but not `approx`) failed to build with E0432/E0433.
+# Pitfall: a feature flag whose gated source file unconditionally uses another feature's items
+# only fails when someone actually selects that exact combination -- `--all-features` (and any
+# combination that happens to also enable the second feature separately, e.g. this crate's own
+# sibling `ndarray_cg` explicitly requesting both) never exercises the gap.
+arithmetics = [ "float", "approx" ]
 
 [dependencies]
 mod_interface = { workspace = true, optional = true }

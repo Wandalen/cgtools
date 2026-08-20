@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{Vector, MatNum, MatEl, IntoIterator};
   use std::ops::{ Rem, Neg };
 
   impl< E, const LEN : usize > Neg for Vector< E, LEN >
@@ -39,7 +39,7 @@ mod private
   }
 
   #[ inline ]
-  fn rem_vector< E, const LEN : usize >( a : &Vector< E, LEN >, b : &Vector< E, LEN > ) -> Vector< E, LEN >
+  fn vector_rem< E, const LEN : usize >( a : &Vector< E, LEN >, b : &Vector< E, LEN > ) -> Vector< E, LEN >
   where
     E : MatNum,
   {
@@ -52,14 +52,14 @@ mod private
   }
 
   #[ inline ]
-  fn rem_scalar< E, const LEN : usize >( a : &Vector< E, LEN >, scalar : E ) -> Vector< E, LEN >
+  fn scalar_rem< E, const LEN : usize >( a : &Vector< E, LEN >, scalar : E ) -> Vector< E, LEN >
   where
     E : MatNum,
   {
     let mut result = *a;
-    for r in result.0.iter_mut()
+    for r in &mut result.0
     {
-      *r = *r % scalar;
+      *r %= scalar;
     }
     result
   }
@@ -78,7 +78,7 @@ mod private
     #[ inline ]
     fn rem( self, rhs : Self ) -> Self::Output
     {
-      rem_vector( &self, &rhs )
+      vector_rem( &self, &rhs )
     }
   }
 
@@ -95,7 +95,7 @@ mod private
     #[ inline ]
     fn rem( self, rhs : Self ) -> Self::Output
     {
-      rem_vector( self, rhs )
+      vector_rem( self, rhs )
     }
   }
 
@@ -112,7 +112,7 @@ mod private
     #[ inline ]
     fn rem( self, scalar : E ) -> Self::Output
     {
-      rem_scalar( &self, scalar )
+      scalar_rem( &self, scalar )
     }
   }
 
@@ -128,7 +128,7 @@ mod private
     #[ inline ]
     fn rem( self, scalar : E ) -> Self::Output
     {
-      rem_scalar( self, scalar )
+      scalar_rem( self, scalar )
     }
   }
 
@@ -173,6 +173,7 @@ mod private
     /// For integer `E` this panics if any component of `rhs` is zero, in both
     /// debug and release mode. For float `E`, division by zero yields
     /// `INFINITY` or `NAN` instead.
+    #[ inline ]
     fn div( mut self, rhs : Self ) -> Self::Output
     {
       self.iter_mut().zip( rhs.iter() ).for_each
@@ -270,6 +271,25 @@ mod private
     type IntoIter = std::slice::IterMut< 'a, E >;
     #[ inline ]
     fn into_iter( self ) -> Self::IntoIter
+    {
+      self.0.iter_mut()
+    }
+  }
+
+  impl< E, const N : usize > Vector< E, N >
+  where
+    E : MatEl,
+  {
+    /// Returns an iterator over the vector's elements by reference.
+    #[ inline ]
+    pub fn iter( &self ) -> std::slice::Iter< '_, E >
+    {
+      self.0.iter()
+    }
+
+    /// Returns an iterator over the vector's elements by mutable reference.
+    #[ inline ]
+    pub fn iter_mut( &mut self ) -> std::slice::IterMut< '_, E >
     {
       self.0.iter_mut()
     }

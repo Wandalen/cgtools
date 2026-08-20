@@ -152,7 +152,7 @@ mod private
   /// How a [`SpriteSource::Variant`] picks one of its entries per instance.
   ///
   /// Both [`Self::HashCoord`] and [`Self::Random`] are deterministic
-  /// `hash_coord( q, r, salt )`-driven picks: the same `(coord, salt,
+  /// `coord_hash( q, r, salt )`-driven picks: the same `(coord, salt,
   /// variant-list)` always produces the same index. The only difference is
   /// the salt — `HashCoord` uses a fixed `0`, `Random` uses the scene's
   /// configured `scene_seed`. Neither is "random" in the runtime-RNG sense;

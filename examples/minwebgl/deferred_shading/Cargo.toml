@@ -15,6 +15,7 @@ gltf = { workspace = true }
 rand = { workspace = true }
 getrandom = { workspace = true, features = ["wasm_js"] }
 minwebgl = { workspace = true, features = ["math"] }
+mingl = { workspace = true }
 web-sys = { workspace = true, features = [
   "WebGlFramebuffer",
   "WebGlRenderbuffer",
@@ -23,3 +24,6 @@ web-sys = { workspace = true, features = [
 renderer = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde-wasm-bindgen = { workspace = true }
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]

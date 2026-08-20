@@ -6,9 +6,9 @@ This demo demonstrates high-quality text rendering using Multi-Channel Signed Di
 
 MSDF is the modern standard for GPU text rendering, offering superior quality to bitmap fonts. This example shows complete text rendering with proper layout and styling.
 
-![image](showcase.jpg)
+![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

@@ -14,11 +14,7 @@
 //! and a scene hierarchy.
 mod private
 {
-  use minwebgl::
-  {
-    self as gl,
-    BufferDescriptor
-  };
+  use minwebgl as gl;
   use gl::
   {
     GL,
@@ -63,17 +59,17 @@ mod private
   impl Transform
   {
     /// Set new local matrix of `Node`.
-    pub fn set_node_transform( &self, node : Rc< RefCell< Node > > )
+    pub fn node_transform_set( &self, node : &RefCell< Node > )
     {
       let t = self.translation;
       let r = self.rotation;
       let s = self.scale;
       let mut node_mut = node.borrow_mut();
-      node_mut.set_translation( t );
+      node_mut.translation_set( t );
       let q = gl::Quat::from_euler_xyz( r );
-      node_mut.set_rotation( q );
-      node_mut.set_scale( s );
-      node_mut.update_local_matrix();
+      node_mut.rotation_set( q );
+      node_mut.scale_set( s );
+      node_mut.local_matrix_update();
     }
   }
 
@@ -84,7 +80,21 @@ mod private
     /// Vertex positions in 3D space.
     pub positions : Vec< [ f32; 3 ] >,
     /// Triangle indices referencing the positions array.
-    pub indices : Vec< u32 >
+    pub indices : Vec< u32 >,
+    // Fix(BUG-217)
+    // Root cause: `primitives_data_to_gltf` never uploaded any per-vertex
+    // normal, yet `PbrMaterial`'s vertex shader unconditionally computes
+    // `normalize( normalMatrix * normal )` from a `layout(location=1)`
+    // attribute -- an unbound attribute reads WebGL's default `(0,0,0)`,
+    // and `normalize` of the zero vector is NaN (`0 * inversesqrt(0)` =
+    // `0 * Inf`), corrupting every downstream lighting calculation for
+    // every primitive this crate generates.
+    // Pitfall: a shader that unconditionally reads and normalizes a vertex
+    // attribute gives no signal (no error, no panic) when the attribute
+    // was never bound -- the defect only shows up as NaN in the final
+    // shaded output, far from its actual cause.
+    /// Per-vertex surface normals, parallel to `positions`.
+    pub normals : Vec< [ f32; 3 ] >
   }
 
   /// Complete primitive data including geometry attributes, color, and transform.
@@ -104,40 +114,44 @@ mod private
   }
 
   /// Creates an `AttributeInfo` object using one function call for a WebGL buffer.
-  pub fn make_buffer_attribute_info
+  ///
+  /// `attribute` carries the cross-backend location/vector-shape/offset description;
+  /// `stride`/`normalized` are WebGL-only concerns `mingl::VertexAttribute` doesn't model,
+  /// so they're layered on top of the bridged `BufferDescriptor` directly.
+  #[ must_use ]
+  pub fn buffer_attribute_info_make
   (
     buffer : &web_sys::WebGlBuffer,
-    descriptor : gl::BufferDescriptor,
-    offset : i32,
+    attribute : mingl::VertexAttribute,
     stride : i32,
-    slot : u32,
-    normalized : bool,
-    vector: gl::VectorDataType
-  ) -> Result< AttributeInfo, gl::WebglError >
+    normalized : bool
+  ) -> AttributeInfo
   {
-    let descriptor = descriptor
-    .offset( offset )
-    .normalized( normalized )
+    let descriptor = gl::BufferDescriptor::from_vector( attribute.vector )
+    .offset( attribute.offset )
     .stride( stride )
-    .vector( vector );
+    .normalized( normalized );
 
-    Ok
-    (
-      AttributeInfo
-      {
-        slot,
-        buffer : buffer.clone(),
-        descriptor,
-        bounding_box : Default::default()
-      }
-    )
+    AttributeInfo
+    {
+      slot : attribute.location,
+      buffer : buffer.clone(),
+      descriptor,
+      bounding_box : mingl::geometry::BoundingBox::default()
+    }
   }
 
   /// Converts a collection of primitive data into a GLTF scene for WebGL rendering.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the WebGL context fails to create a buffer ( e.g. a lost context ).
+  #[ expect( clippy::too_many_lines, reason = "GLTF assembly is inherently a flat sequence of buffer/mesh/node/scene construction steps; splitting it would scatter tightly-coupled local state ( buffers, meshes, nodes ) across artificial helper functions" ) ]
+  #[ must_use ]
   pub fn primitives_data_to_gltf
   (
     gl : &WebGl2RenderingContext,
-    primitives_data : Vec< PrimitiveData >
+    primitives_data : &[ PrimitiveData ]
   ) -> GLTF
   {
     let mut scenes = vec![];
@@ -145,28 +159,39 @@ mod private
     let mut gl_buffers = vec![];
     let mut meshes = vec![];
 
-    let material : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) ) );
+    let material : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( PbrMaterial::new( gl ) ) ) );
     let materials = vec![ material.clone() ];
 
     scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
 
     let position_buffer = gl.create_buffer().unwrap();
+    let normal_buffer = gl.create_buffer().unwrap();
 
     gl_buffers.push( position_buffer.clone() );
+    gl_buffers.push( normal_buffer.clone() );
 
+    // Fix(BUG-217): wire a "normal" attribute at slot 1, matching
+    // `main.vert`'s `layout( location = 1 ) in vec3 normal;` -- see
+    // `AttributesData::normals`'s own doc comment for the full root cause.
     let attribute_infos =
     [
       (
         "positions",
-        make_buffer_attribute_info(
+        buffer_attribute_info_make(
           &position_buffer,
-          BufferDescriptor::new::< [ f32; 3 ] >(),
-          0,
+          mingl::VertexAttribute::new( 0, VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ),
           3,
-          0,
-          false,
-          VectorDataType::new( mingl::DataType::F32, 3, 1 )
-        ).unwrap()
+          false
+        )
+      ),
+      (
+        "normal",
+        buffer_attribute_info_make(
+          &normal_buffer,
+          mingl::VertexAttribute::new( 1, VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ),
+          3,
+          false
+        )
       ),
     ];
 
@@ -183,23 +208,25 @@ mod private
 
     let mut positions = vec![];
     let mut indices = vec![];
+    let mut normals = vec![];
 
     // Create nodes for all primitives, even those without attributes (parent nodes)
-    for primitive_data in &primitives_data
+    for primitive in primitives_data
     {
       let node = Rc::new( RefCell::new( Node::new() ) );
 
-      // Assign name from primitive_data
-      if let Some( name ) = &primitive_data.name
+      // Assign name from the primitive record
+      if let Some( name ) = &primitive.name
       {
-        node.borrow_mut().set_name( name.clone() );
+        node.borrow_mut().name_set( name.clone() );
       }
 
       // Only create geometry/mesh if attributes exist
-      if let Some( attributes ) = &primitive_data.attributes
+      if let Some( attributes ) = &primitive.attributes
       {
         let last_positions_count = positions.len() as u32;
         positions.extend( attributes.borrow().positions.clone() );
+        normals.extend( attributes.borrow().normals.clone() );
         let primitive_indices = attributes.borrow().indices.iter()
         .map( | i | i + last_positions_count )
         .collect::< Vec< _ > >();
@@ -216,10 +243,10 @@ mod private
 
         for ( name, info ) in &attribute_infos
         {
-          geometry.add_attribute( gl, *name, info.clone() ).unwrap();
+          geometry.attribute_add( gl, *name, info.clone() ).unwrap();
         }
 
-        geometry.add_index( gl, index_info.clone() ).unwrap();
+        geometry.index_add( gl, index_info.clone() ).unwrap();
         geometry.vertex_count = attributes.borrow().positions.len() as u32;
 
         let primitive = Primitive
@@ -229,14 +256,14 @@ mod private
         };
 
         let mesh = Rc::new( RefCell::new( Mesh::new() ) );
-        mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
+        mesh.borrow_mut().primitive_add( Rc::new( RefCell::new( primitive ) ) );
 
         node.borrow_mut().object = Object3D::Mesh( mesh.clone() );
         meshes.push( mesh );
       }
 
       // Set transform for all nodes (with or without geometry)
-      primitive_data.transform.set_node_transform( node.clone() );
+      primitive.transform.node_transform_set( &node );
 
       nodes.push( node.clone() );
     }
@@ -244,15 +271,15 @@ mod private
     // Set up parent-child relationships
     for ( i, node ) in nodes.iter().enumerate()
     {
-      let primitive_data = &primitives_data[ i ];
+      let primitive = &primitives_data[ i ];
 
-      if let Some( parent_index ) = primitive_data.parent
+      if let Some( parent_index ) = primitive.parent
       {
         // Get parent node and add this node as its child
         if let Some( parent_node ) = nodes.get( parent_index )
         {
-          parent_node.borrow_mut().add_child( node.clone() );
-          node.borrow_mut().set_parent( Some( parent_node.clone() ) );
+          parent_node.borrow_mut().child_add( node.clone() );
+          node.borrow_mut().parent_set( Some( parent_node.clone() ) );
         }
         else
         {
@@ -267,8 +294,9 @@ mod private
       }
     }
 
-    gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
-    gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
+    gl::buffer::upload( gl, &position_buffer, &positions, GL::STATIC_DRAW );
+    gl::buffer::upload( gl, &normal_buffer, &normals, GL::STATIC_DRAW );
+    gl::index::upload( gl, &index_buffer, &indices, GL::STATIC_DRAW );
 
     GLTF
     {
@@ -293,6 +321,6 @@ crate::mod_interface!
     PrimitiveData,
     AttributesData,
     primitives_data_to_gltf,
-    make_buffer_attribute_info
+    buffer_attribute_info_make
   };
 }

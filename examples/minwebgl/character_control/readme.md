@@ -13,9 +13,9 @@ Controls:
 - Hold E - arm kick
 - Hold Q - leg kick
 
-![Showcase]( ./showcase.png )
+![Showcase](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 ## 📚 References
 

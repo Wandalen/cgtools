@@ -6,9 +6,9 @@ This demo demonstrates a complete hexagonal map system in WebGL2. Building on he
 
 Hexagonal maps provide strategic gameplay with uniform movement costs. This example illustrates tile rendering, map data structures, and interaction systems for hex-based games.
 
-![image](./showcase.png)
+![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

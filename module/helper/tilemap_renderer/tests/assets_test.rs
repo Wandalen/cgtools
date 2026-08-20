@@ -164,3 +164,53 @@ fn assets_validate_path_duplicates()
   };
   assert_eq!( assets.validate().len(), 1 );
 }
+
+/// `to_rgba8` conversion tests (task 218) -- gated on `adapter-native` only,
+/// not also `adapter-webgpu`, which this crate's own convention compiles
+/// test code for under wasm32 only (see `webgpu_backend_test.rs`'s
+/// file-level gate); `adapter-native` is the gate that lets `cargo test`
+/// exercise these on a plain native host. `to_rgba8` itself is shared by
+/// both adapters -- cfg-gated `any(adapter-native, adapter-webgpu)` in
+/// `src/assets.rs`.
+#[ cfg( feature = "adapter-native" ) ]
+mod to_rgba8_conversion
+{
+  use super::*;
+
+  /// T01 -- `Rgba8` input passes through byte-for-byte unchanged: no
+  /// conversion needed, since the format already matches the GPU upload
+  /// format.
+  #[ test ]
+  fn to_rgba8_expands_rgba8_passthrough()
+  {
+    let bytes : [ u8; 16 ] = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 ];
+    assert_eq!( to_rgba8( &bytes, PixelFormat::Rgba8 ), bytes.to_vec() );
+  }
+
+  /// T02 -- `Rgb8` input gets an opaque (`255`) alpha byte appended after
+  /// each 3-byte pixel, expanding 3 bytes/pixel to 4.
+  #[ test ]
+  fn to_rgba8_expands_rgb8_pads_opaque_alpha()
+  {
+    let bytes = [ 10u8, 20, 30 ];
+    assert_eq!( to_rgba8( &bytes, PixelFormat::Rgb8 ), vec![ 10, 20, 30, 255 ] );
+  }
+
+  /// T03 -- `Gray8` input broadcasts the single gray byte into R, G, and B,
+  /// with an opaque alpha appended -- 1 byte/pixel expands to 4.
+  #[ test ]
+  fn to_rgba8_expands_gray8_broadcasts_to_rgb()
+  {
+    let bytes = [ 42u8 ];
+    assert_eq!( to_rgba8( &bytes, PixelFormat::Gray8 ), vec![ 42, 42, 42, 255 ] );
+  }
+
+  /// T04 -- `GrayAlpha8` input broadcasts the gray byte into R, G, and B,
+  /// preserving the real (non-255) alpha byte -- 2 bytes/pixel expands to 4.
+  #[ test ]
+  fn to_rgba8_expands_grayalpha8_preserves_alpha()
+  {
+    let bytes = [ 42u8, 128 ];
+    assert_eq!( to_rgba8( &bytes, PixelFormat::GrayAlpha8 ), vec![ 42, 42, 42, 128 ] );
+  }
+}

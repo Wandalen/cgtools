@@ -6,9 +6,9 @@ This demo demonstrates deferred shading using WebGPU. It showcases the next-gene
 
 WebGPU provides modern, explicit graphics control. This example illustrates deferred rendering patterns adapted for WebGPU's compute and rendering capabilities.
 
-![image](./showcase.jpg)
+![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

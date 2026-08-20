@@ -1,8 +1,8 @@
 mod private
 {
-  use crate::*;
+  use crate::{vector, Div, Vector, MatNum, DivAssign};
   // use vector::arithmetics::inner_product::*;
-  use vector::{ div_scalar, div_mut };
+  use vector::{ scalar_div, div_mut };
 
   impl< E, const LEN : usize > Div< E > for Vector< E, LEN >
   where
@@ -13,9 +13,10 @@ mod private
     /// # Panics
     /// For integer `E` this panics if `rhs` is zero, in both debug and release
     /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
+    #[ inline ]
     fn div(self, rhs : E) -> Self::Output
     {
-      div_scalar( &self, rhs )
+      scalar_div( &self, rhs )
     }
   }
 
@@ -26,6 +27,7 @@ mod private
     /// # Panics
     /// For integer `E` this panics if `rhs` is zero, in both debug and release
     /// mode. For float `E`, division by zero yields `INFINITY` or `NAN` instead.
+    #[ inline ]
     fn div_assign( &mut self, rhs : E )
     {
         *self = *self / rhs;
@@ -40,6 +42,7 @@ mod private
     /// For integer `E` this panics if any component of `rhs` is zero, in both
     /// debug and release mode. For float `E`, division by zero yields
     /// `INFINITY` or `NAN` instead.
+    #[ inline ]
     fn div_assign( &mut self, rhs : Self )
     {
       div_mut( self, &rhs );

@@ -8,7 +8,7 @@ use web_sys::
 
 pub struct Framebuffer
 {
-  framebuffer : WebGlFramebuffer,
+  handle : WebGlFramebuffer,
   color_attachment : WebGlTexture,
   width : i32,
   height : i32,
@@ -30,7 +30,7 @@ impl Framebuffer
     gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, Some( &texture ), 0 );
     gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
-    Some( Self { framebuffer, color_attachment : texture, width, height } )
+    Some( Self { handle : framebuffer, color_attachment : texture, width, height } )
   }
 
   pub fn width( &self ) -> i32
@@ -50,6 +50,6 @@ impl Framebuffer
 
   pub fn framebuffer( &self ) -> &WebGlFramebuffer
   {
-    &self.framebuffer
+    &self.handle
   }
 }

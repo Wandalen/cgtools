@@ -21,6 +21,10 @@ mod private
   impl ShadowMap
   {
     /// Creates shadow map with specified resolution
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if allocating the shadow-map GPU resources fails.
     pub fn new( gl : &GL, resolution : u32 ) -> Result< Self, gl::WebglError >
     {
       let resolution = resolution as i32;
@@ -48,7 +52,7 @@ mod private
       let status = gl.check_framebuffer_status( gl::FRAMEBUFFER );
       if status != gl::FRAMEBUFFER_COMPLETE
       {
-        gl::browser::error!( "Framebuffer incomplete: {:?}", status );
+        gl::browser::error!( "Framebuffer incomplete: {status:?}" );
       }
 
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
@@ -82,7 +86,7 @@ mod private
     }
 
     /// Sets model-view-projection matrix
-    pub fn upload_mvp( &self, mvp : gl::F32x4x4 )
+    pub fn mvp_upload( &self, mvp : gl::F32x4x4 )
     {
       self.program.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
     }
@@ -101,6 +105,10 @@ mod private
     }
 
     /// Renders shadow map from light's perspective
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a node upload or draw call fails during the depth pass.
     pub fn render
     (
       &self,
@@ -125,9 +133,9 @@ mod private
               return Ok( () );
             }
 
-            let model = node.get_world_matrix();
+            let model = node.world_matrix_get();
             let mvp = light.view_projection() * model;
-            self.upload_mvp( mvp );
+            self.mvp_upload( mvp );
 
             for primitive in &mesh.borrow().primitives
             {
@@ -170,6 +178,10 @@ mod private
   impl ShadowBaker
   {
     /// Creates shadow baker
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if allocating the baker's GPU resources fails.
     pub fn new( gl : &GL ) -> Result< Self, gl::WebglError >
     {
       let framebuffer = gl.create_framebuffer();
@@ -190,7 +202,7 @@ mod private
     }
 
     /// Sets target lightmap texture and dimensions
-    fn set_target( &self, texture : Option< &WebGlTexture > )
+    fn target_set( &self, texture : Option< &WebGlTexture > )
     {
       self.gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer.as_ref() );
       self.gl.framebuffer_texture_2d
@@ -206,7 +218,7 @@ mod private
       let status = self.gl.check_framebuffer_status( gl::FRAMEBUFFER );
       if status != gl::FRAMEBUFFER_COMPLETE
       {
-        gl::browser::error!( "Shadow baker framebuffer incomplete: {:?}", status );
+        gl::browser::error!( "Shadow baker framebuffer incomplete: {status:?}" );
       }
     }
 
@@ -221,20 +233,20 @@ mod private
     }
 
     /// Sets model matrix for geometry
-    fn upload_model( &self, model : gl::F32x4x4 )
+    fn model_upload( &self, model : gl::F32x4x4 )
     {
       self.program.uniform_matrix_upload( "u_model", model.raw_slice(), true );
     }
 
     /// Binds shadow map for sampling
-    fn set_shadowmap( &self, shadowmap : Option< &WebGlTexture > )
+    fn shadowmap_set( &self, shadowmap : Option< &WebGlTexture > )
     {
       self.gl.active_texture( gl::TEXTURE0 );
       self.gl.bind_texture( gl::TEXTURE_2D, shadowmap );
     }
 
     /// Uploads light parameters to shader
-    fn upload_light( &self, light : &mut Light )
+    fn light_upload( &self, light : &mut Light )
     {
       let light_vp = light.view_projection();
       self.program.uniform_matrix_upload( "u_light_view_projection", light_vp.raw_slice(), true );
@@ -245,7 +257,7 @@ mod private
       let light_pos = light.position();
       self.program.uniform_upload( "u_light_position", light_pos.as_slice() );
 
-      let is_ortho = light.is_orthographic() as i32;
+      let is_ortho = i32::from(light.is_orthographic());
       self.program.uniform_upload( "u_is_orthographic", &is_ortho );
 
       let light_size = light.size();
@@ -258,7 +270,11 @@ mod private
     }
 
     /// Bakes shadows into lightmaps via two-pass rendering: depth map, then PCSS lightmap baking
-    pub fn render_soft_shadow
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a pass, upload, or draw fails during either baking pass.
+    pub fn soft_shadow_render
     (
       &self,
       node : &Node,
@@ -270,11 +286,11 @@ mod private
     ) -> Result< (), gl::WebglError >
     {
       self.bind( width as i32, height as i32 );
-      self.set_target( target );
-      self.upload_light( &mut light );
-      self.set_shadowmap( shadowmap.depth_buffer() );
-      let model = node.get_world_matrix();
-      self.upload_model( model );
+      self.target_set( target );
+      self.light_upload( &mut light );
+      self.shadowmap_set( shadowmap.depth_buffer() );
+      let model = node.world_matrix_get();
+      self.model_upload( model );
 
       if let crate::webgl::Object3D::Mesh( mesh ) = &node.object
       {
@@ -304,6 +320,7 @@ mod private
   impl Light
   {
     /// Creates light with position, direction, projection, and size
+    #[ must_use ]
     pub fn new
     (
       position : gl::F32x3,
@@ -323,12 +340,14 @@ mod private
     }
 
     /// Returns light size (controls shadow softness)
+    #[ must_use ]
     pub fn size( &self ) -> f32
     {
       self.size
     }
 
     /// Extracts near and far planes from projection matrix
+    #[ must_use ]
     pub fn near_far_planes( &self ) -> ( f32, f32 )
     {
       let m = self.projection.raw_slice();
@@ -362,24 +381,28 @@ mod private
     }
 
     /// Returns light position
+    #[ must_use ]
     pub fn position( &self ) -> gl::F32x3
     {
       self.position
     }
 
     /// Returns light direction
+    #[ must_use ]
     pub fn direction( &self ) -> gl::F32x3
     {
       self.direction
     }
 
     /// Returns projection matrix
+    #[ must_use ]
     pub fn projection( &self ) -> gl::F32x4x4
     {
       self.projection
     }
 
-    /// Returns true if using orthographic projection (checks matrix[3][3] == 1.0)
+    /// Returns true if using orthographic projection (checks `matrix[3][3] == 1.0`)
+    #[ must_use ]
     pub fn is_orthographic( &self ) -> bool
     {
       let m = self.projection.raw_slice();
@@ -419,7 +442,16 @@ mod private
       let radius = spot.outer_cone_angle * 2.0;
       let max_radius = 135.0_f32.to_radians();
 
-      let light_size = ( ( radius / max_radius ).min( 1.0 ) * 1.7 ).min( 0.01 );
+      // Fix(BUG-175): `.min( 0.01 )` on the last line made this a ceiling, not a floor -- since
+      // the preceding `( radius / max_radius ).min( 1.0 ) * 1.7` term is >= 0.01 for every
+      // `outer_cone_angle` above ~0.4 degrees ( i.e. every realistic spot light ), `.min` always
+      // picked the constant 0.01 and the entire angle-dependent scaling above it was dead code --
+      // every spot light baked identically soft shadows regardless of cone angle.
+      // Root cause: `.min` used where a lower-bound floor ( `.max` ) was intended.
+      // Pitfall: a `.min( FLOOR )`/`.max( FLOOR )` mixup silently reads as a working line -- it
+      // still compiles and always returns *a* value in range, it just discards a preceding
+      // computation. Check which direction the clamp actually needs before trusting it compiled.
+      let light_size = ( ( radius / max_radius ).min( 1.0 ) * 1.7 ).max( 0.01 );
 
       let projection = gl::math::mat3x3h::perspective_rh_gl( fov, 1.0, near, far );
 

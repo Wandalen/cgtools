@@ -4,18 +4,14 @@
 //! Pinch with two fingers to zoom in/out.
 //! On desktop: left-click drag to pan, scroll wheel to zoom.
 
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::implicit_return ) ]
-
 use minwebgl as gl;
 use gl::GL;
 use browser_input::{ EventType, Input, CLIENT };
 use gl::JsCast as _;
 
-fn run() -> Result< (), gl::WebglError >
+fn app_run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
 
@@ -36,7 +32,7 @@ fn run() -> Result< (), gl::WebglError >
   let buf = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &buf, &vertices, GL::STATIC_DRAW );
 
-  let a_pos = gl.get_attrib_location( &program, "a_position" ) as u32;
+  let a_pos = gl.get_attrib_location( &program, "a_position" ).cast_unsigned();
   gl.enable_vertex_attrib_array( a_pos );
   gl.bind_buffer( GL::ARRAY_BUFFER, Some( &buf ) );
   gl.vertex_attrib_pointer_with_i32( a_pos, 2, GL::FLOAT, false, 0, 0 );
@@ -64,7 +60,7 @@ fn run() -> Result< (), gl::WebglError >
     let w = canvas.width() as f32;
     let h = canvas.height() as f32;
 
-    input.update_state();
+    input.state_update();
 
     // Wheel zoom on desktop
     for browser_input::Event { event_type, .. } in input.event_queue().iter()
@@ -76,7 +72,7 @@ fn run() -> Result< (), gl::WebglError >
       }
     }
 
-    input.clear_events();
+    input.events_clear();
 
     // Pan and pinch via active_pointers
     let active = input.active_pointers().to_vec();
@@ -88,13 +84,11 @@ fn run() -> Result< (), gl::WebglError >
       let py = pos.0[ 1 ] as f32;
 
       if let Some( ( lpid, lx, ly ) ) = last_single
+        && lpid == pid
       {
-        if lpid == pid
-        {
-          // Convert pixel delta to NDC delta
-          offset[ 0 ] = ( offset[ 0 ] + ( px - lx ) / w * 2.0 ).clamp( -2.0, 2.0 );
-          offset[ 1 ] = ( offset[ 1 ] - ( py - ly ) / h * 2.0 ).clamp( -2.0, 2.0 );
-        }
+        // Convert pixel delta to NDC delta
+        offset[ 0 ] = ( offset[ 0 ] + ( px - lx ) / w * 2.0 ).clamp( -2.0, 2.0 );
+        offset[ 1 ] = ( offset[ 1 ] - ( py - ly ) / h * 2.0 ).clamp( -2.0, 2.0 );
       }
       last_single = Some( ( pid, px, py ) );
       last_pinch_dist = None;
@@ -108,11 +102,9 @@ fn run() -> Result< (), gl::WebglError >
       let dist = ( dx * dx + dy * dy ).sqrt();
 
       if let Some( ld ) = last_pinch_dist
+        && ld > 1.0
       {
-        if ld > 1.0
-        {
-          scale = ( scale * ( dist / ld ) ).clamp( 0.05, 10.0 );
-        }
+        scale = ( scale * ( dist / ld ) ).clamp( 0.05, 10.0 );
       }
       last_pinch_dist = Some( dist );
       last_single = None;
@@ -145,5 +137,5 @@ fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  run().unwrap()
+  app_run().unwrap();
 }

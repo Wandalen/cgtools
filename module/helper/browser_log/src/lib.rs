@@ -3,25 +3,21 @@
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Browser logging and panic handling utilities" ) ]
 
-#![allow(clippy::implicit_return)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::must_use_candidate)]
-#![allow(clippy::return_self_not_must_use)]
-#![allow(clippy::str_to_string)]
-#![allow(clippy::pattern_type_mismatch)]
-#![allow(clippy::min_ident_chars)]
-#![allow(clippy::shadow_reuse)]
-#![allow(clippy::semicolon_if_nothing_returned)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::ignored_unit_patterns)]
-#![allow(clippy::exhaustive_structs)]
-#![allow(clippy::unused_trait_names)]
-#![allow(clippy::let_underscore_must_use)]
-#![allow(clippy::missing_trait_methods)]
-
 #[ cfg( feature = "enabled" ) ]
 use ::mod_interface::mod_interface;
 
+// Fix(BUG-169): `mod private` was unconditional while every dependency it needs
+// (`crate::log::setup::Config`, `crate::panic::Config`) is only ever declared as a real
+// module by the `mod_interface!` invocation below, itself already `#[cfg(feature = "enabled")]`
+// -- building with `--no-default-features` compiled `mod private` anyway and failed with 4
+// `E0433` "cannot find `log`/`panic` in `crate`" errors.
+// Root cause: `enabled` gates every optional dependency (`log`, `mod_interface`, `wasm-bindgen`,
+// `web-sys`) AND the `mod_interface!` invocation that declares the `log`/`panic` submodules --
+// but `mod private`, which references both submodules' types, was never given the same gate.
+// Pitfall: when a feature gates a macro invocation that declares submodules, every other item
+// referencing those submodules needs the identical `#[cfg(...)]` -- gating the macro call alone
+// doesn't retroactively gate unconditional code elsewhere that depends on its expansion.
+#[ cfg( feature = "enabled" ) ]
 mod private
 {
   /// Config of both logging and panic

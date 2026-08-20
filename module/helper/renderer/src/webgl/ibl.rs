@@ -5,8 +5,8 @@ mod private
   /// Holds three precomputed textures used for Image-Based Lighting (IBL) calculations.
   ///
   /// According to:
-  /// - https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
-  /// - https://learnopengl.com/PBR/IBL/Diffuse-irradiance
+  /// - <https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf>
+  /// - <https://learnopengl.com/PBR/IBL/Diffuse-irradiance>
   #[ derive( Default, Clone ) ]
   pub struct IBL
   {
@@ -23,6 +23,7 @@ mod private
   impl IBL
   {
     /// Creates a new `IBL` instance with default (empty) texture options.
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
@@ -32,7 +33,7 @@ mod private
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `base_active_texture`: The starting texture unit index to which the diffuse texture will be bound.
-    ///                          Subsequent specular textures will be bound to the following units.
+    ///   Subsequent specular textures will be bound to the following units.
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext, base_active_texture : u32 )
     {
       gl.active_texture( gl::TEXTURE0 + base_active_texture );

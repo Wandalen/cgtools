@@ -1,6 +1,5 @@
 //! Integration tests related to Sequencer struct
-
-#![ allow( clippy::float_cmp ) ]
+#![ expect( clippy::float_cmp, reason = "assertions check deterministic tween/sequencer arithmetic against exact expected values" ) ]
 
 #[ cfg( test ) ]
 mod tests
@@ -9,7 +8,10 @@ mod tests
   {
     Tween,
     Sequencer,
+    Sequence,
+    SequenceError,
     AnimationState,
+    AnimatablePlayer,
     easing::
     {
       base::EasingBuilder,
@@ -17,6 +19,11 @@ mod tests
       cubic::bezier::EaseInSine
     }
   };
+
+  fn assert_f_eq( first : f64, second : f64, eps : f64 )
+  {
+    assert!( second - eps < first && first < second + eps );
+  }
 
   #[ test ]
   fn test_sequencer_basic_flow()
@@ -26,7 +33,7 @@ mod tests
     assert_eq!( sequencer.state(), AnimationState::Pending );
     assert_eq!( sequencer.animation_count(), 0 );
 
-    let float_tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
+    let float_tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() );
     sequencer.insert( "test", float_tween );
 
     assert_eq!( sequencer.state(), AnimationState::Running );
@@ -52,8 +59,8 @@ mod tests
   {
     let mut sequencer = Sequencer::new();
 
-    let tween1 = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
-    let tween2 = Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::new() );
+    let tween1 = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() );
+    let tween2 = Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::build() );
     sequencer.insert( "short_tween", tween1 );
     sequencer.insert( "long_tween", tween2 );
 
@@ -77,7 +84,7 @@ mod tests
     sequencer.insert
     (
       "test",
-      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() )
     );
 
     sequencer.update( 0.5 );
@@ -106,7 +113,7 @@ mod tests
     sequencer.insert
     (
       "test",
-      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() )
     );
 
     sequencer.update( 0.5 );
@@ -132,12 +139,12 @@ mod tests
     sequencer.insert
     (
       "tween1",
-      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() )
+      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::build() )
     );
     sequencer.insert
     (
       "tween2",
-      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() )
+      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::build() )
     );
     assert_eq!( sequencer.animation_count(), 2 );
 
@@ -150,6 +157,49 @@ mod tests
     assert!( !sequencer.remove( "tween1" ) );
   }
 
+  // test_kind: bug_reproducer(BUG-231)
+  /// ## Root Cause
+  /// `Sequencer::remove` never touched `self.state`. `update()`'s own completion check requires
+  /// `!self.players.is_empty()` before it will transition to `Completed` (by design, so a
+  /// genuinely-empty Sequencer is never reported as having "completed" work), so removing the
+  /// last remaining player while `Running` left `state` permanently stuck at `Running` -- there
+  /// was no path back to `Pending`/`Completed` once the player set went empty.
+  /// ## Why Not Caught
+  /// The existing `test_sequencer_remove` only ever removes one of two players, never reaching
+  /// the empty-player-set case, so it never observed `state()` after the last removal.
+  /// ## Fix Applied
+  /// `remove` now transitions `self.state` from `Running` to `Pending` when the removal leaves
+  /// `self.players` empty, mirroring `reset()`'s own empty-players-means-`Pending` convention.
+  /// See `sequencer.rs`.
+  /// ## Prevention
+  /// Added this test, which removes the only player from a `Running` Sequencer and asserts
+  /// `state()` reports `Pending` (not stuck `Running`) and `update()` no longer accumulates time.
+  /// ## Pitfall
+  /// Invisible whenever a `Sequencer` is discarded right after its last player is removed --
+  /// only a `Sequencer` reused afterward (checked via `state()`, or ticked via `update()` and
+  /// observed to keep advancing `time()` despite having nothing left to animate) exposes the
+  /// stuck `Running` state.
+  #[ test ]
+  fn test_sequencer_remove_last_player_leaves_pending_not_stuck_running()
+  {
+    let mut sequencer = Sequencer::new();
+
+    sequencer.insert
+    (
+      "only",
+      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::build() )
+    );
+    assert_eq!( sequencer.state(), AnimationState::Running );
+
+    assert!( sequencer.remove( "only" ) );
+    assert_eq!( sequencer.animation_count(), 0 );
+    assert_eq!( sequencer.state(), AnimationState::Pending, "state stuck at Running after removing the last player" );
+
+    let time_before = sequencer.time();
+    sequencer.update( 1.0 );
+    assert_eq!( sequencer.time(), time_before, "update() still accumulating time on an empty, no-longer-Running Sequencer" );
+  }
+
   #[ test ]
   fn test_sequencer_get_wrong_type()
   {
@@ -158,7 +208,7 @@ mod tests
     sequencer.insert
     (
       "float_tween",
-      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() )
     );
 
     assert!( sequencer.get::< Tween< i32 > >( "float_tween" ).is_none() );
@@ -174,17 +224,314 @@ mod tests
     sequencer.insert
     (
       "ease_in_tween",
-      Tween::new( 0.0_f32, 10.0_f32, 1.0, EaseInSine::new() )
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, EaseInSine::build() )
     );
 
     sequencer.update( 0.5 );
 
     let value = sequencer.get::< Tween< f32 > >( "ease_in_tween" ).unwrap();
-    assert_eq!( value.value_get(), 1.25 );
+    // Fix(TASK-041): this literal was 1.25 — the value CubicBezier produced at the old buggy
+    // default of iterations=0, where the Newton-Raphson solve loop never ran and `apply`
+    // evaluated `y_get` at the raw input fraction ( 0.5 ) instead of the solved Bezier parameter.
+    // At the fixed default of iterations=8, EaseInSine( 0.5 ) converges to ~0.300338, not 0.5 —
+    // see easing/cubic/bezier.rs.
+    assert_f_eq( f64::from( value.value_get() ), 3.00338, 0.001 );
 
     sequencer.update( 0.5 );
     assert!( sequencer.is_completed() );
     let value = sequencer.get::< Tween< f32 > >( "ease_in_tween" ).unwrap();
     assert_eq!( value.value_get(), 10.0 );
+  }
+
+  // test_kind: bug_reproducer(TASK-015)
+  /// ## Root Cause
+  /// `Sequencer::delay_get` seeded its reduction at `f64::MAX` (correct for a min-reduction) but
+  /// reduced via `.max( min_delay )` instead of `.min( min_delay )`, so no real delay could ever
+  /// displace the seed — it always returned `f64::MAX`.
+  /// ## Why Not Caught
+  /// No existing test inserted a delayed player and then checked `Sequencer::delay_get()` or
+  /// `progress()` directly — coverage only checked `time()` and per-player `value_get()`.
+  /// ## Fix Applied
+  /// Changed the reduction from `.max( min_delay )` to `.min( min_delay )`. See `sequencer.rs`.
+  /// ## Prevention
+  /// A min-reduction's seed and its comparison direction must be reviewed together — a correct
+  /// seed with a mismatched comparison direction is easy to miss on a glance.
+  /// ## Pitfall
+  /// `f64::MAX` feeding into `progress()`'s `( time - delay_get() ) / duration_get()` produces a
+  /// huge negative number that clamps silently to `0.0` — no panic, no NaN, just a
+  /// plausible-looking wrong answer.
+  #[ test ]
+  fn test_sequencer_delay_get_and_progress_with_delayed_tween()
+  {
+    let mut sequencer = Sequencer::new();
+    sequencer.insert
+    (
+      "tween",
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_delay( 0.5 )
+    );
+
+    assert_eq!( sequencer.delay_get(), 0.5 );
+
+    sequencer.update( 1.0 );
+    assert_f_eq( sequencer.progress(), 0.5, 0.0001 );
+  }
+
+  // test_kind: bug_reproducer(TASK-015)
+  /// ## Root Cause
+  /// `Sequence::new`'s validation loop declared `last_delay` immutable and never reassigned it,
+  /// so every iteration compared against the initial `0.0` instead of the previous player's
+  /// delay — the `Unsorted` check could only fire for a negative delay, which `delay_get()`
+  /// never produces.
+  /// ## Why Not Caught
+  /// No existing test constructed genuinely out-of-order players to exercise the `Unsorted`
+  /// branch — coverage only used already-sorted input.
+  /// ## Fix Applied
+  /// Made `last_delay` mutable and added `last_delay = player.delay_get();` at the end of the
+  /// loop body. See `sequencer.rs`.
+  /// ## Prevention
+  /// A "compare against previous" loop must visibly update its "previous" binding every
+  /// iteration — an immutable binding used this way is a signal the update was forgotten, not
+  /// that none was needed.
+  /// ## Pitfall
+  /// The check reads as correct at a glance (right comparison operator, right error variant) —
+  /// only the absence of the reassignment reveals it can never trigger on realistic input.
+  #[ test ]
+  fn test_sequence_new_rejects_unsorted_players()
+  {
+    let players = vec!
+    [
+      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::build() ).with_delay( 2.0 ),
+      Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::build() ).with_delay( 1.0 ),
+    ];
+
+    let result = Sequence::new( players );
+    assert!( matches!( result, Err( SequenceError::Unsorted ) ) );
+  }
+
+  // test_kind: bug_reproducer(BUG-352)
+  /// ## Root Cause
+  /// `Sequence::pause` gated the `Paused` transition on `state == Running` only -- the identical
+  /// defect shape to `Tween::pause` ( see interpolation_test.rs ) -- so calling it while the
+  /// Sequence itself was still `Pending` ( `elapsed` hasn't yet reached the active player's own
+  /// `delay_get()`, see `update`'s `Pending` arm ) was a silent no-op: `self.elapsed` kept
+  /// accumulating on every later `update()` exactly as if `pause()` had never been called.
+  /// ## Why Not Caught
+  /// No existing `Sequence` pause/resume test exists at all -- `test_sequencer_pause_resume`
+  /// exercises the unrelated `Sequencer` struct, not `Sequence`.
+  /// ## Fix Applied
+  /// Widened `Sequence::pause`'s gate to `matches!( self.state, Running | Pending )`, mirroring
+  /// the `Tween::pause` fix. See `sequencer.rs`.
+  /// ## Prevention
+  /// Added this test, which pauses a two-player Sequence while still in its own pre-roll delay,
+  /// drives a large `update()` while paused, and asserts `time()`/`progress()` stay frozen.
+  /// ## Pitfall
+  /// Invisible for any Sequence whose first player has zero delay ( `Pending` is a one-tick
+  /// pass-through there ) -- only a Sequence paused during a real pre-roll delay exposes it.
+  #[ test ]
+  fn test_sequence_pause_during_pending_delay_freezes_time_and_progress()
+  {
+    let players = vec!
+    [
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_delay( 5.0 ),
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_delay( 6.0 ),
+    ];
+    let mut sequence = Sequence::new( players ).unwrap();
+
+    sequence.update( 1.0 ); // elapsed = 1.0, well inside the 5.0s pre-roll delay
+    assert_eq!( sequence.time(), 1.0 );
+    assert_eq!( sequence.progress(), 0.0 );
+
+    sequence.pause();
+
+    sequence.update( 100.0 ); // large update while paused -- must not advance anything
+    assert_eq!
+    (
+      sequence.time(), 1.0,
+      "pause() was a no-op while the Sequence was still in its own Pending phase -- elapsed kept advancing"
+    );
+    assert_eq!( sequence.progress(), 0.0 );
+    assert!( !sequence.is_completed() );
+  }
+
+  // test_kind: bug_reproducer(BUG-353)
+  /// ## Root Cause
+  /// `Sequence::update`'s Pending->Running and Running->Completed transitions were two mutually
+  /// exclusive arms of one `match self.state`, keyed on `self.state` as it stood at the START of
+  /// the call -- so at most one of the two could ever fire per `update()`. A single `delta_time`
+  /// large enough to both leave `Pending` AND finish the ( now-active ) last player in the very
+  /// same call landed on `Running`, since the `match` had already committed to the `Pending` arm
+  /// and never re-evaluated the `Running` arm's condition against the just-updated state.
+  /// ## Why Not Caught
+  /// No existing `Sequence` test drove `update()` with a `delta_time` large enough to span the
+  /// entire timeline ( leave `Pending` AND complete the last player ) in a single call -- every
+  /// prior multi-frame test called `update()` with deltas that stayed within one phase at a time,
+  /// and no existing `Sequence` test ever drove one all the way to `is_completed() == true`.
+  /// ## Fix Applied
+  /// Replaced the single `match self.state { ... }` with two sequential `if` checks, so the
+  /// Running->Completed condition is re-evaluated against the ( possibly just-updated ) state
+  /// after the Pending->Running transition applies, in the same call. See `sequencer.rs`.
+  /// ## Prevention
+  /// Added this test, which drives a fresh, still-`Pending`, 2-player `Sequence` with one
+  /// oversized `update()` call and asserts `is_completed()` is `true` immediately, matching
+  /// `progress() == 1.0` in that same call -- not one call later.
+  /// ## Pitfall
+  /// Self-corrects on the very next `update()` call regardless ( that call's own check
+  /// re-evaluates from the now-`Running` state and finds `Completed` ), so this defect is
+  /// invisible to any test that calls `update()` more than once before checking `is_completed()`.
+  #[ test ]
+  fn test_sequence_update_completes_in_same_call_that_leaves_pending()
+  {
+    let players = vec!
+    [
+      Tween::new( 0.0_f32, 10.0_f32, 0.5, Linear::build() ).with_delay( 0.1 ),
+      Tween::new( 0.0_f32, 10.0_f32, 0.5, Linear::build() ).with_delay( 0.6 ),
+    ];
+    let mut sequence = Sequence::new( players ).unwrap();
+
+    // One oversized update spans the entire timeline: leaves the Sequence's own Pending phase
+    // AND drives the last player to completion, in the same call.
+    sequence.update( 100.0 );
+
+    assert_eq!( sequence.progress(), 1.0 );
+    assert!
+    (
+      sequence.is_completed(),
+      "is_completed() still false the same call progress() already reports 1.0 -- \
+      Pending->Running and Running->Completed didn't both apply within one update()"
+    );
+  }
+
+  // test_kind: bug_reproducer(BUG-138)
+  /// ## Root Cause
+  /// `Sequence::update` used `binary_search_by`'s `Err( id )` insertion-point directly as the
+  /// active player index. `Err( id )` means "the first player whose delay has NOT yet been
+  /// reached" -- the player that should actually be active is the one just before it, `id - 1`.
+  /// ## Why Not Caught
+  /// No existing test called `.update()` on a valid, multi-player `Sequence` -- the only
+  /// `Sequence` test (`test_sequence_new_rejects_unsorted_players`) exercises only the
+  /// constructor's error path.
+  /// ## Fix Applied
+  /// Changed `Ok( id ) | Err( id ) => id` to `Ok( id ) => id, Err( id ) => id.saturating_sub( 1 )`.
+  /// See `sequencer.rs`.
+  /// ## Prevention
+  /// Added this test, which fails loudly (wrong player index, wrong value) whenever the very
+  /// first frame of a multi-player `Sequence` is processed.
+  /// ## Pitfall
+  /// `Ok( id )` (an exact delay match) and `Err( id )` (an insertion point) look interchangeable
+  /// at a glance but have different index semantics -- only `Err` needs the `- 1` adjustment.
+  #[ test ]
+  fn test_sequence_update_selects_player_whose_delay_has_already_passed()
+  {
+    let players = vec!
+    [
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ),
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_delay( 1.0 ),
+    ];
+    let mut sequence = Sequence::new( players ).unwrap();
+
+    // elapsed = 0.1, strictly between the two players' delays ( 0.0 and 1.0 ) -- player 0's
+    // delay has passed, player 1's has not, so player 0 must be the active one.
+    sequence.update( 0.1 );
+
+    assert_eq!
+    (
+      sequence.current_id_get(), 0,
+      "binary_search's Err(id) insertion-point was used directly instead of id-1, selecting the wrong (not-yet-started) player"
+    );
+    assert_eq!( sequence.current_get().unwrap().value_get(), 1.0 );
+  }
+
+  // test_kind: bug_reproducer(BUG-139)
+  /// ## Root Cause
+  /// `Sequence::update`'s `Ordering::Equal` arm (the same player still active across frames)
+  /// reconstructed an absolute "elapsed since this player started" value from
+  /// `delay_get() + progress() * duration_get()` and called `current.update( old_elapsed +
+  /// delta_time )` -- but `AnimatablePlayer::update` is a pure incremental delta API. Every
+  /// steady-state frame after the player left its initial `Pending` state, this re-fed the
+  /// player's own already-accumulated progress back into itself on top of the real delta.
+  /// ## Why Not Caught
+  /// No existing test called `.update()` twice in a row on a `Sequence` while the same player
+  /// stayed active -- the only `Sequence` test using `.update()` prior to this session's own
+  /// BUG-138 fix never exercised the `Equal` arm past a player's initial `Pending` state.
+  /// ## Fix Applied
+  /// Replaced the `old_elapsed` reconstruction with a direct `current.update( delta_time )`,
+  /// matching `AnimatablePlayer::update`'s incremental contract. See `sequencer.rs`.
+  /// ## Prevention
+  /// Added this test, which drives the same player across two consecutive frames and checks its
+  /// resulting value against the wall-clock-correct expectation.
+  /// ## Pitfall
+  /// The bug is invisible on a player's very first `update()` call (still `Pending`, so
+  /// `progress()` returns `0.0` and `old_elapsed` degenerates to `0.0`) -- only a SECOND
+  /// consecutive frame on the same already-`Running` player exposes the over-accumulation.
+  #[ test ]
+  fn test_sequence_update_continuing_player_receives_only_the_new_delta()
+  {
+    let players = vec!
+    [
+      Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::build() ),
+      Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ).with_delay( 2.0 ),
+    ];
+    let mut sequence = Sequence::new( players ).unwrap();
+
+    sequence.update( 0.5 ); // frame 1: player 0 Pending -> Running, elapsed becomes 0.5
+    sequence.update( 0.5 ); // frame 2: player 0 still active (Equal arm) -- must add only 0.5
+
+    assert_eq!( sequence.current_id_get(), 0 );
+    assert_eq!
+    (
+      sequence.current_get().unwrap().value_get(), 5.0,
+      "continuing player's internal elapsed over-accumulated -- old (reconstructed) elapsed was added to the new delta instead of just the delta"
+    );
+  }
+
+  // test_kind: bug_reproducer(BUG-147)
+  /// ## Root Cause
+  /// `Sequencer::insert`'s state-revival guard only checks `self.state == AnimationState::Pending`,
+  /// never `AnimationState::Completed`. Once every contained player finishes and `update()` flips
+  /// the Sequencer to `Completed`, inserting a brand-new (not-yet-run) player leaves `state` stuck
+  /// at `Completed` -- `is_completed()` keeps reporting `true` despite an incomplete player now
+  /// being present, and `update()` early-returns on every subsequent call (`if self.state !=
+  /// Running { return; }`), so the new player's `update()` is never invoked at all.
+  /// ## Why Not Caught
+  /// No existing test ever called `insert()` after a `Sequencer` reached `Completed` -- every
+  /// prior test either stopped once `is_completed()` became `true`, or only inserted players
+  /// while still `Pending`/`Running`.
+  /// ## Fix Applied
+  /// Widened the revival guard from `self.state == AnimationState::Pending` to also cover
+  /// `AnimationState::Completed`. See `sequencer.rs`.
+  /// ## Prevention
+  /// Added this test, which inserts a second player only after the first has driven the
+  /// `Sequencer` to `Completed`, and asserts both `is_completed()` flips back to `false` and the
+  /// new player actually advances on the next `update()`.
+  /// ## Pitfall
+  /// Invisible whenever a `Sequencer` instance is used for exactly one "batch" of players and
+  /// discarded once complete -- only a `Sequencer` reused across independent batches (insert more
+  /// work after a previous batch finished) exposes the stuck `Completed` state.
+  #[ test ]
+  fn test_sequencer_insert_after_completion_revives_running_state()
+  {
+    let mut sequencer = Sequencer::new();
+    sequencer.insert( "first", Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ) );
+
+    sequencer.update( 1.0 );
+    assert!( sequencer.is_completed() );
+    assert_eq!( sequencer.state(), AnimationState::Completed );
+
+    sequencer.insert( "second", Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::build() ) );
+
+    assert!
+    (
+      !sequencer.is_completed(),
+      "is_completed() still true right after inserting a fresh, not-yet-run player"
+    );
+    assert_eq!( sequencer.state(), AnimationState::Running );
+
+    sequencer.update( 0.5 );
+    let value = sequencer.get::< Tween< f32 > >( "second" ).unwrap();
+    assert_eq!
+    (
+      value.value_get(), 5.0,
+      "newly-inserted player never advanced -- Sequencer::update() early-returns while state is stuck at Completed"
+    );
   }
 }

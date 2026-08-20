@@ -53,7 +53,7 @@
 //! });
 //!
 //! // Process all pending events
-//! bus.process_events();
+//! bus.events_process();
 //! ```
 
 use std::collections::{HashMap, VecDeque};
@@ -74,11 +74,13 @@ pub enum EventResult
 
 /// Priority level for event listeners.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Default)]
 pub enum EventPriority
 {
   /// Lowest priority - processed last
   Low = 0,
   /// Normal priority - default processing order
+  #[default]
   Normal = 1,
   /// High priority - processed before normal
   High = 2,
@@ -86,12 +88,6 @@ pub enum EventPriority
   Critical = 3,
 }
 
-impl Default for EventPriority
-{
-  fn default() -> Self {
-    EventPriority::Normal
-  }
-}
 
 /// Unique identifier for event listeners.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -127,7 +123,7 @@ impl<T> std::fmt::Debug for PrioritizedListener<T> {
     f.debug_struct("PrioritizedListener")
       .field("id", &self.id)
       .field("priority", &self.priority)
-      .finish()
+      .finish_non_exhaustive()
   }
 }
 
@@ -145,7 +141,7 @@ impl<T> EventChannel<T> {
     }
   }
 
-  fn add_listener(&mut self, listener: EventListener<T>, priority: EventPriority) -> ListenerId {
+  fn listener_add(&mut self, listener: EventListener<T>, priority: EventPriority) -> ListenerId {
     let id = ListenerId::new();
     let prioritized = PrioritizedListener {
       id,
@@ -162,7 +158,7 @@ impl<T> EventChannel<T> {
     id
   }
 
-  fn remove_listener(&mut self, id: ListenerId) -> bool {
+  fn listener_remove(&mut self, id: ListenerId) -> bool {
     if let Some(pos) = self.listeners.iter().position(|l| l.id == id) {
       self.listeners.remove(pos);
       true
@@ -175,29 +171,54 @@ impl<T> EventChannel<T> {
     self.pending_events.push_back(event);
   }
 
-  fn process_events(&mut self) {
+  // Fix(BUG-268): changed from `-> ()` to `-> usize` so callers can learn how
+  // many listeners were auto-removed via `EventResult::Unsubscribe` --
+  // `EventBus::statistics.total_subscribers` was only ever decremented by the
+  // explicit `EventBus::unsubscribe()` path, which has no visibility into
+  // removals this method performs on its own.
+  // Root cause: this method silently removed listeners without reporting a
+  // count, so `EventBus::events_process`/`events_for_type_process` (the only
+  // callers) had no way to keep `total_subscribers` in sync with the listener
+  // that just self-unsubscribed by returning `EventResult::Unsubscribe`.
+  // Pitfall: a "current active count" statistic must be updated at every
+  // removal site, not only the one explicit public API that happens to have
+  // direct access to the statistics struct -- an internal removal path needs
+  // to report what it did, not just do it.
+  fn events_process(&mut self) -> usize {
+    let mut unsubscribed = 0;
+
     while let Some(event) = self.pending_events.pop_front() {
       let mut listeners_to_remove = Vec::new();
-      
+
       for listener in &self.listeners {
         match (listener.listener)(&event) {
-          EventResult::Continue => continue,
+          EventResult::Continue => {}
           EventResult::Consume => break,
+          // Fix(BUG-137)
+          // Root cause: this arm queued the listener for removal but never
+          // `break`, so the same event kept propagating to lower-priority
+          // listeners in this loop -- contradicting `EventResult::Unsubscribe`'s
+          // own doc comment ("Stop processing and remove this listener"),
+          // whose "stop processing" half was never implemented.
+          // Pitfall: `Unsubscribe` must halt propagation for the CURRENT event
+          // exactly like `Consume` does -- removal from `self.listeners` is a
+          // separate, deferred concern (handled below, after the loop) and must
+          // not be conflated with whether the current event keeps propagating.
           EventResult::Unsubscribe => {
             listeners_to_remove.push(listener.id);
+            break;
           }
         }
       }
-      
+
       // Remove listeners that requested unsubscription
+      unsubscribed += listeners_to_remove.len();
       for id in listeners_to_remove {
-        self.remove_listener(id);
+        self.listener_remove(id);
       }
     }
-  }
 
-  fn has_listeners(&self) -> bool {
-    !self.listeners.is_empty()
+    unsubscribed
   }
 
   fn listener_count(&self) -> usize {
@@ -217,21 +238,15 @@ impl<T> Default for EventChannel<T> {
 
 /// Type-erased event channel for storage in the event bus.
 trait AnyEventChannel: Send + Sync {
-  fn process_events(&mut self);
-  fn has_listeners(&self) -> bool;
+  fn events_process(&mut self) -> usize;
   fn listener_count(&self) -> usize;
   fn pending_count(&self) -> usize;
-  fn as_any(&self) -> &dyn Any;
   fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 impl<T: Event> AnyEventChannel for EventChannel<T> {
-  fn process_events(&mut self) {
-    EventChannel::process_events(self)
-  }
-
-  fn has_listeners(&self) -> bool {
-    EventChannel::has_listeners(self)
+  fn events_process(&mut self) -> usize {
+    EventChannel::events_process(self)
   }
 
   fn listener_count(&self) -> usize {
@@ -240,10 +255,6 @@ impl<T: Event> AnyEventChannel for EventChannel<T> {
 
   fn pending_count(&self) -> usize {
     EventChannel::pending_count(self)
-  }
-
-  fn as_any(&self) -> &dyn Any {
-    self
   }
 
   fn as_any_mut(&mut self) -> &mut dyn Any {
@@ -260,6 +271,7 @@ pub struct EventBus {
 
 impl EventBus {
   /// Creates a new event bus.
+  #[must_use]
   pub fn new() -> Self {
     Self::default()
   }
@@ -279,8 +291,8 @@ impl EventBus {
     T: Event,
     F: Fn(&T) -> EventResult + Send + Sync + 'static,
   {
-    let channel = self.get_or_create_channel::<T>();
-    let id = channel.add_listener(Box::new(listener), priority);
+    let channel = self.channel_get_or_create::<T>();
+    let id = channel.listener_add(Box::new(listener), priority);
     self.statistics.total_subscribers += 1;
     id
   }
@@ -290,7 +302,7 @@ impl EventBus {
     let type_id = TypeId::of::<T>();
     if let Some(channel) = self.channels.get_mut(&type_id) {
       if let Some(channel) = channel.as_any_mut().downcast_mut::<EventChannel<T>>() {
-        if channel.remove_listener(id) {
+        if channel.listener_remove(id) {
           self.statistics.total_subscribers = self.statistics.total_subscribers.saturating_sub(1);
           return true;
         }
@@ -301,14 +313,14 @@ impl EventBus {
 
   /// Publishes an event to all subscribers.
   pub fn publish<T: Event>(&mut self, event: T) {
-    let channel = self.get_or_create_channel::<T>();
+    let channel = self.channel_get_or_create::<T>();
     channel.publish(event);
     self.statistics.events_published += 1;
   }
 
   /// Publishes multiple events of the same type.
-  pub fn publish_batch<T: Event>(&mut self, events: Vec<T>) {
-    let channel = self.get_or_create_channel::<T>();
+  pub fn batch_publish<T: Event>(&mut self, events: Vec<T>) {
+    let channel = self.channel_get_or_create::<T>();
     let event_count = events.len() as u64;
     for event in events {
       channel.publish(event);
@@ -317,56 +329,73 @@ impl EventBus {
   }
 
   /// Processes all pending events across all channels.
-  pub fn process_events(&mut self) {
+  pub fn events_process(&mut self) {
     let mut events_processed = 0;
-    
+    let mut unsubscribed = 0;
+
     for channel in self.channels.values_mut() {
       let pending_before = channel.pending_count();
-      channel.process_events();
+      unsubscribed += channel.events_process();
       events_processed += pending_before;
     }
-    
+
     self.statistics.events_processed += events_processed as u64;
     self.statistics.process_cycles += 1;
+    // Fix(BUG-268): a listener that self-unsubscribed by returning
+    // `EventResult::Unsubscribe` during processing was removed from the
+    // channel here but never reflected in `total_subscribers` -- only the
+    // explicit `unsubscribe()` API path decremented it, so the statistic
+    // silently drifted above the real listener count for every automatic
+    // removal.
+    // Root cause: `EventChannel::events_process` used to return `()`, giving
+    // this method no way to learn how many listeners it had just removed.
+    // Pitfall: see the fix comment on `EventChannel::events_process` for the
+    // full explanation of why the count needed to be threaded through.
+    self.statistics.total_subscribers = self.statistics.total_subscribers.saturating_sub(unsubscribed as u64);
   }
 
   /// Processes events for a specific event type only.
-  pub fn process_events_for_type<T: Event>(&mut self) {
+  pub fn events_for_type_process<T: Event>(&mut self) {
     let type_id = TypeId::of::<T>();
     if let Some(channel) = self.channels.get_mut(&type_id) {
       let pending_before = channel.pending_count();
-      channel.process_events();
+      let unsubscribed = channel.events_process();
       self.statistics.events_processed += pending_before as u64;
+      // Fix(BUG-268): same drift as `events_process` above, scoped to a
+      // single event type's channel -- see that method's fix comment.
+      self.statistics.total_subscribers = self.statistics.total_subscribers.saturating_sub(unsubscribed as u64);
     }
   }
 
   /// Gets statistics about event bus usage.
+  #[must_use]
   pub fn statistics(&self) -> &EventStatistics {
     &self.statistics
   }
 
   /// Resets statistics counters.
-  pub fn reset_statistics(&mut self) {
+  pub fn statistics_reset(&mut self) {
     self.statistics = EventStatistics::default();
   }
 
   /// Gets the number of subscribers for a specific event type.
+  #[must_use]
   pub fn subscriber_count<T: Event>(&self) -> usize {
     let type_id = TypeId::of::<T>();
     self.channels.get(&type_id)
-      .map(|channel| channel.listener_count())
-      .unwrap_or(0)
+      .map_or(0, |channel| channel.listener_count())
   }
 
   /// Gets the number of pending events for a specific type.
+  #[must_use]
   pub fn pending_count<T: Event>(&self) -> usize {
     let type_id = TypeId::of::<T>();
     self.channels.get(&type_id)
-      .map(|channel| channel.pending_count())
-      .unwrap_or(0)
+      .map_or(0, |channel| channel.pending_count())
   }
 
   /// Gets the total number of pending events across all types.
+  #[must_use]
   pub fn total_pending_count(&self) -> usize {
     self.channels.values()
       .map(|channel| channel.pending_count())
@@ -374,6 +403,7 @@ impl EventBus {
   }
 
   /// Checks if there are any pending events.
+  #[must_use]
   pub fn has_pending_events(&self) -> bool {
     self.channels.values().any(|channel| channel.pending_count() > 0)
   }
@@ -385,13 +415,14 @@ impl EventBus {
   }
 
   /// Gets the number of different event types registered.
+  #[must_use]
   pub fn channel_count(&self) -> usize {
     self.channels.len()
   }
 
   // Private helper methods
 
-  fn get_or_create_channel<T: Event>(&mut self) -> &mut EventChannel<T> {
+  fn channel_get_or_create<T: Event>(&mut self) -> &mut EventChannel<T> {
     let type_id = TypeId::of::<T>();
     self.channels.entry(type_id)
       .or_insert_with(|| Box::new(EventChannel::<T>::new()))
@@ -416,6 +447,7 @@ pub struct EventStatistics {
 
 impl EventStatistics {
   /// Gets the average events processed per cycle.
+  #[must_use]
   pub fn average_events_per_cycle(&self) -> f64 {
     if self.process_cycles > 0 {
       self.events_processed as f64 / self.process_cycles as f64
@@ -425,6 +457,7 @@ impl EventStatistics {
   }
 
   /// Gets the processing efficiency (processed / published).
+  #[must_use]
   pub fn processing_efficiency(&self) -> f64 {
     if self.events_published > 0 {
       self.events_processed as f64 / self.events_published as f64
@@ -438,7 +471,7 @@ impl EventStatistics {
 
 /// Common game events for typical tile-based game scenarios.
 pub mod common_events {
-  use super::*;
+  
 
   /// Event fired when an entity moves from one position to another.
   #[derive(Debug, Clone)]
@@ -465,7 +498,10 @@ pub mod common_events {
     /// Flying movement
     Fly,
     /// Custom movement with specific duration
-    Custom { duration_ms: u32 },
+    Custom {
+      /// How long the effect lasts, in milliseconds.
+      duration_ms: u32,
+    },
   }
 
   /// Event fired when an entity's health changes.
@@ -485,9 +521,15 @@ pub mod common_events {
   #[derive(Debug, Clone, PartialEq)]
   pub enum HealthChangeCause {
     /// Damage from combat
-    Damage { attacker_id: Option<u32> },
+    Damage {
+      /// Entity that dealt the damage, if any.
+      attacker_id: Option<u32>,
+    },
     /// Healing from items or spells
-    Healing { source: HealingSource },
+    Healing {
+      /// What produced the healing.
+      source: HealingSource,
+    },
     /// Natural regeneration over time
     Regeneration,
     /// Direct modification (cheats, admin commands)
@@ -498,9 +540,17 @@ pub mod common_events {
   #[derive(Debug, Clone, PartialEq)]
   pub enum HealingSource {
     /// Healing potion or item
-    Item { item_id: u32 },
+    Item {
+      /// Identifier of the healing item.
+      item_id: u32,
+    },
     /// Healing spell or ability
-    Spell { spell_id: u32, caster_id: Option<u32> },
+    Spell {
+      /// Identifier of the healing spell.
+      spell_id: u32,
+      /// Entity that cast it, if any.
+      caster_id: Option<u32>,
+    },
     /// Environmental healing (shrine, fountain)
     Environmental,
   }
@@ -526,7 +576,10 @@ pub mod common_events {
     /// Entity entered another's trigger zone
     Trigger,
     /// Projectile hit target
-    Projectile { damage: i32 },
+    Projectile {
+      /// Damage the projectile carries.
+      damage: i32,
+    },
   }
 
   /// Event fired when an item is collected.
@@ -576,7 +629,12 @@ pub mod common_events {
     /// Gold or currency
     Gold(u32),
     /// Specific item
-    Item { item_id: u32, quantity: u32 },
+    Item {
+      /// Identifier of the collected item.
+      item_id: u32,
+      /// How many were collected.
+      quantity: u32,
+    },
     /// Multiple rewards
     Multiple(Vec<ObjectiveReward>),
     /// No reward
@@ -618,7 +676,7 @@ pub mod common_events {
 pub fn debug_listener<T: Event>(name: &str) -> impl Fn(&T) -> EventResult {
   let name = name.to_string();
   move |event| {
-    println!("[{}] Event: {:?}", name, event);
+    println!("[{name}] Event: {event:?}");
     EventResult::Continue
   }
 }
@@ -636,272 +694,4 @@ pub fn counting_listener<T: Event>() -> (impl Fn(&T) -> EventResult, Arc<Mutex<u
   };
   
   (listener, counter)
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-  use crate::coordinates::square::{Coordinate as SquareCoord, FourConnected};
-  use std::sync::{Arc, Mutex};
-
-  #[derive(Debug, Clone)]
-  struct TestEvent {
-    id: u32,
-    message: String,
-  }
-
-  #[test]
-  fn test_event_bus_creation() {
-    let bus = EventBus::new();
-    assert_eq!(bus.channel_count(), 0);
-    assert_eq!(bus.total_pending_count(), 0);
-  }
-
-  #[test]
-  fn test_subscribe_and_publish() {
-    let mut bus = EventBus::new();
-    let received = Arc::new(Mutex::new(Vec::new()));
-    let received_clone = received.clone();
-
-    bus.subscribe(move |event: &TestEvent| {
-      received_clone.lock().unwrap().push(event.clone());
-      EventResult::Continue
-    });
-
-    let event = TestEvent {
-      id: 1,
-      message: "test".to_string(),
-    };
-
-    bus.publish(event.clone());
-    assert_eq!(bus.pending_count::<TestEvent>(), 1);
-
-    bus.process_events();
-    assert_eq!(bus.pending_count::<TestEvent>(), 0);
-
-    let received_events = received.lock().unwrap();
-    assert_eq!(received_events.len(), 1);
-    assert_eq!(received_events[0].id, 1);
-    assert_eq!(received_events[0].message, "test");
-  }
-
-  #[test]
-  fn test_event_priorities() {
-    let mut bus = EventBus::new();
-    let execution_order = Arc::new(Mutex::new(Vec::new()));
-
-    // Add listeners in reverse priority order
-    let order1 = execution_order.clone();
-    bus.subscribe_with_priority(move |_: &TestEvent| {
-      order1.lock().unwrap().push("low");
-      EventResult::Continue
-    }, EventPriority::Low);
-
-    let order2 = execution_order.clone();
-    bus.subscribe_with_priority(move |_: &TestEvent| {
-      order2.lock().unwrap().push("critical");
-      EventResult::Continue
-    }, EventPriority::Critical);
-
-    let order3 = execution_order.clone();
-    bus.subscribe_with_priority(move |_: &TestEvent| {
-      order3.lock().unwrap().push("normal");
-      EventResult::Continue
-    }, EventPriority::Normal);
-
-    bus.publish(TestEvent { id: 1, message: "test".to_string() });
-    bus.process_events();
-
-    let order = execution_order.lock().unwrap();
-    assert_eq!(*order, vec!["critical", "normal", "low"]);
-  }
-
-  #[test]
-  fn test_event_consumption() {
-    let mut bus = EventBus::new();
-    let received = Arc::new(Mutex::new(Vec::new()));
-
-    // First listener consumes the event
-    bus.subscribe(|_: &TestEvent| EventResult::Consume);
-
-    // Second listener should never receive the event
-    let received_clone = received.clone();
-    bus.subscribe(move |event: &TestEvent| {
-      received_clone.lock().unwrap().push(event.clone());
-      EventResult::Continue
-    });
-
-    bus.publish(TestEvent { id: 1, message: "test".to_string() });
-    bus.process_events();
-
-    let received_events = received.lock().unwrap();
-    assert_eq!(received_events.len(), 0); // Event was consumed before reaching second listener
-  }
-
-  #[test]
-  fn test_unsubscribe() {
-    let mut bus = EventBus::new();
-    let received = Arc::new(Mutex::new(0));
-    let received_clone = received.clone();
-
-    let listener_id = bus.subscribe(move |_: &TestEvent| {
-      *received_clone.lock().unwrap() += 1;
-      EventResult::Continue
-    });
-
-    // Publish and process first event
-    bus.publish(TestEvent { id: 1, message: "test1".to_string() });
-    bus.process_events();
-    assert_eq!(*received.lock().unwrap(), 1);
-
-    // Unsubscribe and publish second event
-    assert!(bus.unsubscribe::<TestEvent>(listener_id));
-    bus.publish(TestEvent { id: 2, message: "test2".to_string() });
-    bus.process_events();
-    assert_eq!(*received.lock().unwrap(), 1); // Should still be 1
-  }
-
-  #[test]
-  fn test_auto_unsubscribe() {
-    let mut bus = EventBus::new();
-    let call_count = Arc::new(Mutex::new(0));
-    let counter_clone = call_count.clone();
-
-    bus.subscribe(move |_: &TestEvent| {
-      let mut count = counter_clone.lock().unwrap();
-      *count += 1;
-      if *count >= 2 {
-        EventResult::Unsubscribe
-      } else {
-        EventResult::Continue
-      }
-    });
-
-    // First event - listener remains
-    bus.publish(TestEvent { id: 1, message: "test1".to_string() });
-    bus.process_events();
-    assert_eq!(bus.subscriber_count::<TestEvent>(), 1);
-
-    // Second event - listener unsubscribes
-    bus.publish(TestEvent { id: 2, message: "test2".to_string() });
-    bus.process_events();
-    assert_eq!(bus.subscriber_count::<TestEvent>(), 0);
-  }
-
-  #[test]
-  fn test_batch_publishing() {
-    let mut bus = EventBus::new();
-    let received = Arc::new(Mutex::new(Vec::new()));
-    let received_clone = received.clone();
-
-    bus.subscribe(move |event: &TestEvent| {
-      received_clone.lock().unwrap().push(event.id);
-      EventResult::Continue
-    });
-
-    let events = vec![
-      TestEvent { id: 1, message: "test1".to_string() },
-      TestEvent { id: 2, message: "test2".to_string() },
-      TestEvent { id: 3, message: "test3".to_string() },
-    ];
-
-    bus.publish_batch(events);
-    bus.process_events();
-
-    let received_ids = received.lock().unwrap();
-    assert_eq!(*received_ids, vec![1, 2, 3]);
-  }
-
-  #[test]
-  fn test_statistics() {
-    let mut bus = EventBus::new();
-    bus.subscribe(|_: &TestEvent| EventResult::Continue);
-
-    assert_eq!(bus.statistics().events_published, 0);
-    assert_eq!(bus.statistics().events_processed, 0);
-
-    bus.publish(TestEvent { id: 1, message: "test".to_string() });
-    assert_eq!(bus.statistics().events_published, 1);
-    assert_eq!(bus.statistics().events_processed, 0);
-
-    bus.process_events();
-    assert_eq!(bus.statistics().events_processed, 1);
-    assert_eq!(bus.statistics().process_cycles, 1);
-  }
-
-  #[test]
-  fn test_common_events() {
-    use common_events::*;
-
-    let mut bus = EventBus::new();
-    let moves = Arc::new(Mutex::new(Vec::new()));
-    let moves_clone = moves.clone();
-
-    bus.subscribe(move |event: &EntityMoved<SquareCoord<FourConnected>>| {
-      moves_clone.lock().unwrap().push((event.entity_id, event.from, event.to));
-      EventResult::Continue
-    });
-
-    bus.publish(EntityMoved {
-      entity_id: 42,
-      from: SquareCoord::<FourConnected>::new(1, 1),
-      to: SquareCoord::<FourConnected>::new(2, 1),
-      movement_type: MovementType::Walk,
-    });
-
-    bus.process_events();
-
-    let recorded_moves = moves.lock().unwrap();
-    assert_eq!(recorded_moves.len(), 1);
-    assert_eq!(recorded_moves[0].0, 42);
-  }
-
-  #[test]
-  fn test_utility_functions() {
-    let mut bus = EventBus::new();
-
-    // Test counting listener
-    let (listener, counter) = counting_listener::<TestEvent>();
-    bus.subscribe(listener);
-
-    bus.publish(TestEvent { id: 1, message: "test1".to_string() });
-    bus.publish(TestEvent { id: 2, message: "test2".to_string() });
-    bus.process_events();
-
-    assert_eq!(*counter.lock().unwrap(), 2);
-  }
-
-  #[derive(Debug, Clone)]
-  struct EventA { value: i32 }
-
-  #[derive(Debug, Clone)]
-  struct EventB { text: String }
-
-  #[test]
-  fn test_multiple_event_types() {
-    let mut bus = EventBus::new();
-
-    let received_a = Arc::new(Mutex::new(Vec::new()));
-    let received_b = Arc::new(Mutex::new(Vec::new()));
-
-    let a_clone = received_a.clone();
-    bus.subscribe(move |event: &EventA| {
-      a_clone.lock().unwrap().push(event.value);
-      EventResult::Continue
-    });
-
-    let b_clone = received_b.clone();
-    bus.subscribe(move |event: &EventB| {
-      b_clone.lock().unwrap().push(event.text.clone());
-      EventResult::Continue
-    });
-
-    bus.publish(EventA { value: 42 });
-    bus.publish(EventB { text: "hello".to_string() });
-    bus.process_events();
-
-    assert_eq!(*received_a.lock().unwrap(), vec![42]);
-    assert_eq!(*received_b.lock().unwrap(), vec!["hello".to_string()]);
-    assert_eq!(bus.channel_count(), 2);
-  }
 }

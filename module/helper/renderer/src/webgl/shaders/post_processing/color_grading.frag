@@ -65,8 +65,21 @@ vec3 apply_white_balance( vec3 color, float temperature, float tint )
   // White balance adjustment with stronger, more visible effect
   vec3 t = vec3( 1.0 );
   // Temperature: -1 = cool blue, 0 = neutral, 1 = warm orange (20% shift)
-  t.r += 0.2 * temperature - 0.1 * tint;
-  t.b -= 0.2 * temperature + 0.1 * tint;
+  // Fix(BUG-178): the tint term's sign was swapped on both channels -- a positive
+  // ( documented "magenta" ) tint was subtracting red and blue, which shifts the
+  // image toward green instead, and vice versa for negative tint. Magenta needs
+  // red AND blue boosted together ( both channels move the same direction as
+  // tint ); green needs both suppressed together, so tint's sign must match on
+  // both the `t.r +=` and `t.b -=` lines, not oppose as it does for temperature.
+  // Root cause: tint's contribution used the opposite sign convention from what
+  // "boost red and blue together for magenta" requires.
+  // Pitfall: `t.r += a - b` / `t.b -= a + b` reads as if `b` opposes on both
+  // channels the same way `a` does -- but `a` ( temperature ) is *supposed* to
+  // oppose ( warm raises red, lowers blue ), while `b` ( tint ) is supposed to
+  // move both channels together. Check each parameter's intended channel
+  // relationship independently before assuming a shared sign pattern.
+  t.r += 0.2 * temperature + 0.1 * tint;
+  t.b -= 0.2 * temperature - 0.1 * tint;
   return color * t;
 }
 
@@ -152,9 +165,21 @@ vec3 apply_filmic_curve( vec3 color, float amount )
 vec3 adjust_vibrance( vec3 color, float vibrance )
 {
   // Smart saturation that affects less-saturated colors more
-  float average = ( color.r + color.g + color.b ) / 3.0;
+  // Fix(BUG-244): the weight term used `( mx - average )` -- a proxy that GROWS with a color's
+  // existing saturation ( 0 for gray, up to 2/3 for a fully saturated primary ) -- so `amt`'s
+  // magnitude, and therefore the saturation push, scaled UP with existing saturation instead of
+  // down. That is the exact opposite of the "Vibrance vs Saturation" contract documented at the
+  // top of this file: already-vivid colors ( including skin tones ) got pushed harder than dull
+  // ones, instead of being protected while dull colors get boosted. Root cause: `( mx - average )`
+  // is an INCREASING function of existing saturation; the weight needs a DECREASING one. Fixed via
+  // normalized HSV-style saturation `( mx - mn ) / mx` ( 0 = gray, 1 = fully saturated ) and its
+  // complement `( 1.0 - sat )`, which is 1 at zero saturation ( maximal boost headroom ) and 0 at
+  // full saturation ( fully protected ) -- `vec3( mx ) - color` is itself already ~0 for near-gray
+  // colors, so gray pixels still see no absolute change despite the large weight, same as before.
   float mx = max( max( color.r, color.g ), color.b );
-  float amt = ( mx - average ) * ( -vibrance * 3.0 );
+  float mn = min( min( color.r, color.g ), color.b );
+  float sat = ( mx - mn ) / max( mx, 0.0001 );
+  float amt = ( 1.0 - sat ) * ( -vibrance * 3.0 );
   return mix( color, vec3( mx ), amt );
 }
 

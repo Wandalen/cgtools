@@ -1,37 +1,40 @@
 //! 
 //! # PES format writer.
-//! Original implementation refers to https://github.com/EmbroidePy/pyembroidery/blob/main/pyembroidery/PesWriter.py
+//! Original implementation refers to <https://github.com/EmbroidePy/pyembroidery/blob/main/pyembroidery/PesWriter.py>
 //! 
 
 mod private
 {
-  use crate::*;
+  use crate::{ embroidery_file, error, format, stitch_instruction, thread };
   use embroidery_file::EmbroideryFile;
   use error::EmbroideryError;
   use format::{ pec, pes::PESVersion };
-  use thread::*;
-  use stitch_instruction::*;
+  use thread::{ Color, Thread };
+  use stitch_instruction::Instruction;
   use std::io::{ Seek, SeekFrom, Write };
   use byteorder::{ WriteBytesExt as _, LE };
 
   /// Writes PES format into `writer`
+  /// # Errors
+  /// Propagates any error returned by the version-specific writer.
+  #[ inline ]
   pub fn write< W >( emb : &mut EmbroideryFile, writer : &mut W, version : PESVersion )
   -> Result< (), EmbroideryError >
   where
     W : Write + Seek
   {
-    emb.fix_color_count();
-    emb.interpolate_stop_as_duplicate_color();
-    
+    emb.color_count_fix();
+    emb.stop_interpolate_as_duplicate_color();
+
     match version
     {
-      PESVersion::V1 => write_version1( emb, writer ),
-      PESVersion::V6 => write_version6( emb, writer ),
+      PESVersion::V1 => version1_write( emb, writer ),
+      PESVersion::V6 => version6_write( emb, writer ),
     }
   }
 
   /// Writes PES version 1 into `writer`
-  fn write_version1< W >( emb : &mut EmbroideryFile, writer : &mut W )
+  fn version1_write< W >( emb : &mut EmbroideryFile, writer : &mut W )
   -> Result< (), EmbroideryError >
   where
     W : Write + Seek
@@ -48,34 +51,39 @@ mod private
     let pec_block_placeholder = writer.stream_position()?;
     writer.write_u32::< LE >( 0 )?; // placeholder
 
-    if emb.stitches().len() == 0
+    if emb.stitches().is_empty()
     {
-      write_header_version1( writer, 0 )?;
+      header_version1_write( writer, 0 )?;
       // 0000 0000 means no more sections
       writer.write_u16::< LE >( 0x0000 )?;
       writer.write_u16::< LE >( 0x0000 )?;
     }
     else
     {
-      write_header_version1( writer, 1 )?;
+      header_version1_write( writer, 1 )?;
       // ffff 0000 means more sections
       writer.write_u16::< LE >( 0xFFFF )?;
       writer.write_u16::< LE >( 0x0000 )?;
 
       let threads = pec::pec_threads();
-      _ = write_pes_block( emb, writer, &threads, left, top, right, bottom, cx, cy )?;
+      _ = pes_block_write( emb, writer, &threads, DesignBounds { left, top, right, bottom, cx, cy } )?;
     }
 
     let current_position = writer.stream_position()?;
     writer.seek( SeekFrom::Start( pec_block_placeholder ) )?;
-    writer.write_u32::< LE >( current_position as u32 )?;
+    // Stream position is a `u64`; PES's placeholder field is `u32`. Not provably bounded
+    // by any invariant (a pathologically large output stream could exceed it), so this
+    // is reported as a real error instead of silently truncated.
+    let current_position_u32 = u32::try_from( current_position )
+    .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "PES stream position exceeds u32 range" ) )?;
+    writer.write_u32::< LE >( current_position_u32 )?;
     writer.seek( SeekFrom::Start( current_position ) )?;
 
-    _ = pec::write_content( emb, writer )?;
+    _ = pec::content_write( emb, writer )?;
     Ok( () )
   }
 
-  fn write_header_version1< W >( writer : &mut W, distinct_block_objects : u16 )
+  fn header_version1_write< W >( writer : &mut W, distinct_block_objects : u16 )
   -> Result< (), EmbroideryError >
   where
     W : Write + Seek
@@ -87,7 +95,7 @@ mod private
     Ok( () )
   }
 
-  fn write_version6< W >( emb : &mut EmbroideryFile, writer : &mut W )
+  fn version6_write< W >( emb : &mut EmbroideryFile, writer : &mut W )
   -> Result< (), EmbroideryError >
   where
     W : Write + Seek
@@ -106,40 +114,49 @@ mod private
     let pec_block_placeholder = writer.stream_position()?;
     writer.write_u32::< LE >( 0 )?;
 
-    if emb.stitches().len() == 0
+    if emb.stitches().is_empty()
     {
-      write_header_version6( emb, writer, 0 )?;
+      header_version6_write( emb, writer, 0 )?;
       writer.write_u16::< LE >( 0x0000 )?;
       writer.write_u16::< LE >( 0x0000 )?;
     }
     else
     {
-      write_header_version6( emb, writer, 1 )?;
+      header_version6_write( emb, writer, 1 )?;
       writer.write_u16::< LE >( 0xFFFF )?;
       writer.write_u16::< LE >( 0x0000 )?;
-      let log = write_pes_block( emb, writer, emb.threads(), left, top, right, bottom, cx, cy )?;
+      let log = pes_block_write( emb, writer, emb.threads(), DesignBounds { left, top, right, bottom, cx, cy } )?;
       writer.write_u32::< LE >( 0 )?;
       writer.write_u32::< LE >( 0 )?;
       for i in 0..log.len()
       {
-        writer.write_u32::< LE >( i as u32 )?;
+        // `log.len()` is bounded by the number of stitch segments in the design —
+        // realistically far below `u32::MAX` — but not by a type-level invariant,
+        // so an out-of-range index is reported rather than silently truncated.
+        let i_u32 = u32::try_from( i )
+        .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "segment index exceeds u32 range" ) )?;
+        writer.write_u32::< LE >( i_u32 )?;
         writer.write_u32::< LE >( 0 )?;
       }
     }
 
     let current_pos = writer.stream_position()?;
     writer.seek( SeekFrom::Start( pec_block_placeholder ) )?;
-    writer.write_u32::< LE >( current_pos as u32 )?;
+    // See the analogous conversion in `version1_write`: stream position is `u64`,
+    // the placeholder field is `u32`, and this is not provably bounded.
+    let current_pos_u32 = u32::try_from( current_pos )
+    .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "PES stream position exceeds u32 range" ) )?;
+    writer.write_u32::< LE >( current_pos_u32 )?;
     writer.seek( SeekFrom::Start( current_pos ) )?;
-    let color_info = pec::write_content( emb, writer )?;
+    let color_info = pec::content_write( emb, writer )?;
     let rgb_list : Vec< _ > = emb.threads().iter().map( | v | v.color ).collect();
-    write_pes_addendum( writer, &color_info, &rgb_list )?; // is it really necessary?
+    pes_addendum_write( writer, &color_info, &rgb_list )?; // is it really necessary?
     writer.write_u16::< LE >( 0x0000 )?;
 
     Ok( () )
   }
 
-  fn write_header_version6< W >
+  fn header_version6_write< W >
   (
     emb : &EmbroideryFile,
     writer : &mut W,
@@ -153,11 +170,11 @@ mod private
     writer.write_u16::< LE >( 0x01 )?;
     writer.write_all( b"02" )?;
 
-    write_pes_string8( writer, emb.get_metadata().get_name().unwrap_or_default() )?;
-    write_pes_string8( writer, emb.get_metadata().get_text( "category" ).unwrap_or_default() )?;
-    write_pes_string8( writer, emb.get_metadata().get_text( "author" ).unwrap_or_default() )?;
-    write_pes_string8( writer, emb.get_metadata().get_text( "keywords" ).unwrap_or_default() )?;
-    write_pes_string8( writer, emb.get_metadata().get_text( "comments" ).unwrap_or_default() )?;
+    pes_string8_write( writer, emb.metadata_get().name_get().unwrap_or_default() )?;
+    pes_string8_write( writer, emb.metadata_get().text_get( "category" ).unwrap_or_default() )?;
+    pes_string8_write( writer, emb.metadata_get().text_get( "author" ).unwrap_or_default() )?;
+    pes_string8_write( writer, emb.metadata_get().text_get( "keywords" ).unwrap_or_default() )?;
+    pes_string8_write( writer, emb.metadata_get().text_get( "comments" ).unwrap_or_default() )?;
     
     writer.write_u16::< LE >( 0 )?;    // OptimizeHoopChange = False
     writer.write_u16::< LE >( 0 )?;    // Design Page Is Custom = False
@@ -190,11 +207,15 @@ mod private
     writer.write_u16::< LE >( 0 )?;    // number of MotifPatterns
     writer.write_u16::< LE >( 0 )?;    // feather pattern count
     
-    let thread_count = emb.threads().len() as u16;
+    // Bounded by PES/PEC's own format limits (thread palettes never realistically
+    // approach `u16::MAX` entries), but not by a type-level invariant, so this is
+    // reported as a real error instead of silently truncated.
+    let thread_count = u16::try_from( emb.threads().len() )
+    .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "thread count exceeds PES's u16 encoding range" ) )?;
     writer.write_u16::< LE >( thread_count )?; // number of colors
     for thread in emb.threads()
     {
-      write_pes_thread( writer, thread )?;
+      pes_thread_write( writer, thread )?;
     }
 
     writer.write_u16::< LE >( distinct_block_objects )?; // number of distinct blocks
@@ -202,54 +223,61 @@ mod private
     Ok( () )
   }
 
-  fn write_pes_thread< W >( writer : &mut W, thread : &Thread ) -> Result< (), EmbroideryError >
+  fn pes_thread_write< W >( writer : &mut W, thread : &Thread ) -> Result< (), EmbroideryError >
   where
     W : Write
   {
     // Specs: https://github.com/frno7/libpes/wiki/PES-header-section#color-subsection
 
-    write_pes_string8( writer, &thread.catalog_number )?;
+    pes_string8_write( writer, &thread.catalog_number )?;
     writer.write_u8( thread.color.r )?;
     writer.write_u8( thread.color.g )?;
     writer.write_u8( thread.color.b )?;
     writer.write_u8( 0 )?;
     writer.write_u32::< LE >( 0xA )?;
-    write_pes_string8( writer, &thread.description )?;
-    write_pes_string8( writer, &thread.brand )?;
-    write_pes_string8( writer, &thread.chart )?;
+    pes_string8_write( writer, &thread.description )?;
+    pes_string8_write( writer, &thread.brand )?;
+    pes_string8_write( writer, &thread.chart )?;
 
     Ok( () )
   }
 
-  /// This function writes CEmbOne and CEmbSewSeg sections of PES file
-  fn write_pes_block< W >
-  (
-    emb : &EmbroideryFile,
-    writer : &mut W,
-    threads : &[ Thread ],
+  /// Design bounding box together with its center, used when laying out PES sections
+  #[ derive( Debug, Clone, Copy ) ]
+  struct DesignBounds
+  {
     left : i32,
     top : i32,
     right : i32,
     bottom : i32,
     cx : i32,
-    cy : i32
+    cy : i32,
+  }
+
+  /// This function writes CEmbOne and CEmbSewSeg sections of PES file
+  fn pes_block_write< W >
+  (
+    emb : &EmbroideryFile,
+    writer : &mut W,
+    threads : &[ Thread ],
+    bounds : DesignBounds
   )
   -> Result< Vec< ( u16, usize ) >, EmbroideryError >
   where
     W : Write + Seek
   {
-    if emb.stitches().len() == 0
+    if emb.stitches().is_empty()
     {
       return Ok( vec![] );
     }
 
-    write_pes_string16( writer, "CEmbOne" )?;
-    let placeholder = write_pes_sewseg_header( writer, left, top, right, bottom )?;
+    pes_string16_write( writer, "CEmbOne" )?;
+    let placeholder = pes_sewseg_header_write( writer, bounds )?;
     writer.write_u16::< LE >( 0xFFFF )?;
     writer.write_u16::< LE >( 0x0000 )?; // FFFF0000 means more blocks exist
-    
-    write_pes_string16( writer, "CSewSeg" )?;
-    let ( sections, colorlog ) = write_pes_embsewseg_segments( emb, writer, threads, left, bottom, cx, cy )?;
+
+    pes_string16_write( writer, "CSewSeg" )?;
+    let ( sections, colorlog ) = pes_embsewseg_segments_write( emb, writer, threads, bounds )?;
 
     let current_pos = writer.stream_position()?;
     writer.seek( SeekFrom::Start( placeholder ) )?;
@@ -259,21 +287,21 @@ mod private
     writer.write_u16::< LE >( 0x0000 )?;
     writer.write_u16::< LE >( 0x0000 )?;
 
-    return Ok( colorlog );
+    Ok( colorlog )
   }
 
   /// Writes SewSeg header
-  fn write_pes_sewseg_header< W >( writer : &mut W, left : i32, top : i32, right : i32, bottom : i32 )
+  fn pes_sewseg_header_write< W >( writer : &mut W, bounds : DesignBounds )
   -> Result< u64, EmbroideryError >
   where
     W : Write + Seek
   {
     // Specs https://github.com/frno7/libpes/wiki/PES-CSewSeg-section#header
-    let width = right - left;
-    let height = bottom - top;
-    let hoop_height = 1800;
-    let hoop_width = 1300;
-    
+    let width = bounds.right - bounds.left;
+    let height = bounds.bottom - bounds.top;
+    let hoop_height : f32 = 1800.0;
+    let hoop_width : f32 = 1300.0;
+
     writer.write_u16::< LE >( 0 )?;
     writer.write_u16::< LE >( 0 )?;
     writer.write_u16::< LE >( 0 )?;
@@ -282,13 +310,20 @@ mod private
     writer.write_u16::< LE >( 0 )?;
     writer.write_u16::< LE >( 0 )?;
     writer.write_u16::< LE >( 0 )?;
-    
+
     let mut trans_x : f32 = 350.0;
+    // `height`/`width` are design bounds derived from stitch coordinates; real
+    // embroidery designs stay well under 2^24 units, so this never loses meaningful
+    // precision even though `i32 -> f32` is not lossless in the general case.
     let mut trans_y : f32 = 100.0 + height as f32;
-    trans_x += hoop_width as f32 / 2.0;
-    trans_y += hoop_height as f32 / 2.0;
-    trans_x += -width as f32 / 2.0;
-    trans_y += -height as f32 / 2.0;
+    trans_x += hoop_width / 2.0;
+    trans_y += hoop_height / 2.0;
+    // Same bound as `trans_y`'s initializer above: `width`/`height` are design bounds
+    // that never realistically approach 2^24 units.
+    let neg_width = -width as f32;
+    let neg_height = -height as f32;
+    trans_x += neg_width / 2.0;
+    trans_y += neg_height / 2.0;
 
     writer.write_f32::< LE >( 1.0 )?;
     writer.write_f32::< LE >( 0.0 )?;
@@ -300,27 +335,30 @@ mod private
     writer.write_u16::< LE >( 1 )?;
     writer.write_u16::< LE >( 0 )?;
     writer.write_u16::< LE >( 0 )?;
-    writer.write_u16::< LE >( width as u16 )?;
-    writer.write_u16::< LE >( height as u16 )?;
-    
+    // Not provably bounded (a design wider/taller than PES's `u16` field is possible
+    // in principle), so this is reported as a real error instead of corrupted silently.
+    let width_u16 = u16::try_from( width )
+    .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "design width exceeds PES's u16 encoding range" ) )?;
+    let height_u16 = u16::try_from( height )
+    .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "design height exceeds PES's u16 encoding range" ) )?;
+    writer.write_u16::< LE >( width_u16 )?;
+    writer.write_u16::< LE >( height_u16 )?;
+
     writer.write_all( b"\x00\x00\x00\x00\x00\x00\x00\x00" )?;
-    
+
     let placeholder_needs_section_data = writer.stream_position()?;
     writer.write_u16::< LE >( 0 )?; // placeholder
 
-    return Ok( placeholder_needs_section_data )
+    Ok( placeholder_needs_section_data )
   }
 
   /// Writes PES CSewSeg, specs: https://github.com/frno7/libpes/wiki/PES-CSewSeg-section
-  fn write_pes_embsewseg_segments< W >
+  fn pes_embsewseg_segments_write< W >
   (
     emb : &EmbroideryFile,
     writer : &mut W,
     threads : &[ Thread ],
-    left : i32,
-    bottom : i32,
-    cx : i32,
-    cy : i32
+    bounds : DesignBounds
   )
   ->
   Result< ( u16, Vec< ( u16, usize ) > ), EmbroideryError >
@@ -332,8 +370,8 @@ mod private
 
     let mut previous_color_code = None;
     let mut flag = None;
-    let adjust_x = left + cx;
-    let adjust_y = bottom + cy;
+    let adjust_x = bounds.left + bounds.cx;
+    let adjust_y = bounds.bottom + bounds.cy;
 
     for seg in as_segment_blocks( emb, threads, adjust_x, adjust_y )
     {
@@ -349,39 +387,73 @@ mod private
         colorlog.push( ( section, color_code ) );
         previous_color_code = Some( color_code );
       }
+      // Thread-palette index and segment length: bounded by design complexity in
+      // practice, but not by a type-level invariant, so reported rather than truncated.
+      let color_code_u16 = u16::try_from( color_code )
+      .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "thread palette index exceeds PES's u16 encoding range" ) )?;
+      let segments_len_u16 = u16::try_from( segments.len() )
+      .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "stitch segment length exceeds PES's u16 encoding range" ) )?;
       writer.write_u16::< LE >( flag.unwrap() )?;
-      writer.write_u16::< LE >( color_code as u16 )?;
-      writer.write_u16::< LE >( segments.len() as u16 )?;
+      writer.write_u16::< LE >( color_code_u16 )?;
+      writer.write_u16::< LE >( segments_len_u16 )?;
 
       for segment in segments
       {
-        writer.write_u16::< LE >( segment.0 as u16 )?;
-        writer.write_u16::< LE >( segment.1 as u16 )?;
+        // Stitch coordinates are signed deltas; encode via `i16`/`write_i16` (the same
+        // bit pattern the original `as u16` cast produced for in-range values) instead
+        // of silently wrapping an out-of-range delta into the wrong coordinate.
+        let x = i16::try_from( segment.0 )
+        .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "stitch x-coordinate exceeds PES's i16 encoding range" ) )?;
+        let y = i16::try_from( segment.1 )
+        .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "stitch y-coordinate exceeds PES's i16 encoding range" ) )?;
+        writer.write_i16::< LE >( x )?;
+        writer.write_i16::< LE >( y )?;
       }
 
       section += 1;
     }
 
-    writer.write_u16::< LE >( colorlog.len() as u16 )?;
+    let colorlog_len_u16 = u16::try_from( colorlog.len() )
+    .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "color log length exceeds PES's u16 encoding range" ) )?;
+    writer.write_u16::< LE >( colorlog_len_u16 )?;
     for log in &colorlog
     {
+      let log_color_code = u16::try_from( log.1 )
+      .map_err( | _ | std::io::Error::new( std::io::ErrorKind::InvalidData, "thread palette index exceeds PES's u16 encoding range" ) )?;
       writer.write_u16::< LE >( log.0 )?;
-      writer.write_u16::< LE >( log.1 as u16 )?;
+      writer.write_u16::< LE >( log_color_code )?;
     }
-    
-    return Ok( ( section, colorlog ) );
+
+    Ok( ( section, colorlog ) )
   }
+
+  /// A single stitch/jump segment block: point list, thread palette index, and PES block flag
+  type SegmentBlock = ( Vec< ( i32, i32 ) >, usize, u16 );
 
   fn as_segment_blocks( emb : &EmbroideryFile, threads : &[ Thread ], adjust_x : i32, adjust_y : i32 )
   ->
-  Vec< ( Vec< ( i32, i32 ) >, usize, u16 ) >
+  Vec< SegmentBlock >
   {
-    let chart : Vec< _ > = threads.iter().map( | item | Some( item ) ).collect();
+    let chart : Vec< _ > = threads.iter().map( Some ).collect();
 
     let mut color_index = 0;
-    let mut current_thread = emb.get_thread_or_filler( color_index );
+    let mut current_thread = emb.thread_or_filler_get( color_index );
     color_index += 1;
-    let mut color_code = thread::find_nearest_color( &current_thread.color, &chart ).unwrap();
+    // Fix(BUG-235)
+    // Root cause: `chart` is built from `threads` (== `emb.threads()` for PES v6), which is
+    // empty for any design that never had a thread added and has no Stitch/SewTo/NeedleAt
+    // instruction for `color_count_fix` to backfill (e.g. a jump-only design, or even just
+    // a bare `emb.end()`). `nearest_color_find` against an empty chart returns `None` by
+    // contract, and `.unwrap()` here paniced unconditionally before the block-processing
+    // loop below even started -- regardless of what the design's stitches actually were.
+    // Pitfall: `current_thread` (from `thread_or_filler_get`) is always a real, valid thread
+    // even when `emb.threads()` is empty (it falls back to `random_thread_get`), but `chart`
+    // has no entries to match it against in that case -- there is no meaningful "index into
+    // the design's own (empty) thread palette" to report, so falling back to `0` (this
+    // section is write-only informational data for external PES consumers; this codebase's
+    // own reader never reads it back, see `pes/reader.rs`) is the same "substitute something
+    // reasonable instead of erroring" convention `thread_or_filler_get` itself already uses.
+    let mut color_code = thread::nearest_color_find( &current_thread.color, &chart ).unwrap_or( 0 );
     let mut stitched_x = 0;
     let mut stitched_y = 0;
 
@@ -398,13 +470,29 @@ mod private
           block.push( ( stitched_x - adjust_x, stitched_y - adjust_y ) );
           let last_instruction = command_block.last().unwrap();
           block.push( ( last_instruction.x - adjust_x, last_instruction.y - adjust_y ) );
+          // Fix(BUG-341)
+          // Root cause: unlike the `Instruction::Stitch` arm below (which assigns
+          // `stitched_x`/`stitched_y` after every stitch), this arm read the tracker to compute
+          // a jump segment's start point but never wrote it back -- so a second `Jump` block
+          // separated from the first only by a non-`Stitch` instruction (`ColorChange`, `Trim`,
+          // etc., all of which `continue` without touching the tracker) read a stale position
+          // left over from before the first jump, instead of where the first jump ended.
+          // Pitfall: a jump's own *end* point was always correct (read from `command_block`'s
+          // own absolute coordinates, not the tracker) -- only the *start* point of a jump that
+          // immediately follows another jump (across a non-`Stitch` gap) was affected. Any local
+          // "current position" tracker read by multiple match arms needs a write-back audit on
+          // every arm that can legitimately move the position, not only the arm it was
+          // introduced alongside.
+          stitched_x = last_instruction.x;
+          stitched_y = last_instruction.y;
           flag = 1;
         },
         Instruction::ColorChange =>
         {
-          current_thread = emb.get_thread_or_filler( color_index );
+          current_thread = emb.thread_or_filler_get( color_index );
           color_index += 1;
-          color_code = thread::find_nearest_color( &current_thread.color, &chart ).unwrap();
+          // Fix(BUG-235): same empty-`chart` fallback as this function's initial `color_code` above.
+          color_code = thread::nearest_color_find( &current_thread.color, &chart ).unwrap_or( 0 );
           // flag = 1;
           continue;
         },
@@ -425,15 +513,36 @@ mod private
     ret
   }
 
-  fn write_pes_addendum< W >( writer : &mut W, color_indices : &[ usize ], rgb_list : &[ Color ] )
+  fn pes_addendum_write< W >( writer : &mut W, color_indices : &[ usize ], rgb_list : &[ Color ] )
   ->
   Result< (), EmbroideryError >
   where
     W : Write
   {
     let count = color_indices.len();
+    // Fix(BUG-234)
+    // Root cause: PES v6's addendum color-index field is a fixed 128-byte slot, but the
+    // only existing guard on `color_indices`'s length (`pec_header_write`'s own "too many
+    // color changes" check) allows up to 255 -- for any `count` in `129..=255`,
+    // `128_usize.wrapping_sub( count )` silently underflowed to a value near `usize::MAX`,
+    // which then became a `vec![0x20u8; ...]` allocation size far past `isize::MAX`,
+    // panicking with "capacity overflow" instead of returning a catchable error.
+    // Pitfall: every other "value exceeds this format's capacity" case in this file reports
+    // via `try_from`/an explicit bounds check and a real `EmbroideryError` -- `wrapping_sub`
+    // fed straight into an allocation size was the one place that convention wasn't
+    // followed, and unsigned wraparound turned a bounds miss into an unhandled panic instead
+    // of a `Result::Err`.
+    if count > 128
+    {
+      let msg = format!( "Too many thread/color-change entries for PES addendum. {count} is unsupported value. Maximum: 128" );
+      return Err( EmbroideryError::CompatibilityError( msg.into() ) );
+    }
+    // `color_indices` comes from `pec::content_write`, whose values are indices into
+    // the fixed 65-entry thread palette (see `pec::pec_header_write`), so every value
+    // is < 65 and fits in `u8`.
     let color_indices : Vec< _ > = color_indices.iter().map( | v | *v as u8 ).collect();
-    let spaces = vec![ 0x20_u8; 128_usize.wrapping_sub( count ) ];
+    // Guarded above: `count <= 128` here, so this subtraction cannot underflow.
+    let spaces = vec![ 0x20_u8; 128 - count ];
 
     writer.write_all( &color_indices )?;
     writer.write_all( &spaces )?;
@@ -452,105 +561,31 @@ mod private
   }
 
   /// Writes a UTF8 `String` with len of `u16`
-  fn write_pes_string16< W >( writer : &mut W, str : &str ) -> Result< (), std::io::Error >
+  fn pes_string16_write< W >( writer : &mut W, str : &str ) -> Result< (), std::io::Error >
   where
     W : Write
   {
-    let len = str.len().min( u16::MAX as usize );
-    writer.write_u16::< LE >( len as u16 )?;
+    let len = str.len().min( usize::from( u16::MAX ) );
+    // Bounded above by the `.min( usize::from( u16::MAX ) )` clamp on the line above.
+    let len_u16 = len as u16;
+    writer.write_u16::< LE >( len_u16 )?;
     writer.write_all( &str.as_bytes()[ ..len ] )?;
 
     Ok( () )
   }
 
   /// Writes a UTF8 `String` with len of `u8`
-  fn write_pes_string8< W >( writer : &mut W, str : &str ) -> Result< (), std::io::Error >
+  fn pes_string8_write< W >( writer : &mut W, str : &str ) -> Result< (), std::io::Error >
   where
     W : Write
   {
-    let len = str.len().min( u8::MAX as usize );
-    writer.write_u8( len as u8 )?;
+    let len = str.len().min( usize::from( u8::MAX ) );
+    // Bounded above by the `.min( usize::from( u8::MAX ) )` clamp on the line above.
+    let len_u8 = len as u8;
+    writer.write_u8( len_u8 )?;
     writer.write_all( &str.as_bytes()[ ..len ] )?;
 
     Ok( () )
-  }
-
-  #[ cfg( test ) ]
-  mod tests
-  {
-    use crate::*;
-    use super::write;
-    use embroidery_file::EmbroideryFile;
-    use format::{ pec, pes };
-    use std::io::Cursor;
-
-    #[ test ]
-    fn test_version1()
-    {
-      let sample = std::fs::read( "test_files/pes_test_v1.pes" ).unwrap();
-      let mut emb = EmbroideryFile::new();
-      emb.stitch( 0, 0 );
-      emb.stitch( -40, -30 );
-      emb.color_change( 0, 0 );
-      emb.trim();
-      emb.jump( 2, 3 );
-      emb.stitch( 0, 0 );
-      emb.trim();
-      emb.jump( 90, -100 );
-      emb.stitch( 0, 0 );
-      emb.stitch( 1, 1 );
-      emb.end();
-
-      let threads = pec::pec_threads();
-      emb.add_thread( threads[ 1 ].clone() );
-      emb.add_thread( threads[ 2 ].clone() );
-
-      let mut memory = vec![ 0_u8; 4096 ];
-      {
-        let mut writer = Cursor::new( &mut memory );
-        write( &mut emb, &mut writer, pes::PESVersion::V1 ).unwrap();
-      }
-
-      // 192 is index where PES section ends and PEC section starts
-      // specifically in this file
-      let left = &memory[ ..192 ];
-      let right = &sample[ ..192 ];
-      assert_eq!( left, right );
-    }
-
-    #[ test ]
-    fn test_version6()
-    {
-      let sample = std::fs::read( "test_files/pes_test_v6.pes" ).unwrap();
-      let mut emb = EmbroideryFile::new();
-      emb.stitch( 0, 0 );
-      emb.stitch( -40, -30 );
-      emb.color_change( 0, 0 );
-      emb.trim();
-      emb.jump( 2, 3 );
-      emb.stitch( 0, 0 );
-      emb.trim();
-      emb.jump( 90, -100 );
-      emb.stitch( 0, 0 );
-      emb.stitch( 1, 1 );
-      emb.end();
-
-      let threads = pec::pec_threads();
-      emb.add_thread( threads[ 1 ].clone() );
-      emb.add_thread( threads[ 2 ].clone() );
-
-      let mut memory = vec![ 0_u8; 4096 ];
-      {
-        let mut writer = Cursor::new( &mut memory );
-        write( &mut emb, &mut writer, pes::PESVersion::V6 ).unwrap();
-      }
-      
-      // 361 is index where PES section ends and PEC section starts
-      // specifically in this file
-      let left = &memory[ ..361 ];
-      let right = &sample[ ..361 ];
-      assert_eq!( left, right );
-    }
   }
 }
 

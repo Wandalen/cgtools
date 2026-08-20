@@ -1,6 +1,6 @@
 use ndarray::Dimension;
 
-use crate::*;
+use crate::{MatNum, mat, Mat4, RawSliceMut, IndexingRef, Ix2, Mat3, MatEl, nd, ScalarRef, ConstLayout, IndexingMut, Mat, ScalarMut, RawSlice, TryInto, VectorIter, Into, Quat, Vector};
 
 fn minor
 <
@@ -52,7 +52,7 @@ Mat3< E, Descriptor > :
   ConstLayout< Index = Ix2 > +
   IndexingMut< Scalar = E, Index = Ix2 >
 {
-  let k = E::from( ( -1i32 ).pow( ( i + j ) as u32 ) ).unwrap();
+  let k = if ( i + j ) % 2 == 0 { E::one() } else { -E::one() };
   minor( from, to, i, j );
   k * to.determinant()
 }
@@ -69,6 +69,7 @@ Self : ScalarMut< Scalar = E, Index = Ix2 > +
   /// Computes the determinant of the matrix. Requires a signed scalar because
   /// the cofactor expansion subtracts terms, which can be negative; the result
   /// is undefined (panic or wrap) for unsigned element types.
+  #[ inline ]
   pub fn determinant( &self ) -> E
   where
     Mat< 3, 3, E, Descriptor > :
@@ -77,23 +78,23 @@ Self : ScalarMut< Scalar = E, Index = Ix2 > +
       ConstLayout< Index = Ix2 > +
       IndexingMut< Scalar = E, Index = Ix2 >
   {
-    let _a11 = *self.scalar_ref( Ix2( 0, 0 ) );
-    let _a12 = *self.scalar_ref( Ix2( 0, 1 ) );
-    let _a13 = *self.scalar_ref( Ix2( 0, 2 ) );
-    let _a14 = *self.scalar_ref( Ix2( 0, 3 ) );
+    let a11 = *self.scalar_ref( Ix2( 0, 0 ) );
+    let a12 = *self.scalar_ref( Ix2( 0, 1 ) );
+    let a13 = *self.scalar_ref( Ix2( 0, 2 ) );
+    let a14 = *self.scalar_ref( Ix2( 0, 3 ) );
 
     let mut m = Mat3::< E, Descriptor >::default();
 
     minor( self, &mut m, 0, 0 );
-    let _det11 = m.determinant();
+    let det11 = m.determinant();
     minor( self, &mut m, 0, 1 );
-    let _det12 = m.determinant();
+    let det12 = m.determinant();
     minor( self, &mut m, 0, 2 );
-    let _det13 = m.determinant();
+    let det13 = m.determinant();
     minor( self, &mut m, 0, 3 );
-    let _det14 = m.determinant();
+    let det14 = m.determinant();
 
-    _a11 * _det11 - _a12 * _det12 + _a13 * _det13 - _a14 * _det14
+    a11 * det11 - a12 * det12 + a13 * det13 - a14 * det14
   }
 }
 
@@ -108,6 +109,7 @@ Self : ScalarMut< Scalar = E, Index = Ix2 > +
 {
   /// Computes the inverse of the matrix.
   /// If the determinant is zero - return `None`
+  #[ inline ]
   pub fn inverse( &self ) -> Option< Self >
   where
     Mat< 3, 3, E, Descriptor > :
@@ -145,12 +147,19 @@ Descriptor : mat::Descriptor,
 Self : RawSlice< Scalar = E >
 {
   /// Converts the matrix to an array
+  ///
+  /// # Panics
+  ///
+  /// Panics if the matrix's raw slice does not contain exactly 16 elements
+  /// ( never happens for a `Mat4` ).
+  #[ inline ]
   pub fn to_array( &self ) -> [ E; 16 ]
   {
     self.raw_slice().try_into().unwrap()
   }
 
   /// Convertes this matrix into the 3x3 matrix
+  #[ inline ]
   pub fn truncate( &self ) -> Mat< 3, 3, E, Descriptor >
   where
     Mat< 3, 3, E, Descriptor > : RawSliceMut< Scalar = E >
@@ -173,7 +182,7 @@ Self : RawSlice< Scalar = E >
     ];
 
     let mut mat3 = Mat::< 3, 3, E, Descriptor >::default();
-    mat3.raw_set_slice( &trunc_slice );
+    mat3.raw_slice_set( &trunc_slice );
     mat3
   }
 }
@@ -186,6 +195,11 @@ Self : ScalarMut< Scalar = E > +
        IndexingMut< Scalar = E, Index = Ix2 >
 {
   /// Creates a transformation matrix from scale, rotation and translation
+  ///
+  /// # Panics
+  ///
+  /// Panics if `scale`'s or `translation`'s iterator yields fewer than 3 elements.
+  #[ inline ]
   pub fn from_scale_rotation_translation< S, Q, T >
   (
     scale : S,
@@ -248,7 +262,8 @@ IndexingRef< Scalar = E, Index = Ix2 >
 {
   /// Decompose a transformation matrix to scale, rotation and translation
   ///
-  /// Source: https://github.com/mrdoob/three.js/blob/27151c8325d1dba520d4abfb5a2e1077dd59de22/src/math/Matrix4.js#L1050
+  /// Source: <https://github.com/mrdoob/three.js/blob/27151c8325d1dba520d4abfb5a2e1077dd59de22/src/math/Matrix4.js#L1050>
+  #[ inline ]
   pub fn decompose( &self ) -> Option< ( Vector< E, 3 >, Quat< E >, Vector< E, 3 > ) >
   {
     let a = *self.scalar_ref( Ix2( 0, 0 ) );
@@ -288,16 +303,25 @@ IndexingRef< Scalar = E, Index = Ix2 >
 
     let scale = Vector::< E, 3 >::from_array( [ sx, sy, sz ] );
 
-    let i_sx = E::one() / sx;
-    let i_sy = E::one() / sy;
-    let i_sz = E::one() / sz;
+    let inv_scale = Vector::< E, 3 >::from_array
+    (
+      [ E::one() / sx, E::one() / sy, E::one() / sz ]
+    );
 
+    // Fix(BUG-250): changed `/ inv_scale` to `* inv_scale`.
+    // Root cause: `inv_scale` already holds the reciprocal (1/sx, 1/sy, 1/sz), so dividing
+    // by it (`a / inv_scale.x()` = `a / (1/sx)` = `a * sx`) re-multiplied the scale back
+    // into the rotation matrix instead of removing it — the opposite of the cited three.js
+    // reference, which multiplies each column by the reciprocal to strip scale out.
+    // Pitfall: a variable named `inv_*` reads as "the thing to divide by" as easily as "the
+    // thing to multiply by" — the name alone doesn't disambiguate; check the reference
+    // algorithm's actual operator, not just which operand looks like a reciprocal.
     let rot_mat = Mat3::< E, mat::DescriptorOrderColumnMajor >::from_column_major
     (
       [
-        a / i_sx, b / i_sx, c / i_sx,
-        d / i_sy, e / i_sy, f / i_sy,
-        g / i_sz, h / i_sz, i / i_sz
+        a * inv_scale.x(), b * inv_scale.x(), c * inv_scale.x(),
+        d * inv_scale.y(), e * inv_scale.y(), f * inv_scale.y(),
+        g * inv_scale.z(), h * inv_scale.z(), i * inv_scale.z()
       ]
     );
 
@@ -314,6 +338,8 @@ Descriptor : mat::Descriptor,
 Self : RawSliceMut< Scalar = E >
 {
   /// Creates a 4x4 identity matrix.
+  #[ inline ]
+  #[ must_use ]
   pub fn identity() -> Self
   {
     let mat = Self::default();
@@ -322,6 +348,8 @@ Self : RawSliceMut< Scalar = E >
 }
 
 /// Creates a 4x4 identity matrix.
+#[ inline ]
+#[ must_use ]
 pub fn identity< E >() -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatNum,

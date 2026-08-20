@@ -4,10 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rand = "0.8.5"
-getrandom = { version = "0.2.16", features = ['js'] }
+rand = "0.10.2"
+getrandom = { version = "0.4.3", features = [ "wasm_js" ] }
 ndarray_cg = { workspace = true }
 minwebgl = { workspace = true, features = ['future'] }
+mingl = { workspace = true }
 tobj = { workspace = true, features = ['async'] }
 [dependencies.web-sys]
 features = [
@@ -17,5 +18,12 @@ features = [
   'WebGlRenderbuffer',
   'MouseEvent',
   'DomRect',
+  'Window',
 ]
+workspace = true
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]
+
+[lints]
 workspace = true

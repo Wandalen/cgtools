@@ -2,7 +2,7 @@
 
 mod private
 {
-  use crate::*;
+  use crate::{Mat, mat, MatEl, IndexingRef, IndexingMut};
   use std::fmt;
 
   impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > fmt::Debug
@@ -12,13 +12,14 @@ mod private
     E : fmt::Debug,
     Self : IndexingRef< Scalar = E >
   {
+    #[ inline ]
     fn fmt( &self, f : &mut fmt::Formatter<'_> ) -> fmt::Result
     {
       let _raw_slice = self.raw_slice();
-      write!
+      writeln!
       (
         f,
-        "Mat {{ order : {} | Coordinate : {} }}\n",
+        "Mat {{ order : {} | Coordinate : {} }}",
         Descriptor::order_str(),
         Descriptor::coords_str()
       )?;
@@ -33,9 +34,9 @@ mod private
           {
             write!( f, ", " )?;
           }
-          write!( f, "{:?}", col )?;
+          write!( f, "{col:?}" )?;
         }
-        write!( f, " ],\n" )?;
+        writeln!( f, " ]," )?;
       }
       Ok(())
     }
@@ -53,7 +54,7 @@ mod private
       Self : IndexingRef< Scalar = E >,
       Mat< COLS, ROWS, E, Descriptor > : IndexingMut< Scalar = E >,
     {
-      let mut result : Mat< COLS, ROWS, E, Descriptor > = Default::default();
+      let mut result : Mat< COLS, ROWS, E, Descriptor > = Mat::default();
       for ( r, s ) in result.iter_lsfirst_mut().zip( self.iter_msfirst() )
       {
         *r = *s;

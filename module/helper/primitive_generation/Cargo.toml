@@ -2,7 +2,7 @@
 name = "primitive_generation"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.75.0"
+rust-version = "1.81.0"
 authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
   "Bilan Vadym <vadym.b@obox.systems>"
@@ -41,38 +41,23 @@ enabled = [
 ]
 
 # Full feature set with all geometry types
-full = ["enabled", "csg", "text", "font-processing"]
+full = ["enabled", "text", "font-processing"]
 
-# Constructive Solid Geometry operations
-csg = ["enabled", "dep:csgrs", "dep:parry3d"]
+# Vector path machinery: flattening kurbo paths into point sequences
+text = ["enabled", "dep:kurbo"]
 
-# Text rendering and font processing
-text = ["enabled", "dep:kurbo", "dep:norad", "dep:quick-xml", "dep:interpoli"]
-
-# Font processing features
-font-processing = ["text", "dep:earcutr"]
-
-# glTF model loading
-gltf-import = ["enabled", "dep:gltf"]
-
-# Random geometry generation
-random = ["enabled", "dep:rand", "dep:getrandom"]
+# UFO font loading and text-to-mesh generation (triangulated fill via earcutr)
+font-processing = ["text", "dep:earcutr", "dep:norad", "dep:quick-xml"]
 
 [dependencies]
 mod_interface = { workspace = true, optional = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ], optional = true }
 renderer = { workspace = true, features = [ "full" ], optional = true }
-gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ], optional = true }
-csgrs = { workspace = true, optional = true }
-parry3d = { workspace = true, optional = true }
-rand = { workspace = true, optional = true }
-getrandom = { workspace = true, features = [ "wasm_js" ], optional = true }
 kurbo = { workspace = true, optional = true }
 norad = { workspace = true, features = [ "kurbo" ], optional = true }
 quick-xml = { workspace = true, optional = true }
 earcutr = { workspace = true, optional = true }
-interpoli = { workspace = true, optional = true }
 rustc-hash = { workspace = true, optional = true }
 
 [dependencies.web-sys]
@@ -93,6 +78,36 @@ features = [
 
 [dev-dependencies]
 test_tools = { workspace = true }
+kurbo = { workspace = true }
+
+# Exercises `contours_to_fill_geometry`, which is gated behind `font-processing`
+# (TASK-055) -- without `required-features`, this test binary would fail to
+# *compile* (not just skip) whenever the feature is off.
+[[test]]
+name = "contours_to_fill_geometry_test"
+required-features = ["font-processing"]
+
+# Exercises `path_to_points`, gated behind `text` -- same required-features
+# rationale as above.
+[[test]]
+name = "path_to_points_test"
+required-features = ["text"]
+
+# Exercise the UFO glyph pipeline (`Glyph::from_glif`, `text_to_mesh`,
+# `text_to_countour_mesh`), gated behind `font-processing`.
+[[test]]
+name = "ufo_glif_point_type_test"
+required-features = ["font-processing"]
+
+[[test]]
+name = "ufo_text_advance_test"
+required-features = ["font-processing"]
+
+# Exercises `Font::max_size`'s bounding-box union, gated behind `font-processing`
+# (same rationale as the UFO glyph pipeline tests above).
+[[test]]
+name = "font_bounding_box_union_test"
+required-features = ["font-processing"]
 
 # Metadata for crates.io
 [package.metadata.docs.rs]

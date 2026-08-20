@@ -6,120 +6,344 @@ use strum::EnumCount;
 /// KeyboardCode represents all possible values for the KeyboardEvent.code property
 /// as defined in the UI Events KeyboardEvent code Values specification.
 #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, EnumCount ) ]
-#[ allow( missing_docs ) ]
+#[ non_exhaustive ]
 pub enum KeyboardKey
 {
   // Modifier keys
+  /// The left `Alt` key.
   AltLeft,
+  /// The right `Alt` key (`AltGr` on some layouts).
   AltRight,
+  /// The left `Control` key.
   ControlLeft,
+  /// The right `Control` key.
   ControlRight,
+  /// The left `Meta` key (Windows/Command key).
   MetaLeft,
+  /// The right `Meta` key (Windows/Command key).
   MetaRight,
+  /// The left `Shift` key.
   ShiftLeft,
+  /// The right `Shift` key.
   ShiftRight,
 
   // Whitespace keys
+  /// The `Enter`/`Return` key.
   Enter,
+  /// The `Tab` key.
   Tab,
+  /// The `Space` bar.
   Space,
 
   // Navigation keys
+  /// The down arrow key.
   ArrowDown,
+  /// The left arrow key.
   ArrowLeft,
+  /// The right arrow key.
   ArrowRight,
+  /// The up arrow key.
   ArrowUp,
+  /// The `End` key.
   End,
+  /// The `Home` key.
   Home,
+  /// The `Page Down` key.
   PageDown,
+  /// The `Page Up` key.
   PageUp,
 
   // UI keys
+  /// The `Escape` key.
   Escape,
+  /// The `Caps Lock` key.
   CapsLock,
+  /// The `Scroll Lock` key.
   ScrollLock,
+  /// The `Num Lock` key.
   NumLock,
+  /// The `Print Screen` key.
   PrintScreen,
+  /// The `Pause`/`Break` key.
   Pause,
+  /// The context menu key.
   ContextMenu,
 
   // Common function keys
-  F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
-  F13, F14, F15, F16, F17, F18, F19, F20, F21, F22, F23, F24,
+  /// The `F1` function key.
+  F1,
+  /// The `F2` function key.
+  F2,
+  /// The `F3` function key.
+  F3,
+  /// The `F4` function key.
+  F4,
+  /// The `F5` function key.
+  F5,
+  /// The `F6` function key.
+  F6,
+  /// The `F7` function key.
+  F7,
+  /// The `F8` function key.
+  F8,
+  /// The `F9` function key.
+  F9,
+  /// The `F10` function key.
+  F10,
+  /// The `F11` function key.
+  F11,
+  /// The `F12` function key.
+  F12,
+  /// The `F13` function key.
+  F13,
+  /// The `F14` function key.
+  F14,
+  /// The `F15` function key.
+  F15,
+  /// The `F16` function key.
+  F16,
+  /// The `F17` function key.
+  F17,
+  /// The `F18` function key.
+  F18,
+  /// The `F19` function key.
+  F19,
+  /// The `F20` function key.
+  F20,
+  /// The `F21` function key.
+  F21,
+  /// The `F22` function key.
+  F22,
+  /// The `F23` function key.
+  F23,
+  /// The `F24` function key.
+  F24,
 
   // Editing keys
+  /// The `Backspace` key.
   Backspace,
+  /// The `Clear` key.
   Clear,
+  /// The `Delete` key.
   Delete,
+  /// The `Insert` key.
   Insert,
 
   // Alphanumeric keys
-  Digit0, Digit1, Digit2, Digit3, Digit4, Digit5, Digit6, Digit7, Digit8, Digit9,
-  KeyA, KeyB, KeyC, KeyD, KeyE, KeyF, KeyG, KeyH, KeyI, KeyJ, KeyK, KeyL, KeyM,
-  KeyN, KeyO, KeyP, KeyQ, KeyR, KeyS, KeyT, KeyU, KeyV, KeyW, KeyX, KeyY, KeyZ,
+  /// The top-row `0` digit key (not numpad).
+  Digit0,
+  /// The top-row `1` digit key (not numpad).
+  Digit1,
+  /// The top-row `2` digit key (not numpad).
+  Digit2,
+  /// The top-row `3` digit key (not numpad).
+  Digit3,
+  /// The top-row `4` digit key (not numpad).
+  Digit4,
+  /// The top-row `5` digit key (not numpad).
+  Digit5,
+  /// The top-row `6` digit key (not numpad).
+  Digit6,
+  /// The top-row `7` digit key (not numpad).
+  Digit7,
+  /// The top-row `8` digit key (not numpad).
+  Digit8,
+  /// The top-row `9` digit key (not numpad).
+  Digit9,
+  /// The `A` letter key.
+  KeyA,
+  /// The `B` letter key.
+  KeyB,
+  /// The `C` letter key.
+  KeyC,
+  /// The `D` letter key.
+  KeyD,
+  /// The `E` letter key.
+  KeyE,
+  /// The `F` letter key.
+  KeyF,
+  /// The `G` letter key.
+  KeyG,
+  /// The `H` letter key.
+  KeyH,
+  /// The `I` letter key.
+  KeyI,
+  /// The `J` letter key.
+  KeyJ,
+  /// The `K` letter key.
+  KeyK,
+  /// The `L` letter key.
+  KeyL,
+  /// The `M` letter key.
+  KeyM,
+  /// The `N` letter key.
+  KeyN,
+  /// The `O` letter key.
+  KeyO,
+  /// The `P` letter key.
+  KeyP,
+  /// The `Q` letter key.
+  KeyQ,
+  /// The `R` letter key.
+  KeyR,
+  /// The `S` letter key.
+  KeyS,
+  /// The `T` letter key.
+  KeyT,
+  /// The `U` letter key.
+  KeyU,
+  /// The `V` letter key.
+  KeyV,
+  /// The `W` letter key.
+  KeyW,
+  /// The `X` letter key.
+  KeyX,
+  /// The `Y` letter key.
+  KeyY,
+  /// The `Z` letter key.
+  KeyZ,
 
   // Numpad keys
-  Numpad0, Numpad1, Numpad2, Numpad3, Numpad4, Numpad5, Numpad6, Numpad7, Numpad8, Numpad9,
-  NumpadAdd, NumpadSubtract, NumpadMultiply, NumpadDivide, NumpadEnter, NumpadDecimal, NumpadEqual, NumpadComma,
+  /// The numpad `0` key.
+  Numpad0,
+  /// The numpad `1` key.
+  Numpad1,
+  /// The numpad `2` key.
+  Numpad2,
+  /// The numpad `3` key.
+  Numpad3,
+  /// The numpad `4` key.
+  Numpad4,
+  /// The numpad `5` key.
+  Numpad5,
+  /// The numpad `6` key.
+  Numpad6,
+  /// The numpad `7` key.
+  Numpad7,
+  /// The numpad `8` key.
+  Numpad8,
+  /// The numpad `9` key.
+  Numpad9,
+  /// The numpad `+` (add) key.
+  NumpadAdd,
+  /// The numpad `-` (subtract) key.
+  NumpadSubtract,
+  /// The numpad `*` (multiply) key.
+  NumpadMultiply,
+  /// The numpad `/` (divide) key.
+  NumpadDivide,
+  /// The numpad `Enter` key.
+  NumpadEnter,
+  /// The numpad decimal point (`.`) key.
+  NumpadDecimal,
+  /// The numpad `=` (equal) key.
+  NumpadEqual,
+  /// The numpad `,` (comma) key, found on some layouts.
+  NumpadComma,
 
   // Symbol keys
+  /// The backquote/backtick (`` ` ``) key.
   Backquote,
+  /// The left bracket (`[`) key.
   BracketLeft,
+  /// The right bracket (`]`) key.
   BracketRight,
+  /// The comma (`,`) key.
   Comma,
+  /// The period (`.`) key.
   Period,
+  /// The semicolon (`;`) key.
   Semicolon,
+  /// The quote (`'`) key.
   Quote,
+  /// The backslash (`\`) key.
   Backslash,
+  /// The forward slash (`/`) key.
   Slash,
+  /// The minus (`-`) key.
   Minus,
+  /// The equal (`=`) key.
   Equal,
+  /// An additional backslash-like key found on some international keyboard layouts.
   IntlBackslash,
+  /// The `Ro` key found on Japanese keyboard layouts.
   IntlRo,
+  /// The `Yen` key found on Japanese keyboard layouts.
   IntlYen,
 
   // Mobile and special buttons
+  /// The volume-down media key.
   AudioVolumeDown,
+  /// The volume-mute media key.
   AudioVolumeMute,
+  /// The volume-up media key.
   AudioVolumeUp,
+  /// The browser back-navigation key.
   BrowserBack,
+  /// The browser favorites/bookmarks key.
   BrowserFavorites,
+  /// The browser forward-navigation key.
   BrowserForward,
+  /// The browser home key.
   BrowserHome,
+  /// The browser refresh key.
   BrowserRefresh,
+  /// The browser search key.
   BrowserSearch,
+  /// The browser stop-loading key.
   BrowserStop,
+  /// The media eject key.
   Eject,
+  /// The key that launches the first configured application.
   LaunchApp1,
+  /// The key that launches the second configured application.
   LaunchApp2,
+  /// The key that launches the default mail application.
   LaunchMail,
+  /// The media play/pause key.
   MediaPlayPause,
+  /// The media stop key.
   MediaStop,
+  /// The media next-track key.
   MediaTrackNext,
+  /// The media previous-track key.
   MediaTrackPrevious,
+  /// The power key.
   Power,
+  /// The sleep key.
   Sleep,
+  /// The wake-up key.
   WakeUp,
 
   // Extra keys for international keyboards
-  Lang1, Lang2, Lang3, Lang4, Lang5,
+  /// The `Lang1` input-method key, found on Korean/Japanese keyboard layouts.
+  Lang1,
+  /// The `Lang2` input-method key, found on Korean/Japanese keyboard layouts.
+  Lang2,
+  /// The `Lang3` input-method key, found on Japanese keyboard layouts.
+  Lang3,
+  /// The `Lang4` input-method key, found on Japanese keyboard layouts.
+  Lang4,
+  /// The `Lang5` input-method key, found on Japanese keyboard layouts.
+  Lang5,
+  /// The IME conversion key, found on Japanese keyboard layouts.
   Convert,
+  /// The IME non-conversion key, found on Japanese keyboard layouts.
   NonConvert,
+  /// The kana mode toggle key, found on Japanese keyboard layouts.
   KanaMode,
 
   // Unidentified key
+  /// A key that could not be identified or mapped to a known `KeyboardEvent.code` value.
   Unidentified,
 }
 
 impl KeyboardKey
 {
-  /// Convert a string code value to a KeyboardCode enum variant
-  pub fn from_code( code : &str ) -> Self
-  {
-    KeyboardKey::from_str( code ).unwrap_or( KeyboardKey::Unidentified )
-  }
-
   /// Get the string representation of this KeyboardCode
+  #[ expect( clippy::too_many_lines, reason = "exhaustive 150-variant match acting as a static lookup table mirroring the DOM KeyboardEvent.code spec; splitting it would fragment one spec mapping across multiple functions for no behavioral benefit" ) ]
+  #[ inline ]
+  #[ must_use ]
   pub const fn as_str( &self ) -> &'static str
   {
     match self
@@ -303,6 +527,8 @@ impl KeyboardKey
   }
 
   /// Check if this is a navigation key
+  #[ inline ]
+  #[ must_use ]
   pub fn is_navigation( &self ) -> bool
   {
     matches!
@@ -320,6 +546,8 @@ impl KeyboardKey
   }
 
   /// Check if this is a modifier key
+  #[ inline ]
+  #[ must_use ]
   pub fn is_modifier( &self ) -> bool
   {
     matches!
@@ -337,6 +565,8 @@ impl KeyboardKey
   }
 
   /// Check if this is a function key
+  #[ inline ]
+  #[ must_use ]
   pub fn is_function_key( &self ) -> bool
   {
     matches!
@@ -352,6 +582,8 @@ impl KeyboardKey
   }
 
   /// Check if this is a numpad key
+  #[ inline ]
+  #[ must_use ]
   pub fn is_numpad( &self ) -> bool
   {
     matches!
@@ -371,6 +603,8 @@ impl FromStr for KeyboardKey
 {
   type Err = ();
 
+  #[ expect( clippy::too_many_lines, reason = "exhaustive 150-variant match acting as a static lookup table mirroring the DOM KeyboardEvent.code spec — same reasoning as as_str above" ) ]
+  #[ inline ]
   fn from_str( s : &str ) -> Result< Self, Self::Err >
   {
     match s
@@ -551,5 +785,15 @@ impl FromStr for KeyboardKey
       // Unknown key
       _ => Ok( KeyboardKey::Unidentified ),
     }
+  }
+}
+
+impl From< &str > for KeyboardKey
+{
+  /// Convert a string code value to a KeyboardCode enum variant
+  #[ inline ]
+  fn from( code : &str ) -> Self
+  {
+    KeyboardKey::from_str( code ).unwrap_or( KeyboardKey::Unidentified )
   }
 }

@@ -22,7 +22,7 @@ use gl::
 };
 use std::cell::RefCell;
 use std::rc::Rc;
-use primitive_generation::{ PrimitiveData, primitives_data_to_gltf };
+use primitive_generation::{ PrimitiveData, Transform, primitives_data_to_gltf };
 use std::ops::Range;
 
 use renderer::webgl::
@@ -47,8 +47,8 @@ impl Default for Behavior
   {
     Self
     {
-      animated_transform : Default::default(),
-      repeater : Default::default(),
+      animated_transform : None,
+      repeater : None,
       brush : velato::model::Brush::Fixed( velato::model::fixed::Brush::default() ),
       frames : 0.0..0.0
     }
@@ -103,8 +103,289 @@ fn brush_to_color( brush : &velato::model::Brush, frame : f64 ) -> F32x4
   }
 }
 
+/// Repeater assignment collected while processing layers : ( layer index, primitive id range, repeater ).
+type RepeaterAssignment = ( usize, Range< usize >, velato::model::Repeater );
+
+/// Expands `Instance` layers into their asset sublayers and returns the extended layer list.
+fn instance_layers_expand( composition : &Composition ) -> Vec< velato::model::Layer >
+{
+  let assets = composition.assets.clone();
+
+  let mut layers = composition.layers.clone();
+
+  let mut additional_layers : Vec< velato::model::Layer > = vec![];
+
+  let layers_count = layers.len();
+
+  for ( i, layer ) in layers.iter_mut().enumerate()
+  {
+    let velato::model::Content::Instance{ name : ref asset_name, .. } = layer.content
+    else
+    {
+      continue;
+    };
+
+    if let Some( asset_layers ) = assets.get( asset_name ).cloned()
+    {
+      for mut sublayer in asset_layers
+      {
+        sublayer.parent = if let Some( k ) = sublayer.parent
+        {
+          let j = layers_count + additional_layers.len();
+          Some( j + k )
+        }
+        else
+        {
+          Some( i )
+        };
+
+        additional_layers.push( sublayer );
+      }
+    }
+  }
+
+  layers.extend( additional_layers );
+
+  layers
+}
+
+/// Scans a layer's shapes for the last draw brush, defaulting to a fully transparent solid brush.
+fn layer_brush_scan( shapes : &[ Shape ] ) -> Brush
+{
+  let mut brush = Brush::Fixed( velato::model::fixed::Brush::Solid( color::AlphaColor::from_rgba8( 0, 0, 0, 0 ) ) );
+
+  for shape in shapes
+  {
+    if let Shape::Draw( Draw { brush : b, .. } ) = shape
+    {
+      brush = b.clone();
+    }
+  }
+
+  brush
+}
+
+/// Converts a geometry shape into primitive data, returning `None` when tessellation yields nothing.
+fn geometry_to_primitive( geometry : &Geometry, stroke_width : f32 ) -> Option< PrimitiveData >
+{
+  if let Geometry::Spline( Spline { values, .. } ) = geometry
+  {
+    let path = values.first()?;
+    let contour = path.start.clone().into_iter()
+    .map( | p | [ p.x as f32, p.y as f32 ] )
+    .collect::< Vec< _ > >();
+    primitive_generation::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
+  }
+  else
+  {
+    let mut path = vec![];
+    geometry.evaluate( 0.0, &mut path );
+    let contours = primitive_generation::path_to_points( path );
+    primitive_generation::primitive::contours_to_fill_geometry( &[ contours ] )
+  }
+}
+
+/// Builds the base primitive and behavior for a layer from its scanned brush.
+fn layer_base_primitive( i : usize, layer : &velato::model::Layer, brush : &Brush ) -> ( PrimitiveData, Behavior )
+{
+  (
+    PrimitiveData
+    {
+      name : Some( format!( "{i}" ).into_boxed_str() ),
+      attributes : None,
+      parent : layer.parent,
+      transform : Transform::default(),
+      color : F32x4::default(),
+    },
+    Behavior
+    {
+      animated_transform : Some( layer.transform.clone() ),
+      repeater : None,
+      brush : brush.clone(),
+      frames : layer.frames.clone()
+    }
+  )
+}
+
+/// Processes one layer's shape content into primitives, appending group sublayers to `layers` and repeater assignments to `repeaters`; returns `None` for non-shape content.
+fn layer_to_primitives
+(
+  i : usize,
+  layers : &mut Vec< velato::model::Layer >,
+  repeaters : &mut Vec< RepeaterAssignment >
+) -> Option< Vec< ( PrimitiveData, Behavior ) > >
+{
+  let layer = layers[ i ].clone();
+  let Content::Shape( shapes ) = layer.content.clone()
+  else
+  {
+    return None;
+  };
+
+  let mut layer_primitives = vec![];
+
+  let mut brush = layer_brush_scan( &shapes );
+
+  let mut stroke_width = 1.0;
+
+  layer_primitives.push( layer_base_primitive( i, &layer, &brush ) );
+
+  let mut last_repeater_id = 0;
+  let mut last_repeater : Option< velato::model::Repeater > = None;
+
+  for shape in shapes
+  {
+    match shape
+    {
+      Shape::Group( shapes, group_transform ) =>
+      {
+        let mut sublayer = layer.clone();
+        sublayer.content = Content::Shape( shapes );
+        sublayer.parent = Some( i );
+        if let Some( group_transform ) = group_transform
+        {
+          sublayer.transform = group_transform.transform.clone();
+          sublayer.opacity = group_transform.opacity.clone();
+        }
+        layers.push( sublayer );
+        if let Some( ref repeater ) = last_repeater
+        {
+          repeaters.push( ( layers.len() - 1, 0..0, repeater.clone() ) );
+        }
+      },
+      Shape::Geometry( geometry ) =>
+      {
+        if let Some( primitive ) = geometry_to_primitive( &geometry, stroke_width )
+        {
+          let behavior = Behavior
+          {
+            animated_transform : None,
+            repeater : None,
+            brush : brush.clone(),
+            frames : layer.frames.clone()
+          };
+          layer_primitives.push( ( primitive, behavior ) );
+        }
+      },
+      Shape::Draw
+      (
+        Draw
+        {
+          stroke,
+          brush : b,
+          ..
+        }
+      ) =>
+      {
+        if let Some( Stroke::Fixed( stroke ) ) = stroke
+        {
+          stroke_width = stroke.width as f32;
+        }
+
+        brush = b.clone();
+      },
+      Shape::Repeater( repeater ) =>
+      {
+        repeaters.push( ( i, last_repeater_id..layer_primitives.len(), repeater.clone() ) );
+        last_repeater = Some( repeater.clone() );
+        last_repeater_id = layer_primitives.len();
+      },
+      Shape::Trim( _ ) => {}
+    }
+  }
+
+  Some( layer_primitives )
+}
+
+/// Collects primitives for every layer, including group sublayers appended during processing.
+fn layer_primitives_collect
+(
+  layers : &mut Vec< velato::model::Layer >
+) -> ( Vec< Vec< ( PrimitiveData, Behavior ) > >, Vec< RepeaterAssignment > )
+{
+  let mut primitives = vec![];
+  let mut repeaters = vec![];
+
+  let mut i = 0;
+  while i < layers.len()
+  {
+    let Some( layer_primitives ) = layer_to_primitives( i, layers, &mut repeaters )
+    else
+    {
+      continue;
+    };
+
+    primitives.push( layer_primitives );
+
+    i += 1;
+  }
+
+  ( primitives, repeaters )
+}
+
+/// Applies collected repeater assignments onto their target primitives.
+fn repeaters_apply
+(
+  primitives : &mut [ Vec< ( PrimitiveData, Behavior ) > ],
+  repeaters : Vec< RepeaterAssignment >
+)
+{
+  for ( layer, primitive_ids, repeater ) in repeaters
+  {
+    if primitive_ids.end == 0
+    {
+      primitives[ layer ][ 0 ].1.repeater = Some( repeater );
+    }
+    else
+    {
+      for primitive_id in primitive_ids
+      {
+        primitives[ layer ][ primitive_id ].1.repeater = Some( repeater.clone() );
+      }
+    }
+  }
+}
+
+/// Assigns parent links and hierarchical names across all collected primitives.
+fn parents_assign
+(
+  layers : &[ velato::model::Layer ],
+  primitives : &mut [ Vec< ( PrimitiveData, Behavior ) > ]
+)
+{
+  let layer_iter = layers.iter().enumerate()
+  .zip( primitives.iter_mut() );
+
+  let mut last_element_id = 0;
+  let mut parent_layer_to_primitive_id = HashMap::new();
+  for ( ( i, layer ), primitives ) in layer_iter
+  {
+    parent_layer_to_primitive_id.insert( i, last_element_id );
+    if layer.parent.is_some()
+    {
+      primitives[ 0 ].0.parent = layer.parent;
+    }
+    let layer_name = primitives[ 0 ].0.name.clone();
+    for ( j, primitive ) in primitives.iter_mut().skip( 1 ).enumerate()
+    {
+      primitive.0.parent = Some( last_element_id );
+      primitive.0.name = Some( format!( "{}_{j}", layer_name.clone().unwrap() ).into_boxed_str() );
+    }
+    last_element_id += primitives.len();
+  }
+
+  let layer_iter = layers.iter()
+  .zip( primitives.iter_mut() );
+  for ( layer, primitives ) in layer_iter
+  {
+    if let Some( parent_id ) = layer.parent
+    {
+      primitives[ 0 ].0.parent = parent_layer_to_primitive_id.get( &parent_id ).copied();
+    }
+  }
+}
+
 /// Represents a loaded and parsed animation, ready to be rendered.
-#[ allow( dead_code ) ]
 pub struct Animation
 {
   /// The GLTF scene data for the animation.
@@ -112,242 +393,21 @@ pub struct Animation
   /// A map of node names to their associated behaviors, such as transforms and repeaters.
   behaviors : HashMap< Box< str >, Behavior >,
   /// The original Lottie composition data.
+  #[ expect( dead_code, reason = "original composition retained alongside its derived GLTF scene and behaviors; not read back after construction" ) ]
   composition : Composition
 }
 
-#[ allow( dead_code ) ]
 impl Animation
 {
   /// Creates a new `Animation` from a `Composition` object. This function processes the composition's layers and shapes to build a GLTF scene and a map of animation behaviors.
   pub fn new( gl : &GL, composition : impl Into< Composition > ) -> Self
   {
     let composition : Composition = composition.into();
-    let mut primitives = vec![];
-    let mut repeaters = vec![]; // ( layer, primitive_ids, repeater )
 
-    let assets = composition.assets.clone();
-
-    let mut layers = composition.layers.clone();
-
-    let mut additional_layers : Vec< velato::model::Layer > = vec![];
-
-    let layers_count = layers.len();
-
-    for ( i, layer ) in layers.iter_mut().enumerate()
-    {
-      let velato::model::Content::Instance{ name : ref asset_name, .. } = layer.content
-      else
-      {
-        continue;
-      };
-
-      if let Some( asset_layers ) = assets.get( asset_name ).cloned()
-      {
-        for mut sublayer in asset_layers
-        {
-          sublayer.parent = if let Some( k ) = sublayer.parent
-          {
-            let j = layers_count + additional_layers.len();
-            Some( j + k )
-          }
-          else
-          {
-            Some( i )
-          };
-
-          additional_layers.push( sublayer );
-        }
-      }
-    }
-
-    layers.extend( additional_layers );
-
-    let mut i = 0;
-    while i < layers.len()
-    {
-      let layer = layers[ i ].clone();
-      let Content::Shape( shapes ) = layer.content.clone()
-      else
-      {
-        continue;
-      };
-
-      let mut layer_primitives = vec![];
-
-      let mut brush = Brush::Fixed( velato::model::fixed::Brush::Solid( color::AlphaColor::from_rgba8( 0, 0, 0, 0 ) ) );
-
-      for shape in &shapes
-      {
-        match shape
-        {
-          Shape::Draw( Draw { brush : b, .. } ) => { brush = b.clone(); },
-          _ => continue
-        }
-      }
-
-      let mut stroke_width = 1.0;
-
-      let layer_base =
-      (
-        PrimitiveData
-        {
-          name : Some( format!( "{i}" ).into_boxed_str() ),
-          attributes : None,
-          parent : layer.parent,
-          transform : Default::default(),
-          color : Default::default(),
-        },
-        Behavior
-        {
-          animated_transform : Some( layer.transform.clone() ),
-          repeater : None,
-          brush : brush.clone(),
-          frames : layer.frames.clone()
-        }
-      );
-
-      layer_primitives.push( layer_base );
-
-      let mut last_repeater_id = 0;
-      let mut last_repeater : Option< velato::model::Repeater > = None;
-
-      for shape in shapes
-      {
-        match shape
-        {
-          Shape::Group( shapes, group_transform ) =>
-          {
-            let mut sublayer = layer.clone();
-            sublayer.content = Content::Shape( shapes );
-            sublayer.parent = Some( i );
-            if let Some( group_transform ) = group_transform
-            {
-              sublayer.transform = group_transform.transform.clone();
-              sublayer.opacity = group_transform.opacity.clone();
-            }
-            layers.push( sublayer );
-            if let Some( ref repeater ) = last_repeater
-            {
-              repeaters.push( ( layers.len() - 1, 0..0, repeater.clone() ) );
-            }
-          },
-          Shape::Geometry( geometry ) =>
-          {
-            let primitive = match geometry
-            {
-              Geometry::Spline( Spline { values, .. } ) =>
-              {
-                if let Some( path ) = values.first()
-                {
-                  let contour = path.start.clone().into_iter()
-                  .map( | p | [ p.x as f32, p.y as f32 ] )
-                  .collect::< Vec< _ > >();
-                  primitive_generation::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
-                  .map( | p | ( p, Behavior::default() ) )
-                }
-                else
-                {
-                  None
-                }
-              },
-              _ =>
-              {
-                let mut path = vec![];
-                geometry.evaluate( 0.0, &mut path );
-                let contours = primitive_generation::path_to_points( path );
-                primitive_generation::primitive::contours_to_fill_geometry( &[ contours ] )
-                .map( | p | ( p, Behavior::default() ) )
-              }
-            };
-            if let Some( mut primitive ) = primitive
-            {
-              primitive.1 = Behavior
-              {
-                animated_transform : None,
-                repeater : None,
-                brush : brush.clone(),
-                frames : layer.frames.clone()
-              };
-              layer_primitives.push( primitive );
-            }
-          },
-          Shape::Draw
-          (
-            Draw
-            {
-              stroke,
-              brush : b,
-              ..
-            }
-          ) =>
-          {
-            if let Some( Stroke::Fixed( stroke ) ) = stroke
-            {
-              stroke_width = stroke.width as f32;
-            }
-
-            brush = b.clone();
-          },
-          Shape::Repeater( repeater ) =>
-          {
-            repeaters.push( ( i, last_repeater_id..layer_primitives.len(), repeater.clone() ) );
-            last_repeater = Some( repeater.clone() );
-            last_repeater_id = layer_primitives.len();
-          },
-          _ => {}
-        }
-      }
-
-      primitives.push( layer_primitives );
-
-      i += 1;
-    }
-
-    for ( layer, primitive_ids, repeater ) in repeaters
-    {
-      if primitive_ids.end == 0
-      {
-        primitives[ layer ][ 0 ].1.repeater = Some( repeater );
-      }
-      else
-      {
-        for primitive_id in primitive_ids
-        {
-          primitives[ layer ][ primitive_id ].1.repeater = Some( repeater.clone() );
-        }
-      }
-    }
-
-    let layer_iter = layers.iter().enumerate()
-    .zip( primitives.iter_mut() );
-
-    let mut last_element_id = 0;
-    let mut parent_layer_to_primitive_id = HashMap::new();
-    for ( ( i, layer ), primitives ) in layer_iter
-    {
-      parent_layer_to_primitive_id.insert( i, last_element_id );
-      if layer.parent.is_some()
-      {
-        primitives[ 0 ].0.parent = layer.parent;
-      }
-      let layer_name = primitives[ 0 ].0.name.clone();
-      for ( j, primitive ) in primitives.iter_mut().skip( 1 ).enumerate()
-      {
-        primitive.0.parent = Some( last_element_id );
-        primitive.0.name = Some( format!( "{}_{j}", layer_name.clone().unwrap() ).into_boxed_str() );
-      }
-      last_element_id += primitives.len();
-    }
-
-    let layer_iter = layers.iter()
-    .zip( primitives.iter_mut() );
-    for ( layer, primitives ) in layer_iter
-    {
-      if let Some( parent_id ) = layer.parent
-      {
-        primitives[ 0 ].0.parent = parent_layer_to_primitive_id.get( &parent_id ).copied();
-      }
-    }
+    let mut layers = instance_layers_expand( &composition );
+    let ( mut primitives, repeaters ) = layer_primitives_collect( &mut layers );
+    repeaters_apply( &mut primitives, repeaters );
+    parents_assign( &layers, &mut primitives );
 
     let primitives_data = primitives.into_iter()
     .flatten()
@@ -363,13 +423,10 @@ impl Animation
     )
     .collect::< HashMap< _, _ > >();
 
-    let gltf = primitives_data_to_gltf
-    (
-      gl,
-      primitives_data.into_iter()
-      .map( | ( p, _ ) | p )
-      .collect::< Vec< _ > >()
-    );
+    let primitives = primitives_data.into_iter()
+    .map( | ( p, _ ) | p )
+    .collect::< Vec< _ > >();
+    let gltf = primitives_data_to_gltf( gl, &primitives );
 
     Self
     {
@@ -379,14 +436,8 @@ impl Animation
     }
   }
 
-  /// Returns a reference to the internal GLTF scene.
-  pub fn get_inner_gltf( &self ) -> &GLTF
-  {
-    &self.gltf
-  }
-
   /// Traverses and updates the scene's nodes based on the animation behaviors for a given frame.
-  fn update_scene( &self, scene : &mut Scene, frame : f64 )
+  fn scene_update( &self, scene : &mut Scene, frame : f64 )
   {
     let mut nodes_to_insert = vec![];
 
@@ -395,7 +446,7 @@ impl Animation
       node : Rc< RefCell< Node > >
     | -> Result< (), gl::WebglError >
     {
-      let Some( node_name ) = node.borrow().get_name()
+      let Some( node_name ) = node.borrow().name_get()
       else
       {
         return Ok( () );
@@ -406,7 +457,7 @@ impl Animation
         if let Some( animated_transform ) = &behaviour.animated_transform
         {
           let matrix = affine_to_matrix( animated_transform.evaluate( frame ).into_owned() );
-          node.borrow_mut().set_local_matrix( matrix );
+          node.borrow_mut().local_matrix_set( matrix );
         }
 
         let Some( ref repeater ) = behaviour.repeater
@@ -415,16 +466,16 @@ impl Animation
           return Ok( () );
         };
 
-        let Some( parent ) = node.borrow().get_parent().clone()
+        let Some( parent ) = node.borrow().parent_get().clone()
         else
         {
           return Ok( () );
         };
 
-        let Some( id ) = parent.borrow().get_children()
+        let Some( id ) = parent.borrow().children_get()
         .iter()
         .enumerate()
-        .find( | ( _, child ) | child.borrow().get_name().as_ref() == Some( &node_name ) )
+        .find( | ( _, child ) | child.borrow().name_get().as_ref() == Some( &node_name ) )
         .map( | ( i, _ ) | i )
         else
         {
@@ -438,17 +489,17 @@ impl Animation
           return Ok( () );
         }
 
-        let matrix = node.borrow_mut().get_local_matrix();
+        let matrix = node.borrow_mut().local_matrix_get();
 
         let mut ids_and_children = Vec::with_capacity( repeater.copies );
 
         for i in ( 0..repeater.copies ).rev()
         {
-          let node_clone = node.borrow().clone_tree();
+          let node_clone = node.borrow().tree_clone();
           let transform = affine_to_matrix( repeater.transform( i ) );
 
-          node_clone.borrow_mut().set_local_matrix( matrix * transform );
-          node_clone.borrow_mut().set_parent( Some( parent.clone() ) );
+          node_clone.borrow_mut().local_matrix_set( matrix * transform );
+          node_clone.borrow_mut().parent_set( Some( parent.clone() ) );
           ids_and_children.push( ( id + 1, node_clone.clone() ) );
         }
 
@@ -464,13 +515,13 @@ impl Animation
     {
       for ( i, child ) in ids_and_children.into_iter().rev()
       {
-        parent.borrow_mut().insert_child( i, child );
+        parent.borrow_mut().child_insert( i, child );
       }
     }
   }
 
   /// Filters and removes nodes from the scene that are outside of their active frame range for a given frame.
-  fn filter_nodes( &self, scene : &mut Scene, frame : f64 )
+  fn nodes_filter( &self, scene : &mut Scene, frame : f64 )
   {
     let mut nodes_to_remove = HashMap::new();
 
@@ -479,7 +530,7 @@ impl Animation
       node : Rc< RefCell< Node > >
     | -> Result< (), gl::WebglError >
     {
-      let Some( name ) = node.borrow_mut().get_name()
+      let Some( name ) = node.borrow_mut().name_get()
       else
       {
         return Ok( () );
@@ -503,7 +554,7 @@ impl Animation
     (
       | n |
       {
-        let Some( name ) = n.borrow().get_name()
+        let Some( name ) = n.borrow().name_get()
         else
         {
           return true;
@@ -525,9 +576,9 @@ impl Animation
 
       let mut id_to_remove = vec![];
 
-      for ( i, child ) in node.borrow().get_children().iter().enumerate()
+      for ( i, child ) in node.borrow().children_get().iter().enumerate()
       {
-        let Some( name ) = child.borrow().get_name()
+        let Some( name ) = child.borrow().name_get()
         else
         {
           continue;
@@ -540,15 +591,15 @@ impl Animation
 
       for i in id_to_remove.iter().rev()
       {
-        if node.borrow().get_children().get( *i ).is_none()
+        if node.borrow().children_get().get( *i ).is_none()
         {
           continue;
         }
-        let child = node.borrow_mut().remove_child( *i );
-        child.borrow_mut().set_parent( None );
+        let child = node.borrow_mut().child_remove( *i );
+        child.borrow_mut().parent_set( None );
       }
 
-      nodes.extend( node.borrow().get_children().iter().cloned() );
+      nodes.extend( node.borrow().children_get().iter().cloned() );
 
       i += 1;
     }
@@ -564,7 +615,7 @@ impl Animation
       node : Rc< RefCell< Node > >
     | -> Result< (), gl::WebglError >
     {
-      let Some( name ) = node.borrow_mut().get_name()
+      let Some( name ) = node.borrow_mut().name_get()
       else
       {
         return Ok( () );
@@ -596,31 +647,32 @@ impl Animation
 
     let mut scene = scene.borrow().clone();
 
-    self.filter_nodes( &mut scene, frame );
-    self.update_scene( &mut scene, frame );
+    self.nodes_filter( &mut scene, frame );
+    self.scene_update( &mut scene, frame );
     let colors = self.colors_from_scene( &mut scene, frame );
 
-    scene.update_world_matrix();
+    scene.world_matrix_update();
 
     Some( ( scene, colors ) )
   }
 
   /// Sets the world matrix for all scenes within the GLTF data.
-  pub fn set_world_matrix( &self, world_matrix : F32x4x4 )
+  pub fn world_matrix_set( &self, world_matrix : F32x4x4 )
   {
     for scene in &self.gltf.scenes
     {
-      let old_local_matrix = scene.borrow().get_local_matrix();
-      scene.borrow_mut().set_local_matrix( world_matrix * old_local_matrix );
-      scene.borrow_mut().update_world_matrix();
+      let old_local_matrix = scene.borrow().local_matrix_get();
+      scene.borrow_mut().local_matrix_set( world_matrix * old_local_matrix );
+      scene.borrow_mut().world_matrix_update();
     }
   }
 }
 
 /// Asynchronously loads a Lottie animation file from a given path and constructs a new `Animation` object.
-pub async fn load_animation( gl : &GL, path : &str ) -> Animation
+pub async fn animation_load( gl : &GL, path : &str ) -> Result< Animation, gl::WebglError >
 {
-  let lottie_json_bin = gl::file::load( path ).await.unwrap();
+  let lottie_json_bin = gl::file::load( path ).await
+  .map_err( | e | gl::dom::Error::BindgenError( "Failed to load lottie animation file", format!( "{e:?}" ) ) )?;
   let composition = Composition::from_slice( lottie_json_bin.as_slice() ).unwrap();
-  Animation::new( gl, composition )
+  Ok( Animation::new( gl, composition ) )
 }

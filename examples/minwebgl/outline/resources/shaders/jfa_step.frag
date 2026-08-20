@@ -1,4 +1,8 @@
 #version 300 es
+// NOTE : a near-identical sibling of this JFA shader lives at
+// module/helper/renderer/src/webgl/shaders/post_processing/outline/wide_outline/jfa_step.frag ( naming differs : v_tex_coord here vs vUv there ).
+// The duplication is intentional : this example is a self-contained minwebgl walkthrough of the JFA
+// technique, while the renderer copy is the production post-processing integration. Mirror JFA-core bug fixes.
 // High precision is recommended for coordinate/distance calculations.
 precision highp float;
 // Interpolated texture coordinate from the vertex shader for the current pixel.
@@ -28,7 +32,7 @@ void main()
       // and then divided by the resolution to convert from pixel space to normalized ( 0-1 ) texture space.
       // `ceil` is used to ensure step sizes are rounded up to the nearest pixel distance,
       // as the step size might not be a perfect integer during intermediate steps.
-      vec2 offset = ceil( vec2( float( x ), float( y ) ) * u_step_size.x ) / u_resolution;
+      vec2 offset = ceil( vec2( float( x ), float( y ) ) * u_step_size ) / u_resolution;
 
       // Calculate the sample coordinate in the input JFA texture.
       vec2 sample_coord = v_tex_coord + offset;

@@ -1,0 +1,6 @@
+outs:
+- md5: 1243b720e87ccdebf564aa306f2f1b3b.dir
+  size: 66871935
+  nfiles: 61
+  hash: md5
+  path: environment_maps

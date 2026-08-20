@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+printf 'offscreen: no window, renders once to a file (default backend: wgpu)\n' >&2
+exec cargo run --release

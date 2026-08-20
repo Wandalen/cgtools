@@ -1,0 +1,68 @@
+[package]
+name = "orrery_flexible"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lints]
+workspace = true
+
+# Only the `wgpu` feature may link the `wgpu` crate — the other three
+# (webgl, webgpu, vulkan) must not, even transitively. See
+# docs/adr/004_native_vulkan_hal_backend.md. webgl/webgpu are browser
+# (wasm32) backends; wgpu/vulkan are native backends — mirroring
+# examples/gpu_hal/triangle_browser's target split.
+[target.'cfg(target_arch = "wasm32")'.dependencies.gpu_hal]
+workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.mingl]
+workspace = true
+features = [ "web" ]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen-futures]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.gpu_hal]
+workspace = true
+
+# wgpu/vulkan have no windowing support in gpu_hal today ( `Device::new_native`
+# / `new_vulkan` only ever create an offscreen surface — see
+# gpu_hal/tests/native_backend_test.rs ), so the native paths render one
+# frame offscreen and save it, the same pattern minwgpu/hello_triangle uses.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.image]
+workspace = true
+
+# Scene loading and shader assembly are reused directly from orrery_webgpu's
+# library target ( scene::SceneConfig, shader_source::assemble() ) rather
+# than duplicated — its scene.rhai / shader/scene_fragment.wgsl stay the
+# single source of truth for every backend, this crate included.
+[dependencies]
+orrery_webgpu = { path = "../webgpu" }
+
+# Only needed to translate the shared WGSL into GLSL ES 300 at build time for
+# the `webgl` feature ( gpu_hal's WebGL backend cannot consume WGSL directly,
+# unlike the other three backends ) — never a dependency of the built
+# artifact itself, native or wasm32. Cargo rejects depending on the same
+# package twice under different local names ( even build vs normal/target ),
+# so this reuses the plain `gpu_hal` name rather than a `package = "gpu_hal"`
+# rename — see the `webgl` feature below for the consequence this has on
+# `gpu_hal/webgl`'s cross-reference.
+[build-dependencies]
+orrery_webgpu = { path = "../webgpu", optional = true }
+gpu_hal = { workspace = true, features = [ "webgl-glsl-build" ], optional = true }
+
+[features]
+default = [ "wgpu" ]
+# `gpu_hal/webgl` activates gpu_hal's `webgl` cargo feature on BOTH the
+# wasm32-target dependency above and this host-side build-dependency ( Cargo
+# unifies by package name across dependency kinds ) — harmless here: gpu_hal
+# itself gates its `webgl` layer ( and the `minwebgl`/`web-sys` deps it pulls
+# in ) behind `target_arch = "wasm32"` in addition to the feature, so on the
+# host build-dependency compile the extra feature activates no extra code.
+webgl = [ "gpu_hal/webgl", "dep:gpu_hal", "dep:orrery_webgpu" ]
+webgpu = [ "gpu_hal/webgpu" ]
+wgpu = [ "gpu_hal/native" ]
+vulkan = [ "gpu_hal/vulkan" ]
+
+[package.metadata.action]
+tags = ["scene:orrery"]

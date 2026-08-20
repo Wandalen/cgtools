@@ -8,7 +8,7 @@
 //!
 //! ```ignore
 //! let renderer = Renderer::new( &spec, &PathResolver )?;
-//! backend.load_assets( renderer.assets() );
+//! backend.assets_load( renderer.assets() );
 //!
 //! // Per frame:
 //! let cmds = renderer.render( &scene, &camera )?;
@@ -49,7 +49,7 @@ mod private
     ResourceId,
     Transform,
   };
-  use crate::compile::assets::{ CompiledAssets, compile_assets };
+  use crate::compile::assets::{ CompiledAssets, assets_compile };
   use crate::compile::camera::Camera;
   use crate::compile::error::CompileError;
   use crate::compile::frame::{ BucketEmits, VertexResolveCache, gather_frame_emits };
@@ -284,7 +284,7 @@ mod private
       resolver : &impl AssetResolver,
     ) -> Result< Self, CompileError >
     {
-      let compiled = compile_assets( spec, resolver )?;
+      let compiled = assets_compile( spec, resolver )?;
       let mut sprite_to_sheet : HashMap< ResourceId< asset::Sprite >, ResourceId< asset::Image > > =
         HashMap::default();
       for sprite in &compiled.assets.sprites
@@ -376,7 +376,7 @@ mod private
     }
 
     /// Backend-ready asset table. Submit once at startup via
-    /// `backend.load_assets( renderer.assets() )`.
+    /// `backend.assets_load( renderer.assets() )`.
     #[ inline ]
     #[ must_use ]
     pub fn assets( &self ) -> &Assets { &self.compiled.assets }
@@ -551,7 +551,7 @@ mod private
     }
 
     /// Emit one bucket's draw commands into `cmd_buf` — batched or per-sprite
-    /// per [`Self::classify_bucket`] — followed by its viewport (screen-space)
+    /// per [`Self::bucket_classify`] — followed by its viewport (screen-space)
     /// sprites. Factored out of [`Self::render`] so the single-pass path and the
     /// opaque/transparent two-pass path share one emission body; `bucket_idx`
     /// is the bucket's original pipeline index (stable batch-cache key), passed
@@ -572,7 +572,7 @@ mod private
       // Decide emission strategy. `DrawBatch` is emitted inline at the end of
       // each bucket's prep so the cross-bucket draw order (batched vs
       // per-sprite) follows the consumer's declared pipeline.
-      let dispatch = self.classify_bucket( bucket_idx, &bucket );
+      let dispatch = self.bucket_classify( bucket_idx, &bucket );
 
       match dispatch
       {
@@ -582,10 +582,10 @@ mod private
           // is the bucket's pre-sorted order, which for `SortMode::None` is the
           // spawn / iteration order from `Scene` — stable across frames given
           // identical state.
-          let groups = self.group_sprites( bucket_idx, &bucket.sprites );
+          let groups = self.sprites_group( bucket_idx, &bucket.sprites );
           for ( key, sprites_in_group ) in groups
           {
-            self.emit_or_update_batch( key, sprites_in_group, bucket_alpha_clip, bucket_occlude );
+            self.batch_emit_or_update( key, sprites_in_group, bucket_alpha_clip, bucket_occlude );
             used_keys.push( key );
             let id = self.batches.get( &key ).expect( "just inserted" ).id;
             self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
@@ -596,7 +596,7 @@ mod private
           // Single-key sorted bucket: one batch, instance-buffer order matches
           // sort order so a single `DrawBatch` preserves visual correctness
           // without per-sprite emission.
-          self.emit_or_update_batch( key, bucket.sprites, bucket_alpha_clip, bucket_occlude );
+          self.batch_emit_or_update( key, bucket.sprites, bucket_alpha_clip, bucket_occlude );
           used_keys.push( key );
           let id = self.batches.get( &key ).expect( "just inserted" ).id;
           self.cmd_buf.push( RenderCommand::DrawBatch( DrawBatch { batch : id } ) );
@@ -630,7 +630,7 @@ mod private
     /// back to [`BucketDispatch::PerSprite`]. An empty sorted bucket
     /// returns `PerSprite`; the choice is moot (no commands emit)
     /// but avoids inventing a key from an empty slice.
-    fn classify_bucket
+    fn bucket_classify
     (
       &self,
       bucket_idx : u32,
@@ -677,7 +677,7 @@ mod private
     /// preserving original order. Two non-adjacent runs with the same
     /// key end up in the same returned group (sprites are appended to
     /// the running entry for that key).
-    fn group_sprites
+    fn sprites_group
     (
       &self,
       bucket_idx : u32,
@@ -719,7 +719,7 @@ mod private
     /// Reuse an existing batch under `key` (emitting `Bind` + the
     /// minimal Set / Remove / Add diff + `Unbind`) or allocate a fresh
     /// one (emitting `CreateSpriteBatch` + `Bind` + N×`Add` + `Unbind`).
-    fn emit_or_update_batch
+    fn batch_emit_or_update
     (
       &mut self,
       key : BatchKey,

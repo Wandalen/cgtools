@@ -8,9 +8,6 @@ mod indexing_test
   mod iter_mut_test;
   mod lane_test;
   mod lane_indexed_test;
-
-  // qqq : fix tests, please
-
 }
 
 mod scalar_test;

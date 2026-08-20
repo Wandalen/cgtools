@@ -1,5 +1,5 @@
-use crate::*;
-use mdmath_core::vector::arithmetics::*;
+use crate::{MatEl, nd, Mat4, mat, RawSliceMut, VectorIterMut, ArrayRef, MatNum, VectorIter, Collection};
+use mdmath_core::vector::arithmetics::{normalized, cross, dot, sub};
 
 // #[ derive( Copy, Clone, Debug, PartialEq, Default ) ]
 // pub struct Decomposed< E, Vec, Rot, const N : usize >
@@ -13,10 +13,11 @@ use mdmath_core::vector::arithmetics::*;
 
 /// Creates right-handed orthographic projection transformation with z in range [ -1.0, 1.0 ].
 /// This transformation corresponds to the transformation used in OpenGL:
-/// https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml
+/// <https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml>
 ///
 /// Similiar functions:
 /// orthographic_rg - return the same matrix, but with z in range [ 0.0, 1.0 ]
+#[ inline ]
 pub fn orthographic_rh_gl< E >
 (
   left : E,
@@ -51,6 +52,7 @@ where
 }
 
 /// Creates right-handed orthographic projection transformation with z in range [ 0.0, 1.0 ].
+#[ inline ]
 pub fn orthographic_rh< E >
 (
   left : E,
@@ -86,10 +88,16 @@ where
 
 /// Creates right-handed perspective transformation with z in range [ -1.0, 1.0 ].
 /// This transformation corresponds to the transformation used in OpenGL:
-/// https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/gluPerspective.xml
+/// <https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/gluPerspective.xml>
 ///
 /// Similiar functions:
 /// perspective_rh - return the same matrix, but with z in range [ 0.0, 1.0 ]
+///
+/// # Panics
+///
+/// Panics if `E::from( 2.0 )` fails, i.e. if `E` cannot represent that literal
+/// ( not expected for the standard float types this is used with ).
+#[ inline ]
 pub fn perspective_rh_gl< E >
 (
   fovy : E,
@@ -124,6 +132,12 @@ where
 ///
 /// Similiar functions:
 /// perspective_rh_gl - return the same matrix, but with z in range [ -1.0, 1.0 ]
+///
+/// # Panics
+///
+/// Panics if `E::from( 2.0 )` fails, i.e. if `E` cannot represent that literal
+/// ( not expected for the standard float types this is used with ).
+#[ inline ]
 pub fn perspective_rh< E >
 (
   fovy : E,
@@ -161,6 +175,8 @@ where
 ///
 /// Similiar functions:
 /// look_at_rh - returns the same matrix, but takes camera's view center, instead of direction
+#[ inline ]
+#[ expect( clippy::needless_pass_by_value, reason = "eye/dir/up stay by-value to preserve the public calling convention used with owned vectors across the workspace; by-reference would be a breaking API change" ) ]
 pub fn look_to_rh< E, Vec3 >
 (
   eye : Vec3,
@@ -202,6 +218,8 @@ where
 ///
 /// Similiar functions:
 /// look_to_rh - returns the same matrix, but takes camera's view direction
+#[ inline ]
+#[ expect( clippy::needless_pass_by_value, reason = "center stays by-value to preserve the public calling convention — same rationale as look_to_rh above" ) ]
 pub fn look_at_rh< E, Vec3 >
 (
   eye : Vec3,
@@ -264,6 +282,10 @@ where
 ///
 /// # Returns
 /// - A 4x4 translation matrix.
+///
+/// # Panics
+///
+/// Panics if `translation`'s iterator yields fewer than 3 elements.
 #[ inline ]
 pub fn translation< E, Translation >( translation : Translation ) -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where
@@ -294,6 +316,10 @@ where
 ///
 /// # Returns
 /// - A 4x4 scaling matrix.
+///
+/// # Panics
+///
+/// Panics if `scaling`'s iterator yields fewer than 3 elements.
 #[ inline ]
 pub fn scale< E, Scaling >( scaling : Scaling ) -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where

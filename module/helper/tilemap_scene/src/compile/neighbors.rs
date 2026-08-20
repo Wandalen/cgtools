@@ -2,7 +2,7 @@
 //!
 //! The canonical direction ordering is SPEC §2.3: flat-top runs clockwise
 //! from `N` at bit 0, pointy-top runs clockwise from `NE`. The bitmask
-//! produced by [`compute_neighbor_bitmask`] uses those indices.
+//! produced by [`neighbor_bitmask_compute`] uses those indices.
 
 mod private
 {
@@ -132,8 +132,12 @@ mod private
   /// object whose id is in `connects_with`. Off-map / empty neighbours
   /// contribute bit 1 only when `"void"` is in `connects_with` (SPEC §15.1).
   #[ must_use ]
-  #[ allow( clippy::implicit_hasher ) ]
-  pub fn compute_neighbor_bitmask
+  // `tile_lookup` is always this crate's `FxHashMap` alias (every caller builds
+  // it via `tile_lookup()` below); there is no existing or planned caller
+  // passing a different hasher, so generalizing over `BuildHasher` would add
+  // API surface for no current need.
+  #[ allow( clippy::implicit_hasher, reason = "tile_lookup is always this crate's FxHashMap alias; every caller builds it via tile_lookup() below, so generalizing over BuildHasher would add API surface for no current need" ) ]
+  pub fn neighbor_bitmask_compute
   (
     pos : ( i32, i32 ),
     connects_with : &[ String ],
@@ -168,7 +172,7 @@ mod private
   /// Neighbour-facing view of a tile — just enough for condition evaluation.
   ///
   /// Constructed on-demand by `neighbor_state_at`; avoids coupling
-  /// `evaluate_condition` to the whole [`Tile`] / [`Object`] graph.
+  /// `condition_evaluate` to the whole [`Tile`] / [`Object`] graph.
   #[ derive( Debug, Clone ) ]
   pub struct NeighborState< 'a >
   {
@@ -182,7 +186,11 @@ mod private
   ///
   /// Off-map neighbours produce `NeighborState { object_ids: &[], max_priority: None }`.
   #[ must_use ]
-  #[ allow( clippy::implicit_hasher ) ]
+  // `tile_lookup` is always this crate's `FxHashMap` alias (every caller builds
+  // it via `tile_lookup()` above); there is no existing or planned caller
+  // passing a different hasher, so generalizing over `BuildHasher` would add
+  // API surface for no current need.
+  #[ allow( clippy::implicit_hasher, reason = "tile_lookup is always this crate's FxHashMap alias; every caller builds it via tile_lookup() above, so generalizing over BuildHasher would add API surface for no current need" ) ]
   pub fn neighbor_state_at< 'a >
   (
     pos : ( i32, i32 ),
@@ -210,7 +218,7 @@ mod private
   pub fn tile_max_priority( tile : &Tile, spec : &RenderSpec ) -> Option< i32 >
   {
     tile.objects.iter()
-      .filter_map( | id | find_object( spec, id ) )
+      .filter_map( | id | object_find( spec, id ) )
       .filter_map( | o | o.priority )
       .max()
   }
@@ -227,7 +235,7 @@ mod private
   {
     for object_id in &tile.objects
     {
-      if let Some( obj ) = find_object( spec, object_id )
+      if let Some( obj ) = object_find( spec, object_id )
         && obj.priority.is_some()
       {
         return Some( object_id.as_str() );
@@ -257,7 +265,7 @@ mod private
     let Some( layer ) = source else { return tile_terrain_id( tile, spec ); };
     for object_id in &tile.objects
     {
-      if let Some( obj ) = find_object( spec, object_id )
+      if let Some( obj ) = object_find( spec, object_id )
         && obj.global_layer == layer
       {
         return Some( object_id.as_str() );
@@ -266,7 +274,7 @@ mod private
     None
   }
 
-  fn find_object< 'a >( spec : &'a RenderSpec, id : &str ) -> Option< &'a Object >
+  fn object_find< 'a >( spec : &'a RenderSpec, id : &str ) -> Option< &'a Object >
   {
     spec.objects.iter().find( | o | o.id == id )
   }
@@ -282,7 +290,7 @@ mod_interface::mod_interface!
   exposed use dir_to_index;
   exposed use dir_name;
   exposed use tile_lookup;
-  exposed use compute_neighbor_bitmask;
+  exposed use neighbor_bitmask_compute;
   exposed use NeighborState;
   exposed use neighbor_state_at;
   exposed use tile_max_priority;

@@ -126,12 +126,12 @@ mod private
     }
 
     /// Returns `true` if the material's uniform data has changed and needs
-    /// to be re-uploaded to the GPU via [`upload_on_state_change`].
+    /// to be re-uploaded to the GPU via [`Self::upload_on_state_change`].
     fn needs_update( &self ) -> bool;
 
     /// Sets or clears the dirty flag for material uniforms.
     /// Implementations must use interior mutability (e.g. `Cell<bool>`).
-    fn set_needs_update( &self, value : bool );
+    fn needs_update_set( &self, value : bool );
 
     /// Returns the base texture unit for IBL textures.
     ///
@@ -154,8 +154,8 @@ mod private
       None
     }
 
-    /// Returns reference to [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
-    fn make_shader_program( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >;
+    /// Returns reference to [`ProgramInfo`](crate::webgl::ProgramInfo) with shader locations and used [`ShaderProgram`]
+    fn shader_program_make( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >;
 
     /// Returns the material type identifier (e.g., "PBR", "Unlit", "Custom").
     fn type_name( &self ) -> &'static str;
@@ -175,18 +175,21 @@ mod private
     fn fragment_shader( &self ) -> String;
 
     /// Return a string containing combined version of the vertex and fragment defines
+    #[ expect( clippy::unnecessary_literal_bound, reason = "overrides return references into `&self`-owned cache fields, so the signature cannot promise `'static`" ) ]
     fn defines_str( &self ) -> &str
     {
       ""
     }
 
     /// Returns a string containing vertex shader related defines
+    #[ expect( clippy::unnecessary_literal_bound, reason = "overrides return non-`'static` cached-field references" ) ]
     fn vertex_defines_str( &self ) -> &str
     {
       ""
     }
 
     /// Returns a string containing fragment shader related defines
+    #[ expect( clippy::unnecessary_literal_bound, reason = "overrides return non-`'static` cached-field references" ) ]
     fn fragment_defines_str( &self ) -> &str
     {
       ""
@@ -209,6 +212,10 @@ mod private
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations in the shader program.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a uniform upload fails.
     fn upload_on_state_change
     (
       &self,
@@ -221,6 +228,10 @@ mod private
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations in the shader program.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a uniform upload fails.
     fn upload
     (
       &self,
@@ -235,7 +246,7 @@ mod private
     /// Activates and binds all material textures to their assigned texture units,
     /// and uploads sampler parameters (filtering, wrapping).
     ///
-    /// Each texture must be bound to the same unit that was assigned in [`configure`].
+    /// Each texture must be bound to the same unit that was assigned in [`Self::configure`].
     /// Implementations **must** call `gl.active_texture( gl::TEXTURE0 + unit )` before
     /// binding each texture to ensure correct unit targeting.
     ///
@@ -310,7 +321,7 @@ mod private
     }
 
     /// Called by the renderer after recompilation to clear the recompile flag.
-    fn clear_recompile_flag( &self ) {}
+    fn recompile_flag_clear( &self ) {}
   }
 
 }

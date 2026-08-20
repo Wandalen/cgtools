@@ -1,4 +1,10 @@
-use super::*;
+use super::
+{
+  Filter,
+  FilterRenderer,
+  gl,
+  default_render_pass,
+};
 use serde::{ Serialize, Deserialize };
 
 #[ repr( i32 ) ]
@@ -55,7 +61,7 @@ impl Filter for Channels
   {
     let gl = renderer.gl();
     let channel_location = gl.get_uniform_location( renderer.get_program(), "u_channel" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, channel_location, &( self.channel as i32 ) ).unwrap();
     default_render_pass( renderer );
   }

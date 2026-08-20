@@ -29,6 +29,8 @@ mod private
   impl Mirror
   {
     /// Mirror sequencer along plane ( XY, YZ, XZ )
+    #[ expect( clippy::else_if_without_else, reason = "keys matching neither prefix are intentionally untouched; an empty `else {}` would trip `clippy::needless_else`" ) ]
+    #[ must_use ]
     pub fn along_plane( animation : &Sequencer, plane : MirrorPlane ) -> Sequencer
     {
       let mut animation = animation.clone();

@@ -9,7 +9,7 @@ mod private
   use serde::{ Deserialize, Serialize };
   use rustc_hash::FxHashMap as HashMap;
   pub use tilemap_renderer::types::BlendMode;
-  use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
+  pub use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
 
   // ============================================================================
   // Reference wrappers
@@ -170,7 +170,7 @@ mod private
       #[ serde( default ) ]
       frame_rects : HashMap< String, FrameSpec >,
       /// Pixel dimensions of the source image, when authored. When set,
-      /// `compile_assets` validates that every named-cell and numeric
+      /// `assets_compile` validates that every named-cell and numeric
       /// frame resolves to a rect fully inside `( width, height )` and
       /// raises `CompileError::FrameOutOfBounds` otherwise. Leave
       /// `None` (the default) to skip the check — for example when
@@ -343,7 +343,7 @@ mod private
     #[ default ]
     None,
     /// Offset derived deterministically from the instance's grid
-    /// coordinate (via [`crate::hash::hash_coord`]). Requires a
+    /// coordinate (via [`crate::hash::coord_hash`]). Requires a
     /// grid-anchored placement (`Hex`, `Multihex`, `Edge`).
     ///
     /// For placements without a hex coord (`FreePos`, `Viewport`),
@@ -352,7 +352,7 @@ mod private
     /// every non-hex instance hashes to the same value. When stagger
     /// matters on those placements, set an explicit
     /// [`PhaseOffset::Fixed`] per instance via
-    /// [`crate::scene::Scene::set_phase_offset`].
+    /// [`crate::scene::Scene::phase_offset_set`].
     HashCoord,
     /// Constant offset in seconds.
     Fixed( f32 ),
@@ -471,6 +471,9 @@ mod_interface::mod_interface!
   exposed use SheetLayout;
   exposed use Tint;
   exposed use BlendMode;
+  exposed use SamplerFilter;
+  exposed use MipmapMode;
+  exposed use WrapMode;
   exposed use Animation;
   exposed use AnimationTiming;
   exposed use TimedFrame;

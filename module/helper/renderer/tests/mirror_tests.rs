@@ -16,11 +16,11 @@ use renderer::webgl::animation::
   }
 };
 
-fn create_animation() -> Sequencer
+fn animation_create() -> Sequencer
 {
   let mut animation = Sequencer::new();
 
-  let linear = Linear::new();
+  let linear = Linear::build();
   animation.insert
   (
     TRANSLATION_PREFIX,
@@ -34,7 +34,7 @@ fn create_animation() -> Sequencer
     ).unwrap()
   );
 
-  let linear = Linear::new();
+  let linear = Linear::build();
   animation.insert
   (
     ROTATION_PREFIX,
@@ -48,7 +48,7 @@ fn create_animation() -> Sequencer
     ).unwrap()
   );
 
-  let linear = Linear::new();
+  let linear = Linear::build();
   animation.insert
   (
     SCALE_PREFIX,
@@ -62,7 +62,7 @@ fn create_animation() -> Sequencer
     ).unwrap()
   );
 
-  let linear = Linear::new();
+  let linear = Linear::build();
   animation.insert
   (
     MORPH_TARGET_PREFIX,
@@ -82,10 +82,10 @@ fn create_animation() -> Sequencer
 #[ test ]
 fn transition_mirroring_test()
 {
-  let animation = create_animation();
+  let animation = animation_create();
 
   let animation_xy = Mirror::along_plane( &animation, MirrorPlane::XY );
-  let animation_xz = Mirror::along_plane( &animation, MirrorPlane::XZ );
+  let animation_xz_mirrored = Mirror::along_plane( &animation, MirrorPlane::XZ );
   let animation_yz = Mirror::along_plane( &animation, MirrorPlane::YZ );
 
   let sequence = animation_xy.get::< Sequence< Tween< F64x3 > > >( TRANSLATION_PREFIX ).unwrap();
@@ -95,7 +95,7 @@ fn transition_mirroring_test()
   assert_eq!( players[ 1 ].start_value, F64x3::from_array( [ 0.0, 0.0, 0.0 ] ) );
   assert_eq!( players[ 1 ].end_value, F64x3::from_array( [ 1.0, 1.0, -1.0 ] ) );
 
-  let sequence = animation_xz.get::< Sequence< Tween< F64x3 > > >( TRANSLATION_PREFIX ).unwrap();
+  let sequence = animation_xz_mirrored.get::< Sequence< Tween< F64x3 > > >( TRANSLATION_PREFIX ).unwrap();
   let players = sequence.players();
   assert_eq!( players[ 0 ].start_value, F64x3::from_array( [ -1.0, 1.0, -1.0 ] ) );
   assert_eq!( players[ 0 ].end_value, F64x3::from_array( [ 0.0, 0.0, 0.0 ] ) );
@@ -113,10 +113,10 @@ fn transition_mirroring_test()
 #[ test ]
 fn rotation_mirroring_test()
 {
-  let animation = create_animation();
+  let animation = animation_create();
 
   let animation_xy = Mirror::along_plane( &animation, MirrorPlane::XY );
-  let animation_xz = Mirror::along_plane( &animation, MirrorPlane::XZ );
+  let animation_xz_mirrored = Mirror::along_plane( &animation, MirrorPlane::XZ );
   let animation_yz = Mirror::along_plane( &animation, MirrorPlane::YZ );
 
   let sequence = animation_xy.get::< Sequence< Tween< QuatF64 > > >( ROTATION_PREFIX ).unwrap();
@@ -126,7 +126,7 @@ fn rotation_mirroring_test()
   assert_eq!( players[ 1 ].start_value, QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] ) );
   assert_eq!( players[ 1 ].end_value, QuatF64::from( [ -1.0, -1.0, 1.0, 1.0 ] ) );
 
-  let sequence = animation_xz.get::< Sequence< Tween< QuatF64 > > >( ROTATION_PREFIX ).unwrap();
+  let sequence = animation_xz_mirrored.get::< Sequence< Tween< QuatF64 > > >( ROTATION_PREFIX ).unwrap();
   let players = sequence.players();
   assert_eq!( players[ 0 ].start_value, QuatF64::from( [ 1.0, -1.0, 1.0, 1.0 ] ) );
   assert_eq!( players[ 0 ].end_value, QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] ) );
@@ -144,10 +144,10 @@ fn rotation_mirroring_test()
 #[ test ]
 fn scale_mirroring_test()
 {
-  let animation = create_animation();
+  let animation = animation_create();
 
   let animation_xy = Mirror::along_plane( &animation, MirrorPlane::XY );
-  let animation_xz = Mirror::along_plane( &animation, MirrorPlane::XZ );
+  let animation_xz_mirrored = Mirror::along_plane( &animation, MirrorPlane::XZ );
   let animation_yz = Mirror::along_plane( &animation, MirrorPlane::YZ );
 
   let sequence = animation_xy.get::< Sequence< Tween< F64x3 > > >( SCALE_PREFIX ).unwrap();
@@ -157,7 +157,7 @@ fn scale_mirroring_test()
   assert_eq!( players[ 1 ].start_value, F64x3::from_array( [ 2.0, 2.0, 2.0 ] ) );
   assert_eq!( players[ 1 ].end_value, F64x3::from_array( [ 3.0, 3.0, 3.0 ] ) );
 
-  let sequence = animation_xz.get::< Sequence< Tween< F64x3 > > >( SCALE_PREFIX ).unwrap();
+  let sequence = animation_xz_mirrored.get::< Sequence< Tween< F64x3 > > >( SCALE_PREFIX ).unwrap();
   let players = sequence.players();
   assert_eq!( players[ 0 ].start_value, F64x3::from_array( [ 1.0, 1.0, 1.0 ] ) );
   assert_eq!( players[ 0 ].end_value, F64x3::from_array( [ 2.0, 2.0, 2.0 ] ) );
@@ -175,10 +175,10 @@ fn scale_mirroring_test()
 #[ test ]
 fn morph_targets_mirroring_test()
 {
-  let animation = create_animation();
+  let animation = animation_create();
 
   let animation_xy = Mirror::along_plane( &animation, MirrorPlane::XY );
-  let animation_xz = Mirror::along_plane( &animation, MirrorPlane::XZ );
+  let animation_xz_mirrored = Mirror::along_plane( &animation, MirrorPlane::XZ );
   let animation_yz = Mirror::along_plane( &animation, MirrorPlane::YZ );
 
   let sequence = animation_xy.get::< Sequence< Tween< Vec< f64 > > > >( MORPH_TARGET_PREFIX ).unwrap();
@@ -188,7 +188,7 @@ fn morph_targets_mirroring_test()
   assert_eq!( players[ 1 ].start_value, vec![ 0.75, 0.75, 0.75 ] );
   assert_eq!( players[ 1 ].end_value, vec![ 1.0, 1.0, 1.0 ] );
 
-  let sequence = animation_xz.get::< Sequence< Tween< Vec< f64 > > > >( MORPH_TARGET_PREFIX ).unwrap();
+  let sequence = animation_xz_mirrored.get::< Sequence< Tween< Vec< f64 > > > >( MORPH_TARGET_PREFIX ).unwrap();
   let players = sequence.players();
   assert_eq!( players[ 0 ].start_value, vec![ 0.5, 0.5, 0.5 ] );
   assert_eq!( players[ 0 ].end_value, vec![ 0.75, 0.75, 0.75 ] );

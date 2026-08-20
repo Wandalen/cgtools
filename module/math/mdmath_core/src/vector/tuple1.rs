@@ -1,7 +1,7 @@
 #[ cfg( debug_assertions ) ]
-use std::mem::{ align_of_val, size_of_val };
+use core::mem::{ align_of_val, size_of_val };
 
-use super::*;
+use super::{Collection, ConstLength, IntoArray, ArrayRef, ArrayMut, VectorIter, VectorIteratorRef, VectorIterMut, VectorIterator};
 
 // = 1
 
@@ -29,9 +29,7 @@ impl< E > ArrayRef< E, 1 > for ( E, )
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ E ; 1 ]
   {
-    use std::mem::transmute;
-
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `(E,)`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `(E,)`
     // into a reference to an array `[E; 1]`. This is safe because:
     // 1. The tuple `(E,)` and the array `[E; 1]` have the same memory layout.
     //    - Both contain a single element of type `E`.
@@ -39,9 +37,8 @@ impl< E > ArrayRef< E, 1 > for ( E, )
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-
-    #[ allow( unsafe_code ) ]
-    let result : &[ E; 1 ] = unsafe { transmute( self ) };
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
+    let result : &[ E; 1 ] = unsafe { &*( std::ptr::from_ref::< ( E, ) >( self ).cast::< [ E; 1 ] >() ) };
 
     // Check size and alignment of the whole collection
     debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
@@ -61,8 +58,6 @@ impl< E > ArrayMut< E, 1 > for ( E, )
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ E ; 1 ]
   {
-    use std::mem::transmute;
-
     // Store layout information in temporary variables
     #[ cfg( debug_assertions ) ]
     let size_self = size_of_val( self );
@@ -73,7 +68,7 @@ impl< E > ArrayMut< E, 1 > for ( E, )
     #[ cfg( debug_assertions ) ]
     let align_component = align_of_val( &self.0 );
 
-    // SAFETY: We are using `transmute` to convert a reference to a tuple `(E,)`
+    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `(E,)`
     // into a reference to an array `[E; 1]`. This is safe because:
     // 1. The tuple `(E,)` and the array `[E; 1]` have the same memory layout.
     //    - Both contain a single element of type `E`.
@@ -81,8 +76,8 @@ impl< E > ArrayMut< E, 1 > for ( E, )
     //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
     // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
     //    ensuring that the reference does not outlive the data it points to.
-    #[ allow( unsafe_code ) ]
-    let result : &mut [ E; 1 ] = unsafe { transmute( self ) };
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
+    let result : &mut [ E; 1 ] = unsafe { &mut *( std::ptr::from_mut::< ( E, ) >( self ).cast::< [ E; 1 ] >() ) };
 
     // Perform checks under debug conditions
     #[ cfg( debug_assertions ) ]
@@ -99,132 +94,24 @@ impl< E > ArrayMut< E, 1 > for ( E, )
   }
 }
 
-#[ derive( Clone ) ]
-struct Tuple1Iter< 'tuple_ref, E >
-{
-  tuple : &'tuple_ref ( E, ),
-  index : usize,
-}
-
-impl< 'tuple_ref, E > Iterator for Tuple1Iter< 'tuple_ref, E >
-{
-  type Item = &'tuple_ref E;
-
-  fn next( &mut self ) -> Option< Self::Item >
-  {
-    if self.index == 0 {
-      self.index = 1;
-      Some( &self.tuple.0 )
-    } else {
-      None
-    }
-  }
-
-  fn size_hint( &self ) -> ( usize, Option< usize > )
-  {
-    let remaining = 1 - self.index;
-    ( remaining, Some( remaining ) )
-  }
-}
-
-impl< 'tuple_ref, E > ExactSizeIterator for Tuple1Iter< 'tuple_ref, E > {}
-
-impl< 'tuple_ref, E > DoubleEndedIterator for Tuple1Iter< 'tuple_ref, E >
-{
-  fn next_back( &mut self ) -> Option< Self::Item >
-  {
-    if self.index == 0 {
-      self.index = 1;
-      Some( &self.tuple.0 )
-    } else {
-      None
-    }
-  }
-}
-
-struct Tuple1IterMut< 'tuple_ref, E >
-{
-  tuple : &'tuple_ref mut ( E, ),
-  index : usize,
-}
-
-impl< 'tuple_ref, E > Iterator for Tuple1IterMut< 'tuple_ref, E >
-{
-  type Item = &'tuple_ref mut E;
-
-  fn next( &mut self ) -> Option< Self::Item >
-  {
-    if self.index == 0
-    {
-      self.index = 1;
-      // SAFETY: This is safe because we are returning a mutable reference to the only element,
-      // and we won't return it again in subsequent calls.
-      // qqq : not sure it's sound, either prove it or find a sound solution
-      #[ allow( unsafe_code ) ]
-      unsafe
-      {
-        Some( &mut *( &mut self.tuple.0 as *mut E ) )
-      }
-    }
-    else
-    {
-      None
-    }
-  }
-
-  fn size_hint( &self ) -> ( usize, Option< usize > )
-  {
-    let remaining = 1 - self.index;
-    ( remaining, Some( remaining ) )
-  }
-}
-
-impl< 'tuple_ref, E > ExactSizeIterator for Tuple1IterMut< 'tuple_ref, E > {}
-
-impl< 'tuple_ref, E > DoubleEndedIterator for Tuple1IterMut< 'tuple_ref, E >
-{
-  fn next_back( &mut self ) -> Option< Self::Item >
-  {
-    if self.index == 0
-    {
-      self.index = 1;
-      // SAFETY: This is safe because we are returning a mutable reference to the only element,
-      // and we won't return it again in subsequent calls.
-      // qqq : not sure it's sound, either prove it or find a sound solution
-      #[ allow( unsafe_code ) ]
-      unsafe { Some( &mut *( &mut self.tuple.0 as *mut E ) ) }
-    }
-    else
-    {
-      None
-    }
-  }
-}
-
 impl< E: Clone > VectorIter< E, 1 > for ( E, )
 {
+  #[ inline ]
   fn vector_iter< 'tuple_ref >( &'tuple_ref self ) -> impl VectorIteratorRef< 'tuple_ref, &'tuple_ref E >
   where
     E : 'tuple_ref,
   {
-    Tuple1Iter
-    {
-      tuple : self,
-      index : 0,
-    }
+    core::iter::once( &self.0 )
   }
 }
 
 impl< E: Clone > VectorIterMut< E, 1 > for ( E, )
 {
+  #[ inline ]
   fn vector_iter_mut< 'tuple_ref >( &'tuple_ref mut self ) -> impl VectorIterator< 'tuple_ref, &'tuple_ref mut E >
   where
     E : 'tuple_ref,
   {
-    Tuple1IterMut
-    {
-      tuple : self,
-      index : 0,
-    }
+    core::iter::once( &mut self.0 )
   }
 }

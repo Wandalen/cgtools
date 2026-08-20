@@ -8,14 +8,6 @@
 //! without re-walking the scene. Any change to revision (mutation), clock
 //! (tick), or camera invalidates the cache and forces a fresh emission.
 
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow
-(
-  clippy::default_trait_access,
-  clippy::too_many_lines,
-  clippy::float_cmp,
-) ]
-
 extern crate alloc;
 use alloc::sync::Arc;
 use rustc_hash::FxHashMap as HashMap;
@@ -39,6 +31,7 @@ use tilemap_scene::
   RenderSpec,
   Scene,
   SortMode,
+  SortYSource,
   SpriteRef,
   SpriteSource,
   TilingStrategy,
@@ -65,7 +58,7 @@ fn static_layer( asset : &str, frame : &str ) -> ObjectLayer
   }
 }
 
-fn build_spec() -> RenderSpec
+fn spec_build() -> RenderSpec
 {
   let mut grass_states = HashMap::default();
   grass_states.insert( "default".into(), vec![ static_layer( "terrain", "0" ) ] );
@@ -109,7 +102,7 @@ fn build_spec() -> RenderSpec
         anchor : Anchor::Hex,
         global_layer : "terrain".into(),
         priority : None,
-        sort_y_source : Default::default(),
+        sort_y_source : SortYSource::default(),
         pivot : ( 0.5, 0.5 ),
         default_state : "default".into(),
         states : grass_states,
@@ -120,7 +113,7 @@ fn build_spec() -> RenderSpec
         anchor : Anchor::Hex,
         global_layer : "terrain".into(),
         priority : None,
-        sort_y_source : Default::default(),
+        sort_y_source : SortYSource::default(),
         pivot : ( 0.5, 0.5 ),
         default_state : "default".into(),
         states : knight_states,
@@ -159,7 +152,7 @@ fn sprite_count( cmds : &[ RenderCommand ] ) -> usize
 #[ test ]
 fn idle_render_returns_cached_slice()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -183,7 +176,7 @@ fn idle_render_returns_cached_slice()
 #[ test ]
 fn many_idle_renders_all_hit_cache()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -213,7 +206,7 @@ fn many_idle_renders_all_hit_cache()
 #[ test ]
 fn first_render_is_a_miss()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let scene = Scene::new( Arc::new( spec ) );
 
@@ -233,7 +226,7 @@ fn first_render_is_a_miss()
 #[ test ]
 fn spawn_invalidates_cache_and_changes_output()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -260,7 +253,7 @@ fn spawn_invalidates_cache_and_changes_output()
 #[ test ]
 fn move_to_invalidates_cache()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -268,20 +261,20 @@ fn move_to_invalidates_cache()
   let camera = Camera::default();
 
   let _ = renderer.render( &scene, &camera ).expect( "prime" );
-  scene.move_to( h, Placement::Hex { q : 5, r : 5 } );
+  scene.placement_move( h, Placement::Hex { q : 5, r : 5 } );
   let hits_before = renderer.cache_hits();
   let _ = renderer.render( &scene, &camera ).expect( "after move" );
   assert_eq!
   (
     renderer.cache_hits(), hits_before,
-    "move_to must invalidate cache",
+    "placement_move must invalidate cache",
   );
 }
 
 #[ test ]
 fn despawn_invalidates_cache_and_drops_sprite()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -304,7 +297,7 @@ fn despawn_invalidates_cache_and_drops_sprite()
 #[ test ]
 fn set_tint_invalidates_cache()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -312,13 +305,13 @@ fn set_tint_invalidates_cache()
   let camera = Camera::default();
 
   let _ = renderer.render( &scene, &camera ).expect( "prime" );
-  scene.set_tint( h, Some( [ 0.5, 1.0, 1.0, 1.0 ] ) );
+  scene.tint_set( h, Some( [ 0.5, 1.0, 1.0, 1.0 ] ) );
   let hits_before = renderer.cache_hits();
   let _ = renderer.render( &scene, &camera ).expect( "after tint" );
   assert_eq!
   (
     renderer.cache_hits(), hits_before,
-    "set_tint must invalidate cache",
+    "tint_set must invalidate cache",
   );
 }
 
@@ -329,7 +322,7 @@ fn set_tint_invalidates_cache()
 #[ test ]
 fn tick_with_dt_invalidates_cache()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -350,7 +343,7 @@ fn tick_with_dt_invalidates_cache()
 #[ test ]
 fn tick_zero_keeps_cache_warm()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -379,7 +372,7 @@ fn tick_zero_keeps_cache_warm()
 #[ test ]
 fn camera_pan_hits_cache_and_replays_identically()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -407,7 +400,7 @@ fn camera_pan_hits_cache_and_replays_identically()
 #[ test ]
 fn camera_zoom_invalidates_cache()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -429,7 +422,7 @@ fn camera_zoom_invalidates_cache()
 #[ test ]
 fn camera_viewport_resize_invalidates_cache()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -457,7 +450,7 @@ fn camera_viewport_resize_invalidates_cache()
 #[ test ]
 fn cached_slice_is_byte_equal_to_priming_slice()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -488,7 +481,7 @@ fn cached_slice_is_byte_equal_to_priming_slice()
 #[ test ]
 fn miss_then_idle_hits_again()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -496,7 +489,7 @@ fn miss_then_idle_hits_again()
   let camera = Camera::default();
 
   let _ = renderer.render( &scene, &camera ).expect( "prime" );
-  scene.move_to( h, Placement::Hex { q : 1, r : 1 } );
+  scene.placement_move( h, Placement::Hex { q : 1, r : 1 } );
   let _ = renderer.render( &scene, &camera ).expect( "miss after mutation" );
   let hits_before = renderer.cache_hits();
   let _ = renderer.render( &scene, &camera ).expect( "idle hit" );
@@ -517,7 +510,7 @@ fn miss_then_idle_hits_again()
 // `UnbindBatch` for that batch are skipped entirely.
 // ────────────────────────────────────────────────────────────────────────────
 
-fn count_cmd< F : Fn( &RenderCommand ) -> bool >( cmds : &[ RenderCommand ], pred : F ) -> usize
+fn cmd_count< F : Fn( &RenderCommand ) -> bool >( cmds : &[ RenderCommand ], pred : F ) -> usize
 {
   cmds.iter().filter( | c | pred( c ) ).count()
 }
@@ -525,7 +518,7 @@ fn count_cmd< F : Fn( &RenderCommand ) -> bool >( cmds : &[ RenderCommand ], pre
 #[ test ]
 fn unchanged_batch_emits_no_set_on_cache_miss()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -545,19 +538,19 @@ fn unchanged_batch_emits_no_set_on_cache_miss()
 
   assert_eq!
   (
-    count_cmd( &cmds, | c | matches!( c, RenderCommand::SetSpriteInstance( _ ) ) ),
+    cmd_count( &cmds, | c | matches!( c, RenderCommand::SetSpriteInstance( _ ) ) ),
     0,
     "no instance content changed — Set must be elided entirely",
   );
   assert_eq!
   (
-    count_cmd( &cmds, | c | matches!( c, RenderCommand::BindBatch( _ ) ) ),
+    cmd_count( &cmds, | c | matches!( c, RenderCommand::BindBatch( _ ) ) ),
     0,
     "no diff to apply — BindBatch must be skipped",
   );
   assert_eq!
   (
-    count_cmd( &cmds, | c | matches!( c, RenderCommand::UnbindBatch( _ ) ) ),
+    cmd_count( &cmds, | c | matches!( c, RenderCommand::UnbindBatch( _ ) ) ),
     0,
     "no diff to apply — UnbindBatch must be skipped",
   );
@@ -569,10 +562,10 @@ fn single_move_emits_fewer_sets_than_full_repopulate()
   // Bit-equal elision provides a strict lower bound: at most one Set per
   // slot whose sprite payload actually differs between frames. Because
   // some compile passes iterate scene state in non-deterministic
-  // HashMap order (e.g. `build_scene_tiles` for tile_lookup), more than
-  // one slot may differ after a `move_to` — but it must never be the
+  // HashMap order (e.g. `scene_tiles_build` for tile_lookup), more than
+  // one slot may differ after a `placement_move` — but it must never be the
   // pre-optimisation N (= full common-prefix repopulate).
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -585,10 +578,10 @@ fn single_move_emits_fewer_sets_than_full_repopulate()
 
   let _ = renderer.render( &scene, &camera ).expect( "prime" );
 
-  scene.move_to( handles[ 2 ], Placement::Hex { q : 5, r : 5 } );
+  scene.placement_move( handles[ 2 ], Placement::Hex { q : 5, r : 5 } );
   let cmds = renderer.render( &scene, &camera ).expect( "after move" ).to_vec();
 
-  let sets = count_cmd( &cmds, | c | matches!( c, RenderCommand::SetSpriteInstance( _ ) ) );
+  let sets = cmd_count( &cmds, | c | matches!( c, RenderCommand::SetSpriteInstance( _ ) ) );
   assert!
   (
     sets >= 1,
@@ -604,7 +597,7 @@ fn single_move_emits_fewer_sets_than_full_repopulate()
 #[ test ]
 fn single_tint_change_emits_exactly_one_set()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();
@@ -617,12 +610,12 @@ fn single_tint_change_emits_exactly_one_set()
 
   let _ = renderer.render( &scene, &camera ).expect( "prime" );
 
-  scene.set_tint( handles[ 3 ], Some( [ 0.5, 1.0, 1.0, 1.0 ] ) );
+  scene.tint_set( handles[ 3 ], Some( [ 0.5, 1.0, 1.0, 1.0 ] ) );
   let cmds = renderer.render( &scene, &camera ).expect( "after tint" ).to_vec();
 
   assert_eq!
   (
-    count_cmd( &cmds, | c | matches!( c, RenderCommand::SetSpriteInstance( _ ) ) ),
+    cmd_count( &cmds, | c | matches!( c, RenderCommand::SetSpriteInstance( _ ) ) ),
     1,
     "one tile's tint changed → exactly one SetSpriteInstance",
   );
@@ -639,7 +632,7 @@ fn single_tint_change_emits_exactly_one_set()
 #[ test ]
 fn cleanup_emits_delete_for_every_live_batch()
 {
-  let spec = build_spec();
+  let spec = spec_build();
   let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
   let mut scene = Scene::new( Arc::new( spec ) );
   let grass = scene.object( "grass" ).unwrap();

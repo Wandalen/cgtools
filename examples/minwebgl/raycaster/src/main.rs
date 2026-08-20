@@ -1,6 +1,4 @@
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::cast_sign_loss ) ]
+//! Raycaster example — casts rays against scene geometry for collision and interaction with WebGL2.
 
 mod controls;
 
@@ -9,10 +7,32 @@ use controls::Controls;
 use minwebgl as gl;
 use gl::GL;
 
+/// One map tile's position/color record — `stride( 5 )` in `map_vao` covers all 5 `f32`
+/// fields, matching this struct's own ( `repr( C )`, no padding ) byte layout.
+#[ repr( C ) ]
+#[ derive( Debug, Default, Clone, Copy, gl::mem::Pod, gl::mem::Zeroable ) ]
+struct Vertex
+{
+  position : [ f32; 2 ],
+  color : [ f32; 3 ],
+}
+
+impl mingl::Attribute for Vertex
+{
+  fn describe() -> Vec< mingl::VertexAttribute >
+  {
+    vec!
+    [
+      mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 ),
+      mingl::VertexAttribute::new( 2, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 2 ),
+    ]
+  }
+}
+
 fn main()
 {
-  gl::browser::setup( Default::default() );
-  run();
+  gl::browser::setup( gl::browser::Config::default() );
+  app_run();
 }
 
 // screen width in pixels
@@ -39,7 +59,7 @@ const MAP : [ u8; MAP_SIDE * MAP_SIDE ] =
   1, 1, 1, 1, 1, 1, 1, 1,
 ];
 
-fn run()
+fn app_run()
 {
   let gl = gl::context::retrieve_or_make().unwrap();
   gl.clear_color( 0.3, 0.3, 0.3, 1. );
@@ -49,8 +69,11 @@ fn run()
   let slice         = include_str!( "shaders/slice.vert" );
   let fragment      = include_str!( "shaders/main.frag" );
 
-  // qqq : purpose of each shader? what is drawn by what?
-  // qqq : more documentatiion overall please
+  // All three share the same flat-color fragment shader and differ only in
+  // vertex layout/topology, matching what each draws below: point_shader
+  // draws the minimap tile dots and player dot (GL::POINTS), line_shader
+  // draws each ray on the minimap (GL::LINES), slice_shader draws the
+  // pseudo-3D wall column per ray — the actual raycast view (GL::TRIANGLE_STRIP).
 
   // shader for drawing points
   let point_shader  = gl::ProgramFromSources::new( point, fragment ).compile_and_link( &gl ).unwrap();
@@ -76,6 +99,8 @@ fn run()
 
   let loop_ = move | time |
   {
+    controls.borrow_mut().state_update();
+
     let time = ( time / 1000. ) as f32;
     let delta_time = time - last_time;
     last_time = time;
@@ -85,7 +110,7 @@ fn run()
     // if right - then clockwise
     // if none is pressed then rotation is 0
     angle += rotation_velocity * delta_time * controls.borrow().rotation_direction();
-    angle = wrap_angle( angle );
+    angle = angle_wrap( angle );
 
     // 1 is forward, -1 is backward
     let move_dir = controls.borrow().move_direction();
@@ -98,15 +123,15 @@ fn run()
       1.0 =>
       {
         // throw ray forward and check distance to an obstacle
-        let RayCollision { len, .. } = cast_ray( &player_pos, angle );
+        let RayCollision { len, .. } = ray_cast( player_pos, angle );
         // if an obstacle it too close then the movement is 0
         if len > 0.1 { 1.0 } else { 0.0 }
       }
       -1.0 =>
       {
         // thow ray backward and check distance to an obstacle
-        let angle = wrap_angle( consts::PI + angle );
-        let RayCollision { len, .. } = cast_ray( &player_pos, angle );
+        let angle = angle_wrap( consts::PI + angle );
+        let RayCollision { len, .. } = ray_cast( player_pos, angle );
         if len > 0.1 { -1.0 } else { 0.0 }
       }
       _ => 0.0
@@ -123,11 +148,11 @@ fn run()
     // inside this grid. we normalize player position
     // with map size len which is 8 and then move x coordinate
     // to left so it is on the left half of the screen
-    let posx = player_pos[ 0 ] / MAP_SIDE as f32 - 1.;
+    let pos_x = player_pos[ 0 ] / MAP_SIDE as f32 - 1.;
     // y coodinate should be flipped because map's y positive
     // direction is downwards
-    let posy = 1. - player_pos[ 1 ] / MAP_SIDE as f32 * 2.;
-    let player_pos_screen_space = [ posx, posy ];
+    let pos_y = 1. - player_pos[ 1 ] / MAP_SIDE as f32 * 2.;
+    let player_pos_screen_space = [ pos_x, pos_y ];
 
     // do raycasting
     rays.clear();
@@ -141,8 +166,8 @@ fn run()
       let ray_angle = ( i as f32 * step ).to_radians();
       // adjust ray angle to player angle and shift by half of the field of view
       let ray_angle = angle + ray_angle - ( fov / 2. ).to_radians();
-      let ray_angle = wrap_angle( ray_angle );
-      let RayCollision { pos, len } = cast_ray( &player_pos, ray_angle );
+      let ray_angle = angle_wrap( ray_angle );
+      let RayCollision { pos, len } = ray_cast( player_pos, ray_angle );
 
       // adjust len to remove fish-eye effect
       let len = len * ( ray_angle - angle ).cos();
@@ -227,32 +252,24 @@ fn map_vao( gl : &GL ) -> gl::WebGlVertexArrayObject
 
     // screen-space coordinates of a tile
     // shifted to the left part of the screen
-    let posx = ( -WIDTH / 2. + CELL_SIZE * ( col + 0.5 ) ) / ( WIDTH / 2. );
-    let posy = ( HEIGHT / 2. - CELL_SIZE * ( row + 0.5 ) ) / ( HEIGHT / 2. );
+    let pos_x = ( -WIDTH / 2. + CELL_SIZE * ( col + 0.5 ) ) / ( WIDTH / 2. );
+    let pos_y = ( HEIGHT / 2. - CELL_SIZE * ( row + 0.5 ) ) / ( HEIGHT / 2. );
 
-    data.push( posx );
-    data.push( posy );
-    data.push( color[ 0 ] );
-    data.push( color[ 1 ] );
-    data.push( color[ 2 ] );
+    data.push( Vertex { position : [ pos_x, pos_y ], color } );
   }
 
   let buf = gl::buffer::create( gl ).unwrap();
-  gl::upload( gl, &buf, data.as_slice(), GL::STATIC_DRAW );
+  // Fully qualified because `minwebgl`'s `buffer` and `index` layers both
+  // expose an `upload` fn, making the crate-root glob-imported `gl::upload`
+  // ambiguous (E0659). This buffer is used as a vertex attribute source via
+  // `attribute_pointer` below, so `buffer::upload` (ARRAY_BUFFER) is correct.
+  gl::buffer::upload( gl, &buf, data.as_slice(), GL::STATIC_DRAW );
 
   let vao = gl::vao::create( gl ).unwrap();
   gl.bind_vertex_array( Some( &vao ) );
 
-  gl::BufferDescriptor::new::< [ f32; 2 ] >()
-  .offset( 0 )
-  .stride( 5 )
-  .attribute_pointer( gl, 0, &buf )
-  .unwrap();
-  gl::BufferDescriptor::new::< [ f32; 3 ] >()
-  .offset( 2 )
-  .stride( 5 )
-  .attribute_pointer( gl, 2, &buf )
-  .unwrap();
+  let vertex_layout = mingl::VertexBufferLayout::from_attribute::< Vertex >( 5 );
+  gl::vertex_buffer_layout_bind( gl, &buf, &vertex_layout ).unwrap();
 
   gl.bind_vertex_array( None );
 
@@ -260,7 +277,7 @@ fn map_vao( gl : &GL ) -> gl::WebGlVertexArrayObject
 }
 
 // algorithm explanation - https://www.youtube.com/watch?v=NbSee-XM7WA&t=1574s&ab_channel=javidx9
-fn cast_ray( start : &[ f32; 2 ], angle : f32 ) -> RayCollision
+fn ray_cast( start : [ f32; 2 ], angle : f32 ) -> RayCollision
 {
   let direction = direction( angle );
 
@@ -351,7 +368,7 @@ fn direction( angle : f32 ) -> [ f32; 2 ]
 }
 
 // wrap angle between 0 and 2PI
-fn wrap_angle( val : f32 ) -> f32
+fn angle_wrap( val : f32 ) -> f32
 {
   if val < 0.0
   {

@@ -1,5 +1,3 @@
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::field_reassign_with_default ) ]
 
 use minwebgl as gl;
 use renderer::webgl::{ PointLight, DirectLight, Light, Node, Object3D, Renderer };
@@ -13,10 +11,10 @@ use std::{ rc::Rc, cell::RefCell };
 
 use crate::lil_gui::
 {
-  add_slider,
-  add_color,
-  add_dropdown,
-  new_gui,
+  slider_add,
+  color_add,
+  dropdown_add,
+  gui_new,
   on_change,
   on_finish_change,
   show
@@ -64,7 +62,7 @@ pub struct Settings
 
 impl Settings
 {
-  fn get_controllable_light_position( &self ) -> F32x3
+  fn controllable_light_position_get( &self ) -> F32x3
   {
     F32x3::from_spherical
     (
@@ -95,48 +93,9 @@ impl Default for Settings
   }
 }
 
-/// Setup UI for PBR lighting example
-///
-/// Arguments:
-///
-/// - lights - shared link on animated light sources that can be controlled
-/// - controllable_light - shared link on light source with configurable parameters
-///
-/// Shared link are used to update parameters by UI and animate light sources in main loop
-pub fn setup
-(
-  renderer : Rc< RefCell< Renderer > >,
-  mut lights : Vec< Rc< RefCell< Node > > >,
-  controllable_light : Rc< RefCell< Node > >
-)
--> Option< Rc< RefCell< Settings > > >
+/// Fills the controllable-light settings from the light's current parameters.
+fn settings_from_light_init( light : &Light, settings : &mut Settings )
 {
-  if lights.iter()
-  .any( | n | if let Object3D::Light( _ ) = n.borrow().object { false } else { true } )
-  {
-    return None;
-  }
-
-  let Object3D::Light( light ) = &controllable_light.borrow().object
-  else
-  {
-    return None;
-  };
-
-  let controllable_name = controllable_light.borrow().get_name().unwrap();
-  lights.retain( | n | n.borrow().get_name() != Some( controllable_name.clone() ) );
-  let points = lights.iter().cloned()
-  .filter( | n | if let Object3D::Light( Light::Point( _ ) ) = n.borrow().object { true } else { false } )
-  .collect::< Vec< _ > >();
-  let directs = lights.iter().cloned()
-  .filter( | n | if let Object3D::Light( Light::Direct( _ ) ) = n.borrow().object { true } else { false } )
-  .collect::< Vec< _ > >();
-
-  let mut settings = Settings::default();
-  settings.bloom_radius = renderer.borrow().bloom_radius();
-  settings.bloom_strength = renderer.borrow().bloom_strength();
-  settings.exposure = renderer.borrow().exposure();
-
   match light
   {
     Light::Point( point_light ) =>
@@ -162,55 +121,183 @@ pub fn setup
     }
     Light::Spot( _ ) => {}
   }
+}
 
-  let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
-  let gui = new_gui();
-
-  let settings = Rc::new( RefCell::new( settings ) );
-
-  // Bloom and exposure controls
-  let prop = add_slider( &gui, &object, "bloomRadius", 0.0, 1.0, 0.01 );
+/// Adds the bloom radius, bloom strength, and exposure sliders wired to the renderer.
+fn renderer_sliders_setup( gui : &JsValue, object : &JsValue, renderer : &Rc< RefCell< Renderer > > )
+{
+  let prop = slider_add( gui, object, "bloomRadius", 0.0, 1.0, 0.01 );
   let callback = Closure::new
   (
     {
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_bloom_radius( value );
+        renderer.borrow_mut().bloom_radius_set( value );
       }
     }
   );
   on_change( &prop, &callback );
   callback.forget();
 
-  let prop = add_slider( &gui, &object, "bloomStrength", 0.0, 10.0, 0.1 );
+  let prop = slider_add( gui, object, "bloomStrength", 0.0, 10.0, 0.1 );
   let callback = Closure::new
   (
     {
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_bloom_strength( value );
+        renderer.borrow_mut().bloom_strength_set( value );
       }
     }
   );
   on_change( &prop, &callback );
   callback.forget();
 
-  let prop = add_slider( &gui, &object, "exposure", -10.0, 10.0, 0.1 );
+  let prop = slider_add( gui, object, "exposure", -10.0, 10.0, 0.1 );
   let callback = Closure::new
   (
     {
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_exposure( value );
+        renderer.borrow_mut().exposure_set( value );
       }
     }
   );
   on_change( &prop, &callback );
   callback.forget();
+}
 
+/// Zeroes out the controllable light's strength whatever its current variant is.
+fn controllable_light_mute( controllable_light : &Rc< RefCell< Node > > )
+{
+  if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
+  {
+    match light
+    {
+      Light::Direct( direct ) =>
+      {
+        direct.strength = 0.0;
+      },
+      Light::Point( point ) =>
+      {
+        point.strength = 0.0;
+        point.range = 0.0;
+      },
+      Light::Spot( spot ) =>
+      {
+        spot.strength = 0.0;
+      },
+    }
+  }
+}
+
+/// Sets every animated direct light's strength.
+fn direct_strengths_set( directs : &[ Rc< RefCell< Node > > ], strength : f32 )
+{
+  for direct in directs
+  {
+    if let Object3D::Light( Light::Direct( direct ) ) = &mut direct.borrow_mut().object
+    {
+      direct.strength = strength;
+    }
+  }
+}
+
+/// Sets every animated point light's strength and range.
+fn point_strengths_set( points : &[ Rc< RefCell< Node > > ], strength : f32, range : f32 )
+{
+  for point in points
+  {
+    if let Object3D::Light( Light::Point( point ) ) = &mut point.borrow_mut().object
+    {
+      point.strength = strength;
+      point.range = range;
+    }
+  }
+}
+
+/// Activates the animated direct lights, muting the point rig and the controllable light.
+fn direct_mode_apply( points : &[ Rc< RefCell< Node > > ], directs : &[ Rc< RefCell< Node > > ], controllable_light : &Rc< RefCell< Node > > )
+{
+  controllable_light_mute( controllable_light );
+  point_strengths_set( points, 0.0, 0.0 );
+  direct_strengths_set( directs, 50.0 );
+}
+
+/// Activates the animated point lights, muting the direct rig and the controllable light.
+fn point_mode_apply( points : &[ Rc< RefCell< Node > > ], directs : &[ Rc< RefCell< Node > > ], controllable_light : &Rc< RefCell< Node > > )
+{
+  controllable_light_mute( controllable_light );
+  direct_strengths_set( directs, 0.0 );
+  point_strengths_set( points, 100.0, 10.0 );
+}
+
+/// Switches the controllable light to a direct light built from the current settings, muting the animated rigs.
+fn controllable_direct_mode_apply
+(
+  points : &[ Rc< RefCell< Node > > ],
+  directs : &[ Rc< RefCell< Node > > ],
+  controllable_light : &Rc< RefCell< Node > >,
+  settings : &Rc< RefCell< Settings > >,
+)
+{
+  direct_strengths_set( directs, 0.0 );
+  point_strengths_set( points, 0.0, 0.0 );
+
+  if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
+  {
+    *light = Light::Direct
+    (
+      DirectLight
+      {
+        direction : settings.borrow().controllable_light_position_get(),
+        color : F32x3::from_array( settings.borrow().light_color ),
+        strength : settings.borrow().light_strength
+      }
+    );
+  }
+}
+
+/// Switches the controllable light to a point light built from the current settings, muting the animated rigs.
+fn controllable_point_mode_apply
+(
+  points : &[ Rc< RefCell< Node > > ],
+  directs : &[ Rc< RefCell< Node > > ],
+  controllable_light : &Rc< RefCell< Node > >,
+  settings : &Rc< RefCell< Settings > >,
+)
+{
+  direct_strengths_set( directs, 0.0 );
+  point_strengths_set( points, 0.0, 0.0 );
+
+  if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
+  {
+    *light = Light::Point
+    (
+      PointLight
+      {
+        position : settings.borrow().controllable_light_position_get(),
+        color : F32x3::from_array( settings.borrow().light_color ),
+        strength : settings.borrow().light_strength,
+        range : settings.borrow().light_range
+      }
+    );
+  }
+}
+
+/// Adds the light mode dropdown that switches between the animated and controllable lighting rigs.
+fn light_mode_dropdown_setup
+(
+  gui : &JsValue,
+  object : &JsValue,
+  points : Vec< Rc< RefCell< Node > > >,
+  directs : Vec< Rc< RefCell< Node > > >,
+  controllable_light : &Rc< RefCell< Node > >,
+  settings : &Rc< RefCell< Settings > >,
+)
+{
   let light_modes = vec!
   [
     LightMode::Direct,
@@ -219,11 +306,10 @@ pub fn setup
     LightMode::ControllablePoint
   ];
 
-  // Lighting mode
-  let prop = add_dropdown
+  let prop = dropdown_add
   (
-    &gui,
-    &object,
+    gui,
+    object,
     "lightMode",
     &serde_wasm_bindgen::to_value( light_modes.as_slice() ).unwrap()
   );
@@ -231,8 +317,6 @@ pub fn setup
   let callback = Closure::new
   (
     {
-      let points = points.clone();
-      let directs = directs.clone();
       let controllable_light = controllable_light.clone();
       let settings = settings.clone();
       move | value : JsValue |
@@ -244,175 +328,22 @@ pub fn setup
           {
             LightMode::Direct =>
             {
-              if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
-              {
-                match light
-                {
-                  Light::Direct( direct ) =>
-                  {
-                    direct.strength = 0.0;
-                  },
-                  Light::Point( point ) =>
-                  {
-                    point.strength = 0.0;
-                    point.range = 0.0;
-                  },
-                  Light::Spot( spot ) =>
-                  {
-                    spot.strength = 0.0;
-                  },
-                }
-              }
-
-              for point in &points
-              {
-                if let Object3D::Light( light ) = &mut point.borrow_mut().object
-                {
-                  if let Light::Point( point ) = light
-                  {
-                    point.strength = 0.0;
-                    point.range = 0.0;
-                  }
-                }
-              }
-
-              for direct in &directs
-              {
-                if let Object3D::Light( light ) = &mut direct.borrow_mut().object
-                {
-                  if let Light::Direct( direct ) = light
-                  {
-                    direct.strength = 50.0;
-                  }
-                }
-              }
+              direct_mode_apply( &points, &directs, &controllable_light );
             },
             LightMode::Point =>
             {
               settings.borrow_mut().light_mode = LightMode::Point;
-              if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
-              {
-                match light
-                {
-                  Light::Direct( direct ) =>
-                  {
-                    direct.strength = 0.0;
-                  },
-                  Light::Point( point ) =>
-                  {
-                    point.strength = 0.0;
-                    point.range = 0.0;
-                  },
-                  Light::Spot( spot ) =>
-                  {
-                    spot.strength = 0.0;
-                  },
-                }
-              }
-
-              for direct in &directs
-              {
-                if let Object3D::Light( light ) = &mut direct.borrow_mut().object
-                {
-                  if let Light::Direct( direct ) = light
-                  {
-                    direct.strength = 0.0;
-                  }
-                }
-              }
-
-              for point in &points
-              {
-                if let Object3D::Light( light ) = &mut point.borrow_mut().object
-                {
-                  if let Light::Point( point ) = light
-                  {
-                    point.strength = 100.0;
-                    point.range = 10.0;
-                  }
-                }
-              }
+              point_mode_apply( &points, &directs, &controllable_light );
             },
             LightMode::ControllableDirect =>
             {
               settings.borrow_mut().light_mode = LightMode::ControllableDirect;
-
-              for direct in &directs
-              {
-                if let Object3D::Light( light ) = &mut direct.borrow_mut().object
-                {
-                  if let Light::Direct( direct ) = light
-                  {
-                    direct.strength = 0.0;
-                  }
-                }
-              }
-
-              for point in &points
-              {
-                if let Object3D::Light( light ) = &mut point.borrow_mut().object
-                {
-                  if let Light::Point( point ) = light
-                  {
-                    point.strength = 0.0;
-                    point.range = 0.0;
-                  }
-                }
-              }
-
-              if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
-              {
-                *light = Light::Direct
-                (
-                  DirectLight
-                  {
-                    direction : settings.borrow().get_controllable_light_position(),
-                    color : F32x3::from_array( settings.borrow().light_color ),
-                    strength : settings.borrow().light_strength
-                  }
-                );
-              }
+              controllable_direct_mode_apply( &points, &directs, &controllable_light, &settings );
             },
             LightMode::ControllablePoint =>
             {
               settings.borrow_mut().light_mode = LightMode::ControllablePoint;
-
-              for direct in &directs
-              {
-                if let Object3D::Light( light ) = &mut direct.borrow_mut().object
-                {
-                  if let Light::Direct( direct ) = light
-                  {
-                    direct.strength = 0.0;
-                  }
-                }
-              }
-
-              for point in &points
-              {
-                if let Object3D::Light( light ) = &mut point.borrow_mut().object
-                {
-                  if let Light::Point( point ) = light
-                  {
-                    point.strength = 0.0;
-                    point.range = 0.0;
-                  }
-                }
-              }
-
-              if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
-              {
-                *light = Light::Point
-                (
-                  PointLight
-                  {
-                    position : settings.borrow().get_controllable_light_position(),
-                    color : F32x3::from_array( settings.borrow().light_color ),
-                    strength : settings.borrow().light_strength,
-                    range : settings.borrow().light_range
-                  }
-                );
-              }
+              controllable_point_mode_apply( &points, &directs, &controllable_light, &settings );
             }
           }
         }
@@ -421,9 +352,21 @@ pub fn setup
   );
   on_finish_change( &prop, &callback );
   callback.forget();
+}
 
-  // Controllable light pitch slider
-  let prop = add_slider( &gui, &object, "lightPitch", 0.0, 360.0, 0.1 );
+/// Adds one spherical-coordinate slider that repositions the controllable light from the settings.
+fn position_slider_add
+(
+  gui : &JsValue,
+  object : &JsValue,
+  name : &str,
+  range : ( f64, f64, f64 ),
+  controllable_light : &Rc< RefCell< Node > >,
+  settings : &Rc< RefCell< Settings > >,
+  field : fn( &mut Settings ) -> &mut f32,
+)
+{
+  let prop = slider_add( gui, object, name, range.0, range.1, range.2 );
   let callback = Closure::new
   (
     {
@@ -431,90 +374,23 @@ pub fn setup
       let settings = settings.clone();
       move | value : f32 |
       {
-        settings.borrow_mut().light_pitch = value;
+        *field( &mut settings.borrow_mut() ) = value;
+        let position = settings.borrow().controllable_light_position_get();
         if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
         {
           match light
           {
             Light::Direct( direct ) =>
             {
-              direct.direction = settings.borrow().get_controllable_light_position();
+              direct.direction = position;
             },
             Light::Point( point ) =>
             {
-              point.position = settings.borrow().get_controllable_light_position();
-            },
-            Light::Spot( _spot ) =>
-            {
-              // TODO: add later
-            },
-          }
-        }
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
-
-  // Controllable light yaw slider
-  let prop = add_slider( &gui, &object, "lightYaw", -80.0, 80.0, 0.1 );
-  let callback = Closure::new
-  (
-    {
-      let controllable_light = controllable_light.clone();
-      let settings = settings.clone();
-      move | value : f32 |
-      {
-        settings.borrow_mut().light_yaw = value;
-        if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
-        {
-          match light
-          {
-            Light::Direct( direct ) =>
-            {
-              direct.direction = settings.borrow().get_controllable_light_position();
-            },
-            Light::Point( point ) =>
-            {
-              point.position = settings.borrow().get_controllable_light_position();
-            },
-            Light::Spot( _spot ) =>
-            {
-              // TODO: add later
-            }
-          }
-        }
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
-
-  // Controllable light distance slider
-  let prop = add_slider( &gui, &object, "lightDistance", 0.01, 5.0, 0.01 );
-  let callback = Closure::new
-  (
-    {
-      let controllable_light = controllable_light.clone();
-      let settings = settings.clone();
-      move | value : f32 |
-      {
-        settings.borrow_mut().light_distance = value;
-        if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
-        {
-          match light
-          {
-            Light::Direct( direct ) =>
-            {
-              direct.direction = settings.borrow().get_controllable_light_position();
-            },
-            Light::Point( point ) =>
-            {
-              point.position = settings.borrow().get_controllable_light_position();
+              point.position = position;
             },
             Light::Spot( spot ) =>
             {
-              spot.position = F32x3::from_spherical( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
+              spot.position = position;
             },
           }
         }
@@ -523,9 +399,12 @@ pub fn setup
   );
   on_change( &prop, &callback );
   callback.forget();
+}
 
-  // Controllable light color
-  let prop = add_color( &gui, &object, "lightColor" );
+/// Adds the color picker wired to the controllable light's color.
+fn color_control_add( gui : &JsValue, object : &JsValue, controllable_light : &Rc< RefCell< Node > >, settings : &Rc< RefCell< Settings > > )
+{
+  let prop = color_add( gui, object, "lightColor" );
   let callback = Closure::new
   (
     {
@@ -560,9 +439,12 @@ pub fn setup
   );
   on_finish_change( &prop, &callback );
   callback.forget();
+}
 
-  // Controllable light strength
-  let prop = add_slider( &gui, &object, "lightStrength", 0.0, 1000.0, 1.0 );
+/// Adds the strength slider wired to the controllable light's intensity.
+fn strength_slider_add( gui : &JsValue, object : &JsValue, controllable_light : &Rc< RefCell< Node > >, settings : &Rc< RefCell< Settings > > )
+{
+  let prop = slider_add( gui, object, "lightStrength", 0.0, 1000.0, 1.0 );
   let callback = Closure::new
   (
     {
@@ -594,9 +476,12 @@ pub fn setup
   );
   on_change( &prop, &callback );
   callback.forget();
+}
 
-  // Controllable light range (for point lights)
-  let prop = add_slider( &gui, &object, "lightRange", 0.1, 50.0, 0.1 );
+/// Adds the range slider affecting the controllable light when it is a point light.
+fn range_slider_add( gui : &JsValue, object : &JsValue, controllable_light : &Rc< RefCell< Node > >, settings : &Rc< RefCell< Settings > > )
+{
+  let prop = slider_add( gui, object, "lightRange", 0.1, 50.0, 0.1 );
   let callback = Closure::new
   (
     {
@@ -605,18 +490,87 @@ pub fn setup
       move | value : f32 |
       {
         settings.borrow_mut().light_range = value;
-        if let Object3D::Light( light ) = &mut controllable_light.borrow_mut().object
+        if let Object3D::Light( Light::Point( point ) ) = &mut controllable_light.borrow_mut().object
         {
-          if let Light::Point( point ) = light
-          {
-            point.range = value;
-          }
+          point.range = value;
         }
       }
     }
   );
   on_change( &prop, &callback );
   callback.forget();
+}
+
+/// Setup UI for PBR lighting example
+///
+/// Arguments:
+///
+/// - lights - shared link on animated light sources that can be controlled
+/// - controllable_light - shared link on light source with configurable parameters
+///
+/// Shared link are used to update parameters by UI and animate light sources in main loop
+pub fn setup
+(
+  renderer : &Rc< RefCell< Renderer > >,
+  mut lights : Vec< Rc< RefCell< Node > > >,
+  controllable_light : &Rc< RefCell< Node > >
+)
+-> Option< Rc< RefCell< Settings > > >
+{
+  if lights.iter()
+  .any( | n | !matches!( n.borrow().object, Object3D::Light( _ ) ) )
+  {
+    return None;
+  }
+
+  let Object3D::Light( light ) = &controllable_light.borrow().object
+  else
+  {
+    return None;
+  };
+
+  let controllable_name = controllable_light.borrow().name_get().unwrap();
+  lights.retain( | n | n.borrow().name_get() != Some( controllable_name.clone() ) );
+  let points = lights.iter().filter( |& n | matches!( n.borrow().object, Object3D::Light( Light::Point( _ ) ) ) ).cloned()
+  .collect::< Vec< _ > >();
+  let directs = lights.iter().filter( |& n | matches!( n.borrow().object, Object3D::Light( Light::Direct( _ ) ) ) ).cloned()
+  .collect::< Vec< _ > >();
+
+  let mut settings = Settings::default();
+  settings.bloom_radius = renderer.borrow().bloom_radius();
+  settings.bloom_strength = renderer.borrow().bloom_strength();
+  settings.exposure = renderer.borrow().exposure();
+
+  settings_from_light_init( light, &mut settings );
+
+  let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
+  let gui = gui_new();
+
+  let settings = Rc::new( RefCell::new( settings ) );
+
+  // Bloom and exposure controls
+  renderer_sliders_setup( &gui, &object, renderer );
+
+  // Lighting mode
+  light_mode_dropdown_setup( &gui, &object, points, directs, controllable_light, &settings );
+
+  // Controllable light pitch slider
+  position_slider_add( &gui, &object, "lightPitch", ( 0.0, 360.0, 0.1 ), controllable_light, &settings, | s | &mut s.light_pitch );
+
+  // Controllable light yaw slider
+  position_slider_add( &gui, &object, "lightYaw", ( -80.0, 80.0, 0.1 ), controllable_light, &settings, | s | &mut s.light_yaw );
+
+  // Controllable light distance slider
+  position_slider_add( &gui, &object, "lightDistance", ( 0.01, 5.0, 0.01 ), controllable_light, &settings, | s | &mut s.light_distance );
+
+  // Controllable light color
+  color_control_add( &gui, &object, controllable_light, &settings );
+
+  // Controllable light strength
+  strength_slider_add( &gui, &object, controllable_light, &settings );
+
+  // Controllable light range (for point lights)
+  range_slider_add( &gui, &object, controllable_light, &settings );
 
   std::mem::forget( object );
 

@@ -73,14 +73,14 @@ mod private
 
     /// Loads, parses, and validates a scene from a file on disk.
     ///
-    /// Scene-internal validation is not yet implemented (see [`Validate`]
-    /// for the trait-level note); cross-file Scene → `RenderSpec` checks run
-    /// in a separate pass.
+    /// Scene-internal validation covers a partial subset of SPEC §16 (see
+    /// [`Validate`] for the trait-level note and the per-type rule list);
+    /// cross-file Scene → RenderSpec checks run in a separate pass.
     ///
     /// # Errors
     ///
     /// Same as [`RenderSpec::load`], plus scene-specific validation failures
-    /// once Scene-side SPEC §16 rules are enforced.
+    /// for the Scene-side SPEC §16 rules currently enforced.
     #[ inline ]
     pub fn load( path : impl AsRef< Path > ) -> Result< Self, LoadError >
     {

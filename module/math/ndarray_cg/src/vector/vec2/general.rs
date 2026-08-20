@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate::{Vector, MatEl};
   //use vector::arithmetics::inner_product::*;
 
   impl< E > Vector< E, 2 >

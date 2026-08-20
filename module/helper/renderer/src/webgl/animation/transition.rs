@@ -40,6 +40,7 @@ mod private
   impl Transition
   {
     /// Create new [`Transition`]
+    #[ must_use ]
     pub fn new
     (
       start : Sequencer,
@@ -57,6 +58,7 @@ mod private
     }
 
     /// Get reference to underlying start [`Sequencer`]
+    #[ must_use ]
     pub fn start_ref( &self ) -> &Sequencer
     {
       &self.start
@@ -69,6 +71,7 @@ mod private
     }
 
     /// Get reference to underlying end [`Sequencer`]
+    #[ must_use ]
     pub fn end_ref( &self ) -> &Sequencer
     {
       &self.end
@@ -81,6 +84,7 @@ mod private
     }
 
     /// Get reference to underlying [`Tween< f64 >`]
+    #[ must_use ]
     pub fn tween( &self ) -> &Tween< f64 >
     {
       &self.tween
@@ -98,6 +102,49 @@ mod private
       self.start.reset();
       self.end.reset();
       self.tween.reset();
+    }
+
+    /// Samples the current value of a vector channel ( translation or scale ) from one
+    /// endpoint [`Sequencer`], converted to `f32` precision.
+    fn vector_channel( sequencer : &Sequencer, key : &str ) -> Option< F32x3 >
+    {
+      let mut value = None;
+      if let Some( sequence ) = sequencer.get::< Sequence< Tween< F64x3 > > >( key )
+      {
+        if let Some( tween ) = sequence.current_get()
+        {
+          value = Some( F32x3::from_array( tween.value_get().0.map( | v | v as f32 ) ) );
+        }
+      }
+      value
+    }
+
+    /// Samples the current value of the rotation channel from one endpoint [`Sequencer`],
+    /// converted to `f32` precision.
+    fn quat_channel( sequencer : &Sequencer, key : &str ) -> Option< QuatF32 >
+    {
+      let mut value = None;
+      if let Some( sequence ) = sequencer.get::< Sequence< Tween< QuatF64 > > >( key )
+      {
+        if let Some( tween ) = sequence.current_get()
+        {
+          value = Some( QuatF32::from( tween.value_get().0.map( | v | v as f32 ) ) );
+        }
+      }
+      value
+    }
+
+    /// Blends the two endpoint samples of one channel : interpolates at `t` when both
+    /// endpoints animate it, passes a single endpoint's value through unchanged.
+    fn blend< V : Animatable >( a : Option< V >, b : Option< V >, t : f64 ) -> Option< V >
+    {
+      match ( a, b )
+      {
+        ( Some( a ), Some( b ) ) => Some( a.interpolate( &b, t ) ),
+        ( Some( a ), None ) => Some( a ),
+        ( None, Some( b ) ) => Some( b ),
+        ( None, None ) => None
+      }
     }
   }
 
@@ -141,126 +188,40 @@ mod private
 
       for ( name, node ) in nodes
       {
-        let ( mut a, mut b ) = ( None, None );
-        if let Some( translation ) = self.start.get::< Sequence< Tween< F64x3 > > >
+        let key = format!( "{name}{TRANSLATION_PREFIX}" );
+        let translation = Self::blend
         (
-          &format!( "{}{}", name, TRANSLATION_PREFIX )
-        )
-        {
-          if let Some( translation ) = translation.current_get()
-          {
-            let translation = translation.value_get().0.map( | v | v as f32 );
-            a = Some( F32x3::from_array( translation ) );
-          }
-        }
-
-        if let Some( translation ) = self.end.get::< Sequence< Tween< F64x3 > > >
-        (
-          &format!( "{}{}", name, TRANSLATION_PREFIX )
-        )
-        {
-          if let Some( translation ) = translation.current_get()
-          {
-            let translation = translation.value_get().0.map( | v | v as f32 );
-            b = Some( F32x3::from_array( translation ) );
-          }
-        }
-
-        let translation = match ( a, b )
-        {
-          ( Some( a ), Some( b ) ) =>
-          {
-            Some( a.interpolate( &b, t ) )
-          },
-          ( Some( a ), None ) => Some( a ),
-          ( None, Some( b ) ) => Some( b ),
-          ( None, None ) => None
-        };
+          Self::vector_channel( &self.start, &key ),
+          Self::vector_channel( &self.end, &key ),
+          t
+        );
         if let Some( translation ) = translation
         {
-          node.borrow_mut().set_translation( translation );
+          node.borrow_mut().translation_set( translation );
         }
 
-        let ( mut a, mut b ) = ( None, None );
-        if let Some( rotation ) = self.start.get::< Sequence< Tween< QuatF64 > > >
+        let key = format!( "{name}{ROTATION_PREFIX}" );
+        let rotation = Self::blend
         (
-          &format!( "{}{}", name, ROTATION_PREFIX )
-        )
-        {
-          if let Some( rotation ) = rotation.current_get()
-          {
-            let rotation = rotation.value_get().0.map( | v | v as f32 );
-            a = Some( QuatF32::from( rotation ) );
-          }
-        }
-
-        if let Some( rotation ) = self.end.get::< Sequence< Tween< QuatF64 > > >
-        (
-          &format!( "{}{}", name, ROTATION_PREFIX )
-        )
-        {
-          if let Some( rotation ) = rotation.current_get()
-          {
-            let rotation = rotation.value_get().0.map( | v | v as f32 );
-            b = Some( QuatF32::from( rotation ) );
-          }
-        }
-
-        let rotation = match ( a, b )
-        {
-          ( Some( a ), Some( b ) ) =>
-          {
-            Some( a.interpolate( &b, t ) )
-          },
-          ( Some( a ), None ) => Some( a ),
-          ( None, Some( b ) ) => Some( b ),
-          ( None, None ) => None
-        };
-
+          Self::quat_channel( &self.start, &key ),
+          Self::quat_channel( &self.end, &key ),
+          t
+        );
         if let Some( rotation ) = rotation
         {
-          node.borrow_mut().set_rotation( rotation );
+          node.borrow_mut().rotation_set( rotation );
         }
 
-        let ( mut a, mut b ) = ( None, None );
-        if let Some( scale ) = self.start.get::< Sequence< Tween< F64x3 > > >
+        let key = format!( "{name}{SCALE_PREFIX}" );
+        let scale = Self::blend
         (
-          &format!( "{}{}", name, SCALE_PREFIX )
-        )
-        {
-          if let Some( scale ) = scale.current_get()
-          {
-            let scale = scale.value_get().0.map( | v | v as f32 );
-            a = Some( F32x3::from_array( scale ) );
-          }
-        }
-
-        if let Some( scale ) = self.end.get::< Sequence< Tween< F64x3 > > >
-        (
-          &format!( "{}{}", name, SCALE_PREFIX )
-        )
-        {
-          if let Some( scale ) = scale.current_get()
-          {
-            let scale = scale.value_get().0.map( | v | v as f32 );
-            b = Some( F32x3::from_array( scale ) );
-          }
-        }
-
-        let scale = match ( a, b )
-        {
-          ( Some( a ), Some( b ) ) =>
-          {
-            Some( a.interpolate( &b, t ) )
-          },
-          ( Some( a ), None ) => Some( a ),
-          ( None, Some( b ) ) => Some( b ),
-          ( None, None ) => None
-        };
-
+          Self::vector_channel( &self.start, &key ),
+          Self::vector_channel( &self.end, &key ),
+          t
+        );
         if let Some( scale ) = scale
         {
-          node.borrow_mut().set_scale( scale );
+          node.borrow_mut().scale_set( scale );
         }
       }
     }

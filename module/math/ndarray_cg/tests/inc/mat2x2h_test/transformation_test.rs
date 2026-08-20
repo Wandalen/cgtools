@@ -30,7 +30,7 @@ fn test_translate()
   ]);
   let got = the_module::mat2x2h::translate( [ tx, ty ] );
   assert_eq!( got, exp );
-  let got = the_module::mat2x2h::translate( &[ tx, ty ] );
+  let got = the_module::mat2x2h::translate( [ tx, ty ] );
   assert_eq!( got, exp );
 }
 
@@ -47,7 +47,7 @@ fn test_scale()
   ]);
   let got = the_module::mat2x2h::scale( [ sx, sy ] );
   assert_eq!( got, exp );
-  let got = the_module::mat2x2h::scale( &[ sx, sy ] );
+  let got = the_module::mat2x2h::scale( [ sx, sy ] );
   assert_eq!( got, exp );
 }
 
@@ -64,7 +64,7 @@ fn test_shear()
   ]);
   let got = the_module::mat2x2h::shear( [ shx, shy ] );
   assert_eq!( got, exp );
-  let got = the_module::mat2x2h::shear( &[ shx, shy ] );
+  let got = the_module::mat2x2h::shear( [ shx, shy ] );
   assert_eq!( got, exp );
 }
 
@@ -110,7 +110,7 @@ fn test_rot_around_point()
   ]);
   let got = the_module::mat2x2h::rot_around_point( angle, [ px, py ] );
   assert_eq!( got, exp );
-  let got = the_module::mat2x2h::rot_around_point( angle, &[ px, py ] );
+  let got = the_module::mat2x2h::rot_around_point( angle, [ px, py ] );
   assert_eq!( got, exp );
 }
 
@@ -129,6 +129,6 @@ fn test_scale_relative_to_point()
   ]);
   let got = the_module::mat2x2h::scale_relative_to_point( [ sx, sy ], [ px, py ] );
   assert_eq!( got, exp );
-  let got = the_module::mat2x2h::scale_relative_to_point( &[ sx, sy ], &[ px, py ] );
+  let got = the_module::mat2x2h::scale_relative_to_point( [ sx, sy ], [ px, py ] );
   assert_eq!( got, exp );
 }

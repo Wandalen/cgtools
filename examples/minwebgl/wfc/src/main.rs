@@ -10,61 +10,18 @@
 //! the source.
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::assign_op_pattern ) ]
-#![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::redundant_field_names ) ]
-#![ allow( clippy::useless_format ) ]
-#![ allow( clippy::let_unit_value ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::manual_assert ) ]
-#![ allow( clippy::iter_overeager_cloned ) ]
-#![ allow( clippy::needless_continue ) ]
-#![ allow( clippy::unnecessary_semicolon ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::cloned_instead_of_copied ) ]
-#![ allow( clippy::map_flatten ) ]
-#![ allow( clippy::else_if_without_else ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::trivially_copy_pass_by_ref ) ]
-#![ allow( clippy::assigning_clones ) ]
-#![ allow( clippy::ptr_arg ) ]
-#![ allow( clippy::explicit_counter_loop ) ]
-#![ allow( clippy::unnecessary_wraps ) ]
-#![ allow( clippy::redundant_comparisons ) ]
-#![ allow( clippy::useless_conversion ) ]
-#![ allow( clippy::unreadable_literal ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::collapsible_if ) ]
-#![ allow( clippy::unused_async ) ]
-#![ allow( clippy::needless_borrows_for_generic_args ) ]
-
 use gl::GL;
 use image::{ DynamicImage, ImageBuffer, Luma };
 use minwebgl as gl;
 use ndarray_cg::F32x4x4;
 use web_sys::wasm_bindgen::prelude::*;
-use minwebgl::dom::create_image_element;
+use minwebgl::dom::image_element_create;
 use minwebgl::WebGlVertexArrayObject;
 use std::rc::Rc;
 use std::cell::RefCell;
 use web_sys::{ HtmlInputElement, HtmlButtonElement, FileReader, Event };
-use wfc::*;
-use wfc_image::{ generate_image, wrap::*, retry::* };
+use wfc_algo::{Size, ForbidNothing};
+use wfc_image::{ generate_image, wrap::WrapXY, retry::NumTimes };
 use ndarray_cg::mat3x3h;
 
 /// Tile map size. Length of square map side (a x a).
@@ -107,13 +64,23 @@ struct ApplicationState
 /// * An `<img>` element is created and appended to the document's `<body>`.
 /// * The element's ID, styles (`visibility: hidden`, `position: absolute`, etc.), `crossorigin`, `onload` callback, and `src` attributes are set.
 /// * The browser starts loading the image asynchronously.
-fn load_image
+fn image_load
 (
   path : &str,
   on_load_callback : Box< dyn Fn( &web_sys::HtmlImageElement ) >,
 ) -> Result< web_sys::HtmlImageElement, minwebgl::JsValue >
 {
-  let image = create_image_element( "tileset.png" )?;
+  // Fix(BUG-338): both `image_element_create` and `set_id` used to be called with the hardcoded
+  // literal "tileset.png" instead of `path`, ignoring the parameter entirely for two of its three
+  // uses. `image_element_create("tileset.png")` resolves against the app root (no `static/`
+  // prefix), so the element's initial `src` pointed at a URL that 404s -- a real, wasted network
+  // request fired on every page load, immediately overwritten a few lines below by the correctly
+  // computed `url`. Root cause: literal copy-pasted in place of the parameter that was meant to
+  // drive it (the doc comment above already claimed `path` was "used to construct the image URL",
+  // which was only true for the later `set_src` call).
+  // Pitfall: a demo with a single call site can hide a parameter being silently ignored --
+  // nothing here fails visibly unless a second caller passes a different `path`.
+  let image = image_element_create( path )?;
 
   let window = web_sys::window()
   .ok_or_else( || JsValue::from_str( "Failed to get window" ) )?;
@@ -122,7 +89,11 @@ fn load_image
   let body = document.body()
   .ok_or_else( || JsValue::from_str( "Failed to get body" ) )?;
   let _ = body.append_child( &image );
-  image.set_id( &format!( "{path}" ) );
+  // The DOM id stays filename-only (not the full `path`) so it keeps matching the bare-filename
+  // ids that `texture_array_prepare`'s `get_element_by_id` lookups already use elsewhere in this
+  // file -- only the element-creation `src` bug above needed the full path.
+  let id = path.rsplit( '/' ).next().unwrap_or( path );
+  image.set_id( id );
 
   let style = image.style();
   let _ = style.set_property( "visibility", "hidden" );
@@ -143,10 +114,16 @@ fn load_image
     )
   );
   on_load_callback.forget();
-  let origin = window.location()
-  .origin()
-  .expect( "Should have an origin" );
-  let url = format!( "{origin}/{path}" );
+  // Fix(BUG-109): joined `path` against `window.location().origin()` alone,
+  // discarding the current page's own directory — resolved to the site root
+  // instead of this example's own subpath when deployed under one.
+  // Root cause: see `mingl::web::resolve_url`'s doc comment — origin never
+  // carries a path; relative references must resolve against the document's
+  // own directory.
+  // Pitfall: don't hand-roll this join — reuse `gl::web::file::url_resolve`,
+  // the same helper `gl::dom::image_element_create` now uses internally.
+  let href = window.location().href()?;
+  let url = gl::web::file::url_resolve( &href, path );
   image.set_src( &url );
   Ok( image )
 }
@@ -154,8 +131,8 @@ fn load_image
 /// Handles the `change` event on the file input element.
 fn on_input_change
 (
-  event : Event,
-  app_state : Rc< RefCell< ApplicationState > >
+  event : &Event,
+  app_state : &Rc< RefCell< ApplicationState > >
 )
 {
   let Some( target ) = event.target()
@@ -183,12 +160,12 @@ fn on_input_change
   };
 
   let reader = FileReader::new().unwrap();
-  let app_state_clone = Rc::clone( &app_state );
+  let app_state_clone = Rc::clone( app_state );
   let onload_callback = Closure::< dyn FnMut( _ ) >::new
   (
-    move | _event : Event |
+    move | event : Event |
     {
-      let reader = _event.target()
+      let reader = event.target()
       .and_then( | target | target.dyn_into::< FileReader >().ok() );
 
       if let Some( reader ) = reader
@@ -200,9 +177,9 @@ fn on_input_change
             if let Some( tmx_content ) = js_val.as_string()
             {
               let mut state = app_state_clone.borrow_mut();
-              set_pattern( &tmx_content, &mut state );
-              generate_map_wfc_image( &mut state );
-              render_tile_map( &state );
+              pattern_set( &tmx_content, &mut state );
+              map_wfc_image_generate( &mut state );
+              tile_map_render( &state );
             }
           },
           _ => gl::warn!( "Can't read input file" )
@@ -218,7 +195,7 @@ fn on_input_change
 }
 
 /// Initializes the file input element for uploading TMX files.
-fn input_tilemap_init( app_state : Rc< RefCell< ApplicationState > > ) -> Result< (), JsValue >
+fn input_tilemap_init( app_state : &Rc< RefCell< ApplicationState > > ) -> Result< (), JsValue >
 {
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -236,8 +213,8 @@ fn input_tilemap_init( app_state : Rc< RefCell< ApplicationState > > ) -> Result
   let on_change_callback = Closure::< dyn FnMut( _ ) >::new
   (
     {
-      let app_state = Rc::clone( &app_state );
-      move | e : Event | on_input_change( e, Rc::clone( &app_state ) )
+      let app_state = Rc::clone( app_state );
+      move | e : Event | on_input_change( &e, &app_state )
     }
   );
 
@@ -248,7 +225,7 @@ fn input_tilemap_init( app_state : Rc< RefCell< ApplicationState > > ) -> Result
 }
 
 /// Sets up a button with a click event listener.
-fn button_generate_setup( id : &str, top : u32, app_state : Rc< RefCell< ApplicationState > > ) -> Result< (), JsValue >
+fn button_generate_setup( id : &str, top : u32, app_state : &Rc< RefCell< ApplicationState > > )
 {
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -260,18 +237,18 @@ fn button_generate_setup( id : &str, top : u32, app_state : Rc< RefCell< Applica
 
   let button_style = button_element.style();
   let _ = button_style.set_property( "position", "absolute" );
-  let _ = button_style.set_property( "top", format!( "{}px", top ).as_str() );
+  let _ = button_style.set_property( "top", format!( "{top}px" ).as_str() );
   let _ = button_style.set_property( "left", "15px" );
 
   let button_callback = Closure::< dyn FnMut( _ ) >::new
   (
     {
-      let app_state = Rc::clone(&app_state );
+      let app_state = Rc::clone( app_state );
       move | _e : Event |
       {
         let mut state = app_state.borrow_mut();
-        generate_map_wfc_image( &mut state );
-        render_tile_map( &state );
+        map_wfc_image_generate( &mut state );
+        tile_map_render( &state );
       }
     }
   );
@@ -283,14 +260,12 @@ fn button_generate_setup( id : &str, top : u32, app_state : Rc< RefCell< Applica
   );
 
   button_callback.forget();
-
-  Ok( () )
 }
 
 /// Initializes the application by setting up the browser environment and UI.
 fn init()
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
 
   let app_state = Rc::new
   (
@@ -304,8 +279,8 @@ fn init()
     )
   );
 
-  let _ = input_tilemap_init( Rc::clone( &app_state ) );
-  let _ = button_generate_setup( "generate-wfc-image", 50, Rc::clone( &app_state ) );
+  let _ = input_tilemap_init( &app_state );
+  button_generate_setup( "generate-wfc-image", 50, &app_state );
 
   let window = web_sys::window()
   .expect( "Should have a window" );
@@ -319,13 +294,17 @@ fn init()
   let _ = body_style.set_property( "overflow", "hidden" );
   let _ = body_style.set_property( "height", "100%" );
 
-  let load = move | _img : &web_sys::HtmlImageElement | {};
+  let app_state_for_load = Rc::clone( &app_state );
+  let load = move | _img : &web_sys::HtmlImageElement |
+  {
+    gl::spawn_local( default_pattern_load( Rc::clone( &app_state_for_load ) ) );
+  };
 
-  let _ = load_image( "static/tileset.png", Box::new( load ) );
+  let _ = image_load( "static/tileset.png", Box::new( load ) );
 }
 
 /// Prepares the vertex attributes for rendering a quad.
-fn prepare_vertex_attributes() -> WebGlVertexArrayObject
+fn vertex_attributes_prepare() -> WebGlVertexArrayObject
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -355,15 +334,17 @@ fn prepare_vertex_attributes() -> WebGlVertexArrayObject
   let vao = gl::vao::create( &gl )
   .unwrap();
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32; 2 ] >()
+  let position_attr = mingl::VertexAttribute::new( position_slot, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  let uv_attr = mingl::VertexAttribute::new( uv_slot, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector )
   .stride( 2 )
-  .offset( 0 )
-  .attribute_pointer( &gl, position_slot, &position_buffer )
+  .offset( position_attr.offset )
+  .attribute_pointer( &gl, position_attr.location, &position_buffer )
   .unwrap();
-  gl::BufferDescriptor::new::< [ f32; 2 ] >()
+  gl::BufferDescriptor::from_vector( uv_attr.vector )
   .stride( 2 )
-  .offset( 0 )
-  .attribute_pointer( &gl, uv_slot, &uv_buffer )
+  .offset( uv_attr.offset )
+  .attribute_pointer( &gl, uv_attr.location, &uv_buffer )
   .unwrap();
   gl.bind_vertex_array( None );
 
@@ -371,7 +352,7 @@ fn prepare_vertex_attributes() -> WebGlVertexArrayObject
 }
 
 /// Creates a Model-View-Projection (MVP) matrix for the scene.
-fn create_mvp() -> F32x4x4
+fn mvp_create() -> F32x4x4
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -403,7 +384,7 @@ fn create_mvp() -> F32x4x4
 }
 
 /// Binds an RGBA texture from an image `id` to a specified `texture_id` slot.
-fn prepare_texture_array( id : &str, texture_id : u32 ) -> Option< web_sys::WebGlTexture >
+fn texture_array_prepare( id : &str, texture_id : u32 ) -> Option< web_sys::WebGlTexture >
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -468,7 +449,7 @@ fn prepare_texture_array( id : &str, texture_id : u32 ) -> Option< web_sys::WebG
 }
 
 /// Binds an R8UI texture from `data` with `size` to a specified `texture_id` slot.
-fn prepare_texture1u
+fn texture1u_prepare
 (
   data : &[ u8 ],
   size : ( i32, i32 ),
@@ -504,7 +485,7 @@ fn prepare_texture1u
 }
 
 /// Renders the tile map on the quad.
-fn render_tile_map(app_state : &ApplicationState)
+fn tile_map_render(app_state : &ApplicationState)
 {
   let Some( ref map ) = app_state.map
   else
@@ -514,7 +495,7 @@ fn render_tile_map(app_state : &ApplicationState)
   if map.is_empty() || map[ 0 ].is_empty()
   {
     return;
-  };
+  }
 
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -526,29 +507,29 @@ fn render_tile_map(app_state : &ApplicationState)
   .unwrap();
   gl.use_program( Some( &program ) );
 
-  let mvp = create_mvp();
+  let mvp = mvp_create();
   let mvp_location = gl.get_uniform_location( &program, "mvp" );
 
   gl::uniform::matrix_upload( &gl, mvp_location, mvp.raw_slice(), false )
   .unwrap();
 
-  let vao = prepare_vertex_attributes();
+  let vao = vertex_attributes_prepare();
   gl.bind_vertex_array( Some( &vao ) );
-  prepare_texture_array( "tileset.png", GL::TEXTURE0 );
+  texture_array_prepare( "tileset.png", GL::TEXTURE0 );
 
   let size = ( map[ 0 ].len() as i32, map.len() as i32 );
   let data = map.iter()
-  .cloned()
   .flatten()
+  .copied()
   .collect::< Vec< u8 > >();
 
-  prepare_texture1u( &data, size, GL::TEXTURE1 );
+  texture1u_prepare( &data, size, GL::TEXTURE1 );
 
   let tiles_location = gl.get_uniform_location( &program, "tiles_sampler" );
-  let map_location = gl.get_uniform_location( &program, "map_sampler" );
+  let map_sampler_location = gl.get_uniform_location( &program, "map_sampler" );
 
   gl.uniform1i( tiles_location.as_ref(), 0 );
-  gl.uniform1i( map_location.as_ref(), 1 );
+  gl.uniform1i( map_sampler_location.as_ref(), 1 );
 
   let texel_size = [ 1.0 / size.0 as f32, 1.0 / size.1 as f32 ];
   let texel_size_location = gl.get_uniform_location( &program, "texel_size" );
@@ -559,7 +540,7 @@ fn render_tile_map(app_state : &ApplicationState)
 }
 
 /// Parses and sets the reference pattern for generating the tilemap from the content of a TMX file.
-fn set_pattern( tmx_content : &str, app_state : &mut ApplicationState )
+fn pattern_set( tmx_content : &str, app_state : &mut ApplicationState )
 {
   let elem : xml::Element = tmx_content.parse().unwrap();
 
@@ -576,7 +557,7 @@ fn set_pattern( tmx_content : &str, app_state : &mut ApplicationState )
   .find(| ch | ch.attributes.get( &( "encoding".to_string(), None ) ) == Some( &"csv".to_string() ) )
   .unwrap();
 
-  let pattern_raw = data.content_str().split( "," )
+  let pattern_raw = data.content_str().split( ',' )
   .map( | tile | tile.trim().parse::< u8 >().unwrap().saturating_sub( 1 ) )
   .collect::< Vec< _ > >();
 
@@ -588,8 +569,40 @@ fn set_pattern( tmx_content : &str, app_state : &mut ApplicationState )
   app_state.pattern_image = Some( pattern_img );
 }
 
+/// Fetches the bundled default TMX pattern, sets it as the reference pattern,
+/// and generates the first tile map so the demo works without requiring an upload.
+/// Called from `tileset.png`'s load callback so the texture is guaranteed ready
+/// by the time `tile_map_render` needs it.
+async fn default_pattern_load( app_state : Rc< RefCell< ApplicationState > > )
+{
+  let Ok( bytes ) = gl::file::load( "static/island_pattern.tmx" ).await
+  else
+  {
+    gl::warn!( "Failed to load default pattern" );
+    return;
+  };
+
+  let Ok( tmx_content ) = String::from_utf8( bytes )
+  else
+  {
+    gl::warn!( "Default pattern is not valid UTF-8" );
+    return;
+  };
+
+  let mut state = app_state.borrow_mut();
+  if state.pattern_image.is_some()
+  {
+    // A user upload already set the pattern before this fetch resolved — the
+    // default must never clobber an explicit choice.
+    return;
+  }
+  pattern_set( &tmx_content, &mut state );
+  map_wfc_image_generate( &mut state );
+  tile_map_render( &state );
+}
+
 /// Generates a new tile map using the WFC algorithm with the loaded pattern image.
-fn generate_map_wfc_image( app_state : &mut ApplicationState )
+fn map_wfc_image_generate( app_state : &mut ApplicationState )
 {
   let Some( ref pattern_img ) = app_state.pattern_image
   else
@@ -602,7 +615,7 @@ fn generate_map_wfc_image( app_state : &mut ApplicationState )
     pattern_img,
     std::num::NonZero::new( PATTERN_SIZE ).unwrap(),
     Size::try_new( SIZE as u32, SIZE as u32 ).unwrap(),
-    &wfc::orientation::ALL,
+    &wfc_algo::orientation::ALL,
     WrapXY,
     ForbidNothing,
     NumTimes( 1 )
@@ -614,14 +627,14 @@ fn generate_map_wfc_image( app_state : &mut ApplicationState )
 
   let map_raw : Vec<u8> = map_img.to_luma8().into_raw();
   let map = map_raw.chunks( SIZE )
-  .map( | row | row.to_vec() )
+  .map( <[u8]>::to_vec )
   .collect::< Vec< Vec< _ > > >();
 
   app_state.map = Some( map );
 }
 
 /// Runs the main application logic.
-fn run()
+fn app_run()
 {
   init();
 }
@@ -629,5 +642,5 @@ fn run()
 /// The main entry point of the Rust program.
 fn main()
 {
-  run()
+  app_run();
 }

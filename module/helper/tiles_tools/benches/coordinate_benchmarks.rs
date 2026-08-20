@@ -3,34 +3,6 @@
 //! This benchmark suite tests the performance of various coordinate system
 //! operations including distance calculations, neighbor finding, and conversions.
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::min_ident_chars)]
-#![allow(clippy::semicolon_if_nothing_returned)]
-#![allow(clippy::cast_possible_wrap)]
-#![allow(missing_docs)]
-
 use criterion::{ criterion_group, criterion_main, BenchmarkId, Criterion };
 use tiles_tools::coordinates::
 {
@@ -47,19 +19,19 @@ fn benchmark_distance_calculations( c : &mut Criterion )
   let mut group = c.benchmark_group( "distance_calculations" );
 
   // Hexagonal distance
-  let hex_coord1 = HexCoord::< Axial, Pointy >::new( 0, 0 );
-  let hex_coord2 = HexCoord::< Axial, Pointy >::new( 10, 15 );
-  group.bench_function( "hexagonal_distance", |b| b.iter( || hex_coord1.distance( hex_coord2 ) ) );
+  let hex_origin = HexCoord::< Axial, Pointy >::new( 0, 0 );
+  let hex_target = HexCoord::< Axial, Pointy >::new( 10, 15 );
+  group.bench_function( "hexagonal_distance", |b| b.iter( || hex_origin.distance( hex_target ) ) );
 
   // Square distance (4-connected)
-  let square_coord1 = SquareCoord::< FourConnected >::new( 0, 0 );
-  let square_coord2 = SquareCoord::< FourConnected >::new( 10, 15 );
-  group.bench_function( "square_4_distance", |b| b.iter( || square_coord1.distance( &square_coord2 ) ) );
+  let square_four_origin = SquareCoord::< FourConnected >::new( 0, 0 );
+  let square_four_target = SquareCoord::< FourConnected >::new( 10, 15 );
+  group.bench_function( "square_4_distance", |b| b.iter( || square_four_origin.distance( &square_four_target ) ) );
 
   // Square distance (8-connected)
-  let square8_coord1 = SquareCoord::< EightConnected >::new( 0, 0 );
-  let square8_coord2 = SquareCoord::< EightConnected >::new( 10, 15 );
-  group.bench_function( "square_8_distance", |b| b.iter( || square8_coord1.distance( &square8_coord2 ) ) );
+  let square_eight_origin = SquareCoord::< EightConnected >::new( 0, 0 );
+  let square_eight_target = SquareCoord::< EightConnected >::new( 10, 15 );
+  group.bench_function( "square_8_distance", |b| b.iter( || square_eight_origin.distance( &square_eight_target ) ) );
 
   // Triangular distance
   let tri_coord1 = TriCoord::< FlatSided >::new( 0, 0, 1 ).unwrap();
@@ -83,12 +55,12 @@ fn benchmark_neighbor_calculations( c : &mut Criterion )
   group.bench_function( "hexagonal_neighbors", |b| b.iter( || hex_coord.neighbors() ) );
 
   // Square neighbors (4-connected)
-  let square_coord = SquareCoord::< FourConnected >::new( 5, 8 );
-  group.bench_function( "square_4_neighbors", |b| b.iter( || square_coord.neighbors() ) );
+  let square_four_center = SquareCoord::< FourConnected >::new( 5, 8 );
+  group.bench_function( "square_4_neighbors", |b| b.iter( || square_four_center.neighbors() ) );
 
   // Square neighbors (8-connected)
-  let square8_coord = SquareCoord::< EightConnected >::new( 5, 8 );
-  group.bench_function( "square_8_neighbors", |b| b.iter( || square8_coord.neighbors() ) );
+  let square_eight_center = SquareCoord::< EightConnected >::new( 5, 8 );
+  group.bench_function( "square_8_neighbors", |b| b.iter( || square_eight_center.neighbors() ) );
 
   // Triangular neighbors (3 neighbors)
   let tri_coord = TriCoord::< FlatSided >::new( 5, 8, -12 ).unwrap();
@@ -113,7 +85,7 @@ fn benchmark_coordinate_conversions( c : &mut Criterion )
   {
     let iso : IsoCoord< Diamond > = square_coord.convert();
     iso
-  })
+  });
   });
 
   let iso_coord = IsoCoord::< Diamond >::new( 5, 8 );
@@ -123,7 +95,7 @@ fn benchmark_coordinate_conversions( c : &mut Criterion )
   {
     let square : SquareCoord< FourConnected > = iso_coord.convert();
     square
-  })
+  });
   });
 
   // Approximate conversions: Hexagonal ↔ Square
@@ -134,7 +106,7 @@ fn benchmark_coordinate_conversions( c : &mut Criterion )
   {
     let square : SquareCoord< FourConnected > = hex_coord.approximate_convert();
     square
-  })
+  });
   });
 
   group.bench_function( "square_to_hexagonal_approx", |b|
@@ -143,7 +115,7 @@ fn benchmark_coordinate_conversions( c : &mut Criterion )
   {
     let hex : HexCoord< Axial, Pointy > = square_coord.approximate_convert();
     hex
-  })
+  });
   });
 
   group.finish();
@@ -153,7 +125,7 @@ fn benchmark_coordinate_creation( c : &mut Criterion )
 {
   let mut group = c.benchmark_group( "coordinate_creation" );
 
-  for size in [ 10, 100, 1000 ].iter()
+  for size in &[ 10, 100, 1000 ]
   {
   group.bench_with_input( BenchmarkId::new( "hexagonal_creation", size ), size, |b, &size|
   {
@@ -165,7 +137,7 @@ fn benchmark_coordinate_creation( c : &mut Criterion )
         coords.push( HexCoord::< Axial, Pointy >::new( i as i32, i as i32 ) );
       }
       coords
-    })
+    });
   });
 
   group.bench_with_input( BenchmarkId::new( "square_creation", size ), size, |b, &size|
@@ -178,7 +150,7 @@ fn benchmark_coordinate_creation( c : &mut Criterion )
         coords.push( SquareCoord::< FourConnected >::new( i as i32, i as i32 ) );
       }
       coords
-    })
+    });
   });
   }
 

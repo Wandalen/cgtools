@@ -1,12 +1,17 @@
-#![ allow( clippy::upper_case_acronyms ) ]
 
-use super::*;
+use super::
+{
+  FilterRenderer,
+  gl,
+  default_render_pass,
+  Filter,
+};
 use serde::{ Serialize, Deserialize };
 
 #[ derive( Clone ) ]
 pub struct Photoshop;
 #[ derive( Clone ) ]
-pub struct GIMP;
+pub struct Gimp;
 
 #[ derive( Debug, Serialize, Deserialize ) ]
 pub struct BrightnessContrast< T >
@@ -28,7 +33,7 @@ impl< T > BrightnessContrast< T >
     let gl = renderer.gl();
     let brightness_location = gl.get_uniform_location( renderer.get_program(), "u_brightness" );
     let contrast_location = gl.get_uniform_location( renderer.get_program(), "u_contrast" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, brightness_location, &self.brightness ).unwrap();
     gl::uniform::upload( gl, contrast_location, &self.contrast ).unwrap();
     default_render_pass( renderer );
@@ -69,7 +74,7 @@ impl Filter for BrightnessContrast< Photoshop >
   }
 }
 
-impl Filter for BrightnessContrast< GIMP >
+impl Filter for BrightnessContrast< Gimp >
 {
   fn glsl_fragment_source( &self ) -> String
   {

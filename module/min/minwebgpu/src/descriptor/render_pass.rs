@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ web_sys, Into, js_sys, IntoIterator };
 
   /// A builder for creating a `web_sys::GpuRenderPassDescriptor`.
   #[ derive( Clone ) ]
@@ -28,9 +28,20 @@ mod private
     max_draw_count : Option< f64 >
   }
 
-  impl< 'a > RenderPassDescriptor< 'a > 
+  impl Default for RenderPassDescriptor< '_ >
+  {
+    #[ inline ]
+    fn default() -> Self
+    {
+      Self::new()
+    }
+  }
+
+  impl< 'a > RenderPassDescriptor< 'a >
   {
     /// Creates a new `RenderPassDescriptor` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       let color_attachments = Vec::new();
@@ -48,6 +59,8 @@ mod private
     }
 
     /// Adds a color attachment to the descriptor.
+    #[ inline ]
+    #[ must_use ]
     pub fn color_attachment
     ( 
       mut self, 
@@ -59,6 +72,8 @@ mod private
     }
 
     /// Sets the depth-stencil attachment for the descriptor.
+    #[ inline ]
+    #[ must_use ]
     pub fn depth_stencil_attachment
     ( 
       mut self, 
@@ -70,6 +85,8 @@ mod private
     }
 
     /// Sets the debug label for the render pass.
+    #[ inline ]
+    #[ must_use ]
     pub fn label( mut self, label : &'a str ) -> Self
     {
       self.label = Some( label );
@@ -77,6 +94,8 @@ mod private
     }
 
     /// Sets the maximum draw count for the render pass.
+    #[ inline ]
+    #[ must_use ]
     pub fn max_draw_count( mut self, count : f64 ) -> Self
     {
       self.max_draw_count = Some( count );
@@ -85,13 +104,16 @@ mod private
   }
 
   impl From< RenderPassDescriptor< '_ > > for web_sys::GpuRenderPassDescriptor {
+    #[ inline ]
     fn from( value: RenderPassDescriptor< '_ > ) -> Self 
     {
-      let desc = web_sys::GpuRenderPassDescriptor::new( &value.color_attachments.into() );
+      let color_attachments : Vec< js_sys::JsNullable< web_sys::GpuRenderPassColorAttachment > > =
+      value.color_attachments.into_iter().map( js_sys::JsNullable::wrap ).collect();
+      let desc = web_sys::GpuRenderPassDescriptor::new( &color_attachments );
 
       if let Some( v ) = value.depth_stencil_attachment { desc.set_depth_stencil_attachment( &v ); }
       if let Some( v ) = value.label { desc.set_label( v ); }
-      if let Some( v ) = value.max_draw_count { desc.set_max_draw_count( v ); }
+      if let Some( v ) = value.max_draw_count { desc.set_max_draw_count_f64( v ); }
 
       desc
     }

@@ -10,7 +10,7 @@ pub struct TriAxial
 
 impl TriAxial
 {
-  const SQRT_3 : f32 = 1.73205080757;
+  const SQRT_3 : f32 = 1.732_050_8;
   // Distance between neighbor unit hexagonals equals to length of a triangle side
   const SIDE_LENGHT : f32 = Self::SQRT_3;
   const CELL_SIZE : [ f32; 2 ] = [ Self::SIDE_LENGHT * Self::SQRT_3 / 2.0, Self::SIDE_LENGHT * 1.0 ];
@@ -37,9 +37,9 @@ impl TriAxial
     }
   }
 
-  pub const fn to_point( &self ) -> [ f32; 2 ]
+  pub const fn to_point( self ) -> [ f32; 2 ]
   {
-    let Self { a, b, c } = *self;
+    let Self { a, b, c } = self;
 
     [
       ( -1.0 / 3.0 * b as f32 + 2.0 / 3.0 * a as f32 - 1.0 / 3.0 * c as f32 ) * Self::CELL_SIZE[ 0 ],
@@ -53,7 +53,7 @@ impl TriAxial
 
     let is_right = self.is_right() as i32;
     let is_left = self.is_left() as i32;
-    let offset = -1 * is_right + is_left;
+    let offset = -is_right + is_left;
 
     [
       Self::new( a + offset, b, c ),

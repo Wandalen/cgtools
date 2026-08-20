@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{ web_sys, JsCast, WebglError, js_sys, wasm_bindgen, JsValue, JsFuture, canvas, context, buffer, AsBytes };
 use crate::web_sys::
 {
   window,
@@ -8,6 +8,26 @@ use crate::web_sys::
 };
 
 type GL = web_sys::WebGl2RenderingContext;
+
+// WebGL2 format/filter/wrap parameter constants ( `RGBA`, `LINEAR`, `NEAREST`, `REPEAT`,
+// `CLAMP_TO_EDGE`, etc. ) are small enum values fixed by the WebGL2 spec, far below
+// `i32::MAX` -- the `texImage2D`/`texParameteri` family requires `i32` per their WebIDL
+// `GLint`/`GLenum` signatures, so this narrow, single-purpose conversion point is safe by
+// construction for every constant it is called with in this file.
+fn param_as_i32( value : u32 ) -> i32
+{
+  value as i32
+}
+
+// Image/video/sprite-sheet pixel dimensions, offsets, and sprite counts handled here
+// ultimately feed WebGL calls whose own WebIDL signatures take `GLsizei`/`GLint` ( 32-bit
+// signed ) -- real browsers cap canvas/texture/video dimensions at a few tens of thousands
+// of pixels ( e.g. `MAX_TEXTURE_SIZE`, a browser's own max canvas area ), so these values
+// never approach `i32::MAX` in practice.
+fn dim_as_i32( value : u32 ) -> i32
+{
+  value as i32
+}
 
 /// Uploads an image from a URL to a WebGL texture.
 ///
@@ -23,7 +43,13 @@ type GL = web_sys::WebGl2RenderingContext;
 /// # Returns
 ///
 /// A `WebGlTexture` object.
-pub fn upload_image_from_path( gl : &GL, src : &str, flip : bool ) -> WebGlTexture
+///
+/// # Panics
+/// Panics if the browser has no `window`/`document`, if an `<img>` element or WebGL texture
+/// can't be created, or if the `img` element's `display` style property can't be set.
+#[ inline ]
+#[ must_use ]
+pub fn image_upload_from_path( gl : &GL, src : &str, flip : bool ) -> WebGlTexture
 {
   let window = window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
@@ -59,7 +85,7 @@ pub fn upload_image_from_path( gl : &GL, src : &str, flip : bool ) -> WebGlTextu
   );
 
   img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
-  img_element.set_src( &src );
+  img_element.set_src( src );
   load_texture.forget();
 
   texture
@@ -71,6 +97,10 @@ pub fn upload_image_from_path( gl : &GL, src : &str, flip : bool ) -> WebGlTextu
 ///
 /// Using HtmlImageElement is recommended, as it is the most natural
 /// and the least expensive way to parse images on the web.
+///
+/// # Panics
+/// Panics if the WebGL driver fails to upload the image data to the texture.
+#[ inline ]
 pub fn upload
 (
   gl : &GL,
@@ -84,10 +114,10 @@ pub fn upload
   (
     GL::TEXTURE_2D,
     0,
-    GL::RGBA as i32,
+    param_as_i32( GL::RGBA ),
     GL::RGBA,
     GL::UNSIGNED_BYTE,
-    &img
+    img
   ).expect( "Failed to upload data to texture" );
   gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, 0 );
 }
@@ -95,6 +125,10 @@ pub fn upload
 ///
 /// A sprite sheet is commonly used in 2D game development to manage and optimize
 /// rendering of animations or multiple images by storing them in a single texture.
+// `examples/minwebgl/sprite_animation/src/main.rs` constructs `SpriteSheet` via a struct
+// literal from outside this crate ( `gl::texture::d2::SpriteSheet { sprites_in_row: 8, .. }` );
+// `#[non_exhaustive]` would break that established external call-site contract, so the struct
+// deliberately stays exhaustive ( `exhaustive_structs` is centrally allowed in the root manifest ).
 pub struct SpriteSheet
 {
   /// Number of sprites in each row of the sheet
@@ -117,32 +151,39 @@ pub struct SpriteSheet
 ///
 /// Using HtmlImageElement is recommended, as it is the most natural
 /// and the least expensive way to parse images on the web.
+///
+/// # Panics
+/// Panics if the WebGL driver fails to upload the image data to the texture.
+#[ inline ]
+#[ must_use ]
 pub fn create_and_upload( gl : &GL, img : &web_sys::HtmlImageElement ) -> Option< web_sys::WebGlTexture >
 {
-  let texture = gl.create_texture();
+  let texture = gl.create_texture()?;
 
-  if texture.is_none() { return None; }
-
-  gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
+  gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
   gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, 1 );
   gl.tex_image_2d_with_u32_and_u32_and_html_image_element
   (
     GL::TEXTURE_2D,
     0,
-    GL::RGBA as i32,
+    param_as_i32( GL::RGBA ),
     GL::RGBA,
     GL::UNSIGNED_BYTE,
-    &img
+    img
   ).expect( "Failed to upload data to texture" );
   gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, 0 );
 
-  texture
+  Some( texture )
 }
 
 /// Uploads an image from HtmlImageElement to a 2D texture.
 /// Image format and internal format are assumed to be RGBA unsigned bytes.
 /// Does not flip the texture in Y direction.
 /// Returns created texture.
+///
+/// # Panics
+/// Panics if the WebGL driver fails to upload the image data to the texture.
+#[ inline ]
 pub fn upload_no_flip
 (
   gl : &GL,
@@ -156,10 +197,10 @@ pub fn upload_no_flip
   (
     GL::TEXTURE_2D,
     0,
-    GL::RGBA as i32,
+    param_as_i32( GL::RGBA ),
     GL::RGBA,
     GL::UNSIGNED_BYTE,
-    &img
+    img
   ).expect( "Failed to upload data to texture" );
 }
 
@@ -167,6 +208,11 @@ pub fn upload_no_flip
 /// Image format and internal format are assumed to be RGBA unsigned bytes.
 /// Does not flip the texture in Y direction.
 /// Returns created texture.
+///
+/// # Panics
+/// Panics if the WebGL driver fails to upload the image data to the texture.
+#[ inline ]
+#[ must_use ]
 pub fn create_and_upload_no_flip( gl : &GL, img : &web_sys::HtmlImageElement ) -> Option< web_sys::WebGlTexture >
 {
   let texture = gl.create_texture();
@@ -176,10 +222,10 @@ pub fn create_and_upload_no_flip( gl : &GL, img : &web_sys::HtmlImageElement ) -
   (
     GL::TEXTURE_2D,
     0,
-    GL::RGBA as i32,
+    param_as_i32( GL::RGBA ),
     GL::RGBA,
     GL::UNSIGNED_BYTE,
-    &img
+    img
   ).expect( "Failed to upload data to texture" );
 
   texture
@@ -198,21 +244,57 @@ pub fn create_and_upload_no_flip( gl : &GL, img : &web_sys::HtmlImageElement ) -
 /// # When it useful
 /// - Playing video as a texture
 /// - Updating video every frame
-pub fn update_video( gl : &GL, texture : &web_sys::WebGlTexture, video_element : &web_sys::HtmlVideoElement )
+///
+/// # Panics
+/// Panics if the WebGL driver fails to upload the video frame to the texture.
+#[ inline ]
+pub fn video_update( gl : &GL, texture : &web_sys::WebGlTexture, video_element : &web_sys::HtmlVideoElement )
 {
   gl.bind_texture( GL::TEXTURE_2D, Some( texture ) );
   gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_video_element
   (
     GL::TEXTURE_2D,
     0,
-    GL::RGBA as i32,
-    video_element.width() as i32,
-    video_element.height() as i32,
+    param_as_i32( GL::RGBA ),
+    dim_as_i32( video_element.width() ),
+    dim_as_i32( video_element.height() ),
     0,
     GL::RGBA,
     GL::UNSIGNED_BYTE,
-    &video_element
+    video_element
   ).expect( "Failed to upload data to texture" );
+}
+
+/// Computes the WebGL2 mip level count for a `texStorage3D` allocation from a texture array's
+/// per-layer dimensions, per the spec constraint `levels <= floor(log2(max(width,height))) + 1`.
+#[ must_use ]
+pub fn mip_levels_for_dimensions( width : u32, height : u32 ) -> u32
+{
+  width.max( height ).max( 1 ).ilog2() + 1
+}
+
+/// Computes a sprite's pixel column/row offset within its sheet.
+///
+/// # Errors
+/// Returns `WebglError::NotSupportedForType` if `sprites_in_row` is `0` ( a degenerate sheet:
+/// zero columns can hold no sprites ).
+// Fix(BUG-161)
+// Root cause: the row/column computation divided and modulo'd by the caller-supplied
+// `sprites_in_row` field with no zero-guard; `SpriteSheet` has no constructor and is
+// deliberately kept exhaustive for external struct-literal construction (see its own doc
+// comment above), so a caller-computed `sprites_in_row: 0` (e.g. derived from a sprite wider
+// than the source image) panicked via integer division-by-zero instead of a clear message.
+// Pitfall: a fully-public, constructor-less struct has no single choke point to validate at
+// construction time -- every consumer of its fields must guard independently.
+pub fn sprite_position( index : u32, sprites_in_row : u32, sprite_width : u32, sprite_height : u32 ) -> Result< ( u32, u32 ), WebglError >
+{
+  if sprites_in_row == 0
+  {
+    return Err( WebglError::NotSupportedForType( "SpriteSheet::sprites_in_row must be > 0" ) );
+  }
+  let col = index % sprites_in_row * sprite_width;
+  let row = index / sprites_in_row * sprite_height;
+  Ok( ( col, row ) )
 }
 
 /// Creates a 2D texture from HtmlImageElement.
@@ -234,7 +316,21 @@ pub fn update_video( gl : &GL, texture : &web_sys::WebGlTexture, video_element :
 /// # When it useful
 /// - Loading sprites
 /// - Working with texture arrays
-pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement, sprite_sheet : &SpriteSheet ) -> Result< web_sys::WebGlTexture, WebglError >
+///
+/// # Errors
+/// Returns `WebglError::FailedToAllocateResource` if the WebGL context fails to allocate the
+/// texture, and propagates any `WebglError` from creating the temporary canvas or its 2D context.
+///
+/// # Panics
+/// Panics if the image fails to load, if the temporary canvas's style properties can't be
+/// removed, if drawing the image to the temporary canvas fails, or if reading back its pixel
+/// data fails.
+// `get_image_data` below is `#[cfg(web_sys_unstable_apis)]`-gated at two argument-type
+// signatures inside web-sys itself (see BUG-053); `web_sys_unstable_apis` is a raw `--cfg`
+// flag, not a Cargo feature, declared via `check-cfg` in the root manifest's
+// `[workspace.lints.rust]` so referencing it is not `unexpected_cfgs`.
+#[ inline ]
+pub async fn sprite_upload( gl : &GL, image_element : &web_sys::HtmlImageElement, sprite_sheet : &SpriteSheet ) -> Result< web_sys::WebGlTexture, WebglError >
 {
   let load_promise = js_sys::Promise::new
   (
@@ -279,26 +375,55 @@ pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement
     ctx.draw_image_with_html_image_element( image_element, 0.0, 0.0 ).unwrap();
 
     // Get pixel array of the image.
-    let data = ctx.get_image_data( 0, 0, img_width as i32, img_height as i32 ).unwrap().data().to_vec();
+    // Fix(BUG-053): `web_sys::CanvasRenderingContext2d::get_image_data` has two mutually
+    // exclusive signatures gated by the `web_sys_unstable_apis` cfg — `f64` args when it's off,
+    // `i32` args when it's on — and this workspace's `.cargo/config.toml` sets it on via
+    // `[build] rustflags`, EXCEPT that setting is entirely replaced (not merged) whenever a
+    // caller sets the `RUSTFLAGS` env var directly, e.g. this project's own Level 1 command
+    // `RUSTFLAGS="-D warnings" cargo nextest run --all-features`. A single literal-typed call
+    // site can only ever match one of the two, so it must branch on the same cfg web-sys does.
+    // Root cause: this exact line has flip-flopped between bare `f64` and `i32` casts across at
+    // least 8 distinct commits in git history — each prior "fix" only matched whichever
+    // RUSTFLAGS state the fixer happened to build under, immediately breaking the other.
+    // Pitfall: `cargo check -p minwebgl` (no RUSTFLAGS override) and
+    // `RUSTFLAGS="-D warnings" cargo nextest run --all-features` (this project's own Level 1
+    // command) resolve to opposite overloads of the SAME function in the SAME workspace —
+    // never assume one invocation style's success implies the other's.
+    #[ cfg( web_sys_unstable_apis ) ]
+    let data = ctx.get_image_data( 0, 0, dim_as_i32( img_width ), dim_as_i32( img_height ) ).unwrap().data().to_vec();
+    #[ cfg( not( web_sys_unstable_apis ) ) ]
+    let data = ctx.get_image_data( 0.0, 0.0, f64::from( img_width ), f64::from( img_height ) ).unwrap().data().to_vec();
 
     tmp_canvas.remove();
 
     data
   };
 
+  // Fix(BUG-160)
+  // Root cause: `levels` was hardcoded to 8, but WebGL2/GLES3.0's texStorage3D requires
+  // `levels <= floor(log2(max(width,height))) + 1` -- only valid when max(sprite_width,
+  // sprite_height) >= 128; for smaller sprites the call raises INVALID_OPERATION (never checked
+  // anywhere in this function -- WebGL errors are not surfaced as JS exceptions/Result::Err by
+  // wasm-bindgen) and allocates no storage, so every subsequent tex_sub_image_3d call silently
+  // no-ops against a texture that was never actually created.
+  // Pitfall: the sole real caller's exact sprite size (128x128, the precise boundary value
+  // where 8 levels is still valid) kept this dormant -- never trust a caller's dimensions to
+  // coincidentally clear a hardcoded mip-level count; compute it from the real dimensions.
+  let levels = dim_as_i32( mip_levels_for_dimensions( sprite_sheet.sprite_width, sprite_sheet.sprite_height ) );
+
   // Allocate memory for the 3D texture.
   gl.tex_storage_3d
   (
     GL::TEXTURE_2D_ARRAY,
-    8,
+    levels,
     GL::RGBA8,
-    sprite_sheet.sprite_width as i32,
-    sprite_sheet.sprite_height as i32,
-    sprite_sheet.amount as i32
+    dim_as_i32( sprite_sheet.sprite_width ),
+    dim_as_i32( sprite_sheet.sprite_height ),
+    dim_as_i32( sprite_sheet.amount )
   );
 
   // Create a Pixel Buffer Object (PBO) and copy the image data into it.
-  let pbo = buffer::create( &gl )?;
+  let pbo = buffer::create( gl )?;
   gl.bind_buffer( GL::PIXEL_UNPACK_BUFFER, Some( &pbo ) );
   gl.buffer_data_with_js_u8_array
   (
@@ -308,18 +433,17 @@ pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement
   );
 
   // Set the pixel store parameters for 3D texture uploads.
-  gl.pixel_storei( GL::UNPACK_ROW_LENGTH, img_width as i32 );
-  gl.pixel_storei( GL::UNPACK_IMAGE_HEIGHT, img_height as i32 );
+  gl.pixel_storei( GL::UNPACK_ROW_LENGTH, dim_as_i32( img_width ) );
+  gl.pixel_storei( GL::UNPACK_IMAGE_HEIGHT, dim_as_i32( img_height ) );
 
   for i in 0..sprite_sheet.amount
   {
     // Calculate the row and column coordinates for the current sprite based on the total number of sprites and their size.
-    let col = i % sprite_sheet.sprites_in_row * sprite_sheet.sprite_width;
-    let row = i / sprite_sheet.sprites_in_row * sprite_sheet.sprite_height;
+    let ( col, row ) = sprite_position( i, sprite_sheet.sprites_in_row, sprite_sheet.sprite_width, sprite_sheet.sprite_height )?;
 
     // Set the correct position of the sprite in the PBO.
-    gl.pixel_storei( GL::UNPACK_SKIP_PIXELS, col as i32 );
-    gl.pixel_storei( GL::UNPACK_SKIP_ROWS, row as i32 );
+    gl.pixel_storei( GL::UNPACK_SKIP_PIXELS, dim_as_i32( col ) );
+    gl.pixel_storei( GL::UNPACK_SKIP_ROWS, dim_as_i32( row ) );
 
     // Copy the current sprite data from PBO to a 3D texture.
     gl.tex_sub_image_3d_with_i32(
@@ -327,9 +451,9 @@ pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement
       0,
       0,
       0,
-      i as i32,
-      sprite_sheet.sprite_width as i32,
-      sprite_sheet.sprite_height as i32,
+      dim_as_i32( i ),
+      dim_as_i32( sprite_sheet.sprite_width ),
+      dim_as_i32( sprite_sheet.sprite_height ),
       1,
       GL::RGBA,
       GL::UNSIGNED_BYTE,
@@ -337,8 +461,8 @@ pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement
     ).unwrap();
   }
 
-  gl.tex_parameteri( GL::TEXTURE_2D_ARRAY, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D_ARRAY, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D_ARRAY, GL::TEXTURE_MIN_FILTER, param_as_i32( GL::NEAREST ) );
+  gl.tex_parameteri( GL::TEXTURE_2D_ARRAY, GL::TEXTURE_MAG_FILTER, param_as_i32( GL::NEAREST ) );
 
   gl.generate_mipmap( GL::TEXTURE_2D_ARRAY );
   gl.tex_parameteri( GL::TEXTURE_2D_ARRAY, GL::TEXTURE_BASE_LEVEL, 0 );
@@ -349,6 +473,7 @@ pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement
 /// Set the default parameters for the texture
 /// Sets MAG and MIN filters to LINEAR
 /// Set wrap mode for S, R, T dimensions to REPEAT
+#[ inline ]
 pub fn default_parameters( gl : &GL )
 {
   filter_linear( gl );
@@ -356,31 +481,35 @@ pub fn default_parameters( gl : &GL )
 }
 
 /// Set the magnification and minification filters to LINEAR
+#[ inline ]
 pub fn filter_linear( gl : &GL )
 {
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::LINEAR as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, param_as_i32( GL::LINEAR ) );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, param_as_i32( GL::LINEAR ) );
 }
 
 /// Set the magnification and minification filters to NEAREST
+#[ inline ]
 pub fn filter_nearest( gl : &GL )
 {
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, param_as_i32( GL::NEAREST ) );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, param_as_i32( GL::NEAREST ) );
 }
 
 /// Set the wrap mode for S, T and R dimensions to REPEAT
+#[ inline ]
 pub fn wrap_repeat( gl : &GL )
 {
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::REPEAT as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::REPEAT as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_R, GL::REPEAT as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, param_as_i32( GL::REPEAT ) );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, param_as_i32( GL::REPEAT ) );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_R, param_as_i32( GL::REPEAT ) );
 }
 
 /// Set the wrap mode for S, T and R dimensions to CLAMP_TO_EDGE
+#[ inline ]
 pub fn wrap_clamp( gl : &GL )
 {
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_R, GL::CLAMP_TO_EDGE as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, param_as_i32( GL::CLAMP_TO_EDGE ) );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, param_as_i32( GL::CLAMP_TO_EDGE ) );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_R, param_as_i32( GL::CLAMP_TO_EDGE ) );
 }

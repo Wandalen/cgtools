@@ -1,0 +1,123 @@
+name: examples-gallery-pages
+
+# Two independent jobs:
+#   gallery-check  — every PR into master: fails fast if examples/index.html or index.md
+#                    drifted from action/gallery's source of truth (action/run's discovery
+#                    + each example's own readme.md). Cheap (no Rust/trunk/DVC), pure bash+awk.
+#   build-deploy   — push to master or manual dispatch only, never PRs: builds every
+#                    browser-kind example via trunk and deploys the result as the live
+#                    GitHub Pages site. Excluded from pull_request on purpose — a PR's
+#                    GITHUB_TOKEN is read-only by default (fork safety), so it could not
+#                    deploy anyway, and deploying unreviewed PR content would be wrong
+#                    even if it could.
+#
+# One-time manual step this workflow cannot perform on its own: a repo admin must enable
+# Pages (Settings > Pages > Source: GitHub Actions) — the token this workflow runs under
+# has no admin scope to do that itself.
+
+"on":
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  gallery-check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check examples/index.html + index.md are up to date
+        run: action/gallery verify::1
+
+  build-deploy:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check examples/index.html + index.md are up to date
+        run: action/gallery verify::1
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Cache cargo registry, git deps, and the wasm32 build dir
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/wasm32-unknown-unknown
+          key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-wasm-
+
+      - name: Install trunk
+        run: command -v trunk || cargo install trunk --locked
+
+      - name: Install dvc
+        run: pipx install dvc
+
+      - name: Cache pulled DVC assets
+        uses: actions/cache@v4
+        with:
+          path: .dvc/cache
+          key: ${{ runner.os }}-dvc-${{ hashFiles('assets.dvc') }}
+
+      # Full pull, not scoped to only the paths examples reference: one example
+      # (minwebgl/hexagonal_map) copy-dirs the entire assets/ tree via trunk's
+      # `data-trunk rel="copy-dir" href="../../../assets"`, which already forces
+      # the whole dataset to be present — scoping the pull to a per-example
+      # path list would still need to special-case that example back up to
+      # "everything", for a ~312 MB anonymous, unauthenticated download that's
+      # cached above across runs. See root readme.md's Assets section.
+      # continue-on-error: assets/{gltf,tiles,sprites,environment_maps} were dvc-added
+      # recently but aren't referenced by any example yet (grepped clean) — their .dir
+      # manifests never reached the remote (huggingface.co/datasets/cgtools/assets PR #2,
+      # pending a maintainer merge; the token this workflow could use has no main-write
+      # grant). `dvc pull` exits non-zero on just those 4 targets while still fetching
+      # everything the gallery actually uses — don't let that block the whole deploy.
+      - name: Pull assets (anonymous public read, ~312 MB, cached above)
+        continue-on-error: true
+        run: dvc pull
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      # Soft-fails: one broken example's trunk build must not block deploying
+      # the other working demos. build_site itself exits non-zero if anything
+      # failed (visible in this step's outcome) — the failing demo's link just
+      # 404s on the live site instead of taking the whole gallery down.
+      - name: Build every browser demo and stage the site
+        continue-on-error: true
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: action/build_site --out _site --base-path "$BASE_PATH"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

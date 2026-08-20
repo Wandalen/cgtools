@@ -1,4 +1,3 @@
-#![ allow( clippy::expect_fun_call ) ]
 
 use web_sys::wasm_bindgen;
 use wasm_bindgen::prelude::*;
@@ -7,5 +6,5 @@ use wasm_bindgen::prelude::*;
 extern "C"
 {
   #[ wasm_bindgen( js_name = setupZoomPan ) ]
-  pub fn setup_zoom_pan();
+  pub fn zoom_pan_setup();
 }

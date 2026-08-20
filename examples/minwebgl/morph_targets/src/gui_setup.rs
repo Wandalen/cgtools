@@ -1,5 +1,3 @@
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::field_reassign_with_default ) ]
 
 use std::{ cell::RefCell, rc::Rc };
 
@@ -9,7 +7,7 @@ use gl::wasm_bindgen::prelude::*;
 use renderer::webgl::animation::Animation;
 use std::collections::HashMap;
 
-use crate::lil_gui::{ on_change_string, new_gui, add_dropdown, add_slider, on_change, show };
+use crate::lil_gui::{ on_change_string, new_gui, dropdown_add, slider_add, on_change, show };
 
 #[ derive( Default, Serialize, Deserialize ) ]
 pub struct Settings
@@ -77,11 +75,158 @@ pub struct Settings
   w59 : f32,
 }
 
+/// Copies the first 60 morph weights into the numbered settings fields, defaulting missing entries to zero.
+fn weight_settings_init( settings : &mut Settings, weights : &[ f32 ] )
+{
+  let mut weights_iter = weights.iter();
+  settings.w0 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w1 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w2 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w3 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w4 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w5 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w6 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w7 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w8 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w9 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w10 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w11 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w12 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w13 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w14 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w15 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w16 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w17 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w18 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w19 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w20 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w21 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w22 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w23 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w24 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w25 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w26 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w27 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w28 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w29 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w30 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w31 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w32 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w33 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w34 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w35 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w36 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w37 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w38 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w39 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w40 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w41 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w42 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w43 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w44 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w45 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w46 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w47 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w48 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w49 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w50 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w51 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w52 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w53 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w54 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w55 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w56 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w57 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w58 = *weights_iter.next().unwrap_or( &0.0 );
+  settings.w59 = *weights_iter.next().unwrap_or( &0.0 );
+}
+
+/// Builds the animation dropdown and wires selection changes to `current_animation`.
+fn animation_dropdown_bind
+(
+  gui : &JsValue,
+  object : &JsValue,
+  animations : HashMap< String, Animation >,
+  current_animation : &Rc< RefCell< Option< Animation > > >
+)
+{
+  let mut animation_names = animations.keys()
+  .cloned()
+  .collect::< Vec< _ > >();
+
+  animation_names.insert( 0, "<none>".to_string() );
+
+  // Choose animation
+  let prop = dropdown_add
+  (
+    gui,
+    object,
+    "animation",
+    &serde_wasm_bindgen::to_value( animation_names.as_slice() ).unwrap()
+  );
+
+  let callback = Closure::new
+  (
+    {
+      let current_animation = current_animation.clone();
+      move | value : String |
+      {
+        let mut current_animation = current_animation.borrow_mut();
+        if !animations.contains_key( value.as_str() )
+        {
+          if let Some( a ) = current_animation.as_mut()
+          {
+            if let Some( s ) = a.inner_get_mut::< animation::Sequencer >().as_mut()
+            {
+              s.reset();
+            }
+            a.set();
+          }
+        }
+        *current_animation = animations.get( value.as_str() ).cloned();
+      }
+    }
+  );
+  on_change_string( &prop, &callback );
+  callback.forget();
+}
+
+/// Creates the 60 weight sliders and wires each to its morph weight slot.
+fn weight_sliders_bind( gui : &JsValue, object : &JsValue, weights : &Rc< RefCell< Vec< f32 > > > )
+{
+  for i in 0..60
+  {
+    let prop = slider_add( gui, object, &format!( "w{i}" ), 0.0, 1.0, 0.01 );
+    let weights_rc = Rc::clone( weights );
+
+    let callback = Closure::new
+    (
+      move | value : f32 |
+      {
+        let Ok( mut weights_ref ) = weights_rc.try_borrow_mut()
+        else
+        {
+          return;
+        };
+
+        if let Some( w ) = weights_ref.get_mut( i )
+        {
+          *w = value;
+        }
+      }
+    );
+
+    on_change( &prop, &callback );
+    callback.forget();
+  }
+}
+
+/// Builds the lil-gui panel : an animation dropdown plus 60 morph weight sliders.
 pub fn setup
 (
   animations : Vec< Animation >,
-  current_animation : Rc< RefCell< Option< Animation > > >,
-  weights : Rc< RefCell< Vec< f32 > > >
+  current_animation : &Rc< RefCell< Option< Animation > > >,
+  weights : &Rc< RefCell< Vec< f32 > > >
 )
 {
   let mut settings = Settings::default();
@@ -97,70 +242,7 @@ pub fn setup
     *current_animation.borrow_mut() = None;
   }
 
-  {
-    let weights_ref = weights.borrow();
-    let mut weights_iter = weights_ref.iter();
-    settings.w0 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w1 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w2 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w3 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w4 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w5 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w6 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w7 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w8 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w9 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w10 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w11 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w12 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w13 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w14 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w15 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w16 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w17 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w18 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w19 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w20 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w21 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w22 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w23 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w24 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w25 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w26 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w27 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w28 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w29 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w30 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w31 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w32 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w33 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w34 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w35 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w36 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w37 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w38 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w39 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w40 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w41 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w42 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w43 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w44 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w45 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w46 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w47 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w48 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w49 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w50 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w51 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w52 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w53 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w54 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w55 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w56 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w57 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w58 = *weights_iter.next().unwrap_or( &0.0 );
-    settings.w59 = *weights_iter.next().unwrap_or( &0.0 );
-  }
+  weight_settings_init( &mut settings, &weights.borrow() );
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
   let gui = new_gui();
@@ -182,71 +264,8 @@ pub fn setup
   )
   .collect::< HashMap< _, _ > >();
 
-  let mut animation_names = animations.keys()
-  .cloned()
-  .collect::< Vec< _ > >();
-
-  animation_names.insert( 0, "<none>".to_string() );
-
-  // Choose animation
-  let prop = add_dropdown
-  (
-    &gui,
-    &object,
-    "animation",
-    &serde_wasm_bindgen::to_value( animation_names.as_slice() ).unwrap()
-  );
-
-  let callback = Closure::new
-  (
-    {
-      let current_animation = current_animation.clone();
-      move | value : String |
-      {
-        let mut current_animation = current_animation.borrow_mut();
-        if animations.get( value.as_str() ).is_none()
-        {
-          current_animation.as_mut()
-          .map
-          (
-            | a |
-            {
-              a.inner_get_mut::< animation::Sequencer >().as_mut()
-              .map( | s | s.reset() );
-              a.set();
-            }
-          );
-        }
-        *current_animation = animations.get( value.as_str() ).cloned();
-      }
-    }
-  );
-  on_change_string( &prop, &callback );
-  callback.forget();
-
-  for i in 0..60
-  {
-    let prop = add_slider( &gui, &object, &format!( "w{i}" ), 0.0, 1.0, 0.01 );
-    let weights_rc = Rc::clone( &weights );
-
-    let callback = Closure::new
-    (
-      move | value : f32 |
-      {
-        let Ok( mut weights_ref ) = weights_rc.try_borrow_mut()
-        else
-        {
-          return;
-        };
-
-        weights_ref.get_mut( i )
-        .map( | w | { *w = value; } );
-      }
-    );
-
-    on_change( &prop, &callback );
-    callback.forget();
-  }
+  animation_dropdown_bind( &gui, &object, animations, current_animation );
+  weight_sliders_bind( &gui, &object, weights );
 
   std::mem::forget( object );
 

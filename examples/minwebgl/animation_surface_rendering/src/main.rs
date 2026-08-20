@@ -1,24 +1,9 @@
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::must_use_candidate ) ]
-#![ allow( clippy::needless_for_each ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::unnecessary_wraps ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::too_many_lines ) ]
-
 use core::cell::RefCell;
 use minwebgl as gl;
 use gl::
 {
-  texture::d2::upload_image_from_path,
   F32x4,
   math::mat4x4::identity,
   GL,
@@ -32,16 +17,12 @@ use renderer::webgl::
   {
     self, Pass, SwapFramebuffer
   },
-  MinFilterMode,
-  MagFilterMode,
-  WrappingMode,
   Camera,
   Object3D,
   Renderer,
   Scene,
   Texture,
   TextureInfo,
-  Sampler,
   material::PbrMaterial,
   Node
 };
@@ -58,10 +39,6 @@ use crate::animation::{ model, Model, Shape, Layer, Transform, Color, fixed, eas
 
 /// Creates a new `TextureInfo` struct with a texture loaded from a file.
 ///
-/// This function calls `upload_texture` to load an image, sets up a default `Sampler`
-/// with linear filtering and repeat wrapping, and then combines them into a `TextureInfo`
-/// struct.
-///
 /// # Arguments
 ///
 /// * `gl` - The WebGl2RenderingContext.
@@ -69,36 +46,21 @@ use crate::animation::{ model, Model, Shape, Layer, Transform, Color, fixed, eas
 ///
 /// # Returns
 ///
-/// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
-fn create_texture
+/// A `TextureInfo` containing the texture data.
+fn texture_create
 (
   gl : &WebGl2RenderingContext,
   image_path : &str
-) -> Option< TextureInfo >
+) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_image_from_path( gl, &image_path, false );
+  let texture = Texture::load_from_path( gl, &image_path, false );
 
-  let sampler = Sampler::former()
-  .min_filter( MinFilterMode::Linear )
-  .mag_filter( MagFilterMode::Linear )
-  .wrap_s( WrappingMode::Repeat )
-  .wrap_t( WrappingMode::Repeat )
-  .end();
-
-  let texture = Texture::former()
-  .target( GL::TEXTURE_2D )
-  .source( texture_id )
-  .sampler( sampler )
-  .end();
-
-  let texture_info = TextureInfo
+  TextureInfo
   {
     texture : Rc::new( RefCell::new( texture ) ),
     uv_position : 0,
-  };
-
-  Some( texture_info )
+  }
 }
 
 /// Initializes the WebGL2 rendering context and canvas.
@@ -109,7 +71,7 @@ fn create_texture
 /// # Returns
 ///
 /// A tuple containing the `WebGl2RenderingContext` and the `HtmlCanvasElement`.
-fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
+fn context_init() -> ( WebGl2RenderingContext, HtmlCanvasElement )
 {
   gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
@@ -139,7 +101,7 @@ fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
 /// # Returns
 ///
 /// A configured `Camera` object.
-fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > ] ) -> Camera
+fn camera_init( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > ] ) -> Camera
 {
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
@@ -159,9 +121,9 @@ fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
   let near = 0.1;
   let far = 10_000_000.0;
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far ).expect( "camera parameters are valid" );
 
-  camera.set_window_size( [ width, height ].into() );
+  camera.window_size_set( [ width, height ].into() );
 
   camera
 }
@@ -181,7 +143,7 @@ fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
 /// A reference-counted, mutable reference to the newly cloned `Node`.
 fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node > >
 {
-  let clone = node.borrow().clone_tree();
+  let clone = node.borrow().tree_clone();
   gltf.nodes.push( clone.clone() );
   if let Object3D::Mesh( ref mesh ) = clone.borrow().object
   {
@@ -209,7 +171,7 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
 ///
 /// * `node` - A reference to the `Rc<RefCell<Node>>` to modify.
 /// * `material_callback` - A closure that takes a material reference and modifies it.
-fn apply_function_to_node_materials
+fn function_apply_to_node_materials
 (
   node : &Rc< RefCell< Node > >,
   mut material_callback : impl FnMut( &mut PbrMaterial )
@@ -242,7 +204,7 @@ fn apply_function_to_node_materials
 /// # Returns
 ///
 /// A `Result` containing the configured `GLTF` scene, or a `gl::WebglError` if loading fails.
-async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglError >
+async fn scene_setup( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglError >
 {
   let window = web_sys::window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
@@ -250,36 +212,42 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
-  let texture = create_texture( gl, "textures/earth2.jpg" );
-  apply_function_to_node_materials( &earth, | m | { m.set_base_color_texture( texture.clone() ); } );
+  let texture = Some( texture_create( gl, "textures/earth2.jpg" ) );
+  function_apply_to_node_materials( &earth, | m | { m.base_color_texture_set( texture.clone() ); } );
 
-  earth.borrow_mut().update_local_matrix();
+  earth.borrow_mut().local_matrix_update();
 
   let clouds = clone( &mut gltf, &earth );
-  let texture = create_texture( gl, "textures/clouds2.png" );
-  apply_function_to_node_materials
+  let texture = Some( texture_create( gl, "textures/clouds2.png" ) );
+  function_apply_to_node_materials
   (
     &clouds,
     | m |
     {
-      m.set_base_color_texture( texture.clone() );
-      m.set_alpha_mode( renderer::webgl::AlphaMode::Blend );
+      m.base_color_texture_set( texture.clone() );
+      m.alpha_mode_set( renderer::webgl::AlphaMode::Blend );
     }
   );
   let scale = 1.005;
-  clouds.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
-  clouds.borrow_mut().set_scale( [ scale; 3 ] );
-  clouds.borrow_mut().set_rotation( gl::Quat::from_angle_y( 90.0 ) );
-  clouds.borrow_mut().update_local_matrix();
+  clouds.borrow_mut().translation_set( [ 0.0, 1.0 - scale, 0.0 ] );
+  clouds.borrow_mut().scale_set( [ scale; 3 ] );
+  // BUG-311 task/bug/311_from_angle_y_called_with_raw_degrees_not_radians.md -- was `90.0`
+  // (radians, ~5_157 degrees), not a 90-degree rotation.
+  // Fix(BUG-311): `from_angle_y( 90.0 )` -> `from_angle_y( 90.0_f32.to_radians() )`.
+  // Root cause: `Quat::from_angle_y` takes radians; `90.0` was passed as if it were degrees.
+  // Pitfall: a radians-only rotation constructor gives no signal when a degrees-shaped literal
+  // is passed instead -- always convert explicitly at the call site.
+  clouds.borrow_mut().rotation_set( gl::Quat::from_angle_y( 90.0_f32.to_radians() ) );
+  clouds.borrow_mut().local_matrix_update();
 
   let moon = clone( &mut gltf, &earth );
-  let texture = create_texture( gl, "textures/moon2.jpg" );
-  apply_function_to_node_materials( &moon, | m | { m.set_base_color_texture( texture.clone() ); } );
+  let texture = Some( texture_create( gl, "textures/moon2.jpg" ) );
+  function_apply_to_node_materials( &moon, | m | { m.base_color_texture_set( texture.clone() ); } );
   let scale = 0.25;
   let distance = 7.0;
-  moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
-  moon.borrow_mut().set_scale( [ scale; 3 ] );
-  moon.borrow_mut().update_local_matrix();
+  moon.borrow_mut().translation_set( [ distance, ( 1.0 - scale ), 0.0 ] );
+  moon.borrow_mut().scale_set( [ scale; 3 ] );
+  moon.borrow_mut().local_matrix_update();
 
   Ok( gltf )
 }
@@ -297,10 +265,10 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 /// # Returns
 ///
 /// A tuple containing the `GLTF` scene for the canvas and a `Vec` of `F32x4` colors.
-async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x4 > )
+async fn canvas_scene_setup( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x4 > )
 {
   let font_names = [ "Roboto-Regular" ];
-  let fonts = text::ufo::load_fonts( &font_names ).await;
+  let fonts = text::ufo::fonts_load( &font_names ).await;
 
   let colors =
   [
@@ -321,17 +289,149 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
       &transform,
       5.0
     );
-    text_mesh.iter_mut()
-    .for_each( | p | p.color = colors[ 0 ] );
+    for p in &mut text_mesh
+    {
+      p.color = colors[ 0 ];
+    }
     primitives_data.extend( text_mesh );
   }
 
   let colors = primitives_data.iter()
   .map( | p | p.color )
   .collect::< Vec< _ > >();
-  let canvas_gltf = primitive_generation::primitives_data_to_gltf( gl, primitives_data );
+  let canvas_gltf = primitive_generation::primitives_data_to_gltf( gl, &primitives_data );
 
   ( canvas_gltf, colors )
+}
+
+/// Builds the transform of a spinning circle layer.
+///
+/// # Arguments
+///
+/// * `rotation_range` - Start and end rotation in degrees, eased linearly over the animation.
+///
+/// # Returns
+///
+/// A `Transform` with the given rotation and a 100 → 200 `EASE_IN_OUT_BACK` scale pulse.
+fn circle_transform_make( rotation_range : ( f64, f64 ) ) -> Transform
+{
+  Transform::former()
+  .rotation
+  (
+    ease
+    (
+      ( 0.0, 10.0 ),
+      rotation_range,
+      LINEAR
+    )
+  )
+  .scale
+  (
+    ease
+    (
+      ( 0.0, 10.0 ),
+      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
+      EASE_IN_OUT_BACK
+    )
+  )
+  .form()
+}
+
+/// Builds the transform of a rectangle layer.
+///
+/// # Arguments
+///
+/// * `position_x` - Fixed horizontal offset of the rectangle from its circle center.
+/// * `scale` - Optional uniform fixed scale; `None` keeps the default scale.
+///
+/// # Returns
+///
+/// A `Transform` with a fixed position, a fixed -20 degree rotation, and the optional scale.
+fn rect_transform_make( position_x : f64, scale : Option< f64 > ) -> Transform
+{
+  let former = Transform::former()
+  .position( fixed( kurbo::Point::new( position_x, 0.0 ) ) )
+  .rotation( fixed( -20.0 ) );
+
+  match scale
+  {
+    Some( scale ) => former.scale( fixed( kurbo::Vec2::new( scale, scale ) ) ).form(),
+    None => former.form(),
+  }
+}
+
+/// Appends one spinning circle to the model : a circle layer parented to the circles layer,
+/// carrying `repeats` rectangles spread evenly around it.
+///
+/// # Arguments
+///
+/// * `model` - The composition model receiving the new layers.
+/// * `rect_geo` - The shared rectangle geometry shape.
+/// * `circle_transform` - Transform of the circle layer itself.
+/// * `rect_transform` - Transform of each rectangle relative to its offset layer.
+/// * `color` - Fill color of the rectangles.
+/// * `repeats` - How many rectangles to distribute around the circle.
+fn circle_add
+(
+  model : &mut Model,
+  rect_geo : &Shape,
+  circle_transform : Transform,
+  rect_transform : Transform,
+  color : F32x4,
+  repeats : usize
+)
+{
+  let circle = Layer::former()
+  .parent( 1_isize )
+  .frames( 0.0..10.0 )
+  .transform( interpoli::Transform::Animated( circle_transform.into() ) )
+  .form();
+
+  model.layers.push( circle );
+  let circle_id = model.layers.len() as isize - 1;
+
+  let offset_rect_transform = Transform::former()
+  .rotation
+  (
+    ease
+    (
+      ( 0.0, 10.0 ),
+      ( 0.0, 360.0 ),
+      LINEAR
+    )
+  )
+  .form();
+
+  let offset_rect = Layer::former()
+  .parent( circle_id )
+  .frames( 0.0..10.0 )
+  .transform( interpoli::Transform::Animated( offset_rect_transform.clone().into() ) )
+  .form();
+
+  let rect = Layer::former()
+  .parent( 3_isize )
+  .frames( 0.0..10.0 )
+  .transform( interpoli::Transform::Animated( rect_transform.into() ) )
+  .content()
+  .add( Shape::Color( Color::Fixed( *color ) ) )
+  .add( rect_geo.clone() )
+  .end()
+  .form();
+
+  let diff = 360.0 / repeats as f64;
+  for i in 0..repeats
+  {
+    let mut rect = rect.clone();
+    let mut offset_rect = offset_rect.clone();
+
+    let mut transform = offset_rect_transform.clone();
+    transform.rotation = fixed( diff * i as f64 );
+    offset_rect.transform = interpoli::Transform::Animated( transform.into() );
+    model.layers.push( offset_rect );
+
+    rect.parent = model.layers.len() as isize - 1;
+    model.layers.push( rect );
+  }
 }
 
 /// Sets up a complex 2D animation using the `animation` module.
@@ -350,7 +450,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
 /// # Returns
 ///
 /// An `animation::Animation` struct.
-fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Animation
+fn animation_setup( gl : &GL, width : usize, height : usize ) -> animation::Animation
 {
   let points : Vec< [ f32; 2 ] > = vec!
   [
@@ -385,205 +485,55 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
   .end()
   .form();
 
-  let mut add_circle =
-  | circle_transform : Transform, rect_transform : Transform, color : F32x4, repeats : usize |
-  {
-    let circle = Layer::former()
-    .parent( 1_isize )
-    .frames( 0.0..10.0 )
-    .transform( interpoli::Transform::Animated( circle_transform.into() ) )
-    .form();
-
-    model.layers.push( circle );
-    let circle_id = model.layers.len() as isize - 1;
-
-    let offset_rect_transform = Transform::former()
-    .rotation
-    (
-      ease
-      (
-        ( 0.0, 10.0 ),
-        ( 0.0, 360.0 ),
-        LINEAR
-      )
-    )
-    .form();
-
-    let offset_rect = Layer::former()
-    .parent( circle_id )
-    .frames( 0.0..10.0 )
-    .transform( interpoli::Transform::Animated( offset_rect_transform.clone().into() ) )
-    .form();
-
-    let rect = Layer::former()
-    .parent( 3_isize )
-    .frames( 0.0..10.0 )
-    .transform( interpoli::Transform::Animated( rect_transform.into() ) )
-    .content()
-    .add( Shape::Color( Color::Fixed( *color ) ) )
-    .add( rect_geo.clone() )
-    .end()
-    .form();
-
-    let diff = 360.0 / repeats as f64;
-    for i in 0..repeats
-    {
-      let mut rect = rect.clone();
-      let mut offset_rect = offset_rect.clone();
-
-      let mut transform = offset_rect_transform.clone();
-      transform.rotation = fixed( diff * i as f64 );
-      offset_rect.transform = interpoli::Transform::Animated( transform.into() );
-      model.layers.push( offset_rect );
-
-      rect.parent = model.layers.len() as isize - 1;
-      model.layers.push( rect );
-    }
-  };
-
-  let circle_transform = Transform::former()
-  .rotation
+  circle_add
   (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( -10.0, 350.0 ),
-      LINEAR
-    )
-  )
-  .scale
+    &mut model,
+    &rect_geo,
+    circle_transform_make( ( -10.0, 350.0 ) ),
+    rect_transform_make( 1.6, Some( 60.0 ) ),
+    F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ),
+    11
+  );
+
+  circle_add
   (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
-      EASE_IN_OUT_BACK
-    )
-  )
-  .form();
+    &mut model,
+    &rect_geo,
+    circle_transform_make( ( 0.0, 360.0 ) ),
+    rect_transform_make( 2.7, Some( 80.0 ) ),
+    F32x4::from_array( [ 1.0, 0.75, 0.75, 1.0 ] ),
+    15
+  );
 
-  let rect_transform = Transform::former()
-  .position( fixed( kurbo::Point::new( 1.6, 0.0 ) ) )
-  .rotation( fixed( -20.0 ) )
-  .scale( fixed( kurbo::Vec2::new( 60.0, 60.0 ) ) )
-  .form();
-
-  add_circle( circle_transform.clone(), rect_transform, F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ), 11 );
-
-  let circle_transform = Transform::former()
-  .rotation
+  circle_add
   (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( 0.0, 360.0 ),
-      LINEAR
-    )
-  )
-  .scale
+    &mut model,
+    &rect_geo,
+    circle_transform_make( ( 10.0, 370.0 ) ),
+    rect_transform_make( 4.2, None ),
+    F32x4::from_array( [ 1.0, 0.5, 0.5, 1.0 ] ),
+    17
+  );
+
+  circle_add
   (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
-      EASE_IN_OUT_BACK
-    )
-  )
-  .form();
+    &mut model,
+    &rect_geo,
+    circle_transform_make( ( 20.0, 380.0 ) ),
+    rect_transform_make( 5.7, Some( 120.0 ) ),
+    F32x4::from_array( [ 1.0, 0.25, 0.25, 1.0 ] ),
+    19
+  );
 
-  let rect_transform = Transform::former()
-  .position( fixed( kurbo::Point::new( 2.7, 0.0 ) ) )
-  .rotation( fixed( -20.0 ) )
-  .scale( fixed( kurbo::Vec2::new( 80.0, 80.0 ) ) )
-  .form();
-
-  add_circle( circle_transform.clone(), rect_transform, F32x4::from_array( [ 1.0, 0.75, 0.75, 1.0 ] ), 15 );
-
-  let circle_transform = Transform::former()
-  .rotation
+  circle_add
   (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( 10.0, 370.0 ),
-      LINEAR
-    )
-  )
-  .scale
-  (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
-      EASE_IN_OUT_BACK
-    )
-  )
-  .form();
-
-  let rect_transform = Transform::former()
-  .position( fixed( kurbo::Point::new( 4.2, 0.0 ) ) )
-  .rotation( fixed( -20.0 ) )
-  .form();
-
-  add_circle( circle_transform.clone(), rect_transform, F32x4::from_array( [ 1.0, 0.5, 0.5, 1.0 ] ), 17 );
-
-  let circle_transform = Transform::former()
-  .rotation
-  (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( 20.0, 380.0 ),
-      LINEAR
-    )
-  )
-  .scale
-  (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
-      EASE_IN_OUT_BACK
-    )
-  )
-  .form();
-
-  let rect_transform = Transform::former()
-  .position( fixed( kurbo::Point::new( 5.7, 0.0 ) ) )
-  .rotation( fixed( -20.0 ) )
-  .scale( fixed( kurbo::Vec2::new( 120.0, 120.0 ) ) )
-  .form();
-
-  add_circle( circle_transform, rect_transform, F32x4::from_array( [ 1.0, 0.25, 0.25, 1.0 ] ), 19 );
-
-  let circle_transform = Transform::former()
-  .rotation
-  (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( 30.0, 390.0 ),
-      LINEAR
-    )
-  )
-  .scale
-  (
-    ease
-    (
-      ( 0.0, 10.0 ),
-      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
-      EASE_IN_OUT_BACK
-    )
-  )
-  .form();
-
-  let rect_transform = Transform::former()
-  .position( fixed( kurbo::Point::new( 7.4, 0.0 ) ) )
-  .rotation( fixed( -20.0 ) )
-  .scale( fixed( kurbo::Vec2::new( 140.0, 140.0 ) ) )
-  .form();
-
-  add_circle( circle_transform, rect_transform, F32x4::from_array( [ 0.8, 0.0, 0.0, 1.0 ] ), 21 );
+    &mut model,
+    &rect_geo,
+    circle_transform_make( ( 30.0, 390.0 ) ),
+    rect_transform_make( 7.4, Some( 140.0 ) ),
+    F32x4::from_array( [ 0.8, 0.0, 0.0, 1.0 ] ),
+    21
+  );
 
   animation::Animation::new( gl, model )
 }
@@ -599,22 +549,22 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
 /// 6. Configures the cameras for both scenes.
 /// 7. Initializes the main `Renderer` and a post-processing pipeline.
 /// 8. Starts the main render loop, which updates the animations and renders the scenes each frame.
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
-  let ( gl, canvas ) = init_context();
+  let ( gl, canvas ) = context_init();
 
-  let mut gltf = setup_scene( &gl ).await?;
+  let mut gltf = scene_setup( &gl ).await?;
 
-  let ( canvas_gltf, _ ) = setup_canvas_scene( &gl ).await;
-  canvas_gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
-  let animation = setup_animation( &gl, canvas.height() as usize, canvas.width() as usize );
-  animation.set_world_matrix( identity() );
+  let ( canvas_gltf, _ ) = canvas_scene_setup( &gl ).await;
+  canvas_gltf.scenes[ 0 ].borrow_mut().world_matrix_update();
+  let animation = animation_setup( &gl, canvas.height() as usize, canvas.width() as usize );
+  animation.world_matrix_set( identity() );
 
-  let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
-  canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
-  canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 150.0 ].into();
+  let canvas_camera = camera_init( &canvas, &canvas_gltf.scenes );
+  canvas_camera.controls_get().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
+  canvas_camera.controls_get().borrow_mut().eye = [ 0.0, 0.0, 150.0 ].into();
   {
-    let controls = canvas_camera.get_controls();
+    let controls = canvas_camera.controls_get();
     let mut controls_ref = controls.borrow_mut();
     let center = controls_ref.center.as_mut();
     center[ 1 ] += 45.0;
@@ -622,41 +572,40 @@ async fn run() -> Result< (), gl::WebglError >
   }
 
   let canvas_renderer = CanvasRenderer::new( &gl, canvas.width() * 4, canvas.height() * 4 )?;
-  let canvas_texture = canvas_renderer.get_texture();
+  let canvas_texture = canvas_renderer.texture_get();
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
   let canvas_sphere = clone( &mut gltf, &earth );
-  apply_function_to_node_materials
+  function_apply_to_node_materials
   (
     &canvas_sphere,
     | m |
     {
-      let uv_position = m.base_color_texture().map( | t | t.uv_position ).unwrap_or( 0 );
+      let uv_position = m.base_color_texture().map_or( 0, | t | t.uv_position );
       let texture = Texture::former().source( canvas_texture.clone() ).form();
       let texture_info = TextureInfo { texture : Rc::new( RefCell::new( texture ) ), uv_position };
-      m.set_base_color_texture( Some( texture_info ) );
-      m.set_alpha_mode( renderer::webgl::AlphaMode::Blend );
+      m.base_color_texture_set( Some( texture_info ) );
+      m.alpha_mode_set( renderer::webgl::AlphaMode::Blend );
     }
   );
   let scale = 1.01;
-  canvas_sphere.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
-  canvas_sphere.borrow_mut().set_scale( [ scale; 3 ] );
+  canvas_sphere.borrow_mut().translation_set( [ 0.0, 1.0 - scale, 0.0 ] );
+  canvas_sphere.borrow_mut().scale_set( [ scale; 3 ] );
 
   let scenes = gltf.scenes.clone();
 
-  let camera = init_camera( &canvas, &scenes );
-  camera.bind_controls( &canvas );
+  let camera = camera_init( &canvas, &scenes );
+  camera.controls_bind( &canvas );
   let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() )
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
-  camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
-  camera.get_controls().borrow_mut().center = [ 0.0, 1.0, 0.0 ].into();
+  camera.controls_get().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
+  camera.controls_get().borrow_mut().center = [ 0.0, 1.0, 0.0 ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/gltf_viewer_ibl_unreal", None ).await );
-  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" )
-  .expect( "Failed to load skybox texture" );
-  renderer.set_skybox( skybox.texture.borrow().source.clone() );
+  renderer.ibl_set( renderer::webgl::loaders::ibl::load( &gl, "static/environment_maps/gltf_viewer_ibl_unreal", None ).await );
+  let skybox = texture_create( &gl, "environment_maps/equirectangular_maps/space3.png" );
+  renderer.skybox_set( skybox.texture.borrow().source.clone() );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
@@ -685,16 +634,16 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.main_texture() );
-      //swap_buffer.set_input( Some( canvas_renderer.get_texture() ) );
+      swap_buffer.input_set( renderer.main_texture() );
+      //swap_buffer.input_set( Some( canvas_renderer.texture_get() ) );
 
-      let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render tonemapping pass" );
 
-      swap_buffer.set_output( t );
+      swap_buffer.output_set( t );
       swap_buffer.swap();
 
-      let _t = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let _t = to_srgb.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render to srgb pass" );
 
       true
@@ -709,7 +658,7 @@ async fn run() -> Result< (), gl::WebglError >
 
 /// The main entry point of the application.
 ///
-/// This function calls `gl::spawn_local` to execute the asynchronous `run` function,
+/// This function calls `gl::spawn_local` to execute the asynchronous `app_run` function,
 /// which sets up and runs the entire WebGL application.
 fn main()
 {
@@ -717,7 +666,7 @@ fn main()
   (
     async move
     {
-      run().await.expect( "Program finish work with errors" )
+      app_run().await.expect( "Program finish work with errors" );
     }
   );
 }

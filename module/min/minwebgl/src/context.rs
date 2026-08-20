@@ -1,6 +1,7 @@
 /// Internal namespace.
 mod private
 {
+  #[ allow( clippy::wildcard_imports, reason = "crate-root prelude from mod_interface!; enumerating would break on every layer change" ) ]
   use crate::*;
   // pub use ::web_sys::{ WebGl2RenderingContext, WebGl2RenderingContext as GL };
   pub use web_sys::
@@ -40,23 +41,36 @@ mod private
     /// Error when required data is missing.
     #[ error( "Can't find {0}" ) ]
     MissingDataError( &'static str ),
+    /// Error when a numeric id (e.g. a framebuffer attachment index) does not fit into the
+    /// `u32` range a WebGL id requires. Ids computed at runtime (e.g. while iterating a
+    /// dynamically sized framebuffer configuration) can legitimately be out of range, so
+    /// this is surfaced as a recoverable error instead of panicking.
+    #[ error( "{0}" ) ]
+    IdOutOfRange( String ),
     /// General error type
     #[ error( "{0}" ) ]
     Other( &'static str ),
   }
 
   /// Create a WebGL2 context from a canvas element with default options.
+  ///
+  /// # Errors
+  /// Returns an error if the canvas cannot provide a WebGL2 context.
   pub fn from_canvas( canvas : &HtmlCanvasElement ) -> Result< GL, Error >
   {
     from_canvas_with( canvas, ContextOptions::default() )
   }
 
   /// Create a WebGL2 context from a canvas.
+  ///
+  /// # Errors
+  /// Returns an error if the canvas cannot provide a WebGL2 context or if the retrieved
+  /// context cannot be cast to `GL`.
   pub fn from_canvas_with( canvas: &HtmlCanvasElement, o : ContextOptions ) -> Result< GL, Error >
   {
     if o.remove_dpr_scaling
     {
-      canvas::remove_dpr_scaling( &canvas );
+      canvas::dpr_scaling_remove( canvas );
     }
 
     let context_options : js_sys::Object = o.into();
@@ -73,6 +87,10 @@ mod private
   }
 
   /// Create a 2d context from a canvas.
+  ///
+  /// # Errors
+  /// Returns an error if the canvas cannot provide a 2d context or if the retrieved
+  /// context cannot be cast to `CanvasRenderingContext2d`.
   pub fn from_canvas_2d( canvas : &HtmlCanvasElement ) -> Result< web_sys::CanvasRenderingContext2d, Error >
   {
     let context = canvas
@@ -93,12 +111,15 @@ mod private
   /// if fails to find it's looking for canvas with class "canvas",
   /// if fails to find it create a canvas, add it to document body and stretch it to fill whole screen.
   /// Retrtuve from canvas WebGL2 context.
+  ///
+  /// # Errors
+  /// Returns an error if the canvas cannot be found, created, or if the WebGL2 context
+  /// cannot be retrieved from it (see [`retrieve_or_make_with`]).
   pub fn retrieve_or_make() -> Result< GL, Error >
   {
-    retrieve_or_make_with( Default::default() )
+    retrieve_or_make_with( ContextOptions::default() )
   }
 
-  // aaa : explain difference between similar functions
   /// Retrieves a WebGL2 context from an existing canvas or creates a new canvas if none is found,
   /// applying the specified `ContextOptions`.
   ///
@@ -109,11 +130,9 @@ mod private
   /// # Errors
   /// - Returns an error if the canvas cannot be found, created, or if the WebGL2 context cannot
   ///   be retrieved.
-  // aaa : use o instead of long name in such cases
   pub fn retrieve_or_make_with( o : ContextOptions ) -> Result< GL, Error >
   {
     let canvas = canvas::retrieve_or_make()?;
-    // aaa : no, opposite retrieve_or_make is shortcut for retrieve_or_make_with
     from_canvas_with( &canvas, o )
   }
 
@@ -131,16 +150,17 @@ mod private
   }
 
   /// Converts the `PowerPreference` enum variant to its corresponding string representation.
-  impl ToString for PowerPreference
+  impl std::fmt::Display for PowerPreference
   {
-    fn to_string( &self ) -> String
+    fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
     {
-      match self
+      let s = match self
       {
-        PowerPreference::LowPower => "low-power".to_string(),
-        PowerPreference::HighPerformance => "high-performance".to_string(),
-        PowerPreference::Default => "default".to_string(),
-      }
+        PowerPreference::LowPower => "low-power",
+        PowerPreference::HighPerformance => "high-performance",
+        PowerPreference::Default => "default",
+      };
+      write!( f, "{s}" )
     }
   }
 
@@ -195,20 +215,23 @@ mod private
   impl ContextOptions
   {
     /// Set whether to remove device pixel ratio scaling.
-    pub fn remove_dpr_scaling( mut self, val : bool ) -> Self
+    #[ must_use ]
+    pub fn dpr_scaling_remove( mut self, val : bool ) -> Self
     {
       self.remove_dpr_scaling = val;
       self
     }
 
     /// Set whether to preserve the drawing buffer.
-    pub fn preserve_drawing_buffer( mut self, val : bool ) -> Self
+    #[ must_use ]
+    pub fn drawing_buffer_preserve( mut self, val : bool ) -> Self
     {
       self.preserve_drawing_buffer = val;
       self
     }
 
     /// Set whether the canvas has an alpha channel.
+    #[ must_use ]
     pub fn alpha( mut self, val : bool ) -> Self
     {
       self.alpha = val;
@@ -216,6 +239,7 @@ mod private
     }
 
     /// Set whether antialiasing is enabled.
+    #[ must_use ]
     pub fn antialias( mut self, val : bool ) -> Self
     {
       self.antialias = val;
@@ -223,6 +247,7 @@ mod private
     }
 
     /// Set whether a depth buffer is created.
+    #[ must_use ]
     pub fn depth( mut self, val : bool ) -> Self
     {
       self.depth = val;
@@ -230,6 +255,7 @@ mod private
     }
 
     /// Set whether a stencil buffer is created.
+    #[ must_use ]
     pub fn stencil( mut self, val : bool ) -> Self
     {
       self.stencil = val;
@@ -237,6 +263,7 @@ mod private
     }
 
     /// Set whether to use premultiplied alpha.
+    #[ must_use ]
     pub fn premultiplied_alpha( mut self, val : bool ) -> Self
     {
       self.premultiplied_alpha = val;
@@ -244,6 +271,7 @@ mod private
     }
 
     /// Set whether to fail on major performance caveats.
+    #[ must_use ]
     pub fn fail_if_major_performance_caveat( mut self, val : bool ) -> Self
     {
       self.fail_if_major_performance_caveat = val;
@@ -251,6 +279,7 @@ mod private
     }
 
     /// Set the power preference for the WebGL context.
+    #[ must_use ]
     pub fn power_preference( mut self, val : PowerPreference ) -> Self
     {
       self.power_preference = val;
@@ -258,6 +287,7 @@ mod private
     }
 
     /// Set whether the context is desynchronized.
+    #[ must_use ]
     pub fn desynchronized( mut self, val : bool ) -> Self
     {
       self.desynchronized = val;
@@ -287,20 +317,20 @@ mod private
   }
 
   /// Converts `ContextOptions` into a `js_sys::Object` for use with JavaScript.
-  impl Into< js_sys::Object > for ContextOptions
+  impl From< ContextOptions > for js_sys::Object
   {
-    fn into( self ) -> js_sys::Object
+    fn from( value : ContextOptions ) -> Self
     {
       let context_options = js_sys::Object::new();
-      js_sys::Reflect::set( &context_options, &"preserveDrawingBuffer".into(), &self.preserve_drawing_buffer.into() ).unwrap();
-      js_sys::Reflect::set( &context_options, &"alpha".into(), &self.alpha.into() ).unwrap();
-      js_sys::Reflect::set( &context_options, &"antialias".into(), &self.antialias.into() ).unwrap();
-      js_sys::Reflect::set( &context_options, &"depth".into(), &self.depth.into() ).unwrap();
-      js_sys::Reflect::set( &context_options, &"stencil".into(), &self.stencil.into() ).unwrap();
-      js_sys::Reflect::set( &context_options, &"premultipliedAlpha".into(), &self.premultiplied_alpha.into() ).unwrap();
-      js_sys::Reflect::set( &context_options, &"failIfMajorPerformanceCaveat".into(), &self.fail_if_major_performance_caveat.into() ).unwrap();
-      js_sys::Reflect::set( &context_options, &"powerPreference".into(), &self.power_preference.to_string().into() ).unwrap();
-      js_sys::Reflect::set( &context_options, &"desynchronized".into(), &self.desynchronized.into() ).unwrap();
+      js_sys::Reflect::set( &context_options, &"preserveDrawingBuffer".into(), &value.preserve_drawing_buffer.into() ).unwrap();
+      js_sys::Reflect::set( &context_options, &"alpha".into(), &value.alpha.into() ).unwrap();
+      js_sys::Reflect::set( &context_options, &"antialias".into(), &value.antialias.into() ).unwrap();
+      js_sys::Reflect::set( &context_options, &"depth".into(), &value.depth.into() ).unwrap();
+      js_sys::Reflect::set( &context_options, &"stencil".into(), &value.stencil.into() ).unwrap();
+      js_sys::Reflect::set( &context_options, &"premultipliedAlpha".into(), &value.premultiplied_alpha.into() ).unwrap();
+      js_sys::Reflect::set( &context_options, &"failIfMajorPerformanceCaveat".into(), &value.fail_if_major_performance_caveat.into() ).unwrap();
+      js_sys::Reflect::set( &context_options, &"powerPreference".into(), &value.power_preference.to_string().into() ).unwrap();
+      js_sys::Reflect::set( &context_options, &"desynchronized".into(), &value.desynchronized.into() ).unwrap();
 
       context_options
     }

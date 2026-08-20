@@ -1,8 +1,8 @@
-#![ allow( missing_docs ) ]
 
 /// Internal namespace.
 mod private
 {
+  #[ allow( clippy::wildcard_imports, reason = "crate-root prelude from mod_interface!; enumerating would break on every layer change" ) ]
   use crate::*;
   pub use web_sys::{ WebGlShader, WebGlProgram };
   use std::cell::RefCell;
@@ -26,9 +26,10 @@ mod private
   /// Utilities for working with shader types.
   pub mod typ
   {
-    use super::*;
+    use super::GL;
 
     /// Convert shader type constant to human-readable string.
+    #[ must_use ]
     pub fn to_str( shader_type : u32 ) -> &'static str
     {
       match shader_type
@@ -54,7 +55,7 @@ mod private
   }
 
   /// Implementation for the `Former` pattern for `ShaderSource`.
-  impl< 'a > ShaderSourceFormer< 'a >
+  impl ShaderSourceFormer< '_ >
   {
 
     /// Compiles the formed `ShaderSource` into a `WebGlShader`.
@@ -66,23 +67,21 @@ mod private
   }
 
   /// Implementation for `ShaderSource`.
-  impl< 'a > ShaderSource< 'a >
+  impl ShaderSource< '_ >
   {
 
     /// Deduce the shader's name. Returns an empty string if no name is provided.
+    #[ must_use ]
     pub fn name( &self ) -> &str
     {
-      if let Some( name ) = self.shader_name
-      {
-        name
-      }
-      else
-      {
-        ""
-      }
+      self.shader_name.unwrap_or_default()
     }
 
     /// Compiles the shader source code and returns a `WebGlShader`.
+    ///
+    /// # Errors
+    /// Returns `Error::ShaderCompilationError` if the shader object cannot be created
+    /// or if compilation fails.
     pub fn compile
     (
       &self,
@@ -132,7 +131,6 @@ mod private
 
   }
 
-  #[ derive( New ) ]
   /// Compile shaders and link them into a program, give readable diagnostic information if fail.
   pub struct ProgramFromSources< 'a >
   {
@@ -142,34 +140,38 @@ mod private
     fragment_shader : &'a str,
   }
 
-  // /// Implementation for `ProgramFromSources`.
-  // impl< 'a > ProgramFromSources< 'a >
-  // {
-  //   /// Create a new ProgramFromSources with vertex and fragment shader source code.
-  //   pub fn new( vertex_shader : &'a str, fragment_shader : &'a str ) -> Self
-  //   {
-  //     Self { vertex_shader, fragment_shader }
-  //   }
-  // }
-
+  /// Implementation for `ProgramFromSources`.
   impl< 'a > ProgramFromSources< 'a >
   {
+    /// Create a new `ProgramFromSources` with vertex and fragment shader source code.
+    #[ must_use ]
+    pub fn new( vertex_shader : &'a str, fragment_shader : &'a str ) -> Self
+    {
+      Self { vertex_shader, fragment_shader }
+    }
+  }
+
+  impl ProgramFromSources< '_ >
+  {
     /// Compiles and links the shaders into a program.
+    ///
+    /// # Errors
+    /// Returns an error if either shader fails to compile or if linking fails.
     pub fn compile_and_link( &self, gl : &GL ) -> Result< WebGlProgram, Error >
     {
 
       let vertex_shader = ShaderSource::former()
       .shader_type( GL::VERTEX_SHADER )
       .source( self.vertex_shader )
-      .compile( &gl )?;
+      .compile( gl )?;
 
       let fragment_shader = ShaderSource::former()
       .shader_type( GL::FRAGMENT_SHADER )
       .source( self.fragment_shader )
-      .compile( &gl )?;
+      .compile( gl )?;
 
       let shaders_for_program = program::ProgramShaders::new( &vertex_shader, &fragment_shader );
-      shaders_for_program.link( &gl )
+      shaders_for_program.link( gl )
     }
 
   }
@@ -187,16 +189,20 @@ mod private
   impl< 'a > ProgramShaders< 'a >
   {
     /// Create a new ProgramShaders with compiled vertex and fragment shaders.
+    #[ must_use ]
     pub fn new( vertex_shader : &'a WebGlShader, fragment_shader : &'a WebGlShader ) -> Self
     {
       Self { vertex_shader, fragment_shader }
     }
   }
 
-  impl< 'a > ProgramShaders< 'a >
+  impl ProgramShaders< '_ >
   {
 
     /// Link the vertex and fragment shaders into a WebGL program.
+    ///
+    /// # Errors
+    /// Returns `Error::LinkingError` if the program object cannot be created or if linking fails.
     pub fn link
     (
       &self,
@@ -233,6 +239,9 @@ mod private
   pub trait ProgramInterface
   {
     /// Compiles and links shader source code and updates the program.
+    ///
+    /// # Errors
+    /// Returns an error message if compilation or linking fails.
     fn compile_and_link( &self, vertex_src : &str, fragment_src : &str ) -> Result< (), String >;
     /// Sets a uniform value in the shader.
     fn uniform_upload< D >( &self, name : &str, value : &D )
@@ -242,10 +251,6 @@ mod private
     fn uniform_matrix_upload< D >( &self, name : &str, data : &D, column_major : bool )
     where
       D : uniform::UniformMatrixUpload + ?Sized;
-
-    // xxx : clean
-    // /// Draws the active shader program.
-    // fn draw( &self, mode : u32, count : i32 );
 
   }
 
@@ -271,6 +276,9 @@ mod private
     /// - `vertex_src`: The source code for the vertex shader.
     /// - `fragment_src`: The source code for the fragment shader.
     ///
+    /// # Errors
+    /// Returns `Err(WebglError)` if there is an error during shader compilation or linking.
+    ///
     /// # Returns
     /// A `Result` which is:
     /// - `Ok(Program)` if the shaders compile and link successfully.
@@ -289,6 +297,9 @@ mod private
     /// - `vertex_src`: The source code for the vertex shader.
     /// - `fragment_src`: The source code for the fragment shader.
     ///
+    /// # Errors
+    /// Returns `Err(WebglError)` if there is an error during shader compilation or linking.
+    ///
     /// # Returns
     /// A `Result` which is:
     /// - `Ok(WebGlProgram)` if the shaders compile and link successfully.
@@ -298,7 +309,7 @@ mod private
       // Use the ProgramFromSources structure from program to compile and link shaders.
       ProgramFromSources::new( vertex_src, fragment_src )
       .compile_and_link( gl )
-      .map_err( |e| e.into() )
+      .map_err( mingl::Into::into )
     }
 
     /// Sets the current WebGL program as the active program in the WebGL context.
@@ -316,6 +327,9 @@ mod private
     /// # Parameters
     /// - `name`: The name of the uniform variable.
     /// - `value`: A reference to the value to upload, which must implement `UniformUpload`.
+    ///
+    /// # Panics
+    /// Panics if `value`'s `UniformUpload` implementation fails to upload.
     pub fn uniform_upload< D >( &self, name : &str, value : &D )
     where
       D : UniformUpload + std::fmt::Debug + ?Sized,
@@ -335,6 +349,9 @@ mod private
     /// - `name`: The name of the uniform variable.
     /// - `data`: A reference to the matrix data to upload, which must implement `UniformMatrixUpload`.
     /// - `column_major`: A boolean indicating whether the matrix data is in column-major order.
+    ///
+    /// # Panics
+    /// Panics if `data`'s `UniformMatrixUpload` implementation fails to upload.
     pub fn uniform_matrix_upload< D >( &self, name : &str, data : &D, column_major : bool )
     where
       D : uniform::UniformMatrixUpload + ?Sized,
@@ -345,18 +362,6 @@ mod private
         uniform::matrix_upload( &self.gl, location, data, column_major ).unwrap();
       }
     }
-
-    // xxx : clean
-    // /// Draws the active shader program using the specified mode and vertex count.
-    // ///
-    // /// # Parameters
-    // /// - `mode`: The primitive type to render (e.g., `GL::TRIANGLES`).
-    // /// - `count`: The number of vertices to render.
-    // pub fn draw( &self, mode : u32, count : i32 )
-    // {
-    //   // Assumes the program is already in use.
-    //   self.gl.draw_arrays( mode, 0, count );
-    // }
 
   }
 
@@ -404,17 +409,6 @@ mod private
     {
       Program::uniform_matrix_upload( self, name, data, column_major );
     }
-
-    // xxx : clean
-    // /// Draws the active shader program using the specified mode and vertex count.
-    // ///
-    // /// # Parameters
-    // /// - `mode`: The primitive type to render (e.g., `GL::TRIANGLES`).
-    // /// - `count`: The number of vertices to render.
-    // fn draw( &self, mode : u32, count : i32 )
-    // {
-    //   Program::draw( self, mode, count );
-    // }
 
   }
 

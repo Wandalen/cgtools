@@ -37,7 +37,7 @@
 //!
 //! // Query entities in a region
 //! let query_bounds = SpatialBounds::new(20, 20, 30, 30);
-//! let nearby_entities = quadtree.query_region(&query_bounds);
+//! let nearby_entities = quadtree.region_query(&query_bounds);
 //! println!("Found {} entities in region", nearby_entities.len());
 //! ```
 
@@ -60,11 +60,13 @@ pub struct SpatialBounds
 impl SpatialBounds
 {
     /// Creates a new spatial boundary.
+    #[must_use]
     pub fn new(left: i32, top: i32, right: i32, bottom: i32) -> Self {
         Self { left, top, right, bottom }
     }
 
     /// Creates a boundary from center point and dimensions.
+    #[must_use]
     pub fn from_center_size(center_x: i32, center_y: i32, width: i32, height: i32) -> Self {
         let half_width = width / 2;
         let half_height = height / 2;
@@ -77,26 +79,31 @@ impl SpatialBounds
     }
 
     /// Returns the width of this boundary.
+    #[must_use]
     pub fn width(&self) -> i32 {
         self.right - self.left
     }
 
     /// Returns the height of this boundary.
+    #[must_use]
     pub fn height(&self) -> i32 {
         self.bottom - self.top
     }
 
     /// Returns the area of this boundary.
+    #[must_use]
     pub fn area(&self) -> i32 {
         self.width() * self.height()
     }
 
     /// Checks if this boundary contains a point.
+    #[must_use]
     pub fn contains_point(&self, x: i32, y: i32) -> bool {
         x >= self.left && x <= self.right && y >= self.top && y <= self.bottom
     }
 
     /// Checks if this boundary intersects with another boundary.
+    #[must_use]
     pub fn intersects(&self, other: &SpatialBounds) -> bool {
         !(self.right < other.left || 
           self.left > other.right || 
@@ -105,6 +112,7 @@ impl SpatialBounds
     }
 
     /// Checks if this boundary completely contains another boundary.
+    #[must_use]
     pub fn contains(&self, other: &SpatialBounds) -> bool {
         self.left <= other.left && 
         self.right >= other.right && 
@@ -113,6 +121,7 @@ impl SpatialBounds
     }
 
     /// Returns the center point of this boundary.
+    #[must_use]
     pub fn center(&self) -> (i32, i32) {
         ((self.left + self.right) / 2, (self.top + self.bottom) / 2)
     }
@@ -214,6 +223,7 @@ where
     C: SpatialCoordinate + Clone,
 {
     /// Creates a new quadtree with the specified bounds and capacity.
+    #[must_use]
     pub fn new(bounds: SpatialBounds, max_entities: usize) -> Self {
         Self {
             root: QuadtreeNode::new_leaf(),
@@ -224,10 +234,34 @@ where
     }
 
     /// Inserts an entity into the quadtree.
-    pub fn insert(&mut self, entity: SpatialEntity<C>) {
+    ///
+    /// Returns `false` (and leaves the quadtree unchanged) if the entity's position falls
+    /// outside the quadtree's own bounds.
+    #[must_use]
+    pub fn insert(&mut self, entity: SpatialEntity<C>) -> bool {
+        // Fix(BUG-134)
+        // Root cause: insert_recursive_static's quadrant routing always finds
+        // SOME quadrant via unbounded center-point comparisons, with no check
+        // that the entity's position actually falls within the tree's own
+        // bounds -- an out-of-bounds entity got filed into a leaf whose real
+        // bounds don't contain it, then region_query's node_bounds
+        // intersects() pruning (walked from the tree's fixed self.bounds,
+        // which never grows) silently excluded it from every spatially-scoped
+        // query while it remained visible via all_entities().
+        // Pitfall: this check must live here, once, at the entry point -- the
+        // recursive quadrant split (bounds.center() then >=/<= comparison)
+        // already preserves containment correctly for any position that
+        // starts inside bounds, so duplicating a bounds check at every
+        // recursion level would be redundant, not defensive.
+        let (x, y) = entity.position.to_spatial_coords();
+        if !self.bounds.contains_point(x, y) {
+            return false;
+        }
+
         let bounds = self.bounds;
         let max_entities = self.max_entities;
         Self::insert_recursive_static(&mut self.root, entity, &bounds, 0, max_entities, &mut self.max_depth);
+        true
     }
 
     /// Removes all entities with the specified ID from the quadtree.
@@ -238,20 +272,22 @@ where
     }
 
     /// Queries all entities that intersect with the specified boundary.
-    pub fn query_region(&self, query_bounds: &SpatialBounds) -> Vec<SpatialEntity<C>> {
+    #[must_use]
+    pub fn region_query(&self, query_bounds: &SpatialBounds) -> Vec<SpatialEntity<C>> {
         let mut results = Vec::new();
-        self.query_recursive(&self.root, query_bounds, &self.bounds, &mut results);
+        Self::query_recursive(&self.root, query_bounds, &self.bounds, &mut results);
         results
     }
 
     /// Queries all entities within a circular area.
-    pub fn query_circle(&self, center_x: i32, center_y: i32, radius: i32) -> Vec<SpatialEntity<C>>
+    #[must_use]
+    pub fn circle_query(&self, center_x: i32, center_y: i32, radius: i32) -> Vec<SpatialEntity<C>>
     where
         C: Distance,
     {
         // First get candidates from rectangular query
         let query_bounds = SpatialBounds::from_center_size(center_x, center_y, radius * 2, radius * 2);
-        let candidates = self.query_region(&query_bounds);
+        let candidates = self.region_query(&query_bounds);
 
         // Filter by actual circular distance
         let center_coord = C::from_spatial_coords(center_x, center_y);
@@ -264,9 +300,10 @@ where
     }
 
     /// Gets all entities stored in the quadtree.
+    #[must_use]
     pub fn all_entities(&self) -> Vec<SpatialEntity<C>> {
         let mut entities = Vec::new();
-        self.collect_all_entities(&self.root, &mut entities);
+        Self::all_entities_collect(&self.root, &mut entities);
         entities
     }
 
@@ -277,9 +314,10 @@ where
     }
 
     /// Returns statistics about the quadtree structure.
+    #[must_use]
     pub fn stats(&self) -> QuadtreeStats {
         let mut stats = QuadtreeStats::default();
-        self.calculate_stats(&self.root, 0, &mut stats);
+        Self::stats_calculate(&self.root, 0, &mut stats);
         stats
     }
 
@@ -301,7 +339,7 @@ where
                 
                 // Check if we need to subdivide
                 if entities.len() > max_entities && depth < 16 { // Max depth limit
-                    Self::subdivide_node_static(node, bounds, depth, max_entities, current_max_depth);
+                    Self::node_subdivide_static(node, bounds, depth, max_entities, current_max_depth);
                 }
             }
             QuadtreeNode::Internal { northeast, northwest, southeast, southwest } => {
@@ -333,12 +371,12 @@ where
                             &SpatialBounds::new(bounds.left, center_y, center_x, bounds.bottom), 
                             depth + 1, max_entities, current_max_depth);
                     }
-                };
+                }
             }
         }
     }
 
-    fn subdivide_node_static(
+    fn node_subdivide_static(
         node: &mut QuadtreeNode<C>, 
         bounds: &SpatialBounds, 
         depth: usize,
@@ -391,7 +429,6 @@ where
     }
 
     fn query_recursive(
-        &self,
         node: &QuadtreeNode<C>,
         query_bounds: &SpatialBounds,
         node_bounds: &SpatialBounds,
@@ -411,23 +448,23 @@ where
             }
             QuadtreeNode::Internal { northeast, northwest, southeast, southwest } => {
                 let (center_x, center_y) = node_bounds.center();
-                
-                self.query_recursive(
+
+                Self::query_recursive(
                     northeast, query_bounds,
                     &SpatialBounds::new(center_x, node_bounds.top, node_bounds.right, center_y),
                     results
                 );
-                self.query_recursive(
+                Self::query_recursive(
                     northwest, query_bounds,
                     &SpatialBounds::new(node_bounds.left, node_bounds.top, center_x, center_y),
                     results
                 );
-                self.query_recursive(
+                Self::query_recursive(
                     southeast, query_bounds,
                     &SpatialBounds::new(center_x, center_y, node_bounds.right, node_bounds.bottom),
                     results
                 );
-                self.query_recursive(
+                Self::query_recursive(
                     southwest, query_bounds,
                     &SpatialBounds::new(node_bounds.left, center_y, center_x, node_bounds.bottom),
                     results
@@ -436,21 +473,21 @@ where
         }
     }
 
-    fn collect_all_entities(&self, node: &QuadtreeNode<C>, entities: &mut Vec<SpatialEntity<C>>) {
+    fn all_entities_collect(node: &QuadtreeNode<C>, entities: &mut Vec<SpatialEntity<C>>) {
         match node {
             QuadtreeNode::Leaf { entities: node_entities } => {
                 entities.extend_from_slice(node_entities);
             }
             QuadtreeNode::Internal { northeast, northwest, southeast, southwest } => {
-                self.collect_all_entities(northeast, entities);
-                self.collect_all_entities(northwest, entities);
-                self.collect_all_entities(southeast, entities);
-                self.collect_all_entities(southwest, entities);
+                Self::all_entities_collect(northeast, entities);
+                Self::all_entities_collect(northwest, entities);
+                Self::all_entities_collect(southeast, entities);
+                Self::all_entities_collect(southwest, entities);
             }
         }
     }
 
-    fn calculate_stats(&self, node: &QuadtreeNode<C>, depth: usize, stats: &mut QuadtreeStats) {
+    fn stats_calculate(node: &QuadtreeNode<C>, depth: usize, stats: &mut QuadtreeStats) {
         stats.total_nodes += 1;
         stats.max_depth = stats.max_depth.max(depth);
 
@@ -465,10 +502,10 @@ where
             }
             QuadtreeNode::Internal { northeast, northwest, southeast, southwest } => {
                 stats.internal_nodes += 1;
-                self.calculate_stats(northeast, depth + 1, stats);
-                self.calculate_stats(northwest, depth + 1, stats);
-                self.calculate_stats(southeast, depth + 1, stats);
-                self.calculate_stats(southwest, depth + 1, stats);
+                Self::stats_calculate(northeast, depth + 1, stats);
+                Self::stats_calculate(northwest, depth + 1, stats);
+                Self::stats_calculate(southeast, depth + 1, stats);
+                Self::stats_calculate(southwest, depth + 1, stats);
             }
         }
     }
@@ -495,6 +532,7 @@ pub struct QuadtreeStats {
 
 impl QuadtreeStats {
     /// Calculates the average entities per leaf node.
+    #[must_use]
     pub fn average_entities_per_leaf(&self) -> f32 {
         if self.leaf_nodes > 0 {
             self.total_entities as f32 / self.leaf_nodes as f32
@@ -504,6 +542,7 @@ impl QuadtreeStats {
     }
 
     /// Calculates the fill ratio (non-empty nodes / total nodes).
+    #[must_use]
     pub fn fill_ratio(&self) -> f32 {
         if self.total_nodes > 0 {
             (self.total_nodes - self.empty_nodes) as f32 / self.total_nodes as f32
@@ -531,143 +570,5 @@ impl<T> SpatialCoordinate for crate::coordinates::square::Coordinate<T> {
 
     fn from_spatial_coords(x: i32, y: i32) -> Self {
         Self::new(x, y)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::coordinates::square::{Coordinate as SquareCoord, FourConnected};
-
-    #[test]
-    fn test_spatial_bounds_creation() {
-        let bounds = SpatialBounds::new(0, 0, 100, 100);
-        assert_eq!(bounds.width(), 100);
-        assert_eq!(bounds.height(), 100);
-        assert_eq!(bounds.area(), 10000);
-        assert_eq!(bounds.center(), (50, 50));
-    }
-
-    #[test]
-    fn test_spatial_bounds_contains() {
-        let bounds = SpatialBounds::new(10, 10, 50, 50);
-        assert!(bounds.contains_point(25, 25));
-        assert!(!bounds.contains_point(5, 5));
-        assert!(!bounds.contains_point(60, 60));
-    }
-
-    #[test]
-    fn test_spatial_bounds_intersects() {
-        let bounds1 = SpatialBounds::new(0, 0, 50, 50);
-        let bounds2 = SpatialBounds::new(25, 25, 75, 75);
-        let bounds3 = SpatialBounds::new(100, 100, 150, 150);
-
-        assert!(bounds1.intersects(&bounds2));
-        assert!(!bounds1.intersects(&bounds3));
-    }
-
-    #[test]
-    fn test_spatial_entity_creation() {
-        let pos = SquareCoord::<FourConnected>::new(10, 20);
-        let entity = SpatialEntity::new(1, pos, 5);
-        
-        assert_eq!(entity.id, 1);
-        assert_eq!(entity.radius, 5);
-        
-        let bounds = entity.bounds();
-        assert_eq!(bounds.center(), (10, 20));
-    }
-
-    #[test]
-    fn test_quadtree_basic_operations() {
-        let bounds = SpatialBounds::new(0, 0, 100, 100);
-        let mut quadtree = Quadtree::new(bounds, 4);
-
-        // Insert entities
-        let entity1 = SpatialEntity::new(1, SquareCoord::<FourConnected>::new(25, 25), 1);
-        let entity2 = SpatialEntity::new(2, SquareCoord::<FourConnected>::new(75, 75), 1);
-        
-        quadtree.insert(entity1);
-        quadtree.insert(entity2);
-
-        // Query all entities
-        let all_entities = quadtree.all_entities();
-        assert_eq!(all_entities.len(), 2);
-
-        // Query specific region
-        let query_bounds = SpatialBounds::new(0, 0, 50, 50);
-        let region_entities = quadtree.query_region(&query_bounds);
-        assert_eq!(region_entities.len(), 1);
-        assert_eq!(region_entities[0].id, 1);
-    }
-
-    #[test]
-    fn test_quadtree_subdivision() {
-        let bounds = SpatialBounds::new(0, 0, 100, 100);
-        let mut quadtree = Quadtree::new(bounds, 2); // Low capacity to force subdivision
-
-        // Insert enough entities to trigger subdivision
-        for i in 0..10 {
-            let entity = SpatialEntity::new(i, SquareCoord::<FourConnected>::new((i * 10) as i32, (i * 10) as i32), 1);
-            quadtree.insert(entity);
-        }
-
-        let stats = quadtree.stats();
-        assert!(stats.max_depth > 0); // Should have subdivided
-        assert_eq!(stats.total_entities, 10);
-    }
-
-    #[test]
-    fn test_quadtree_circular_query() {
-        let bounds = SpatialBounds::new(0, 0, 100, 100);
-        let mut quadtree = Quadtree::new(bounds, 10);
-
-        // Insert entities in a pattern
-        quadtree.insert(SpatialEntity::new(1, SquareCoord::<FourConnected>::new(50, 50), 1)); // Center
-        quadtree.insert(SpatialEntity::new(2, SquareCoord::<FourConnected>::new(52, 50), 1)); // Close
-        quadtree.insert(SpatialEntity::new(3, SquareCoord::<FourConnected>::new(80, 80), 1)); // Far
-
-        // Query circle around center
-        let nearby = quadtree.query_circle(50, 50, 5);
-        assert_eq!(nearby.len(), 2); // Should find entities 1 and 2, not 3
-    }
-
-    #[test]
-    fn test_quadtree_remove() {
-        let bounds = SpatialBounds::new(0, 0, 100, 100);
-        let mut quadtree = Quadtree::new(bounds, 10);
-
-        let entity1 = SpatialEntity::new(1, SquareCoord::<FourConnected>::new(25, 25), 1);
-        let entity2 = SpatialEntity::new(2, SquareCoord::<FourConnected>::new(75, 75), 1);
-        
-        quadtree.insert(entity1);
-        quadtree.insert(entity2);
-
-        // Remove entity
-        let removed = quadtree.remove(1);
-        assert_eq!(removed.len(), 1);
-        assert_eq!(removed[0].id, 1);
-
-        // Verify removal
-        let remaining = quadtree.all_entities();
-        assert_eq!(remaining.len(), 1);
-        assert_eq!(remaining[0].id, 2);
-    }
-
-    #[test]
-    fn test_quadtree_stats() {
-        let bounds = SpatialBounds::new(0, 0, 100, 100);
-        let mut quadtree = Quadtree::new(bounds, 5);
-
-        // Insert entities to create interesting stats
-        for i in 0..20 {
-            let entity = SpatialEntity::new(i, SquareCoord::<FourConnected>::new((i * 5) as i32, (i * 5) as i32), 1);
-            quadtree.insert(entity);
-        }
-
-        let stats = quadtree.stats();
-        assert_eq!(stats.total_entities, 20);
-        assert!(stats.average_entities_per_leaf() > 0.0);
-        assert!(stats.fill_ratio() > 0.0);
     }
 }

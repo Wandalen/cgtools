@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ web_sys, GpuLoadOp, GpuStoreOp };
 
   /// A builder for creating a `web_sys::GpuRenderPassDepthStencilAttachment`.
   #[ derive( Clone ) ]
@@ -58,6 +58,8 @@ mod private
   impl< 'a > DepthStencilAttachment< 'a  > 
   {
     /// Creates a new `DepthStencilAttachment` builder with a required texture view.
+    #[ inline ]
+    #[ must_use ]
     pub fn new( view : &'a web_sys::GpuTextureView ) -> Self
     {
       let depth_clear_value = 1.0;
@@ -77,14 +79,16 @@ mod private
         depth_load_op,
         depth_store_op,
         depth_read_only,
-        stencil_clear_value,
         stencil_load_op,
         stencil_store_op,
+        stencil_clear_value,
         stencil_read_only
       }
     }  
 
     /// Sets the depth clear value.
+    #[ inline ]
+    #[ must_use ]
     pub fn depth_clear_value( mut self, value : f32 ) -> Self
     {
       self.depth_clear_value = value;
@@ -92,6 +96,8 @@ mod private
     } 
 
     /// Sets the depth store operation.
+    #[ inline ]
+    #[ must_use ]
     pub fn depth_store_op( mut self, op : GpuStoreOp ) -> Self
     {
       self.depth_store_op = op;
@@ -99,6 +105,8 @@ mod private
     } 
 
     /// Sets the depth load operation.
+    #[ inline ]
+    #[ must_use ]
     pub fn depth_load_op( mut self, op : GpuLoadOp ) -> Self
     {
       self.depth_load_op = op;
@@ -106,6 +114,8 @@ mod private
     } 
 
     /// Sets whether the depth buffer is read-only.
+    #[ inline ]
+    #[ must_use ]
     pub fn depth_read_only( mut self, value : bool ) -> Self
     {
       self.depth_read_only = value;
@@ -113,6 +123,8 @@ mod private
     } 
 
     /// Sets the stencil clear value.
+    #[ inline ]
+    #[ must_use ]
     pub fn stencil_clear_value( mut self, value : u32 ) -> Self
     {
       self.stencil_clear_value = Some( value );
@@ -120,6 +132,8 @@ mod private
     } 
 
     /// Sets the stencil store operation.
+    #[ inline ]
+    #[ must_use ]
     pub fn stencil_store_op( mut self, op : GpuStoreOp ) -> Self
     {
       self.stencil_store_op = Some( op );
@@ -127,6 +141,8 @@ mod private
     } 
 
     /// Sets the stencil load operation.
+    #[ inline ]
+    #[ must_use ]
     pub fn stencil_load_op( mut self, op : GpuLoadOp ) -> Self
     {
       self.stencil_load_op = Some( op );
@@ -134,6 +150,8 @@ mod private
     } 
 
     /// Sets whether the stencil buffer is read-only.
+    #[ inline ]
+    #[ must_use ]
     pub fn stencil_read_only( mut self, value : bool ) -> Self
     {
       self.stencil_read_only = value;
@@ -143,9 +161,10 @@ mod private
 
   impl From< DepthStencilAttachment< '_ > > for web_sys::GpuRenderPassDepthStencilAttachment 
   {
+    #[ inline ]
     fn from( value: DepthStencilAttachment< '_ > ) -> Self 
     {
-      let a = web_sys::GpuRenderPassDepthStencilAttachment::new( value.view );
+      let a = web_sys::GpuRenderPassDepthStencilAttachment::new_with_gpu_texture_view( value.view );
 
       a.set_depth_clear_value( value.depth_clear_value );
       a.set_depth_read_only( value.depth_read_only ); 

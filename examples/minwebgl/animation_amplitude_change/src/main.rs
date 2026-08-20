@@ -3,19 +3,9 @@
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Renders skeletal animations with opportunity to change its amplitude" ) ]
 
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::no_effect_underscore_binding ) ]
-
 use std::collections::{ HashMap, HashSet };
 use std::{ cell::RefCell, rc::Rc };
+use std::fmt::Write as _;
 use mingl::F32x3;
 use minwebgl as gl;
 use renderer::webgl::
@@ -35,58 +25,57 @@ use renderer::webgl::
 mod lil_gui;
 mod gui_setup;
 
-fn write_tree( node : Rc< RefCell< Node > >, depth : usize, output : &mut String )
+fn tree_write( node : &Rc< RefCell< Node > >, depth : usize, output : &mut String )
 {
   let name = node
   .borrow()
-  .get_name()
+  .name_get()
   .unwrap_or( "<none>".into() );
 
   let indent = "-".repeat( depth );
-  output.push_str( &format!("{}{}\n", indent, name ) );
+  let _ = writeln!( output, "{indent}{name}" );
 
-  for child in node.borrow().get_children()
+  for child in node.borrow().children_get()
   {
-    write_tree( Rc::clone( child ), depth + 1, output );
+    tree_write( child, depth + 1, output );
   }
 }
 
-fn print_tree( node : Rc< RefCell< Node > > )
+fn tree_print( node : &Rc< RefCell< Node > > )
 {
   let mut tree_str = String::new();
-  write_tree( node, 1, &mut tree_str );
-  gl::info!( "{}", tree_str );
+  tree_write( node, 1, &mut tree_str );
+  gl::info!( "{tree_str}" );
 }
 
 /// Splits root sub [`Node`]s names into named subtrees
 /// Not mentioned nodes from root subnodes in parts
 /// argument list will be added as separated node names group
-fn split_node_names_into_parts
+fn node_names_split_into_parts
 (
-  root : Rc< RefCell< Node > >,
+  root : &Rc< RefCell< Node > >,
   part_names : &[ &str ]
 )
 -> HashMap< Box< str >, Vec< Box< str > > >
 {
-  fn collect_names( node : Rc< RefCell< Node > >, out : &mut Vec< Box< str > > )
+  fn names_collect( node : &Rc< RefCell< Node > >, out : &mut Vec< Box< str > > )
   {
-    let Some( name ) = node.borrow().get_name()
+    let Some( name ) = node.borrow().name_get()
     else
     {
       return;
     };
 
     out.push( name );
-    for child in node.borrow().get_children()
+    for child in node.borrow().children_get()
     {
-      collect_names( Rc::clone( &child ), out );
+      names_collect( child, out );
     }
   }
 
-  let part_names = HashSet::< Box< str > >::from_iter
-  (
-    part_names.iter().map( | n | (*n).into() )
-  );
+  let part_names = part_names.iter()
+  .map( | n | (*n).into() )
+  .collect::< HashSet< Box< str > > >();
   let mut not_mentioned = HashSet::new();
 
   let mut parts = HashMap::new();
@@ -96,7 +85,7 @@ fn split_node_names_into_parts
   (
     &mut | node : Rc< RefCell< Node > > |
     {
-      let Some( name ) = node.borrow().get_name()
+      let Some( name ) = node.borrow().name_get()
       else
       {
         return Ok( () );
@@ -113,7 +102,7 @@ fn split_node_names_into_parts
   (
     &mut | node : Rc< RefCell< Node > > |
     {
-      let Some( name ) = node.borrow().get_name()
+      let Some( name ) = node.borrow().name_get()
       else
       {
         return Ok( () );
@@ -122,7 +111,7 @@ fn split_node_names_into_parts
       let mut part = vec![];
       if part_names.contains( &name )
       {
-        collect_names( node, &mut part );
+        names_collect( &node, &mut part );
       }
       else
       {
@@ -138,45 +127,19 @@ fn split_node_names_into_parts
 
   parts.insert
   (
-    root.borrow().get_name().unwrap_or( "<none>".into() ),
+    root.borrow().name_get().unwrap_or( "<none>".into() ),
     not_mentioned.into_iter().collect::< Vec< _ > >()
   );
 
   parts
 }
 
-async fn run() -> Result< (), gl::WebglError >
+/// Creates the orbit camera framed on the scene's bounding box and binds its controls.
+fn camera_setup( canvas : &gl::web_sys::HtmlCanvasElement, scene_bounding_box : &mingl::geometry::BoundingBox, width : f32, height : f32 ) -> Camera
 {
-  gl::browser::setup( Default::default() );
-  let options = gl::context::ContextOptions::default().antialias( false );
-
-  let canvas = gl::canvas::make()?;
-  let gl = gl::context::from_canvas_with( &canvas, options )?;
-  let window = gl::web_sys::window().unwrap();
-  let document = window.document().unwrap();
-
-  let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
-  let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
-
-  let width = canvas.width() as f32;
-  let height = canvas.height() as f32;
-
-  let gltf_path = "static/gltf/multi_animation.glb";
-  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
-  let scenes = gltf.scenes;
-  scenes[ 0 ].borrow_mut().update_world_matrix();
-
-  let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
+  gl::info!( "Scene boudnig box: {scene_bounding_box:?}" );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let dist = scene_bounding_box.max.mag();
-  let exponent =
-  {
-    let bits = diagonal.to_bits();
-    let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
-    exponent_field - 127
-  };
-  gl::info!( "Exponent: {:?}", exponent );
 
   // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
@@ -187,30 +150,34 @@ async fn run() -> Result< (), gl::WebglError >
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 10.0;
-  let far = near * 100.0f32.powi( exponent.abs() ) / 100.0;
+  // Fix(BUG-320): `near`/`far` used to be derived from a scale value read out of the raw
+  // IEEE-754 bit layout of `diagonal` — a base-2 quantity by construction — then fed into
+  // a base-10 power function. That base mismatch, combined with a `far` formula that
+  // isn't monotonically greater than `near` across its own input domain, collapsed to
+  // `far <= near` for an ordinary scene scale ( including this crate's own bundled
+  // `multi_animation.glb` ), which `Camera::new` rejects outright ( `far` must be
+  // strictly greater than `near` ), panicking this demo's own
+  // `.expect( "camera parameters are valid" )` at startup.
+  // Root cause: a base-2-derived scale factor paired with a base-10 power computation.
+  // Pitfall: don't reintroduce raw floating-point bit-layout inspection here — `f32::log10`
+  // gives the scene's true base-10 order of magnitude directly, and a fixed `far`/`near`
+  // ratio ( here 1_000_000 ) guarantees `far > near` for every finite positive `diagonal`.
+  let magnitude = diagonal.max( f32::EPSILON ).log10().floor();
+  let scale = 10.0f32.powf( magnitude );
+  let near = ( scale * 0.01 ).max( 1e-5 );
+  let far = scale * 10_000.0;
+  gl::info!( "near: {near:?}, far: {far:?}" );
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ width, height ].into() );
-  camera.bind_controls( &canvas );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far ).expect( "camera parameters are valid" );
+  camera.window_size_set( [ width, height ].into() );
+  camera.controls_bind( canvas );
 
-  let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
+  camera
+}
 
-  let renderer = Rc::new( RefCell::new( renderer ) );
-
-  let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
-
-  let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
-  let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
-
-  camera.get_controls().borrow_mut().up = F32x3::from_array( [ 0.0, -1.0, 0.0 ] );
-  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341171e-6, -0.015823878, 0.007656166] );
-
-  let last_time = Rc::new( RefCell::new( 0.0 ) );
-
-  let scaler = gui_setup::setup( gltf.animations.clone() );
-  print_tree( scenes[ 0 ].borrow().children[ 0 ].clone() );
+/// Groups the skeleton's node names into named body-part lists for the scaler.
+fn parts_assemble( root : &Rc< RefCell< Node > > ) -> HashMap< Box< str >, Vec< Box< str > > >
+{
   let parts = vec!
   [
     "mixamorig:Neck",
@@ -220,11 +187,7 @@ async fn run() -> Result< (), gl::WebglError >
     "mixamorig:LeftUpLeg"
   ];
 
-  let mut parts = split_node_names_into_parts
-  (
-    scenes[ 0 ].borrow().children[ 0 ].clone(),
-    &parts
-  );
+  let mut parts = node_names_split_into_parts( root, &parts );
 
   let mut hands = parts.remove( "mixamorig:RightShoulder" ).unwrap();
   hands.extend( parts.remove( "mixamorig:LeftShoulder" ).unwrap() );
@@ -247,7 +210,53 @@ async fn run() -> Result< (), gl::WebglError >
   replace_key( "mixamorig:Neck", "head" );
   replace_key( "Armature", "body" );
 
-  gl::info!( "{:#?}", parts );
+  gl::info!( "{parts:#?}" );
+
+  parts
+}
+
+async fn app_run() -> Result< (), gl::WebglError >
+{
+  gl::browser::setup( gl::browser::Config::default() );
+  let options = gl::context::ContextOptions::default().antialias( false );
+
+  let canvas = gl::canvas::make()?;
+  let gl = gl::context::from_canvas_with( &canvas, options )?;
+  let window = gl::web_sys::window().unwrap();
+  let document = window.document().unwrap();
+
+  let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
+  let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
+
+  let width = canvas.width() as f32;
+  let height = canvas.height() as f32;
+
+  let gltf_path = "static/gltf/multi_animation.glb";
+  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
+  let scenes = gltf.scenes;
+  scenes[ 0 ].borrow_mut().world_matrix_update();
+
+  let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
+  let camera = camera_setup( &canvas, &scene_bounding_box, width, height );
+
+  let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
+  renderer.ibl_set( renderer::webgl::loaders::ibl::load( &gl, "static/envMap", None ).await );
+
+  let renderer = Rc::new( RefCell::new( renderer ) );
+
+  let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
+
+  let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
+  let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
+
+  camera.controls_get().borrow_mut().up = F32x3::from_array( [ 0.0, -1.0, 0.0 ] );
+  camera.controls_get().borrow_mut().eye = F32x3::from_array( [-5.341_171e-6, -0.015_823_878, 0.007_656_166] );
+
+  let last_time = Rc::new( RefCell::new( 0.0 ) );
+
+  let scaler = gui_setup::setup( gltf.animations.clone() );
+  tree_print( &scenes[ 0 ].borrow().children[ 0 ] );
+  let parts = parts_assemble( &scenes[ 0 ].borrow().children[ 0 ] );
 
   if let Some( scaler ) = scaler.borrow_mut().as_mut()
   {
@@ -288,15 +297,15 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.borrow().main_texture() );
+      swap_buffer.input_set( renderer.borrow().main_texture() );
 
-      let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render tonemapping pass" );
 
-      swap_buffer.set_output( t );
+      swap_buffer.output_set( t );
       swap_buffer.swap();
 
-      let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let _ = to_srgb.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render ToSrgbPass" );
 
       true
@@ -311,5 +320,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

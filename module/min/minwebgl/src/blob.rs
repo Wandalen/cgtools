@@ -3,7 +3,13 @@ mod private
 {
 
   /// Creates a blob from u8 slice sequence and options
-  pub fn create_blob< T : Into< web_sys::js_sys::Array > >( data : T, mime_type : &str )
+  ///
+  /// # Errors
+  /// Returns `Err` if the browser fails to create an object URL for the blob.
+  ///
+  /// # Panics
+  /// Panics if the browser fails to construct the `Blob` from the given data and options.
+  pub fn blob_create< T : Into< web_sys::js_sys::Array > >( data : T, mime_type : &str )
   -> Result< String, crate::JsValue >
   {
     let blob_props = web_sys::BlobPropertyBag::new();
@@ -17,5 +23,5 @@ mod private
 
 crate::mod_interface!
 {
-  own use create_blob;
+  own use blob_create;
 }

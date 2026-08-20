@@ -48,7 +48,7 @@ use renderer::webgl::{ Camera, Node, Scene, Renderer, Texture, TextureInfo, mate
 use std::rc::Rc;
 use std::cell::RefCell;
 
-fn apply_function_to_node_materials
+fn function_to_node_materials_apply
 (
   node : &Rc< RefCell< Node > >,
   mut material_callback : impl FnMut( &Rc< RefCell< Box< dyn Material > > > )
@@ -63,7 +63,7 @@ fn apply_function_to_node_materials
   }
 }
 
-fn setup_scene() -> Scene
+fn scene_setup() -> Scene
 {
   let mut scene = Scene::new();
   let node = Node::default();
@@ -81,7 +81,7 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
 
   // Create the CanvasRenderer and get its initial output texture
   let canvas_renderer = CanvasRenderer::new( &gl, width, height )?;
-  let canvas_texture_handle = canvas_renderer.get_texture();
+  let canvas_texture_handle = canvas_renderer.texture_get();
 
   // In a real application, you would populate `canvas_scene` with 2D elements.
   let mut canvas_scene = Scene::new();
@@ -96,7 +96,7 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
   let far = 10000000.0;
 
   // Set up the main camera and render the final scene.
-  let canvas_camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let canvas_camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far )?;
 
   let colors = &[]; // Colors for the 2D elements.
 
@@ -108,9 +108,9 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
   // Create the main Renderer for the final output
   let mut main_renderer = Renderer::new( &gl, width, height, 4 )?;
 
-  // For this example, we assume that setup_scene returns
+  // For this example, we assume that scene_setup returns
   // complete `Scene` struct with 3D objects.
-  let mut main_scene = setup_scene();
+  let mut main_scene = scene_setup();
 
   // Object for that you want change texture
   let object = main_scene.children.get( 0 ).unwrap().clone();
@@ -120,7 +120,7 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
   .source( canvas_texture_handle )
   .end();
 
-  set_texture
+  function_to_node_materials_apply
   (
     &object,
     | m |
@@ -129,22 +129,20 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
       (
         m.borrow_mut()
       );
-      m.base_color_texture.as_mut()
-      .map
-      (
-        | t |
-        {
-          let texture = t.texture.borrow().clone();
-          t.texture = Rc::new( RefCell::new( texture ) );
-          t.texture.borrow_mut().source = canvas_texture.clone().source;
-        }
-      );
-      m.alpha_mode = renderer::webgl::AlphaMode::Blend;
+      if let Some( existing ) = m.base_color_texture()
+      {
+        let cloned_texture = existing.texture.borrow().clone();
+        let uv_position = existing.uv_position;
+        let new_texture = Rc::new( RefCell::new( cloned_texture ) );
+        new_texture.borrow_mut().source = canvas_texture.clone().source;
+        m.base_color_texture_set( Some( TextureInfo { texture : new_texture, uv_position } ) );
+      }
+      m.alpha_mode_set( renderer::webgl::AlphaMode::Blend );
     }
   );
 
   // Set up the main camera and render the final scene.
-  let main_camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  let main_camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far )?;
 
   main_renderer.render( &gl, &mut main_scene, &main_camera )?;
 
@@ -168,7 +166,7 @@ This crate is designed for WebAssembly environments and supports:
 
 ## License
 
-Licensed under the MIT License. See [LICENSE](license) file for details.
+Licensed under the MIT License. See [LICENSE](./license) file for details.
 
 ## Contributing
 

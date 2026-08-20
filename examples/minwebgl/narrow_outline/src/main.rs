@@ -3,36 +3,6 @@
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Renders outlines for 3D objects" ) ]
 
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::doc_overindented_list_items ) ]
-#![ allow( clippy::unnecessary_cast ) ]
-#![ allow( clippy::unused_async ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::map_flatten ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::needless_for_each ) ]
-#![ allow( clippy::let_and_return ) ]
-#![ allow( clippy::useless_conversion ) ]
-#![ allow( clippy::manual_memcpy ) ]
-#![ allow( clippy::needless_range_loop ) ]
-#![ allow( clippy::match_wildcard_for_single_variants ) ]
-#![ allow( clippy::single_match ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::missing_errors_doc ) ]
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::missing_panics_doc ) ]
-#![ allow( clippy::module_name_repetitions ) ]
-
 use mingl::
 {
   AsBytes,
@@ -82,8 +52,7 @@ use ndarray_cg::
   F32x3
 };
 use rustc_hash::FxHashMap;
-use rand::Rng;
-use std::any::type_name_of_val;
+use rand::RngExt;
 use csgrs::traits::CSG;
 use renderer::impl_locations;
 
@@ -146,7 +115,7 @@ impl_locations!
 /// * `texture` - The texture to bind.
 /// * `location` - The uniform location in the shader for the sampler.
 /// * `slot` - The texture unit to bind to ( e.g., `GL::TEXTURE0` ).
-fn upload_texture
+fn texture_upload
 (
   gl : &gl::WebGl2RenderingContext,
   texture : &WebGlTexture,
@@ -155,7 +124,7 @@ fn upload_texture
 )
 {
   gl.active_texture( slot );
-  gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
+  gl.bind_texture( GL::TEXTURE_2D, Some( texture ) );
   // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
   gl.uniform1i( Some( location ), ( slot - GL::TEXTURE0 ) as i32 );
 }
@@ -172,7 +141,7 @@ fn upload_texture
 ///
 /// An `Option< ( WebGlFramebuffer, WebGlTexture ) >` containing the created framebuffer and
 /// its color attachment texture, or `None` if creation fails.
-fn create_framebuffer
+fn framebuffer_create
 (
   gl : &gl::WebGl2RenderingContext,
   ( width, height ) : ( i32, i32 )
@@ -228,7 +197,7 @@ fn create_framebuffer
 /// * `gl` - The WebGL2 rendering context.
 /// * `framebuffer` - The framebuffer to bind.
 /// * `size` - The size of the framebuffer ( width, height ).
-fn upload_framebuffer(
+fn framebuffer_upload(
   gl : &gl::WebGl2RenderingContext,
   framebuffer : &WebGlFramebuffer,
   size : ( i32, i32 )
@@ -247,7 +216,8 @@ fn upload_framebuffer(
 /// * `target` - The target buffer type ( e.g., `GL::ARRAY_BUFFER` ).
 /// * `offset` - The offset in bytes within the buffer to start uploading data.
 /// * `data` - The `Vec<u8>` containing the data to upload.
-pub fn upload_buffer_data
+#[ inline ]
+pub fn buffer_data_upload
 (
   gl : &gl::WebGl2RenderingContext,
   buffer : &WebGlBuffer,
@@ -271,7 +241,12 @@ pub fn upload_buffer_data
 }
 
 /// Simplifies new buffer initialization
-pub fn add_buffer
+///
+/// # Errors
+///
+/// Returns `WebglError::FailedToAllocateResource` when the WebGL buffer can't be created.
+#[ inline ]
+pub fn buffer_add
 (
   gl : &gl::WebGl2RenderingContext,
   gltf : &mut GLTF,
@@ -279,14 +254,23 @@ pub fn add_buffer
 ) -> Result< WebGlBuffer, gl::WebglError >
 {
   let buffer = gl.create_buffer().ok_or( gl::WebglError::FailedToAllocateResource( "Buffer" ) )?;
-  upload_buffer_data( gl, &buffer, GL::ARRAY_BUFFER, 0, buffer_data );
+  buffer_data_upload( gl, &buffer, GL::ARRAY_BUFFER, 0, buffer_data );
   gltf.gl_buffers.push( buffer.clone() );
   Ok( buffer )
 }
 
 /// Adds additional attributes and their data into [`GLTF`] and
 /// returns object_id data for updating data for per object attributes
-pub fn add_attributes
+///
+/// # Errors
+///
+/// Returns an error when creating the object id buffer fails.
+///
+/// # Panics
+///
+/// Panics if the object id attribute descriptor can't be constructed for `F32` data.
+#[ inline ]
+pub fn attributes_add
 (
   gl : &gl::WebGl2RenderingContext,
   gltf : &mut GLTF,
@@ -294,9 +278,8 @@ pub fn add_attributes
 {
   let mut object_id_data : Vec< i32 > = vec![];
 
-  let mut object_id = 1;
   let mut object_vertex_count = 0;
-  for mesh in &gltf.meshes
+  for ( object_id, mesh ) in ( 1.. ).zip( gltf.meshes.iter() )
   {
     for primitive in &mesh.borrow().primitives
     {
@@ -307,22 +290,19 @@ pub fn add_attributes
     }
 
     object_id_data.extend( vec![ object_id; object_vertex_count ] );
-
-    object_id += 1;
   }
 
-  let object_id_bytes = object_id_data.iter().map( | i | i.to_be_bytes() ).flatten().collect::< Vec< _ > >();
-  let object_id_buffer = add_buffer( gl, gltf, object_id_bytes )?;
+  let object_id_bytes = object_id_data.iter().flat_map(| i | i.to_be_bytes()).collect::< Vec< _ > >();
+  let object_id_buffer = buffer_add( gl, gltf, object_id_bytes )?;
 
-  let object_id_info = make_buffer_attribute_info(
+  let object_id_info = buffer_attribute_info_make(
     &object_id_buffer,
     0,
     1,
     2,
     false,
     VectorDataType::new( mingl::DataType::F32, 1, 1 )
-  )
-  .unwrap();
+  );
 
   for mesh in &gltf.meshes
   {
@@ -330,7 +310,7 @@ pub fn add_attributes
     {
       let primitive = primitive.borrow();
       let mut geometry = primitive.geometry.borrow_mut();
-      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone() );
+      let _ = geometry.attribute_add( gl, "object_ids", object_id_info.clone() );
     }
   }
 
@@ -350,8 +330,8 @@ pub fn add_attributes
 ///
 /// # Returns
 ///
-/// A `Result<AttributeInfo, WebglError>` containing the attribute info or an error if the type is not supported.
-fn make_buffer_attribute_info
+/// The constructed `AttributeInfo`.
+fn buffer_attribute_info_make
 (
   buffer : &web_sys::WebGlBuffer,
   offset : i32,
@@ -359,35 +339,20 @@ fn make_buffer_attribute_info
   slot : u32,
   normalized : bool,
   vector: gl::VectorDataType
-) -> Result< AttributeInfo, gl::WebglError >
+) -> AttributeInfo
 {
-  let descriptor = match vector.scalar
-  {
-      gl::DataType::U8 => gl::BufferDescriptor::new::< [ u8; 1 ] >(),
-      gl::DataType::I8 => gl::BufferDescriptor::new::< [ i8; 1 ] >(),
-      gl::DataType::U16 => gl::BufferDescriptor::new::< [ u16; 1 ] >(),
-      gl::DataType::I16 => gl::BufferDescriptor::new::< [ i16; 1 ] >(),
-      gl::DataType::U32 => gl::BufferDescriptor::new::< [ u32; 1 ] >(),
-      gl::DataType::F32 => gl::BufferDescriptor::new::< [ f32; 1 ] >(),
-      _ => return Err( gl::WebglError::NotSupportedForType( type_name_of_val( &vector.scalar ) ) )
-  };
-
-  let descriptor = descriptor
+  let descriptor = gl::BufferDescriptor::from_vector( vector )
   .offset( offset )
   .normalized( normalized )
-  .stride( stride )
-  .vector( vector );
+  .stride( stride );
 
-  Ok
-  (
-    AttributeInfo
-    {
-      slot,
-      buffer : buffer.clone(),
-      descriptor,
-      bounding_box : Default::default()
-    }
-  )
+  AttributeInfo
+  {
+    slot,
+    buffer : buffer.clone(),
+    descriptor,
+    bounding_box : gl::geometry::BoundingBox::default()
+  }
 }
 
 /// Adds a single CSG primitive's geometry data to the provided vectors.
@@ -400,9 +365,14 @@ fn make_buffer_attribute_info
 /// * `object_ids` - A mutable vector to accumulate object ID data for each vertex.
 /// * `indices` - A mutable vector to accumulate index data.
 /// * `vertex_offset` - A mutable reference to the current vertex offset, which is updated.
-pub fn add_primitive
+///
+/// # Panics
+///
+/// Panics if the primitive can't be converted to a triangle mesh.
+#[ inline ]
+pub fn primitive_add
 (
-  primitive : ProcedureMesh,
+  primitive : &ProcedureMesh,
   positions: &mut Vec< [ f32; 3 ] >,
   normals: &mut Vec< [ f32; 3 ] >,
   object_ids: &mut Vec< f32 >,
@@ -451,18 +421,15 @@ pub fn add_primitive
     }
   );
 
-  primitive_normals.iter_mut()
-  .for_each(
-    | n |
-    {
-      *n = *F32x3::from_array( *n ).normalize();
-    }
-  );
+  for n in &mut primitive_normals
+  {
+    *n = *F32x3::from_array( *n ).normalize();
+  }
 
   normals.extend( primitive_normals );
 
   last_object_id += 1.0;
-  object_ids.extend( vec![ last_object_id as f32; vertices_count ] );
+  object_ids.extend( vec![ last_object_id; vertices_count ] );
 
   *vertex_offset += vertices_count as u32;
 }
@@ -473,7 +440,7 @@ pub fn add_primitive
 ///
 /// A `Vec<(ProcedureMesh, [f32; 9])>` where each tuple contains a primitive and an array of
 /// 9 floats representing its translation, rotation, and scale.
-fn get_primitives_and_transform() -> Vec< ( ProcedureMesh, [ f32; 9 ] ) >
+fn primitives_and_transform_get() -> Vec< ( ProcedureMesh, [ f32; 9 ] ) >
 {
   let meshes: Vec< ProcedureMesh > = vec![
     {
@@ -535,7 +502,9 @@ fn get_primitives_and_transform() -> Vec< ( ProcedureMesh, [ f32; 9 ] ) >
   let mut rng = rand::rng();
   let count = meshes.len();
   let rot_matrix = rot( 0.0f32, ( 360.0f32 / count as f32 ).to_radians(), 0.0f32 );
-  let primitives = ( 0..count )
+  
+
+  ( 0..count )
   .into_iter()
   .map(
     | i |
@@ -547,27 +516,87 @@ fn get_primitives_and_transform() -> Vec< ( ProcedureMesh, [ f32; 9 ] ) >
 
       position = rot_matrix * position;
 
-      for j in 0..3
+      t[ ..3 ].copy_from_slice( &position.0[ ..3 ] );
+
+      for rotation in &mut t[ 3..6 ]
       {
-        t[ j ] = position.0[ j ];
+        *rotation = ( rng.random_range( 0.0..360.0 ) as f32 ).to_radians();
       }
 
-      for j in 3..6
+      for scale in &mut t[ 6..9 ]
       {
-        t[ j ] = ( rng.random_range( 0.0..360.0 ) as f32 ).to_radians();
-      }
-
-      for j in 6..9
-      {
-        t[ j ] = rng.random_range( 0.35..0.6 );
+        *scale = rng.random_range( 0.35..0.6 );
       }
 
       ( meshes[ i ].clone(), t )
     }
   )
-  .collect::< Vec<( ProcedureMesh, [ f32; 9 ] ) > >();
+  .collect::< Vec<( ProcedureMesh, [ f32; 9 ] ) > >()
+}
 
-  primitives
+/// Creates an empty `GLTF` container with no resources.
+fn empty_gltf() -> GLTF
+{
+  GLTF
+  {
+    scenes : vec![],
+    nodes : vec![],
+    gl_buffers : vec![],
+    images : Rc::new( RefCell::new( vec![] ) ),
+    textures : vec![],
+    materials : vec![],
+    meshes : vec![],
+    animations : vec![],
+    lights : vec![]
+  }
+}
+
+/// Builds the position, normal, and object id attribute descriptors for the CSG geometry.
+fn csg_attribute_infos
+(
+  position_buffer : &WebGlBuffer,
+  normal_buffer : &WebGlBuffer,
+  object_id_buffer : &WebGlBuffer
+) -> [ ( &'static str, AttributeInfo ); 3 ]
+{
+  [
+    (
+      "positions",
+      buffer_attribute_info_make
+      (
+        position_buffer,
+        0,
+        3,
+        0,
+        false,
+        VectorDataType::new( mingl::DataType::F32, 3, 1 )
+      )
+    ),
+    (
+      "normals",
+      buffer_attribute_info_make
+      (
+        normal_buffer,
+        0,
+        3,
+        1,
+        false,
+        VectorDataType::new( mingl::DataType::F32, 3, 1 )
+      )
+    ),
+    (
+      "object_ids",
+      buffer_attribute_info_make
+      (
+        object_id_buffer,
+        0,
+        1,
+        2,
+        false,
+        VectorDataType::new( mingl::DataType::F32, 1, 1 )
+      )
+    ),
+  ]
 }
 
 /// Converts a collection of CSG primitives into a GLTF object with WebGL resources.
@@ -584,18 +613,7 @@ fn primitives_csgrs_gltf
   gl : &gl::WebGl2RenderingContext,
 ) -> GLTF
 {
-  let mut gltf = GLTF
-  {
-    scenes : vec![],
-    nodes : vec![],
-    gl_buffers : vec![],
-    images : Rc::new( RefCell::new( vec![] ) ),
-    textures : vec![],
-    materials : vec![],
-    meshes : vec![],
-    animations : vec![],
-    lights : vec![]
-  };
+  let mut gltf = empty_gltf();
 
   gltf.scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
 
@@ -619,50 +637,12 @@ fn primitives_csgrs_gltf
     gltf.gl_buffers.push( buffer );
   }
 
-  let primitives = get_primitives_and_transform();
+  let primitives = primitives_and_transform_get();
 
   let material = Rc::new( RefCell::new( Box::new( PbrMaterial::new( gl ) ) as Box< dyn Material > ) );
   gltf.materials.push( material.clone() );
 
-  let attribute_infos =
-  [
-    (
-      "positions",
-      make_buffer_attribute_info
-      (
-        &position_buffer,
-        0,
-        3,
-        0,
-        false,
-        VectorDataType::new( mingl::DataType::F32, 3, 1 )
-      ).unwrap()
-    ),
-    (
-      "normals",
-      make_buffer_attribute_info
-      (
-        &normal_buffer,
-        0,
-        3,
-        1,
-        false,
-        VectorDataType::new( mingl::DataType::F32, 3, 1 )
-      ).unwrap()
-    ),
-    (
-      "object_ids",
-      make_buffer_attribute_info
-      (
-        &object_id_buffer,
-        0,
-        1,
-        2,
-        false,
-        VectorDataType::new( mingl::DataType::F32, 1, 1 )
-      ).unwrap()
-    ),
-  ];
+  let attribute_infos = csg_attribute_infos( &position_buffer, &normal_buffer, &object_id_buffer );
 
   let index_buffer = gl.create_buffer().unwrap();
   gltf.gl_buffers.push( index_buffer.clone() );
@@ -680,9 +660,9 @@ fn primitives_csgrs_gltf
     let last_indices_count = indices.len() as u32;
     let last_vertex_offset = vertex_offset;
 
-    add_primitive
+    primitive_add
     (
-      primitive,
+      &primitive,
       &mut positions,
       &mut normals,
       &mut object_ids,
@@ -700,10 +680,10 @@ fn primitives_csgrs_gltf
 
     for ( name, info ) in &attribute_infos
     {
-      geometry.add_attribute( gl, *name, info.clone() ).unwrap();
+      geometry.attribute_add( gl, *name, info.clone() ).unwrap();
     }
 
-    geometry.add_index( gl, index_info.clone() ).unwrap();
+    geometry.index_add( gl, index_info.clone() ).unwrap();
     geometry.vertex_count = vertex_offset - last_vertex_offset;
 
     let primitive = Primitive
@@ -713,27 +693,27 @@ fn primitives_csgrs_gltf
     };
 
     let mesh = Rc::new( RefCell::new( Mesh::new() ) );
-    mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
+    mesh.borrow_mut().primitive_add( Rc::new( RefCell::new( primitive ) ) );
 
     let node = Rc::new( RefCell::new( Node::new() ) );
     {
       let mut node_mut = node.borrow_mut();
       node_mut.object = Object3D::Mesh( mesh );
 
-      node_mut.set_translation( [ t[ 0 ], t[ 1 ], t[ 2 ] ] );
+      node_mut.translation_set( [ t[ 0 ], t[ 1 ], t[ 2 ] ] );
       let q = gl::QuatF32::from_euler_xyz( [ t[ 3 ], t[ 4 ], t[ 5 ] ] );
-      node_mut.set_rotation( q );
-      node_mut.set_scale( [ t[ 6 ], t[ 7 ], t[ 8 ] ] );
-      node_mut.update_local_matrix();
+      node_mut.rotation_set( q );
+      node_mut.scale_set( [ t[ 6 ], t[ 7 ], t[ 8 ] ] );
+      node_mut.local_matrix_update();
     }
     gltf.nodes.push( node.clone() );
     gltf.scenes[ 0 ].borrow_mut().children.push( node );
   }
 
-  gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
-  gl::buffer::upload( &gl, &normal_buffer, &normals, GL::STATIC_DRAW );
-  gl::buffer::upload( &gl, &object_id_buffer, &object_ids, GL::STATIC_DRAW );
-  gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
+  gl::buffer::upload( gl, &position_buffer, &positions, GL::STATIC_DRAW );
+  gl::buffer::upload( gl, &normal_buffer, &normals, GL::STATIC_DRAW );
+  gl::buffer::upload( gl, &object_id_buffer, &object_ids, GL::STATIC_DRAW );
+  gl::index::upload( gl, &index_buffer, &indices, GL::STATIC_DRAW );
 
   gltf
 }
@@ -764,14 +744,14 @@ impl Programs
   {
     // --- Load and Compile Shaders ---
 
-    let object_vs_src = include_str!( "../resources/shaders/object.vert" );
-    let object_fs_src = include_str!( "../resources/shaders/object.frag" );
-    let fullscreen_vs_src = include_str!( "../resources/shaders/fullscreen.vert" );
-    let outline_fs_src = include_str!( "../resources/shaders/outline.frag" );
+    let object_vertex_src = include_str!( "../resources/shaders/object.vert" );
+    let object_fragment_src = include_str!( "../resources/shaders/object.frag" );
+    let fullscreen_vertex_src = include_str!( "../resources/shaders/fullscreen.vert" );
+    let outline_fragment_src = include_str!( "../resources/shaders/outline.frag" );
 
     // Compile and link shader programs and store them
-    let object_program = gl::ProgramFromSources::new( object_vs_src, object_fs_src ).compile_and_link( gl ).unwrap();
-    let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
+    let object_program = gl::ProgramFromSources::new( object_vertex_src, object_fragment_src ).compile_and_link( gl ).unwrap();
+    let outline_program = gl::ProgramFromSources::new( fullscreen_vertex_src, outline_fragment_src ).compile_and_link( gl ).unwrap();
 
     let object = NormalDepthOutlineObjectShader::new( gl, &object_program );
     let outline = NormalDepthOutlineShader::new( gl, &outline_program );
@@ -810,9 +790,9 @@ impl Renderer
 {
   /// Creates a new Renderer instance, initializes WebGL, loads resources,
   /// and prepares the scene for rendering.
-  async fn new() -> Self
+  fn new() -> Self
   {
-    gl::browser::setup( Default::default() );
+    gl::browser::setup( gl::browser::Config::default() );
     let canvas = gl::canvas::make().unwrap();
     let gl = gl::context::from_canvas( &canvas ).unwrap();
 
@@ -836,9 +816,9 @@ impl Renderer
       fov,
       near,
       far
-    );
+    ).unwrap();
 
-    camera.bind_controls( &canvas );
+    camera.controls_bind( &canvas );
 
     let programs = Programs::new( &gl );
 
@@ -860,7 +840,7 @@ impl Renderer
     // --- Create Framebuffers and Textures ---
 
     // Framebuffer for rendering the initial object silhouette
-    let ( object_fb, t ) = create_framebuffer( gl, viewport ).unwrap();
+    let ( object_fb, t ) = framebuffer_create( gl, viewport ).unwrap();
     let object_fb_color = t[ 0 ].clone();
     let object_fb_depth = t[ 1 ].clone();
     let object_fb_norm = t[ 2 ].clone();
@@ -893,7 +873,7 @@ impl Renderer
       }
     );
 
-    let object_color_buffer = gl::buffer::create( &gl ).unwrap();
+    let object_color_buffer = gl::buffer::create( gl ).unwrap();
     renderer.buffers.insert( "object_color_buffer".to_string(), object_color_buffer.clone() );
     let u_object_colors_loc = gl.get_uniform_block_index( &renderer.programs.outline_program, "ObjectColorBlock" );
     gl.uniform_block_binding( &renderer.programs.outline_program, u_object_colors_loc, 0 );
@@ -901,7 +881,7 @@ impl Renderer
     gl.bind_buffer( GL::UNIFORM_BUFFER, Some( &object_color_buffer ) );
     gl.buffer_data_with_i32( GL::UNIFORM_BUFFER, MAX_OBJECT_COUNT as i32 * 16, GL::STATIC_DRAW );
     renderer.object_colors = object_colors.into_iter().flatten().collect::< Vec< _ > >();
-    gl::ubo::upload( &gl, &object_color_buffer, 0, &renderer.object_colors[ .. ], GL::STATIC_DRAW );
+    gl::ubo::upload( gl, &object_color_buffer, 0, &renderer.object_colors[ .. ], GL::STATIC_DRAW );
 
     renderer
   }
@@ -941,7 +921,7 @@ impl Renderer
     let u_near_loc = locations.get( "near" ).unwrap().clone().unwrap();
     let u_far_loc = locations.get( "far" ).unwrap().clone().unwrap();
 
-    upload_framebuffer( gl, object_fb, self.viewport );
+    framebuffer_upload( gl, object_fb, self.viewport );
     //gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
     gl.clear_color( 0.0, 0.0, 0.0, 0.0 );
@@ -959,7 +939,7 @@ impl Renderer
       if let Object3D::Mesh( ref mesh ) = node.borrow().object
       {
         // Iterate over each primitive in the mesh.
-        for primitive_rc in mesh.borrow().primitives.iter()
+        for primitive_rc in &mesh.borrow().primitives
         {
           let primitive = primitive_rc.borrow();
 
@@ -968,10 +948,10 @@ impl Renderer
           gl::uniform::upload( gl, Some( u_near_loc.clone() ), &[ 0.1 ] ).unwrap();
           gl::uniform::upload( gl, Some( u_far_loc.clone() ), &[ 1000.0 ] ).unwrap();
 
-          gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array(), true ).unwrap();
-          gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &self.camera.get_view_matrix().to_array(), true ).unwrap();
-          gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &node.borrow().get_world_matrix().to_array(), true ).unwrap();
-          let normal_matrix = self.camera.get_view_matrix() * node.borrow().get_world_matrix();
+          gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.projection_matrix_get().to_array(), true ).unwrap();
+          gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &self.camera.view_matrix_get().to_array(), true ).unwrap();
+          gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &node.borrow().world_matrix_get().to_array(), true ).unwrap();
+          let normal_matrix = self.camera.view_matrix_get() * node.borrow().world_matrix_get();
           gl::uniform::matrix_upload( gl, Some( u_normal_matrix_loc.clone() ), &normal_matrix.to_array(), true ).unwrap();
 
           primitive.bind( gl );
@@ -996,13 +976,6 @@ impl Renderer
   /// Reads the original object silhouette texture and the final JFA result texture
   /// to draw the final scene with object color, outline color, or background color.
   /// Renders to the default framebuffer ( screen ).
-  ///
-  /// # Arguments
-  ///
-  /// * `t` - The current time in milliseconds ( used for animating outline thickness ).
-  /// * `num_passes` - The total number of JFA step passes performed. Used to determine
-  ///                 which of the ping-pong textures ( `jfa_step_fb_color_0` or `jfa_step_fb_color_1` )
-  ///                 holds the final JFA result.
   fn outline_pass( &self )
   {
     let gl = &self.gl;
@@ -1021,7 +994,7 @@ impl Renderer
     let u_outline_thickness_loc = locations.get( "u_outline_thickness" ).unwrap().clone().unwrap();
     let u_background_color_loc = locations.get( "u_background_color" ).unwrap().clone().unwrap();
 
-    let outline_thickness = [ 1.0 as f32 ]; //[ ( 2.0 * ( t / 1000.0 ).sin().abs() ) as f32 ]; // Example animation
+    let outline_thickness = [ 1.0_f32 ]; //[ ( 2.0 * ( t / 1000.0 ).sin().abs() ) as f32 ]; // Example animation
     let background_color = [ 0.0, 0.0, 0.0, 1.0 ];
 
     // Bind the default framebuffer ( render to canvas )
@@ -1029,10 +1002,10 @@ impl Renderer
 
     gl.clear_color( background_color[ 0 ], background_color[ 1 ], background_color[ 2 ], background_color[ 3 ] );
 
-    upload_texture( gl, object_fb_color, &u_color_texture_loc, GL::TEXTURE0 );
-    upload_texture( gl, object_fb_depth, &u_depth_texture_loc, GL::TEXTURE1 );
-    upload_texture( gl, object_fb_norm, &u_norm_texture_loc, GL::TEXTURE2 );
-    //gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array()[ .. ], true ).unwrap();
+    texture_upload( gl, object_fb_color, &u_color_texture_loc, GL::TEXTURE0 );
+    texture_upload( gl, object_fb_depth, &u_depth_texture_loc, GL::TEXTURE1 );
+    texture_upload( gl, object_fb_norm, &u_norm_texture_loc, GL::TEXTURE2 );
+    //gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.projection_matrix_get().to_array()[ .. ], true ).unwrap();
     gl::uniform::upload( gl, Some( u_resolution_loc.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
     gl::uniform::upload( gl, Some( u_outline_thickness_loc.clone() ), &outline_thickness ).unwrap();
     gl::uniform::upload( gl, Some( u_background_color_loc.clone() ), &background_color ).unwrap();
@@ -1049,9 +1022,9 @@ impl Renderer
 /// # Returns
 ///
 /// A `Result` indicating success or a WebGL error.
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
-  let renderer = Renderer::new().await;
+  let renderer = Renderer::new();
 
   let _ = renderer.gl.get_extension( "EXT_color_buffer_float" )
   .expect( "Failed to enable EXT_color_buffer_float extension" );
@@ -1061,14 +1034,14 @@ async fn run() -> Result< (), gl::WebglError >
 
   let gltf_path = "static/bike.glb";
   let mut gltf = load( &document, gltf_path, &renderer.gl ).await?;
-  let _ = add_attributes( &renderer.gl, &mut gltf );
+  let _ = attributes_add( &renderer.gl, &mut gltf );
 
   let scenes = gltf.scenes.clone();
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  scenes[ 0 ].borrow_mut().world_matrix_update();
 
   let primitive_gltf = primitives_csgrs_gltf( &renderer.gl );
   let primitive_scenes = primitive_gltf.scenes.clone();
-  primitive_scenes[ 0 ].borrow_mut().update_world_matrix();
+  primitive_scenes[ 0 ].borrow_mut().world_matrix_update();
 
   let s = vec![ scenes[ 0 ].clone(), primitive_scenes[ 0 ].clone() ];
 
@@ -1088,9 +1061,9 @@ async fn run() -> Result< (), gl::WebglError >
 
 /// The main entry point of the application.
 ///
-/// Spawns the asynchronous `run` function using `gl::spawn_local` which is
+/// Spawns the asynchronous `app_run` function using `gl::spawn_local` which is
 /// suitable for WebAssembly targets in a browser environment.
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

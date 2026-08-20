@@ -23,7 +23,7 @@ mod private
   impl BlendPass
   {
     /// Set the blending texture of the pass
-    pub fn set_blend_texture( &mut self, texture : Option< gl::web_sys::WebGlTexture > )
+    pub fn blend_texture_set( &mut self, texture : Option< gl::web_sys::WebGlTexture > )
     {
       self.blend_texture = texture;
     }
@@ -32,6 +32,10 @@ mod private
     ///
     /// By default, it sets up alpha blending (`gl::SRC_ALPHA`, `gl::ONE_MINUS_SRC_ALPHA`)
     /// with an additive equation (`gl::FUNC_ADD`). The `blend_texture` is initially `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the blend shader fails to compile or link.
     pub fn new( gl : &gl::WebGl2RenderingContext ) -> Result< Self, gl::WebglError >
     {
       let src_factor = gl::SRC_ALPHA;

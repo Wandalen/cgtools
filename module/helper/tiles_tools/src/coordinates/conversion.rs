@@ -30,7 +30,7 @@
 //!     SquareCoord::<FourConnected>::new(1, 1),
 //!     SquareCoord::<FourConnected>::new(2, 2),
 //! ];
-//! let iso_coords: Vec<IsoCoord<Diamond>> = square_coords.convert_batch_exact();
+//! let iso_coords: Vec<IsoCoord<Diamond>> = square_coords.batch_convert_exact();
 //! ```
 
 
@@ -99,7 +99,7 @@ pub trait BatchConvertExact<T, U> {
   ///
   /// This method may be more efficient than calling `convert()` individually
   /// on each coordinate, especially for large collections.
-  fn convert_batch_exact(self) -> U;
+  fn batch_convert_exact(self) -> U;
 }
 
 /// Trait for batch approximate coordinate conversions.
@@ -111,7 +111,7 @@ pub trait BatchConvertApproximate<T, U> {
   ///
   /// This method may be more efficient than calling `approximate_convert()`
   /// individually on each coordinate, especially for large collections.
-  fn convert_batch_approximate(self) -> U;
+  fn batch_convert_approximate(self) -> U;
 }
 
 // =============================================================================
@@ -225,8 +225,8 @@ impl<T, U> BatchConvertExact<Vec<T>, Vec<U>> for Vec<T>
 where
   T: Convert<U>,
 {
-  fn convert_batch_exact(self) -> Vec<U> {
-    self.into_iter().map(|coord| coord.convert()).collect()
+  fn batch_convert_exact(self) -> Vec<U> {
+    self.into_iter().map(Convert::convert).collect()
   }
 }
 
@@ -235,8 +235,8 @@ impl<T, U> BatchConvertApproximate<Vec<T>, Vec<U>> for Vec<T>
 where
   T: ApproximateConvert<U>,
 {
-  fn convert_batch_approximate(self) -> Vec<U> {
-    self.into_iter().map(|coord| coord.approximate_convert()).collect()
+  fn batch_convert_approximate(self) -> Vec<U> {
+    self.into_iter().map(ApproximateConvert::approximate_convert).collect()
   }
 }
 
@@ -253,7 +253,7 @@ where
 ///
 /// ```rust
 /// use tiles_tools::coordinates::{
-///     conversion::convert_batch_exact,
+///     conversion::batch_convert_exact,
 ///     square::{Coordinate as SquareCoord, FourConnected},
 ///     isometric::{Coordinate as IsoCoord, Diamond},
 /// };
@@ -262,13 +262,14 @@ where
 ///     SquareCoord::<FourConnected>::new(1, 2),
 ///     SquareCoord::<FourConnected>::new(3, 4),
 /// ];
-/// let isometric_coords: Vec<IsoCoord<Diamond>> = convert_batch_exact(squares);
+/// let isometric_coords: Vec<IsoCoord<Diamond>> = batch_convert_exact(squares);
 /// ```
-pub fn convert_batch_exact<T, U>(coords: Vec<T>) -> Vec<U>
+#[must_use]
+pub fn batch_convert_exact<T, U>(coords: Vec<T>) -> Vec<U>
 where
   T: Convert<U>,
 {
-  coords.into_iter().map(|coord| coord.convert()).collect()
+  coords.into_iter().map(Convert::convert).collect()
 }
 
 /// Converts a collection of coordinates using approximate conversion.
@@ -280,7 +281,7 @@ where
 ///
 /// ```rust
 /// use tiles_tools::coordinates::{
-///     conversion::convert_batch_approximate,
+///     conversion::batch_convert_approximate,
 ///     hexagonal::{Coordinate as HexCoord, Axial, Pointy},
 ///     square::{Coordinate as SquareCoord, FourConnected},
 /// };
@@ -290,13 +291,14 @@ where
 ///     HexCoord::<Axial, Pointy>::new(2, 0),
 /// ];
 /// let square_coords: Vec<SquareCoord<FourConnected>> =
-///     convert_batch_approximate(hex_coords);
+///     batch_convert_approximate(hex_coords);
 /// ```
-pub fn convert_batch_approximate<T, U>(coords: Vec<T>) -> Vec<U>
+#[must_use]
+pub fn batch_convert_approximate<T, U>(coords: Vec<T>) -> Vec<U>
 where
   T: ApproximateConvert<U>,
 {
-  coords.into_iter().map(|coord| coord.approximate_convert()).collect()
+  coords.into_iter().map(ApproximateConvert::approximate_convert).collect()
 }
 
 /// Checks if a coordinate conversion preserves the roundtrip property.
@@ -308,23 +310,26 @@ where
 ///
 /// ```rust
 /// use tiles_tools::coordinates::{
-///     conversion::test_roundtrip_conversion,
+///     conversion::roundtrip_conversion_test,
 ///     square::{Coordinate as SquareCoord, FourConnected},
 ///     isometric::{Coordinate as IsoCoord, Diamond},
 /// };
 ///
 /// let square = SquareCoord::<FourConnected>::new(5, 3);
-/// assert!(test_roundtrip_conversion::<_, IsoCoord<Diamond>, SquareCoord<FourConnected>>(square));
+/// assert!(roundtrip_conversion_test::<_, IsoCoord<Diamond>, SquareCoord<FourConnected>>(&square));
 /// ```
-pub fn test_roundtrip_conversion<T, U, V>(original: T) -> bool
+pub fn roundtrip_conversion_test<T, U, V>(original: &T) -> bool
 where
   T: Convert<U> + PartialEq + Clone,
   U: Convert<V>,
   V: PartialEq<T>,
 {
-  let converted: U = original.clone().convert();
+  // `.clone()` on a `&T` receiver resolves to the reference's own blanket `Clone` impl
+  // (returning `&T`), not `T`'s — an explicit deref is required to clone the pointee, since
+  // `Convert::convert` consumes an owned `T`.
+  let converted: U = ( *original ).clone().convert();
   let roundtrip: V = converted.convert();
-  roundtrip == original
+  roundtrip == *original
 }
 
 /// Measures the conversion error for approximate conversions.
@@ -332,7 +337,7 @@ where
 /// Returns the distance between the original coordinate and the result
 /// of a roundtrip approximate conversion. Useful for evaluating conversion
 /// quality.
-pub fn measure_approximate_conversion_error<T, U>(original: T) -> f64
+pub fn approximate_conversion_error_measure<T, U>(original: T) -> f64
 where
   T: ApproximateConvert<U> + Clone,
   U: ApproximateConvert<T>,
@@ -345,7 +350,7 @@ where
   let (x2, y2) = roundtrip.into();
 
   // Calculate Euclidean distance
-  let dx = (x2 - x1) as f64;
-  let dy = (y2 - y1) as f64;
+  let dx = f64::from(x2 - x1);
+  let dy = f64::from(y2 - y1);
   (dx * dx + dy * dy).sqrt()
 }

@@ -20,6 +20,7 @@ fn test_cull_mode_variants()
 
 /// Test CullMode clone and copy.
 #[ test ]
+#[ expect( clippy::clone_on_copy, reason = "`.clone()` is the point : the test exercises the `Clone` impl explicitly rather than `Copy`" ) ]
 fn test_cull_mode_clone_copy()
 {
   let mode = CullMode::Front;
@@ -31,6 +32,7 @@ fn test_cull_mode_clone_copy()
 
 /// Test Option<CullMode> works as expected for material API.
 #[ test ]
+#[ expect( clippy::unnecessary_literal_unwrap, reason = "the test validates `Option< CullMode >` handling itself, so the value stays wrapped" ) ]
 fn test_cull_mode_option()
 {
   let none : Option< CullMode > = None;

@@ -1,7 +1,7 @@
 mod private
 {
 
-  use crate::*;
+  use crate::{Cap, Join, Mesh, helpers, d2, Program};
   use minwebgl as gl;
   use ndarray_cg as math;
 
@@ -35,12 +35,20 @@ mod private
     ///
     /// This function compiles all necessary shaders, creates all buffers, sets up
     /// the vertex attribute pointers, and links the shader programs.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if shader compilation or program linking fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a WebGL buffer, vertex array object, or other GL resource cannot be created.
     pub fn mesh_create( &mut self, gl : &gl::WebGl2RenderingContext, fragment_shader : &str ) -> Result< (), gl::WebglError >
     {
       let fragment_shader = gl::ShaderSource::former()
       .shader_type( gl::FRAGMENT_SHADER )
       .source( fragment_shader )
-      .compile( &gl )?;
+      .compile( gl )?;
 
       // Buffers
       let points_buffer = gl.create_buffer().expect( "Failed to create a points buffer" );
@@ -73,12 +81,12 @@ mod private
       body_program.vao = gl.create_vertex_array();
       gl.bind_vertex_array( body_program.vao.as_ref() );
 
-      gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &body_instanced_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 9 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 4, &points_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 5, &distance_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( gl, 0, &body_instanced_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( gl, 1, &points_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( gl, 2, &points_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( gl, 3, &points_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 9 ).stride( 3 ).divisor( 1 ).attribute_pointer( gl, 4, &points_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( gl, 5, &distance_buffer )?;
 
       let mut body_terminal_program = Program::default();
       body_terminal_program.program = Some( gl::ProgramShaders::new( &body_terminal_vertex_shader, &fragment_shader ).link( gl )? );
@@ -91,11 +99,11 @@ mod private
       body_terminal_program.vao = gl.create_vertex_array();
       gl.bind_vertex_array( body_terminal_program.vao.as_ref() );
 
-      gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &body_instanced_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_terminal_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_terminal_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_terminal_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &distance_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( gl, 0, &body_instanced_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 9 ).divisor( 1 ).attribute_pointer( gl, 1, &points_terminal_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 9 ).divisor( 1 ).attribute_pointer( gl, 2, &points_terminal_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 9 ).divisor( 1 ).attribute_pointer( gl, 3, &points_terminal_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( gl, 4, &distance_buffer )?;
 
       let mut join_program = Program::default();
       join_program.fragment_shader = Some( fragment_shader.clone() );
@@ -159,6 +167,10 @@ mod private
     }
 
     /// Adds a new point to the line and marks the points as changed.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `point` yields fewer than 2 components.
     pub fn point_add< P : gl::VectorIter< f32, 2 > >( &mut self, point : P )
     {
       let mut iter = point.vector_iter();
@@ -186,12 +198,22 @@ mod private
     }
 
     /// Return the total length of the line
+    #[must_use]
     pub fn total_distance_get( &self ) -> f32
     {
       self.total_distance
     }
 
     /// Updates the mesh's WebGL resources if any part of the line has changed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if re-uploading buffer data, shaders, or uniforms fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called before `mesh_create`.
+    #[ expect( clippy::too_many_lines, reason = "one linear per-flag GL resync ( points, joins, caps, terminals ) over tightly coupled buffer state; splitting would scatter paired steps" ) ]
     pub fn mesh_update( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       let mesh = self.mesh.as_mut().expect( "Mesh has not been created yet" );
@@ -241,15 +263,15 @@ mod private
 
         let points_terminal : Vec< f32 > = points_terminal.into_iter().zip( uvs_terminal.iter() ).flat_map( | ( p, d ) | [ p.x(), p.y(), d / self.total_distance ] ).collect();
 
-        gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
-        gl::buffer::upload( &gl, &points_terminal_buffer, &points_terminal, gl::STATIC_DRAW );
-        gl::buffer::upload( &gl, &distance_buffer, &self.distances, gl::STATIC_DRAW );
+        gl::buffer::upload( gl, points_buffer, &points, gl::STATIC_DRAW );
+        gl::buffer::upload( gl, points_terminal_buffer, &points_terminal, gl::STATIC_DRAW );
+        gl::buffer::upload( gl, distance_buffer, &self.distances, gl::STATIC_DRAW );
 
-        let b_program = mesh.program_get_mut( "body" );
-        b_program.instance_count = Some( ( self.points.len() as f32 - 3.0 ).max( 0.0 ) as u32 );
+        let body_program = mesh.program_get_mut( "body" );
+        body_program.instance_count = Some( ( self.points.len() as f32 - 3.0 ).max( 0.0 ) as u32 );
 
-        let bt_program = mesh.program_get_mut( "body_terminal" );
-        bt_program.instance_count = Some( terminal_instance_count );
+        let body_terminal_program = mesh.program_get_mut( "body_terminal" );
+        body_terminal_program.instance_count = Some( terminal_instance_count );
         
         let j_program = mesh.program_get_mut( "join" );
         j_program.instance_count = Some( ( self.points.len() as f32 - 2.0 ).max( 0.0 ) as u32 );
@@ -265,42 +287,39 @@ mod private
         let join_uv_buffer = mesh.buffer_get( "join_uv" );
         let distance_buffer = mesh.buffer_get( "distance" );
 
-        let ( join_geometry_list, join_indices, join_uvs, join_geometry_count ) = self.join.geometry(); 
-        gl::buffer::upload( gl, &join_buffer, &join_geometry_list, gl::STATIC_DRAW );
-        gl::buffer::upload( gl, &join_uv_buffer, &join_uvs, gl::STATIC_DRAW );
-        gl::index::upload( gl, &join_indices_buffer, &join_indices, gl::STATIC_DRAW );
+        let ( join_geometry_list, join_indices, join_uvs, join_geometry_count ) = self.join.geometry();
+        gl::buffer::upload( gl, join_buffer, &join_geometry_list, gl::STATIC_DRAW );
+        gl::buffer::upload( gl, join_uv_buffer, &join_uvs, gl::STATIC_DRAW );
 
         let j_program = mesh.program_get( "join" );
         let vao = gl.create_vertex_array();
-        gl.bind_vertex_array( vao.as_ref() ); 
+        gl.bind_vertex_array( vao.as_ref() );
+
+        // `index::upload` binds to `ELEMENT_ARRAY_BUFFER`, which is part of the
+        // *currently bound VAO's* state in WebGL2 - it must run after the VAO
+        // above is bound, or it silently overwrites whatever VAO was
+        // previously active instead of this one.
+        gl::index::upload( gl, join_indices_buffer, &join_indices, gl::STATIC_DRAW );
+
         match self.join
         {
-          Join::Round( _, _ ) =>
-          {
-            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 5, &distance_buffer )?;
-          },
           Join::Miter( _, _ ) =>
           {
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 5, &distance_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 0 ).attribute_pointer( gl, 0, join_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( gl, 1, points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( gl, 2, points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( gl, 3, points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( gl, 4, join_uv_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( gl, 5, distance_buffer )?;
           },
-          Join::Bevel( _, _ ) =>
+          Join::Round( _, _ ) | Join::Bevel( _, _ ) =>
           {
-            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 5, &distance_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( gl, 0, join_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( gl, 1, points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( gl, 2, points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( gl, 3, points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( gl, 4, join_uv_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( gl, 5, distance_buffer )?;
           },
         }
 
@@ -315,8 +334,8 @@ mod private
         let vertex_shader = gl::ShaderSource::former()
         .shader_type( gl::VERTEX_SHADER )
         .source( vertex_shader )
-        .compile( &gl )?;
-        let join_program = gl::ProgramShaders::new( &vertex_shader, j_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( &gl )?;
+        .compile( gl )?;
+        let join_program = gl::ProgramShaders::new( &vertex_shader, j_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( gl )?;
 
         let j_program = mesh.program_get_mut( "join" );
 
@@ -330,7 +349,7 @@ mod private
         j_program.program = Some( join_program );
         j_program.instance_count = Some( ( self.points.len() as f32 - 2.0 ).max( 0.0 ) as u32 );
         j_program.vertex_count = join_geometry_count as u32;
-        j_program.index_count = if join_indices.len() > 0 { Some( join_indices.len() as u32 ) } else { None };
+        j_program.index_count = if join_indices.is_empty() { None } else { Some( join_indices.len() as u32 ) };
 
         j_program.uniform_locations_clear();
         j_program.all_uniforms_upload( gl )?;
@@ -346,34 +365,30 @@ mod private
         let points_terminal_buffer = mesh.buffer_get( "points_terminal" );
 
         let ( cap_geometry_list, cap_indices, cap_geometry_count ) = self.cap.geometry();
-        gl::buffer::upload( gl, &cap_buffer, &cap_geometry_list, gl::STATIC_DRAW );
-        gl::index::upload( gl, &cap_index_buffer, &cap_indices, gl::STATIC_DRAW );
+        gl::buffer::upload( gl, cap_buffer, &cap_geometry_list, gl::STATIC_DRAW );
 
         let c_program = mesh.program_get( "cap" );
 
         let vao = gl.create_vertex_array();
         gl.bind_vertex_array( vao.as_ref() );
+
+        // `index::upload` binds to `ELEMENT_ARRAY_BUFFER`, which is part of the
+        // *currently bound VAO's* state in WebGL2 - it must run after the VAO
+        // above is bound, or it silently overwrites whatever VAO was
+        // previously active instead of this one.
+        gl::index::upload( gl, cap_index_buffer, &cap_indices, gl::STATIC_DRAW );
+
         let mut instance_count = None;
         match self.cap
         {
-          Cap::Round( _ ) =>
+          Cap::Round( _ ) | Cap::Square =>
           {
-            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &cap_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_terminal_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_terminal_buffer )?;
-
-            gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &cap_index_buffer ) );
-            instance_count = Some( 2 );
-          },
-          Cap::Square =>
-          {
-            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &cap_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_terminal_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_terminal_buffer )?;
-            gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &cap_index_buffer ) );
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( gl, 0, cap_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 9 ).divisor( 1 ).attribute_pointer( gl, 1, points_terminal_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 9 ).divisor( 1 ).attribute_pointer( gl, 2, points_terminal_buffer )?;
             instance_count = Some( 2 );
           }
-          _ => {}
+          Cap::Butt => {}
         }
 
         let ( vertex_shader, cap_draw_mode ) =
@@ -381,14 +396,14 @@ mod private
         {
           Cap::Round( _ ) =>( d2::CAP_ROUND_VERTEX_SHADER, gl::TRIANGLES ),
           Cap::Square =>( d2::CAP_SQUARE_VERTEX_SHADER, gl::TRIANGLES ),
-          _ => ( d2::CAP_BUTT_VERTEX_SHADER, gl::TRIANGLES )
+          Cap::Butt => ( d2::CAP_BUTT_VERTEX_SHADER, gl::TRIANGLES )
         };
 
         let vertex_shader = gl::ShaderSource::former()
         .shader_type( gl::VERTEX_SHADER )
         .source( vertex_shader )
-        .compile( &gl )?;
-        let cap_program = gl::ProgramShaders::new( &vertex_shader, c_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( &gl )?;
+        .compile( gl )?;
+        let cap_program = gl::ProgramShaders::new( &vertex_shader, c_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( gl )?;
 
         let c_program = mesh.program_get_mut( "cap" );
 
@@ -402,7 +417,7 @@ mod private
         c_program.instance_count = instance_count;
         c_program.vertex_count = cap_geometry_count as u32;
         c_program.draw_mode = cap_draw_mode;
-        c_program.index_count = if cap_indices.len() > 0 { Some( cap_indices.len() as u32 ) } else { None };
+        c_program.index_count = if cap_indices.is_empty() { None } else { Some( cap_indices.len() as u32 ) };
 
         c_program.uniform_locations_clear();
         c_program.all_uniforms_upload( gl )?;
@@ -417,6 +432,14 @@ mod private
     }
 
     /// Update the line and draw it if it has more than one point.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the mesh update or a uniform upload fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called before `mesh_create`.
     pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
 
@@ -445,18 +468,28 @@ mod private
     }
 
     /// Returns a reference to the internal mesh.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called before `mesh_create`.
+    #[must_use]
     pub fn mesh_get( &self ) -> &Mesh
     {
       self.mesh.as_ref().expect( "Mesh has not been created yet" )
     }   
 
     /// Returns a mutable reference to the internal mesh.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called before `mesh_create`.
     pub fn mesh_get_mut( &mut self ) -> &mut Mesh
     {
       self.mesh.as_mut().expect( "Mesh has not been created yet" )
     } 
 
     /// Returns a slice of the line's points.
+    #[must_use]
     pub fn points_get( &self ) -> &[ math::F32x2 ]
     {
       &self.points

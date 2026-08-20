@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate::{Add, Quat, MatEl, NdFloat, AddAssign};
 
   // Quat + Quat
   impl< E > Add for Quat< E >
@@ -9,6 +9,7 @@ mod private
   {
     type Output = Self;
 
+    #[ inline ]
     fn add( self, rhs : Self ) -> Self::Output
     {
       Self( self.0 + rhs.0 )
@@ -22,7 +23,8 @@ mod private
   {
     type Output = Quat< E >;
 
-    fn add( self, rhs : Self ) -> Self::Output 
+    #[ inline ]
+    fn add( self, rhs : Self ) -> Self::Output
     {
       Quat::< E >( self.0 + rhs.0 )
     }
@@ -32,9 +34,10 @@ mod private
   where
   E : MatEl + NdFloat
   {
+    #[ inline ]
     fn add_assign( &mut self, rhs : Self )
     {
-        ( *self ).0 = ( *self ).0 + rhs.0;
+        self.0 = self.0 + rhs.0;
     }
   }
 
@@ -42,9 +45,10 @@ mod private
   where
   E : MatEl + NdFloat
   {
+    #[ inline ]
     fn add_assign( &mut self, rhs : E )
     {
-        ( *self ).0 = ( *self ).0 + rhs;
+        self.0 = self.0 + rhs;
     }
   }
 }

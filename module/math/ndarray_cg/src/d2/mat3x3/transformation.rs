@@ -1,12 +1,13 @@
 //! This module provides functions for creating 3x3 rotation matrices
 //! from various representations, such as Euler angles (per-axis) and axis-angle.
 
-use crate::*;
+use crate::{MatEl, nd, Mat3, mat, RawSliceMut, VectorIter};
 
 /// Creates a 3x3 matrix for a rotation around the X-axis.
 ///
 /// # Arguments
 /// * `angle` - The rotation angle in radians.
+#[ inline ]
 pub fn from_angle_x< E >( angle : E ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
@@ -27,6 +28,7 @@ where
 ///
 /// # Arguments
 /// * `angle` - The rotation angle in radians.
+#[ inline ]
 pub fn from_angle_y< E >( angle : E ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
@@ -47,6 +49,7 @@ where
 ///
 /// # Arguments
 /// * `angle` - The rotation angle in radians.
+#[ inline ]
 pub fn from_angle_z< E >( angle : E ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
@@ -68,6 +71,13 @@ where
 /// # Arguments
 /// * `axis` - The axis of rotation, which should be a normalized 3D vector.
 /// * `angle` - The rotation angle in radians.
+///
+/// # Panics
+///
+/// Panics if `E::from` fails for `angle`'s sine or cosine ( not expected for
+/// the standard float types this is used with ), or if `axis`'s iterator
+/// yields fewer than 3 elements.
+#[ inline ]
 pub fn from_axis_angle< E, Vec3 >( axis : Vec3, angle : f32 ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
@@ -76,24 +86,24 @@ where
 {
   let s = E::from( angle.sin() ).unwrap();
   let c = E::from( angle.cos() ).unwrap();
-  let _1subc = E::one() - c ;
+  let one_minus_c = E::one() - c ;
 
   let mut iter = axis.vector_iter();
   let ux = *iter.next().unwrap();
   let uy = *iter.next().unwrap();
   let uz = *iter.next().unwrap();
 
-  let r1c1 = ux * ux * _1subc + c;
-  let r1c2 = ux * uy * _1subc - uz * s;
-  let r1c3 = ux * uz * _1subc + uy * s;
+  let r1c1 = ux * ux * one_minus_c + c;
+  let r1c2 = ux * uy * one_minus_c - uz * s;
+  let r1c3 = ux * uz * one_minus_c + uy * s;
 
-  let r2c1 = ux * uy * _1subc + uz * s;
-  let r2c2 = uy * uy * _1subc + c;
-  let r2c3 = uy * uz * _1subc - ux * s;
+  let r2c1 = ux * uy * one_minus_c + uz * s;
+  let r2c2 = uy * uy * one_minus_c + c;
+  let r2c3 = uy * uz * one_minus_c - ux * s;
 
-  let r3c1 = ux * uz * _1subc - uy * s;
-  let r3c2 = uy * uz * _1subc + ux * s;
-  let r3c3 = uz * uz * _1subc + c;
+  let r3c1 = ux * uz * one_minus_c - uy * s;
+  let r3c2 = uy * uz * one_minus_c + ux * s;
+  let r3c3 = uz * uz * one_minus_c + c;
   Mat3::from_row_major
   (
     [

@@ -1,4 +1,10 @@
-use super::*;
+use super::
+{
+  Filter,
+  FilterRenderer,
+  gl,
+  default_render_pass,
+};
 
 pub struct Emboss;
 
@@ -55,7 +61,7 @@ impl Filter for Emboss
     let gl = renderer.gl();
     let texel_size_location = gl.get_uniform_location( renderer.get_program(), "u_texel_size" );
     let texel_size = [ 1.0 / gl.drawing_buffer_width() as f32, 1.0 / gl.drawing_buffer_height() as f32 ];
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, texel_size_location, texel_size.as_slice() ).unwrap();
     default_render_pass( renderer );
   }

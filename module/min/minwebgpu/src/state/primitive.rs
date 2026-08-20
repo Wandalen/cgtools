@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ GpuCullMode, GpuFrontFace, GpuPrimitiveTopology, GpuIndexFormat, web_sys };
 
   /// A builder for creating a `web_sys::GpuPrimitiveState`.
   #[ derive( Default, Clone ) ]
@@ -46,12 +46,16 @@ mod private
   impl  PrimitiveState 
   {
     /// Creates a new `PrimitiveState` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
     }
 
     /// Sets the cull mode to `None`, disabling culling.
+    #[ inline ]
+    #[ must_use ]
     pub fn cull_none( mut self ) -> Self
     {
       self.cull_mode = Some( GpuCullMode::None );
@@ -59,6 +63,8 @@ mod private
     }
 
     /// Sets the cull mode to `Front`, culling front-facing primitives.
+    #[ inline ]
+    #[ must_use ]
     pub fn cull_front( mut self ) -> Self
     {
       self.cull_mode = Some( GpuCullMode::Front );
@@ -66,6 +72,8 @@ mod private
     }
 
     /// Sets the cull mode to `Back`, culling back-facing primitives.
+    #[ inline ]
+    #[ must_use ]
     pub fn cull_back( mut self ) -> Self
     {
       self.cull_mode = Some( GpuCullMode::Back );
@@ -73,6 +81,8 @@ mod private
     }
 
     /// Sets the front face winding order to `Cw` (clockwise).
+    #[ inline ]
+    #[ must_use ]
     pub fn cw( mut self ) -> Self
     {
       self.front_face = Some( GpuFrontFace::Cw );
@@ -82,6 +92,8 @@ mod private
     /// Enables unclipped depth.
     ///
     /// This is a convenience method that sets `unclipped_depth` to `Some(true)`.
+    #[ inline ]
+    #[ must_use ]
     pub fn unclipped_depth( mut self ) -> Self
     {
       self.unclipped_depth = Some( true );
@@ -89,6 +101,8 @@ mod private
     }
 
     /// Sets the primitive topology.
+    #[ inline ]
+    #[ must_use ]
     pub fn topology( mut self, topology : GpuPrimitiveTopology ) -> Self
     {
       self.topology = Some( topology );
@@ -98,6 +112,8 @@ mod private
     /// Sets the topology to `PointList`.
     ///
     /// This is a convenience method for a common topology.
+    #[ inline ]
+    #[ must_use ]
     pub fn points( mut self ) -> Self
     {
       self.topology = Some( GpuPrimitiveTopology::PointList );
@@ -105,6 +121,8 @@ mod private
     }
 
     /// Sets the topology to `LineList`.
+    #[ inline ]
+    #[ must_use ]
     pub fn lines( mut self ) -> Self
     {
       self.topology = Some( GpuPrimitiveTopology::LineList );
@@ -112,6 +130,8 @@ mod private
     }
 
     /// Sets the topology to `TriangleList`.
+    #[ inline ]
+    #[ must_use ]
     pub fn triangles( mut self ) -> Self
     {
       self.topology = Some( GpuPrimitiveTopology::TriangleList );
@@ -119,6 +139,8 @@ mod private
     }
 
     /// Sets the topology to `LineStrip`.
+    #[ inline ]
+    #[ must_use ]
     pub fn line_strip( mut self ) -> Self
     {
       self.topology = Some( GpuPrimitiveTopology::LineStrip );
@@ -126,6 +148,8 @@ mod private
     }
 
     /// Sets the topology to `TriangleStrip`.
+    #[ inline ]
+    #[ must_use ]
     pub fn triangle_strip( mut self ) -> Self
     {
       self.topology = Some( GpuPrimitiveTopology::TriangleStrip );
@@ -135,6 +159,7 @@ mod private
 
   impl From< PrimitiveState > for web_sys::GpuPrimitiveState
   {
+    #[ inline ]
     fn from( value: PrimitiveState ) -> Self 
     {
       let state = web_sys::GpuPrimitiveState::new();

@@ -1,8 +1,8 @@
 mod private
 {
-  use crate::*;
+  use crate::{alloc, impl_basic_line, splat_vector, dim_to_vec, Mesh, d3, helpers, Program, UniformStorage};
   use minwebgl as gl;
-  use std::collections::VecDeque;
+  use alloc::collections::VecDeque;
 
   /// Encapsulates geometry related state of the line
   #[ derive( Debug, Clone, Default ) ]
@@ -147,6 +147,10 @@ mod private
     /// This function compiles shaders, generates the line's geometry, creates buffers and a VAO,
     /// and initializes the `Mesh` object. It sets up the vertex attributes for instanced drawing,
     /// where each instance is a segment of the line.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if shader compilation or program linking fails.
     pub fn mesh_create( &mut self, gl : &gl::WebGl2RenderingContext, fragment_shader : Option< &str > ) -> Result< (), gl::WebglError >
     {
       self.render_state.fragment_shader = fragment_shader.unwrap_or( d3::MAIN_FRAGMENT_SHADER ).to_string();
@@ -163,10 +167,16 @@ mod private
 
       gl::buffer::upload( gl, &position_buffer, &vertices.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
       gl::buffer::upload( gl, &uv_buffer, &uvs.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
-      gl::index::upload( gl, &index_buffer, &indices, gl::STATIC_DRAW );
 
       let vao = gl.create_vertex_array();
       gl.bind_vertex_array( vao.as_ref() );
+
+      // `index::upload` binds to `ELEMENT_ARRAY_BUFFER`, which is part of the
+      // *currently bound VAO's* state in WebGL2 (unlike `ARRAY_BUFFER`, which
+      // is global scratch state) - uploading before the VAO above exists would
+      // silently overwrite whatever VAO the caller last had bound instead of
+      // this one, corrupting an unrelated mesh's element buffer.
+      gl::index::upload( gl, &index_buffer, &indices, gl::STATIC_DRAW );
 
       gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 0 ).divisor( 0 ).attribute_pointer( gl, 0, &position_buffer )?;
       gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 0 ).divisor( 0 ).attribute_pointer( gl, 1, &uv_buffer )?;
@@ -201,7 +211,7 @@ mod private
       {
         vertex_shader : None,
         fragment_shader : None,
-        vao : vao,
+        vao,
         program : None,
         draw_mode : gl::TRIANGLES,
         instance_count : Some( ( self.geometry.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 ),
@@ -233,6 +243,10 @@ mod private
     }
 
     /// Updates the mesh's vertex buffers if the line's points have changed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if re-uploading buffer data or shaders fails.
     pub fn mesh_update( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       if self.change_state.defines_changed
@@ -242,15 +256,15 @@ mod private
         let vertex_shader = gl::ShaderSource::former()
         .shader_type( gl::VERTEX_SHADER )
         .source( &vertex_shader )
-        .compile( &gl )?;
+        .compile( gl )?;
 
         let fragment_shader = self.render_state.fragment_shader.replace( "// #include <defines>", &defines );
         let fragment_shader = gl::ShaderSource::former()
         .shader_type( gl::FRAGMENT_SHADER )
         .source( &fragment_shader )
-        .compile( &gl )?;
+        .compile( gl )?;
 
-        let program = gl::ProgramShaders::new( &vertex_shader, &fragment_shader ).link( &gl )?;
+        let program = gl::ProgramShaders::new( &vertex_shader, &fragment_shader ).link( gl )?;
 
         let mesh = self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
         let b_program = mesh.program_get_mut( "body" );
@@ -287,14 +301,14 @@ mod private
         let mesh = self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
         let points_buffer = mesh.buffer_get( "points" );
         
-        let points : Vec< f32 > = self.geometry.points.iter().flat_map( | p | p.to_array() ).collect();
-        gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
+        let points : Vec< f32 > = self.geometry.points.iter().flat_map( minwebgl::Vector::to_array ).collect();
+        gl::buffer::upload( gl, points_buffer, &points, gl::STATIC_DRAW );
 
         #[ cfg( feature = "distance" ) ]
         {
           let distances_buffer = mesh.buffer_get( "distances" );
           let distances : Vec< f32 > = self.geometry.distances.iter().copied().collect();
-          gl::buffer::upload( &gl, &distances_buffer, &distances, gl::STATIC_DRAW );
+          gl::buffer::upload( gl, distances_buffer, &distances, gl::STATIC_DRAW );
         }
 
         let b_program = mesh.program_get_mut( "body" );
@@ -308,8 +322,8 @@ mod private
         let mesh = self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
         let colors_buffer = mesh.buffer_get( "colors" );
 
-        let colors : Vec< f32 > = self.geometry.colors.iter().flat_map( | c | c.to_array() ).collect();
-        gl::buffer::upload( &gl, &colors_buffer, &colors, gl::STATIC_DRAW );
+        let colors : Vec< f32 > = self.geometry.colors.iter().flat_map( minwebgl::Vector::to_array ).collect();
+        gl::buffer::upload( gl, colors_buffer, &colors, gl::STATIC_DRAW );
 
         self.change_state.colors_changed = false;
       }
@@ -351,6 +365,10 @@ mod private
     }
 
     /// Draws the line mesh.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the mesh update or a uniform upload fails.
     pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       self.mesh_update( gl )?;
@@ -378,6 +396,7 @@ mod private
     }
 
     /// Returns the shader defines string based on the current render state flags
+    #[must_use]
     pub fn defines_get( &self ) -> String
     {
       self.render_state.defines_get()
@@ -392,6 +411,7 @@ mod private
 
     #[ cfg( feature = "distance" ) ]
     /// Get the dash offset
+    #[must_use]
     pub fn dash_offset_get( &self ) -> f32
     {
       self.render_state.dash_offset

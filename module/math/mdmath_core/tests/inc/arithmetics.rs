@@ -1,10 +1,10 @@
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::float_cmp ) ]
-#![ allow( clippy::clone_on_copy ) ]
 
 use super::*;
 
+// All inputs are small integer-valued floats and `dot` only sums products of them, so the
+// results are exactly representable with no rounding error — exact equality is correct here.
 #[ test ]
+#[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
 fn test_dot_product()
 {
   use the_module::vector;
@@ -90,7 +90,7 @@ fn test_normalize()
 
   // Test with a typical vector
   let vec_a = [ 3.0, 4.0 ];
-  let mut result = vec_a.clone();
+  let mut result = vec_a;
   vector::normalize( &mut result, &vec_a );
   let expected = [ 0.6, 0.8 ];
   for ( a, b ) in result.iter().zip( expected.iter() )
@@ -100,15 +100,60 @@ fn test_normalize()
 
   // Test with a zero vector
   let vec_zero = [ 0.0, 0.0 ];
-  let mut got = vec_zero.clone();
+  let mut got = vec_zero;
   vector::normalize( &mut got, &vec_zero );
-  assert!( got.iter().is_nan().all_true(), "Expected NaN, got {:?}", got );
+  assert!( got.iter().map_is_nan().all_true(), "Expected NaN, got {got:?}" );
 
   for value in &got
   {
     assert!( value.is_nan(), "Expected NaN, got {value}" );
   }
 
+}
+
+// test_kind: bug_reproducer(BUG-124)
+/// ## Root Cause
+/// `vector::normalize(r, a)` (`vector/arithmetics.rs`) computes `mag` from `a` but its write
+/// loop divided `*elem` (an element already sitting in `r`) by `mag`, never reading from `a`'s
+/// own iterator at all — correct only by coincidence when the caller pre-seeds `r` to equal `a`
+/// before calling. With `r != a`, the function silently normalizes whatever `r` already held
+/// scaled by `a`'s magnitude, instead of normalizing `a`'s direction into `r`.
+/// ## Why Not Caught
+/// Every existing caller (this test included, previously) pre-set `r = a` before calling
+/// `normalize`, making `*elem` and the corresponding element of `a` always numerically identical
+/// — the missing read from `a` was unobservable under that calling convention. The sibling
+/// `project_on(r, b)` in the same file correctly reads `b.vector_iter()` inside its own write
+/// loop, serving as the in-file oracle for what `normalize` should have done.
+/// ## Fix Applied
+/// Added `let mut aiter = a.vector_iter();` before the loop and changed the write to
+/// `*elem = *aiter.next().unwrap() / mag;`, so every written element is `a`'s own value (not
+/// whatever `r` previously held) divided by `a`'s magnitude.
+/// ## Prevention
+/// This test uses `r != a` (`r` pre-set to an unrelated, already-unit-length vector) so a
+/// write loop that reads from `r` instead of `a` produces a detectably wrong result.
+/// ## Pitfall
+/// A `fn(r: &mut R, a: &A)`-shaped API that computes a scalar from `a` but only reads/writes
+/// through `r` in its loop body is only correct under a "caller pre-seeds r = a" convention
+/// that the type signature itself never states or enforces — always check what a write loop
+/// actually dereferences, not just what it assigns into.
+#[ test ]
+fn test_normalize_with_distinct_source_and_destination()
+{
+  use the_module::
+  {
+    assert_ulps_eq,
+    vector,
+  };
+
+  // r starts as an unrelated, already-unit-length vector distinct from a.
+  let mut r = [ 1.0, 0.0, 0.0 ];
+  let a = [ 3.0, 4.0, 0.0 ];
+  vector::normalize( &mut r, &a );
+  let expected = [ 0.6, 0.8, 0.0 ];
+  for ( got, exp ) in r.iter().zip( expected.iter() )
+  {
+    assert_ulps_eq!( got, exp );
+  }
 }
 
 #[ test ]
@@ -152,10 +197,7 @@ fn test_normalize_to()
   let mut vec_a = [ 3.0, 4.0 ];
   vector::normalize_to( &mut vec_a, 10.0 );
   let expected = [ 6.0, 8.0 ];
-  for ( a, b ) in vec_a.iter().zip( expected.iter() )
-  {
-    assert_ulps_eq!( a, b );
-  }
+  assert_ulps_eq!( vec_a[ .. ], expected[ .. ] );
 
   let mut got = [ 0.0, 0.0 ];
   vector::normalize_to( &mut got, 10.0 );
@@ -180,10 +222,7 @@ fn test_normalized_to()
   let vec_a = [ 3.0, 4.0 ];
   let result = vector::normalized_to( &vec_a, 10.0 );
   let expected = [ 6.0, 8.0 ];
-  for ( a, b ) in result.iter().zip( expected.iter() )
-  {
-    assert_ulps_eq!( a, b );
-  }
+  assert_ulps_eq!( result[ .. ], expected[ .. ] );
 
   let vec_zero = [ 0.0, 0.0 ];
   let got = vector::normalized_to( &vec_zero, 10.0 );
@@ -207,15 +246,16 @@ fn test_project_on()
   let vec_b = [ 4.0, 5.0, 6.0 ];
   vector::project_on( &mut vec_a, &vec_b );
   let expected = [ 1.662_337_662_337_662_4, 2.077_922_077_922_078, 2.493_506_493_506_493_4 ];
-  for ( a, b ) in vec_a.iter().zip( expected.iter() )
-  {
-    assert_ulps_eq!( a, b );
-    // qqq : xxx : make that working : assert_ulps_eq!( vec_a, expected );
-  }
+  // approx has no fixed-size array impls, so whole-vector comparison goes through the
+  // slice impl ( `UlpsEq< [ B ] > for [ A ]` ) via `[ .. ]`.
+  assert_ulps_eq!( vec_a[ .. ], expected[ .. ] );
 
   let mut vec_zero = [ 0.0, 0.0, 0.0 ];
   vector::project_on( &mut vec_zero, &vec_b );
-  assert_eq!( vec_zero, [ 0.0, 0.0, 0.0 ], "Projection failed for zero vector" );
+  // Projecting the zero vector yields exactly 0.0 (0 / anything = 0, 0 * anything = 0 in
+  // IEEE-754) — no rounding is possible, so exact equality is correct here.
+  #[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+  { assert_eq!( vec_zero, [ 0.0, 0.0, 0.0 ], "Projection failed for zero vector" ); }
 }
 
 #[ test ]
@@ -232,15 +272,14 @@ fn test_projected_on()
   let vec_b = [ 4.0, 5.0, 6.0 ];
   let result = vector::projected_on( &vec_a, &vec_b );
   let expected = [ 1.662_337_662_337_662_4, 2.077_922_077_922_078, 2.493_506_493_506_493_4 ];
-  // xxx : rid of cylce here
-  for ( a, b ) in result.iter().zip( expected.iter() )
-  {
-    assert_ulps_eq!( a, b, max_ulps = 10000 );
-  }
+  assert_ulps_eq!( result[ .. ], expected[ .. ], max_ulps = 10000 );
 
   let vec_zero = [ 0.0, 0.0, 0.0 ];
   let got = vector::projected_on( &vec_zero, &vec_b );
-  assert_eq!( got, [ 0.0, 0.0, 0.0 ], "Projected on function failed for zero vector" );
+  // Projecting the zero vector yields exactly 0.0 (0 / anything = 0, 0 * anything = 0 in
+  // IEEE-754) — no rounding is possible, so exact equality is correct here.
+  #[ expect( clippy::float_cmp, reason = "assertions check exact expected values; no arithmetic drift is possible and epsilon comparison would weaken them" ) ]
+  { assert_eq!( got, [ 0.0, 0.0, 0.0 ], "Projected on function failed for zero vector" ); }
 }
 
 #[ test ]
@@ -267,11 +306,7 @@ fn test_angle()
 fn test_is_orthogonal()
 {
   use the_module::
-  {
-    assert_ulps_eq,
-    vector,
-    // Float,
-  };
+  vector;
 
   // Test with orthogonal vectors
   let vec_a = [ 1.0, 0.0 ];
@@ -286,6 +321,47 @@ fn test_is_orthogonal()
   // Test with zero vector
   let vec_zero = [ 0.0, 0.0 ];
   assert!( vector::is_orthogonal( &vec_a, &vec_zero ), "Orthogonal test failed for zero vector" );
+}
+
+// test_kind: bug_reproducer(BUG-270)
+/// ## Root Cause
+/// `Cargo.toml`'s `arithmetics = [ "float" ]` feature declaration omitted `approx`, but
+/// `vector/arithmetics.rs`'s `is_orthogonal` unconditionally uses `crate::approx::ulps_eq` and
+/// bounds `E : approx::UlpsEq` with no `#[cfg(feature = "approx")]` guard -- so the file has
+/// always needed `approx` to compile, regardless of what `Cargo.toml` declared.
+/// ## Why Not Caught
+/// Every existing test run (including this file's own pre-existing `test_is_orthogonal`) goes
+/// through `cargo test -p mdmath_core --all-features`, which enables `approx` unconditionally
+/// alongside `arithmetics` -- masking that `arithmetics` alone (or the `full` bundle, which pulls
+/// in `arithmetics` but not `approx`) fails to build with E0432/E0433. This crate's own sibling
+/// `ndarray_cg` also always requests both features together in its own `Cargo.toml`, so the one
+/// real in-workspace consumer never tripped over the gap either.
+/// ## Fix Applied
+/// Changed `Cargo.toml`'s `arithmetics = [ "float" ]` to `arithmetics = [ "float", "approx" ]`,
+/// making the already-real dependency explicit and cargo-enforced.
+/// ## Prevention
+/// This test's regression value is specifically in *how* it's invoked, not its body: run in
+/// isolation via `cargo test -p mdmath_core --no-default-features --features enabled,arithmetics`
+/// (no `approx`, no `--all-features`), it fails to compile before the fix (E0432: unresolved
+/// import `crate::approx`) and passes after. Run under the crate's normal `--all-features` suite
+/// it still exercises the same `is_orthogonal` call as a plain assertion, alongside the
+/// pre-existing `test_is_orthogonal` above.
+/// ## Pitfall
+/// A feature flag whose gated source file unconditionally uses a *second* feature's items only
+/// fails to build under the one combination that selects the first without the second --
+/// `--all-features` and any consumer that happens to always request both together never exercise
+/// that gap, so the declared feature graph can silently diverge from the code's real requirements
+/// for a long time.
+#[ test ]
+fn test_is_orthogonal_builds_under_arithmetics_feature_alone()
+{
+  use the_module::vector;
+
+  // Same call as `test_is_orthogonal` above -- the meaningful check here is that this file
+  // compiles at all under an isolated `--features enabled,arithmetics` build (see `## Prevention`).
+  let vec_a = [ 1.0, 0.0 ];
+  let vec_b = [ 0.0, 1.0 ];
+  assert!( vector::is_orthogonal( &vec_a, &vec_b ) );
 }
 
 #[ test ]

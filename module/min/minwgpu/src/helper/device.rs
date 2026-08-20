@@ -10,7 +10,7 @@ mod private
   ///
   /// Return error in case of `Adapter::request_device` returns error.
   #[ inline ]
-  pub fn request_device( adapter : &wgpu::Adapter, device_descriptor : &wgpu::DeviceDescriptor< '_ > )
+  pub fn device_request( adapter : &wgpu::Adapter, device_descriptor : &wgpu::DeviceDescriptor< '_ > )
   -> Result< ( wgpu::Device, wgpu::Queue ), crate::Error >
   {
     Ok( pollster::block_on( adapter.request_device( device_descriptor ) )? )
@@ -19,5 +19,5 @@ mod private
 
 mod_interface!
 {
-  own use request_device;
+  own use device_request;
 }

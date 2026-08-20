@@ -1,0 +1,5 @@
+error[E0080]: evaluation panicked: assertion failed: dependency_closed(UNCLOSED)
+  --> tests/compile_fail/unclosed_set.rs:12:16
+   |
+12 | const _ : () = assert!( dependency_closed( UNCLOSED ) );
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_` failed here

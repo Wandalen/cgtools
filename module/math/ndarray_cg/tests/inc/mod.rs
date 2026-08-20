@@ -8,3 +8,6 @@ mod mat3x3h_test;
 mod mat4x4_test;
 mod quat_test;
 mod integer_test;
+mod vec1_test;
+mod vec4_test;
+mod vector_conversion_test;

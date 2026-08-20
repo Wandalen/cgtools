@@ -9,27 +9,105 @@ override is recorded under the crate's own roof.
 
 ## Documentation layout
 
-**Rule:** Each crate's specification, when it has one, lives in a single
-`spec.md` file at the crate root. Requirements, architecture notes, and
-conformance checklists are co-located in that one file — **not** split across
-a per-entity `docs/feature/`, `docs/invariant/`, or `docs/api/` tree.
+**Rule:** Each crate's design documentation lives in `docs/`, organized as
+typed doc definition instances (`docs/feature/`, `docs/invariant/`, `docs/api/`,
+and other types as warranted by content) per the standard doc definition
+framework in `doc_des.rulebook.md`. Do not use a monolithic `spec.md` file
+at the crate root.
 
-Applies to all crates in the workspace. Current users of this convention:
-`tilemap_renderer`, `tilemap_scene`, `line_tools`, `tiles_tools`, `minwebgpu`,
-`minwgpu`.
+Applies to all crates in the workspace that carry design documentation.
 
 Companion files per crate:
 
-- `spec.md` — requirements, architecture, conformance checklist
+- `docs/` — requirements, architecture, and design documentation as typed
+  doc instances; present only when the crate has content that warrants it
+  (see doc_des.rulebook.md's Documentation Necessity Test)
 - `roadmap.md` — future work
-- `readme.md` — user-facing entry point, may link to `spec.md`
+- `readme.md` — user-facing entry point, may link into `docs/`
 - `rulebook.md` — crate-local lint/style rules **only when overrides are
   needed**; absent by default, since this workspace rulebook is authoritative
 
-**Rationale:** A single co-located spec is the right trade-off for crates of
-this size — splitting across many per-requirement files adds navigation cost
-without new signal. Uniformity across sibling crates keeps the repository
-predictable.
+**Rationale:** Typed doc instances keep documentation navigable by design
+dimension and cross-referenceable at instance granularity — a requirement,
+an invariant, and an API contract each evolve independently and are easier
+to keep current as separate, focused files than as sections buried inside
+one growing document.
+
+---
+
+## Workspace-scope documentation
+
+**Rule:** Design documentation whose subject spans multiple crates —
+ecosystem architecture decisions, cross-crate design patterns, design
+explorations — lives in `docs/` at the repository root, organized as typed
+doc definition instances (`docs/adr/`, `docs/pattern/`, `docs/explorations/`,
+and other types as warranted) under the same doc definition framework that
+governs crate-level `docs/`. A crate's own `docs/` remains the home for
+anything scoped to that crate alone; the workspace collection never
+duplicates crate-level content, it references it.
+
+**Rationale:** A multi-crate decision has no single crate under whose roof it
+could live without privileging one crate's perspective. One workspace-root
+collection gives such content a single authoritative home instead of
+duplicating it across every affected crate.
+
+---
+
+## Rendering layer placement
+
+**Rule:** Every rendering-ecosystem crate occupies exactly one rung of the
+L0–L5 ladder below, or is explicitly listed beside it. A new rendering crate
+must be placeable on this table before it is added, and each layer depends
+only on the layer directly beneath it, with a drill-down handle to that
+layer (see [docs/pattern/002](docs/pattern/002_strict_layering_one_step_drilldown.md)).
+The authoritative per-layer contracts live in [docs/layer/](docs/layer/readme.md);
+this table is the friendly orientation copy and is updated together with
+those cards.
+
+| Layer | In plain words | Crates today | Reserved slot |
+|-------|----------------|--------------|---------------|
+| L5 — scene script + runners | Scenes as scripts you can parse, interpret, and rerun — same script, same frames | `tilemap_scene` (compiled scenes), `scene_script` (Rhai glue) | `d3_scene` |
+| L4 — scene model | What exists, as data files — loadable and checkable without any GPU | `tilemap_scene` (RON model); glTF via `renderer` loaders; procedural glTF assembly via `primitive_generation` | `d3_scene` |
+| L3 — stack engine | Turns one stack's vocabulary into draw work; one engine per stack | `tilemap_renderer` (d2), `renderer` (d3) | — |
+| L2 — frame orchestration | Which passes run, in what order, into which render targets | embedded in `renderer` and `tilemap_renderer` today | `frame_graph` |
+| L1 — GPU abstraction | One GPU API over all backends, so code is written once per stack instead of once per backend | `gpu_hal` (v0: WebGPU + WebGL2 + native `wgpu` + native `vulkan`, serving `renderer`'s canonical path; `vulkan` implemented — see [ADR-004](docs/adr/004_native_vulkan_hal_backend.md)) | — |
+| L0 — drivers | Thin Rust wrappers over the raw GPU APIs, one per backend | `minwebgl`, `minwebgpu`, `minwgpu`, `minvulkan` (real Instance/Device/Queue, tested against a live ICD; real surface/swapchain too — see [ADR-006](docs/adr/006_vulkan_windowed_presentation.md)) | — |
+| (substrate) | Shared helpers the drivers build on — below the ladder, not a layer | `mingl` | — |
+
+`line_tools` is not beside the ladder — it is already pinned twice, split by
+submodule: `line_tools::d2` is a `d2`-stack crate, `line_tools::d3` is a
+`d3`-stack crate (both already listed in
+[docs/adr/001](docs/adr/001_multi_stack_rendering_architecture.md)'s own
+per-stack tables — neither pending nor a single classification, since
+neither module is an "engine" occupying the L3 row above; both are
+line-geometry-and-shader utilities their respective stack's engine can call
+directly).
+
+Beside the ladder: `canvas_renderer` (cross-stack bridge via textures — see
+[docs/pattern/003](docs/pattern/003_cross_stack_bridge_via_foundation_resources.md)),
+`tiles_tools` (tile-logic library feeding L4),
+`animation` (value interpolation, easing, and multi-animation sequencing —
+feature-gated to `minwebgl`/`mingl`'s math/future/diagnostics utilities, not
+their GL-context layers, so it is a horizontal capability rather than an
+L0 occupant; feeds `scene_script`'s tween bindings today),
+`shader_chunks_render_core` and `shader_chunks_preview_web` (headless and
+browser shader-chunk authoring/preview tooling — single-backend by design
+via direct `minwgpu`/`minwebgpu` dependencies, not a portability seam any
+stack needs; see
+[docs/layer/001](docs/layer/001_l0_drivers.md#non-stack-tooling-consumers)),
+`gl_uniforms` (program-scoped WebGL uniform upload wrapper — a thin
+ergonomic layer directly over `minwebgl`'s uniform primitives, not a
+portability seam or orchestration layer, so it sits beside L0 rather than
+occupying a rung),
+`gpu_picking` (GPU id-buffer object picking — renders pickable parts into
+an off-screen R32I texture and reads a pixel back to find what's there; a
+thin, WebGL2-only capability directly over `minwebgl`, same shape as
+`gl_uniforms`, not a portability seam or orchestration layer).
+
+**Rationale:** One glance answers "where does my crate sit, and what may it
+depend on" without walking the doc graph. The detailed contracts stay
+single-sourced in `docs/layer/`, which keeps this table honest and one
+screen tall.
 
 ---
 
