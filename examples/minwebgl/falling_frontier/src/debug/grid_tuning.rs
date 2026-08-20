@@ -89,6 +89,30 @@ pub struct GridTuning
   // precedent (`shadow.rs:454`: `light_size` computed in `0.01..=1.7`).
   pub light_size : f32,
   pub shadows_enabled : bool,
+
+  // Render-layer isolation switches - one per distinct draw call/pass in
+  // `main.rs`'s frame closure, so any combination of scene layers can be
+  // shown alone or hidden alone (e.g. "only the grid", "everything but
+  // asteroids"). `lighting_enabled` is deliberately separate from
+  // `shadows_enabled`: the former drops `hull.frag` to a flat unlit
+  // `u_color` (see hull.frag's `u_lighting_enabled` branch), the latter only
+  // gates the shadow-map sample within the normal lit path. `show_asteroids`/
+  // `show_ships`/`show_station` also gate that object's contribution to the
+  // shadow-caster pass, not just its own visible draw - a hidden object
+  // shouldn't still be casting a shadow onto the rest of the scene.
+  pub show_background : bool,
+  pub show_starfield : bool,
+  pub show_asteroids : bool,
+  pub show_ships : bool,
+  pub show_station : bool,
+  pub show_view_ribbon : bool,
+  pub show_gizmo : bool,
+  pub lighting_enabled : bool,
+  /// CRT scanline overlay - pure DOM/CSS effect (see `hud.rs`'s `ff-scanlines`
+  /// element), not a WebGL draw call, but tracked here anyway so it lives in
+  /// the same single Render Layers menu as every other switch instead of
+  /// needing its own separate on/off surface.
+  pub show_scanlines : bool,
 }
 
 impl Default for GridTuning
@@ -136,6 +160,16 @@ impl Default for GridTuning
       light_intensity : 1.85,
       light_size : 1.0,
       shadows_enabled : true,
+
+      show_background : true,
+      show_starfield : true,
+      show_asteroids : true,
+      show_ships : true,
+      show_station : true,
+      show_view_ribbon : true,
+      show_gizmo : true,
+      lighting_enabled : true,
+      show_scanlines : false,
     }
   }
 }

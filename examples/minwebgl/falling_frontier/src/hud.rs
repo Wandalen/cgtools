@@ -26,15 +26,12 @@
 //! in the JS reference, just kept for visual completeness of the "status
 //! bar" this milestone asks for).
 //!
-//! The HUD's toggle buttons and the dev panel's own equivalent controls
-//! (`animate_ships`/`show_trajectories`/`show_sensor_rings`, all read/write
-//! the same `GridTuning` fields) are two independent surfaces over the same
-//! state - neither updates the other's DOM when the state changes elsewhere,
-//! so their visual "on/off" labels can drift out of sync if a user drives
-//! both. Not synchronized on purpose: the dev panel is explicitly a
-//! developer tool, not part of the in-game UI (see its own module doc), and
-//! keeping two independent DOM surfaces bidirectionally in sync isn't worth
-//! the wiring for a tuning aid vs. the real UI it shadows.
+//! Every scene-layer visibility switch (grid/trajectories/sensor
+//! rings/animate ships/scanlines/etc.) used to also have its own toggle
+//! button here, duplicating `debug::layers_panel`'s "Render Layers" dev
+//! panel. That duplication is gone now - this module only keeps the Play/
+//! Pause/Fast time controls and the Reset Camera button, which aren't
+//! visibility switches and have no equivalent in the dev panel.
 
 use minwebgl as gl;
 use std::{ cell::RefCell, rc::Rc };
@@ -77,20 +74,7 @@ const CSS : &str = r"
   }
   .ff-btn:hover { background: rgba(0, 229, 255, 0.2); border-color: #22d3ee; color: #fff; }
   .ff-btn.active { background: rgba(0, 229, 255, 0.3); border-color: #22d3ee; color: #fff; }
-  .ff-mid { display: flex; justify-content: space-between; align-items: flex-start; flex: 1; padding: 12px 0; }
-  .ff-left { display: flex; flex-direction: column; gap: 10px; width: 240px; }
-  .ff-layers-panel { padding: 10px; }
-  .ff-panel-title { font-weight: bold; color: #fff; text-transform: uppercase; font-size: 10px; border-bottom: 1px solid #164e63; padding-bottom: 6px; margin-bottom: 8px; }
-  .ff-toggle {
-    width: 100%; display: flex; justify-content: space-between; align-items: center;
-    padding: 6px 8px; margin-bottom: 4px; background: rgba(12, 38, 58, 0.6);
-    border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 4px; color: #7dd3fc;
-    cursor: pointer; font-size: 10px;
-  }
-  .ff-toggle:hover { background: rgba(0, 229, 255, 0.2); border-color: #22d3ee; }
-  .ff-toggle.active { background: rgba(0, 229, 255, 0.3); border-color: #22d3ee; color: #fff; }
-  .ff-toggle-status { font-family: monospace; color: #0e7490; }
-  .ff-toggle.active .ff-toggle-status { color: #22d3ee; }
+  .ff-mid { display: flex; justify-content: flex-end; align-items: flex-start; flex: 1; padding: 12px 0; }
   .ff-unit-panel {
     position: fixed; top: 70px; right: 240px; width: 260px; padding: 12px;
     display: none; z-index: 17;
@@ -112,12 +96,6 @@ const CSS : &str = r"
   }
   .ff-scanlines.visible { display: block; }
 ";
-
-fn toggle_html( id : &str, label : &str, active : bool, on_text : &str, off_text : &str ) -> String
-{
-  let ( active_class, status ) = if active { ( "active", on_text ) } else { ( "", off_text ) };
-  format!( r#"<button type="button" id="{id}" class="ff-toggle {active_class}"><span>{label}</span><span class="ff-toggle-status">[{status}]</span></button>"# )
-}
 
 /// Info about whatever is currently selected - `main.rs` resolves this from
 /// `PickedKind` + `asteroids`/`ships`/`station` and passes it in; this
@@ -152,6 +130,8 @@ pub fn setup_hud( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
         <button type="button" id="ff-btn-pause" class="ff-btn {pause_active}">||</button>
         <button type="button" id="ff-btn-play" class="ff-btn {play_active}">&gt;</button>
         <button type="button" id="ff-btn-fast" class="ff-btn {fast_active}">&gt;&gt;</button>
+        <div class="ff-divider"></div>
+        <button type="button" id="ff-btn-reset-cam" class="ff-btn">Reset Camera</button>
       </div>
       <div class="ff-panel ff-location-panel">
         <div class="ff-location-title">Titan Colony <span style="color:#0e7490">[SECTOR 04-B]</span></div>
@@ -164,17 +144,6 @@ pub fn setup_hud( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
       </div>
     </div>
     <div class="ff-mid">
-      <div class="ff-left">
-        <div class="ff-panel ff-layers-panel">
-          <div class="ff-panel-title">Tactical View Layers</div>
-          {toggle_grid}
-          {toggle_trajectories}
-          {toggle_ranges}
-          {toggle_scanlines}
-          {toggle_animate}
-          <button type="button" id="ff-btn-reset-cam" class="ff-toggle" style="justify-content:center">Reset Camera View</button>
-        </div>
-      </div>
       <div id="ff-unit-panel" class="ff-panel ff-unit-panel">
         <div class="ff-unit-header">
           <span>Contact</span>
@@ -188,11 +157,6 @@ pub fn setup_hud( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
         </div>
       </div>
     </div>"#,
-    toggle_grid = toggle_html( "ff-toggle-grid", "3D Tactical Grid", t.show_grid, "ON", "OFF" ),
-    toggle_trajectories = toggle_html( "ff-toggle-trajectories", "Vector Trajectories", t.show_trajectories, "ON", "OFF" ),
-    toggle_ranges = toggle_html( "ff-toggle-ranges", "Sensor Ranges &amp; Rings", t.show_sensor_rings, "ON", "OFF" ),
-    toggle_scanlines = toggle_html( "ff-toggle-scanlines", "CRT Scanlines", false, "ON", "OFF" ),
-    toggle_animate = toggle_html( "ff-toggle-animate", "Animate Ships Motion", t.animate_ships, "ACTIVE", "PAUSED" ),
   );
 
   let root : Element = document.create_element( "div" ).unwrap();
@@ -205,74 +169,7 @@ pub fn setup_hud( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
   scanlines.set_class_name( "ff-scanlines" );
   document.body().unwrap().append_child( &scanlines ).unwrap();
 
-  bind_tuning_toggle( document, "ff-toggle-grid", "ON", "OFF", tuning, | t | &mut t.show_grid );
-  bind_tuning_toggle( document, "ff-toggle-trajectories", "ON", "OFF", tuning, | t | &mut t.show_trajectories );
-  bind_tuning_toggle( document, "ff-toggle-ranges", "ON", "OFF", tuning, | t | &mut t.show_sensor_rings );
-  bind_tuning_toggle( document, "ff-toggle-animate", "ACTIVE", "PAUSED", tuning, | t | &mut t.animate_ships );
-  bind_scanlines_toggle( document );
   bind_time_controls( document, tuning );
-}
-
-/// Toggles a plain `bool` field on `GridTuning` and keeps the button's
-/// `active` class + `[ON]`/`[OFF]`-style status text in sync with it.
-/// `field` is a projection (`|t| &mut t.some_bool`) rather than a setter
-/// closure, so this one function covers every simple boolean toggle without
-/// each call site re-deriving the same borrow/read/flip/write/repaint
-/// sequence.
-fn bind_tuning_toggle< F >( document : &Document, id : &'static str, on_text : &'static str, off_text : &'static str, tuning : &Rc< RefCell< GridTuning > >, field : F )
-where F : Fn( &mut GridTuning ) -> &mut bool + 'static
-{
-  let button = document.get_element_by_id( id ).unwrap().dyn_into::< HtmlButtonElement >().unwrap();
-  let tuning = tuning.clone();
-  let document = document.clone();
-  let closure = Closure::< dyn FnMut() >::new
-  (
-    move ||
-    {
-      let active =
-      {
-        let mut t = tuning.borrow_mut();
-        let slot = field( &mut t );
-        *slot = !*slot;
-        *slot
-      };
-      let el = document.get_element_by_id( id ).unwrap();
-      el.set_class_name( if active { "ff-toggle active" } else { "ff-toggle" } );
-      if let Some( status ) = el.query_selector( ".ff-toggle-status" ).unwrap()
-      {
-        status.set_text_content( Some( &format!( "[{}]", if active { on_text } else { off_text } ) ) );
-      }
-    }
-  );
-  button.add_event_listener_with_callback( "click", closure.as_ref().unchecked_ref() ).unwrap();
-  closure.forget();
-}
-
-/// The scanline overlay is a pure DOM/CSS effect (no WebGL uniform, nothing
-/// in `GridTuning` needs it) - ported straight from `bindScanlinesToggle` in
-/// `uiControls.js`, which likewise only ever touches the DOM.
-fn bind_scanlines_toggle( document : &Document )
-{
-  let button = document.get_element_by_id( "ff-toggle-scanlines" ).unwrap().dyn_into::< HtmlButtonElement >().unwrap();
-  let document = document.clone();
-  let closure = Closure::< dyn FnMut() >::new
-  (
-    move ||
-    {
-      let overlay = document.get_element_by_id( "ff-scanlines" ).unwrap();
-      let now_visible = overlay.class_name() == "ff-scanlines";
-      overlay.set_class_name( if now_visible { "ff-scanlines visible" } else { "ff-scanlines" } );
-
-      let el = document.get_element_by_id( "ff-toggle-scanlines" ).unwrap();
-      el.set_class_name( if now_visible { "ff-toggle active" } else { "ff-toggle" } );
-      if let Some( status ) = el.query_selector( ".ff-toggle-status" ).unwrap()
-      {
-        status.set_text_content( Some( if now_visible { "[ON]" } else { "[OFF]" } ) );
-      }
-    }
-  );
-  button.add_event_listener_with_callback( "click", closure.as_ref().unchecked_ref() ).unwrap();
-  closure.forget();
 }
 
 /// Pause/Play/Fast - ported from `bindAnimateToggleAndTimeControls` in
