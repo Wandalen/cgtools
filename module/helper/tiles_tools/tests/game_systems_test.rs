@@ -245,6 +245,53 @@ fn test_turn_order_rebuild_preserves_current_entity_across_removal()
   );
 }
 
+// test_kind: bug_reproducer(BUG-532)
+/// ## Root Cause
+/// `turn_order_rebuild`'s BUG-133 identity-preserving remap ran
+/// unconditionally on every `participant_add`/`participant_remove` call,
+/// including during initial roster setup before `turn_end()` has ever been
+/// called. The very first `participant_add` falls through to the numeric
+/// `current_turn_index.min(len - 1)` fallback (there is no prior "current"
+/// entity yet), landing on index 0 -- but every subsequent add then treated
+/// that arbitrary index-0 fallback as a real identity to preserve, locking
+/// play onto whichever participant was added first regardless of initiative,
+/// instead of the highest-initiative participant the sort order promises.
+/// ## Why Not Caught
+/// `test_turn_based_participants` and
+/// `test_turn_order_rebuild_preserves_current_entity_across_removal` both
+/// happen to add their highest-initiative participant *first* -- so the
+/// wrongly-locked-in entity and the correct one were always the same
+/// participant, and the defect never manifested. It only surfaces when a
+/// higher-initiative participant is added *after* a lower-initiative one,
+/// still during setup.
+/// ## Fix Applied
+/// Added a `game_started: bool` field, set `true` only inside `turn_end()`
+/// (once `turn_order` is confirmed non-empty). `turn_order_rebuild` now
+/// applies the BUG-133 identity-preserving remap only when `game_started`;
+/// otherwise it resets `current_turn_index` to `0`, always tracking whoever
+/// currently sorts first by initiative.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// A "preserve identity across a rebuild" fix is only correct once there is
+/// a genuine prior identity to preserve -- applying it unconditionally from
+/// the very first mutation silently promotes an arbitrary default/fallback
+/// value into a sticky, load-bearing piece of state.
+#[test]
+fn bug_reproducer_bug_532_turn_order_rebuild_locks_first_participant_during_setup()
+{
+  let mut game = TurnBasedGame::new();
+  game.participant_add(1, 10); // low initiative, added first
+  assert_eq!(game.current_turn(), Some(1));
+
+  game.participant_add(2, 90); // higher initiative, added second, still pre-game
+  assert_eq!(
+    game.current_turn(), Some(2),
+    "entity 2 has higher initiative and no turn_end() has occurred yet -- it \
+     must be current, not entity 1 merely because it was added first"
+  );
+}
+
 #[test]
 fn test_status_effects() {
   let mut game = TurnBasedGame::new();

@@ -145,6 +145,60 @@ const LOCAL_CYCLE_B : ChunkDescriptor = ChunkDescriptor
   wgsl : LOCAL_CYCLE_B_WGSL,
 };
 
+/// A second `depends_on` cycle, structurally independent of
+/// `LOCAL_CYCLE_A`/`LOCAL_CYCLE_B` ( no shared chunk between the two
+/// pairs ): C -> D -> C. Used to prove `check_dependency_cycle` reports
+/// every disjoint cycle in the input set, not just whichever one
+/// `shader_chunks_core::set_try_compose`'s single topological-sort pass
+/// happens to hit first.
+const LOCAL_CYCLE_C_WGSL : &str = "\
+//@ name: local_cycle_c
+//@ description: Cyclic fixture, half C ( independent of A/B ).
+//@ tags: category:test
+//@ depends_on: local_cycle_d
+//@ export: fn local_cycle_c() -> f32
+
+fn local_cycle_c() -> f32
+{
+  return local_cycle_d();
+}
+";
+
+const LOCAL_CYCLE_C : ChunkDescriptor = ChunkDescriptor
+{
+  name : "local_cycle_c",
+  description : "Cyclic fixture, half C ( independent of A/B ).",
+  tags : &[ ( "category", "test" ) ],
+  stage : None,
+  depends_on : &[ "local_cycle_d" ],
+  exports : &[ "fn local_cycle_c() -> f32" ],
+  wgsl : LOCAL_CYCLE_C_WGSL,
+};
+
+const LOCAL_CYCLE_D_WGSL : &str = "\
+//@ name: local_cycle_d
+//@ description: Cyclic fixture, half D ( independent of A/B ).
+//@ tags: category:test
+//@ depends_on: local_cycle_c
+//@ export: fn local_cycle_d() -> f32
+
+fn local_cycle_d() -> f32
+{
+  return local_cycle_c();
+}
+";
+
+const LOCAL_CYCLE_D : ChunkDescriptor = ChunkDescriptor
+{
+  name : "local_cycle_d",
+  description : "Cyclic fixture, half D ( independent of A/B ).",
+  tags : &[ ( "category", "test" ) ],
+  stage : None,
+  depends_on : &[ "local_cycle_c" ],
+  exports : &[ "fn local_cycle_d() -> f32" ],
+  wgsl : LOCAL_CYCLE_D_WGSL,
+};
+
 /// Self-consistent manifest ( no drift ), but a body that is not valid WGSL
 /// at all — the only check with anything to say is `check_wgsl_compiles`.
 const LOCAL_BROKEN_WGSL : &str = "\
@@ -209,6 +263,82 @@ fn dependency_cycle_is_reported_and_not_duplicated_as_wgsl_compile_failure()
   assert_eq!( findings.len(), 1, "dependency_cycle alone, with no derivative wgsl_compile noise: {findings:?}" );
   assert_eq!( findings[ 0 ].check, "dependency_cycle" );
   assert!( findings[ 0 ].message.contains( "local_cycle_a" ) || findings[ 0 ].message.contains( "local_cycle_b" ), "{:?}", findings[ 0 ] );
+}
+
+/// bug_reproducer(BUG-510): `check_dependency_cycle` reused
+/// `shader_chunks_core::set_try_compose`'s single topological-sort pass
+/// wholesale, so it returned at most one `dependency_cycle` `Finding` per
+/// `validate` call. `set_try_compose`'s own `entries_sort_and_join` aborts
+/// its `for entry in entries { visit( ... )?; }` loop on the *first*
+/// `Err` it hits ( `shader_chunks_core/src/lib.rs`'s `visit` function,
+/// propagated via `?` ), so a second, structurally independent cycle
+/// elsewhere in the same input set was silently never visited at all —
+/// not merely de-duplicated, genuinely unreached. This directly
+/// contradicts this crate's own documented contract ( readme.md: "report
+/// every problem found ... rather than ... stopping at the first one";
+/// `shader_chunks_validate/docs/cli/command_group/01_validate.md`'s
+/// `Invariants`: "no check short-circuits ... [over] the full input set
+/// in one pass" ), and the precedent set by `check_missing_dependencies`'s
+/// own doc comment ( "every instance across the whole set, not just the
+/// first one" ).
+///
+/// Root Cause: `check_dependency_cycle` called `set_try_compose` exactly
+/// once over the whole chunk slice and mapped at most its single `Err`
+/// into a `Finding` — it never retried after removing the culprit to look
+/// for further, disjoint cycles.
+///
+/// Why Not Caught: the only existing dependency-cycle fixture
+/// ( `LOCAL_CYCLE_A`/`LOCAL_CYCLE_B` ) exercised exactly one cycle in
+/// isolation; no fixture ever combined two structurally independent
+/// cycles in the same `validate` call, so the "stop after the first
+/// `Err`" behavior of the reused `set_try_compose` engine was never
+/// exercised through `check_dependency_cycle`'s own multi-problem
+/// contract.
+///
+/// Fix Applied: `check_dependency_cycle` now loops, removing the specific
+/// chunk that closed each detected cycle ( parsed from
+/// `ComposeError::CyclicDependency`'s documented `"[...] -> name"` trail
+/// — the trailing `name` is exactly the chunk whose re-visit closed the
+/// loop ) and re-running `set_try_compose` on the shrunken set until it
+/// returns `Ok`. A collateral `ComposeError::MissingDependency` surfaced
+/// by that shrinking ( an innocent chunk that only depended on the
+/// just-removed cyclic chunk ) is silently absorbed by removing the
+/// affected dependent too — it is not a real registry problem and
+/// `check_missing_dependencies` already reports every genuine instance
+/// against the full, untouched input.
+///
+/// Prevention: any check in this crate that reuses a single-shot engine
+/// function from `shader_chunks_core` must be verified against a fixture
+/// combining *two* independent instances of the problem, not just one —
+/// matching the "report every instance, not just the first" bar the other
+/// four checks already meet.
+///
+/// Pitfall: re-introducing a bare, single-shot
+/// `match shader_chunks_core::set_try_compose( chunks ) { ... }` ( no
+/// retry loop ) would silently regress back to "first cycle only" with
+/// every existing single-cycle test still green — this test is the only
+/// one that would catch it.
+#[ test ]
+fn dependency_cycle_reports_every_independent_cycle_not_just_the_first()
+{
+  let findings = validate( &[ LOCAL_CYCLE_A, LOCAL_CYCLE_B, LOCAL_CYCLE_C, LOCAL_CYCLE_D ] );
+  let cycles : Vec< _ > = findings.iter().filter( | f | f.check == "dependency_cycle" ).collect();
+  assert_eq!
+  (
+    cycles.len(), 2,
+    "two structurally independent cycles ( A<->B and C<->D, no shared chunk ) must each produce their own finding, \
+    not just whichever one the underlying topological sort happens to hit first: {findings:?}"
+  );
+  assert!
+  (
+    cycles.iter().any( | f | f.message.contains( "local_cycle_a" ) || f.message.contains( "local_cycle_b" ) ),
+    "the A<->B cycle must be one of the two reported findings: {cycles:?}"
+  );
+  assert!
+  (
+    cycles.iter().any( | f | f.message.contains( "local_cycle_c" ) || f.message.contains( "local_cycle_d" ) ),
+    "the C<->D cycle must be one of the two reported findings: {cycles:?}"
+  );
 }
 
 #[ test ]

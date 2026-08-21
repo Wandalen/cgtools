@@ -415,41 +415,44 @@ impl TacticalRPG {
   }
   
   /// Finds the nearest enemy unit
+  // Fix(BUG-531): exclude `entity` itself from the nearest-entity search instead
+  // of relying on `nearest_entity_find` (which has no self-exclusion parameter)
+  // plus a post-hoc team filter.
+  // Root cause: `nearest_entity_find(&our_pos)` always finds `entity` itself
+  // (distance 0 to its own position, and no other unit starts on the same
+  // tile), and `is_hostile_to` always returns `false` for a same-team
+  // self-match -- so the old `.and_then` filter always rejected the single
+  // candidate it was given, returning `None` and never considering any other
+  // entity.
+  // Pitfall: reverting to a bare `self.world.nearest_entity_find(&our_pos)`
+  // call silently reintroduces the guaranteed self-match; any call site
+  // supplying an entity's own position as the query center must filter that
+  // entity out explicitly.
   fn nearest_enemy_find(&self, entity: hecs::Entity) -> Option<(hecs::Entity, Position<HexCoord<Axial, Pointy>>)> {
   if let Ok(our_team) = self.world.get::<Team>(entity) {
     if let Ok(our_pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
-      return self.world.nearest_entity_find(&our_pos)
-        .and_then(|(nearest_entity, nearest_pos, _distance)| {
-          if let Ok(their_team) = self.world.get::<Team>(nearest_entity) {
-            if our_team.is_hostile_to(&their_team) {
-              Some((nearest_entity, nearest_pos))
-            } else {
-              None
-            }
-          } else {
-            None
-          }
-        });
+      let mut query = self.world.query::<(hecs::Entity, &Position<HexCoord<Axial, Pointy>>, &Team)>();
+      return query.iter()
+        .filter(|&(candidate, _, their_team)| candidate != entity && our_team.is_hostile_to(their_team))
+        .map(|(candidate, pos, _)| (candidate, *pos, our_pos.distance_to(pos)))
+        .min_by_key(|&(_, _, distance)| distance)
+        .map(|(candidate, pos, _)| (candidate, pos));
     }
   }
   None
   }
-  
+
   /// Finds the nearest player unit
+  // Fix(BUG-531): same self-exclusion fix as `nearest_enemy_find` above -- see
+  // that function's comment for the shared root cause and pitfall.
   fn nearest_player_find(&self, entity: hecs::Entity) -> Option<(hecs::Entity, Position<HexCoord<Axial, Pointy>>)> {
   if let Ok(our_pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
-    return self.world.nearest_entity_find(&our_pos)
-      .and_then(|(nearest_entity, nearest_pos, _distance)| {
-        if let Ok(their_team) = self.world.get::<Team>(nearest_entity) {
-          if their_team.id == self.player_team.id {
-            Some((nearest_entity, nearest_pos))
-          } else {
-            None
-          }
-        } else {
-          None
-        }
-      });
+    let mut query = self.world.query::<(hecs::Entity, &Position<HexCoord<Axial, Pointy>>, &Team)>();
+    return query.iter()
+      .filter(|&(candidate, _, their_team)| candidate != entity && their_team.id == self.player_team.id)
+      .map(|(candidate, pos, _)| (candidate, *pos, our_pos.distance_to(pos)))
+      .min_by_key(|&(_, _, distance)| distance)
+      .map(|(candidate, pos, _)| (candidate, pos));
   }
   None
   }
@@ -659,5 +662,65 @@ mod tests {
     let after = game.world.get::<Position<HexCoord<Axial, Pointy>>>(entity).unwrap().coord;
 
     assert_ne!(before, after, "entity's Position component must change after execute_move_toward");
+  }
+
+  /// ## Root Cause
+  /// `nearest_enemy_find`/`nearest_player_find` both call the library's
+  /// `World::nearest_entity_find(&our_pos)`, which searches every entity with a
+  /// `Position` component for the one nearest to the given coordinate -- with no
+  /// exclusion parameter for the querying entity itself. Since the caller always
+  /// passes its own position, and no other unit starts on the same tile, the
+  /// querying entity is always its own unique nearest match at distance 0. The
+  /// subsequent team filter (`is_hostile_to` / `team.id == player_team.id`) then
+  /// always rejects this self-match (a unit is never hostile to itself, and an
+  /// AI unit is never on the player team), so both functions always return
+  /// `None` -- never falling back to consider the second-nearest entity.
+  ///
+  /// ## Why Not Caught
+  /// `simulation_run` still prints "Player turn - planning actions..." / "AI
+  /// turn - calculating optimal action..." every turn, and the demo runs to
+  /// completion with exit code 0 -- nothing crashes or panics. Only reading the
+  /// output critically (no unit's printed position ever changes across 8
+  /// processed turns, no "Targeting enemy at distance" / "AI targeting player at
+  /// distance" / "Attack!" line ever appears) reveals that every unit's turn is
+  /// a silent no-op.
+  ///
+  /// ## Fix Applied
+  /// Both functions now query `(Entity, &Position<_>, &Team)` directly, filter
+  /// out the querying `entity` itself before computing distances, and pick the
+  /// minimum-distance remaining candidate that also passes the team check --
+  /// the same "exclude self, then re-derive nearest via a direct query" pattern
+  /// already used for the library's `nearest_entity_find` primitive elsewhere in
+  /// this bug sweep (`ecs_collision_demo`, BUG-515).
+  ///
+  /// ## Prevention
+  /// This test asserts that a fresh `TacticalRPG` -- which spawns 2 player units
+  /// and 2 hostile enemy units, none sharing a tile -- finds a target from both
+  /// a player unit's enemy search and an enemy unit's player search. It fails
+  /// loudly (`None`) against the pre-fix self-matching implementation.
+  ///
+  /// ## Pitfall
+  /// A general-purpose "nearest entity to a coordinate" primitive with no
+  /// self-exclusion option will always find the querying entity itself when
+  /// queried with that entity's own position -- any call site built on top of it
+  /// must explicitly filter the querying entity out; the primitive cannot guess
+  /// which entity is "self".
+  #[test]
+  fn bug_reproducer_bug_531_nearest_enemy_and_player_find_always_self_match_to_none() {
+    let game = TacticalRPG::new();
+    let player_warrior = game.turn_queue[0];
+    let enemy_goblin = game.turn_queue[2];
+
+    let enemy_target = game.nearest_enemy_find(player_warrior);
+    assert!(
+      enemy_target.is_some(),
+      "player_warrior must find one of the 2 living hostile enemies on the board -- got None (self-match filtered to nothing)"
+    );
+
+    let player_target = game.nearest_player_find(enemy_goblin);
+    assert!(
+      player_target.is_some(),
+      "enemy_goblin must find one of the 2 living player units on the board -- got None (self-match filtered to nothing)"
+    );
   }
 }

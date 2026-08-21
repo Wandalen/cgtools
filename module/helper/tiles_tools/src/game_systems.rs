@@ -59,6 +59,7 @@ pub struct TurnBasedGame {
   round_number: u32,
   turn_time_limit: Option<Duration>,
   turn_start_time: Option<Instant>,
+  game_started: bool,
 }
 
 /// Participant in a turn-based game.
@@ -136,6 +137,7 @@ impl TurnBasedGame
       round_number: 1,
       turn_time_limit: None,
       turn_start_time: None,
+      game_started: false,
     }
   }
 
@@ -198,6 +200,7 @@ impl TurnBasedGame
     if self.turn_order.is_empty() {
       return;
     }
+    self.game_started = true;
 
     // Reset current participant's action points for next turn
     if let Some(participant) = self.current_participant_mut() {
@@ -291,10 +294,26 @@ impl TurnBasedGame
     // original code used unconditionally, so removing the acting entity
     // still advances play to whoever now occupies that slot instead of
     // panicking or stalling.
+    //
+    // Fix(BUG-532)
+    // Root cause: the identity-preserving remap above ran unconditionally,
+    // including during initial roster setup (before turn_end() has ever been
+    // called) -- so the first participant_add call's index-0 fallback got
+    // treated as a genuine "current turn" identity to preserve, permanently
+    // locking play onto whichever participant happened to be added first
+    // instead of whoever currently has the highest initiative.
+    // Pitfall: gating this on game_started (set only by turn_end(), once the
+    // turn_order is non-empty) rather than e.g. "was turn_order empty before"
+    // -- the roster can have 1+ participants and still be pre-game, so an
+    // empty-turn_order check alone would not catch the second, third, ... add.
     if !self.turn_order.is_empty() {
-      self.current_turn_index = current_entity
-        .and_then(|id| self.turn_order.iter().position(|&e| e == id))
-        .unwrap_or_else(|| self.current_turn_index.min(self.turn_order.len() - 1));
+      self.current_turn_index = if self.game_started {
+        current_entity
+          .and_then(|id| self.turn_order.iter().position(|&e| e == id))
+          .unwrap_or_else(|| self.current_turn_index.min(self.turn_order.len() - 1))
+      } else {
+        0
+      };
     }
   }
 

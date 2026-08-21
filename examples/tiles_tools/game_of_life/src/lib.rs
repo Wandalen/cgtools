@@ -144,6 +144,18 @@ impl SquareGameOfLife
       {
         if cell.is_alive()
         {
+          // Fix(BUG-511): register the living cell itself as a candidate
+          // (defaulting to 0 neighbors) before tallying its neighbors.
+          // Root cause: `neighbors_count` was previously populated only by
+          // incrementing *neighbor* coordinates, so a living cell with zero
+          // living neighbors never became a key and was silently dropped
+          // from `next_generation`, leaving it alive forever regardless of
+          // the Conway rule below.
+          // Pitfall: dropping this line and going back to only the
+          // neighbor-increment loop silently reintroduces the bug, since
+          // that loop can never itself produce a `0`-neighbor entry.
+          neighbors_count.entry( pos.coord ).or_insert( 0 );
+
           // Count neighbors for living cells and their neighbors
           for neighbor_coord in pos.neighbors()
           {
@@ -350,6 +362,19 @@ impl HexGameOfLife
       {
         if cell.is_alive()
         {
+          // Fix(BUG-511): register the living cell itself as a candidate
+          // (defaulting to 0 neighbors) before tallying its neighbors.
+          // Root cause: `neighbors_count` was previously populated only by
+          // incrementing *neighbor* coordinates, so a living cell with zero
+          // living neighbors never became a key and was silently dropped
+          // from `next_generation` -- e.g. the built-in seed's `(-1,2)` and
+          // `(-2,1)` by generation 3 -- leaving it alive forever regardless
+          // of the Conway rule below.
+          // Pitfall: dropping this line and going back to only the
+          // neighbor-increment loop silently reintroduces the bug, since
+          // that loop can never itself produce a `0`-neighbor entry.
+          neighbors_count.entry( pos.coord ).or_insert( 0 );
+
           for neighbor_coord in pos.neighbors()
           {
             *neighbors_count.entry( neighbor_coord.coord ).or_insert( 0 ) += 1;
