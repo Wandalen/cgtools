@@ -447,6 +447,8 @@ mod private
         specular_1_texture : Some( specular_texture.release() ),
         specular_2_texture : Some( brdf_lut ),
         num_mips,
+        // Fix(BUG-440): populate `IBL::gl` so `impl Drop for IBL` can free these three textures.
+        gl : Some( gl.clone() ),
       }
     )
   }

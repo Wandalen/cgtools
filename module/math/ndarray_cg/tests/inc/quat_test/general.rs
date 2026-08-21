@@ -203,6 +203,68 @@ fn test_from_mat3_round_trips_through_from_quat_column_major()
   test_from_mat3_round_trips_through_from_quat_generic::< the_module::mat::DescriptorOrderColumnMajor >();
 }
 
+// test_kind: bug_reproducer(BUG-447)
+/// ## Root Cause
+/// `Quat::from(Mat3)` (`src/quaternion/from.rs`, Shepperd's method) computes `n0..n3` as
+/// `1 +/- r11 +/- r22 +/- r33` and passed each straight into `.sqrt()`. Each `n*` is
+/// algebraically non-negative only for an *exactly* orthonormal rotation matrix -- for a
+/// matrix built from `angle.sin_cos()` at a very small nonzero angle, `one_minus_c + c`
+/// (computed as `(1.0 - c) + c`, two separate floating-point operations) does not always
+/// round back to exactly `1.0`, and that same rounding error can drive one `n*` term
+/// marginally negative. `.sqrt()` of a negative input silently returns `NaN`, which then
+/// propagates into that quaternion component.
+/// ## Why Not Caught
+/// The pre-existing `Mat3`-to-`Quat` tests (BUG-119's own regression tests, see
+/// `test_from_mat3_recovers_known_axis_angle_rotation` /
+/// `test_from_mat3_round_trips_through_from_quat_generic` above) only used exact 90-degree
+/// rotations and `f64`-precision round trips through the already-correct `Mat3::from_quat` --
+/// neither exercises the specific `one_minus_c + c` catastrophic-cancellation path that only
+/// shows up for a very small nonzero `f32` angle built directly from `sin_cos`.
+/// ## Fix Applied
+/// BUG-447 added `.max( E::zero() )` to each of `n0..n3` before `.sqrt()` in
+/// `src/quaternion/from.rs` -- the same defensive-clamp pattern as BUG-272 (`to_euler_xyz`'s
+/// `asin`) and BUG-446 (`vector::angle`'s `acos`).
+/// ## Prevention
+/// This test uses a `Mat3<f32, _>` built from the exact row-major values a tiny (`0.0006`
+/// radian) Y-axis `sin_cos`-based rotation produces -- empirically confirmed (`rustc`, both
+/// debug and release profiles) to round `n1` to `-5.960464e-8`, strictly negative. Pre-fix,
+/// `n1.sqrt()` is `NaN`, which propagates into the resulting quaternion's `x` component;
+/// post-fix, the clamp recovers the mathematically correct `x = 0.0` (exactly, since a pure
+/// Y-axis rotation has no X component).
+/// ## Pitfall
+/// `(1.0 - c) + c` does not always round back to exactly `1.0` in floating point -- any
+/// formula relying on such an algebraic identity to guarantee non-negativity before a
+/// `.sqrt()`/`.acos()`/`.asin()` call must clamp defensively, especially for the *small*-angle
+/// case, not just extreme/adversarial inputs; small angles are exactly where `1 - cos(angle)`
+/// loses the most relative precision to catastrophic cancellation.
+#[ test ]
+fn test_from_mat3_tiny_rotation_no_nan()
+{
+  use the_module::{ Mat3, Quat, mat::DescriptorOrderColumnMajor };
+
+  // Row-major values for a 0.0006 rad rotation about the Y axis, built via the same
+  // `angle.sin_cos()` formula `mat3x3::from_axis_angle` uses -- empirically confirmed to
+  // round `n1 = 1 + r11 - r22 - r33` to a strictly negative `f32` value.
+  let m = Mat3::< f32, DescriptorOrderColumnMajor >::from_row_major
+  (
+    [
+      0.999_999_8,        0.0, 0.000_599_999_97,
+      0.0,                1.0, 0.0,
+      -0.000_599_999_97,  0.0, 0.999_999_8,
+    ]
+  );
+
+  let got : Quat< f32 > = m.into();
+  assert!( !got.x().is_nan(), "x component must not be NaN, got {}", got.x() );
+  assert!( !got.y().is_nan(), "y component must not be NaN, got {}", got.y() );
+  assert!( !got.z().is_nan(), "z component must not be NaN, got {}", got.z() );
+  assert!( !got.w().is_nan(), "w component must not be NaN, got {}", got.w() );
+  // `n1` (proportional to x^2) clamps to exactly 0.0, and a pure Y-axis rotation has no X
+  // component either way -- so `x` is exactly 0.0, not just "close to it".
+  #[ expect( clippy::float_cmp, reason = "x is exactly 0.0 by construction: n1 clamps to 0.0, sqrt(0.0) is exactly 0.0, and 0.0 times any finite signum is exactly 0.0 -- no rounding drift is possible" ) ]
+  { assert_eq!( got.x(), 0.0, "x should be exactly 0.0 (n1 clamped) for a pure Y-axis rotation" ); }
+}
+
 /// ## Root Cause
 /// `Quat::slerp` computed a hemisphere-corrected copy `q2` of `other` whenever
 /// `cos_half_theta` ( `self.dot(other)` ) was negative -- `self` and `other` are more than 90

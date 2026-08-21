@@ -70,10 +70,12 @@ shader_chunks tree fbm3 shape::mermaid
 
 ### Notes
 - "Root chunk" means a chunk nothing else in the bundled set depends on —
-  currently `fbm3` and `fullscreen_triangle`. In `reverse::1` mode the
-  forest roots flip to "leaf" chunks — those with an empty `depends_on` —
-  since a reverse walk has no forward-root concept of its own to start
-  from; see [`22_reverse.md`](../param/22_reverse.md).
+  e.g. `domain_warp` and `fullscreen_triangle` (42 such chunks in the
+  current registry; `fbm3` is not one of them — `domain_warp` itself
+  depends on it, per the `reverse::1` example above). In `reverse::1` mode
+  the forest roots flip to "leaf" chunks — those with an empty
+  `depends_on` — since a reverse walk has no forward-root concept of its
+  own to start from; see [`22_reverse.md`](../param/22_reverse.md).
 - A dependency name that fails to resolve is skipped rather than causing a
   panic (defensive only — the bundled set is fixed and self-consistent, so
   this path is unreachable in practice today).

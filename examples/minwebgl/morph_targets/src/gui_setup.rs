@@ -222,11 +222,31 @@ fn weight_sliders_bind( gui : &JsValue, object : &JsValue, weights : &Rc< RefCel
 }
 
 /// Builds the lil-gui panel : an animation dropdown plus 60 morph weight sliders.
+///
+/// `initial_weights` seeds each slider's *displayed* starting value ( the current,
+/// animation-driven weight ); `gui_weights` is the separate override-tracking buffer
+/// ( BUG-330's `f32::NAN`-sentinel array ) that slider drags write into.
+// Fix(BUG-462): split the single `weights` parameter into `initial_weights : &[ f32 ]`
+// ( read once, for the sliders' initial displayed value ) and `gui_weights` ( the
+// write-target for user overrides ), instead of one `Rc<RefCell<Vec<f32>>>` serving
+// both roles.
+// Root cause: the caller passed `gui_weights` -- an all-`f32::NAN` sentinel buffer --
+// as this single parameter, so `weight_settings_init` read NaN for every slider's
+// initial value. Passing the real `weights` buffer instead would have "fixed" the
+// display but broken `weight_sliders_bind`'s write-back: `weights` is overwritten
+// every frame by the animation system ( see `main.rs`'s per-frame `animation.set()`/
+// `fill( 0.0 )` ), so a slider drag would be silently stomped on the very next frame
+// instead of persisting as an override.
+// Pitfall: one buffer used for two different roles ( "current displayed value" vs.
+// "user override storage" ) can only ever be correct for one of them at a time --
+// the fix is to give each role its own parameter, not to swap which single buffer
+// is threaded through.
 pub fn setup
 (
   animations : Vec< Animation >,
   current_animation : &Rc< RefCell< Option< Animation > > >,
-  weights : &Rc< RefCell< Vec< f32 > > >
+  initial_weights : &[ f32 ],
+  gui_weights : &Rc< RefCell< Vec< f32 > > >
 )
 {
   let mut settings = Settings::default();
@@ -242,7 +262,7 @@ pub fn setup
     *current_animation.borrow_mut() = None;
   }
 
-  weight_settings_init( &mut settings, &weights.borrow() );
+  weight_settings_init( &mut settings, initial_weights );
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
   let gui = new_gui();
@@ -265,7 +285,7 @@ pub fn setup
   .collect::< HashMap< _, _ > >();
 
   animation_dropdown_bind( &gui, &object, animations, current_animation );
-  weight_sliders_bind( &gui, &object, weights );
+  weight_sliders_bind( &gui, &object, gui_weights );
 
   std::mem::forget( object );
 

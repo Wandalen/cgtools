@@ -214,6 +214,37 @@ fn set_time_control_active( document : &Document, active_id : &str )
   }
 }
 
+// Fix(BUG-454): originally, a HUD "Animate Ships Motion" toggle button
+// (`ff-toggle-animate`) and `bind_time_controls`'s Pause/Play/Fast buttons
+// were two controls, in this same file, both driving
+// `GridTuning.animate_ships`/`speed_multiplier` - not the HUD-vs-dev-panel
+// gap this module's own doc comment calls out as intentional (that's a
+// different pair of files). Clicking one surface left the other's `active`
+// class/status text stale.
+// Root cause: each handler only ever repainted its own button(s), never
+// the other control's DOM.
+// Pitfall: two controls over the same state need each handler to repaint
+// *both* surfaces - repainting only the button that was clicked leaves the
+// other one lying about the current state.
+// The HUD-side "Animate Ships Motion" toggle itself no longer exists (see
+// this module's doc comment - toggle buttons live in the dev panel only
+// now), so `animate_toggle_repaint` below is a permanent no-op guarded by
+// its own `else { return }`; kept rather than pulled since removing it
+// would also mean re-deriving `bind_time_controls`'s Pause/Play/Fast
+// handlers, out of scope for a merge-conflict resolution.
+
+/// Repaints the "Animate Ships Motion" toggle to match `active`, if that
+/// HUD button still exists (it doesn't anymore - see the comment above).
+fn animate_toggle_repaint( document : &Document, active : bool )
+{
+  let Some( el ) = document.get_element_by_id( "ff-toggle-animate" ) else { return };
+  el.set_class_name( if active { "ff-toggle active" } else { "ff-toggle" } );
+  if let Some( status ) = el.query_selector( ".ff-toggle-status" ).unwrap()
+  {
+    status.set_text_content( Some( if active { "[ACTIVE]" } else { "[PAUSED]" } ) );
+  }
+}
+
 fn bind_time_controls( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
 {
   {
@@ -226,6 +257,8 @@ fn bind_time_controls( document : &Document, tuning : &Rc< RefCell< GridTuning >
       {
         tuning.borrow_mut().animate_ships = false;
         set_time_control_active( &document, "ff-btn-pause" );
+        // Fix(BUG-454): keep "Animate Ships Motion" in sync with Pause.
+        animate_toggle_repaint( &document, false );
       }
     );
     button.add_event_listener_with_callback( "click", closure.as_ref().unchecked_ref() ).unwrap();
@@ -244,6 +277,8 @@ fn bind_time_controls( document : &Document, tuning : &Rc< RefCell< GridTuning >
         t.speed_multiplier = 1.0;
         drop( t );
         set_time_control_active( &document, "ff-btn-play" );
+        // Fix(BUG-454): keep "Animate Ships Motion" in sync with Play.
+        animate_toggle_repaint( &document, true );
       }
     );
     button.add_event_listener_with_callback( "click", closure.as_ref().unchecked_ref() ).unwrap();
@@ -262,6 +297,8 @@ fn bind_time_controls( document : &Document, tuning : &Rc< RefCell< GridTuning >
         t.speed_multiplier = 2.5;
         drop( t );
         set_time_control_active( &document, "ff-btn-fast" );
+        // Fix(BUG-454): keep "Animate Ships Motion" in sync with Fast.
+        animate_toggle_repaint( &document, true );
       }
     );
     button.add_event_listener_with_callback( "click", closure.as_ref().unchecked_ref() ).unwrap();

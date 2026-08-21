@@ -54,7 +54,15 @@ fn context_init() -> ( WebGl2RenderingContext, HtmlCanvasElement )
   let canvas = gl::canvas::make().unwrap();
   let gl = gl::context::from_canvas_with( &canvas, options ).unwrap();
 
-  let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
+  // Fix(BUG-453): chained a second `.expect()` onto the inner `Option`, matching
+  // `area_light/src/main.rs`'s existing 2-layer pattern.
+  // Root cause: `get_extension` returns `Ok( None )` (not a JS exception) for an
+  // unsupported extension; a single `.expect()` only covers the outer `Result`.
+  // Pitfall: `Result< Option< T >, JsValue >` has two independent failure layers --
+  // unwrapping only the outer one silently passes through the inner `None`.
+  let _ = gl.get_extension( "EXT_color_buffer_float" )
+  .expect( "Failed to query EXT_color_buffer_float extension" )
+  .expect( "EXT_color_buffer_float extension is not supported" );
 
   ( gl, canvas )
 }
@@ -196,12 +204,19 @@ async fn canvas_scene_setup( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let font_names = [ "Roboto-Regular" ];
   let fonts = text::ufo::fonts_load( &font_names ).await;
 
-  let colors =
-  [
-    F32x4::from_array( [ 1.0, 0.0, 0.0, 1.0 ] ),
-    F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ),
-    F32x4::from_array( [ 0.0, 1.0, 0.0, 1.0 ] ),
-  ];
+  // Fix(BUG-456): collapsed the 3-entry [ red, white, green ] palette (only
+  // `colors[ 0 ]` was ever read) to the single color every point actually
+  // rendered with.
+  // Root cause: only one font is ever configured (`font_names` below has a
+  // single entry), so a per-font palette had no second font to cycle to --
+  // `colors[ 1 ]`/`colors[ 2 ]` were dead from the start, and the `Vec` this
+  // function returns is itself discarded at its only call site
+  // (`let ( canvas_gltf, _ ) = canvas_scene_setup( &gl ).await;` in
+  // `app_run`).
+  // Pitfall: an indexed palette array with only index 0 ever read is a sign
+  // the surrounding cycling logic (per-glyph/per-font) was never finished --
+  // grep every index read before assuming the other entries are load-bearing.
+  let color = F32x4::from_array( [ 1.0, 0.0, 0.0, 1.0 ] );
   let text = "CGTools".to_string();
 
   let mut primitives_data = vec![];
@@ -213,7 +228,7 @@ async fn canvas_scene_setup( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
     let mut text_mesh = text::ufo::text_to_countour_mesh( &text, fonts.get( font_name ).unwrap(), &transform, 5.0 );
     for p in &mut text_mesh
     {
-      p.color = colors[ 0 ];
+      p.color = color;
     }
     primitives_data.extend( text_mesh );
   }

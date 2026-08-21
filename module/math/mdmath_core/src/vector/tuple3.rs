@@ -1,7 +1,18 @@
-#[ cfg( debug_assertions ) ]
-use core::mem::{ align_of_val, size_of_val };
+use core::mem::{ size_of, align_of };
 
 use super::{Collection, ConstLength, IntoArray, ArrayRef, ArrayMut, VectorIter, VectorIteratorRef, VectorIterMut, VectorIterator};
+
+// Fix(BUG-449): compile-time layout proof shared by `ArrayRef::array_ref`/`ArrayMut::vector_mut`
+// below -- see `tuple2.rs`'s `assert_tuple2_array_layout` for the full root-cause/pitfall
+// writeup (identical mechanism, generalized to 3 fields).
+const fn assert_tuple3_array_layout< E >()
+{
+  assert!( size_of::< ( E, E, E ) >() == size_of::< [ E ; 3 ] >(), "(E,E,E) and [E;3] must have the same size" );
+  assert!( align_of::< ( E, E, E ) >() == align_of::< [ E ; 3 ] >(), "(E,E,E) and [E;3] must have the same alignment" );
+  assert!( core::mem::offset_of!( ( E, E, E ), 0 ) == 0, "field 0 must be at byte offset 0" );
+  assert!( core::mem::offset_of!( ( E, E, E ), 1 ) == size_of::< E >(), "field 1 must immediately follow field 0 with no padding" );
+  assert!( core::mem::offset_of!( ( E, E, E ), 2 ) == 2 * size_of::< E >(), "field 2 must immediately follow field 1 with no padding" );
+}
 
 // = 3
 
@@ -26,71 +37,36 @@ impl< E > IntoArray< E, 3 > for ( E, E, E )
 
 impl< E > ArrayRef< E, 3 > for ( E, E, E )
 {
+  // Fix(BUG-449): replaced the runtime-only, debug-only `debug_assert_eq!` of *total* size/align
+  // with an unconditional, compile-time proof (`assert_tuple3_array_layout`) that also checks
+  // per-field byte offsets -- see `tuple2.rs`'s identical BUG-449 fix for the full writeup.
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ E ; 3 ]
   {
-    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `(E, E, E)`
-    // into a reference to an array `[E; 3]`. This is safe because:
-    // 1. The tuple `(E, E, E)` and the array `[E; 3]` have the same memory layout.
-    //    - Both contain 3 elements of type `E`.
-    // 2. We ensure that the size and alignment of the tuple and the array are the same
-    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
-    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
-    //    ensuring that the reference does not outlive the data it points to.
+    const { assert_tuple3_array_layout::< E >() };
+
+    // SAFETY: the compile-time check above proves, for this concrete `E`, that `(E,E,E)` and
+    // `[E;3]` share total size, alignment, and per-field byte offsets -- the exact and complete
+    // set of properties this reinterpret-cast depends on. The resulting reference's lifetime is
+    // tied to `self`'s via the raw-pointer-cast-then-reborrow pattern, so it cannot outlive the
+    // data it points to.
     #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &[ E; 3 ] = unsafe { &*( std::ptr::from_ref::< ( E, E, E ) >( self ).cast::< [ E; 3 ] >() ) };
-
-    // Check size and alignment of the whole collection
-    debug_assert_eq!( size_of_val( self ), size_of_val( result ), "Size should be the same" );
-    debug_assert_eq!( align_of_val( self ), align_of_val( result ), "Alignment should be the same" );
-
-    // Check size and alignment of the first component
-    debug_assert_eq!( size_of_val( &self.1 ), size_of_val( &result[ 1 ] ), "Component size should be the same" );
-    debug_assert_eq!( align_of_val( &self.1 ), align_of_val( &result[ 1 ] ), "Component alignment should be the same" );
-
-    // Return the result
-    result
+    unsafe { &*( std::ptr::from_ref::< ( E, E, E ) >( self ).cast::< [ E ; 3 ] >() ) }
   }
 }
 
 impl< E > ArrayMut< E, 3 > for ( E, E, E )
 {
+  // Fix(BUG-449): see `ArrayRef::array_ref`'s own BUG-449 comment above (same root cause and
+  // fix, mirrored here for the mutable accessor).
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ E ; 3 ]
   {
-    // Store layout information in temporary variables
-    #[ cfg( debug_assertions ) ]
-    let size_self = size_of_val( self );
-    #[ cfg( debug_assertions ) ]
-    let align_self = align_of_val( self );
-    #[ cfg( debug_assertions ) ]
-    let size_component = size_of_val( &self.1 );
-    #[ cfg( debug_assertions ) ]
-    let align_component = align_of_val( &self.1 );
+    const { assert_tuple3_array_layout::< E >() };
 
-    // SAFETY: We are using a raw-pointer cast to convert a reference to a tuple `(E, E, E)`
-    // into a reference to an array `[E; 3]`. This is safe because:
-    // 1. The tuple `(E, E, E)` and the array `[E; 3]` have the same memory layout.
-    //    - Both contain 3 elements of type `E`.
-    // 2. We ensure that the size and alignment of the tuple and the array are the same
-    //    using `debug_assert_eq!`. This guarantees that they are layout-compatible.
-    // 3. The lifetime of the resulting reference is tied to the lifetime of `self`,
-    //    ensuring that the reference does not outlive the data it points to.
+    // SAFETY: see `ArrayRef::array_ref` above -- same compile-time proof, mutable variant.
     #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
-    let result : &mut [ E; 3 ] = unsafe { &mut *( std::ptr::from_mut::< ( E, E, E ) >( self ).cast::< [ E; 3 ] >() ) };
-
-    // Perform checks under debug conditions
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( size_self, size_of_val( result ), "Size should be the same" );
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( align_self, align_of_val( result ), "Alignment should be the same" );
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( size_component, size_of_val( &result[ 1 ] ), "Component size should be the same" );
-    #[ cfg( debug_assertions ) ]
-    debug_assert_eq!( align_component, align_of_val( &result[ 1 ] ), "Component alignment should be the same" );
-
-    // Return the result
-    result
+    unsafe { &mut *( std::ptr::from_mut::< ( E, E, E ) >( self ).cast::< [ E ; 3 ] >() ) }
   }
 }
 

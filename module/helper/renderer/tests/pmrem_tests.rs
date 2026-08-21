@@ -200,7 +200,16 @@ mod tests
 
     let resolution = 32u32;
     let ibl = pmrem::generate( &gl, &equirect, resolution ).expect( "PMREM generate should succeed" );
-    let specular = ibl.specular_1_texture.expect( "prefiltered specular texture missing" );
+    // Fix(BUG-440): `.clone()` before `.expect()` -- `IBL` now implements `Drop` ( to free its
+    // own textures ), so Rust forbids moving a field out of it by value; `ibl` is still used
+    // below ( `ibl.num_mips` ), so the whole struct can't be consumed here either.
+    // Root cause: adding `impl Drop for IBL` retroactively made every pre-existing move-out
+    // field access ( `ibl.field.expect(..)`, `.unwrap()`, `.take()` ) a compile error --
+    // Rust's partial-move-out-of-a-`Drop`-type restriction is unconditional.
+    // Pitfall: adding `Drop` to a previously-`Drop`-free struct is not purely additive -- audit
+    // every existing call site that moves a field out of the type ( `grep` for `.expect(`/
+    // `.unwrap(`/`.take(` on each field name across the workspace ) before landing the change.
+    let specular = ibl.specular_1_texture.clone().expect( "prefiltered specular texture missing" );
 
     // A few percent of the [0,1] dynamic range: covers RGBA8 source quantization ( ~1/255 ),
     // RGBA16F storage rounding at each of the two writes ( equirect->cube, then prefilter ), and

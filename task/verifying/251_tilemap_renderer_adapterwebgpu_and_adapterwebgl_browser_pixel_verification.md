@@ -13,13 +13,13 @@
 - **executor_type:** any
 - **unit_type:** module
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/tilemap_renderer
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **started_at:** 2026-08-19 23:07:51
-- **expires_at:** 2026-08-20 01:07:51
-- **unverified_at:** 2026-08-19 22:37:54
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **started_at:** 2026-08-20 09:57:36
+- **expires_at:** 2026-08-20 11:57:36
+- **unverified_at:** 2026-08-20 09:57:11
 - **unverified_by:** system
-- **verifying_at:** 2026-08-19 23:07:51
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **verifying_at:** 2026-08-20 09:57:36
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
 
@@ -226,6 +226,9 @@ Formalizes History's 2026-08-16 `READINESS_CHECK` narrative entry ("Tier 2 Dual-
 | 2026-08-19 22:37:54 | system | TIMEOUT_2H | 2h exclusivity window expired |
 | 2026-08-19 23:07:51 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-19 23:08:30 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | VERIFY_PASS_ATTEMPTED | Fresh Tier 2 Dual-Role Self-Check walk (8/8 dimensions PASS, 2 non-blocking: D1 black→red staleness superseded by RE_VERIFIED, D6 documented one-line renderer/tests/readme.md hygiene fix); `## Verification Record` formalizing History's 2026-08-16 READINESS_CHECK narrative appended. `tsk .verify_pass 251` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
+| 2026-08-20 09:57:11 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-20 09:57:36 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-20 10:12:00 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 251` → exit 1, same-actor guard (unchanged). Round 7 re-confirmation: mechanical drift check clean; stale cross-refs to `task/accepting/191_...` (moved to `verified/`) and `task/verifying/218` (confirmed still current) are those tasks' own lifecycle state, not defects here |
 
 ## History
 

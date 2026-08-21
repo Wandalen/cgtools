@@ -199,7 +199,9 @@ mod private
       gl::uniform::matrix_upload
       (
         gl,
-        locations.get( "viewMatrix" ).unwrap().clone(),
+        locations.get( "viewMatrix" )
+        .expect( "Camera::upload: \"viewMatrix\" missing from the bound shader's impl_locations! list -- see this fn's # Panics doc" )
+        .clone(),
         &view_matrix[ .. ],
         true
       ).unwrap();
@@ -207,7 +209,9 @@ mod private
       gl::uniform::matrix_upload
       (
         gl,
-        locations.get( "projectionMatrix" ).unwrap().clone(),
+        locations.get( "projectionMatrix" )
+        .expect( "Camera::upload: \"projectionMatrix\" missing from the bound shader's impl_locations! list -- see this fn's # Panics doc" )
+        .clone(),
         projection_matrix.to_array().as_slice(),
         true
       ).unwrap();

@@ -65,4 +65,4 @@ wgpu = [ "gpu_hal/native" ]
 vulkan = [ "gpu_hal/vulkan" ]
 
 [package.metadata.action]
-tags = ["scene:orrery"]
+tags = ["scene:orrery", "runtime:offscreen", "api:wgpu"]

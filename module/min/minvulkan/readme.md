@@ -39,6 +39,6 @@ Design documentation (features) lives in [`docs/`](docs/feature/readme.md).
 | Path | Responsibility |
 |------|-----------------|
 | `src/` | Crate source — `Context`/`ContextBuilder`, window surface, swapchain, and the crate's error type |
-| `tests/` | Integration tests exercising `Context::builder()` against a live Vulkan ICD, plus the surface's pure edges |
+| `tests/` | Integration tests exercising `Context::builder()` against a live Vulkan ICD, plus the surface's pure edges and swapchain rebuild's error-path cleanup |
 | `docs/` | Design documentation as typed doc definitions — see [docs/feature/readme.md](docs/feature/readme.md) |
 | `readme.md` | This file — user-facing entry point |

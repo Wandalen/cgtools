@@ -270,3 +270,84 @@ fn content_read_rejects_stitch_block_len_below_5_instead_of_underflowing()
     with a corrupted read position; got {result:?}"
   );
 }
+
+// test_kind: bug_reproducer(BUG-498)
+/// ## Root Cause
+/// Three sites truncated a `&str` by raw byte length with no UTF-8
+/// character-boundary check: `pec::writer::pec_header_write`'s design-name
+/// field (`&name.as_bytes()[ ..16 ]`), and `pes::writer::pes_string16_write`/
+/// `pes_string8_write` (`&str.as_bytes()[ ..len ]`, `len` derived from a raw
+/// `.min( u16::MAX )`/`.min( u8::MAX )` byte clamp). All three could split a
+/// multi-byte UTF-8 character in half whenever the truncation point fell
+/// mid-character, embedding invalid UTF-8 into the written file.
+/// ## Why Not Caught
+/// Every existing writer test used ASCII-only names/metadata strings, where
+/// every byte offset is trivially a character boundary -- none exercised a
+/// name long enough to truncate *and* containing a multi-byte character
+/// straddling the truncation point.
+/// ## Fix Applied
+/// Added `format::str_truncate_char_boundary` (`src/format.rs`), a shared
+/// helper that backs a truncation point off to the nearest preceding valid
+/// UTF-8 character boundary, and switched all 3 sites
+/// (`format/pec/writer.rs`, `format/pes/writer.rs` x2) to use it instead of
+/// a raw byte-length slice.
+/// ## Prevention
+/// This test covers the helper directly (exhaustive boundary-straddling
+/// cases) and one real call site end-to-end (a PEC file written with a name
+/// whose only multi-byte character straddles the 16-byte field limit).
+/// ## Pitfall
+/// A byte-length clamp (`.min( N )`) only bounds the *count* of bytes taken --
+/// it says nothing about whether that many bytes lands on a character
+/// boundary. The two checks are independent and both are required.
+#[ test ]
+fn str_truncate_char_boundary_backs_off_to_valid_utf8()
+{
+  // 15 ASCII bytes, then '€' (3-byte UTF-8: 0xE2 0x82 0xAC) starting exactly
+  // at byte offset 15 -- truncating at the raw byte limit 16 would keep only
+  // the euro sign's first byte, splitting it in half.
+  let name = format!( "{}€rest", "a".repeat( 15 ) );
+  assert!( name.len() > 16, "test setup: name must exceed the 16-byte limit" );
+  assert!( !name.is_char_boundary( 16 ), "test setup: byte 16 must fall inside '€' for this reproducer to be meaningful" );
+
+  let truncated = embroidery_tools::format::str_truncate_char_boundary( &name, 16 );
+
+  assert!( std::str::from_utf8( truncated.as_bytes() ).is_ok(), "truncated output must always be valid UTF-8" );
+  assert_eq!( truncated, "a".repeat( 15 ), "must back off before '€' entirely rather than splitting it (15 bytes, not 16)" );
+  assert!( truncated.len() <= 16 );
+
+  // A string that already fits is returned unchanged (byte-for-byte, not merely equal length).
+  assert_eq!( embroidery_tools::format::str_truncate_char_boundary( "short", 16 ), "short" );
+
+  // A limit that lands exactly on a boundary needs no back-off.
+  let ascii = "a".repeat( 20 );
+  assert_eq!( embroidery_tools::format::str_truncate_char_boundary( &ascii, 16 ).len(), 16 );
+}
+
+#[ test ]
+fn pec_write_with_multibyte_name_straddling_field_limit_stays_valid_utf8()
+{
+  let mut emb = EmbroideryFile::new();
+  emb.stitch( 0, 0 );
+  emb.end();
+  // Same straddling shape as the unit test above: byte 16 of the "LA:" name
+  // field falls inside '€' pre-fix.
+  emb.metadata_get_mut().name_set( Some( format!( "{}€rest", "a".repeat( 15 ) ) ) );
+
+  let mut memory = vec![ 0_u8; 2048 ];
+  {
+    let mut writer = Cursor::new( &mut memory );
+    pec::write( &mut emb, &mut writer ).unwrap();
+  }
+
+  // "LA:" is written immediately before the fixed 16-byte name field.
+  let marker = b"LA:";
+  let marker_pos = memory.windows( marker.len() ).position( | w | w == marker )
+  .expect( "\"LA:\" marker not found in written PEC bytes" );
+  let name_field = &memory[ marker_pos + marker.len() .. marker_pos + marker.len() + 16 ];
+
+  assert!(
+    std::str::from_utf8( name_field ).is_ok(),
+    "the 16-byte name field must always be valid UTF-8, even when the true name's \
+    truncation point falls mid-character; got raw bytes {name_field:02x?}"
+  );
+}

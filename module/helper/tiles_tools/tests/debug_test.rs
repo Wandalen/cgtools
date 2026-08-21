@@ -28,6 +28,67 @@ fn test_pathfinding_debugger() {
   assert!(output.contains("Obstacle"));
 }
 
+// test_kind: bug_reproducer(BUG-478)
+/// ## Root Cause
+/// `ECSInspector::json_export` built its output via bare
+/// `format!("\"{name}\": {count}")`-style string interpolation with zero
+/// escaping -- a component name, system name, or entity data key/value
+/// containing `"` or `\` produced syntactically invalid JSON -- and only
+/// ever iterated `component_counts`/`system_timings`, never
+/// `entity_data`, omitting the per-entity detail `report_generate` already
+/// includes.
+/// ## Why Not Caught
+/// `test_ecs_inspector` only asserts `report.contains(..)` substring checks
+/// against `report_generate`'s plain-text output, and never calls
+/// `json_export` at all, let alone parses its result as JSON or uses a
+/// component/data value containing a character that needs escaping.
+/// ## Fix Applied
+/// Added `utils::json_string_escape` and used it for every string value in
+/// `json_export`'s output; added an `"entities"` array mirroring
+/// `report_generate`'s per-entity detail (id, components, position, data).
+/// ## Prevention
+/// n/a -- covered by this test (parses the real output via `serde_json`,
+/// available unconditionally as a dev-dependency even though `debug` itself
+/// does not depend on it).
+/// ## Pitfall
+/// Hand-rolled string interpolation into a structured format (JSON, CSV,
+/// XML) is not "simplified" -- it is unescaped and silently invalid the
+/// moment any input value contains that format's own special characters.
+#[test]
+fn test_ecs_inspector_json_export_escapes_and_includes_entities()
+{
+  let mut inspector = ECSInspector::new();
+
+  inspector.entity_record(EntityDebugInfo {
+    id: 7,
+    components: vec!["Position".to_string(), "Weapon \"Excalibur\"".to_string()],
+    position: Some((3, -4)),
+    data: vec![("note".to_string(), "line1\nline2 with \\ backslash".to_string())].into_iter().collect(),
+  });
+  inspector.system_timing_record("Render\\System".to_string(), Duration::from_millis(4));
+
+  let json = inspector.json_export();
+
+  // Must be valid, parseable JSON despite the embedded quotes/backslashes/newline.
+  let parsed: serde_json::Value = serde_json::from_str(&json)
+    .unwrap_or_else(|e| panic!("json_export output must be valid JSON, got error {e}:\n{json}"));
+
+  assert_eq!(parsed["total_entities"], 1);
+
+  // Escaping round-trips: serde_json will have un-escaped these back to the
+  // original raw values when parsing.
+  assert_eq!(parsed["component_counts"]["Weapon \"Excalibur\""], 1);
+  assert!(parsed["system_timings"].get("Render\\System").is_some());
+
+  // Per-entity detail (previously entirely absent), aligned with report_generate's scope.
+  let entities = parsed["entities"].as_array().expect("entities should be a JSON array");
+  assert_eq!(entities.len(), 1);
+  assert_eq!(entities[0]["id"], 7);
+  assert_eq!(entities[0]["position"]["x"], 3);
+  assert_eq!(entities[0]["position"]["y"], -4);
+  assert_eq!(entities[0]["data"]["note"], "line1\nline2 with \\ backslash");
+}
+
 #[test]
 fn test_ecs_inspector() {
   let mut inspector = ECSInspector::new();
@@ -46,6 +107,67 @@ fn test_ecs_inspector() {
   assert!(report.contains("Entity 42"));
   assert!(report.contains("Position"));
   assert!(report.contains("MovementSystem"));
+}
+
+// test_kind: bug_reproducer(BUG-481)
+/// ## Root Cause
+/// `PerformanceProfiler::csv_export` zipped `frame_times` and
+/// `memory_samples` by index via
+/// `self.memory_samples.get(i).copied().unwrap_or(MemorySample { .. 0 .. })`
+/// -- once the shorter deque was exhausted, every further row silently got a
+/// zero-valued memory sample, indistinguishable in the CSV from a real
+/// sample that happened to record zero bytes and zero entities.
+/// ## Why Not Caught
+/// `test_performance_profiler` only records one frame time per memory
+/// sample (matched counts) -- no existing test ever recorded more frame
+/// times than memory samples (or vice versa), which is the only way the
+/// zero-default becomes observable.
+/// ## Fix Applied
+/// `csv_export` now matches on `self.memory_samples.get(i)` directly: a
+/// `Some` sample writes its real values, a `None` writes two blank CSV
+/// fields instead of fabricated zeros.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// Zipping two independently-populated collections by index and defaulting
+/// a missing entry to a same-typed sentinel (here, zero) is never truly
+/// "safe" when zero is also a legitimate real value -- default to a blank/
+/// `Option` representation instead, so "missing" and "recorded as zero"
+/// stay distinguishable in the output.
+#[test]
+fn test_performance_profiler_csv_export_blanks_unmatched_memory_rows()
+{
+  let mut profiler = PerformanceProfiler::new();
+
+  // Two frame times, but only one memory sample -- the second frame_time
+  // row has no corresponding memory sample.
+  profiler.frame_time_record(Duration::from_millis(16));
+  profiler.frame_time_record(Duration::from_millis(17));
+  profiler.memory_sample_record(2048, 5);
+
+  let path = std::env::temp_dir().join("-tiles_tools_debug_csv_export_test.csv");
+  profiler.csv_export(&path).expect("csv_export should succeed");
+  let contents = std::fs::read_to_string(&path).expect("CSV file should have been written");
+  std::fs::remove_file(&path).ok();
+
+  let lines: Vec<&str> = contents.lines().collect();
+  assert_eq!(lines[0], "timestamp_ms,frame_time_ms,memory_kb,entity_count");
+
+  // Row 0 (i = 0) has a matching memory sample: real values, no blanks.
+  assert!(lines[1].starts_with("0.00,16.00,2,5"), "row 0 should carry its real memory sample, got: {}", lines[1]);
+
+  // Row 1 (i = 1) has no matching memory sample: the trailing two fields
+  // must be blank, not "0,0".
+  assert!(
+    lines[2].ends_with(",,"),
+    "row 1 has no memory sample and should end with two blank fields, not zero-defaulted ones, got: {}",
+    lines[2]
+  );
+  assert!(
+    !lines[2].contains(",0,0"),
+    "row 1 must not silently fabricate a zero-valued memory sample, got: {}",
+    lines[2]
+  );
 }
 
 #[test]

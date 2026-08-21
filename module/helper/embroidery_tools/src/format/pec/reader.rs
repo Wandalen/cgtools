@@ -274,7 +274,12 @@ mod private
 
     loop
     {
-      let val1 : u8 = reader.read_u8()?;
+      // UX/DX fix: `val1` previously read via a raw `reader.read_u8()?`, a hard `Err` on
+      // truncation, while `val2`/`val3` below already used `read_val!()`'s graceful `break`
+      // (ending parsing successfully on truncation instead of erroring). Reading all three
+      // through the same macro makes truncation-tolerance consistent across the whole triplet
+      // regardless of which of the three bytes a truncated file happens to be missing.
+      let val1 : u8 = read_val!();
       let mut val2 : u8 = read_val!();
 
       // This means end of Instruction section

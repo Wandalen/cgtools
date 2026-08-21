@@ -13,13 +13,13 @@
 - **executor_type:** any
 - **unit_type:** dir
 - **unit:** .
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **started_at:** 2026-08-19 23:09:59
-- **expires_at:** 2026-08-20 01:09:59
-- **unverified_at:** 2026-08-19 22:37:55
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **started_at:** 2026-08-20 09:57:35
+- **expires_at:** 2026-08-20 11:57:35
+- **unverified_at:** 2026-08-20 09:57:11
 - **unverified_by:** system
-- **verifying_at:** 2026-08-19 23:09:59
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **verifying_at:** 2026-08-20 09:57:35
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
 
@@ -142,3 +142,6 @@ The `## Verification` section above (and the Journal's own 2026-08-18 19:48:00 `
 | 2026-08-19 22:37:55 | system | TIMEOUT_2H | 2h exclusivity window expired |
 | 2026-08-19 23:09:59 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-19 23:10:45 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | VERIFY_PASS_ATTEMPTED | Fresh 8-dimension Readiness Gate walk (8/8 PASS, 3 non-blocking: D1 demo_completeness.md edit reasoned as referential-integrity not status-judgment, D5 jewelry_site relocation target outside repo by design and independently verified, D6 correctly self-declared dir-level scope for a repo-wide sweep); `## Verification Record` appended, distinct from the pre-existing Acceptance-flavored VERIFY_BLOCKED entry above. `tsk .verify_pass 377` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
+| 2026-08-20 09:57:11 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-20 09:57:35 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-20 10:12:00 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 377` → exit 1, same-actor guard (unchanged). Round 7 re-confirmation: mechanical drift check flagged `examples/minwebgl/{filter,jewelry_site,spinning_cube_size_opt}` as MISSING — confirmed intentional, this task's own already-verified deletion/relocation work, not drift |

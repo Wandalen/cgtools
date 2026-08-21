@@ -12,8 +12,8 @@ pub fn filter_buttons_generate()
     ( "gaussian-blur",    "Gaussian Blur" ),
     ( "stack-blur",       "Stack Blur" ),
     ( "binarize",         "Binarize" ),
-    ( "bcgimp",           "Brightness (GIMP)" ),
-    ( "bcph",             "Brightness (PS)" ),
+    ( "bcgimp",           "Brightness/Contrast (GIMP)" ),
+    ( "bcph",             "Brightness/Contrast (PS)" ),
     ( "channels",         "Channels" ),
     ( "color-transform",  "Color Transform" ),
     ( "desaturate",       "Desaturate" ),
@@ -29,7 +29,11 @@ pub fn filter_buttons_generate()
     ( "mosaic",           "Mosaic" ),
     ( "oil",              "Oil Paint" ),
     ( "posterize",        "Posterize" ),
-    ( "rescale",          "Rescale" ),
+    // Fix(UX/DX-7): "Rescale" (bare) misleadingly suggested a spatial resize -- this
+    // filter multiplies RGB by a uniform scale factor (`filters/rescale.rs`), i.e. a
+    // multiplicative brightness/gain adjustment, and spatial resizing is already a
+    // separate, differently-named filter family ("Resize (NN)"/"Resize (Bilinear)").
+    ( "rescale",          "Brightness (Multiply)" ),
     ( "resize-nn",        "Resize (NN)" ),
     ( "resize-bilinear",  "Resize (Bilinear)" ),
     ( "sepia",            "Sepia" ),

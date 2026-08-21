@@ -199,14 +199,33 @@ mod private
       let handle = unsafe { self.loader.create_swapchain( &create_info, None ) }
       .map_err( Error::SwapchainCreate )?;
 
+      // Fix(BUG-424): `handle`, and each view created below, are now tracked by `guard`
+      // from this point on -- every fallible step between here and `disarm()` goes through
+      // it, so an early `?` return destroys whatever was already created instead of
+      // leaking it.
+      // Root cause: `get_swapchain_images` and per-image `image_view_create` both sit
+      // behind `?` after `handle` already exists, and view creation previously used
+      // `.map().collect::< Result< Vec< _ >, _ > >()`, which -- on the Nth image's view
+      // failing -- discards the first N-1 already-created `VkImageView`s as an ordinary
+      // `Vec` alongside the collected `Err`, along with `handle` itself. Structurally
+      // identical to `Fix(BUG-290)`'s `Context` instance leak : a live handle created
+      // successfully, then abandoned on a sibling step's failure with no cleanup.
+      // Pitfall: `.collect::< Result< Vec< _ >, _ > >()` is exactly the tool for turning
+      // "many fallible steps" into "one fallible step" -- but it silently discards every
+      // already-`Ok` item on the first `Err`, which is only safe when those `Ok` items are
+      // pure Rust values. The moment they are FFI handles needing their own explicit
+      // destruction, the discarded partial `Vec` becomes a leak, not a no-op.
+      let mut guard = SwapchainGuard::new( &self.loader, &self.device, handle );
+
       // SAFETY: `handle` was just created by this same loader.
       let images = unsafe { self.loader.get_swapchain_images( handle ) }
       .map_err( Error::SwapchainImages )?;
-      let views = images
-      .iter()
-      .map( | image | image_view_create( &self.device, *image, format.format ) )
-      .collect::< Result< Vec< _ >, Error > >()?;
+      for image in &images
+      {
+        guard.view_push( image_view_create( &self.device, *image, format.format )? );
+      }
 
+      let ( handle, views ) = guard.disarm();
       self.destroy_chain();
       self.handle = handle;
       self.images = images;
@@ -366,6 +385,64 @@ mod private
         let _ = self.device.device_wait_idle();
         self.destroy_chain();
         self.device.destroy_fence( self.acquire_fence, None );
+      }
+    }
+  }
+
+  // Fix(BUG-424): `SwapchainGuard` is the RAII form of the same pattern `Fix(BUG-290)`
+  // established for `crate::context::Context`'s instance ( see `InstanceGuard` there ),
+  // applied here to the two artifacts `rebuild` creates before it can commit them to
+  // `self` -- see the longer root-cause note at `rebuild`'s own guard construction below.
+  /// Destroys the swapchain handle and any image views it still holds on drop, unless
+  /// [`SwapchainGuard::disarm`] has handed them off first.
+  struct SwapchainGuard< 'a >
+  {
+    loader : &'a ash::khr::swapchain::Device,
+    device : &'a ash::Device,
+    handle : Option< ash::vk::SwapchainKHR >,
+    views : Vec< ash::vk::ImageView >,
+  }
+
+  impl< 'a > SwapchainGuard< 'a >
+  {
+    fn new( loader : &'a ash::khr::swapchain::Device, device : &'a ash::Device, handle : ash::vk::SwapchainKHR ) -> Self
+    {
+      Self { loader, device, handle : Some( handle ), views : Vec::new() }
+    }
+
+    /// Records a newly created view as guard-owned, so a later failure destroys it
+    /// along with the handle instead of leaking it.
+    fn view_push( &mut self, view : ash::vk::ImageView )
+    {
+      self.views.push( view );
+    }
+
+    /// Takes the handle and views out, so dropping the guard no longer destroys them.
+    fn disarm( mut self ) -> ( ash::vk::SwapchainKHR, Vec< ash::vk::ImageView > )
+    {
+      ( self.handle.take().expect( "disarmed exactly once, on the single success path" ), core::mem::take( &mut self.views ) )
+    }
+  }
+
+  impl Drop for SwapchainGuard< '_ >
+  {
+    fn drop( &mut self )
+    {
+      // SAFETY: every view in `views` was created on `device` by this same `rebuild`
+      // call and has not been destroyed since ; `handle`, if still `Some`, was just
+      // created by `loader` and has not been handed off to the owning `Swapchain` yet --
+      // both are being abandoned here without any other code holding or using them
+      // afterward.
+      unsafe
+      {
+        for view in self.views.drain( .. )
+        {
+          self.device.destroy_image_view( view, None );
+        }
+        if let Some( handle ) = self.handle.take()
+        {
+          self.loader.destroy_swapchain( handle, None );
+        }
       }
     }
   }

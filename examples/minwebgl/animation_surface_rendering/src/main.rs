@@ -81,8 +81,15 @@ fn context_init() -> ( WebGl2RenderingContext, HtmlCanvasElement )
   let gl = gl::context::from_canvas_with( &canvas, options )
   .expect( "Can't create WebGL context" );
 
+  // Fix(BUG-453): chained a second `.expect()` onto the inner `Option`, matching
+  // `area_light/src/main.rs`'s existing 2-layer pattern.
+  // Root cause: `get_extension` returns `Ok( None )` (not a JS exception) for an
+  // unsupported extension; a single `.expect()` only covers the outer `Result`.
+  // Pitfall: `Result< Option< T >, JsValue >` has two independent failure layers --
+  // unwrapping only the outer one silently passes through the inner `None`.
   let _ = gl.get_extension( "EXT_color_buffer_float" )
-  .expect( "Failed to enable EXT_color_buffer_float extension" );
+  .expect( "Failed to query EXT_color_buffer_float extension" )
+  .expect( "EXT_color_buffer_float extension is not supported" );
 
   ( gl, canvas )
 }
@@ -557,7 +564,14 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let ( canvas_gltf, _ ) = canvas_scene_setup( &gl ).await;
   canvas_gltf.scenes[ 0 ].borrow_mut().world_matrix_update();
-  let animation = animation_setup( &gl, canvas.height() as usize, canvas.width() as usize );
+  // Fix(BUG-455): swapped call-site argument order back to match
+  // `animation_setup`'s own `( width, height )` parameter order.
+  // Root cause: the call passed `( canvas.height(), canvas.width() )` --
+  // width and height transposed at the call site.
+  // Pitfall: two same-typed positional parameters (`width`/`height`, both
+  // `usize`) compile fine in either order -- nothing catches a transposition
+  // until a consumer actually reads the wrong one.
+  let animation = animation_setup( &gl, canvas.width() as usize, canvas.height() as usize );
   animation.world_matrix_set( identity() );
 
   let canvas_camera = camera_init( &canvas, &canvas_gltf.scenes );

@@ -4,11 +4,11 @@
 
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/
-- **actor:** null
-- **started_at:** null
-- **expires_at:** null
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **started_at:** 2026-08-20 10:34:25
+- **expires_at:** 2026-08-20 12:34:25
 - **round:** 1
-- **state:** 🎯 (Verified)
+- **state:** 🔎 (Accepting)
 - **closes:** null
 - **repo_identity:** self
 - **unit_type:** module
@@ -16,6 +16,11 @@
 - **verified_by:** self (doc_tsk Readiness Verification Gate, Tier 2 Dual-Role Self-Check)
 - **verification_date:** 2026-08-20
 - **blocked_by:** null
+- **executing_at:** 2026-08-20 10:34:11
+- **executing_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **in_motion:** true
+- **accepting_at:** 2026-08-20 10:34:25
+- **accepting_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
 
@@ -106,6 +111,15 @@ through the same entry point (`cargo nextest run -p scene_script -p pingpong_ani
 - `docs/layer/006_l5_scene_script_and_runners.md` no longer states the lints are unwired
 - No function in the changed/new code exceeds 50 lines
 
+## Journal
+
+| Timestamp           | Actor                | Event | Note         |
+|---------------------|----------------------|-------|--------------|
+| 2026-08-20 10:34:11 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_EXEC | execution claimed |
+| 2026-08-20 10:34:23 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | EXEC_COMPLETE | execution complete |
+| 2026-08-20 10:34:25 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_ACCEPT | acceptance claimed |
+| 2026-08-20 10:34:31 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | ATTEMPT_ACCEPTANCE_PASS | `tsk .acceptance_pass 416` → exit 1, "self-verification forbidden (actor matches executing_by)" — same-actor sandbox guard, consistent with task 191/202/206 precedent; not forced/spoofed, left at 🔎 Accepting per standing project convention |
+
 ## History
 
 *(append-only — newest entry last; never edit or remove past entries)*
@@ -114,6 +128,37 @@ through the same entry point (`cargo nextest run -p scene_script -p pingpong_ani
   `scene_script`'s two structural lints are real and correctly implemented but invoked only by tests, never
   by any production code path — closing the gap between the invariant docs' claimed enforcement and actual
   runtime behavior.
+- **[2026-08-20]** `EXECUTED` — Confirmed `rhai::Engine::compile`/`ParseError`'s exact signatures by
+  extracting the cached `rhai-1.25.1.crate` archive directly (no vendored source was present under
+  `~/.cargo/registry/src/`), then added `module/helper/scene_script/src/script_load.rs`: a generic
+  `ScriptLoadError< L >` (`Parse( rhai::ParseError )` / `Lint( L )` variants, `Debug`/`Display`/
+  `std::error::Error`, `#[ non_exhaustive ]`) reused by two new entry points — `script_as_glue_load`
+  (compiles then runs `check_top_level_is_declarative`, fixing `L = ImperativeTopLevelStatement`) and
+  `script_as_data_load` (compiles then runs `check_whole_ast_is_pure`, fixing `L = ImpureCall`) — both
+  exported via the crate's `mod_interface!` block. Switched all 3 real consumers to call through it instead
+  of raw `engine_build()` + direct compile/eval: `pingpong_animation/src/lib.rs` and
+  `f32x2_vector_arithmetic/src/lib.rs` (both `Result`-returning) bridge `ScriptLoadError` into their
+  existing `Box< rhai::EvalAltResult >` return type via `EvalAltResult::ErrorSystem` + `?`'s blanket
+  `Box< T > : From< T >`; `orrery/webgpu/src/scene.rs`'s `SceneConfig::load()` (already `.expect(...)`-based,
+  not `Result`-returning) calls `.expect(...)` on the new entry point directly. Added
+  `module/helper/scene_script/tests/script_load_test.rs` (7 tests): T01/T02 (glue/data lint rejection),
+  2 `Parse`-variant coverage tests, 2 positive-path tests, and
+  `script_as_glue_load_rejection_never_evaluates_the_script` (proves the Test Matrix's ordering guarantee —
+  a registered side-effecting function never fires when the load is rejected). Updated
+  `docs/layer/006_l5_scene_script_and_runners.md`'s `purity_lint.rs` Sources row (removed the now-false
+  "neither lint is wired into a production loader" claim) and added a new `script_load.rs` row citing all 3
+  real consumers and the new test file. Verified via `longrun .launch`/`longrun .wait` (repo root, never
+  passing `log::`/`wait::`/`timeout::` explicitly): `cargo nextest run -p scene_script -p pingpong_animation
+  -p f32x2_vector_arithmetic -p orrery_webgpu` 77/77 pass (T01-T05 all covered by real passing tests);
+  `cargo clippy --all-targets --all-features -- -D warnings` clean across all 4 touched packages;
+  `cargo check --target wasm32-unknown-unknown` clean across all 4 (never env-prefixed
+  `RUSTFLAGS`/`RUSTDOCFLAGS`, per this repo's `.cargo/config.toml`-clobber pitfall). Independently confirmed
+  via an `awk` brace-matching line-span scan (not eyeballed) that no new/changed function exceeds 50 lines —
+  max span 33 lines (`SceneConfig::load()`). Zero change to either lint's own internal detection logic
+  (`top_level_lint.rs`/`purity_lint.rs` read but never edited) — Delivery Requirement confirmed by omission
+  from the diff, not merely by intent. Lifecycle walked `tsk .claim` → `.complete` → `.claim_accept`
+  → `.acceptance_pass` (blocked by the same-actor sandbox guard, see Journal — left at 🔎 Accepting, not
+  forced or spoofed past it).
 
 ## Related Documentation
 

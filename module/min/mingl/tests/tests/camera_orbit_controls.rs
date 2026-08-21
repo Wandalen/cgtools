@@ -608,3 +608,58 @@ fn test_zoom_out_extreme_delta_does_not_corrupt_or_flip_eye()
   assert!( controls.eye.x().is_finite(), "zoom-out past the divisor's zero point must not produce a non-finite eye position, got {}", controls.eye.x() );
   assert!( controls.eye.x() > 0.0, "zoom-out must never flip the camera through the pivot to the opposite side, got {}", controls.eye.x() );
 }
+
+// test_kind: bug_reproducer(BUG-427)
+/// ## Root Cause
+/// `update()`'s smoothed-rotation branch applied `rotation_apply()` ( and decayed
+/// `current_angular_speed` ) purely on `self.rotation.movement_smoothing_enabled`, with no
+/// check that `self.rotation.enabled` was also true -- unlike `rotate()`, which returns
+/// immediately when `!self.rotation.enabled`. A caller that accumulated angular speed via
+/// smoothing while rotation was enabled, then disabled rotation, would still see `update()`
+/// keep applying the stale accumulated speed ( and keep decaying it ) on every subsequent
+/// call, instead of the camera simply stopping.
+/// ## Why Not Caught
+/// Every existing `update()` test ( e.g. `test_update_applies_smoothed_rotation_at_correct_time_scale`,
+/// above ) leaves `rotation.enabled` at its default `true` for the whole test, so none of them
+/// exercise `update()` after disabling rotation mid-sequence; the existing disabled-rotation
+/// coverage ( `test_rotation_disabled_prevents_rotation`, top of this file ) only calls
+/// `rotate()`, never `update()`.
+/// ## Fix Applied
+/// Guarded `update()`'s smoothing branch with
+/// `self.rotation.enabled && self.rotation.movement_smoothing_enabled`, mirroring `rotate()`'s
+/// own early-return guard on the same `enabled` flag.
+/// ## Prevention
+/// RED state (empirically confirmed): reverting the guard back to
+/// `if self.rotation.movement_smoothing_enabled` alone ( dropping the `self.rotation.enabled
+/// &&` ) and re-running this test genuinely fails the eye/up "unchanged" assertions below --
+/// verified via a temporary probe before this fix was finalized.
+/// ## Pitfall
+/// When smoothing state is shared between two entry points ( `rotate()` accumulates it,
+/// `update()` applies it ), an `enabled` guard added to one is not automatically in effect on
+/// the other -- grep every reader of the shared state for the same guard, not just the one
+/// under review when the guard was first added.
+#[ test ]
+fn test_update_rotation_disabled_prevents_smoothed_rotation()
+{
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls { eye: F32x3::new( 1.0, 0.0, 0.0 ), up: F32x3::new( 0.0, 1.0, 0.0 ), center: F32x3::new( 0.0, 0.0, 0.0 ), ..Default::default() };
+  controls.rotation.movement_smoothing_enabled = true;
+  controls.rotation.speed = 1.0;
+
+  // Accumulate angular speed while rotation is still enabled -- smoothing defers actually
+  // applying it to update().
+  controls.rotate( [ 1.0, 0.0 ] );
+
+  // Disable rotation *after* speed has already accumulated -- update() must now no-op
+  // entirely, not merely skip future accumulation.
+  controls.rotation.enabled = false;
+
+  let eye_before = controls.eye;
+  let up_before = controls.up;
+  let center_before = controls.center;
+
+  controls.update( 0.016 );
+
+  assert_abs_diff_eq!( eye_before, controls.eye );
+  assert_abs_diff_eq!( up_before, controls.up );
+  assert_abs_diff_eq!( center_before, controls.center );
+}

@@ -66,6 +66,32 @@ mod private
   /// # Errors
   /// Returns an error if the canvas cannot provide a WebGL2 context or if the retrieved
   /// context cannot be cast to `GL`.
+  //
+  // Fix(BUG-423): a canvas resized via `mingl::web::canvas`'s `ResizeObserver` ( the one
+  // `canvas::make()` sets up ) had its `canvas.width()`/`height()` kept in sync with its CSS
+  // box, but any WebGL2 context already bound to that canvas kept rendering into its
+  // *original* viewport -- `gl.viewport(..)` is never implied by a drawing-buffer resize, so
+  // the visible image stayed clipped/stretched into a stale rectangle after any CSS-driven
+  // resize ( window resize, flex reflow, devtools docking, ... ).
+  // Root cause: `mingl::web::canvas` is deliberately GL-unaware ( shared substrate reused by
+  // both `minwebgl::canvas` and `minwebgpu::canvas`, and used internally by
+  // `minwebgl::texture::d2::sprite_upload`'s own temporary 2D-context canvas ) -- it cannot
+  // call `gl.viewport(..)` itself without hard-coding a WebGL assumption into shared
+  // infrastructure that WebGPU consumers and 2D-context call sites also depend on. The fix
+  // therefore lives here instead, in the one place that already knows both the canvas *and*
+  // the GL context bound to it: a second, GL-aware `ResizeObserver` is attached once `gl`
+  // exists, reusing `canvas::canvas_resize`'s exact width/height computation ( now `pub` for
+  // this purpose ) so the buffer size and the viewport can never disagree, then applying it as
+  // the viewport.
+  // Pitfall: don't move this ( or any `gl.viewport(..)` call ) into `mingl` itself -- a blind
+  // `canvas.get_context("webgl2")` in shared canvas-setup code would either silently discard a
+  // caller's custom `ContextOptions` ( `getContext` returns the *first* context ever created
+  // for a given type, ignoring new options on later calls ), or permanently lock a
+  // WebGPU-destined canvas out of `getContext("webgpu")` ( a canvas can only ever bind one
+  // context type ), or break `sprite_upload`'s own `context::from_canvas_2d` call on its
+  // temporary canvas. See `task/bug/completed/423_*.md` for the full verification record,
+  // including why a fully pixel-verified live-browser reproduction of the resize path itself
+  // was not achievable from this workspace's existing, unmodified example crates.
   pub fn from_canvas_with( canvas: &HtmlCanvasElement, o : ContextOptions ) -> Result< GL, Error >
   {
     if o.remove_dpr_scaling
@@ -82,6 +108,35 @@ mod private
     let gl : GL = context
     .dyn_into()
     .map_err( |_| Error::ContextRetrievingError( "Failed to cast to GL" ) )?;
+
+    // Match the viewport to the drawing buffer right away -- `get_context_with_context_options`
+    // already sized the buffer to whatever `canvas.width()`/`height()` were at creation time,
+    // so an explicit initial `viewport` call keeps this function's own postcondition ( "viewport
+    // matches the buffer" ) true from the very first frame, not just after the first resize.
+    gl.viewport( 0, 0, canvas.width() as i32, canvas.height() as i32 );
+
+    let canvas_clone = canvas.clone();
+    let gl_clone = gl.clone();
+    let closure = wasm_bindgen::closure::Closure::wrap( Box::new( move ||
+    {
+      // Recompute ( not just re-read ) the drawing-buffer size here, redundantly with
+      // whatever other `ResizeObserver` may also be watching this canvas ( e.g. the one
+      // `canvas::make()` attaches ) -- `canvas_resize` is a pure, idempotent function of the
+      // canvas's current CSS box and device pixel ratio, so calling it again is always safe,
+      // and doing so makes this callback correct on its own without depending on cross-observer
+      // callback ordering, which the `ResizeObserver` spec does not strongly guarantee across
+      // independently-registered observer instances.
+      canvas::canvas_resize( &canvas_clone );
+      gl_clone.viewport( 0, 0, canvas_clone.width() as i32, canvas_clone.height() as i32 );
+    }) as Box< dyn Fn() > );
+    let observer = web_sys::ResizeObserver::new( closure.as_ref().unchecked_ref() )
+    .map_err( | e | Error::BindgenError( "Cant create ResizeObserver", format!( "{e:?}" ) ) )?;
+    observer.observe( canvas );
+
+    // Both the callback and the observer must live for the whole app; dropping the observer
+    // would let the browser stop delivering resize callbacks.
+    closure.forget();
+    core::mem::forget( observer );
 
     Ok( gl )
   }

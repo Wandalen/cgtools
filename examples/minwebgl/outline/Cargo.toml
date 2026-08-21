@@ -8,7 +8,6 @@ authors = [
 ]
 
 [dependencies]
-#browser_input = { git = "https://https://github.com/Wandalen/cgtools.git", rev = "72cfcb191ecd05c657726692634cbed829b6136c" }
 minwebgl = { workspace = true, features = [ "future" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 renderer = { workspace = true }

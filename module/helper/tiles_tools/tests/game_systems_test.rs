@@ -56,6 +56,51 @@ fn test_action_points() {
   assert_eq!(game.current_participant().unwrap().action_points, 1);
 }
 
+// test_kind: bug_reproducer(BUG-479)
+/// ## Root Cause
+/// `GameStateMachine` carried private `state_enter_handlers`/
+/// `state_exit_handlers: HashMap<GameState, StateHandler>` fields with no
+/// public registration method anywhere in the crate to populate them, and
+/// `transition_to`'s only use of either map was a `.get()` lookup whose
+/// `Some(_handler)` arm was immediately discarded behind a comment noting
+/// the call was never wired up ("Can't call handler directly due to
+/// borrowing issues"). The maps could never contain an entry and the lookup
+/// could never do anything -- pure dead weight shaped like a real feature.
+/// ## Why Not Caught
+/// Both fields were private with no constructor parameter and no setter, so
+/// no test anywhere in the crate could have populated them even if it tried
+/// -- there was no reachable path to exercise the dead branches at all.
+/// ## Fix Applied
+/// Removed `state_enter_handlers`/`state_exit_handlers` and the
+/// now-unused `StateHandler` type alias entirely (their initialization in
+/// `new`, and the two dead `.get()` lookups in `transition_to`), rather than
+/// building a registration API nothing in the crate asked for (YAGNI) --
+/// this test instead pins that the field removal left `transition_to`'s
+/// real behavior (current/previous state bookkeeping) unchanged.
+/// ## Prevention
+/// n/a -- covered by this test; `previous_state()` had no dedicated test
+/// before this fix (`test_game_state_machine` only ever reads
+/// `current_state()`).
+/// ## Pitfall
+/// A private field with no way for any caller to populate it, paired with a
+/// lookup whose success arm is a no-op, is dead code wearing the shape of an
+/// unfinished feature -- grep for a registration/setter path before
+/// deciding whether to implement or delete.
+#[test]
+fn test_game_state_machine_transition_to_tracks_previous_state()
+{
+  let mut machine = GameStateMachine::new(GameState::Initialize);
+  assert_eq!(machine.previous_state(), None);
+
+  machine.transition_to(GameState::MainMenu);
+  assert_eq!(machine.current_state(), GameState::MainMenu);
+  assert_eq!(machine.previous_state(), Some(GameState::Initialize));
+
+  machine.transition_to(GameState::Loading);
+  assert_eq!(machine.current_state(), GameState::Loading);
+  assert_eq!(machine.previous_state(), Some(GameState::MainMenu));
+}
+
 #[test]
 fn test_game_state_machine() {
   let mut machine = GameStateMachine::new(GameState::Initialize);
@@ -200,6 +245,53 @@ fn test_turn_order_rebuild_preserves_current_entity_across_removal()
   );
 }
 
+// test_kind: bug_reproducer(BUG-532)
+/// ## Root Cause
+/// `turn_order_rebuild`'s BUG-133 identity-preserving remap ran
+/// unconditionally on every `participant_add`/`participant_remove` call,
+/// including during initial roster setup before `turn_end()` has ever been
+/// called. The very first `participant_add` falls through to the numeric
+/// `current_turn_index.min(len - 1)` fallback (there is no prior "current"
+/// entity yet), landing on index 0 -- but every subsequent add then treated
+/// that arbitrary index-0 fallback as a real identity to preserve, locking
+/// play onto whichever participant was added first regardless of initiative,
+/// instead of the highest-initiative participant the sort order promises.
+/// ## Why Not Caught
+/// `test_turn_based_participants` and
+/// `test_turn_order_rebuild_preserves_current_entity_across_removal` both
+/// happen to add their highest-initiative participant *first* -- so the
+/// wrongly-locked-in entity and the correct one were always the same
+/// participant, and the defect never manifested. It only surfaces when a
+/// higher-initiative participant is added *after* a lower-initiative one,
+/// still during setup.
+/// ## Fix Applied
+/// Added a `game_started: bool` field, set `true` only inside `turn_end()`
+/// (once `turn_order` is confirmed non-empty). `turn_order_rebuild` now
+/// applies the BUG-133 identity-preserving remap only when `game_started`;
+/// otherwise it resets `current_turn_index` to `0`, always tracking whoever
+/// currently sorts first by initiative.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// A "preserve identity across a rebuild" fix is only correct once there is
+/// a genuine prior identity to preserve -- applying it unconditionally from
+/// the very first mutation silently promotes an arbitrary default/fallback
+/// value into a sticky, load-bearing piece of state.
+#[test]
+fn bug_reproducer_bug_532_turn_order_rebuild_locks_first_participant_during_setup()
+{
+  let mut game = TurnBasedGame::new();
+  game.participant_add(1, 10); // low initiative, added first
+  assert_eq!(game.current_turn(), Some(1));
+
+  game.participant_add(2, 90); // higher initiative, added second, still pre-game
+  assert_eq!(
+    game.current_turn(), Some(2),
+    "entity 2 has higher initiative and no turn_end() has occurred yet -- it \
+     must be current, not entity 1 merely because it was added first"
+  );
+}
+
 #[test]
 fn test_status_effects() {
   let mut game = TurnBasedGame::new();
@@ -253,4 +345,50 @@ fn test_resource_new_with_negative_maximum_does_not_panic_on_modify()
   resource.modify(1.0);
   assert!(resource.maximum >= 0.0, "maximum should be clamped to a non-negative value, got {}", resource.maximum);
   assert!(resource.current >= 0.0, "current should be clamped to a non-negative value, got {}", resource.current);
+}
+
+// test_kind: bug_reproducer(BUG-480)
+/// ## Root Cause
+/// `Resource::is_full` compared `(current - maximum).abs()` against the fixed
+/// absolute `f32::EPSILON` (~1.19e-7). `f32::EPSILON` is only the gap between
+/// 1.0 and the next representable f32 -- at a `maximum` far from 1.0, the
+/// spacing between representable f32 values near `maximum` (its true ULP) is
+/// itself much larger than `f32::EPSILON`, so a resource sitting at its real
+/// maximum after ordinary float arithmetic can differ from `self.maximum` by
+/// more than `f32::EPSILON` and wrongly report not-full.
+/// ## Why Not Caught
+/// `test_resource_management` only exercises `Resource::new(100.0)` and
+/// compares `current`/`maximum` values produced by exact whole-number
+/// arithmetic (which round-trips exactly in f32 at that small magnitude) --
+/// no existing test used a `maximum` large enough for the fixed-epsilon
+/// tolerance to fall below the magnitude's own float precision spacing.
+/// ## Fix Applied
+/// `is_full` now compares against `self.maximum.abs() * f32::EPSILON` -- a
+/// tolerance that scales with `maximum`'s own magnitude, matching the
+/// precision actually available to floats near that value.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// A fixed absolute floating-point tolerance (`f32::EPSILON`,
+/// `1e-6`, etc.) is only valid for comparisons near the magnitude it was
+/// implicitly chosen for -- comparisons against values of materially
+/// different magnitude need a tolerance scaled to that magnitude.
+#[ expect( clippy::float_cmp, reason = "direct field write to pin an exact float value for the reproducer, not a computed comparison" ) ]
+#[test]
+fn test_resource_is_full_uses_magnitude_scaled_tolerance()
+{
+  let maximum = 1_000_000.0_f32;
+  let mut resource = Resource::new(maximum);
+
+  // Simulate a `current` that float arithmetic left within one ULP of
+  // `maximum` at this magnitude (~0.0625) -- well beyond the old fixed
+  // `f32::EPSILON` (~1.19e-7) tolerance, but a resource genuinely at its max.
+  resource.current = maximum - 0.06;
+  assert_ne!(resource.current, maximum, "fixture must not round-trip to an exact match, or it would pass under either tolerance");
+
+  assert!(
+    resource.is_full(),
+    "a resource within one float ULP of its maximum ({} vs {}) should report is_full() == true",
+    resource.current, resource.maximum,
+  );
 }

@@ -14,13 +14,20 @@ use wasm_bindgen::{ JsCast, JsValue, prelude::Closure };
 use std::{ cell::RefCell, rc::Rc };
 use web_sys::HtmlElement;
 
+// Fix(UX/DX-14): dropped the `_label : &str` parameter -- it was never read by this
+// function's body (the "Size" slider label is hardcoded, and the card's own visible
+// name is generated independently by `filter_buttons.rs`'s own id/name table), so every
+// call site was hand-duplicating a string that already exists canonically there.
+// Root cause: leftover parameter from an earlier version of this helper, never wired up
+// or removed after the card-label responsibility moved to `filter_buttons.rs`.
+// Pitfall: an `_`-prefixed parameter silences the unused-variable lint but does not mean
+// the value is actually used elsewhere -- verify against the function body, not the lint.
 /// Helper for blur filters (they have generic type parameters)
 pub fn blur_filter_setup< T : 'static + Clone >
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   current_filter : &Rc< RefCell< String > >,
   card_id : &str,
-  _label : &str,
   blur_type : T,
   max : f64
 )
@@ -66,13 +73,14 @@ blur::Blur< T > : Filter
   onclick.forget();
 }
 
+// Fix(UX/DX-14): dropped the dead `_label : &str` parameter -- see `blur_filter_setup`'s
+// comment for the shared root cause/pitfall across all 3 helpers in this file.
 /// Helper for resize filters (they have generic type parameters)
 pub fn resize_filter_setup< T : 'static + Clone >
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   current_filter : &Rc< RefCell< String > >,
   card_id : &str,
-  _label : &str,
   resize_type : T
 )
 where
@@ -128,13 +136,14 @@ pub struct SliderRange
 /// Helper for brightness/contrast filters (they have generic type parameters)
 // `range` must be owned, not borrowed: it is moved into the `'static` `Closure::new` below,
 // so a `&SliderRange` parameter would fail to outlive the closure (E0521).
+// Fix(UX/DX-14): dropped the dead `_label : &str` parameter -- see `blur_filter_setup`'s
+// comment for the shared root cause/pitfall across all 3 helpers in this file.
 #[ allow( clippy::needless_pass_by_value, reason = "range must be owned to be moved into the 'static onclick closure" ) ]
 pub fn brightness_contrast_filter_setup< T : 'static + Clone >
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   current_filter : &Rc< RefCell< String > >,
   card_id : &str,
-  _label : &str,
   bc_type : T,
   range : SliderRange
 )

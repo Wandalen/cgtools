@@ -41,14 +41,31 @@ mod private
   /// `drawbuffers( &gl, &[ 0, 1, 3 ] );`
   ///
   /// # Panics
-  /// Panics if an attachment index is `>= MAX_COLOR_ATTACHMENTS` ( 16 ), or overflows a valid
-  /// color attachment constant.
+  /// Panics, with `color_attachment_index_validate`'s own descriptive message, if an
+  /// attachment index is `>= MAX_COLOR_ATTACHMENTS` ( 16 ), or overflows a valid color
+  /// attachment constant.
+  //
+  // Fix(UX-007): propagated `color_attachment_index_validate`'s `Result` through a bare
+  // `.expect( "Invalid color attachment" )` instead of surfacing its own richer message
+  // ( which names the offending index and the bound it exceeded ).
+  // Root cause: `color_attachment_index_validate` was extracted ( Fix(BUG-159) ) specifically
+  // to return a descriptive `Result`, but `drawbuffers` itself kept its pre-existing `()`
+  // signature and just re-panicked with a generic literal instead of adopting the new message.
+  // This function's own public signature stays `()` ( not `Result` ) rather than propagating
+  // further: `drawbuffers` is called directly ( no `?` / no `.unwrap()` handling ) from ~20
+  // call sites across `module/helper/renderer`, `module/helper/canvas_renderer`, and multiple
+  // `examples/` crates, all outside this fix's edit scope. This workspace builds with
+  // `RUSTFLAGS="-D warnings"`, so switching to a `#[must_use] Result` here would turn every one
+  // of those call sites' now-unused return value into a hard compile error with no way to fix
+  // it in this change. Surfacing the validator's own message via the panic ( instead of a
+  // generic literal ) is the safe, scope-respecting improvement available without touching
+  // those call sites.
   pub fn drawbuffers( gl : &GL, attachments : &[ u32 ] )
   {
     let mut buffers = [ gl::NONE; MAX_COLOR_ATTACHMENTS ];
     for attachment in attachments
     {
-      let index = color_attachment_index_validate( *attachment as usize ).expect( "Invalid color attachment" );
+      let index = color_attachment_index_validate( *attachment as usize ).unwrap_or_else( | e | panic!( "{e}" ) );
       let attachment = attachment
       .checked_add( gl::COLOR_ATTACHMENT0 )
       .unwrap_or_else( || panic!( "Invalid color attachment {}", *attachment ) );

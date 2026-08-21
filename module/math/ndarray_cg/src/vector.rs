@@ -77,8 +77,10 @@ crate::mod_interface!
   /// Overloading of operators, like index, sub, div, etc.
   layer operator;
 
-  // /// Conversions from `Array` type to `Vector`
-  // layer array;
+  // UX/DX: removed the dead, commented-out `layer array;` (and its backing `array.rs`) --
+  // never compiled into the module tree; its `From<[E;N]>`/`to_array()` functionality is
+  // fully duplicated by the live `general.rs` layer. See task/bug/readme.md history for
+  // this cleanup wave's other findings.
   /// Functionality related to 1D vectors
   layer vec1;
   /// Functionality related to 2D vectors

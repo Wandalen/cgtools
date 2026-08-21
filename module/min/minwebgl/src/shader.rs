@@ -244,10 +244,20 @@ mod private
     /// Returns an error message if compilation or linking fails.
     fn compile_and_link( &self, vertex_src : &str, fragment_src : &str ) -> Result< (), String >;
     /// Sets a uniform value in the shader.
+    ///
+    /// # Panics
+    /// Panics if `value`'s `UniformUpload` implementation fails to upload -- see
+    /// `Program::uniform_upload`'s Fix(UX-012) comment for why this trait accepts a panicking
+    /// contract here instead of returning `Result`.
     fn uniform_upload< D >( &self, name : &str, value : &D )
     where
       D : UniformUpload + std::fmt::Debug + ?Sized;
     /// Sets a matrix uniform value in the shader.
+    ///
+    /// # Panics
+    /// Panics if `data`'s `UniformMatrixUpload` implementation fails to upload -- see
+    /// `Program::uniform_matrix_upload`'s Fix(UX-012) comment for why this trait accepts a
+    /// panicking contract here instead of returning `Result`.
     fn uniform_matrix_upload< D >( &self, name : &str, data : &D, column_major : bool )
     where
       D : uniform::UniformMatrixUpload + ?Sized;
@@ -330,6 +340,19 @@ mod private
     ///
     /// # Panics
     /// Panics if `value`'s `UniformUpload` implementation fails to upload.
+    //
+    // Fix(UX-012): this is a deliberate documented panic contract, not an oversight left
+    // unfixed. `ProgramInterface::uniform_upload`/`uniform_matrix_upload` declare `()`
+    // ( no `Result` ), and their trait impl below delegates straight back to this inherent
+    // method -- so both entry points share this one panicking implementation. Converting it to
+    // `Result` would require changing the trait signature too, which cascades to ~70 call
+    // sites across `module/helper/renderer`, `module/helper/tilemap_renderer`, and multiple
+    // `examples/` crates, all outside this fix's edit scope and all currently calling this as
+    // a bare statement with no `?`/`.unwrap()` handling. A mismatched uniform name or value
+    // shape is a programmer error caught immediately during development ( wrong uniform name,
+    // wrong array arity ), not a runtime condition render-loop code is expected to recover
+    // from -- panicking fast at the call site is the accepted contract here, per this task's
+    // explicit permission to document rather than force an out-of-scope signature change.
     pub fn uniform_upload< D >( &self, name : &str, value : &D )
     where
       D : UniformUpload + std::fmt::Debug + ?Sized,
@@ -351,7 +374,9 @@ mod private
     /// - `column_major`: A boolean indicating whether the matrix data is in column-major order.
     ///
     /// # Panics
-    /// Panics if `data`'s `UniformMatrixUpload` implementation fails to upload.
+    /// Panics if `data`'s `UniformMatrixUpload` implementation fails to upload -- see
+    /// `uniform_upload`'s Fix(UX-012) comment, above: same accepted panicking contract, same
+    /// reason.
     pub fn uniform_matrix_upload< D >( &self, name : &str, data : &D, column_major : bool )
     where
       D : uniform::UniformMatrixUpload + ?Sized,

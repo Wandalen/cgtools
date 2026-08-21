@@ -103,17 +103,26 @@ mod private
   }
 
   /// Detaches a renderbuffer from a specific color attachment point of the currently bound framebuffer.
+  //
+  // Fix(UX-013): called `gl.framebuffer_texture_2d` with a `RENDERBUFFER` target and a `None`
+  // texture, which happens to detach correctly only because the spec ignores `textarget` once
+  // `texture` is null -- the dedicated `framebufferRenderbuffer` binding is the actual WebGL2 API
+  // for renderbuffer attachments and is what this function's own name/doc already promise.
+  // Root cause: copy-pasted from `framebuffer_texture_2d_attachment` above without swapping to
+  // the renderbuffer-specific call.
+  // Pitfall: a wrong-but-spec-tolerated GL call can silently "work" for years -- match the
+  // dedicated binding for the resource kind the function name states, not whichever call
+  // happens to produce the same runtime effect.
   pub fn framebuffer_renderbuffer_attachment( gl : &GL, attachment : u32 )
   {
-    gl.framebuffer_texture_2d
+    gl.framebuffer_renderbuffer
     (
-      GL::FRAMEBUFFER, 
-      GL::COLOR_ATTACHMENT0 + attachment, 
-      GL::RENDERBUFFER, 
-      None, 
-      0
+      GL::FRAMEBUFFER,
+      GL::COLOR_ATTACHMENT0 + attachment,
+      GL::RENDERBUFFER,
+      None
     );
-  } 
+  }
 
   /// Detach the renderbuffer from framebuffer attachment 0.
   pub fn framebuffer_renderbuffer( gl : &GL )

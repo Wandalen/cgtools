@@ -31,3 +31,6 @@ workspace = true
 features = [
   'WebGlRenderbuffer',
 ]
+
+[dev-dependencies]
+wasm-bindgen-test = { workspace = true }

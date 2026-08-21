@@ -6,7 +6,7 @@ authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
 license = "MIT"
 repository = "https://github.com/Wandalen/cgtools"
 readme = "readme.md"
-description = "Multidimensional math."
+description = "Multidimensional mathematics for computer graphics."
 keywords = ["math", "cg"]
 
 [lints]

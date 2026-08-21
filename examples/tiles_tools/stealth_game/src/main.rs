@@ -481,24 +481,46 @@ impl StealthGame {
   }
 
   /// Moves a guard toward a target position.
+  // Fix(BUG-484): guard's computed `new_pos` was printed but never written back to
+  // the entity's `Position` component, so guards appeared to move in the console log
+  // while staying frozen at their spawn coordinate for every other system (rendering,
+  // detection, pathfinding).
+  // Root cause: this function borrowed `Position`/`Movable` read-only, computed a new
+  // coordinate, and returned without ever calling `world.get_mut::<Position<_>>` to
+  // persist it into the ECS world (the authoritative store every other query reads).
+  // Pitfall: printing a "moved from X to Y" message is not evidence the move was
+  // applied — always trace whether the computed value round-trips into the component
+  // store that other systems actually query.
   fn guard_move_toward(&mut self, guard: hecs::Entity, target: SquareCoord<EightConnected>) {
-  if let Ok(pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(guard) {
-    if let Ok(movable) = self.world.get::<Movable>(guard) {
-      // Use pathfinding to move toward target
-      let path_result = astar(
-        &pos.coord,
-        &target,
-        |coord| self.level_map.is_passable(*coord),
-        |_| 1,
-      );
+  let (current_pos, move_range) = {
+    if let Ok(pos) = self.world.get::<Position<SquareCoord<EightConnected>>>(guard) {
+      if let Ok(movable) = self.world.get::<Movable>(guard) {
+        (pos.coord, movable.range)
+      } else {
+        return;
+      }
+    } else {
+      return;
+    }
+  };
 
-      if let Some((path, _cost)) = path_result {
-        let move_distance = movable.range.min(u32::try_from(path.len() - 1).unwrap_or(u32::MAX));
-        if move_distance > 0 {
-          let new_pos = path[move_distance as usize];
-          println!("🚶 Guard moving from ({}, {}) to ({}, {})",
-                   pos.coord.x, pos.coord.y, new_pos.x, new_pos.y);
-        }
+  // Use pathfinding to move toward target
+  let path_result = astar(
+    &current_pos,
+    &target,
+    |coord| self.level_map.is_passable(*coord),
+    |_| 1,
+  );
+
+  if let Some((path, _cost)) = path_result {
+    let move_distance = move_range.min(u32::try_from(path.len() - 1).unwrap_or(u32::MAX));
+    if move_distance > 0 {
+      let new_pos = path[move_distance as usize];
+      println!("🚶 Guard moving from ({}, {}) to ({}, {})",
+               current_pos.x, current_pos.y, new_pos.x, new_pos.y);
+
+      if let Ok(mut guard_pos) = self.world.get_mut::<Position<SquareCoord<EightConnected>>>(guard) {
+        guard_pos.set(new_pos);
       }
     }
   }
@@ -608,6 +630,13 @@ impl StealthGame {
       if self.is_position_safe_for_player(next_pos) {
         println!("🚶 Player moving from ({}, {}) to ({}, {})",
                  current_pos.x, current_pos.y, next_pos.x, next_pos.y);
+
+        // Fix(BUG-484): see `guard_move_toward` above -- same root cause, same fix:
+        // persist the computed coordinate into the `Position` component instead of
+        // only printing it, so the player actually advances toward the objective.
+        if let Ok(mut player_pos) = self.world.get_mut::<Position<SquareCoord<EightConnected>>>(self.player_entity) {
+          player_pos.set(next_pos);
+        }
 
         // Update stealth state
         if let Ok(mut stealth) = self.world.get_mut::<Stealth>(self.player_entity) {
@@ -797,4 +826,80 @@ fn main()
   println!("• Stealth mechanics with detection algorithms");
   println!("• Guard AI with patrol routes and alertness");
   println!("• Environmental factors (cover, lighting, noise)");
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  /// ## Root Cause
+  /// `guard_move_toward` and `player_movement_simulate` each computed a new
+  /// coordinate (`new_pos`/`next_pos`) via `astar` and printed a "moving from X
+  /// to Y" message, but neither ever called `world.get_mut::<Position<_>>` to
+  /// write that coordinate back into the entity's `Position` component -- the
+  /// only state every other system (rendering, detection, the victory check)
+  /// actually reads.
+  ///
+  /// ## Why Not Caught
+  /// The demo's own console output prints a "moving" message unconditionally
+  /// whenever a move is computed, so a manual run *looks* correct at a glance;
+  /// nothing in the existing code base asserted on the resulting `Position`
+  /// component, and `stealth_game` had no `tests/` directory at all before this
+  /// fix (its private helpers are only reachable from an inline `mod tests`).
+  ///
+  /// ## Fix Applied
+  /// Both functions now call `world.get_mut::<Position<_>>(entity)` and
+  /// `.set(new_pos)` immediately after computing the move, persisting it into
+  /// the ECS world the same way every other mutated component (`Vision`,
+  /// `PatrolRoute`, `Stealth`) in this file already does.
+  ///
+  /// ## Prevention
+  /// These tests assert the entity's queried `Position` component actually
+  /// changes after the move function runs -- the general invariant the fix
+  /// restores, not a pinned per-coordinate expectation.
+  ///
+  /// ## Pitfall
+  /// A `println!` describing a state change is not evidence the change was
+  /// applied -- always trace whether a computed value round-trips into the
+  /// authoritative store (here, the ECS `Position` component) that other
+  /// systems actually query, rather than trusting console output.
+  #[test]
+  fn bug_reproducer_bug_484_guard_move_toward_persists_position() {
+    let mut game = StealthGame::new();
+    let guard = game.guard_entities[0];
+
+    let before = game.world.get::<Position<SquareCoord<EightConnected>>>(guard).unwrap().coord;
+
+    // Guard 1 spawns at (8, 3); drive it toward its own second patrol waypoint
+    // (12, 3) -- a clear, unobstructed straight line at y=3 -- to force real movement.
+    let target = SquareCoord::<EightConnected>::new(12, 3);
+    game.guard_move_toward(guard, target);
+
+    let after = game.world.get::<Position<SquareCoord<EightConnected>>>(guard).unwrap().coord;
+
+    assert_ne!(before, after, "guard's Position component must change after guard_move_toward");
+  }
+
+  #[test]
+  fn bug_reproducer_bug_484_player_movement_simulate_persists_position() {
+    let mut game = StealthGame::new();
+
+    // Relocate the player to a corner neither guard's vision can reach: guard 1
+    // is at (8, 3) with range 6, guard 2 at (16, 11) with range 8, and distance
+    // here is Chebyshev (square.rs's `EightConnected::distance`), so (2, 12) is
+    // 9 and 14 tiles away respectively -- out of range regardless of line of
+    // sight. This guarantees the very next `player_movement_simulate` call takes
+    // the "safe to move" branch instead of "wait and hide", so the test isolates
+    // the persistence bug instead of depending on shadowcasting FOV geometry.
+    let safe_start = SquareCoord::<EightConnected>::new(2, 12);
+    if let Ok(mut player_pos) = game.world.get_mut::<Position<SquareCoord<EightConnected>>>(game.player_entity) {
+      player_pos.set(safe_start);
+    }
+
+    game.player_movement_simulate();
+
+    let after = game.world.get::<Position<SquareCoord<EightConnected>>>(game.player_entity).unwrap().coord;
+
+    assert_ne!(safe_start, after, "player's Position component must change after player_movement_simulate finds a safe step");
+  }
 }

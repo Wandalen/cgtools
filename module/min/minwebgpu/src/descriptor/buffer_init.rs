@@ -23,6 +23,7 @@ mod private
   {
     /// Creates a new `BufferInitDescriptor` with a given data reference and usage.
     #[ inline ]
+    #[ must_use ]
     pub fn new( data : &'a T, usage : u32 ) -> Self
     {
       let label = None;

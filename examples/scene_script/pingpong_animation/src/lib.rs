@@ -5,7 +5,7 @@
 //! `RenderCommand`s, not placeholder math of its own.
 
 use ndarray_cg::F32x2;
-use scene_script::engine_build;
+use scene_script::{ engine_build, script_as_glue_load };
 use std::{ cell::RefCell, rc::Rc };
 
 /// Compiles `Frame`s into `tilemap_renderer::commands::RenderCommand`s.
@@ -56,7 +56,9 @@ pub fn simulate() -> Result< Vec< Frame >, Box< rhai::EvalAltResult > >
   );
 
   let script = include_str!( "pingpong_animation.rhai" );
-  let _ : rhai::Dynamic = engine.eval( script )?;
+  let ast = script_as_glue_load( &engine, script )
+  .map_err( | err | rhai::EvalAltResult::ErrorSystem( "pingpong_animation.rhai".into(), Box::new( err ) ) )?;
+  let _ : rhai::Dynamic = engine.eval_ast( &ast )?;
 
   // `engine` still holds a clone of `frames_sink` inside the registered
   // closure at this point, so `Rc::try_unwrap` would see 2 strong refs and

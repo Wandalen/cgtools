@@ -361,7 +361,14 @@ async fn app_run() -> Result< (), gl::WebglError >
   let aspect = width as f32 / height as f32;
 
   let gl = gl::context::retrieve_or_make().expect( "Failed to retrieve WebGl context" );
-  let ext = gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
+  // UX/DX: replaced bare `.unwrap().unwrap()` with two named `.expect()`
+  // calls (matching `area_light/src/main.rs`'s pattern) so a failure here
+  // reports which of the two independent layers failed - the JS-exception
+  // outer `Result` or the unsupported-extension inner `Option` - instead of
+  // an unhelpful generic panic message.
+  let ext = gl.get_extension( "EXT_color_buffer_float" )
+  .expect( "Failed to query EXT_color_buffer_float extension" )
+  .expect( "EXT_color_buffer_float extension is not supported" );
   gl::info!( "{}", ext.to_string() );
   // Get the canvas element and set its size
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();

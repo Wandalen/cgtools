@@ -83,15 +83,27 @@ macro_rules! setup_filter_with_sliders {
 }
 
 /// Sets up blur filters (generic type parameters require manual setup)
+// Fix(BUG-464): lowered the Gaussian slider's max from 50.0 to 15.0.
+// Root cause: the "Size" slider value is uploaded directly as `u_sigma`, and
+// `Blur<Gaussian>`'s shader (`filters/blur.rs`) derives a *dynamic*, non-unrollable
+// loop width of `u_sigma * 6 + 1` from it -- so a max of 50.0 produced a worst-case
+// `kernel_size` of 301 (two passes, every pixel), far larger than Box/Stack's own
+// worst case at their max of 80.0 (80 and 161 samples respectively), despite
+// Gaussian's slider number looking smaller. At 15.0, worst-case `kernel_size` is
+// `15*6+1 = 91`, in line with Stack's own worst case.
+// Pitfall: a slider's raw max is not a proxy for the actual shader cost when the
+// uniform it feeds is scaled by a shader-side formula (`*6` here) before being used
+// as a loop bound -- compare the *derived* loop width across filters, not the
+// slider max itself.
 fn blur_filters_setup
 (
   filter_renderer : &Rc< RefCell< Renderer > >,
   current_filter : &Rc< RefCell< String > >
 )
 {
-  filter_setup_helpers::blur_filter_setup( filter_renderer, current_filter, "box-blur", "Box Blur", blur::Box, 80.0 );
-  filter_setup_helpers::blur_filter_setup( filter_renderer, current_filter, "gaussian-blur", "Gaussian Blur", blur::Gaussian, 50.0 );
-  filter_setup_helpers::blur_filter_setup( filter_renderer, current_filter, "stack-blur", "Stack Blur", blur::Stack, 80.0 );
+  filter_setup_helpers::blur_filter_setup( filter_renderer, current_filter, "box-blur", blur::Box, 80.0 );
+  filter_setup_helpers::blur_filter_setup( filter_renderer, current_filter, "gaussian-blur", blur::Gaussian, 15.0 );
+  filter_setup_helpers::blur_filter_setup( filter_renderer, current_filter, "stack-blur", blur::Stack, 80.0 );
 }
 
 /// Sets up resize filters (generic type parameters require manual setup)
@@ -101,8 +113,8 @@ fn resize_filters_setup
   current_filter : &Rc< RefCell< String > >
 )
 {
-  filter_setup_helpers::resize_filter_setup( filter_renderer, current_filter, "resize-nn", "Resize (NN)", resize::Nearest );
-  filter_setup_helpers::resize_filter_setup( filter_renderer, current_filter, "resize-bilinear", "Resize (Bilinear)", resize::Bilinear );
+  filter_setup_helpers::resize_filter_setup( filter_renderer, current_filter, "resize-nn", resize::Nearest );
+  filter_setup_helpers::resize_filter_setup( filter_renderer, current_filter, "resize-bilinear", resize::Bilinear );
 }
 
 /// Sets up brightness/contrast filters (generic type parameters require manual setup)
@@ -112,8 +124,8 @@ fn brightness_contrast_filters_setup
   current_filter : &Rc< RefCell< String > >
 )
 {
-  filter_setup_helpers::brightness_contrast_filter_setup( filter_renderer, current_filter, "bcgimp", "BC (GIMP)", brightness_contrast::Gimp, filter_setup_helpers::SliderRange { min : -100.0, max : 100.0, step : 1.0 } );
-  filter_setup_helpers::brightness_contrast_filter_setup( filter_renderer, current_filter, "bcph", "BC (PS)", brightness_contrast::Photoshop, filter_setup_helpers::SliderRange { min : -1.0, max : 1.0, step : 0.01 } );
+  filter_setup_helpers::brightness_contrast_filter_setup( filter_renderer, current_filter, "bcgimp", brightness_contrast::Gimp, filter_setup_helpers::SliderRange { min : -100.0, max : 100.0, step : 1.0 } );
+  filter_setup_helpers::brightness_contrast_filter_setup( filter_renderer, current_filter, "bcph", brightness_contrast::Photoshop, filter_setup_helpers::SliderRange { min : -1.0, max : 1.0, step : 0.01 } );
 }
 
 /// Sets up dropdown-controlled filters

@@ -149,6 +149,10 @@ mod private
     /// Defines if [`TransformsData`] is recently cloned,
     /// but not all fields have been cloned too
     need_clone_inner : bool,
+    /// GL context `global_texture`/`inverse_texture` were allocated from -- retained so
+    /// `impl Drop` can free them. `None` until the first `upload()` call actually allocates
+    /// a texture ( `new()` receives no `gl` parameter, so it can't be populated any earlier ).
+    gl : Option< GL >,
   }
 
   impl TransformsData
@@ -181,6 +185,7 @@ mod private
         inverse_texture : None,
         need_update_inverse : true,
         need_clone_inner : false,
+        gl : None,
       }
     }
 
@@ -192,6 +197,8 @@ mod private
       locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
+      self.gl = Some( gl.clone() );
+
       if self.need_clone_inner
       {
         self.need_clone_inner =
@@ -271,7 +278,35 @@ mod private
         global_texture : self.global_texture.clone(),
         inverse_texture : self.inverse_texture.clone(),
         need_update_inverse : true,
-        need_clone_inner : true
+        need_clone_inner : true,
+        gl : self.gl.clone(),
+      }
+    }
+  }
+
+  // Fix(BUG-437): `TransformsData` allocated `global_texture`/`inverse_texture` via
+  // `gl.create_texture()` inside `upload()` but never freed them anywhere -- dropping a
+  // `TransformsData` ( e.g. when its owning `Skeleton`/`Mesh`/`Node` is discarded ) silently
+  // leaked both GPU textures every time.
+  // Root cause: the struct had no `impl Drop` and no manual `gl_resources_free`-style method;
+  // nothing in the type ever called `gl.delete_texture` on either field.
+  // Pitfall: `Clone` copies `global_texture`/`inverse_texture` by handle ( the same underlying
+  // GPU texture, not a deep copy ), relying on `need_clone_inner = true` to force `upload()`
+  // to allocate the clone its *own* fresh textures before ever binding/uploading through them
+  // ( see the `if self.need_clone_inner { .. }` block in `upload()`, which always runs before
+  // any GL call that would actually use the field ). Freeing unconditionally in `Drop` is safe
+  // only because of that ordering guarantee -- if a future edit ever read `global_texture`/
+  // `inverse_texture` for a GL call *before* the `need_clone_inner` reallocation in `upload()`,
+  // dropping the original ahead of the clone's first `upload()` would leave the clone pointing
+  // at an already-deleted texture.
+  impl Drop for TransformsData
+  {
+    fn drop( &mut self )
+    {
+      if let Some( ref gl ) = self.gl
+      {
+        gl.delete_texture( self.global_texture.as_ref() );
+        gl.delete_texture( self.inverse_texture.as_ref() );
       }
     }
   }
@@ -306,7 +341,11 @@ mod private
     need_update_displacement : bool,
     /// Defines if [`DisplacementsData`] is recently cloned,
     /// but not all fields have been cloned too
-    need_clone_inner : bool
+    need_clone_inner : bool,
+    /// GL context `displacements_texture` was allocated from -- retained so `impl Drop` can
+    /// free it. `None` until the first `upload()` call actually allocates a texture ( `new()`
+    /// receives no `gl` parameter, so it can't be populated any earlier ).
+    gl : Option< GL >,
   }
 
   impl Default for DisplacementsData
@@ -336,7 +375,8 @@ mod private
         disp_offsets : I32x3::splat( -1 ),
         vertices_count : 0,
         need_update_displacement : false,
-        need_clone_inner : false
+        need_clone_inner : false,
+        gl : None,
       }
     }
 
@@ -427,6 +467,8 @@ mod private
       locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
+      self.gl = Some( gl.clone() );
+
       if self.need_clone_inner
       {
         self.need_clone_inner =
@@ -655,7 +697,32 @@ mod private
         disp_offsets : self.disp_offsets,
         vertices_count : self.vertices_count,
         need_update_displacement : true,
-        need_clone_inner : true
+        need_clone_inner : true,
+        gl : self.gl.clone(),
+      }
+    }
+  }
+
+  // Fix(BUG-437): `DisplacementsData` allocated `displacements_texture` via
+  // `gl.create_texture()` inside `upload()` but never freed it anywhere -- dropping a
+  // `DisplacementsData` ( e.g. when its owning `Skeleton`/`Mesh`/`Node` is discarded ) silently
+  // leaked the GPU texture every time.
+  // Root cause: the struct had no `impl Drop` and no manual `gl_resources_free`-style method;
+  // nothing in the type ever called `gl.delete_texture` on the field.
+  // Pitfall: `Clone` copies `displacements_texture` by handle ( the same underlying GPU
+  // texture, not a deep copy ), relying on `need_clone_inner = true` to force `upload()` to
+  // allocate the clone its *own* fresh texture before ever binding/uploading through it ( see
+  // the `if self.need_clone_inner { .. }` block in `upload()`, which always runs before
+  // `displacements_update()` would otherwise reuse an existing `Some` handle ). Freeing
+  // unconditionally in `Drop` is safe only because of that ordering guarantee -- see the
+  // identical caveat on `TransformsData`'s `impl Drop` above.
+  impl Drop for DisplacementsData
+  {
+    fn drop( &mut self )
+    {
+      if let Some( ref gl ) = self.gl
+      {
+        gl.delete_texture( self.displacements_texture.as_ref() );
       }
     }
   }
@@ -754,6 +821,139 @@ mod private
     pub fn has_morph_targets( &self ) -> bool
     {
       self.displacements.is_some()
+    }
+  }
+
+  // Test placement: both tests construct `TransformsData`/`DisplacementsData` directly via a
+  // struct literal ( bypassing the real `new()`/`upload()` call chain, which needs real `Node`
+  // instances and real shader uniform locations neither test cares about ) and read the private
+  // `global_texture`/`inverse_texture`/`displacements_texture` fields before drop -- both only
+  // possible from a test nested inside `mod private`. See `rulebook.md § Test placement`.
+  #[ cfg( all( test, target_arch = "wasm32" ) ) ]
+  mod tests
+  {
+    use super::*;
+
+    fn gl_init() -> GL
+    {
+      gl::browser::setup( gl::browser::Config::default() );
+      let options = gl::context::ContextOptions::default();
+      let canvas = gl::canvas::make().unwrap();
+      gl::context::from_canvas_with( &canvas, options ).unwrap()
+    }
+
+    /// ## Root Cause
+    /// `TransformsData` allocated `global_texture`/`inverse_texture` via `gl.create_texture()`
+    /// inside `upload()` but never freed them anywhere -- dropping a `TransformsData` ( e.g.
+    /// when its owning `Skeleton`/`Mesh`/`Node` is discarded ) silently leaked both textures.
+    ///
+    /// ## Why Not Caught
+    /// `skeleton_tests.rs` and `gltf_skeleton_displacements_test.rs` exercise upload/animation
+    /// logic but never construct-then-drop a `TransformsData` to check for leaked GL objects.
+    ///
+    /// ## Fix Applied
+    /// Added a `gl : Option< GL >` field ( populated on first `upload()` call ) and
+    /// `impl Drop for TransformsData`, deleting `global_texture`/`inverse_texture` when `gl` is
+    /// populated.
+    ///
+    /// ## Prevention
+    /// Constructs a `TransformsData` directly via struct literal with `global_texture`/
+    /// `inverse_texture` pre-populated and `gl` set ( bypassing `upload()`'s real allocation
+    /// path, which is exercised separately by `skeleton_tests.rs` ), then asserts both handles
+    /// are freed after drop -- the same deterministic existence-check pattern used by this
+    /// crate's other GPU-teardown reproducer tests.
+    ///
+    /// ## Pitfall
+    /// A struct whose GPU-resource-owning fields are only populated lazily ( on first `upload`,
+    /// not in `new` ) is easy to reason about as "doesn't own anything yet" and skip when
+    /// auditing for missing `Drop` impls -- the fields are still owned once populated, on
+    /// whichever call path first fills them in.
+    // test_kind: bug_reproducer(BUG-437)
+    #[ wasm_bindgen_test::wasm_bindgen_test ]
+    fn transforms_data_drop_frees_global_and_inverse_textures()
+    {
+      let gl = gl_init();
+      let global_texture = gl.create_texture();
+      let inverse_texture = gl.create_texture();
+      // Test pitfall (not a production bug): `create_texture()` alone allocates a name, but
+      // `isTexture` only recognizes it once bound at least once via `bindTexture` -- every real
+      // `upload()` call binds before use, so this one-time bind reproduces that precondition.
+      gl.bind_texture( gl::TEXTURE_2D, global_texture.as_ref() );
+      gl.bind_texture( gl::TEXTURE_2D, inverse_texture.as_ref() );
+      gl.bind_texture( gl::TEXTURE_2D, None );
+      assert!( gl.is_texture( global_texture.as_ref() ) );
+      assert!( gl.is_texture( inverse_texture.as_ref() ) );
+
+      let transforms_data = TransformsData
+      {
+        joints : vec![],
+        inverse_bind_matrices : vec![],
+        global_texture : global_texture.clone(),
+        inverse_texture : inverse_texture.clone(),
+        need_update_inverse : false,
+        need_clone_inner : false,
+        gl : Some( gl.clone() ),
+      };
+
+      drop( transforms_data );
+
+      assert!( !gl.is_texture( global_texture.as_ref() ), "TransformsData::drop must delete global_texture" );
+      assert!( !gl.is_texture( inverse_texture.as_ref() ), "TransformsData::drop must delete inverse_texture" );
+    }
+
+    /// ## Root Cause
+    /// `DisplacementsData` allocated `displacements_texture` via `gl.create_texture()` inside
+    /// `upload()` but never freed it anywhere -- dropping a `DisplacementsData` silently leaked
+    /// the GPU texture every time.
+    ///
+    /// ## Why Not Caught
+    /// Same gap as `TransformsData` above -- no test previously constructed-then-dropped a
+    /// `DisplacementsData` to check for a leaked GL object.
+    ///
+    /// ## Fix Applied
+    /// Added a `gl : Option< GL >` field ( populated on first `upload()` call ) and
+    /// `impl Drop for DisplacementsData`, deleting `displacements_texture` when `gl` is
+    /// populated.
+    ///
+    /// ## Prevention
+    /// Constructs a `DisplacementsData` directly via struct literal with `displacements_texture`
+    /// pre-populated and `gl` set, then asserts the handle is freed after drop.
+    ///
+    /// ## Pitfall
+    /// Same as `TransformsData` above -- lazily-populated GPU fields are still owned once
+    /// populated, regardless of which call path first fills them in.
+    // test_kind: bug_reproducer(BUG-437)
+    #[ wasm_bindgen_test::wasm_bindgen_test ]
+    fn displacements_data_drop_frees_displacements_texture()
+    {
+      let gl = gl_init();
+      let displacements_texture = gl.create_texture();
+      // Test pitfall (not a production bug): see the identical comment on
+      // `transforms_data_drop_frees_global_and_inverse_textures` above.
+      gl.bind_texture( gl::TEXTURE_2D, displacements_texture.as_ref() );
+      gl.bind_texture( gl::TEXTURE_2D, None );
+      assert!( gl.is_texture( displacements_texture.as_ref() ) );
+
+      let displacements_data = DisplacementsData
+      {
+        positions_displacements : None,
+        normals_displacements : None,
+        tangents_displacements : None,
+        displacements_texture : displacements_texture.clone(),
+        disp_texture_size : [ 0; 2 ],
+        morph_weights : Rc::new( RefCell::new( vec![] ) ),
+        default_weights : vec![],
+        targets_count : 0,
+        disp_offsets : I32x3::splat( -1 ),
+        vertices_count : 0,
+        need_update_displacement : false,
+        need_clone_inner : false,
+        gl : Some( gl.clone() ),
+      };
+
+      drop( displacements_data );
+
+      assert!( !gl.is_texture( displacements_texture.as_ref() ), "DisplacementsData::drop must delete displacements_texture" );
     }
   }
 }
