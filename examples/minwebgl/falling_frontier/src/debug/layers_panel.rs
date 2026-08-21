@@ -1,12 +1,21 @@
 //! Standalone "Render Layers" dev panel - every renderer-aspect visibility
 //! switch (grid, background, starfield, per-object-type hull rendering,
-//! view-zone ribbon, selection gizmo, trajectories/sensor rings, lighting,
-//! shadows, ship animation, CRT scanlines) united in one place, separate
-//! from `grid_tuning_panel`'s slider-heavy shader tuning controls and from
-//! `hud`'s in-game "real UI". Lets any combination of scene layers be
-//! isolated (e.g. "only the grid") or hidden (e.g. "everything but
-//! asteroids") from a single menu instead of hunting each switch down
-//! across `grid_tuning_panel`'s subsections or `hud`'s toolbar.
+//! view-zone ribbon, selection gizmo, lighting, shadows, CRT scanlines)
+//! united in one place, separate from `grid_tuning_panel`'s slider-heavy
+//! shader tuning controls and from `hud`'s in-game "real UI". Lets any
+//! combination of scene layers be isolated (e.g. "only the grid") or hidden
+//! (e.g. "everything but asteroids") from a single menu instead of hunting
+//! each switch down across `grid_tuning_panel`'s subsections or `hud`'s
+//! toolbar.
+//!
+//! Trajectories and ship animation were cut from this panel deliberately -
+//! both were still unfinished/experimental, so they're left off by default
+//! (`GridTuning::default`) with no UI surface to turn them back on. The
+//! underlying `GridTuning::show_trajectories`/`animate_ships` fields and the
+//! rendering code that reads them (`trajectories.rs`, `main.rs`'s fleet-
+//! motion step) are untouched - only this panel's rows are gone. Sensor
+//! rings were cut further still: the feature itself is gone from
+//! `trajectories.rs`, not just hidden.
 //!
 //! Left click flips just the clicked row, same as any checkbox. Right click
 //! (`contextmenu`, default browser menu suppressed) is a "solo" gesture: if
@@ -69,11 +78,8 @@ const LAYER_TOGGLES : &[ LayerToggle ] =
   LayerToggle { id : "layers-show-ships", label : "Ships", field : | t | &mut t.show_ships },
   LayerToggle { id : "layers-show-station", label : "Station", field : | t | &mut t.show_station },
   LayerToggle { id : "layers-show-gizmo", label : "Selection Gizmo", field : | t | &mut t.show_gizmo },
-  LayerToggle { id : "layers-show-trajectories", label : "Trajectories", field : | t | &mut t.show_trajectories },
-  LayerToggle { id : "layers-show-sensor-rings", label : "Sensor Rings", field : | t | &mut t.show_sensor_rings },
   LayerToggle { id : "layers-lighting-enabled", label : "Lighting", field : | t | &mut t.lighting_enabled },
   LayerToggle { id : "layers-shadows-enabled", label : "Shadows", field : | t | &mut t.shadows_enabled },
-  LayerToggle { id : "layers-animate-ships", label : "Animate Ships", field : | t | &mut t.animate_ships },
   LayerToggle { id : "layers-show-scanlines", label : "CRT Scanlines", field : | t | &mut t.show_scanlines },
 ];
 

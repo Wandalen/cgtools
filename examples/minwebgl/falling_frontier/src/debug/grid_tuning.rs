@@ -51,16 +51,14 @@ pub struct GridTuning
   // per-ship value to look up.
   pub view_radius : f32,
 
-  // M7: fleet motion + trajectory/sensor-ring visibility. `animate_ships`
-  // defaults to `false`, matching the JS reference's own
-  // `playbackState.isAnimating: false` ("off by default while the static
-  // layout is being blocked out with the transform gizmo" - see
-  // examples/threejs/falling_frontier/src/state.js). `show_trajectories`/
-  // `show_sensor_rings` default to `false` too, matching `main.js`'s
-  // `groups.trajectory.visible = false; groups.sensorRing.visible = false;`.
+  // M7: fleet motion + trajectory visibility. `animate_ships` defaults to
+  // `false`, matching the JS reference's own `playbackState.isAnimating:
+  // false` ("off by default while the static layout is being blocked out
+  // with the transform gizmo" - see examples/threejs/falling_frontier/src/
+  // state.js). `show_trajectories` defaults to `false` too, matching
+  // `main.js`'s `groups.trajectory.visible = false;`.
   pub animate_ships : bool,
   pub show_trajectories : bool,
-  pub show_sensor_rings : bool,
 
   // M8: HUD toolbar state. `show_grid` defaults to `true` (JS's own
   // `toggle-grid` button starts `active`/`[ON]`); `speed_multiplier` scales
@@ -149,7 +147,6 @@ impl Default for GridTuning
 
       animate_ships : false,
       show_trajectories : false,
-      show_sensor_rings : false,
 
       show_grid : true,
       speed_multiplier : 1.0,

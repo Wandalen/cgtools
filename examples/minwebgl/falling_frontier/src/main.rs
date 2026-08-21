@@ -692,7 +692,7 @@ fn app_run() -> Result< (), gl::WebglError >
 
       if tuning_snapshot.show_background
       {
-        background.draw( &gl, view_proj, camera.eye_get(), ( t / 1000.0 ) as f32 );
+        background.draw( &gl, view_proj, camera.eye_get() );
       }
 
       // M7: advance every ship along its patrol path, except whichever one
@@ -801,14 +801,11 @@ fn app_run() -> Result< (), gl::WebglError >
         starfield.draw( &gl, view_proj );
       }
 
-      if tuning_snapshot.show_trajectories || tuning_snapshot.show_sensor_rings
-      {
-        trajectories.draw
-        (
-          &gl, camera.view_matrix_get(), camera.projection_matrix_get(), [ w as f32, h as f32 ],
-          tuning_snapshot.show_trajectories, tuning_snapshot.show_sensor_rings
-        );
-      }
+      trajectories.draw
+      (
+        &gl, camera.view_matrix_get(), camera.projection_matrix_get(), [ w as f32, h as f32 ],
+        tuning_snapshot.show_trajectories
+      );
 
       if tuning_snapshot.show_grid
       {
