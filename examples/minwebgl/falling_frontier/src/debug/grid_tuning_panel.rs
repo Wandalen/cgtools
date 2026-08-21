@@ -62,18 +62,6 @@ fn color_row_html( id : &str, label : &str, value_hex : &str ) -> String
   )
 }
 
-fn checkbox_row_html( id : &str, label : &str, checked : bool ) -> String
-{
-  let checked = if checked { "checked" } else { "" };
-  format!
-  (
-    r#"<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#7dd3fc;margin-bottom:6px">
-      <span>{label}</span>
-      <input type="checkbox" id="{id}" {checked} style="accent-color:#22d3ee">
-    </div>"#
-  )
-}
-
 fn subheading_html( text : &str ) -> String
 {
   format!( r#"<div style="font-size:10px;color:#0e7490;text-transform:uppercase;letter-spacing:0.05em;padding-top:6px;margin-bottom:4px">{text}</div>"# )
@@ -140,7 +128,16 @@ fn build_tuning_summary( t : &GridTuning ) -> String
     light color: {}\n\
     light intensity: {:.2}\n\
     light size (softness): {:.2}\n\
-    shadows enabled: {}",
+    shadows enabled: {}\n\
+    lighting enabled: {}\n\
+    \n\
+    show background: {}\n\
+    show starfield: {}\n\
+    show asteroids: {}\n\
+    show ships: {}\n\
+    show station: {}\n\
+    show view ribbon: {}\n\
+    show gizmo: {}",
     rgb_to_hex( t.line_color ), t.line_width_px, t.cell_size, t.dim_alpha, t.bright_alpha,
     t.camera_fade_start, t.camera_fade_end, curve_label( t.camera_fade_mode ), t.camera_fade_gamma,
     rgb_to_hex( t.ribbon_color_core ), rgb_to_hex( t.ribbon_color_edge ),
@@ -148,7 +145,9 @@ fn build_tuning_summary( t : &GridTuning ) -> String
     t.inside_fade_width, curve_label( t.inside_fade_mode ), t.inside_fade_gamma,
     t.asteroid_glow_alpha, t.asteroid_glow_width, curve_label( t.asteroid_glow_mode ), t.asteroid_glow_gamma,
     t.view_radius,
-    t.light_azimuth, t.light_elevation, rgb_to_hex( t.light_color ), t.light_intensity, t.light_size, t.shadows_enabled
+    t.light_azimuth, t.light_elevation, rgb_to_hex( t.light_color ), t.light_intensity, t.light_size, t.shadows_enabled,
+    t.lighting_enabled,
+    t.show_background, t.show_starfield, t.show_asteroids, t.show_ships, t.show_station, t.show_view_ribbon, t.show_gizmo
   )
 }
 
@@ -224,23 +223,6 @@ where F : FnMut( f32 ) + 'static
   closure.forget();
 }
 
-fn bind_checkbox< F >( document : &Document, id : &'static str, mut on_change : F )
-where F : FnMut( bool ) + 'static
-{
-  let element = input_by_id( document, id );
-  let document = document.clone();
-  let closure = Closure::< dyn FnMut() >::new
-  (
-    move ||
-    {
-      let input = input_by_id( &document, id );
-      on_change( input.checked() );
-    }
-  );
-  element.add_event_listener_with_callback( "change", closure.as_ref().unchecked_ref() ).unwrap();
-  closure.forget();
-}
-
 fn bind_color< F >( document : &Document, id : &'static str, mut on_change : F )
 where F : FnMut( [ f32; 3 ] ) + 'static
 {
@@ -303,17 +285,12 @@ where F : Fn() + 'static
     {glow_width}
     {glow_curve}
     {glow_gamma}
-    {playback_heading}
-    {animate_ships}
-    {show_trajectories}
-    {show_sensor_rings}
     {lighting_heading}
     {light_azimuth}
     {light_elevation}
     {light_color}
     {light_intensity}
-    {light_size}
-    {shadows_enabled}",
+    {light_size}",
     copy_button = r#"<button type="button" id="grid-copy" style="width:100%;padding:6px;border-radius:4px;background:#0e7490;border:1px solid #22d3ee;color:#e0f2fe;font-weight:bold;font-size:11px;margin-bottom:10px;cursor:pointer">Copy Settings</button>"#,
     line_color = color_row_html( "grid-line-color", "Line Color", &rgb_to_hex( t.line_color ) ),
     line_width = slider_row_html( "grid-line-width", "Line Width (px)", 0.5, 6.0, 0.1, t.line_width_px, 1 ),
@@ -344,17 +321,12 @@ where F : Fn() + 'static
     glow_width = slider_row_html( "grid-glow-width", "Glow Width (cells)", 0.0, 10.0, 0.1, t.asteroid_glow_width, 2 ),
     glow_curve = select_row_html( "grid-glow-curve", "Glow Curve", t.asteroid_glow_mode ),
     glow_gamma = slider_row_html( "grid-glow-gamma", "Glow Gamma", 0.2, 3.0, 0.05, t.asteroid_glow_gamma, 2 ),
-    playback_heading = subheading_html( "Playback" ),
-    animate_ships = checkbox_row_html( "grid-animate-ships", "Animate Ships", t.animate_ships ),
-    show_trajectories = checkbox_row_html( "grid-show-trajectories", "Show Trajectories", t.show_trajectories ),
-    show_sensor_rings = checkbox_row_html( "grid-show-sensor-rings", "Show Sensor Rings", t.show_sensor_rings ),
     lighting_heading = subheading_html( "Lighting" ),
     light_azimuth = slider_row_html( "grid-light-azimuth", "Azimuth", 0.0, 360.0, 1.0, t.light_azimuth, 0 ),
     light_elevation = slider_row_html( "grid-light-elevation", "Elevation", 5.0, 85.0, 1.0, t.light_elevation, 0 ),
     light_color = color_row_html( "grid-light-color", "Light Color", &rgb_to_hex( t.light_color ) ),
     light_intensity = slider_row_html( "grid-light-intensity", "Intensity", 0.2, 3.0, 0.05, t.light_intensity, 2 ),
     light_size = slider_row_html( "grid-light-size", "Size (softness)", 0.0, 2.0, 0.05, t.light_size, 2 ),
-    shadows_enabled = checkbox_row_html( "grid-shadows-enabled", "Shadows", t.shadows_enabled ),
   );
 
   let panel_html = format!
@@ -395,15 +367,11 @@ where F : Fn() + 'static
   bind_slider( document, "grid-glow-width", 2, { let tuning = tuning.clone(); move | v | tuning.borrow_mut().asteroid_glow_width = v } );
   bind_select( document, "grid-glow-curve", { let tuning = tuning.clone(); move | v | tuning.borrow_mut().asteroid_glow_mode = v } );
   bind_slider( document, "grid-glow-gamma", 2, { let tuning = tuning.clone(); move | v | tuning.borrow_mut().asteroid_glow_gamma = v } );
-  bind_checkbox( document, "grid-animate-ships", { let tuning = tuning.clone(); move | v | tuning.borrow_mut().animate_ships = v } );
-  bind_checkbox( document, "grid-show-trajectories", { let tuning = tuning.clone(); move | v | tuning.borrow_mut().show_trajectories = v } );
-  bind_checkbox( document, "grid-show-sensor-rings", { let tuning = tuning.clone(); move | v | tuning.borrow_mut().show_sensor_rings = v } );
   bind_slider( document, "grid-light-azimuth", 0, { let tuning = tuning.clone(); move | v | tuning.borrow_mut().light_azimuth = v } );
   bind_slider( document, "grid-light-elevation", 0, { let tuning = tuning.clone(); move | v | tuning.borrow_mut().light_elevation = v } );
   bind_color( document, "grid-light-color", { let tuning = tuning.clone(); move | rgb | tuning.borrow_mut().light_color = rgb } );
   bind_slider( document, "grid-light-intensity", 2, { let tuning = tuning.clone(); move | v | tuning.borrow_mut().light_intensity = v } );
   bind_slider( document, "grid-light-size", 2, { let tuning = tuning.clone(); move | v | tuning.borrow_mut().light_size = v } );
-  bind_checkbox( document, "grid-shadows-enabled", { let tuning = tuning.clone(); move | v | tuning.borrow_mut().shadows_enabled = v } );
 
   let clear_focus_button = document.get_element_by_id( "grid-clear-focus" ).unwrap().dyn_into::< HtmlButtonElement >().unwrap();
   let clear_closure = Closure::< dyn FnMut() >::new( on_deselect );
