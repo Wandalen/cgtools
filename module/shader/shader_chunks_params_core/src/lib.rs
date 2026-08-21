@@ -262,6 +262,19 @@ mod private
     }
   }
 
+  // Fix(BUG-421): added a `min <= max` validation check so an inverted
+  // range clause panics instead of silently parsing.
+  // Root cause: `range_clause_parse` parsed `min`/`max` as two
+  // independent `f64` values with no relational check between them --
+  // every other malformed shape (missing `range(...)`, missing comma,
+  // non-numeric bound) already panicked loudly, but an inverted pair
+  // (`min` numerically greater than `max`) passed through as two
+  // individually-valid numbers.
+  // Pitfall: a range's two bounds can each be independently well-formed
+  // while their combination is still nonsensical -- validating fields in
+  // isolation is not the same as validating the value they jointly form;
+  // any future multi-field clause parsed the same way needs the same
+  // cross-field check, not just per-field parsing.
   fn range_clause_parse( rest : &str, line : &str ) -> Range
   {
     let inner = rest.strip_prefix( "range(" )
@@ -273,6 +286,7 @@ mod private
       .unwrap_or_else( | _ | panic!( "malformed `//@ param:` range min (not a number): {min_str:?}" ) );
     let max = max_str.trim().parse::< f64 >()
       .unwrap_or_else( | _ | panic!( "malformed `//@ param:` range max (not a number): {max_str:?}" ) );
+    assert!( min <= max, "malformed `//@ param:` range clause (min must be <= max): {line:?}" );
     Range { min, max }
   }
 

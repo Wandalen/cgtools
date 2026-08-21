@@ -153,13 +153,6 @@ pub enum MovementResult<C> {
     /// The final position after movement
     new_position: C,
   },
-  /// Target is out of movement range
-  OutOfRange {
-    /// The distance to the requested target
-    requested_distance: u32,
-    /// The maximum movement range for this entity
-    maximum_range: u32,
-  },
   /// Path exists but is too long
   PathTooLong {
     /// The length of the computed path
@@ -622,12 +615,16 @@ impl SpatialQuerySystem {
 
     while current != *end && line_positions.len() < 100 {
       let neighbors = current.neighbors();
+      // UX/DX cleanup: removed a dead `if next == &current { break; }` check
+      // here -- `next` is always drawn from `current.neighbors()`, and no
+      // `Neighbors` implementation in this crate ever yields the coordinate
+      // it was called on (every offset in every coordinate system's
+      // `neighbors()` is non-zero), so the condition could never be true.
+      // The real safety net against an infinite loop is this while loop's
+      // own `line_positions.len() < 100` bound.
       if let Some(next) = neighbors.iter()
         .min_by_key(|neighbor| neighbor.distance(end))
       {
-        if next == &current {
-          break; // Prevent infinite loop
-        }
         current = next.clone();
         line_positions.push(current.clone());
       } else {

@@ -13,8 +13,8 @@ re-run the command to refresh a number instead of trusting the table. Live work 
   (`compile_error!` guard, see docs/adr/004), and `--all-features` enables all 4 at once.
   `--exclude orrery_flexible` mirrors what `verb/test` itself already does for this crate; see that
   script's own comment above its native stages for the full per-feature check list.
-- **Task system:** 89 completed · 14 draft · 12 cancelled · 9 accepting · 44 verifying · 23 open bugs
-  (see task/readme.md for the live table; task counts re-derived 2026-08-19 via
+- **Task system:** 90 completed · 16 draft · 12 cancelled · 8 accepting · 47 verifying · 23 open bugs
+  (see task/readme.md for the live table; task counts re-derived 2026-08-20 via
   `grep -oE '\| (✅|🔎|📝|🚫|❓|🔬|⚙️|📦) \([A-Za-z]+\)' task/readme.md | sort | uniq -c`; bug count via
   `awk '/^## Open Bugs/,/^## Closed Bugs/' task/bug/readme.md | grep -c '^| BUG-'`, cross-checked
   against `task/bug/verified/`'s file count).
@@ -78,6 +78,8 @@ shader_chunks_render/shader_chunks_render_core, previously missing — 2026-08-1
 | shader/shader_chunks_query_core | 1 / 30 | 0 | — | 0 | 0 | New crate (2026-08-14, split out of the old monolithic shader_chunks CLI): filter/project/sort/page/render query engine over bundled chunks — `QueryParams` (19 named fields), `chunks_query` pipeline (select→filter→count-shortcut→sort/order→offset/limit→render), `tags_list`, `chunk_tree` |
 | shader/shader_chunks_render | 1 / 19 | 0 | yes | 0 | 0 | CLI wiring for the `render` command: reuses `shader_chunks_preview`'s `bundle_prepare` (same target resolution + naga validation the live preview runs), then renders one frame via `shader_chunks_render_core` and writes it as a PNG — every slider at its initial value, `time` frozen at the caller's `time::`. Needs no browser/dev-server/web-runner crate, unlike `.preview` |
 | shader/shader_chunks_render_core | 1 / 7 | 0 | — | 0 | 0 | Renders a `shader_chunks_preview_core::PreviewBundle` to raw RGBA pixels on a headless GPU — one static frame of exactly what `shader_chunks_preview_web`'s browser runner shows live. Uses `minwgpu`'s offscreen toolkit (headless context, one uniform buffer laid out via the shared `resolution_index` convention, bufferless fullscreen-triangle pipeline, row-padding-aware readback) |
+| shader/shader_chunks_validate | 1 / 4 | 0 | yes | 0 | 0 | CLI wiring for the `validate` command: renders `shader_chunks_validate_core`'s registry-wide checks as a human-readable findings report |
+| shader/shader_chunks_validate_core | 1 / 8 | 0 | — | 0 | 0 | Five independent, non-panicking registry-wide integrity checks over `shader_chunks_core::CHUNKS` in one pass: manifest drift, duplicate names, missing/cyclic deps, WGSL compile |
 
 *(Previously noted as missing from this table across earlier snapshots — both crates exist on disk,
 fully implemented and tested, and are now rows above like their siblings.)*
@@ -88,7 +90,7 @@ zero). **Allows-column caveat (2026-08-13):** the regeneration command only matc
 since converted most or all of their justified suppressions to `#[expect(...)]` (fails loudly if the
 lint stops firing), which this column does not count — a low or zero Allows value no longer implies
 zero suppression attributes for those crates. To see the current expect-count for a crate:
-`grep -rn '#!\?\[ *expect(' <crate>/src <crate>/tests | wc -l`. Examples tree (69 demo crates —
+`grep -rn '#!\?\[ *expect(' <crate>/src <crate>/tests | wc -l`. Examples tree (75 demo crates —
 recount: `find examples -name Cargo.toml | wc -l`) is intentionally not tabulated per-crate: demos
 carry no tests/ requirement; their marker triage closed with task 065 (✅ Completed) — task 065
 decided keep-crate for `diamond` and `make_cube_map`, and tasks 094/095 deleted the two stale

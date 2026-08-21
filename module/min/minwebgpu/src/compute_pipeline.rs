@@ -7,6 +7,7 @@ mod private
 
   /// Creates a `GpuComputePipelineDescriptor` with the specified compute stage.
   #[ inline ]
+  #[ must_use ]
   pub fn desc< 'a, T >( compute : T ) -> ComputePipelineDescriptor< 'a >
     where  T : Into< web_sys::GpuProgrammableStage >
   {

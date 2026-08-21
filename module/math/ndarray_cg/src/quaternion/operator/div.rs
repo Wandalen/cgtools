@@ -24,7 +24,7 @@ mod private
     #[ inline ]
     fn div( self, rhs : Self ) -> Self::Output
     {
-      self.devide( &rhs )
+      self.divide( &rhs )
     }
   }
 

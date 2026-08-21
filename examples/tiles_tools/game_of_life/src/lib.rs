@@ -326,6 +326,17 @@ impl HexGameOfLife
   }
 
   /// Advances one generation with modified rules for hexagonal grid.
+  // Fix(BUG-486): `step` computed `neighbors_count` (correctly, via the hex-specific
+  // `Neighbors` adjacency) but never derived or applied a next generation from it --
+  // no `Cell` component was ever revived, aged, or killed, so the hex simulation's
+  // seed pattern never evolved across any number of generations.
+  // Root cause: the function stopped after printing a raw neighbor-position count;
+  // nothing translated that count into survive/birth/death decisions or persisted
+  // them into the ECS world, unlike `SquareGameOfLife::step`/`world_state_update`
+  // earlier in this same file.
+  // Pitfall: this file's own comment two lines below already stated the intended
+  // rule ("survive with 2-3 neighbors, born with 2 neighbors") -- a documented rule
+  // that is never implemented is easy to mistake for a live one on read-through.
   pub fn step( &mut self )
   {
     // Hexagonal Game of Life uses different rules due to 6 neighbors instead of 8
@@ -341,20 +352,92 @@ impl HexGameOfLife
         {
           for neighbor_coord in pos.neighbors()
           {
-            *neighbors_count.entry( ( neighbor_coord.coord.q, neighbor_coord.coord.r ) ).or_insert( 0 ) += 1;
+            *neighbors_count.entry( neighbor_coord.coord ).or_insert( 0 ) += 1;
           }
         }
       }
     }
 
+    let mut next_generation = HashMap::new();
+    for ( &coord, &neighbor_count ) in &neighbors_count
+    {
+      let currently_alive = self.is_cell_alive( coord );
+      let should_be_alive = match ( currently_alive, neighbor_count )
+      {
+        ( true, 2 | 3 ) | ( false, 2 ) => true, // Survival (2-3) or birth (exactly 2)
+        _ => false,                             // Death or remain dead
+      };
+      next_generation.insert( coord, should_be_alive );
+    }
+
+    self.world_state_update( &next_generation );
+
     println!
     (
-      "Hex Generation {}: {} positions with neighbors",
+      "Hex Generation {}: {} living cells",
       self.generation + 1,
-      neighbors_count.len()
+      next_generation.values().filter( | &&alive | alive ).count()
     );
 
     self.generation += 1;
+  }
+
+  /// Checks if a cell at the given coordinate is alive. `pub` ( unlike
+  /// `SquareGameOfLife`'s private equivalent ) so regression tests can observe
+  /// simulation state without parsing `state_print`'s console output.
+  #[ must_use ]
+  pub fn is_cell_alive( &self, coord : HexCoord< Axial, Pointy > ) -> bool
+  {
+    let mut query = self.world.query::< ( &Position< HexCoord< Axial, Pointy > >, &Cell ) >();
+
+    for ( pos, cell ) in &mut query
+    {
+      if pos.coord == coord
+      {
+        return cell.is_alive();
+      }
+    }
+    false
+  }
+
+  /// Updates the world state based on the next generation, aging surviving
+  /// cells and reviving/killing entities that changed state.
+  fn world_state_update( &mut self, next_generation : &HashMap< HexCoord< Axial, Pointy >, bool > )
+  {
+    let mut existing = HashMap::new();
+    {
+      let mut query = self.world.query::< ( hecs::Entity, &Position< HexCoord< Axial, Pointy > > ) >();
+      for ( entity, pos ) in &mut query
+      {
+        existing.insert( pos.coord, entity );
+      }
+    }
+
+    for ( &coord, &should_be_alive ) in next_generation
+    {
+      if let Some( &entity ) = existing.get( &coord )
+      {
+        if let Ok( mut cell ) = self.world.get_mut::< Cell >( entity )
+        {
+          if should_be_alive
+          {
+            if cell.is_alive() { cell.age(); } else { cell.revive(); }
+          }
+          else
+          {
+            cell.kill();
+          }
+        }
+      }
+      else if should_be_alive
+      {
+        self.world.spawn( ( Position::new( coord ), Cell::new() ) );
+      }
+      else
+      {
+        // Cell doesn't exist and shouldn't be alive — nothing to do.
+      }
+    }
   }
 
   /// Prints the hexagonal grid state.

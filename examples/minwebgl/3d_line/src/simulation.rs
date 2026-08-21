@@ -84,15 +84,28 @@ impl Simulation
 
         let bb = other_body.position - body.position;
         let dist = bb.mag();
-        let dir = bb.normalize();
 
         if dist < 1e-6
         {
-          // Repel overlapping bodies to avoid singularity.
-          force += -dir * 10.0;
+          // Fix(BUG-457): removed the unconditional `dir = bb.normalize()`
+          // that previously ran before this guard.
+          // Root cause: `bb.normalize()` on a near-zero vector is `0.0/0.0`
+          // -> NaN; the repel branch below then multiplied that NaN through
+          // `force`, and NaN comparisons are always false, so no later
+          // magnitude clamp could ever catch it.
+          // Pitfall: a "singularity guard" doesn't actually guard anything
+          // if the branch it protects reads a value computed *before* the
+          // guard ran -- check every value a guarded branch uses is itself
+          // safe for the exact input the guard exists to catch.
+          // Repel overlapping bodies along a fixed axis -- direction is
+          // genuinely undefined for two coincident bodies, so an arbitrary
+          // constant axis stands in for the (otherwise NaN) normalized
+          // separation.
+          force += gl::F32x3::new( 1.0, 0.0, 0.0 ) * 10.0;
         }
         else
         {
+          let dir = bb.normalize();
           // Standard gravitational attraction (with a constant multiplier).
           force += 15.0 * dir * other_body.mass * body.mass / ( dist * dist );
         }
@@ -123,5 +136,68 @@ impl Simulation
 
       body.position += body.velocity  * delta_time * 15.0;
     }
-  }  
+  }
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::*;
+
+  /// ## Root Cause
+  /// `dir = bb.normalize()` ran unconditionally before the `dist < 1e-6`
+  /// "avoid singularity" guard. `normalize()` divides by magnitude with no
+  /// zero-check, so two bit-exact-same-position bodies (`bb` = the zero
+  /// vector, `dist` = `0.0`) produced `dir` = NaN in every component --
+  /// poisoning the guard's own "repel" branch (`force += -dir * 10.0`),
+  /// which existed specifically to handle this exact case. NaN then
+  /// propagated through `force`, `body.velocity`, and `body.position`; later
+  /// magnitude clamps (`if force.mag() > 1.0 { .. }`) never caught it
+  /// because every NaN comparison is `false`.
+  ///
+  /// ## Why Not Caught
+  /// The crate had zero tests before this one, and the defect only
+  /// manifests for the specific degenerate input of two bodies occupying
+  /// the exact same position -- never reached by `Simulation::new`'s random
+  /// initial placement during normal demo use.
+  ///
+  /// ## Fix Applied
+  /// Moved `dir = bb.normalize()` into the `else` (standard-attraction)
+  /// branch, where `dist >= 1e-6` guarantees a safe division. The `if`
+  /// (repel) branch no longer reads `dir` at all -- it pushes apart along a
+  /// fixed axis instead, since direction is genuinely undefined for two
+  /// exactly-coincident bodies.
+  ///
+  /// ## Prevention
+  /// This test places two bodies at the exact same position and asserts
+  /// `simulate()` produces no NaN/Inf in any resulting force, velocity, or
+  /// position -- the general invariant the fix restores, not a pinned
+  /// per-value expectation.
+  ///
+  /// ## Pitfall
+  /// A "singularity guard" doesn't actually guard anything if the branch it
+  /// protects reads a value computed *before* the guard ran -- always
+  /// double-check every value a guarded branch uses is itself safe for the
+  /// exact input the guard exists to catch.
+  #[ test ]
+  fn bug_reproducer_bug_457_coincident_bodies_no_nan()
+  {
+    let mut sim = Simulation
+    {
+      bodies : vec!
+      [
+        Body { position : gl::F32x3::new( 0.0, 0.0, 0.0 ), velocity : gl::F32x3::default(), mass : 1.0, force : gl::F32x3::default() },
+        Body { position : gl::F32x3::new( 0.0, 0.0, 0.0 ), velocity : gl::F32x3::default(), mass : 1.0, force : gl::F32x3::default() },
+      ]
+    };
+
+    sim.simulate( 0.016 );
+
+    for ( i, body ) in sim.bodies.iter().enumerate()
+    {
+      assert!( body.position.mag().is_finite(), "body {i} position is NaN/Inf after simulate() on coincident bodies" );
+      assert!( body.velocity.mag().is_finite(), "body {i} velocity is NaN/Inf after simulate() on coincident bodies" );
+      assert!( body.force.mag().is_finite(), "body {i} force is NaN/Inf after simulate() on coincident bodies" );
+    }
+  }
 }

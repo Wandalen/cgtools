@@ -140,7 +140,24 @@ pub struct SpatialEntity<C> {
 
 impl<C> SpatialEntity<C> {
     /// Creates a new spatial entity.
+    ///
+    /// `radius` is clamped to a non-negative value: a negative radius would
+    /// invert `bounds()`'s rectangle and wrap to a huge value when cast to
+    /// `u32` in `intersects_entity`.
     pub fn new(id: u32, position: C, radius: i32) -> Self {
+        // Fix(BUG-482): clamp radius to a non-negative value at construction.
+        // Root cause: `radius` was stored unclamped. `bounds()` computes
+        // `SpatialBounds::from_center_size(x, y, radius * 2, radius * 2)` --
+        // a negative radius produces a negative width/height, which
+        // `from_center_size` silently turns into an inverted rectangle
+        // (`left > right`, `top > bottom`), and `intersects_entity` computes
+        // `(self.radius + other.radius) as u32`, which wraps to a huge
+        // positive value when the signed sum is negative.
+        // Pitfall: casting a signed integer that can be negative to an
+        // unsigned type (`as u32`) never panics -- it silently wraps, so a
+        // missing non-negative invariant at construction surfaces far away,
+        // as a bogus huge distance threshold, not as an obvious crash here.
+        let radius = radius.max(0);
         Self { id, position, radius }
     }
 

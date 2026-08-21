@@ -67,7 +67,14 @@ mod private
     ///
     /// # Panics
     ///
-    /// Panics if the GL active-uniform-count query returns a non-numeric value.
+    /// Panics if any of the following GL queries return a value this function cannot interpret:
+    /// - the active-uniform-count query returns a non-numeric value;
+    /// - `gl.get_active_uniform` returns `None` for an index the count query itself just
+    ///   reported as active;
+    /// - `gl.get_uniform_location` returns `None` for a uniform name this program's own
+    ///   reflection just confirmed is active;
+    /// - a scalar uniform's (`FLOAT`/`INT`/`UNSIGNED_INT`) current value fails to convert to
+    ///   `f64` via `as_f64()`.
     pub fn uniforms_copy_to_gl( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Result< (), gl::WebglError >
     {
       if let Some( own_program ) = self.program.as_ref()

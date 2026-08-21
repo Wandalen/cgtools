@@ -239,7 +239,11 @@ mod private
     height : u32,
     /// The number of rendering passes required for the algorithm. This is typically
     /// related to the outline thickness and the power-of-two size of the textures.
-    num_passes : u32
+    num_passes : u32,
+    /// The GL context this pass's owned framebuffers/textures were allocated from --
+    /// retained so `impl Drop` can free them without requiring the caller to remember to
+    /// call a manual cleanup method first.
+    gl : GL,
   }
 
   impl WideOutlinePass
@@ -299,10 +303,41 @@ mod private
         outline_thickness,
         width,
         height,
-        num_passes
+        num_passes,
+        gl : gl.clone(),
       };
 
       Ok( pass )
+    }
+
+    // Fix(BUG-436): `WideOutlinePass` created 4 framebuffers and 4 owned textures ( a 5th,
+    // `object_color`, is supplied by and belongs to the caller ) but never deleted any of them --
+    // every construct/drop cycle ( e.g. a canvas resize that rebuilds the outline pipeline at a
+    // new resolution ) permanently leaked 4 framebuffers and 4 textures.
+    // Root cause: no cleanup path existed at all for this struct's owned GL resources -- neither
+    // a manual `gl_resources_free` nor an `impl Drop` backstop, unlike sibling passes in this
+    // same module ( `SwapFramebuffer`, `UnrealBloomPass` ) that already have one or both.
+    // Pitfall: `object_color`'s presence in the same `textures` map as the 4 owned intermediate
+    // textures makes "delete everything in `textures`" the wrong rule -- that texture is supplied
+    // by the caller via the `object_color_texture` constructor parameter and remains the
+    // caller's to free; deleting it here would be a use-after-free the moment the caller's own
+    // copy of the handle is next used.
+    /// Frees this pass's own framebuffers and intermediate textures. Does **not** delete
+    /// `object_color` -- that texture is supplied by and remains owned by the caller.
+    /// Safe to call multiple times; also invoked automatically via `impl Drop`.
+    pub fn gl_resources_free( &mut self, gl : &GL )
+    {
+      for framebuffer in self.framebuffers.values()
+      {
+        gl.delete_framebuffer( Some( framebuffer ) );
+      }
+      for ( name, texture ) in &self.textures
+      {
+        if name != "object_color"
+        {
+          gl.delete_texture( Some( texture ) );
+        }
+      }
     }
 
     /// Sets the thickness of the outline.
@@ -490,6 +525,15 @@ mod private
     }
   }
 
+  impl Drop for WideOutlinePass
+  {
+    fn drop( &mut self )
+    {
+      let gl = self.gl.clone();
+      self.gl_resources_free( &gl );
+    }
+  }
+
   impl Pass for WideOutlinePass
   {
     fn renders_to_input( &self ) -> bool
@@ -526,6 +570,103 @@ mod private
       (
         output_texture
       )
+    }
+  }
+
+  // Test placement: verifying `gl_resources_free` deleted `framebuffers`/`textures` (and, just
+  // as importantly, did NOT delete the caller-owned `object_color` entry) needs the pre-call
+  // handles, and both fields are private -- only a test nested inside `mod private` can read
+  // them. See `rulebook.md § Test placement`.
+  #[ cfg( all( test, target_arch = "wasm32" ) ) ]
+  mod tests
+  {
+    use super::*;
+
+    fn gl_init() -> GL
+    {
+      gl::browser::setup( gl::browser::Config::default() );
+      let options = gl::context::ContextOptions::default();
+      let canvas = gl::canvas::make().unwrap();
+      gl::context::from_canvas_with( &canvas, options ).unwrap()
+    }
+
+    fn texture_make( gl : &GL, width : i32, height : i32 ) -> WebGlTexture
+    {
+      let texture = gl.create_texture().unwrap();
+      gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
+      gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::RGBA8, width, height );
+      texture
+    }
+
+    /// ## Root Cause
+    /// `WideOutlinePass::new` allocated 4 framebuffers and 4 intermediate textures ( JFA init,
+    /// two JFA step ping-pong buffers, and the final outline framebuffer/texture ) but had no
+    /// cleanup path at all -- neither a manual `gl_resources_free` nor an `impl Drop` -- so
+    /// every construct/drop cycle ( e.g. a canvas resize rebuilding the outline pipeline )
+    /// permanently leaked all 8 objects.
+    ///
+    /// ## Why Not Caught
+    /// `tests/webgl/wide_outline.rs`'s existing coverage only asserts `render()` completes
+    /// without error -- it never constructs-then-drops a pass to check for leaked GL objects.
+    ///
+    /// ## Fix Applied
+    /// Added `pub fn gl_resources_free`, deleting all 4 framebuffers and every texture in
+    /// `textures` EXCEPT `object_color` ( supplied by and still owned by the caller ), plus
+    /// `impl Drop` calling it automatically.
+    ///
+    /// ## Prevention
+    /// This test captures clones of all 4 framebuffer handles and all 5 texture handles
+    /// ( the 4 owned intermediates plus `object_color` ) before calling `gl_resources_free`,
+    /// then asserts every owned handle is deleted while `object_color` remains a live GL object
+    /// -- the same deterministic existence-check pattern used by this crate's other
+    /// GPU-teardown reproducer tests, extended to also guard the caller-ownership boundary.
+    ///
+    /// ## Pitfall
+    /// `object_color` living in the same `textures` map as the 4 owned intermediate textures
+    /// makes "delete everything in `textures`" the wrong rule -- a blanket-delete would free a
+    /// texture the caller still holds a handle to and may still use, a use-after-free from the
+    /// caller's perspective the moment its own copy of the handle is next bound.
+    // test_kind: bug_reproducer(BUG-436)
+    #[ wasm_bindgen_test::wasm_bindgen_test ]
+    fn wide_outline_pass_gl_resources_free_frees_owned_resources_but_not_object_color()
+    {
+      let gl = gl_init();
+      let width = 8;
+      let height = 8;
+      let object_color = texture_make( &gl, width, height );
+
+      let mut pass = WideOutlinePass::new( &gl, object_color.clone(), 3.0, width as u32, height as u32 )
+      .expect( "WideOutlinePass construction should succeed" );
+
+      let framebuffers : Vec< WebGlFramebuffer > = pass.framebuffers.values().cloned().collect();
+      let owned_textures : Vec< WebGlTexture > = pass.textures.iter()
+      .filter( | ( name, _ ) | name.as_str() != "object_color" )
+      .map( | ( _, texture ) | texture.clone() )
+      .collect();
+      assert_eq!( framebuffers.len(), 4, "WideOutlinePass must own exactly 4 framebuffers" );
+      assert_eq!( owned_textures.len(), 4, "WideOutlinePass must own exactly 4 intermediate textures" );
+
+      for framebuffer in &framebuffers
+      {
+        assert!( gl.is_framebuffer( Some( framebuffer ) ) );
+      }
+      for texture in &owned_textures
+      {
+        assert!( gl.is_texture( Some( texture ) ) );
+      }
+      assert!( gl.is_texture( Some( &object_color ) ) );
+
+      pass.gl_resources_free( &gl );
+
+      for framebuffer in &framebuffers
+      {
+        assert!( !gl.is_framebuffer( Some( framebuffer ) ), "gl_resources_free must delete every owned framebuffer" );
+      }
+      for texture in &owned_textures
+      {
+        assert!( !gl.is_texture( Some( texture ) ), "gl_resources_free must delete every owned intermediate texture" );
+      }
+      assert!( gl.is_texture( Some( &object_color ) ), "gl_resources_free must NOT delete the caller-owned object_color texture" );
     }
   }
 }

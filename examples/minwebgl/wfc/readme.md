@@ -8,6 +8,16 @@ WFC produces varied yet consistent results from small rule sets. This example sh
 
 ![image](showcase.webp)
 
+## Controls
+
+- **File input**: Choose a Tiled `.tmx` map file from disk to use as the input
+  pattern. The map's tile layer must use CSV encoding (in Tiled: Layer Format
+  set to "CSV") -- other encodings (Base64, gzip/zlib) are not supported and
+  are reported as an error instead of silently misreading the tile data.
+- **Generate (wfc-image)**: Runs Wave Function Collapse using the currently
+  loaded pattern (the uploaded TMX file, or the bundled default pattern if
+  none was uploaded yet) and displays the generated result.
+
 **[How to run](../../how_to_run.md)**
 
 **References:**

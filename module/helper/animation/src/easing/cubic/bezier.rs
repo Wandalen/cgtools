@@ -75,20 +75,31 @@ use crate::Animatable;
 
     /// Sets the number of iterations for the easing function's internal calculation.
     ///
-    /// Higher values increase precision at the cost of performance.
+    /// Higher values increase precision at the cost of performance. Floored at `1` --
+    /// see `Fix(BUG-502)` below.
+    // Fix(BUG-502)
+    // Root cause: `new` defaults `iterations` to `8` (Fix(TASK-041)) specifically because
+    // `0` skips `apply`'s Newton-Raphson solve loop entirely, but this setter still accepted
+    // `0` unchecked -- an explicit `iterations_set( 0 )` call silently reintroduced the exact
+    // TASK-041 defect (wrong easing shape for every mid-curve value) that the constructor
+    // default was chosen to prevent.
+    // Pitfall: fixing a bad default only closes the constructor path -- any public setter that
+    // writes the same field re-opens the identical defect unless it enforces the same
+    // constraint the default was protecting.
     pub fn iterations_set( &mut self, iterations : usize )
     {
-      self.iterations = iterations;
+      self.iterations = iterations.max( 1 );
     }
 
     /// Sets the number of iterations for the easing function's internal calculation, consuming
     /// and returning `Self` for fluent construction.
     ///
-    /// Higher values increase precision at the cost of performance.
+    /// Higher values increase precision at the cost of performance. Floored at `1` --
+    /// see `Fix(BUG-502)` on `iterations_set` above.
     #[ must_use ]
     pub fn with_iterations( mut self, iterations : usize ) -> Self
     {
-      self.iterations = iterations;
+      self.iterations = iterations.max( 1 );
       self
     }
   }

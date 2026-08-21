@@ -73,7 +73,8 @@ features = [
   'BlobPropertyBag',
   'Url',
   'WebGlFramebuffer',
-  'WebGlRenderbuffer'
+  'WebGlRenderbuffer',
+  'console'
 ]
 
 [dev-dependencies]
@@ -107,6 +108,12 @@ required-features = ["font-processing"]
 # (same rationale as the UFO glyph pipeline tests above).
 [[test]]
 name = "font_bounding_box_union_test"
+required-features = ["font-processing"]
+
+# Exercises `text::ufo::glyph_rescale_factor`, gated behind `font-processing`
+# (same rationale as the UFO glyph pipeline tests above).
+[[test]]
+name = "ufo_font_scale_test"
 required-features = ["font-processing"]
 
 # Metadata for crates.io

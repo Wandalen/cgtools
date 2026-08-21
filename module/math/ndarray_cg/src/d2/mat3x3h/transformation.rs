@@ -1,5 +1,5 @@
 use crate::{MatEl, nd, Mat4, mat, RawSliceMut, VectorIterMut, ArrayRef, MatNum, VectorIter, Collection};
-use mdmath_core::vector::arithmetics::{normalized, cross, dot, sub};
+use mdmath_core::vector::arithmetics::{normalized, cross, dot, sub, mag, non_parallel_hint};
 
 // #[ derive( Copy, Clone, Debug, PartialEq, Default ) ]
 // pub struct Decomposed< E, Vec, Rot, const N : usize >
@@ -175,6 +175,10 @@ where
 ///
 /// Similiar functions:
 /// look_at_rh - returns the same matrix, but takes camera's view center, instead of direction
+///
+/// # Panics
+/// Panics if `E::from( 1.0e-6 )` fails, i.e. if `E` cannot represent that
+/// literal (not expected for the standard float types this is used with).
 #[ inline ]
 #[ expect( clippy::needless_pass_by_value, reason = "eye/dir/up stay by-value to preserve the public calling convention used with owned vectors across the workspace; by-reference would be a breaking API change" ) ]
 pub fn look_to_rh< E, Vec3 >
@@ -190,7 +194,30 @@ where
   Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
   let z = normalized( &dir );
-  let x = normalized( &cross( &z, &up ) );
+  // Fix(BUG-445): guard against `up` being (numerically) parallel or antiparallel to `z`,
+  // which previously made `cross(z, up)` the zero vector and propagated `NaN` through the
+  // entire view matrix via the following `normalized()` call.
+  // Root cause: a right-handed camera basis derives its `x` axis as `normalized(cross(z, up))`
+  // with no guard for `dir`/`up` degeneracy -- e.g. a top-down or bottom-up camera
+  // (`up = (0,1,0)`, looking straight down `-y`) makes `z` and `up` parallel, so
+  // `cross(z, up)` is the zero vector and `normalized()` divides `0/0`, silently producing
+  // `NaN` in every subsequent basis vector and, eventually, the whole view matrix. Same root
+  // cause and fix as `d2::rotation::Rotation::look_at` (see its own BUG-445 comment) -- both
+  // call sites now share `non_parallel_hint`.
+  // Pitfall: any `normalized(cross(a, b))` basis construction needs an explicit guard for
+  // `a`/`b` being (numerically) parallel -- the zero cross product is silent (no panic, no
+  // early NaN in the cross product itself), so the defect only surfaces once the basis is
+  // actually used, far from the construction site.
+  let cross_zu = cross( &z, &up );
+  let x = if mag::< E, _, 3 >( &cross_zu ) < E::from( 1.0e-6 ).unwrap()
+  {
+    let helper = non_parallel_hint::< E >( z.array_ref() );
+    normalized( &cross( &z, &helper ) )
+  }
+  else
+  {
+    normalized( &cross_zu )
+  };
   let y = cross( &x, &z );
 
   let x = x.array_ref();

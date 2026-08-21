@@ -11,7 +11,7 @@ mod private
   use cli_fmt::prelude::*;
   use shader_chunks_cli_core::
   {
-    CliApp, CommandSet, arg_bool_checked, arg_list, arg_string_checked, arg_usize, error_report, named_arg, text_output,
+    CliApp, CommandSet, arg_bool_checked, arg_list, arg_string_checked, arg_usize_checked, error_report, named_arg, text_output,
   };
   use shader_chunks_query_core::{ QueryError, QueryParams, TreeFormat };
 
@@ -116,10 +116,21 @@ mod private
     { params.sort = sort.parse().map_err( | e | query_error( &e ) )?; }
     if let Some( order ) = arg_string_checked( cmd, "order" )?
     { params.order = order.parse().map_err( | e | query_error( &e ) )?; }
-    params.limit = arg_usize( cmd, "limit" )?;
-    params.offset = arg_usize( cmd, "offset" )?;
+    // Fix(BUG-420): `limit`/`offset`/`width` switched from `arg_usize` to
+    // `arg_usize_checked` (added by BUG-295, but left additive -- no
+    // caller migrated at the time).
+    // Root cause: same defect class as BUG-285's fix to this function's
+    // other arguments -- `arg_usize`'s catch-all `_ => Ok(0)` arm cannot
+    // tell "argument absent" apart from "argument supplied twice".
+    // Pitfall: a `_checked` sibling only closes the gap for callers that
+    // actually switch to it (BUG-295's own Pitfall already said this) --
+    // these 3 call sites were the last unchecked `arg_usize` callers left
+    // in the workspace, confirmed by grepping every crate for direct
+    // `arg_usize(` usage outside its own definition.
+    params.limit = arg_usize_checked( cmd, "limit" )?;
+    params.offset = arg_usize_checked( cmd, "offset" )?;
     if let Some( heading ) = arg_string_checked( cmd, "heading" )? { params.heading = heading; }
-    params.width = arg_usize( cmd, "width" )?;
+    params.width = arg_usize_checked( cmd, "width" )?;
     Ok( params )
   }
 

@@ -6,6 +6,12 @@ This demo demonstrates basic 2D line rendering in WebGL2. It shows how to draw s
 
 This example is ideal for beginners learning WebGL2 fundamentals, covering vertex attribute setup, buffer management, and the minimal shader pipeline required for 2D line rendering. It provides a stepping stone to understanding more advanced rendering techniques.
 
+Controls:
+- Click the canvas - add a point to the line
+- Join dropdown - switch the line-join style (miter / bevel / round)
+- Cap dropdown - switch the line-cap style (butt / square / round)
+- Width slider - adjust the line width
+
 **[How to run](../../how_to_run.md)**
 
 **References:**

@@ -5,7 +5,7 @@
 //! which can't be constructed outside a browser. Relocated to `tests/` per the all-tests-in-tests/
 //! convention; the helper is exported at the `uniform` module path for exactly this purpose.
 
-use minwebgl::{ uniform::f32_matrix_length_error, WebglError };
+use minwebgl::{ uniform::f32_matrix_length_error, uniform::vector_upload_length_error, WebglError };
 
 // test_kind: bug_reproducer(BUG-277)
 /// ## Root Cause
@@ -68,4 +68,63 @@ fn f32_matrix_length_error_display_mentions_matrix_and_valid_lengths()
   assert!( message.contains( "matrix" ), "message must mention \"matrix\", got: {message}" );
   assert!( message.contains( "4, 9, 16" ), "message must list valid lengths 4, 9, 16, got: {message}" );
   assert!( !message.contains( "1, 2, 3, 4" ), "message must not carry over the vector error's valid-lengths list, got: {message}" );
+}
+
+// test_kind: bug_reproducer(BUG-426)
+/// ## Root Cause
+/// `UniformUpload::upload` for `[ [ f32 ; N ] ]`/`[ [ i32 ; N ] ]`/`[ [ u32 ; N ] ]`
+/// ( `src/uniform/float32.rs`, `int32.rs`, `unsigned32.rs` ) all `match N { .. }` to pick the
+/// right `glUniformNfv`-family call, but their catch-all `_` arm reported `self.len()` -- the
+/// *outer* slice's element count, i.e. how many `[ T ; N ]` vectors were passed -- as the
+/// invalid "length" in the error, instead of `N`, the *inner* array's own arity that the
+/// surrounding `match` is actually on. Uploading `&[ [ f32 ; 5 ] ; 3 ]` ( 3 vectors, each of
+/// the unsupported arity 5 ) produced a self-contradictory message reading
+/// "...of length 3. Known length : [ 1, 2, 3, 4 ]" -- 3 IS in the claimed-valid list, because
+/// the field reported was never the field that actually failed validation.
+///
+/// ## Why Not Caught
+/// `UniformUpload::upload` takes `&GL` ( `web_sys::WebGl2RenderingContext` ), which can't be
+/// constructed outside a browser, so nothing could call it directly from a native `cargo test`
+/// run to observe the error text; no live-GL example in this repo exercises the error branch
+/// either ( every real caller passes an already-correctly-sized vector array ).
+///
+/// ## Fix Applied
+/// Extracted the error construction into `vector_upload_length_error( type_name, n )`, a pure
+/// function with no `GL` dependency, returning
+/// `WebglError::CantUploadUniform( "vector", type_name, n, "1, 2, 3, 4" )`. All three `[ [ T ; N ] ]`
+/// `upload` impls' catch-all arms now call it with `N` ( not `self.len()` ) instead of
+/// constructing the error inline.
+///
+/// ## Prevention
+/// RED state (empirically confirmed): reverting any of the three call sites back to
+/// `Err( vector_upload_length_error( type_name_of_val( self ), self.len() ) )` ( i.e. `self.len()`
+/// instead of `N` ) and re-running this test with an outer/inner length mismatch genuinely fails
+/// the `reported_n` assertion below -- verified via a temporary probe before this fix was
+/// finalized.
+///
+/// ## Pitfall
+/// A slice-of-arrays impl ( matches on the const generic `N` ) and a plain-slice impl ( matches
+/// on `self.len()` ) can share an identically-shaped error arm while differing in exactly which
+/// value the `match` scrutinee -- and therefore the error's "invalid length" field -- actually
+/// is; copy-pasting one into the other silently keeps the wrong field.
+#[ test ]
+fn vector_upload_length_error_reports_inner_arity_not_outer_len()
+{
+  // `n` here stands in for the inner array arity `N` a `[ [ T ; N ] ]` impl's `_` arm is
+  // reached with ( always `> 4` or `0`, since 1..=4 are handled by their own match arms
+  // before the catch-all ); the outer slice length is deliberately different from `n` in
+  // every case, so a regression back to reporting `self.len()` cannot coincidentally match.
+  for ( type_name, n ) in [ ( "&[[f32; 5]]", 5usize ), ( "&[[f32; 0]]", 0 ), ( "&[[f32; 6]]", 6 ) ]
+  {
+    let error = vector_upload_length_error( type_name, n );
+    let WebglError::CantUploadUniform( kind, reported_type, reported_n, known ) = error
+    else
+    {
+      panic!( "expected WebglError::CantUploadUniform, got {error:?}" );
+    };
+    assert_eq!( kind, "vector" );
+    assert_eq!( reported_type, type_name );
+    assert_eq!( reported_n, n, "reported length must be the inner array arity N, not the outer slice's self.len()" );
+    assert_eq!( known, "1, 2, 3, 4" );
+  }
 }

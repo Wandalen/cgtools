@@ -23,7 +23,21 @@
 //! | FF3.2   | Hex       | Group Flow  | Length preserved   |
 //! | FF3.3   | Hex       | Multi-Goal  | One field per goal |
 //! | FF5.1   | Hex + ECS | ECS Batch   | All units answered |
+//!
+//! # BUG-474 (stub disclosure)
+//!
+//! Every operation this file exercises (`flow_calculate`, `flow_directions_batch_get`,
+//! `group_flow_calculate`, `goal_add`, `optimal_direction_get`) is a documented stub
+//! that never computes a real answer -- see `src/flowfield.rs`'s module doc. The
+//! "Expected" column above was, and remains, satisfied by shape/length checks alone;
+//! none of it asserts on the actual returned *values*, which is why the module's
+//! complete non-functionality went undetected. Each test below now also asserts the
+//! stub's current all-`None` output explicitly, so this file stops silently passing
+//! against stub behavior and instead documents it -- any future real implementation
+//! must update these assertions, at which point they become genuine regression
+//! coverage instead of accidental silence.
 
+#![ expect( deprecated, reason = "exercises the flowfield stub API pending a real implementation -- see BUG-474" ) ]
 
 use tiles_tools::flowfield::{FlowField, MultiGoalFlowField};
 use tiles_tools::coordinates::hexagonal::{Coordinate as HexCoord, Axial, Pointy};
@@ -32,6 +46,37 @@ use tiles_tools::coordinates::hexagonal::{Coordinate as HexCoord, Axial, Pointy}
 // Hexagonal Grid Flow Field Tests
 // =============================================================================
 
+// test_kind: bug_reproducer(BUG-474)
+/// ## Root Cause
+/// `FlowField::flow_calculate`'s two phases (`integration_field_calculate`,
+/// `flow_directions_generate`) are stub bodies containing only comments --
+/// neither reads `is_passable`/`get_cost` nor writes any field state. Every
+/// downstream query (`flow_direction_get`, `flow_apply`,
+/// `flow_directions_batch_get`, `group_flow_calculate`) is itself a stub
+/// that always returns `None`/an all-`None` collection, regardless of the
+/// goal, obstacles, or grid passed in.
+/// ## Why Not Caught
+/// This test (and the four others in this file) called the stub API and
+/// checked only that the call completed and that output length/count
+/// matched input length/count -- never that the *values* were sane. This
+/// specific test's closing comment, `// Units should path around water`,
+/// was aspirational, not asserted -- exactly the gap that let a fully
+/// non-functional pathfinding module ship undetected.
+/// ## Fix Applied
+/// Documentation-only fix (see BUG-474's report) -- the stub behavior
+/// itself is unchanged; every public item it touches is now marked
+/// `#[deprecated]`. This test gained an explicit assertion pinning the
+/// current (broken) output instead of silently discarding it.
+/// ## Prevention
+/// A test that only checks "didn't panic" or "length matches" against a
+/// function with a richer contract (a computed direction, not just a
+/// slot count) provides zero coverage of whether the computation itself
+/// is real. Assert on actual returned values, not just their shape.
+/// ## Pitfall
+/// An aspirational comment (`// Units should path around water`) sitting
+/// next to a call that computes nothing reads as documentation of intent,
+/// not of verified behavior -- it is easy to skim past during review and
+/// mistake for a real assertion.
 #[ test ]
 fn test_hex_grid_with_water_obstacles()
 {
@@ -49,7 +94,12 @@ fn test_hex_grid_with_water_obstacles()
     |_| 1
   );
 
-  // Units should path around water
+  // Units should path around water -- BUG-474: they cannot, because
+  // `flow_calculate` never computed any direction in the first place.
+  assert_eq!(
+    flow_field.flow_direction_get(&goal), None,
+    "flow_calculate is a stub (BUG-474); no direction has ever been computed, even at the goal itself"
+  );
 }
 
 // =============================================================================
@@ -70,6 +120,9 @@ fn test_batch_flow_direction_queries()
 
   let directions = flow_field.flow_directions_batch_get(&test_coordinates);
   assert_eq!(directions.len(), test_coordinates.len());
+  // BUG-474: flow_directions_batch_get is stub-cascading; pin the current
+  // all-None output so a future real implementation must consciously update this.
+  assert!(directions.iter().all(Option::is_none), "flow_directions_batch_get is a stub (BUG-474); no direction has ever been computed");
 }
 
 #[ test ]
@@ -86,6 +139,9 @@ fn test_group_movement_flow_application()
 
   let group_flow = flow_field.group_flow_calculate(&unit_positions);
   assert_eq!(group_flow.len(), unit_positions.len());
+  // BUG-474: group_flow_calculate is stub-cascading; pin the current
+  // all-None output so a future real implementation must consciously update this.
+  assert!(group_flow.iter().all(Option::is_none), "group_flow_calculate is a stub (BUG-474); no unit has ever received a real move target");
 }
 
 // =============================================================================
@@ -112,9 +168,11 @@ fn test_multi_goal_capture_points()
   // retired square-coordinate resource-gathering variant of this test).
   assert_eq!(multi_field.goal_fields.len(), 3);
 
-  // Units should move toward nearest capturable point
+  // Units should move toward nearest capturable point -- BUG-474: they
+  // cannot, optimal_direction_get is a stub that always returns None.
   let unit_pos = HexCoord::<Axial, Pointy>::new(0, 0);
-  let _direction = multi_field.optimal_direction_get(&unit_pos);
+  let direction = multi_field.optimal_direction_get(&unit_pos);
+  assert_eq!(direction, None, "optimal_direction_get is a stub (BUG-474); no direction has ever been computed");
 }
 
 // =============================================================================
@@ -150,4 +208,7 @@ fn test_flow_field_ecs_integration()
   // Get flow directions for all units
   let flow_directions = flow_field.flow_directions_batch_get(&unit_positions);
   assert_eq!(flow_directions.len(), 2);
+  // BUG-474: flow_directions_batch_get is stub-cascading; pin the current
+  // all-None output so a future real implementation must consciously update this.
+  assert!(flow_directions.iter().all(Option::is_none), "flow_directions_batch_get is a stub (BUG-474); no unit has ever received a real direction");
 }

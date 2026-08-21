@@ -40,15 +40,12 @@ The last row is the one worth driving by hand — drag the window's edge and
 watch the triangle stay centered and correctly proportioned rather than
 stretching, which is what a rebuilt chain looks like versus a stale one.
 
-## Known limitation
-
-The `vulkan` backend destroys no per-frame resources: `command_encoder_create`
-allocates a command pool and `render_pass_begin` a render pass and framebuffer,
-and none of the three is destroyed (see `module/helper/gpu_hal/src/vulkan.rs`'s
-module doc comment for the v0 tradeoff and its stated rationale — one isolated
-process per test). A windowed loop is the first consumer that invalidates that
-rationale, since it runs thousands of frames in one process. It is fine for a
-demo of this length and a genuine defect for a shipping application.
+Every per-frame resource this example's `draw()` allocates through `gpu_hal`
+(the command pool from `command_encoder_create`, the render pass and
+framebuffer from `render_pass_begin`) is destroyed automatically once the GPU
+finishes executing the frame — see `Queue::submit`'s Vulkan backend in
+`module/helper/gpu_hal/src/vulkan.rs`. Long-running windowed loops like this
+one's do not leak.
 
 ## Responsibility Table
 

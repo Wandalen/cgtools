@@ -366,27 +366,49 @@ impl TacticalRPG {
   }
   
   /// Executes movement toward a target position
+  // Fix(BUG-485): the pre-fix body computed `new_pos` and printed it under a comment
+  // reading "Update position (in real implementation would use proper ECS mutation)"
+  // -- it never actually performed that mutation, so units never moved: battlefield
+  // rendering, `nearest_enemy_find`/`nearest_player_find`, and attack-range checks all
+  // kept reading each unit's original spawn `Position` component forever.
+  // Root cause: `pos`/`movable` were only ever borrowed read-only (`world.get::<_>`);
+  // no code path in this function called `world.get_mut::<Position<_>>` to persist
+  // the computed coordinate back into the ECS world.
+  // Pitfall: a comment describing intended future work ("in real implementation...")
+  // is not a substitute for the work -- it silently documents a known gap instead of
+  // closing it, and is easy to mistake for a deliberate design choice on read-through.
   fn execute_move_toward(&mut self, entity: hecs::Entity, target: HexCoord<Axial, Pointy>) {
-  if let Ok(pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
-    if let Ok(movable) = self.world.get::<Movable>(entity) {
-      // Use pathfinding to find route
-      let path_result = astar(
-        &pos.coord,
-        &target,
-        |&coord| Self::is_position_passable(coord),
-        |_| 1,
-      );
+  let (current_pos, move_range) = {
+    if let Ok(pos) = self.world.get::<Position<HexCoord<Axial, Pointy>>>(entity) {
+      if let Ok(movable) = self.world.get::<Movable>(entity) {
+        (pos.coord, movable.range)
+      } else {
+        return;
+      }
+    } else {
+      return;
+    }
+  };
 
-      if let Some((path, _cost)) = path_result {
-        let path_len = u32::try_from(path.len()).unwrap_or(u32::MAX);
-        let move_distance = movable.range.min(path_len - 1);
-        if move_distance > 0 {
-          let new_pos = path[move_distance as usize];
-          
-          // Update position (in real implementation would use proper ECS mutation)
-          println!("🚶 Moving from ({}, {}) to ({}, {})", 
-                   pos.coord.q, pos.coord.r, new_pos.q, new_pos.r);
-        }
+  // Use pathfinding to find route
+  let path_result = astar(
+    &current_pos,
+    &target,
+    |&coord| Self::is_position_passable(coord),
+    |_| 1,
+  );
+
+  if let Some((path, _cost)) = path_result {
+    let path_len = u32::try_from(path.len()).unwrap_or(u32::MAX);
+    let move_distance = move_range.min(path_len - 1);
+    if move_distance > 0 {
+      let new_pos = path[move_distance as usize];
+
+      println!("🚶 Moving from ({}, {}) to ({}, {})",
+               current_pos.q, current_pos.r, new_pos.q, new_pos.r);
+
+      if let Ok(mut entity_pos) = self.world.get_mut::<Position<HexCoord<Axial, Pointy>>>(entity) {
+        entity_pos.set(new_pos);
       }
     }
   }
@@ -586,4 +608,56 @@ fn main()
   println!("• Equipment and stat systems");
   println!("• Experience and leveling mechanics");
   println!("• Grid-aware tactical positioning");
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  /// ## Root Cause
+  /// `execute_move_toward` computed `new_pos` via `astar` and printed it under
+  /// a comment reading "Update position (in real implementation would use
+  /// proper ECS mutation)" -- the mutation itself was never written, so no
+  /// unit ever actually moved on the battlefield: `battlefield_print`,
+  /// `nearest_enemy_find`/`nearest_player_find`, and every attack-range check
+  /// kept reading each unit's original spawn `Position` component forever.
+  ///
+  /// ## Why Not Caught
+  /// The console log still prints a "Moving from X to Y" message whenever a
+  /// move is computed, so a manual run looks correct at a glance; the existing
+  /// `tests/readme_doc_test.rs` only checks the readme's own claims, never the
+  /// simulation's actual `Position` state after a move.
+  ///
+  /// ## Fix Applied
+  /// `execute_move_toward` now calls `world.get_mut::<Position<_>>(entity)` and
+  /// `.set(new_pos)` immediately after computing the move, matching how every
+  /// other mutated component (`Health`, `Experience`) in this file is already
+  /// persisted via `get_mut`.
+  ///
+  /// ## Prevention
+  /// This test asserts the entity's queried `Position` component actually
+  /// changes after `execute_move_toward` runs -- the general invariant the fix
+  /// restores, not a pinned per-coordinate expectation.
+  ///
+  /// ## Pitfall
+  /// A comment describing intended future work ("in real implementation...")
+  /// is not a substitute for the work -- it silently documents a known gap
+  /// instead of closing it, and reads as a deliberate design choice rather
+  /// than an unfinished one.
+  #[test]
+  fn bug_reproducer_bug_485_execute_move_toward_persists_position() {
+    let mut game = TacticalRPG::new();
+    let entity = game.turn_queue[0];
+
+    let before = game.world.get::<Position<HexCoord<Axial, Pointy>>>(entity).unwrap().coord;
+
+    // The board has no obstacles (`is_position_passable` always returns `true`),
+    // so any target different from the spawn point is guaranteed reachable.
+    let target = HexCoord::<Axial, Pointy>::new(2, -1);
+    game.execute_move_toward(entity, target);
+
+    let after = game.world.get::<Position<HexCoord<Axial, Pointy>>>(entity).unwrap().coord;
+
+    assert_ne!(before, after, "entity's Position component must change after execute_move_toward");
+  }
 }

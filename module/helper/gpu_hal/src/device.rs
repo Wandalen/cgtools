@@ -65,6 +65,14 @@ mod private
     bind_group_layout_create as vulkan_bind_group_layout_create,
     bind_group_create as vulkan_bind_group_create,
     render_pipeline_create as vulkan_render_pipeline_create,
+    buffer_destroy as vulkan_buffer_destroy,
+    texture_destroy as vulkan_texture_destroy,
+    texture_view_destroy as vulkan_texture_view_destroy,
+    sampler_destroy as vulkan_sampler_destroy,
+    shader_module_destroy as vulkan_shader_module_destroy,
+    bind_group_layout_destroy as vulkan_bind_group_layout_destroy,
+    bind_group_destroy as vulkan_bind_group_destroy,
+    render_pipeline_destroy as vulkan_render_pipeline_destroy,
     command_encoder_create as vulkan_command_encoder_create,
     pixels_read as vulkan_pixels_read,
     submit as vulkan_submit
@@ -614,6 +622,17 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// allocate the buffer, or [`Error::Vulkan`] if the underlying Vulkan
     /// memory allocation or buffer creation fails. The native backend never
     /// fails this call.
+    ///
+    /// # Resource Lifetime
+    ///
+    /// The returned [`Buffer`] is never freed automatically. Call
+    /// [`Device::buffer_destroy`] once it is no longer needed — on the
+    /// WebGL and Vulkan backends the underlying GPU allocation otherwise
+    /// leaks for the process's lifetime; on WebGPU and native ( wgpu ) it is
+    /// eventually reclaimed once the handle is dropped ( JS garbage
+    /// collection / Rust `Drop`, respectively ), but calling
+    /// [`Device::buffer_destroy`] still releases it earlier and
+    /// deterministically there too.
     pub fn buffer_create( &self, size : u64, usage : BufferUsage ) -> Result< Buffer, Error >
     {
       // Browser buffer allocations sit far below f64's exact integer
@@ -668,6 +687,12 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// allocate the buffer, or on Vulkan whichever [`Error`] the underlying
     /// `buffer_create` or `buffer_write` call reports. The native backend
     /// never fails this call.
+    ///
+    /// # Resource Lifetime
+    ///
+    /// Same contract as [`Device::buffer_create`] — call
+    /// [`Device::buffer_destroy`] once the returned [`Buffer`] is no longer
+    /// needed.
     pub fn buffer_init_create( &self, data : &[ u8 ], usage : BufferUsage ) -> Result< Buffer, Error >
     {
       match self
@@ -723,6 +748,19 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// Vulkan format resolution or the underlying image allocation fails.
     /// The native backend never fails this call for reasons other than an
     /// invalid `desc.size`.
+    ///
+    /// # Resource Lifetime
+    ///
+    /// The returned [`Texture`] is never freed automatically. Call
+    /// [`Device::texture_destroy`] once it is no longer needed — on the
+    /// WebGL and Vulkan backends the underlying GPU allocation otherwise
+    /// leaks for the process's lifetime; on WebGPU and native ( wgpu ) it is
+    /// eventually reclaimed once the handle is dropped, but calling
+    /// [`Device::texture_destroy`] still releases it earlier and
+    /// deterministically there too. A [`TextureView`] built from this
+    /// texture via [`Texture::view`] must be dropped ( or destroyed via
+    /// [`Device::texture_view_destroy`] ) before or independently of the
+    /// texture itself — see [`Texture::view`]'s own doc comment.
     pub fn texture_create( &self, desc : &TextureDesc ) -> Result< Texture, Error >
     {
       // Fix(BUG-176): `desc.size` reached every backend unguarded. WebGPU
@@ -771,6 +809,15 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// Returns [`Error::WebGl`] if the WebGL context fails to allocate the
     /// sampler, or [`Error::Vulkan`] if the underlying `vkCreateSampler`
     /// call fails. The WebGPU and native backends never fail this call.
+    ///
+    /// # Resource Lifetime
+    ///
+    /// The returned [`Sampler`] is never freed automatically. On the WebGL
+    /// and Vulkan backends, call [`Device::sampler_destroy`] once it is no
+    /// longer needed, or the underlying GPU object leaks for the process's
+    /// lifetime. On WebGPU and native, destroying it is a no-op — those
+    /// backends reclaim it once the handle is dropped, so
+    /// [`Device::sampler_destroy`] is safe to call unconditionally.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
     pub fn sampler_create( &self, desc : SamplerDesc ) -> Result< Sampler, Error >
     {
@@ -826,6 +873,17 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// Vulkan backend if WGSL-to-SPIR-V compilation or the underlying
     /// `vkCreateShaderModule` call fails. The WebGPU and native backends
     /// never fail this call.
+    ///
+    /// # Resource Lifetime
+    ///
+    /// The returned [`ShaderModule`] is never freed automatically. On the
+    /// Vulkan backend, call [`Device::shader_module_destroy`] once every
+    /// [`RenderPipeline`] built from it exists, or the underlying
+    /// `VkShaderModule` leaks for the process's lifetime. On WebGPU and
+    /// native, destroying it is a no-op; on WebGL it compiles no GPU object
+    /// at all until pipeline creation links it, so there is nothing to leak
+    /// either — [`Device::shader_module_destroy`] is safe to call
+    /// unconditionally on every backend.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in the webgpu-only build, whose infallibility is incidental; the WebGL arm fails for real, so the signature stays fallible" ) ]
     pub fn shader_module_create( &self, source : &ShaderSource< '_ > ) -> Result< ShaderModule, Error >
     {
@@ -878,6 +936,17 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// layout-creation call fails, or [`Error::Vulkan`] if the underlying
     /// `vkCreateDescriptorSetLayout` call fails. The WebGL and native
     /// backends never fail this call.
+    ///
+    /// # Resource Lifetime
+    ///
+    /// The returned [`BindGroupLayout`] is never freed automatically. On
+    /// the Vulkan backend, call [`Device::bind_group_layout_destroy`] once
+    /// every [`BindGroup`]/[`RenderPipeline`] built from it exists, or the
+    /// underlying `VkDescriptorSetLayout` leaks for the process's lifetime.
+    /// On WebGPU and native, destroying it is a no-op; on WebGL it is a
+    /// plain CPU-side entry list with no GPU object at all — safe to call
+    /// [`Device::bind_group_layout_destroy`] unconditionally on every
+    /// backend.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
     pub fn bind_group_layout_create
     (
@@ -935,6 +1004,17 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// backbuffer cannot be sampled, or [`Error::Vulkan`] if the underlying
     /// descriptor pool creation or descriptor set allocation fails. The
     /// WebGPU and native backends never fail this call.
+    ///
+    /// # Resource Lifetime
+    ///
+    /// The returned [`BindGroup`] is never freed automatically. On the
+    /// Vulkan backend, call [`Device::bind_group_destroy`] once it is no
+    /// longer needed, or the underlying `VkDescriptorPool` leaks for the
+    /// process's lifetime. On WebGPU and native, destroying it is a no-op;
+    /// on WebGL its entries are clones of handles owned by the original
+    /// `Buffer`/`Texture`/`Sampler` and there is nothing of its own to
+    /// free — safe to call [`Device::bind_group_destroy`] unconditionally
+    /// on every backend.
     #[ allow( clippy::unnecessary_wraps, reason = "fires only in single-backend builds where the surviving arm is infallible; the other backend's arm fails for real, so the signature stays fallible" ) ]
     #[ allow( unused_variables, reason = "fires only in a webgl-only build -- the WebGl arm ignores `layout` ( the GL context takes no separate layout object ), but the webgpu/native/vulkan arms all read it" ) ]
     pub fn bind_group_create
@@ -970,6 +1050,20 @@ coincidental to the two backend families, not duplicated logic" ) ]
     /// name contains an interior nul byte, or if the underlying pipeline
     /// layout, render pass, or graphics pipeline creation fails. The
     /// native backend never fails this call.
+    ///
+    /// # Resource Lifetime
+    ///
+    /// The returned [`RenderPipeline`] is never freed automatically. On the
+    /// Vulkan backend, call [`Device::render_pipeline_destroy`] once it is
+    /// no longer needed, or the underlying `VkPipeline`/`VkPipelineLayout`
+    /// leak for the process's lifetime. On WebGPU and native, destroying it
+    /// is a no-op. On WebGL the pipeline shares its compiled GL program via
+    /// `Rc` with any [`RenderPass`](crate::RenderPass) currently using it as
+    /// the bound draw state — [`Device::render_pipeline_destroy`] only
+    /// deletes the GL program once this was the last surviving reference,
+    /// otherwise it just drops this one and leaves the program alive for
+    /// the pass still holding it. Safe to call unconditionally on every
+    /// backend.
     pub fn render_pipeline_create( &self, desc : &RenderPipelineDesc< '_ > ) -> Result< RenderPipeline, Error >
     {
       match self
@@ -1002,6 +1096,367 @@ coincidental to the two backend families, not duplicated logic" ) ]
         Self::Vulkan( device_vulkan ) =>
         {
           Ok( RenderPipeline::Vulkan( vulkan_render_pipeline_create( device_vulkan, desc )? ) )
+        }
+      }
+    }
+
+    // Fix(BUG-430): `gpu_hal` had a full resource-CREATE API ( `buffer_create`,
+    // `texture_create`, `sampler_create`, `shader_module_create`,
+    // `bind_group_layout_create`, `bind_group_create`, `render_pipeline_create`
+    // above ) but no destroy/free counterpart on any backend -- every
+    // `Buffer`/`Texture`/`TextureView`/`Sampler`/`ShaderModule`/
+    // `BindGroupLayout`/`BindGroup`/`RenderPipeline` leaked unconditionally on
+    // the WebGL and Vulkan backends ( Vulkan's leak was at least acknowledged
+    // in `vulkan.rs`'s own module doc comment; WebGL's was completely
+    // undocumented ). A real-time app allocating per-frame transient
+    // resources through either backend had no way to free anything by hand
+    // and would exhaust GPU memory. The 8 `Device::*_destroy` methods below
+    // close that gap.
+    // Root cause: the crate's v0 scope shipped resource creation before
+    // resource destruction ever became a concrete, exercised need -- the
+    // existing test suite is `cargo nextest`-isolated ( one process per
+    // test ), so the leak never accumulated across a run and stayed
+    // invisible to it.
+    // Pitfall: an API surface that lets a caller allocate GPU resources but
+    // never free them looks complete from the type signatures alone --
+    // `Result< Buffer, Error >` gives no hint that the only way to release
+    // the allocation was dropping the whole `Device`. Any future resource
+    // type added to `resource.rs` needs its own `Device::*_destroy` method
+    // added in the same change, not as a follow-up.
+    //
+    // Design: `Device::*_destroy( &self, resource : T )` methods returning
+    // `()`, consuming `resource` by value -- not `impl Drop` on the resource
+    // types themselves. Considered and rejected: most Vulkan wrapper structs
+    // ( `BufferVulkan`, the raw `Sampler`/`ShaderModule` handles,
+    // `BindGroupLayoutVulkan`, `BindGroupVulkan`, `RenderPipelineVulkan`,
+    // `TextureViewVulkan` ) and most WebGL wrapper structs ( `BufferWebGl`,
+    // `TextureWebGl`, the raw `WebGlSampler` handle, `RenderPipelineWebGl` )
+    // carry no device/context handle of their own -- only `TextureVulkan`
+    // does. A working `Drop` impl would need a device/context clone field
+    // added to roughly 10 structs across `vulkan.rs`/`webgl.rs`, widening
+    // every one of them and touching every construction call site, purely to
+    // support a destructor. Dispatching through `Device` instead needs zero
+    // struct changes : `self` already holds the backend context every
+    // destroy call needs, exactly mirroring this crate's own pre-existing
+    // `Queue::buffer_write`/`texture_write` dispatch idiom. Every backend's
+    // destroy operation is also provably infallible per its own spec
+    // ( `vkDestroy*`/`vkFree*` are void-returning; wgpu's and WebGPU's
+    // `.destroy()` return `()`/`undefined`; WebGL's `gl.delete*` calls
+    // return `undefined` ), so these methods return `()` rather than
+    // `Result< (), Error >` -- no new `Error` variant needed. Consuming
+    // `resource` by value is a deliberate safety margin beyond what any
+    // backend strictly requires : since none of these types carry a `Drop`
+    // impl, a caller holding onto a stale handle after an explicit destroy
+    // could otherwise pass it to another HAL call and reach the driver with
+    // an already-freed handle -- taking ownership here makes that a compile
+    // error instead.
+
+    /// Destroys `buffer`'s underlying GPU allocation.
+    ///
+    /// See [`Device::buffer_create`]'s "Resource Lifetime" section for which
+    /// backends actually need this call.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a cross-backend mismatch : a `buffer` produced by one
+    /// backend's `Device` used to call `buffer_destroy` on a different
+    /// backend's `Device`. Callers that always pair a resource with the
+    /// `Device` that created it never hit this, matching `Queue::submit`'s
+    /// identical guarantee.
+    #[ allow( clippy::needless_pass_by_value, reason = "consuming `buffer` deliberately -- it prevents a caller from reusing a handle whose backing GPU allocation this call may have just freed, since none of the 4 resource wrapper types carry a `Drop` impl to catch that misuse at runtime instead" ) ]
+    pub fn buffer_destroy( &self, buffer : Buffer )
+    {
+      match self
+      {
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu( _ ) => buffer.expect_webgpu().destroy(),
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( context ) => context.delete_buffer( Some( &buffer.expect_webgl().buffer ) ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => buffer.expect_native().destroy(),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) =>
+        {
+          match buffer
+          {
+            Buffer::Vulkan( raw ) => vulkan_buffer_destroy( device_vulkan, raw ),
+            #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+            Buffer::Native( _ ) => panic!( "backend mismatch : Device::Vulkan received a Device::Native Buffer" )
+          }
+        }
+      }
+    }
+
+    /// Destroys `texture`'s underlying GPU allocation.
+    ///
+    /// See [`Device::texture_create`]'s "Resource Lifetime" section for
+    /// which backends actually need this call. Does not touch any
+    /// [`TextureView`] built from `texture` via [`Texture::view`] -- those
+    /// are freed independently, through [`Device::texture_view_destroy`].
+    ///
+    /// # Panics
+    ///
+    /// Panics on a cross-backend mismatch : a `texture` produced by one
+    /// backend's `Device` used to call `texture_destroy` on a different
+    /// backend's `Device`. Callers that always pair a resource with the
+    /// `Device` that created it never hit this, matching `Queue::submit`'s
+    /// identical guarantee.
+    #[ allow( clippy::needless_pass_by_value, reason = "consuming `texture` deliberately -- it prevents a caller from reusing a handle whose backing GPU allocation this call may have just freed, since none of the 4 resource wrapper types carry a `Drop` impl to catch that misuse at runtime instead" ) ]
+    pub fn texture_destroy( &self, texture : Texture )
+    {
+      match self
+      {
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu( _ ) => texture.expect_webgpu().destroy(),
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( context ) => context.delete_texture( Some( &texture.expect_webgl().texture ) ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => texture.expect_native().destroy(),
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( _ ) =>
+        {
+          match texture
+          {
+            // `Box<TextureVulkan>`'s own compiler-blessed deref-move lets `*raw`
+            // hand `vulkan_texture_destroy` the owned value its by-value
+            // signature needs, straight out of the box, with no extra clone --
+            // mirrors `Queue::submit`'s identical `Box<CommandEncoderVulkan>`
+            // deref-move.
+            Texture::Vulkan( raw ) => vulkan_texture_destroy( *raw ),
+            #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+            Texture::Native( _ ) => panic!( "backend mismatch : Device::Vulkan received a Device::Native Texture" )
+          }
+        }
+      }
+    }
+
+    /// Destroys `view`'s underlying GPU view object, when the backend has
+    /// one of its own. Never touches the source texture or its memory.
+    ///
+    /// See [`Texture::view`]'s doc comment for which backends actually need
+    /// this call.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a cross-backend mismatch : a `view` produced by one
+    /// backend's `Device` used to call `texture_view_destroy` on a
+    /// different backend's `Device`. Callers that always pair a resource
+    /// with the `Device` that created it never hit this -- every arm below
+    /// checks `view` against its own backend even where there is nothing
+    /// else to free, matching `Queue::submit`'s identical guarantee.
+    #[ allow( clippy::match_same_arms, reason = "every backend but Vulkan has no separate view object to free -- WebGPU/native views are GC/Drop-managed, and the WebGL view is either a non-owning alias of the source texture's own handle or the canvas backbuffer, neither ever independently deletable; each arm is independently feature-gated, so merging them into one or-pattern would not compile whenever only some of those features are enabled" ) ]
+    #[ allow( clippy::needless_pass_by_value, reason = "consumes `view` by value deliberately -- ownership-transfer is what makes an already-destroyed handle a compile error instead of a runtime hazard on reuse (see BUG-430's design rationale); the non-Vulkan arms only borrow it via `expect_*` for the cross-backend mismatch check and have nothing else to free, but every arm must still consume the same value uniformly" ) ]
+    pub fn texture_view_destroy( &self, view : TextureView )
+    {
+      match self
+      {
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu( _ ) => { view.expect_webgpu(); }
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( _ ) => { view.expect_webgl(); }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => { view.expect_native(); }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) => vulkan_texture_view_destroy( device_vulkan, *view.expect_vulkan() )
+      }
+    }
+
+    /// Destroys `sampler`'s underlying GPU object.
+    ///
+    /// See [`Device::sampler_create`]'s "Resource Lifetime" section for
+    /// which backends actually need this call.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a cross-backend mismatch : a `sampler` produced by one
+    /// backend's `Device` used to call `sampler_destroy` on a different
+    /// backend's `Device`. Callers that always pair a resource with the
+    /// `Device` that created it never hit this -- every arm below checks
+    /// `sampler` against its own backend even where there is nothing else
+    /// to free, matching `Queue::submit`'s identical guarantee.
+    #[ allow( clippy::match_same_arms, reason = "WebGPU and native samplers are GC/Drop-managed with no explicit destroy in either API -- only WebGL and Vulkan actually free anything here; each arm is independently feature-gated, so merging them into one or-pattern would not compile whenever only some of those features are enabled" ) ]
+    #[ allow( clippy::needless_pass_by_value, reason = "consumes `sampler` by value deliberately -- ownership-transfer is what makes an already-destroyed handle a compile error instead of a runtime hazard on reuse (see BUG-430's design rationale); the WebGPU/native arms only borrow it via `expect_*` for the cross-backend mismatch check and have nothing else to free, but every arm must still consume the same value uniformly" ) ]
+    pub fn sampler_destroy( &self, sampler : Sampler )
+    {
+      match self
+      {
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu( _ ) => { sampler.expect_webgpu(); }
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( context ) => context.delete_sampler( Some( sampler.expect_webgl() ) ),
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => { sampler.expect_native(); }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) => vulkan_sampler_destroy( device_vulkan, *sampler.expect_vulkan() )
+      }
+    }
+
+    /// Destroys `module`'s underlying GPU object, when the backend compiled
+    /// one at all.
+    ///
+    /// See [`Device::shader_module_create`]'s "Resource Lifetime" section
+    /// for which backends actually need this call.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a cross-backend mismatch : a `module` produced by one
+    /// backend's `Device` used to call `shader_module_destroy` on a
+    /// different backend's `Device`. Callers that always pair a resource
+    /// with the `Device` that created it never hit this -- every arm below
+    /// checks `module` against its own backend even where there is nothing
+    /// else to free, matching `Queue::submit`'s identical guarantee.
+    #[ allow( clippy::match_same_arms, reason = "WebGPU/native shader modules are GC/Drop-managed, and WebGL compiles no GL object until pipeline creation links one -- only Vulkan actually frees anything here; each arm is independently feature-gated, so merging them into one or-pattern would not compile whenever only some of those features are enabled" ) ]
+    #[ allow( clippy::needless_pass_by_value, reason = "consumes `module` by value deliberately -- ownership-transfer is what makes an already-destroyed handle a compile error instead of a runtime hazard on reuse (see BUG-430's design rationale); the non-Vulkan arms only borrow it via `expect_*` for the cross-backend mismatch check and have nothing else to free, but every arm must still consume the same value uniformly" ) ]
+    pub fn shader_module_destroy( &self, module : ShaderModule )
+    {
+      match self
+      {
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu( _ ) => { module.expect_webgpu(); }
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( _ ) => { module.expect_webgl(); }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => { module.expect_native(); }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) => vulkan_shader_module_destroy( device_vulkan, *module.expect_vulkan() )
+      }
+    }
+
+    /// Destroys `layout`'s underlying GPU object, when the backend has one
+    /// at all.
+    ///
+    /// See [`Device::bind_group_layout_create`]'s "Resource Lifetime"
+    /// section for which backends actually need this call.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a cross-backend mismatch : a `layout` produced by one
+    /// backend's `Device` used to call `bind_group_layout_destroy` on a
+    /// different backend's `Device`. Callers that always pair a resource
+    /// with the `Device` that created it never hit this -- every arm below
+    /// checks `layout` against its own backend even where there is nothing
+    /// else to free, matching `Queue::submit`'s identical guarantee.
+    #[ allow( clippy::match_same_arms, reason = "WebGPU/native bind group layouts are GC/Drop-managed, and WebGL's is a plain CPU-side entry list with no GPU object at all -- only Vulkan actually frees anything here; each arm is independently feature-gated, so merging them into one or-pattern would not compile whenever only some of those features are enabled" ) ]
+    #[ allow( clippy::needless_pass_by_value, reason = "consuming `layout` deliberately -- it prevents a caller from reusing a handle whose backing GPU object this call may have just freed, since `BindGroupLayoutVulkan` carries no `Drop` impl to catch that misuse at runtime instead" ) ]
+    pub fn bind_group_layout_destroy( &self, layout : BindGroupLayout )
+    {
+      match self
+      {
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu( _ ) => { layout.expect_webgpu(); }
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( _ ) => { layout.expect_webgl(); }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => { layout.expect_native(); }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) =>
+        {
+          match layout
+          {
+            BindGroupLayout::Vulkan( raw ) => vulkan_bind_group_layout_destroy( device_vulkan, raw ),
+            #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+            BindGroupLayout::Native( _ ) =>
+            panic!( "backend mismatch : Device::Vulkan received a Device::Native BindGroupLayout" )
+          }
+        }
+      }
+    }
+
+    /// Destroys `group`'s underlying GPU object, when the backend has one
+    /// at all.
+    ///
+    /// See [`Device::bind_group_create`]'s "Resource Lifetime" section for
+    /// which backends actually need this call.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a cross-backend mismatch : a `group` produced by one
+    /// backend's `Device` used to call `bind_group_destroy` on a different
+    /// backend's `Device`. Callers that always pair a resource with the
+    /// `Device` that created it never hit this -- every arm below checks
+    /// `group` against its own backend even where there is nothing else to
+    /// free, matching `Queue::submit`'s identical guarantee.
+    #[ allow( clippy::match_same_arms, reason = "WebGPU/native bind groups are GC/Drop-managed, and WebGL's entries are clones of handles owned by the original Buffer/Texture/Sampler with nothing of their own to free -- only Vulkan actually frees anything here; each arm is independently feature-gated, so merging them into one or-pattern would not compile whenever only some of those features are enabled" ) ]
+    #[ allow( clippy::needless_pass_by_value, reason = "consuming `group` deliberately -- it prevents a caller from reusing a handle whose backing GPU object this call may have just freed, since `BindGroupVulkan` carries no `Drop` impl to catch that misuse at runtime instead" ) ]
+    pub fn bind_group_destroy( &self, group : BindGroup )
+    {
+      match self
+      {
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu( _ ) => { group.expect_webgpu(); }
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( _ ) => { group.expect_webgl(); }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => { group.expect_native(); }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) =>
+        {
+          match group
+          {
+            BindGroup::Vulkan( raw ) => vulkan_bind_group_destroy( device_vulkan, raw ),
+            #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+            BindGroup::Native( _ ) => panic!( "backend mismatch : Device::Vulkan received a Device::Native BindGroup" )
+          }
+        }
+      }
+    }
+
+    /// Destroys `pipeline`'s underlying GPU object, when the backend has
+    /// one at all.
+    ///
+    /// See [`Device::render_pipeline_create`]'s "Resource Lifetime" section
+    /// for which backends actually need this call, including the WebGL
+    /// `Rc`-shared-ownership caveat.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a cross-backend mismatch : a `pipeline` produced by one
+    /// backend's `Device` used to call `render_pipeline_destroy` on a
+    /// different backend's `Device`. Callers that always pair a resource
+    /// with the `Device` that created it never hit this -- every arm below
+    /// checks `pipeline` against its own backend even where there is
+    /// nothing else to free, matching `Queue::submit`'s identical
+    /// guarantee.
+    #[ allow( clippy::match_same_arms, reason = "WebGPU/native render pipelines are GC/Drop-managed -- only WebGL ( conditionally, per its Rc refcount ) and Vulkan actually free anything here; each arm is independently feature-gated, so merging them into one or-pattern would not compile whenever only some of those features are enabled" ) ]
+    #[ allow( clippy::needless_pass_by_value, reason = "consuming `pipeline` deliberately -- it prevents a caller from reusing a handle whose backing GPU object this call may have just freed, since `RenderPipelineVulkan` carries no `Drop` impl to catch that misuse at runtime instead" ) ]
+    pub fn render_pipeline_destroy( &self, pipeline : RenderPipeline )
+    {
+      match self
+      {
+        #[ cfg( all( feature = "webgpu", target_arch = "wasm32" ) ) ]
+        Self::WebGpu( _ ) => { pipeline.expect_webgpu(); }
+        #[ cfg( all( feature = "webgl", target_arch = "wasm32" ) ) ]
+        Self::WebGl( context ) =>
+        {
+          // `RenderPipeline::WebGl` shares its compiled GL program via `Rc`
+          // with any `RenderPass` currently using it as the bound draw
+          // state ( see `RenderPipelineWebGl`'s own doc comment ). Deleting
+          // the GL program out from under a pass still holding a clone would
+          // corrupt that pass's rendering, so this only issues the real GL
+          // delete when this was the last surviving reference; otherwise it
+          // just drops this one clone and leaves the program alive for
+          // whichever pass still holds the other one. `expect_webgl()`
+          // ( not `if let` ) so a cross-backend `RenderPipeline` panics here
+          // exactly like every other arm in this file, instead of silently
+          // doing nothing.
+          let raw = pipeline.expect_webgl();
+          if std::rc::Rc::strong_count( raw ) == 1
+          {
+            context.delete_program( Some( &raw.program ) );
+          }
+        }
+        #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+        Self::Native( _ ) => { pipeline.expect_native(); }
+        #[ cfg( all( feature = "vulkan", not( target_arch = "wasm32" ) ) ) ]
+        Self::Vulkan( device_vulkan ) =>
+        {
+          match pipeline
+          {
+            RenderPipeline::Vulkan( raw ) => vulkan_render_pipeline_destroy( device_vulkan, raw ),
+            #[ cfg( all( feature = "native", not( target_arch = "wasm32" ) ) ) ]
+            RenderPipeline::Native( _ ) =>
+            panic!( "backend mismatch : Device::Vulkan received a Device::Native RenderPipeline" )
+          }
         }
       }
     }

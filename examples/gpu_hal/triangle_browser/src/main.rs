@@ -17,9 +17,10 @@
 #[ cfg( target_arch = "wasm32" ) ]
 use gpu_hal::
 {
-  Device, Queue, Surface, ShaderSource, BufferUsage, BindGroupLayoutEntry, ShaderStages,
-  BindingType, BindingResource, RenderPipelineDesc, VertexBufferLayout, VertexAttribute,
-  VertexFormat, ColorAttachmentDesc, IndexFormat, StepMode,
+  Device, Queue, Surface, ShaderSource, ShaderModule, BufferUsage, Buffer, BindGroupLayoutEntry,
+  BindGroupLayout, BindGroup, ShaderStages, BindingType, BindingResource, RenderPipelineDesc,
+  RenderPipeline, VertexBufferLayout, VertexAttribute, VertexFormat, ColorAttachmentDesc,
+  IndexFormat, StepMode,
 };
 
 /// Bytes of a `f32` slice, little-endian — mirrors
@@ -50,6 +51,133 @@ const GLSL_VERTEX : &str = include_str!( concat!( env!( "OUT_DIR" ), "/triangle.
 #[ cfg( target_arch = "wasm32" ) ]
 const GLSL_FRAGMENT : &str = include_str!( concat!( env!( "OUT_DIR" ), "/triangle.frag.glsl" ) );
 
+/// Creates the vertex, index, and uniform buffers `triangle_draw` submits —
+/// the uniform buffer comes back already written with the triangle's fixed
+/// color.
+#[ cfg( target_arch = "wasm32" ) ]
+fn triangle_buffers_create( device : &Device, queue : &Queue ) -> ( Buffer, Buffer, Buffer )
+{
+  let vertices = as_bytes( &[ -0.5, -0.5, 0.5, -0.5, 0.0, 0.5 ] );
+  let vertex_buffer = device.buffer_init_create( &vertices, BufferUsage::VERTEX )
+  .expect( "vertex buffer creation failed" );
+  let indices : Vec< u8 > = [ 0u32, 1, 2 ].iter().flat_map( | i | i.to_le_bytes() ).collect();
+  let index_buffer = device.buffer_init_create( &indices, BufferUsage::INDEX )
+  .expect( "index buffer creation failed" );
+
+  let uniform_buffer = device.buffer_create( 16, BufferUsage::UNIFORM | BufferUsage::COPY_DST )
+  .expect( "uniform buffer creation failed" );
+  queue.buffer_write( &uniform_buffer, &as_bytes( &[ 1.0, 0.0, 0.0, 1.0 ] ) )
+  .expect( "uniform write failed" );
+
+  ( vertex_buffer, index_buffer, uniform_buffer )
+}
+
+/// Computes the clear color, doubling as the `Fix(BUG-200)` regression
+/// check: an oversized `buffer_write` against a WebGL buffer too small to
+/// hold it must return `Err`, not silently no-op -- WebGL2's
+/// `bufferSubData` has no way to surface the underlying `INVALID_VALUE`
+/// itself, so this guard is the only thing standing between silent data
+/// corruption and a clean error. A cyan clear means the guard did NOT fire
+/// and this example's own render output can no longer be trusted. WebGPU's
+/// `writeBuffer` validates out-of-bounds writes itself ( a different
+/// failure mode, not this bug ), so this check only applies to the `webgl`
+/// build.
+#[ cfg( target_arch = "wasm32" ) ]
+#[ allow( unused_variables, reason = "device and queue are read only in the webgl-feature arm ( the BUG-200 guard probe ) -- a non-webgl build takes the other arm, which touches neither" ) ]
+fn triangle_clear_color_get( device : &Device, queue : &Queue ) -> [ f32 ; 4 ]
+{
+  #[ cfg( feature = "webgl" ) ]
+  {
+    let small_buffer = device.buffer_create( 4, BufferUsage::UNIFORM | BufferUsage::COPY_DST )
+    .expect( "small buffer creation failed" );
+    let oversized = as_bytes( &[ 1.0, 2.0, 3.0, 4.0 ] ); // 16 bytes into a 4-byte buffer
+    if queue.buffer_write( &small_buffer, &oversized ).is_ok()
+    {
+      [ 0.0, 1.0, 1.0, 1.0 ] // cyan -- BUG-200 guard missing/regressed
+    }
+    else
+    {
+      [ 0.0, 0.0, 0.0, 1.0 ]
+    }
+  }
+  #[ cfg( not( feature = "webgl" ) ) ]
+  {
+    [ 0.0, 0.0, 0.0, 1.0 ]
+  }
+}
+
+/// Creates the render pipeline `triangle_draw` records its pass with.
+#[ cfg( target_arch = "wasm32" ) ]
+fn triangle_pipeline_create
+(
+  device : &Device,
+  shader : &ShaderModule,
+  surface : &Surface,
+  layout : &BindGroupLayout
+) -> RenderPipeline
+{
+  device.render_pipeline_create( &RenderPipelineDesc
+  {
+    shader,
+    vertex_entry : "vs_main",
+    fragment_entry : "fs_main",
+    vertex_buffers : &[ VertexBufferLayout
+    {
+      stride : 8,
+      step_mode : StepMode::Vertex,
+      attributes : vec!
+      [
+        VertexAttribute { location : 0, format : VertexFormat::Float32x2, offset : 0 }
+      ]
+    } ],
+    bind_group_layouts : &[ layout ],
+    color_format : surface.format(),
+    depth : None,
+    cull_back : false
+  } )
+  .expect( "pipeline creation failed" )
+}
+
+/// Bundles the draw-call resources `triangle_pass_record` binds — grouped
+/// into one struct rather than 4 separate parameters to stay under
+/// `clippy::too_many_arguments`.
+#[ cfg( target_arch = "wasm32" ) ]
+struct TriangleResources< 'a >
+{
+  pipeline : &'a RenderPipeline,
+  bind_group : &'a BindGroup,
+  vertex_buffer : &'a Buffer,
+  index_buffer : &'a Buffer
+}
+
+/// Records and submits the render pass drawing the triangle over `clear`.
+#[ cfg( target_arch = "wasm32" ) ]
+fn triangle_pass_record
+(
+  device : &Device,
+  queue : &Queue,
+  surface : &Surface,
+  resources : &TriangleResources< '_ >,
+  clear : [ f32 ; 4 ]
+)
+{
+  let view = surface.current_view().expect( "surface view unavailable" );
+  let mut encoder = device.command_encoder_create();
+  let mut pass = encoder.render_pass_begin
+  (
+    &ColorAttachmentDesc { view : &view, clear },
+    None
+  )
+  .expect( "render pass failed to begin" );
+  pass.pipeline_set( resources.pipeline );
+  pass.bind_group_set( 0, resources.bind_group );
+  pass.vertex_buffer_set( 0, resources.vertex_buffer );
+  pass.index_buffer_set( resources.index_buffer, IndexFormat::Uint32 );
+  pass.draw_indexed( 3 );
+  pass.end();
+  queue.submit( encoder );
+}
+
 /// Builds the pipeline and resources shared by both backends and issues one
 /// render pass drawing a red triangle over a black clear — device creation
 /// is the only step that differs between backends, handled by each of this
@@ -65,44 +193,8 @@ fn triangle_draw( device : &Device, queue : &Queue, surface : &Surface )
   } )
   .expect( "shader module creation failed" );
 
-  let vertices = as_bytes( &[ -0.5, -0.5, 0.5, -0.5, 0.0, 0.5 ] );
-  let vertex_buffer = device.buffer_init_create( &vertices, BufferUsage::VERTEX )
-  .expect( "vertex buffer creation failed" );
-  let indices : Vec< u8 > = [ 0u32, 1, 2 ].iter().flat_map( | i | i.to_le_bytes() ).collect();
-  let index_buffer = device.buffer_init_create( &indices, BufferUsage::INDEX )
-  .expect( "index buffer creation failed" );
-
-  let uniform_buffer = device.buffer_create( 16, BufferUsage::UNIFORM | BufferUsage::COPY_DST )
-  .expect( "uniform buffer creation failed" );
-  queue.buffer_write( &uniform_buffer, &as_bytes( &[ 1.0, 0.0, 0.0, 1.0 ] ) )
-  .expect( "uniform write failed" );
-
-  // Fix(BUG-200) verification: an oversized `buffer_write` against a WebGL
-  // buffer too small to hold it must return `Err`, not silently no-op --
-  // WebGL2's `bufferSubData` has no way to surface the underlying
-  // `INVALID_VALUE` itself, so this guard is the only thing standing between
-  // silent data corruption and a clean error. A cyan clear below means the
-  // guard did NOT fire and this example's own render output can no longer
-  // be trusted. WebGPU's `writeBuffer` validates out-of-bounds writes itself
-  // ( a different failure mode, not this bug ), so this check only applies
-  // to the `webgl` build.
-  #[ cfg( feature = "webgl" ) ]
-  let clear =
-  {
-    let small_buffer = device.buffer_create( 4, BufferUsage::UNIFORM | BufferUsage::COPY_DST )
-    .expect( "small buffer creation failed" );
-    let oversized = as_bytes( &[ 1.0, 2.0, 3.0, 4.0 ] ); // 16 bytes into a 4-byte buffer
-    if queue.buffer_write( &small_buffer, &oversized ).is_ok()
-    {
-      [ 0.0, 1.0, 1.0, 1.0 ] // cyan -- BUG-200 guard missing/regressed
-    }
-    else
-    {
-      [ 0.0, 0.0, 0.0, 1.0 ]
-    }
-  };
-  #[ cfg( not( feature = "webgl" ) ) ]
-  let clear = [ 0.0, 0.0, 0.0, 1.0 ];
+  let ( vertex_buffer, index_buffer, uniform_buffer ) = triangle_buffers_create( device, queue );
+  let clear = triangle_clear_color_get( device, queue );
 
   let layout = device.bind_group_layout_create
   (
@@ -112,42 +204,15 @@ fn triangle_draw( device : &Device, queue : &Queue, surface : &Surface )
   let bind_group = device.bind_group_create( &layout, &[ BindingResource::Buffer( &uniform_buffer ) ] )
   .expect( "bind group creation failed" );
 
-  let pipeline = device.render_pipeline_create( &RenderPipelineDesc
+  let pipeline = triangle_pipeline_create( device, &shader, surface, &layout );
+  let resources = TriangleResources
   {
-    shader : &shader,
-    vertex_entry : "vs_main",
-    fragment_entry : "fs_main",
-    vertex_buffers : &[ VertexBufferLayout
-    {
-      stride : 8,
-      step_mode : StepMode::Vertex,
-      attributes : vec!
-      [
-        VertexAttribute { location : 0, format : VertexFormat::Float32x2, offset : 0 }
-      ]
-    } ],
-    bind_group_layouts : &[ &layout ],
-    color_format : surface.format(),
-    depth : None,
-    cull_back : false
-  } )
-  .expect( "pipeline creation failed" );
-
-  let view = surface.current_view().expect( "surface view unavailable" );
-  let mut encoder = device.command_encoder_create();
-  let mut pass = encoder.render_pass_begin
-  (
-    &ColorAttachmentDesc { view : &view, clear },
-    None
-  )
-  .expect( "render pass failed to begin" );
-  pass.pipeline_set( &pipeline );
-  pass.bind_group_set( 0, &bind_group );
-  pass.vertex_buffer_set( 0, &vertex_buffer );
-  pass.index_buffer_set( &index_buffer, IndexFormat::Uint32 );
-  pass.draw_indexed( 3 );
-  pass.end();
-  queue.submit( encoder );
+    pipeline : &pipeline,
+    bind_group : &bind_group,
+    vertex_buffer : &vertex_buffer,
+    index_buffer : &index_buffer
+  };
+  triangle_pass_record( device, queue, surface, &resources, clear );
 }
 
 /// `webgpu` build: async device creation, presented to the canvas

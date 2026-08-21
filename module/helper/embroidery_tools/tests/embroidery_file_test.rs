@@ -39,7 +39,41 @@ fn bounds_returns_min_and_max_stitch_coordinates()
   emb.stitch_add_absolute( Stitch { x : 10, y : 15, instruction : Instruction::Jump } );
 
   // ( min_x, min_y, max_x, max_y )
-  assert_eq!( emb.bounds(), ( -5, -20, 30, 40 ) );
+  assert_eq!( emb.bounds(), Some( ( -5, -20, 30, 40 ) ) );
+}
+
+// test_kind: bug_reproducer(BUG-497)
+/// ## Root Cause
+/// `bounds()` seeded `min_x`/`min_y` at `i32::MAX` and `max_x`/`max_y` at
+/// `i32::MIN`, then returned the tuple unchanged whenever `self.stitches()`
+/// was empty -- an inverted sentinel (`min > max`) indistinguishable from a
+/// real bounds value to any caller, which overflows/panics if that caller
+/// computes a width/height via `max_x - min_x` (`i32::MIN - i32::MAX`
+/// underflows `i32`).
+/// ## Why Not Caught
+/// The only pre-existing test (`bounds_returns_min_and_max_stitch_coordinates`
+/// above) always added stitches before calling `bounds()`, so the
+/// zero-stitch path was never exercised.
+/// ## Fix Applied
+/// `bounds()` (`src/embroidery_file.rs`) now returns
+/// `Option< ( i32, i32, i32, i32 ) >` -- `None` when `self.stitches()` is
+/// empty, seeding the min/max reduction from the first real stitch instead
+/// of a sentinel constant. Call sites in `format::pec::writer::content_write`
+/// and `format::pes::writer::{version1_write,version6_write}` updated to
+/// handle the `None` case explicitly.
+/// ## Prevention
+/// This test locks in `None` for a freshly-constructed, stitch-free file.
+/// ## Pitfall
+/// A min/max reduction seeded from sentinel constants is only safe when the
+/// collection being reduced is provably non-empty -- for a possibly-empty
+/// collection, the seed itself is a fabricated value with no real-world
+/// meaning, and returning it unchanged silently manufactures a fake result
+/// instead of surfacing the absence of data.
+#[ test ]
+fn bounds_returns_none_for_empty_file()
+{
+  let emb = EmbroideryFile::new();
+  assert_eq!( emb.bounds(), None );
 }
 
 #[ test ]

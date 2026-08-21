@@ -69,9 +69,13 @@ shader_chunks list tag::noise format::json fields::name,stage
 shader_chunks list roots::1 fields::name,exports
 # name                 exports
 # -------------------  -------------------------------------------------
-# fbm3                 fn fbm3(p: vec2f, lacunarity: f32, gain: f32) -> f32
 # fullscreen_triangle  struct VertexOutput { position: vec4f, uv: vec2f };
 #                      fn vs_main(vertex_index: u32) -> VertexOutput
+# ...
+# domain_warp          fn domain_warp(p: vec2f, strength: f32,
+#                      lacunarity: f32, gain: f32, seed: f32) -> vec2f;
+#                      fn domain_warp_preview(p: vec2f, strength: f32,
+#                      lacunarity: f32, gain: f32, seed: f32) -> f32
 
 shader_chunks list depends_on::hash21 transitive::1 count::1
 # 2

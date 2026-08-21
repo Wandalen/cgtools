@@ -242,6 +242,15 @@ where F : Fn( &mut GridTuning ) -> &mut bool + 'static
       {
         status.set_text_content( Some( &format!( "[{}]", if active { on_text } else { off_text } ) ) );
       }
+
+      // Fix(BUG-454): keep the Pause/Play/Fast buttons in sync when this
+      // toggle is the "ff-toggle-animate" one - see comment above
+      // `animate_toggle_repaint` for the full root cause.
+      if id == "ff-toggle-animate"
+      {
+        let speed_multiplier = tuning.borrow().speed_multiplier;
+        time_controls_repaint( &document, active, speed_multiplier );
+      }
     }
   );
   button.add_event_listener_with_callback( "click", closure.as_ref().unchecked_ref() ).unwrap();
@@ -317,6 +326,44 @@ fn set_time_control_active( document : &Document, active_id : &str )
   }
 }
 
+// Fix(BUG-454): `bind_tuning_toggle`'s "ff-toggle-animate" button and
+// `bind_time_controls`'s Pause/Play/Fast buttons are two controls, in this
+// same file, both driving `GridTuning.animate_ships`/`speed_multiplier` -
+// not the HUD-vs-dev-panel gap this module's own doc comment calls out as
+// intentional (that's a different pair of files). Clicking one surface
+// left the other's `active` class/status text stale.
+// Root cause: each handler only ever repainted its own button(s), never
+// the other control's DOM.
+// Pitfall: two controls over the same state need each handler to repaint
+// *both* surfaces - repainting only the button that was clicked leaves the
+// other one lying about the current state.
+
+/// Repaints the "Animate Ships Motion" toggle to match `active` - the same
+/// repaint `bind_tuning_toggle`'s own closure does for its button, pulled
+/// out so `bind_time_controls`'s Pause/Play/Fast handlers can drive it too.
+fn animate_toggle_repaint( document : &Document, active : bool )
+{
+  let Some( el ) = document.get_element_by_id( "ff-toggle-animate" ) else { return };
+  el.set_class_name( if active { "ff-toggle active" } else { "ff-toggle" } );
+  if let Some( status ) = el.query_selector( ".ff-toggle-status" ).unwrap()
+  {
+    status.set_text_content( Some( if active { "[ACTIVE]" } else { "[PAUSED]" } ) );
+  }
+}
+
+/// Repaints the Pause/Play/Fast buttons to match `animate_ships`/
+/// `speed_multiplier` - the Pause/Play/Fast equivalent of
+/// `animate_toggle_repaint`, called from `bind_tuning_toggle`'s
+/// "ff-toggle-animate" handler. Reuses `time_control_button_classes`'s
+/// existing threshold logic rather than re-deriving the pause/play/fast
+/// selection rule a second time.
+fn time_controls_repaint( document : &Document, animate_ships : bool, speed_multiplier : f32 )
+{
+  let ( pause, play, _fast ) = time_control_button_classes( animate_ships, speed_multiplier );
+  let active_id = if pause == "active" { "ff-btn-pause" } else if play == "active" { "ff-btn-play" } else { "ff-btn-fast" };
+  set_time_control_active( document, active_id );
+}
+
 fn bind_time_controls( document : &Document, tuning : &Rc< RefCell< GridTuning > > )
 {
   {
@@ -329,6 +376,8 @@ fn bind_time_controls( document : &Document, tuning : &Rc< RefCell< GridTuning >
       {
         tuning.borrow_mut().animate_ships = false;
         set_time_control_active( &document, "ff-btn-pause" );
+        // Fix(BUG-454): keep "Animate Ships Motion" in sync with Pause.
+        animate_toggle_repaint( &document, false );
       }
     );
     button.add_event_listener_with_callback( "click", closure.as_ref().unchecked_ref() ).unwrap();
@@ -347,6 +396,8 @@ fn bind_time_controls( document : &Document, tuning : &Rc< RefCell< GridTuning >
         t.speed_multiplier = 1.0;
         drop( t );
         set_time_control_active( &document, "ff-btn-play" );
+        // Fix(BUG-454): keep "Animate Ships Motion" in sync with Play.
+        animate_toggle_repaint( &document, true );
       }
     );
     button.add_event_listener_with_callback( "click", closure.as_ref().unchecked_ref() ).unwrap();
@@ -365,6 +416,8 @@ fn bind_time_controls( document : &Document, tuning : &Rc< RefCell< GridTuning >
         t.speed_multiplier = 2.5;
         drop( t );
         set_time_control_active( &document, "ff-btn-fast" );
+        // Fix(BUG-454): keep "Animate Ships Motion" in sync with Fast.
+        animate_toggle_repaint( &document, true );
       }
     );
     button.add_event_listener_with_callback( "click", closure.as_ref().unchecked_ref() ).unwrap();

@@ -74,18 +74,28 @@ where
 ///
 /// # Panics
 ///
-/// Panics if `E::from` fails for `angle`'s sine or cosine ( not expected for
-/// the standard float types this is used with ), or if `axis`'s iterator
-/// yields fewer than 3 elements.
+/// Panics if `axis`'s iterator yields fewer than 3 elements.
+// Fix(BUG-450): changed `angle`'s type from hardcoded `f32` to the function's own generic `E`.
+// Root cause: every sibling constructor in this file (`from_angle_x`/`from_angle_y`/
+// `from_angle_z`) correctly takes `angle : E`, but this function took `angle : f32` and routed
+// it through `E::from( angle.sin() ).unwrap()` / `E::from( angle.cos() ).unwrap()` -- for
+// `E = f64` callers, the angle was silently truncated to `f32` precision before `sin`/`cos` ever
+// ran, discarding roughly half the caller's precision with no warning (not even a clippy lint,
+// since the truncation happens at the call boundary via a normal, valid `f32` argument, not a
+// lossy cast the compiler can see).
+// Pitfall: a generic numeric function with one hardcoded concrete-typed parameter compiles
+// fine and looks correct for the common `E = f32` case -- always check every parameter against
+// the function's own generic type parameter, not just the return type and the other arguments,
+// especially when sibling functions in the same file already establish the fully-generic
+// pattern to follow.
 #[ inline ]
-pub fn from_axis_angle< E, Vec3 >( axis : Vec3, angle : f32 ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
+pub fn from_axis_angle< E, Vec3 >( axis : Vec3, angle : E ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
   Vec3 : VectorIter< E, 3 >,
   Mat3< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
 {
-  let s = E::from( angle.sin() ).unwrap();
-  let c = E::from( angle.cos() ).unwrap();
+  let ( s, c ) = angle.sin_cos();
   let one_minus_c = E::one() - c ;
 
   let mut iter = axis.vector_iter();

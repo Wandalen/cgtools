@@ -6,6 +6,7 @@ mod private
 
   /// Creates a new `RenderPipelineDescriptor` with the specified vertex state.
   #[ inline ]
+  #[ must_use ]
   pub fn desc< 'a, T >( vertex : T ) -> RenderPipelineDescriptor< 'a >
     where  T : Into< web_sys::GpuVertexState >
   {

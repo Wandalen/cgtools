@@ -160,7 +160,7 @@ async fn app_run() -> Result< (), gl::WebglError >
 
   let current_animation = Rc::new( RefCell::new( Some( gltf.animations[ 0 ].clone() ) ) );
 
-  gui_setup::setup( gltf.animations.clone(), &current_animation, &gui_weights );
+  gui_setup::setup( gltf.animations.clone(), &current_animation, &weights.borrow(), &gui_weights );
 
   // Define the update and draw logic
   let update_and_draw =

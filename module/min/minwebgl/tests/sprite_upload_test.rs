@@ -1,7 +1,11 @@
 //! Verifies `texture::d2`'s sprite-upload pure helpers ( `mip_levels_for_dimensions`,
 //! `sprite_position` ), extracted from the GL-context-bound `sprite_upload` for testability —
 //! per the all-tests-in-tests/ convention and the same private-pure-helper-extraction pattern
-//! used for BUG-051/BUG-052 (see `clean_test.rs`/`geometry_test.rs`).
+//! used for BUG-051/BUG-052 (see `clean_test.rs`/`geometry_test.rs`). Also verifies, via
+//! source-inspection ( see `Fix(BUG-290)`'s precedent, `minvulkan/tests/context_test.rs` ),
+//! that `sprite_upload` itself propagates a rejected image-load promise instead of panicking
+//! (BUG-425) — genuinely unreachable from a native test since it needs a live GL context and a
+//! real browser loading a broken image URL.
 
 use minwebgl::{ texture::d2::{ mip_levels_for_dimensions, sprite_position }, WebglError };
 
@@ -111,5 +115,68 @@ fn sprite_position_rejects_zero_sprites_in_row()
   (
     matches!( &result, Err( WebglError::NotSupportedForType( _ ) ) ),
     "expected Err( WebglError::NotSupportedForType ), got {result:?}"
+  );
+}
+
+// test_kind: bug_reproducer(BUG-425)
+/// ## Root Cause
+/// `sprite_upload` wires an `on_error` handler that rejects `load_promise` when the image
+/// element's `error` event fires ( a broken/unreachable image URL, e.g. ), but then awaited
+/// that same promise via `JsFuture::from( load_promise ).await.unwrap()` -- discarding the
+/// rejection and panicking instead of returning it through the `Result< WebGlTexture,
+/// WebglError >` this `async fn` already declares and every other fallible step inside it
+/// already propagates through.
+///
+/// ## Why Not Caught
+/// `sprite_upload` needs a live `WebGl2RenderingContext` and a real `HtmlImageElement`, neither
+/// constructible from a native `cargo test` run ( no JS engine ) ; reproducing the panic live
+/// would need a real browser loading a real broken image URL through a dedicated test page. No
+/// such page exists within this crate's own `tests/manual/` browser procedure ( which currently
+/// covers only `context::from_canvas` + a draw call, via `examples/minwebgl/context_triangle_smoke`
+/// ), and adding one is out of reach here : it would require creating or modifying an
+/// `examples/` crate, which is outside this fix's edit scope. Source-inspection is therefore
+/// the same fallback `Fix(BUG-290)`/`Fix(BUG-424)` ( `minvulkan/tests/context_test.rs`,
+/// `swapchain_test.rs` ) already established in this workspace for defects that are real but
+/// structurally unreachable from the available native/in-scope test surface.
+///
+/// ## Fix Applied
+/// Replaced `.unwrap()` with
+/// `.map_err( | _ | WebglError::Other( "image failed to load" ) )?`, so a rejected
+/// `load_promise` now returns `Err( WebglError::Other( .. ) )` through the function's existing
+/// `Result` return type instead of panicking.
+///
+/// ## Prevention
+/// Before adding a rejection/error handler to a `Promise`/`JsFuture` bridge, check what the
+/// `.await` on the *other* end of that bridge actually does with the rejection it produces --
+/// wiring the handler is not the same as propagating what it delivers ; a stray `.unwrap()`
+/// downstream silently converts every wired rejection back into a panic.
+///
+/// ## Pitfall
+/// An `async fn` already returning `Result< _, WebglError >`, with every *other* fallible step
+/// inside it correctly using `?`, can still hide a single `.unwrap()` on one particular
+/// await -- the function's overall shape looks fallible-safe, but a per-call-site audit is
+/// still needed since Rust does not require every await in a `Result`-returning `async fn` to
+/// use `?`.
+#[ test ]
+fn sprite_upload_propagates_image_load_rejection_instead_of_panicking()
+{
+  let src = include_str!( "../src/texture/d2.rs" );
+
+  let unwrap_count = src.matches( "JsFuture::from( load_promise ).await.unwrap()" ).count();
+  assert_eq!
+  (
+    unwrap_count, 0,
+    "sprite_upload (BUG-425) must not .unwrap() the image-load promise's rejection, found \
+    {unwrap_count} remaining occurrences"
+  );
+
+  let propagated_count = src
+  .matches( "JsFuture::from( load_promise ).await.map_err( | _ | WebglError::Other( \"image failed to load\" ) )?;" )
+  .count();
+  assert_eq!
+  (
+    propagated_count, 1,
+    "sprite_upload (BUG-425) must propagate a rejected image-load promise via \
+    .map_err(..)?, found {propagated_count} occurrences of the expected fix"
   );
 }

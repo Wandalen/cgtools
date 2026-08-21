@@ -425,6 +425,49 @@ mod tests
     assert_eq!( tweens.duration_get(), 2.5 ); // ( 2.0 + 1.0 ) - 0.5
   }
 
+  // test_kind: bug_reproducer(BUG-501)
+  /// ## Root Cause
+  /// For `N == 0`, `[Tween<T>; N]::duration_get`'s two reduction loops never execute, so
+  /// `min_start` stays at its `f64::MAX` seed and `max_end` stays at its `0.0` seed — the
+  /// function then returns `max_end - min_start == 0.0 - f64::MAX == -f64::MAX`, a nonsensical
+  /// duration for an empty tween group. `delay_get` has the same defect: its reduction loop
+  /// never executes either, so it returns its unreached `f64::MAX` seed as-is.
+  /// ## Why Not Caught
+  /// `test_tween_array_duration_and_delay_get` (TASK-015, above) only ever constructed
+  /// non-empty arrays — nothing exercised `N == 0`, the one case where both reduction loops'
+  /// seed values are returned completely untouched instead of being compared against at least
+  /// one real element.
+  /// ## Fix Applied
+  /// Added an `if self.is_empty() { return 0.0; }` guard as the first line of both
+  /// `duration_get` and `delay_get`, short-circuiting before either reduction loop runs. See
+  /// `interpolation.rs`.
+  /// ## Prevention
+  /// A min/max-reduction's seed is chosen to be "beaten" by any real element — that assumption
+  /// silently fails for a zero-element collection, where the seed is never beaten and is
+  /// returned unchanged as if it were a legitimate result. Any such reduction needs an explicit
+  /// empty-input case, not just a plausible-looking seed.
+  /// ## Pitfall
+  /// `max_end - min_start` reads as an obviously-safe non-negative subtraction for the
+  /// non-empty case, which is exactly what makes the empty case's `0.0 - f64::MAX` easy to miss
+  /// in review — the formula's shape gives no visual signal that it depends on both loops
+  /// having executed at least once.
+  #[ test ]
+  fn test_tween_array_duration_and_delay_get_for_empty_array()
+  {
+    let tweens : [ Tween< f32 >; 0 ] = [];
+
+    assert_eq!
+    (
+      tweens.delay_get(), 0.0,
+      "an empty tween group's delay should be 0.0 (nothing to delay), not the unreached f64::MAX seed"
+    );
+    assert_eq!
+    (
+      tweens.duration_get(), 0.0,
+      "an empty tween group's duration should be 0.0 (nothing to animate), not the unreached -f64::MAX"
+    );
+  }
+
   // test_kind: bug_reproducer(BUG-143)
   /// ## Root Cause
   /// `[Tween<T>; N]::progress()` reconstructed "elapsed since the group's own start" from

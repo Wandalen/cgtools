@@ -479,6 +479,50 @@ fn subprocess_render_with_duplicated_out_fails_loudly_instead_of_using_the_defau
   assert!( !std::path::Path::new( "a.png" ).exists() && !std::path::Path::new( "b.png" ).exists(), "no PNG may be written on failure" );
 }
 
+// test_kind: bug_reproducer(BUG-419)
+/// ## Root Cause
+/// `arg_time` read the `time::` argument through a bare `Value` match
+/// whose catch-all `_ => 0.0` arm cannot distinguish "argument absent"
+/// from "argument supplied twice" -- `unilang` binds a repeated named key
+/// to `Value::List` regardless of the argument's own declared `multiple`
+/// attribute, so `time::1.0 time::2.0` fell through the same arm as
+/// "absent" and silently rendered at `time = 0.0` instead of erroring.
+/// ## Why Not Caught
+/// No existing test in this file passed `time::` twice in one invocation
+/// -- every prior `time::`-related test supplied it at most once
+/// (`subprocess_render_with_fractional_time_succeeds`,
+/// `subprocess_render_with_integer_time_token_succeeds`,
+/// `subprocess_render_with_non_finite_time_is_rejected`,
+/// `subprocess_render_with_non_numeric_time_is_rejected_by_coercion`).
+/// ## Fix Applied
+/// `arg_time` (`shader_chunks_render/src/lib.rs`) now has an explicit
+/// `Value::List` arm returning a loud `ValidationRuleFailed` naming the
+/// key and its repeat count, matching the same-class fix BUG-285 already
+/// applied to this routine's other arguments (`name`/`file`/`size`/`out`/
+/// `all`).
+/// ## Prevention
+/// This subprocess test locks in the loud-failure behavior for a
+/// duplicated `time::`.
+/// ## Pitfall
+/// `arg_time` was added to this crate after BUG-285's own fix pass, so it
+/// never inherited that fix's `arg_string_checked`/`arg_bool_checked`
+/// migration -- a defect class fixed once in a shared helper family does
+/// not retroactively protect a new, independently-written local helper
+/// using the same bare-`_`-catch-all shape.
+#[ test ]
+fn subprocess_render_with_duplicated_time_fails_loudly_instead_of_defaulting_to_zero()
+{
+  let out = temp_png( "duplicated_time" );
+  let output = Command::cargo_bin( "shader_chunks_render" ).expect( "binary builds" )
+  .args( [ "render", "fbm3", &format!( "out::{}", out.display() ), "time::1.0", "time::2.0" ] )
+  .output()
+  .expect( "runs" );
+  assert_eq!( output.status.code(), Some( 1 ), "stdout: {}", String::from_utf8_lossy( &output.stdout ) );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( stderr.contains( "`time` was given 2 times" ), "stderr: {stderr}" );
+  assert!( !out.exists(), "no PNG may be written on failure" );
+}
+
 #[ test ]
 fn subprocess_render_with_malformed_set_token_fails_with_exit_1()
 {

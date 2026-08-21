@@ -321,13 +321,34 @@ mod private
     lines.join( "\n" )
   }
 
-  /// Extracts the `time::` float, rejecting non-finite values loudly.
+  // Fix(BUG-419): added an explicit `Value::List` arm so a duplicated
+  // `time::` argument fails loudly instead of silently resolving to the
+  // `0.0` catch-all default.
+  // Root cause: same defect class as BUG-283/285/295 -- `unilang` binds
+  // ANY repeated named argument to `Value::List` regardless of the
+  // argument's own declared `multiple` attribute, and a bare `_`
+  // catch-all over `Value` cannot distinguish "argument absent" from
+  // "argument supplied twice".
+  // Pitfall: `arg_time` is a crate-local helper, not one of
+  // `shader_chunks_cli_core`'s shared `arg_*_checked` extractors, so this
+  // fix is applied in place rather than added as a separate `_checked`
+  // sibling -- any future crate-local single-value extractor built the
+  // same way needs the identical `Value::List` arm from the start, not a
+  // bare `_` catch-all.
+  /// Extracts the `time::` float, rejecting a non-finite value and a
+  /// duplicated `time::` argument, both loudly.
   fn arg_time( cmd : &VerifiedCommand ) -> Result< f32, ErrorData >
   {
     let value = match cmd.arguments.get( "time" )
     {
       Some( Value::Float( number ) ) => *number,
       Some( Value::Integer( number ) ) => *number as f64,
+      Some( Value::List( values ) ) => return Err( error_report
+      (
+        1,
+        ErrorCode::ValidationRuleFailed,
+        format!( "`time` was given {} times; a single value is required", values.len() ),
+      )),
       _ => 0.0,
     };
     if !value.is_finite()

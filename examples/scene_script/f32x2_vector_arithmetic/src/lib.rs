@@ -4,7 +4,7 @@
 //! directly, rather than reimplementing arithmetic on the Rhai side.
 
 use ndarray_cg::F32x2;
-use scene_script::engine_build;
+use scene_script::{ engine_build, script_as_glue_load };
 
 /// Builds a fresh engine and evaluates the bundled script, returning its
 /// final `F32x2` result -- a pure function of the script's own hardcoded
@@ -20,5 +20,7 @@ pub fn evaluate() -> Result< F32x2, Box< rhai::EvalAltResult > >
 {
   let engine = engine_build();
   let script = include_str!( "f32x2_vector_arithmetic.rhai" );
-  engine.eval::< F32x2 >( script )
+  let ast = script_as_glue_load( &engine, script )
+  .map_err( | err | rhai::EvalAltResult::ErrorSystem( "f32x2_vector_arithmetic.rhai".into(), Box::new( err ) ) )?;
+  engine.eval_ast::< F32x2 >( &ast )
 }

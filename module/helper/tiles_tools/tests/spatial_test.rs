@@ -191,3 +191,49 @@ fn test_quadtree_insert_rejects_out_of_bounds_entity()
   let far_query = SpatialBounds::new(900, 900, 1100, 1100);
   assert!(quadtree.region_query(&far_query).is_empty());
 }
+
+// test_kind: bug_reproducer(BUG-482)
+/// ## Root Cause
+/// `SpatialEntity::new` stored `radius` unclamped. `bounds()` computes
+/// `SpatialBounds::from_center_size(x, y, radius * 2, radius * 2)` -- a
+/// negative radius silently produces an inverted rectangle (`left > right`).
+/// `intersects_entity` computes `(self.radius + other.radius) as u32` --
+/// casting a negative signed sum to `u32` wraps to a huge positive value
+/// instead of panicking.
+/// ## Why Not Caught
+/// Every existing test constructs `SpatialEntity` with a non-negative
+/// radius (0, 1, or 5) -- none ever passed a negative value, so neither the
+/// inverted-bounds nor the wrapping-cast consequence was ever observed.
+/// ## Fix Applied
+/// `SpatialEntity::new` now clamps `radius` to `.max(0)`, matching this
+/// crate's existing precedent for clamping a value at construction rather
+/// than at every site that later assumes it's non-negative (`Resource::new`,
+/// BUG-349).
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// Casting a signed integer that can be negative to an unsigned type
+/// (`as u32`) never panics -- it silently wraps, so a missing non-negative
+/// invariant at construction surfaces far away as a bogus huge value, not as
+/// an obvious crash at the cast site.
+#[test]
+fn test_spatial_entity_new_clamps_negative_radius_to_zero()
+{
+  let pos = SquareCoord::<FourConnected>::new(10, 20);
+  let entity = SpatialEntity::new(1, pos, -7);
+
+  assert_eq!(entity.radius, 0, "radius should be clamped to a non-negative value, got {}", entity.radius);
+
+  // Bounds must not be inverted -- a zero-radius entity centered at (10, 20)
+  // should produce a degenerate (but non-inverted) rectangle at that point.
+  let bounds = entity.bounds();
+  assert!(bounds.left <= bounds.right, "bounds must not be inverted: left={} right={}", bounds.left, bounds.right);
+  assert!(bounds.top <= bounds.bottom, "bounds must not be inverted: top={} bottom={}", bounds.top, bounds.bottom);
+
+  // intersects_entity must not wrap to a bogus huge distance threshold.
+  let other = SpatialEntity::new(2, SquareCoord::<FourConnected>::new(1000, 1000), -3);
+  assert!(
+    !entity.intersects_entity(&other),
+    "two clamped-to-zero-radius entities 1400+ units apart must not spuriously intersect"
+  );
+}

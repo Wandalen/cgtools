@@ -46,4 +46,5 @@ same frame as the HDR pipeline.
 
 | File | Relationship |
 |------|--------------|
-| — | No dedicated shadow test exists in `tests/` yet; coverage is indirect through rendering examples |
+| `tests/fbo_pass_cycle_test.rs` | `ShadowMap::bind`/`clear`/`render` complete without panicking on both a shadow-casting mesh and an empty scene |
+| `src/webgl/shadow.rs` (`mod tests`) | `ShadowBaker::drop` frees its framebuffer (BUG-432); `ShadowMap::render` restores `cull_face` to `BACK` before returning (BUG-439) |

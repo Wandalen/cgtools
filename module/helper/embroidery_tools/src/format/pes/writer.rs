@@ -40,26 +40,24 @@ mod private
     W : Write + Seek
   {
     writer.write_all( "#PES0001".as_bytes() )?;
-    let extends = emb.bounds();
-    let cx = ( extends.2 + extends.0 ) / 2;
-    let cy = ( extends.3 + extends.1 ) / 2;
-    // these are bounding cooridantes of the design
-    let left = extends.0 - cx;
-    let top = extends.1 - cy;
-    let right = extends.2 - cx;
-    let bottom = extends.3 - cy;
     let pec_block_placeholder = writer.stream_position()?;
     writer.write_u32::< LE >( 0 )?; // placeholder
 
-    if emb.stitches().is_empty()
+    // Fix(BUG-497): `bounds()` now returns `None` for a stitch-free file --
+    // matching on it directly (instead of the prior unconditional
+    // `emb.bounds()` call followed by a separate `emb.stitches().is_empty()`
+    // check) both fixes the inverted-sentinel read and removes the redundant
+    // double-check, since the two conditions were always equivalent.
+    if let Some( extends ) = emb.bounds()
     {
-      header_version1_write( writer, 0 )?;
-      // 0000 0000 means no more sections
-      writer.write_u16::< LE >( 0x0000 )?;
-      writer.write_u16::< LE >( 0x0000 )?;
-    }
-    else
-    {
+      let cx = ( extends.2 + extends.0 ) / 2;
+      let cy = ( extends.3 + extends.1 ) / 2;
+      // these are bounding cooridantes of the design
+      let left = extends.0 - cx;
+      let top = extends.1 - cy;
+      let right = extends.2 - cx;
+      let bottom = extends.3 - cy;
+
       header_version1_write( writer, 1 )?;
       // ffff 0000 means more sections
       writer.write_u16::< LE >( 0xFFFF )?;
@@ -67,6 +65,13 @@ mod private
 
       let threads = pec::pec_threads();
       _ = pes_block_write( emb, writer, &threads, DesignBounds { left, top, right, bottom, cx, cy } )?;
+    }
+    else
+    {
+      header_version1_write( writer, 0 )?;
+      // 0000 0000 means no more sections
+      writer.write_u16::< LE >( 0x0000 )?;
+      writer.write_u16::< LE >( 0x0000 )?;
     }
 
     let current_position = writer.stream_position()?;
@@ -102,26 +107,23 @@ mod private
   {
     let signature = "#PES0060";
     writer.write_all( signature.as_bytes() )?;
-    let extends = emb.bounds();
-    let cx = ( extends.2 + extends.0 ) / 2;
-    let cy = ( extends.3 + extends.1 ) / 2;
-
-    let left = extends.0 - cx;
-    let top = extends.1 - cy;
-    let right = extends.2 - cx;
-    let bottom = extends.3 - cy;
-
     let pec_block_placeholder = writer.stream_position()?;
     writer.write_u32::< LE >( 0 )?;
 
-    if emb.stitches().is_empty()
+    // Fix(BUG-497): see `version1_write`'s identical fix above -- `bounds()`
+    // now returns `None` for a stitch-free file instead of an inverted
+    // sentinel, and matching on it directly removes the redundant
+    // `emb.stitches().is_empty()` double-check.
+    if let Some( extends ) = emb.bounds()
     {
-      header_version6_write( emb, writer, 0 )?;
-      writer.write_u16::< LE >( 0x0000 )?;
-      writer.write_u16::< LE >( 0x0000 )?;
-    }
-    else
-    {
+      let cx = ( extends.2 + extends.0 ) / 2;
+      let cy = ( extends.3 + extends.1 ) / 2;
+
+      let left = extends.0 - cx;
+      let top = extends.1 - cy;
+      let right = extends.2 - cx;
+      let bottom = extends.3 - cy;
+
       header_version6_write( emb, writer, 1 )?;
       writer.write_u16::< LE >( 0xFFFF )?;
       writer.write_u16::< LE >( 0x0000 )?;
@@ -138,6 +140,12 @@ mod private
         writer.write_u32::< LE >( i_u32 )?;
         writer.write_u32::< LE >( 0 )?;
       }
+    }
+    else
+    {
+      header_version6_write( emb, writer, 0 )?;
+      writer.write_u16::< LE >( 0x0000 )?;
+      writer.write_u16::< LE >( 0x0000 )?;
     }
 
     let current_pos = writer.stream_position()?;
@@ -561,29 +569,38 @@ mod private
   }
 
   /// Writes a UTF8 `String` with len of `u16`
+  // Fix(BUG-498)
+  // Root cause: truncated by raw byte count (`&str.as_bytes()[ ..len ]`) with
+  // no UTF-8 character-boundary check, silently splitting a multi-byte
+  // character and embedding invalid UTF-8 whenever `str.len()` exceeded
+  // `u16::MAX`.
+  // Pitfall: see `format::str_truncate_char_boundary`'s doc comment.
   fn pes_string16_write< W >( writer : &mut W, str : &str ) -> Result< (), std::io::Error >
   where
     W : Write
   {
-    let len = str.len().min( usize::from( u16::MAX ) );
-    // Bounded above by the `.min( usize::from( u16::MAX ) )` clamp on the line above.
-    let len_u16 = len as u16;
+    let truncated = format::str_truncate_char_boundary( str, usize::from( u16::MAX ) );
+    // Bounded above by `usize::from( u16::MAX )` -- `str_truncate_char_boundary`
+    // never returns a slice longer than the `max_bytes` it was given.
+    let len_u16 = truncated.len() as u16;
     writer.write_u16::< LE >( len_u16 )?;
-    writer.write_all( &str.as_bytes()[ ..len ] )?;
+    writer.write_all( truncated.as_bytes() )?;
 
     Ok( () )
   }
 
   /// Writes a UTF8 `String` with len of `u8`
+  // Fix(BUG-498): see `pes_string16_write`'s identical fix above.
   fn pes_string8_write< W >( writer : &mut W, str : &str ) -> Result< (), std::io::Error >
   where
     W : Write
   {
-    let len = str.len().min( usize::from( u8::MAX ) );
-    // Bounded above by the `.min( usize::from( u8::MAX ) )` clamp on the line above.
-    let len_u8 = len as u8;
+    let truncated = format::str_truncate_char_boundary( str, usize::from( u8::MAX ) );
+    // Bounded above by `usize::from( u8::MAX )` -- `str_truncate_char_boundary`
+    // never returns a slice longer than the `max_bytes` it was given.
+    let len_u8 = truncated.len() as u8;
     writer.write_u8( len_u8 )?;
-    writer.write_all( &str.as_bytes()[ ..len ] )?;
+    writer.write_all( truncated.as_bytes() )?;
 
     Ok( () )
   }
