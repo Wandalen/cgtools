@@ -18,13 +18,15 @@
 //! `trajectories.rs`, not just hidden.
 //!
 //! Left click flips just the clicked row, same as any checkbox. Right click
-//! (`contextmenu`, default browser menu suppressed) is a "solo" gesture: if
-//! the clicked row is currently off, it turns on and every other row turns
-//! off; if it's already the only thing on, the click flips that inverse -
-//! the clicked row turns off and every other row turns back on. Both paths
-//! go through `apply_and_sync` so the checkboxes (and the scanlines overlay,
-//! which lives in `hud`'s DOM, not this panel's) always reflect whatever
-//! `tuning` ends up holding.
+//! (`contextmenu`, default browser menu suppressed) is an unconditional
+//! "solo" gesture: the clicked row turns on and every other row turns off,
+//! no matter what was on beforehand. Shift+right click is the inverse
+//! "isolate out" gesture: the clicked row turns off and every other row
+//! turns on. Both are one-shot with no memory of prior state to toggle back
+//! to; re-solo a different row, or plain-click things back individually, to
+//! undo. Both paths go through `sync_dom` so the checkboxes (and the
+//! scanlines overlay, which lives in `hud`'s DOM, not this panel's) always
+//! reflect whatever `tuning` ends up holding.
 //!
 //! Built via raw DOM calls (web-sys), same reasoning as `grid_tuning_panel`
 //! and `hud` - no GUI crate integration exists anywhere in this workspace.
@@ -44,7 +46,7 @@ fn checkbox_row_html( id : &str, label : &str, checked : bool ) -> String
   let checked = if checked { "checked" } else { "" };
   format!
   (
-    r#"<div id="{id}-row" title="Right click: solo this layer" style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#7dd3fc;margin-bottom:6px;cursor:pointer">
+    r#"<div id="{id}-row" title="Right click: solo this layer&#10;Shift+Right click: hide this layer, show the rest" style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#7dd3fc;margin-bottom:6px;cursor:pointer">
       <span>{label}</span>
       <input type="checkbox" id="{id}" {checked} style="accent-color:#22d3ee">
     </div>"#
@@ -132,9 +134,11 @@ fn bind_toggle( document : &Document, tuning : &Rc< RefCell< GridTuning > >, tog
   closure.forget();
 }
 
-/// Right-click "solo" path on `toggle`'s row: if `toggle` is currently off,
-/// it turns on and every other row turns off; if it's already on, it turns
-/// off and every other row turns on instead.
+/// Right-click "solo" path on `toggle`'s row: unconditionally turns `toggle`
+/// on and every other row off, regardless of whatever was on beforehand.
+/// Shift+right-click is the inverse "isolate out" gesture: `toggle` turns
+/// off and every other row turns on. Neither remembers prior state to
+/// restore - each click is a fresh, one-shot "set it all to this" command.
 fn bind_solo( document : &Document, tuning : &Rc< RefCell< GridTuning > >, toggle : &'static LayerToggle )
 {
   let row = document.get_element_by_id( &format!( "{}-row", toggle.id ) ).unwrap();
@@ -145,11 +149,11 @@ fn bind_solo( document : &Document, tuning : &Rc< RefCell< GridTuning > >, toggl
     move | e : MouseEvent |
     {
       e.prevent_default();
+      let isolate_out = e.shift_key();
       {
         let mut t = tuning.borrow_mut();
-        let currently_on = *( toggle.field )( &mut t );
-        for other in LAYER_TOGGLES { *( other.field )( &mut t ) = currently_on; }
-        *( toggle.field )( &mut t ) = !currently_on;
+        for other in LAYER_TOGGLES { *( other.field )( &mut t ) = isolate_out; }
+        *( toggle.field )( &mut t ) = !isolate_out;
       }
       sync_dom( &document, &tuning.borrow() );
     }
@@ -178,7 +182,8 @@ pub fn setup_layers_panel( document : &Document, tuning : &Rc< RefCell< GridTuni
     r#"<div style="position:fixed;bottom:12px;left:12px;z-index:30;width:190px;max-height:85vh;overflow-y:auto;
         background:rgba(8,17,26,0.9);border:1px solid #164e63;border-radius:8px;padding:10px;
         font-family:monospace;font-size:11px;color:#e0f2fe">
-      <div style="font-weight:bold;text-transform:uppercase;border-bottom:1px solid #164e63;padding-bottom:4px;margin-bottom:8px">Render Layers (dev)</div>
+      <div style="font-weight:bold;text-transform:uppercase;border-bottom:1px solid #164e63;padding-bottom:4px;margin-bottom:4px">Render Layers (dev)</div>
+      <div style="color:#38708a;font-size:9px;line-height:1.4;margin-bottom:8px">Right click: solo layer<br>Shift+Right click: hide layer, show rest</div>
       {rows_html}
     </div>"#
   );
