@@ -203,13 +203,13 @@ fn compile_assets_allocates_one_image_and_one_sprite()
 fn compile_assets_propagates_premultiplied()
 {
   // Default (serde / fixture) is false.
-  let default_compiled = compile_assets( &minimal_spec(), &PathResolver ).expect( "compile" );
+  let default_compiled = assets_compile( &minimal_spec(), &PathResolver ).expect( "compile" );
   assert!( !default_compiled.assets.images[ 0 ].premultiplied, "default premultiplied is false" );
 
   // premultiplied: true on the source asset must reach the ImageAsset.
   let mut spec = minimal_spec();
   spec.assets[ 0 ].premultiplied = true;
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "compile" );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "compile" );
   assert!( compiled.assets.images[ 0 ].premultiplied, "premultiplied: true must propagate into ImageAsset" );
 }
 
@@ -1790,8 +1790,8 @@ fn vertex_corners_orient_to_grid_single_hex_six_orientations()
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
 
   // Map each of the six baked corner frame ids back to its orientation index.
   let corner_ids : Vec< _ > = ( 0..6 )
@@ -1837,8 +1837,8 @@ fn vertex_corners_orient_to_grid_pointy_top_six_orientations()
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
 
   let corner_ids : Vec< _ > = ( 0..6 )
     .map( | o | compiled.ids.sprite( "dual", &format!( "dual_corner_{o}" ) ).expect( "corner frame allocated" ) )
@@ -1875,8 +1875,8 @@ fn vertex_corners_orient_to_grid_up_down_distinct()
 
   let spec = dual_orient_spec();
   let scene = SceneSnapshot { tiles, ..minimal_scene_3x3() };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
 
   let full_0 = compiled.ids.sprite( "dual", "dual_full_0" ).expect( "dual_full_0 allocated" );
   let full_1 = compiled.ids.sprite( "dual", "dual_full_1" ).expect( "dual_full_1 allocated" );
@@ -1963,7 +1963,7 @@ fn vertex_corners_orient_to_grid_triple_wildcard_allocates_six()
   });
 
   // All six `{rot}` frames must be pre-allocated.
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
   for o in 0..6
   {
     assert!
@@ -2008,8 +2008,8 @@ fn vertex_corners_layer_flat_tint_colours_sprites()
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
 
   let sprites = sprite_commands( &cmds );
   assert!( !sprites.is_empty(), "lone hex must emit dual corner sprites" );
@@ -2035,8 +2035,8 @@ fn vertex_corners_layer_no_tint_is_identity()
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let _compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let _compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let sprites = sprite_commands( &cmds );
   assert!( !sprites.is_empty() );
   for s in &sprites
@@ -2095,8 +2095,8 @@ fn vertex_corners_offset_shifts_sprite_position()
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let base = compile_at_time( &base_spec, &scene, &Camera::default(), 0.0 );
-  let off  = compile_at_time( &off_spec,  &scene, &Camera::default(), 0.0 );
+  let base = at_time_compile( &base_spec, &scene, &Camera::default(), 0.0 );
+  let off  = at_time_compile( &off_spec,  &scene, &Camera::default(), 0.0 );
   let base = sprite_commands( &base );
   let off  = sprite_commands( &off );
 
@@ -2248,8 +2248,8 @@ fn vertex_corners_corner_source_isolates_channels()
     tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into(), "region_0".into() ] } ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
-  let cmds = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
+  let cmds = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   let emitted : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
     if let RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
   ).collect();
@@ -2327,7 +2327,7 @@ fn vertex_corners_corner_source_invalid_layer_falls_back_to_void()
     ],
     ..minimal_scene_3x3()
   };
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
 
   // Build the set of region-asset sprite ids (all frame families) once; both
   // runs allocate the same frames (allocation is independent of corner_source).
@@ -2343,7 +2343,7 @@ fn vertex_corners_corner_source_invalid_layer_falls_back_to_void()
     .count();
 
   // Baseline: the correct channel emits region frames.
-  let cmds_ok = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let cmds_ok = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   assert!( count_region( &cmds_ok ) > 0, "correct corner_source must emit region frames" );
 
   // Misspell the corner_source — names no object's global_layer.
@@ -2359,7 +2359,7 @@ fn vertex_corners_corner_source_invalid_layer_falls_back_to_void()
   }
 
   // Silent fallback: compile succeeds and emits no region frames at all.
-  let cmds_bad = compile_at_time( &spec, &scene, &Camera::default(), 0.0 );
+  let cmds_bad = at_time_compile( &spec, &scene, &Camera::default(), 0.0 );
   assert_eq!
   (
     count_region( &cmds_bad ), 0,
@@ -2463,7 +2463,7 @@ fn region_boundary_spec() -> RenderSpec
 fn vertex_corners_orient_foreign_region_matches_void()
 {
   let spec = region_boundary_spec();
-  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let compiled = assets_compile( &spec, &PathResolver ).expect( "assets" );
 
   // region_1's sprites all live in the "region" asset — build id → frame-name
   // over its known frame families via the public id lookup.
@@ -2491,7 +2491,7 @@ fn vertex_corners_orient_foreign_region_matches_void()
   // Build `quantized-position → frame-name` for region_1's emitted sprites.
   let region_map = | snap : &SceneSnapshot |
   {
-    let cmds = compile_at_time( &spec, snap, &Camera::default(), 0.0 );
+    let cmds = at_time_compile( &spec, snap, &Camera::default(), 0.0 );
     let mut map : std::collections::BTreeMap< String, String > = std::collections::BTreeMap::new();
     for s in sprite_commands( &cmds )
     {
