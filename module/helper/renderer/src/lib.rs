@@ -1,67 +1,30 @@
 //! Graphics PBR renderer
-
-#![allow(clippy::implicit_return)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::missing_errors_doc)]
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::exhaustive_enums)]
-#![allow(clippy::exhaustive_structs)]
-#![allow(clippy::must_use_candidate)]
-#![allow(clippy::return_self_not_must_use)]
-#![allow(clippy::redundant_static_lifetimes)]
-#![allow(clippy::redundant_field_names)]
-#![allow(clippy::needless_continue)]
-#![allow(clippy::default_trait_access)]
-#![allow(clippy::cast_possible_wrap)]
-#![allow(clippy::unnecessary_semicolon)]
-#![allow(clippy::min_ident_chars)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::cast_lossless)]
-#![allow(clippy::match_same_arms)]
-#![allow(clippy::many_single_char_names)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::too_many_arguments)]
-#![allow(clippy::ptr_as_ptr)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::std_instead_of_alloc)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::needless_borrow)]
-#![allow(clippy::iter_kv_map)]
-#![allow(clippy::format_push_string)]
-#![allow(clippy::len_zero)]
-#![allow(clippy::clone_on_copy)]
-#![allow(clippy::redundant_closure_for_method_calls)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::doc_overindented_list_items)]
-#![allow(clippy::single_match)]
-#![allow(clippy::match_wildcard_for_single_variants)]
-#![allow(clippy::vec_init_then_push)]
-#![allow(clippy::unused_self)]
-#![allow(clippy::type_complexity)]
-#![allow(clippy::assigning_clones)]
-#![allow(clippy::inconsistent_struct_constructor)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::ref_binding_to_reference)]
-#![allow(clippy::option_as_ref_cloned)]
-#![allow(clippy::needless_range_loop)]
-#![allow(clippy::incompatible_msrv)]
-#![allow(clippy::needless_pass_by_value)]
-#![allow(clippy::needless_return)]
-#![allow(clippy::if_not_else)]
-#![allow(clippy::for_kv_map)]
-#![allow(clippy::cloned_instead_of_copied)]
-#![allow(clippy::map_flatten)]
+// Pull the readme into the crate docs so its code blocks compile as doc tests —
+// Quick Start drift then fails `cargo test --doc` instead of rotting silently (TASK-020).
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 
 mod private
 {
-
-
+  // This crate's `--lib` unit-test binary had no wasm-gated `#[cfg(test)]` code at all until
+  // the inline reproducer tests added for BUG-432/433/434/435/436/437/438/439/440 ( scattered
+  // across several `src/webgl/**` files, each nested inside its own `mod private` for
+  // private-field access — see `rulebook.md § Test placement` ). Without this call, that one
+  // compiled test binary defaults to running in Node.js, where `web_sys::window()` is always
+  // `None` — same failure class as BUG-110 ( `tests/geometry_tests.rs` ), just surfacing here
+  // for the first time because this binary never carried any wasm-gated test before.
+  //
+  // Root cause: `wasm_bindgen_test_configure!( run_in_browser )` must be linked into a test
+  // binary at least once for that whole binary to run in a browser instead of Node — every
+  // external `tests/*.rs` suite in this crate already carries its own copy ( each is a
+  // separate binary ), but `src/lib.rs`'s own `--lib` binary never needed one before now.
+  //
+  // Pitfall: a missing `run_in_browser` config doesn't fail to compile — it fails at runtime
+  // with an unrelated-looking `CanvasRetrievingError("Failed to get window")` on every single
+  // test in the binary, which reads like a `minwebgl`/`mingl` regression rather than the
+  // harness's own misconfiguration. One call anywhere in the binary's compiled `#[cfg(test)]`
+  // code is enough to cover every `mod tests` block nested under `src/webgl/**`.
+  #[ cfg( all( test, target_arch = "wasm32" ) ) ]
+  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
 }
 
 ::mod_interface::mod_interface!
@@ -69,6 +32,20 @@ mod private
   own use ::mod_interface::mod_interface;
 
   /// Webgl implementation of the renderer
-  //#[ cfg( feature = "webgl" ) ]
+  // Fix(BUG-241): was commented out, making this layer — and the `enabled`-only
+  // deps its whole tree needs (minwebgl/web-sys/mingl/gltf/...) — unconditional
+  // regardless of feature selection; broke any `--no-default-features` build
+  // that didn't separately re-request `enabled` (e.g. `--features native`).
+  #[ cfg( feature = "webgl" ) ]
   layer webgl;
+
+  /// Canonical `gpu_hal`-based renderer — WebGPU-first, also runs on the
+  /// WebGL2 backend ( `GpuContext::new_webgl` ) and, off-browser, on the
+  /// native wgpu backend ( `GpuContext::new_native` ).
+  #[ cfg( any
+  (
+    all( feature = "webgpu", target_arch = "wasm32" ),
+    all( feature = "native", not( target_arch = "wasm32" ) )
+  ) ) ]
+  layer webgpu;
 }

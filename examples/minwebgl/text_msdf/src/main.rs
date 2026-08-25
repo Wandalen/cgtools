@@ -1,15 +1,22 @@
-//! # Uniforms And Animation Example with UBOs
+//! # MSDF Text Rendering Example
 //!
-//! This program demonstrates how to render a triangle in the middle of the screen using WebGL in Rust. It utilizes shaders with Uniform Block Objects (UBOs) to manage uniforms efficiently.
+// Fix(BUG-336): doc comment was copy-pasted from `uniforms_ubo`'s main.rs and never updated --
+// this example renders MSDF (Multi-Channel Signed Distance Field) text via instanced quads, not
+// a plain UBO-driven triangle. Root cause: copy-paste of a sibling crate's file header.
+// Pitfall: a crate's own top-level doc comment has no compiler link to what the crate actually
+// does -- nothing catches a stale one short of a reader or a text-content test.
+//! This program demonstrates high-quality text rendering using Multi-Channel Signed Distance
+//! Fields (MSDF) in WebGL2. Glyph geometry, UV rects, and per-character offsets are computed
+//! from a parsed font atlas and uploaded as instanced quad attributes.
 
 use minwebgl::{ self as gl, wasm_bindgen::prelude::Closure, JsCast };
 
 mod text;
 mod json;
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
 
   let canvas = gl::canvas::retrieve_or_make()?;
   let gl = gl::context::from_canvas( &canvas )?;
@@ -25,10 +32,12 @@ async fn run() -> Result< (), gl::WebglError >
 
   let text = "Cgtools";
 
-  let font_str = String::from_utf8( gl::file::load( "static/font/Alike-Regular.json" ).await.unwrap() ).unwrap();
+  let font_bytes = gl::file::load( "static/font/Alike-Regular.json" ).await
+  .map_err( | e | gl::dom::Error::BindgenError( "Failed to load static/font/Alike-Regular.json", format!( "{e:?}" ) ) )?;
+  let font_str = String::from_utf8( font_bytes ).unwrap();
   //let font_str = include_str!( "../assets/font/Alike-Regular.json" );
   // Parse font from the provided file
-  let font = json::MSDFFontJSON::parse_font( &font_str );
+  let font = json::MSDFFontJSON::font_parse( &font_str );
   // Create render data from the text based on the font
   let fortmatted_text = font.format( text );
   let buffer = gl::buffer::create( &gl )?;
@@ -45,26 +54,10 @@ async fn run() -> Result< (), gl::WebglError >
   gl.bind_vertex_array( Some( &vao ) );
 
   let char_data_stride  = std::mem::size_of::< text::CharData >() as i32 / 4;
-  // offset
-  gl::BufferDescriptor::new::< [ f32 ; 4 ] >()
-  .stride( char_data_stride )
-  .offset( 0 )
-  .divisor( 1 )
-  .attribute_pointer( &gl, 0, &buffer )?;
-
-  // uv_info
-  gl::BufferDescriptor::new::< [ f32 ; 4 ] >()
-  .stride( char_data_stride )
-  .offset( 4 )
-  .divisor( 1 )
-  .attribute_pointer( &gl, 1, &buffer )?;
-
-  // size
-  gl::BufferDescriptor::new::< [ f32 ; 2 ] >()
-  .stride( char_data_stride )
-  .offset( 8 )
-  .divisor( 1 )
-  .attribute_pointer( &gl, 2, &buffer )?;
+  let char_data_layout = mingl::VertexBufferLayout::from_attribute::< text::CharData >( char_data_stride )
+  .step_mode( mingl::StepMode::Instance )
+  .divisor( 1 );
+  gl::vertex_buffer_layout_bind( &gl, &buffer, &char_data_layout )?;
 
 
   let eye = gl::F32x3::Z * 5.0;
@@ -89,28 +82,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl::uniform::upload( &gl, tex_size_location, &font.scale[ .. ] )?;
   gl::uniform::upload( &gl, bounding_box_location, &fortmatted_text.bounding_box.to_array()[ .. ] )?;
 
-  // Load an image and upload it to the texture when it's loaded
-  let img = gl::dom::create_image_element( "static/font/Alike-Regular.png" ).unwrap();
-  img.style().set_property( "display", "none" ).unwrap();
-
-  let texture = gl.create_texture();
-  let load_texture : Closure< dyn Fn() > = Closure::new
-  (
-    {
-      let texture = texture.clone();
-      let gl = gl.clone();
-      let img = img.clone();
-      move ||
-      {
-        gl::texture::d2::upload_no_flip( &gl, texture.as_ref(), &img );
-        gl::texture::d2::default_parameters( &gl );
-        img.remove();
-      }
-    }
-  );
-
-  img.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
-  load_texture.forget();
+  font_texture_load( &gl );
 
   gl.enable( gl::DEPTH_TEST );
   gl.enable( gl::BLEND );
@@ -148,7 +120,33 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
+/// Loads the MSDF font atlas image and uploads it into a texture once the image is ready.
+fn font_texture_load( gl : &gl::WebGl2RenderingContext )
+{
+  let img = gl::dom::image_element_create( "static/font/Alike-Regular.png" ).unwrap();
+  img.style().set_property( "display", "none" ).unwrap();
+
+  let texture = gl.create_texture();
+  let load_texture : Closure< dyn Fn() > = Closure::new
+  (
+    {
+      let texture = texture.clone();
+      let gl = gl.clone();
+      let img = img.clone();
+      move ||
+      {
+        gl::texture::d2::upload_no_flip( &gl, texture.as_ref(), &img );
+        gl::texture::d2::default_parameters( &gl );
+        img.remove();
+      }
+    }
+  );
+
+  img.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+  load_texture.forget();
+}
+
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

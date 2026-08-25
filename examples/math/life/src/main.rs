@@ -1,5 +1,5 @@
-#![allow(clippy::reversed_empty_ranges)] // False positive: ndarray negative indexing syntax
-#![allow(clippy::uninlined_format_args)] // Domain-specific: prefers explicit format args for clarity
+//! Conway's Game of Life on a bordered ndarray grid : parses `life.txt`,
+//! keeps the four corners alive, runs 50 steps, renders to stdout.
 
 // Import the ndarray_cg crate's prelude for array manipulation
 use ndarray_cg::prelude::*;
@@ -12,7 +12,7 @@ const N : usize = 25;
 
 // Define a struct to represent a cell
 #[derive( Clone, Copy )] // Add `Copy` to allow copying of `Cell` values
-pub struct Cell( u8 );
+struct Cell( u8 );
 
 // Define a type alias for a 2D array of `Cell` values
 type Board = Array2< Cell >;
@@ -39,6 +39,7 @@ impl AddAssign for Cell
 }
 
 // Function to parse the input file into a 2D grid (Board)
+#[ expect( clippy::reversed_empty_ranges, reason = "`s![ 1..-1, .. ]` endpoints are ndarray negative indices ( count from the far end ), not a literal empty range; clippy evaluates them as plain integers" ) ]
 fn parse( x : &[u8] ) -> Board
 {
   // Create a grid with a border of `Cell(0)` (dead cells)
@@ -63,6 +64,7 @@ fn parse( x : &[u8] ) -> Board
 }
 
 // Function to apply the rules of the Game of Life to the grid
+#[ expect( clippy::reversed_empty_ranges, reason = "`0..-2`/`1..-1` in `s![]` are ndarray negative-index slices, not literal empty ranges" ) ]
 fn iterate( z : &mut Board, scratch : &mut Board )
 {
   // Create a mutable view of the scratch array to store neighbor counts
@@ -85,12 +87,12 @@ fn iterate( z : &mut Board, scratch : &mut Board )
   // Apply the Game of Life rules to each cell
   zv.zip_mut_with( &neigh, |y, &n|
   {
-    y.0 = (( n.0 == 3 ) || ( n.0 == 2 && y.0 > 0 )) as u8; // Birth or survival
+    y.0 = u8::from(( n.0 == 3 ) || ( n.0 == 2 && y.0 > 0 )); // Birth or survival
   });
 }
 
 // Function to ensure the four corners of the grid are always alive
-fn turn_on_corners( z : &mut Board )
+fn corners_turn_on( z : &mut Board )
 {
   let n = z.nrows(); // Get the number of rows
   let m = z.ncols(); // Get the number of columns
@@ -129,18 +131,18 @@ fn main()
   let mut scratch = Board::from_elem( ( N, N ), Cell( 0 )); // Create a scratch array for neighbor calculations
   let steps = 50; // Number of steps to simulate
 
-  turn_on_corners( &mut a ); // Turn on the corners of the grid
+  corners_turn_on( &mut a ); // Turn on the corners of the grid
 
   // Simulate the Game of Life for the specified number of steps
   for _ in 0..steps
   {
     iterate( &mut a, &mut scratch ); // Apply the game rules
-    turn_on_corners( &mut a );       // Ensure the corners stay alive
+    corners_turn_on( &mut a );       // Ensure the corners stay alive
   }
 
   render( &a ); // Render the final grid
 
   // Count the number of live cells in the final grid
   let alive = a.iter().filter( |x| x.0 > 0 ).count(); // Remove extra `&` to avoid moving `Cell`
-  println!( "After {} steps there are {} cells alive", steps, alive ); // Print the result
+  println!( "After {steps} steps there are {alive} cells alive" ); // Print the result
 }

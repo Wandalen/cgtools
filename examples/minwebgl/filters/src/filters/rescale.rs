@@ -1,4 +1,10 @@
-use super::*;
+use super::
+{
+  Filter,
+  FilterRenderer,
+  gl,
+  default_render_pass,
+};
 use serde::{ Serialize, Deserialize };
 
 #[ derive( Debug, Serialize, Deserialize ) ]
@@ -32,7 +38,7 @@ impl Filter for Rescale
   {
     let gl = renderer.gl();
     let scale_location = gl.get_uniform_location( renderer.get_program(), "u_scale" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, scale_location, &self.scale ).unwrap();
     default_render_pass( renderer );
   }

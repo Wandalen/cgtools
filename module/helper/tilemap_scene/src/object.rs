@@ -2,7 +2,7 @@
 //!
 //! See SPEC §1.1. An object has an anchor, a pipeline bucket, and a set of
 //! named visual states (each a list of layers). At runtime one state is
-//! active per instance; the game calls `set_state(instance, name)` to switch
+//! active per instance; the game calls `state_set(instance, name)` to switch
 //! between them. Each state's layer stack can use any `SpriteSource` —
 //! static, animated, or composite — so "state" covers both "idle vs attack"
 //! character moods and simpler one-state-with-one-sprite setups.
@@ -45,7 +45,7 @@ mod private
     /// point of the sprite.
     #[ serde( default = "default_pivot" ) ]
     pub pivot : ( f32, f32 ),
-    /// State name active when the game hasn't issued `set_state`.
+    /// State name active when the game hasn't issued `state_set`.
     #[ serde( default = "default_state_name" ) ]
     pub default_state : String,
     /// Map of state name → ordered list of layers to draw while that state

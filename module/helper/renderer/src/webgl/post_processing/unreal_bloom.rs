@@ -12,6 +12,10 @@ mod private
 
   // Defines the number of mipmap levels to use for the blur effect.
   const MIPS : usize = 5;
+  // Bloom intensity factors per mip level, brightest first.
+  const BLOOM_FACTORS : [ f32; 5 ] = [ 1.0, 0.8, 0.6, 0.4, 0.2 ];
+  // Per-mip RGB tint colors, all white ( no tint ).
+  const BLOOM_TINT : [ f32; 15 ] = [ 1.0; 15 ];
 
   // A Gaussian filter shader
   //
@@ -47,7 +51,7 @@ mod private
   );
 
   /// Implements an Unreal Bloom post-processing effect from here:
-  /// https://github.com/mrdoob/three.js/blob/master/examples/jsm/postprocessing/UnrealBloomPass.js
+  /// <https://github.com/mrdoob/three.js/blob/master/examples/jsm/postprocessing/UnrealBloomPass.js>
   ///
   /// This pass blurs the image it takes as input
   pub struct UnrealBloomPass
@@ -68,7 +72,11 @@ mod private
     /// Bloom radius
     bloom_radius : f32,
     /// Bloom strength
-    bloom_strength : f32
+    bloom_strength : f32,
+    /// The GL context this pass's owned textures/programs were allocated from -- retained so
+    /// `impl Drop` can free them without requiring the caller to remember to call
+    /// `gl_resources_free` first.
+    gl : gl::GL,
   }
 
   impl UnrealBloomPass
@@ -87,6 +95,14 @@ mod private
     /// * `height` - The initial height of the input texture for the bloom pass.
     /// * `format` - The internal format of the textures to be created (e.g., `gl::RGBA16F`).
     ///   This should match the format of the input texture.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if a bloom shader fails to compile/link or a uniform upload fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a fixed bloom uniform location is absent from a compiled shader.
     pub fn new
     (
       gl : &gl::WebGl2RenderingContext,
@@ -140,16 +156,16 @@ mod private
       let mut blur_materials = Vec::new();
 
       // Compile and configure a Gaussian blur shader for each mip level.
-      for i in 0..MIPS
+      for radius in kernel_radius
       {
         // Dynamically inject the KERNEL_RADIUS define into the shader for the current mip.
-        let fs_shader = format!( "#version 300 es\n#define KERNEL_RADIUS {}\n{}", kernel_radius[ i ], fs_shader );
+        let fs_shader = format!( "#version 300 es\n#define KERNEL_RADIUS {radius}\n{fs_shader}" );
         let blur_material = gl::ProgramFromSources::new( VS_TRIANGLE, &fs_shader ).compile_and_link( gl )?;
         let blur_material = GaussianFilterShader::new( gl, &blur_material );
 
         let locations = blur_material.locations();
         // Calculate Gaussian coefficients based on the kernel radius.
-        let coefficients = get_gaussian_coefficients( kernel_radius[ i ] );
+        let coefficients = gaussian_coefficients_get( radius );
         let inv_size = [ 1.0 / size[ 0 ] as f32, 1.0 / size[ 1 ] as f32 ];
         blur_material.bind( gl );
         gl.uniform1fv_with_f32_array( locations.get( "kernel" ).unwrap().as_ref(), coefficients.as_slice() );
@@ -165,18 +181,15 @@ mod private
       // --- Setup Composite Material ---
       let fs_shader = include_str!( "../shaders/post_processing/unreal_bloom.frag" );
       // Dynamically inject the NUM_MIPS define into the bloom composite shader.
-      let fs_shader = format!( "#version 300 es\n#define NUM_MIPS {}\n{}", MIPS, fs_shader );
+      let fs_shader = format!( "#version 300 es\n#define NUM_MIPS {MIPS}\n{fs_shader}" );
       let composite_material = gl::ProgramFromSources::new( VS_TRIANGLE, &fs_shader ).compile_and_link( gl )?;
       let composite_material = UnrealBloomShader::new( gl, &composite_material );
 
-      // Define bloom factors and tint colors for each mip level.
-      const BLOOM_FACTORS : [ f32; 5 ] = [ 1.0, 0.8, 0.6, 0.4, 0.2 ];
-      const BLOOM_TINT : [ [ f32; 3 ]; 5 ] = [ [ 1.0; 3 ]; 5 ];
       let locations = composite_material.locations();
       composite_material.bind( gl );
 
       gl.uniform1fv_with_f32_array( locations.get( "bloomFactors" ).unwrap().as_ref(), &BLOOM_FACTORS[ .. ] );
-      gl.uniform3fv_with_f32_array( locations.get( "bloomTintColors" ).unwrap().as_ref(), BLOOM_TINT.as_flattened() );
+      gl.uniform3fv_with_f32_array( locations.get( "bloomTintColors" ).unwrap().as_ref(), &BLOOM_TINT[ .. ] );
       // Assign texture units to the blur textures.
       gl.uniform1i( locations.get( "blurTexture0" ).unwrap().clone().as_ref() , 0 );
       gl.uniform1i( locations.get( "blurTexture1" ).unwrap().clone().as_ref() , 1 );
@@ -198,37 +211,40 @@ mod private
           width,
           height,
           bloom_radius,
-          bloom_strength
+          bloom_strength,
+          gl : gl.clone(),
         }
       )
     }
 
     /// Sets the bloom radius.
-    pub fn set_bloom_radius( &mut self, radius : f32 )
+    pub fn bloom_radius_set( &mut self, radius : f32 )
     {
       self.bloom_radius = radius.clamp( 0.0, 1.0 );
     }
 
     /// Returns the current bloom radius.
+    #[ must_use ]
     pub fn bloom_radius( &self ) -> f32
     {
       self.bloom_radius
     }
 
     /// Sets the bloom strength.
-    pub fn set_bloom_strength( &mut self, strength : f32 )
+    pub fn bloom_strength_set( &mut self, strength : f32 )
     {
       self.bloom_strength = strength;
     }
 
     /// Returns the current bloom strength.
+    #[ must_use ]
     pub fn bloom_strength( &self ) -> f32
     {
       self.bloom_strength
     }
 
     /// Free [`UnrealBloomPass`] WebGL resources
-    pub fn free_gl_resources( &mut self, gl : &gl::GL )
+    pub fn gl_resources_free( &mut self, gl : &gl::GL )
     {
 
       for target in &self.horizontal_targets
@@ -247,6 +263,26 @@ mod private
       }
 
       gl.delete_program( Some( &self.composite_material.0.program ) );
+    }
+  }
+
+  // Fix(BUG-438): `UnrealBloomPass` already had a manual `gl_resources_free` method ( deleting
+  // its 10 mip textures and all blur/composite shader programs ) but no `impl Drop` backstop --
+  // any caller that dropped the pass without first remembering to call `gl_resources_free`
+  // ( e.g. on an error path, or simply forgetting -- nothing in the type system enforces it )
+  // leaked every one of those GPU resources silently.
+  // Root cause: the struct had no persistent `gl` field to call `gl.delete*` from inside
+  // `Drop::drop`, since every other method already received `gl` as an explicit parameter --
+  // so a `Drop` impl was never added when `gl_resources_free` was.
+  // Pitfall: a manual `gl_resources_free`-only cleanup method is opt-in -- it only helps callers
+  // who remember to call it, and does nothing on a panic-unwind or an early `?`-return before
+  // the call site is reached. A stored `gl` field plus `impl Drop` makes cleanup unconditional.
+  impl Drop for UnrealBloomPass
+  {
+    fn drop( &mut self )
+    {
+      let gl = self.gl.clone();
+      self.gl_resources_free( &gl );
     }
   }
 
@@ -354,7 +390,7 @@ mod private
   /// # Arguments
   ///
   /// * `radius` - The radius of the Gaussian kernel (e.g., 3 means a 7x7 kernel).
-  fn get_gaussian_coefficients( radius : usize ) -> Vec< f32 >
+  fn gaussian_coefficients_get( radius : usize ) -> Vec< f32 >
   {
     let mut c = Vec::with_capacity( radius );
 
@@ -368,6 +404,98 @@ mod private
     }
 
     c
+  }
+
+  // Test placement: verifying `impl Drop` deleted `horizontal_targets`/`vertical_targets`/
+  // `blur_materials`/`composite_material` needs the pre-drop handles, and all four fields are
+  // private -- only a test nested inside `mod private` can read them.
+  // See `rulebook.md § Test placement`.
+  #[ cfg( all( test, target_arch = "wasm32" ) ) ]
+  mod tests
+  {
+    use super::*;
+
+    fn gl_init() -> gl::GL
+    {
+      gl::browser::setup( gl::browser::Config::default() );
+      let options = gl::context::ContextOptions::default();
+      let canvas = gl::canvas::make().unwrap();
+      gl::context::from_canvas_with( &canvas, options ).unwrap()
+    }
+
+    /// ## Root Cause
+    /// `UnrealBloomPass` already had a manual `gl_resources_free` method ( deleting its 10 mip
+    /// textures and all blur/composite shader programs ) but no `impl Drop` backstop -- any
+    /// caller that dropped the pass without first remembering to call `gl_resources_free`
+    /// ( e.g. on an error path, or simply forgetting ) leaked every one of those GPU resources.
+    ///
+    /// ## Why Not Caught
+    /// `unreal_bloom_tests.rs` exercises `render()` end-to-end but never drops a pass without
+    /// first calling `gl_resources_free` to check whether `Drop` alone was sufficient.
+    ///
+    /// ## Fix Applied
+    /// Added a `gl : gl::GL` field ( populated in `new` ) and `impl Drop for UnrealBloomPass`,
+    /// calling the pre-existing `gl_resources_free` automatically.
+    ///
+    /// ## Prevention
+    /// This test captures clones of all 10 mip-texture handles and both shader-program handles
+    /// from the private fields before drop, then asserts every one of the 12 GL objects is
+    /// deleted afterward -- the same deterministic existence-check pattern used by this crate's
+    /// other GPU-teardown reproducer tests, without calling `gl_resources_free` explicitly
+    /// first ( proving `Drop` alone, not just the manual method, does the job ).
+    ///
+    /// ## Pitfall
+    /// A manual `gl_resources_free`-only cleanup method is opt-in -- it only helps callers who
+    /// remember to call it, and does nothing on a panic-unwind or an early `?`-return before
+    /// the call site is reached. A stored `gl` field plus `impl Drop` makes cleanup
+    /// unconditional regardless of how the value's last use ends.
+    // test_kind: bug_reproducer(BUG-438)
+    #[ wasm_bindgen_test::wasm_bindgen_test ]
+    fn unreal_bloom_pass_drop_frees_all_textures_and_programs_without_explicit_free_call()
+    {
+      let gl = gl_init();
+      let pass = UnrealBloomPass::new( &gl, 64, 64, gl::RGBA16F )
+      .expect( "UnrealBloomPass construction should succeed on a valid context" );
+
+      let horizontal : Vec< _ > = pass.horizontal_targets.iter().cloned().flatten().collect();
+      let vertical : Vec< _ > = pass.vertical_targets.iter().cloned().flatten().collect();
+      assert_eq!( horizontal.len(), MIPS, "all {MIPS} horizontal mip textures must have allocated" );
+      assert_eq!( vertical.len(), MIPS, "all {MIPS} vertical mip textures must have allocated" );
+
+      let blur_programs : Vec< WebGlProgram > = pass.blur_materials.iter().map( | m | m.program().clone() ).collect();
+      let composite_program = pass.composite_material.program().clone();
+      assert_eq!( blur_programs.len(), MIPS, "one compiled blur program per mip level" );
+
+      for texture in horizontal.iter().chain( vertical.iter() )
+      {
+        assert!( gl.is_texture( Some( texture ) ) );
+      }
+      for program in &blur_programs
+      {
+        assert!( gl.is_program( Some( program ) ) );
+      }
+      assert!( gl.is_program( Some( &composite_program ) ) );
+
+      // No explicit `gl_resources_free()` call -- this is the exact regression BUG-438 covers:
+      // `Drop` alone, with no caller-remembered cleanup call, must still free everything.
+      drop( pass );
+
+      // Test pitfall (not a production bug): `UnrealBloomPass::new`'s last bind call is
+      // `composite_material.bind(gl)`, leaving it the currently-bound program. Per the
+      // WebGL/OpenGL ES spec, deleting a currently-bound program only flags it for deletion --
+      // see the identical comment on `renderer_gl_resources_free_deletes_composite_and_skybox_programs`.
+      gl.use_program( None );
+
+      for texture in horizontal.iter().chain( vertical.iter() )
+      {
+        assert!( !gl.is_texture( Some( texture ) ), "UnrealBloomPass::drop must delete every mip texture" );
+      }
+      for program in &blur_programs
+      {
+        assert!( !gl.is_program( Some( program ) ), "UnrealBloomPass::drop must delete every blur program" );
+      }
+      assert!( !gl.is_program( Some( &composite_program ) ), "UnrealBloomPass::drop must delete the composite program" );
+    }
   }
 }
 

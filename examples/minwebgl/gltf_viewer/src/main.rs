@@ -3,17 +3,6 @@
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Renders GLTF files using postprocess effects" ) ]
 
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::no_effect_underscore_binding ) ]
-
 use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
 
@@ -29,16 +18,19 @@ fn canvas_size( canvas : &gl::web_sys::HtmlCanvasElement ) -> ( u32, u32 )
 {
   let window = gl::web_sys::window().unwrap();
   let dpr = window.device_pixel_ratio();
-  let css_w = canvas.client_width() as f64;
-  let css_h = canvas.client_height() as f64;
+  let css_w = f64::from( canvas.client_width() );
+  let css_h = f64::from( canvas.client_height() );
+  // Canvas dimensions are always non-negative and far below `u32::MAX`, so casting to `u32`
+  // cannot lose sign; the fractional part is intentionally floored to get an integer
+  // backing-store pixel count.
   let w = ( css_w * dpr ) as u32;
   let h = ( css_h * dpr ) as u32;
   ( w.max( 1 ), h.max( 1 ) )
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let options = gl::context::ContextOptions::default()
   .antialias( false )
   .depth( false )
@@ -80,9 +72,9 @@ async fn run() -> Result< (), gl::WebglError >
   let norm_scale = if diagonal > 0.0 { 1.0 / diagonal } else { 1.0 };
   {
     let mut scene = scenes[ 0 ].borrow_mut();
-    scene.set_scale( gl::math::F32x3::splat( norm_scale ) );
-    scene.set_translation( center * -norm_scale );
-    scene.update_world_matrix();
+    scene.scale_set( gl::math::F32x3::splat( norm_scale ) );
+    scene.translation_set( center * -norm_scale );
+    scene.world_matrix_update();
   }
 
   let eye = gl::math::F32x3::from( [ 0.0, 0.7, 0.7 ] );
@@ -94,9 +86,9 @@ async fn run() -> Result< (), gl::WebglError >
   let far = 100.0;
   let aspect_ratio = pixel_w as f32 / pixel_h as f32;
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ pixel_w as f32, pixel_h as f32 ].into() );
-  camera.bind_controls( &canvas );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far )?;
+  camera.window_size_set( [ pixel_w as f32, pixel_h as f32 ].into() );
+  camera.controls_bind( &canvas );
 
   let samples = 4;
   let mut renderer = Renderer::new( &gl, pixel_w, pixel_h, samples )?;
@@ -105,9 +97,9 @@ async fn run() -> Result< (), gl::WebglError >
   renderer::webgl::loaders::hdr_texture::load_to_mip_d2( &gl, Some( &equirect ), 0, "static/venice_sunset_1k.hdr" ).await;
 
   let ibl = renderer::webgl::loaders::pmrem::generate( &gl, &equirect, 512 )?;
-  renderer.set_ibl( ibl );
-  renderer.set_clear_color( gl::math::F32x3::from( [ 0.01, 0.01, 0.01 ] ) );
-  renderer.set_exposure( 0.0 );
+  renderer.ibl_set( ibl );
+  renderer.clear_color_set( gl::math::F32x3::from( [ 0.01, 0.01, 0.01 ] ) );
+  renderer.exposure_set( 0.0 );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -116,7 +108,7 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  gui_setup::setup( renderer.clone() );
+  gui_setup::setup( &renderer );
 
   let prev_size : Rc< RefCell< ( u32, u32 ) > > = Rc::new( RefCell::new( ( pixel_w, pixel_h ) ) );
 
@@ -134,12 +126,12 @@ async fn run() -> Result< (), gl::WebglError >
         canvas.set_height( h );
 
         let proj = gl::math::mat3x3h::perspective_rh_gl( fov, w as f32 / h as f32, near, far );
-        camera.set_projection_matrix( proj );
-        camera.set_window_size( [ w as f32, h as f32 ].into() );
+        camera.projection_matrix_set( proj ).expect( "resize produced a degenerate projection matrix" );
+        camera.window_size_set( [ w as f32, h as f32 ].into() );
 
         renderer.borrow_mut().resize( &gl, w, h, samples ).expect( "Failed to resize renderer" );
 
-        swap_buffer.free_gl_resources( &gl );
+        swap_buffer.gl_resources_free( &gl );
         swap_buffer = SwapFramebuffer::new( &gl, w, h );
 
         *prev = ( w, h );
@@ -149,15 +141,15 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.borrow().main_texture() );
+      swap_buffer.input_set( renderer.borrow().main_texture() );
 
-      let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let t = tonemapping.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render tonemapping pass" );
 
-      swap_buffer.set_output( t );
+      swap_buffer.output_set( t );
       swap_buffer.swap();
 
-      let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let _ = to_srgb.render( &gl, swap_buffer.input_get(), swap_buffer.output_get() )
       .expect( "Failed to render ToSrgbPass" );
 
       true
@@ -171,5 +163,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local( async move { app_run().await.unwrap() } );
 }

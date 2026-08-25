@@ -3,9 +3,9 @@
 use minwebgl as gl;
 use gl::{ GL };
 
-fn run() -> Result< (), gl::WebglError >
+fn app_run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let gl = gl::context::retrieve_or_make()?;
 
   // Vertex and fragment shaders
@@ -23,5 +23,5 @@ fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  run().unwrap()
+  app_run().unwrap();
 }

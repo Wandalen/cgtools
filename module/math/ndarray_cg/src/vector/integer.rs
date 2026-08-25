@@ -6,7 +6,7 @@
 
 mod private
 {
-  use crate::*;
+  use crate::{Vector, MatEl};
   use ::num_traits::
   {
     Saturating,
@@ -22,6 +22,7 @@ mod private
     /// Component-wise saturating addition. Each component saturates at the
     /// numeric bounds of `E` instead of overflowing.
     #[ inline ]
+    #[ must_use ]
     pub fn saturating_add( self, rhs : Self ) -> Self
     {
       let mut out = self;
@@ -34,6 +35,7 @@ mod private
 
     /// Component-wise saturating subtraction.
     #[ inline ]
+    #[ must_use ]
     pub fn saturating_sub( self, rhs : Self ) -> Self
     {
       let mut out = self;
@@ -51,6 +53,7 @@ mod private
   {
     /// Component-wise wrapping addition.
     #[ inline ]
+    #[ must_use ]
     pub fn wrapping_add( self, rhs : Self ) -> Self
     {
       let mut out = self;
@@ -68,6 +71,7 @@ mod private
   {
     /// Component-wise wrapping subtraction.
     #[ inline ]
+    #[ must_use ]
     pub fn wrapping_sub( self, rhs : Self ) -> Self
     {
       let mut out = self;
@@ -85,6 +89,7 @@ mod private
   {
     /// Component-wise wrapping multiplication.
     #[ inline ]
+    #[ must_use ]
     pub fn wrapping_mul( self, rhs : Self ) -> Self
     {
       let mut out = self;

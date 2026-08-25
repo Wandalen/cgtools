@@ -6,9 +6,9 @@ This demo demonstrates Uniform Buffer Objects (UBO) in WebGL2. UBOs allow effici
 
 UBOs are essential for complex rendering pipelines with shared data. This example shows setup, binding, and best practices for UBO usage.
 
-![](./showcase.gif)
+![](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

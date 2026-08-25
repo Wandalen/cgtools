@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate::F32x2;
 
   impl F32x2
   {

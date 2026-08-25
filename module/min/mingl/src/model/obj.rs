@@ -3,7 +3,6 @@
 /// Internal namespace.
 mod private
 {
-  //use crate::*;
   use std::collections::HashSet ;
   use tobj::Material;
 
@@ -12,6 +11,7 @@ mod private
   /// An AABB is defined by its minimum and maximum corner points,
   /// enclosing a volume aligned with the coordinate axes.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub struct BoundingBox
   {
     /// The minimum corner of the bounding box (lowest x, y, and z coordinates).
@@ -22,6 +22,7 @@ mod private
 
   impl Default for BoundingBox
   {
+    #[ inline ]
     fn default() -> Self
     {
       BoundingBox
@@ -36,13 +37,15 @@ mod private
   {
     /// Computes the bounding box of the model from the provided positions array
     /// Positions should be in the form [ x, y, z, x, y, z, ...]
+    #[ inline ]
+    #[ must_use ]
     pub fn compute( positions : &[ f32 ] ) -> Self
     {
       let mut bounding_box = BoundingBox::default();
 
       for i in 0..positions.len() / 3
       {
-        let x = positions[ i * 3 + 0 ];
+        let x = positions[ i * 3 ];
         let y = positions[ i * 3 + 1 ];
         let z = positions[ i * 3 + 2 ];
 
@@ -61,6 +64,7 @@ mod private
   /// A bounding sphere is a sphere that completely encloses a given object or set of points,
   /// defined by its center and radius. It is often used for fast collision detection.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub struct BoundingSphere
   {
     /// The 3D coordinate of the sphere's center.
@@ -71,6 +75,7 @@ mod private
 
   impl Default for BoundingSphere
   {
+    #[ inline ]
     fn default() -> Self
     {
       BoundingSphere
@@ -86,6 +91,8 @@ mod private
     /// Computes the bounding sphere of the model form the provided positions array.
     /// Positions should be in the form [ x, y, z, x, y, z, ...].
     /// Requires BoundingBox to be computed first.
+    #[ inline ]
+    #[ must_use ]
     pub fn compute( positions : &[ f32 ], bounding_box : &BoundingBox ) -> Self
     {
       let mut bs = BoundingSphere::default();
@@ -93,7 +100,7 @@ mod private
 
       for i in 0..positions.len() / 3
       {
-        let x = positions[ i * 3 + 0 ];
+        let x = positions[ i * 3 ];
         let y = positions[ i * 3 + 1 ];
         let z = positions[ i * 3 + 2 ];
         let p = ndarray_cg::F32x3::new( x, y, z );
@@ -107,8 +114,44 @@ mod private
     }
   }
 
+  /// Computes the true face (polygon) count from a mesh's `face_arities` and `indices`.
+  ///
+  /// `tobj` leaves `face_arities` *empty* whenever every face is a triangle -- either because
+  /// the source data was already fully triangular, or because the `triangulate` load option was
+  /// set (as `tobj::GPU_LOAD_OPTIONS` always does). In that case `face_arities.len()` is always
+  /// `0`, which is not the face count -- the real count must be derived from `indices` instead,
+  /// since every triangular face consumes exactly 3 of them. When `face_arities` is non-empty,
+  /// it already holds exactly one entry per face, so its length is used directly.
+  ///
+  /// # Arguments
+  /// * `face_arities` - `tobj::Mesh::face_arities`; one entry per face, or empty for an
+  ///   all-triangle mesh.
+  /// * `indices` - `tobj::Mesh::indices`; the mesh's vertex indices.
+  // Fix(BUG-273): derive face count via this helper instead of `face_arities.len()` alone.
+  // Root cause: `face_arities.len()` silently reports 0 faces for any triangulated mesh -- the
+  // exact configuration `examples/minwebgl/obj_load` requests via `tobj::GPU_LOAD_OPTIONS`
+  // (`triangulate: true`) -- even though `indices` holds the real, non-empty triangle data.
+  // Pitfall: an external crate leaving a field empty as a documented "assume default" signal
+  // (here, "assume arity 3") is not the same as that field being a valid count of anything;
+  // never conflate "empty means apply the default" with "empty means zero".
+  #[ inline ]
+  #[ must_use ]
+  pub fn num_faces_compute( face_arities : &[ u32 ], indices : &[ u32 ] ) -> usize
+  {
+    if face_arities.is_empty()
+    {
+      indices.len() / 3
+    }
+    else
+    {
+      face_arities.len()
+    }
+  }
+
   /// Returns size in bytes the model occupies when loaded in memory
-  pub fn compute_size_in_memory( model : &tobj::Model ) -> usize
+  #[ inline ]
+  #[ must_use ]
+  pub fn size_in_memory_compute( model : &tobj::Model ) -> usize
   {
     let mesh = &model.mesh;
     let mut size_in_bytes = 0;
@@ -127,6 +170,7 @@ mod private
 
   /// Containes useful information about the model
   #[ derive( Debug, Default ) ]
+  #[ non_exhaustive ]
   pub struct ReportObjModel< 'model, 'mtl >
   {
     /// The name of the model or object group.
@@ -169,28 +213,30 @@ mod private
     /// # Arguments
     /// * `model`: A reference to the `tobj::Model` to be analyzed.
     /// * `materials`: A slice of `tobj::Material` from which the model's material will be drawn.
+    #[ inline ]
+    #[ must_use ]
     pub fn new( model : &'model tobj::Model, materials : &'mtl [ tobj::Material ] ) -> Self
     {
       let mesh = &model.mesh;
       let bounding_box = BoundingBox::compute( &mesh.positions );
       let bounding_sphere = BoundingSphere::compute( &mesh.positions, &bounding_box );
-      let num_faces = mesh.face_arities.len();
+      let num_faces = num_faces_compute( &mesh.face_arities, &mesh.indices );
       let mut num_of_arities = HashSet::new();
 
       // The defualt amount of arities is three, so when the object either containes only triangles,
       // Or "triangulate" option is chosen when loading with tobj crate, then the face_arities array is going
       // to be empty, implying the amount of arities per face equal to 3
-      if num_faces == 0
+      if mesh.face_arities.is_empty()
       {
         num_of_arities.insert( 3 );
       }
       else
       {
         mesh.face_arities.iter().for_each( | &a | { num_of_arities.insert( a ); } );
-      };
+      }
 
       let name = &model.name;
-      let size_in_bytes = compute_size_in_memory( model );
+      let size_in_bytes = size_in_memory_compute( model );
       let num_vertices = mesh.positions.len() / 3;
       let num_indices = mesh.indices.len();
       let num_normals = mesh.normals.len() / 3;
@@ -215,16 +261,16 @@ mod private
         size_in_bytes,
         num_vertices,
         num_indices,
-        material,
-        bounding_box,
         num_normals,
         num_texcoords,
-        bounding_sphere,
         num_vertex_colors,
         num_faces,
         num_of_arities,
         num_texcoords_indicies,
-        num_normal_indicies
+        num_normal_indicies,
+        bounding_box,
+        bounding_sphere,
+        material
       }
     }
   }
@@ -237,7 +283,9 @@ mod private
   ///
   /// # Returns
   /// A `Vec` containing a `ReportObjModel` for each model in the input slice.
-  pub fn make_reports< 'model, 'mtl >
+  #[ inline ]
+  #[ must_use ]
+  pub fn reports_make< 'model, 'mtl >
   (
     models : &'model [ tobj::Model ],
     materials : &'mtl [ tobj::Material ]
@@ -245,11 +293,11 @@ mod private
   -> Vec< ReportObjModel< 'model, 'mtl > >
   {
     let mut reports = Vec::with_capacity( models.len() );
-    for i in 0..models.len()
+    for model in models
     {
       reports.push
       (
-        ReportObjModel::new( &models[ i ], &materials )
+        ReportObjModel::new( model, materials )
       );
     }
 
@@ -263,10 +311,11 @@ crate::mod_interface!
 
   orphan use
   {
-    make_reports,
+    reports_make,
     ReportObjModel,
     BoundingBox,
-    BoundingSphere
+    BoundingSphere,
+    num_faces_compute
   };
 
 }

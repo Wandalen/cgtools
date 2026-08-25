@@ -1,4 +1,4 @@
-//! This file contains UniformStorage that helps you store and efficiently retrieve uniform data from your webgl program.
+//! This file contains `UniformStorage` that helps you store and efficiently retrieve uniform data from your webgl program.
 
 mod private
 {
@@ -102,6 +102,10 @@ mod private
   impl Uniform 
   {
     /// Upload the current value to the gl program at the specified location
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the GL uniform upload fails.
     pub fn upload( &self, gl : &gl::WebGl2RenderingContext, location : Option< gl::WebGlUniformLocation > ) -> Result< (), gl::WebglError > 
     {
       match self  
@@ -150,6 +154,10 @@ mod private
 
     /// Upload the uniform with the specifed name to the gl program. If `use_locations` is true, looks for a saved uniform location of the specifed uniform in the map.
     /// If not found, asks for a location and adds it to the map for future use.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the uniform does not exist or the GL upload fails.
     pub fn upload
     ( 
       &mut self, 
@@ -165,13 +173,17 @@ mod private
       }
       else
       {
-        upload_without_cache( gl, &self.uniforms, program, name )?
+        upload_without_cache( gl, &self.uniforms, program, name )?;
       }
 
       Ok( () )
     }
 
     /// Upload all uniforms to the program
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if any uniform upload fails.
     pub fn all_upload( &mut self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram, use_locations : bool ) -> Result< (), gl::WebglError >
     {
       for name in self.uniforms.keys()
@@ -182,17 +194,17 @@ mod private
         }
         else
         {
-          upload_without_cache( gl, &self.uniforms, program, name )?
+          upload_without_cache( gl, &self.uniforms, program, name )?;
         }
       }
 
       Ok( () )
     }
 
-    /// Copy uniform to another UniformStorage
+    /// Copy uniform to another `UniformStorage`
     pub fn copy_to( &self, other : &mut Self )
     {
-      for ( name, value ) in self.uniforms.iter()
+      for ( name, value ) in &self.uniforms
       {
         other.uniform_set( name.clone(), *value );
       }
@@ -212,6 +224,7 @@ mod private
 
   }
 
+  #[ expect( clippy::else_if_without_else, reason = "a uniform whose location is absent was optimized out by the driver; skipping the upload is the intended no-op, and an empty else {} would trip clippy::needless_else" ) ]
   fn upload_with_cache
   (
     gl : &gl::WebGl2RenderingContext,
@@ -228,13 +241,10 @@ mod private
     {
       uniform.upload( gl, Some( location.clone() ) )?;
     }
-    else 
+    else if let Some( location ) = gl.get_uniform_location( program, name )
     {
-      if let Some( location ) = gl.get_uniform_location( program, name )
-      {
-        cache.insert( name.into(), location.clone() );
-        uniform.upload( gl, Some( location ) )?;
-      }
+      cache.insert( name.into(), location.clone() );
+      uniform.upload( gl, Some( location ) )?;
     }
 
     Ok( () )

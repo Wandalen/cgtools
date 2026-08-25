@@ -1,5 +1,3 @@
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::field_reassign_with_default ) ]
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -8,8 +6,7 @@ use renderer::webgl::Renderer;
 use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
 
-use crate::lil_gui::{add_slider, new_gui, on_change, show};
-
+use crate::lil_gui::{slider_add, gui_new, on_change, show};
 
 #[ derive( Default, Serialize, Deserialize ) ]
 pub struct Settings
@@ -21,8 +18,7 @@ pub struct Settings
   exposure : f32
 }
 
-
-pub fn setup( renderer : Rc< RefCell< Renderer > > )
+pub fn setup( renderer : &Rc< RefCell< Renderer > > )
 {
   let mut settings = Settings::default();
   settings.bloom_radius = renderer.borrow().bloom_radius();
@@ -30,44 +26,44 @@ pub fn setup( renderer : Rc< RefCell< Renderer > > )
   settings.exposure = renderer.borrow().exposure();
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
-  let gui = new_gui();
+  let gui = gui_new();
 
-  let prop = add_slider( &gui, &object, "bloomRadius", 0.0, 1.0, 0.01 );
+  let prop = slider_add( &gui, &object, "bloomRadius", 0.0, 1.0, 0.01 );
   let callback = Closure::new
   (
     {
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_bloom_radius( value );
+        renderer.borrow_mut().bloom_radius_set( value );
       }
     }
   );
   on_change( &prop, &callback );
   callback.forget();
 
-  let prop = add_slider( &gui, &object, "bloomStrength", 0.0, 10.0, 0.1 );
+  let prop = slider_add( &gui, &object, "bloomStrength", 0.0, 10.0, 0.1 );
   let callback = Closure::new
   (
     {
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_bloom_strength( value );
+        renderer.borrow_mut().bloom_strength_set( value );
       }
     }
   );
   on_change( &prop, &callback );
   callback.forget();
 
-  let prop = add_slider( &gui, &object, "exposure", -10.0, 10.0, 0.1 );
+  let prop = slider_add( &gui, &object, "exposure", -10.0, 10.0, 0.1 );
   let callback = Closure::new
   (
     {
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_exposure( value );
+        renderer.borrow_mut().exposure_set( value );
       }
     }
   );

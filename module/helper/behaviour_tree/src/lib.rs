@@ -35,11 +35,11 @@
 //! (
 //!   vec!
 //!   [
-//!     set_blackboard( "target_x", 10 ),
-//!     set_blackboard( "target_y", 10 ),
+//!     blackboard_set( "target_x", 10 ),
+//!     blackboard_set( "target_y", 10 ),
 //!     wait( 2.0 ), // Wait 2 seconds
-//!     set_blackboard( "target_x", 5 ),
-//!     set_blackboard( "target_y", 5 ),
+//!     blackboard_set( "target_x", 5 ),
+//!     blackboard_set( "target_y", 5 ),
 //!     wait( 2.0 ),
 //!   ]
 //! )
@@ -49,18 +49,6 @@
 //! let mut context = BehaviorContext::new();
 //! let status = patrol_tree.execute( &mut context );
 //! ```
-
-#![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::exhaustive_enums ) ]
-#![ allow( clippy::exhaustive_structs ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::must_use_candidate ) ]
-#![ allow( clippy::missing_inline_in_public_items ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::collapsible_if ) ]
-#![ allow( clippy::return_self_not_must_use ) ]
-#![ allow( clippy::missing_panics_doc ) ]
 
 use std::collections::HashMap;
 use core::time::Duration;
@@ -124,16 +112,27 @@ impl BehaviorContext
   }
 
   /// Updates the context with new timing information.
+  // Fix(BUG-144)
+  // Root cause: `current_time` was resampled from `Instant::now()` on every call, discarding
+  // the caller-supplied `delta_time` entirely -- `WaitAction`/`CooldownNode` both derive their
+  // Running/Success decisions purely from `context.current_time.duration_since(...)`, so a
+  // caller driving the tree with synthetic `delta_time` (fixed-timestep simulation, deterministic
+  // tests, fast-forward, replay, or a paused game passing `delta_time = 0`) had zero effect --
+  // only real wall-clock elapsing ever advanced a wait/cooldown, contradicting the field's own
+  // "Current game time" doc comment.
+  // Pitfall: `Instant` has no "construct at an arbitrary point" API -- the only way to derive a
+  // caller-controlled game clock from it is to accumulate `Duration`s onto an `Instant` captured
+  // once (`Instant + Duration`), never to re-sample `Instant::now()` on every tick.
   #[ inline ]
   pub fn update( &mut self, delta_time : Duration )
   {
     self.delta_time = delta_time;
-    self.current_time = Instant::now();
+    self.current_time += delta_time;
   }
 
   /// Sets a value in the blackboard.
   #[ inline ]
-  pub fn set_blackboard< T : Into< BehaviorValue > >( &mut self, key : &str, value : T )
+  pub fn blackboard_set< T : Into< BehaviorValue > >( &mut self, key : &str, value : T )
   {
     self.blackboard.insert( key.to_string(), value.into() );
   }
@@ -141,14 +140,14 @@ impl BehaviorContext
   /// Gets a value from the blackboard.
   #[ inline ]
   #[ must_use ]
-  pub fn get_blackboard( &self, key : &str ) -> Option< &BehaviorValue >
+  pub fn blackboard_get( &self, key : &str ) -> Option< &BehaviorValue >
   {
     self.blackboard.get( key )
   }
 
   /// Sets a property value.
   #[ inline ]
-  pub fn set_property< T : Into< BehaviorValue > >( &mut self, key : &str, value : T )
+  pub fn property_set< T : Into< BehaviorValue > >( &mut self, key : &str, value : T )
   {
     self.properties.insert( key.to_string(), value.into() );
   }
@@ -156,7 +155,7 @@ impl BehaviorContext
   /// Gets a property value.
   #[ inline ]
   #[ must_use ]
-  pub fn get_property( &self, key : &str ) -> Option< &BehaviorValue >
+  pub fn property_get( &self, key : &str ) -> Option< &BehaviorValue >
   {
     self.properties.get( key )
   }
@@ -484,6 +483,10 @@ impl BehaviorNode for SelectorNode
 pub struct ParallelNode
 {
   children : Vec< Box< dyn BehaviorNode > >,
+  /// Per-child "already reached `Success` earlier in this still-`Running` activation" flag --
+  /// prevents re-invoking an already-succeeded child on a later tick (see `Fix(BUG-228)` on
+  /// `execute` below). Cleared alongside every child on `reset()`.
+  succeeded : Vec< bool >,
   name : String,
 }
 
@@ -494,9 +497,11 @@ impl ParallelNode
   #[ must_use ]
   pub fn new( children : Vec< Box< dyn BehaviorNode > > ) -> Self
   {
+    let succeeded = vec![ false; children.len() ];
     Self
     {
       children,
+      succeeded,
       name : "Parallel".to_string(),
     }
   }
@@ -506,24 +511,65 @@ impl ParallelNode
   #[ must_use ]
   pub fn named( children : Vec< Box< dyn BehaviorNode > >, name : String ) -> Self
   {
-    Self { children, name }
+    let succeeded = vec![ false; children.len() ];
+    Self { children, succeeded, name }
   }
 }
 
 impl BehaviorNode for ParallelNode
 {
+  // Fix(BUG-145)
+  // Root cause: unlike `SequenceNode`/`SelectorNode`, which both call `self.reset()` on every
+  // terminal `Success`/`Failure` transition, `execute` never reset any child on any terminal
+  // path -- a sibling child still `Running` when another child fails (or when not every child
+  // reaches `Success`) was abandoned with stale internal state (e.g. a `WaitAction`'s
+  // `start_time`, a `CooldownNode`'s pending state), corrupting that child's next independent
+  // activation of this same node.
+  // Pitfall: switched `for child in &mut self.children` to index-based iteration (matching
+  // `SequenceNode`/`SelectorNode`'s own established idiom in this file) because `self.reset()`
+  // needs `&mut self`, which conflicts with an outstanding `IterMut` borrow held for the whole
+  // loop -- indexing via `self.children[ i ]` re-borrows only per-statement, leaving `self.reset()`
+  // free to borrow `self` again in a later statement.
+  // Fix(BUG-228)
+  // Root cause: every tick re-invoked EVERY child via `self.children[ i ].execute( context )`,
+  // with no memory of which children had already reached `Success` in an earlier tick of the
+  // same still-`Running` activation -- unlike `SequenceNode`/`SelectorNode`, whose
+  // `current_child` cursor naturally skips already-resolved children. A child that resets its
+  // own internal state on success (e.g. `WaitAction`, which calls `self.reset()` right before
+  // returning `Success`) got silently restarted the next time it was polled, so two children
+  // completing at different tick counts could prevent the whole node from ever converging on
+  // `Success`; a `CooldownNode` child re-polled after its own success (while still inside its
+  // own cooldown window) returned `Failure`, wrongly short-circuiting the entire composite even
+  // though that child had already legitimately succeeded.
+  // Pitfall: a composite that keeps polling every child every tick must track which children
+  // already reached a terminal status and stop re-invoking them -- terminal, in a Parallel
+  // composite, is sticky for the rest of the activation, not re-derived from scratch every tick.
   #[ inline ]
   fn execute( &mut self, context : &mut BehaviorContext ) -> BehaviorStatus
   {
     let mut running_count = 0;
     let mut success_count = 0;
 
-    for child in &mut self.children
+    for i in 0 .. self.children.len()
     {
-      match child.execute( context )
+      if self.succeeded[ i ]
       {
-        BehaviorStatus::Success => success_count += 1,
-        BehaviorStatus::Failure => return BehaviorStatus::Failure,
+        success_count += 1;
+        continue;
+      }
+
+      match self.children[ i ].execute( context )
+      {
+        BehaviorStatus::Success =>
+        {
+          self.succeeded[ i ] = true;
+          success_count += 1;
+        }
+        BehaviorStatus::Failure =>
+        {
+          self.reset();
+          return BehaviorStatus::Failure;
+        }
         BehaviorStatus::Running => running_count += 1,
       }
     }
@@ -534,10 +580,12 @@ impl BehaviorNode for ParallelNode
     }
     else if success_count == self.children.len()
     {
+      self.reset();
       BehaviorStatus::Success
     }
     else
     {
+      self.reset();
       BehaviorStatus::Failure
     }
   }
@@ -548,6 +596,10 @@ impl BehaviorNode for ParallelNode
     for child in &mut self.children
     {
       child.reset();
+    }
+    for succeeded in &mut self.succeeded
+    {
+      *succeeded = false;
     }
   }
 
@@ -572,6 +624,14 @@ pub struct RepeatNode
 
 impl RepeatNode
 {
+  /// Maximum number of times `execute` may synchronously re-invoke its
+  /// child within a single call before yielding `BehaviorStatus::Running`
+  /// back to the caller. Bounds worst-case per-tick cost and guarantees
+  /// `execute` always returns, even when the child never produces
+  /// `Running` and `max_repeats` is `None` (see the `Root cause` note on
+  /// the `BehaviorNode` impl below).
+  const MAX_SYNC_ITERATIONS : u32 = 10_000;
+
   /// Creates a repeat node that runs indefinitely.
   #[ inline ]
   #[ must_use ]
@@ -603,11 +663,38 @@ impl RepeatNode
 
 impl BehaviorNode for RepeatNode
 {
+  // Fix(TASK-017): bound the number of synchronous child re-invocations
+  // per `execute()` call to `Self::MAX_SYNC_ITERATIONS` and yield
+  // `Running` once the cap is hit, instead of looping unconditionally.
+  // Root cause: when built via `RepeatNode::infinite` (`max_repeats ==
+  // None`) and the child never returns `Running` (e.g. an instant
+  // action/condition, or a Sequence/Selector made entirely of instant
+  // nodes), neither `loop` exit branch was ever reachable, so the loop
+  // spun forever inside one call and hung the calling thread (livelock).
+  // Pitfall: a decorator that synchronously re-invokes an opaque
+  // `Box< dyn BehaviorNode >` child in a loop must bound the number of
+  // re-invocations independently of any user-supplied repeat count --
+  // "infinite repeat" must mean "unbounded across ticks", never
+  // "unbounded within a single tick".
+  // Fix(BUG-146)
+  // Root cause: the completion check (`current_repeats >= max`) ran only AFTER executing the
+  // child, so `RepeatNode::times( child, 0 )` (`max_repeats == Some( 0 )`) still executed its
+  // child once on the loop's first iteration before the check could ever fire -- a node
+  // explicitly configured to run "0 times" ran its child exactly once.
+  // Pitfall: a decorator whose completion condition can already be satisfied BEFORE any work is
+  // done (a repeat count of zero) must check-then-act, not act-then-check -- checking only after
+  // acting is correct for every count >= 1 but silently wrong at the zero boundary.
   #[ inline ]
   fn execute( &mut self, context : &mut BehaviorContext ) -> BehaviorStatus
   {
-    loop
+    for _ in 0 .. Self::MAX_SYNC_ITERATIONS
     {
+      if let Some( max ) = self.max_repeats && self.current_repeats >= max
+      {
+        self.reset();
+        return BehaviorStatus::Success;
+      }
+
       match self.child.execute( context )
       {
         BehaviorStatus::Running => return BehaviorStatus::Running,
@@ -615,16 +702,15 @@ impl BehaviorNode for RepeatNode
         {
           self.current_repeats += 1;
           self.child.reset();
-
-          if let Some( max ) = self.max_repeats && self.current_repeats >= max
-          {
-            self.reset();
-            return BehaviorStatus::Success;
-          }
           // Continue looping for infinite repeat or more iterations
         }
       }
     }
+
+    // Synchronous-iteration cap reached without the child yielding
+    // `Running` or `current_repeats` reaching `max_repeats`: yield control
+    // back to the caller instead of spinning forever (see Root cause above).
+    BehaviorStatus::Running
   }
 
   #[ inline ]
@@ -782,7 +868,7 @@ impl BehaviorNode for BlackboardCondition
   #[ inline ]
   fn execute( &mut self, context : &mut BehaviorContext ) -> BehaviorStatus
   {
-    if let Some( value ) = context.get_blackboard( &self.key )
+    if let Some( value ) = context.blackboard_get( &self.key )
     {
       if *value == self.expected_value
       {
@@ -904,7 +990,7 @@ impl BehaviorNode for SetBlackboardAction
   #[ inline ]
   fn execute( &mut self, context : &mut BehaviorContext ) -> BehaviorStatus
   {
-    context.set_blackboard( &self.key, self.value.clone() );
+    context.blackboard_set( &self.key, self.value.clone() );
     BehaviorStatus::Success
   }
 
@@ -1078,254 +1164,7 @@ pub fn condition< T : Into< BehaviorValue > >( key : &str, expected : T ) -> Box
 /// Creates a set blackboard action.
 #[ inline ]
 #[ must_use ]
-pub fn set_blackboard< T : Into< BehaviorValue > >( key : &str, value : T ) -> Box< dyn BehaviorNode >
+pub fn blackboard_set< T : Into< BehaviorValue > >( key : &str, value : T ) -> Box< dyn BehaviorNode >
 {
   Box::new( SetBlackboardAction::new( key, value ) )
-}
-#[ cfg( test ) ]
-mod tests
-{
-  use super::*;
-  use std::time::Duration;
-
-  #[ test ]
-  fn test_behavior_context_creation()
-  {
-    let context = BehaviorContext::new();
-    assert!( context.entity_id.is_none() );
-    assert!( context.blackboard.is_empty() );
-    assert!( context.properties.is_empty() );
-  }
-
-  #[ test ]
-  fn test_behavior_context_blackboard()
-  {
-    let mut context = BehaviorContext::new();
-    context.set_blackboard( "health", 100 );
-    context.set_blackboard( "position", ( 5, 10 ) );
-
-    assert_eq!( context.get_blackboard( "health" ), Some( &BehaviorValue::Int( 100 ) ) );
-    assert_eq!( context.get_blackboard( "position" ), Some( &BehaviorValue::Position2D { x : 5, y : 10 } ) );
-    assert_eq!( context.get_blackboard( "missing" ), None );
-  }
-
-  #[ test ]
-  fn test_sequence_node_success()
-  {
-    let mut sequence = SequenceNode::new
-    (
-      vec!
-      [
-        Box::new( SetBlackboardAction::new( "step1", true ) ),
-        Box::new( SetBlackboardAction::new( "step2", true ) ),
-      ]
-    );
-
-    let mut context = BehaviorContext::new();
-    let status = sequence.execute( &mut context );
-
-    assert_eq!( status, BehaviorStatus::Success );
-    assert_eq!( context.get_blackboard( "step1" ), Some( &BehaviorValue::Bool( true ) ) );
-    assert_eq!( context.get_blackboard( "step2" ), Some( &BehaviorValue::Bool( true ) ) );
-  }
-
-  #[ test ]
-  fn test_sequence_node_running()
-  {
-    let mut sequence = SequenceNode::new
-    (
-      vec!
-      [
-        Box::new( SetBlackboardAction::new( "step1", true ) ),
-        Box::new( WaitAction::new( 1.0 ) ), // This will be running
-      ]
-    );
-
-    let mut context = BehaviorContext::new();
-    let status = sequence.execute( &mut context );
-
-    assert_eq!( status, BehaviorStatus::Running );
-    assert_eq!( context.get_blackboard( "step1" ), Some( &BehaviorValue::Bool( true ) ) );
-  }
-
-  #[ test ]
-  fn test_selector_node()
-  {
-    let mut selector = SelectorNode::new
-    (
-      vec!
-      [
-        Box::new( BlackboardCondition::new( "should_fail", true ) ), // This will fail
-        Box::new( SetBlackboardAction::new( "executed", true ) ),    // This should execute
-      ]
-    );
-
-    let mut context = BehaviorContext::new();
-    context.set_blackboard( "should_fail", false ); // Make first condition fail
-
-    let status = selector.execute( &mut context );
-
-    assert_eq!( status, BehaviorStatus::Success );
-    assert_eq!( context.get_blackboard( "executed" ), Some( &BehaviorValue::Bool( true ) ) );
-  }
-
-  #[ test ]
-  fn test_parallel_node()
-  {
-    let mut parallel = ParallelNode::new
-    (
-      vec!
-      [
-        Box::new( SetBlackboardAction::new( "action1", true ) ),
-        Box::new( SetBlackboardAction::new( "action2", true ) ),
-      ]
-    );
-
-    let mut context = BehaviorContext::new();
-    let status = parallel.execute( &mut context );
-
-    assert_eq!( status, BehaviorStatus::Success );
-    assert_eq!( context.get_blackboard( "action1" ), Some( &BehaviorValue::Bool( true ) ) );
-    assert_eq!( context.get_blackboard( "action2" ), Some( &BehaviorValue::Bool( true ) ) );
-  }
-
-  #[ test ]
-  fn test_repeat_node()
-  {
-    let mut repeat = RepeatNode::times
-    (
-      Box::new( SetBlackboardAction::new( "counter", 1 ) ),
-      3
-    );
-
-    let mut context = BehaviorContext::new();
-    let status = repeat.execute( &mut context );
-
-    assert_eq!( status, BehaviorStatus::Success );
-    // The action would have been executed 3 times, but since it just sets the same value,
-    // we can't easily verify the count without more sophisticated tracking
-  }
-
-  #[ test ]
-  fn test_invert_node()
-  {
-    let mut invert = InvertNode::new
-    (
-      Box::new( BlackboardCondition::new( "should_succeed", true ) )
-    );
-
-    let mut context = BehaviorContext::new();
-    context.set_blackboard( "should_succeed", false ); // Make condition fail
-
-    let status = invert.execute( &mut context );
-    assert_eq!( status, BehaviorStatus::Success ); // Inverted failure becomes success
-  }
-
-  #[ test ]
-  fn test_wait_action()
-  {
-    let mut wait = WaitAction::new( 0.1 ); // 100ms wait
-    let mut context = BehaviorContext::new();
-
-    // First execution should return Running
-    let status1 = wait.execute( &mut context );
-    assert_eq!( status1, BehaviorStatus::Running );
-
-    // Simulate time passing
-    std::thread::sleep( Duration::from_millis( 150 ) );
-    context.update( Duration::from_millis( 150 ) );
-
-    // Second execution should return Success
-    let status2 = wait.execute( &mut context );
-    assert_eq!( status2, BehaviorStatus::Success );
-  }
-
-  #[ test ]
-  fn test_blackboard_condition()
-  {
-    let mut condition = BlackboardCondition::new( "health_low", true );
-    let mut context = BehaviorContext::new();
-
-    // Condition should fail when value doesn't exist
-    assert_eq!( condition.execute( &mut context ), BehaviorStatus::Failure );
-
-    // Condition should fail when value doesn't match
-    context.set_blackboard( "health_low", false );
-    assert_eq!( condition.execute( &mut context ), BehaviorStatus::Failure );
-
-    // Condition should succeed when value matches
-    context.set_blackboard( "health_low", true );
-    assert_eq!( condition.execute( &mut context ), BehaviorStatus::Success );
-  }
-
-  #[ test ]
-  fn test_behavior_tree_builder()
-  {
-    let tree = BehaviorTreeBuilder::new()
-    .sequence
-    (
-      vec!
-      [
-        Box::new( SetBlackboardAction::new( "step1", true ) ),
-        Box::new( SetBlackboardAction::new( "step2", true ) ),
-      ]
-    )
-    .build_named( "TestTree".to_string() );
-
-    assert_eq!( tree.name(), "TestTree" );
-  }
-
-  #[ test ]
-  fn test_convenience_functions()
-  {
-    let node = sequence
-    (
-      vec!
-      [
-        set_blackboard( "init", true ),
-        selector
-        (
-          vec!
-          [
-            condition( "enemy_near", true ),
-            wait( 1.0 ),
-          ]
-        ),
-        invert( condition( "health_full", false ) ),
-      ]
-    );
-
-    let mut context = BehaviorContext::new();
-    context.set_blackboard( "enemy_near", false );
-    context.set_blackboard( "health_full", false );
-
-    // We can't easily test the full execution without more setup,
-    // but we can verify the node was created
-    assert_eq!( node.name(), "Sequence" );
-  }
-
-  #[ test ]
-  fn test_cooldown_node()
-  {
-    let mut cooldown = CooldownNode::new
-    (
-      Box::new( SetBlackboardAction::new( "executed", true ) ),
-      Duration::from_millis( 100 )
-    );
-    let mut context = BehaviorContext::new();
-
-    // First execution should succeed
-    let status1 = cooldown.execute( &mut context );
-    assert_eq!( status1, BehaviorStatus::Success );
-
-    // Immediate second execution should fail (cooldown active)
-    let status2 = cooldown.execute( &mut context );
-    assert_eq!( status2, BehaviorStatus::Failure );
-
-    // After cooldown period, should succeed again
-    std::thread::sleep( Duration::from_millis( 150 ) );
-    context.update( Duration::from_millis( 150 ) );
-    let status3 = cooldown.execute( &mut context );
-    assert_eq!( status3, BehaviorStatus::Success );
-  }
 }

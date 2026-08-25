@@ -4,10 +4,12 @@
 
 mod private
 {
-  use crate::*;
+  use crate::thread;
   use thread::{ Thread, Color };
 
   /// Default PEC thread palette
+  #[ must_use ]
+  #[ inline ]
   pub fn pec_threads() -> [ Thread; 65 ]
   {
     macro_rules! pec_thread

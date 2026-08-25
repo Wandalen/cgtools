@@ -6,7 +6,7 @@ This demo is the classic "Hello Triangle" using wgpu in Rust. It demonstrates th
 
 This is the essential first step for learning wgpu, covering device setup, pipeline configuration, and the rendering loop in Rust.
 
-![image](showcase.png)
+![image](showcase.webp)
 
 **[How to run](../../how_to_run.md)**
 

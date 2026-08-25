@@ -2,6 +2,7 @@
 name = "behaviour_tree"
 version = "0.1.0"
 edition = "2024"
+description = "Behavior tree implementation for hierarchical AI decision-making in games"
 
 [dependencies]
 

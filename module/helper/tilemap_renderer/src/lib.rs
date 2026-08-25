@@ -1,21 +1,8 @@
-#![ allow( clippy::exhaustive_structs ) ]          // POD command types are intentionally open; #[non_exhaustive] conflicts with Copy
-#![ allow( clippy::exhaustive_enums ) ]            // Small, stable enums meant to be matched exhaustively by adapter authors
-#![ allow( clippy::wildcard_imports ) ]            // mod_interface! generates glob re-exports; no per-item scope is available inside a proc-macro expansion
-#![ allow( clippy::min_ident_chars ) ]             // Short names like x, y, m are idiomatic in math/graphics contexts throughout this crate
-#![ allow( clippy::missing_inline_in_public_items ) ] // Inline decisions belong to the optimizer for this crate size
-#![ allow( clippy::trivially_copy_pass_by_ref ) ]     // &u32 / &f32 params are idiomatic in GPU/math call sites throughout
-#![ allow( clippy::cast_possible_wrap ) ]             // GPU sizes / counts are bounded; u32→i32 wrapping is unreachable in practice
-#![ allow( clippy::cast_possible_truncation ) ]       // GPU values fit in their target types at all realistic sizes
-#![ allow( clippy::cast_precision_loss ) ]            // f32 precision loss is expected and acceptable in graphics code
-#![ allow( clippy::too_many_arguments ) ]             // GPU draw / setup functions inherently take many parameters
-#![ allow( clippy::too_many_lines ) ]                 // Large match blocks in adapter implementations are expected
-#![ allow( clippy::std_instead_of_alloc ) ]           // wasm32+std: alloc crate is not separately linked; std::rc/std::collections are correct here
-#![ allow( clippy::match_same_arms ) ]                // Unimplemented placeholder arms (Path/Text/Group) are intentionally separate for readability
 
 //! Agnostic 2D rendering engine.
 //!
 //! Backend-agnostic rendering with POD commands and Y-up coordinate system.
-//! Define commands once, render to any backend (SVG, WebGL, terminal).
+//! Define commands once, render to any backend (SVG and WebGL today; terminal planned).
 //!
 //! ## Coordinate system
 //!
@@ -30,16 +17,34 @@
 //! use tilemap_renderer::{ commands::*, types::*, assets::*, backend::* };
 //! use tilemap_renderer::adapters::SvgBackend;
 //!
-//! // Note: SvgBackend and TerminalBackend are stubs —
-//! // implementations arrive in follow-up PRs.
 //! let config = RenderConfig { width : 800, height : 600, ..Default::default() };
 //! let mut svg = SvgBackend::new( config );
-//! svg.load_assets( &assets )?;
+//! svg.assets_load( &assets )?;
 //! svg.submit( &commands )?;
 //! let Output::String( doc ) = svg.output()? else { unreachable!() };
 //! ```
 
-mod private {}
+mod private
+{
+  // This crate's `--lib` unit-test binary had no wasm-gated `#[cfg(test)]` code at all until
+  // the inline reproducer test added for BUG-441 ( `src/adapters/webgl.rs`, nested inside its
+  // own `mod private` for private-field access -- see `rulebook.md § Test placement` ). Without
+  // this call, that one compiled test binary defaults to running in Node.js, where
+  // `web_sys::window()` is always `None` -- same failure class as `renderer`'s BUG-110
+  // ( `renderer/tests/geometry_tests.rs` ) and this crate's own sibling fix in
+  // `renderer/src/lib.rs` ( added for BUG-432..440's inline tests ).
+  //
+  // Root cause: `wasm_bindgen_test_configure!( run_in_browser )` must be linked into a test
+  // binary at least once for that whole binary to run in a browser instead of Node -- this
+  // crate's `--lib` binary never needed one before now.
+  //
+  // Pitfall: a missing `run_in_browser` config doesn't fail to compile -- it fails at runtime
+  // with an unrelated-looking `CanvasRetrievingError("Failed to get window")` on every test in
+  // the binary, which reads like a `minwebgl`/`mingl` regression rather than the harness's own
+  // misconfiguration.
+  #[ cfg( all( test, target_arch = "wasm32" ) ) ]
+  wasm_bindgen_test::wasm_bindgen_test_configure!( run_in_browser );
+}
 
 #[ cfg( feature = "enabled" ) ]
 mod_interface::mod_interface!
@@ -54,6 +59,9 @@ mod_interface::mod_interface!
     feature = "adapter-svg",
     feature = "adapter-terminal",
     feature = "adapter-webgl",
+    feature = "adapter-webgpu",
+    feature = "adapter-native",
+    feature = "adapter-none",
   ) ) ]
   layer adapters;
 }

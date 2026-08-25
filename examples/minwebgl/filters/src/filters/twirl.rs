@@ -1,4 +1,10 @@
-use super::*;
+use super::
+{
+  Filter,
+  FilterRenderer,
+  gl,
+  default_render_pass,
+};
 use serde::{ Serialize, Deserialize };
 
 #[ derive( Debug, Serialize, Deserialize ) ]
@@ -59,7 +65,7 @@ impl Filter for Twirl
     let twirl_radius_location = gl.get_uniform_location( renderer.get_program(), "u_twirl_radius" );
     let twirl_strength_location = gl.get_uniform_location( renderer.get_program(), "u_twirl_strength" );
 
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     let aspect = gl.drawing_buffer_width() as f32 / gl.drawing_buffer_height() as f32;
     gl::uniform::upload( gl, aspect_location, &aspect ).unwrap();
     gl::uniform::upload( gl, twirl_center_location, [ self.center_x, self.center_y ].as_slice() ).unwrap();

@@ -52,8 +52,8 @@ fn main()
   ) );
 
   // Add to turn-based system
-  turn_game.add_participant( player.id() as u32, 100 );
-  resource_manager.add_entity( player.id() as u32, 100.0, 30.0 );
+  turn_game.participant_add( player.id() as u32, 100 );
+  resource_manager.entity_add( player.id() as u32, 100.0, 30.0 );
 
   // Pathfinding with obstacle avoidance
   let start = Coordinate::< FourConnected >::new( 1, 1 );
@@ -69,7 +69,7 @@ fn main()
   .with_size( 12, 10 )
   .with_style( tiles_tools::debug::GridStyle::Square4 );
 
-  debug_renderer.add_colored_marker
+  debug_renderer.colored_marker_add
   (
     ( 1, 1 ),
     "P",
@@ -77,23 +77,36 @@ fn main()
     tiles_tools::debug::DebugColor::Green,
     20
   );
-  println!( "\n{}", debug_renderer.render_ascii() );
+  println!( "\n{}", debug_renderer.ascii_render() );
 }
 ```
 
 ## 📦 Examples
 
-The crate includes a wide range of examples to demonstrate its capabilities.
+The crate includes a wide range of examples to demonstrate its capabilities. Each
+lives as its own standalone crate at
+[`examples/tiles_tools/`](../../../examples/tiles_tools/) at the workspace root,
+not under this crate — see
+[`examples/how_to_run.md`](../../../examples/how_to_run.md) for run instructions.
 
-| Example | Description | Command |
-|---|---|---|
-| **beginner\_tutorial** | A step-by-step guide to the core concepts. | `cargo run --example beginner_tutorial` |
-| **tactical\_rpg** | A complete hexagonal grid tactical combat game. | `cargo run --example tactical_rpg` |
-| **stealth\_game** | Demonstrates field-of-view and lighting mechanics. | `cargo run --example stealth_game` |
-| **behavior\_tree\_demo** | Showcases the advanced AI decision-making system. | `cargo run --example behavior_tree_demo` |
-| **serialization\_demo** | Implements save/load functionality. | `cargo run --example serialization_demo --features serialization` |
+| Example | Description |
+|---|---|
+| **beginner\_tutorial** | A step-by-step guide to the core concepts. |
+| **tactical\_rpg** | A complete hexagonal grid tactical combat game. |
+| **stealth\_game** | Demonstrates field-of-view and lighting mechanics. |
+| **serialization\_demo** | Implements save/load functionality. |
+| **advanced\_pathfinding\_demo** | A* across obstacles, costs, multi-goal search, and coordinate systems. |
+| **debug\_demo** | Grid, pathfinding, and ECS debug visualization and profiling tools. |
+| **ecs\_collision\_demo** | ECS collision detection, resolution, and spatial queries. |
+| **event\_system\_demo** | Decoupled pub/sub event system with priorities and statistics. |
+| **field\_of\_view\_demo** | Shadowcasting, ray casting, and multi-source lighting algorithms. |
+| **game\_of\_life** | Conway's Game of Life across coordinate systems. |
+| **game\_systems\_demo** | Turn-based systems, resource management, quests, and status effects. |
+| **simple\_collision\_demo** | Minimal ECS collision detection walkthrough. |
 
-To run an example, use the command `cargo run --example <example_name>`. Some examples may require specifying features.
+## 📚 Documentation
+
+Design documentation lives in [`docs/`](docs/definition/readme.md) as typed doc definitions — coordinate/component types, algorithms (A* pathfinding, field of view, hex geometry generation, coordinate conversion), the `Grid2D`/`Quadtree` data structures, the ECS `World` runtime API, the save-file persistence format, known pitfalls in the current implementation (including which pieces are stubs), and the ECS library selection decision record. See [`docs/definition/readme.md`](docs/definition/readme.md) for the full index. Planned/future work is tracked separately in [`roadmap.md`](roadmap.md).
 
 ---
 

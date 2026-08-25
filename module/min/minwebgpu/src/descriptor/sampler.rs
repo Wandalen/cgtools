@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ GpuAddressMode, GpuCompareFunction, GpuFilterMode, GpuMipmapFilterMode, web_sys };
 
   /// A builder for creating a `web_sys::GpuSamplerDescriptor`.
   #[ derive( Default, Clone ) ]
@@ -63,12 +63,16 @@ mod private
   impl< 'a > SamplerDescriptor< 'a >
   {
     /// Creates a new `SamplerDescriptor` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       Self::default()
     }
 
     /// Sets the label for the sampler
+    #[ inline ]
+    #[ must_use ]
     pub fn label( mut self, label : &'a str ) -> Self
     {
       self.label = Some( label );
@@ -76,6 +80,8 @@ mod private
     }
 
     /// Sets the address mode for u, v and w to ClampToEdge
+    #[ inline ]
+    #[ must_use ]
     pub fn clamp_to_edge( mut self ) -> Self
     {
       self.address_mode_u = Some( web_sys::GpuAddressMode::ClampToEdge );
@@ -85,6 +91,8 @@ mod private
     }
 
     /// Sets the address mode for u to ClampToEdge
+    #[ inline ]
+    #[ must_use ]
     pub fn clamp_to_edge_u( mut self ) -> Self
     {
       self.address_mode_u = Some( web_sys::GpuAddressMode::ClampToEdge );
@@ -92,6 +100,8 @@ mod private
     }
 
     /// Sets the address mode for v to ClampToEdge
+    #[ inline ]
+    #[ must_use ]
     pub fn clamp_to_edge_v( mut self ) -> Self
     {
       self.address_mode_v = Some( web_sys::GpuAddressMode::ClampToEdge );
@@ -99,6 +109,8 @@ mod private
     }
 
     /// Sets the address mode for w to ClampToEdge
+    #[ inline ]
+    #[ must_use ]
     pub fn clamp_to_edge_w( mut self ) -> Self
     {
       self.address_mode_w = Some( web_sys::GpuAddressMode::ClampToEdge );
@@ -106,6 +118,8 @@ mod private
     }
 
     /// Sets the address mode for u, v and w to Repeat
+    #[ inline ]
+    #[ must_use ]
     pub fn repeat( mut self ) -> Self
     {
       self.address_mode_u = Some( web_sys::GpuAddressMode::Repeat );
@@ -115,6 +129,8 @@ mod private
     }
 
     /// Sets the address mode for u to Repeat
+    #[ inline ]
+    #[ must_use ]
     pub fn repeat_u( mut self ) -> Self
     {
       self.address_mode_u = Some( web_sys::GpuAddressMode::Repeat );
@@ -122,6 +138,8 @@ mod private
     }
 
     /// Sets the address mode for v to Repeat
+    #[ inline ]
+    #[ must_use ]
     pub fn repeat_v( mut self ) -> Self
     {
       self.address_mode_v = Some( web_sys::GpuAddressMode::Repeat );
@@ -129,6 +147,8 @@ mod private
     }
 
     /// Sets the address mode for w to Repeat
+    #[ inline ]
+    #[ must_use ]
     pub fn repeat_w( mut self ) -> Self
     {
       self.address_mode_w = Some( web_sys::GpuAddressMode::Repeat );
@@ -136,6 +156,8 @@ mod private
     }
 
     /// Sets the address mode for u, v and w to MirrorRepeat
+    #[ inline ]
+    #[ must_use ]
     pub fn mirror_repeat( mut self ) -> Self
     {
       self.address_mode_u = Some( web_sys::GpuAddressMode::MirrorRepeat );
@@ -145,6 +167,8 @@ mod private
     }
 
     /// Sets the address mode for u to MirrorRepeat
+    #[ inline ]
+    #[ must_use ]
     pub fn mirror_repeat_u( mut self ) -> Self
     {
       self.address_mode_u = Some( web_sys::GpuAddressMode::MirrorRepeat );
@@ -152,6 +176,8 @@ mod private
     }
 
     /// Sets the address mode for v to MirrorRepeat
+    #[ inline ]
+    #[ must_use ]
     pub fn mirror_repeat_v( mut self ) -> Self
     {
       self.address_mode_v = Some( web_sys::GpuAddressMode::MirrorRepeat );
@@ -159,6 +185,8 @@ mod private
     }
 
     /// Sets the address mode for w to MirrorRepeat
+    #[ inline ]
+    #[ must_use ]
     pub fn mirror_repeat_w( mut self ) -> Self
     {
       self.address_mode_w = Some( web_sys::GpuAddressMode::MirrorRepeat );
@@ -166,6 +194,8 @@ mod private
     }
 
     /// Sets the filter mode for minification and magnification to Nearest
+    #[ inline ]
+    #[ must_use ]
     pub fn nearest( mut self ) -> Self
     {
       self.min_filter = Some( web_sys::GpuFilterMode::Nearest );
@@ -174,6 +204,8 @@ mod private
     }
 
     /// Sets the filter mode for minification to Nearest
+    #[ inline ]
+    #[ must_use ]
     pub fn nearest_min( mut self ) -> Self
     {
       self.min_filter = Some( web_sys::GpuFilterMode::Nearest );
@@ -181,6 +213,8 @@ mod private
     }
 
     /// Sets the filter mode for magnification to Nearest
+    #[ inline ]
+    #[ must_use ]
     pub fn nearest_mag( mut self ) -> Self
     {
       self.mag_filter = Some( web_sys::GpuFilterMode::Nearest );
@@ -188,6 +222,8 @@ mod private
     }
 
     /// Sets the filter mode for minification and magnification to Linear
+    #[ inline ]
+    #[ must_use ]
     pub fn linear( mut self ) -> Self
     {
       self.min_filter = Some( web_sys::GpuFilterMode::Linear );
@@ -196,6 +232,8 @@ mod private
     }
 
     /// Sets the filter mode for minification to Linear
+    #[ inline ]
+    #[ must_use ]
     pub fn linear_min( mut self ) -> Self
     {
       self.min_filter = Some( web_sys::GpuFilterMode::Linear );
@@ -203,6 +241,8 @@ mod private
     }
 
     /// Sets the filter mode for magnification to Linear
+    #[ inline ]
+    #[ must_use ]
     pub fn linear_mag( mut self ) -> Self
     {
       self.mag_filter = Some( web_sys::GpuFilterMode::Linear );
@@ -210,6 +250,8 @@ mod private
     }
 
     /// Sets the filter mode for mip map to Nearest
+    #[ inline ]
+    #[ must_use ]
     pub fn nearest_mip( mut self ) -> Self
     {
       self.mipmap_filter = Some( web_sys::GpuMipmapFilterMode::Nearest );
@@ -217,6 +259,8 @@ mod private
     }
 
     /// Sets the filter mode for mip map to Linear
+    #[ inline ]
+    #[ must_use ]
     pub fn linear_mip( mut self ) -> Self
     {
       self.mipmap_filter = Some( web_sys::GpuMipmapFilterMode::Linear );
@@ -224,6 +268,8 @@ mod private
     }
 
     /// Sets the minimun level of detail used internally when sampling a texture
+    #[ inline ]
+    #[ must_use ]
     pub fn lod_min( mut self, lod_min : f32 ) -> Self
     {
       self.lod_min = Some( lod_min );
@@ -231,6 +277,8 @@ mod private
     }
 
     /// Sets the maximum level of detail used internally when sampling a texture
+    #[ inline ]
+    #[ must_use ]
     pub fn lod_max( mut self, lod_max : f32 ) -> Self
     {
       self.lod_max = Some( lod_max );
@@ -238,6 +286,8 @@ mod private
     }
 
     /// Sets the maximum anisotropy value clamp used by the sampler
+    #[ inline ]
+    #[ must_use ]
     pub fn anisotropy_max( mut self, a_max : u16 ) -> Self
     {
       self.anisotropy_max = Some( a_max );
@@ -245,6 +295,8 @@ mod private
     }
 
     /// Sets the compare function used by the sampler
+    #[ inline ]
+    #[ must_use ]
     pub fn compare( mut self, compare_func : GpuCompareFunction ) -> Self
     {
       self.compare = Some( compare_func );
@@ -254,6 +306,7 @@ mod private
 
   impl From< SamplerDescriptor< '_ > > for web_sys::GpuSamplerDescriptor 
   {
+    #[ inline ]
     fn from( value: SamplerDescriptor< '_ > ) -> Self 
     {
       let descriptor = web_sys::GpuSamplerDescriptor::new();

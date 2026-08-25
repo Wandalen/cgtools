@@ -1,6 +1,11 @@
-#![ allow( clippy::unused_self ) ]
 
-use super::*;
+use super::
+{
+  FilterRenderer,
+  gl,
+  GL,
+  Filter,
+};
 use std::marker::PhantomData;
 use serde::{ Serialize, Deserialize };
 
@@ -23,7 +28,7 @@ impl< T > Resize< T >
     Self { scale, _marker: PhantomData }
   }
 
-  fn glsl_source( &self ) -> String
+  fn glsl_source() -> String
   {
     "#version 300 es
     precision mediump float;
@@ -51,7 +56,7 @@ impl< T > Resize< T >
     let gl = renderer.gl();
 
     let scale_location = gl.get_uniform_location( renderer.get_program(), "u_resize_scale" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, scale_location, [ self.scale, self.scale ].as_slice() ).unwrap();
 
     gl.active_texture( GL::TEXTURE0 );
@@ -74,7 +79,7 @@ impl Filter for Resize< Bilinear >
 {
   fn glsl_fragment_source( &self ) -> String
   {
-    self.glsl_source()
+    Self::glsl_source()
 
   }
   fn draw( &self, renderer : &impl FilterRenderer )
@@ -87,7 +92,7 @@ impl Filter for Resize< Nearest >
 {
   fn glsl_fragment_source( &self ) -> String
   {
-    self.glsl_source()
+    Self::glsl_source()
   }
 
   fn draw( &self, renderer : &impl FilterRenderer )

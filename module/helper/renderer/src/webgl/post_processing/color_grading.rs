@@ -125,6 +125,10 @@ mod private
     /// # Arguments
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the color-grading shader fails to compile or link.
     pub fn new( gl : &gl::WebGl2RenderingContext ) -> Result< Self, gl::WebglError >
     {
       let fs_shader = include_str!( "../shaders/post_processing/color_grading.frag" );
@@ -142,19 +146,20 @@ mod private
     }
 
     /// Sets the color grading parameters.
-    pub fn set_params( &mut self, params : ColorGradingParams )
+    pub fn params_set( &mut self, params : ColorGradingParams )
     {
       self.params = params;
     }
 
     /// Gets a reference to the current color grading parameters.
-    pub fn get_params( &self ) -> &ColorGradingParams
+    #[ must_use ]
+    pub fn params_get( &self ) -> &ColorGradingParams
     {
       &self.params
     }
 
     /// Gets a mutable reference to the current color grading parameters.
-    pub fn get_params_mut( &mut self ) -> &mut ColorGradingParams
+    pub fn params_get_mut( &mut self ) -> &mut ColorGradingParams
     {
       &mut self.params
     }

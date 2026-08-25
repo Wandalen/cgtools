@@ -1,10 +1,11 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ GL, WebGlVertexArrayObject, VectorDataType, WebglError, buffer, DataType, vao, BufferDescriptor };
 
   /// Represents the vertices geometry, including its vertex array object (VAO)
   /// and the number of vertices.
+  #[ non_exhaustive ]
   pub struct Positions
   {
     /// Graphical context.
@@ -17,18 +18,51 @@ mod private
     pub nvertices : i32,
   }
 
+  /// Checks whether `natoms` is a vector arity currently supported for
+  /// vertex attribute upload by [ `Positions::new` ].
+  ///
+  /// # Errors
+  /// Returns `WebglError::NotSupportedForType` if `natoms` is outside `1 ..= 4` —
+  /// the size range `vertex_attrib_pointer` accepts for a single attribute slot.
+  // Fix(BUG-052): was `_ => panic!( "Unsapported buffer descriptor" )` — an
+  // unsupported natoms value ( e.g. loading geometry with 3 or 4 components
+  // per vertex ) crashed the whole process instead of giving the caller a
+  // `Result` to handle.
+  // Root cause: `Positions::new` already returns `Result< Self, WebglError >`
+  // and uses `?` for every other fallible step, but this one arm was written
+  // as a `panic!` instead of returning through the existing error type.
+  // Pitfall: a function that already returns `Result` is exactly where a
+  // stray `panic!`/`unwrap`/`expect` is easiest to miss in review — grep for
+  // those macros in any function whose signature already promises `Result`.
+  pub fn natoms_validate( natoms : i32 ) -> Result< (), WebglError >
+  {
+    match natoms
+    {
+      1 ..= 4 => Ok( () ),
+      _ => Err( WebglError::NotSupportedForType( "natoms outside 1..=4 is not supported by Positions::new" ) ),
+    }
+  }
+
   impl Positions
   {
-    /// Creates a new `Positions` for a 2D shape from a list of vertex positions.
+    /// Creates a new `Positions` from a flat list of vertex positions with `natoms`
+    /// components per vertex ( any arity in `1 ..= 4` — 2D, 3D, and 4D positions alike ).
     ///
     /// # Parameters
     /// - `gl`: The WebGL context.
-    /// - `positions`: A slice of f32 representing the 2D vertex positions.
+    /// - `positions`: A flat slice of f32 vertex positions, `natoms` components per vertex.
+    /// - `natoms`: Components per vertex, `1 ..= 4`.
     ///
     /// # Returns
     /// A `Result` which is:
     /// - `Ok(Positions)` containing the created VAO and vertex count if successful.
     /// - `Err(WebglError)` if there is an issue creating buffers, VAOs, or uploading the geometry data.
+    ///
+    /// # Errors
+    /// Returns `WebglError::NotSupportedForType` if `natoms` is outside `1 ..= 4`, and
+    /// `WebglError::Other` if `positions.len()` does not fit into `i32` ( the vertex count
+    /// a WebGL `vertexAttribPointer` call can address ). Also propagates any `WebglError`
+    /// returned while creating buffers, VAOs, or uploading the geometry data.
     ///
     /// # Example
     ///
@@ -42,30 +76,34 @@ mod private
     /// # Ok(())
     /// # }
     /// ```
+    #[ inline ]
     pub fn new( gl : GL, positions : &[ f32 ], natoms : i32 ) -> Result< Self, WebglError >
     {
+      natoms_validate( natoms )?;
       let position_buffer = buffer::create( &gl )?;
       let typ = VectorDataType::new( DataType::F32, natoms, 1 );
       buffer::upload( &gl, &position_buffer, positions, GL::STATIC_DRAW );
       let vao = vao::create( &gl )?;
       gl.bind_vertex_array( Some( &vao ) );
 
-      // qqq : xxx : move out switch and make it working for all types
-      match typ.natoms
+      // `BufferDescriptor` is fully data-driven — `attribute_pointer` reads only the
+      // runtime `VectorDataType` — so no natoms-to-compile-time-type dispatch is
+      // needed: build the descriptor from `typ` directly. This is what generalizes
+      // `Positions::new` to every arity `natoms_validate` accepts.
+      let descriptor = BufferDescriptor
       {
-        2 =>
-        {
-          BufferDescriptor::new::< [ f32; 2 ] >()
-          .stride( 0 )
-          .offset( 0 )
-          .divisor( 0 )
-          .attribute_pointer( &gl, 0, &position_buffer )?;
-        },
-        _ => { panic!( "Unsapported buffer descriptor" ) }
-      }
+        vector : typ,
+        offset : 0,
+        stride : 0,
+        divisor : 0,
+        normalized : false,
+      };
+      descriptor.attribute_pointer( &gl, 0, &position_buffer )?;
 
-      let nvertices = positions.len() as i32 / natoms;
-      Ok( Positions { vao, typ, nvertices, gl } )
+      let nvertices : i32 = positions.len().try_into()
+      .map_err( | _ | WebglError::Other( "positions length exceeds i32::MAX" ) )?;
+      let nvertices = nvertices / natoms;
+      Ok( Positions { gl, vao, typ, nvertices } )
     }
 
     /// Activates the vertex array object (VAO) associated with this shader program.
@@ -76,13 +114,13 @@ mod private
     ///
     /// # Note
     /// Ensure that the VAO has been properly initialized before calling this method.
+    #[ inline ]
     pub fn activate( &self )
     {
       self.gl.bind_vertex_array( Some( &self.vao ) );
     }
 
   }
-
 }
 
 crate::mod_interface!
@@ -92,6 +130,7 @@ crate::mod_interface!
   own use
   {
     Positions,
+    natoms_validate,
   };
 
 }

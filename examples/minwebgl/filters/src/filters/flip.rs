@@ -1,4 +1,10 @@
-use super::*;
+use super::
+{
+  Filter,
+  FilterRenderer,
+  gl,
+  default_render_pass,
+};
 use serde::{ Serialize, Deserialize };
 
 #[ repr( i32 ) ]
@@ -49,7 +55,7 @@ impl Filter for Flip
   {
     let gl = renderer.gl();
     let flip_location = gl.get_uniform_location( renderer.get_program(), "u_flip" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, flip_location, &( self.flip as i32 ) ).unwrap();
     default_render_pass( renderer );
   }

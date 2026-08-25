@@ -6,7 +6,7 @@ use crate::{ types::LightSystem, elliptical_orbit::EllipticalOrbit };
 use std::{ cell::RefCell, f32, rc::Rc };
 
 /// Initialize the light system with random orbits and positions
-pub fn create_light_system
+pub fn light_system_create
 (
   gl : &GL,
   max_count : usize,
@@ -66,7 +66,6 @@ pub fn create_light_system
       orbits,
       offsets,
       prev_radius_range,
-      max_count,
     }
   )
 }

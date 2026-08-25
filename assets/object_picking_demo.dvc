@@ -1,0 +1,6 @@
+outs:
+- md5: 94c7a5f27d8c99c7d60fb5588fadd51e.dir
+  size: 81761
+  nfiles: 4
+  hash: md5
+  path: object_picking_demo

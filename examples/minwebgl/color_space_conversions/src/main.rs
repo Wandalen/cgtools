@@ -1,8 +1,6 @@
 #![ doc( html_root_url = "https://docs.rs/color_space_convertion/latest/color_space_convertion/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Converts colors from RGBA into another color spaces" ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::implicit_return ) ]
 
 use minwebgl as gl;
 use gl::{
@@ -38,20 +36,20 @@ impl RectInfo
     name : &str,
   ) -> Result< Self, gl::WebglError >
   {
-    return Ok(
+    Ok(
       Self
       {
         name : name.to_string(),
-        color_element : get_element( document, &format!( "{name}-rectangle" ) )?,
-        color_coord_label : get_element( document, &format!( "{name}-value" ) )?
+        color_element : element_get( document, &format!( "{name}-rectangle" ) )?,
+        color_coord_label : element_get( document, &format!( "{name}-value" ) )?
       }
     )
   }
 }
 
-fn get_input_element( document: &web_sys::Document, id: &str ) -> Result< HtmlInputElement, gl::WebglError >
+fn input_element_get( document: &web_sys::Document, id: &str ) -> Result< HtmlInputElement, gl::WebglError >
 {
-  return document.get_element_by_id( id )
+  document.get_element_by_id( id )
   .ok_or
   (
     gl::WebglError::MissingDataError( "Element not found ( get_input_element )" )
@@ -63,9 +61,9 @@ fn get_input_element( document: &web_sys::Document, id: &str ) -> Result< HtmlIn
   )
 }
 
-fn get_element( document: &web_sys::Document, id: &str ) -> Result< HtmlElement, gl::WebglError >
+fn element_get( document: &web_sys::Document, id: &str ) -> Result< HtmlElement, gl::WebglError >
 {
-  return document.get_element_by_id( id )
+  document.get_element_by_id( id )
   .ok_or
   (
     gl::WebglError::MissingDataError( "Element not found ( get_element )" )
@@ -77,13 +75,15 @@ fn get_element( document: &web_sys::Document, id: &str ) -> Result< HtmlElement,
   )
 }
 
-#[ allow( clippy::too_many_lines ) ]
-fn run() -> Result< (), gl::WebglError >
+// 185 lines : one linear event-handler setup ending in a flat match over 14 color-space
+// conversion arms; splitting the match would only relocate the repetition, not reduce it.
+#[ allow( clippy::too_many_lines, reason = "one linear event-handler setup ending in a flat match over 14 color-space conversion arms; splitting the match would only relocate the repetition, not reduce it" ) ]
+fn app_run() -> Result< (), gl::WebglError >
 {
   let window = gl::web_sys::window().expect( "no global `window` exists" );
   let document = window.document().expect( "should have a document on window" );
 
-  let srgb_color_picker = get_input_element( &document, "srgb-color-picker" )?;
+  let srgb_color_picker = input_element_get( &document, "srgb-color-picker" )?;
 
   let mut rectangle_elements = vec![];
 
@@ -109,7 +109,7 @@ fn run() -> Result< (), gl::WebglError >
     rectangle_elements.push( RectInfo::new( &document, name )? );
   }
 
-  let srgb_element = get_element( &document, "srgb-value" )?;
+  let srgb_element = element_get( &document, "srgb-value" )?;
 
   let set_color = | rect_elem : &HtmlElement, css_color : &str |
   {
@@ -118,8 +118,10 @@ fn run() -> Result< (), gl::WebglError >
     .expect( "Failed to set style" );
   };
 
-  #[ allow( clippy::min_ident_chars, clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
-  let ftou = | component : f32 | return ( f32::from(u8::MAX) * component.clamp( 0.0, 1.0 ) ).round() as u8;
+  // `component` is clamped to [0.0, 1.0] before scaling by `u8::MAX`, so the rounded
+  // result is always exactly representable in `u8` — no truncation or sign loss is possible.
+  #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "component is clamped to [0.0, 1.0] before scaling by u8::MAX, so the rounded result is always exactly representable in u8 — no truncation or sign loss is possible" ) ]
+  let ftou = | component : f32 | ( f32::from(u8::MAX) * component.clamp( 0.0, 1.0 ) ).round() as u8;
 
   let update_rectangles = Closure::< dyn FnMut( Event ) >::new
   (
@@ -183,13 +185,23 @@ fn run() -> Result< (), gl::WebglError >
           },
           "hsl" =>
           {
+            // Fix(BUG-317): saturation/lightness are numeric [0,100] per the `color` crate's
+            // own Hsl docs, but CSS's `hsl()` grammar types those two components as
+            // `<percentage>`, not `<number>` (unlike `lab()`/`lch()`, which accept either) —
+            // a bare number is invalid syntax and the browser silently drops the whole
+            // declaration, leaving the swatch unstyled.
+            // Root cause: the format string omitted the `%` suffix CSS requires for S/L.
+            // Pitfall: `lab`/`lch`/`oklab`/`oklch` correctly stay bare (`<number>` is valid
+            // there) — don't blanket-append `%` to every color-space arm above.
             let [ hue, saturation, lightness ] = Srgb::convert::< Hsl >( base_srgb_components );
-            format!( "hsl( {hue:.2} {saturation:.2} {lightness:.2} )" )
+            format!( "hsl( {hue:.2} {saturation:.2}% {lightness:.2}% )" )
           },
           "hwb" =>
           {
+            // Fix(BUG-317): same defect class as the "hsl" arm above — W/B are numeric
+            // [0,100] but CSS's `hwb()` grammar requires `<percentage>` for both.
             let [ hue, whiteness, blackness ] = Srgb::convert::< Hwb >( base_srgb_components );
-            format!( "hwb( {hue:.2} {whiteness:.2} {blackness:.2} )" )
+            format!( "hwb( {hue:.2} {whiteness:.2}% {blackness:.2}% )" )
           },
           "lab" =>
           {
@@ -261,11 +273,11 @@ fn run() -> Result< (), gl::WebglError >
   .expect( "Failed to create initial event" );
   srgb_color_picker.dispatch_event( &initial_event ).unwrap();
 
-  return Ok( () )
+  Ok( () )
 }
 
 fn main()
 {
   gl::browser::setup( gl::browser::Config::default() );
-  gl::spawn_local( async move { run().unwrap() } );
+  gl::spawn_local( async move { app_run().unwrap() } );
 }

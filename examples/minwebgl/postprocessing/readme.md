@@ -4,7 +4,7 @@
 
 A complete post-processing pipeline demonstrating how full-screen effects can transform a rendered 3D scene with cinematic visual quality through bloom, HDR tone mapping, and color grading.
 
-![image](showcase.png)
+![image](showcase.webp)
 
 **[How to run](../../how_to_run.md)**
 

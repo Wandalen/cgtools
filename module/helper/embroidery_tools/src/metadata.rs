@@ -22,37 +22,46 @@ mod private
   impl Metadata
   {
     /// Creates new `Metadata` instance
+    #[ must_use ]
+    #[ inline ]
     pub fn new() -> Self
     {
       Self { name : None, text : HashMap::new(), graphics : HashMap::new() }
     }
 
     /// Returns design name
-    pub fn get_name( &self ) -> Option< &str >
+    #[ must_use ]
+    #[ inline ]
+    pub fn name_get( &self ) -> Option< &str >
     {
       self.name.as_deref()
     }
 
     /// Sets design name
-    pub fn set_name( &mut self, name : Option< String > )
+    #[ inline ]
+    pub fn name_set( &mut self, name : Option< String > )
     {
       self.name = name;
     }
 
     /// Returns text data stored by `key`
-    pub fn get_text( &self, key : &str ) -> Option< &str >
+    #[ must_use ]
+    #[ inline ]
+    pub fn text_get( &self, key : &str ) -> Option< &str >
     {
-      self.text.get( key ).map( | v | v.as_str() )
+      self.text.get( key ).map( String::as_str )
     }
 
     /// Inserts text data by `key`
-    pub fn insert_text( &mut self, key : &str, value : String )
+    #[ inline ]
+    pub fn text_insert( &mut self, key : &str, value : String )
     {
       _ = self.text.insert( key.into(), value );
     }
 
     /// Inserts graphics data by `key`
-    pub fn insert_graphics( &mut self, key : &str, graphics : Graphics )
+    #[ inline ]
+    pub fn graphics_insert( &mut self, key : &str, graphics : Graphics )
     {
       _ = self.graphics.insert( key.into(), graphics );
     }
@@ -60,6 +69,7 @@ mod private
 
   impl Default for Metadata
   {
+    #[ inline ]
     fn default() -> Self
     {
       Self::new()

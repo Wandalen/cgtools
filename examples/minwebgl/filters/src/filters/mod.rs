@@ -25,7 +25,7 @@ pub mod solarize;
 pub mod transpose;
 pub mod twirl;
 
-use crate::*;
+use crate::{ framebuffer, wasm_bindgen };
 use framebuffer::Framebuffer;
 use minwebgl as gl;
 use gl::GL;

@@ -4,8 +4,6 @@
 //! has the hex sprite's bounding box and wants neighbours to tile without
 //! gap or overlap.
 
-#![ allow( clippy::min_ident_chars ) ]
-
 use tilemap_scene::{ HexConfig, TilingStrategy };
 
 #[ test ]

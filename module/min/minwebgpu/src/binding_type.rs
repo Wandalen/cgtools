@@ -1,11 +1,12 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
-  use binding_type::*;
+  use crate::{ binding_type, web_sys, Into };
+  use binding_type::{ BufferBindingLayout, SamplerBindingLayout, TextureBindingLayout, StorageTextureBindingLayout, ExternalTextureBindingLayout };
 
   /// A custom enum to represent the different types of binding resources in WebGPU.
   #[ derive( Clone ) ]
+  #[ non_exhaustive ]
   pub enum BindingType
   {
     /// Represents a buffer binding, used for uniform, storage, or read-only storage buffers.
@@ -18,7 +19,20 @@ mod private
     StorageTexture( web_sys::GpuStorageTextureBindingLayout ),
     /// Represents an external texture binding, used for binding video frames.
     ExternalTexture( web_sys::GpuExternalTextureBindingLayout ),
+    // Fix(BUG-051): documented this variant's contract explicitly after its consumer
+    // (`BindGroupLayoutEntry`'s `web_sys` conversion) was changed from panicking on it to
+    // returning `Err`.
+    // Root cause: the variant's original one-line doc said "placeholder" but never stated what
+    // happens when it reaches a conversion — a caller had no documented way to know reaching
+    // `Other` was an error condition rather than silently accepted.
+    // Pitfall: a placeholder/default enum variant needs its failure contract documented at the
+    // variant itself, not only inside the conversion that enforces it — a reader of the enum
+    // alone should be able to tell this value is not universally acceptable.
     /// A placeholder for other or unhandled binding types.
+    ///
+    /// This is the default `BindGroupLayoutEntry` type. Converting an entry that is still
+    /// `Other` (i.e. `.ty(..)` was never called) fails with `error::BindGroupError::TypeNotSet`
+    /// instead of silently producing an invalid layout.
     Other
   }
 
@@ -28,7 +42,8 @@ mod private
     {
       impl From< $s_name > for BindingType
       {
-        fn from( value: $s_name ) -> Self 
+        #[ inline ]
+        fn from( value: $s_name ) -> Self
         {
             BindingType::$t_name( value.into() )
         }   
@@ -53,30 +68,40 @@ mod private
 
 
   /// Creates a default `BufferBindingLayout`.
+  #[ inline ]
+  #[ must_use ]
   pub fn buffer_type() -> BufferBindingLayout
   {
     BufferBindingLayout::new()
   }
 
   /// Creates a default `TextureBindingLayout`.
+  #[ inline ]
+  #[ must_use ]
   pub fn texture_type() -> TextureBindingLayout
   {
     TextureBindingLayout::new()
   }
 
   /// Creates a default `SamplerBindingLayout`.
+  #[ inline ]
+  #[ must_use ]
   pub fn sampler_type() -> SamplerBindingLayout
   {
     SamplerBindingLayout::new()
   }
   
   /// Creates a default `StorageTextureBindingLayout`.
+  #[ inline ]
+  #[ must_use ]
   pub fn storage_texture_type() -> StorageTextureBindingLayout
   {
     StorageTextureBindingLayout::new()
   }
 
   /// Creates a default `ExternalTextureBindingLayout`.
+  #[ inline ]
+  #[ must_use ]
   pub fn external_texture_type() -> ExternalTextureBindingLayout
   {
     ExternalTextureBindingLayout

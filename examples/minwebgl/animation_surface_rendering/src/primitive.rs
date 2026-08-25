@@ -1,275 +1,28 @@
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::needless_range_loop ) ]
-#![ allow( clippy::unnecessary_wraps ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::too_many_lines ) ]
 
 mod private
 {
-  use minwebgl as gl;
-  use gl::{ F32x2, geometry::BoundingBox };
-  use core::cell::RefCell;
-  use std::rc::Rc;
-  use primitive_generation::AttributesData;
   use kurbo::PathEl;
   use crate::primitive_data::PrimitiveData;
 
-  /// Converts a `&[ [ f32; 2 ] ]` into `GeometryData` representing its 2D outline
-  /// as a series of rectangles, each with a specified `width`.
-  ///
-  /// This function flattens the Bezier path into many small line segments.
-  /// For each segment, it constructs a rectangle of the given `width` centered
-  /// on the segment. These rectangles are then triangulated (into two triangles)
-  /// and added to the `GeometryData`.
-  ///
-  /// # Arguments
-  ///
-  /// * `curve` - The `&[ [ f32; 2 ] ]` to convert into a thick geometry.
-  /// * `width` - The desired thickness of the stroked path.
-  ///
-  /// # Returns
-  ///
-  /// A `GeometryData` struct containing the 3D vertex positions and triangle indices
-  /// that form the rectangular segments of the path. The Z-coordinate is always 0.0.
+  /// Delegates to `primitive_generation::curve_to_geometry` — the single source of
+  /// truth for this geometry math, including TASK-018's zero-length-segment NaN
+  /// guard and BUG-217's winding-independent normal fix — then re-wraps the shared
+  /// `AttributesData` into this crate's own `PrimitiveData` ( which carries
+  /// `Behavior` where `primitive_generation`'s carries `color` ).
   pub fn curve_to_geometry( curve : &[ [ f32; 2 ] ], width : f32 ) -> Option< PrimitiveData >
   {
-    let mut positions = Vec::new();
-    let mut indices = Vec::new();
-
-    let half_width = width / 2.0;
-
-    let mut add_segment =
-    | start_point : &F32x2, end_point : &F32x2 |
-    {
-      let direction = ( *end_point - *start_point ).normalize();
-
-      let normal = F32x2::new( -direction.y(), direction.x() );
-
-      let p0 = *start_point - normal * half_width;
-      let p1 = *start_point + normal * half_width;
-      let p2 = *end_point + normal * half_width;
-      let p3 = *end_point - normal * half_width;
-
-      let base_idx = positions.len() as u32;
-
-      positions.push( [ p0.x(), p0.y(), 0.0 ] );
-      positions.push( [ p1.x(), p1.y(), 0.0 ] );
-      positions.push( [ p2.x(), p2.y(), 0.0 ] );
-      positions.push( [ p3.x(), p3.y(), 0.0 ] );
-
-      indices.push( base_idx );
-      indices.push( base_idx + 1 );
-      indices.push( base_idx + 2 );
-
-      indices.push( base_idx );
-      indices.push( base_idx + 2 );
-      indices.push( base_idx + 3 );
-    };
-
-    curve.windows( 2 )
-    .for_each
-    (
-      | w |
-      {
-        let start_point = F32x2::from_array( w[ 0 ] );
-        let end_point = F32x2::from_array( w[ 1 ] );
-        add_segment( &end_point, &start_point );
-      }
-    );
-
-    let start_point = ( *curve.last().expect( "Curve is empty" ) ).into();
-    let end_point = F32x2::from_array( *curve.first().expect( "Curve is empty" ) );
-    add_segment( &start_point, &end_point );
-
-    let attributes = AttributesData
-    {
-      positions,
-      indices
-    };
-
-    Some
-    (
-      PrimitiveData::new( Some( Rc::new( RefCell::new( attributes ) ) ) )
-    )
+    primitive_generation::curve_to_geometry( curve, width )
+    .map( | pd | PrimitiveData::new( pd.attributes ) )
   }
 
-  /// Converts a vector of contours (closed paths) into a filled geometry.
-  ///
-  /// This function takes a set of contours, identifies the outer boundary
-  /// (the largest contour), and then triangulates the resulting shape,
-  /// accounting for any inner contours which act as holes.
-  ///
-  /// # Arguments
-  ///
-  /// * `contours` - A slice of vectors, where each inner vector represents a
-  ///   contour as a series of 2D points. The first contour is the outer body,
-  ///   subsequent ones are holes.
-  ///
-  /// # Returns
-  ///
-  /// An `Option<PrimitiveData>` containing the triangulated geometry for the
-  /// filled shape. Returns `None` if the input is empty or invalid.
+  /// Delegates to `primitive_generation::contours_to_fill_geometry` for the same
+  /// reason as `curve_to_geometry` above — including TASK-018's fix returning
+  /// `None` on a failed triangulation instead of silently dropping that body —
+  /// re-wrapping the result into this crate's own `PrimitiveData`.
   pub fn contours_to_fill_geometry( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
-    if contours.is_empty()
-    {
-      return None;
-    }
-
-    let mut body_id = 0;
-    let mut max_box_diagonal_size = 0.0;
-    for ( i, contour ) in contours.iter().enumerate()
-    {
-      if contour.is_empty()
-      {
-        continue;
-      }
-
-      let ( mut x1, mut y1, mut x2, mut y2 ) = ( f32::MAX, f32::MAX, f32::MIN, f32::MIN );
-      for [ x, y ] in contour
-      {
-        x1 = x1.min( *x );
-        y1 = y1.min( *y );
-        x2 = x2.max( *x );
-        y2 = y2.max( *y );
-      }
-
-      let controur_size = ( ( x2 - x1 ).powi( 2 ) + ( y2 - y1 ).powi( 2 ) ).sqrt();
-      if max_box_diagonal_size < controur_size
-      {
-        max_box_diagonal_size = controur_size;
-        body_id = i;
-      }
-    }
-
-    let body_bounding_box = BoundingBox::compute2d
-    (
-      contours.get( body_id ).unwrap_or( &vec![] )
-      .clone()
-      .into_iter()
-      .flatten()
-      .collect::< Vec< _ > >()
-      .as_slice()
-    );
-
-    let mut outside_body_list = vec![];
-    let mut inside_body_list = vec![];
-    for ( i, contour ) in contours.iter().enumerate()
-    {
-      if body_id == i
-      {
-        continue;
-      }
-
-      let bounding_box = BoundingBox::compute2d
-      (
-        contour
-        .iter()
-        .flatten()
-        .copied()
-        .collect::< Vec< _ > >()
-        .as_slice()
-      );
-
-      let has_part_outside_body = bounding_box.left() < body_bounding_box.left() ||
-      bounding_box.right() > body_bounding_box.right() ||
-      bounding_box.up() > body_bounding_box.up() ||
-      bounding_box.down() < body_bounding_box.down();
-
-      if has_part_outside_body
-      {
-        outside_body_list.push( contour.clone() );
-      }
-      else
-      {
-        inside_body_list.push( contour.clone() );
-      }
-    }
-
-    let mut base = vec![ contours[ body_id ].clone() ];
-    base.extend( inside_body_list );
-
-    let mut bodies = vec![ base ];
-    bodies.extend( outside_body_list.into_iter().map( | c | vec![ c ] ) );
-
-    let mut positions = vec![];
-    let mut indices = vec![];
-
-    for contours in bodies
-    {
-      let mut flat_positions: Vec< f64 > = Vec::new();
-      let mut hole_indices: Vec< usize > = Vec::new();
-
-      if let Some( outer_contour ) = contours.first()
-      {
-        if outer_contour.is_empty()
-        {
-          return None;
-        }
-        for &[ x, y ] in outer_contour
-        {
-          flat_positions.push( x as f64 );
-          flat_positions.push( y as f64 );
-        }
-      }
-      else
-      {
-        return None;
-      }
-
-      // Process holes (remaining contours)
-      // Their winding order must be opposite to the outer (e.g., CW for holes)
-      for i in 1..contours.len()
-      {
-        let hole_contour = &contours[ i ];
-        if hole_contour.is_empty()
-        {
-          continue;
-        }
-
-        hole_indices.push( flat_positions.len() / 2 );
-
-        for &[ x, y ] in hole_contour
-        {
-          flat_positions.push( x as f64 );
-          flat_positions.push( y as f64 );
-        }
-      }
-
-      // Perform triangulation
-      let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 )
-      else
-      {
-        continue;
-      };
-
-      let body_indices = body_indices.into_iter()
-      .map( | i | i as u32 )
-      .collect::< Vec< _ > >();
-
-      let body_positions = flat_positions.chunks( 2 )
-      .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
-      .collect::< Vec< _ > >();
-
-      let positions_count = positions.len();
-      positions.extend( body_positions );
-      indices.extend
-      (
-        body_indices.iter()
-        .map( | i | i + positions_count as u32 )
-      );
-    }
-
-    let attributes = AttributesData
-    {
-      positions,
-      indices,
-    };
-
-    let primitive_data = PrimitiveData::new( Some( Rc::new( RefCell::new( attributes ) ) ) );
-
-    Some( primitive_data )
+    primitive_generation::contours_to_fill_geometry( contours )
+    .map( | pd | PrimitiveData::new( pd.attributes ) )
   }
 
   /// Converts a vector of 2D points into a `Vec<PathEl>`.
@@ -291,7 +44,7 @@ mod private
     (
       | [ x, y ] |
       {
-        PathEl::LineTo( kurbo::Point::new( x as f64, y as f64 ) )
+        PathEl::LineTo( kurbo::Point::new( f64::from(x), f64::from(y) ) )
       }
     )
     .collect::< Vec< _ > >();
@@ -313,6 +66,12 @@ mod private
   /// into a series of straight line segments. The tolerance for flattening is
   /// set to `0.25`.
   ///
+  /// No `primitive_generation` equivalent can be used here: `interpoli` (git,
+  /// pinned to rev `04ae4a48` in the root `Cargo.toml`) requires `kurbo ^0.11`,
+  /// while `primitive_generation` depends on `kurbo` 0.13 — two incompatible
+  /// versions of the same crate produce distinct, non-interchangeable `PathEl`
+  /// types, so this stays a local reimplementation rather than a thin delegate.
+  ///
   /// # Arguments
   ///
   /// * `path` - A `Vec<PathEl>` representing the path to flatten.
@@ -320,6 +79,13 @@ mod private
   /// # Returns
   ///
   /// A `Vec<[f32; 2]>` containing the flattened 2D points of the path.
+  //
+  // Fix(BUG-127): matches `primitive_generation::path_to_points`'s own fix --
+  // `kurbo::flatten` also emits `PathEl::ClosePath` whenever the input path
+  // closes a subpath, so treating it as unreachable panics on any closed path.
+  // See that function's own doc comment
+  // (`module/helper/primitive_generation/src/primitive.rs`) for the full
+  // root-cause writeup.
   pub fn path_to_points( path : Vec< PathEl > ) -> Vec< [ f32; 2 ] >
   {
     let mut points = vec![];
@@ -330,15 +96,15 @@ mod private
       0.25,
       | el |
       {
-        let point = match el
+        match el
         {
           PathEl::MoveTo( p ) | PathEl::LineTo( p ) =>
           {
-            [ p.x as f32, p.y as f32 ]
+            points.push( [ p.x as f32, p.y as f32 ] );
           },
-          _ => unreachable!( "kurbo::flatten can only return MoveTo and LineTo PathEls" )
-        };
-        points.push( point );
+          PathEl::ClosePath => {}
+          _ => unreachable!( "kurbo::flatten can only return MoveTo, LineTo, and ClosePath PathEls" )
+        }
       }
     );
 
@@ -355,6 +121,6 @@ mod private
     curve_to_geometry,
     contours_to_fill_geometry,
     points_to_path,
-    path_to_points
+    path_to_points,
   };
 }

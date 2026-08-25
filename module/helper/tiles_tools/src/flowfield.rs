@@ -6,6 +6,20 @@
 //! optimal direction for every position on the grid, allowing unlimited
 //! units to efficiently navigate to the target.
 //!
+//! # Stub Status (BUG-474)
+//!
+//! **The pathfinding algorithm in this module is not implemented.** Cost
+//! storage, Dijkstra propagation, and steepest-descent direction generation
+//! are all stub bodies that never read or write any grid state --
+//! `IntegrationField::cost_get` always returns `0`, `in_bounds` always
+//! returns `true`, and `FlowField::flow_direction_get` (and everything that
+//! calls it: `flow_apply`, `flow_directions_batch_get`,
+//! `group_flow_calculate`) always returns `None`, regardless of the goal,
+//! obstacles, or grid supplied to `flow_calculate`. Every affected public
+//! item is marked `#[deprecated]` with a note pointing back here. Do not
+//! rely on this module for real pathfinding until BUG-474 lands an actual
+//! implementation.
+//!
 //! # Flow Field Algorithm
 //!
 //! 1. **Integration Field**: Calculate cost-to-goal for every tile
@@ -67,13 +81,8 @@ pub struct IntegrationField< System, Orientation >
 #[ derive( Debug, Clone ) ]
 pub struct FlowField< System, Orientation >
 {
-  /// Integration field with costs to goal
-  #[ allow( dead_code ) ]
-  integration : IntegrationField< System, Orientation >,
   /// Grid dimensions
-  #[ allow( dead_code ) ]
   width : i32,
-  #[ allow( dead_code ) ]
   height : i32,
   /// Phantom marker for system type
   _phantom_system : std::marker::PhantomData< System >,
@@ -84,6 +93,7 @@ pub struct FlowField< System, Orientation >
 impl< System, Orientation > IntegrationField< System, Orientation >
 {
   /// Creates a new integration field with the specified dimensions.
+  #[ must_use ]
   pub fn new( _width : i32, _height : i32 ) -> Self
   {
     // Simplified stub implementation for testing
@@ -96,7 +106,8 @@ impl< System, Orientation > IntegrationField< System, Orientation >
   }
 
   /// Gets the integration cost at a specific coordinate.
-  pub fn get_cost< C >( &self, _coord : &C ) -> u32
+  #[ deprecated( note = "stub: always returns 0 regardless of `_coord` or any prior `cost_set` call -- see BUG-474" ) ]
+  pub fn cost_get< C >( &self, _coord : &C ) -> u32
   where
     C : Clone,
     Grid2D< System, Orientation, u32 > : std::ops::Index< C, Output = u32 >,
@@ -106,7 +117,8 @@ impl< System, Orientation > IntegrationField< System, Orientation >
   }
 
   /// Sets the integration cost at a specific coordinate.
-  pub fn set_cost< C >( &mut self, _coord : &C, _cost : u32 )
+  #[ deprecated( note = "stub: does not store `_cost` anywhere -- see BUG-474" ) ]
+  pub fn cost_set< C >( &mut self, _coord : &C, _cost : u32 )
   where
     C : Clone,
     Grid2D< System, Orientation, u32 > : std::ops::IndexMut< C, Output = u32 >,
@@ -115,6 +127,7 @@ impl< System, Orientation > IntegrationField< System, Orientation >
   }
 
   /// Checks if a position is within valid bounds.
+  #[ deprecated( note = "stub: always returns true regardless of `_coord` or the field's actual dimensions -- see BUG-474" ) ]
   pub fn in_bounds< C >( &self, _coord : &C ) -> bool
   where
     C : Clone,
@@ -128,13 +141,12 @@ impl< System, Orientation > IntegrationField< System, Orientation >
 impl< System, Orientation > FlowField< System, Orientation >
 {
   /// Creates a new flow field with the specified dimensions.
+  #[ must_use ]
   pub fn new( width : i32, height : i32 ) -> Self
   {
     // Simplified stub implementation for testing
-    let integration = IntegrationField::new( width, height );
     Self
     {
-      integration,
       width,
       height,
       _phantom_system : std::marker::PhantomData,
@@ -142,12 +154,27 @@ impl< System, Orientation > FlowField< System, Orientation >
     }
   }
 
+  /// Returns the grid width this field was constructed with.
+  #[ must_use ]
+  pub fn width( &self ) -> i32
+  {
+    self.width
+  }
+
+  /// Returns the grid height this field was constructed with.
+  #[ must_use ]
+  pub fn height( &self ) -> i32
+  {
+    self.height
+  }
+
   /// Calculates the flow field toward a goal position.
   ///
   /// This is a two-phase algorithm:
   /// 1. Calculate integration field (cost to reach goal from each position)
   /// 2. Generate flow directions (steepest descent toward goal)
-  pub fn calculate_flow< C, Fa, Fc >( &mut self, goal : &C, is_passable : Fa, get_cost : Fc )
+  #[ deprecated( note = "stub: both calculation phases are no-ops -- calling this leaves the field's answers unchanged regardless of `goal`, `is_passable`, or `get_cost` -- see BUG-474" ) ]
+  pub fn flow_calculate< C, Fa, Fc >( &mut self, goal : &C, is_passable : Fa, get_cost : Fc )
   where
     C : Distance + Neighbors + Clone + PartialEq + std::hash::Hash + Ord,
     Fa : Fn( &C ) -> bool,
@@ -156,14 +183,15 @@ impl< System, Orientation > FlowField< System, Orientation >
     Grid2D< System, Orientation, FlowDirection > : std::ops::IndexMut< C, Output = FlowDirection >,
   {
     // Phase 1: Calculate integration field using Dijkstra's algorithm
-    self.calculate_integration_field( goal, &is_passable, &get_cost );
+    self.integration_field_calculate( goal, &is_passable, &get_cost );
 
     // Phase 2: Generate flow directions from integration field
-    self.generate_flow_directions( &is_passable );
+    self.flow_directions_generate( &is_passable );
   }
 
   /// Gets the flow direction at a specific position.
-  pub fn get_flow_direction< C >( &self, _coord : &C ) -> Option< FlowDirection >
+  #[ deprecated( note = "stub: always returns None regardless of `_coord` or any prior `flow_calculate` call -- see BUG-474" ) ]
+  pub fn flow_direction_get< C >( &self, _coord : &C ) -> Option< FlowDirection >
   where
     C : Clone,
     Grid2D< System, Orientation, FlowDirection > : std::ops::Index< C, Output = FlowDirection >,
@@ -173,18 +201,23 @@ impl< System, Orientation > FlowField< System, Orientation >
   }
 
   /// Gets multiple flow directions for batch processing.
-  pub fn get_flow_directions_batch< C >( &self, coords : &[ C ] ) -> Vec< Option< FlowDirection > >
+  #[ deprecated( note = "stub-cascading: calls the stub `flow_direction_get`, so this always returns an all-None Vec -- see BUG-474" ) ]
+  pub fn flow_directions_batch_get< C >( &self, coords : &[ C ] ) -> Vec< Option< FlowDirection > >
   where
     C : Clone,
     Grid2D< System, Orientation, FlowDirection > : std::ops::Index< C, Output = FlowDirection >,
   {
-    coords.iter()
-      .map( | coord | self.get_flow_direction( coord ) )
-      .collect()
+    #[ expect( deprecated, reason = "calls the stub `flow_direction_get`; this method is itself deprecated for the same reason -- see BUG-474" ) ]
+    {
+      coords.iter()
+        .map( | coord | self.flow_direction_get( coord ) )
+        .collect()
+    }
   }
 
   /// Calculates integration field using modified Dijkstra's algorithm.
-  fn calculate_integration_field< C, Fa, Fc >( &mut self, _goal : &C, _is_passable : &Fa, _get_cost : &Fc )
+  #[ expect( clippy::unused_self, reason = "stub body; the Dijkstra implementation will write `self`'s fields" ) ]
+  fn integration_field_calculate< C, Fa, Fc >( &mut self, _goal : &C, _is_passable : &Fa, _get_cost : &Fc )
   where
     C : Distance + Neighbors + Clone + PartialEq + std::hash::Hash + Ord,
     Fa : Fn( &C ) -> bool,
@@ -203,7 +236,8 @@ impl< System, Orientation > FlowField< System, Orientation >
   }
 
   /// Generates flow directions from the integration field.
-  fn generate_flow_directions< C, Fa >( &mut self, _is_passable : &Fa )
+  #[ expect( clippy::unused_self, reason = "stub body; the direction pass will write `self`'s fields" ) ]
+  fn flow_directions_generate< C, Fa >( &mut self, _is_passable : &Fa )
   where
     C : Neighbors + Clone,
     Fa : Fn( &C ) -> bool,
@@ -218,13 +252,13 @@ impl< System, Orientation > FlowField< System, Orientation >
     // The actual implementation would look like:
     /*
     for each position in grid {
-      let current_cost = integration.get_cost(position);
+      let current_cost = integration.cost_get(position);
       let mut best_neighbor = None;
       let mut best_cost = current_cost;
-      
+
       for neighbor in position.neighbors() {
         if is_passable(neighbor) {
-          let neighbor_cost = integration.get_cost(neighbor);
+          let neighbor_cost = integration.cost_get(neighbor);
           if neighbor_cost < best_cost {
             best_cost = neighbor_cost;
             best_neighbor = Some(neighbor);
@@ -246,12 +280,15 @@ impl< System, Orientation > FlowField< System, Orientation >
   ///
   /// Returns the next position the unit should move to, or None if
   /// the unit is already at the goal or blocked.
-  pub fn apply_flow< C >( &self, current_pos : &C ) -> Option< C >
+  #[ deprecated( note = "stub-cascading: calls the stub `flow_direction_get`, so this always returns None -- see BUG-474" ) ]
+  pub fn flow_apply< C >( &self, current_pos : &C ) -> Option< C >
   where
     C : Neighbors + Clone,
     Grid2D< System, Orientation, FlowDirection > : std::ops::Index< C, Output = FlowDirection >,
   {
-    match self.get_flow_direction( current_pos )?
+    #[ expect( deprecated, reason = "calls the stub `flow_direction_get`; this method is itself deprecated for the same reason -- see BUG-474" ) ]
+    let flow_direction = self.flow_direction_get( current_pos )?;
+    match flow_direction
     {
       FlowDirection::None => None,
       FlowDirection::Move( _dx, _dy ) =>
@@ -268,18 +305,22 @@ impl< System, Orientation > FlowField< System, Orientation >
   ///
   /// This method considers multiple units and their interactions to
   /// prevent clustering and improve group movement behavior.
-  pub fn calculate_group_flow< C >( &self, unit_positions : &[ C ] ) -> Vec< Option< C > >
+  #[ deprecated( note = "stub-cascading: calls the stub-cascading `flow_apply`, so this always returns an all-None Vec -- see BUG-474" ) ]
+  pub fn group_flow_calculate< C >( &self, unit_positions : &[ C ] ) -> Vec< Option< C > >
   where
     C : Distance + Neighbors + Clone,
     Grid2D< System, Orientation, FlowDirection > : std::ops::Index< C, Output = FlowDirection >,
   {
-    unit_positions.iter()
-      .map( | pos |
-      {
-        // Basic flow application - could be enhanced with separation forces
-        self.apply_flow( pos )
-      })
-      .collect()
+    #[ expect( deprecated, reason = "calls the stub-cascading `flow_apply`; this method is itself deprecated for the same reason -- see BUG-474" ) ]
+    {
+      unit_positions.iter()
+        .map( | pos |
+        {
+          // Basic flow application - could be enhanced with separation forces
+          self.flow_apply( pos )
+        })
+        .collect()
+    }
   }
 }
 
@@ -296,7 +337,9 @@ impl FlowFieldAnalyzer
   ///
   /// Returns diagnostic information about the flow field including
   /// unreachable areas, flow convergence, and potential bottlenecks.
-  pub fn analyze_flow< System, Orientation >
+  #[ must_use ]
+  #[ deprecated( note = "stub: always returns the same zeroed FlowFieldAnalysis regardless of `_field`'s actual state -- see BUG-474" ) ]
+  pub fn flow_analyze< System, Orientation >
   (
     _field : &FlowField< System, Orientation >
   ) -> FlowFieldAnalysis
@@ -311,7 +354,8 @@ impl FlowFieldAnalyzer
   }
 
   /// Optimizes flow field for better unit distribution.
-  pub fn optimize_flow< System, Orientation >
+  #[ deprecated( note = "stub: no-op -- does not modify `_field` in any way -- see BUG-474" ) ]
+  pub fn flow_optimize< System, Orientation >
   (
     _field : &mut FlowField< System, Orientation >
   )
@@ -348,9 +392,7 @@ pub struct MultiGoalFlowField< System, Orientation >
   /// Individual flow fields for each goal
   pub goal_fields : Vec< FlowField< System, Orientation > >,
   /// Grid dimensions
-  #[ allow( dead_code ) ]
   width : i32,
-  #[ allow( dead_code ) ]
   height : i32,
   /// Phantom marker for system type
   _phantom_system : std::marker::PhantomData< System >,
@@ -361,6 +403,7 @@ pub struct MultiGoalFlowField< System, Orientation >
 impl< System, Orientation > MultiGoalFlowField< System, Orientation >
 {
   /// Creates a new multi-goal flow field.
+  #[ must_use ]
   pub fn new( width : i32, height : i32 ) -> Self
   {
     // Simplified stub implementation for testing
@@ -375,7 +418,8 @@ impl< System, Orientation > MultiGoalFlowField< System, Orientation >
   }
 
   /// Adds a goal to the multi-goal flow field.
-  pub fn add_goal< C, Fa, Fc >( &mut self, goal : &C, is_passable : Fa, get_cost : Fc )
+  #[ deprecated( note = "stub-cascading: stores a FlowField whose own `flow_calculate` is a no-op, and `combined_field_recalculate` is also a no-op -- the pushed field never answers real queries -- see BUG-474" ) ]
+  pub fn goal_add< C, Fa, Fc >( &mut self, goal : &C, is_passable : Fa, get_cost : Fc )
   where
     C : Distance + Neighbors + Clone + PartialEq + std::hash::Hash + Ord,
     Fa : Fn( &C ) -> bool + Clone,
@@ -388,20 +432,23 @@ impl< System, Orientation > MultiGoalFlowField< System, Orientation >
       self.width,
       self.height
     );
-    goal_field.calculate_flow( goal, is_passable, get_cost );
+    #[ expect( deprecated, reason = "calls the stub-cascading `FlowField::flow_calculate`; this method is itself deprecated for the same reason -- see BUG-474" ) ]
+    goal_field.flow_calculate( goal, is_passable, get_cost );
     self.goal_fields.push( goal_field );
-    self.recalculate_combined_field();
+    self.combined_field_recalculate();
   }
 
   /// Recalculates the combined flow field from all individual goal fields.
-  fn recalculate_combined_field( &mut self )
+  #[ expect( clippy::unused_self, reason = "stub body; the combining pass will write `self`'s fields" ) ]
+  fn combined_field_recalculate( &mut self )
   {
     // Implementation would combine multiple flow fields by choosing
     // the direction toward the nearest goal at each position
   }
 
   /// Gets the optimal flow direction considering all goals.
-  pub fn get_optimal_direction< C >( &self, _pos : &C ) -> Option< FlowDirection >
+  #[ deprecated( note = "stub: always returns None regardless of `_pos` or any goal added via `goal_add` -- see BUG-474" ) ]
+  pub fn optimal_direction_get< C >( &self, _pos : &C ) -> Option< FlowDirection >
   where
     C : Clone,
     Grid2D< System, Orientation, FlowDirection > : std::ops::Index< C, Output = FlowDirection >,
@@ -437,6 +484,7 @@ pub struct DynamicFlowField< System, Orientation >
 impl< System, Orientation > DynamicFlowField< System, Orientation >
 {
   /// Creates a new dynamic flow field.
+  #[ must_use ]
   pub fn new( width : i32, height : i32 ) -> Self
   {
     // Simplified stub implementation for testing
@@ -456,7 +504,16 @@ impl< System, Orientation > DynamicFlowField< System, Orientation >
     self.dirty_positions.insert( pos );
   }
 
+  /// Returns `true` when `pos` has been marked dirty and not yet consumed by
+  /// `incremental_update`.
+  #[ must_use ]
+  pub fn is_dirty( &self, pos : ( i32, i32 ) ) -> bool
+  {
+    self.dirty_positions.contains( &pos )
+  }
+
   /// Incrementally updates the flow field for changed positions.
+  #[ deprecated( note = "stub: ignores `_is_passable`/`_get_cost` and only clears the dirty set -- no actual field recalculation happens -- see BUG-474" ) ]
   pub fn incremental_update< C, Fa, Fc >( &mut self, _is_passable : Fa, _get_cost : Fc )
   where
     C : Distance + Neighbors + Clone + PartialEq + std::hash::Hash,
@@ -467,57 +524,5 @@ impl< System, Orientation > DynamicFlowField< System, Orientation >
   {
     // Implementation would use wavefront propagation to update only affected areas
     self.dirty_positions.clear();
-  }
-}
-
-#[ cfg( test ) ]
-mod tests
-{
-  use super::*;
-  // use crate::coordinates::square::{ Coordinate as SquareCoord, FourConnected };
-
-  #[ test ]
-  fn test_flow_field_creation()
-  {
-    let flow_field = FlowField::< (), () >::new( 10, 10 );
-    assert_eq!( flow_field.width, 10 );
-    assert_eq!( flow_field.height, 10 );
-  }
-
-  #[ test ]
-  fn test_integration_field_creation()
-  {
-    let integration = IntegrationField::< (), () >::new( 5, 5 );
-    assert_eq!( integration.max_cost, u32::MAX );
-  }
-
-  #[ test ]
-  fn test_flow_direction_enum()
-  {
-    let dir = FlowDirection::Move( 1, 0 );
-    match dir
-    {
-      FlowDirection::Move( dx, dy ) =>
-      {
-        assert_eq!( dx, 1 );
-        assert_eq!( dy, 0 );
-      }
-      FlowDirection::None => panic!( "Expected Move direction" ),
-    }
-  }
-
-  #[ test ]
-  fn test_multi_goal_flow_field_creation()
-  {
-    let multi_field = MultiGoalFlowField::< (), () >::new( 8, 8 );
-    assert_eq!( multi_field.goal_fields.len(), 0 );
-  }
-
-  #[ test ]
-  fn test_dynamic_flow_field_dirty_marking()
-  {
-    let mut dynamic_field = DynamicFlowField::< (), () >::new( 6, 6 );
-    dynamic_field.mark_dirty( ( 3, 3 ) );
-    assert!( dynamic_field.dirty_positions.contains( &( 3, 3 ) ) );
   }
 }

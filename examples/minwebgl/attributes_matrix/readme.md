@@ -6,9 +6,9 @@ This demo demonstrates passing matrix data as vertex attributes in WebGL2. Since
 
 This technique is particularly useful for skinned animation or instanced rendering where each instance needs its own transformation matrix. It enables efficient batch rendering of objects with unique transforms.
 
-![image](./showcase.gif)
+![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

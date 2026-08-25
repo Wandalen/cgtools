@@ -12,3 +12,6 @@ asbytes.workspace = true
 
 [lints]
 workspace = true
+
+[package.metadata.action]
+tags = ["runtime:offscreen", "api:wgpu"]

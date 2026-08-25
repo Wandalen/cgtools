@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ GpuTextureFormat, GpuStorageTextureAccess, GpuTextureViewDimension, web_sys };
 
   /// Represents the layout for a WebGPU storage texture binding.
   #[ derive( Clone ) ]
@@ -9,7 +9,7 @@ mod private
   {
     /// The texture format that the storage texture must have.
     ///
-    /// Defaults to `Rgba8unormSrgb`
+    /// Defaults to `Rgba8unorm`
     format : GpuTextureFormat,
     /// The access mode for the storage texture.
     ///
@@ -21,11 +21,33 @@ mod private
     view_dimension : Option< GpuTextureViewDimension >
   }
 
+  impl Default for StorageTextureBindingLayout
+  {
+    #[ inline ]
+    fn default() -> Self
+    {
+      Self::new()
+    }
+  }
+
   impl StorageTextureBindingLayout {
     /// Creates a new `StorageTextureBindingLayout` with default values.
+    #[ inline ]
+    #[ must_use ]
+    // Fix(BUG-275): default `format` changed from `GpuTextureFormat::Rgba8unormSrgb` to
+    // `GpuTextureFormat::Rgba8unorm`.
+    // Root cause: the sRGB default was copy-pasted from the general-purpose texture descriptor's
+    // default (`descriptor/texture.rs`) and the render-target color-attachment default
+    // (`state/color_target.rs`), where an sRGB format is valid. Per the WebGPU spec's texture
+    // format capability table, no `-srgb` format supports `STORAGE_BINDING` usage, so leaving
+    // `format` at its default (never calling `.format(..)`) produced a layout that a real
+    // `GPUDevice.createBindGroupLayout` call rejects with a validation error.
+    // Pitfall: a default value copied from a sibling type's default must be re-checked against
+    // the new type's own spec constraints -- `format` is not interchangeable between a
+    // sampled/render texture and a storage texture binding despite sharing a field name and type.
     pub fn new() -> Self
     {
-      let format = GpuTextureFormat::Rgba8unormSrgb;
+      let format = GpuTextureFormat::Rgba8unorm;
       let access = None;
       let view_dimension = None;
 
@@ -38,13 +60,17 @@ mod private
     }
 
     /// Sets the `access` property to `ReadOnly`
+    #[ inline ]
+    #[ must_use ]
     pub fn read_only( mut self ) -> Self
     {
       self.access = Some( GpuStorageTextureAccess::ReadOnly );
       self
     }
 
-    /// Sets the `access` property to `ReadOnly`
+    /// Sets the `access` property to `WriteOnly`
+    #[ inline ]
+    #[ must_use ]
     pub fn write_only( mut self ) -> Self
     {
       self.access = Some( GpuStorageTextureAccess::WriteOnly );
@@ -52,6 +78,8 @@ mod private
     }
 
     /// Sets the `access` property to `ReadWrite`
+    #[ inline ]
+    #[ must_use ]
     pub fn read_write( mut self ) -> Self
     {
       self.access = Some( GpuStorageTextureAccess::ReadWrite );
@@ -59,6 +87,8 @@ mod private
     }
 
     /// Sets the `format` of the texture to the provided format
+    #[ inline ]
+    #[ must_use ]
     pub fn format( mut self, format : GpuTextureFormat ) -> Self
     {
       self.format = format;
@@ -66,6 +96,8 @@ mod private
     }
 
     /// Sets the `view_dimension` of the texture to the provided type
+    #[ inline ]
+    #[ must_use ]
     pub fn view_dimension( mut self, dimension : GpuTextureViewDimension ) -> Self
     {
       self.view_dimension = Some( dimension );
@@ -73,6 +105,8 @@ mod private
     }
 
     /// Sets the `view_dimension` of the texture to `N1d`
+    #[ inline ]
+    #[ must_use ]
     pub fn view_1d( mut self ) -> Self
     {
       self.view_dimension = Some( GpuTextureViewDimension::N1d );
@@ -80,6 +114,8 @@ mod private
     }
 
     /// Sets the `view_dimension` of the texture to `N2d`
+    #[ inline ]
+    #[ must_use ]
     pub fn view_2d( mut self ) -> Self
     {
       self.view_dimension = Some( GpuTextureViewDimension::N2d );
@@ -87,6 +123,8 @@ mod private
     }
 
     /// Sets the `view_dimension` of the texture to `N2dArray`
+    #[ inline ]
+    #[ must_use ]
     pub fn view_2d_array( mut self ) -> Self
     {
       self.view_dimension = Some( GpuTextureViewDimension::N2dArray );
@@ -94,6 +132,8 @@ mod private
     }
 
     /// Sets the `view_dimension` of the texture to `Cube`
+    #[ inline ]
+    #[ must_use ]
     pub fn view_cube( mut self ) -> Self
     {
       self.view_dimension = Some( GpuTextureViewDimension::Cube );
@@ -101,6 +141,8 @@ mod private
     }
 
     /// Sets the `view_dimension` of the texture to `CubeArray`
+    #[ inline ]
+    #[ must_use ]
     pub fn view_cube_array( mut self ) -> Self
     {
       self.view_dimension = Some( GpuTextureViewDimension::CubeArray );
@@ -108,6 +150,8 @@ mod private
     }
 
     /// Sets the `view_dimension` of the texture to `N3d`
+    #[ inline ]
+    #[ must_use ]
     pub fn view_3d( mut self ) -> Self
     {
       self.view_dimension = Some( GpuTextureViewDimension::N3d );
@@ -117,6 +161,7 @@ mod private
 
   impl From< StorageTextureBindingLayout > for web_sys::GpuStorageTextureBindingLayout
   {
+    #[ inline ]
     fn from( value: StorageTextureBindingLayout ) -> Self 
     {
       let layout = web_sys::GpuStorageTextureBindingLayout::new( value.format );

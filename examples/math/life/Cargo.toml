@@ -1,5 +1,5 @@
 [package]
-name = "math_trivial"
+name = "life"
 version = "0.1.0"
 edition = "2021"
 authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
@@ -9,3 +9,9 @@ license = "MIT"
 
 # mdmath_core = { workspace = true }
 ndarray_cg = { workspace = true }
+
+[lints]
+workspace = true
+
+[package.metadata.action]
+tags = ["runtime:native"]

@@ -1,0 +1,6 @@
+[cache]
+    type = "hardlink,symlink"
+[core]
+    remote = public
+['remote "public"']
+    url = https://huggingface.co/datasets/cgtools/assets/resolve/main

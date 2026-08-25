@@ -1,0 +1,6 @@
+outs:
+- md5: 6ea1d7bf2db5e99b3310d8580eb9980e.dir
+  size: 2023412
+  nfiles: 4
+  hash: md5
+  path: sprites

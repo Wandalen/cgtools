@@ -6,7 +6,7 @@ This demo implements Conway's Game of Life using the ndarray_cg crate. It demons
 
 Game of Life is a classic example of emergent behavior in mathematics and computer science. This implementation provides an educational tool for exploring cellular automata and algorithmic pattern generation.
 
-![image](./showcase.png)
+![image](./showcase.webp)
 
 **[How to run](../../how_to_run.md)**
 

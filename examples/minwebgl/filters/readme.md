@@ -4,9 +4,9 @@
 
 A comprehensive collection of image filters and post-processing effects implemented entirely on the GPU using WebGL 2.0. Explore various image processing techniques from basic convolution kernels to advanced multi-pass rendering algorithms, all running in real-time.
 
-![image](./showcase.png)
+![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 ## Features
 
@@ -65,7 +65,7 @@ The example uses a custom JavaScript-based control system (`controls.js`) interf
 - **Dynamic updates**: Real-time parameter changes trigger immediate filter re-rendering
 - **Minimal footprint**: Reduces bundle size and external dependencies
 
-The control system is exposed through the `controls` module with functions like `add_slider()`, `add_dropdown()`, `on_change()`, and `get_values()`.
+The control system is exposed through the `controls` module with functions like `slider_add()`, `dropdown_add()`, `on_change()`, and `values_get()`.
 
 ### Modular UI Setup
 The UI initialization code is organized into specialized modules for maintainability:

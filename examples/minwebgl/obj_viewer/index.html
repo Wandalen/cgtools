@@ -15,8 +15,20 @@
         height: 100%;
         background-color: black;
       }
+      #upload-bar {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 1;
+        font-family: sans-serif;
+        color: white;
+      }
     </style>
   </head>
   <body>
+    <div id="upload-bar">
+      <label for="file-input">Upload .obj: </label>
+      <input type="file" id="file-input" accept=".obj" />
+    </div>
   </body>
 </html>

@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate::{Quat, MatEl};
   use std::ops::{ Index, IndexMut };
 
   impl< E > Index< usize > for Quat< E >
