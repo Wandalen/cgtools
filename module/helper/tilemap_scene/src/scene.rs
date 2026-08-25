@@ -34,7 +34,7 @@ mod private
   use crate::error::SnapshotLoadError;
   use crate::event::SceneEvent;
   use crate::instance::{ Instance, InstanceHandle, ObjectHandle, Placement, StateHandle };
-  use crate::resource::{ Animation, AnimationMode, SpriteRef, TintRef };
+  use crate::resource::{ Animation, AnimationMode, EffectKind, SpriteRef, TintRef };
   use crate::snapshot::{ EdgePosition, SceneSnapshot };
   use crate::source::SpriteSource;
   use crate::spec::RenderSpec;
@@ -99,6 +99,23 @@ mod private
     /// enough that mixing it with `str_hash(anim.id)` gives independent
     /// per-instance / per-animation phases.
     next_phase_seed : u32,
+
+    /// Live state for every [`crate::resource::EffectKind::FadeGate`] a
+    /// consumer has driven via [`Self::fade_target_set`], keyed by the
+    /// effect's own id. Advanced toward `target` by [`Self::tick_into`];
+    /// read (not mutated) at render time via [`Self::fade_value`].
+    fade_gates : HashMap< String, FadeGateState >,
+  }
+
+  /// One [`crate::resource::EffectKind::FadeGate`]'s runtime progress.
+  #[ derive( Debug, Clone, Copy ) ]
+  struct FadeGateState
+  {
+    /// The value [`Scene::tick_into`] eases `value` toward — `1.0` when
+    /// `true`, `0.0` when `false`.
+    target : bool,
+    /// Current eased progress in `[0, 1]`.
+    value : f32,
   }
 
   /// Per-object metadata cached at `Scene::new`.
@@ -319,6 +336,7 @@ mod private
         seed : 0,
         revision : 0,
         next_phase_seed : 0,
+        fade_gates : HashMap::default(),
       }
     }
 
@@ -574,6 +592,65 @@ mod private
       self.revision += 1;
     }
 
+    /// Set the target a [`crate::resource::EffectKind::FadeGate`] effect eases
+    /// toward — `true` eases to `1.0` (fully visible), `false` to `0.0`.
+    /// `effect_id` is the declared [`crate::resource::Effect::id`] named by
+    /// every layer's `behaviour.effects` that shares this one fade.
+    ///
+    /// The first call for a given `effect_id` snaps `value` straight to the
+    /// target with no ramp — an object's very first show/hide isn't a fade,
+    /// only a target *change* is. Does **not** bump `revision`: the gate's
+    /// progress is runtime state read fresh at render time (like the master
+    /// clock), not scene structure, so driving it never invalidates the
+    /// vertex-resolve cache.
+    pub fn fade_target_set( &mut self, effect_id : impl Into< String >, target : bool )
+    {
+      use std::collections::hash_map::Entry;
+      match self.fade_gates.entry( effect_id.into() )
+      {
+        Entry::Occupied( mut e ) => { e.get_mut().target = target; },
+        Entry::Vacant( e ) => { e.insert( FadeGateState { target, value : if target { 1.0 } else { 0.0 } } ); },
+      }
+    }
+
+    /// Current eased progress in `[0, 1]` of the [`crate::resource::EffectKind::FadeGate`]
+    /// effect named `effect_id`. `1.0` (fully visible, inert-effect default)
+    /// when no [`Self::fade_target_set`] call has ever named this id.
+    #[ inline ]
+    #[ must_use ]
+    pub fn fade_value( &self, effect_id : &str ) -> f32
+    {
+      self.fade_gates.get( effect_id ).map_or( 1.0, | s | s.value )
+    }
+
+    /// Advance every driven `FadeGate`'s eased value toward its target by
+    /// `1000.0 / duration_ms` per second, clamped at the target so it holds
+    /// there rather than overshooting (the `min`/`max` clamp also keeps an
+    /// already-arrived gate exactly at its target, so this needs no separate
+    /// early-exit check). Per-effect runtime state, not owned by any
+    /// instance, so this is independent of [`Self::tick_into`]'s per-instance
+    /// walk — split out purely to keep both functions short.
+    fn fade_gates_tick( &mut self, dt : f32 )
+    {
+      for ( effect_id, state ) in &mut self.fade_gates
+      {
+        let target_v = if state.target { 1.0 } else { 0.0 };
+        let duration_ms = self.spec.effects.iter()
+          .find( | e | &e.id == effect_id )
+          .and_then( | e | if let EffectKind::FadeGate { duration_ms } = e.kind { Some( duration_ms ) } else { None } )
+          .unwrap_or( 200.0 );
+        let step = if duration_ms > 0.0 { ( 1000.0 / duration_ms ) * dt } else { 1.0 };
+        state.value = if state.value < target_v
+        {
+          ( state.value + step ).min( target_v )
+        }
+        else
+        {
+          ( state.value - step ).max( target_v )
+        };
+      }
+    }
+
     /// Advance the master clock by `dt` seconds and return every
     /// [`SceneEvent`] produced during the interval.
     ///
@@ -630,6 +707,8 @@ mod private
       let clock_before = self.clock;
       self.clock += dt;
       let clock_after = self.clock;
+
+      self.fade_gates_tick( dt );
 
       // Iterate every live placement bucket; spawn-order preserved.
       let buckets : [ &[ InstanceHandle ]; 5 ] =
