@@ -122,6 +122,36 @@ fn discover_panics_on_wrong_token_count()
   let _ = discover( "//@ param: x argument\n" );
 }
 
+// test_kind: bug_reproducer(BUG-421)
+/// ## Root Cause
+/// `range_clause_parse` parsed `min`/`max` as two independent `f64`
+/// values with no relational check between them -- an inverted pair
+/// (`min` numerically greater than `max`, e.g. `range(8, 1)`) is two
+/// individually well-formed numbers, so it passed through silently
+/// instead of being rejected.
+/// ## Why Not Caught
+/// Every existing `range(...)` test fixture declared `min < max` (the
+/// intended orientation) -- no test ever exercised the inverted case, so
+/// nothing forced the two bounds to be checked against each other rather
+/// than only against "is this text a number".
+/// ## Fix Applied
+/// `range_clause_parse` (`shader_chunks_params_core/src/lib.rs`) now
+/// asserts `min <= max` after parsing both bounds, panicking with a
+/// message naming the offending line -- consistent with this function's
+/// existing panic-on-malformed idiom for every other invalid shape.
+/// ## Prevention
+/// This test locks in the panic for a representative inverted pair.
+/// ## Pitfall
+/// A range's two bounds can each be independently well-formed while
+/// their combination is still nonsensical; validating fields in
+/// isolation is not the same as validating the value they jointly form.
+#[ test ]
+#[ should_panic( expected = "min must be <= max" ) ]
+fn discover_panics_on_inverted_range_clause()
+{
+  let _ = discover( "//@ param: x argument u32 range(8, 1)\n" );
+}
+
 #[ test ]
 fn discover_declared_range_overrides_name_pattern_inference()
 {

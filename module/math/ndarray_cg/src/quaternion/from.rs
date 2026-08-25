@@ -71,6 +71,25 @@ mod private
       let n2 = E::one() - r11 + r22 - r33;
       let n3 = E::one() - r11 - r22 + r33;
 
+      // Fix(BUG-447): clamp each `n0..n3` to `>= 0` before `.sqrt()`.
+      // Root cause: each `n*` is algebraically `1 +/- r11 +/- r22 +/- r33`, which is only
+      // guaranteed non-negative when `value` is an *exactly* orthonormal rotation matrix.
+      // Floating-point rounding (or an approximately-but-not-exactly orthonormal caller-supplied
+      // matrix, e.g. one accumulated from repeated transform composition) can drive one term
+      // marginally negative, and `.sqrt()` of a negative input silently returns `NaN` -- which
+      // then propagates into every component of the resulting quaternion via the `half * n*.sqrt()`
+      // products below.
+      // Pitfall: an algebraic identity that guarantees non-negativity only for *exact* inputs
+      // (here: an exactly orthonormal matrix) does not carry that guarantee into finite-precision
+      // floating point -- always clamp before `.sqrt()`/`.acos()`/`.asin()` when the domain
+      // constraint is a mathematical property of exact inputs, not a syntactic property of the
+      // formula itself; see the identical pattern at BUG-272 (`Quat::to_euler_xyz`'s `asin`) and
+      // BUG-446 (`vector::angle`'s `acos`).
+      let n0 = n0.max( E::zero() );
+      let n1 = n1.max( E::zero() );
+      let n2 = n2.max( E::zero() );
+      let n3 = n3.max( E::zero() );
+
       let half = E::from( 0.5 ).unwrap();
 
       // Fix(BUG-119): reordered the array from `[n0,n1,n2,n3]` to `[n1,n2,n3,n0]`-based slots.

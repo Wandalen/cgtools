@@ -286,17 +286,28 @@ mod private
 
     /// Minimum and maximum coordinates of stitches.
     /// # Returns
-    /// Pairs of min X min Y and max X max Y
+    /// `None` if there are no stitches. Otherwise `Some` of pairs of min X min Y and max X max Y.
+    // Fix(BUG-497)
+    // Root cause: seeded `min_x`/`min_y` at `i32::MAX` and `max_x`/`max_y` at `i32::MIN`, then
+    // returned them unchanged whenever `self.stitches()` was empty -- an inverted sentinel
+    // (`min > max`) that looks like a valid bounds tuple to any caller, and overflows/panics if
+    // that caller computes a width/height via `max_x - min_x` (`i32::MIN - i32::MAX` underflows).
+    // Pitfall: a min/max-reduction over a possibly-empty collection has no legitimate value to
+    // return for the empty case -- returning the untouched sentinel seeds silently manufactures a
+    // fake "empty design spans everywhere" result instead of surfacing the absence of data.
     #[ must_use ]
     #[ inline ]
-    pub fn bounds( &self ) -> ( i32, i32, i32, i32 )
+    pub fn bounds( &self ) -> Option< ( i32, i32, i32, i32 ) >
     {
-      let mut max_x = i32::MIN;
-      let mut min_x = i32::MAX;
-      let mut max_y = i32::MIN;
-      let mut min_y = i32::MAX;
+      let mut stitches = self.stitches().iter();
+      let first = stitches.next()?;
 
-      for stitch in self.stitches()
+      let mut max_x = first.x;
+      let mut min_x = first.x;
+      let mut max_y = first.y;
+      let mut min_y = first.y;
+
+      for stitch in stitches
       {
         max_x = max_x.max( stitch.x );
         min_x = min_x.min( stitch.x );
@@ -304,7 +315,7 @@ mod private
         min_y = min_y.min( stitch.y );
       }
 
-      ( min_x, min_y, max_x, max_y )
+      Some( ( min_x, min_y, max_x, max_y ) )
     }
 
     /// Returns blocks of stitches splitted at positions where

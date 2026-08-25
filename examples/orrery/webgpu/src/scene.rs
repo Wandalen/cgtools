@@ -244,7 +244,9 @@ impl SceneConfig
   pub fn load() -> Self
   {
     let engine = scene_script::engine_build();
-    let dynamic : rhai::Dynamic = engine.eval( Self::SCRIPT )
+    let ast = scene_script::script_as_data_load( &engine, Self::SCRIPT )
+    .expect( "scene.rhai is bundled at compile time and must compile and satisfy the script-as-data purity lint" );
+    let dynamic : rhai::Dynamic = engine.eval_ast( &ast )
     .expect( "scene.rhai is bundled at compile time and must evaluate" );
     let scene : Self = rhai::serde::from_dynamic( &dynamic )
     .expect( "scene.rhai's returned value must match SceneConfig's shape" );

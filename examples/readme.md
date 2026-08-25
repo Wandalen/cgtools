@@ -39,7 +39,7 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 |<img width="500px" src="./minwebgl/character_control/showcase.webp"><br>[Character control](./minwebgl/character_control/readme.md) |<img width="500px" src="./minwebgl/color_space_conversions/showcase.webp"><br>[Color space conversions](./minwebgl/color_space_conversions/readme.md) |
 |[Context triangle smoke](./minwebgl/context_triangle_smoke/readme.md)<br>*(No showcase — see readme for pixel-verification detail)* | |
 |<img width="500px" src="./minwebgl/curve_surface_rendering/showcase.webp"><br>[Curve rendering on surface](./minwebgl/curve_surface_rendering/readme.md) |<img width="500px" src="./minwebgl/deferred_shading/showcase.webp"><br>[Deferred shading](./minwebgl/deferred_shading/readme.md) |
-|<img width="500px" src="./minwebgl/diamond/showcase.webp"><br>[Diamond](./minwebgl/diamond/readme.md) | |
+|<img width="500px" src="./minwebgl/diamond/showcase.webp"><br>[Diamond](./minwebgl/diamond/readme.md) |[Falling Frontier](./minwebgl/falling_frontier/readme.md)<br>*(No showcase yet)* |
 |<img width="500px" src="./minwebgl/filters/showcase.webp"><br>[Image filters](./minwebgl/filters/readme.md) |<img width="500px" src="./minwebgl/gltf_viewer/showcase.webp"><br>[GLTF viewer](./minwebgl/gltf_viewer/readme.md) |
 |<img width="500px" src="./minwebgl/hexagonal_grid/showcase.webp"><br>[Hexagonal grid](./minwebgl/hexagonal_grid/readme.md) |<img width="500px" src="./minwebgl/hexagonal_map/showcase.webp"><br>[Hexagonal map](./minwebgl/hexagonal_map/readme.md) |
 | |<img width="500px" src="./minwebgl/lottie_surface_rendering/showcase.webp"><br>[Lottie surface rendering](./minwebgl/lottie_surface_rendering/readme.md) |
@@ -119,7 +119,7 @@ One scene — a sun-and-orbits HUD diagram — implemented once per backend/laye
 
 | | |
 |:-------------------------:|:-------------------------:|
-|[Orrery (WebGPU)](./orrery/webgpu/readme.md)<br>*(No showcase — see readme for why)* | |
+|[Orrery (WebGPU)](./orrery/webgpu/readme.md)<br>*(No showcase — see readme for why)* |[Orrery (Flexible)](./orrery/flexible/readme.md)<br>*(No showcase yet)* |
 
 ## Scripting Examples
 
@@ -148,14 +148,14 @@ One scene — a sun-and-orbits HUD diagram — implemented once per backend/laye
 | example_requirements.md | Requirements documentation for examples |
 | gpu_hal/ | gpu_hal HAL examples directory (3 demos) |
 | how_to_run.md | Setup and execution instructions for examples |
-| index.html | Interactive HTML gallery with 72 example showcases |
+| index.html | Interactive HTML gallery with 75 example showcases |
 | index.md | Markdown-formatted examples list |
 | math/ | Math-based examples directory (1 demo) |
-| minwebgl/ | WebGL examples directory (48 demos) |
+| minwebgl/ | WebGL examples directory (46 demos) |
 | minwebgpu/ | WebGPU examples directory (4 demos) |
 | minwgpu/ | WGPU examples directory (3 demos) |
 | non_developer_how_to_run.md | Beginner-friendly step-by-step guide for running examples with no prior Rust experience |
-| orrery/ | Orrery scene-family examples — one implementation per backend/layer (1 demo) |
+| orrery/ | Orrery scene-family examples — one implementation per backend/layer (2 demos) |
 | readme.md | Root documentation for examples directory |
 | renderer/ | renderer opaque-path examples directory (1 demo) |
 | scene_script/ | Rhai scripting examples directory (2 demos) |

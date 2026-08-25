@@ -309,9 +309,22 @@ fn layer_primitives_collect
   let mut i = 0;
   while i < layers.len()
   {
+    // Fix(BUG-461): advance `i` before `continue`-ing past a layer whose
+    // content is `Content::None`/`Content::Instance` ( `layer_to_primitives`
+    // returns `None` for both ).
+    // Root cause: this branch previously `continue`d without incrementing
+    // `i`, and `layer_to_primitives` returning early on non-`Shape` content
+    // never pushes to `layers` either -- so neither `i` nor `layers.len()`
+    // ever changed, spinning this `while` loop forever on the same index.
+    // Pitfall: a `let-else` `continue` inside a manually-indexed `while`
+    // loop skips the loop body's own trailing `i += 1`, so every early-exit
+    // branch needs its own index advance -- `continue` is not "skip to the
+    // next iteration" for free the way it is in a `for` loop over an
+    // iterator.
     let Some( layer_primitives ) = layer_to_primitives( i, layers, &mut repeaters )
     else
     {
+      i += 1;
       continue;
     };
 
@@ -675,4 +688,67 @@ pub async fn animation_load( gl : &GL, path : &str ) -> Result< Animation, gl::W
   .map_err( | e | gl::dom::Error::BindgenError( "Failed to load lottie animation file", format!( "{e:?}" ) ) )?;
   let composition = Composition::from_slice( lottie_json_bin.as_slice() ).unwrap();
   Ok( Animation::new( gl, composition ) )
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::*;
+  use std::sync::mpsc;
+  use std::time::Duration;
+
+  /// Fix(BUG-461): regression test -- `layer_primitives_collect` must terminate
+  /// ( and skip, not loop on ) layers whose `Content` is `None`/`Instance`.
+  ///
+  /// Root cause: `layer_to_primitives` returns `None` for `Content::None` and
+  /// `Content::Instance` without ever pushing to `layers`; the caller's
+  /// `while i < layers.len() { ... else { continue; } ... }` didn't advance `i`
+  /// on that branch, so neither `i` nor `layers.len()` ever changed -- an
+  /// infinite loop that hangs the browser tab in the real demo.
+  ///
+  /// Runs the call on a background thread and only ever sends `usize` counts
+  /// back across the channel ( never the `!Send` `PrimitiveData`/`Layer`
+  /// values themselves, which hold an `Rc<RefCell<_>>` internally ), bounded
+  /// by `recv_timeout`: a regression back to the pre-fix behavior fails this
+  /// test loudly within 5s instead of hanging the whole test binary forever.
+  #[ test ]
+  fn layer_primitives_collect_skips_non_shape_content_without_hanging()
+  {
+    let ( tx, rx ) = mpsc::channel::< ( usize, usize ) >();
+
+    std::thread::spawn( move ||
+    {
+      let mut layers = vec!
+      [
+        // Content::None ( e.g. a null/precomp layer ) -- pre-fix, this alone hung the loop.
+        velato::model::Layer::default(),
+        // Content::Instance ( an unexpanded asset reference ) -- same buggy branch.
+        velato::model::Layer
+        {
+          content : Content::Instance { name : "asset_0".to_string(), time_remap : None },
+          ..Default::default()
+        },
+        // Content::Shape -- the one variant that should actually produce a primitive.
+        velato::model::Layer
+        {
+          content : Content::Shape( vec![] ),
+          ..Default::default()
+        },
+      ];
+
+      let ( primitives, _repeaters ) = layer_primitives_collect( &mut layers );
+      let _ = tx.send( ( primitives.len(), layers.len() ) );
+    } );
+
+    let ( primitives_len, layers_len ) = rx.recv_timeout( Duration::from_secs( 5 ) ).unwrap_or_else( |_| panic!(
+      "layer_primitives_collect did not return within 5s -- regressed to the \
+       BUG-461 infinite loop ( i never advances past a non-Shape-content layer )"
+    ) );
+    assert_eq!( layers_len, 3, "no Group sublayers should have been pushed for this fixture" );
+    assert_eq!(
+      primitives_len, 1,
+      "only the Content::Shape layer should have produced a primitive list; \
+       Content::None and Content::Instance must be skipped, not looped on"
+    );
+  }
 }

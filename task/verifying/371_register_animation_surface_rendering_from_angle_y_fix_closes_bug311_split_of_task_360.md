@@ -15,12 +15,12 @@
 - **unit_type:** module (`scope` from the crate dir returns `SCOPE_LEVEL=package`, not in tsk.rulebook.md's 5-value enum `yard|repository|workspace|module|dir` -- mapped to the closest valid variant, a single crate/package within a workspace)
 - **unit:** lib/yrd_gamedev/cgtools/examples/minwebgl/animation_surface_rendering
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-19 22:45:33
-- **expires_at:** 2026-08-20 00:45:33
+- **started_at:** 2026-08-20 09:57:36
+- **expires_at:** 2026-08-20 11:57:36
 - **related_tasks:** 369 (curve_surface_rendering), 370 (lottie_surface_rendering), 372 (ndarray_cg) -- split siblings of cancelled task 360; supersedes task 360's portion for this crate
-- **unverified_at:** 2026-08-19 22:37:55
+- **unverified_at:** 2026-08-20 09:57:12
 - **unverified_by:** system
-- **verifying_at:** 2026-08-19 22:45:33
+- **verifying_at:** 2026-08-20 09:57:36
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
@@ -176,6 +176,9 @@ file → 1.
 | 2026-08-19 22:37:55 | system | TIMEOUT_2H | 2h exclusivity window expired |
 | 2026-08-19 22:45:33 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-19 22:45:33 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 371` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
+| 2026-08-20 09:57:12 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-20 09:57:36 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-20 10:03:47 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 371` → exit 1, same-actor guard (unchanged). Round 7 fresh-reclaim re-confirmation: BUG-311 still 🎯 Verified, cited fix-file paths still resolve (mechanical drift check clean) |
 
 ## History
 

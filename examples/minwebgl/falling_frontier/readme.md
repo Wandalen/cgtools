@@ -10,4 +10,17 @@ Catmull-Rom trajectories with live path and sensor-ring overlays. Object picking
 off-screen ID buffer (`gpu_picking`) rather than CPU-side raycasting. A dev tuning panel
 exposes every tactical-grid shader parameter live.
 
+Controls:
+- Left-click drag - orbit camera
+- Right-click drag - pan camera
+- Scroll wheel - zoom camera
+- Click a ship / asteroid / the station - select it (a drag past ~6px counts as a camera drag, not a click)
+- G - switch the gizmo to translate mode (requires a selection)
+- R - switch the gizmo to rotate mode (requires a selection)
+- Escape - deselect
+- HUD toggle buttons (Tactical Grid / Vector Trajectories / Sensor Ranges & Rings / CRT Scanlines / Animate Ships Motion) - toggle each overlay independently
+- HUD Pause / Play / Fast buttons - control simulation speed
+- HUD "Reset Camera View" button - restores the initial camera framing
+- Dev tuning panel - exposes every tactical-grid shader parameter live
+
 **[How to run](../../how_to_run.md)**

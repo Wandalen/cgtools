@@ -60,6 +60,16 @@ mod private
       /// as the error chain's source.
       source_kind : &'static str,
     },
+    /// A layer declares a draw-time behaviour the compiler does not yet
+    /// implement — currently only `TintBehaviour::Masked`, which is rejected
+    /// rather than silently degraded to the global tint.
+    UnsupportedBehaviour
+    {
+      /// Owning object id.
+      object : String,
+      /// Behaviour kind encountered (e.g. `"Masked tint"`).
+      behaviour : &'static str,
+    },
     /// An asset declares a kind not supported by the current slice.
     ///
     /// Slice 1 supports `Atlas` only.
@@ -133,6 +143,8 @@ mod private
           write!( f, "object {object:?} uses anchor {anchor} which is not supported in this slice" ),
         Self::UnsupportedSource { object, source_kind } =>
           write!( f, "object {object:?} uses sprite source {source_kind} which is not supported in this slice" ),
+        Self::UnsupportedBehaviour { object, behaviour } =>
+          write!( f, "object {object:?} uses {behaviour} which is not yet implemented" ),
         Self::UnsupportedAssetKind { asset, kind } =>
           write!( f, "asset {asset:?} uses kind {kind} which is not supported in this slice" ),
         Self::InvalidFrameName { asset, frame } =>

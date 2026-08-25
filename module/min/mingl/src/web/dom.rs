@@ -60,11 +60,9 @@ mod private
   /// - Create an video element for the natural and cheapest video upload to the web
   ///
   /// # Errors
-  /// Returns an error if the window's location has no href, or if the video
-  /// element cannot be created/cast, or if playback fails to start.
-  ///
-  /// # Panics
-  /// Panics if the global `window`/`document` is unavailable.
+  /// Returns an error if the global `window`/`document` is unavailable, if the window's
+  /// location has no href, or if the video element cannot be created/cast, or if playback
+  /// fails to start.
   //
   // Fix(BUG-109): joined `path` against `window.location().origin()` alone,
   // discarding the current page's own directory — every subpath-deployed
@@ -79,11 +77,18 @@ mod private
   // Pitfall: don't reach for `location().origin()` when resolving a path that
   // might be document-relative — only an absolute-path reference (leading
   // `/`) targets the origin.
+  //
+  // Fix(UX-006): missing window/document were `.unwrap()`d instead of routed through this
+  // function's own documented `Result<_, JsValue>` "# Errors" contract. Root cause: a raw
+  // `.unwrap()` was quicker to write than an `.ok_or_else()` at the time this was added, and
+  // nothing forced it to line up with the doc comment above it. Pitfall: a documented "# Errors"
+  // section is not itself proof every failure path actually returns `Err` -- check each one
+  // against the body.
   #[ inline ]
   pub fn video_element_create( path : &str, video_width : u32, video_height : u32 ) -> Result< web_sys::HtmlVideoElement, wasm_bindgen::JsValue >
   {
-    let window = web_sys::window().unwrap();
-    let document = window.document().unwrap();
+    let window = web_sys::window().ok_or_else( || wasm_bindgen::JsValue::from_str( "Failed to get window" ) )?;
+    let document = window.document().ok_or_else( || wasm_bindgen::JsValue::from_str( "Failed to get document" ) )?;
     let href = window.location().href()?;
     let url = crate::web::resolve_url( &href, path );
 
@@ -119,11 +124,8 @@ mod private
   /// - Create an image element for the natural and cheapest image upload to the web
   ///
   /// # Errors
-  /// Returns an error if the window's location has no href, or if the image
-  /// element cannot be created or cast.
-  ///
-  /// # Panics
-  /// Panics if the global `window`/`document` is unavailable.
+  /// Returns an error if the global `window`/`document` is unavailable, if the window's
+  /// location has no href, or if the image element cannot be created or cast.
   //
   // Fix(BUG-109): joined `path` against `window.location().origin()` alone,
   // discarding the current page's own directory — every subpath-deployed
@@ -133,11 +135,13 @@ mod private
   // Pitfall: don't reach for `location().origin()` when resolving a path that
   // might be document-relative — only an absolute-path reference (leading
   // `/`) targets the origin.
+  //
+  // Fix(UX-006): see `video_element_create`'s Fix(UX-006) comment above -- same defect, same fix.
   #[ inline ]
   pub fn image_element_create( path : &str ) -> Result< web_sys::HtmlImageElement, wasm_bindgen::JsValue >
   {
-    let window = web_sys::window().unwrap();
-    let document = window.document().unwrap();
+    let window = web_sys::window().ok_or_else( || wasm_bindgen::JsValue::from_str( "Failed to get window" ) )?;
+    let document = window.document().ok_or_else( || wasm_bindgen::JsValue::from_str( "Failed to get document" ) )?;
     let href = window.location().href()?;
     let url = crate::web::resolve_url( &href, path );
 

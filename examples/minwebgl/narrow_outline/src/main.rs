@@ -277,10 +277,23 @@ pub fn attributes_add
 ) -> Result< Vec< i32 >, gl::WebglError >
 {
   let mut object_id_data : Vec< i32 > = vec![];
+  // Fix(BUG-460): track each mesh's own vertex count separately so the
+  // second loop below can give every mesh's `object_id_info` descriptor its
+  // own correctly-advancing offset into the shared `object_id_buffer`.
+  // Root cause: `object_vertex_count` was declared once outside the mesh
+  // loop and never reset per mesh, so it accumulated across all meshes;
+  // combined with the attribute descriptor being built once with a
+  // hardcoded `offset = 0` and reused unchanged for every mesh, only the
+  // first mesh ever read correct per-vertex object ids.
+  // Pitfall: an accumulator that must reset per iteration has to be
+  // (re)declared *inside* the loop body -- declaring it once outside looks
+  // identical at a glance but silently changes "this iteration's count"
+  // into "the running total so far".
+  let mut mesh_vertex_counts : Vec< usize > = vec![];
 
-  let mut object_vertex_count = 0;
   for ( object_id, mesh ) in ( 1.. ).zip( gltf.meshes.iter() )
   {
+    let mut object_vertex_count = 0;
     for primitive in &mesh.borrow().primitives
     {
       let primitive = primitive.borrow();
@@ -290,28 +303,35 @@ pub fn attributes_add
     }
 
     object_id_data.extend( vec![ object_id; object_vertex_count ] );
+    mesh_vertex_counts.push( object_vertex_count );
   }
 
   let object_id_bytes = object_id_data.iter().flat_map(| i | i.to_be_bytes()).collect::< Vec< _ > >();
   let object_id_buffer = buffer_add( gl, gltf, object_id_bytes )?;
 
-  let object_id_info = buffer_attribute_info_make(
-    &object_id_buffer,
-    0,
-    1,
-    2,
-    false,
-    VectorDataType::new( mingl::DataType::F32, 1, 1 )
-  );
-
-  for mesh in &gltf.meshes
+  // Fix(BUG-460): build one `object_id_info` descriptor per mesh, offset by
+  // the running count of vertices already written by prior meshes, instead
+  // of one shared descriptor hardcoded to `offset = 0` for every mesh.
+  let mut object_offset : i32 = 0;
+  for ( mesh, mesh_vertex_count ) in gltf.meshes.iter().zip( mesh_vertex_counts.iter() )
   {
+    let object_id_info = buffer_attribute_info_make(
+      &object_id_buffer,
+      object_offset,
+      1,
+      2,
+      false,
+      VectorDataType::new( mingl::DataType::F32, 1, 1 )
+    );
+
     for primitive in &mesh.borrow().primitives
     {
       let primitive = primitive.borrow();
       let mut geometry = primitive.geometry.borrow_mut();
       let _ = geometry.attribute_add( gl, "object_ids", object_id_info.clone() );
     }
+
+    object_offset += *mesh_vertex_count as i32;
   }
 
   Ok( object_id_data )
@@ -901,7 +921,8 @@ impl Renderer
   /// Renders the 3D object silhouette to the `object_fb`.
   ///
   /// Sets up the model-view-projection matrices and draws the loaded mesh.
-  /// The fragment shader for this pass simply outputs white.
+  /// The fragment shader for this pass outputs each object's own flat color
+  /// from `u_object_colors`, indexed by the per-vertex `v_object_id`.
   ///
   /// # Arguments
   ///

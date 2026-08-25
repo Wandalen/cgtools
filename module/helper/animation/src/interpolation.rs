@@ -480,8 +480,23 @@ mod private
     // Pitfall: a min-reduction seeded at a real domain value like 0.0 silently returns that seed
     // whenever every element is >= it, so arrays containing a zero-delay tween mask the bug —
     // it only surfaces once every element is strictly positive.
+    //
+    // Fix(BUG-501)
+    // Root cause: for `N == 0`, both reduction loops above never execute, so `min_start`
+    // stays at its `f64::MAX` seed and `max_end` stays at its `0.0` seed -- `duration_get`
+    // then returns `0.0 - f64::MAX == -f64::MAX`, a nonsensical negative-infinity-scale
+    // duration for an empty tween group.
+    // Pitfall: a min/max-reduction seeded for the non-empty case has no valid seed relationship
+    // for the empty case -- `max_end - min_start` assumes `min_start <= max_end`, which the
+    // unreached-loop seeds (`f64::MAX`, `0.0`) violate in the opposite direction from what an
+    // "empty" answer should even look like (a huge negative number, not zero).
     fn duration_get( &self ) -> f64
     {
+      if self.is_empty()
+      {
+        return 0.0;
+      }
+
       let mut min_start = f64::MAX;
       for tween in self
       {
@@ -497,8 +512,20 @@ mod private
       max_end - min_start
     }
 
+    // Fix(BUG-501)
+    // Root cause: for `N == 0`, the reduction loop never executes, so `min_delay` stays at
+    // its `f64::MAX` seed and is returned as-is -- a group with zero tweens reports a delay
+    // of `f64::MAX` instead of the "nothing to delay" answer of `0.0`.
+    // Pitfall: same class of defect as `duration_get` above -- a reduction seed chosen to be
+    // "beaten" by any real element is never beaten when there are no elements, and gets
+    // returned unchanged as if it were a legitimate result.
     fn delay_get( &self ) -> f64
     {
+      if self.is_empty()
+      {
+        return 0.0;
+      }
+
       let mut min_delay = f64::MAX;
       for tween in self
       {

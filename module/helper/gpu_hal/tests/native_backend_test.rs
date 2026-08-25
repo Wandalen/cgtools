@@ -652,3 +652,190 @@ fn index_buffer_set_accepts_zero_size_buffer()
   pass.end();
   queue.submit( encoder );
 }
+
+// test_kind: bug_reproducer(BUG-430)
+/// ## Root Cause
+/// `gpu_hal` had a full resource-CREATE API ( `buffer_create`, `texture_create`,
+/// `sampler_create`, `shader_module_create`, `bind_group_layout_create`,
+/// `bind_group_create`, `render_pipeline_create` ) but no destroy/free counterpart on
+/// any backend. The WebGL backend leaked every one of these unconditionally and
+/// undocumented ; the Vulkan backend at least disclosed the leak in its own module doc
+/// comment, but the disclosure never reached the public `Device::*_create` doc
+/// comments and no escape-hatch method existed to free anything early on any backend.
+/// ## Why Not Caught
+/// Every existing test in this crate runs as an isolated, short-lived `cargo nextest`
+/// process — one process per test — so a per-resource leak never accumulates across a
+/// run and produces no observable failure. No test exercised resource teardown at all,
+/// only creation.
+/// ## Fix Applied
+/// Added `Device::buffer_destroy`/`texture_destroy`/`texture_view_destroy`/
+/// `sampler_destroy`/`shader_module_destroy`/`bind_group_layout_destroy`/
+/// `bind_group_destroy`/`render_pipeline_destroy`, dispatching to a real per-backend
+/// teardown call where the backend needs one ( WebGL `gl.delete*`, Vulkan
+/// `vkDestroy*`/`vkFreeMemory` ), and a documented no-op where the backend's own
+/// GC/`Drop` already reclaims the resource ( WebGPU always ; native `wgpu` for every
+/// type except `Buffer`/`Texture`, which also expose their own explicit `.destroy()` ).
+/// ## Prevention
+/// This test creates one resource of every type through the native backend, destroys
+/// each one through its new `Device::*_destroy` method, then confirms the device is
+/// still fully usable afterward by running a real render + submit + readback —
+/// `buffer_destroy`/`texture_destroy` exercise a real `wgpu::Buffer::destroy()`/
+/// `wgpu::Texture::destroy()` call on this backend ; the other 6 destroy calls are
+/// no-ops on native specifically ( see the Vulkan-backend companion test in
+/// `tests/vulkan_backend_test.rs` for real per-type teardown coverage of those six ).
+/// ## Pitfall
+/// A resource type whose native-backend destroy call is a no-op ( because `wgpu`'s own
+/// `Drop` already does the real work ) still needs its `Device::*_destroy` method
+/// exercised here : an empty-body `match` arm compiles and passes clippy with no test
+/// at all, so skipping the no-op types would leave them silently unverified.
+#[ test ]
+fn resource_destroy_methods_do_not_panic()
+{
+  let ( device, queue, surface ) = Device::new_native( 8, 8 )
+  .expect( "no native wgpu adapter available" );
+
+  all_resource_types_create_and_destroy( &device, &surface );
+  device_usable_after_destroying_every_resource_type( &device, &queue, &surface );
+}
+
+/// Creates one resource of every type through the native backend, then
+/// destroys each one through its new `Device::*_destroy` method. Split out
+/// of `resource_destroy_methods_do_not_panic` to keep both halves under
+/// this workspace's function-length lint threshold -- see that test's own
+/// doc comment for the full `bug_reproducer(BUG-430)` rationale, which
+/// applies to this half and `device_usable_after_destroying_every_resource_type`
+/// jointly.
+fn all_resource_types_create_and_destroy( device : &Device, surface : &Surface )
+{
+  let shader = device.shader_module_create( &ShaderSource
+  {
+    wgsl : WGSL,
+    glsl_vertex : None,
+    glsl_fragment : None
+  } )
+  .expect( "shader module creation failed" );
+
+  let vertex_buffer = device.buffer_init_create( &as_bytes( &[ -0.5, -0.5, 0.5, -0.5, 0.0, 0.5 ] ), BufferUsage::VERTEX )
+  .expect( "vertex buffer creation failed" );
+
+  let texture = device.texture_create( &TextureDesc
+  {
+    size : [ 4, 4, 1 ],
+    format : TextureFormat::Rgba8Unorm,
+    usage : TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST
+  } )
+  .expect( "texture creation failed" );
+  let texture_view = texture.view().expect( "texture view creation failed" );
+  let sampler = device.sampler_create( SamplerDesc::default() )
+  .expect( "sampler creation failed" );
+
+  let layout = device.bind_group_layout_create
+  (
+    &[ BindGroupLayoutEntry { visibility : ShaderStages::FRAGMENT, ty : BindingType::UniformBuffer } ]
+  )
+  .expect( "bind group layout creation failed" );
+  let uniform_buffer = device.buffer_create( 16, BufferUsage::UNIFORM | BufferUsage::COPY_DST )
+  .expect( "uniform buffer creation failed" );
+  let bind_group = device.bind_group_create( &layout, &[ BindingResource::Buffer( &uniform_buffer ) ] )
+  .expect( "bind group creation failed" );
+
+  let pipeline = device.render_pipeline_create( &RenderPipelineDesc
+  {
+    shader : &shader,
+    vertex_entry : "vs_main",
+    fragment_entry : "fs_main",
+    vertex_buffers : &[ VertexBufferLayout
+    {
+      stride : 8,
+      step_mode : StepMode::Vertex,
+      attributes : vec! [ VertexAttribute { location : 0, format : VertexFormat::Float32x2, offset : 0 } ]
+    } ],
+    bind_group_layouts : &[ &layout ],
+    color_format : surface.format(),
+    depth : None,
+    cull_back : false
+  } )
+  .expect( "pipeline creation failed" );
+
+  // Previously : no method existed to reach any of this early -- the only way to free
+  // any of it was dropping the whole `Device`. Dependents destroyed before their
+  // dependencies ( pipeline/bind group before the layout/texture/sampler they were
+  // built from ), matching `Device::texture_view_destroy`'s documented contract that a
+  // view never outlives the texture it was built from.
+  device.render_pipeline_destroy( pipeline );
+  device.bind_group_destroy( bind_group );
+  device.bind_group_layout_destroy( layout );
+  device.texture_view_destroy( texture_view );
+  device.texture_destroy( texture );
+  device.sampler_destroy( sampler );
+  device.buffer_destroy( uniform_buffer );
+  device.buffer_destroy( vertex_buffer );
+  device.shader_module_destroy( shader );
+}
+
+/// The device itself must still be usable after every resource type above is
+/// gone -- a real render + submit + readback proves destroying all 8
+/// resource types left no dangling internal state behind ( `WGSL`'s
+/// uniform-colored-triangle shader, reused unchanged from
+/// `triangle_render_readback` above ). Split out of
+/// `resource_destroy_methods_do_not_panic` -- see that test's own
+/// `bug_reproducer(BUG-430)` doc comment for the full rationale.
+fn device_usable_after_destroying_every_resource_type( device : &Device, queue : &Queue, surface : &Surface )
+{
+  let shader = device.shader_module_create( &ShaderSource { wgsl : WGSL, glsl_vertex : None, glsl_fragment : None } )
+  .expect( "post-destroy shader module creation failed" );
+  let vertex_buffer = device.buffer_init_create( &as_bytes( &[ -0.5, -0.5, 0.5, -0.5, 0.0, 0.5 ] ), BufferUsage::VERTEX )
+  .expect( "post-destroy vertex buffer creation failed" );
+  let indices : Vec< u8 > = [ 0u32, 1, 2 ].iter().flat_map( | i | i.to_le_bytes() ).collect();
+  let index_buffer = device.buffer_init_create( &indices, BufferUsage::INDEX )
+  .expect( "post-destroy index buffer creation failed" );
+  let uniform_buffer = device.buffer_create( 16, BufferUsage::UNIFORM | BufferUsage::COPY_DST )
+  .expect( "post-destroy uniform buffer creation failed" );
+  queue.buffer_write( &uniform_buffer, &as_bytes( &[ 0.0, 1.0, 0.0, 1.0 ] ) )
+  .expect( "post-destroy uniform write failed" );
+  let layout = device.bind_group_layout_create
+  (
+    &[ BindGroupLayoutEntry { visibility : ShaderStages::FRAGMENT, ty : BindingType::UniformBuffer } ]
+  )
+  .expect( "post-destroy bind group layout creation failed" );
+  let bind_group = device.bind_group_create( &layout, &[ BindingResource::Buffer( &uniform_buffer ) ] )
+  .expect( "post-destroy bind group creation failed" );
+  let pipeline = device.render_pipeline_create( &RenderPipelineDesc
+  {
+    shader : &shader,
+    vertex_entry : "vs_main",
+    fragment_entry : "fs_main",
+    vertex_buffers : &[ VertexBufferLayout
+    {
+      stride : 8,
+      step_mode : StepMode::Vertex,
+      attributes : vec! [ VertexAttribute { location : 0, format : VertexFormat::Float32x2, offset : 0 } ]
+    } ],
+    bind_group_layouts : &[ &layout ],
+    color_format : surface.format(),
+    depth : None,
+    cull_back : false
+  } )
+  .expect( "post-destroy pipeline creation failed" );
+
+  let view = surface.current_view().expect( "surface view unavailable" );
+  let mut encoder = device.command_encoder_create();
+  let mut pass = encoder.render_pass_begin
+  (
+    &ColorAttachmentDesc { view : &view, clear : [ 0.0, 0.0, 0.0, 1.0 ] },
+    None
+  )
+  .expect( "post-destroy render pass failed to begin" );
+  pass.pipeline_set( &pipeline );
+  pass.bind_group_set( 0, &bind_group );
+  pass.vertex_buffer_set( 0, &vertex_buffer );
+  pass.index_buffer_set( &index_buffer, IndexFormat::Uint32 );
+  pass.draw_indexed( 3 );
+  pass.end();
+  queue.submit( encoder );
+
+  let pixels = surface.pixels_read( device, queue ).expect( "post-destroy readback failed" );
+  assert_eq!( pixels.len(), ( 8 * 8 * 4 ) as usize, "device must still be fully usable after destroying every resource type" );
+  let start = ( ( 4u32 * 8 + 4 ) * 4 ) as usize;
+  assert_eq!( &pixels[ start..start + 4 ], &[ 0, 255, 0, 255 ], "post-destroy render must still produce correct pixels" );
+}

@@ -284,6 +284,29 @@ mod private
     }
   }
 
+  /// Computes the per-glyph scale factor that rescales a font's tallest glyph to
+  /// `target_scale` units.
+  ///
+  /// `max_y` is guarded away from `0.0` so a font whose glyphs are all
+  /// zero-height (or a font with no glyphs at all, where `max_y` never leaves
+  /// its `0.0` seed) yields a finite scale factor instead of `Infinity`.
+  // Fix(BUG-500)
+  // Root cause: `Font::new` divided `scale / max_y` with no guard against
+  // `max_y == 0.0` -- reachable whenever every loaded glyph is zero-height, or
+  // there are zero glyphs (the pre-loop `max_y` seed of `0.0` then never gets
+  // raised). Rust float division by zero doesn't panic; it silently produces
+  // `Infinity`, which every subsequent `glyph.scale( ... )` call then
+  // multiplies every glyph coordinate by, poisoning them to `Infinity`/`NaN`.
+  // Pitfall: a "max of measured values" seeded at `0.0` looks like a safe
+  // default, but it is only safe for the max-tracking loop itself -- the
+  // *result* of that loop being used as a divisor afterward re-introduces
+  // exactly the zero/near-zero case the seed was chosen to tolerate.
+  #[ must_use ]
+  pub fn glyph_rescale_factor( target_scale : f32, max_y : f32 ) -> f32
+  {
+    target_scale / max_y.max( f32::EPSILON )
+  }
+
   /// Represents a font loaded from UFO files, containing a collection of glyphs.
   #[ derive( Clone ) ]
   pub struct Font
@@ -410,6 +433,21 @@ mod private
         }
       }
 
+      // Fix(UX-DX-7)
+      // Root cause: if every per-glyph load above missed (bad `path`, entirely
+      // empty font directory, etc.), `glyphs` ends up empty with zero
+      // diagnostic signal -- the function still returns a `Self` that looks
+      // like a legitimate (if sparse) font, indistinguishable from a
+      // legitimately-partial one.
+      // Pitfall: a loop that tolerates individual misses via `continue` (see
+      // the Fix(TASK-0xx) note above each loading loop) must still surface
+      // the all-missed case -- tolerating every individual failure silently
+      // is not the same as tolerating total failure silently.
+      if glyphs.is_empty()
+      {
+        web_sys::console::warn_1( &format!( "UFO font at \"{path}\" loaded zero glyphs -- check the path and glyph file names" ).into() );
+      }
+
       let [ mut max_x, mut max_y ] = [ 0.0, 0.0 ];
       for glyph in glyphs.values()
       {
@@ -430,7 +468,7 @@ mod private
       let scale = 250.0;
       for glyph in glyphs.values_mut()
       {
-        glyph.scale( scale / max_y );
+        glyph.scale( glyph_rescale_factor( scale, max_y ) );
       }
 
       let mut min = F32x3::MAX;
@@ -480,12 +518,24 @@ mod private
     fonts
   }
 
-  /// Converts text string into a collection of filled mesh primitives using the specified font.
+  /// Computes the `( glyph, placement )` pairs for every character in `text` that has a
+  /// loaded glyph in `font`, using the two-pass centered-advance layout shared by
+  /// `text_to_mesh` and `text_to_countour_mesh`. Those two callers differ only in how
+  /// they turn each placed glyph into geometry (filled body vs. outlined contours) --
+  /// this function owns the layout math both need identically.
+  // Fix(UX-DX-8)
+  // Root cause: `text_to_mesh` and `text_to_countour_mesh` each carried their own
+  // copy of the identical two-pass advance/centering logic (pass 1: pre-compute the
+  // starting offset; pass 2: advance-place-advance per glyph), diverging only in the
+  // final geometry-generation step. Any future fix to the shared layout math (as
+  // BUG-129 already had to be, twice, in both copies) risked being applied to only
+  // one copy.
+  // Pitfall: two functions that read as "near-identical" during a bug fix are a
+  // signal to consolidate, not a coincidence to fix twice -- duplicated logic drifts
+  // the moment only one copy gets the next fix.
   #[ must_use ]
-  pub fn text_to_mesh( text : &str, font : &Font, transform : &Transform ) -> Vec< PrimitiveData >
+  fn glyph_placements( text : &str, font : &Font, transform : &Transform ) -> Vec< ( Glyph, Transform ) >
   {
-    let mut mesh = vec![];
-
     let start_transform = transform.clone();
     let mut transform = start_transform.clone();
     transform.scale = [ 0.003, 0.003, 1.0 ].into();
@@ -512,6 +562,8 @@ mod private
         glyph_x / 2.0
       }
     }
+
+    let mut placements = vec![];
 
     for char in text.chars()
     {
@@ -540,15 +592,28 @@ mod private
       // first.
       let step = if glyph_x < half_x / 4.0 { half_x / 2.0 } else { glyph_x / 2.0 };
       transform.translation[ 0 ] += step;
-      if let Some( mut geometry ) = glyph.body.clone()
-      {
-        geometry.transform = transform.clone();
-        mesh.push( geometry );
-      }
+
+      placements.push( ( glyph, transform.clone() ) );
+
       transform.translation[ 0 ] += step;
     }
 
-    mesh
+    placements
+  }
+
+  /// Converts text string into a collection of filled mesh primitives using the specified font.
+  #[ must_use ]
+  pub fn text_to_mesh( text : &str, font : &Font, transform : &Transform ) -> Vec< PrimitiveData >
+  {
+    glyph_placements( text, font, transform )
+    .into_iter()
+    .filter_map( | ( glyph, placement ) |
+    {
+      let mut geometry = glyph.body.clone()?;
+      geometry.transform = placement;
+      Some( geometry )
+    } )
+    .collect()
   }
 
   /// Converts text string into outlined contour meshes with specified line width.
@@ -560,76 +625,20 @@ mod private
     width : f32
   ) -> Vec< PrimitiveData >
   {
-    let mut mesh = vec![];
-
-    let start_transform = transform.clone();
-    let mut transform = start_transform.clone();
-    transform.scale = [ 0.003, 0.003, 1.0 ].into();
-    let max_x = font.max_size.max[ 0 ] - font.max_size.min[ 0 ];
-    let max_y = font.max_size.max[ 1 ] - font.max_size.min[ 1 ];
-    let half_x = max_x * transform.scale[ 0 ];
-
-    for char in text.chars()
+    glyph_placements( text, font, transform )
+    .into_iter()
+    .flat_map( | ( glyph, placement ) |
     {
-      let Some( glyph ) = font.glyphs.get( &char )
-      else
+      glyph.contours.into_iter()
+      .filter_map( move | curve |
       {
-        transform.translation[ 0 ] -= half_x / 2.0;
-        continue;
-      };
-
-      let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      transform.translation[ 0 ] -= if glyph_x < half_x / 4.0
-      {
-        half_x / 2.0
-      }
-      else
-      {
-        glyph_x / 2.0
-      }
-    }
-
-    for char in text.chars()
-    {
-      let Some( glyph ) = font.glyphs.get( &char ).cloned()
-      else
-      {
-        transform.translation[ 0 ] += half_x;
-        continue;
-      };
-
-      let glyph_y = glyph.bounding_box.height();
-      let diff = ( max_y - ( glyph_y * 0.5 ) ) * transform.scale[ 1 ];
-      transform.translation[ 1 ] = start_transform.translation[ 1 ];
-      transform.translation[ 1 ] -= diff;
-      let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
-      // Fix(BUG-129)
-      // Root cause: same as `text_to_mesh` above -- this advanced by the glyph's
-      // *full* slot width before placing it, over-advancing by exactly one half
-      // slot-width per glyph relative to pass 1's half-step-only subtraction,
-      // compounding across the string.
-      // Pitfall: pass 1 and pass 2 must advance by symmetric half-steps around
-      // each glyph's placement (step, place, step) to keep glyphs centered in
-      // contiguous slots -- splitting the advance asymmetrically silently drifts
-      // every glyph after the first.
-      let step = if glyph_x < half_x / 4.0 { half_x / 2.0 } else { glyph_x / 2.0 };
-      transform.translation[ 0 ] += step;
-
-      for curve in glyph.contours
-      {
-        let Some( mut geometry ) = crate::primitive::curve_to_geometry( &curve, width )
-        else
-        {
-          continue;
-        };
-
-        geometry.transform = transform.clone();
-        mesh.push( geometry );
-      }
-      transform.translation[ 0 ] += step;
-    }
-
-    mesh
+        let mut geometry = crate::primitive::curve_to_geometry( &curve, width )?;
+        geometry.transform = placement.clone();
+        Some( geometry )
+      } )
+      .collect::< Vec< _ > >()
+    } )
+    .collect()
   }
 }
 
@@ -651,6 +660,7 @@ crate::mod_interface!
     fonts_load,
     Glyph,
     Font,
+    glyph_rescale_factor,
     text_to_mesh,
     text_to_countour_mesh
   };

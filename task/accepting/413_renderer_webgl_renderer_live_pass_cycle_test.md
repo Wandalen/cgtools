@@ -138,6 +138,7 @@ targets is genuine, not merely asserted in a doc comment. No blocking finding.
 | 2026-08-19 23:08:05 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | CLAIM_ACCEPT | acceptance claimed, awaiting independent verifier dispatch |
 | 2026-08-19 23:14:00 | independent-agent (a8d09a2436a4b50d5) | ACCEPT_VERIFIED | Independent Tier 2 re-verification PASS, 7/7 items reconfirmed via fresh re-run (not trusted from prior log) — see Verification section |
 | 2026-08-19 23:15:00 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/verified/ | BLOCKED | `tsk .acceptance_pass 413` rejected: "self-verification forbidden (actor matches executing_by)" — known same-sandbox guard (BUG-197), not a real defect; task left at 🔎 Accepting with PASS verdict on record pending a distinct actor identity to run the transition |
+| 2026-08-20 10:18:00 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | ACCEPTANCE_CHECK | Round 7 re-confirmation: `tsk .acceptance_pass 413` re-attempted → exit 1, same guard (unchanged). Genuine independent PASS verdict from `independent-agent (a8d09a2436a4b50d5)` remains on record — this task is ready to close as soon as a distinct-`user@host` actor or an explicit user-directed override runs the transition; distinct from the other 7 Accepting-family tasks, which have no independent verifier recorded |
 
 ## History
 

@@ -396,11 +396,24 @@ fn meshes_draw( meshes : &[ Mesh ], gl : &GL )
   }
 }
 
+// Fix(BUG-465): look up each model's material via its own `material_id` instead of
+// pairing `models`/`materials` by iteration position.
+// Root cause: `models.iter().zip( materials )` assumes the Nth model always uses the
+// Nth material, which only holds when the `.obj`/`.mtl` pair happens to list both in
+// matching order with no gaps -- `tobj::Model.mesh.material_id` is the actual index a
+// model references and is not guaranteed to equal the model's own position. `.zip`
+// additionally silently truncates to the shorter iterator, dropping trailing models
+// entirely whenever `materials.len() < models.len()`.
+// Pitfall: pairing two same-length-looking slices by position instead of by an
+// explicit id/foreign-key field is a silent correctness bug whenever the two lists
+// aren't already known to be co-indexed by construction -- prefer the explicit id
+// lookup even when position-pairing happens to work for the current asset.
 async fn meshes_load( models : &[ tobj::Model ], materials : &[ tobj::Material ], gl : &GL ) -> Vec< Mesh >
 {
   let mut meshes = vec![];
-  for ( model, material ) in models.iter().zip( materials )
+  for model in models
   {
+    let material = model.mesh.material_id.and_then( | id | materials.get( id ) );
     let position_buffer = gl::buffer::create( gl ).unwrap();
     gl::buffer::upload( gl, &position_buffer, model.mesh.positions.as_slice(), GL::STATIC_DRAW );
     let normal_buffer = gl::buffer::create( gl ).unwrap();
@@ -436,7 +449,7 @@ async fn meshes_load( models : &[ tobj::Model ], materials : &[ tobj::Material ]
     .attribute_pointer( gl, texcoord_attr.location, &texcoord_buffer )
     .unwrap();
 
-    let texture = if let Some( name ) = &material.diffuse_texture
+    let texture = if let Some( name ) = material.and_then( | m | m.diffuse_texture.as_ref() )
     {
       let img = gl::dom::image_element_create( &format!( "static/cat/{name}" ) ).unwrap();
       // tried to do texture uploading in on_load callback

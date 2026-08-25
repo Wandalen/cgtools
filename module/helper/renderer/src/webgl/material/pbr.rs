@@ -615,15 +615,21 @@ mod private
     {
       let locations = ctx.locations;
 
-      // Assign a texture unit for each type of texture
-      gl.uniform1i( locations.get( "metallicRoughnessTexture" ).unwrap().clone().as_ref() , 0 );
-      gl.uniform1i( locations.get( "baseColorTexture" ).unwrap().clone().as_ref() , 1 );
-      gl.uniform1i( locations.get( "normalTexture" ).unwrap().clone().as_ref() , 2 );
-      gl.uniform1i( locations.get( "occlusionTexture" ).unwrap().clone().as_ref() , 3 );
-      gl.uniform1i( locations.get( "emissiveTexture" ).unwrap().clone().as_ref() , 4 );
-      gl.uniform1i( locations.get( "specularTexture" ).unwrap().clone().as_ref() , 5 );
-      gl.uniform1i( locations.get( "specularColorTexture" ).unwrap().clone().as_ref() , 6 );
-      gl.uniform1i( locations.get( "lightMap" ).unwrap().clone().as_ref() , 7 );
+      // Assign a texture unit for each type of texture.
+      //
+      // `.expect(..)` here (rather than `.unwrap()`) names the missing key directly: these
+      // lookups are only unreachable while `PBRShader`'s `impl_locations!` list above keeps
+      // every one of these literals -- an `.unwrap()` panic on drift would instead read as a
+      // bare "called `Option::unwrap()` on a `None` value" with no indication of which uniform
+      // name fell out of sync.
+      gl.uniform1i( locations.get( "metallicRoughnessTexture" ).expect( "PBRShader::impl_locations! missing \"metallicRoughnessTexture\"" ).clone().as_ref() , 0 );
+      gl.uniform1i( locations.get( "baseColorTexture" ).expect( "PBRShader::impl_locations! missing \"baseColorTexture\"" ).clone().as_ref() , 1 );
+      gl.uniform1i( locations.get( "normalTexture" ).expect( "PBRShader::impl_locations! missing \"normalTexture\"" ).clone().as_ref() , 2 );
+      gl.uniform1i( locations.get( "occlusionTexture" ).expect( "PBRShader::impl_locations! missing \"occlusionTexture\"" ).clone().as_ref() , 3 );
+      gl.uniform1i( locations.get( "emissiveTexture" ).expect( "PBRShader::impl_locations! missing \"emissiveTexture\"" ).clone().as_ref() , 4 );
+      gl.uniform1i( locations.get( "specularTexture" ).expect( "PBRShader::impl_locations! missing \"specularTexture\"" ).clone().as_ref() , 5 );
+      gl.uniform1i( locations.get( "specularColorTexture" ).expect( "PBRShader::impl_locations! missing \"specularColorTexture\"" ).clone().as_ref() , 6 );
+      gl.uniform1i( locations.get( "lightMap" ).expect( "PBRShader::impl_locations! missing \"lightMap\"" ).clone().as_ref() , 7 );
     }
 
     fn upload
@@ -667,33 +673,42 @@ mod private
     {
       let locations = ctx.locations;
 
-      let upload = | loc, value : Option< f32 > | -> Result< (), gl::WebglError >
+      // `unwrap_or_else( || panic!( .. ) )` rather than `.unwrap()`: `loc` is only known at the
+      // call site below, so the panic message can still name the exact missing uniform instead
+      // of a bare "called `Option::unwrap()` on a `None` value".
+      let upload = | loc : &str, value : Option< f32 > | -> Result< (), gl::WebglError >
       {
         if let Some( v ) = value
         {
-          gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), &v )?;
+          let location = locations.get( loc )
+          .unwrap_or_else( || panic!( "PBRShader::impl_locations! missing \"{loc}\"" ) )
+          .clone();
+          gl::uniform::upload( gl, location, &v )?;
         }
         Ok( () )
       };
 
-      let upload_array = | loc, value : Option< &[ f32 ] > | -> Result< (), gl::WebglError >
+      let upload_array = | loc : &str, value : Option< &[ f32 ] > | -> Result< (), gl::WebglError >
       {
         if let Some( v ) = value
         {
-          gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), v )?;
+          let location = locations.get( loc )
+          .unwrap_or_else( || panic!( "PBRShader::impl_locations! missing \"{loc}\"" ) )
+          .clone();
+          gl::uniform::upload( gl, location, v )?;
         }
         Ok( () )
       };
 
       upload( "specularFactor", self.specular_factor )?;
 
-      gl::uniform::upload( gl, locations.get( "baseColorFactor" ).unwrap().clone(), self.base_color_factor.as_slice() )?;
-      gl::uniform::upload( gl, locations.get( "metallicFactor" ).unwrap().clone(), &self.metallic_factor )?;
-      gl::uniform::upload( gl, locations.get( "roughnessFactor" ).unwrap().clone(), &self.roughness_factor )?;
-      gl::uniform::upload( gl, locations.get( "normalScale" ).unwrap().clone(), &self.normal_scale )?;
-      gl::uniform::upload( gl, locations.get( "occlusionStrength" ).unwrap().clone(), &self.occlusion_strength )?;
-      gl::uniform::upload( gl, locations.get( "alphaCutoff" ).unwrap().clone(), &self.alpha_cutoff )?;
-      gl::uniform::upload( gl, locations.get( "emissiveFactor" ).unwrap().clone(), self.emissive_factor.as_slice() )?;
+      gl::uniform::upload( gl, locations.get( "baseColorFactor" ).expect( "PBRShader::impl_locations! missing \"baseColorFactor\"" ).clone(), self.base_color_factor.as_slice() )?;
+      gl::uniform::upload( gl, locations.get( "metallicFactor" ).expect( "PBRShader::impl_locations! missing \"metallicFactor\"" ).clone(), &self.metallic_factor )?;
+      gl::uniform::upload( gl, locations.get( "roughnessFactor" ).expect( "PBRShader::impl_locations! missing \"roughnessFactor\"" ).clone(), &self.roughness_factor )?;
+      gl::uniform::upload( gl, locations.get( "normalScale" ).expect( "PBRShader::impl_locations! missing \"normalScale\"" ).clone(), &self.normal_scale )?;
+      gl::uniform::upload( gl, locations.get( "occlusionStrength" ).expect( "PBRShader::impl_locations! missing \"occlusionStrength\"" ).clone(), &self.occlusion_strength )?;
+      gl::uniform::upload( gl, locations.get( "alphaCutoff" ).expect( "PBRShader::impl_locations! missing \"alphaCutoff\"" ).clone(), &self.alpha_cutoff )?;
+      gl::uniform::upload( gl, locations.get( "emissiveFactor" ).expect( "PBRShader::impl_locations! missing \"emissiveFactor\"" ).clone(), self.emissive_factor.as_slice() )?;
       if let Some( mipmap_distance_range_loc ) = locations.get( "mipmapDistanceRange" )
       {
         let r = &self.mipmap_distance_range;

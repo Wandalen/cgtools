@@ -61,6 +61,9 @@ impl< const N : usize > UniformUpload for [ i32 ; N ]
 
 impl< const N : usize > UniformUpload for [ [ i32 ; N ] ]
 {
+  // Fix(BUG-426): see `float32.rs`'s `impl UniformUpload for [[f32; N]]` Fix(BUG-426) comment --
+  // same copy-pasted defect ( reported `self.len()`, the outer slice count, instead of `N`,
+  // the inner array arity actually being matched on ), same fix.
   fn upload( &self, gl : &GL, uniform_location : Option< WebGlUniformLocation > ) -> Result< (), WebglError >
   {
     match N
@@ -69,16 +72,7 @@ impl< const N : usize > UniformUpload for [ [ i32 ; N ] ]
       2 => { gl.uniform2iv_with_i32_array( uniform_location.as_ref(), self.as_flattened() ); Ok( () ) },
       3 => { gl.uniform3iv_with_i32_array( uniform_location.as_ref(), self.as_flattened() ); Ok( () ) },
       4 => { gl.uniform4iv_with_i32_array( uniform_location.as_ref(), self.as_flattened() ); Ok( () ) },
-      _ => Err
-      (
-        WebglError::CantUploadUniform
-        (
-          "vector",
-          type_name_of_val( self ),
-          self.len(),
-          "1, 2, 3, 4",
-        ),
-      )
+      _ => Err( crate::uniform::vector_upload_length_error( type_name_of_val( self ), N ) ),
     }
   }
 }

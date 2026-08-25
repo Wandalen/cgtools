@@ -20,6 +20,7 @@ Two layers:
 |---|---|
 | `integration_tests.rs` | Entry point compiling the feature-gated integration suite |
 | `integration/` | Cross-cutting integration scenarios (opt-in `integration` feature) |
+| `collection_test.rs` | `Grid2D` insert/get/remove round-trips and out-of-bounds panic behavior |
 | `coordinates_distance_overflow_test.rs` | `distance()` overflow/saturation across hex, square, isometric, triangular (BUG-350) |
 | `debug_test.rs` | Debugger, inspector, profiler, and formatting utilities behavior |
 | `events_test.rs` | Event bus lifecycle, priorities, consumption, statistics |

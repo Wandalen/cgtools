@@ -71,27 +71,54 @@ fn texture_create
   }
 }
 
+/// Generates one visually-distinct color per object.
+///
+/// UX/DX fix: previously returned identical red for every index (the index
+/// itself was discarded via `| _ |`), which happened to not break rendering
+/// since `ObjectColor` is only ever read as a binary presence mask -- but it
+/// silently defeated the "object_color" G-buffer debug view (see this file's
+/// `"object_color" => ...` render-target selector), which is meant to let a
+/// user visually tell separate meshes apart and instead showed one
+/// undifferentiated block for any multi-mesh scene. Hues are spaced using the
+/// golden ratio conjugate, which spreads any number of samples around the
+/// color wheel with minimal adjacent-hue collisions, unlike an even `i /
+/// object_count` split that repeats short cycles for common divisors.
 fn object_colors_generate( object_count : u32 ) -> Vec< F32x4 >
 {
-  
+  const GOLDEN_RATIO_CONJUGATE : f32 = 0.618_034;
 
   ( 0..object_count )
   .map
   (
-    | _ |
+    | i |
     {
-      F32x4::from_array
-      (
-        [
-          1.0,
-          0.0,
-          0.0,
-          1.0
-        ]
-      )
+      let hue = ( i as f32 * GOLDEN_RATIO_CONJUGATE ).fract();
+      let [ r, g, b ] = hsv_to_rgb( hue, 1.0, 1.0 );
+      F32x4::from_array( [ r, g, b, 1.0 ] )
     }
   )
   .collect::< Vec< _ > >()
+}
+
+/// Converts HSV ( hue/saturation/value, each in `0.0..=1.0` ) to linear RGB.
+fn hsv_to_rgb( h : f32, s : f32, v : f32 ) -> [ f32; 3 ]
+{
+  let sector = h * 6.0;
+  let i = sector.floor();
+  let f = sector - i;
+  let p = v * ( 1.0 - s );
+  let q = v * ( 1.0 - f * s );
+  let t = v * ( 1.0 - ( 1.0 - f ) * s );
+
+  match ( i as i64 ).rem_euclid( 6 )
+  {
+    0 => [ v, t, p ],
+    1 => [ q, v, p ],
+    2 => [ p, v, t ],
+    3 => [ p, q, v ],
+    4 => [ t, p, v ],
+    _ => [ v, p, q ],
+  }
 }
 
 fn attributes_get( gltf : &GLTF ) -> Result< FxHashMap< Box< str >, AttributeInfo >, gl::WebglError >
@@ -558,4 +585,62 @@ async fn app_run() -> Result< (), gl::WebglError >
 fn main()
 {
   gl::spawn_local( async move { app_run().await.unwrap() } );
+}
+
+// This crate is a `fn main()`-only WebGL demo binary with no `[lib]` target,
+// so an external `tests/*.rs` integration test cannot reach `hsv_to_rgb` /
+// `object_colors_generate` regardless of visibility -- per this workspace's
+// rulebook.md "Test placement" rule, that makes an inline
+// `#[cfg(test)] mod tests` block the correct home, not `tests/`. This module
+// must stay the last item in the file (clippy::items_after_test_module).
+#[ cfg( test ) ]
+mod tests
+{
+  use super::*;
+
+  // UX/DX fix (see task report) -- `object_colors_generate` previously
+  // discarded the loop index and always returned solid red for every object.
+  #[ test ]
+  #[ allow
+  (
+    clippy::float_cmp,
+    reason = "hue 0/sat 1/val 1 is a deterministic closed-form result (no \
+              accumulated rounding), so exact equality against the known \
+              primary-color output is the correct check, not a mistake"
+  ) ]
+  fn hsv_to_rgb_matches_known_primary_colors()
+  {
+    assert_eq!( hsv_to_rgb( 0.0, 1.0, 1.0 ), [ 1.0, 0.0, 0.0 ], "hue 0 is red" );
+    let green = hsv_to_rgb( 1.0 / 3.0, 1.0, 1.0 );
+    assert!( ( green[ 0 ] - 0.0 ).abs() < 1e-5 && ( green[ 1 ] - 1.0 ).abs() < 1e-5 && ( green[ 2 ] - 0.0 ).abs() < 1e-5 );
+    let blue = hsv_to_rgb( 2.0 / 3.0, 1.0, 1.0 );
+    assert!( ( blue[ 0 ] - 0.0 ).abs() < 1e-5 && ( blue[ 1 ] - 0.0 ).abs() < 1e-5 && ( blue[ 2 ] - 1.0 ).abs() < 1e-5 );
+  }
+
+  #[ test ]
+  #[ allow
+  (
+    clippy::float_cmp,
+    reason = "colors come from distinct exact hue fractions via a \
+              deterministic formula, so an accidental exact collision across \
+              objects is the real failure mode this test guards against -- a \
+              tolerance-based comparison would mask that instead of \
+              confirming distinctness"
+  ) ]
+  fn object_colors_generate_returns_distinct_colors_per_object()
+  {
+    let colors = object_colors_generate( 5 );
+    assert_eq!( colors.len(), 5 );
+    for i in 0..colors.len()
+    {
+      for j in ( i + 1 )..colors.len()
+      {
+        assert_ne!
+        (
+          colors[ i ].to_array(), colors[ j ].to_array(),
+          "objects {i} and {j} must not share the same color"
+        );
+      }
+    }
+  }
 }

@@ -47,6 +47,7 @@ mod private
   {
     /// Creates a new `RenderPipelineDescriptor` with the required vertex state.
     #[ inline ]
+    #[ must_use ]
     pub fn new< T : Into< web_sys::GpuVertexState > >( vertex : T ) -> Self
     {
       let label = None;

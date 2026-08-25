@@ -506,7 +506,21 @@ mod private
       let mut decay_percentage = self.rotation.movement_decay * delta_time_ms / 10.0;
       decay_percentage = decay_percentage.min( 1.0 );
 
-      if self.rotation.movement_smoothing_enabled
+      // Fix(BUG-427): guarded with `self.rotation.enabled` -- previously this branch applied
+      // smoothed rotation ( and decayed `current_angular_speed` ) purely on
+      // `movement_smoothing_enabled`, with no check that rotation was enabled at all, unlike
+      // `rotate()` above, which returns immediately when `!self.rotation.enabled`. A caller
+      // that disabled rotation ( e.g. `controls.rotation.enabled = false` ) after already
+      // accumulating angular speed via smoothing would still see the camera keep rotating on
+      // every subsequent `update()` call, since nothing here re-checked `enabled`.
+      // Root cause: `rotate()` and `update()` are two independent entry points into the same
+      // smoothing state ( `current_angular_speed` ), and only `rotate()` was given the
+      // `enabled` guard when smoothing was added -- `update()`'s own smoothing branch was
+      // never audited against the same invariant.
+      // Pitfall: when a piece of state ( here, "is rotation enabled" ) must gate more than one
+      // entry point, grep every reader/writer of that state for the guard, not just the one
+      // that happened to be under review when the guard was added.
+      if self.rotation.enabled && self.rotation.movement_smoothing_enabled
       {
         self.rotation.current_rotation_angle = self.rotation.current_angular_speed * delta_time_ms / 1000.0;
         self.rotation_apply();

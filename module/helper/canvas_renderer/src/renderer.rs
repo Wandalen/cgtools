@@ -300,6 +300,30 @@ mod private
     {
       scene.world_matrix_update();
 
+      // Fix(BUG-493)
+      // Root cause: this function unconditionally overwrites 4 pieces of global GL state
+      // (`DEPTH_TEST`/`BLEND` enable flags, `depth_mask`, `front_face`) below, but -- unlike the
+      // framebuffer binding restored near the end of this function (Fix(BUG-342)) -- never
+      // restored any of them before returning. Any caller that had its own GL state in place
+      // before calling `render()` (e.g. `BLEND` enabled for its own transparent pass, or `CW`
+      // front-face winding) silently had that state overwritten and left overwritten after
+      // `render()` returned, with no error or indication anywhere.
+      // Pitfall: `render()` already restores one piece of global state it mutates (the
+      // framebuffer binding, per BUG-342) -- fixing that one restore doesn't guarantee the rest
+      // of the state this function mutates is also restored; each piece of global GL state a
+      // function changes has to be individually audited for its own snapshot/restore, never
+      // assumed covered just because a sibling piece of state already looks handled.
+      let depth_test_was_enabled = gl.is_enabled( gl::DEPTH_TEST );
+      let blend_was_enabled = gl.is_enabled( gl::BLEND );
+      let depth_mask_was_enabled = gl.get_parameter( gl::DEPTH_WRITEMASK )
+      .ok()
+      .and_then( | v | v.as_bool() )
+      .unwrap_or( true );
+      let front_face_was = gl.get_parameter( gl::FRONT_FACE )
+      .ok()
+      .and_then( | v | v.as_f64() )
+      .map_or( gl::CCW, | v | v as u32 );
+
       gl.enable( gl::DEPTH_TEST );
       gl.disable( gl::BLEND );
       gl.depth_mask( true );
@@ -369,6 +393,12 @@ mod private
       // were caught -- each has to be individually audited against the shape it shares with its
       // siblings, not assumed consistent once most of them look handled.
       gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+
+      // Fix(BUG-493): restore the 4 global GL state bits snapshotted above.
+      if depth_test_was_enabled { gl.enable( gl::DEPTH_TEST ); } else { gl.disable( gl::DEPTH_TEST ); }
+      if blend_was_enabled { gl.enable( gl::BLEND ); } else { gl.disable( gl::BLEND ); }
+      gl.depth_mask( depth_mask_was_enabled );
+      gl.front_face( front_face_was );
 
       Ok( () )
     }

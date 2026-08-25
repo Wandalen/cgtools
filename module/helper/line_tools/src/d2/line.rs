@@ -208,15 +208,20 @@ mod private
     ///
     /// # Errors
     ///
-    /// Returns `WebglError` if re-uploading buffer data, shaders, or uniforms fails.
+    /// Returns `WebglError` if re-uploading buffer data, shaders, or uniforms fails, or if
+    /// called before `mesh_create`.
     ///
     /// # Panics
     ///
-    /// Panics if called before `mesh_create`.
+    /// Panics if a join or cap sub-program's fragment shader has not been set.
     #[ expect( clippy::too_many_lines, reason = "one linear per-flag GL resync ( points, joins, caps, terminals ) over tightly coupled buffer state; splitting would scatter paired steps" ) ]
     pub fn mesh_update( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
-      let mesh = self.mesh.as_mut().expect( "Mesh has not been created yet" );
+      // Fix(UX/DX #4): `.ok_or( .. )?` instead of `.expect( .. )` -- matches `d3::Line`'s own
+      // established convention (its equivalents already return `Err` instead of panicking) for
+      // this exact "mesh not created yet" condition; see this crate's `d3/line.rs` for the
+      // sibling implementation this now mirrors.
+      let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
 
       if self.points_changed
       {
@@ -435,17 +440,21 @@ mod private
     ///
     /// # Errors
     ///
-    /// Returns `WebglError` if the mesh update or a uniform upload fails.
+    /// Returns `WebglError` if the mesh update or a uniform upload fails, or if called before
+    /// `mesh_create`.
     ///
     /// # Panics
     ///
-    /// Panics if called before `mesh_create`.
+    /// Panics if a join or cap sub-program's fragment shader has not been set (via
+    /// `mesh_update`).
     pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
 
       self.mesh_update( gl )?;
 
-      let mesh = self.mesh.as_mut().expect( "Mesh has not been created yet" );
+      // Fix(UX/DX #4): `.ok_or( .. )?` instead of `.expect( .. )` -- see `mesh_update`'s own
+      // identical fix just above for the full rationale; kept consistent within this same impl.
+      let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
 
       mesh.upload_to( gl, "body", "u_total_distance", &self.total_distance )?;
       mesh.upload_to( gl, "body_terminal", "u_total_distance", &self.total_distance )?;

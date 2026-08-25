@@ -526,16 +526,20 @@ Reference material:
     its own. This was a real, common occurrence (~30% of stars at a typical
     view angle), just never the actual bug.
   - What most likely mattered: `gl_PointSize` distance attenuation (three.js
-    `sizeAttenuation: true`, ported here as `gl_PointSize = clamp(700.0 /
-    gl_Position.w, 1.0, 4.0)` in `starfield.vert`) — without it every star
-    reads at the same size/prominence regardless of depth, which visually
-    exaggerates the perspective clustering inherent to a box this large
-    (far more points lie far from the camera than near it). Combined with
-    at least one round that really was a stale build despite the user's own
-    cache-busting attempts (never root-caused which specific rebuild fixed
-    it, since several changes landed close together) - if this regresses
-    again, re-add the diagnostics described below rather than assuming
-    either explanation without re-checking.
+    `sizeAttenuation: true`) — a `gl_PointSize = clamp(700.0 / gl_Position.w,
+    1.0, 4.0)` formula was tried in `starfield.vert` at the time; without it
+    every star reads at the same size/prominence regardless of depth, which
+    visually exaggerates the perspective clustering inherent to a box this
+    large (far more points lie far from the camera than near it). Superseded
+    since: `starfield.vert` now ships a fixed `gl_PointSize = a_size`
+    instead — see that file's own comment for why the attenuation formula
+    was deliberately dropped (the camera sits inside the star box, and
+    attenuation introduced a directional clustering bias of its own).
+    Combined with at least one round that really was a stale build despite
+    the user's own cache-busting attempts (never root-caused which specific
+    rebuild fixed it, since several changes landed close together) - if this
+    regresses again, re-add the diagnostics described below rather than
+    assuming either explanation without re-checking.
   - Diagnostic technique worth reusing for any future "looks wrong but I
     can't repro it" report: a live on-screen debug HUD (plain `<div>`,
     updated via `set_text_content` each frame - see the git history around

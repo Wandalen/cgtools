@@ -13,8 +13,7 @@
 //! command buffer ( see `command_buffer_one_shot_submit` ).
 //!
 //! Long-lived handles handed back through the public HAL API ( buffers,
-//! textures, pipelines, bind groups, the render pass/framebuffer a
-//! `RenderPass` owns while recording ) carry no `Drop`-based cleanup —
+//! textures, pipelines, bind groups ) carry no `Drop`-based cleanup —
 //! `cargo nextest` isolates each test into its own process, so this v0
 //! "minimum resource support" tradeoff never accumulates across a suite.
 //! Short-lived temporaries whose GPU-completion is provably known within a
@@ -22,6 +21,33 @@
 //! after its one-shot submit returns, a throwaway compatibility render pass
 //! right after pipeline creation ) are destroyed immediately instead, since
 //! those genuinely could run in a tight loop within one test process.
+//!
+//! Fix(BUG-430): the 8 resource types above ( `Buffer`, `Texture`,
+//! `TextureView`, `Sampler`, `ShaderModule`, `BindGroupLayout`, `BindGroup`,
+//! `RenderPipeline` ) can now be freed early and deterministically through
+//! `Device::*_destroy` — `buffer_destroy`, `texture_destroy`,
+//! `texture_view_destroy`, `sampler_destroy`, `shader_module_destroy`,
+//! `bind_group_layout_destroy`, `bind_group_destroy`,
+//! `render_pipeline_destroy` below, each an explicit `vkDestroy*`/
+//! `vkFreeMemory` call rather than a `Drop` impl — see `Device::buffer_destroy`'s
+//! own doc comment in `device.rs` for the full design rationale. A caller
+//! that never calls them keeps the exact v0 behaviour described above; a
+//! long-running host process ( unlike a `cargo nextest`-isolated test )
+//! should call them to reclaim GPU memory instead of exhausting it.
+//!
+//! Fix(BUG-470): a `CommandEncoder`'s command pool, and every render pass +
+//! framebuffer pair its `render_pass_begin` calls created, are — unlike the
+//! 8 resource types above — destroyed unconditionally rather than opt-in.
+//! No API ever hands the command pool back to the caller as a separately
+//! destroyable resource ( `CommandEncoderVulkan` owns it outright, and
+//! `Queue::submit` consumes the whole encoder by value ), so there is no
+//! opt-in surface to add a `*_destroy` method to in the first place;
+//! `Queue::submit` destroys all three once `vkQueueWaitIdle` confirms the
+//! GPU has finished executing the encoder — see `submit`'s own doc comment.
+//! Previously none of the three were ever destroyed, leaking one command
+//! pool, one render pass, and one framebuffer on every `Queue::submit`
+//! call — exhausted by any long-running windowed present loop such as
+//! `examples/gpu_hal/triangle_vulkan_window`.
 //!
 
 mod private
@@ -283,7 +309,14 @@ mod private
     /// Dedicated pool `command_buffer` was allocated from.
     pub pool : ash::vk::CommandPool,
     /// The one primary command buffer this encoder records into.
-    pub command_buffer : ash::vk::CommandBuffer
+    pub command_buffer : ash::vk::CommandBuffer,
+    /// Fix(BUG-470): render pass + framebuffer pairs created by every
+    /// `render_pass_begin` call on this encoder so far, accumulated here
+    /// because `RenderPass::end` ( `render_pass_end` ) has no safe point at
+    /// which to destroy them itself -- see `submit`'s own doc comment for
+    /// why destruction must wait until this encoder is submitted and the
+    /// GPU has finished executing it.
+    pub pending_render_passes : Vec< ( ash::vk::RenderPass, ash::vk::Framebuffer ) >
   }
 
   impl std::fmt::Debug for CommandEncoderVulkan
@@ -296,9 +329,13 @@ mod private
 
   /// Raw Vulkan handles backing a `RenderPass::Vulkan`: the command buffer
   /// being recorded into, the render pass/framebuffer this recording began
-  /// with ( intentionally never destroyed — see the module doc comment ),
-  /// and the layout of whichever pipeline `pipeline_set` bound most
-  /// recently, needed by `bind_group_set`'s `vkCmdBindDescriptorSets` call.
+  /// with ( these two copies are never destroyed through this struct itself
+  /// — Fix(BUG-470): the authoritative copy destroyed later is the one
+  /// `render_pass_begin` also pushed onto the originating `CommandEncoderVulkan
+  /// ::pending_render_passes`, which `Queue::submit` destroys once the GPU
+  /// has finished executing it ), and the layout of whichever pipeline
+  /// `pipeline_set` bound most recently, needed by `bind_group_set`'s
+  /// `vkCmdBindDescriptorSets` call.
   #[ derive( Clone ) ]
   pub struct RenderPassVulkan
   {
@@ -1577,6 +1614,136 @@ mod private
     Ok( RenderPipelineVulkan { pipeline, layout } )
   }
 
+  // ============================================================================
+  // Resource destruction — explicit vkDestroy*/vkFreeMemory calls; see the
+  // module doc comment above ( Fix(BUG-430) ) for why these exist as
+  // Device::*_destroy dispatch targets instead of Drop impls
+  // ============================================================================
+
+  /// Destroys a Vulkan buffer's underlying `VkBuffer` and frees its
+  /// dedicated `VkDeviceMemory` allocation.
+  #[ allow( clippy::needless_pass_by_value, reason = "takes `buffer` by value \
+deliberately -- consuming it is what makes the destroyed handle unusable \
+afterward, mirroring `Queue::submit`'s identical by-value `encoder`" ) ]
+  pub fn buffer_destroy( device_vulkan : &DeviceVulkan, buffer : BufferVulkan )
+  {
+    // SAFETY: `buffer.buffer`/`buffer.memory` were allocated together by
+    // `buffer_create`/`buffer_init_create` on this same device and are not in
+    // use by any in-flight command buffer -- the caller owns `buffer` by
+    // value here, which this crate's v0 contract treats as proof no other
+    // reference to it survives ( see `Device::buffer_destroy`'s doc comment
+    // in `device.rs` ).
+    unsafe
+    {
+      device_vulkan.device.destroy_buffer( buffer.buffer, None );
+      device_vulkan.device.free_memory( buffer.memory, None );
+    }
+  }
+
+  /// Destroys a Vulkan texture's underlying `VkImage` and frees its
+  /// dedicated `VkDeviceMemory` allocation.
+  #[ allow( clippy::needless_pass_by_value, reason = "takes `texture` by value \
+deliberately -- consuming it is what makes the destroyed handle unusable \
+afterward, mirroring `Queue::submit`'s identical by-value `encoder`" ) ]
+  pub fn texture_destroy( texture : TextureVulkan )
+  {
+    // SAFETY: `texture.image`/`texture.memory` were allocated together by
+    // `texture_create` on `texture.device` and are not in use by any
+    // in-flight command buffer -- the caller owns `texture` by value here,
+    // which this crate's v0 contract treats as proof no other reference to
+    // it survives.
+    unsafe
+    {
+      texture.device.destroy_image( texture.image, None );
+      texture.device.free_memory( texture.memory, None );
+    }
+  }
+
+  /// Destroys a Vulkan texture view's underlying `VkImageView`. Does not
+  /// touch the source image or its memory : those belong to the `Texture`
+  /// the view was created from and are freed separately, by
+  /// `texture_destroy`.
+  pub fn texture_view_destroy( device_vulkan : &DeviceVulkan, view : TextureViewVulkan )
+  {
+    // SAFETY: `view.view` was created by `texture_view_create` on this same
+    // device and is not in use by any in-flight command buffer -- the caller
+    // owns `view` by value here, which this crate's v0 contract treats as
+    // proof no other reference to it survives.
+    unsafe { device_vulkan.device.destroy_image_view( view.view, None ); }
+  }
+
+  /// Destroys a Vulkan sampler's underlying `VkSampler`.
+  pub fn sampler_destroy( device_vulkan : &DeviceVulkan, sampler : ash::vk::Sampler )
+  {
+    // SAFETY: `sampler` was created by `sampler_create` on this same device
+    // and is not in use by any in-flight command buffer -- the caller owns
+    // `sampler` by value here, which this crate's v0 contract treats as proof
+    // no other reference to it survives.
+    unsafe { device_vulkan.device.destroy_sampler( sampler, None ); }
+  }
+
+  /// Destroys a Vulkan shader module's underlying `VkShaderModule`. Safe to
+  /// call any time after the render pipelines built from it exist :
+  /// `vkCreateGraphicsPipelines` does not retain a live reference to the
+  /// shader modules it consumed, only to their already-compiled pipeline
+  /// stages.
+  pub fn shader_module_destroy( device_vulkan : &DeviceVulkan, module : ash::vk::ShaderModule )
+  {
+    // SAFETY: `module` was created by `shader_module_create` on this same
+    // device -- the caller owns `module` by value here, which this crate's
+    // v0 contract treats as proof no other reference to it survives.
+    unsafe { device_vulkan.device.destroy_shader_module( module, None ); }
+  }
+
+  /// Destroys a Vulkan bind group layout's underlying
+  /// `VkDescriptorSetLayout`. Safe to call any time after the bind
+  /// groups/pipelines built from it exist : like shader modules, a Vulkan
+  /// descriptor set layout is not retained by the objects created from it.
+  #[ allow( clippy::needless_pass_by_value, reason = "takes `layout` by value \
+deliberately -- consuming it is what makes the destroyed handle unusable \
+afterward, mirroring `Queue::submit`'s identical by-value `encoder`" ) ]
+  pub fn bind_group_layout_destroy( device_vulkan : &DeviceVulkan, layout : BindGroupLayoutVulkan )
+  {
+    // SAFETY: `layout.layout` was created by `bind_group_layout_create` on
+    // this same device -- the caller owns `layout` by value here, which this
+    // crate's v0 contract treats as proof no other reference to it survives.
+    unsafe { device_vulkan.device.destroy_descriptor_set_layout( layout.layout, None ); }
+  }
+
+  /// Destroys a Vulkan bind group's dedicated `VkDescriptorPool` :
+  /// destroying the pool implicitly frees the one descriptor set allocated
+  /// from it, matching this file's `command_encoder`/pool teardown idiom.
+  #[ allow( clippy::needless_pass_by_value, reason = "takes `group` by value \
+deliberately -- consuming it is what makes the destroyed handle unusable \
+afterward, mirroring `Queue::submit`'s identical by-value `encoder`" ) ]
+  pub fn bind_group_destroy( device_vulkan : &DeviceVulkan, group : BindGroupVulkan )
+  {
+    // SAFETY: `group.pool` was created by `bind_group_create` on this same
+    // device and is not in use by any in-flight command buffer -- the caller
+    // owns `group` by value here, which this crate's v0 contract treats as
+    // proof no other reference to it survives.
+    unsafe { device_vulkan.device.destroy_descriptor_pool( group.pool, None ); }
+  }
+
+  /// Destroys a Vulkan render pipeline's underlying `VkPipeline` and its
+  /// `VkPipelineLayout`.
+  #[ allow( clippy::needless_pass_by_value, reason = "takes `pipeline` by value \
+deliberately -- consuming it is what makes the destroyed handle unusable \
+afterward, mirroring `Queue::submit`'s identical by-value `encoder`" ) ]
+  pub fn render_pipeline_destroy( device_vulkan : &DeviceVulkan, pipeline : RenderPipelineVulkan )
+  {
+    // SAFETY: `pipeline.pipeline`/`pipeline.layout` were created by
+    // `render_pipeline_create` on this same device and are not in use by any
+    // in-flight command buffer -- the caller owns `pipeline` by value here,
+    // which this crate's v0 contract treats as proof no other reference to
+    // it survives.
+    unsafe
+    {
+      device_vulkan.device.destroy_pipeline( pipeline.pipeline, None );
+      device_vulkan.device.destroy_pipeline_layout( pipeline.layout, None );
+    }
+  }
+
   /// Creates a command encoder for one frame's passes: a dedicated command
   /// pool plus one primary command buffer, already begun ( any number of
   /// render passes can be begun/ended into it before `Queue::submit` ends
@@ -1605,7 +1772,7 @@ mod private
     // SAFETY: `command_buffer` was just allocated above and is in the initial state.
     unsafe { device_vulkan.device.begin_command_buffer( command_buffer, &begin_info ) }
     .map_err( | e | Error::Vulkan( format!( "vkBeginCommandBuffer failed :: {e}" ) ) )?;
-    Ok( CommandEncoderVulkan { device : device_vulkan.device.clone(), pool, command_buffer } )
+    Ok( CommandEncoderVulkan { device : device_vulkan.device.clone(), pool, command_buffer, pending_render_passes : Vec::new() } )
   }
 
   /// Builds a compatible render pass ( see `render_pass_create` ) and a
@@ -1719,12 +1886,17 @@ mod private
   /// attachment: builds a fresh, compatible render pass + framebuffer
   /// ( see `render_pass_create` ), begins it, then sets the dynamic
   /// viewport/scissor from the color view's own size. Neither the render
-  /// pass nor the framebuffer is destroyed here — see the module doc
-  /// comment for why that would be premature. Takes no separate
-  /// `&DeviceVulkan` parameter because `CommandEncoder::render_pass_begin`,
-  /// the cross-backend method this backs, takes none either — `encoder.
-  /// device` and each view's pre-resolved `vulkan_format` supply everything
-  /// a live device reference would have.
+  /// pass nor the framebuffer is destroyed here — Fix(BUG-470): destroying
+  /// them at this point would be premature, since the command buffer that
+  /// references them has not even been submitted yet, let alone finished
+  /// executing on the GPU. Instead the pair is pushed onto `encoder.
+  /// pending_render_passes`, and `Queue::submit`'s Vulkan backend destroys
+  /// every accumulated pair once it has confirmed ( via `vkQueueWaitIdle` )
+  /// that the GPU is done with them. Takes `&mut CommandEncoderVulkan`
+  /// ( rather than `&CommandEncoderVulkan`, as before BUG-470's fix )
+  /// specifically to record that pair — `CommandEncoder::render_pass_begin`,
+  /// the cross-backend method this backs, already takes `&mut self` for
+  /// every backend, so this widens no caller-visible contract.
   ///
   /// # Errors
   ///
@@ -1732,7 +1904,7 @@ mod private
   /// fails.
   pub fn render_pass_begin
   (
-    encoder : &CommandEncoderVulkan,
+    encoder : &mut CommandEncoderVulkan,
     color : &ColorAttachmentDesc< '_ >,
     depth : Option< &DepthAttachmentDesc< '_ > >
   ) -> Result< RenderPassVulkan, Error >
@@ -1743,6 +1915,10 @@ mod private
     let ( render_pass, framebuffer ) = render_pass_framebuffer_create( encoder, color_view, depth_view )?;
     render_pass_begin_cmd( encoder, color, depth_view.is_some(), render_pass, framebuffer, color_view.size );
     render_pass_viewport_scissor_set( encoder, color_view.size );
+    // Fix(BUG-470): recorded here so `Queue::submit` can destroy it once the
+    // GPU has actually finished executing this encoder -- see this fn's own
+    // doc comment.
+    encoder.pending_render_passes.push( ( render_pass, framebuffer ) );
 
     Ok( RenderPassVulkan
     {
@@ -1827,7 +2003,9 @@ mod private
   }
 
   /// Ends the render pass, consuming the recorder. The render pass and
-  /// framebuffer are intentionally not destroyed here — see the module doc
+  /// framebuffer are not destroyed here — Fix(BUG-470): they're destroyed
+  /// later by `Queue::submit`, once it confirms via `vkQueueWaitIdle` that
+  /// the GPU has finished executing them; see that function's own doc
   /// comment.
   #[ allow( clippy::needless_pass_by_value, reason = "takes `pass` by value \
 deliberately -- consuming it is what makes the recorder unusable after \
@@ -1996,6 +2174,20 @@ deliberately -- consuming it is what makes the recorder unusable after \
   /// through this call, surfacing instead through wgpu's internal
   /// uncaptured-error sink — see `Queue::texture_write`'s BUG-204 note ).
   ///
+  /// Fix(BUG-470): once `vkQueueWaitIdle` confirms the GPU has finished
+  /// executing everything `encoder` recorded, this also destroys every
+  /// render pass/framebuffer pair `render_pass_begin` accumulated on
+  /// `encoder.pending_render_passes`, plus `encoder`'s own command pool
+  /// ( which implicitly frees `encoder.command_buffer`, allocated from it ).
+  /// Previously none of the three were ever destroyed, leaking one command
+  /// pool, one render pass, and one framebuffer on every call — exhausted by
+  /// any long-running windowed present loop ( `examples/gpu_hal/
+  /// triangle_vulkan_window` ). This is also the only correct place to do
+  /// so : destroying earlier ( e.g. from `render_pass_end`, right after
+  /// `vkCmdEndRenderPass` ) would free objects the not-yet-submitted command
+  /// buffer still references, which is undefined behavior the moment this
+  /// function's own `vkQueueSubmit` call below runs.
+  ///
   /// # Panics
   ///
   /// Panics if `vkEndCommandBuffer`, `vkQueueSubmit`, or `vkQueueWaitIdle`
@@ -2003,7 +2195,8 @@ deliberately -- consuming it is what makes the recorder unusable after \
   /// silently lost.
   #[ allow( clippy::needless_pass_by_value, reason = "takes `encoder` by \
 value deliberately -- consuming it is what makes the encoder unusable \
-after submission, mirroring every other backend's `Queue::submit`" ) ]
+after submission, mirroring every other backend's `Queue::submit`; it also \
+now owns `encoder.pending_render_passes`/`encoder.pool`, destroyed below" ) ]
   pub fn submit( device_vulkan : &DeviceVulkan, queue : ash::vk::Queue, encoder : CommandEncoderVulkan )
   {
     // SAFETY: `encoder.command_buffer` was left recording by `command_encoder_create`,
@@ -2022,6 +2215,46 @@ after submission, mirroring every other backend's `Queue::submit`" ) ]
     // writes are visible.
     unsafe { device_vulkan.device.queue_wait_idle( queue ) }
     .unwrap_or_else( | e | panic!( "vkQueueWaitIdle failed :: {e}" ) );
+
+    // Fix(BUG-470): every call to this function previously left the command pool
+    // `command_encoder_create` allocated for `encoder`, and every render pass +
+    // framebuffer pair `render_pass_begin` created on it, undestroyed -- none of
+    // the three had a `vkDestroy*` call anywhere on this path. The wait above
+    // confirms every command referencing these objects has finished executing on
+    // the GPU, so destroying them now is safe -- doing so any earlier ( before
+    // this submission, or between submission and completion ) would free objects
+    // a still-in-flight command buffer references, which is undefined behavior.
+    // Root cause: `command_encoder_create` never gave `CommandEncoderVulkan` a
+    // way to remember what `render_pass_begin` had created on it, so even a
+    // `submit` that wanted to destroy them had nothing to destroy -- exercised
+    // by `examples/gpu_hal/triangle_vulkan_window`'s per-frame draw loop, which
+    // calls this function once per frame with no bound on frame count, but
+    // invisible to every `cargo nextest`-isolated test here, none of which
+    // previously submitted enough encoders in one process for the leak to
+    // matter.
+    // Pitfall: destroying the pending pair inside `render_pass_end` instead of
+    // here would be the intuitive-looking fix -- it reads as "this pass is over,
+    // free what it used" -- but `command_encoder_create`'s own contract allows
+    // any number of render passes to be begun/ended into one encoder before it
+    // is submitted, so a still-recording command buffer can reference a render
+    // pass/framebuffer pair from an already-`end`ed prior pass; freeing it at
+    // `end` time is undefined behavior the instant a later pass on the same
+    // encoder records another command.
+    for ( render_pass, framebuffer ) in encoder.pending_render_passes
+    {
+      // SAFETY: `framebuffer` was created by `render_pass_framebuffer_create` on
+      // this same device, and the wait above confirms no in-flight command still
+      // references it.
+      unsafe { device_vulkan.device.destroy_framebuffer( framebuffer, None ); }
+      // SAFETY: `render_pass` was created alongside `framebuffer` by the same
+      // call, on this same device, and the wait above confirms no in-flight
+      // command still references it.
+      unsafe { device_vulkan.device.destroy_render_pass( render_pass, None ); }
+    }
+    // SAFETY: destroying the pool implicitly frees `encoder.command_buffer`,
+    // allocated from it by `command_encoder_create`; the wait above confirms the
+    // GPU has finished executing it.
+    unsafe { device_vulkan.device.destroy_command_pool( encoder.pool, None ); }
   }
 }
 
@@ -2039,6 +2272,14 @@ crate::mod_interface!
   own use bind_group_layout_create;
   own use bind_group_create;
   own use render_pipeline_create;
+  own use buffer_destroy;
+  own use texture_destroy;
+  own use texture_view_destroy;
+  own use sampler_destroy;
+  own use shader_module_destroy;
+  own use bind_group_layout_destroy;
+  own use bind_group_destroy;
+  own use render_pipeline_destroy;
   own use command_encoder_create;
   own use render_pass_begin;
   own use pipeline_set;

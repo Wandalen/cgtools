@@ -29,6 +29,7 @@ mod private
   {
     /// Creates a new `ComputePipelineDescriptor` with a given compute stage.
     #[ inline ]
+    #[ must_use ]
     pub fn new< T : Into< web_sys::GpuProgrammableStage > >( compute : T ) -> Self
     {
       let label = None;

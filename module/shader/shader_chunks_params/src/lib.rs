@@ -33,7 +33,7 @@ mod private
     {
       match self
       {
-        Self::UnknownChunk( name ) => write!( f, "unknown chunk: `{name}` (see `list` for valid names)" ),
+        Self::UnknownChunk( name ) => write!( f, "unknown chunk: `{name}` (see `shader_chunks list` for valid names)" ),
         Self::Render( msg ) => write!( f, "render error: {msg}" ),
       }
     }
@@ -147,7 +147,7 @@ mod private
       ArgumentDefinition::former()
       .name( "name" )
       .kind( Kind::String )
-      .hint( "Chunk name (see `list`)." )
+      .hint( "Chunk name (see `shader_chunks list`)." )
       .attributes( ArgumentAttributes::default() )
       .end(),
     ])

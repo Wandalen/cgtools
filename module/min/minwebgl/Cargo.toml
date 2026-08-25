@@ -139,6 +139,8 @@ web-sys = { workspace = true, optional = true, features = [
   'CanvasRenderingContext2d',
   'ImageData',
   'WebGlFramebuffer',
+  'WebGlRenderbuffer',
+  'ResizeObserver',
   "BlobPropertyBag",
   "Blob",
   "Url"

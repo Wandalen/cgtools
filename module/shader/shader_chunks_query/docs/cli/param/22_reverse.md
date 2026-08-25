@@ -25,10 +25,11 @@ tree hash21 reverse::maybe   # unilang boolean coercion failure, non-zero exit
 ### Notes
 - Forward mode's forest roots are "nothing depends on me"
   ([`dependents_free_roots`](../../../../shader_chunks_query_core/src/lib.rs) —
-  chunks like `fbm3`/`fullscreen_triangle`); reverse mode's forest roots
-  are "I depend on nothing" (`leaf_roots` — chunks like `hash21`/
-  `fullscreen_triangle`), since a reverse walk has no forward "root" of
-  its own to start from.
+  chunks like `domain_warp`/`fullscreen_triangle`; `fbm3` is not one of
+  them — `domain_warp` itself depends on it, per the `reverse::1` example
+  above); reverse mode's forest roots are "I depend on nothing"
+  (`leaf_roots` — chunks like `hash21`/`fullscreen_triangle`), since a
+  reverse walk has no forward "root" of its own to start from.
 - Backed by `shader_chunks_query_core::reverse_adjacency`, a
   `HashMap<&str, Vec<&str>>` built by inverting every chunk's
   `depends_on` edges once per call — not memoized, since the bundled

@@ -59,6 +59,7 @@ pub struct TurnBasedGame {
   round_number: u32,
   turn_time_limit: Option<Duration>,
   turn_start_time: Option<Instant>,
+  game_started: bool,
 }
 
 /// Participant in a turn-based game.
@@ -136,6 +137,7 @@ impl TurnBasedGame
       round_number: 1,
       turn_time_limit: None,
       turn_start_time: None,
+      game_started: false,
     }
   }
 
@@ -198,6 +200,7 @@ impl TurnBasedGame
     if self.turn_order.is_empty() {
       return;
     }
+    self.game_started = true;
 
     // Reset current participant's action points for next turn
     if let Some(participant) = self.current_participant_mut() {
@@ -291,10 +294,26 @@ impl TurnBasedGame
     // original code used unconditionally, so removing the acting entity
     // still advances play to whoever now occupies that slot instead of
     // panicking or stalling.
+    //
+    // Fix(BUG-532)
+    // Root cause: the identity-preserving remap above ran unconditionally,
+    // including during initial roster setup (before turn_end() has ever been
+    // called) -- so the first participant_add call's index-0 fallback got
+    // treated as a genuine "current turn" identity to preserve, permanently
+    // locking play onto whichever participant happened to be added first
+    // instead of whoever currently has the highest initiative.
+    // Pitfall: gating this on game_started (set only by turn_end(), once the
+    // turn_order is non-empty) rather than e.g. "was turn_order empty before"
+    // -- the roster can have 1+ participants and still be pre-game, so an
+    // empty-turn_order check alone would not catch the second, third, ... add.
     if !self.turn_order.is_empty() {
-      self.current_turn_index = current_entity
-        .and_then(|id| self.turn_order.iter().position(|&e| e == id))
-        .unwrap_or_else(|| self.current_turn_index.min(self.turn_order.len() - 1));
+      self.current_turn_index = if self.game_started {
+        current_entity
+          .and_then(|id| self.turn_order.iter().position(|&e| e == id))
+          .unwrap_or_else(|| self.current_turn_index.min(self.turn_order.len() - 1))
+      } else {
+        0
+      };
     }
   }
 
@@ -321,12 +340,7 @@ pub struct GameStateMachine {
   previous_state: Option<GameState>,
   state_data: HashMap<String, String>,
   transitions: HashMap<(GameState, GameStateEvent), GameState>,
-  state_enter_handlers: HashMap<GameState, StateHandler>,
-  state_exit_handlers: HashMap<GameState, StateHandler>,
 }
-
-/// Boxed handler invoked when the state machine enters or exits a state.
-type StateHandler = Box<dyn Fn(&mut GameStateMachine)>;
 
 /// Possible game states.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -411,8 +425,6 @@ impl GameStateMachine {
       previous_state: None,
       state_data: HashMap::new(),
       transitions: HashMap::new(),
-      state_enter_handlers: HashMap::new(),
-      state_exit_handlers: HashMap::new(),
     };
 
     machine.default_transitions_setup();
@@ -446,24 +458,24 @@ impl GameStateMachine {
     }
   }
 
+  // Fix(BUG-479): removed the dead `state_enter_handlers`/`state_exit_handlers`
+  // fields (and the `StateHandler` type alias) entirely, rather than wiring
+  // them up.
+  // Root cause: both fields were private, had no public registration API
+  // anywhere in the crate, and `transition_to` only ever performed a `.get()`
+  // lookup whose result was immediately discarded (`_handler`) behind a
+  // comment noting the call was never wired up due to a borrow conflict
+  // (resolvable via the standard `remove` -> call -> re-`insert` pattern,
+  // but nothing in this crate ever needed that).
+  // Pitfall: a `HashMap` field that only ever receives `.get()` calls whose
+  // `Some` arm is never used is dead weight wearing the shape of a real
+  // feature -- confirm at least one caller or test actually depends on the
+  // behavior before implementing it; grep found none here.
   /// Forces a transition to a specific state.
   pub fn transition_to(&mut self, new_state: GameState) {
     let old_state = self.current_state;
-    
-    // Call exit handler for current state
-    if let Some(_handler) = self.state_exit_handlers.get(&old_state) {
-      // Note: Can't call handler directly due to borrowing issues
-      // In a real implementation, would use a different pattern
-    }
-
     self.previous_state = Some(old_state);
     self.current_state = new_state;
-
-    // Call enter handler for new state
-    if let Some(_handler) = self.state_enter_handlers.get(&new_state) {
-      // Note: Can't call handler directly due to borrowing issues
-      // In a real implementation, would use a different pattern
-    }
   }
 
   /// Sets data associated with the current state.
@@ -632,7 +644,20 @@ impl Resource {
   /// Checks if the resource is at maximum.
   #[must_use]
   pub fn is_full(&self) -> bool {
-    (self.current - self.maximum).abs() < f32::EPSILON
+    // Fix(BUG-480): compare against a tolerance scaled to `maximum` instead
+    // of the fixed absolute `f32::EPSILON` (~1.19e-7).
+    // Root cause: `f32::EPSILON` is only the gap between 1.0 and the next
+    // representable f32 -- for any `maximum` much larger than 1.0, f32's
+    // representable-value spacing near `maximum` is itself larger than
+    // `f32::EPSILON`, so a resource sitting at its true maximum (e.g. after
+    // repeated `modify` calls that each round to the nearest representable
+    // f32) could differ from `self.maximum` by more than `f32::EPSILON` and
+    // wrongly report `is_full() == false`.
+    // Pitfall: an absolute floating-point tolerance is only valid near the
+    // magnitude it was chosen for (here, near 1.0) -- comparisons against
+    // values of arbitrary magnitude need a tolerance scaled to that
+    // magnitude, e.g. `value.abs() * f32::EPSILON`.
+    (self.current - self.maximum).abs() <= self.maximum.abs() * f32::EPSILON
   }
 }
 

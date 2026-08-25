@@ -363,8 +363,18 @@ async fn app_run() -> Result< (), gl::WebglError >
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas_with( &canvas, options )?;
 
-  let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
-  let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
+  // Fix(BUG-453): chained a second `.expect()` onto the inner `Option`, matching
+  // `area_light/src/main.rs`'s existing 2-layer pattern.
+  // Root cause: `get_extension` returns `Ok( None )` (not a JS exception) for an
+  // unsupported extension; a single `.expect()` only covers the outer `Result`.
+  // Pitfall: `Result< Option< T >, JsValue >` has two independent failure layers --
+  // unwrapping only the outer one silently passes through the inner `None`.
+  let _ = gl.get_extension( "EXT_color_buffer_float" )
+  .expect( "Failed to query EXT_color_buffer_float extension" )
+  .expect( "EXT_color_buffer_float extension is not supported" );
+  let _ = gl.get_extension( "EXT_shader_image_load_store" )
+  .expect( "Failed to query EXT_shader_image_load_store extension" )
+  .expect( "EXT_shader_image_load_store extension is not supported" );
 
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;

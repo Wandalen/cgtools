@@ -5,8 +5,8 @@
 - **Executor Type:** any
 - **filed_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-19 22:45:31
-- **expires_at:** 2026-08-20 00:45:31
+- **started_at:** 2026-08-20 09:57:36
+- **expires_at:** 2026-08-20 11:57:36
 - **round:** 1
 - **state:** 🔬 (Verifying)
 - **closes:** null
@@ -16,9 +16,9 @@
 - **verification_date:** null
 - **blocked_by:** null
 - **in_motion:** true
-- **verifying_at:** 2026-08-19 22:45:31
+- **verifying_at:** 2026-08-20 09:57:36
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **unverified_at:** 2026-08-19 22:37:54
+- **unverified_at:** 2026-08-20 09:57:11
 - **unverified_by:** system
 
 ## Goal
@@ -238,6 +238,8 @@ Desired answer for every question is YES.
 | 2026-08-19 22:37:54 | system | TIMEOUT_2H | 2h exclusivity window expired |
 | 2026-08-19 22:45:31 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-19 22:45:31 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 223` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
+| 2026-08-20 09:57:11 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-20 09:57:36 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 
 ## History
 

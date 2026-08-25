@@ -15,11 +15,11 @@
 - **unit:** lib/yrd_gamedev/cgtools/module/helper/tiles_tools
 - **closes:** BUG-343
 - **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
-- **started_at:** 2026-08-19 22:45:33
-- **expires_at:** 2026-08-20 00:45:33
-- **unverified_at:** 2026-08-19 22:37:55
+- **started_at:** 2026-08-20 09:57:37
+- **expires_at:** 2026-08-20 11:57:37
+- **unverified_at:** 2026-08-20 09:57:12
 - **unverified_by:** system
-- **verifying_at:** 2026-08-19 22:45:33
+- **verifying_at:** 2026-08-20 09:57:37
 - **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
@@ -213,6 +213,8 @@ movable.range"` → 2 (code at line 124, comment at line 102).
 | 2026-08-19 22:37:55 | system | TIMEOUT_2H | 2h exclusivity window expired |
 | 2026-08-19 22:45:33 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 | 2026-08-19 22:45:33 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 378` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
+| 2026-08-20 09:57:12 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-20 09:57:37 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
 
 ## History
 

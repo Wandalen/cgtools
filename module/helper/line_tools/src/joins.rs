@@ -69,8 +69,25 @@ mod private
 
   /// Generates the vertex data for a round join.
   #[must_use]
-  pub fn round_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x2 >, Vec< f32 > ) 
+  pub fn round_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x2 >, Vec< f32 > )
   {
+    // Fix(BUG-491): `row_precision`/`column_precision` are used both as loop bounds and as
+    // division divisors (`i as f32 / row_precision as f32`, `k as f32 / column_precision as
+    // f32`) with no floor. `column_precision == 0` computes a genuine NaN internally (unrescued
+    // `0.0 / 0.0`); it never reached the returned geometry only because every read loop that
+    // populates `verticies`/`uvs` is bounded by the exclusive range `0..column_precision`
+    // (empty for `column_precision == 0`), so the observable defect was silently empty output,
+    // not NaN -- see BUG-491's report for the full empirical trace.
+    // Root cause: same missing-floor shape already fixed via `.max( 1 )` in
+    // `caps.rs::round_cap_geometry` (BUG-236) and `helpers.rs::circle_geometry` (BUG-237), not
+    // yet applied here.
+    // Pitfall: a loop-bound coincidence that happens to prevent a downstream NaN from escaping
+    // is not a substitute for flooring the value at its source -- it only changes the failure
+    // mode (NaN vs. silently empty output) and breaks the moment an unrelated future edit
+    // widens that read loop.
+    let row_precision = row_precision.max( 1 );
+    let column_precision = column_precision.max( 1 );
+
     let mut vertex_row_list = Vec::with_capacity( row_precision );
     let mut verticies = Vec::new();
     let mut uvs = Vec::new();
@@ -141,8 +158,13 @@ mod private
 
   /// Generates the vertex data for a bevel join.
   #[must_use]
-  pub fn bevel_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x2 >, Vec< f32 > ) 
+  pub fn bevel_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x2 >, Vec< f32 > )
   {
+    // Fix(BUG-491): same missing floor as `round_geometry` above -- see that comment for the
+    // full explanation.
+    let row_precision = row_precision.max( 1 );
+    let column_precision = column_precision.max( 1 );
+
     let mut vertex_row_list = Vec::with_capacity( row_precision );
     let mut verticies = Vec::new();
     let mut uvs = Vec::new();
@@ -219,8 +241,13 @@ mod private
 
   /// Generates the vertex data for a miter join.
   #[must_use]
-  pub fn miter_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x3 >, Vec< f32 > ) 
+  pub fn miter_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x3 >, Vec< f32 > )
   {
+    // Fix(BUG-491): same missing floor as `round_geometry` above -- see that comment for the
+    // full explanation.
+    let row_precision = row_precision.max( 1 );
+    let column_precision = column_precision.max( 1 );
+
     let mut vertex_row_list = Vec::with_capacity( row_precision );
     let mut verticies = Vec::new();
     let mut uvs = Vec::new();

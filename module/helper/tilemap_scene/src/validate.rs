@@ -37,6 +37,9 @@ mod private
     anim : HashSet< &'a str >,
     /// Declared `effects[*].id` values.
     effect : HashSet< &'a str >,
+    /// `objects[*].global_layer` values — the set of layer names a
+    /// `VertexCorners.corner_source` can resolve against.
+    global_layer : HashSet< &'a str >,
   }
 
   /// Trait implemented by types that validate their own content against the
@@ -75,6 +78,9 @@ mod private
     ///   variant resolves to a declared `assets[*].id`. `Animation` /
     ///   `External` sources stop the walk at their boundary; animation
     ///   bodies are validated separately when iterating `spec.animations`.
+    /// - **Corner-source layers resolve.** Every `VertexCorners.corner_source`
+    ///   (when set) names a layer used by at least one object's `global_layer`;
+    ///   otherwise corner resolution silently falls back to `VOID_ID`.
     /// - **Default state exists.** Every object's `default_state` names a
     ///   key present in its `states` map.
     /// - **Reserved ids.** The reserved id `"void"` is not declared as a
@@ -117,6 +123,12 @@ mod private
         tint : self.tints.iter().map( | t | t.id.as_str() ).collect(),
         anim : self.animations.iter().map( | a | a.id.as_str() ).collect(),
         effect : self.effects.iter().map( | e | e.id.as_str() ).collect(),
+        // `tile_corner_id` matches `corner_source` to an object's
+        // `global_layer`, so a value naming no object's `global_layer` can
+        // only ever fall back to `VOID_ID` for every corner (silent,
+        // geometrically wrong output). Validating against this set catches
+        // such misspellings.
+        global_layer : self.objects.iter().map( | o | o.global_layer.as_str() ).collect(),
       };
 
       for object in &self.objects
@@ -356,9 +368,10 @@ mod private
   }
 
   /// Runs every per-layer SPEC §16 rule against one `ObjectLayer` —
-  /// `pipeline_layer` override resolution, asset / animation / tint /
-  /// effect reference resolution, `connects_with` validity, and
-  /// composite-nesting legality — pushing violations into `errors`.
+  /// `pipeline_layer` override resolution, `VertexCorners.corner_source`
+  /// resolution, asset / animation / tint / effect reference resolution,
+  /// `connects_with` validity, and composite-nesting legality — pushing
+  /// violations into `errors`.
   fn layer_checks
   (
     object_id : &str,
@@ -376,6 +389,20 @@ mod private
         kind : "pipeline layer",
         id : pl.to_owned(),
         context : format!( "object {object_id:?} state {state_name:?} layer pipeline_layer override" ),
+      });
+    }
+
+    // `tile_corner_id` matches `corner_source` to an object's `global_layer`,
+    // so a value naming no object's `global_layer` can only ever fall back to
+    // `VOID_ID` for every corner (silent, geometrically wrong output).
+    if let SpriteSource::VertexCorners { corner_source : Some( cs ), .. } = &layer.sprite_source
+      && !ids.global_layer.contains( cs.as_str() )
+    {
+      errors.push( ValidationError::UnresolvedRef
+      {
+        kind : "corner_source layer",
+        id : cs.clone(),
+        context : format!( "object {object_id:?} state {state_name:?} VertexCorners corner_source" ),
       });
     }
 

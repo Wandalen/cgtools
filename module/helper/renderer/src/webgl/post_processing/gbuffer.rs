@@ -3,7 +3,7 @@ mod private
   use std::{ cell::RefCell, rc::Rc };
   use rustc_hash::{ FxHashMap, FxHashSet };
   use minwebgl as gl;
-  use web_sys::{ WebGlTexture, WebGlBuffer, WebGlFramebuffer, WebGlUniformLocation, WebGlVertexArrayObject, WebGlProgram };
+  use web_sys::{ WebGlTexture, WebGlBuffer, WebGlFramebuffer, WebGlRenderbuffer, WebGlUniformLocation, WebGlVertexArrayObject, WebGlProgram };
   use gl::{ F32x4, GL, VectorDataType, drawbuffers::drawbuffers };
   use crate::webgl::
   {
@@ -207,8 +207,10 @@ mod private
     width : u32,
     height : u32,
     framebuffer : WebGlFramebuffer,
+    depthbuffer : WebGlRenderbuffer,
     textures: FxHashMap< String, WebGlTexture >,
-    color_attachments : Vec< u32 >
+    color_attachments : Vec< u32 >,
+    gl : GL,
   }
 
   impl GBuffer
@@ -301,8 +303,10 @@ mod private
         width,
         height,
         framebuffer,
+        depthbuffer,
         textures,
-        color_attachments
+        color_attachments,
+        gl : gl.clone(),
       };
 
       Ok( gbuffer )
@@ -447,6 +451,113 @@ mod private
       scene.traverse( &mut draw_node )?;
 
       Ok( () )
+    }
+  }
+
+  // Fix(BUG-433): `GBuffer::new` created a depth `WebGlRenderbuffer` ( local `depthbuffer`
+  // binding ) but never stored it on the struct, so nothing could ever delete it -- every
+  // `GBuffer` construct/drop cycle ( e.g. a canvas resize that rebuilds the geometry pass at a
+  // new resolution ) permanently leaked one renderbuffer, plus the VAO, the color framebuffer,
+  // and every attachment texture, none of which had a matching `gl.delete*` call either.
+  // Root cause: `GBuffer` never had an `impl Drop` at all -- the local `depthbuffer` variable
+  // was dropped as a plain Rust value at the end of `new`'s scope save for the one field it got
+  // assigned to, and the struct itself carried no cleanup path for any of its five owned GL
+  // object families.
+  // Pitfall: a GPU handle wrapper ( `Option< WebGlTexture >`, `WebGlFramebuffer`,
+  // `WebGlRenderbuffer`, `WebGlVertexArrayObject` ) is just a JS-object reference -- letting the
+  // Rust value go out of scope does not call `gl.delete*` for you; only an explicit delete call
+  // (here, via `impl Drop`) reclaims the actual GPU-side allocation.
+  impl Drop for GBuffer
+  {
+    fn drop( &mut self )
+    {
+      self.gl.delete_vertex_array( Some( &self.vao ) );
+      self.gl.delete_framebuffer( Some( &self.framebuffer ) );
+      self.gl.delete_renderbuffer( Some( &self.depthbuffer ) );
+      for texture in self.textures.values()
+      {
+        self.gl.delete_texture( Some( texture ) );
+      }
+    }
+  }
+
+  // Test placement: verifying `impl Drop` actually deleted `vao`/`framebuffer`/`depthbuffer`/
+  // `textures` needs the pre-drop handles, and all four fields are private -- only a test
+  // nested inside `mod private` can read them. See `rulebook.md § Test placement`.
+  #[ cfg( all( test, target_arch = "wasm32" ) ) ]
+  mod tests
+  {
+    use super::*;
+
+    fn gl_init() -> GL
+    {
+      gl::browser::setup( gl::browser::Config::default() );
+      let options = gl::context::ContextOptions::default();
+      let canvas = gl::canvas::make().unwrap();
+      gl::context::from_canvas_with( &canvas, options ).unwrap()
+    }
+
+    /// ## Root Cause
+    /// `GBuffer::new` created a depth `WebGlRenderbuffer` ( local `depthbuffer` binding ) but
+    /// never stored it on the struct, so nothing could ever delete it -- and the struct had no
+    /// `impl Drop` at all, so the VAO, color framebuffer, and every attachment texture leaked
+    /// too on every construct/drop cycle ( e.g. a canvas resize rebuilding the geometry pass ).
+    ///
+    /// ## Why Not Caught
+    /// `webgl/gbuffer.rs`'s existing test only covers `GBufferAttachment::define_const`/
+    /// `attribute_info` mapping -- no test previously constructed or dropped a real `GBuffer`.
+    ///
+    /// ## Fix Applied
+    /// `depthbuffer` is now a stored field, and `impl Drop for GBuffer` deletes the VAO,
+    /// framebuffer, depthbuffer, and every texture in `textures`.
+    ///
+    /// ## Prevention
+    /// This test captures clones of all four handle families from the private fields before
+    /// drop, then asserts each `gl.is_*` check flips from `true` to `false` afterward -- the
+    /// same deterministic existence-check pattern used by this crate's other GPU-teardown
+    /// reproducer tests ( `shadow.rs`, `unreal_bloom.rs`, `wide_outline.rs`, `skeleton.rs` ).
+    ///
+    /// ## Pitfall
+    /// A local variable holding a GPU handle wrapper going out of scope without ever being
+    /// stored on the struct is doubly invisible -- neither a compiler warning nor a runtime
+    /// signal indicates the allocation was never reachable for cleanup in the first place.
+    // test_kind: bug_reproducer(BUG-433)
+    #[ wasm_bindgen_test::wasm_bindgen_test ]
+    fn gbuffer_drop_frees_vao_framebuffer_depthbuffer_and_textures()
+    {
+      let gl = gl_init();
+
+      let mut attachment_buffers : FxHashMap< GBufferAttachment, Vec< WebGlBuffer > > = FxHashMap::default();
+      attachment_buffers.insert( GBufferAttachment::Albedo, vec![] );
+      attachment_buffers.insert( GBufferAttachment::PbrInfo, vec![] );
+      attachment_buffers.insert( GBufferAttachment::Uv1, vec![] );
+
+      let gbuffer = GBuffer::new( &gl, 64, 64, attachment_buffers )
+      .expect( "GBuffer::new should succeed on a valid context with a minimal attachment set" );
+
+      let vao = gbuffer.vao.clone();
+      let framebuffer = gbuffer.framebuffer.clone();
+      let depthbuffer = gbuffer.depthbuffer.clone();
+      let textures : Vec< WebGlTexture > = gbuffer.textures.values().cloned().collect();
+      assert!( !textures.is_empty(), "minimal attachment set must still allocate at least one texture" );
+
+      assert!( gl.is_vertex_array( Some( &vao ) ) );
+      assert!( gl.is_framebuffer( Some( &framebuffer ) ) );
+      assert!( gl.is_renderbuffer( Some( &depthbuffer ) ) );
+      for texture in &textures
+      {
+        assert!( gl.is_texture( Some( texture ) ) );
+      }
+
+      drop( gbuffer );
+
+      assert!( !gl.is_vertex_array( Some( &vao ) ), "GBuffer::drop must delete its VAO" );
+      assert!( !gl.is_framebuffer( Some( &framebuffer ) ), "GBuffer::drop must delete its framebuffer" );
+      assert!( !gl.is_renderbuffer( Some( &depthbuffer ) ), "GBuffer::drop must delete its depthbuffer" );
+      for texture in &textures
+      {
+        assert!( !gl.is_texture( Some( texture ) ), "GBuffer::drop must delete every attachment texture" );
+      }
     }
   }
 }

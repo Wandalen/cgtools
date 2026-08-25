@@ -142,18 +142,21 @@ mod private
     }
 
     /// Divides this quaternion by another (equivalent to `self * other.invert()`).
+    // UX/DX: renamed from the misspelled `devide` to `divide` (and `device_mut` to
+    // `divide_mut` below) -- plain authoring typo, never caught since it compiled and worked
+    // correctly under the misspelled name.
     #[ inline ]
     #[ must_use ]
-    pub fn devide( &self, other : &Self ) -> Self
+    pub fn divide( &self, other : &Self ) -> Self
     {
       *self * other.invert()
     }
 
     /// Divides this quaternion by another in-place.
     #[ inline ]
-    pub fn device_mut( &mut self, other : &Self )
+    pub fn divide_mut( &mut self, other : &Self )
     {
-      *self = self.devide( other );
+      *self = self.divide( other );
     }
 
     /// Performs spherical linear interpolation (slerp) between two unit quaternions.
@@ -224,7 +227,7 @@ mod private
     // unconditionally `self.conjugate()`, wrong for any non-unit-length quaternion.
     // Fix(BUG-298): was `self.conjugate()`, correct only when `self` is unit-length.
     // Root cause: the general quaternion inverse is `conjugate(q) / mag2(q)`; the unit-only
-    // shortcut was applied unconditionally, so `devide`/`Div`/`DivAssign` ( all routed through
+    // shortcut was applied unconditionally, so `divide`/`Div`/`DivAssign` ( all routed through
     // `invert` ) silently scaled their result by the divisor's squared magnitude instead of
     // producing a true quotient whenever the divisor was not already unit-length.
     // Pitfall: a documented precondition ( "unit-length" ) on a function whose signature accepts

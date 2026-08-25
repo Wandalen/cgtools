@@ -340,6 +340,7 @@ Session torn down cleanly afterward (`browsee .kill session::minwebgl_smoke purg
 | 2026-08-19 00:46:27 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_EXEC | execution claimed |
 | 2026-08-19 00:46:27 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | EXEC_COMPLETE | execution complete |
 | 2026-08-19 00:46:27 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_ACCEPT | acceptance claimed |
+| 2026-08-20 10:18:00 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | ACCEPTANCE_CHECK | Round 7 re-confirmation: `executing_by`/`accepting_by`/current actor all share `user1@w002` — no independent verifier available this round; per B1 separation-of-concerns, no acceptance walk performed, task left as-is at 🔎 Accepting |
 
 ## History
 

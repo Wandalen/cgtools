@@ -41,7 +41,7 @@ shader_chunks preview fbm3
 # wrote .../shader_chunks_preview_web/-preview.json (... bytes wgsl, naga-validated)
 # target: fbm3
 # sliders:
-#   preview_scale  0.1..10  start 1
+#   preview_scale  1..32  start 8
 # (then blocks, serving the runner in the browser)
 
 shader_chunks preview fbm3 serve::0

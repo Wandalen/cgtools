@@ -32,7 +32,7 @@ fn test_multiply()
 }
 
 #[ test ]
-fn test_devide()
+fn test_divide()
 {
   use the_module::
   {
@@ -57,12 +57,12 @@ fn test_devide()
 /// ## Root Cause
 /// `Quat::invert()` unconditionally returned `self.conjugate()`, which is only the true
 /// multiplicative inverse when the quaternion is unit-length ( magnitude 1 ). For a non-unit
-/// quaternion `q`, the correct inverse is `conjugate(q) / mag2(q)`; `devide`/`Div`/`DivAssign`
+/// quaternion `q`, the correct inverse is `conjugate(q) / mag2(q)`; `divide`/`Div`/`DivAssign`
 /// all route through `invert()`, so dividing by any non-unit quaternion silently scaled the
 /// result by the divisor's squared magnitude instead of producing a true quotient.
 ///
 /// ## Why Not Caught
-/// The only existing division test, `test_devide` above, normalizes both operands before
+/// The only existing division test, `test_divide` above, normalizes both operands before
 /// dividing -- for a unit quaternion `mag2() == 1`, so `conjugate()` and the true inverse
 /// coincide and the bug is invisible. No test exercised division with a non-unit divisor or
 /// checked the defining round-trip property `(a / b) * b == a`.
@@ -86,7 +86,7 @@ fn test_devide()
 /// unit-only shortcut, rather than documenting a precondition callers have no way to check.
 // test_kind: bug_reproducer(BUG-298)
 #[ test ]
-fn test_devide_non_unit_round_trip()
+fn test_divide_non_unit_round_trip()
 {
   use the_module::
   {
@@ -96,12 +96,12 @@ fn test_devide_non_unit_round_trip()
   let q1 = QuatF64::from( [ 1.0, 2.0, 3.0, 4.0 ] );
   let q2 = QuatF64::from( [ -5.0, 1.0, 3.0, 10.0 ] );
 
-  let quotient = q1.devide( &q2 );
+  let quotient = q1.divide( &q2 );
   let reconstructed = quotient * q2;
   assert_abs_diff_eq!( reconstructed, q1, epsilon = 1e-9 );
 
   let mut q1_mut = q1;
-  q1_mut.device_mut( &q2 );
+  q1_mut.divide_mut( &q2 );
   assert_abs_diff_eq!( q1_mut, quotient );
 }
 

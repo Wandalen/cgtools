@@ -262,3 +262,136 @@ fn test_game_state_save_meta_compressed_flag_matches_actual_compression() {
      .meta sidecar's compressed flag was not synchronized to match"
   );
 }
+
+// test_kind: bug_reproducer(BUG-475)
+/// ## Root Cause
+/// `GameStateSerializer::data_compress` never compressed anything -- it
+/// prepended a 7-byte `"CMP"` marker + length header to the input bytes and
+/// returned them unmodified, so `with_compression(true)` always produced
+/// output 7 bytes LARGER than uncompressed, the opposite of what the name
+/// and the module's documented "Compression Support" feature promise.
+/// ## Why Not Caught
+/// `test_compression` only asserts the compress/decompress round-trip
+/// recovers the original description -- since the stub's compress and
+/// decompress were exact mutual inverses (just neither one compressed
+/// anything), the round-trip passed regardless of whether real compression
+/// happened. No existing test compared compressed-vs-uncompressed output
+/// size.
+/// ## Fix Applied
+/// `data_compress`/`data_decompress` now use `flate2`'s DEFLATE
+/// encoder/decoder (`rust_backend`, no C toolchain / system zlib
+/// dependency, confirmed wasm32-unknown-unknown compatible). The existing
+/// 7-byte marker+header format is kept, but the header now stores the
+/// DECOMPRESSED size (validated after inflating) instead of the
+/// compressed-payload length (which was only ever meaningful when
+/// "compression" was a no-op copy).
+/// ## Prevention
+/// A builder flag whose name promises a transformation (`with_compression`)
+/// needs a test that checks the transformation actually happened (output
+/// smaller than input for compressible data), not just that compress/
+/// decompress remain inverses of each other -- a no-op stub trivially
+/// satisfies round-trip correctness while completely failing its stated
+/// purpose.
+/// ## Pitfall
+/// "The round trip still works" is not evidence a `with_*(true)` toggle
+/// does anything at all -- an identity-function stub passes every
+/// round-trip test a real implementation would, which is exactly what let
+/// this ship silently.
+#[test]
+fn test_compression_actually_shrinks_compressible_data() {
+  let game_state = GameStateSerializer::basic_game_state_create("Compression Size Test".to_string());
+
+  let uncompressed = GameStateSerializer::new()
+    .with_compression(false)
+    .game_state_serialize(&game_state)
+    .unwrap();
+  let compressed = GameStateSerializer::new()
+    .with_compression(true)
+    .game_state_serialize(&game_state)
+    .unwrap();
+
+  assert!(
+    compressed.len() < uncompressed.len(),
+    "compressed output ({} bytes) must be smaller than uncompressed ({} bytes) for \
+     `basic_game_state_create`'s highly-compressible 1024-zero-byte world_data; \
+     the old stub always produced uncompressed_len + 7 bytes instead",
+    compressed.len(),
+    uncompressed.len()
+  );
+
+  // Round-trip correctness must still hold through the real compressor.
+  let restored = GameStateSerializer::new()
+    .with_compression(true)
+    .game_state_deserialize(&compressed)
+    .unwrap();
+  assert_eq!(game_state.metadata.description, restored.metadata.description);
+  assert_eq!(game_state.world_data, restored.world_data);
+}
+
+// test_kind: bug_reproducer(BUG-476)
+/// ## Root Cause
+/// `data_decompress`'s old corruption check, `data.len() != original_size +
+/// 7`, added an attacker/corruption-controlled `u32` (`original_size`, cast
+/// to `usize`) to a constant. On a 64-bit host this can never overflow
+/// (`u32::MAX + 7` is nowhere near 64-bit `usize::MAX`), but on a 32-bit
+/// target -- wasm32-unknown-unknown, this crate's stated primary target,
+/// where `usize` is also 32 bits -- a crafted `original_size` near
+/// `u32::MAX` makes `original_size + 7` wrap around, which can corrupt the
+/// corruption check itself (either panicking via debug-mode
+/// overflow-checks, or silently wrapping to a small value in release mode
+/// and letting a bogus length check pass).
+/// ## Why Not Caught
+/// No existing test fed `data_decompress`/`game_state_deserialize` a
+/// corrupted or adversarial header; all decompression tests only ever
+/// round-tripped through `data_compress`'s own well-formed output. This bug
+/// is also architecture-specific -- it cannot be triggered at all on the
+/// 64-bit host this test suite actually runs on (see Pitfall), so no amount
+/// of running `cargo test` here would ever have caught it either.
+/// ## Fix Applied
+/// Fixed structurally as a side effect of BUG-475's redesign, not via a
+/// `checked_add` patch: the new `data_decompress` no longer performs any
+/// arithmetic on the untrusted `original_size` at all. It inflates the
+/// payload first, then compares the *inflated* length directly against
+/// `original_size` (`decompressed.len() != original_size`) -- an equality
+/// check between two already-bounded `usize` values, with no addition of
+/// untrusted input in the vulnerable path.
+/// ## Prevention
+/// A length/bounds check written as `data.len() != untrusted_value +
+/// constant` should be re-derived, not just re-verified, whenever the
+/// surrounding data format changes -- the addition was only ever safe
+/// because the old format guaranteed `untrusted_value` was small relative
+/// to `data.len()`. Once real compression decoupled the on-disk length from
+/// the original size, that guarantee silently stopped holding.
+/// ## Pitfall
+/// This overflow is real on the crate's stated wasm32-unknown-unknown
+/// target but categorically unreachable on the x86_64 host this test runs
+/// on -- `usize` is 64 bits here, so `u32::MAX + 7` never overflows
+/// regardless of which code path runs. This test therefore cannot be a
+/// classic "panics before, doesn't after" reproducer on this host for
+/// either the old or the new code (both return `Err` here). Its value is
+/// (a) permanent regression coverage that a hostile/corrupted header with
+/// `original_size` near `u32::MAX` is always rejected gracefully via `Err`,
+/// never a panic, on every target; and (b) documenting -- in case this
+/// arithmetic is ever reintroduced -- that the overflow class is
+/// architecture-specific and will NOT be caught by this repo's ordinary
+/// x86_64 `cargo nextest` runs; a wasm32 target run (or a manual 32-bit
+/// arithmetic audit, as performed for this fix) is required to verify that
+/// class of fix directly.
+#[test]
+fn test_deserialize_rejects_corrupted_header_with_near_max_original_size() {
+  // Marker + a header claiming a ~4GiB decompressed size, followed by a
+  // short payload that is not a valid DEFLATE stream for that claim.
+  let mut corrupted = vec![0xC0, 0x4D, 0x50];
+  corrupted.extend_from_slice(&(u32::MAX - 1).to_le_bytes());
+  corrupted.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF]);
+
+  let result = GameStateSerializer::new()
+    .with_compression(true)
+    .game_state_deserialize(&corrupted);
+
+  assert!(
+    matches!(result, Err(SerializationError::CorruptedData)),
+    "a corrupted header claiming a near-u32::MAX original size must be rejected \
+     cleanly as CorruptedData, never panic or succeed; got {result:?}"
+  );
+}

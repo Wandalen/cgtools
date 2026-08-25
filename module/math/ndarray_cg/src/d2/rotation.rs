@@ -2,7 +2,7 @@
 mod private
 {
   use crate::{ Collection, VectorIter, VectorIterMut, Mat3, mat, MatEl, nd, Ix2, Indexable, ScalarMut, RawSliceMut };
-  use mdmath_core::vector::arithmetics::{ normalized, cross, dot };
+  use mdmath_core::vector::arithmetics::{ normalized, cross, dot, mag, non_parallel_hint };
 
   /// Trait for representing and manipulating rotations.
   ///
@@ -108,7 +108,31 @@ mod private
       // Same right-handed basis construction as `mat3x3h::transformation::look_to_rh`, minus
       // the translation column a bare rotation (no eye position) has no use for.
       let z = normalized::< E, _, 3 >( &dir_arr );
-      let x = normalized::< E, _, 3 >( &cross::< E, _, _ >( &z, &up_arr ) );
+      // Fix(BUG-445): guard against `up_arr` being (numerically) parallel or antiparallel to
+      // `z`, which previously made `cross(z, up_arr)` the zero vector and propagated `NaN`
+      // through the entire basis via the following `normalized()` call.
+      // Root cause: a right-handed camera basis derives its `x` axis as
+      // `normalized(cross(z, up))` with no guard for `dir`/`up` degeneracy -- e.g. a top-down
+      // or bottom-up camera (`up = (0,1,0)`, looking straight down `-y`) makes `z` and `up`
+      // parallel, so `cross(z, up)` is the zero vector and `normalized()` divides `0/0`,
+      // silently producing `NaN` in every subsequent basis vector and, eventually, the whole
+      // view matrix. The sibling `between_vectors()` a few lines below already handles this
+      // exact degeneracy for its own alignment problem via a helper-axis fallback; this reuses
+      // the same technique (now extracted to `non_parallel_hint`) rather than duplicating it.
+      // Pitfall: any `normalized(cross(a, b))` basis construction needs an explicit guard for
+      // `a`/`b` being (numerically) parallel -- the zero cross product is silent (no panic, no
+      // early NaN in the cross product itself), so the defect only surfaces once the basis is
+      // actually used, far from the construction site.
+      let cross_zu = cross::< E, _, _ >( &z, &up_arr );
+      let x = if mag::< E, _, 3 >( &cross_zu ) < E::from( 1.0e-6 ).unwrap()
+      {
+        let helper = non_parallel_hint::< E >( &z );
+        normalized::< E, _, 3 >( &cross::< E, _, _ >( &z, &helper ) )
+      }
+      else
+      {
+        normalized::< E, _, 3 >( &cross_zu )
+      };
       let y = cross::< E, _, _ >( &x, &z );
 
       Self::from_row_major
@@ -138,18 +162,8 @@ mod private
       // product used to derive it stays numerically well-conditioned.
       if ( c + one ).abs() < E::from( 1.0e-6 ).unwrap()
       {
-        let helper = if a_n[ 0 ].abs() <= a_n[ 1 ].abs() && a_n[ 0 ].abs() <= a_n[ 2 ].abs()
-        {
-          [ one, E::zero(), E::zero() ]
-        }
-        else if a_n[ 1 ].abs() <= a_n[ 2 ].abs()
-        {
-          [ E::zero(), one, E::zero() ]
-        }
-        else
-        {
-          [ E::zero(), E::zero(), one ]
-        };
+        // Shared with `look_at`'s BUG-445 fix above -- see `non_parallel_hint`'s own doc comment.
+        let helper = non_parallel_hint::< E >( &a_n );
         let axis = normalized::< E, _, 3 >( &cross::< E, _, _ >( &a_n, &helper ) );
         let ( x, y, z ) = ( axis[ 0 ], axis[ 1 ], axis[ 2 ] );
 

@@ -104,16 +104,56 @@ mod private
   /// deliberately not reported by this check — [`check_missing_dependencies`]
   /// already reports every instance of that class in full detail, so
   /// surfacing it here too would just be a less detailed duplicate.
+  ///
+  /// `set_try_compose` itself stops at the *first* cycle it walks into
+  /// ( `shader_chunks_core`'s `entries_sort_and_join` returns on the first
+  /// `Err` its `visit` walk produces ), so a single call can miss a second,
+  /// structurally independent cycle elsewhere in `chunks`. This loops:
+  /// each detected cycle's culprit chunk — the trailing name in
+  /// [`shader_chunks_core::ComposeError::CyclicDependency`]'s documented
+  /// `"[...] -> name"` trail, i.e. the chunk whose re-visit closed that
+  /// particular loop — is removed and the shrunken set is re-checked,
+  /// until nothing more is found. Removing a cycle's culprit can leave an
+  /// otherwise-innocent dependent chunk pointing at a now-absent name;
+  /// that surfaces as a collateral `MissingDependency` here, not a real
+  /// registry problem ( `check_missing_dependencies` already reports every
+  /// genuine instance against the full, untouched `chunks` ), so it is
+  /// likewise absorbed by removing the affected dependent and continuing
+  /// to look for further, unrelated cycles. Each iteration removes exactly
+  /// one chunk from the shrinking working set, so the loop is bounded by
+  /// `chunks.len()` and always terminates.
+  // Fix(BUG-510): loop over set_try_compose, removing each cycle's culprit chunk, instead of one single-shot call.
+  // Root cause: set_try_compose returns on the first Err its DFS walk hits, so a lone call missed every cycle after the first.
+  // Pitfall: collapsing this back to a bare `match set_try_compose( chunks ) { ... }` silently regresses to first-cycle-only.
   fn check_dependency_cycle( chunks : &[ ChunkDescriptor ] ) -> Vec< Finding >
   {
-    match shader_chunks_core::set_try_compose( chunks )
+    let mut findings = Vec::new();
+    let mut remaining : Vec< ChunkDescriptor > = chunks.to_vec();
+
+    loop
     {
-      Err( shader_chunks_core::ComposeError::CyclicDependency( trail ) ) => vec!
-      [
-        Finding { chunk : "(registry)".to_string(), check : "dependency_cycle", message : format!( "cyclic dependency: {trail}" ) },
-      ],
-      Ok( _ ) | Err( shader_chunks_core::ComposeError::MissingDependency { .. } ) => vec![],
+      let before = remaining.len();
+      match shader_chunks_core::set_try_compose( &remaining )
+      {
+        Ok( _ ) => break,
+        Err( shader_chunks_core::ComposeError::MissingDependency { chunk, .. } ) =>
+        {
+          remaining.retain( | c | c.name != chunk );
+        },
+        Err( shader_chunks_core::ComposeError::CyclicDependency( trail ) ) =>
+        {
+          findings.push( Finding { chunk : "(registry)".to_string(), check : "dependency_cycle", message : format!( "cyclic dependency: {trail}" ) } );
+          let Some( ( _, name ) ) = trail.rsplit_once( " -> " ) else { break };
+          remaining.retain( | c | c.name != name );
+        },
+      }
+      if remaining.len() == before
+      {
+        break;
+      }
     }
+
+    findings
   }
 
   /// `chunk_name`'s own transitive dependency closure within `chunks` —

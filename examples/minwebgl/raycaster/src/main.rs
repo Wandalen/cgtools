@@ -1,11 +1,12 @@
 //! Raycaster example — casts rays against scene geometry for collision and interaction with WebGL2.
 
 mod controls;
+mod sim;
 
-use std::f32::consts;
 use controls::Controls;
 use minwebgl as gl;
 use gl::GL;
+use sim::{ MAP, MAP_SIDE, RayCollision, angle_wrap, frame_dt_clamp, move_dir_resolve, player_step, ray_cast };
 
 /// One map tile's position/color record — `stride( 5 )` in `map_vao` covers all 5 `f32`
 /// fields, matching this struct's own ( `repr( C )`, no padding ) byte layout.
@@ -41,23 +42,6 @@ const WIDTH : f32 = 1024.0;
 const HEIGHT : f32 = 512.0;
 // size of a tile in pixels
 const CELL_SIZE : f32 = 64.;
-
-const PI2 : f32 = consts::PI * 2.;
-
-const MAP_SIDE : usize = 8;
-// 1 means wall, 0 means empty
-const MAP : [ u8; MAP_SIDE * MAP_SIDE ] =
-[
-  // x positive →
-  1, 1, 1, 1, 1, 1, 1, 1, // y positive
-  1, 0, 0, 0, 0, 0, 0, 1, // ↓
-  1, 1, 0, 0, 0, 0, 0, 1,
-  1, 0, 0, 0, 0, 1, 0, 1,
-  1, 0, 1, 0, 0, 1, 0, 1,
-  1, 0, 1, 0, 0, 1, 0, 1,
-  1, 0, 0, 0, 0, 0, 0, 1,
-  1, 1, 1, 1, 1, 1, 1, 1,
-];
 
 fn app_run()
 {
@@ -102,7 +86,17 @@ fn app_run()
     controls.borrow_mut().state_update();
 
     let time = ( time / 1000. ) as f32;
-    let delta_time = time - last_time;
+    // Fix(BUG-522): clamp the real per-frame delta via `sim::frame_dt_clamp` before it's used
+    // to step rotation or position.
+    // Root cause: `time` is `requestAnimationFrame`'s raw timestamp (`mingl::web::exec_loop::
+    // run` applies no smoothing), so a stalled frame (tab backgrounded, GC pause) reports an
+    // arbitrarily large `delta_time`; `move_dir_resolve` below only proves a wall is farther
+    // than `WALL_CLEARANCE` away *at the start of the frame*, so an unclamped `delta_time` let
+    // `player_step` move the player past that clearance and tunnel straight through a wall.
+    // Pitfall: raising `move_velocity` or lowering `WALL_CLEARANCE`/`MAX_DT` without re-checking
+    // `MAX_DT * move_velocity < WALL_CLEARANCE` (see `sim::MAX_DT`'s doc comment) would silently
+    // reopen this — the invariant isn't enforced by the type system, only by the constants.
+    let delta_time = frame_dt_clamp( time - last_time );
     last_time = time;
 
     // rotate based on pressed keys
@@ -115,32 +109,11 @@ fn app_run()
     // 1 is forward, -1 is backward
     let move_dir = controls.borrow().move_direction();
 
-    // assure that player doesn't go beyond walls
-    // restrict movement depending on how close is an obstacle
-    // for both forward movement and backward movement
-    let move_dir = match move_dir
-    {
-      1.0 =>
-      {
-        // throw ray forward and check distance to an obstacle
-        let RayCollision { len, .. } = ray_cast( player_pos, angle );
-        // if an obstacle it too close then the movement is 0
-        if len > 0.1 { 1.0 } else { 0.0 }
-      }
-      -1.0 =>
-      {
-        // thow ray backward and check distance to an obstacle
-        let angle = angle_wrap( consts::PI + angle );
-        let RayCollision { len, .. } = ray_cast( player_pos, angle );
-        if len > 0.1 { -1.0 } else { 0.0 }
-      }
-      _ => 0.0
-    };
+    // assure that player doesn't go beyond walls; restrict movement depending on how close is
+    // an obstacle for both forward and backward movement — see `sim::move_dir_resolve`.
+    let move_dir = move_dir_resolve( player_pos, angle, move_dir );
 
-    // this is the direction vector where the player is facing
-    let dir = direction( angle );
-    player_pos[ 0 ] += move_velocity * dir[ 0 ] * delta_time * move_dir;
-    player_pos[ 1 ] += move_velocity * dir[ 1 ] * delta_time * move_dir;
+    player_pos = player_step( player_pos, angle, move_velocity, delta_time, move_dir );
 
     // calculate player position in screen space
     // player position is constrained by the map
@@ -274,114 +247,4 @@ fn map_vao( gl : &GL ) -> gl::WebGlVertexArrayObject
   gl.bind_vertex_array( None );
 
   vao
-}
-
-// algorithm explanation - https://www.youtube.com/watch?v=NbSee-XM7WA&t=1574s&ab_channel=javidx9
-fn ray_cast( start : [ f32; 2 ], angle : f32 ) -> RayCollision
-{
-  let direction = direction( angle );
-
-  // length of the vector if step along x and y axes respectively by 1 unit
-  let length_x = ( 1.0 + ( direction[ 1 ] / direction[ 0 ] ).powi( 2 ) ).sqrt();
-  let length_y = ( 1.0 + ( direction[ 0 ] / direction[ 1 ] ).powi( 2 ) ).sqrt();
-
-  // accumulating length of vector
-  let mut accum_x = if direction[ 0 ] < 0.0
-  {
-    start[ 0 ].fract() * length_x
-  }
-  else
-  {
-    ( 1.0 - start[ 0 ].fract() ) * length_x
-  };
-
-  let mut accum_y = if direction[ 1 ] < 0.0
-  {
-    start[ 1 ].fract() * length_y
-  }
-  else
-  {
-    ( 1.0 - start[ 1 ].fract() ) * length_y
-  };
-
-  let step_x = if direction[ 0 ] < 0.0 { -1 } else { 1 };
-  let step_y = if direction[ 1 ] < 0.0 { -1 } else { 1 };
-  let mut col = start[ 0 ] as i32;
-  let mut row = start[ 1 ] as i32;
-
-  loop
-  {
-    let ( intersect_pos, len ) = if accum_x < accum_y
-    {
-      let intersect_pos =
-      [
-        start[ 0 ] + direction[ 0 ] * accum_x,
-        start[ 1 ] + direction[ 1 ] * accum_x
-      ];
-      let len = accum_x;
-      accum_x += length_x;
-      col += step_x;
-
-      ( intersect_pos, len )
-    }
-    else
-    {
-      let intersect_pos =
-      [
-        start[ 0 ] + direction[ 0 ] * accum_y,
-        start[ 1 ] + direction[ 1 ] * accum_y
-      ];
-      let len = accum_y;
-      accum_y += length_y;
-      row += step_y;
-
-      ( intersect_pos, len )
-    };
-
-    // dont go out of bounds
-    if row < 0 || col < 0
-    || row as usize >= MAP_SIDE
-    || col as usize >= MAP_SIDE
-    {
-      break RayCollision { len, pos : intersect_pos };
-    }
-
-    // map check
-    let row = row as usize;
-    let col = col as usize;
-    let index = row * MAP_SIDE + col;
-
-    if MAP[ index ] == 1
-    {
-      break RayCollision { len, pos : intersect_pos };
-    }
-  }
-}
-
-fn direction( angle : f32 ) -> [ f32; 2 ]
-{
-  // here's y component is inverted because y axis positive direction is downwards on the map
-  [
-    angle.cos(),
-    -angle.sin(),
-  ]
-}
-
-// wrap angle between 0 and 2PI
-fn angle_wrap( val : f32 ) -> f32
-{
-  if val < 0.0
-  {
-    PI2 + val % PI2
-  }
-  else
-  {
-    val % PI2
-  }
-}
-
-struct RayCollision
-{
-  len : f32,
-  pos : [ f32; 2 ],
 }

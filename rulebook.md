@@ -175,3 +175,34 @@ Preferred suppression order (narrowest scope first):
 
 Each `allow` attribute should have a short comment explaining why it is
 needed.
+
+---
+
+## External path references
+
+**Rule:** This repository's own tracked content (task files, docs,
+rulebooks, source comments, scripts) must never contain an absolute or
+relative path pointing to a file outside this repository. When something
+genuinely needs to interoperate with content outside `cgtools` — tooling, a
+relocated crate, a standalone deliverable — relocate the interoperating
+piece to a neutral sibling location (a "yard" repo, e.g.
+`~/pro/lib/yrd_gamedev/<name>`) rather than writing the external path into
+this repository's own tracked files.
+
+**Rationale:** A path into another repository is fragile — it breaks the
+moment that repository moves, or for any clone/checkout at a different
+location — and it silently couples this repository's own history to another
+repository's layout. Routing interoperation through a neutral yard location
+keeps `cgtools`' own tracked content fully self-contained. Worked precedent:
+`task/cancelled/056_vectorizer_revival_watch_item.md` (a crate recovered
+from history and relocated to the yard rather than referenced in place).
+
+**Known exception:** `linter.rulebook.md § Layout : Standard Directory
+Layout · LN001` requires a project's linter workspace to live at the
+project root. This repository's linter (`cgtools_linter`) and its
+`verb/lint` entry point deliberately violate that: both live in the yard
+(`~/pro/lib/yrd_gamedev/linter/`, `~/pro/lib/yrd_gamedev/verb/lint`)
+instead, because the linter inherently needs simultaneous access to both
+itself and the sibling `cgtools/` repo it checks — nesting it inside either
+repo would force exactly the cross-repo path reference this rule exists to
+prevent.

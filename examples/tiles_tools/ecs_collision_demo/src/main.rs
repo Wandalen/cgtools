@@ -8,11 +8,11 @@
 //! - Team-based filtering
 
 use tiles_tools::{
-    ecs::{World, Position, Health, Stats, Team, Collision, CollisionSystem, SpatialQuerySystem, nearest_entity_find},
+    ecs::{World, Position, Health, Stats, Team, Collision, CollisionSystem, SpatialQuerySystem},
     coordinates::square::{ Coordinate as SquareCoord, FourConnected },
 };
 
-fn entities_spawn(world: &mut World) -> Position<SquareCoord<FourConnected>>
+fn entities_spawn(world: &mut World) -> hecs::Entity
 {
     println!("\n=== Spawning Entities ===");
     let player = world.spawn((
@@ -57,7 +57,7 @@ fn entities_spawn(world: &mut World) -> Position<SquareCoord<FourConnected>>
     ));
     println!("Spawned obstacle at (7, 7) with radius 2");
 
-    *world.hecs_world.get::<&Position<SquareCoord<FourConnected>>>(player).unwrap()
+    player
 }
 
 fn collisions_detect_and_resolve(world: &mut World)
@@ -84,9 +84,21 @@ fn collisions_detect_and_resolve(world: &mut World)
     }
 }
 
-fn spatial_queries_run(world: &World, player_pos: Position<SquareCoord<FourConnected>>)
+fn spatial_queries_run(world: &World, player_entity: hecs::Entity)
 {
     println!("\n=== Spatial Queries ===");
+
+    // Fix(BUG-515): re-fetch the player's live position instead of using a
+    // snapshot captured before collision resolution moved entities.
+    // Root cause: `main` previously captured `player_pos` once, right after
+    // spawning, and passed that single stale value to every "of player"
+    // query in this function -- even though collision resolution (called
+    // in between) can move the player, leaving these queries centered on a
+    // location the player no longer occupies.
+    // Pitfall: reverting this parameter back to a `Position` captured
+    // before collision resolution silently reintroduces stale-position
+    // queries; always re-derive from the stable `Entity` handle instead.
+    let player_pos = *world.hecs_world.get::<&Position<SquareCoord<FourConnected>>>(player_entity).unwrap();
 
     // Circular query around player
     let nearby_entities = SpatialQuerySystem::circle_query(&world.hecs_world, &player_pos, 3);
@@ -137,7 +149,22 @@ fn spatial_queries_run(world: &World, player_pos: Position<SquareCoord<FourConne
 
     // Find nearest entity to player
     println!("\n=== Nearest Entity Search ===");
-    if let Some((nearest_entity, nearest_pos, distance)) = nearest_entity_find(&world.hecs_world, &player_pos) {
+    // Fix(BUG-515): exclude the player's own entity from the nearest-entity
+    // search. The library's `nearest_entity_find` is a pure "nearest entity
+    // to a coordinate" primitive with no self-exclusion parameter, so
+    // calling it with the player's own live position always trivially
+    // returned the player itself at distance 0.
+    // Root cause: this section's whole purpose is finding another entity
+    // relative to the player; a self-match carries zero information.
+    // Pitfall: swapping this back to a bare `nearest_entity_find` call
+    // silently reintroduces a guaranteed self-match, distance-0 result any
+    // time `player_pos` reflects the player's true live position.
+    let mut query = world.query::<(hecs::Entity, &Position<SquareCoord<FourConnected>>)>();
+    let nearest_other = query.iter()
+        .filter(|(entity, _)| *entity != player_entity)
+        .map(|(entity, pos)| (entity, *pos, player_pos.distance_to(pos)))
+        .min_by_key(|&(_, _, distance)| distance);
+    if let Some((nearest_entity, nearest_pos, distance)) = nearest_other {
         println!("Nearest entity to player: {nearest_entity:?}");
         println!("  Position: ({}, {})", nearest_pos.coord.x, nearest_pos.coord.y);
         println!("  Distance: {distance}");
@@ -205,9 +232,9 @@ fn main()
 
     let mut world = World::new();
 
-    let player_pos = entities_spawn(&mut world);
+    let player_entity = entities_spawn(&mut world);
     collisions_detect_and_resolve(&mut world);
-    spatial_queries_run(&world, player_pos);
+    spatial_queries_run(&world, player_entity);
     collision_layers_demonstrate(&mut world);
     performance_demonstrate(&mut world);
 

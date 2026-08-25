@@ -75,3 +75,49 @@ fn subprocess_list_with_single_pattern_still_succeeds()
   let stdout = String::from_utf8_lossy( &output.stdout );
   assert!( stdout.contains( "fbm3" ), "stdout: {stdout}" );
 }
+
+// test_kind: bug_reproducer(BUG-420)
+/// ## Root Cause
+/// `query_params_from` read `limit`/`offset`/`width` through
+/// `shader_chunks_cli_core::arg_usize`, whose catch-all `_ => Ok(0)` arm
+/// cannot distinguish "argument absent" from "argument supplied more than
+/// once" -- `unilang` binds a repeated named key to `Value::List`
+/// regardless of the argument's own declared `multiple` attribute, so
+/// `limit::5 limit::10` fell through the same arm as "absent" and
+/// silently resolved to `0` (unlimited) instead of erroring.
+/// ## Why Not Caught
+/// BUG-285 migrated every OTHER argument in this function
+/// (`pattern`/`case`/`tags_mode`/etc.) to its own `_checked` extractor but
+/// explicitly left `arg_usize` itself unfixed (its own Pitfall comment
+/// named this exact gap); BUG-295 later added `arg_usize_checked` to
+/// `shader_chunks_cli_core` but, by design, did not migrate any existing
+/// caller (its own Prevention section named these 3 call sites by name as
+/// disclosed, not-yet-fixed follow-up). No test in this crate ever
+/// repeated `limit`/`offset`/`width` twice in one invocation.
+/// ## Fix Applied
+/// `limit`/`offset`/`width` now read through
+/// `shader_chunks_cli_core::arg_usize_checked`
+/// (`shader_chunks_query/src/lib.rs`), which returns a loud
+/// `ValidationRuleFailed` naming the key and its repeat count instead of
+/// silently falling back to `0`.
+/// ## Prevention
+/// This subprocess test locks in the loud-failure behavior for `limit`;
+/// `offset`/`width` share the identical call shape and are covered by the
+/// same fix.
+/// ## Pitfall
+/// A `_checked` sibling only closes the gap for callers that actually
+/// switch to it -- BUG-295 added the function but deliberately left
+/// migration as separate, disclosed follow-up work; a defect class fixed
+/// once in a shared helper does not retroactively protect callers that
+/// never switched to the fixed version.
+#[ test ]
+fn subprocess_list_with_duplicated_limit_fails_loudly_instead_of_defaulting_to_unlimited()
+{
+  let output = Command::cargo_bin( "shader_chunks_query" ).expect( "binary builds" )
+  .args( [ "list", "limit::5", "limit::10" ] )
+  .output()
+  .expect( "runs" );
+  assert_eq!( output.status.code(), Some( 1 ), "stdout: {}", String::from_utf8_lossy( &output.stdout ) );
+  let stderr = String::from_utf8_lossy( &output.stderr );
+  assert!( stderr.contains( "`limit` was given 2 times" ), "stderr: {stderr}" );
+}

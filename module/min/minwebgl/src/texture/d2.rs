@@ -319,12 +319,13 @@ pub fn sprite_position( index : u32, sprites_in_row : u32, sprite_width : u32, s
 ///
 /// # Errors
 /// Returns `WebglError::FailedToAllocateResource` if the WebGL context fails to allocate the
-/// texture, and propagates any `WebglError` from creating the temporary canvas or its 2D context.
+/// texture, `WebglError::Other` if the image element's load fails ( its `error` event fires
+/// before `load` ), and propagates any `WebglError` from creating the temporary canvas or its
+/// 2D context.
 ///
 /// # Panics
-/// Panics if the image fails to load, if the temporary canvas's style properties can't be
-/// removed, if drawing the image to the temporary canvas fails, or if reading back its pixel
-/// data fails.
+/// Panics if the temporary canvas's style properties can't be removed, if drawing the image to
+/// the temporary canvas fails, or if reading back its pixel data fails.
 // `get_image_data` below is `#[cfg(web_sys_unstable_apis)]`-gated at two argument-type
 // signatures inside web-sys itself (see BUG-053); `web_sys_unstable_apis` is a raw `--cfg`
 // flag, not a Cargo feature, declared via `check-cfg` in the root manifest's
@@ -351,7 +352,18 @@ pub async fn sprite_upload( gl : &GL, image_element : &web_sys::HtmlImageElement
     }
   );
 
-  JsFuture::from( load_promise ).await.unwrap();
+  // Fix(BUG-425): `.unwrap()` -> `.map_err(..)?` -- this fn's own signature is
+  // `-> Result< WebGlTexture, WebglError >`, and `on_error` above already wires the image
+  // element's `error` event to reject this promise, but the `.unwrap()` here discarded that
+  // rejection and panicked instead of returning it through the `Result` the caller is holding.
+  // Root cause: the Promise/JsFuture bridge was written correctly ( reject really does carry
+  // the failure ), but the bridge's own await was never connected to the function's `?`-based
+  // error path -- a caller passing a broken image URL got a panic instead of a normal `Err`.
+  // Pitfall: wiring a rejection handler is not the same as propagating the rejection --
+  // `JsFuture::from( promise ).await` still returns `Result< JsValue, JsValue >`, and that
+  // `Result` needs its own `?`/`.map_err()`, not a Promise-level reject callback, to reach the
+  // caller.
+  JsFuture::from( load_promise ).await.map_err( | _ | WebglError::Other( "image failed to load" ) )?;
 
   let texture = gl.create_texture().ok_or( WebglError::FailedToAllocateResource( "Sprite texture" ) )?;
   gl.bind_texture( GL::TEXTURE_2D_ARRAY, Some( &texture ) );

@@ -131,11 +131,23 @@ mod private
     make()
   }
 
-  // Match the drawing buffer to the canvas's own CSS box, at device-pixel-ratio
-  // resolution so hiDPI displays get a crisp buffer rather than an upscaled one.
-  // Measuring the canvas itself ( not its parent ) sidesteps auto-height parents and
-  // works for `retrieve()`d canvases too.
-  fn canvas_resize( canvas : &HtmlCanvasElement )
+  /// Matches the drawing buffer to the canvas's own CSS box, at device-pixel-ratio
+  /// resolution so hiDPI displays get a crisp buffer rather than an upscaled one.
+  /// Measuring the canvas itself ( not its parent ) sidesteps auto-height parents and
+  /// works for `retrieve()`d canvases too.
+  ///
+  /// Only resizes the drawing buffer ( `canvas.width()`/`height()` ) -- it has no GL
+  /// awareness of its own, deliberately: `mingl` is shared by both `minwebgl` and
+  /// `minwebgpu`, so it cannot assume any particular graphics API is bound to the canvas,
+  /// or that one is bound at all yet. A caller that already has a rendering context bound
+  /// to `canvas` ( e.g. `minwebgl::context::from_canvas_with` ) is responsible for also
+  /// re-applying its own viewport/equivalent after calling this, in its own resize
+  /// callback -- see `Fix(BUG-423)` at that call site for the WebGL2 case.
+  //
+  // Fix(BUG-423): made `pub` ( was private ) so `minwebgl::context` can reuse this exact
+  // width/height computation from its own GL-aware resize observer instead of duplicating
+  // it. Pure visibility change -- no behavior change to this function itself.
+  pub fn canvas_resize( canvas : &HtmlCanvasElement )
   {
     let dpr = web_sys::window().map_or( 1.0, | window | window.device_pixel_ratio() );
     // `client_width`/`client_height` return `i32` for historical WebIDL reasons, but the
@@ -176,7 +188,8 @@ crate::mod_interface!
     retrieve,
     make,
     retrieve_or_make,
-    dpr_scaling_remove
+    dpr_scaling_remove,
+    canvas_resize
   };
 
 }

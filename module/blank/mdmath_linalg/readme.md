@@ -1,3 +1,3 @@
 # mdmath_linalg
 
-Multidimensional math.
+Linear algebra operations for multidimensional mathematics.

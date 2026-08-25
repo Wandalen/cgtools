@@ -145,6 +145,37 @@ mod private
     WebglError::CantUploadUniform( "matrix", type_name, len, "4, 9, 16" )
   }
 
+  /// Builds the error for a vector upload whose element count `n` isn't a supported vector
+  /// arity ( 1, 2, 3, or 4 ).
+  ///
+  /// Pulled out as its own function ( rather than inlined at each `UniformUpload::upload`
+  /// call site in `float32.rs`/`int32.rs`/`unsigned32.rs` ) so the error message content is
+  /// unit-testable without a live `GL` -- `upload` itself takes `&GL`, which can't be
+  /// constructed outside a browser.
+  //
+  // Fix(BUG-426): every `[[T; N]]` `UniformUpload::upload` impl's `_` arm used to call
+  // `WebglError::CantUploadUniform( "vector", type_name_of_val( self ), self.len(), .. )`
+  // inline -- reporting `self.len()` ( the outer slice's element count, i.e. how many
+  // `[T; N]` vectors were passed ) instead of `N` ( the inner array's own arity, the value the
+  // surrounding `match N { .. }` is actually on ). Uploading `&[[f32; 5]; 3]` produced a
+  // self-contradictory message reading "...of length 3. Known length: [ 1, 2, 3, 4 ]", where 3
+  // IS in the known-good list, because the field reported was never the field that failed
+  // validation.
+  // Root cause: copy-pasted from the sibling `[T]` ( unsized slice ) impl, where `self.len()`
+  // genuinely *is* the value the `match` is on -- the `[[T; N]]` impls match on `N` instead,
+  // but the copy-pasted error arm kept reporting the old field.
+  // Pitfall: when a copy-pasted match arm's error branch references `self`, check it still
+  // refers to the same value the `match` scrutinee itself is on. Extracting this as a shared
+  // function -- taking `n` explicitly rather than reaching for `self.len()` internally --
+  // makes the correct field the only one in scope to pass, and lets one test cover all three
+  // sibling implementations ( `f32`, `i32`, `u32` ) at once.
+  #[ inline ]
+  #[ must_use ]
+  pub fn vector_upload_length_error( type_name : &'static str, n : usize ) -> WebglError
+  {
+    WebglError::CantUploadUniform( "vector", type_name, n, "1, 2, 3, 4" )
+  }
+
 }
 
 mod float32;
@@ -156,6 +187,6 @@ crate::mod_interface!
   prelude use UniformUpload;
   prelude use UniformMatrixUpload;
   orphan use WebGlUniformLocation;
-  own use { upload, matrix_upload, f32_matrix_length_error };
+  own use { upload, matrix_upload, f32_matrix_length_error, vector_upload_length_error };
 
 }

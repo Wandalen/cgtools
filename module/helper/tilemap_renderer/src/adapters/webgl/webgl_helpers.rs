@@ -303,6 +303,18 @@ mod private
       self.textures.get( &id )
     }
 
+    /// Resolves the premultiplied-alpha flag for a (possibly untextured) mesh
+    /// or mesh batch: a textured mesh inherits its texture's `premultiplied`
+    /// flag, an untextured one is straight-alpha (`false`). Both the single-mesh
+    /// (`cmd_mesh`) and batched (`cmd_draw_batch`) paths route through here so
+    /// the two cannot drift — e.g. a refactor re-hardcoding `false` in one path
+    /// would have to do it in both, or (preferably) neither.
+    #[ must_use ]
+    pub fn mesh_premultiplied( &self, texture : Option< ResourceId< asset::Image > > ) -> bool
+    {
+      texture.and_then( | id | self.texture( id ) ).map_or( false, | t | t.premultiplied )
+    }
+
     /// Looks up a sprite by sprite asset id.
     #[ must_use ]
     pub fn sprite( &self, id : ResourceId< asset::Sprite > ) -> Option< &GpuSprite >
@@ -774,12 +786,17 @@ mod private
     {
       // Color: src + dst. Alpha: standard over.
       BlendMode::Add => gl.blend_func_separate( src_a, gl::ONE, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
-      // Approximation: diverges from Photoshop Multiply when src_alpha < 1 — the
-      // DST_COLOR factor multiplies dst by raw src.rgb (not src.rgb*src_a), so
-      // partially transparent sources darken the destination more than the
-      // reference formula prescribes. Exact only when src_alpha = 1.
-      // An FBO / custom-shader pass would be needed for the Photoshop-accurate
-      // formula — see the BlendMode::Multiply doc.
+      // `DST_COLOR` is the defining source factor for Multiply (src.rgb*dst.rgb)
+      // and is independent of `premultiplied`: the flag only swaps the
+      // alpha-compositing source factor (ONE vs SRC_ALPHA), which Multiply does
+      // not use. Approximation: diverges from Photoshop Multiply for *straight*
+      // sources when src_alpha < 1 — the DST_COLOR factor multiplies dst by raw
+      // src.rgb (not src.rgb*src_a), so partially transparent straight sources
+      // darken the destination more than the reference formula prescribes. Exact
+      // when src_alpha = 1, or for premultiplied sources at any alpha (there
+      // src.rgb already carries rgb*a, so dst*(rgb*a + 1 - a) is the reference).
+      // qqq(FBO): replace with Photoshop-accurate formula for straight sources —
+      // see BlendMode::Multiply doc.
       // Color: src*dst + dst*(1-src_a). Alpha: standard over.
       BlendMode::Multiply => gl.blend_func_separate( gl::DST_COLOR, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
       // Same class of approximation as Multiply: the ONE / ONE_MINUS_SRC_COLOR

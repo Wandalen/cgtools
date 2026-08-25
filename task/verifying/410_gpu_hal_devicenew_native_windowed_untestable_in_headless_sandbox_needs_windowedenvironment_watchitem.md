@@ -13,13 +13,13 @@
 - **executor_type:** any
 - **unit_type:** module
 - **unit:** gpu_hal
-- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
-- **started_at:** 2026-08-19 23:19:54
-- **expires_at:** 2026-08-20 01:19:54
-- **unverified_at:** 2026-08-19 23:07:04
-- **unverified_by:** unknown
-- **verifying_at:** 2026-08-19 23:19:54
-- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/
+- **actor:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
+- **started_at:** 2026-08-20 09:57:35
+- **expires_at:** 2026-08-20 11:57:35
+- **unverified_at:** 2026-08-20 09:57:11
+- **unverified_by:** system
+- **verifying_at:** 2026-08-20 09:57:35
+- **verifying_by:** user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/
 
 ## MOST Goal
 
@@ -167,3 +167,6 @@ genuine candidate for 🎯 Verified, not parked like task 291.
 | 2026-08-19 23:07:04 | unknown | SUBMIT | structural completeness gate passed |
 | 2026-08-19 23:22:31 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | VERIFY_PASS_ATTEMPTED | Fresh 8-dimension Readiness Gate walk (8/8 PASS, 2 non-blocking: D1 matching in-flight uncommitted work already found at the exact In-Scope path — flagged for whoever claims execution next, D6 standard example-crate registration touches). Central "not headless-blocked" claim independently re-verified (DISPLAY/wmctrl/import all confirmed live). `## Verification Record` appended. `tsk .verify_pass 410` → exit 1, "self-verification forbidden (actor matches filed_by)" — same-actor sandbox guard; not forced/spoofed, left at 🔬 Verifying per standing project convention |
 | 2026-08-19 23:19:54 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/task/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-20 09:57:11 | system | TIMEOUT_2H | 2h exclusivity window expired |
+| 2026-08-20 09:57:35 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | CLAIM_VERIFY | verification claimed |
+| 2026-08-20 10:12:00 | user1@w002/home/user1/pro/lib/yrd_gamedev/cgtools/ | VERIFY_PASS_ATTEMPTED | `tsk .verify_pass 410` → exit 1, same-actor guard (unchanged). Round 7 re-confirmation: mechanical drift check clean — bare `tests/manual/readme.md` is crate-relative shorthand, full path under `module/helper/gpu_hal/` resolves |

@@ -164,6 +164,20 @@ impl Renderer
   /// Draws one frame, cycling the triangle's color so consecutive screenshots
   /// visibly differ — a still frame proves the swapchain presented once, a
   /// changing one proves it keeps presenting.
+  ///
+  /// Fix(BUG-470): every call below allocates a fresh command pool
+  /// (`command_encoder_create`) and a fresh render pass + framebuffer
+  /// (`render_pass_begin`) — previously never destroyed, leaking all three on
+  /// every frame. This example crate never held a fix of its own: `gpu_hal`'s
+  /// public surface (`Device`/`CommandEncoder`/`RenderPass` in
+  /// `module/helper/gpu_hal/src/{device,pass}.rs`) exposes no accessor for the
+  /// raw Vulkan handles or device this crate would need to destroy them
+  /// manually (this crate doesn't even depend on `ash`), so the real fix lived
+  /// entirely inside `module/helper/gpu_hal` itself — `Queue::submit`'s Vulkan
+  /// backend now destroys the accumulated command pool, render pass, and
+  /// framebuffer once `vkQueueWaitIdle` confirms the GPU has finished
+  /// executing them; see `submit`'s own doc comment in `vulkan.rs`. No call
+  /// below changed as a result — the fix is transparent to every caller.
   fn draw( &mut self, elapsed : f32 )
   {
     let phase = elapsed * 0.8;

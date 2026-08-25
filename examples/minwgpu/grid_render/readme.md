@@ -2,9 +2,14 @@
 
 **Keywords:** wgpu, Rust, Grids, Native Graphics
 
-This demo demonstrates grid rendering using wgpu, the Rust graphics library. It shows how to render grid patterns efficiently in native Rust applications using modern GPU APIs.
+This demo renders a flower of 7 hexagons -- one center tile plus its 6
+neighbors -- using wgpu and `tiles_tools::coordinates::hexagonal`'s axial
+coordinate system to place each instance. It shows how to turn hexagonal grid
+coordinates into world-space instance transforms and draw them natively
+through wgpu.
 
-wgpu enables cross-platform native graphics. This example provides a foundation for data visualization, game grids, or technical drawing applications.
+This example provides a foundation for hex-grid game boards, tile-based maps,
+or other applications built on `tiles_tools`' hexagonal coordinate types.
 
 ![image](showcase.webp)
 

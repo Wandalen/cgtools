@@ -337,8 +337,22 @@ impl FieldOfView
 
   /// Shadowcasting FOV algorithm implementation.
   ///
-  /// This implements recursive shadowcasting that processes octants systematically
-  /// to create accurate field-of-view calculations with proper shadow casting.
+  /// This calls [`Self::octant_shadows_cast`] once per neighbor direction of
+  /// `viewer` (not literally 8 -- once per direction the coordinate system's
+  /// [`Neighbors`] impl returns, e.g. 6 for hex, 4 or 8 for square), and
+  /// merges every call's writes into `visibility_map`.
+  ///
+  /// BUG-477 (doc-accuracy, see task/bug/): this previously claimed to
+  /// process "octants systematically", implying a clean, non-overlapping
+  /// per-direction partition. Each call's own internal direction filter
+  /// (see `octant_shadows_cast`'s doc) actually admits a broad,
+  /// *overlapping* band of directions rather than a single wedge, so most
+  /// cells within range get computed redundantly by more than one call --
+  /// wasteful, but not incorrect: verified empirically (see
+  /// `tests/field_of_view_test.rs`) that this produces byte-for-byte the
+  /// same visible-position set as the reference `FloodFill` algorithm,
+  /// including correct occlusion behind a blocking wall, across hex,
+  /// 4-connected, and 8-connected square coordinate systems.
   fn shadowcasting_fov_calculate< C, F >
   (
     viewer : &C,
@@ -350,7 +364,8 @@ impl FieldOfView
     C : Distance + Neighbors + Clone + std::hash::Hash + Eq,
     F : Fn( &C ) -> bool,
   {
-    // Cast shadows in 8 octants around the viewer
+    // Cast (redundantly overlapping, see doc above) shadows in one
+    // direction-band per neighbor direction of the viewer.
     let neighbors = viewer.neighbors();
     let neighbor_count = neighbors.len();
 
@@ -361,7 +376,22 @@ impl FieldOfView
     }
   }
 
-  /// Casts shadows in a specific octant direction.
+  /// Casts shadows in a broad band of directions centered on `octant`.
+  ///
+  /// Despite the "octant" name (kept for its historical loop-index meaning:
+  /// one call per neighbor direction of the viewer, see
+  /// `shadowcasting_fov_calculate`), the direction filter below does *not*
+  /// admit only `octant`'s own single direction, or even a narrow wedge
+  /// around it -- for `total_directions == 6` (hex) it admits every
+  /// direction except the one exactly opposite `octant`; for
+  /// `total_directions == 8` (square, 8-connected) it excludes only the 3
+  /// directions centered on the opposite side. This makes every call's
+  /// reachable region overlap heavily with every other call's, so the same
+  /// cell is typically visited -- and its visibility recomputed -- by
+  /// several different `octant` calls before `shadowcasting_fov_calculate`
+  /// finishes (wasted work, not wasted correctness: see that function's doc
+  /// for the verification that this still converges to the same result as
+  /// a full flood-fill).
   fn octant_shadows_cast< C, F >
   (
     viewer : &C,
@@ -390,6 +420,11 @@ impl FieldOfView
         let neighbors = pos.neighbors();
 
         // Select neighbors in the octant direction
+        //
+        // BUG-477: this admits a broad overlapping band, not a single
+        // direction -- see `octant_shadows_cast`'s doc comment above for
+        // why that's redundant work rather than a correctness bug (verified
+        // empirically, not just re-derived from the formula).
         //
         // Fix(BUG-135)
         // Root cause: filtering already-visited neighbors *before* enumerating
@@ -819,12 +854,14 @@ impl FieldOfView
         }
       }
 
+      // UX/DX cleanup: removed a dead `if next == current { break; }` check
+      // here -- `next` is always drawn from `current.neighbors()`, and no
+      // `Neighbors` implementation in this crate ever yields the coordinate
+      // it was called on, so the condition could never be true. The real
+      // safety net against an infinite loop is the `line_positions.len() >
+      // 1000` check just below.
       if let Some(next) = best_neighbor
       {
-        if next == current
-        {
-          break; // Prevent infinite loop
-        }
         current = next;
         line_positions.push(current.clone());
 
@@ -880,6 +917,7 @@ pub struct LightSource< C >
 impl< C > LightSource< C >
 {
   /// Creates a new light source.
+  #[ must_use ]
   pub fn new( position : C, radius : u32, intensity : f32 ) -> Self
   {
     Self

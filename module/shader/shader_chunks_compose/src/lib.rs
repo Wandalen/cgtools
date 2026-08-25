@@ -39,7 +39,7 @@ mod private
     {
       match self
       {
-        Self::UnknownChunk( name ) => write!( f, "unknown chunk: `{name}` (see `list` for valid names)" ),
+        Self::UnknownChunk( name ) => write!( f, "unknown chunk: `{name}` (see `shader_chunks list` for valid names)" ),
         Self::Compose( err ) => write!( f, "{err}" ),
         Self::Io( message ) => write!( f, "io error: {message}" ),
       }
@@ -151,7 +151,7 @@ mod private
       ArgumentDefinition::former()
       .name( "names" )
       .kind( Kind::List( Box::new( Kind::String ), None ) )
-      .hint( "One or more chunk names (see `list`)." )
+      .hint( "One or more chunk names (see `shader_chunks list`)." )
       .attributes( ArgumentAttributes { multiple : true, ..ArgumentAttributes::default() } )
       .end(),
       named_arg( "transitive", Kind::Boolean, "Widen the named set to its full dependency closure.", Some( "false".to_string() ) ),

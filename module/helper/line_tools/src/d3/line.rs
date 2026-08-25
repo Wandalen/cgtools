@@ -139,7 +139,53 @@ mod private
   }
 
   impl_basic_line!( Line, f32, 3 );
-  
+
+  /// Checks that `geometry.colors` and `geometry.points` still have matching lengths before a
+  /// colors upload trusts their index-correspondence.
+  ///
+  /// `colors` is a `VecDeque` fully independent from `points`/`distances`: every
+  /// `point_*`/`points_*` add/remove method (from `impl_basic_line!`) keeps `distances` in
+  /// lockstep, but none of them touch `colors`, despite this type's doc comments describing
+  /// `colors` as "belong[ing] to a point with the same index". Calling e.g.
+  /// `point_remove_front()` without a matching `color_remove_front()` desyncs the two
+  /// `VecDeque`s' lengths, which would otherwise silently shift every subsequent point's
+  /// rendered color by one instanced-draw index once uploaded.
+  ///
+  /// Kept as a standalone, GL-context-independent function (mirroring
+  /// `canvas_renderer::renderer::mesh_colors_resolve`'s extraction for the same reason) so the
+  /// length-consistency invariant can be tested without a live WebGL context -- `mesh_update`
+  /// itself requires `&gl::WebGl2RenderingContext`, which this crate has no test infrastructure
+  /// to construct natively.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError` if `colors_len != points_len`.
+  // Fix(BUG-492)
+  // Root cause: `impl_basic_line!`'s color add/remove methods
+  // (`color_add_front`/`color_add_back`/`color_remove`/`color_remove_front`/`color_remove_back`)
+  // are entirely separate from the point/distance add/remove methods that keep `distances` in
+  // lockstep with `points` -- nothing ever cross-checked the two before this fix, and
+  // `mesh_update` uploaded `geometry.colors` unconditionally whenever `colors_changed` was set.
+  // Pitfall: two `VecDeque`s documented as index-corresponding but mutated through entirely
+  // separate method families will only ever be checked by accident (a caller that happens to
+  // call both families in lockstep) unless the consumer that actually depends on the invariant
+  // -- the GPU upload, here -- verifies it explicitly before trusting the data.
+  pub fn colors_length_consistency_check( colors_len : usize, points_len : usize ) -> Result< (), gl::WebglError >
+  {
+    if colors_len != points_len
+    {
+      gl::warn!
+      (
+        "Line::mesh_update: geometry.colors.len() ({colors_len}) != geometry.points.len() ({points_len}) -- \
+        point_*/color_* add/remove calls have desynced the two; skipping the colors upload instead of \
+        uploading mismatched vertex color data"
+      );
+      return Err( gl::WebglError::Other( "geometry.colors and geometry.points have desynced lengths -- point_*/color_* add/remove calls must be kept in matching pairs" ) );
+    }
+
+    Ok( () )
+  }
+
   impl Line
   {
     /// Creates the WebGL mesh for the line.
@@ -319,6 +365,8 @@ mod private
 
       if self.change_state.colors_changed && self.render_state.vertex_color_use
       {
+        colors_length_consistency_check( self.geometry.colors.len(), self.geometry.points.len() )?;
+
         let mesh = self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
         let colors_buffer = mesh.buffer_get( "colors" );
 
@@ -426,5 +474,10 @@ crate::mod_interface!
   {
     Line,
     DashPattern
+  };
+
+  own use
+  {
+    colors_length_consistency_check
   };
 }
