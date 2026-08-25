@@ -445,6 +445,26 @@ mod private
       /// Oscillation frequency in Hz.
       frequency : f32,
     },
+    /// One-way ease of a per-bucket visibility multiplier toward an
+    /// externally-driven target (0 or 1), instead of oscillating forever like
+    /// [`Self::AlphaPulse`]. Drives a linear ramp that **holds** once it
+    /// reaches the target, reversing only when the target flips.
+    ///
+    /// The target isn't part of this declaration — it's runtime state set via
+    /// [`crate::scene::Scene::fade_target_set`], keyed by this effect's own
+    /// [`Effect::id`] (referenced by every layer whose `behaviour.effects`
+    /// names it). Layers sharing one effect id share one fade progress;
+    /// [`crate::scene::Scene::tick`] advances it toward its target by
+    /// `1000.0 / duration_ms` per second, clamped to `[0, 1]`. A layer that
+    /// never has its target driven stays at its initial value (`1.0` — fully
+    /// visible — the first time a target is set, `value` snaps straight to
+    /// that target with no ramp, so the very first hide/show isn't a fade).
+    FadeGate
+    {
+      /// Milliseconds for a full `0` ↔ `1` sweep, symmetric for both
+      /// directions.
+      duration_ms : f32,
+    },
   }
 
   /// Axis of a vertex displacement effect.

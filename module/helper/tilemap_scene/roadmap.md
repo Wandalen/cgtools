@@ -164,7 +164,7 @@ game use-case demands one.
    tint multiplies the global tint so per-player region overlays can be coloured
    independently. Still open: `Masked` + `TeamColor` resolution against
    `Scene.players[i].color` for team-coloured units.
-2. **`Effects` (`VertexDisplace` / `AlphaPulse` / `ColorShift`).**
+2. **`Effects` (`VertexDisplace` / `AlphaPulse` / `ColorShift` / `FadeGate`).**
    `AlphaPulse` is plumbed for `VertexCorners` layers: `resolve_alpha_pulse`
    folds the effect's `(min, max, frequency, restart_on_spawn)` into the
    revision-cached vertex resolve, and the per-frame project tier evaluates a
@@ -174,8 +174,16 @@ game use-case demands one.
    changes, instead of free-running off the global clock. The anchor is carried
    forward across content-identical re-resolves (`same_vertex_content`), so an
    unrelated `revision` bump — e.g. a cursor-preview `move_to` — does not restart
-   the pulse. `VertexDisplace` / `ColorShift` still pass references through only —
-   real work is adapter-side shader support, largely blocked on backend.
+   the pulse. *Shipped.* `FadeGate` is the one-way counterpart: instead of
+   oscillating forever, it eases a per-effect-id progress toward an externally
+   driven boolean target and holds there. The target isn't part of the RON
+   declaration — it's runtime state set via `Scene::fade_target_set(effect_id,
+   bool)`, advanced by `Scene::tick` at `1000.0 / duration_ms` per second and
+   read fresh every frame by `project_vertex_sprite` via `Scene::fade_value`
+   (unlike `alpha_pulse`, this can't be captured at resolve time — it's not a
+   pure function of `ctx.time_seconds`). Bucket-wide, same granularity as
+   `AlphaPulse`. `VertexDisplace` / `ColorShift` still pass references through
+   only — real work is adapter-side shader support, largely blocked on backend.
 3. **`Validate` rule implementation.** *Mostly shipped.* `RenderSpec::validate`
    now enforces pipeline-layer references, asset references (recursive
    through `Variant` / `NeighborBitmask` / `EdgeConnectedBitmask` /

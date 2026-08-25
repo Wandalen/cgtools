@@ -29,6 +29,9 @@ use tilemap_scene::
   Camera,
   CompileError,
   Condition,
+  Effect,
+  EffectKind,
+  EffectRef,
   EdgeConnectedLayout,
   EdgeDirection,
   EdgeInstance,
@@ -2128,6 +2131,93 @@ fn vertex_corners_offset_shifts_sprite_position()
     let dy = o.transform.position[ 1 ] - b.transform.position[ 1 ];
     assert!( ( dx - 32.0 ).abs() < 1e-4, "x must shift by offset dx=32; got {dx}" );
     assert!( ( dy + 16.0 ).abs() < 1e-4, "y must shift by offset dy=-16; got {dy}" );
+  }
+}
+
+/// `EffectKind::FadeGate`: `Scene::fade_target_set` + `Scene::tick` must ease
+/// a VertexCorners layer's tint from invisible to fully visible over the
+/// declared `duration_ms`, holding at the target on either side rather than
+/// overshooting (task 002_smooth_dim_fade.md's board-dim fade).
+#[ test ]
+fn vertex_corners_fade_gate_eases_toward_target()
+{
+  let mut spec = dual_orient_spec();
+  spec.effects.push( Effect
+  {
+    id : "dim_fade".into(),
+    kind : EffectKind::FadeGate { duration_ms : 100.0 },
+    phase_offset : PhaseOffset::None,
+  });
+  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
+  stack[ 0 ].behaviour.effects.push( EffectRef( "dim_fade".into() ) );
+
+  let scene_snap = SceneSnapshot
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "hexagon".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let mut scene = Scene::from_snapshot( &scene_snap, Arc::new( spec.clone() ) ).expect( "scene" );
+
+  // A fresh `Renderer` per call, matching `compile`/`at_time_compile` above —
+  // reusing one `Renderer` across calls would exercise its idle-replay /
+  // batch-diff machinery (Set/Add/Remove) instead of a full re-emit, which
+  // `common::commands_to_sprites` isn't set up to reconstruct standalone.
+  let render_now = | scene : &Scene |
+  {
+    let mut renderer = Renderer::new( &spec, &PathResolver ).expect( "renderer" );
+    let raw = renderer.render( scene, &Camera::default() ).expect( "render" );
+    common::commands_to_sprites( raw )
+  };
+
+  // The first `fade_target_set` call for an id with no prior state snaps
+  // straight to the target — no fade on the very first hide.
+  scene.fade_target_set( "dim_fade", false );
+  let hidden_cmds = render_now( &scene );
+  let hidden = sprite_commands( &hidden_cmds );
+  assert!( !hidden.is_empty(), "lone hex must still emit corner sprites — geometry, not visibility, drives presence" );
+  for s in &hidden
+  {
+    assert!( s.tint.iter().all( | c | c.abs() < 1e-5 ), "target=false with no prior state must snap to fully transparent, got {:?}", s.tint );
+  }
+
+  // Flip the target on — this time a genuine ease, not a snap, since the gate
+  // already has prior state.
+  scene.fade_target_set( "dim_fade", true );
+  let just_flipped_cmds = render_now( &scene );
+  let just_flipped = sprite_commands( &just_flipped_cmds );
+  for s in &just_flipped
+  {
+    assert!( s.tint.iter().all( | c | c.abs() < 1e-5 ), "immediately after flipping the target, value hasn't advanced yet: {:?}", s.tint );
+  }
+
+  // Half the fade duration (50ms of a 100ms sweep) → value ≈ 0.5.
+  scene.tick( 0.050 );
+  let mid_cmds = render_now( &scene );
+  let mid = sprite_commands( &mid_cmds );
+  for s in &mid
+  {
+    assert!( ( s.tint[ 3 ] - 0.5 ).abs() < 0.05, "halfway through a 100ms fade-in, alpha should be ≈0.5, got {}", s.tint[ 3 ] );
+  }
+
+  // Well past the full duration → holds at fully visible (identity tint),
+  // not overshooting.
+  scene.tick( 1.0 );
+  let done_cmds = render_now( &scene );
+  let done = sprite_commands( &done_cmds );
+  for s in &done
+  {
+    assert_eq!( s.tint, [ 1.0, 1.0, 1.0, 1.0 ], "fully faded-in must hold at identity tint, not overshoot" );
+  }
+
+  // Flip back off and step to the midpoint of the fade-out — must ease
+  // symmetrically, not jump straight to 0.
+  scene.fade_target_set( "dim_fade", false );
+  scene.tick( 0.050 );
+  let fading_out_cmds = render_now( &scene );
+  let fading_out = sprite_commands( &fading_out_cmds );
+  for s in &fading_out
+  {
+    assert!( ( s.tint[ 3 ] - 0.5 ).abs() < 0.05, "halfway through a 100ms fade-out, alpha should be ≈0.5, got {}", s.tint[ 3 ] );
   }
 }
 

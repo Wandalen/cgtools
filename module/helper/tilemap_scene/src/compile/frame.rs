@@ -64,6 +64,9 @@ mod private
     spec : &'a RenderSpec,
     compiled : &'a CompiledAssets,
     camera : &'a Camera,
+    /// Read-only access to the live [`Scene`] — currently only for
+    /// [`Scene::fade_value`] (`EffectKind::FadeGate`'s live eased progress).
+    scene : &'a Scene,
     time_seconds : f32,
     tile_lookup : HashMap< ( i32, i32 ), &'a Tile >,
     edge_lookup : HashMap< CanonicalEdge, &'a EdgeInstance >,
@@ -227,9 +230,23 @@ mod private
     corner_px : &[ ( f32, f32 ); 3 ],
     wx : f32,
     wy : f32,
+    tiling : TilingStrategy,
   ) -> u8
   {
-    use core::f32::consts::FRAC_PI_3;
+    use core::f32::consts::{ FRAC_PI_3, FRAC_PI_6 };
+    // The six dual-triangle corner bearings sit at multiples of 60° for a
+    // flat-top grid but are rotated 30° on a pointy-top grid (the hex itself is
+    // rotated 30°). Without compensating, every pointy bearing lands exactly on
+    // a `round()` half-step boundary, so adjacent orientations collapse onto the
+    // same index and a lone hex yields fewer than six distinct frames. Rotate
+    // the orientation reference by the same 30° so the residuals are integral
+    // again. (The absolute base — which frame is orientation 0 — is calibrated
+    // visually per atlas; this only restores the 60° step alignment.)
+    let base_offset = match tiling
+    {
+      TilingStrategy::HexPointyTop => FRAC_PI_6,
+      _ => 0.0,
+    };
     let ( base, period, dist_idx ) = if let Some( sid ) = self_id
     {
       // Classify by how many corners are THIS object's own id ("present").
@@ -269,7 +286,7 @@ mod private
     let bearing = ( cy - wy ).atan2( cx - wx );
     // `base − bearing` (not `bearing − base`): the baked frames advance
     // clockwise in world because the atlas export flips the PNG vertically.
-    let steps = ( ( base - bearing ) / FRAC_PI_3 ).round() as i32;
+    let steps = ( ( base + base_offset - bearing ) / FRAC_PI_3 ).round() as i32;
     steps.rem_euclid( period ) as u8
   }
 
@@ -375,7 +392,7 @@ mod private
             let self_id = patterns.iter().find_map( | p |
               ( p.corners.0 == p.corners.1 && p.corners.1 == p.corners.2 && p.corners.0 != "*" )
                 .then_some( p.corners.0.as_str() ) );
-            dual_orientation_index( &raw_corners, &canonical, self_id, &corner_px, wx, wy )
+            dual_orientation_index( &raw_corners, &canonical, self_id, &corner_px, wx, wy, ctx.tiling )
           }
           else
           {
@@ -421,6 +438,7 @@ mod private
             pivot : object.pivot,
             alpha_pulse : resolve_alpha_pulse( ctx.spec, &layer.behaviour.effects ),
             pulse_anchor : ctx.time_seconds,
+            fade_gate : resolve_fade_gate( ctx.spec, &layer.behaviour.effects ),
           });
         }
       }
@@ -494,6 +512,16 @@ mod private
       let t = if restart_on_spawn { ( ctx.time_seconds - rv.pulse_anchor ).max( 0.0 ) } else { ctx.time_seconds };
       let wave = 0.5 - 0.5 * ( core::f32::consts::TAU * freq * t ).cos();
       let k = min + ( max - min ) * wave;
+      tint = [ tint[ 0 ] * k, tint[ 1 ] * k, tint[ 2 ] * k, tint[ 3 ] * k ];
+    }
+
+    // Fade gate: same whole-tint-multiplier treatment as the pulse above, but
+    // the factor is [`Scene::fade_value`]'s live eased progress instead of an
+    // oscillating wave — read fresh every frame since it isn't a function of
+    // `ctx.time_seconds` alone (it's advanced by `Scene::tick`).
+    if let Some( effect_id ) = &rv.fade_gate
+    {
+      let k = ctx.scene.fade_value( effect_id );
       tint = [ tint[ 0 ] * k, tint[ 1 ] * k, tint[ 2 ] * k, tint[ 3 ] * k ];
     }
     (
@@ -865,6 +893,14 @@ mod private
     /// `restart_on_spawn` pulse uses `time_seconds - pulse_anchor` as its phase,
     /// so it restarts from `min` each time the layer's content changes.
     pulse_anchor : f32,
+    /// Id of the layer's resolved [`EffectKind::FadeGate`] effect, or `None`.
+    /// Static per layer (which `EffectRef`s a layer names doesn't change at
+    /// runtime), so it is cached here; [`project_vertex_sprite`] reads the
+    /// gate's live eased value via `ctx.scene.fade_value` fresh every frame —
+    /// unlike `alpha_pulse`, the gate's progress isn't a pure function of
+    /// `ctx.time_seconds`, it's runtime state [`Scene::tick`] advances, so it
+    /// can't be captured at resolve time without going stale.
+    fade_gate : Option< String >,
   }
 
   /// Revision-keyed memo of the dual-grid vertex pass.
@@ -954,6 +990,7 @@ mod private
       spec,
       compiled,
       camera,
+      scene,
       time_seconds : scene.clock(),
       tile_lookup : build_tile_lookup( &synthetic_tiles ),
       edge_lookup,
@@ -1175,6 +1212,25 @@ mod private
       if let EffectKind::AlphaPulse { min, max, frequency, restart_on_spawn } = eff.kind
       {
         return Some( ( min, max, frequency, restart_on_spawn ) );
+      }
+    }
+    None
+  }
+
+  /// Resolve the first [`EffectKind::FadeGate`] among a layer's `effects` to
+  /// its effect id (the key [`Scene::fade_value`] reads live state under), or
+  /// `None` if the layer references no fade-gate effect. Same best-effort /
+  /// cheap-scan contract as [`resolve_alpha_pulse`] — only the id is resolved
+  /// here (static, safe to cache); the gate's actual eased value is runtime
+  /// state read fresh per frame in [`project_vertex_sprite`].
+  fn resolve_fade_gate( spec : &RenderSpec, effects : &[ EffectRef ] ) -> Option< String >
+  {
+    for eff_ref in effects
+    {
+      let Some( eff ) = spec.effects.iter().find( | e | e.id == eff_ref.0 ) else { continue };
+      if matches!( eff.kind, EffectKind::FadeGate { .. } )
+      {
+        return Some( eff_ref.0.clone() );
       }
     }
     None
