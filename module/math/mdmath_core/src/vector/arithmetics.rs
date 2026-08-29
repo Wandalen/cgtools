@@ -76,6 +76,33 @@ mod private
     mag2( a ).sqrt()
   }
 
+  /// Returns `true` when every component of `a` is finite -- neither infinite nor `NaN`.
+  ///
+  /// This is a component-wise predicate, deliberately not a test of the magnitude. The two
+  /// are not equivalent in either direction: every component can be finite while `mag( a )`
+  /// is not (the sum of their squares overflows `E`), and every component can be finite and
+  /// nonzero while `mag( a )` is exactly zero (the sum of their squares underflows). Use this
+  /// to validate incoming data; use [`try_normalized`] to guard a division by the magnitude.
+  ///
+  /// # Example
+  /// ```rust
+  /// use mdmath_core::vector;
+  /// let finite = [ 1.0, 2.0, 3.0 ];
+  /// let with_nan = [ 1.0, f64::NAN, 3.0 ];
+  /// let with_inf = [ 1.0, f64::INFINITY, 3.0 ];
+  /// assert!( vector::is_finite( &finite ) );
+  /// assert!( !vector::is_finite( &with_nan ) );
+  /// assert!( !vector::is_finite( &with_inf ) );
+  /// ```
+  #[ inline ]
+  pub fn is_finite< E, A, const SIZE : usize >( a : &A ) -> bool
+  where
+    A : VectorIter< E, SIZE >,
+    E : NdFloat,
+  {
+    a.vector_iter().all( | elem | elem.is_finite() )
+  }
+
   /// Normalizes a vector to unit length.
   ///
   /// # Panics
@@ -129,6 +156,66 @@ mod private
     let mut r : A = a.clone();
     normalize( &mut r, a );
     r
+  }
+
+  /// Normalizes a vector to unit length, or returns `None` when it has no defined direction.
+  ///
+  /// The checked counterpart to [`normalized`]. For every input that *has* a unit direction
+  /// the two agree bit for bit -- this divides by the same magnitude through the same
+  /// [`normalize`] call. They differ only in how an input without one is reported.
+  ///
+  /// # Why this exists beside `normalized` rather than replacing it
+  ///
+  /// [`normalized`]'s `NaN` for a zero-magnitude input is the honest IEEE-754 encoding of an
+  /// undefined direction, and it stays exactly as it is: this function does not change it,
+  /// wrap it, or deprecate it (BUG-448 established that contract deliberately, and rejected
+  /// *restructuring* the existing functions to return `Option` because their call sites would
+  /// all have to change -- a reason that does not apply to an additive sibling).
+  ///
+  /// What `NaN` cannot do is stop. It is an ordinary float, so an unchecked direction keeps
+  /// flowing -- through arithmetic, comparisons, and storage -- and surfaces somewhere far
+  /// from the vector that produced it, by which point the zero-length input is no longer in
+  /// view. `Option` moves that same information into the type, where the call site has to
+  /// answer for it. Neither is more correct; they suit different callers, and this is the
+  /// "check the magnitude before calling" that [`normalize`]'s own doc recommends, written
+  /// once here instead of at each call site.
+  ///
+  /// # Returns
+  /// - `Some( unit )` when `mag( a )` is finite and nonzero.
+  /// - `None` when `mag( a )` is zero -- the zero vector, or components small enough that the
+  ///   sum of their squares underflows even though the components themselves are nonzero.
+  /// - `None` when `mag( a )` is not finite -- a `NaN` or infinite component, or components
+  ///   large enough that the sum of their squares overflows.
+  ///
+  /// The last two cases are why this checks the magnitude rather than the components: the
+  /// magnitude is what the division actually uses, and [`is_finite`] on the components alone
+  /// would accept both of them.
+  ///
+  /// # Example
+  /// ```rust
+  /// use mdmath_core::vector;
+  /// let v : [ f64 ; 3 ] = [ 3.0, 0.0, 4.0 ];
+  /// let unit = vector::try_normalized( &v ).unwrap();
+  /// assert!( ( vector::mag( &unit ) - 1.0 ).abs() < 1e-15 );
+  ///
+  /// // No direction to report, so none is returned -- rather than three `NaN`s.
+  /// let zero : [ f64 ; 3 ] = [ 0.0, 0.0, 0.0 ];
+  /// assert!( vector::try_normalized( &zero ).is_none() );
+  /// ```
+  #[ inline ]
+  pub fn try_normalized< E, A, const SIZE : usize >( a : &A ) -> Option< A >
+  where
+    A : VectorIter< E, SIZE > + VectorIterMut< E, SIZE > + Clone,
+    E : NdFloat,
+  {
+    let magnitude = mag( a );
+    if magnitude.is_zero() || !magnitude.is_finite()
+    {
+      return None;
+    }
+    let mut r : A = a.clone();
+    normalize( &mut r, a );
+    Some( r )
   }
 
   /// Normalizes a vector to a specified magnitude.
@@ -729,8 +816,10 @@ crate::mod_interface!
     dot,
     mag2,
     mag,
+    is_finite,
     normalize,
     normalized,
+    try_normalized,
     normalize_to,
     normalized_to,
     project_on,
