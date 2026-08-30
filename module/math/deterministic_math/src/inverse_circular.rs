@@ -156,7 +156,7 @@ pub fn acos( x : f64 ) -> f64
 
 /// Clamp to `[ -1, 1 ]`, passing `NaN` through unchanged.
 #[ must_use ]
-fn clamp_unit( x : f64 ) -> f64
+pub fn clamp_unit( x : f64 ) -> f64
 {
   if x > 1.0
   {
@@ -167,113 +167,4 @@ fn clamp_unit( x : f64 ) -> f64
     return -1.0;
   }
   x
-}
-
-#[ cfg( test ) ]
-mod tests
-{
-  use super::*;
-
-  #[ test ]
-  fn clamp_unit_is_a_boundary_not_a_rescale()
-  {
-    // Compared as bits, like the in-domain case below: the clamp returns the
-    // boundary exactly, so bit equality is the claim and an epsilon would be a
-    // weaker one.
-    assert_eq!( clamp_unit( 2.0 ).to_bits(), 1.0_f64.to_bits() );
-    assert_eq!( clamp_unit( -2.0 ).to_bits(), ( -1.0_f64 ).to_bits() );
-    assert!( clamp_unit( f64::NAN ).is_nan() );
-    // Everything inside is returned bit-identically.
-    let mut x = -1.0;
-    while x <= 1.0
-    {
-      assert_eq!( clamp_unit( x ).to_bits(), x.to_bits(), "in-domain at {x}" );
-      x += 0.017;
-    }
-  }
-
-  #[ test ]
-  fn the_direct_thresholds_are_the_powers_of_two_they_claim_to_be()
-  {
-    // Both are written as decimal literals, and a decimal literal that is a hair
-    // off the intended power of two would still look right and still work — it
-    // would just quietly move the seam. Asserted against the exponent rather
-    // than restated.
-    assert_eq!( ATAN_DIRECT.to_bits(), f64::exp2( -4.0 ).to_bits() );
-    assert_eq!( ASIN_DIRECT.to_bits(), f64::exp2( -27.0 ).to_bits() );
-
-    // And the seam is in the right place. Below the threshold `asin` *is* `atan`
-    // by construction, so comparing them there proves nothing; what needs proving
-    // is that the companion path it replaces was already indistinguishable from
-    // `atan` on the far side, rather than the bypass cutting in partway through a
-    // genuine divergence.
-    // The bound tracks `c` rather than being flat, because the two functions
-    // genuinely differ: `asin c - atan c` is `c³ / 2`, so their relative gap is
-    // `c² / 2` and grows as the sample climbs away from the threshold. Anything
-    // beyond that gap is the companion's own rounding, and a few last places is
-    // all it may contribute. The check is therefore tightest right at the
-    // threshold, which is where it needs to be.
-    let mut c = ASIN_DIRECT;
-    while c < 1.0e-6
-    {
-      let ( with_companion, direct ) = ( asin( c ), atan( c ) );
-      let bound = c * c / 2.0 + 8.0 * f64::EPSILON;
-      assert!
-      (
-        ( with_companion / direct - 1.0 ).abs() < bound,
-        "the companion path adds more than rounding at {c:e}: {with_companion:e} vs {direct:e}"
-      );
-      c *= 1.5;
-    }
-  }
-
-  #[ test ]
-  fn the_bin_table_holds_the_arctangent_of_each_centre()
-  {
-    // `ATAN_V[ j ]` must be `atan( ATAN_B[ j ] )` to full precision, or the
-    // reduction reassembles onto a wrong offset. Re-derived here by running the
-    // series on the residual against a known-good bisection, so the table is
-    // checked rather than restated.
-    for j in 0 .. 4
-    {
-      let b = ATAN_B[ j ];
-      // atan( b ) via the series directly — | b | <= 0.875 is outside the
-      // series' range, so bisect on `tan` instead, which is independent of
-      // everything this table feeds.
-      let ( mut lo, mut hi ) = ( 0.0_f64, 1.0_f64 );
-      for _ in 0 .. 200
-      {
-        let mid = 0.5 * ( lo + hi );
-        if crate::tan( mid ) < b { lo = mid; } else { hi = mid; }
-      }
-      assert!( ( ATAN_V[ j ] - lo ).abs() < 1.0e-15, "ATAN_V[ {j} ]" );
-    }
-  }
-
-  #[ test ]
-  fn the_direct_path_and_the_reduced_path_agree_at_the_seam()
-  {
-    // Either side of `ATAN_DIRECT` the function switches strategy entirely. A
-    // discontinuity there would be invisible to every identity test, because
-    // both sides are individually self-consistent.
-    //
-    // Both strategies are evaluated at the *same* argument rather than at two
-    // points straddling the threshold. Sampling either side instead measures
-    // `d( atan )/dx ≈ 1` multiplied by the sampling gap, which looks exactly
-    // like a jump of that size and says nothing about continuity.
-    for t in [ ATAN_DIRECT, 0.1, 0.2 ]
-    {
-      let direct = atan_series( t );
-
-      let j = ( ( t * 4.0 ) as usize ).min( 3 );
-      let b = ATAN_B[ j ];
-      let reduced = ATAN_V[ j ] + atan_series( ( t - b ) / ( 1.0 + t * b ) );
-
-      assert!
-      (
-        ( direct / reduced - 1.0 ).abs() < 1.0e-14,
-        "paths disagree at {t}: {direct} vs {reduced}"
-      );
-    }
-  }
 }

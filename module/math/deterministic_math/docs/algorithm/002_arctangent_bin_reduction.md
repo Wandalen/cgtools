@@ -154,6 +154,6 @@ discontinuity of that size while saying nothing about continuity.
 
 | File | Relationship |
 |------|--------------|
-| `src/inverse_circular.rs` — `mod tests` | `the_bin_table_holds_the_arctangent_of_each_centre` (re-derived by bisection on `tan`), `the_direct_path_and_the_reduced_path_agree_at_the_seam`, `the_direct_thresholds_are_the_powers_of_two_they_claim_to_be`, `clamp_unit_is_a_boundary_not_a_rescale` |
-| `src/algebraic.rs` — `mod tests` | `the_two_series_agree_with_their_own_definitions` — both series rebuilt term by term at run time |
+| `tests/inc/internal_test.rs` | `the_bin_table_holds_the_arctangent_of_each_centre` (re-derived by bisection on `tan`), `the_direct_path_and_the_reduced_path_agree_at_the_seam`, `the_direct_thresholds_are_the_powers_of_two_they_claim_to_be`, `clamp_unit_is_a_boundary_not_a_rescale` |
+| `tests/inc/internal_test.rs` | `the_two_series_agree_with_their_own_definitions` — both series rebuilt term by term at run time |
 | `tests/inc/inverse_circular_test.rs` | `the_small_argument_band_keeps_every_digit` (bit-identity below `1e-9`), `atan_joins_its_two_strategies_without_a_step`, `atan2_lands_on_the_axes_exactly`, `asin_and_acos_clamp_rather_than_returning_nan` |

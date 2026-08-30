@@ -171,7 +171,7 @@ pub fn powi( x : f64, n : i32 ) -> f64
 /// and duplicating the other was the alternative, and duplicating a
 /// coefficient loop is how two copies of it come to disagree.
 #[ must_use ]
-pub( crate ) fn atan_series( u : f64 ) -> f64
+pub fn atan_series( u : f64 ) -> f64
 {
   // The division below looks like the defect `RECIP_FACT` documents and is not
   // one: `j` is loop-constant, so it folds. Tabulating it was measured and
@@ -195,7 +195,7 @@ pub( crate ) fn atan_series( u : f64 ) -> f64
 /// `0.1716`, and `ln_1p` forms `s = x / ( 2 + x )`, under `0.149` across the
 /// band it uses this on.
 #[ must_use ]
-pub( crate ) fn atanh_series( s : f64 ) -> f64
+pub fn atanh_series( s : f64 ) -> f64
 {
   let s2 = s * s;
   let mut acc = 1.0 / 21.0;
@@ -231,7 +231,7 @@ pub( crate ) fn atanh_series( s : f64 ) -> f64
 /// the only rounding, which is what makes a subnormal result correctly rounded
 /// rather than merely close.
 #[ must_use ]
-pub( crate ) fn scale2( x : f64, k : i32 ) -> f64
+pub fn scale2( x : f64, k : i32 ) -> f64
 {
   if ( -1022 ..= 1023 ).contains( &k )
   {
@@ -258,7 +258,7 @@ fn pow2( k : i32 ) -> f64
 /// reductions here produce, but it is a libm entry point on some targets; the
 /// two comparisons below are not.
 #[ must_use ]
-pub( crate ) fn round_half_away( x : f64 ) -> i32
+pub fn round_half_away( x : f64 ) -> i32
 {
   let t = x as i32;
   let frac = x - f64::from( t );
@@ -271,93 +271,4 @@ pub( crate ) fn round_half_away( x : f64 ) -> i32
     return t - 1;
   }
   t
-}
-
-#[ cfg( test ) ]
-mod tests
-{
-  use super::*;
-
-  #[ test ]
-  fn round_half_away_breaks_ties_away_from_zero()
-  {
-    assert_eq!( round_half_away( 0.5 ), 1 );
-    assert_eq!( round_half_away( -0.5 ), -1 );
-    assert_eq!( round_half_away( 1.5 ), 2 );
-    assert_eq!( round_half_away( -1.5 ), -2 );
-    assert_eq!( round_half_away( 0.4999 ), 0 );
-    assert_eq!( round_half_away( -0.4999 ), 0 );
-  }
-
-  #[ test ]
-  fn scale2_is_exact_multiplication_by_a_power_of_two()
-  {
-    // The window where a single multiply works. `3.25 * 2^k` stays normal
-    // throughout, so agreement here must be bit-exact.
-    for k in -1020 ..= 1021
-    {
-      let want = 3.25_f64 * 2.0_f64.powi( k );
-      assert_eq!( scale2( 3.25, k ).to_bits(), want.to_bits(), "scale2 at k = {k}" );
-    }
-  }
-
-  #[ test ]
-  fn scale2_stays_correct_past_the_exponent_field()
-  {
-    // The range the wraparound defect lived in, plus the overflow end where the
-    // same arithmetic would have produced a spurious infinity.
-    //
-    // Graded against `f64::exp2`, which is correctly rounded at integer
-    // arguments and reaches these values by an entirely different route — not
-    // against `f64::powi`, which computes a negative exponent as `1 / 2^1074`
-    // and returns zero here because the reciprocal's denominator overflows
-    // first.
-    //
-    // Bit-exact rather than approximate: a sign flip is not something a
-    // tolerance should be able to absorb.
-    for k in ( -1074 ..= -1021 ).chain( 1022 ..= 1024 )
-    {
-      let want = f64::exp2( f64::from( k ) );
-      assert_eq!( scale2( 1.0, k ).to_bits(), want.to_bits(), "scale2 at k = {k}" );
-      assert!( scale2( 1.0, k ) >= 0.0, "sign lost at k = {k}" );
-    }
-
-    // A mantissa that occupies more than one bit, over the sub-range where the
-    // product is still representable — `1.5 * 2^k` needs `2^( k - 1 )` to exist,
-    // which it does down to `k = -1073`, and must stay under `f64::MAX` at the
-    // top.
-    for k in ( -1073 ..= -1021 ).chain( 1022 ..= 1023 )
-    {
-      let want = 1.5 * f64::exp2( f64::from( k ) );
-      assert_eq!( scale2( 1.5, k ).to_bits(), want.to_bits(), "scale2 of 1.5 at k = {k}" );
-    }
-  }
-
-  #[ test ]
-  fn the_two_series_agree_with_their_own_definitions()
-  {
-    // Rebuilt term by term at run time, so a mistyped loop bound in either
-    // series fails here rather than shifting an answer.
-    let mut u = -0.18;
-    while u < 0.18
-    {
-      let mut alternating_sum = 0.0;
-      let mut positive_sum = 0.0;
-      for j in 0 ..= 40u32
-      {
-        let p = 2 * j + 1;
-        let term = powi( u, p as i32 ) / f64::from( p );
-        alternating_sum += if j % 2 == 0 { term } else { -term };
-        positive_sum += term;
-      }
-      // Absolute rather than relative because both series pass through zero.
-      // The bound is set by the reference sum's own rounding — 41 naive
-      // additions at magnitude ~0.18 accumulate a couple of parts in 1e15 —
-      // and is still tight enough that any coefficient a typo could plausibly
-      // reach would miss it by orders of magnitude.
-      assert!( ( atan_series( u ) - alternating_sum ).abs() < 1.0e-14, "atan_series at {u}" );
-      assert!( ( atanh_series( u ) - positive_sum ).abs() < 1.0e-14, "atanh_series at {u}" );
-      u += 0.007;
-    }
-  }
 }

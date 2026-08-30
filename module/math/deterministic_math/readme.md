@@ -76,6 +76,14 @@ Deliberately absent: `abs`, `floor`, `ceil`, `round`, `trunc`, `fract`,
 `f64`'s own method is already bit-identical everywhere. Wrapping them would add
 a call and no guarantee.
 
+One more public item sits off that list on purpose:
+`deterministic_math::measure::ulp_diff` measures the distance between two
+results in units of last place. It is the ruler the test suite and the
+`cost_vs_libm` example both grade with — and the one anyone checking a
+reproducibility claim ends up wanting. It stays behind a module path rather than
+joining the table above, because the crate root is the list of pinned functions
+and a count that includes a non-function counts nothing.
+
 ## No dependencies
 
 Zero, and that is the point. Reproducible arithmetic is wanted by simulation

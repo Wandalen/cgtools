@@ -89,7 +89,7 @@ pub fn exp2( x : f64 ) -> f64
 /// range edge, so the series error sits well below the rounding error of
 /// evaluating it.
 #[ must_use ]
-fn exp_reduced( r : f64 ) -> f64
+pub fn exp_reduced( r : f64 ) -> f64
 {
   let mut s = RECIP_FACT[ 16 ];
   for n in ( 1 ..= 15 ).rev()
@@ -123,7 +123,7 @@ fn exp_reduced( r : f64 ) -> f64
 /// scaling only shifts its exponent, so nothing rounds. The matching subtraction
 /// from `k` undoes it.
 #[ must_use ]
-fn mantissa_exponent( x : f64 ) -> ( f64, i32 )
+pub fn mantissa_exponent( x : f64 ) -> ( f64, i32 )
 {
   /// Enough to lift the smallest subnormal, `2^-1074`, clear of `2^-1022`.
   const LIFT : i32 = 54;
@@ -149,7 +149,7 @@ fn mantissa_exponent( x : f64 ) -> ( f64, i32 )
 /// `| s |` stays under `0.1716` across that range, which is why eleven terms
 /// reach full precision.
 #[ must_use ]
-fn ln_mantissa( m : f64 ) -> f64
+pub fn ln_mantissa( m : f64 ) -> f64
 {
   2.0 * atanh_series( ( m - 1.0 ) / ( m + 1.0 ) )
 }
@@ -169,9 +169,10 @@ fn ln_mantissa( m : f64 ) -> f64
 /// is small enough that one ULP of it is a large relative step.
 ///
 /// Near 1 it does not degrade, which is the claim an atanh-series logarithm
-/// most needs to make — see [`mantissa_exponent`] for the re-centring that buys
-/// it. Over the 10 000 consecutive doubles astride `1.0` the error is at most
-/// 1 ULP, and `ln( 1.0 )` is exactly `0.0`.
+/// most needs to make — `mantissa_exponent` in this module is the re-centring
+/// that buys it, named rather than linked because it is private and a rustdoc
+/// link would render dead. Over the 10 000 consecutive doubles astride `1.0`
+/// the error is at most 1 ULP, and `ln( 1.0 )` is exactly `0.0`.
 ///
 /// What none of this rescues is a caller who forms `1.0 + u` for small `u`
 /// before calling. That rounds `u`'s low bits away before `ln` is reached, and
@@ -445,78 +446,4 @@ pub fn ln_1p( x : f64 ) -> f64
   }
 
   ln( 1.0 + x )
-}
-
-#[ cfg( test ) ]
-mod tests
-{
-  use super::*;
-
-  #[ test ]
-  fn mantissa_exponent_is_an_exact_split()
-  {
-    let mut x = 1.0e-30;
-    while x < 1.0e30
-    {
-      let ( m, k ) = mantissa_exponent( x );
-      assert!( ( core::f64::consts::FRAC_1_SQRT_2 .. core::f64::consts::SQRT_2 ).contains( &m ), "range at {x}" );
-      // Reassembling must return the identical bits — the split rounds nothing.
-      assert_eq!( scale2( m, k ).to_bits(), x.to_bits(), "reassembly at {x}" );
-      x *= 1.7;
-    }
-  }
-
-  #[ test ]
-  fn exp_reduced_matches_its_own_series_definition()
-  {
-    let mut r = -0.35;
-    while r < 0.35
-    {
-      let mut want = 0.0;
-      let mut term = 1.0;
-      for n in 0 ..= 40u32
-      {
-        if n > 0
-        {
-          term = term * r / f64::from( n );
-        }
-        want += term;
-      }
-      assert!( ( exp_reduced( r ) / want - 1.0 ).abs() < 1.0e-15, "exp_reduced at {r}" );
-      r += 0.011;
-    }
-  }
-
-  #[ test ]
-  fn ln_mantissa_inverts_exp_reduced_across_the_recentred_range()
-  {
-    let mut m = core::f64::consts::FRAC_1_SQRT_2;
-    while m < core::f64::consts::SQRT_2
-    {
-      let l = ln_mantissa( m );
-      assert!( ( exp_reduced( l ) / m - 1.0 ).abs() < 1.0e-15, "round trip at {m}" );
-      m += 0.013;
-    }
-  }
-
-  #[ test ]
-  fn the_series_band_is_where_both_paths_are_accurate()
-  {
-    // The claim `SERIES_BAND` rests on: at the band edge the naive identity has
-    // recovered to roughly 1e-15 relative, so the handover is not a cliff.
-    let x = SERIES_BAND;
-    let naive = exp( x ) - 1.0;
-    assert!( ( naive / x.exp_m1() - 1.0 ).abs() < 1.0e-15, "exp_m1 handover" );
-    let naive = ln( 1.0 + x );
-    assert!( ( naive / x.ln_1p() - 1.0 ).abs() < 1.0e-15, "ln_1p handover" );
-  }
-
-  #[ test ]
-  fn the_named_log_constants_are_consistent()
-  {
-    use crate::constant::{ LN_2, LN_10 };
-    assert!( ( LN_2 * LOG2_E - 1.0 ).abs() < 1.0e-15 );
-    assert!( ( LN_10 * LOG10_E - 1.0 ).abs() < 1.0e-15 );
-    assert!( ( LOG10_2 * LN_10 - LN_2 ).abs() < 1.0e-15 );
-  }
 }

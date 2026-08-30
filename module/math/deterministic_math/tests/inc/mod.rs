@@ -39,6 +39,12 @@ mod contract_test;
 mod exponential_test;
 mod hyperbolic_test;
 mod inverse_circular_test;
+mod measure_test;
+
+/// Reaches inside the crate, so it compiles only when the crate agreed to be
+/// reached into. Everything else here goes through the public surface.
+#[ cfg( feature = "test_internals" ) ]
+mod internal_test;
 
 /// Accuracy bound against libm. Chosen to be well inside the crate's own
 /// documented error and well outside `f64` noise, so it catches a wrong
@@ -52,37 +58,13 @@ pub fn rel_err( got : f64, want : f64 ) -> f64
   if want.abs() > 0.0 { d / want.abs() } else { d }
 }
 
-/// Distance between two finites in units of last place, saturating at
-/// [ `u64::MAX` ].
+/// The crate's own ULP metric, not a second one written for the tests.
 ///
-/// Needed wherever a relative tolerance stops meaning anything — chiefly in the
-/// subnormal range, where consecutive representable values are 6% apart, so
-/// "within `1e-11` relative" is a bound no implementation can meet and "within 1
-/// ULP" is the strongest true statement available.
-///
-/// Monotone bit ordering only holds within one sign, so the mixed-sign case is
-/// measured as the two distances to zero added together rather than by
-/// subtracting the raw patterns — which would report two adjacent values
-/// straddling zero as astronomically far apart.
-pub fn ulp_diff( a : f64, b : f64 ) -> u64
-{
-  if a == b
-  {
-    return 0;
-  }
-  if !a.is_finite() || !b.is_finite()
-  {
-    return if a.is_nan() && b.is_nan() { 0 } else { u64::MAX };
-  }
-
-  let key = | v : f64 |
-  {
-    let bits = v.to_bits();
-    if v.is_sign_negative() { ( 0x8000_0000_0000_0000_u64 ).wrapping_sub( bits & 0x7FFF_FFFF_FFFF_FFFF ) } else { bits | 0x8000_0000_0000_0000 }
-  };
-
-  key( a ).abs_diff( key( b ) )
-}
+/// Re-exported rather than reimplemented: a test-local copy would be free to
+/// disagree with the one the `cost_vs_libm` example prints its Δulp column from,
+/// and then the two numbers a reader compares would be measured with different
+/// rulers. Documented at [ `the_module::measure::ulp_diff` ].
+pub use the_module::measure::ulp_diff;
 
 /// A deterministic sweep of `count` points across `[ lo, hi ]`.
 ///

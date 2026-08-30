@@ -74,15 +74,55 @@
 //! between implementations — plus [`sqrt`] and [`mul_add`], which are pinned
 //! but are included anyway so that one crate holds every arithmetic entry point
 //! a reproducibility audit has to look at.
+//!
+//! The one public item that is not arithmetic,
+//! [`measure::ulp_diff`], stays behind its module path for that same reason:
+//! the root is the list of pinned functions, and it is only useful as a list if
+//! everything on it belongs to the same kind.
 
-/// Every numeric constant the kernel evaluates against.
-pub mod constant;
+mod constant;
+
+/// Measuring the distance between two results, for grading this surface rather
+/// than extending it.
+///
+/// Deliberately not re-exported flat: [`ulp_diff`](measure::ulp_diff) is not a
+/// pinned function, and the crate root is the list of pinned functions.
+pub mod measure;
 
 mod algebraic;
 mod circular;
 mod exponential;
 mod hyperbolic;
 mod inverse_circular;
+
+/// The reduction steps, series and coefficient tables the surface is built
+/// from, exposed only under the `test_internals` feature.
+///
+/// Not part of the surface. With the feature off — which is the default, and
+/// what any dependent gets — this module does not exist, and the crate exports
+/// exactly the 28 functions, 7 constants and [`measure::ulp_diff`] that
+/// `docs/api/001_function_surface.md` documents.
+///
+/// It exists because tests live in `tests/`, which is a separate crate and so
+/// cannot reach a private item the way an inline `mod tests` could. The
+/// alternative — asserting only on composed results — is materially weaker:
+/// a wrong coefficient table and a wrong reduction can cancel, and
+/// `the_bin_table_holds_the_arctangent_of_each_centre` exists precisely to
+/// catch the case where they do.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use crate::algebraic::{ atan_series, atanh_series, round_half_away, scale2 };
+  pub use crate::circular::{ cos_reduced, sin_reduced };
+  pub use crate::exponential::{ exp_reduced, ln_mantissa, mantissa_exponent };
+  pub use crate::inverse_circular::clamp_unit;
+  pub use crate::constant::
+  {
+    ASIN_DIRECT, ATAN_B, ATAN_DIRECT, ATAN_V, HYPERBOLIC_SATURATION,
+    LOG10_2, LOG10_E, LOG2_E, PIO2_HI, PIO2_LO, PIO2_MD, SERIES_BAND,
+  };
+}
 
 pub use constant::{ FRAC_PI_2, FRAC_PI_4, LN_10, LN_2, PI, SIN_COS_MAX, TAU };
 

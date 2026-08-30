@@ -13,10 +13,13 @@
 //! the shortest decimal that round-trips to the `f64` its generating
 //! computation produced, so substituting the literal is exact rather than
 //! close. Every one of them is rebuilt from its own definition at run time and
-//! checked — `RECIP_FACT` and the two circular series in `circular.rs`'s own
-//! `mod tests`, `ATAN_B`/`ATAN_V` and the series that consume them in
-//! `inverse_circular.rs`'s, the `PI/2` split in `circular.rs`'s. A mistyped
-//! digit anywhere here fails a test rather than shifting an answer.
+//! checked in `tests/inc/internal_test.rs` — `RECIP_FACT` and the two circular
+//! series summed term by term, `ATAN_B`/`ATAN_V` re-derived by bisection on
+//! `tan`, the `PI/2` three-part split reassembled. A mistyped digit anywhere
+//! here fails a test rather than shifting an answer.
+//!
+//! Those checks reach these constants through the crate's `test_internals`
+//! feature, since this module is private and `tests/` is a separate crate.
 
 /// Ratio of a circle's circumference to its diameter.
 pub const PI : f64 = core::f64::consts::PI;
@@ -47,33 +50,33 @@ pub const SIN_COS_MAX : f64 = 1.0e8;
 
 /// Natural logarithm of 2, high half — the top 26 mantissa bits, so that
 /// `k * LN2_HI` is exact for any `k` small enough to be an exponent.
-pub( crate ) const LN2_HI : f64 = 0.693_147_167_563_438_4;
+pub const LN2_HI : f64 = 0.693_147_167_563_438_4;
 
 /// Natural logarithm of 2, low half. `LN2_HI + LN2_LO` rounds to `ln 2`, and
 /// the pair together carry about 80 bits — which is what makes the Cody-Waite
 /// reduction `x - k * LN2_HI - k * LN2_LO` lose nothing when `k` is large.
-pub( crate ) const LN2_LO : f64 = 1.299_650_689_388_988_9e-08;
+pub const LN2_LO : f64 = 1.299_650_689_388_988_9e-08;
 
 /// `PI / 2`, split into three parts for the same reason `LN2` is split into
 /// two. Three rather than two because the argument may be a few thousand
 /// radians, and a two-part reduction starts losing bits there.
-pub( crate ) const PIO2_HI : f64 = 1.570_796_310_901_641_8;
+pub const PIO2_HI : f64 = 1.570_796_310_901_641_8;
 /// `PI / 2`, middle part — see [`PIO2_HI`].
-pub( crate ) const PIO2_MD : f64 = 1.589_325_477_352_819_6e-08;
+pub const PIO2_MD : f64 = 1.589_325_477_352_819_6e-08;
 /// `PI / 2`, low part — see [`PIO2_HI`].
-pub( crate ) const PIO2_LO : f64 = 6.368_317_163_510_95e-25;
+pub const PIO2_LO : f64 = 6.368_317_163_510_95e-25;
 
 /// `2 / PI`, used to find how many quarter turns to strip.
-pub( crate ) const INV_PIO2 : f64 = core::f64::consts::FRAC_2_PI;
+pub const INV_PIO2 : f64 = core::f64::consts::FRAC_2_PI;
 
 /// `log2( e )`, the factor turning a natural exponent into a binary one.
-pub( crate ) const LOG2_E : f64 = core::f64::consts::LOG2_E;
+pub const LOG2_E : f64 = core::f64::consts::LOG2_E;
 
 /// `log10( 2 )`, for [`crate::log10`]'s exact exponent term.
-pub( crate ) const LOG10_2 : f64 = core::f64::consts::LOG10_2;
+pub const LOG10_2 : f64 = core::f64::consts::LOG10_2;
 
 /// `log10( e )`, turning the mantissa's natural logarithm into a decimal one.
-pub( crate ) const LOG10_E : f64 = core::f64::consts::LOG10_E;
+pub const LOG10_E : f64 = core::f64::consts::LOG10_E;
 
 /// Where [`crate::asinh`] and [`crate::acosh`] switch to `ln( 2x )`.
 ///
@@ -81,7 +84,7 @@ pub( crate ) const LOG10_E : f64 = core::f64::consts::LOG10_E;
 /// neighbouring doubles at `7.2e16` is already `16` — so the switch is an
 /// identity rather than an approximation, and it is taken long before `x * x`
 /// could overflow at `1.34e154`.
-pub( crate ) const LARGE_ARGUMENT : f64 = 268_435_456.0;
+pub const LARGE_ARGUMENT : f64 = 268_435_456.0;
 
 /// Where [`crate::exp_m1`] and [`crate::ln_1p`] stop using a direct series and
 /// fall back to the naive identity each of them exists to replace.
@@ -100,7 +103,7 @@ pub( crate ) const LARGE_ARGUMENT : f64 = 268_435_456.0;
 /// band from there to here the kernel returned bit-identical results to the
 /// naive expression it was called to avoid, losing three to four decimal digits
 /// exactly where callers had been told it would not.
-pub( crate ) const SERIES_BAND : f64 = 0.25;
+pub const SERIES_BAND : f64 = 0.25;
 
 /// Below this magnitude [`crate::atan`] evaluates its series directly instead
 /// of reducing onto a bin centre.
@@ -111,7 +114,7 @@ pub( crate ) const SERIES_BAND : f64 = 0.25;
 /// mid-range argument is precisely what destroys a small one. Under this
 /// threshold the series is already inside its own documented range, so
 /// bypassing the reduction costs nothing and keeps every digit.
-pub( crate ) const ATAN_DIRECT : f64 = 0.0625;
+pub const ATAN_DIRECT : f64 = 0.0625;
 
 /// Below this magnitude [`crate::asin`] returns [`crate::atan`] of its argument
 /// rather than building the companion side first.
@@ -134,7 +137,7 @@ pub( crate ) const ATAN_DIRECT : f64 = 0.0625;
 /// orders of magnitude less significant. That asymmetry is visible in the
 /// measurements: before the reduction work, `asin` disagreed with the platform's
 /// libm by 22 268 ULP and `acos`, built the same way, by 69.
-pub( crate ) const ASIN_DIRECT : f64 = 7.450_580_596_923_828e-9;
+pub const ASIN_DIRECT : f64 = 7.450_580_596_923_828e-9;
 
 /// Where the hyperbolic functions stop being a difference of two exponentials
 /// and become one.
@@ -149,7 +152,7 @@ pub( crate ) const ASIN_DIRECT : f64 = 7.450_580_596_923_828e-9;
 ///
 /// Deliberately far below where `exp` overflows, so the branch is chosen for
 /// being an identity rather than for dodging an edge case.
-pub( crate ) const HYPERBOLIC_SATURATION : f64 = 20.0;
+pub const HYPERBOLIC_SATURATION : f64 = 20.0;
 
 /// Bin centres [`crate::atan`] reduces to, and the exact `atan` of each.
 ///
@@ -157,10 +160,10 @@ pub( crate ) const HYPERBOLIC_SATURATION : f64 = 20.0;
 /// about `0.125`, where the arctangent series converges fast enough to reach
 /// full precision in eleven terms. Without the reduction the same series needs
 /// hundreds of terms near `t = 1` and never gets there.
-pub( crate ) const ATAN_B : [ f64; 4 ] = [ 0.125, 0.375, 0.625, 0.875 ];
+pub const ATAN_B : [ f64; 4 ] = [ 0.125, 0.375, 0.625, 0.875 ];
 
 /// `atan` of each entry of [`ATAN_B`], to full double precision.
-pub( crate ) const ATAN_V : [ f64; 4 ] =
+pub const ATAN_V : [ f64; 4 ] =
 [
   0.124_354_994_546_761_44,
   0.358_770_670_270_572_25,
@@ -188,7 +191,7 @@ pub( crate ) const ATAN_V : [ f64; 4 ] =
 /// nothing (`10.21ns` to `10.19ns`). What defeated the optimiser here was a
 /// *loop* inside the loop, not arithmetic inside it, and only these three had
 /// one.
-pub( crate ) const RECIP_FACT : [ f64; 20 ] =
+pub const RECIP_FACT : [ f64; 20 ] =
 [
   1.0,                          // 1 / 0!
   1.0,                          // 1 / 1!

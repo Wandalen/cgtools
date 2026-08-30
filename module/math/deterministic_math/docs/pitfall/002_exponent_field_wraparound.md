@@ -174,7 +174,7 @@ range.
 
 | File | Relationship |
 |------|--------------|
-| `src/algebraic.rs` — `mod tests` | `scale2_stays_correct_past_the_exponent_field` — the direct guard, stated in `k` so no caller's reduction stands between it and the failing range. Bit-exact rather than tolerant, because a sign flip is not something a tolerance should be able to absorb; graded against `f64::exp2`, which reaches these values by an unrelated route, and explicitly *not* against `f64::powi`, which returns zero here because its reciprocal's denominator overflows first |
-| `src/algebraic.rs` — `mod tests` | `scale2_is_exact_multiplication_by_a_power_of_two` — the in-window companion, `k` from `−1020` to `1021`, so the fast path cannot regress unnoticed while the guarded path passes |
+| `tests/inc/internal_test.rs` | `scale2_stays_correct_past_the_exponent_field` — the direct guard, stated in `k` so no caller's reduction stands between it and the failing range. Bit-exact rather than tolerant, because a sign flip is not something a tolerance should be able to absorb; graded against `f64::exp2`, which reaches these values by an unrelated route, and explicitly *not* against `f64::powi`, which returns zero here because its reciprocal's denominator overflows first |
+| `tests/inc/internal_test.rs` | `scale2_is_exact_multiplication_by_a_power_of_two` — the in-window companion, `k` from `−1020` to `1021`, so the fast path cannot regress unnoticed while the guarded path passes |
 | `tests/inc/exponential_test.rs` | `exp_stays_correct_where_the_result_is_subnormal` — 400 samples across `[ −745, −700 ]` asserting `got >= 0.0` before the ulp bound, so a sign flip is reported as itself; plus both domain ends |
 | `tests/inc/exponential_test.rs` | `exp2_matches_libm_across_its_whole_domain` and `exp2_is_exact_on_integers` — the function that made the defect reachable, swept over its full `[ −1074, 1023 ]` and asserted bit-exact at every integer in it |

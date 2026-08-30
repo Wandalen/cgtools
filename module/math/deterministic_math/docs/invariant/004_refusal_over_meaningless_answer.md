@@ -134,4 +134,4 @@ assert_eq!( asin( 1.0 + 2.0e-16 ), asin( 1.0 ) );
 | `tests/inc/hyperbolic_test.rs` | `acosh_inverts_cosh_and_refuses_what_has_no_inverse`, `atanh_inverts_tanh_and_refuses_what_has_no_inverse` |
 | `tests/inc/inverse_circular_test.rs` | `asin_and_acos_clamp_rather_than_returning_nan` |
 | `tests/inc/contract_test.rs` | `nan_propagates_rather_than_being_swallowed` |
-| `src/inverse_circular.rs` — `mod tests` | `clamp_unit_is_a_boundary_not_a_rescale` — in-domain arguments pass through bit-identically, so the clamp cannot be quietly rescaling |
+| `tests/inc/internal_test.rs` | `clamp_unit_is_a_boundary_not_a_rescale` — in-domain arguments pass through bit-identically, so the clamp cannot be quietly rescaling |

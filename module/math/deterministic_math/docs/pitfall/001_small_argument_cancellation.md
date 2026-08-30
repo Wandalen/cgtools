@@ -152,4 +152,4 @@ check, and one no tolerance can be loosened to pass.
 | `tests/inc/inverse_circular_test.rs` | `the_small_argument_band_keeps_every_digit` — bit-identity below `1e-9` for `atan` and `asin` |
 | `tests/inc/circular_test.rs` | `sin_keeps_its_relative_accuracy_near_zero` — relative, across 300 decades |
 | `tests/inc/exponential_test.rs` | The `exp_m1` and `ln_1p` cancellation tests over 300 decades |
-| `src/inverse_circular.rs` — `mod tests` | `the_direct_thresholds_are_the_powers_of_two_they_claim_to_be` — the seam, with a bound tracking `c²/2` because the two functions genuinely differ by that much |
+| `tests/inc/internal_test.rs` | `the_direct_thresholds_are_the_powers_of_two_they_claim_to_be` — the seam, with a bound tracking `c²/2` because the two functions genuinely differ by that much |

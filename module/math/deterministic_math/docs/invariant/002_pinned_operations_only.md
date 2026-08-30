@@ -56,11 +56,17 @@ rather than decoration:
 - **The sources are `include_str!`-ed, not walked.** The check runs against the
   files this test binary was actually compiled from, so it cannot be defeated by
   a stale tree, a relocated directory, or a build from a different checkout.
-- **Doc comments and the inline test module are stripped first.** The
-  documentation quotes the banned calls deliberately — naming what not to write
-  is part of its job — and a `mod tests` comparing against libm is the point
-  rather than a violation. Scanning the raw text would make the check fail on
-  correct code, and the usual response to that is to weaken it.
+- **Doc comments are stripped first.** The documentation quotes the banned calls
+  deliberately — naming what not to write is part of its job. Scanning the raw
+  text would make the check fail on correct code, and the usual response to that
+  is to weaken it.
+
+  The stripper cuts at `#[ cfg( test ) ]` as well, which for *this* crate now
+  matches nothing: its tests live in `tests/`, so `src/` contains no inline test
+  module for the cut to remove. That half is retained because the scan is
+  written to be copied — [../pitfall/004](../pitfall/004_method_call_reintroduces_libm.md)
+  hands it to consuming crates, where an inline `mod tests` comparing against
+  libm is the point rather than a violation.
 - **The scan's own scope is checked.** `include_str!` means a new module must be
   added to the `SOURCES` table by hand, which is exactly the step someone
   forgets. `every_source_file_is_covered_by_the_libm_scan` parses the `mod` and
@@ -94,7 +100,7 @@ visible in a symptom that does not name it.
 Add an unannounced call to any shipping file:
 
 ```rust
-// in src/circular.rs, outside `mod tests`
+// in src/circular.rs
 pub fn tan( x : f64 ) -> f64
 {
   x.tan()
@@ -110,6 +116,18 @@ cargo test -p deterministic_math --test tests no_libm_call_survives
 fails naming the file, the spelling, and both counts. Revert and it passes. To
 see the second guard, instead add a new `mod` to `src/lib.rs` without adding it
 to `SOURCES`, and watch `every_source_file_is_covered_by_the_libm_scan` fail.
+
+That second guard is not a hypothetical. `pub mod measure;` was the most recent
+module added to `lib.rs`, and it is the case above run for real: with the
+`measure.rs` row held out of `SOURCES`, the guard fails with
+
+```
+`measure.rs` is declared in lib.rs but missing from the libm scan's SOURCES table
+```
+
+and with the row present it passes. That gap is the one worth closing — a module
+missing from `SOURCES` is exempt from the ban above while reading exactly like a
+module covered by it.
 
 ### Invariants
 

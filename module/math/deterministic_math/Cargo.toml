@@ -33,6 +33,15 @@ workspace = true
 # to it by name; here every one of them is empty by construction.
 [features]
 enabled = []
+
+# Exposes `internal`, the reduction steps, series and coefficient tables that
+# `tests/inc/internal_test.rs` checks directly. Off by default and never needed
+# by a dependent: with it off the crate exports exactly the 28 functions, 7
+# constants and `measure::ulp_diff` that `docs/api/001_function_surface.md`
+# documents. It exists because tests live in `tests/`, which is a separate
+# crate and so cannot reach a private item the way an inline `mod tests` could.
+test_internals = []
+
 default = [
   "enabled",
 ]

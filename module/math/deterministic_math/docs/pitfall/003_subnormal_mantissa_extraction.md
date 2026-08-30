@@ -191,5 +191,5 @@ has a test crossing each of them.
 | File | Relationship |
 |------|--------------|
 | `tests/inc/exponential_test.rs` | `the_logarithms_accept_subnormal_arguments` — exact equality on all 52 subnormal powers of two, a relative bound across arbitrary subnormals from `decades( 3.7, 323 )`, and the `exp2 ∘ log2` round trip across the boundary that the defect broke by 51 powers of two |
-| `src/exponential.rs` — `mod tests` | `mantissa_exponent_is_an_exact_split` — asserts `m · 2ᵏ` reassembles to the input bit-for-bit, which is the property the lift preserves and the unlifted extraction destroyed |
+| `tests/inc/internal_test.rs` | `mantissa_exponent_is_an_exact_split` — asserts `m · 2ᵏ` reassembles to the input bit-for-bit, which is the property the lift preserves and the unlifted extraction destroyed |
 | `tests/inc/exponential_test.rs` | `the_logarithms_reject_what_has_no_logarithm` — the exclusions the subnormal branch relies on having already happened |

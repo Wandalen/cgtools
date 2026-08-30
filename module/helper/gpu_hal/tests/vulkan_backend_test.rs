@@ -751,3 +751,24 @@ fn repeated_submit_cycles_leave_device_usable( device : &Device, queue : &Queue,
     "device must still render correctly after many repeated submit cycles"
   );
 }
+
+/// `expect_vulkan` is `pub( crate )` — this reaches it through
+/// `Device::expect_vulkan_for_test`, the `test_internals`-gated delegate, so
+/// the panic contract is asserted from `tests/` rather than from beside the
+/// code. Requires both backends compiled in: constructing a
+/// "non-Vulkan-constructed `Device`" needs `Device::new_native`.
+///
+/// The contract is worth pinning because the panic is the whole point.
+/// `as_vulkan` returns `Option` and lets a caller handle the mismatch;
+/// `expect_vulkan` is the internal form that assumes it away, and an
+/// assumption that silently stopped holding would surface as a wrong-backend
+/// call rather than as this message.
+#[ cfg( feature = "native" ) ]
+#[ test ]
+#[ should_panic( expected = "expect_vulkan called on a Device::Native handle" ) ]
+fn expect_vulkan_panics_on_native_device()
+{
+  let ( device, _queue, _surface ) = Device::new_native( 4, 4 )
+  .expect( "no native wgpu adapter available" );
+  let _ = device.expect_vulkan_for_test();
+}

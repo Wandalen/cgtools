@@ -1148,6 +1148,30 @@ mod private
     }
   }
 
+  /// The `context_lost` flag, reachable from `tests/` under `test_internals`.
+  ///
+  /// A loss/restore test needs to both set and read it: setting stands in for a
+  /// real `webglcontextlost` DOM event ( nothing in this workspace synthesizes
+  /// one, and `WEBGL_lose_context` is not reliably available under the headless
+  /// runner ), and reading is how the test observes that `assets_load` — and
+  /// nothing else — is what clears it again.
+  #[ cfg( feature = "test_internals" ) ]
+  impl WebGlBackend
+  {
+    #[ doc( hidden ) ]
+    #[ must_use ]
+    pub fn context_lost_for_test( &self ) -> bool
+    {
+      self.context_lost.get()
+    }
+
+    #[ doc( hidden ) ]
+    pub fn context_lost_set_for_test( &self, lost : bool )
+    {
+      self.context_lost.set( lost );
+    }
+  }
+
   // ============================================================================
   // Backend trait impl
   // ============================================================================
@@ -1558,102 +1582,6 @@ mod private
     // once the fired handler calls `img.remove()` above.
 
     texture
-  }
-
-  // Test placement: `context_lost` is a private field of `WebGlBackend`, so this can only be
-  // exercised from an inline `#[cfg(test)] mod tests` block inside this source file, not from
-  // an external `tests/` integration test (which only sees `pub` items) — see
-  // `rulebook.md § Test placement`. Gated to `target_arch = "wasm32"` in addition to `test`
-  // because `WebGlBackend::new` compiles real shaders against a live `WebGl2RenderingContext`,
-  // which only exists under the workspace's headless-browser wasm32 test runner (see
-  // `.cargo/config.toml`'s `[target.wasm32-unknown-unknown]` `runner`) — it does not run under
-  // a native `cargo nextest`/`cargo test` invocation.
-  #[ cfg( all( test, target_arch = "wasm32" ) ) ]
-  mod tests
-  {
-    use super::*;
-    use wasm_bindgen_test::wasm_bindgen_test;
-    use crate::types::RenderConfig;
-    use crate::assets::Assets;
-
-    /// Builds a real, live WebGL2 context via a headless browser canvas. Same helper shape as
-    /// `renderer`'s `tests/webgl/*.rs::gl_init()` ( `gl::browser::setup` / `gl::canvas::make` /
-    /// `gl::context::from_canvas_with` ) — `tilemap_renderer` had no prior live-context test of
-    /// its own to reuse, so this mirrors that crate's proven pattern rather than introducing a
-    /// new one.
-    fn gl_init() -> gl::GL
-    {
-      gl::browser::setup( gl::browser::Config::default() );
-      let options = gl::context::ContextOptions::default();
-      let canvas = gl::canvas::make().unwrap();
-      gl::context::from_canvas_with( &canvas, options ).unwrap()
-    }
-
-    fn empty_assets() -> Assets
-    {
-      Assets
-      {
-        fonts : Vec::new(),
-        images : Vec::new(),
-        sprites : Vec::new(),
-        geometries : Vec::new(),
-        gradients : Vec::new(),
-        patterns : Vec::new(),
-        clip_masks : Vec::new(),
-        paths : Vec::new(),
-      }
-    }
-
-    /// ## Root Cause
-    /// `context_lost` used to be cleared by the `webglcontextrestored` DOM listener the
-    /// instant the browser fired the event — before the caller had any chance to re-call
-    /// `assets_load` and re-upload GPU state. `submit`/`output` would then see
-    /// `context_lost == false` and proceed to issue GL calls against a context whose
-    /// textures/buffers/VAOs no longer existed.
-    ///
-    /// ## Why Not Caught
-    /// No existing test exercised `context_lost`'s lifecycle at all — `webgl_backend_test.rs`
-    /// only covers `declared_capabilities()`, and nothing simulated a loss/restore cycle.
-    ///
-    /// ## Fix Applied
-    /// `webglcontextrestored`'s listener no longer clears the flag — it only logs.
-    /// `assets_load` now clears `context_lost` itself, once GPU state has actually been
-    /// re-uploaded ( see the `Fix(BUG-441)` comments on both sites in this file ).
-    ///
-    /// ## Prevention
-    /// This test simulates a loss ( `context_lost.set( true )` — the same effect the real
-    /// `webglcontextlost` listener has ) without needing to synthesize a real
-    /// `WEBGL_lose_context` DOM event ( no precedent for that exists anywhere in this
-    /// workspace ), then verifies `assets_load` — not merely the passage of time or a
-    /// restored-event — is what unblocks `submit`/`output` again.
-    ///
-    /// ## Pitfall
-    /// Directly writing the private `context_lost` field is a white-box shortcut standing in
-    /// for a real `webglcontextlost` event; it exercises the observable contract the fix
-    /// changed ( assets_load is now the sole place that clears the flag ), not the DOM
-    /// listener registration path itself.
-    // test_kind: bug_reproducer(BUG-441)
-    #[ wasm_bindgen_test ]
-    fn assets_load_clears_context_lost_after_simulated_loss()
-    {
-      let gl = gl_init();
-      let config = RenderConfig::default();
-      let mut backend = WebGlBackend::new( config, gl ).unwrap();
-
-      // Simulate the effect of a `webglcontextlost` event without needing a real one.
-      backend.context_lost.set( true );
-
-      assert!( backend.submit( &[] ).is_err(), "submit must reject while context_lost is true" );
-      assert!( backend.output().is_err(), "output must reject while context_lost is true" );
-
-      // The fix: re-uploading GPU state via assets_load is what clears the flag now, not the
-      // (removed) listener-side clear.
-      backend.assets_load( &empty_assets() ).unwrap();
-
-      assert!( !backend.context_lost.get(), "assets_load must clear context_lost after re-uploading GPU state" );
-      assert!( backend.submit( &[] ).is_ok(), "submit must succeed again once assets_load has run" );
-      assert!( backend.output().is_ok(), "output must succeed again once assets_load has run" );
-    }
   }
 }
 

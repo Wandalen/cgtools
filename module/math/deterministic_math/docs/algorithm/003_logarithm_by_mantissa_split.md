@@ -138,6 +138,6 @@ the lift is removed.
 
 | File | Relationship |
 |------|--------------|
-| `src/exponential.rs` — `mod tests` | `mantissa_exponent_is_an_exact_split` (reassembly is bit-identical), `ln_mantissa_inverts_exp_reduced_across_the_recentred_range`, `the_named_log_constants_are_consistent` |
-| `src/algebraic.rs` — `mod tests` | `the_two_series_agree_with_their_own_definitions` |
+| `tests/inc/internal_test.rs` | `mantissa_exponent_is_an_exact_split` (reassembly is bit-identical), `ln_mantissa_inverts_exp_reduced_across_the_recentred_range`, `the_named_log_constants_are_consistent` |
+| `tests/inc/internal_test.rs` | `the_two_series_agree_with_their_own_definitions` |
 | `tests/inc/exponential_test.rs` | `log2_and_log10_are_exact_on_their_own_powers`, `the_logarithms_accept_subnormal_arguments`, `the_logarithms_reject_what_has_no_logarithm`, the `ln`/`exp` inversion and cross-logarithm agreement tests |

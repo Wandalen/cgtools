@@ -26,6 +26,7 @@
 //! Δulp column is reproducible rather than a new draw each time.
 
 use deterministic_math as dm;
+use deterministic_math::measure::ulp_diff;
 use std::hint::black_box;
 use std::time::Instant;
 
@@ -65,32 +66,6 @@ impl Rng
     let unit = ( self.next_u64() >> 11 ) as f64 / ( 1_u64 << 53 ) as f64;
     lo + unit * ( hi - lo )
   }
-}
-
-/// Distance between two finites in units of last place, saturating at [ `u64::MAX` ].
-///
-/// Monotone bit ordering only holds within one sign, so the mixed-sign case is measured as the two
-/// distances to zero added together rather than by subtracting the raw patterns — which would
-/// report two adjacent values straddling zero as astronomically far apart.
-#[ allow( clippy::float_cmp, reason = "zero-distance fast path; `==` also folds ±0.0 together, which `to_bits` would not" ) ]
-fn ulp_diff( a : f64, b : f64 ) -> u64
-{
-  if a == b
-  {
-    return 0;
-  }
-  if !a.is_finite() || !b.is_finite()
-  {
-    return if a.is_nan() && b.is_nan() { 0 } else { u64::MAX };
-  }
-
-  let key = | v : f64 |
-  {
-    let bits = v.to_bits();
-    if v.is_sign_negative() { ( 0x8000_0000_0000_0000_u64 ).wrapping_sub( bits & 0x7FFF_FFFF_FFFF_FFFF ) } else { bits | 0x8000_0000_0000_0000 }
-  };
-
-  key( a ).abs_diff( key( b ) )
 }
 
 /// One measured row.

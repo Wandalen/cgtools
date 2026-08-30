@@ -113,17 +113,61 @@ screen tall.
 
 ## Test placement
 
-**Rule:** Tests that exercise the **public API** live in `tests/` as
-integration tests. Tests that exercise **private helpers** (e.g. internal
-`fn` items, free functions inside `mod private`) live in a
-`#[cfg(test)] mod tests { ... }` block inside the source file.
+**Rule:** Every test lives in its crate's `tests/` directory. No `src/` file
+carries a `#[cfg(test)] mod tests { ... }` block, whatever the visibility of
+what it tests.
 
-**Rationale:** Rust integration tests (`tests/`) are separate crates and
-cannot access private items. Making an internal helper `pub` solely to move
-its tests out of the source file is the wrong trade-off — it pollutes the
-public API and removes the encapsulation the `pub`/`fn` distinction
-provides. Unit tests inline in `src/` are the standard Rust idiom for this
-case.
+A test that needs a private item reaches it through a `test_internals`
+cargo feature, off by default:
+
+```rust
+// src/lib.rs
+/// The internals `tests/` reaches, exposed only under `test_internals`.
+///
+/// Not part of the surface. With the feature off — the default, and what
+/// every dependent gets — this module does not exist.
+#[ cfg( feature = "test_internals" ) ]
+#[ doc( hidden ) ]
+pub mod internal
+{
+  pub use crate::private::{ some_helper, SomeType };
+}
+```
+
+The item becomes `pub` *inside its private module* and is re-exported only
+through that gate, so the default build's surface is byte-for-byte what it
+was. `tests/` then runs under `--features test_internals`.
+
+**Rationale:** A test's placement should be one rule, not a rule plus a
+judgement about what the test happens to touch. The old form split them —
+public-API tests in `tests/`, private-helper tests inline — and the split
+cost more than it saved. A test migrates across the boundary as the code
+under it changes visibility, so the correct location was a moving target;
+`gpu_picking`'s pure predicates and `renderer`'s live-context reproducers sat
+in `src/` for the same stated reason while being nothing alike; and a reader
+looking for a crate's tests had to check two places and know which rule
+applied to each.
+
+The encapsulation objection the old rule raised is real but is answered by
+the gate rather than by inline placement. `#[ doc( hidden ) ]` plus
+off-by-default means no dependent sees the item, no documentation lists it,
+and no semver promise attaches to it — the `pub`/`fn` distinction survives
+intact for every consumer. What changes is only that the crate's own test
+binary can opt in.
+
+There is a second gain the old rule gave up. An integration test compiles
+against the same surface a caller gets, so a round trip it exercises is a
+round trip a caller could actually write — an inline test proves that only
+by accident. Where a test genuinely needs the interior, the feature gate
+makes that need explicit and greppable instead of invisible.
+
+**Wasm tests:** `wasm_bindgen_test_configure!( run_in_browser )` must be
+linked into a test binary at least once for that whole binary to run in a
+browser rather than Node, where `web_sys::window()` is always `None`. Each
+file under `tests/` is its own binary, so each wasm test file carries its
+own call. A missing one does not fail to compile — it fails at runtime with
+an unrelated-looking `CanvasRetrievingError("Failed to get window")` on
+every test in the binary.
 
 ---
 

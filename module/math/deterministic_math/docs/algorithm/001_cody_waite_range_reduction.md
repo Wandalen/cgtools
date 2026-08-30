@@ -156,8 +156,8 @@ which is the property the base-two reduction exists to provide.
 
 | File | Relationship |
 |------|--------------|
-| `src/circular.rs` — `mod tests` | `the_three_part_split_reassembles_to_pi_over_two`, `the_reduced_series_match_their_own_definitions` (series rebuilt from run-time factorials) |
-| `src/exponential.rs` — `mod tests` | `exp_reduced_matches_its_own_series_definition` |
-| `src/algebraic.rs` — `mod tests` | `round_half_away_breaks_ties_away_from_zero`, `scale2_is_exact_multiplication_by_a_power_of_two` |
+| `tests/inc/internal_test.rs` | `the_three_part_split_reassembles_to_pi_over_two`, `the_reduced_series_match_their_own_definitions` (series rebuilt from run-time factorials) |
+| `tests/inc/internal_test.rs` | `exp_reduced_matches_its_own_series_definition` |
+| `tests/inc/internal_test.rs` | `round_half_away_breaks_ties_away_from_zero`, `scale2_is_exact_multiplication_by_a_power_of_two` |
 | `tests/inc/circular_test.rs` | `the_quadrant_reassembly_lands_on_the_right_branch` (step 4's four-way selection), `sin_cos_agrees_with_the_separate_calls` |
 | `tests/inc/exponential_test.rs` | `exp2_is_exact_on_integers`, `exp2_matches_libm_across_its_whole_domain` |

@@ -152,4 +152,4 @@ identical between the two runs and the `libm` column will not.
 | File | Relationship |
 |------|--------------|
 | `tests/inc/contract_test.rs` | `evaluation_is_bit_reproducible` (purity across the unary surface), `nan_propagates_rather_than_being_swallowed`, `constants_are_the_core_ones` |
-| `src/constant.rs` — via the `mod tests` of its consumers | Each table rebuilt from its own definition: `RECIP_FACT` and both circular series in `circular.rs`, `ATAN_B`/`ATAN_V` in `inverse_circular.rs`, the `PI/2` split in `circular.rs`, both `atan`/`atanh` series in `algebraic.rs` |
+| `tests/inc/internal_test.rs` | Each table rebuilt from its own definition rather than restated: `RECIP_FACT` and both circular series, `ATAN_B`/`ATAN_V` re-derived by bisection on `tan`, the `PI/2` three-part split reassembled, both `atan`/`atanh` series summed term by term |

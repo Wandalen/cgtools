@@ -159,7 +159,9 @@ than something new:
 
 | File | Relationship |
 |------|--------------|
-| `examples/cost_vs_libm.rs` | `ulp_diff`, the worst-case table, `small_argument_sweep()`, and `amplification()` |
+| `examples/cost_vs_libm.rs` | The worst-case table, `small_argument_sweep()`, and `amplification()` — everything on this page is one run of it |
+| `src/measure.rs` | `ulp_diff`, the metric the Δulp column is measured with. Library code rather than example-local, so the test suite's bounds and this page's table are read off the same ruler |
+| `tests/inc/measure_test.rs` | Grades that ruler before anything is measured with it — an error in `ulp_diff` would silently restate every figure on this page rather than fail |
 
 ### Tests
 

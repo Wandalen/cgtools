@@ -25,9 +25,28 @@ one method syntax resolves to. The mechanisms that catch it are in
 [pitfall/004](../pitfall/004_method_call_reintroduces_libm.md); reading that
 before adopting the crate is worth the five minutes.
 
-There is no trait to import, no extension trait, and no `prelude`. The surface
-is flat by design: one crate, one module path, every arithmetic entry point a
-reproducibility audit has to examine.
+There is no trait to import, no extension trait, and no `prelude`. The
+arithmetic surface is flat by design: every entry point a reproducibility audit
+has to examine is reachable as `deterministic_math::name`, with nothing nested
+and nothing behind a trait.
+
+That flatness is load-bearing, which is why the one public item that is *not*
+arithmetic stays off it. `measure::ulp_diff` is reachable only by its module
+path:
+
+```rust
+use deterministic_math::measure::ulp_diff;
+
+assert_eq!( ulp_diff( 1.0, f64::from_bits( 1.0_f64.to_bits() + 1 ) ), 1 );
+```
+
+It measures the distance between two results in units of last place — the ruler
+the crate's own test suite and its `cost_vs_libm` example both grade with, and
+the thing anyone auditing a reproducibility claim ends up needing. It is public
+because that audience exists, and it is *not* re-exported flat because the crate
+root is the list of pinned functions and adding a non-function to it would make
+the count above stop meaning anything. The 28 below are the whole arithmetic
+surface; `measure::ulp_diff` is the whole of the rest.
 
 ### The 28 Functions
 
@@ -152,8 +171,10 @@ with the host to within `1e-12`, which
 
 ### The 7 Constants
 
-Exported from `constant`, which is itself `pub` — reachable as
-`deterministic_math::PI` or `deterministic_math::constant::PI`.
+Re-exported at the crate root from a private `constant` module — reachable as
+`deterministic_math::PI` and by no other path. The module is private on purpose:
+it also holds the reduction tables, which are not surface, and a second public
+route to a constant would be a second thing to keep true.
 
 | Constant | Value | Source |
 |----------|-------|--------|
@@ -172,10 +193,29 @@ constant this crate originates, and it is a documented capability boundary
 rather than a mathematical value.
 
 The reduction and series coefficients — `LN2_HI`, `LN2_LO`, `PIO2_HI`,
-`ATAN_B`, `ATAN_V`, `SERIES_BAND`, and the rest — are `pub( crate )` and
-deliberately not exported. They are implementation detail whose split points a
-future rewrite must be free to change, and each carries its derivation in a doc
-comment where it is defined.
+`ATAN_B`, `ATAN_V`, `SERIES_BAND`, and the rest — live in that same private
+module and are deliberately not re-exported. They are implementation detail
+whose split points a future rewrite must be free to change, and each carries its
+derivation in a doc comment where it is defined.
+
+### The `test_internals` Feature
+
+Off by default, and therefore off for every dependent. Turning it on adds one
+module, `deterministic_math::internal`, re-exporting the reduction steps, series
+and coefficient tables the surface above is built from — `sin_reduced`,
+`mantissa_exponent`, `ATAN_B` and their neighbours. It adds nothing to the
+default build and changes nothing about it.
+
+It exists because this crate's tests live in `tests/`, which the compiler treats
+as a separate crate and which therefore cannot reach a private item the way an
+inline `mod tests` could. The alternative — asserting only on composed results —
+is materially weaker: a wrong coefficient table and a wrong reduction can
+cancel, and `the_bin_table_holds_the_arctangent_of_each_centre` exists precisely
+to catch the case where they do.
+
+Nothing under `internal` is surface. It is `#[ doc( hidden ) ]`, it carries no
+stability expectation, and a dependent enabling it to reach a shortcut has
+stepped outside what this document describes.
 
 ### What Is Deliberately Absent
 
@@ -225,6 +265,18 @@ of them can be satisfied by editing a list. What no test can check is that
 *this document* was updated too — the counts here (28 functions, 7 constants,
 21 unary, 6 multi-argument) are the part a reader should re-derive from
 `src/lib.rs` if anything looks off.
+
+All three parse `pub use` lines, so `measure::ulp_diff` is outside every one of
+them — correctly, since it is neither timed against libm nor required to be
+pure in the sense those tests mean. It is not unguarded, though:
+`tests/inc/measure_test.rs` grades the ruler before anything is measured with
+it, including the two cases a bit-subtraction implementation gets wrong (`±0.0`
+folding onto one value, and adjacent values straddling zero measuring 2 rather
+than astronomically far).
+A fourth test, `every_source_file_is_covered_by_the_libm_scan`, is what stops
+the module from being exempt from the libm ban as well — it reads `lib.rs`'s
+`mod` declarations, so adding `pub mod measure;` failed until `measure.rs` was
+added to the scan's own `SOURCES` table.
 
 ### Verify It Yourself
 
@@ -293,7 +345,8 @@ assert_eq!( asin( 1.0 + 2.0e-16 ), asin( 1.0 ) );
 | File | Relationship |
 |------|--------------|
 | `src/lib.rs` | The five `pub use` lines this inventory is derived from, and the crate-level documentation of the calling convention and the deliberate absences |
-| `src/constant.rs` | The 7 exported constants and the `pub( crate )` coefficients that are not exported |
+| `src/constant.rs` | A private module holding both the 7 constants the root re-exports and the reduction coefficients it does not |
+| `src/measure.rs` | `ulp_diff` — the one public item outside the 28, and the only one reached by a module path |
 | `readme.md` | The same surface as a short table, for a reader who has not opened `docs/` |
 
 ### Tests

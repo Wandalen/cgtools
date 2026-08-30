@@ -168,7 +168,7 @@ reads as a jump of `3e-12` while saying nothing about continuity.
 
 | File | Relationship |
 |------|--------------|
-| `src/hyperbolic.rs` — `mod tests` | `the_saturation_branch_is_an_identity_not_an_approximation` (bit-exact at the threshold), `the_branches_meet_without_a_step` |
-| `src/exponential.rs` — `mod tests` | `the_series_band_is_where_both_paths_are_accurate` |
+| `tests/inc/internal_test.rs` | `the_saturation_branch_is_an_identity_not_an_approximation` (bit-exact at the threshold), `the_branches_meet_without_a_step` |
+| `tests/inc/internal_test.rs` | `the_series_band_is_where_both_paths_are_accurate` |
 | `tests/inc/hyperbolic_test.rs` | `the_small_argument_band_keeps_every_digit`, `the_saturating_branches_agree_with_the_ones_they_replace`, `acosh_inverts_cosh_and_refuses_what_has_no_inverse` (including the just-above-1 band), the identity and inversion round trips |
 | `tests/inc/exponential_test.rs` | `the_two_series_bands_join_without_a_step`, the `exp_m1`/`ln_1p` cancellation tests over 300 decades |

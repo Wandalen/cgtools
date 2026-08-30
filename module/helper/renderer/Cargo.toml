@@ -51,6 +51,10 @@ webgpu = [ "dep:minwebgpu", "dep:bytemuck", "dep:gpu_hal" ]
 # `webgpu`, materializing off-wasm instead ( terminal pixel tests, no browser ).
 native = [ "dep:minwebgpu", "dep:bytemuck", "dep:gpu_hal", "gpu_hal/native" ]
 animation = [ "dep:animation", "dep:clone_dyn_types" ]
+# Exposes crate-private state to `tests/`, which is a separate crate and so cannot
+# reach it otherwise. Off by default: nothing a dependent builds changes, and every
+# item behind it is `#[ doc( hidden ) ]` and suffixed `_for_test`.
+test_internals = []
 
 [dependencies]
 

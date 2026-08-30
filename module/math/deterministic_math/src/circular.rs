@@ -97,7 +97,7 @@ pub fn tan( x : f64 ) -> f64
 
 /// `sin r` for `| r | <= PI / 4`, Taylor in Horner form on `r²`.
 #[ must_use ]
-fn sin_reduced( r : f64 ) -> f64
+pub fn sin_reduced( r : f64 ) -> f64
 {
   let r2 = r * r;
   let mut acc = -RECIP_FACT[ 19 ];
@@ -111,7 +111,7 @@ fn sin_reduced( r : f64 ) -> f64
 
 /// `cos r` for `| r | <= PI / 4`, Taylor in Horner form on `r²`.
 #[ must_use ]
-fn cos_reduced( r : f64 ) -> f64
+pub fn cos_reduced( r : f64 ) -> f64
 {
   let r2 = r * r;
   let mut acc = -RECIP_FACT[ 18 ];
@@ -121,53 +121,4 @@ fn cos_reduced( r : f64 ) -> f64
     acc = acc * r2 + sign * RECIP_FACT[ 2 * j ];
   }
   acc
-}
-
-#[ cfg( test ) ]
-mod tests
-{
-  use super::*;
-  use crate::constant::FRAC_PI_4;
-
-  #[ test ]
-  fn the_reduced_series_match_their_own_definitions()
-  {
-    // Rebuilt from run-time factorials, so a mistyped entry in `RECIP_FACT` or
-    // a wrong loop bound fails here rather than shifting an angle.
-    let mut r = -FRAC_PI_4;
-    while r < FRAC_PI_4
-    {
-      let ( mut sin_want, mut cos_want ) = ( 0.0, 0.0 );
-      let ( mut term, mut fact ) = ( 1.0, 1.0 );
-      for n in 0 ..= 30u32
-      {
-        if n > 0
-        {
-          term *= r;
-          fact *= f64::from( n );
-        }
-        let signed = if ( n / 2 ) % 2 == 0 { term / fact } else { -term / fact };
-        if n % 2 == 0 { cos_want += signed; } else { sin_want += signed; }
-      }
-      // Absolute, because `sin` passes through zero on this range. The bound is
-      // set by the reference sum's own rounding across 31 naive additions, not
-      // by the series being checked.
-      assert!( ( sin_reduced( r ) - sin_want ).abs() < 1.0e-14, "sin_reduced at {r}" );
-      assert!( ( cos_reduced( r ) - cos_want ).abs() < 1.0e-14, "cos_reduced at {r}" );
-      r += 0.021;
-    }
-  }
-
-  #[ test ]
-  fn the_three_part_split_reassembles_to_pi_over_two()
-  {
-    // The reduction subtracts these three in sequence; if they do not sum to
-    // `PI/2` the residual is wrong by the difference on every single call.
-    let sum = PIO2_HI + PIO2_MD + PIO2_LO;
-    assert_eq!( sum.to_bits(), core::f64::consts::FRAC_PI_2.to_bits() );
-
-    // And the high part must be exactly representable in the top bits, or
-    // `n * PIO2_HI` rounds and the split buys nothing.
-    assert_eq!( PIO2_HI.to_bits() & 0x0000_0000_03ff_ffff, 0 );
-  }
 }

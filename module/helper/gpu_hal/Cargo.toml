@@ -31,6 +31,10 @@ vulkan = [ "dep:minvulkan", "dep:ash", "dep:naga", "naga/spv-out" ]
 # of `vulkan`; shares the optional `naga` dependency, requesting only its
 # GLSL backend.
 webgl-glsl-build = [ "dep:naga", "naga/glsl-out" ]
+# Exposes crate-private items to `tests/`, which is a separate crate and so
+# cannot reach them otherwise. Off by default: nothing a dependent builds
+# changes, and every item behind it is `#[ doc( hidden ) ]`.
+test_internals = []
 default = [ "enabled" ]
 full = [ "default", "webgpu", "webgl", "native", "vulkan", "webgl-glsl-build" ]
 

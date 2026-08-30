@@ -43,10 +43,11 @@ const ALLOWED : [ ( &str, &str, usize ) ; 2 ] =
 /// sources this test binary was actually compiled from and cannot be defeated by
 /// a stale or relocated tree. The cost is that a new module must be added here —
 /// which [`every_source_file_is_covered_by_the_libm_scan`] enforces.
-const SOURCES : [ ( &str, &str ) ; 7 ] =
+const SOURCES : [ ( &str, &str ) ; 8 ] =
 [
   ( "lib.rs",              include_str!( "../../src/lib.rs" ) ),
   ( "constant.rs",         include_str!( "../../src/constant.rs" ) ),
+  ( "measure.rs",          include_str!( "../../src/measure.rs" ) ),
   ( "algebraic.rs",        include_str!( "../../src/algebraic.rs" ) ),
   ( "circular.rs",         include_str!( "../../src/circular.rs" ) ),
   ( "exponential.rs",      include_str!( "../../src/exponential.rs" ) ),
@@ -252,12 +253,20 @@ fn unary_surface() -> [ NamedUnary ; 22 ]
 /// drift from what actually ships: adding a function to `lib.rs` immediately
 /// widens what every test built on this helper has to account for, and none of
 /// them can be satisfied by editing a list.
+///
+/// Only *column-zero* `pub use` lines count, and the indentation is doing real
+/// work rather than being a formatting assumption. `internal` re-exports the
+/// crate's reduction steps and coefficient tables under a feature, and those
+/// lines are `pub use` too — but they are not the surface, they are indented
+/// inside a module, and treating them as exports would demand `atan_series` and
+/// `PIO2_HI` appear in the unary purity sweep and the cost benchmark, neither of
+/// which is meaningful for them.
 fn exported_function_names() -> Vec< &'static str >
 {
   let lib = SOURCES.iter().find( | ( n, _ ) | *n == "lib.rs" ).expect( "lib.rs is in SOURCES" ).1;
 
   let mut names = Vec::new();
-  for line in lib.lines().map( str::trim )
+  for line in lib.lines()
   {
     let Some( rest ) = line.strip_prefix( "pub use " ) else { continue };
     let Some( start ) = rest.find( '{' ) else { continue };

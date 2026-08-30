@@ -65,15 +65,15 @@ ordinary.
 
 ### Why The Crate's Own Guard Cannot Catch It
 
-`no_libm_call_survives_in_shipping_code` scans a fixed table of seven
-`include_str!`-ed files:
+`no_libm_call_survives_in_shipping_code` scans a fixed table of eight
+`include_str!`-ed files — one per module `lib.rs` declares:
 
 ```rust
-const SOURCES : [ ( &str, &str ) ; 7 ] =
+const SOURCES : [ ( &str, &str ) ; 8 ] =
 [
   ( "lib.rs",       include_str!( "../../src/lib.rs" ) ),
   ( "constant.rs",  include_str!( "../../src/constant.rs" ) ),
-  // ... five more
+  // ... six more
 ];
 ```
 
