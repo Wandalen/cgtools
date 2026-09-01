@@ -178,6 +178,7 @@ fn image_viewbox_origin_zero()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     ..empty_assets()
   };
@@ -284,6 +285,7 @@ fn pattern_emits_userspace_tile_size_and_image_ref()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     patterns : vec![ PatternAsset
     {
@@ -355,6 +357,7 @@ fn sprite_white_tint_no_filter()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     sprites : vec![ SpriteAsset
     {
@@ -397,6 +400,7 @@ fn screen_space_sprite_renders_through_sprite_path()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     sprites : vec![ SpriteAsset
     {
@@ -439,6 +443,7 @@ fn sprite_colored_tint_creates_filter()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     sprites : vec![ SpriteAsset
     {
@@ -480,6 +485,7 @@ fn two_tinted_sprites_get_distinct_filter_ids()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     sprites : vec![ SpriteAsset
     {
@@ -530,6 +536,7 @@ fn svg_ignores_depth_preserves_submission_order()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     sprites : vec!
     [
@@ -629,6 +636,7 @@ fn sprite_use_carries_explicit_dimensions_matching_region()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     sprites : vec![ SpriteAsset
     {
@@ -701,6 +709,7 @@ fn sprite_batch_use_carries_explicit_dimensions_matching_region()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     sprites : vec![ SpriteAsset
     {
@@ -788,6 +797,7 @@ fn sprite_symbol_use_counter_flips_image_orientation()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     sprites : vec![ SpriteAsset
     {
@@ -822,6 +832,7 @@ fn sprite_batch_create_draw()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     sprites : vec![ SpriteAsset
     {
@@ -1654,6 +1665,7 @@ fn image_path_escapes_attribute_injection()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     ..empty_assets()
   };
@@ -1681,6 +1693,7 @@ fn sprite_on_path_sheet_is_skipped_with_comment()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     sprites : vec![ SpriteAsset
     {
@@ -1829,6 +1842,7 @@ fn image_encoded_jpeg_emits_jpeg_mime()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     ..empty_assets()
   };
@@ -1859,6 +1873,7 @@ fn image_bitmap_emits_png_data_uri()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     ..empty_assets()
   };
@@ -1888,6 +1903,7 @@ fn image_bitmap_bad_dimensions_emits_nothing()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     ..empty_assets()
   };
@@ -2277,6 +2293,7 @@ fn image_encoded_png_stores_dimensions()
       filter : SamplerFilter::Linear,
       mipmap : MipmapMode::Off,
       wrap : WrapMode::Clamp,
+      premultiplied : false,
     }],
     sprites : vec![ SpriteAsset
     {
