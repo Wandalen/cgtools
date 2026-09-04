@@ -4,22 +4,11 @@
 //! Each body leaves a colored trail drawn as a 3D line with configurable dash patterns,
 //! width units (screen-space or world-space), and alpha-to-coverage anti-aliasing.
 //! A lil-gui panel exposes all settings at runtime.
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::match_wildcard_for_single_variants ) ]
-#![ allow( clippy::single_match ) ]
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::redundant_field_names ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::needless_range_loop ) ]
 
 use mingl::
 {
   CameraOrbitControls,
-  controls::camera_orbit_controls::bind_controls_to_input
+  controls::camera_orbit_controls::controls_bind_to_input
 };
 use minwebgl as gl;
 use web_sys::js_sys;
@@ -36,18 +25,19 @@ mod simulation;
 mod settings;
 
 /// Sets up the WebGL context, simulation, line meshes, GUI, and starts the render loop.
-fn run() -> Result< (), gl::WebglError >
+#[ allow( clippy::too_many_lines, reason = "single linear WebGL/camera/simulation setup culminating in the frame-loop closure that captures nearly all local state (gl, camera, lines, settings, simulation, base_colors); splitting would scatter tightly-coupled locals across artificial helper parameters" ) ]
+fn app_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
 
-  // Seed the random number generator with the current time for varied body positions each run.
+  #[ allow( clippy::cast_sign_loss, reason = "Date::now() is always a non-negative ms-since-epoch value; only used as a PRNG seed" ) ]
   fastrand::seed( js_sys::Date::now() as u64 );
 
-  #[ allow( clippy::cast_precision_loss ) ]
+  #[ allow( clippy::cast_precision_loss, reason = "canvas dimensions are always far below 2^24, so the f32 conversion is always exact" ) ]
   let width = canvas.width() as f32;
-  #[ allow( clippy::cast_precision_loss ) ]
+  #[ allow( clippy::cast_precision_loss, reason = "canvas dimensions are always far below 2^24, so the f32 conversion is always exact" ) ]
   let height = canvas.height() as f32;
 
   // Compile the full-screen background gradient shader.
@@ -73,7 +63,7 @@ fn run() -> Result< (), gl::WebglError >
   camera.window_size = [ width, height ].into();
 
   let camera = Rc::new( RefCell::new( camera ) );
-  bind_controls_to_input( &canvas, &camera );
+  controls_bind_to_input( &canvas, &camera );
 
   let world_matrix = gl::math::mat4x4::identity();
   let projection_matrix = gl::math::mat3x3h::perspective_rh_gl( fov, aspect_ratio, near, far );
@@ -117,11 +107,10 @@ fn run() -> Result< (), gl::WebglError >
  
   // Wrap lines in Rc<RefCell> so they can be shared with the GUI callbacks and render loop.
   let lines = Rc::new( RefCell::new( lines ) );
-  settings::upload_dash_pattern( lines.clone(), &settings.borrow() );
+  settings::dash_pattern_upload( &lines, &settings.borrow() );
   // Build the lil-gui panel and get a JsValue handle to the settings object
   // so the render loop can read live UI values each frame.
-  let _ = settings::bind_to_ui( &gl, settings.clone(), lines.clone() );
-
+  let _ = settings::bind_to_ui( &gl, &settings, &lines );
 
   gl.enable( gl::DEPTH_TEST );
   gl.depth_func( gl::LEQUAL );
@@ -134,7 +123,6 @@ fn run() -> Result< (), gl::WebglError >
   // Define the update and draw logic
   let update_and_draw =
   {
-    #[ allow( clippy::min_ident_chars ) ]
     move | _ : f64 |
     {
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT );
@@ -144,22 +132,24 @@ fn run() -> Result< (), gl::WebglError >
       {
         simulation.simulate( settings.borrow().simulation_speed );
 
-        for i in 0..num_bodies
+        let mut lines_mut = lines.borrow_mut();
+        for ( ( line, body ), base_color ) in lines_mut.iter_mut().zip( simulation.bodies.iter() ).zip( base_colors.iter() )
         {
-          let pos = simulation.bodies[ i ].position;
+          let pos = body.position;
           // Modulate the base color by distance from the origin for a pulsing glow effect.
-          let color = base_colors[ i ] * ( pos.mag() * 4.0 ).powf( 2.0 ).min( 1.0 );
-          lines.borrow_mut()[ i ].point_add_back( &pos );
-          lines.borrow_mut()[ i ].color_add_back( color );
+          let color = *base_color * ( pos.mag() * 4.0 ).powf( 2.0 ).min( 1.0 );
+          line.point_add_back( &pos );
+          line.color_add_back( color );
 
           // Trim the trail to the maximum allowed length so it doesn't grow indefinitely.
-          let num_points = lines.borrow()[ i ].num_points();
+          let num_points = line.num_points();
+          #[ allow( clippy::cast_sign_loss, reason = "trail_length is UI-slider-bound to [2.0, 500.0] (see settings.rs), always non-negative" ) ]
           let max_point = settings.borrow().trail_length as usize;
 
           if num_points > max_point
           {
-            lines.borrow_mut()[ i ].points_remove_front_no_distance_update( num_points - max_point );
-            lines.borrow_mut()[ i ].colors_remove_front( num_points - max_point );
+            line.points_remove_front_no_distance_update( num_points - max_point );
+            line.colors_remove_front( num_points - max_point );
           }
         }
       }
@@ -179,16 +169,16 @@ fn run() -> Result< (), gl::WebglError >
         lines.borrow_mut()[ i ].draw( &gl ).unwrap();
       }
 
-      return true
+      true
     }
   };
 
   // Run the render loop
   gl::exec_loop::run( update_and_draw );
-  return Ok( () )
+  Ok( () )
 }
 
 fn main()
 {
-  run().unwrap();
+  app_run().unwrap();
 }

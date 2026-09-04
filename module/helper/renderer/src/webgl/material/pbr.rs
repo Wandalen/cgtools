@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::webgl::{ Object3D, material::* };
+  use crate::webgl::{ Object3D, material::{Material, TextureInfo, AlphaMode, CullMode} };
   use minwebgl as gl;
   use gl::{ GL, WebGlProgram };
   use mingl::Former;
@@ -8,11 +8,12 @@ mod private
   use crate::webgl::{ MaterialUploadContext, program::{ ShaderProgram, ProgramInfo } };
   use crate::webgl::program::impl_locations;
   use std::cell::Cell;
+  use std::fmt::Write as _;
 
   /// The source code for the main vertex shader.
-  const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
+  const MAIN_VERTEX_SHADER : &str = include_str!( "../shaders/main.vert" );
   /// The source code for the main fragment shader.
-  const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/main.frag" );
+  const MAIN_FRAGMENT_SHADER : &str = include_str!( "../shaders/main.frag" );
 
   /// Max point light sources count
   pub const MAX_POINT_LIGHTS : usize = 8;
@@ -173,7 +174,7 @@ mod private
     /// Returns answer need use IBL for current material instance or not
     need_use_ibl : bool,
     /// Signal for updating material uniforms.
-    /// Use `set_needs_update(true)` after changing material properties.
+    /// Use `needs_update_set(true)` after changing material properties.
     needs_update : Cell< bool >,
     /// Signal that shader defines have changed and program needs recompilation.
     needs_recompile : Cell< bool >,
@@ -188,31 +189,32 @@ mod private
   impl PbrMaterial
   {
     /// Creates new [`PbrMaterial`] with predefined optimal parameters
+    #[ must_use ]
     pub fn new( _ : &GL ) -> Self
     {
       let id = uuid::Uuid::new_v4();
       let base_color_factor = gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] );
 
-      let base_color_texture = Default::default();
+      let base_color_texture = None;
       let metallic_factor = 1.0;
       let roughness_factor = 1.0;
-      let metallic_roughness_texture = Default::default();
+      let metallic_roughness_texture = None;
 
       let normal_scale = 1.0;
-      let normal_texture = Default::default();
+      let normal_texture = None;
 
       let occlusion_strength = 1.0;
-      let occlusion_texture = Default::default();
+      let occlusion_texture = None;
 
-      let emissive_texture = Default::default();
+      let emissive_texture = None;
       let emissive_factor = gl::F32x3::from( [ 0.0, 0.0, 0.0 ] );
 
-      let specular_factor = Default::default();
-      let specular_texture = Default::default();
-      let specular_color_factor = Default::default();
-      let specular_color_texture = Default::default();
+      let specular_factor = None;
+      let specular_texture = None;
+      let specular_color_factor = None;
+      let specular_color_texture = None;
 
-      let light_map = Default::default();
+      let light_map = None;
 
       let clearcoat_factor = Default::default();
       let clearcoat_texture = Default::default();
@@ -279,13 +281,13 @@ mod private
         cached_vertex_defines_str : String::new(),
         cached_fragment_defines_str : String::new(),
       };
-      mat.rebuild_defines_cache();
+      mat.defines_cache_rebuild();
       mat
     }
 
     /// Enables or disables Image-Based Lighting (IBL) for this material.
     /// If the value changes, the shader program will be marked for recompilation.
-    pub fn set_need_use_ibl( &mut self, value : bool )
+    pub fn need_use_ibl_set( &mut self, value : bool )
     {
       if value != self.need_use_ibl
       {
@@ -301,10 +303,10 @@ mod private
     }
 
     /// Sets the base color texture.
-    pub fn set_base_color_texture( &mut self, value : Option< TextureInfo > )
+    pub fn base_color_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.base_color_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -315,10 +317,10 @@ mod private
     }
 
     /// Sets the metallic roughness texture.
-    pub fn set_metallic_roughness_texture( &mut self, value : Option< TextureInfo > )
+    pub fn metallic_roughness_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.metallic_roughness_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -329,10 +331,10 @@ mod private
     }
 
     /// Sets the normal texture.
-    pub fn set_normal_texture( &mut self, value : Option< TextureInfo > )
+    pub fn normal_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.normal_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -343,10 +345,10 @@ mod private
     }
 
     /// Sets the occlusion texture.
-    pub fn set_occlusion_texture( &mut self, value : Option< TextureInfo > )
+    pub fn occlusion_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.occlusion_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -357,10 +359,10 @@ mod private
     }
 
     /// Sets the emissive texture.
-    pub fn set_emissive_texture( &mut self, value : Option< TextureInfo > )
+    pub fn emissive_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.emissive_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -371,10 +373,10 @@ mod private
     }
 
     /// Sets the specular texture.
-    pub fn set_specular_texture( &mut self, value : Option< TextureInfo > )
+    pub fn specular_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.specular_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -385,10 +387,10 @@ mod private
     }
 
     /// Sets the specular color texture.
-    pub fn set_specular_color_texture( &mut self, value : Option< TextureInfo > )
+    pub fn specular_color_texture_set( &mut self, value : Option< TextureInfo > )
     {
       self.specular_color_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -399,10 +401,10 @@ mod private
     }
 
     /// Sets the light map texture.
-    pub fn set_light_map( &mut self, value : Option< TextureInfo > )
+    pub fn light_map_set( &mut self, value : Option< TextureInfo > )
     {
       self.light_map = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -416,7 +418,7 @@ mod private
     pub fn set_clearcoat_factor( &mut self, value : Option< f32 > )
     {
       self.clearcoat_factor = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -430,7 +432,7 @@ mod private
     pub fn set_clearcoat_texture( &mut self, value : Option< TextureInfo > )
     {
       self.clearcoat_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -444,7 +446,7 @@ mod private
     pub fn set_clearcoat_roughness_factor( &mut self, value : Option< f32 > )
     {
       self.clearcoat_roughness_factor = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -458,7 +460,7 @@ mod private
     pub fn set_clearcoat_roughness_texture( &mut self, value : Option< TextureInfo > )
     {
       self.clearcoat_roughness_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -472,7 +474,7 @@ mod private
     pub fn set_clearcoat_normal_texture( &mut self, value : Option< TextureInfo > )
     {
       self.clearcoat_normal_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -486,7 +488,7 @@ mod private
     pub fn set_anisotropy_strength( &mut self, value : Option< f32 > )
     {
       self.anisotropy_strength = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -500,7 +502,7 @@ mod private
     pub fn set_anisotropy_texture( &mut self, value : Option< TextureInfo > )
     {
       self.anisotropy_texture = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -511,10 +513,10 @@ mod private
     }
 
     /// Sets the alpha mode.
-    pub fn set_alpha_mode( &mut self, value : AlphaMode )
+    pub fn alpha_mode_set( &mut self, value : AlphaMode )
     {
       self.alpha_mode = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -525,10 +527,10 @@ mod private
     }
 
     /// Sets the specular factor.
-    pub fn set_specular_factor( &mut self, value : Option< f32 > )
+    pub fn specular_factor_set( &mut self, value : Option< f32 > )
     {
       self.specular_factor = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -539,10 +541,10 @@ mod private
     }
 
     /// Sets the specular color factor.
-    pub fn set_specular_color_factor( &mut self, value : Option< gl::F32x3 > )
+    pub fn specular_color_factor_set( &mut self, value : Option< gl::F32x3 > )
     {
       self.specular_color_factor = value;
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -553,7 +555,7 @@ mod private
     }
 
     /// Rebuilds all cached defines strings from current state.
-    fn rebuild_defines_cache( &mut self )
+    fn defines_cache_rebuild( &mut self )
     {
       let local_defines = self.local_defines();
 
@@ -564,7 +566,7 @@ mod private
       vertex_entries.sort_by_key( |( k, _ )| *k );
       for ( name, value ) in vertex_entries
       {
-        vertex_defines.push_str( &format!( "#define {} {}\n", name, value ) );
+        let _ = writeln!( vertex_defines, "#define {name} {value}" );
       }
 
       let mut fragment_defines = local_defines;
@@ -572,7 +574,7 @@ mod private
       fragment_entries.sort_by_key( |( k, _ )| *k );
       for ( name, value ) in fragment_entries
       {
-        fragment_defines.push_str( &format!( "#define {} {}\n", name, value ) );
+        let _ = writeln!( fragment_defines, "#define {name} {value}" );
       }
 
       // Combined = vertex + fragment defines
@@ -585,29 +587,29 @@ mod private
     }
 
     /// Added the specified name and value is #define directive to the material
-    pub fn add_vertex_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
+    pub fn vertex_define_add< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
       self.vertex_defines.insert( name.into(), value.into() );
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
     /// Added the specified name and value is #define directive to the material
-    pub fn add_fragment_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
+    pub fn fragment_define_add< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
       self.fragment_defines.insert( name.into(), value.into() );
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
     /// Added the specified name and value is #define directive to the material
-    pub fn add_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
+    pub fn define_add< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
       let name = name.into();
       let value = value.into();
       self.vertex_defines.insert( name.clone(), value.clone() );
       self.fragment_defines.insert( name, value );
-      self.rebuild_defines_cache();
+      self.defines_cache_rebuild();
       self.needs_recompile.set( true );
     }
 
@@ -655,8 +657,9 @@ mod private
 
       let add_texture = | defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > |
       {
-        defines.push_str( &format!( "#define {}\n", name ) );
-        defines.push_str( &format!( "#define {} vUv_{}\n", uv_name, info.unwrap().uv_position ) );
+        let _ = writeln!( defines, "#define {name}" );
+        let uv_position = info.unwrap().uv_position;
+        let _ = writeln!( defines, "#define {uv_name} vUv_{uv_position}" );
       };
 
       // Base color texture related
@@ -779,7 +782,7 @@ mod private
       self.needs_update.get()
     }
 
-    fn set_needs_update( &self, value : bool )
+    fn needs_update_set( &self, value : bool )
     {
       self.needs_update.set( value );
     }
@@ -798,7 +801,7 @@ mod private
       }
     }
 
-    fn make_shader_program( &self, minwebgl : &minwebgl::WebGl2RenderingContext, program : &minwebgl::WebGlProgram ) -> Box< dyn ShaderProgram >
+    fn shader_program_make( &self, minwebgl : &minwebgl::WebGl2RenderingContext, program : &minwebgl::WebGlProgram ) -> Box< dyn ShaderProgram >
     {
       PBRShader::new( minwebgl, program ).dyn_clone()
     }
@@ -812,19 +815,27 @@ mod private
     {
       let locations = ctx.locations;
 
-      // Assign a texture unit for each type of texture
-      gl.uniform1i( locations.get( "metallicRoughnessTexture" ).unwrap().clone().as_ref() , 0 );
-      gl.uniform1i( locations.get( "baseColorTexture" ).unwrap().clone().as_ref() , 1 );
-      gl.uniform1i( locations.get( "normalTexture" ).unwrap().clone().as_ref() , 2 );
-      gl.uniform1i( locations.get( "occlusionTexture" ).unwrap().clone().as_ref() , 3 );
-      gl.uniform1i( locations.get( "emissiveTexture" ).unwrap().clone().as_ref() , 4 );
-      gl.uniform1i( locations.get( "specularTexture" ).unwrap().clone().as_ref() , 5 );
-      gl.uniform1i( locations.get( "specularColorTexture" ).unwrap().clone().as_ref() , 6 );
-      gl.uniform1i( locations.get( "lightMap" ).unwrap().clone().as_ref() , 7 );
-      gl.uniform1i( locations.get( "clearcoatTexture" ).unwrap().clone().as_ref() , 8 );
-      gl.uniform1i( locations.get( "clearcoatRoughnessTexture" ).unwrap().clone().as_ref() , 9 );
-      gl.uniform1i( locations.get( "clearcoatNormalTexture" ).unwrap().clone().as_ref() , 10 );
-      gl.uniform1i( locations.get( "anisotropyTexture" ).unwrap().clone().as_ref() , 11 );
+      // Assign a texture unit for each type of texture.
+      //
+      // `.expect(..)` here (rather than `.unwrap()`) names the missing key directly: these
+      // lookups are only unreachable while `PBRShader`'s `impl_locations!` list above keeps
+      // every one of these literals -- an `.unwrap()` panic on drift would instead read as a
+      // bare "called `Option::unwrap()` on a `None` value" with no indication of which uniform
+      // name fell out of sync.
+      gl.uniform1i( locations.get( "metallicRoughnessTexture" ).expect( "PBRShader::impl_locations! missing \"metallicRoughnessTexture\"" ).clone().as_ref() , 0 );
+      gl.uniform1i( locations.get( "baseColorTexture" ).expect( "PBRShader::impl_locations! missing \"baseColorTexture\"" ).clone().as_ref() , 1 );
+      gl.uniform1i( locations.get( "normalTexture" ).expect( "PBRShader::impl_locations! missing \"normalTexture\"" ).clone().as_ref() , 2 );
+      gl.uniform1i( locations.get( "occlusionTexture" ).expect( "PBRShader::impl_locations! missing \"occlusionTexture\"" ).clone().as_ref() , 3 );
+      gl.uniform1i( locations.get( "emissiveTexture" ).expect( "PBRShader::impl_locations! missing \"emissiveTexture\"" ).clone().as_ref() , 4 );
+      gl.uniform1i( locations.get( "specularTexture" ).expect( "PBRShader::impl_locations! missing \"specularTexture\"" ).clone().as_ref() , 5 );
+      gl.uniform1i( locations.get( "specularColorTexture" ).expect( "PBRShader::impl_locations! missing \"specularColorTexture\"" ).clone().as_ref() , 6 );
+      gl.uniform1i( locations.get( "lightMap" ).expect( "PBRShader::impl_locations! missing \"lightMap\"" ).clone().as_ref() , 7 );
+      // 8-11: clearcoat/anisotropy extension textures (KHR_materials_clearcoat /
+      // KHR_materials_anisotropy).
+      gl.uniform1i( locations.get( "clearcoatTexture" ).expect( "PBRShader::impl_locations! missing \"clearcoatTexture\"" ).clone().as_ref() , 8 );
+      gl.uniform1i( locations.get( "clearcoatRoughnessTexture" ).expect( "PBRShader::impl_locations! missing \"clearcoatRoughnessTexture\"" ).clone().as_ref() , 9 );
+      gl.uniform1i( locations.get( "clearcoatNormalTexture" ).expect( "PBRShader::impl_locations! missing \"clearcoatNormalTexture\"" ).clone().as_ref() , 10 );
+      gl.uniform1i( locations.get( "anisotropyTexture" ).expect( "PBRShader::impl_locations! missing \"anisotropyTexture\"" ).clone().as_ref() , 11 );
     }
 
     fn upload
@@ -868,33 +879,42 @@ mod private
     {
       let locations = ctx.locations;
 
-      let upload = | loc, value : Option< f32 > | -> Result< (), gl::WebglError >
+      // `unwrap_or_else( || panic!( .. ) )` rather than `.unwrap()`: `loc` is only known at the
+      // call site below, so the panic message can still name the exact missing uniform instead
+      // of a bare "called `Option::unwrap()` on a `None` value".
+      let upload = | loc : &str, value : Option< f32 > | -> Result< (), gl::WebglError >
       {
         if let Some( v ) = value
         {
-          gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), &v )?;
+          let location = locations.get( loc )
+          .unwrap_or_else( || panic!( "PBRShader::impl_locations! missing \"{loc}\"" ) )
+          .clone();
+          gl::uniform::upload( gl, location, &v )?;
         }
         Ok( () )
       };
 
-      let upload_array = | loc, value : Option< &[ f32 ] > | -> Result< (), gl::WebglError >
+      let upload_array = | loc : &str, value : Option< &[ f32 ] > | -> Result< (), gl::WebglError >
       {
         if let Some( v ) = value
         {
-          gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), v )?;
+          let location = locations.get( loc )
+          .unwrap_or_else( || panic!( "PBRShader::impl_locations! missing \"{loc}\"" ) )
+          .clone();
+          gl::uniform::upload( gl, location, v )?;
         }
         Ok( () )
       };
 
       upload( "specularFactor", self.specular_factor )?;
 
-      gl::uniform::upload( gl, locations.get( "baseColorFactor" ).unwrap().clone(), self.base_color_factor.as_slice() )?;
-      gl::uniform::upload( gl, locations.get( "metallicFactor" ).unwrap().clone(), &self.metallic_factor )?;
-      gl::uniform::upload( gl, locations.get( "roughnessFactor" ).unwrap().clone(), &self.roughness_factor )?;
-      gl::uniform::upload( gl, locations.get( "normalScale" ).unwrap().clone(), &self.normal_scale )?;
-      gl::uniform::upload( gl, locations.get( "occlusionStrength" ).unwrap().clone(), &self.occlusion_strength )?;
-      gl::uniform::upload( gl, locations.get( "alphaCutoff" ).unwrap().clone(), &self.alpha_cutoff )?;
-      gl::uniform::upload( gl, locations.get( "emissiveFactor" ).unwrap().clone(), self.emissive_factor.as_slice() )?;
+      gl::uniform::upload( gl, locations.get( "baseColorFactor" ).expect( "PBRShader::impl_locations! missing \"baseColorFactor\"" ).clone(), self.base_color_factor.as_slice() )?;
+      gl::uniform::upload( gl, locations.get( "metallicFactor" ).expect( "PBRShader::impl_locations! missing \"metallicFactor\"" ).clone(), &self.metallic_factor )?;
+      gl::uniform::upload( gl, locations.get( "roughnessFactor" ).expect( "PBRShader::impl_locations! missing \"roughnessFactor\"" ).clone(), &self.roughness_factor )?;
+      gl::uniform::upload( gl, locations.get( "normalScale" ).expect( "PBRShader::impl_locations! missing \"normalScale\"" ).clone(), &self.normal_scale )?;
+      gl::uniform::upload( gl, locations.get( "occlusionStrength" ).expect( "PBRShader::impl_locations! missing \"occlusionStrength\"" ).clone(), &self.occlusion_strength )?;
+      gl::uniform::upload( gl, locations.get( "alphaCutoff" ).expect( "PBRShader::impl_locations! missing \"alphaCutoff\"" ).clone(), &self.alpha_cutoff )?;
+      gl::uniform::upload( gl, locations.get( "emissiveFactor" ).expect( "PBRShader::impl_locations! missing \"emissiveFactor\"" ).clone(), self.emissive_factor.as_slice() )?;
       if let Some( mipmap_distance_range_loc ) = locations.get( "mipmapDistanceRange" )
       {
         let r = &self.mipmap_distance_range;
@@ -957,7 +977,7 @@ mod private
       self.needs_recompile.get()
     }
 
-    fn clear_recompile_flag( &self )
+    fn recompile_flag_clear( &self )
     {
       self.needs_recompile.set( false );
     }

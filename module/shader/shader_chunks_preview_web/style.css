@@ -1,0 +1,140 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+.controls-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  width: min(260px, 38vw);
+  background: rgba(20, 20, 24, 0.75);
+  border-radius: 8px;
+  font-family: system-ui, sans-serif;
+  color: #eee;
+}
+
+.chunk-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.controls-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0.65;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.control-label {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.control-slider-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-slider {
+  flex: 1;
+}
+
+.control-value {
+  min-width: 3em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.editor-container {
+  position: fixed;
+  top: 16px;
+  bottom: 16px;
+  left: 16px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(480px, 40vw);
+}
+
+.editor-heading {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.8;
+  letter-spacing: 0.02em;
+}
+
+.editor-toggles {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.editor-toggles label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.shader-editor {
+  flex: 1;
+  resize: none;
+  padding: 12px 16px;
+  background: rgba(20, 20, 24, 0.75);
+  border: none;
+  border-radius: 8px;
+  color: #eee;
+  font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
+.shader-editor:focus {
+  outline: 1px solid rgba(238, 238, 238, 0.35);
+}
+
+.shader-editor-readonly {
+  flex: 0 0 auto;
+  max-height: 25%;
+  overflow-y: auto;
+  opacity: 0.7;
+}
+
+.shader-diagnostics {
+  flex: 0 0 auto;
+  max-height: 30%;
+  overflow-y: auto;
+  padding: 12px 16px;
+  background: rgba(20, 20, 24, 0.75);
+  border-radius: 8px;
+  color: #ff9494;
+  font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}

@@ -2,27 +2,27 @@
 
 > **Agnostic graphics library providing abstract rendering backend utilities**
 
-A versatile graphics abstraction layer designed to work across different rendering backends. Provides essential utilities for camera controls, data conversion, and graphics primitives that can be used with WebGL, Metal, Vulkan, or other graphics APIs.
+A versatile graphics abstraction layer designed to work across different rendering backends. Provides essential utilities for camera controls, GPU data type descriptors, and model analysis that can be used with WebGL, WebGPU, or other graphics APIs.
 
 ## ✨ Features
 
-### 🔄 **Data Conversion**
-- **Type-Safe Conversions** - Convert between graphics data types safely
-- **Vector Operations** - Support for f32, i8/16/32, u8/16/32 numeric types
-- **Array Handling** - 1D and 2D array processing with optimized layouts
-- **Byte Slice Utilities** - Efficient conversion to GPU buffer formats
+### 🔄 **Data Type Descriptors & Byte Conversion**
+- **`VectorDataType` Descriptors** - Describe the scalar type, atom count, and element count of GPU attribute data
+- **Primitive Coverage** - `f32`, `i8/i16/i32`, `u8/u16/u32` scalars, fixed-size arrays `[T; N]`, and nested arrays `[[T; M]; N]` for all supported scalars
+- **`IntoVectorDataType` Trait** - Map Rust types to descriptors for backend-agnostic attribute setup
+- **Byte Slice Utilities** - Re-exported `AsBytes`/`IntoBytes` traits (from the `asbytes` crate) for `Pod`-safe conversion to GPU buffer bytes
 
 ### 📷 **Camera System**
-- **Orbital Camera Controller** - Smooth camera orbiting around target points
-- **Interactive Controls** - Mouse and keyboard input handling
-- **Perspective & Orthographic** - Multiple projection modes
-- **View Matrix Management** - Optimized view transformation calculations
+- **Orbital Camera Controller** - `CameraOrbitControls`: rotate, pan, and zoom around a target point (`camera_orbit_controls` feature)
+- **Mouse & Touch Input** - `controls_bind_to_input` wires pointer events — drag to rotate, right-drag to pan, wheel/pinch to zoom (`web` feature)
+- **Motion Constraints** - Longitude/latitude rotation ranges, min/max zoom distance, optional movement smoothing with decay
+- **View Matrix** - Right-handed `view()` matrix computed from the camera's current state
 
-### 🛠️ **Rendering Utilities**
-- **Object Model Reporting** - Analyze and report on 3D model properties
-- **Backend Abstraction** - Work across different graphics APIs
-- **Performance Optimized** - Minimal overhead abstractions
-- **Memory Management** - Efficient buffer and data handling
+### 🛠️ **More Utilities**
+- **Object Model Reporting** - Bounding box/sphere and memory-size reports for OBJ models (`model_obj` feature)
+- **Character Controller** - First-person style `CharacterControls` with yaw/pitch and planar movement vectors (`character_controls` feature)
+- **Web Helpers** - Canvas/DOM setup, `requestAnimationFrame` exec loop, file fetch, logging (`web` feature)
+- **Backend Abstraction** - Descriptor-based design usable from WebGL, WebGPU, or other APIs
 
 ## 📦 Installation
 
@@ -36,51 +36,59 @@ mingl = { workspace = true, features = ["camera_orbit_controls"] }
 ### Camera Controls
 
 ```rust,ignore
-use mingl::controls::camera_orbit_controls::{Camera, OrbitControls};
+use mingl::CameraOrbitControls;
 
-fn setup_camera() {
-  // Create orbital camera controller
-  let mut camera = Camera::new()
-    .position([0.0, 0.0, 5.0])
-    .target([0.0, 0.0, 0.0])
-    .up([0.0, 1.0, 0.0]);
+fn setup_camera()
+{
+  // Orbital camera controller — public fields + Default
+  let mut camera = CameraOrbitControls
+  {
+    eye : [ 0.0, 0.0, 5.0 ].into(),
+    center : [ 0.0, 0.0, 0.0 ].into(),
+    window_size : [ 1280.0, 720.0 ].into(),
+    ..Default::default()
+  };
 
-  let mut controls = OrbitControls::new()
-    .distance(10.0)
-    .rotation_speed(0.5)
-    .zoom_speed(0.1);
+  // Feed screen-space input deltas
+  camera.rotate( [ 10.0, 0.0 ] ); // drag
+  camera.pan( [ 0.0, 5.0 ] );     // right-drag
+  camera.zoom( -120.0 );          // wheel
 
-  // Update camera based on input
-  let delta_time = 0.016; // 60fps
-  controls.update(&mut camera, delta_time);
+  // Advance movement smoothing each frame
+  camera.update( 16.0 );
 
-  // Get view and projection matrices
-  let view_matrix = camera.view_matrix();
-  let (aspect_ratio, fov, near, far) = (16.0/9.0, 45.0, 0.1, 100.0);
-  let proj_matrix = camera.projection_matrix(aspect_ratio, fov, near, far);
+  // Right-handed view matrix for rendering
+  let view_matrix = camera.view();
 }
 ```
 
-### Data Conversion
+On the web, `controls_bind_to_input( &canvas, &camera )` (`web` feature, `camera : Rc<RefCell<CameraOrbitControls>>`) wires
+mouse drag/right-drag/wheel and touch drag/pinch to these methods for you. Projection is out of scope — build a
+projection matrix with `ndarray_cg` (re-exported as `mingl::math` under the `math` feature).
+
+### Data Descriptors & Byte Conversion
 
 ```rust,ignore
-use mingl::convert::{IntoVector, IntoBytes};
+use mingl::{ IntoVectorDataType, VectorDataType, DataType, IntoBytes };
 
-fn data_conversion_examples() {
-  // Convert numeric types to vectors
-  let float_data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
-  let vector = float_data.into_vector();
+fn data_conversion_examples()
+{
+  // Describe an attribute's layout backend-agnostically
+  let desc : VectorDataType = < [ f32; 3 ] >::into_vector_data_type();
+  assert_eq!( desc.scalar, DataType::F32 );
+  assert_eq!( desc.natoms, 3 );
 
-  // Convert 2D arrays
-  let positions = [
-    [0.0, 0.0, 0.0],
-    [1.0, 0.0, 0.0],
-    [0.5, 1.0, 0.0],
+  // Convert 2D arrays to GPU-ready bytes ( `Pod`-based, via re-exported `asbytes` )
+  let positions =
+  [
+    [ 0.0, 0.0, 0.0 ],
+    [ 1.0, 0.0, 0.0 ],
+    [ 0.5, 1.0, 0.0 ],
   ];
   let vertex_buffer = positions.into_bytes();
 
   // Handle different numeric types
-  let indices: Vec<u16> = vec![0, 1, 2];
+  let indices : Vec< u16 > = vec![ 0, 1, 2 ];
   let index_buffer = indices.into_bytes();
 }
 ```
@@ -91,54 +99,53 @@ fn data_conversion_examples() {
 
 | Component | Purpose | Key Methods |
 |-----------|---------|-------------|
-| `Camera` | 3D camera management | `position()`, `look_at()`, `view_matrix()` |
-| `OrbitControls` | Interactive camera controls | `update()`, `distance()`, `rotation_speed()` |
-| `ToVector` | Type conversion trait | `to_vector()` |
-| `ToBytes` | Buffer conversion trait | `to_bytes()` |
+| `CameraOrbitControls` | Orbit camera around a target point | `rotate()`, `pan()`, `zoom()`, `update()`, `view()` |
+| `CameraRotationState` / `CameraZoomState` / `CameraPanState` | Per-motion constraints and sensitivity (`camera.rotation` / `.zoom` / `.pan` fields) | `longitude_range_set()`, `min_distance_set()`, `movement_decay_set()` |
+| `controls_bind_to_input` | Wire canvas pointer events to a camera (`web` feature) | mouse drag/right-drag/wheel, touch drag/pinch |
+| `IntoVectorDataType` | Map Rust types to attribute descriptors | `into_vector_data_type()` |
+| `VectorDataType` | Attribute layout descriptor | `byte_size()`, `natoms()`, `scalar()` |
+| `AsBytes` / `IntoBytes` | Buffer conversion traits (re-exported `asbytes`) | `as_bytes()`, `byte_size()`, `into_bytes()` |
 
 ### Data Conversion Support
 
-| Type | Vector Support | Bytes Support | Use Case |
-|------|---------------|---------------|----------|
-| `f32` | ✅ | ✅ | Vertex positions, colors |
-| `i8/i16/i32` | ✅ | ✅ | Signed integer data |
-| `u8/u16/u32` | ✅ | ✅ | Indices, unsigned data |
-| `[T; N]` | ✅ | ✅ | Fixed-size arrays |
-| `Vec<T>` | ✅ | ✅ | Dynamic arrays |
+| Type | Descriptor (`IntoVectorDataType`) | Bytes (`IntoBytes`) | Use Case |
+|------|-----------------------------------|---------------------|----------|
+| `f32` | ✅ scalar, `[f32; N]`, nested `[[f32; M]; N]` | ✅ | Vertex positions, colors |
+| `i8/i16/i32` | ✅ scalar and `[T; N]` | ✅ | Signed integer data |
+| `u8/u16/u32` | ✅ scalar and `[T; N]` | ✅ | Indices, unsigned data |
+| `Vec<T>` | ❌ descriptors are compile-time — use `[T; N]` | ✅ | Dynamic arrays (bytes only) |
 
 ### Camera Configuration
 
 ```rust,ignore
-use mingl::controls::camera_orbit_controls::*;
+use mingl::CameraOrbitControls;
 
-// Configure orbital camera
-let (x, y, z) = (0.0, 0.0, 5.0);
-let (tx, ty, tz) = (0.0, 0.0, 0.0);
-let (ux, uy, uz) = (0.0, 1.0, 0.0);
-let camera = Camera::new()
-  .position([x, y, z])
-  .target([tx, ty, tz])
-  .up([ux, uy, uz])
-  .fov(60.0)
-  .near(0.1)
-  .far(100.0);
+let mut camera = CameraOrbitControls::default();
 
-// Setup orbit controls
-let controls = OrbitControls::new()
-  .distance(10.0)           // Distance from target
-  .rotation_speed(1.0)      // Rotation sensitivity
-  .zoom_speed(0.2)          // Zoom sensitivity
-  .min_distance(1.0)        // Closest zoom
-  .max_distance(50.0)       // Farthest zoom
-  .enable_damping(true);    // Smooth movement
+// Constrain rotation ( angles in degrees; setters clamp to valid ranges )
+camera.rotation.base_longitude_set( 0.0 );   // clamped to [ 0, 360 ]
+camera.rotation.longitude_range_set( 90.0 ); // clamped to [ 0, 180 ]
+camera.rotation.base_latitude_set( 0.0 );    // clamped to [ -90, 90 ]
+camera.rotation.latitude_range_set( 60.0 );  // clamped to [ 0, 180 ]
+
+// Zoom limits and sensitivity ( larger speed = slower motion )
+camera.zoom.min_distance_set( 1.0 );
+camera.zoom.max_distance_set( 50.0 );
+camera.zoom.speed = 1000.0;
+camera.rotation.speed = 500.0;
+
+// Smooth rotation with decay, or disable a motion entirely
+camera.rotation.movement_smoothing_enabled = true;
+camera.rotation.movement_decay_set( 0.05 );
+camera.pan.enabled = false;
 ```
 
 ## 🎯 Use Cases
 
 ### Game Development
 - **3D Scene Navigation** - Interactive camera controls for exploring scenes
-- **Asset Loading** - Convert model data for GPU upload
-- **Input Handling** - Abstract input processing across platforms
+- **Asset Analysis** - Bounding volumes and memory reports for loaded OBJ models
+- **Input Handling** - Pointer-driven camera input on web canvases
 
 ### Graphics Applications
 - **CAD Viewers** - Precise camera controls for technical drawings
@@ -152,41 +159,51 @@ let controls = OrbitControls::new()
 
 ## 🔧 Advanced Features
 
-### Custom Camera Controllers
+### Character Controller
 
 ```rust,ignore
-use mingl::controls::camera_orbit_controls::*;
+use mingl::CharacterControls;
 
-struct CustomController {
-  sensitivity: f32,
-  momentum: Vec3,
+// First-person style controller ( `character_controls` feature )
+fn read_pose( controls : &CharacterControls )
+{
+  let position = controls.position();
+  let ( yaw, pitch ) = ( controls.yaw(), controls.pitch() );
+  // Movement vectors projected on the XZ plane
+  let forward = controls.forward_xz();
+  let right = controls.right_xz();
 }
+```
 
-impl CameraController for CustomController {
-  fn update(&mut self, camera: &mut Camera, input: &InputState, dt: f32) {
-    // Custom camera control logic
-    if input.mouse_down(MouseButton::Left) {
-      let delta = input.mouse_delta();
-      camera.rotate_around_target(delta.x * self.sensitivity, delta.y * self.sensitivity);
-    }
-  }
+### OBJ Model Reporting
+
+```rust,ignore
+use mingl::model::obj::{ BoundingBox, BoundingSphere };
+
+// Analyze model geometry ( `model_obj` feature )
+fn analyze( positions : &[ f32 ] )
+{
+  let bounding_box = BoundingBox::compute( positions );
+  let bounding_sphere = BoundingSphere::compute( positions, &bounding_box );
 }
 ```
 
 ### Efficient Data Processing
 
 ```rust,ignore
-use mingl::convert::*;
+use mingl::IntoBytes;
 
 // Batch convert vertex data efficiently
-fn process_mesh_data(vertices: &[[f32; 3]], normals: &[[f32; 3]], uvs: &[[f32; 2]]) -> Vec<u8> {
+fn process_mesh_data( vertices : &[ [ f32; 3 ] ], normals : &[ [ f32; 3 ] ], uvs : &[ [ f32; 2 ] ] ) -> Vec< u8 >
+{
   let mut buffer = Vec::new();
 
   // Interleave vertex attributes for optimal GPU access
-  for i in 0..vertices.len() {
-    buffer.extend_from_slice(&vertices[i].into_bytes());
-    buffer.extend_from_slice(&normals[i].into_bytes());
-    buffer.extend_from_slice(&uvs[i].into_bytes());
+  for i in 0..vertices.len()
+  {
+    buffer.extend_from_slice( &vertices[ i ].into_bytes() );
+    buffer.extend_from_slice( &normals[ i ].into_bytes() );
+    buffer.extend_from_slice( &uvs[ i ].into_bytes() );
   }
 
   buffer
@@ -209,21 +226,29 @@ fn process_mesh_data(vertices: &[[f32; 3]], normals: &[[f32; 3]], uvs: &[[f32; 2
 
 ### With WebGL
 ```rust,ignore
-use mingl::controls::camera_orbit_controls::*;
-use mingl::convert::*;
-use web_sys::{WebGl2RenderingContext, WebGlBuffer};
+use mingl::{ CameraOrbitControls, IntoVectorDataType, IntoBytes };
+use web_sys::WebGl2RenderingContext;
 
-fn setup_webgl_scene(gl: &WebGl2RenderingContext) {
-  let camera = Camera::new().position([0.0, 0.0, 5.0]);
+fn setup_webgl_scene( gl : &WebGl2RenderingContext )
+{
+  let camera = CameraOrbitControls
+  {
+    eye : [ 0.0, 0.0, 5.0 ].into(),
+    ..Default::default()
+  };
+
+  // Describe the attribute layout backend-agnostically
+  let desc = < [ f32; 3 ] >::into_vector_data_type();
+  let component_count = desc.natoms(); // 3 — for vertex_attrib_pointer
 
   // Convert vertex data for WebGL
-  let vertices = vec![[0.0, 1.0, 0.0], [-1.0, -1.0, 0.0], [1.0, -1.0, 0.0]];
+  let vertices = vec![ [ 0.0, 1.0, 0.0 ], [ -1.0, -1.0, 0.0 ], [ 1.0, -1.0, 0.0 ] ];
   let vertex_buffer = vertices.into_bytes();
 
   // Upload to GPU
   let buffer = gl.create_buffer().unwrap();
-  gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));
-  gl.buffer_data_with_u8_array(WebGl2RenderingContext::ARRAY_BUFFER, &vertex_buffer, WebGl2RenderingContext::STATIC_DRAW);
+  gl.bind_buffer( WebGl2RenderingContext::ARRAY_BUFFER, Some( &buffer ) );
+  gl.buffer_data_with_u8_array( WebGl2RenderingContext::ARRAY_BUFFER, &vertex_buffer, WebGl2RenderingContext::STATIC_DRAW );
 }
 ```
 

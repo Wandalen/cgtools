@@ -14,34 +14,9 @@
 //! | FOV3.1  | Multi     | Line of Sight | Boolean Result |
 //! | FOV4.1  | Lighting  | Multi-Source  | Combined Light |
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::float_cmp)]
-#![allow(clippy::clone_on_copy)]
-
 use tiles_tools::field_of_view::{FieldOfView, FOVAlgorithm, VisibilityState, LightSource, LightingCalculator};
 use tiles_tools::coordinates::{
+  Neighbors,
   square::{Coordinate as SquareCoord, EightConnected},
   hexagonal::{Coordinate as HexCoord, Axial, Pointy},
 };
@@ -57,7 +32,7 @@ fn test_shadowcasting_fov_square_grid()
   let viewer = SquareCoord::<EightConnected>::new(5, 5);
 
   // Open terrain - no obstacles
-  let visibility = fov.calculate_fov(&viewer, 4, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 4, |_| false);
 
   // Viewer position should be visible
   assert!(visibility.is_visible(&viewer));
@@ -89,12 +64,12 @@ fn test_shadowcasting_fov_with_obstacles()
     SquareCoord::<EightConnected>::new(6, 3),
   ];
 
-  let visibility = fov.calculate_fov(&viewer, 8, |coord| walls.contains(coord));
+  let visibility = fov.fov_calculate(&viewer, 8, |coord| walls.contains(coord));
 
   // Wall positions should be visible but block sight
   for wall_pos in &walls {
     assert!(visibility.is_visible(wall_pos));
-    if let Some(state) = visibility.get_visibility(wall_pos) {
+    if let Some(state) = visibility.visibility_get(wall_pos) {
       assert!(state.blocks_sight);
     }
   }
@@ -111,7 +86,7 @@ fn test_ray_casting_fov()
   let fov = FieldOfView::with_algorithm(FOVAlgorithm::RayCasting);
   let viewer = SquareCoord::<EightConnected>::new(10, 10);
 
-  let visibility = fov.calculate_fov(&viewer, 6, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 6, |_| false);
 
   // Should include viewer position
   assert!(visibility.is_visible(&viewer));
@@ -127,7 +102,7 @@ fn test_flood_fill_fov()
   let fov = FieldOfView::with_algorithm(FOVAlgorithm::FloodFill);
   let viewer = SquareCoord::<EightConnected>::new(8, 8);
 
-  let visibility = fov.calculate_fov(&viewer, 3, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 3, |_| false);
 
   // Should include viewer
   assert!(visibility.is_visible(&viewer));
@@ -143,7 +118,7 @@ fn test_bresenham_fov()
   let fov = FieldOfView::with_algorithm(FOVAlgorithm::Bresenham);
   let viewer = SquareCoord::<EightConnected>::new(0, 0);
 
-  let visibility = fov.calculate_fov(&viewer, 5, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 5, |_| false);
 
   // Basic functionality test
   assert!(visibility.is_visible(&viewer));
@@ -162,7 +137,7 @@ fn test_hexagonal_shadowcasting_fov()
   let fov = FieldOfView::new();
   let viewer = HexCoord::<Axial, Pointy>::new(0, 0);
 
-  let visibility = fov.calculate_fov(&viewer, 3, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 3, |_| false);
 
   // Viewer should be visible
   assert!(visibility.is_visible(&viewer));
@@ -196,7 +171,7 @@ fn test_hexagonal_fov_with_blocking_terrain()
     HexCoord::<Axial, Pointy>::new(1, -1),
   ];
 
-  let visibility = fov.calculate_fov(&viewer, 4, |coord| blocking_hexes.contains(coord));
+  let visibility = fov.fov_calculate(&viewer, 4, |coord| blocking_hexes.contains(coord));
 
   // Blocking positions should be visible themselves
   for blocker in &blocking_hexes {
@@ -241,9 +216,7 @@ fn test_line_of_sight_partial_blocking()
   let to = SquareCoord::<EightConnected>::new(6, 2);
 
   // Block specific positions
-  let obstacles = vec![
-    SquareCoord::<EightConnected>::new(4, 2),
-  ];
+  let obstacles = [SquareCoord::<EightConnected>::new(4, 2)];
 
   let has_los = fov.line_of_sight(&from, &to, |coord| obstacles.contains(coord));
   // Should be blocked by the obstacle in a full implementation
@@ -281,6 +254,7 @@ fn test_hexagonal_line_of_sight()
 // Advanced FOV Features Tests
 // =============================================================================
 
+#[ expect( clippy::float_cmp, reason = "light levels read back are the exact construction literals; no arithmetic in between" ) ]
 #[ test ]
 fn test_visibility_state_properties()
 {
@@ -302,10 +276,10 @@ fn test_visibility_state_properties()
 #[ test ]
 fn test_fov_exclude_viewer()
 {
-  let fov = FieldOfView::new().include_viewer(false);
+  let fov = FieldOfView::new().viewer_include(false);
   let viewer = SquareCoord::<EightConnected>::new(7, 7);
 
-  let visibility = fov.calculate_fov(&viewer, 2, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 2, |_| false);
 
   // In a full implementation, viewer should not be included in results
   // Current stub implementation may include viewer regardless of setting
@@ -322,7 +296,7 @@ fn test_fov_distance_ranges()
   let fov = FieldOfView::new();
   let viewer = SquareCoord::<EightConnected>::new(10, 10);
 
-  let visibility = fov.calculate_fov(&viewer, 5, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 5, |_| false);
 
   // Test distance-based queries
   let close_coords = visibility.coordinates_in_range(0, 2);
@@ -342,11 +316,12 @@ fn test_fov_distance_ranges()
 // Multi-Source Lighting Tests
 // =============================================================================
 
+#[ expect( clippy::float_cmp, reason = "the intensity read back is the exact construction literal" ) ]
 #[ test ]
 fn test_light_source_creation()
 {
   let position = SquareCoord::<EightConnected>::new(15, 15);
-  let light = LightSource::new(position.clone(), 6, 0.8)
+  let light = LightSource::new(position, 6, 0.8)
     .with_color(1.0, 0.5, 0.2)
     .penetrating(true);
 
@@ -356,16 +331,17 @@ fn test_light_source_creation()
   assert!(light.penetrates_walls);
 }
 
+#[ expect( clippy::float_cmp, reason = "intensity at the source position is exactly 1.0 by the lighting model's definition" ) ]
 #[ test ]
 fn test_single_light_source_calculation()
 {
   let mut calculator = LightingCalculator::new();
 
   let light_pos = SquareCoord::<EightConnected>::new(5, 5);
-  let light_source = LightSource::new(light_pos.clone(), 4, 1.0);
-  calculator.add_light_source(light_source);
+  let light_source = LightSource::new(light_pos, 4, 1.0);
+  calculator.light_source_add(light_source);
 
-  let lighting = calculator.calculate_lighting(|_| false);
+  let lighting = calculator.lighting_calculate(|_| false);
 
   // Should have lighting at the source position
   assert!(lighting.contains_key(&light_pos));
@@ -387,13 +363,13 @@ fn test_multiple_light_sources()
   // Add two overlapping light sources
   let light1_pos = SquareCoord::<EightConnected>::new(3, 3);
   let light1 = LightSource::new(light1_pos, 3, 0.6);
-  calculator.add_light_source(light1);
+  calculator.light_source_add(light1);
 
   let light2_pos = SquareCoord::<EightConnected>::new(5, 3);
   let light2 = LightSource::new(light2_pos, 3, 0.7);
-  calculator.add_light_source(light2);
+  calculator.light_source_add(light2);
 
-  let lighting = calculator.calculate_lighting(|_| false);
+  let lighting = calculator.lighting_calculate(|_| false);
 
   // Overlapping area should have combined lighting (but capped at 1.0)
   let overlap_pos = SquareCoord::<EightConnected>::new(4, 3);
@@ -411,15 +387,13 @@ fn test_light_with_obstacles()
 
   let light_pos = SquareCoord::<EightConnected>::new(8, 8);
   let light_source = LightSource::new(light_pos, 5, 1.0);
-  calculator.add_light_source(light_source);
+  calculator.light_source_add(light_source);
 
   // Define walls that block light
-  let walls = vec![
-    SquareCoord::<EightConnected>::new(9, 8),
-    SquareCoord::<EightConnected>::new(10, 8),
-  ];
+  let walls = [SquareCoord::<EightConnected>::new(9, 8),
+    SquareCoord::<EightConnected>::new(10, 8)];
 
-  let lighting = calculator.calculate_lighting(|coord| walls.contains(coord));
+  let lighting = calculator.lighting_calculate(|coord| walls.contains(coord));
 
   // Positions behind walls should have no/reduced lighting in a full implementation
   let shadowed_pos = SquareCoord::<EightConnected>::new(11, 8);
@@ -437,12 +411,12 @@ fn test_penetrating_light()
   let light_pos = SquareCoord::<EightConnected>::new(12, 12);
   let penetrating_light = LightSource::new(light_pos, 4, 0.8)
     .penetrating(true);
-  calculator.add_light_source(penetrating_light);
+  calculator.light_source_add(penetrating_light);
 
   // Wall that would normally block light
   let wall = SquareCoord::<EightConnected>::new(13, 12);
 
-  let lighting = calculator.calculate_lighting(|coord| *coord == wall);
+  let lighting = calculator.lighting_calculate(|coord| *coord == wall);
 
   // Position behind wall should still be lit due to penetrating light
   let behind_wall = SquareCoord::<EightConnected>::new(14, 12);
@@ -465,8 +439,8 @@ fn test_square_vs_hex_fov_consistency()
   let square_viewer = SquareCoord::<EightConnected>::new(0, 0);
   let hex_viewer = HexCoord::<Axial, Pointy>::new(0, 0);
 
-  let square_vis = square_fov.calculate_fov(&square_viewer, 2, |_| false);
-  let hex_vis = hex_fov.calculate_fov(&hex_viewer, 2, |_| false);
+  let square_vis = square_fov.fov_calculate(&square_viewer, 2, |_| false);
+  let hex_vis = hex_fov.fov_calculate(&hex_viewer, 2, |_| false);
 
   // Both should include their respective viewer positions
   assert!(square_vis.is_visible(&square_viewer));
@@ -492,7 +466,7 @@ fn test_fov_algorithm_comparison()
 
   for algorithm in &algorithms {
     let fov = FieldOfView::with_algorithm(*algorithm);
-    let visibility = fov.calculate_fov(&viewer, range, |_| false);
+    let visibility = fov.fov_calculate(&viewer, range, |_| false);
 
     // All algorithms should at least see the viewer
     assert!(visibility.is_visible(&viewer));
@@ -512,7 +486,7 @@ fn test_fov_large_range()
 
   // Large FOV calculation
   let start_time = std::time::Instant::now();
-  let visibility = fov.calculate_fov(&viewer, 20, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 20, |_| false);
   let calculation_time = start_time.elapsed();
 
   // Should complete within reasonable time
@@ -529,9 +503,9 @@ fn test_fov_zero_range()
   let fov = FieldOfView::new();
   let viewer = SquareCoord::<EightConnected>::new(3, 3);
 
-  let visibility = fov.calculate_fov(&viewer, 0, |_| false);
+  let visibility = fov.fov_calculate(&viewer, 0, |_| false);
 
-  // Should only see the viewer position (if include_viewer is true)
+  // Should only see the viewer position (if viewer_include is true)
   assert!(visibility.is_visible(&viewer));
   let visible_coords = visibility.visible_coordinates();
   assert_eq!(visible_coords.len(), 1);
@@ -545,7 +519,7 @@ fn test_fov_all_blocking_terrain()
   let viewer = SquareCoord::<EightConnected>::new(7, 7);
 
   // Everything blocks sight
-  let visibility = fov.calculate_fov(&viewer, 5, |_| true);
+  let visibility = fov.fov_calculate(&viewer, 5, |_| true);
 
   // Should still see the viewer position
   assert!(visibility.is_visible(&viewer));
@@ -553,7 +527,7 @@ fn test_fov_all_blocking_terrain()
   // Immediate neighbors might be visible but blocking
   let neighbor = SquareCoord::<EightConnected>::new(8, 7);
   if visibility.is_visible(&neighbor) {
-    if let Some(state) = visibility.get_visibility(&neighbor) {
+    if let Some(state) = visibility.visibility_get(&neighbor) {
       assert!(state.blocks_sight);
     }
   }
@@ -570,13 +544,152 @@ fn test_lighting_performance()
   for i in 0..10 {
     let light_pos = SquareCoord::<EightConnected>::new(i * 5, i * 5);
     let light = LightSource::new(light_pos, 8, 0.5);
-    calculator.add_light_source(light);
+    calculator.light_source_add(light);
   }
 
   let start_time = std::time::Instant::now();
-  let _lighting = calculator.calculate_lighting(|_| false);
+  let _lighting = calculator.lighting_calculate(|_| false);
   let calculation_time = start_time.elapsed();
 
   // Multiple light sources should still calculate quickly
   assert!(calculation_time.as_millis() < 1500);
+}
+
+// test_kind: bug_reproducer(BUG-135)
+/// ## Root Cause
+/// `octant_shadows_cast` computed each neighbor's direction index from
+/// `neighbors.iter().filter(...).enumerate()` -- filtering already-visited
+/// neighbors *before* enumerating desyncs the loop index `i` from the fixed
+/// direction slot each neighbor actually occupies in `pos.neighbors()`,
+/// once any neighbor has been visited (true for every position beyond the
+/// first ring). The octant-membership test then checks the wrong slot.
+/// ## Why Not Caught
+/// Every existing FOV test used open terrain or a straight multi-tile wall,
+/// both of which the algorithm's own 8-fold redundant octant sweep happens
+/// to compensate for symmetrically -- divergence only appears for specific
+/// single-obstacle placements found by adversarial simulation, not the
+/// straight walls/open-field cases hand-written tests reached for.
+/// ## Fix Applied
+/// Swapped to `neighbors.iter().enumerate().filter(...)` so `i` is captured
+/// from the unfiltered array position before any visited neighbor is
+/// dropped.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// A single-tile obstacle can still be routed around diagonally by this
+/// flood-fill-style algorithm (by design, not a defect) -- the point of
+/// this test is the shape of visible tiles differing between the buggy and
+/// fixed index computation for the *same* obstacle, not blocking sight
+/// entirely.
+#[ test ]
+fn test_shadowcasting_single_obstacle_does_not_falsely_shadow_diagonal_tile()
+{
+  let fov = FieldOfView::with_algorithm(FOVAlgorithm::Shadowcasting);
+  let viewer = SquareCoord::<EightConnected>::new(0, 0);
+
+  // Single blocking tile -- does not form a continuous wall.
+  let blocker = SquareCoord::<EightConnected>::new(-3, -1);
+
+  let visibility = fov.fov_calculate(&viewer, 4, |coord| *coord == blocker);
+
+  // Reachable by flood-fill around the single blocker (e.g. via (-3,-2) then
+  // (-4,-1), neither of which is the blocked tile) -- must not be shadowed.
+  let target = SquareCoord::<EightConnected>::new(-4, -1);
+  assert!(
+    visibility.is_visible(&target),
+    "target at distance 4 was falsely shadowed by a single non-blocking-path obstacle"
+  );
+}
+
+// test_kind: bug_reproducer(BUG-267)
+/// ## Root Cause
+/// `direction_alignment_calculate`'s guard clause returned an alignment of
+/// `0.0` whenever `current_distance == 0.0` -- true on the very first hop of
+/// every ray, since `directional_ray_cast` always starts with
+/// `current = viewer.clone()`. With every candidate neighbor tied at `0.0`
+/// on the first hop, the caller's strict `>` comparison always kept the
+/// first-iterated neighbor, so every ray took its first step toward that
+/// same fixed neighbor regardless of its own `direction_target`.
+/// ## Why Not Caught
+/// `test_ray_casting_fov` and `test_fov_algorithm_comparison` both only
+/// assert `!visible_coordinates().is_empty()` -- a single visible neighbor
+/// (the bug's actual output) still satisfies that assertion, so neither test
+/// distinguished "only one neighbor reached" from "every neighbor reached".
+/// ## Fix Applied
+/// Removed `current_distance == 0.0` from the guard in
+/// `direction_alignment_calculate`, keeping only the `target_distance == 0.0`
+/// check -- the one guard that actually protects a division in this
+/// function.
+/// ## Prevention
+/// Assert the full expected coverage set ( every immediate neighbor ), not
+/// merely "some coordinates are visible", when testing a per-direction ray
+/// caster -- an emptiness check cannot catch a directional collapse.
+/// ## Pitfall
+/// A guard clause naming a variable that also appears elsewhere in the
+/// function is not proof the guard protects a division by that variable --
+/// verify which variable is actually the divisor before trusting the guard.
+#[ test ]
+fn test_ray_casting_reaches_every_immediate_neighbor_at_range_one() {
+  let fov = FieldOfView::with_algorithm(FOVAlgorithm::RayCasting);
+  let viewer = SquareCoord::<EightConnected>::new(10, 10);
+
+  let visibility = fov.fov_calculate(&viewer, 1, |_| false);
+  let visible: std::collections::HashSet<_> = visibility.visible_coordinates().into_iter().collect();
+
+  for neighbor in viewer.neighbors() {
+    assert!(
+      visible.contains(&neighbor),
+      "expected immediate neighbor {neighbor:?} to be visible at range 1"
+    );
+  }
+}
+
+// BUG-346 task/bug/346_bresenham_line_of_sight_asymmetric.md -- reproducer for
+// line_of_sight's direction-dependent asymmetry around a wall cluster.
+// test_kind: bug_reproducer(BUG-346)
+/// ## Root Cause
+/// `bresenham_line_trace` greedily walks from `from` toward `to`, picking
+/// whichever neighbor is closest (by `distance()`) to the fixed target at
+/// each step. This greedy nearest-to-target walk is not path-reversible --
+/// tracing `A -> B` and `B -> A` can visit different intermediate cells, so
+/// one direction can route around a wall the other direction runs straight
+/// through.
+/// ## Why Not Caught
+/// No existing `Bresenham`-algorithm test called `line_of_sight` in both
+/// directions between the same pair of endpoints -- every existing case
+/// checked only one direction, which cannot distinguish a symmetric result
+/// from a direction-dependent one.
+/// ## Fix Applied
+/// `bresenham_line_trace` now traces from the lexicographically-smaller
+/// endpoint regardless of which endpoint the caller passed as `from`, so the
+/// traced path -- and therefore the line-of-sight result -- no longer depends
+/// on call direction.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// A greedy "move to whichever neighbor is closest to the target" line
+/// tracer looks like an ordinary Bresenham approximation but is not
+/// guaranteed to retrace the same cells in reverse -- symmetry must be
+/// verified explicitly, not assumed from the algorithm's name.
+#[ test ]
+fn test_bresenham_line_of_sight_is_symmetric_around_wall() {
+  let fov = FieldOfView::with_algorithm(FOVAlgorithm::Bresenham);
+
+  let a = SquareCoord::<EightConnected>::new(0, 0);
+  let b = SquareCoord::<EightConnected>::new(5, 3);
+
+  let walls = [
+    SquareCoord::<EightConnected>::new(2, 1),
+    SquareCoord::<EightConnected>::new(2, 2),
+    SquareCoord::<EightConnected>::new(3, 2),
+  ];
+  let blocks = |coord: &SquareCoord<EightConnected>| walls.contains(coord);
+
+  let a_to_b = fov.line_of_sight(&a, &b, blocks);
+  let b_to_a = fov.line_of_sight(&b, &a, blocks);
+
+  assert_eq!(
+    a_to_b, b_to_a,
+    "line_of_sight must not depend on call direction: A->B = {a_to_b}, B->A = {b_to_a}"
+  );
 }

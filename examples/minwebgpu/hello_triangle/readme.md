@@ -8,7 +8,7 @@ This is the essential first step for learning WebGPU, covering device setup, pip
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

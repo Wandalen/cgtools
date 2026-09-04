@@ -8,7 +8,7 @@ This technique is essential for modern game engines and complex lighting scenari
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

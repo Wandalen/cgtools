@@ -4,7 +4,7 @@
 
 mod private
 {
-  use crate::*;
+  use crate::{Mat, mat, MatEl, RawSlice, RawSliceMut};
   use ::num_traits::AsPrimitive;
 
   impl< E, const ROWS : usize, const COLS : usize, Descriptor : mat::Descriptor > Mat< ROWS, COLS, E, Descriptor >

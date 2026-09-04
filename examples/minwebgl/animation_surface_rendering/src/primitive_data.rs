@@ -1,13 +1,7 @@
-#![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::too_many_lines ) ]
 
 mod private
 {
-  use minwebgl::
-  {
-    self as gl,
-    BufferDescriptor
-  };
+  use minwebgl as gl;
   use gl::
   {
     GL,
@@ -26,7 +20,7 @@ mod private
   {
     Transform,
     AttributesData,
-    make_buffer_attribute_info
+    buffer_attribute_info_make
   };
   use core::ops::Range;
 
@@ -89,6 +83,81 @@ mod private
     }
   }
 
+  /// Creates the geometry for one primitive : appends its vertex positions and offset indices
+  /// to the shared buffers and wires up the position attribute and the index buffer.
+  fn geometry_create
+  (
+    gl : &WebGl2RenderingContext,
+    attributes : &Rc< RefCell< AttributesData > >,
+    position_buffer : &gl::web_sys::WebGlBuffer,
+    positions : &mut Vec< [ f32; 3 ] >,
+    indices : &mut Vec< u32 >,
+    index_info : &mut IndexInfo
+  ) -> Geometry
+  {
+    let last_positions_count = positions.len() as u32;
+    positions.extend( attributes.borrow().positions.clone() );
+    let primitive_indices = attributes.borrow().indices.iter()
+    .map( | i | i + last_positions_count )
+    .collect::< Vec< _ > >();
+    let offset = indices.len() as u32 * 4;
+    indices.extend( primitive_indices );
+
+    index_info.offset = offset;
+    index_info.count = attributes.borrow().indices.len() as u32;
+
+    let attribute_infos =
+    [
+      (
+        "positions",
+        buffer_attribute_info_make
+        (
+          position_buffer,
+          mingl::VertexAttribute::new( 0, VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 ),
+          3,
+          false
+        )
+      ),
+    ];
+
+    let Ok( mut geometry ) = Geometry::new( gl ) else
+    {
+      panic!( "Can't create new Geometry struct" );
+    };
+
+    for ( name, info ) in &attribute_infos
+    {
+      geometry.attribute_add( gl, *name, info.clone() ).unwrap();
+    }
+
+    geometry.index_add( gl, index_info.clone() ).unwrap();
+    geometry.vertex_count = attributes.borrow().positions.len() as u32;
+
+    geometry
+  }
+
+  /// Wires child-to-parent links between nodes according to each primitive's parent id.
+  fn node_hierarchy_link( nodes : &[ Rc< RefCell< Node > > ], primitives_data : &[ PrimitiveData ] )
+  {
+    let node_iter = nodes.iter()
+    .zip( primitives_data.iter().map( | p | p.parent ) );
+
+    for ( child, parent ) in node_iter
+    {
+      if let Some( parent ) = parent
+      {
+        if let Some( parent ) = nodes.get( parent )
+        {
+          if parent.borrow().name_get() != child.borrow().name_get() && parent.borrow().name_get().is_some()
+          {
+            child.borrow_mut().parent_set( Some( parent.clone() ) );
+            parent.borrow_mut().child_add( child.clone() );
+          }
+        }
+      }
+    }
+  }
+
   /// Converts a vector of `PrimitiveData` structs into a `GLTF` scene.
   ///
   /// This function takes a collection of `PrimitiveData` objects, each representing
@@ -125,24 +194,6 @@ mod private
 
     gl_buffers.push( position_buffer.clone() );
 
-    let attribute_infos =
-    [
-      (
-        "positions",
-        make_buffer_attribute_info
-        (
-          &position_buffer,
-          BufferDescriptor::new::< [ f32; 3 ] >(),
-          0,
-          3,
-          0,
-          false,
-          VectorDataType::new( mingl::DataType::F32, 3, 1 )
-        )
-        .unwrap()
-      ),
-    ];
-
     let index_buffer = gl.create_buffer().unwrap();
     gl_buffers.push( index_buffer.clone() );
 
@@ -161,29 +212,15 @@ mod private
     {
       let object = if let Some( attributes ) = &primitive_data.attributes
       {
-        let last_positions_count = positions.len() as u32;
-        positions.extend( attributes.borrow().positions.clone() );
-        let primitive_indices = attributes.borrow().indices.iter()
-        .map( | i | i + last_positions_count )
-        .collect::< Vec< _ > >();
-        let offset = indices.len() as u32 * 4;
-        indices.extend( primitive_indices );
-
-        index_info.offset = offset;
-        index_info.count = attributes.borrow().indices.len() as u32;
-
-        let Ok( mut geometry ) = Geometry::new( gl ) else
-        {
-          panic!( "Can't create new Geometry struct" );
-        };
-
-        for ( name, info ) in &attribute_infos
-        {
-          geometry.add_attribute( gl, *name, info.clone() ).unwrap();
-        }
-
-        geometry.add_index( gl, index_info.clone() ).unwrap();
-        geometry.vertex_count = attributes.borrow().positions.len() as u32;
+        let geometry = geometry_create
+        (
+          gl,
+          attributes,
+          &position_buffer,
+          &mut positions,
+          &mut indices,
+          &mut index_info
+        );
 
         let primitive = Primitive
         {
@@ -192,7 +229,7 @@ mod private
         };
 
         let mesh = Rc::new( RefCell::new( Mesh::new() ) );
-        mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
+        mesh.borrow_mut().primitive_add( Rc::new( RefCell::new( primitive ) ) );
         meshes.push( mesh.clone() );
         Object3D::Mesh( mesh )
       }
@@ -206,10 +243,10 @@ mod private
 
       if let Some( name ) = &primitive_data.name
       {
-        node.borrow_mut().set_name( name.clone() );
+        node.borrow_mut().name_set( name.clone() );
       }
 
-      primitive_data.transform.set_node_transform( node.clone() );
+      primitive_data.transform.node_transform_set( &node );
 
       nodes.push( node.clone() );
       if primitive_data.parent.is_none()
@@ -221,23 +258,7 @@ mod private
     gl::buffer::upload( gl, &position_buffer, &positions, GL::STATIC_DRAW );
     gl::index::upload( gl, &index_buffer, &indices, GL::STATIC_DRAW );
 
-    let node_iter = nodes.iter()
-    .zip( primitives_data.iter().map( | p | p.parent ) );
-
-    for ( child, parent ) in node_iter
-    {
-      if let Some( parent ) = parent
-      {
-        if let Some( parent ) = nodes.get( parent )
-        {
-          if parent.borrow().get_name() != child.borrow().get_name() && parent.borrow().get_name().is_some()
-          {
-            child.borrow_mut().set_parent( Some( parent.clone() ) );
-            parent.borrow_mut().add_child( child.clone() );
-          }
-        }
-      }
-    }
+    node_hierarchy_link( &nodes, primitives_data );
 
     GLTF
     {

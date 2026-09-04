@@ -1,0 +1,27 @@
+[package]
+name = "minwebgpu_hello_triangle_quickstart"
+version = "0.1.0"
+edition = "2021"
+authors = [
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>"
+]
+license = "MIT"
+
+# Only include WebGPU dependencies for wasm32 targets
+[target.'cfg(target_arch = "wasm32")'.dependencies.minwebgpu]
+workspace = true
+features = [
+    'future'
+]
+
+# Stub dependency for other targets to allow compilation
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# No minwebgpu dependency for native targets
+
+
+[lints]
+workspace = true
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgpu"]

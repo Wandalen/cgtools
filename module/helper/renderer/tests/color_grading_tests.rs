@@ -3,6 +3,7 @@
 use renderer::webgl::post_processing::ColorGradingParams;
 
 #[ test ]
+#[ expect( clippy::float_cmp, reason = "comparisons are against the exact construction/default literals, never computed results" ) ]
 fn test_color_grading_params_default_values()
 {
   let params = ColorGradingParams::default();
@@ -19,6 +20,7 @@ fn test_color_grading_params_default_values()
 }
 
 #[ test ]
+#[ expect( clippy::float_cmp, reason = "comparisons are against the exact construction literals, never computed results" ) ]
 fn test_color_grading_params_clone()
 {
   let params = ColorGradingParams

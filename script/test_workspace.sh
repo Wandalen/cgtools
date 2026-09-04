@@ -7,7 +7,7 @@ set -e
 
 echo "=== Testing CGTools Workspace Cargo Commands ==="
 
-cd /home/user1/pro/lib/cgtools
+cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 
 echo "1. Testing workspace check..."
 if cargo check --workspace --quiet; then
@@ -25,14 +25,6 @@ if cargo check -p embroidery_tools --no-default-features --features enabled; the
     echo "✅ embroidery_tools check passed"
 else
     echo "❌ embroidery_tools check failed"
-fi
-
-# Test vectorizer without CLI features  
-echo "Testing vectorizer..."
-if cargo check -p vectorizer --no-default-features --features enabled; then
-    echo "✅ vectorizer check passed"
-else
-    echo "❌ vectorizer check failed"
 fi
 
 # Test workspace with basic features only

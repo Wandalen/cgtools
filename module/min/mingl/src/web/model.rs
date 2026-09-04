@@ -12,6 +12,7 @@ mod private
   /// This is often used with `#[wasm_bindgen]` to expose a Rust type and its data to JavaScript.
   /// The wrapped type `T` must implement `Debug`.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub struct ForBrowser< T : Debug >
   {
     /// The wrapped data report or object.
@@ -21,6 +22,8 @@ mod private
   impl< T : Debug > ForBrowser< T >
   {
     /// Creates a new `ForBrowser` instance, wrapping the provided data.
+    #[ inline ]
+    #[ must_use ]
     pub fn new( r : T ) -> Self
     {
       ForBrowser
@@ -30,15 +33,19 @@ mod private
     }
 
     /// A convenience constructor to create a `ForBrowser` instance from a report.
+    #[ inline ]
+    #[ must_use ]
     pub fn from_report( r : T ) -> Self
     {
       ForBrowser::new( r )
     }
 
     /// Converts a `Vec` of items into a `Vec` of `ForBrowser`-wrapped items.
+    #[ inline ]
+    #[ must_use ]
     pub fn from_reports( r : Vec< T > ) -> Vec< Self >
     {
-      r.into_iter().map( | r | ForBrowser::new( r ) ).collect()
+      r.into_iter().map( ForBrowser::new ).collect()
     }
   }
 }

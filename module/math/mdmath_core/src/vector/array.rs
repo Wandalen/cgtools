@@ -1,4 +1,4 @@
-use super::*;
+use super::{Collection, ConstLength, IntoArray, ArrayRef, ArrayMut, VectorIter, VectorIteratorRef, VectorIterMut, VectorIterator};
 
 impl< E, const N : usize > Collection for [ E ; N ]
 {
@@ -39,6 +39,7 @@ impl< E, const N : usize > ArrayMut< E, N > for [ E ; N ]
 
 impl< E, const N : usize > VectorIter< E, N > for [ E ; N ]
 {
+  #[ inline ]
   fn vector_iter< 'data >( &'data self ) -> impl VectorIteratorRef< 'data, &'data E >
   where
     E : 'data,
@@ -49,6 +50,7 @@ impl< E, const N : usize > VectorIter< E, N > for [ E ; N ]
 
 impl< E, const N : usize > VectorIterMut< E, N > for [ E ; N ]
 {
+  #[ inline ]
   fn vector_iter_mut< 'data >( &'data mut self ) -> impl VectorIterator< 'data, &'data mut E >
   where
     E : 'data,

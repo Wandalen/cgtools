@@ -5,7 +5,7 @@ where
   the_module::Mat< 2, 3, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingMut< Scalar = f32 > + the_module::IndexingRef< Scalar = f32 >,
   < the_module::Mat< 2, 3, f32, D > as the_module::Collection >::Scalar : std::ops::MulAssign< f32 > + PartialOrd + PartialEq< f32 > + std::fmt::Debug + Copy,
 {
-  use the_module::{ Mat, RawSliceMut, IndexingMut, IndexingRef };
+  use the_module::{ Mat, RawSliceMut };
   let mut mat = Mat::< 2, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
   for value in mat.iter_unstable_mut()
   {
@@ -15,7 +15,7 @@ where
   let mut exp = vec![ &2.0, &4.0, &6.0, &8.0, &10.0, &12.0 ];
   iter.sort_by( | a, b | a.partial_cmp( b ).unwrap() );
   exp.sort_by( | a, b | a.partial_cmp( b ).unwrap() );
-  assert_eq!( iter, exp, "Expected {:?}, got {:?}", exp, iter );
+  assert_eq!( iter, exp, "Expected {exp:?}, got {iter:?}" );
 }
 
 #[ test ]
@@ -37,7 +37,7 @@ where
   the_module::Mat< 2, 3, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingMut< Scalar = f32 > + the_module::IndexingRef< Scalar = f32 >,
   the_module::Mat< 2, 3, f32, D > : the_module::Indexable< Index = the_module::Ix2 >,
 {
-  use the_module::{ nd, Mat, RawSliceMut, IndexingMut };
+  use the_module::{ nd, Mat, RawSliceMut };
 
   let mut mat = Mat::< 2, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
 
@@ -58,7 +58,7 @@ where
   ];
   iter.sort_by( | a, b | a.1.partial_cmp( &b.1 ).unwrap() );
   exp.sort_by( | a, b | a.1.partial_cmp( &b.1 ).unwrap() );
-  assert_eq!( iter, exp, "Expected {:?}, got {:?}", exp, iter );
+  assert_eq!( iter, exp, "Expected {exp:?}, got {iter:?}" );
 }
 
 #[ test ]
@@ -79,7 +79,7 @@ fn test_iter_lsfirst_mut_generic< D : the_module::mat::Descriptor >()
 where
   the_module::Mat< 2, 3, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingMut< Scalar = f32 >,
 {
-  use the_module::{ Mat, RawSliceMut, IndexingMut };
+  use the_module::{ Mat, RawSliceMut };
   let mut mat = Mat::< 2, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
   for value in mat.iter_lsfirst_mut()
   {
@@ -87,7 +87,7 @@ where
   }
   let iter : Vec< f32 > = mat.iter_lsfirst().copied().collect(); // Convert references to values
   let exp : Vec< f32 > = vec![ 2.0, 4.0, 6.0, 8.0, 10.0, 12.0 ];
-  assert_eq!( iter, exp, "Expected {:?}, got {:?}", exp, iter );
+  assert_eq!( iter, exp, "Expected {exp:?}, got {iter:?}" );
 }
 
 #[ test ]
@@ -108,7 +108,7 @@ fn test_iter_msfirst_mut_generic< D : the_module::mat::Descriptor >()
 where
   the_module::Mat< 2, 3, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingMut< Scalar = f32 >,
 {
-  use the_module::{ Mat, RawSliceMut, IndexingMut };
+  use the_module::{ Mat, RawSliceMut };
   let mut mat = Mat::< 2, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
   for value in mat.iter_msfirst_mut()
   {
@@ -116,7 +116,7 @@ where
   }
   let iter : Vec< f32 > = mat.iter_msfirst().copied().collect(); // Convert references to values
   let exp : Vec< f32 > =  vec![ 2.0, 8.0, 4.0, 10.0, 6.0, 12.0 ];
-  assert_eq!( iter, exp, "Expected {:?}, got {:?}", exp, iter );
+  assert_eq!( iter, exp, "Expected {exp:?}, got {iter:?}" );
 }
 
 #[ test ]
@@ -138,7 +138,7 @@ where
   the_module::Mat< 2, 3, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingMut< Scalar = f32 >,
   the_module::Mat< 2, 3, f32, D > : the_module::Indexable< Index = the_module::Ix2 >,
 {
-  use the_module::{ nd, Mat, RawSliceMut, IndexingMut };
+  use the_module::{ nd, Mat, RawSliceMut };
   let mut mat = Mat::< 2, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
   for ( _, value ) in mat.iter_indexed_lsfirst_mut()
   {
@@ -155,7 +155,7 @@ where
     ( nd::Ix2( 1, 1 ), 10.0 ),
     ( nd::Ix2( 1, 2 ), 12.0 ),
   ];
-  assert_eq!( indexed_iter, exp, "Expected {:?}, got {:?}", exp, indexed_iter );
+  assert_eq!( indexed_iter, exp, "Expected {exp:?}, got {indexed_iter:?}" );
 }
 
 #[ test ]
@@ -177,7 +177,7 @@ where
   the_module::Mat< 2, 3, f32, D > : Default + the_module::RawSliceMut< Scalar = f32 > + the_module::IndexingMut< Scalar = f32 >,
   the_module::Mat< 2, 3, f32, D > : the_module::Indexable< Index = the_module::Ix2 >,
 {
-  use the_module::{ nd, Mat, RawSliceMut, IndexingMut };
+  use the_module::{ nd, Mat, RawSliceMut };
   let mut mat = Mat::< 2, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
   for ( _, value ) in mat.iter_indexed_msfirst_mut()
   {
@@ -194,7 +194,7 @@ where
     ( nd::Ix2( 0, 2 ), 6.0 ),
     ( nd::Ix2( 1, 2 ), 12.0 ),
   ];
-  assert_eq!( indexed_iter, exp, "Expected {:?}, got {:?}", exp, indexed_iter );
+  assert_eq!( indexed_iter, exp, "Expected {exp:?}, got {indexed_iter:?}" );
 }
 
 #[ test ]

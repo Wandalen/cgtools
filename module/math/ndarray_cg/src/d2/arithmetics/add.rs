@@ -1,10 +1,13 @@
-use crate::*;
+use crate::{MatNum, Indexable, Ix2, IndexingMut, IndexingRef, Add, Mat, mat, Zero};
 
 /// Adds two matrices.
 ///
 /// # Overflow
 /// For integer `E` the element-wise addition is not overflow-checked: it
 /// panics in debug / wraps in release once a sum leaves `E`'s range.
+///
+/// # Panics
+/// Panics if `a`, `b`, and `r` do not all share the same dimensions.
 #[ inline ]
 pub fn add< E, A, B, R >( r : &mut R, a : &A, b : &B )
 where
@@ -13,21 +16,24 @@ where
   A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   B : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
 {
-  #[ cfg( debug_assertions ) ]
+  // Fix(TASK-014): removed `#[ cfg( debug_assertions ) ]` so this dimension check runs
+  // unconditionally instead of only in debug builds.
+  // Root cause: the check was gated to debug builds, so a release build skipped it and
+  // the `zip()` below silently truncated to the shortest iterator on a dimension mismatch,
+  // writing a partial/wrong result into `r` instead of failing.
+  // Pitfall: gating a correctness-critical dimension check behind `debug_assertions` makes
+  // release builds trade a loud failure for silently wrong numeric output.
   {
     let rdim = r.dim();
     let adim = a.dim();
     let bdim = b.dim();
 
     // Check if dimensions are compatible for addition
-    if adim != bdim || rdim != adim
-    {
-      panic!
-      (
-        "Incompatible dimensions for matrix addition: a: {:?}, b: {:?}, r: {:?}",
-        adim, bdim, rdim
-      );
-    }
+    assert!
+    (
+      adim == bdim && rdim == adim,
+      "Incompatible dimensions for matrix addition: a: {adim:?}, b: {bdim:?}, r: {rdim:?}"
+    );
   }
 
   for ( ( r_val, a_val ), b_val ) in r.iter_lsfirst_mut().zip( a.iter_lsfirst() ).zip( b.iter_lsfirst() )
@@ -60,7 +66,7 @@ where
   #[ inline ]
   fn add( self, rhs : Self ) -> Self::Output
   {
-    let mut result = Self::Output::default();
+    let mut result = Self::Output::zero();
     add( &mut result, &self, &rhs );
     result
   }
@@ -80,9 +86,10 @@ where
   /// # Overflow
   /// For integer `E` the element-wise addition is not overflow-checked: it
   /// panics in debug / wraps in release once a sum leaves `E`'s range.
+  #[ inline ]
   fn add( self, rhs : &Mat< ROWS, COLS, E, Descriptor > ) -> Self::Output
   {
-    let mut result = Self::Output::default();
+    let mut result = Self::Output::zero();
     add( &mut result, self, rhs );
     result
   }

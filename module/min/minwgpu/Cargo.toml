@@ -2,12 +2,17 @@
 name = "minwgpu"
 version = "0.1.0"
 edition = "2024"
+description = "Minimal, opinionated wgpu toolkit — builders and helpers for context, buffer, and pipeline setup"
 
 [dependencies]
 wgpu.workspace = true
 pollster.workspace = true
 mingl.workspace = true
 error_tools.workspace = true
+asbytes.workspace = true
+
+[dev-dependencies]
+wgpu.workspace = true
 asbytes.workspace = true
 
 [lints]

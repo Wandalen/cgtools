@@ -8,7 +8,7 @@ WebGPU provides modern, explicit graphics control. This example illustrates defe
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

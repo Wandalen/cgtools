@@ -1,7 +1,5 @@
-#![ allow( missing_docs ) ]
-#![ allow( unused_imports ) ]
+//! Integration test suite for `mdmath_core`.
 
-use test_tools::exposed::*;
 use mdmath_core as the_module;
 
 mod inc;

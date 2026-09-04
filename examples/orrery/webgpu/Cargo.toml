@@ -1,0 +1,47 @@
+[package]
+name = "orrery_webgpu"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lints]
+workspace = true
+
+# Scene-script parsing (scene.rs) and shader assembly (shader_source.rs)
+# have no wasm/WebGPU dependency and are unit-tested natively, so
+# serde/rhai/scene_script/shader_chunks_core are unconditional, not target-gated.
+[dependencies]
+serde = { workspace = true, features = [ "derive" ] }
+rhai = { workspace = true, features = [ "serde" ] }
+scene_script = { workspace = true }
+shader_chunks_core = { workspace = true }
+
+# Native WGSL parse + validation of the assembled shader ( tests/
+# shader_source_test.rs ) — the only pre-browser check that catches actual
+# WGSL errors in shader/scene_fragment.wgsl, not just structural drift.
+[dev-dependencies]
+naga = { workspace = true }
+
+# Only include WebGPU and related dependencies for wasm32 targets
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+bytemuck = { workspace = true, features = [ "derive" ] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.minwebgpu]
+workspace = true
+features = [
+  'future'
+]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+workspace = true
+features = [
+  "KeyboardEvent",
+  "Window",
+]
+
+# Stub dependency for other targets to allow compilation
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# No minwebgpu dependency for native targets
+
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgpu", "scene:orrery"]

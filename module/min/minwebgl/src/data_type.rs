@@ -1,6 +1,7 @@
 /// Internal namespace.
 mod private
 {
+  #[ allow( clippy::wildcard_imports, reason = "crate-root prelude from mod_interface!; enumerating would break on every layer change" ) ]
   use crate::*;
   use core::
   {
@@ -17,7 +18,7 @@ mod private
     /// Creates a new `Const` instance with the given `u32` value.
     fn new( val : u32 ) -> Self
     {
-      Self( val, Default::default() )
+      Self( val, PhantomData )
     }
   }
 
@@ -26,6 +27,7 @@ mod private
     /// The target type of the dereference operation.
     type Target = u32;
     /// Dereferences the `Const` to a reference to the inner `u32`.
+    #[ inline ]
     fn deref( &self ) -> &Self::Target
     {
       &self.0
@@ -34,6 +36,7 @@ mod private
 
   /// Represents errors related to data types incompatibility.
   #[ derive( Debug, error::typed::Error ) ]
+  #[ non_exhaustive ]
   pub enum Error
   {
     /// The given data type cannot be converted because it has no corresponding WebGL2 value.
@@ -47,6 +50,7 @@ mod private
     type Error = Error;
 
     /// Attempts to convert a `DataType` enum variant to its corresponding WebGL `u32` constant.
+    #[ inline ]
     fn try_from( value : DataType ) -> Result< Self, Self::Error >
     {
       use core::any::{ type_name_of_val, type_name };
@@ -59,7 +63,7 @@ mod private
         DataType::I32 => Ok( Const::new( 0x1404 ) ),
         DataType::U32 => Ok( Const::new( 0x1405 ) ),
         DataType::F32 => Ok( Const::new( 0x1406 ) ),
-        _ => Err( Error::NoCorrespndingType( type_name_of_val( &value ), type_name::< Self >(), format!( "{:?}", value ) ) ),
+        _ => Err( Error::NoCorrespndingType( type_name_of_val( &value ), type_name::< Self >(), format!( "{value:?}" ) ) ),
       }
     }
   }
@@ -70,6 +74,7 @@ mod private
     type Error = Error;
 
     /// Attempts to convert a WebGL `u32` constant wrapped in `Const<DataType>` back to its corresponding `DataType` enum variant.
+    #[ inline ]
     fn try_from( value : Const< DataType > ) -> Result< Self, Self::Error >
     {
       use core::any::{ type_name_of_val, type_name };
@@ -82,7 +87,7 @@ mod private
         Const( 0x1404, .. ) => Ok( DataType::I32 ),
         Const( 0x1405, .. ) => Ok( DataType::U32 ),
         Const( 0x1406, .. ) => Ok( DataType::F32 ),
-        _ => Err( Error::NoCorrespndingType( type_name_of_val( &value ), type_name::< Self >(), format!( "{:?}", value ) ) ),
+        _ => Err( Error::NoCorrespndingType( type_name_of_val( &value ), type_name::< Self >(), format!( "{value:?}" ) ) ),
       }
     }
   }

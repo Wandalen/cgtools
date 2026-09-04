@@ -1,29 +1,5 @@
 //! Integration tests for the ECS (Entity-Component-System) module.
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::float_cmp)]
 //!
 //! These tests verify that the ECS implementation works correctly with all
 //! coordinate systems and provides complete game development functionality.
@@ -42,19 +18,20 @@
 //! | EC6.1   | Query    | World  | Multiple  | Found    |
 
 use tiles_tools::ecs::{
-  World, Position, Health, Movable, Stats, Team, AI, PlayerControlled, 
-  EntityBuilder, Animation, Sprite, Size
+  World, Position, Health, Movable, Stats, Team, AI, PlayerControlled,
+  EntityBuilder, Animation, Sprite, Size, GameEvent, MovementSystem, MovementResult,
+  SpatialQuerySystem
 };
 use tiles_tools::coordinates::{
   square::{Coordinate as SquareCoord, FourConnected, EightConnected},
   hexagonal::{Coordinate as HexCoord, Axial, Pointy},
-  Distance, Neighbors,
 };
 
 // =============================================================================
 // Basic World and Entity Tests
 // =============================================================================
 
+#[ expect( clippy::float_cmp, reason = "a fresh world's elapsed time is the exact 0.0 initial value" ) ]
 #[ test ]
 fn test_world_creation()
 {
@@ -130,6 +107,7 @@ fn test_entity_builder_player()
   assert!(world.get::<Size>(player).is_ok());
 }
 
+#[ expect( clippy::float_cmp, reason = "the decision interval read back is the exact construction literal" ) ]
 #[ test ]
 fn test_entity_builder_enemy()
 {
@@ -151,6 +129,7 @@ fn test_entity_builder_enemy()
 // Component Functionality Tests
 // =============================================================================
 
+#[ expect( clippy::float_cmp, reason = "health percentages derive from whole-number ratios with exact float results" ) ]
 #[ test ]
 fn test_health_component()
 {
@@ -169,11 +148,38 @@ fn test_health_component()
   // Test healing
   health.heal(15);
   assert_eq!(health.current, 85);
-  
+
   // Test fatal damage
   health.damage(200);
   assert_eq!(health.current, 0);
   assert!(!health.is_alive());
+}
+
+// test_kind: bug_reproducer(BUG-344)
+/// ## Root Cause
+/// `Health::heal` computed `self.current + amount` before applying
+/// `.min(self.maximum)` -- the addition itself could overflow `u32` before
+/// the clamp ran, unlike `damage()`, which already used `saturating_sub`.
+/// ## Why Not Caught
+/// `test_health_component` only exercises `heal` from ordinary mid-range
+/// values (`current: 70`, `heal(15) -> 85`), never from a `current` value
+/// close to `u32::MAX`.
+/// ## Fix Applied
+/// Changed the addition to `self.current.saturating_add(amount)`, matching
+/// `damage()`'s existing `saturating_sub` convention.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// `x + y` immediately followed by `.min(bound)` is only safe when `x + y`
+/// itself cannot overflow -- every field on `Health` is `pub`, so a caller
+/// can construct a near-`u32::MAX` `current` directly, not only through
+/// `damage`/`heal`'s own bounded arithmetic.
+#[ test ]
+fn test_health_heal_saturates_instead_of_overflowing()
+{
+  let mut health = Health { current : u32::MAX - 5, maximum : u32::MAX };
+  health.heal( 20 );
+  assert_eq!( health.current, u32::MAX );
 }
 
 #[ test ]
@@ -182,7 +188,7 @@ fn test_stats_component()
   let attacker_stats = Stats::new(20, 5, 12, 2);
   let defender_stats = Stats::new(15, 10, 8, 1);
   
-  let damage = attacker_stats.calculate_damage(defender_stats.defense);
+  let damage = attacker_stats.damage_calculate(defender_stats.defense);
   assert_eq!(damage, 15); // 20 - (10/2) = 15
 }
 
@@ -225,26 +231,82 @@ fn test_position_component_with_neighbors()
   }
 }
 
+// test_kind: bug_reproducer(BUG-132)
+/// ## Root Cause
+/// `Animation::update` used a single `if` to detect a frame_duration
+/// crossing, consuming at most one frame per call and unconditionally
+/// resetting frame_timer to 0.0 -- discarding any elapsed time beyond the
+/// first threshold instead of carrying it into the next frame.
+/// ## Why Not Caught
+/// This test already exercised the exact scenario (a dt spanning multiple
+/// frame_durations) but pinned the buggy result itself, with a comment
+/// acknowledging the discrepancy ("Actually frame 2 due to animation
+/// timing") instead of the value its own preceding comment already derived
+/// as correct ("0.05s into the next cycle = frame 0").
+/// ## Fix Applied
+/// `update` now loops, subtracting frame_duration (not resetting to 0.0)
+/// each crossing, consuming every full frame_duration elapsed in one call.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// Silently wrong only when a single `update` call spans more than one
+/// frame_duration (a large dt, e.g. after a stalled render loop) -- calling
+/// `update` every frame with dt << frame_duration never exposes it.
 #[ test ]
 fn test_animation_component()
 {
   let mut anim = Animation::new(4, 0.25); // 4 frames, 0.25s per frame
   assert_eq!(anim.current_frame, 0);
   assert!(anim.playing);
-  
+
   // Update for half a frame duration
   anim.update(0.1);
   assert_eq!(anim.current_frame, 0);
-  
+
   // Update to complete first frame
   anim.update(0.2); // Total 0.3s > 0.25s
   assert_eq!(anim.current_frame, 1);
-  
+
   // Complete full cycle - from frame 1 at 0.3s, add 0.75s = 1.05s total
-  // This means 4.2 frames total, which loops to frame 0 + remainder  
+  // This means 4.2 frames total, which loops to frame 0 + remainder
   anim.update(0.75);
   // After 4 full frames (1.0s) we loop back, 0.05s into the next cycle = frame 0
-  assert_eq!(anim.current_frame, 2); // Actually frame 2 due to animation timing
+  assert_eq!(anim.current_frame, 0);
+}
+
+// test_kind: bug_reproducer(BUG-345)
+/// ## Root Cause
+/// `Animation::update`'s non-looping branch computed `self.frame_count - 1`
+/// unconditionally once `current_frame` reached `frame_count` -- for a
+/// zero-frame animation (`frame_count: 0`, `looping: false`), this
+/// underflowed `u32` on the very first `update` call, since `current_frame`
+/// (starting at 0) is incremented to 1 before this branch runs, and
+/// `1 >= 0` is immediately true.
+/// ## Why Not Caught
+/// `test_animation_component` (the BUG-132 regression test, immediately
+/// above) only exercises `frame_count: 4`, never `0`, and never sets
+/// `looping = false`.
+/// ## Fix Applied
+/// Changed `self.frame_count - 1` to `self.frame_count.saturating_sub(1)`,
+/// so a zero-frame animation lands on `current_frame: 0` instead of
+/// underflowing.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// `Animation::new` documents no lower bound on `frame_count` -- any
+/// arithmetic on `frame_count` inside `update` must assume it can be `0`,
+/// not only validate it at construction time (it isn't validated there
+/// either).
+#[ test ]
+fn test_animation_zero_frame_count_non_looping_does_not_panic()
+{
+  let mut anim = Animation::new( 0, 0.1 );
+  anim.looping = false;
+
+  anim.update( 0.2 );
+
+  assert_eq!( anim.current_frame, 0 );
+  assert!( !anim.playing );
 }
 
 // =============================================================================
@@ -308,15 +370,68 @@ fn test_world_spatial_queries()
   ));
   
   // Test range queries
-  let nearby = world.find_entities_in_range(&center_pos, 2);
+  let nearby = world.entities_in_range_find(&center_pos, 2);
   assert_eq!(nearby.len(), 2); // center_entity and close_entity
-  
-  let all_in_range = world.find_entities_in_range(&center_pos, 15);
+
+  let all_in_range = world.entities_in_range_find(&center_pos, 15);
   assert_eq!(all_in_range.len(), 3); // All entities
-  
+
   // Test nearest entity query
-  let nearest = world.find_nearest_entity(&center_pos).unwrap();
+  let nearest = world.nearest_entity_find(&center_pos).unwrap();
   assert_eq!(nearest.2, 0); // Distance to nearest (self) should be 0
+}
+
+// test_kind: bug_reproducer(BUG-136)
+/// ## Root Cause
+/// `SpatialQuerySystem::rectangle_query` filtered by
+/// `distance_to <= sqrt(width^2 + height^2)` -- a circular region of radius
+/// equal to the rectangle's FULL diagonal, always a strict superset of the
+/// true axis-aligned rectangle -- instead of a per-axis (x, y) bounds check.
+/// Copy-pasted from `circle_query`'s distance-threshold shape without being
+/// adapted to a genuinely rectangular test.
+/// ## Why Not Caught
+/// `SpatialQuerySystem` had zero existing tests for any of its methods
+/// (`circle_query`, `line_query`, `rectangle_query`, `by_team_query`).
+/// ## Fix Applied
+/// Narrowed to `Position<square::Coordinate<Connectivity>>` and replaced the
+/// distance-threshold filter with a genuine
+/// `|dx| <= width/2 && |dy| <= height/2` axis-aligned bounds check.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// The over-inclusion only becomes visible for entities positioned well
+/// outside the rectangle along one axis but still within the full-diagonal
+/// circular radius -- entities near the rectangle's own corners are handled
+/// correctly by both the buggy and fixed versions, so a corner-only test
+/// would not have caught this.
+#[ test ]
+fn test_rectangle_query_excludes_entity_outside_axis_aligned_bounds()
+{
+  let mut world = World::new();
+
+  let center = Position::new(SquareCoord::<FourConnected>::new(0, 0));
+  world.spawn((center, Health::new(100)));
+
+  let inside = Position::new(SquareCoord::<FourConnected>::new(1, 1));
+  world.spawn((inside, Health::new(100)));
+
+  // Well outside a 4x4 rectangle on the x-axis (dx=5 > half_width=2), but
+  // within the buggy circular radius (Manhattan distance 5 <= floor(sqrt(32))=5).
+  let outside = Position::new(SquareCoord::<FourConnected>::new(5, 0));
+  world.spawn((outside, Health::new(100)));
+
+  let results = SpatialQuerySystem::rectangle_query(&world.hecs_world, &center, 4, 4);
+
+  assert_eq!(
+    results.len(), 2,
+    "rectangle_query included an entity outside its axis-aligned bounds"
+  );
+  assert!(results.iter().any(|(_, pos)| pos.coord == center.coord));
+  assert!(results.iter().any(|(_, pos)| pos.coord == inside.coord));
+  assert!(
+    !results.iter().any(|(_, pos)| pos.coord == outside.coord),
+    "entity at (5,0) is outside a 4x4 rectangle centered at (0,0) but was included"
+  );
 }
 
 // =============================================================================
@@ -384,25 +499,173 @@ fn test_entity_lifecycle()
 fn test_movement_requests()
 {
   let mut world = World::new();
-  
+
   let entity = world.spawn((
-    Position::new(SquareCoord::<FourConnected>::new(1, 1)),
-    Movable::new(5),
+    Position::new( SquareCoord::< FourConnected >::new( 1, 1 ) ),
+    Movable::new( 5 ),
   ));
-  
-  // Request movement
-  world.request_movement(entity, SquareCoord::<FourConnected>::new(3, 3));
-  
-  // Update should process the movement request
-  world.update(0.016);
-  
-  // Note: The current implementation just clears requests
-  // In a full implementation, position would be updated
-  // This test verifies the API works without errors
+
+  // Request movement; the next update applies it to the Position component.
+  world.movement_request( entity, SquareCoord::< FourConnected >::new( 3, 3 ) );
+  world.update( 0.016 );
+
+  {
+    let position = world.get::< Position< SquareCoord< FourConnected > > >( entity ).unwrap();
+    assert_eq!( ( position.coord.x, position.coord.y ), ( 3, 3 ) );
+  }
+
+  // The applied request is reported as an EntityMoved event of that same frame.
+  assert!
+  (
+    world.events().iter().any( | event | matches!( event, GameEvent::EntityMoved { entity : moved } if *moved == entity ) ),
+    "an applied movement request must emit EntityMoved"
+  );
+}
+
+#[ test ]
+fn test_movement_request_latest_wins()
+{
+  let mut world = World::new();
+
+  let entity = world.spawn((
+    Position::new( SquareCoord::< FourConnected >::new( 0, 0 ) ),
+  ));
+
+  // Two requests before one update: the later one wins; exactly one move happens.
+  world.movement_request( entity, SquareCoord::< FourConnected >::new( 5, 5 ) );
+  world.movement_request( entity, SquareCoord::< FourConnected >::new( 2, 2 ) );
+  world.update( 0.016 );
+
+  {
+    let position = world.get::< Position< SquareCoord< FourConnected > > >( entity ).unwrap();
+    assert_eq!( ( position.coord.x, position.coord.y ), ( 2, 2 ) );
+  }
+  assert_eq!( world.events().len(), 1 );
+}
+
+#[ test ]
+fn test_movement_request_discard_cases()
+{
+  let mut world = World::new();
+
+  let entity = world.spawn((
+    Position::new( SquareCoord::< FourConnected >::new( 7, 7 ) ),
+  ));
+
+  // A request whose coordinate type does not match the entity's Position< C >
+  // component is discarded without effect and without an event.
+  world.movement_request( entity, HexCoord::< Axial, Pointy >::new( 4, 4 ) );
+  world.update( 0.016 );
+  {
+    let position = world.get::< Position< SquareCoord< FourConnected > > >( entity ).unwrap();
+    assert_eq!( ( position.coord.x, position.coord.y ), ( 7, 7 ) );
+  }
+  assert!( world.events().is_empty(), "a mismatched-type request must not emit events" );
+
+  // A request for a despawned entity is discarded without panic and without an event.
+  world.despawn( entity ).unwrap();
+  world.movement_request( entity, SquareCoord::< FourConnected >::new( 9, 9 ) );
+  world.update( 0.016 );
+  assert!( world.events().is_empty(), "a request for a despawned entity must not emit events" );
+}
+
+#[ test ]
+fn test_movement_system_uses_caller_policies()
+{
+  let mut world = World::new();
+
+  let entity = world.spawn((
+    Position::new( SquareCoord::< FourConnected >::new( 0, 0 ) ),
+    Movable::new( 5 ),
+  ));
+
+  let mut requests = std::collections::HashMap::new();
+  requests.insert( entity, SquareCoord::< FourConnected >::new( 2, 0 ) );
+
+  // Open field: movement succeeds and the position is written.
+  let results = MovementSystem::movement_process( &mut world.hecs_world, &requests, | _ | true, | _ | 1 );
+  assert!( matches!( results[ .. ], [ MovementResult::Success { .. } ] ) );
+  {
+    let position = world.get::< Position< SquareCoord< FourConnected > > >( entity ).unwrap();
+    assert_eq!( ( position.coord.x, position.coord.y ), ( 2, 0 ) );
+  }
+
+  // The caller's obstacle policy is honored: with accessibility restricted to a
+  // finite box around the entity that excludes the target, the search exhausts
+  // the box, yields NoPathFound, and the position stays put. ( The box must be
+  // finite: the square grid is unbounded, so an unreachable goal with an
+  // unbounded accessibility policy would never terminate. )
+  requests.insert( entity, SquareCoord::< FourConnected >::new( 4, 0 ) );
+  let results = MovementSystem::movement_process
+  (
+    &mut world.hecs_world,
+    &requests,
+    | coord | ( 1 ..= 3 ).contains( &coord.x ) && ( -1 ..= 1 ).contains( &coord.y ),
+    | _ | 1,
+  );
+  assert!( matches!( results[ .. ], [ MovementResult::NoPathFound ] ) );
+  {
+    let position = world.get::< Position< SquareCoord< FourConnected > > >( entity ).unwrap();
+    assert_eq!( ( position.coord.x, position.coord.y ), ( 2, 0 ) );
+  }
+
+  // The caller's cost policy is honored: uniform cost 4 over a 2-step path
+  // overruns the movement range of 5, yielding PathTooLong.
+  let results = MovementSystem::movement_process( &mut world.hecs_world, &requests, | _ | true, | _ | 4 );
+  assert!( matches!( results[ .. ], [ MovementResult::PathTooLong { .. } ] ) );
+}
+
+// test_kind: bug_reproducer(BUG-343)
+/// ## Root Cause
+/// `MovementSystem::movement_calculate` rejected any target whose raw grid
+/// distance exceeded `movable.range` before ever attempting a weighted-cost
+/// pathfind, even though the function's own later check
+/// (`cost <= movable.range`) treats the pathfinder's *weighted path cost*,
+/// not raw distance, as the real reachability budget.
+/// ## Why Not Caught
+/// `test_movement_system_uses_caller_policies` (immediately above)
+/// exercises the cost-based gate, but every target it uses has raw
+/// distance <= range, so the raw-distance pre-check never actually
+/// rejected anything different from what the cost-based check would have
+/// -- the two metrics never diverged in any existing test.
+/// ## Fix Applied
+/// Removed the raw-distance pre-check entirely; reachability is now decided
+/// solely by the pathfinder's returned weighted cost compared against
+/// `movable.range`, matching the function's own documented cost-policy
+/// contract.
+/// ## Prevention
+/// n/a -- covered by this test.
+/// ## Pitfall
+/// A caller-defined `cost` closure returning values below 1 per step (a
+/// deliberately valid policy per the `Fc: FnMut(&C) -> u32` signature) can
+/// make a target's true weighted cost arbitrarily smaller than its raw grid
+/// distance -- any future range pre-check must be expressed in the same
+/// cost metric the pathfinder actually uses, never in raw distance.
+#[ test ]
+fn test_movement_uses_cost_not_raw_distance_for_range_check()
+{
+  let mut world = World::new();
+
+  let entity = world.spawn((
+    Position::new( SquareCoord::< FourConnected >::new( 0, 0 ) ),
+    Movable::new( 2 ),
+  ));
+
+  let mut requests = std::collections::HashMap::new();
+  // Raw Manhattan distance is 10, far beyond `range` of 2 -- but every step
+  // costs 0, so the true weighted path cost is 0, well within range.
+  requests.insert( entity, SquareCoord::< FourConnected >::new( 10, 0 ) );
+
+  let results = MovementSystem::movement_process( &mut world.hecs_world, &requests, | _ | true, | _ | 0 );
+
+  assert!(
+    matches!( results[ .. ], [ MovementResult::Success { .. } ] ),
+    "a target with raw distance > range but real weighted cost <= range must succeed, got {results:?}"
+  );
 }
 
 // =============================================================================
-// Performance and Edge Case Tests  
+// Performance and Edge Case Tests
 // =============================================================================
 
 #[ test ]
@@ -460,14 +723,14 @@ fn test_component_combinations()
   assert!(world.get::<Size>(complex_entity).is_ok());
   
   // Test complex queries
-  let mut complex_query = world.query::<(
+  let mut complex_query = world.query::<(hecs::Entity, (
     &Position<SquareCoord<EightConnected>>,
     &Health,
     &Stats, 
     &Movable
-  )>();
+  ))>();
   
-  for (entity, (_pos, health, _stats, movable)) in complex_query.iter() {
+  for (entity, (_pos, health, _stats, movable)) in &mut complex_query {
     assert_eq!(entity, complex_entity);
     assert!(health.is_alive());
     assert!(movable.diagonal_movement);

@@ -1,14 +1,11 @@
 use super::*;
-// use super::hset;
-use test_tools::hset; // xxx : remove it later
-use the_module::nd::Dim;
 
 fn test_iter_unstable_generic< D : the_module::mat::Descriptor >()
 where
   the_module::Mat< 2, 3, f32, D > : Default + the_module::IndexingRef< Scalar = f32 > + the_module::RawSliceMut,
   < the_module::Mat< 2, 3, f32, D > as the_module::Collection >::Scalar : PartialEq< f32 >,
 {
-  use the_module::{ Mat, RawSliceMut, IndexingRef };
+  use the_module::{ Mat, RawSliceMut };
 
   let mat = Mat::< 2, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
   let mut iter : Vec<_> = mat.iter_unstable().copied().collect();
@@ -17,7 +14,7 @@ where
   iter.sort_by( | a, b | a.partial_cmp( b ).unwrap() );
   exp.sort_by( | a, b | a.partial_cmp( b ).unwrap() );
 
-  assert_eq!( iter, exp, "Expected {:?}, got {:?}", exp, iter );
+  assert_eq!( iter, exp, "Expected {exp:?}, got {iter:?}" );
 }
 
 #[ test ]
@@ -40,7 +37,7 @@ where
   < the_module::Mat< 2, 3, f32, D > as the_module::Collection >::Scalar : PartialEq< f32 >,
   the_module::Mat< 2, 3, f32, D > : the_module::Indexable< Index = the_module::Ix2 >,
 {
-  use the_module::{ nd, Mat, RawSliceMut, IndexingRef };
+  use the_module::{ nd, Mat, RawSliceMut };
 
   let mat = Mat::< 2, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
   let mut iter : Vec<_> = mat.iter_indexed_unstable().map( | ( idx, &val ) | ( idx, val ) ).collect();
@@ -58,7 +55,7 @@ where
   iter.sort_by( | a, b | a.1.partial_cmp( &b.1 ).unwrap() );
   exp.sort_by( | a, b | a.1.partial_cmp( &b.1 ).unwrap() );
 
-  assert_eq!( iter, exp, "Expected {:?}, got {:?}", exp, iter );
+  assert_eq!( iter, exp, "Expected {exp:?}, got {iter:?}" );
 }
 
 #[ test ]
@@ -84,12 +81,11 @@ where
   {
     Mat,
     RawSliceMut,
-    IndexingRef,
   };
   let mat = Mat::< 2, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
   let iter : Vec< _ > = mat.iter_lsfirst().copied().collect();
   let exp = vec![ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ];
-  assert_eq!( iter, exp, "Expected {:?}, got {:?}", exp, iter );
+  assert_eq!( iter, exp, "Expected {exp:?}, got {iter:?}" );
 }
 
 #[ test ]
@@ -115,12 +111,11 @@ where
   {
     Mat,
     RawSliceMut,
-    IndexingRef,
   };
   let mat = Mat::< 2, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
   let iter : Vec< _ > = mat.iter_msfirst().copied().collect();
   let exp = vec![ 1.0, 4.0, 2.0, 5.0, 3.0, 6.0 ];
-  assert_eq!( iter, exp, "Expected {:?}, got {:?}", exp, iter );
+  assert_eq!( iter, exp, "Expected {exp:?}, got {iter:?}" );
 }
 
 #[ test ]
@@ -148,7 +143,6 @@ where
     nd,
     Mat,
     RawSliceMut,
-    IndexingRef,
   };
   let mat = Mat::< 2, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
   let indexed_iter : Vec< _ > = mat.iter_indexed_lsfirst().map( | ( idx, &val ) | ( idx, val ) ).collect();
@@ -162,7 +156,7 @@ where
     ( nd::Ix2( 1, 1 ), 5.0 ),
     ( nd::Ix2( 1, 2 ), 6.0 ),
   ];
-  assert_eq!( &indexed_iter, &exp, "Expected {:?}, got {:?}", exp, indexed_iter );
+  assert_eq!( &indexed_iter, &exp, "Expected {exp:?}, got {indexed_iter:?}" );
 }
 
 #[ test ]
@@ -190,7 +184,6 @@ where
     nd,
     Mat,
     RawSliceMut,
-    IndexingRef,
   };
   let mat = Mat::< 2, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
   let indexed_iter : Vec< _ > = mat.iter_indexed_msfirst().map( | ( idx, &val ) | ( idx, val ) ).collect();
@@ -204,7 +197,7 @@ where
     ( nd::Ix2( 0, 2 ), 3.0 ),
     ( nd::Ix2( 1, 2 ), 6.0 ),
   ];
-  assert_eq!( &indexed_iter, &exp, "Expected {:?}, got {:?}", exp, indexed_iter );
+  assert_eq!( &indexed_iter, &exp, "Expected {exp:?}, got {indexed_iter:?}" );
 }
 
 #[ test ]

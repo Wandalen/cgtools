@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate::{Mul, Quat, MatEl, nd, MulAssign};
 
   // Quat * Quat
   impl< E > Mul for Quat< E >
@@ -9,6 +9,7 @@ mod private
   {
     type Output = Self;
 
+    #[ inline ]
     fn mul( self, rhs : Self ) -> Self::Output
     {
       self.multiply( &rhs )
@@ -22,6 +23,7 @@ mod private
   {
     type Output = Self;
 
+    #[ inline ]
     fn mul( self, rhs : E ) -> Self::Output
     {
       Self( self.0 * rhs )
@@ -33,6 +35,7 @@ mod private
   where
     E : MatEl + nd::NdFloat
   {
+    #[ inline ]
     fn mul_assign( &mut self, rhs : Quat< E > )
     {
       *self = *self * rhs;
@@ -44,9 +47,10 @@ mod private
   where
     E : MatEl + nd::NdFloat
   {
+    #[ inline ]
     fn mul_assign( &mut self, rhs : E )
     {
-      ( *self ).0 = ( *self ).0 * rhs;
+      self.0 = self.0 * rhs;
     }
   }
 }

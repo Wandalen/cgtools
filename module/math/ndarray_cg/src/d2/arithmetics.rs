@@ -17,7 +17,7 @@ crate::mod_interface!
   {
     add::add,
     mul::mul,
-    mul::mul_mat_vec,
-    div::div_scalar
+    mul::mat_vec_mul,
+    div::scalar_div
   };
 }

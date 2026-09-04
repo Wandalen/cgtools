@@ -60,59 +60,6 @@ mod private
     const LEN : usize = T::LEN;
   }
 
-  // =
-
-  // xxx : implement it for scalar interpreted as vector
-  // xxx : implement it for all vectors
-
-  /// A trait indicate that entity in case of referencing it can be interpreted as such having specified length `LEN`.
-  ///
-  /// This trait defines a constant `LEN`, representing the length of the entity.
-  pub trait VectorWithLength< const LEN : usize >
-  {
-  }
-
-  /// Implementation of `VectorWithLength` for references to entities.
-  impl< T, const LEN : usize > VectorWithLength< LEN > for &T
-  where
-    T : VectorWithLength< LEN >,
-  {
-  }
-
-  /// Implementation of `VectorWithLength` for mutable references to entities.
-  impl< T, const LEN : usize > VectorWithLength< LEN > for &mut T
-  where
-    T : VectorWithLength< LEN >,
-  {
-  }
-
-  // =
-
-  // xxx : implement it for all vectors
-
-  /// A trait indicate that entity in case of mutable referencing it can be interpreted as such having specified length `LEN`.
-  ///
-  /// This trait defines a constant `LEN`, representing the length of the entity.
-  pub trait VectorWithLengthMut< const LEN : usize >
-  where
-    Self : VectorWithLength< LEN >,
-  {
-  }
-
-  /// Implementation of `VectorWithLengthMut` for references to entities.
-  impl< T, const LEN : usize > VectorWithLengthMut< LEN > for &T
-  where
-    Self : VectorWithLength< LEN > + VectorWithLengthMut< LEN > +,
-  {
-  }
-
-  /// Implementation of `VectorWithLengthMut` for mutable references to entities.
-  impl< T, const LEN : usize > VectorWithLengthMut< LEN > for &mut T
-  where
-    Self : VectorWithLength< LEN > + VectorWithLengthMut< LEN >,
-  {
-  }
-
   // = IntoArray
 
   /// The `IntoArray` trait is used to convert a collection into a fixed-size array.
@@ -315,6 +262,7 @@ mod private
   where
     T : VectorIter< E, N >,
   {
+    #[ inline ]
     fn vector_iter< 'lifetime >( &'lifetime self ) -> impl VectorIteratorRef< 'lifetime, &'lifetime E >
     where E : 'lifetime
     {
@@ -327,6 +275,7 @@ mod private
   where
     T : VectorIter< E, N >,
   {
+    #[ inline ]
     fn vector_iter< 'lifetime >( &'lifetime self ) -> impl VectorIteratorRef< 'lifetime, &'lifetime E >
     where E : 'lifetime
     {
@@ -350,6 +299,7 @@ mod private
   where
     T : VectorIterMut< E, N > + VectorIter< E, N >,
   {
+    #[ inline ]
     fn vector_iter_mut< 'lifetime >( &'lifetime mut self ) -> impl VectorIterator< 'lifetime, &'lifetime mut E >
     where E : 'lifetime
     {
@@ -385,9 +335,7 @@ crate::mod_interface!
   {
     Collection,
     ConstLength,
-    VectorWithLength,
-    VectorWithLengthMut,
-    IntoArray, // qqq : xxx : cover by test
+    IntoArray,
     ArrayRef,
     ArrayMut,
     VectorIterator,

@@ -1,23 +1,10 @@
 //! Polygonal light demo
 
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::cast_lossless ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::wildcard_imports ) ]
-
 mod plane;
 mod lil_gui;
 mod light;
 
-use light::*;
+use light::{GuiParams, RectangularLight};
 use minwebgl as gl;
 use gl::{ math::mat3x3h, JsCast as _, GL, AsBytes as _ };
 use renderer::webgl::{ loaders::gltf, helpers, material::PbrMaterial };
@@ -28,44 +15,22 @@ static LTC2 : &[ u8 ] = include_bytes!( "../ltc2" );
 
 fn main()
 {
-  gl::browser::setup( Default::default() );
-  gl::spawn_local( async { gl::info!( "{:?}", run().await ) } );
+  gl::browser::setup( gl::browser::Config::default() );
+  gl::spawn_local( async { gl::info!( "{:?}", app_run().await ) } );
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn app_run() -> Result< (), gl::WebglError >
 {
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
 
-  let params = GuiParams
-  {
-    rot_x : 0.0,
-    rot_y : 0.0,
-    rot_z : 0.0,
-    scale_x : 1.0,
-    scale_y : 1.0,
-    color : [ 1.0; 3 ],
-    intensity : 20.0,
-    two_sided : false,
-  };
-  let params_obj = serde_wasm_bindgen::to_value( &params ).unwrap();
-
-  let gui = lil_gui::new_gui();
-  lil_gui::add( &gui, &params_obj, "rot_x", Some( 0.0 ), Some( 180.0 ), Some( 0.1 ) );
-  lil_gui::add( &gui, &params_obj, "rot_y", Some( 0.0 ), Some( 360.0 ), Some( 0.1 ) );
-  lil_gui::add( &gui, &params_obj, "rot_z", Some( 0.0 ), Some( 360.0 ), Some( 0.1 ) );
-  lil_gui::add( &gui, &params_obj, "scale_x", Some( 0.1 ), None, Some( 0.1 ) );
-  lil_gui::add( &gui, &params_obj, "scale_y", Some( 0.1 ), None, Some( 0.1 ) );
-  lil_gui::add( &gui, &params_obj, "intensity", Some( 0.1 ), Some( 500.0 ), Some( 0.1 ) );
-  lil_gui::add_color( &gui, &params_obj, "color" );
-  lil_gui::add( &gui, &params_obj, "two_sided", None, None, None );
+  let params_obj = gui_setup();
 
   let fwidth = window.inner_width().unwrap().as_f64().unwrap();
   let fheight = window.inner_height().unwrap().as_f64().unwrap();
   let dpr = window.device_pixel_ratio();
   let width = ( fwidth * dpr ) as i32;
   let height = ( fheight * dpr ) as i32;
-  let aspect = width as f32 / height as f32;
 
   let gl = gl::context::retrieve_or_make().expect( "Failed to retrieve WebGl context" );
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
@@ -81,51 +46,23 @@ async fn run() -> Result< (), gl::WebglError >
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
   gl.viewport( 0, 0, width, height );
 
-  let vertex_src = include_str!( "../shaders/light_body.vert" );
-  let fragment_src = include_str!( "../shaders/light_body.frag" );
-  let light_body_shader = gl::Program::new( gl.clone(), vertex_src, fragment_src )?;
-
-  let vertex_src = include_str!( "../shaders/main.vert" );
-  let fragment_src = include_str!( "../shaders/area_light.frag" );
-  let area_light_shader = gl::Program::new( gl.clone(), vertex_src, fragment_src )?;
-  area_light_shader.activate();
-  area_light_shader.uniform_upload( "u_base_color", &0 );
-  area_light_shader.uniform_upload( "u_arm", &1 );
-  area_light_shader.uniform_upload( "u_LTC1", &2 );
-  area_light_shader.uniform_upload( "u_LTC2", &3 );
+  let ( light_body_shader, area_light_shader ) = shaders_create( &gl )?;
 
   let light_position = [ 0.0, 0.0, -7.0 ];
-  let mut light = RectangularLight
-  {
-    vertices : Default::default(),
-    color : [ 1.0, 0.95, 0.9 ],
-    intensity : 20.0,
-    two_sided : true,
-  };
+  let mut light = initial_light();
 
   let ( light_body_mesh, light_body_vertex_buffer ) = light_body_vao( &gl, &light )?;
   let plane_mesh = plane::plane_vao( &gl )?;
   let ( plane_base_color, plane_arm ) = plane::plane_material( &gl, [ 55, 57, 65, 255 ], 1.0, 0.1, 0.0 );
   let plane_model = mat3x3h::scale( [ 10.0, 1.0, 10.0 ] );
 
-  let ltc1 = load_table( &gl, LTC1 );
-  let ltc2 = load_table( &gl, LTC2 );
+  let ltc1 = table_load( &gl, LTC1 );
+  let ltc2 = table_load( &gl, LTC2 );
 
   let skull_mesh = gltf::load( &document, "static/skull_salazar_downloadable.glb", &gl ).await?;
   let skull_model = mat3x3h::translation( [ 0.0, 1.0, 0.0 ] );
 
-  let mut camera = renderer::webgl::Camera::new
-  (
-    [ 0.0, 0.0, 10.0 ].into(),
-    [ 0.0, 1.0, 0.0 ].into(),
-    [ 0.0, 0.0, 0.0 ].into(),
-    aspect,
-    45.0_f32.to_radians(),
-    0.1,
-    100.0
-  );
-  camera.set_window_size( [ width as f32, height as f32 ].into() );
-  camera.bind_controls( &canvas );
+  let camera = camera_setup( &canvas, width, height );
 
   gl.active_texture( gl::TEXTURE2 );
   gl.bind_texture( gl::TEXTURE_2D, ltc1.as_ref() );
@@ -134,8 +71,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let update = move | _time |
   {
-    let view = camera.get_view_matrix();
-    let projection = camera.get_projection_matrix();
+    let view = camera.view_matrix_get();
+    let projection = camera.projection_matrix_get();
     let view_projection = projection * view;
     let skull_mvp = view_projection * skull_model;
     let plane_mvp = view_projection * plane_model;
@@ -145,15 +82,15 @@ async fn run() -> Result< (), gl::WebglError >
     light.two_sided = params.two_sided;
     light.intensity = params.intensity;
 
-    let pos_rot_y = rotate_point( light_position.into(), gl::F32x3::Y, params.rot_y.to_radians() );
-    let local_x = rotate_point( gl::F32x3::X, gl::F32x3::Y, params.rot_y.to_radians() );
-    let pos_rot_x = rotate_point( pos_rot_y, local_x, params.rot_x.to_radians() );
+    let pos_rot_y = point_rotate( light_position.into(), gl::F32x3::Y, params.rot_y.to_radians() );
+    let local_x = point_rotate( gl::F32x3::X, gl::F32x3::Y, params.rot_y.to_radians() );
+    let pos_rot_x = point_rotate( pos_rot_y, local_x, params.rot_x.to_radians() );
     let light_transform = mat3x3h::translation( pos_rot_x )
     * mat3x3h::rot( 0.0, params.rot_y.to_radians(), 0.0 )
     * mat3x3h::rot( params.rot_x.to_radians(), 0.0, 0.0 )
     * mat3x3h::rot( 0.0, 0.0, params.rot_z.to_radians() )
     * mat3x3h::scale( [ params.scale_x, params.scale_y, 1.0 ] );
-    light.apply_transform( &light_transform );
+    light.transform_apply( &light_transform );
 
     gl.bind_buffer( gl::ARRAY_BUFFER, Some( &light_body_vertex_buffer ) );
     gl.buffer_sub_data_with_f64_and_u8_array
@@ -169,31 +106,10 @@ async fn run() -> Result< (), gl::WebglError >
     area_light_shader.uniform_upload( "u_points", light.vertices().as_slice() );
     area_light_shader.uniform_upload( "u_light_intensity", &light.intensity );
     area_light_shader.uniform_upload( "u_light_color", &light.color );
-    area_light_shader.uniform_upload( "u_two_sided", &( light.two_sided as u32 ) );
-    area_light_shader.uniform_upload( "u_view_position", camera.get_eye().as_slice() );
+    area_light_shader.uniform_upload( "u_two_sided", &u32::from(light.two_sided) );
+    area_light_shader.uniform_upload( "u_view_position", camera.eye_get().as_slice() );
 
-    gl.enable( gl::CULL_FACE );
-    area_light_shader.uniform_matrix_upload( "u_model", skull_model.raw_slice(), true );
-    area_light_shader.uniform_matrix_upload( "u_mvp", skull_mvp.raw_slice(), true );
-    for mesh in &skull_mesh.meshes
-    {
-      for primitive in &mesh.borrow().primitives
-      {
-        let primitive = primitive.borrow();
-        let material = primitive.material.borrow();
-        let material = helpers::cast_unchecked_material_to_ref::< PbrMaterial >( material );
-
-        let base_color = material.base_color_texture().unwrap();
-        let metallic_roughness = material.metallic_roughness_texture().unwrap();
-        gl.active_texture( gl::TEXTURE0 );
-        base_color.bind( &gl );
-        gl.active_texture( gl::TEXTURE1 );
-        metallic_roughness.bind( &gl );
-        primitive.geometry.borrow().bind( &gl );
-        primitive.draw( &gl );
-      }
-    }
-    gl.disable( gl::CULL_FACE );
+    skull_draw( &gl, &area_light_shader, &skull_mesh, skull_model.raw_slice(), skull_mvp.raw_slice() );
 
     area_light_shader.uniform_matrix_upload( "u_model", plane_model.raw_slice(), true );
     area_light_shader.uniform_matrix_upload( "u_mvp", plane_mvp.raw_slice(), true );
@@ -218,6 +134,113 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
+/// Builds the lil-gui panel for the light parameters and returns the JS object the sliders write into.
+fn gui_setup() -> gl::wasm_bindgen::JsValue
+{
+  let params = GuiParams
+  {
+    rot_x : 0.0,
+    rot_y : 0.0,
+    rot_z : 0.0,
+    scale_x : 1.0,
+    scale_y : 1.0,
+    color : [ 1.0; 3 ],
+    intensity : 20.0,
+    two_sided : false,
+  };
+  let params_obj = serde_wasm_bindgen::to_value( &params ).unwrap();
+
+  let gui = lil_gui::new_gui();
+  lil_gui::add( &gui, &params_obj, "rot_x", Some( 0.0 ), Some( 180.0 ), Some( 0.1 ) );
+  lil_gui::add( &gui, &params_obj, "rot_y", Some( 0.0 ), Some( 360.0 ), Some( 0.1 ) );
+  lil_gui::add( &gui, &params_obj, "rot_z", Some( 0.0 ), Some( 360.0 ), Some( 0.1 ) );
+  lil_gui::add( &gui, &params_obj, "scale_x", Some( 0.1 ), None, Some( 0.1 ) );
+  lil_gui::add( &gui, &params_obj, "scale_y", Some( 0.1 ), None, Some( 0.1 ) );
+  lil_gui::add( &gui, &params_obj, "intensity", Some( 0.1 ), Some( 500.0 ), Some( 0.1 ) );
+  lil_gui::color_add( &gui, &params_obj, "color" );
+  lil_gui::add( &gui, &params_obj, "two_sided", None, None, None );
+
+  params_obj
+}
+
+/// Compiles the light body and area light shader programs and assigns the area light's texture slots.
+fn shaders_create( gl : &GL ) -> Result< ( gl::Program, gl::Program ), gl::WebglError >
+{
+  let vertex_src = include_str!( "../shaders/light_body.vert" );
+  let fragment_src = include_str!( "../shaders/light_body.frag" );
+  let light_body_shader = gl::Program::new( gl.clone(), vertex_src, fragment_src )?;
+
+  let vertex_src = include_str!( "../shaders/main.vert" );
+  let fragment_src = include_str!( "../shaders/area_light.frag" );
+  let area_light_shader = gl::Program::new( gl.clone(), vertex_src, fragment_src )?;
+  area_light_shader.activate();
+  area_light_shader.uniform_upload( "u_base_color", &0 );
+  area_light_shader.uniform_upload( "u_arm", &1 );
+  area_light_shader.uniform_upload( "u_LTC1", &2 );
+  area_light_shader.uniform_upload( "u_LTC2", &3 );
+
+  Ok( ( light_body_shader, area_light_shader ) )
+}
+
+/// Creates the rectangular light in its initial state.
+fn initial_light() -> RectangularLight
+{
+  RectangularLight
+  {
+    vertices : Default::default(),
+    color : [ 1.0, 0.95, 0.9 ],
+    intensity : 20.0,
+    two_sided : true,
+  }
+}
+
+/// Creates the orbit camera sized to the canvas and binds its controls.
+fn camera_setup( canvas : &HtmlCanvasElement, width : i32, height : i32 ) -> renderer::webgl::Camera
+{
+  let aspect = width as f32 / height as f32;
+  let mut camera = renderer::webgl::Camera::new
+  (
+    [ 0.0, 0.0, 10.0 ].into(),
+    [ 0.0, 1.0, 0.0 ].into(),
+    [ 0.0, 0.0, 0.0 ].into(),
+    aspect,
+    45.0_f32.to_radians(),
+    0.1,
+    100.0
+  ).expect( "camera parameters are valid" );
+  camera.window_size_set( [ width as f32, height as f32 ].into() );
+  camera.controls_bind( canvas );
+
+  camera
+}
+
+/// Draws the skull mesh with the area light shader, binding each primitive's PBR textures.
+fn skull_draw( gl : &GL, shader : &gl::Program, skull_mesh : &gltf::GLTF, model : &[ f32 ], mvp : &[ f32 ] )
+{
+  gl.enable( gl::CULL_FACE );
+  shader.uniform_matrix_upload( "u_model", model, true );
+  shader.uniform_matrix_upload( "u_mvp", mvp, true );
+  for mesh in &skull_mesh.meshes
+  {
+    for primitive in &mesh.borrow().primitives
+    {
+      let primitive = primitive.borrow();
+      let material = primitive.material.borrow();
+      let material = helpers::cast_unchecked_material_to_ref::< PbrMaterial >( material );
+
+      let base_color = material.base_color_texture().unwrap();
+      let metallic_roughness = material.metallic_roughness_texture().unwrap();
+      gl.active_texture( gl::TEXTURE0 );
+      base_color.bind( gl );
+      gl.active_texture( gl::TEXTURE1 );
+      metallic_roughness.bind( gl );
+      primitive.geometry.borrow().bind( gl );
+      primitive.draw( gl );
+    }
+  }
+  gl.disable( gl::CULL_FACE );
+}
+
 fn light_body_vao( gl : &GL, light : &RectangularLight )
 -> Result< ( web_sys::WebGlVertexArrayObject, web_sys::WebGlBuffer ), gl::WebglError >
 {
@@ -225,11 +248,12 @@ fn light_body_vao( gl : &GL, light : &RectangularLight )
   gl.bind_vertex_array( Some( &light_body_vao ) );
   let vbo = gl::buffer::create( gl )?;
   gl::buffer::upload( gl, &vbo, light.vertices().as_flattened(), gl::DYNAMIC_DRAW );
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().attribute_pointer( gl, 0, &vbo )?;
+  let position_attr = mingl::VertexAttribute::new( 0, mingl::VectorDataType::new( mingl::DataType::F32, 3, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector ).attribute_pointer( gl, position_attr.location, &vbo )?;
   Ok( ( light_body_vao, vbo ) )
 }
 
-fn load_table( gl : &GL, table : &[ u8 ] ) -> Option< WebGlTexture >
+fn table_load( gl : &GL, table : &[ u8 ] ) -> Option< WebGlTexture >
 {
   let table = table.to_vec(); // collect to vec because of alignment
   let table : &[ f32 ] = asbytes::cast_slice( &table );
@@ -255,7 +279,7 @@ fn load_table( gl : &GL, table : &[ u8 ] ) -> Option< WebGlTexture >
   texture
 }
 
-fn rotate_point( point : gl::F32x3, axis : gl::F32x3, angle : f32 ) -> gl::F32x3
+fn point_rotate( point : gl::F32x3, axis : gl::F32x3, angle : f32 ) -> gl::F32x3
 {
   let k = axis.normalize();
   let cos_theta = angle.cos();

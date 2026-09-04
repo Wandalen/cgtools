@@ -8,7 +8,7 @@ Outline rendering enhances visual clarity and style. This example presents effic
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

@@ -6,7 +6,7 @@ This demo is showcase of point and direct light usage with renderer. User can ch
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

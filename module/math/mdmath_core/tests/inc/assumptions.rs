@@ -1,7 +1,3 @@
-#![ allow( clippy::uninlined_format_args ) ]
-
-#[ allow( unused_imports ) ]
-use super::*;
 
 #[ test ]
 fn tuple_array_layout_assumptions()
@@ -15,24 +11,24 @@ fn tuple_array_layout_assumptions()
   // Check size
   let size_tuple = size_of_val( &tuple );
   let size_array = size_of_val( &array );
-  println!( "Size: tuple = {}, array = {}", size_tuple, size_array );
+  println!( "Size: tuple = {size_tuple}, array = {size_array}" );
   assert_eq!( size_tuple, size_array, "Size should be the same" );
 
   // Check alignment
   let align_tuple = align_of_val( &tuple );
   let align_array = align_of_val( &array );
-  println!( "Alignment: tuple = {}, array = {}", align_tuple, align_array );
+  println!( "Alignment: tuple = {align_tuple}, array = {align_array}" );
   assert_eq!( align_tuple, align_array, "Alignment should be the same" );
 
   // Check layout of each component
   let align_tuple_0 = align_of_val( &tuple.0 );
   let align_array_0 = align_of_val( &array[ 0 ] );
-  println!( "Component 0 alignment: tuple = {}, array = {}", align_tuple_0, align_array_0 );
+  println!( "Component 0 alignment: tuple = {align_tuple_0}, array = {align_array_0}" );
   assert_eq!( align_tuple_0, align_array_0, "Component 0 alignment should be the same" );
 
   let align_tuple_1 = align_of_val( &tuple.1 );
   let align_array_1 = align_of_val( &array[ 1 ] );
-  println!( "Component 1 alignment: tuple = {}, array = {}", align_tuple_1, align_array_1 );
+  println!( "Component 1 alignment: tuple = {align_tuple_1}, array = {align_array_1}" );
   assert_eq!( align_tuple_1, align_array_1, "Component 1 alignment should be the same" );
 
   // Hypothetical offset_of usage
@@ -40,13 +36,13 @@ fn tuple_array_layout_assumptions()
   let offset_tuple_0 = offset_of!(( u8, u8 ), 0);
   // let offset_array_0 = offset_of!([ u8; 2 ], [0] );
   let offset_array_0 = 0;
-  println!("Component 0 offset: tuple = {}, array = {}", offset_tuple_0, offset_array_0);
+  println!("Component 0 offset: tuple = {offset_tuple_0}, array = {offset_array_0}");
   assert_eq!(offset_tuple_0, offset_array_0, "Component 0 offset should be the same");
 
   let offset_tuple_1 = offset_of!(( u8, u8 ), 1);
   // let offset_array_1 = offset_of!([ u8; 2 ], 1);
   let offset_array_1 = 1;
-  println!("Component 1 offset: tuple = {}, array = {}", offset_tuple_1, offset_array_1);
+  println!("Component 1 offset: tuple = {offset_tuple_1}, array = {offset_array_1}");
   assert_eq!(offset_tuple_1, offset_array_1, "Component 1 offset should be the same");
 
   // Uncomment to fail the test and see the output

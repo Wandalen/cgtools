@@ -1,38 +1,9 @@
 //! Render tile map on quad.
 
-#![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::std_instead_of_core ) ]
-#![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::assign_op_pattern ) ]
-#![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::unnecessary_to_owned ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::needless_borrow ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::redundant_field_names ) ]
-#![ allow( clippy::useless_format ) ]
-#![ allow( clippy::let_unit_value ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::needless_continue ) ]
-#![ allow( clippy::else_if_without_else ) ]
-#![ allow( clippy::unreadable_literal ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::collapsible_if ) ]
-#![ allow( clippy::unused_async ) ]
-#![ allow( clippy::needless_borrows_for_generic_args ) ]
-
 use gl::GL;
 use minwebgl as gl;
 use ndarray_cg::{ mat::DescriptorOrderColumnMajor, F32x4x4 };
 use web_sys::wasm_bindgen::prelude::*;
-use minwebgl::dom::create_image_element;
 
 const LAYERS : i32 = 6;
 // Tile map raw data for texture with integer color channels
@@ -56,33 +27,39 @@ const DATA : [ u8; 256 ] =
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
-fn set_load_callback()
+fn load_callback_set()
 {
   let load = move | _img: &web_sys::HtmlImageElement |
   {
     update();
   };
 
-  let _ = load_image( "static/tileset.png", Box::new( load ) );
+  let _ = image_load( "static/tileset.png", Box::new( load ) );
 }
 
-fn load_image
+fn image_load
 (
   path : &str,
   on_load_callback : Box< dyn Fn( &web_sys::HtmlImageElement ) >,
 ) -> Result< web_sys::HtmlImageElement, minwebgl::JsValue >
 {
-  let image = create_image_element( "tileset.png" )?;
   let window = web_sys::window()
   .expect( "Should have a window" );
   let document = window
   .document()
   .expect( "Should have a document" );
+  // Created directly rather than via `image_element_create` — this function
+  // sets its own `src` below ( it needs `id`/style/`cross_origin` attached
+  // before the load fires ), so a first `image_element_create` call here
+  // would only have its `src` immediately overwritten.
+  let image = document
+  .create_element( "img" )?
+  .dyn_into::< web_sys::HtmlImageElement >()?;
   let body = document
   .body()
   .unwrap();
   let _ = body.append_child( &image );
-  image.set_id( &path.to_string() );
+  image.set_id( path );
   let _ = image.style()
   .set_property( "visibility", "hidden" );
   let _ = image.style()
@@ -106,18 +83,23 @@ fn load_image
     )
   );
   on_load_callback.forget();
-  let origin = window
-  .location()
-  .origin()
-  .expect( "Should have an origin" );
-  let url = format!( "{origin}/{path}" );
+  // Fix(BUG-109): joined `path` against `window.location().origin()` alone,
+  // discarding the current page's own directory — resolved to the site root
+  // instead of this example's own subpath when deployed under one.
+  // Root cause: see `mingl::web::resolve_url`'s doc comment — origin never
+  // carries a path; relative references must resolve against the document's
+  // own directory.
+  // Pitfall: don't hand-roll this join — reuse `gl::web::file::url_resolve`,
+  // the same helper `gl::dom::image_element_create` now uses internally.
+  let href = window.location().href()?;
+  let url = gl::web::file::url_resolve( &href, path );
   image.set_src( &url );
   Ok( image )
 }
 
 fn init()
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
 
   let window = web_sys::window()
   .expect( "Should have a window" );
@@ -129,10 +111,10 @@ fn init()
   .style();
   let _ = body_style.set_property( "margin", "0" );
 
-  set_load_callback();
+  load_callback_set();
 }
 
-fn prepare_vertex_attributes()
+fn vertex_attributes_prepare()
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -162,21 +144,23 @@ fn prepare_vertex_attributes()
   let vao = gl::vao::create( &gl )
   .unwrap();
   gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32; 2 ] >()
+  let position_attr = mingl::VertexAttribute::new( position_slot, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( position_attr.vector )
     .stride( 2 )
-    .offset( 0 )
-    .attribute_pointer( &gl, position_slot, &position_buffer )
+    .offset( position_attr.offset )
+    .attribute_pointer( &gl, position_attr.location, &position_buffer )
     .unwrap();
-  gl::BufferDescriptor::new::< [ f32; 2 ] >()
+  let uv_attr = mingl::VertexAttribute::new( uv_slot, mingl::VectorDataType::new( mingl::DataType::F32, 2, 1 ), 0 );
+  gl::BufferDescriptor::from_vector( uv_attr.vector )
     .stride( 2 )
-    .offset( 0 )
-    .attribute_pointer( &gl, uv_slot, &uv_buffer )
+    .offset( uv_attr.offset )
+    .attribute_pointer( &gl, uv_attr.location, &uv_buffer )
     .unwrap();
   gl.bind_vertex_array( None );
   gl.bind_vertex_array( Some( &vao ) );
 }
 
-fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
+fn mvp_create() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -221,7 +205,7 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
   perspective_matrix * view_matrix * translate * scale
 }
 
-fn prepare_texture_array( id: &str, layers: i32, texture_id: u32 ) -> Option< web_sys::WebGlTexture >
+fn texture_array_prepare( id: &str, layers: i32, texture_id: u32 ) -> Option< web_sys::WebGlTexture >
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -287,7 +271,7 @@ fn prepare_texture_array( id: &str, layers: i32, texture_id: u32 ) -> Option< we
   texture_array
 }
 
-fn prepare_texture1u
+fn texture1u_prepare
 (
   data: &[u8],
   size: ( i32, i32 ),
@@ -336,24 +320,31 @@ fn update()
     .unwrap();
   gl.use_program( Some( &program ) );
 
-  let mvp = create_mvp();
+  let mvp = mvp_create();
   let mvp_location = gl.get_uniform_location( &program, "mvp" );
 
   gl::uniform::matrix_upload( &gl, mvp_location, mvp.raw_slice(), false )
   .unwrap();
 
-  prepare_vertex_attributes();
-  prepare_texture_array( "tileset.png", LAYERS, GL::TEXTURE0 );
+  vertex_attributes_prepare();
+  // Pre-existing defect found during BUG-109 live-reverification, distinct root
+  // cause: `image_load` ( see its call site in `load_callback_set` ) sets the
+  // created `<img>`'s DOM `id` to the full path it was given, `"static/tileset.png"`
+  // — but this lookup was passing the bare filename, `"tileset.png"`, which never
+  // matches. `get_element_by_id` returned `None`, and the leading `?` in
+  // `texture_array_prepare` silently skipped texture creation entirely before any
+  // GL call ran, leaving the tile map's texture unit unbound ( black canvas ).
+  texture_array_prepare( "static/tileset.png", LAYERS, GL::TEXTURE0 );
 
   let size = ( 16, 16 );
-  prepare_texture1u( &DATA, size, GL::TEXTURE1 );
+  texture1u_prepare( &DATA, size, GL::TEXTURE1 );
 
   let tiles_location = gl.get_uniform_location( &program, "tiles_sampler" );
-  let map_location = gl.get_uniform_location( &program, "map_sampler" );
+  let map_sampler_location = gl.get_uniform_location( &program, "map_sampler" );
 
   // When more than 1 texture is used. You need set binding slot for every texture.
   gl.uniform1i( tiles_location.as_ref(), 0 );
-  gl.uniform1i( map_location.as_ref(), 1 );
+  gl.uniform1i( map_sampler_location.as_ref(), 1 );
 
   let texel_size = [ 1.0 / size.0 as f32, 1.0 / size.1 as f32 ];
   let texel_size_location = gl.get_uniform_location( &program, "texel_size" );
@@ -363,7 +354,7 @@ fn update()
   gl.bind_vertex_array( None );
 }
 
-fn run()
+fn app_run()
 {
   init();
   update();
@@ -371,5 +362,5 @@ fn run()
 
 fn main()
 {
-  run()
+  app_run();
 }

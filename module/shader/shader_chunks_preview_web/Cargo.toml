@@ -1,0 +1,34 @@
+[package]
+name = "shader_chunks_preview_web"
+version = "0.1.0"
+edition = "2021"
+description = "WebGPU browser runner for shader chunk previews — fetches the -preview.json bundle written by the shader_chunks_preview CLI and renders it live with slider controls"
+
+[lints]
+workspace = true
+
+# The runner is browser-only: every dependency is wasm-gated and the native
+# build is a stub main, so `cargo check`/`udeps` on the host see no deps.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+shader_chunks_preview_core = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true, features = [ "derive" ] }
+serde-wasm-bindgen = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.minwebgpu]
+workspace = true
+features = [
+  'future'
+]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+workspace = true
+features = [
+  "Window",
+  "Response",
+]
+
+# `action/browser_serve` derives browsee capability flags (features::webgpu)
+# from these tags — keep them in sync with the APIs the runner actually uses.
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgpu"]

@@ -1,6 +1,6 @@
 use ndarray::Dimension;
 
-use crate::*;
+use crate::{IndexingRef, Mat, mat, MatEl, Indexable, Ix2, IndexingMut, RawSliceMut, ConstLayout, Collection};
 
 impl< E, const ROWS : usize, const COLS : usize > IndexingRef
 for Mat< ROWS, COLS, E, mat::DescriptorOrderColumnMajor >
@@ -8,6 +8,16 @@ where
   E : MatEl,
 {
 
+  // Fix(TASK-014): changed `debug_assert!` to `assert!` for the row-branch and
+  // column-branch lane-bound checks below so they run unconditionally instead of only in
+  // debug builds.
+  // Root cause: in a release build these checks were skipped, so an out-of-range `lane`
+  // reached `.skip(..).step_by(..).take(..)` on the underlying slice, which never panics
+  // on an out-of-range count — it silently returns a truncated or empty iterator,
+  // producing wrong (or no) data instead of a loud failure.
+  // Pitfall: `Iterator::skip`/`step_by`/`take` never panic on out-of-range arguments, so a
+  // debug-only bound check in front of them is the only thing standing between bad input
+  // and silently wrong output.
   #[ inline( always ) ]
   fn lane_iter( &self, varying_dim : usize, lane : usize )
   -> impl Iterator< Item = &Self::Scalar >
@@ -16,51 +26,61 @@ where
     {
       0 => // Iterate over a row
       {
-        if COLS == 0
+        // Fix(BUG-271): changed `if COLS == 0` to `if ROWS == 0` for this row-branch guard
+        // (and the symmetric `if ROWS == 0` to `if COLS == 0` in the column-branch below).
+        // Root cause: the degenerate/empty-iterator guard tested the wrong dimension for
+        // each branch — the row branch (indexed by `lane < ROWS`) checked `COLS == 0`
+        // instead of `ROWS == 0`, and the column branch (indexed by `lane < COLS`) checked
+        // `ROWS == 0` instead of `COLS == 0`. For an asymmetric zero-size matrix (e.g.
+        // `Mat<0,3,..>` or `Mat<3,0,..>`), the guard took the `else` branch instead of
+        // returning empty, hitting `assert!( lane < ROWS )` / `assert!( lane < COLS, .. )`
+        // with `lane == 0` against a zero bound and panicking instead of yielding an empty
+        // iterator, unlike the row-major sibling (`access_row_major.rs`) which guards each
+        // branch on its own matching dimension.
+        // Pitfall: a `ROWS`/`COLS` guard pair that's silently swapped only misbehaves for
+        // asymmetric zero-size matrices (`ROWS != COLS`, one of them `0`) — the crate's own
+        // `Mat2`/`Mat3`/`Mat4` aliases are always square and never exercise this path, so the
+        // bug is invisible to every real call site while still reachable through the public
+        // generic `Mat<ROWS,COLS,E,Descriptor>` type.
+        let ( skip, step, take ) = if ROWS == 0
         {
           // Return an empty iterator
-          self
-          .raw_slice()
-          .iter()
-          .skip( 0 )
-          .step_by( 1 )
-          .take( 0 )
+          ( 0, 1, 0 )
         }
         else
         {
-          debug_assert!( lane < ROWS );
-          self
-          .raw_slice()
-          .iter()
-          .skip( lane )
-          .step_by( ROWS )
-          .take( COLS )
-        }
+          assert!( lane < ROWS );
+          ( lane, ROWS, COLS )
+        };
+        self
+        .raw_slice()
+        .iter()
+        .skip( skip )
+        .step_by( step )
+        .take( take )
       },
       1 => // Iterate over a column
       {
-        if ROWS == 0
+        // Fix(BUG-271): changed `if ROWS == 0` to `if COLS == 0` — see the row-branch fix
+        // comment above for the full root cause (this is the symmetric half of the same fix).
+        let ( skip, take ) = if COLS == 0
         {
           // Return an empty iterator
-          self
-          .raw_slice()
-          .iter()
-          .skip( 0 )
-          .step_by( 1 )
-          .take( 0 )
+          ( 0, 0 )
         }
         else
         {
-          debug_assert!( lane < COLS, "lane:{lane} | COLS:{COLS}" );
-          self
-          .raw_slice()
-          .iter()
-          .skip( lane * ROWS )
-          .step_by( 1 )
-          .take( ROWS )
-        }
+          assert!( lane < COLS, "lane:{lane} | COLS:{COLS}" );
+          ( lane * ROWS, ROWS )
+        };
+        self
+        .raw_slice()
+        .iter()
+        .skip( skip )
+        .step_by( 1 )
+        .take( take )
       },
-      _ => panic!( "Invalid dimension: {}", varying_dim ),
+      _ => panic!( "Invalid dimension: {varying_dim}" ),
     }
 
   }
@@ -74,7 +94,7 @@ where
       {
         0 => ( Ix2( lane, i ), value ), // Row
         1 => ( Ix2( i, lane ), value ), // Column
-        _ => panic!( "Invalid dimension: {}", varying_dim ),
+        _ => panic!( "Invalid dimension: {varying_dim}" ),
       }
     })
   }
@@ -144,6 +164,17 @@ where
   E : MatEl,
 {
 
+  // Fix(TASK-014): changed `debug_assert!` to `assert!` for the row-branch and
+  // column-branch lane-bound checks below so they run unconditionally instead of only in
+  // debug builds.
+  // Root cause: in a release build these checks were skipped, so an out-of-range `lane`
+  // reached `.skip(..).step_by(..).take(..)` on the underlying slice, which never panics
+  // on an out-of-range count — it silently returns a truncated or empty iterator,
+  // producing wrong (or no) data instead of a loud failure.
+  // Pitfall: `Iterator::skip`/`step_by`/`take` never panic on out-of-range arguments, so a
+  // debug-only bound check in front of them is the only thing standing between bad input
+  // and silently wrong output.
+  #[ inline ]
   fn lane_iter_mut( &mut self, varying_dim : usize, lane : usize ) -> impl Iterator< Item = &mut Self::Scalar >
   {
     match varying_dim
@@ -151,55 +182,58 @@ where
       // Iterate over a row
       0 =>
       {
-        if COLS == 0
+        // Fix(BUG-271): changed `if COLS == 0` to `if ROWS == 0` for this row-branch guard
+        // (and the symmetric `if ROWS == 0` to `if COLS == 0` in the column-branch below).
+        // Root cause: same guard-dimension swap as `IndexingRef::lane_iter` above in this
+        // file — see that fix comment for the full explanation. `lane_iter_mut` duplicates
+        // the same degenerate-size branching logic, so it carried the identical defect.
+        // Pitfall: identical to the immutable sibling — only asymmetric zero-size matrices
+        // (`ROWS != COLS`, one of them `0`) trigger it, invisible to the crate's own
+        // always-square `Mat2`/`Mat3`/`Mat4` call sites.
+        let ( skip, step, take ) = if ROWS == 0
         {
           // Return an empty iterator
-          self
-          .raw_slice_mut()
-          .iter_mut()
-          .skip( 0 )
-          .step_by( 1 )
-          .take( 0 )
+          ( 0, 1, 0 )
         }
         else
         {
-          debug_assert!( lane < ROWS );
-          self
-          .raw_slice_mut()
-          .iter_mut()
-          .skip( lane )
-          .step_by( ROWS )
-          .take( COLS )
-        }
+          assert!( lane < ROWS );
+          ( lane, ROWS, COLS )
+        };
+        self
+        .raw_slice_mut()
+        .iter_mut()
+        .skip( skip )
+        .step_by( step )
+        .take( take )
       },
       // Iterate over a column
       1 =>
       {
-        // Return an empty iterator
-        if ROWS == 0
+        // Fix(BUG-271): changed `if ROWS == 0` to `if COLS == 0` — see the row-branch fix
+        // comment above for the full root cause (this is the symmetric half of the same fix).
+        let ( skip, take ) = if COLS == 0
         {
-          self
-          .raw_slice_mut()
-          .iter_mut()
-          .skip( 0 )
-          .step_by( 1 )
-          .take( 0 )
+          // Return an empty iterator
+          ( 0, 0 )
         }
         else
         {
-          debug_assert!( lane < COLS, "lane:{lane} | COLS:{COLS}" );
-          self
-          .raw_slice_mut()
-          .iter_mut()
-          .skip( lane * ROWS )
-          .step_by( 1 )
-          .take( ROWS )
-        }
+          assert!( lane < COLS, "lane:{lane} | COLS:{COLS}" );
+          ( lane * ROWS, ROWS )
+        };
+        self
+        .raw_slice_mut()
+        .iter_mut()
+        .skip( skip )
+        .step_by( 1 )
+        .take( take )
       },
-      _ => panic!( "Invalid dimension: {}", varying_dim ),
+      _ => panic!( "Invalid dimension: {varying_dim}" ),
     }
   }
 
+  #[ inline ]
   fn lane_iter_indexed_mut( &mut self, varying_dim : usize, lane : usize ) -> impl Iterator< Item = ( <Self as Indexable>::Index, &mut Self::Scalar ) >
   {
     self.lane_iter_mut( varying_dim, lane ).enumerate().map( move | ( i, value ) |
@@ -208,16 +242,18 @@ where
       {
         0 => ( Ix2( lane, i ), value ), // Row
         1 => ( Ix2( i, lane ), value ), // Column
-        _ => panic!( "Invalid dimension: {}", varying_dim ),
+        _ => panic!( "Invalid dimension: {varying_dim}" ),
       }
     })
   }
 
+  #[ inline ]
   fn iter_unstable_mut( &mut self ) -> impl Iterator< Item = &mut Self::Scalar >
   {
     self.raw_slice_mut().iter_mut()
   }
 
+  #[ inline ]
   fn iter_indexed_unstable_mut( &mut self ) -> impl Iterator< Item = ( <Self as Indexable>::Index, &mut Self::Scalar ) >
   {
     self.iter_unstable_mut().enumerate().map( | ( i, value ) |
@@ -228,6 +264,7 @@ where
     })
   }
 
+  #[ inline ]
   fn iter_lsfirst_mut( &mut self ) -> impl Iterator< Item = &mut Self::Scalar >
   {
     let ptr = self.raw_slice_mut().as_mut_ptr();
@@ -236,12 +273,13 @@ where
       ( 0..COLS).map( move | col |
       {
         // SAFETY: ptr is ROWS * COLS in length, and col * ROWS + row will always be less than COLS * ROWS,
-        #[ allow( unsafe_code ) ]
+        #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
         unsafe { &mut *ptr.add( col * ROWS + row ) }
       })
     })
   }
 
+  #[ inline ]
   fn iter_indexed_lsfirst_mut( &mut self ) -> impl Iterator< Item = ( <Self as Indexable>::Index, &mut Self::Scalar ) >
   {
     self.iter_lsfirst_mut().enumerate().map( | ( i, value ) |
@@ -252,11 +290,13 @@ where
     })
   }
 
+  #[ inline ]
   fn iter_msfirst_mut( &mut self ) -> impl Iterator< Item = &mut Self::Scalar >
   {
     self.raw_slice_mut().iter_mut()
   }
 
+  #[ inline ]
   fn iter_indexed_msfirst_mut( &mut self ) -> impl Iterator< Item = ( < Self as Indexable >::Index, &mut Self::Scalar ) >
   {
     self.iter_msfirst_mut().enumerate().map( | ( i, value ) | 
@@ -294,12 +334,12 @@ where
   {
     // SAFETY: This is safe because the memory layout of [ [ E ; COLS ] ; ROWS ]
     // is contiguous and can be reinterpreted as a flat slice of E.
-    #[ allow( unsafe_code ) ]
-    unsafe { std::slice::from_raw_parts_mut( self.as_mut_ptr() as *mut Self::Scalar, ROWS * COLS ) }
+    #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
+    unsafe { std::slice::from_raw_parts_mut( self.as_mut_ptr(), ROWS * COLS ) }
   }
 
   #[ inline( always ) ]
-  fn raw_set_slice( &mut self, scalars : &[ Self::Scalar ] )
+  fn raw_slice_set( &mut self, scalars : &[ Self::Scalar ] )
   {
     self.raw_slice_mut().copy_from_slice( scalars );
   }
@@ -313,9 +353,19 @@ where
   }
 
   #[ inline( always ) ]
+  // Fix(TASK-014): changed `debug_assert_eq!` to `assert_eq!` so this size check runs
+  // unconditionally instead of only in debug builds.
+  // Root cause: the `unsafe` block below reads `ROWS*COLS` elements out of `scalars` via
+  // raw pointer arithmetic (`ptr.add(row*COLS+col)`), relying on `scalars.len() ==
+  // ROWS*COLS` as its safety invariant. In a release build the check was skipped, so a
+  // shorter `scalars` slice caused an out-of-bounds read through the raw pointer —
+  // undefined behavior, not just wrong data.
+  // Pitfall: `debug_assert!` must never be the sole guard of an `unsafe` block's safety
+  // invariant — once `debug_assertions` is off, the invariant goes unchecked and the
+  // `unsafe` code's soundness proof no longer holds.
   fn with_row_major( mut self, scalars : &[ Self::Scalar ] ) -> Self {
-    debug_assert_eq!( scalars.len(), ROWS*COLS, "Size should be equal" );
-    
+    assert_eq!( scalars.len(), ROWS*COLS, "Size should be equal" );
+
     let ptr = scalars.as_ptr();
     let scalars : Vec< Self::Scalar > = 
     ( 0..COLS ).flat_map( move | col |
@@ -324,18 +374,19 @@ where
       {
         // SAFETY: Thanks to the check above, ptr is ROWS * COLS in length, 
         // so col * ROWS + row will always be less than ROWS * COLS,
-        #[ allow( unsafe_code ) ]
+        #[ expect( unsafe_code, reason = "unsafe is intentional in this vector core; every unsafe block carries a SAFETY comment enforced by undocumented_unsafe_blocks = deny" ) ]
         unsafe { *ptr.add( row * COLS + col ) }
       })
     })
     .collect();
     
-    self.raw_set_slice( scalars.as_ref() );
+    self.raw_slice_set( scalars.as_ref() );
     self
   }
 
+  #[ inline ]
   fn with_column_major( mut self, scalars : &[ Self::Scalar ] ) -> Self {
-    self.raw_set_slice( scalars );
+    self.raw_slice_set( scalars );
     self
   }
 }

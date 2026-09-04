@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ GpuTextureFormat, GpuCompareFunction, StencilFaceState, web_sys, Into };
 
   /// A builder for creating a `web_sys::GpuDepthStencilState`.
   #[ derive( Clone ) ]
@@ -69,9 +69,20 @@ mod private
     stencil_write_mask : Option< u32 >
   }
 
-  impl DepthStencilState 
+  impl Default for DepthStencilState
+  {
+    #[ inline ]
+    fn default() -> Self
+    {
+      Self::new()
+    }
+  }
+
+  impl DepthStencilState
   {
     /// Creates a new `DepthStencilState` with default values.
+    #[ inline ]
+    #[ must_use ]
     pub fn new() -> Self
     {
       let format = GpuTextureFormat::Depth24plus;
@@ -90,10 +101,10 @@ mod private
       {
         format,
         depth_compare,
+        depth_write_enabled,
         depth_bias,
         depth_bias_clamp,
         depth_bias_slope_scale,
-        depth_write_enabled,
         stencil_back,
         stencil_front,
         stencil_read_mask,
@@ -102,6 +113,8 @@ mod private
     } 
 
     /// Sets the format of the depth-stencil texture.
+    #[ inline ]
+    #[ must_use ]
     pub fn format( mut self, format : GpuTextureFormat ) -> Self
     {
       self.format = format;
@@ -109,6 +122,8 @@ mod private
     }  
 
     /// Sets the depth comparison function.
+    #[ inline ]
+    #[ must_use ]
     pub fn depth_compare( mut self, compare : GpuCompareFunction ) -> Self
     {
       self.depth_compare = compare;
@@ -116,6 +131,8 @@ mod private
     } 
 
     /// Sets the constant depth bias value.
+    #[ inline ]
+    #[ must_use ]
     pub fn depth_bias( mut self, bias : i32 ) -> Self
     {
       self.depth_bias = Some( bias );
@@ -123,6 +140,8 @@ mod private
     } 
 
     /// Sets the depth bias clamp value.
+    #[ inline ]
+    #[ must_use ]
     pub fn depth_bias_clamp( mut self, clamp : f32 ) -> Self
     {
       self.depth_bias_clamp = Some( clamp );
@@ -130,6 +149,8 @@ mod private
     }
 
     /// Sets the depth bias slope scale.
+    #[ inline ]
+    #[ must_use ]
     pub fn depth_bias_slope_scale( mut self, scale : f32 ) -> Self
     {
       self.depth_bias_slope_scale = Some( scale );
@@ -137,13 +158,17 @@ mod private
     }
 
     /// Disables writing to the depth buffer.
-    pub fn disable_depth_write( mut self ) -> Self
+    #[ inline ]
+    #[ must_use ]
+    pub fn depth_write_disable( mut self ) -> Self
     {
       self.depth_write_enabled = false;
       self
     }
 
     /// Sets the stencil state for back-facing fragments.
+    #[ inline ]
+    #[ must_use ]
     pub fn stencil_back( mut self, stencil : StencilFaceState ) -> Self
     {
       self.stencil_back = Some( stencil );
@@ -151,6 +176,8 @@ mod private
     }
 
     /// Sets the stencil state for front-facing fragments.
+    #[ inline ]
+    #[ must_use ]
     pub fn stencil_front( mut self, stencil : StencilFaceState ) -> Self
     {
       self.stencil_front = Some( stencil );
@@ -158,6 +185,8 @@ mod private
     }
 
     /// Sets the stencil read mask.
+    #[ inline ]
+    #[ must_use ]
     pub fn stencil_read_mask( mut self, mask : u32 ) -> Self
     {
       self.stencil_read_mask = Some( mask );
@@ -165,6 +194,8 @@ mod private
     }
 
     /// Sets the stencil write mask.
+    #[ inline ]
+    #[ must_use ]
     pub fn stencil_write_mask( mut self, mask : u32 ) -> Self
     {
       self.stencil_write_mask = Some( mask );
@@ -174,6 +205,7 @@ mod private
 
   impl From< DepthStencilState > for web_sys::GpuDepthStencilState 
   {
+    #[ inline ]
     fn from( value: DepthStencilState ) -> Self 
     {
       let state = web_sys::GpuDepthStencilState::new( value.format );

@@ -7,6 +7,7 @@ license = "MIT"
 
 [dependencies]
 minwebgl = { workspace = true }
+mingl = { workspace = true }
 ndarray_cg = { workspace = true }
 web-sys = { workspace = true, features = [
   'Document', 
@@ -18,3 +19,8 @@ web-sys = { workspace = true, features = [
   'HtmlImageElement',
   'DomRect',
 ] }
+[package.metadata.action]
+tags = ["runtime:browser", "api:webgl"]
+
+[lints]
+workspace = true

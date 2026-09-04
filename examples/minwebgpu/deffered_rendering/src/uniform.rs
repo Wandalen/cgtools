@@ -65,7 +65,7 @@ impl UniformState
 
   pub fn update( &self, queue : &web_sys::GpuQueue ) -> Result< (), WebGPUError >
   {
-    gl::queue::write_buffer( queue, &self.buffer, &[ self.uniform.as_raw() ] )?;
+    gl::queue::buffer_write( queue, &self.buffer, &[ self.uniform.as_raw() ] )?;
     Ok( () )
   }
 }

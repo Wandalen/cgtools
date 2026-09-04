@@ -103,7 +103,7 @@ fn matrix_saturating_add()
   use the_module::I32x2x2;
   let a = I32x2x2::default().set_raw( [ i32::MAX, 0, 0, 0 ] );
   let b = I32x2x2::default().set_raw( [ 1, 0, 0, 0 ] );
-  let r = a.saturating_add( b );
+  let r = a.saturating_add( &b );
   assert_eq!( r.raw_slice(), &[ i32::MAX, 0, 0, 0 ] );
 }
 
@@ -113,11 +113,11 @@ fn matrix_checked_overflow()
   use the_module::I32x2x2;
   let a = I32x2x2::default().set_raw( [ i32::MAX, 0, 0, 0 ] );
   let b = I32x2x2::default().set_raw( [ 1, 0, 0, 0 ] );
-  assert_eq!( a.checked_add( b ), None );
+  assert_eq!( a.checked_add( &b ), None );
 
   let c = I32x2x2::default().set_raw( [ 1, 2, 3, 4 ] );
   let d = I32x2x2::default().set_raw( [ 5, 6, 7, 8 ] );
-  let r = c.checked_add( d ).unwrap();
+  let r = c.checked_add( &d ).unwrap();
   assert_eq!( r.raw_slice(), &[ 6, 8, 10, 12 ] );
 }
 
@@ -127,7 +127,7 @@ fn matrix_wrapping_mul()
   use the_module::U32x2x2;
   let a = U32x2x2::default().set_raw( [ u32::MAX, 1, 1, 1 ] );
   let b = U32x2x2::default().set_raw( [ 2, 1, 1, 1 ] );
-  let r = a.wrapping_mul( b );
+  let r = a.wrapping_mul( &b );
   assert_eq!( r.raw_slice()[ 0 ], u32::MAX.wrapping_mul( 2 ) );
 }
 
@@ -137,7 +137,7 @@ fn matrix_saturating_sub()
   use the_module::U32x2x2;
   let a = U32x2x2::default().set_raw( [ 0, 100, 50, 5 ] );
   let b = U32x2x2::default().set_raw( [ 1, 30, 100, 2 ] );
-  let r = a.saturating_sub( b );
+  let r = a.saturating_sub( &b );
   // `0 - 1` and `50 - 100` saturate at 0 instead of wrapping.
   assert_eq!( r.raw_slice(), &[ 0, 70, 0, 3 ] );
 }
@@ -148,7 +148,7 @@ fn matrix_wrapping_add()
   use the_module::U32x2x2;
   let a = U32x2x2::default().set_raw( [ u32::MAX, 5, 10, 0 ] );
   let b = U32x2x2::default().set_raw( [ 1, 5, 0, 0 ] );
-  let r = a.wrapping_add( b );
+  let r = a.wrapping_add( &b );
   // `u32::MAX + 1` wraps to 0.
   assert_eq!( r.raw_slice(), &[ 0, 10, 10, 0 ] );
 }
@@ -159,7 +159,7 @@ fn matrix_wrapping_sub()
   use the_module::U32x2x2;
   let a = U32x2x2::default().set_raw( [ 0, 5, 10, 1 ] );
   let b = U32x2x2::default().set_raw( [ 1, 5, 0, 0 ] );
-  let r = a.wrapping_sub( b );
+  let r = a.wrapping_sub( &b );
   // `0u32 - 1` wraps to `u32::MAX`.
   assert_eq!( r.raw_slice(), &[ u32::MAX, 0, 10, 1 ] );
 }
@@ -170,11 +170,11 @@ fn matrix_checked_sub()
   use the_module::U32x2x2;
   let a = U32x2x2::default().set_raw( [ 0, 100, 50, 5 ] );
   let b = U32x2x2::default().set_raw( [ 1, 30, 20, 2 ] );
-  assert_eq!( a.checked_sub( b ), None );
+  assert_eq!( a.checked_sub( &b ), None );
 
   let c = U32x2x2::default().set_raw( [ 10, 100, 50, 5 ] );
   let d = U32x2x2::default().set_raw( [ 1, 30, 20, 2 ] );
-  let r = c.checked_sub( d ).unwrap();
+  let r = c.checked_sub( &d ).unwrap();
   assert_eq!( r.raw_slice(), &[ 9, 70, 30, 3 ] );
 }
 
@@ -184,10 +184,10 @@ fn matrix_checked_mul()
   use the_module::I32x2x2;
   let a = I32x2x2::default().set_raw( [ i32::MAX, 2, 3, 4 ] );
   let b = I32x2x2::default().set_raw( [ 2, 1, 1, 1 ] );
-  assert_eq!( a.checked_mul( b ), None );
+  assert_eq!( a.checked_mul( &b ), None );
 
   let c = I32x2x2::default().set_raw( [ 2, 3, 4, 5 ] );
   let d = I32x2x2::default().set_raw( [ 5, 6, 7, 8 ] );
-  let r = c.checked_mul( d ).unwrap();
+  let r = c.checked_mul( &d ).unwrap();
   assert_eq!( r.raw_slice(), &[ 10, 18, 28, 40 ] );
 }

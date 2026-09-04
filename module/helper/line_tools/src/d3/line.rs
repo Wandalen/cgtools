@@ -1,8 +1,8 @@
 mod private
 {
-  use crate::*;
+  use crate::{alloc, impl_basic_line, splat_vector, dim_to_vec, Mesh, d3, helpers, Program, UniformStorage};
   use minwebgl as gl;
-  use std::collections::VecDeque;
+  use alloc::collections::VecDeque;
 
   /// Encapsulates geometry related state of the line
   #[ derive( Debug, Clone, Default ) ]
@@ -139,7 +139,53 @@ mod private
   }
 
   impl_basic_line!( Line, f32, 3 );
-  
+
+  /// Checks that `geometry.colors` and `geometry.points` still have matching lengths before a
+  /// colors upload trusts their index-correspondence.
+  ///
+  /// `colors` is a `VecDeque` fully independent from `points`/`distances`: every
+  /// `point_*`/`points_*` add/remove method (from `impl_basic_line!`) keeps `distances` in
+  /// lockstep, but none of them touch `colors`, despite this type's doc comments describing
+  /// `colors` as "belong[ing] to a point with the same index". Calling e.g.
+  /// `point_remove_front()` without a matching `color_remove_front()` desyncs the two
+  /// `VecDeque`s' lengths, which would otherwise silently shift every subsequent point's
+  /// rendered color by one instanced-draw index once uploaded.
+  ///
+  /// Kept as a standalone, GL-context-independent function (mirroring
+  /// `canvas_renderer::renderer::mesh_colors_resolve`'s extraction for the same reason) so the
+  /// length-consistency invariant can be tested without a live WebGL context -- `mesh_update`
+  /// itself requires `&gl::WebGl2RenderingContext`, which this crate has no test infrastructure
+  /// to construct natively.
+  ///
+  /// # Errors
+  ///
+  /// Returns `WebglError` if `colors_len != points_len`.
+  // Fix(BUG-492)
+  // Root cause: `impl_basic_line!`'s color add/remove methods
+  // (`color_add_front`/`color_add_back`/`color_remove`/`color_remove_front`/`color_remove_back`)
+  // are entirely separate from the point/distance add/remove methods that keep `distances` in
+  // lockstep with `points` -- nothing ever cross-checked the two before this fix, and
+  // `mesh_update` uploaded `geometry.colors` unconditionally whenever `colors_changed` was set.
+  // Pitfall: two `VecDeque`s documented as index-corresponding but mutated through entirely
+  // separate method families will only ever be checked by accident (a caller that happens to
+  // call both families in lockstep) unless the consumer that actually depends on the invariant
+  // -- the GPU upload, here -- verifies it explicitly before trusting the data.
+  pub fn colors_length_consistency_check( colors_len : usize, points_len : usize ) -> Result< (), gl::WebglError >
+  {
+    if colors_len != points_len
+    {
+      gl::warn!
+      (
+        "Line::mesh_update: geometry.colors.len() ({colors_len}) != geometry.points.len() ({points_len}) -- \
+        point_*/color_* add/remove calls have desynced the two; skipping the colors upload instead of \
+        uploading mismatched vertex color data"
+      );
+      return Err( gl::WebglError::Other( "geometry.colors and geometry.points have desynced lengths -- point_*/color_* add/remove calls must be kept in matching pairs" ) );
+    }
+
+    Ok( () )
+  }
+
   impl Line
   {
     /// Creates the WebGL mesh for the line.
@@ -147,6 +193,10 @@ mod private
     /// This function compiles shaders, generates the line's geometry, creates buffers and a VAO,
     /// and initializes the `Mesh` object. It sets up the vertex attributes for instanced drawing,
     /// where each instance is a segment of the line.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if shader compilation or program linking fails.
     pub fn mesh_create( &mut self, gl : &gl::WebGl2RenderingContext, fragment_shader : Option< &str > ) -> Result< (), gl::WebglError >
     {
       self.render_state.fragment_shader = fragment_shader.unwrap_or( d3::MAIN_FRAGMENT_SHADER ).to_string();
@@ -163,10 +213,16 @@ mod private
 
       gl::buffer::upload( gl, &position_buffer, &vertices.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
       gl::buffer::upload( gl, &uv_buffer, &uvs.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
-      gl::index::upload( gl, &index_buffer, &indices, gl::STATIC_DRAW );
 
       let vao = gl.create_vertex_array();
       gl.bind_vertex_array( vao.as_ref() );
+
+      // `index::upload` binds to `ELEMENT_ARRAY_BUFFER`, which is part of the
+      // *currently bound VAO's* state in WebGL2 (unlike `ARRAY_BUFFER`, which
+      // is global scratch state) - uploading before the VAO above exists would
+      // silently overwrite whatever VAO the caller last had bound instead of
+      // this one, corrupting an unrelated mesh's element buffer.
+      gl::index::upload( gl, &index_buffer, &indices, gl::STATIC_DRAW );
 
       gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 0 ).divisor( 0 ).attribute_pointer( gl, 0, &position_buffer )?;
       gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 0 ).divisor( 0 ).attribute_pointer( gl, 1, &uv_buffer )?;
@@ -201,7 +257,7 @@ mod private
       {
         vertex_shader : None,
         fragment_shader : None,
-        vao : vao,
+        vao,
         program : None,
         draw_mode : gl::TRIANGLES,
         instance_count : Some( ( self.geometry.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 ),
@@ -233,6 +289,10 @@ mod private
     }
 
     /// Updates the mesh's vertex buffers if the line's points have changed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if re-uploading buffer data or shaders fails.
     pub fn mesh_update( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       if self.change_state.defines_changed
@@ -242,15 +302,15 @@ mod private
         let vertex_shader = gl::ShaderSource::former()
         .shader_type( gl::VERTEX_SHADER )
         .source( &vertex_shader )
-        .compile( &gl )?;
+        .compile( gl )?;
 
         let fragment_shader = self.render_state.fragment_shader.replace( "// #include <defines>", &defines );
         let fragment_shader = gl::ShaderSource::former()
         .shader_type( gl::FRAGMENT_SHADER )
         .source( &fragment_shader )
-        .compile( &gl )?;
+        .compile( gl )?;
 
-        let program = gl::ProgramShaders::new( &vertex_shader, &fragment_shader ).link( &gl )?;
+        let program = gl::ProgramShaders::new( &vertex_shader, &fragment_shader ).link( gl )?;
 
         let mesh = self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
         let b_program = mesh.program_get_mut( "body" );
@@ -287,14 +347,14 @@ mod private
         let mesh = self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
         let points_buffer = mesh.buffer_get( "points" );
         
-        let points : Vec< f32 > = self.geometry.points.iter().flat_map( | p | p.to_array() ).collect();
-        gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
+        let points : Vec< f32 > = self.geometry.points.iter().flat_map( minwebgl::Vector::to_array ).collect();
+        gl::buffer::upload( gl, points_buffer, &points, gl::STATIC_DRAW );
 
         #[ cfg( feature = "distance" ) ]
         {
           let distances_buffer = mesh.buffer_get( "distances" );
           let distances : Vec< f32 > = self.geometry.distances.iter().copied().collect();
-          gl::buffer::upload( &gl, &distances_buffer, &distances, gl::STATIC_DRAW );
+          gl::buffer::upload( gl, distances_buffer, &distances, gl::STATIC_DRAW );
         }
 
         let b_program = mesh.program_get_mut( "body" );
@@ -305,11 +365,13 @@ mod private
 
       if self.change_state.colors_changed && self.render_state.vertex_color_use
       {
+        colors_length_consistency_check( self.geometry.colors.len(), self.geometry.points.len() )?;
+
         let mesh = self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
         let colors_buffer = mesh.buffer_get( "colors" );
 
-        let colors : Vec< f32 > = self.geometry.colors.iter().flat_map( | c | c.to_array() ).collect();
-        gl::buffer::upload( &gl, &colors_buffer, &colors, gl::STATIC_DRAW );
+        let colors : Vec< f32 > = self.geometry.colors.iter().flat_map( minwebgl::Vector::to_array ).collect();
+        gl::buffer::upload( gl, colors_buffer, &colors, gl::STATIC_DRAW );
 
         self.change_state.colors_changed = false;
       }
@@ -351,6 +413,10 @@ mod private
     }
 
     /// Draws the line mesh.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WebglError` if the mesh update or a uniform upload fails.
     pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       self.mesh_update( gl )?;
@@ -378,6 +444,7 @@ mod private
     }
 
     /// Returns the shader defines string based on the current render state flags
+    #[must_use]
     pub fn defines_get( &self ) -> String
     {
       self.render_state.defines_get()
@@ -392,6 +459,7 @@ mod private
 
     #[ cfg( feature = "distance" ) ]
     /// Get the dash offset
+    #[must_use]
     pub fn dash_offset_get( &self ) -> f32
     {
       self.render_state.dash_offset
@@ -406,5 +474,10 @@ crate::mod_interface!
   {
     Line,
     DashPattern
+  };
+
+  own use
+  {
+    colors_length_consistency_check
   };
 }

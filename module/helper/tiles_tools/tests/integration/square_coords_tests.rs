@@ -24,30 +24,6 @@
 
 #![cfg(feature = "enabled")]
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::default_trait_access)]
 
 use tiles_tools::coordinates::square::{Coordinate, FourConnected, EightConnected, SquareCoord4, SquareCoord8};
 use tiles_tools::coordinates::{Distance, Neighbors};
@@ -130,7 +106,7 @@ fn test_four_connected_neighbors()
     
     for expected_neighbor in expected {
         assert!(neighbors.contains(&expected_neighbor), 
-            "Missing expected neighbor {:?}", expected_neighbor);
+            "Missing expected neighbor {expected_neighbor:?}");
     }
 }
 
@@ -157,7 +133,7 @@ fn test_eight_connected_neighbors()
     
     for expected_neighbor in expected {
         assert!(neighbors.contains(&expected_neighbor), 
-            "Missing expected neighbor {:?}", expected_neighbor);
+            "Missing expected neighbor {expected_neighbor:?}");
     }
 }
 
@@ -178,7 +154,7 @@ fn test_four_connected_only_orthogonal()
     
     for diagonal_pos in diagonal_positions {
         assert!(!neighbors.contains(&diagonal_pos),
-            "4-connected should not include diagonal {:?}", diagonal_pos);
+            "4-connected should not include diagonal {diagonal_pos:?}");
     }
 }
 
@@ -199,7 +175,7 @@ fn test_eight_connected_includes_diagonal()
     
     for diagonal_pos in diagonal_positions {
         assert!(neighbors.contains(&diagonal_pos),
-            "8-connected should include diagonal {:?}", diagonal_pos);
+            "8-connected should include diagonal {diagonal_pos:?}");
     }
 }
 
@@ -328,7 +304,7 @@ fn test_pathfinding_with_obstacles()
     let goal = SquareCoord4::new(2, 0);
     
     // Block the direct path
-    let blocked_positions = vec![SquareCoord4::new(1, 0)];
+    let blocked_positions = [SquareCoord4::new(1, 0)];
     
     let result = astar(
         &start,
@@ -422,7 +398,7 @@ fn test_coordinate_hashing()
 #[ test ]
 fn test_default_coordinate()
 {
-    let coord: SquareCoord4 = Default::default();
+    let coord: SquareCoord4 = SquareCoord4::default();
     assert_eq!(coord.x, 0);
     assert_eq!(coord.y, 0);
 }

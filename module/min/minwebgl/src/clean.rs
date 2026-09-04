@@ -1,9 +1,35 @@
 /// Internal namespace.
 mod private
 {
+  #[ allow( clippy::wildcard_imports, reason = "crate-root prelude from mod_interface!; enumerating would break on every layer change" ) ]
   use crate::*;
   /// A type alias for the WebGL2 rendering context.
   type GL = WebGl2RenderingContext;
+
+  /// Converts an attachment id into a `u32`, returning `WebglError::IdOutOfRange` instead of
+  /// panicking when the id does not fit into `u32`. An id computed at runtime (e.g. while
+  /// iterating a dynamically sized framebuffer configuration) can legitimately be out of
+  /// range, and callers should be able to recover from that instead of the process crashing.
+  ///
+  /// # Errors
+  ///
+  /// Returns [`WebglError::IdOutOfRange`] when `id` does not fit into `u32`.
+  // Fix(TASK-011): `framebuffer_texture_2d_array`/`framebuffer_renderbuffer_array` used to
+  // convert each attachment id via `i.try_into().expect( "Attachment id is out of range" )`,
+  // panicking the whole process on a dynamically computed id that doesn't fit into `u32`.
+  // Root cause: both functions accept any `IntoIterator`, so a caller-supplied id is not
+  // guaranteed to be a compile-time-known-good literal, yet the conversion used `.expect()`
+  // instead of propagating through the `Result` a caller could otherwise recover from.
+  // Pitfall: `.expect()`/`.unwrap()` inside a loop body over caller-supplied data is easy to
+  // miss in review since the surrounding function's own (pre-fix) signature gave no hint that
+  // a panic was possible inside.
+  pub fn attachment_id_convert< I, E >( id : I ) -> Result< u32, WebglError >
+  where
+    E : std::fmt::Debug,
+    I : TryInto< u32, Error = E >
+  {
+    id.try_into().map_err( | e | WebglError::IdOutOfRange( format!( "Attachment id is out of range : {e:?}" ) ) )
+  }
 
   /// Unbind the currently bound 2D texture.
   pub fn texture_2d( gl : &GL )
@@ -19,6 +45,9 @@ mod private
   }
 
   /// Unbind 2D textures from multiple texture units.
+  ///
+  /// # Panics
+  /// Panics if any `active` item fails to convert into a `u32` texture unit id.
   pub fn texture_2d_array< T, E >( gl : &GL, active : T )
   where 
     T : IntoIterator,
@@ -57,30 +86,43 @@ mod private
   } 
 
   /// Detach 2D textures from multiple framebuffer attachments.
-  pub fn framebuffer_texture_2d_array< T, E >( gl : &GL, attachments : T )
-  where 
+  ///
+  /// # Errors
+  /// Returns `WebglError::IdOutOfRange` if any attachment id does not fit into `u32`.
+  pub fn framebuffer_texture_2d_array< T, E >( gl : &GL, attachments : T ) -> Result< (), WebglError >
+  where
     T : IntoIterator,
     E : std::fmt::Debug,
     T::Item : TryInto< u32, Error = E >
   {
     for i in attachments
     {
-      framebuffer_texture_2d_attachment( gl, i.try_into().expect( "Attachment id is out of range" ) );
+      framebuffer_texture_2d_attachment( gl, attachment_id_convert( i )? );
     }
-  } 
+    Ok( () )
+  }
 
   /// Detaches a renderbuffer from a specific color attachment point of the currently bound framebuffer.
+  //
+  // Fix(UX-013): called `gl.framebuffer_texture_2d` with a `RENDERBUFFER` target and a `None`
+  // texture, which happens to detach correctly only because the spec ignores `textarget` once
+  // `texture` is null -- the dedicated `framebufferRenderbuffer` binding is the actual WebGL2 API
+  // for renderbuffer attachments and is what this function's own name/doc already promise.
+  // Root cause: copy-pasted from `framebuffer_texture_2d_attachment` above without swapping to
+  // the renderbuffer-specific call.
+  // Pitfall: a wrong-but-spec-tolerated GL call can silently "work" for years -- match the
+  // dedicated binding for the resource kind the function name states, not whichever call
+  // happens to produce the same runtime effect.
   pub fn framebuffer_renderbuffer_attachment( gl : &GL, attachment : u32 )
   {
-    gl.framebuffer_texture_2d
+    gl.framebuffer_renderbuffer
     (
-      GL::FRAMEBUFFER, 
-      GL::COLOR_ATTACHMENT0 + attachment, 
-      GL::RENDERBUFFER, 
-      None, 
-      0
+      GL::FRAMEBUFFER,
+      GL::COLOR_ATTACHMENT0 + attachment,
+      GL::RENDERBUFFER,
+      None
     );
-  } 
+  }
 
   /// Detach the renderbuffer from framebuffer attachment 0.
   pub fn framebuffer_renderbuffer( gl : &GL )
@@ -89,24 +131,28 @@ mod private
   } 
 
   /// Detach renderbuffers from multiple framebuffer attachments.
-  pub fn framebuffer_renderbuffer_array< T, E >( gl : &GL, attachments : T )
-  where 
+  ///
+  /// # Errors
+  /// Returns `WebglError::IdOutOfRange` if any attachment id does not fit into `u32`.
+  pub fn framebuffer_renderbuffer_array< T, E >( gl : &GL, attachments : T ) -> Result< (), WebglError >
+  where
     T : IntoIterator,
     E : std::fmt::Debug,
     T::Item : TryInto< u32, Error = E >
   {
     for i in attachments
     {
-      framebuffer_renderbuffer_attachment( gl, i.try_into().expect( "Attachment id is out of range" ) );
+      framebuffer_renderbuffer_attachment( gl, attachment_id_convert( i )? );
     }
+    Ok( () )
   }
-
 }
 
 crate::mod_interface!
 {
   own use
   {
+    attachment_id_convert,
     framebuffer,
     framebuffer_renderbuffer,
     framebuffer_renderbuffer_array,

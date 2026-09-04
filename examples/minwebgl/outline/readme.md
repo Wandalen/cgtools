@@ -6,7 +6,7 @@ This demo demonstrates comprehensive Jump Flood Algorithm (JFA) outline renderin
 
 ![image](showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

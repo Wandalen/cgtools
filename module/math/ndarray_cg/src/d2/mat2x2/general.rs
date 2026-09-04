@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{Mat2, MatNum, mat, RawSliceMut, ScalarMut, Ix2, ConstLayout, IndexingMut, MatEl, nd, Mat, RawSlice, TryInto, Mat3};
 
 impl< E, Descriptor > Mat2< E, Descriptor >
 where
@@ -12,6 +12,7 @@ Self : RawSliceMut< Scalar = E > +
   /// Computes the determinant of the matrix. Requires a signed scalar because
   /// the cofactor expansion subtracts (`a*d - b*c`), which can be negative; the
   /// result is undefined (panic or wrap) for unsigned element types.
+  #[ inline ]
   pub fn determinant( &self ) -> E
   {
     let a = *self.scalar_ref( Ix2( 0, 0 ) );
@@ -34,6 +35,7 @@ Self : RawSliceMut< Scalar = E > +
 {
   /// Computes the inverse of the matrix.
   /// If the determinant is zero - return `None`
+  #[ inline ]
   pub fn inverse( &self ) -> Option< Self >
   {
     let det = self.determinant();
@@ -61,12 +63,18 @@ Descriptor : mat::Descriptor,
 Self : RawSlice< Scalar = E >
 {
   /// Converts the matrix to an array
+  ///
+  /// # Panics
+  /// Panics if the underlying raw slice does not have exactly 4 elements
+  /// (guaranteed not to happen for a well-formed `Mat< 2, 2, E, Descriptor >`).
+  #[ inline ]
   pub fn to_array( &self ) -> [ E; 4 ]
   {
     self.raw_slice().try_into().unwrap()
   }
 
   /// Converts the matrix to a 3x3 homogenous matrix
+  #[ inline ]
   pub fn to_homogenous( &self ) -> Mat3< E, Descriptor >
   where
     Mat3< E, Descriptor > : RawSliceMut< Scalar = E >
@@ -98,6 +106,8 @@ Descriptor : mat::Descriptor,
 Self : RawSliceMut< Scalar = E >
 {
   /// Creates a 2x2 identity matrix.
+  #[ inline ]
+  #[ must_use ]
   pub fn identity() -> Self
   {
     let mat = Self::default();
@@ -106,6 +116,8 @@ Self : RawSliceMut< Scalar = E >
 }
 
 /// Creates a 2x2 identity matrix
+#[ inline ]
+#[ must_use ]
 pub fn identity< E >() -> Mat2< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatNum,

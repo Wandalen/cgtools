@@ -8,7 +8,7 @@ Video textures enable dynamic content integration. This example handles video lo
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

@@ -34,32 +34,6 @@
 //! | TC7.1   | Serde    | serialize | coord | json     | ✅ |
 //! | TC7.2   | Serde    | deserial  | json  | coord    | ✅ |
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::single_char_pattern)]
-#![allow(clippy::clone_on_copy)]
-#![allow(clippy::default_trait_access)]
 
 use tiles_tools::coordinates::triangular::{ Coordinate, FlatSided };
 use tiles_tools::coordinates::{Distance, Neighbors};
@@ -193,16 +167,16 @@ fn test_into_array()
 fn test_debug_trait()
 {
   let coord = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
-  let debug_str = format!("{:?}", coord);
-  assert!(debug_str.contains("0"));
-  assert!(debug_str.contains("1"));
+  let debug_str = format!("{coord:?}");
+  assert!(debug_str.contains('0'));
+  assert!(debug_str.contains('1'));
 }
 
 #[ test ]
 fn test_clone_trait()
 {
   let coord = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
-  let cloned = coord.clone();
+  let cloned = coord;
   assert_eq!(coord, cloned);
 }
 
@@ -247,8 +221,8 @@ fn test_serialize()
   let serialized = serde_json::to_string(&coord).expect("Serialization should succeed");
 
   // Should contain the x and y values but not the phantom marker
-  assert!(serialized.contains("0"));
-  assert!(serialized.contains("1"));
+  assert!(serialized.contains('0'));
+  assert!(serialized.contains('1'));
   assert!(!serialized.contains("_marker"));
 }
 
@@ -282,7 +256,7 @@ fn test_round_trip_serialization()
 #[ test ]
 fn test_large_coordinates()
 {
-  let coord = Coordinate::<FlatSided>::new(1000000, -1000000, 1).unwrap();
+  let coord = Coordinate::<FlatSided>::new(1_000_000, -1_000_000, 1).unwrap();
   let neighbors = coord.neighbors();
   assert_eq!(neighbors.len(), 3);
 }
@@ -308,7 +282,7 @@ fn test_distance_between_neighbors()
   for neighbor in neighbors {
     let distance = coord.distance(&neighbor);
     // All neighbors should be at distance 1 or 2 (depending on edge vs vertex adjacency)
-    assert!(distance == 1, "Neighbor distance should be 1, got {}", distance);
+    assert!(distance == 1, "Neighbor distance should be 1, got {distance}");
   }
 }
 
@@ -333,9 +307,7 @@ fn test_neighbors_reciprocal()
     assert!
     (
       neighbor_neighbors.contains(&coord),
-      "Reciprocal neighbor relationship should hold for {:?} and {:?}",
-      coord,
-      neighbor
+      "Reciprocal neighbor relationship should hold for {coord:?} and {neighbor:?}"
     );
   }
 }
@@ -405,7 +377,7 @@ fn test_neighbors_up_triangle()
   assert_eq!(neighbors.len(), expected.len());
   for expected_neighbor in expected {
     assert!(neighbors.contains(&expected_neighbor),
-            "Missing neighbor: {:?}", expected_neighbor);
+            "Missing neighbor: {expected_neighbor:?}");
   }
 }
 
@@ -426,6 +398,6 @@ fn test_neighbors_down_triangle()
   assert_eq!(neighbors.len(), expected.len());
   for expected_neighbor in expected {
     assert!(neighbors.contains(&expected_neighbor),
-            "Missing neighbor: {:?}", expected_neighbor);
+            "Missing neighbor: {expected_neighbor:?}");
   }
 }

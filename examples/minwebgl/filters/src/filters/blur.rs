@@ -1,6 +1,11 @@
-#![ allow( clippy::unused_self ) ]
 
-use super::*;
+use super::
+{
+  FilterRenderer,
+  gl,
+  GL,
+  Filter,
+};
 use serde::{ Serialize, Deserialize };
 
 #[ derive( Clone ) ]
@@ -24,7 +29,7 @@ impl< T > Blur< T >
     Self { size, _marker: std::marker::PhantomData }
   }
 
-  fn draw( &self, renderer : &impl FilterRenderer )
+  fn draw( renderer : &impl FilterRenderer )
   {
     let gl = renderer.gl();
     let texel_size = [ 1.0 / gl.drawing_buffer_width() as f32, 1.0 / gl.drawing_buffer_height() as f32 ];
@@ -96,10 +101,10 @@ impl Filter for Blur< Box >
     let gl = renderer.gl();
 
     let box_size_location = gl.get_uniform_location( renderer.get_program(), "u_box_size" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, box_size_location, &self.size ).unwrap();
 
-    self.draw( renderer );
+    Self::draw( renderer );
   }
 }
 
@@ -147,10 +152,10 @@ impl Filter for Blur< Gaussian >
     let gl = renderer.gl();
 
     let sigma_location = gl.get_uniform_location( renderer.get_program(), "u_sigma" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, sigma_location, &self.size ).unwrap();
 
-    self.draw( renderer );
+    Self::draw( renderer );
   }
 }
 
@@ -169,16 +174,25 @@ impl Filter for Blur< Stack >
     uniform vec2 u_texel_size;
     uniform vec2 u_direction;
 
+    // Fix(BUG-324): was an unweighted uniform average identical in shape to Blur<Box> (same
+    // kernel, different uniform name) — a triangular weight is what actually distinguishes a
+    // stack blur from a box blur.
+    // Root cause: copy-pasted box-average loop body across the three near-identical Blur<T> impls.
+    // Pitfall: three sibling shader-string impls in one file invites a copy-pasted kernel body —
+    // the result still visibly blurs, so a wrong/duplicate kernel shape has no visible symptom.
     void main()
     {
       vec4 sum = vec4( 0.0 );
+      float weight_sum = 0.0;
       for ( int i = -u_radius; i <= u_radius; i++ )
       {
+        float weight = float( u_radius + 1 - abs( i ) );
         vec2 tc = v_tex_coord + u_direction * float( i ) * u_texel_size;
-        sum += texture( u_image, tc );
+        sum += weight * texture( u_image, tc );
+        weight_sum += weight;
       }
 
-      frag_color = sum / float( ( u_radius * 2 ) + 1 );
+      frag_color = sum / weight_sum;
     }
     ".to_string()
   }
@@ -188,9 +202,9 @@ impl Filter for Blur< Stack >
     let gl = renderer.gl();
 
     let radius_location = gl.get_uniform_location( renderer.get_program(), "u_radius" );
-    gl.use_program( Some( &renderer.get_program() ) );
+    gl.use_program( Some( renderer.get_program() ) );
     gl::uniform::upload( gl, radius_location, &self.size ).unwrap();
 
-    self.draw( renderer );
+    Self::draw( renderer );
   }
 }

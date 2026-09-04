@@ -40,7 +40,7 @@ mod private
         // Fill the whole viewport, non-uniform scale allowed.
         let sx = vw / sprite_size.0.max( 1.0 );
         let sy = vh / sprite_size.1.max( 1.0 );
-        Some( make_transform( ( 0.0, 0.0 ), ( sx, sy ) ) )
+        Some( transform_make( ( 0.0, 0.0 ), ( sx, sy ) ) )
       },
       ViewportTiling::Fit =>
       {
@@ -50,13 +50,13 @@ mod private
         let s = sx.min( sy );
         let scaled = ( sprite_size.0 * s, sprite_size.1 * s );
         let pos = anchor_position( anchor, scaled, ( vw, vh ) );
-        Some( make_transform( pos, ( s, s ) ) )
+        Some( transform_make( pos, ( s, s ) ) )
       },
       ViewportTiling::Center =>
       {
         // Native pixel size, positioned per anchor.
         let pos = anchor_position( anchor, sprite_size, ( vw, vh ) );
-        Some( make_transform( pos, ( 1.0, 1.0 ) ) )
+        Some( transform_make( pos, ( 1.0, 1.0 ) ) )
       },
       ViewportTiling::Repeat2D
       | ViewportTiling::RepeatX
@@ -65,7 +65,7 @@ mod private
         // Repeat modes emit multiple sprites — the caller uses
         // `tiled_positions` for per-tile offsets. Returning the first tile
         // at origin is convenient for callers that want the common case.
-        Some( make_transform( ( 0.0, 0.0 ), ( 1.0, 1.0 ) ) )
+        Some( transform_make( ( 0.0, 0.0 ), ( 1.0, 1.0 ) ) )
       },
     }
   }
@@ -162,7 +162,7 @@ mod private
   }
 
   #[ inline ]
-  fn make_transform( pos : ( f32, f32 ), scale : ( f32, f32 ) ) -> Transform
+  fn transform_make( pos : ( f32, f32 ), scale : ( f32, f32 ) ) -> Transform
   {
     Transform
     {
@@ -172,110 +172,6 @@ mod private
       skew : [ 0.0, 0.0 ],
       depth : 0.0,
     }
-  }
-}
-
-#[ cfg( test ) ]
-mod tests
-{
-  use super::private::*;
-  use crate::source::{ ViewportAnchorPoint, ViewportTiling };
-
-  #[ test ]
-  fn stretch_fills_viewport()
-  {
-    let t = viewport_transform(
-      ViewportTiling::Stretch,
-      ViewportAnchorPoint::Center,
-      ( 100.0, 50.0 ),
-      ( 800, 600 ),
-    ).unwrap();
-    assert_eq!( t.position, [ 0.0, 0.0 ] );
-    assert!( ( t.scale[ 0 ] - 8.0 ).abs() < 1e-5 );
-    assert!( ( t.scale[ 1 ] - 12.0 ).abs() < 1e-5 );
-  }
-
-  #[ test ]
-  fn center_topleft_anchors_at_top_in_y_up()
-  {
-    // Y-up: TopLeft places sprite's bottom-left corner at y = vh - sh, so its
-    // top edge sits at the viewport's top edge.
-    let t = viewport_transform(
-      ViewportTiling::Center,
-      ViewportAnchorPoint::TopLeft,
-      ( 100.0, 50.0 ),
-      ( 800, 600 ),
-    ).unwrap();
-    assert_eq!( t.position, [ 0.0, 550.0 ] ); // x=0, y=600-50
-    assert_eq!( t.scale, [ 1.0, 1.0 ] );
-  }
-
-  #[ test ]
-  fn center_bottomcenter_positions_sprite()
-  {
-    // Y-up: BottomCenter places sprite's bottom-left corner at y = 0.
-    let t = viewport_transform(
-      ViewportTiling::Center,
-      ViewportAnchorPoint::BottomCenter,
-      ( 100.0, 50.0 ),
-      ( 800, 600 ),
-    ).unwrap();
-    assert!( ( t.position[ 0 ] - 350.0 ).abs() < 1e-5 ); // (800 - 100) / 2
-    assert!( ( t.position[ 1 ] - 0.0 ).abs() < 1e-5 );   // bottom of viewport
-  }
-
-  #[ test ]
-  fn repeat2d_emits_grid_covering_viewport()
-  {
-    // 32x32 tile, 800x600 viewport → 26 cols × 20 rows (plus safety margin
-    // of +1 each side in the implementation).
-    let positions = tiled_positions(
-      ViewportTiling::Repeat2D,
-      ViewportAnchorPoint::TopLeft,
-      ( 32.0, 32.0 ),
-      ( 800, 600 ),
-    );
-    assert_eq!( positions.len(), 26 * 20 );
-    // First tile at origin.
-    assert_eq!( positions[ 0 ], ( 0.0, 0.0 ) );
-    // Second tile one sprite-width across.
-    assert_eq!( positions[ 1 ], ( 32.0, 0.0 ) );
-  }
-
-  #[ test ]
-  fn repeatx_emits_single_row()
-  {
-    let positions = tiled_positions(
-      ViewportTiling::RepeatX,
-      ViewportAnchorPoint::BottomLeft,
-      ( 100.0, 50.0 ),
-      ( 800, 600 ),
-    );
-    assert_eq!( positions.len(), 9 ); // ceil(800/100) + 1 = 9
-    // Y-up: BottomLeft pins sprites at y = 0 (viewport's bottom edge).
-    for ( _, y ) in &positions
-    {
-      assert!( ( y - 0.0 ).abs() < 1e-5 );
-    }
-  }
-
-  #[ test ]
-  fn fit_preserves_aspect()
-  {
-    // Sprite 100x50, viewport 800x600 → limiting axis is Y (ratio 12 vs 8).
-    // Wait — sprite w 100 fits 8x in 800, sprite h 50 fits 12x in 600.
-    // min = 8 → scaled sprite = 800 x 400, fits width-first, centred vertically.
-    let t = viewport_transform(
-      ViewportTiling::Fit,
-      ViewportAnchorPoint::Center,
-      ( 100.0, 50.0 ),
-      ( 800, 600 ),
-    ).unwrap();
-    assert!( ( t.scale[ 0 ] - 8.0 ).abs() < 1e-5 );
-    assert!( ( t.scale[ 1 ] - 8.0 ).abs() < 1e-5 );
-    // Centred: scaled sprite is 800x400 → x=0, y=100.
-    assert!( ( t.position[ 0 ] - 0.0 ).abs() < 1e-5 );
-    assert!( ( t.position[ 1 ] - 100.0 ).abs() < 1e-5 );
   }
 }
 

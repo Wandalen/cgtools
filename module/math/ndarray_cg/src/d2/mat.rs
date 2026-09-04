@@ -1,7 +1,8 @@
 mod private
 {
-  use crate::*;
+  use crate::{AbsDiffEq, RelativeEq, UlpsEq, MatWithShape, MatWithShapeMut, RawSlice, Collection, Indexable, mat, Ix2, Add, IndexingRef, Zero};
   use std::panic::UnwindSafe;
+  use core::marker::PhantomData;
 
   /// Ordering of scalars in buffer of matrix, either row-major or column-major.
   pub trait Order
@@ -18,6 +19,7 @@ mod private
     const IS_ROW_MAJOR: bool = true;
     /// Name of order
     #[ inline( always ) ]
+    #[ must_use ]
     fn order_str() -> &'static str
     {
       "row-major"
@@ -30,6 +32,7 @@ mod private
     const IS_ROW_MAJOR: bool = false;
     /// Name of order
     #[ inline( always ) ]
+    #[ must_use ]
     fn order_str() -> &'static str
     {
       "column-major"
@@ -46,6 +49,7 @@ mod private
 
     /// Coordinate type of the matrix( homogenous or not)
     #[ inline( always ) ]
+    #[ must_use ]
     fn coords_str() -> &'static str
     {
       if Self::IS_ORDINARY
@@ -64,6 +68,7 @@ mod private
   /// Ordinary coordinates with row-major ordering.
   #[ derive( Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, derive_tools::exposed::Display ) ]
   #[ display( "DescriptorOrderRowMajor" ) ]
+  #[ non_exhaustive ]
   pub struct DescriptorOrderRowMajor;
   impl Descriptor for DescriptorOrderRowMajor {
     const IS_ROW_MAJOR: bool = true;
@@ -95,6 +100,7 @@ mod private
   /// Ordinary coordinates with column-major ordering.
   #[ derive( Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, derive_tools::exposed::Display ) ]
   #[ display( "DescriptorOrderColumnMajor" ) ]
+  #[ non_exhaustive ]
   pub struct DescriptorOrderColumnMajor;
   impl Descriptor for DescriptorOrderColumnMajor {
     const IS_ROW_MAJOR: bool = false;
@@ -155,7 +161,7 @@ mod private
   pub struct Mat< const ROWS : usize, const COLS : usize, E, Descriptor >
   (
     [ [ E ; COLS ] ; ROWS ],
-    core::marker::PhantomData< Descriptor >,
+    PhantomData< Descriptor >,
   )
   where
     E : MatEl,
@@ -169,7 +175,7 @@ mod private
     #[ inline( always ) ]
     fn _new( raw_slice : [ [ E ; COLS ] ; ROWS ] ) -> Self
     {
-      Mat( raw_slice, Default::default() )
+      Mat( raw_slice, PhantomData )
     }
 
     /// Fill matrix with a scalar value.
@@ -185,14 +191,14 @@ mod private
     #[ inline( always ) ]
     pub const fn as_ptr( &self ) -> *const E
     {
-      self.0.as_ptr() as *const E
+      self.0.as_ptr().cast()
     }
 
     /// Returns an unsafe mutable pointer to the slice's buffer.
     #[ inline( always ) ]
     pub fn as_mut_ptr( &mut self ) -> *mut E
     {
-      self.0.as_mut_ptr() as *mut E
+      self.0.as_mut_ptr().cast()
     }
 
     /// Returns the number of rows in the matrix.
@@ -218,7 +224,26 @@ mod private
     #[ inline( always ) ]
     fn default() -> Self
     {
-      Mat( [ [ E::default() ; COLS ]; ROWS ], Default::default() )
+      Mat( [ [ E::default() ; COLS ]; ROWS ], PhantomData )
+    }
+  }
+
+  impl< E, const ROWS : usize, const COLS : usize, Descriptor > Zero for Mat< ROWS, COLS, E, Descriptor >
+  where
+    E : MatNum,
+    Descriptor : mat::Descriptor,
+    Self : Add< Output = Self > + IndexingRef< Scalar = E >,
+  {
+    #[ inline( always ) ]
+    fn zero() -> Self
+    {
+      Self::default()
+    }
+
+    #[ inline( always ) ]
+    fn is_zero( &self ) -> bool
+    {
+      self.iter_lsfirst().all( E::is_zero )
     }
   }
 
@@ -322,11 +347,13 @@ mod private
   {
     type Epsilon = E::Epsilon;
 
+    #[ inline ]
     fn default_epsilon() -> Self::Epsilon
     {
       E::default_epsilon()
     }
 
+    #[ inline ]
     fn abs_diff_eq( &self, other: &Self, epsilon: Self::Epsilon ) -> bool
     {
       ROWS == other.rows() && COLS == other.cols() &&
@@ -348,11 +375,13 @@ mod private
     E : RelativeEq + MatEl,
     E::Epsilon : Copy,
   {
+    #[ inline ]
     fn default_max_relative() -> Self::Epsilon
     {
       E::default_max_relative()
     }
 
+    #[ inline ]
     fn relative_eq( &self, other: &Self, epsilon: Self::Epsilon, max_relative: Self::Epsilon ) -> bool
     {
       ROWS == other.rows() && COLS == other.cols() &&
@@ -374,11 +403,13 @@ mod private
     E : UlpsEq + MatEl,
     E::Epsilon : Copy,
   {
+    #[ inline ]
     fn default_max_ulps() -> u32
     {
       E::default_max_ulps()
     }
 
+    #[ inline ]
     fn ulps_eq( &self, other: &Self, epsilon: Self::Epsilon, max_ulps: u32 ) -> bool
     {
       ROWS == other.rows() && COLS == other.cols() &&

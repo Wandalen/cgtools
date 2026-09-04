@@ -8,7 +8,7 @@ Animation amplitude control is essential for procedural animation blending, char
 
 ![Showcase](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

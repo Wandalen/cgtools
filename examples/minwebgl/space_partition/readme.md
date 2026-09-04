@@ -14,7 +14,7 @@ Move your mouse over the canvas to see the spatial search in action.
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 **References:**
 

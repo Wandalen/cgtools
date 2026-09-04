@@ -8,4 +8,4 @@ This is the recommended starting point for learning the cgtools framework, showi
 
 ![image](./showcase.webp)
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**

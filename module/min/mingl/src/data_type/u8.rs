@@ -1,7 +1,8 @@
-use super::*;
+use super::{ DataType, IntoVectorDataType, VectorDataType, dim_as_i32 };
 
 impl IntoVectorDataType for u8
 {
+  #[ inline ]
   fn into_vector_data_type() -> VectorDataType
   {
     VectorDataType
@@ -15,12 +16,13 @@ impl IntoVectorDataType for u8
 
 impl< const N : usize > IntoVectorDataType for [ u8 ; N ]
 {
+  #[ inline ]
   fn into_vector_data_type() -> VectorDataType
   {
     VectorDataType
     {
       scalar : DataType::U8,
-      natoms : N as _,
+      natoms : dim_as_i32( N ),
       nelements : 1,
     }
   }
@@ -28,13 +30,14 @@ impl< const N : usize > IntoVectorDataType for [ u8 ; N ]
 
 impl< const N : usize, const N2 : usize > IntoVectorDataType for [ [ u8 ; N2 ] ; N ]
 {
+  #[ inline ]
   fn into_vector_data_type() -> VectorDataType
   {
     VectorDataType
     {
       scalar : DataType::U8,
-      natoms : ( N * N2 ) as i32,
-      nelements : N2 as _,
+      natoms : dim_as_i32( N * N2 ),
+      nelements : dim_as_i32( N2 ),
     }
   }
 }
