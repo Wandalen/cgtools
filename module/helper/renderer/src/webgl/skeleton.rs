@@ -132,6 +132,10 @@ mod private
   }
 
   /// Skin joints transforms related data
+  ///
+  /// Owns `global_texture`/`inverse_texture` once `upload()` has created them — see
+  /// the `Drop` impl. `gl` is populated lazily by `upload()` (the constructor has no
+  /// `GL` handle available), so `Drop` is a no-op until the first successful upload.
   #[ derive( Debug ) ]
   pub struct TransformsData
   {
@@ -302,6 +306,10 @@ mod private
 
   impl Clone for TransformsData
   {
+    /// `need_clone_inner: true` makes the next `upload()` allocate fresh GPU textures
+    /// before either texture handle is bound or sampled, so the aliased handles cloned
+    /// below are always replaced before use. `gl: None` matches that — this clone owns
+    /// nothing on the GPU yet, so `Drop` must stay a no-op until its own `upload()` runs.
     fn clone( &self ) -> Self
     {
       Self
@@ -314,7 +322,7 @@ mod private
         inverse_texture : self.inverse_texture.clone(),
         need_update_inverse : true,
         need_clone_inner : true,
-        gl : self.gl.clone(),
+        gl : None,
       }
     }
   }
@@ -333,7 +341,7 @@ mod private
   // only because of that ordering guarantee -- if a future edit ever read `global_texture`/
   // `inverse_texture` for a GL call *before* the `need_clone_inner` reallocation in `upload()`,
   // dropping the original ahead of the clone's first `upload()` would leave the clone pointing
-  // at an already-deleted texture.
+    // at an already-deleted texture.
   impl Drop for TransformsData
   {
     fn drop( &mut self )
@@ -347,6 +355,9 @@ mod private
   }
 
   /// Skin morph targets related data
+  ///
+  /// Owns `displacements_texture` once `upload()` has created it — see the `Drop`
+  /// impl and `TransformsData`'s docs for the same `gl`-lazily-populated pattern.
   #[ derive( Debug ) ]
   pub struct DisplacementsData
   {
@@ -743,6 +754,10 @@ mod private
 
   impl Clone for DisplacementsData
   {
+    /// `need_clone_inner: true` makes the next `upload()` allocate a fresh GPU
+    /// texture for the clone (see `upload`'s `need_clone_inner` branch), so `gl`
+    /// is reset to `None` here — the clone does not yet own any GPU resource of
+    /// its own to delete.
     fn clone( &self ) -> Self
     {
       Self
@@ -759,7 +774,7 @@ mod private
         vertices_count : self.vertices_count,
         need_update_displacement : true,
         need_clone_inner : true,
-        gl : self.gl.clone(),
+        gl : None,
       }
     }
   }
@@ -776,7 +791,7 @@ mod private
   // the `if self.need_clone_inner { .. }` block in `upload()`, which always runs before
   // `displacements_update()` would otherwise reuse an existing `Some` handle ). Freeing
   // unconditionally in `Drop` is safe only because of that ordering guarantee -- see the
-  // identical caveat on `TransformsData`'s `impl Drop` above.
+    // identical caveat on `TransformsData`'s `impl Drop` above.
   impl Drop for DisplacementsData
   {
     fn drop( &mut self )
